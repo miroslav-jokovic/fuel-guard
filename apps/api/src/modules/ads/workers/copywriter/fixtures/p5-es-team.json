@@ -1,0 +1,105 @@
+{
+  "name": "p5-es-team",
+  "about": "P5 Straight talk: A Spanish subject for team drivers, weekly pay.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Conductores en equipo Clase A",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 250000,
+          "per": "week"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P5 Straight talk",
+      "hook_formula": "Three cards: what you get, what we need, how to apply. Plain and short.",
+      "copy_slots": [
+        {
+          "name": "card_get",
+          "max_chars": 90
+        },
+        {
+          "name": "card_need",
+          "max_chars": 90
+        },
+        {
+          "name": "card_apply",
+          "max_chars": 60
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 220
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A plain {color} card background with soft texture, no text, no logos, no lettering",
+      "image_slots": [
+        "color"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "card_get",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:19:47.227Z",
+    "output": {
+      "en": {
+        "card_get": "Get $2,500 per week with weekly pay as a Class A team driver.",
+        "card_need": "We need Class A CDL team drivers ready to get on the road.",
+        "card_apply": "Apply today and join our team driving.",
+        "cta": "Apply now",
+        "primary_text": "Class A team drivers earn $2,500 per week with weekly pay. If you hold a Class A CDL and are ready to team drive, we want to hear from you. Apply today.",
+        "headline": "Class A Team Drivers"
+      },
+      "es": {
+        "card_get": "Gana $2,500 por semana con pago semanal como conductor en equipo Clase A.",
+        "card_need": "Buscamos conductores en equipo con CDL Clase A listos para trabajar.",
+        "card_apply": "Aplica hoy y únete a nuestro equipo.",
+        "cta": "Aplica ahora",
+        "primary_text": "Los conductores en equipo Clase A ganan $2,500 por semana con pago semanal. Si tienes CDL Clase A y estás listo para conducir en equipo, contáctanos hoy.",
+        "headline": "Conductores Clase A en Equipo"
+      }
+    }
+  }
+}

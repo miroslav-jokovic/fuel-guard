@@ -56,7 +56,8 @@
       "formats": [
         "1:1",
         "4:5"
-      ]
+      ],
+      "overlay_slots": null
     }
   },
   "expect": "ready",
@@ -64,17 +65,17 @@
     "source": "model",
     "prompt_version": "copywriter@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T05:02:04.351Z",
+    "recorded_at": "2026-11-05T15:15:45.721Z",
     "output": {
       "en": {
         "hook": "$0.65/mile for Class A OTR drivers.",
-        "body": "Hit the open road and earn $0.65 per mile as a Class A OTR driver. You must be 23+ to apply. Join a team that values your time behind the wheel.",
+        "body": "You will earn $0.65 per mile on the open road. We are looking for Class A CDL holders age 23 or older who are ready to take on over-the-road driving. Join a team that values your time behind the wheel.",
         "cta": "Apply today."
       },
       "es": {
         "hook": "$0.65 por milla para conductores Clase A.",
-        "body": "Gana $0.65 por milla como conductor Clase A en ruta larga. Debes ser mayor de 23 años para aplicar. Únete a nuestro equipo hoy.",
-        "cta": "Aplica ahora."
+        "body": "Gana $0.65 por milla manejando rutas de larga distancia. Buscamos conductores con CDL Clase A, mayores de 23 años, listos para trabajar en rutas OTR. Únete a nuestro equipo.",
+        "cta": "Aplica hoy mismo."
       }
     }
   }

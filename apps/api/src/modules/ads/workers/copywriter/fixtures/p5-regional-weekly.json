@@ -1,0 +1,105 @@
+{
+  "name": "p5-regional-weekly",
+  "about": "P5 Straight talk: Regional pay per mile and home weekly.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A regional truck driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 68,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P5 Straight talk",
+      "hook_formula": "Three cards: what you get, what we need, how to apply. Plain and short.",
+      "copy_slots": [
+        {
+          "name": "card_get",
+          "max_chars": 90
+        },
+        {
+          "name": "card_need",
+          "max_chars": 90
+        },
+        {
+          "name": "card_apply",
+          "max_chars": 60
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 220
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A plain {color} card background with soft texture, no text, no logos, no lettering",
+      "image_slots": [
+        "color"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "card_get",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:20:10.043Z",
+    "output": {
+      "en": {
+        "card_get": "Earn $0.68/mile and get home weekly as a regional driver.",
+        "card_need": "We need a Class A CDL driver ready to run regional routes.",
+        "card_apply": "Apply today and join our driving team.",
+        "cta": "Apply now",
+        "primary_text": "Here is the straight talk: you earn $0.68 per mile and get home weekly. We need a Class A CDL driver who is ready to work. If that sounds like you, apply today.",
+        "headline": "Class A: $0.68/mile, home weekly"
+      },
+      "es": {
+        "card_get": "Gana $0.68 por milla y regresa a casa cada semana como conductor regional.",
+        "card_need": "Buscamos conductor con CDL clase A listo para rutas regionales.",
+        "card_apply": "Postúlate hoy y únete al equipo.",
+        "cta": "Postúlate",
+        "primary_text": "Sin rodeos: ganas $0.68 por milla y llegas a casa cada semana. Necesitamos un conductor con CDL clase A dispuesto a trabajar. Si eso te describe, postúlate hoy.",
+        "headline": "Clase A: $0.68/milla, casa/semana"
+      }
+    }
+  }
+}

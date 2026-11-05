@@ -1,0 +1,95 @@
+{
+  "name": "p2-es-age-floor",
+  "about": "P2 The number: A Spanish subject with the legal age floor.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Conductor Clase A de larga distancia",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 70,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P2 The number",
+      "hook_formula": "Open with the pay figure alone, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A late-model tractor on a dark {background} background, studio light, no text, no logos, no lettering",
+      "image_slots": [
+        "background"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:17:14.343Z",
+    "output": {
+      "en": {
+        "pay": "$0.70/mile",
+        "cta": "Apply today",
+        "primary_text": "At $0.70 per mile, this long-haul Class A position is built for drivers who are ready to get on the road and earn. If you are 23+ and hold a Class A CDL, we want to hear from you. Join our team and start driving.",
+        "headline": "$0.70/mile for Class A drivers"
+      },
+      "es": {
+        "pay": "$0.70 por milla",
+        "cta": "Aplica hoy",
+        "primary_text": "Con $0.70 por milla, esta posición de Conductor Clase A de larga distancia es para quienes están listos para manejar y ganar. Si tienes mayores de 23 años y tu CDL Clase A, únete a nuestro equipo.",
+        "headline": "$0.70/milla, Clase A larga distancia"
+      }
+    }
+  }
+}

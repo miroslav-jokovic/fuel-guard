@@ -1,0 +1,97 @@
+{
+  "name": "p4-es-paid-orientation",
+  "about": "P4 Walk-around: A Spanish subject, paid orientation and weekly pay.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Conductor Clase A recién licenciado",
+      "claims": [
+        {
+          "kind": "term",
+          "term": "paid orientation"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "money",
+          "cents": 1200000,
+          "per": "week"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P4 Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our tractor parked in a {setting}, three-quarter view, no text, no logos, no lettering",
+      "image_slots": [
+        "setting"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": "A slow orbit around the tractor",
+      "formats": [
+        "9:16"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:19:17.904Z",
+    "output": {
+      "en": {
+        "hook": "Your truck. Up to $12,000/week.",
+        "cta": "Apply today.",
+        "primary_text": "New Class A CDL? We want you on the road. Earn up to $12,000 per week with weekly pay so your money arrives fast. Paid orientation gets you started on the right foot. Join our team and apply today.",
+        "headline": "Weekly pay. Paid orientation."
+      },
+      "es": {
+        "hook": "Tu camión. Hasta $12,000/semana.",
+        "cta": "Aplica hoy.",
+        "primary_text": "¿Tienes tu CDL Clase A recién obtenida? Gana hasta $12,000 por semana con pago semanal directo. La orientación es pagada para que comiences sin contratiempos. Únete a nuestro equipo y aplica hoy.",
+        "headline": "Pago semanal. Orientación pagada."
+      }
+    }
+  }
+}

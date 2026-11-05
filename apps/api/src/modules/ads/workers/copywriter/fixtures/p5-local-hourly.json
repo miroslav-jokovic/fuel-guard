@@ -1,0 +1,105 @@
+{
+  "name": "p5-local-hourly",
+  "about": "P5 Straight talk: Local hourly work, home daily.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A local driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 3100,
+          "per": "hour"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P5 Straight talk",
+      "hook_formula": "Three cards: what you get, what we need, how to apply. Plain and short.",
+      "copy_slots": [
+        {
+          "name": "card_get",
+          "max_chars": 90
+        },
+        {
+          "name": "card_need",
+          "max_chars": 90
+        },
+        {
+          "name": "card_apply",
+          "max_chars": 60
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 220
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A plain {color} card background with soft texture, no text, no logos, no lettering",
+      "image_slots": [
+        "color"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "card_get",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:19:53.676Z",
+    "output": {
+      "en": {
+        "card_get": "Get: $31.00/hour and home daily.",
+        "card_need": "Need: Class A CDL and a readiness to drive local routes.",
+        "card_apply": "Apply: Submit your application today.",
+        "cta": "Apply now",
+        "primary_text": "Local Class A driving work with $31.00/hour pay and home daily. We need a Class A CDL holder ready to get to work. Apply and join our team.",
+        "headline": "Local Class A Driver Job"
+      },
+      "es": {
+        "card_get": "Obtén: $31.00/hora y regresa a casa cada día.",
+        "card_need": "Necesitamos: CDL clase A y disposición para rutas locales.",
+        "card_apply": "Aplica: Envía tu solicitud hoy mismo.",
+        "cta": "Aplica ya",
+        "primary_text": "Trabajo local de conducción clase A con pago de $31.00/hora y regreso a casa cada día. Buscamos conductores con CDL clase A listos para trabajar. Únete a nuestro equipo.",
+        "headline": "Conductor Clase A Local"
+      }
+    }
+  }
+}

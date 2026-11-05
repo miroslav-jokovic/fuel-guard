@@ -1,0 +1,94 @@
+{
+  "name": "p3-regional-weekly",
+  "about": "P3 Home on time: Regional pay per mile and home weekly.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A regional truck driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 68,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P3 Home on time",
+      "hook_formula": "Lead with being home, then the facts that make it true.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our truck pulling into a quiet {street} at dusk, a porch light on, no people, no text, no logos, no lettering",
+      "image_slots": [
+        "street"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "formats": [
+        "4:5",
+        "9:16"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:18:50.149Z",
+    "output": {
+      "en": {
+        "hook": "Home weekly. Every week.",
+        "cta": "Apply now",
+        "primary_text": "As a Class A regional driver, you get home weekly and earn $0.68 per mile. A consistent schedule and competitive pay keep you moving and back with your family on a regular basis. Apply today and join the team.",
+        "headline": "Drive regional. Be home."
+      },
+      "es": {
+        "hook": "En casa cada semana.",
+        "cta": "Aplica ahora",
+        "primary_text": "Como conductor regional Clase A, regresas a casa cada semana y ganas $0.68 por milla. Un itinerario constante y un pago competitivo te mantienen en movimiento y con tu familia regularmente. Únete al equipo hoy.",
+        "headline": "Regional. En casa siempre."
+      }
+    }
+  }
+}

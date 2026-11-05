@@ -1691,3 +1691,25 @@ blocking step in §3 above.
     paging, the month's end, bigint text, the already-sent stop, the nothing-to-report stop, the retry, the in-flight
     throw, the bell's key, the 07:00 bound, the per-carrier dedup, the `ADS_ENABLED` brake, the plain brief's missing
     cost per lead). All 18 killed.
+- **2026-11-05, Copywriter's evaluation set at 40**, Track W. No migration. Copywriter stays **L2**: §4R's L3 bar has two
+  halves, and the second, the owner's approve-without-edit rating, is now the only gap.
+  - **The set:** 30 new briefs, 6 on each of P1–P5 as the plan proposes them (§4a; re-run when the owner edits them,
+    Q-AD12). Each preset has its real slots: overlay lines of 30–42 characters, Meta's 40-character headline, the
+    primary text, P5's three cards. 16 briefs are written in Spanish. Facts cover pay per mile, hour, week, year and
+    load, a flat sign-on bonus, an experience floor, the legal age floor, and benefits-only briefs with no pay. With
+    the 10 from C2: **40 model fixtures and 5 planted**. A test holds the floor and the P1–P5 and Spanish coverage.
+  - **First live run: 31 of 40.** Every refusal was the check working, and two of them were our fault:
+    - **7 slot overruns,** all in slots of 30–42 characters, by up to 13 characters past what the model was told,
+      mostly in the Spanish. Slots of 60 characters or fewer are now told 70 % of their limit (`toldLimit`); longer
+      slots stay at 85 %.
+    - **"if you are 23 or older" was refused** for an `age` claim of 23: the check read the 23 as a figure it could not
+      place. It now reads "23 or older", "23 years or older", "23 and over" and "23 años o más" as the same floor,
+      and refuses them for any other age.
+    - **One invented rate, caught:** for a brief paying $0.66 a mile, the model wrote "$0.68" in both languages, and
+      `money_not_in_brief` refused it. That is §4R's bar holding against a real model mistake.
+    - **One promise:** "$1,500 weekly pay", where "weekly pay" is a listed term the brief does not hold. The refusal is
+      correct and is kept.
+  - **After the two fixes: 40 of 40**, and 40 of 40 again on a run without recording (`baseline.json`).
+  - **The rating:** a sheet of the 40 ads, both languages slot by slot, is posted on the PR for the owner. The rate
+    they give is recorded in the registry and the Copywriter reaches L3.
+  - Mutation: 5 mutants (each new age form, the short-slot bound and share, the told limit), all killed.
