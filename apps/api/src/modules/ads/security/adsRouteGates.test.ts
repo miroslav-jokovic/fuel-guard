@@ -47,6 +47,7 @@ const LEDGER: Record<string, string> = {
   "POST /api/ads/kill-switch": MANAGE, // pressing it only stops spending: the safe direction (guard/killSwitch.ts)
   "POST /api/ads/kill-switch/clear": SPEND,
   "POST /api/ads/campaigns/:campaignId/approvals": SPEND,
+  "GET /api/ads/spend": VIEW, // a read of the guard's own figures, gated as the settings read is (E1c)
   "GET /api/ads/connections": VIEW,
   "POST /api/ads/connections/meta": CONNECTION,
   "POST /api/ads/connections/simulator": CONNECTION,

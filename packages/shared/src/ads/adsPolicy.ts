@@ -97,13 +97,21 @@ export function checkSpend(settings: AdsSettings, r: SpendRequest): SpendVerdict
     else if (raiseOverLimit(settings, current, r.daily_cents)) refusals.push("raise_over_limit");
   }
 
-  const days = Math.max(1, Math.floor(r.days_left_in_month));
   const spent = Math.max(r.month_to_date_cents, r.platform_month_to_date_cents ?? 0);
-  const forecast = spent + (r.other_live_daily_cents + r.daily_cents) * days;
+  const forecast = forecastMonthCents(spent, r.other_live_daily_cents + r.daily_cents, r.days_left_in_month);
   if (cap !== null && forecast > cap) refusals.push("monthly_cap_forecast");
 
   if (refusals.length === 0 && cap !== null) return { ok: true, forecast_cents: forecast, cap_cents: cap };
   return { ok: false, refusals, forecast_cents: forecast, cap_cents: cap };
+}
+
+/**
+ * The month's spend if every live daily budget runs to the end of the month, today included (D-AD3). One
+ * definition, read by the launch check above and by Settings › Ads control's "spend control live" (E1c),
+ * so the page's forecast is the number the guard would refuse on.
+ */
+export function forecastMonthCents(spentCents: number, liveDailyCents: number, daysLeft: number): number {
+  return spentCents + liveDailyCents * Math.max(1, Math.floor(daysLeft));
 }
 
 /**

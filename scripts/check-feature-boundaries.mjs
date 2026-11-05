@@ -325,6 +325,13 @@ const API_ALLOW = new Set([
   //   no pause can use, reach a person through notify() (`modules/ads/alerts/`), not only a failed
   //   `ads_actions` row nobody reads. messaging imports nothing of ads'.
   "ads -> messaging",
+  // · ads -> org — Settings › Ads control's spend card (E1c, Q-AD36, ruled 2026-11-05) says when the
+  //   daily check against Meta last finished. That fact is a row in org's job ledger (`jobs`), so it
+  //   is read through org's index (`lastDoneJobByKey` only), the same arrow "fuel-spend -> org" and
+  //   "insights -> org" draw for org's job bookkeeping. Injecting the reader through `adsRouter`'s
+  //   deps was refused: that seam exists for D-AD17 (ads must not read recruiting), and using it for
+  //   org would be a workaround. org imports nothing of ads'.
+  "ads -> org",
   "roster -> messaging",
   // Dispatch refuses a driver blocked on return-to-duty (§40.25(j)). `loads -> messaging` went with
   // Release in LR6 (LOADS-MIRROR-PLAN.md): it was the notification a released load sent its driver.

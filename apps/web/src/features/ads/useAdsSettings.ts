@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { AdsSettings, AdsSettingsView } from "@silvicom/shared";
+import type { AdsSettings, AdsSettingsView, AdsSpendView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { apiRefusal } from "@/composables/useStepUpRetry";
 
@@ -29,7 +29,7 @@ export function useSaveAdsSettings() {
       if (!res.ok || !res.data) throw apiRefusal(res.error, "Could not save the ads settings");
       return res.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ADS_SETTINGS_KEY }),
+    onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: ADS_SETTINGS_KEY }), qc.invalidateQueries({ queryKey: ADS_SPEND_KEY })]),
   });
 }
 
@@ -42,5 +42,22 @@ export function useSetKillSwitch() {
       if (!res.ok) throw apiRefusal(res.error, on ? "Could not stop the ads" : "Could not clear the kill switch");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ADS_SETTINGS_KEY }),
+  });
+}
+
+/**
+ * "Spend control live" (E1c): `GET /api/ads/spend`, the guard's own figures. Kept in step with every write
+ * on this page that moves them — a save of the caps or budgets changes what each figure is measured against.
+ */
+export const ADS_SPEND_KEY = ["ads", "spend"] as const;
+
+export function useAdsSpend() {
+  return useQuery({
+    queryKey: ADS_SPEND_KEY,
+    queryFn: async (): Promise<AdsSpendView> => {
+      const res = await apiFetch<AdsSpendView>("/api/ads/spend");
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the spend so far");
+      return res.data;
+    },
   });
 }

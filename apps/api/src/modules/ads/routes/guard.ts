@@ -11,6 +11,7 @@ import { setKillSwitch } from "../guard/killSwitch.js";
 import { mountConnectionRoutes } from "./connections.js";
 import { mountBrandKitRoutes } from "./brandKits.js";
 import { mountCampaignRoutes, type CampaignRouteDeps } from "./campaigns.js";
+import { adsSpendView } from "../spend/spendView.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
 import { saveSettingsVersion, settingsInForce, type Actor } from "../settings/settingsVersions.js";
 
@@ -111,6 +112,15 @@ export function adsRouter(deps: AdsRouterDeps): Router {
         return;
       }
       res.status(201).json({ id: result.id });
+    }),
+  );
+
+  // E1c: "spend control live" — the same readers as the settings, and every figure from the guard's own folds.
+  router.get(
+    "/spend",
+    requireSection(BRIEF_SECTION, "view"),
+    asyncHandler(async (req, res) => {
+      res.json(await adsSpendView(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, new Date()));
     }),
   );
 

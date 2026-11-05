@@ -953,6 +953,31 @@ rate, and Higgsfield credits per approved creative.
   it is Meta's "does not exist" and reconcile's `missing` row is on the ledger (`recordedGone.ts`); the read still comes
   first, and every other refusal stays a failure. The first run after a deletion stays loud. **Left for L4:** whether
   real Meta refuses that read or still returns the history. Either answer works; L4 only records which it is.
+- **Q-AD36 · How the spend card asks whether the daily Meta check ran** (us, found taking E1c to a PR,
+  2026-11-05; **ruled 2026-11-05 by the orchestrator: (a)** — `"ads -> org"` is in `API_ALLOW`; (b) refused
+  because the deps seam is D-AD17's, not a way round a gate). The card's reconcile line needs the last finished `ads_reconcile` job per
+  connection. `jobs` belongs to org, and its door is `lastDoneJobByKey` in `modules/org/index.ts`, which the
+  queue handler `adsLeadsBackfill.ts` already uses from outside `modules/`. Called from
+  `modules/ads/spend/spendView.ts`, it is an `ads -> org` edge, and `lint:boundaries` refuses it
+  because `API_ALLOW` has no such entry. Both honest fixes touch files outside Track S's paths:
+  (a) add `"ads -> org"` to `API_ALLOW` in `scripts/check-feature-boundaries.mjs`, with its reason
+  (narrow: only `lastDoneJobByKey`, through org's index), the same shape as `"maintenance -> org"` and
+  `"mcleod -> org"`; (b) inject a `lastReconcileFor` reader into `adsRouter`'s deps from `app.ts`, as
+  `briefSourcesFor` is. That keeps the gate unchanged, but it means a second wiring point in a shared
+  file for one read. (c) refused: dropping the reconcile line, or reading `jobs` directly, which is the
+  leak D-ARC3 forbids. **Recommendation: (a).** It is a one-entry change, and it is the mechanism the
+  gate itself documents for an accepted dependency. **Meanwhile:** E1c is committed on
+  `claude/ads-e1c-spend`, rebased on main `6bfbdbb`. Every other `ci:local` step is green (54/55).
+- **Q-AD38 · Who adds a new `/api/ads` route to the Security L3 ledger** (us, found rebasing E1c onto Security L3
+  #2070, 2026-11-05; **ruled 2026-11-05 by the orchestrator: (a)** — a route's own PR adds its ledger lines, and
+  Track S may add lines to the two files, add-only). Security L3 pins the walked `/api/ads` routes to a ledger, in two files:
+  `security/adsRouteGates.test.ts` (route → gates) and `security/adsRouteSweep.test.ts` (one call per route).
+  E1c's `GET /api/ads/spend` is a new route, so both fail until it is listed. The entry is mechanical:
+  `"GET /api/ads/spend": VIEW` and `["GET /api/ads/spend", "spend"]`, the same shape as
+  `GET /api/ads/settings`. Both files are Track G's, outside Track S's paths. Candidates:
+  (a) a new route's own PR adds its ledger lines, which is what the ledger exists to force, and Track S's paths
+  gain `modules/ads/security/*Route*.test.ts` add-only, as the surface catalogue already is;
+  (b) Track G adds the lines on request, which costs a round trip per route. **Recommendation: (a).**
 
 ---
 
