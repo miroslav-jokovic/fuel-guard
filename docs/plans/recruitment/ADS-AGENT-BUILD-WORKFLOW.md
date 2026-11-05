@@ -1622,3 +1622,10 @@ blocking step in §3 above.
     `checks.ts` filters first; the pure test in `monitorChecks.test.ts` kills that one.
   - Next: L3 for both, golden scenarios. The runner (`adsGolden.ts`) drives the orchestrator, so it needs a monitor and an
     intake mode first.
+- **2026-11-04 (late), Track S hands off** — `HANDOFF-2026-11-04-ADS-TRACK-S-2.md`. Merged this chat: S1a #2025, S1b #2030,
+  S1c #2033, E1a #2037, S1d #2041 — every campaign door E3 needs, and Settings › Ads control. **Found:** staging cannot be
+  checked in a browser — its web build calls `STAGING_VITE_API_URL` = the old `fleetguardapi-uat` host (last deployed
+  10/28), whose CORS refuses the new staging origin, so every page's API read fails while `verify:live staging` reads
+  green. The fix is a repository-variable change, the owner's to approve; E1a's staging pass is owed until then. Next:
+  E1b (alerts + connections), E1c (spend vs caps), E2 (editors; the preset editor asks `overlay_slots` AND
+  `platform_slots`), E3, E5, G-walk.
