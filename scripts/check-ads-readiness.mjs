@@ -34,7 +34,8 @@ const ROOT = new URL("..", import.meta.url).pathname;
 export const LEVELS = ["L1", "L2", "L3", "L4", "L5"];
 const WORKFLOW = "docs/plans/recruitment/ADS-AGENT-BUILD-WORKFLOW.md";
 
-const TEST_TITLE = /\b(?:it|test|describe)(?:\.each\s*\([\s\S]*?\))?\s*\(\s*(["'`])((?:\\.|(?!\1)[\s\S])*?)\1/g;
+// `ok` is a PGlite matrix's assertion: the same-person match is only provable in SQL, so §4R pins one.
+const TEST_TITLE = /\b(?:it|test|describe|ok)(?:\.each\s*\([\s\S]*?\))?\s*\(\s*(["'`])((?:\\.|(?!\1)[\s\S])*?)\1/g;
 /** Any way vitest has to not run a test, or to pass it on failure. */
 const NOT_RUN = /\b(?:it|test|describe)\s*\.\s*(skip|only|todo|fails|skipIf|runIf)\b|\bx(?:it|describe)\s*\(/g;
 
@@ -121,6 +122,7 @@ function selfTest() {
   const titleCases = [
     ["clean file", clean, ["a guard", "refuses a launch", "killed at …"], true],
     ["renamed test", clean.replace("refuses a", "allows a"), ["refuses a launch"], false],
+    ["a matrix assertion", `ok("names the first lead", a === b);`, ["names the first lead"], true],
     ["it.skip", clean.replace('it("refuses', 'it.skip("refuses'), ["refuses a launch"], false],
     ["describe.only", clean.replace("describe(", "describe.only("), ["a guard"], false],
     ["it.todo", `${clean} it.todo("later");`, [], false],

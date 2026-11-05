@@ -1494,3 +1494,16 @@ blocking step in §3 above.
     reaches it. `receiveLeadgenDelivery` drops it first, because the carrier is found through a campaign. Finding it by
     `ads_platform_connections.page_ref` is the likely answer. Not built, not tested.
   - Scorecard on `01aeee1`: as the handoff's §1a, except Security L2 (was L1; the ads chat's #2033).
+- **2026-11-04, Lead intake L2; the climb moves to the leads track** — by the owner's yes. **Track W:** Lead intake and
+  Monitor L2–L3 (your step 5) are now the leads track's, so do not start them; Copywriter, Renderer and Publisher's climb
+  stay yours. No migration.
+  - Five of §4R's six faults already had tests and were only unpinned. New: `recruiting/leads/leadSink.test.ts` takes a
+    malformed phone and text aimed at a reader through the real projection and sink. The text changes no verdict, writes
+    nothing but the lead and its verdicts, and nothing on a lead's road imports the AI rail.
+  - **Same person on two platforms** is only provable in SQL, so `check-ads-readiness.mjs` now reads a matrix's `ok(...)`
+    titles too.
+  - **Not an extractor:** §4R's L3 bar says "extractor output stays `proposed`", but no extractor exists. The test pins the
+    stronger fact that no model is on the road. If one is ever added, that test goes red, which is the point.
+  - Mutation: 6 mutants, all killed by the test written for them. The first pass left one survivor: the import check
+    missed a bare `import "x"`. Widened to every form.
+  - Next: Monitor L2's one real gap, 30 simulated days with fatigue, overspend and zero-lead spend.

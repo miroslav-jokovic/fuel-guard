@@ -497,7 +497,50 @@ export const READINESS = [
           ],
         },
       ],
-      L2: later("L2"), L3: later("L3"),
+      L2: [
+        {
+          need: "a forged signature believes nothing",
+          tests: [{ file: "apps/api/src/modules/ads/routes/metaWebhook.test.ts", titles: ["a forged body is 401, counted, and nothing is queued"] }],
+        },
+        {
+          need: "a duplicate webhook is one lead",
+          tests: [
+            { file: "apps/api/src/modules/ads/routes/metaWebhook.test.ts", titles: ["a duplicate delivery is one job and one lead — and one after the job finished is still one lead"] },
+            { file: "apps/api/src/modules/ads/leads/leadFetch.test.ts", titles: ["the same lead from the webhook and from the backfill is stored once"] },
+          ],
+        },
+        {
+          need: "a lost webhook: the backfill brings the lead",
+          tests: [{ file: "apps/api/src/modules/ads/leads/backfill.test.ts", titles: ["brings every lead in the window to the sink once, with its campaign, brief and answers"] }],
+        },
+        {
+          need: "the same person on two platforms: two leads, each with its attribution, named as one person",
+          tests: [{ file: "supabase/tests/recruiting-lead-functions.test.mjs", titles: [
+            "a lead from a second platform is stored as its own lead (its own attribution)",
+            "it names the first lead as the same person",
+            "the second platform's lead converts to the same applicant",
+          ] }],
+        },
+        {
+          need: "a malformed phone: stored without a number, never guessed, never lost",
+          tests: [
+            { file: "apps/api/src/modules/recruiting/leads/leadSink.test.ts", titles: ["a malformed phone is stored with no number and the lead is kept, with what they typed in the raw"] },
+            { file: "packages/shared/src/recruiting/leads/leadContract.test.ts", titles: ["a malformed phone is stored as null, never guessed (the raw keeps what was typed)"] },
+          ],
+        },
+        {
+          need: "prompt-injection text in a free-text answer stays data",
+          tests: [
+            { file: "apps/api/src/modules/ads/leads/backfill.test.ts", titles: ["a free-text answer is data, never an instruction: kept verbatim, cut to the contract's 2,000 characters"] },
+            { file: "apps/api/src/modules/recruiting/leads/leadSink.test.ts", titles: [
+              "changes no verdict: an answer outside the catalogue reads as unknown, whatever it says",
+              "does nothing but get stored: no write beyond the lead and its verdicts, no status of its own",
+              "reaches no model: nothing on a lead's road imports the AI rail",
+            ] },
+          ],
+        },
+      ],
+      L3: later("L3"),
       L4: [{ need: "a test lead from Meta's lead-ads testing tool", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
