@@ -80,8 +80,12 @@ export interface ReconcileMismatch {
 const GONE = new Set(["DELETED", "ARCHIVED"]);
 const IN_FLIGHT: readonly CampaignState[] = ["launching", "pausing"];
 
+/** One fact's key (header). Exported because the monitor asks the ledger whether a `missing` is already recorded. */
+export const mismatchKey = (m: Pick<ReconcileMismatch, "level" | "meta_id" | "field" | "theirs">): string =>
+  `${m.level}:${m.meta_id}:${m.field}:${m.theirs ?? "none"}`;
+
 function mismatch(m: Omit<ReconcileMismatch, "key">): ReconcileMismatch {
-  return { ...m, key: `${m.level}:${m.meta_id}:${m.field}:${m.theirs ?? "none"}` };
+  return { ...m, key: mismatchKey(m) };
 }
 
 function checkOne(c: ReconcileOurCampaign, objects: Map<string, MetaObjectSeen>): ReconcileMismatch[] {

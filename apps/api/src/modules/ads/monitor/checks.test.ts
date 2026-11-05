@@ -119,6 +119,19 @@ describe("the monitor's checks pause through the machine and ring the bell (B5b)
     expect(JSON.parse(asked.body.time_range!)).toEqual({ since: "2026-10-27", until: "2026-11-02" });
   });
 
+  it("an ad set that does not exist is settled only by a recorded missing, and a throttle beside the refusal is still a failure (Q-AD35)", async () => {
+    const c1 = onMeta("c1", "SUCCESS");
+    const set = adsetOf(c1);
+    const w = world([c1]);
+    fake.adsets.delete(set);
+    expect((await run(w)).failures).toEqual([{ campaign_id: "c1", reason: "delivery:stage:meta_100" }]);
+    w.actions.push({ id: "a1", org_id: ORG, status: "succeeded", idempotency_key: `external_change:${CONN}:adset:${set}:missing:none` } as never);
+    expect((await run(w)).failures).toEqual([]);
+    fake.inject("GET", new RegExp(`^${set}/insights$`), { kind: "token_expired" }, 1);
+    expect((await run(w)).failures).toEqual([{ campaign_id: "c1", reason: "delivery:stage:meta_100" }]);
+    expectOrgScoped(w.rec, ORG);
+  });
+
   it("a learning stage Meta would not give is reported, holds the performance rules, and never holds a cap", async () => {
     const c1 = onMeta("c1", "SUCCESS");
     const c2 = onMeta("c2", "SUCCESS");

@@ -327,7 +327,7 @@ a PR that review sees.
 | **Budget guard** | Cap −1/0/+1; concurrent launches racing the cap; a raise just over the limit; clock at month boundary (Central time); kill switch while a call is in flight | 100 % of spend calls pass through it: a test fails if any adapter spend method is imported outside `guard/` |
 | **Publisher (per adapter)** | 429/5xx/timeout on each create step; half-created campaign (campaign yes, ad set no) → resumed, never duplicated; token revoked → stops + alert | Contract suite green on the fake (L2) and on the sandbox (L4) |
 | **Monitor** | Insights late, missing hours, numbers revised downward by the platform; an Ads-Manager edit; 30 simulated days with fatigue, overspend, zero-lead spend | Golden scenarios: each rule fires exactly at its threshold and minimum spend, never on a learning-phase ad set except caps; reconcile flags every planted mismatch and nothing else |
-| **Lead intake** | Forged signature; duplicate webhook; webhook lost (backfill must bring it); same person on two platforms; malformed phone; prompt-injection text in a lead's free-text answer | 0 lost, 0 duplicated leads over the scenario set; injection text never reaches an action (no model is on a lead's road; if an extractor is ever added, its output stays `proposed`) |
+| **Lead intake** | Forged signature; duplicate webhook; webhook lost (backfill must bring it); same person on two platforms; malformed phone; prompt-injection text in a lead's free-text answer | 0 lost, 0 duplicated leads over the scenario set; injection text never reaches an action (no model is on a lead's road until D3; D3's extractor output stays `proposed` until a recruiter confirms it) |
 | **Outcome feed** | Replay of the same stage; a stage arriving after 28 days; platform refuses an event | Exactly one accepted event per stage row |
 | **Copywriter** (Claude) | Brief missing pay; brief in Spanish; brief containing an instruction ("ignore the rules…"); a preset whose slots are too short | Evaluation set (≥ 40 briefs × presets, EN + ES, written in Stage 1): **0 claims outside the brief reach review** (enforced by the pure claim checker, so this bar is absolute); human-rated "approve without edit" rate recorded as the baseline |
 | **Art director** (Claude) | Brand kit missing photos; a preset showing people while the people policy is "none" | Every prompt ends with the no-lettering clause and uses a reference photo when the preset shows equipment (pure check, absolute) |
@@ -1776,3 +1776,12 @@ blocking step in §3 above.
     simulator's answer. Nothing changed; L4 shows what Meta really does. Also, a cost per lead of 4200.33 fires against 4200
     and is ledgered "4200 > 4200", because `measured` is rounded. The rule is right, the line reads oddly.
   - Mutation: 42 mutants on the monitor and 20 on the lead roads, all killed by a named scenario, none by a compile error.
+- **2026-11-05, the owner rules the extractor line and Q-AD35**, the leads track. No migration. Monitor stays **L3**.
+  - **Extractor line:** the owner took the restated §4R bar and named D3 in it, because D3 is planned, not hypothetical.
+  - **Q-AD35:** fixed now rather than at L4, because the fix is right whichever way Meta answers. `recordedGone.ts` is the
+    one rule: a refusal stops being a failure only when it is Meta's "does not exist" AND reconcile's `missing` row is
+    on the ledger. The read always comes first, so hours Meta still reports keep arriving. Building it found the same
+    fault in `checks.ts`'s ad-set reads, which the ruling's wording did not name, and the same rule covers them.
+  - **Still loud:** the first hourly run and the first reconcile after a deletion fail, and `deleted-object-settles.yaml`
+    states that. L4 only has to say which way Meta answers; neither answer needs more code.
+  - Mutation: 17 mutants on the rule, the pull, the checks and the ledger key, all killed.

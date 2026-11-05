@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MetaGraph } from "../platforms/meta/graphClient.js";
 import { graphForConnection, type RegistryDeps } from "../platforms/registry.js";
 import { bucketHour, isKnownZone, localHourToUtc, windowDays } from "./localHours.js";
+import { isNoSuchObject, recordedGone } from "./recordedGone.js";
 
 /**
  * The hourly insights pull (ADS-AGENT-BUILD-WORKFLOW.md B5a; §4R Monitor: "insights late, missing hours,
@@ -35,6 +36,10 @@ import { bucketHour, isKnownZone, localHourToUtc, windowDays } from "./localHour
  * read, and a local hour that does not exist are each reported in the result; the job fails on any of
  * them (`queue/handlers/adsInsights.ts`), so it is listed, and the next hour's run tries the window again.
  * A campaign whose read failed keeps its stored hours untouched — a failed read is never read as zero.
+ *
+ * One exception, and it is narrow (Q-AD35): a campaign Meta says does not exist, which reconcile has already
+ * recorded as `missing` and rung, is passed over without a failure. Its stored hours stay, because that money was
+ * spent. Before that record exists the refusal fails like any other (`recordedGone.ts`).
  */
 
 export const INSIGHTS_WINDOW_DAYS = 3;
@@ -125,7 +130,7 @@ export function spendRowFromMeta(row: MetaRow, ctx: { org_id: string; campaign_i
 
 type Listing = { data?: MetaRow[]; paging?: { cursors?: { after?: string }; next?: string } };
 
-async function readCampaignHours(graph: MetaGraph, metaCampaignId: string, since: string, until: string): Promise<{ ok: true; rows: MetaRow[]; truncated: boolean } | { ok: false; error_code: string }> {
+async function readCampaignHours(graph: MetaGraph, metaCampaignId: string, since: string, until: string): Promise<{ ok: true; rows: MetaRow[]; truncated: boolean } | { ok: false; error_code: string; no_such_object: boolean }> {
   const rows: MetaRow[] = [];
   let after: string | undefined;
   for (let page = 0; page < PAGES_MAX; page += 1) {
@@ -133,8 +138,8 @@ async function readCampaignHours(graph: MetaGraph, metaCampaignId: string, since
       level: "campaign", fields: FIELDS, breakdowns: BREAKDOWN, time_increment: 1,
       time_range: JSON.stringify({ since, until }), limit: PAGE_LIMIT, after,
     });
-    if (!r.ok) return { ok: false, error_code: r.error.error_code };
-    if (!Array.isArray(r.data.data)) return { ok: false, error_code: "shape" };
+    if (!r.ok) return { ok: false, error_code: r.error.error_code, no_such_object: isNoSuchObject(r.error) };
+    if (!Array.isArray(r.data.data)) return { ok: false, error_code: "shape", no_such_object: false };
     rows.push(...r.data.data);
     after = r.data.paging?.cursors?.after;
     if (!r.data.paging?.next || !after) return { ok: true, rows, truncated: false };
@@ -230,7 +235,8 @@ export async function pullConnectionInsights(deps: InsightsDeps, orgId: string, 
     result.campaigns += 1;
     const read = await readCampaignHours(opened.graph, k.meta_campaign_id, since, until);
     if (!read.ok) {
-      result.failures.push({ campaign_id: k.id, reason: `graph:${read.error_code}` });
+      const settled = read.no_such_object && await recordedGone(deps.admin, orgId, connectionId, [{ level: "campaign", meta_id: k.meta_campaign_id }]);
+      if (!settled) result.failures.push({ campaign_id: k.id, reason: `graph:${read.error_code}` });
       continue;
     }
     const fresh = new Map<string, SpendRow>();

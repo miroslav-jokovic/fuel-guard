@@ -8,6 +8,7 @@ import { metaAdapter } from "../platforms/meta/metaAdapter.js";
 import { graphForConnection, type RegistryDeps } from "../platforms/registry.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 import { localOf, windowDays } from "./localHours.js";
+import { isNoSuchObject, recordedGone, type GoneObject } from "./recordedGone.js";
 
 /**
  * The monitor's checks (ADS-AGENT-BUILD-WORKFLOW.md B5b), run by the `ads_insights` job right after its pull.
@@ -28,7 +29,10 @@ import { localOf, windowDays } from "./localHours.js";
  *     on the carrier's month (`monthContext`), as the guard reads it;
  *   · learning stage and 7-day frequency: Meta, per ad set, NOW (`learning_stage_info`; ad-set insights).
  * A read that fails is reported and the job fails; the checks still run on what was read, with a stage
- * that could not be read held as `unknown` (caps only). A failed check never un-pauses anything.
+ * that could not be read held as `unknown` (caps only). A failed check never un-pauses anything. An ad set
+ * that does not exist, under an object reconcile has recorded as `missing`, is not reported again (Q-AD35;
+ * `recordedGone.ts`), though its stage is still held as `unknown`. A deleted campaign is recorded once, at the
+ * campaign, so its ad set's refusal is settled by either row.
  *
  * ── NOT HERE ─────────────────────────────────────────────────────────────────────────────────────
  * `pause_when_filled` needs the opening's headcount, which is recruiting's (D-AD17): it joins with the seam
@@ -74,7 +78,7 @@ async function totals(admin: SupabaseClient, orgId: string, campaignId: string, 
 }
 
 /** The ad set's learning stage and 7-day frequency, as Meta says now. */
-async function delivery(graph: MetaGraph, adsetId: string, days: string[]): Promise<{ learning: LearningStage; frequency: number | null; failed: string | null }> {
+async function delivery(graph: MetaGraph, adsetId: string, days: string[]): Promise<{ learning: LearningStage; frequency: number | null; failed: string | null; no_such_object: boolean }> {
   const stage = await graph.get<{ learning_stage_info?: { status?: unknown } }>(adsetId, { fields: "learning_stage_info" });
   const learning: LearningStage = !stage.ok ? "unknown" : stage.data.learning_stage_info?.status === "LEARNING" ? "learning" : "not_learning";
   const ins = await graph.get<{ data?: Array<{ frequency?: unknown }> }>(`${adsetId}/insights`, {
@@ -83,7 +87,9 @@ async function delivery(graph: MetaGraph, adsetId: string, days: string[]): Prom
   const raw = ins.ok ? ins.data.data?.[0]?.frequency : undefined;
   const frequency = raw === undefined ? null : Number(raw);
   const failed = !stage.ok ? `stage:${stage.error.error_code}` : !ins.ok ? `frequency:${ins.error.error_code}` : null;
-  return { learning, frequency: frequency !== null && Number.isFinite(frequency) ? frequency : null, failed };
+  // Every refused read must say "does not exist": a throttle beside it is still a read that failed.
+  const no_such_object = [stage, ins].every((r) => r.ok || isNoSuchObject(r.error)) && failed !== null;
+  return { learning, frequency: frequency !== null && Number.isFinite(frequency) ? frequency : null, failed, no_such_object };
 }
 
 function alertText(b: MonitorBreach): { title: string; body: string } {
@@ -91,6 +97,12 @@ function alertText(b: MonitorBreach): { title: string; body: string } {
   if (b.rule === "monthly_cap") return { title: "Ads paused: the monthly cap was passed", body: `This month's spend on the channel is ${usd(b.measured)}, past its ${usd(b.threshold)} cap. Every running ad on it is being paused.` };
   if (b.rule === "daily_cap") return { title: "An ad was paused at its daily cap", body: `Today it spent ${usd(b.measured)} against a ${usd(b.threshold)} daily budget. It stays paused until a person resumes it.` };
   return { title: "An ad was paused: spend with no leads", body: `It has spent ${usd(b.measured)} without a lead, past the ${usd(b.threshold)} set on Settings › Ads control.` };
+}
+
+/** The rows that would settle an ad set's refusal: its own `missing`, or its campaign's. */
+function recordedAs(k: CampaignRow, adset: string): GoneObject[] {
+  const campaign = k.platform_refs?.meta_campaign_id;
+  return [{ level: "adset", meta_id: adset }, ...(typeof campaign === "string" && campaign ? [{ level: "campaign" as const, meta_id: campaign }] : [])];
 }
 
 export async function checkConnection(deps: ChecksDeps, orgId: string, connectionId: string, zone: string): Promise<ChecksResult> {
@@ -125,8 +137,9 @@ export async function checkConnection(deps: ChecksDeps, orgId: string, connectio
   for (const k of campaigns) {
     const t = await totals(deps.admin, orgId, k.id, zone, today);
     const adset = typeof k.platform_refs?.meta_adset_id === "string" ? k.platform_refs.meta_adset_id : null;
-    const d = graph && adset ? await delivery(graph, adset, days) : { learning: "unknown" as const, frequency: null, failed: adset ? null : "no_adset" };
-    if (d.failed) result.failures.push({ campaign_id: k.id, reason: `delivery:${d.failed}` });
+    const d = graph && adset ? await delivery(graph, adset, days) : { learning: "unknown" as const, frequency: null, failed: adset ? null : "no_adset", no_such_object: false };
+    const settled = d.no_such_object && await recordedGone(deps.admin, orgId, connectionId, recordedAs(k, adset!));
+    if (d.failed && !settled) result.failures.push({ campaign_id: k.id, reason: `delivery:${d.failed}` });
     facts.push({
       campaign_id: k.id, state: k.state, daily_budget_cents: k.daily_budget_cents === null ? null : Number(k.daily_budget_cents),
       today_spend_cents: t.today, lifetime_spend_cents: t.lifetime, lifetime_leads: t.leads, learning: d.learning, frequency_7d: d.frequency,

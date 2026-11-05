@@ -896,14 +896,11 @@ rate, and Higgsfield credits per approved creative.
   is the boundary D-AD17 draws. **Built meanwhile:** the brief reports spend and leads, and its `cohorts` is empty.
   The plain fallback and the prompt both handle an empty list, and an eval fixture of that shape passes.
 - **Q-AD35 · Whether a campaign deleted at Meta should fail the monitor's jobs** (found building Monitor L3, 2026-11-04;
-  answered at L4). Reconcile flags it `missing` and rings once, as it should. But `insightsPull.ts` still asks Meta for
-  that campaign's insights, the simulator refuses with "does not exist", and the pull reports it as a failure. So
-  `ads_reconcile` and `ads_insights` both throw on every run until a person archives the campaign, though
-  `adsReconcile.ts`'s handler says a "does not exist" is not a failure. **Unknown:** whether real Meta refuses that read
-  or still returns the history; no page we read says, and the simulator's answer is ours. Candidates: (a) the pull treats
-  "does not exist" as nothing to read, and keeps the stored hours; (b) leave it, a failed job being loud and safe.
-  **Recommendation: (a), once L4 shows Meta's answer.** No money is at risk meanwhile: the mismatch is recorded, the
-  checks still run. `reconcile-missing.yaml` states today's behaviour, and changes with the ruling.
+  **ruled by the owner 2026-11-05: fixed, not left for L4**). Reconcile flagged it `missing` and rang once, but the
+  insights read and the ad-set checks kept failing on every run. **Ruling:** a refusal stops being a failure only when
+  it is Meta's "does not exist" and reconcile's `missing` row is on the ledger (`recordedGone.ts`); the read still comes
+  first, and every other refusal stays a failure. The first run after a deletion stays loud. **Left for L4:** whether
+  real Meta refuses that read or still returns the history. Either answer works; L4 only records which it is.
 
 ---
 
