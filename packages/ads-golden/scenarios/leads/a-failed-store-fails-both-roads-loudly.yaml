@@ -1,0 +1,21 @@
+name: "The store fails on both roads: each says so, nothing is called stored, and the job's retry brings the lead"
+why: >
+  leadSink.ts "THROWS when the store fails: the caller is a webhook or a backfill that must retry". leadFetch.ts
+  reports it as sink; backfill.ts as sink with the lead's id. "A lead is never skipped quietly."
+covers: [retry]
+verifiedBy: "Claude (Lead intake L3), from leadSink.ts, leadFetch.ts, backfill.ts"
+timeline:
+  - submit: { lead: l1 }
+  - webhook: [l1]
+  - store_fails: 1
+  - jobs: true
+  - store_fails: 1
+  - backfill: true
+  - jobs: true
+  - backfill: true
+expect:
+  stored: { l1: webhook }
+  accepted: 1
+  failures:
+    - "jobs 1: l1 sink"
+    - "backfill 1: l1 sink"

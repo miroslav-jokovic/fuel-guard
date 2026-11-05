@@ -1,0 +1,26 @@
+name: "Meta refuses the listing for three days, past the 48-hour window: the next good run reaches back and finds the lead"
+why: >
+  backfill.ts, "a window, reaching back to the last run that brought everything in": a token that died on Friday and
+  was fixed on Monday left Friday's leads outside every later window. A failed run is never done, so the next reaches
+  back past it, to an hour before the last good run. Both forms are read, so each run refuses twice.
+covers: [outage, webhook_lost]
+verifiedBy: "Claude (Lead intake L3), from backfill.ts"
+timeline:
+  - backfill: true
+  - advance: { hours: 1 }
+  - submit: { lead: l1 }
+  - advance: { hours: 1 }
+  - meta_refuses: { listings: 2 }
+  - backfill: true
+  - advance: { hours: 72 }
+  - meta_refuses: { listings: 2 }
+  - backfill: true
+  - advance: { hours: 1 }
+  - backfill: true
+expect:
+  stored: { l1: backfill }
+  failures:
+    - "backfill 2: en graph:token_invalid"
+    - "backfill 2: es graph:token_invalid"
+    - "backfill 3: en graph:token_invalid"
+    - "backfill 3: es graph:token_invalid"

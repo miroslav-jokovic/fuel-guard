@@ -9,6 +9,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
+import { parseLeadScenario, type LeadScenario } from "./leadSchema.js";
 import { parseMonitorScenario, type MonitorScenario } from "./monitorSchema.js";
 import { parseScenario, type GoldenScenario } from "./schema.js";
 
@@ -20,10 +21,16 @@ export interface LoadedScenario {
 export const SCENARIOS_DIR = fileURLToPath(new URL("../scenarios", import.meta.url));
 /** A folder of its own: `loadScenarios` reads only its own level, so the orchestrator never meets these. */
 export const MONITOR_SCENARIOS_DIR = join(SCENARIOS_DIR, "monitor");
+export const LEAD_SCENARIOS_DIR = join(SCENARIOS_DIR, "leads");
 
 export interface LoadedMonitorScenario {
   file: string;
   scenario: MonitorScenario;
+}
+
+export interface LoadedLeadScenario {
+  file: string;
+  scenario: LeadScenario;
 }
 
 /** One folder's scenarios through `parse`, sorted by file; names must be unique. */
@@ -44,4 +51,8 @@ export function loadScenarios(dir: string = SCENARIOS_DIR): LoadedScenario[] {
 
 export function loadMonitorScenarios(dir: string = MONITOR_SCENARIOS_DIR): LoadedMonitorScenario[] {
   return loadFrom(dir, parseMonitorScenario);
+}
+
+export function loadLeadScenarios(dir: string = LEAD_SCENARIOS_DIR): LoadedLeadScenario[] {
+  return loadFrom(dir, parseLeadScenario);
 }

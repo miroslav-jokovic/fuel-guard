@@ -1,0 +1,16 @@
+name: "A delivery brings the lead in, and the backfill that reads it an hour later stores nothing more"
+why: >
+  leadgenWebhook.ts queues one ads_lead_fetch per lead; leadFetch.ts reads it and hands it to the sink. backfill.ts
+  reads the same lead again in its window, "a lead read again is free": the sink answers duplicate. It rings once,
+  because leadSink.ts rings only a lead stored for the first time.
+covers: [webhook]
+verifiedBy: "Claude (Lead intake L3), from leadgenWebhook.ts, leadFetch.ts, backfill.ts"
+timeline:
+  - submit: { lead: l1 }
+  - webhook: [l1]
+  - jobs: true
+  - advance: { hours: 1 }
+  - backfill: true
+expect:
+  stored: { l1: webhook }
+  accepted: 1

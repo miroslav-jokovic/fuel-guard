@@ -1,0 +1,35 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# ADS LEAD SCENARIO TEMPLATE — copy to a new name (one scenario per file). Skipped by the loader.
+#
+# THE INDEPENDENCE RULE: write `expect` from leadgenWebhook.ts, leadFetch.ts, backfill.ts and leadSink.ts, never
+# by running the roads and pasting what they did. Then break the rule (one line) and watch the scenario go red.
+# `ingest_lead` is imitated here: its SQL is proven by supabase/tests/recruiting-lead-functions.test.mjs.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: "One sentence a reader understands: what happened to the deliveries and what must follow"
+why: >
+  The rule the expectation comes from, citing the file and its header section.
+covers: [webhook]             # webhook · duplicate_webhook · webhook_lost · forged · retry · outage · two_forms ·
+                              # injection · malformed_phone
+verifiedBy: "Who wrote the expectation, and from what"
+
+timeline:
+  - submit: { lead: l1 }      # form: en | es | other; answers: { full_name: ..., phone_number: ... }
+  - webhook: [l1]             # one signed delivery; leave a lead out and its webhook was lost
+  # forged_webhook: [l1]
+  - jobs: true                # every queued ads_lead_fetch, once; a job that throws stays queued
+  # backfill: true            # one hourly run, reaching back as its handler does
+  # meta_refuses: { reads: 1, listings: 2 }
+  # store_fails: 1
+  # store_answer_lost: 1      # committed, and the answer lost on its way back
+  # advance: { hours: 1 }
+
+expect:
+  stored: { l1: webhook }     # every lead, and the road that stored it; each exactly once
+  accepted: 1                 # deliveries answered 200
+  # refused: 1                # deliveries answered 401
+  # dropped: [l9]             # only a lead on the `other` form
+  # failures: ["jobs 1: l1 sink"]
+  # rung: [l1]                # omitted = every lead stored
+  # waiting: [l1]             # jobs still queued at the end
+  # answers / verdicts / contact, by lead

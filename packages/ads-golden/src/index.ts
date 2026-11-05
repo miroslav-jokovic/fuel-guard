@@ -5,4 +5,5 @@
  */
 export * from "./schema.js";
 export * from "./monitorSchema.js";
+export * from "./leadSchema.js";
 export * from "./load.js";
