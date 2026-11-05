@@ -6,7 +6,7 @@ track now owns **Lead intake and Monitor L2–L3**, which were Track W's step 5 
 The progress log tells Track W so. **Everything else in `modules/ads/`, and `features/ads/`, stays the ads chat's.**
 The earlier handoffs' traps and process, and the 11/01 owner rulings, **still hold**.
 
-**Status, end of 11/04: §3 steps 1 to 3 are built, in #2047, #2048 and this docs PR, a stack waiting on the owner's merge.**
+**Status, end of 11/04: §3 steps 1 to 3 are built, in #2047, #2059 and this docs PR, a stack waiting on the owner's merge.**
 Merge from the bottom, by §5's first trap. Once merged, Monitor and Lead intake are L3 and this track stops at L4 (Stage 2).
 Still open from this work: Q-AD35, and the owner's view of the restated extractor line (§2).
 
@@ -98,6 +98,9 @@ Deferred on purpose, unchanged: CAPI/outcome feed, analyst narration, TikTok, X,
 - **After the bottom merges, GitHub retargets the next PR to main and REWRITES its branch** (a new head, a fresh CI run).
   The local branch then reads "ahead 2, behind 4": never push it. `git reset --hard origin/<branch>` after checking the tree
   is clean. This replaces the older trap "a stacked PR's run tested its old base", at least for a stack.
+- **The retarget is not guaranteed.** Measured 2026-11-05: after #2047 merged, #2048 stayed based on the merged branch,
+  even once its conflict was fixed, and merging it would not have reached main. It was closed and replaced by #2059, the
+  same branch opened straight to main. Read a PR's base before merging it.
 - **Delete a stack's lower branch only after the next PR has moved to main.** Deleting a PR's base can close it.
 - **A command waiting on stdin hangs forever and prints nothing.** A stray `cat > file` cost 58 minutes, and an empty output
   file read as "still running". Give scripts `</dev/null` and each mutant a timeout, and if a job is silent, look at its

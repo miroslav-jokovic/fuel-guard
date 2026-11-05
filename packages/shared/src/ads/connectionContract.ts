@@ -36,9 +36,36 @@ export interface AdsConnectionView {
   scopes: string[];
   status: "disconnected" | "connected" | "failing";
   last_test_at: string | null;
-  /** The connection test's report (its checks, the account, the Page). Never a token. */
-  last_test: unknown;
+  /** The connection test's report (its checks, the account, the Page); null until the first test. Never a token. */
+  last_test: AdsConnectionReport | null;
   last_error: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * The connection test's report (`platforms/meta/connectionTest.ts` writes it; B1). Here, not in the API,
+ * because Settings › Ads control draws it from `last_test` and from a refused connect's answer (E1b): one
+ * definition both sides compile against, so a check the API adds is a check the page must name.
+ */
+export const ADS_CONNECTION_CHECKS = ["token", "permissions", "ad_account", "currency", "spending_limit", "page", "leadgen"] as const;
+export type AdsConnectionCheckKey = (typeof ADS_CONNECTION_CHECKS)[number];
+
+export interface AdsConnectionCheck {
+  key: AdsConnectionCheckKey;
+  /** null = not reached (an earlier check made it meaningless). */
+  ok: boolean | null;
+  detail: string;
+}
+
+export interface AdsConnectionReport {
+  ok: boolean;
+  checks: AdsConnectionCheck[];
+  user: { id: string; name: string | null } | null;
+  account: { id: string; name: string | null; account_status: number | null; currency: string | null; spend_cap_cents: number | null; amount_spent_cents: number | null } | null;
+  page: { id: string; name: string | null; tasks: string[] } | null;
+  scopes_granted: string[];
+  scopes_extra: string[];
+  /** The first failed check's Meta code (`token_invalid`, `meta_100`…) or the check's own key. */
+  error_code: string | null;
 }

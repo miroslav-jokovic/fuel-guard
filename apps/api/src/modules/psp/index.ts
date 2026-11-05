@@ -20,3 +20,4 @@ export { recruitmentPspOrdersRouter } from "./routes/pspOrders.js";
 export { orderPspRecord, pspOrderPreflight } from "./pspOrder.js";
 export { hasPspRequest, driversWithPspRequest, pspOrdersFor } from "./pspRequests.js";
 export { filePspImport, isPspImportError, registerPspImportDocument } from "./pspImport.js";
+export { pspEmploymentSuggestions, type PspDeclaredJob } from "./pspEmployment.js";

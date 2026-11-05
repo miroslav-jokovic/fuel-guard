@@ -1,4 +1,4 @@
-import { AD_AI_AGENTS, AD_PLATFORMS, adsSettingsSchema, type AdAiAgent, type AdPlatform, type AdsSettings } from "@silvicom/shared";
+import { AD_AI_AGENTS, AD_PLATFORMS, ADS_ALERT_CATEGORIES, adsSettingsSchema, type AdAiAgent, type AdPlatform, type AdsAlertCategory, type AdsSettings } from "@silvicom/shared";
 
 /**
  * Settings › Ads control's form, as text a person types, to and from the stored settings (Track S, E1a).
@@ -11,10 +11,16 @@ import { AD_AI_AGENTS, AD_PLATFORMS, adsSettingsSchema, type AdAiAgent, type AdP
  * contract's `positive()` and, worse, read like a decision. The schema then judges the result, so the
  * page's errors are the contract's bounds, not a second copy of them.
  *
- * ── WHAT THIS PAGE DOES NOT EDIT ─────────────────────────────────────────────────────────────────
- * Alerts (who hears each one, the uncontacted-lead minutes) are E1b's. A save writes the WHOLE settings
- * object as a new version, so `toSettings` starts from the version it was given and replaces only the
- * fields here: an E1a save never resets the alerts somebody chose.
+ * ── ONE SAVE, ONE VERSION ────────────────────────────────────────────────────────────────────────
+ * A save writes the WHOLE settings object as a new version, so `toSettings` starts from the version it
+ * was given and replaces the fields this form holds. E1b added the alerts (who hears each one, the
+ * uncontacted-lead minutes) to the same form rather than a second save: two saves of one object would
+ * each write a version, and the second would undo the first's unsaved half.
+ *
+ * ── AN EMPTY LIST IS LEFT OUT ────────────────────────────────────────────────────────────────────
+ * An alert with nobody chosen goes to its default audience (`ADS_LEAD_CALL_ALERTS`). The contract reads
+ * an absent list and an empty one the same, so only lists with somebody on them are written — the
+ * agents' switches' rule, for the same reason: a saved version must read back as itself.
  */
 
 export interface AdsSettingsFormValues {
@@ -34,6 +40,9 @@ export interface AdsSettingsFormValues {
   higgsfield_credits_monthly: string;
   max_regenerations: string;
   agents_enabled: Record<AdAiAgent, boolean>;
+  /** Member ids per alert, in the order they were added; empty = the alert's default audience. */
+  recipients: Record<AdsAlertCategory, string[]>;
+  uncontacted_lead_minutes: string;
 }
 
 const dollars = (cents: number | null | undefined): string => (cents == null ? "" : (cents / 100).toFixed(2).replace(/\.00$/, ""));
@@ -57,6 +66,8 @@ export function toFormValues(s: AdsSettings): AdsSettingsFormValues {
     higgsfield_credits_monthly: count(s.budgets.higgsfield_credits_monthly),
     max_regenerations: String(s.budgets.max_regenerations),
     agents_enabled: Object.fromEntries(AD_AI_AGENTS.map((a) => [a, s.budgets.agents_enabled[a] === true])) as Record<AdAiAgent, boolean>,
+    recipients: Object.fromEntries(ADS_ALERT_CATEGORIES.map((c) => [c, [...(s.alerts.recipients[c] ?? [])]])) as Record<AdsAlertCategory, string[]>,
+    uncontacted_lead_minutes: String(s.alerts.uncontacted_lead_minutes),
   };
 }
 
@@ -106,6 +117,10 @@ export function toSettings(base: AdsSettings, v: AdsSettingsFormValues): FormRes
       // store a different object for the same choice, and a saved version would not read back as itself.
       agents_enabled: Object.fromEntries(AD_AI_AGENTS.filter((a) => v.agents_enabled[a]).map((a) => [a, true])),
     },
+    alerts: {
+      recipients: Object.fromEntries(ADS_ALERT_CATEGORIES.flatMap((c) => (v.recipients[c].length > 0 ? [[c, [...v.recipients[c]]]] : []))),
+      uncontacted_lead_minutes: num(v.uncontacted_lead_minutes) ?? Number.NaN,
+    },
   };
   const parsed = adsSettingsSchema.safeParse(candidate);
   if (parsed.success) return { ok: true, settings: parsed.data };
@@ -128,4 +143,6 @@ const FIELD_LABELS: Record<string, string> = {
   "budgets.anthropic_tokens_monthly": "AI tokens a month must be a whole number.",
   "budgets.higgsfield_credits_monthly": "Image credits a month must be a whole number.",
   "budgets.max_regenerations": "Tries per ad must be a whole number from 0 to 5.",
+  "alerts.recipients": "One alert can go to at most 50 people.",
+  "alerts.uncontacted_lead_minutes": "The minutes must be a whole number from 5 to 1,440 (a day).",
 };

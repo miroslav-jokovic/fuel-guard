@@ -1,16 +1,19 @@
 import { Router } from "express";
 import {
+  USER_ROLES,
+  canReadRestrictedKind,
   employmentHistoryCreateSchema,
   employmentHistoryUpdateSchema,
   type EmploymentHistoryCreate,
   type EmploymentHistoryUpdate,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireRole, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { HISTORY_COLS, applicantPipelineHandler } from "./employmentPipeline.js";
+import { pspEmploymentSuggestionsHandler } from "./pspEmploymentSuggestions.js";
 
 /**
  * Recruitment — the applicant pipeline (H6) and the §391.21(b)(10)-(11) employment list (0208).
@@ -56,6 +59,22 @@ export function recruitmentEmploymentRouter(): Router {
       }
       res.json({ history: data ?? [] });
     }),
+  );
+
+  /**
+   * HW6b — what the driver's PSP record suggests about this employment list (§4.6), computed on read
+   * and stored nowhere (PSP-PLAN Q10). Its reasoning is in `pspEmploymentSuggestions.ts`.
+   *
+   * Gated on the PSP REPORT's own reader test, not the section's: a carrier name and the dates the
+   * driver was inspected in its truck are the report's content (§391.53(a)(1), D-PERM9). Derived from
+   * the kind, so a change to who may read `psp_report` moves this route with it.
+   */
+  router.get(
+    "/drivers/:driverId/psp-employment",
+    requireOrg,
+    canView,
+    requireRole(...USER_ROLES.filter((r) => canReadRestrictedKind("psp_report", r))),
+    pspEmploymentSuggestionsHandler,
   );
 
   router.post(
