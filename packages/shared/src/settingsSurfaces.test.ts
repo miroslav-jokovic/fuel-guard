@@ -22,15 +22,25 @@ const SETTINGS = surface("admin.settings");
 const OFFICE_ROLES = USER_ROLES.filter((r) => r !== "driver");
 
 describe("by default only the admin sees Settings (Q-SET2 as revised)", () => {
-  it("links the directory to all twenty-four screens, so this block is not vacuous", () => {
-    expect(directoryScreens("admin.settings")).toHaveLength(24);
+  it("links the directory to all twenty-five screens, so this block is not vacuous", () => {
+    expect(directoryScreens("admin.settings")).toHaveLength(25);
   });
 
+  /**
+   * The one exception the owner ruled (DQ-INTO-DRIVERS-PLAN D-DQ20, 2026-11-05): Carrier records starts
+   * on for the two roles holding `roster: manage`, so for them the Settings entry opens onto that one
+   * card. Every other screen, and every other role, keeps Q-SET2's closed default.
+   */
+  const STARTS_ON: Partial<Record<string, readonly string[]>> = {
+    fleet_manager: ["safety.carrier-records"],
+    safety_manager: ["safety.carrier-records"],
+  };
   for (const r of OFFICE_ROLES) {
-    it(`resolves every Settings screen, and the Settings entry, for ${r} as ${r === "admin" ? "open" : "closed"}`, () => {
+    it(`resolves every Settings screen, and the Settings entry, for ${r} by Q-SET2 and D-DQ20`, () => {
+      const on = STARTS_ON[r] ?? [];
       for (const s of directoryScreens("admin.settings"))
-        expect(surfaceAllowed(s, r, null, null), `${s.key} for ${r}`).toBe(r === "admin");
-      expect(surfaceAllowed(SETTINGS, r, null, null), `the Settings entry for ${r}`).toBe(r === "admin");
+        expect(surfaceAllowed(s, r, null, null), `${s.key} for ${r}`).toBe(r === "admin" || on.includes(s.key));
+      expect(surfaceAllowed(SETTINGS, r, null, null), `the Settings entry for ${r}`).toBe(r === "admin" || on.length > 0);
     });
   }
 
@@ -38,7 +48,9 @@ describe("by default only the admin sees Settings (Q-SET2 as revised)", () => {
     // `surfaceClaimFor` fails open to `{}`. Before SP1, `{}` meant "no denials"; for a screen that
     // starts off it must still mean off, or a database blip would hand a fleet manager Organization.
     expect(surfaceAllowed(surface("admin.settings.org"), "fleet_manager", null, {})).toBe(false);
-    expect(surfaceAllowed(SETTINGS, "fleet_manager", null, {})).toBe(false);
+    expect(surfaceAllowed(SETTINGS, "fleet_manager", null, { "safety.carrier-records": false })).toBe(false);
+    // …while the one screen that starts ON still opens on an unread claim: `{}` denies nothing.
+    expect(surfaceAllowed(surface("safety.carrier-records"), "safety_manager", null, {})).toBe(true);
   });
 });
 

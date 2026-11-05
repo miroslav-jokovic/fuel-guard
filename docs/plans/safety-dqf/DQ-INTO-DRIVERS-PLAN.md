@@ -215,3 +215,31 @@ check. Recorded here so it is not lost; it is its own plan.
   "As at" joins the detail line under each binder, and "By" stacks under "Requested".
   `QualificationFleetTable` keeps its own copy of the cap until DD4 deletes it (a feature may not import
   another's internals). Next: DD3.
+- 2026-11-05: DD3 built. `/settings/carrier-records` (surface `safety.carrier-records`, `section("roster")`,
+  `startsOnFor` fleet_manager and safety_manager), a Settings card, `CertManager` on the organization, and a
+  callout while the fleet's insurance or IFTA is not on file. Found on the way, each changing what DD3 does:
+  (1) **IFTA could never be filed on the organization.** The certification contract kept its own list of
+  organization kinds without `ifta`, while the unit rollup read an organization IFTA (`FLEET_WIDE_UNIT_KINDS`),
+  so every tractor read "missing" on IFTA with no way to clear it. The database never refused it (0490).
+  Now one shared `ORGANIZATION_CERT_KINDS`, derived from the equipment catalogue's `fleetWide` items, feeds
+  both the contract and the form.
+  (2) **A safety manager cannot file the fleet's insurance or IFTA, and that is the matrix working.** Those two
+  are the equipment section's papers (`fileSectionFor`, D-UF5), where a safety manager holds `view`. The form
+  now offers each kind only to whoever manages its section, so it never shows a choice the API refuses; the
+  callout says filing them needs permission to manage vehicles. DD3's "Done when" text (a safety manager files
+  insurance) was wrong on this point; a fleet manager or admin files it, or the owner raises the safety
+  manager's `equipment` access in Settings › Permissions. Not changed here.
+  (3) **The Settings entry reappears in the sidebar for fleet and safety managers**, with this one card behind
+  it, because the directory opens when any screen behind it does. That is Q-DD1 (a) as approved; seven tests
+  that used those roles as "nothing behind Settings" now switch the screen off explicitly, and new ones pin
+  the exception.
+  (4) `surfaceCatalogue.ts` was exactly at 500 lines. The entry is one line, its reasoning lives in
+  CarrierRecordsSettingsPage.vue, and `check-file-size.mjs` pins the file at 501 until **DD4, which must
+  delete that pin** when it removes the old page's two entries.
+  Still open, not built: `CertManager` records a date with no scan attached (Q-DD4 below).
+- **Q-DD4 — should a carrier record carry its scan?** OPEN, not blocking. `CertManager` writes a certification
+  with no document, so "PHMSA registration, good until 06/30/2027" can be on file with nothing an auditor can
+  open (the same concern as roster Q6). The driver and unit files use `RequirementDrawer`, which uploads the
+  scan first. Candidates: (a) give the carrier records a `RequirementDrawer` per kind, as the unit file has;
+  (b) leave it, since these papers live with the carrier's own filing. **Recommendation: (a)**, as its own step
+  after DD4.

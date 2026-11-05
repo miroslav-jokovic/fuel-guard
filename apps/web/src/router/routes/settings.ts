@@ -161,6 +161,14 @@ export const settingsRoutes: RouteRecordRaw[] = [
     },
   },
   {
+    // DQ-INTO-DRIVERS-PLAN DD3. No section meta: `safety.carrier-records` in the surface catalogue
+    // carries the gate, and the guard reads it from there.
+    path: "/settings/carrier-records",
+    name: "carrier-records",
+    component: () => import("@/pages/CarrierRecordsSettingsPage.vue"),
+    meta: { requiresAuth: true, title: "Carrier records", parent: "/settings" },
+  },
+  {
     path: "/settings/org",
     name: "org-settings",
     component: () => import("@/pages/OrgSettingsPage.vue"),

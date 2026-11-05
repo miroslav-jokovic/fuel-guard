@@ -52,17 +52,26 @@ const PATHS = SETTINGS_CARDS.map((c) => SURFACES.find((s) => s.key === c.key)!.p
 describe("the directory's cards come from the catalogue", () => {
   it("shows the admin every card, in the directory's order", () => {
     expect(cards("admin")).toEqual(PATHS);
-    expect(PATHS).toHaveLength(25);
+    expect(PATHS).toHaveLength(26);
   });
 
+  /**
+   * The one card Q-SET2 does not start off: Carrier records, for the two roles that hold `roster:
+   * manage` (DQ-INTO-DRIVERS-PLAN D-DQ20, owner 2026-11-05). Every other role, and every other card,
+   * still starts with nothing.
+   */
+  const STARTS_ON: Partial<Record<string, string[]>> = {
+    fleet_manager: ["/settings/carrier-records"],
+    safety_manager: ["/settings/carrier-records"],
+  };
   for (const r of USER_ROLES.filter((x) => x !== "driver" && x !== "admin")) {
-    it(`shows ${r} no card until the admin turns one on`, () => {
-      expect(cards(r)).toEqual([]);
+    it(`shows ${r} only the cards that start on for it until the admin turns one on`, () => {
+      expect(cards(r)).toEqual(STARTS_ON[r] ?? []);
     });
   }
 
   it("shows a card the admin turned on for a role that starts without it (Q-SET2)", () => {
-    expect(cards("fleet_manager", null, { "admin.settings.org": true })).toEqual(["/settings/org"]);
+    expect(cards("fleet_manager", null, { "admin.settings.org": true, "safety.carrier-records": false })).toEqual(["/settings/org"]);
   });
 
   it("never shows the four Q-SET1 screens, or the FleetPal connection, to anyone but the admin, whatever is stored", () => {

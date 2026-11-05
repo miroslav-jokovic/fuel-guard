@@ -181,6 +181,7 @@ export const SURFACES: readonly Surface[] = [
    * nothing; `/compliance` stays the path so nobody's bookmark breaks.
    */
   { key: "safety.driver-qualification", label: "Driver qualification", path: "/compliance", group: "safety", gate: section("roster") },
+  { key: "safety.carrier-records", label: "Carrier records", path: "/settings/carrier-records", group: "admin", gate: section("roster"), reachedFrom: "admin.settings", startsOnFor: ["fleet_manager", "safety_manager"] }, // D-DQ20: why roster, why a card, why not Q-SET2 — CarrierRecordsSettingsPage.vue
   /**
    * TWO hazmat entries (D-H15, owner decision 2026-08-30) — the hub they used to share is gone.
    * H-C4 cut five items to one because four duplicated Loads, Trailers and Compliance; that retires

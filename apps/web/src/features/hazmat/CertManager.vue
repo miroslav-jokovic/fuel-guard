@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, toRef } from "vue";
 import type { CertificationCreateRequest, CertificationRow, CertificationKind } from "@silvicom/shared";
-import { HAZMAT_TRAINING_TYPES } from "@silvicom/shared";
+import { DQ_KIND_LABELS, HAZMAT_TRAINING_TYPES, ORGANIZATION_CERT_KINDS, fileSectionFor } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   DataTable,
@@ -14,6 +14,7 @@ import {
 } from "@silvicom/ui";
 import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
+import { useSessionStore } from "@/stores/session";
 import { useCertificationsQuery, useCreateCertification } from "@/composables/useCompliance";
 import { formatDate } from "@/lib/format";
 
@@ -28,9 +29,25 @@ const createCert = useCreateCertification();
 const saving = computed(() => createCert.isPending.value);
 
 const DRIVER_KINDS: CertificationKind[] = ["cdl", "medical_card", "endorsement", "hazmat_training", "twic"];
-const ORG_KINDS: CertificationKind[] = ["phmsa_registration", "financial_responsibility", "insurance", "hazmat_safety_permit", "security_plan", "operating_authority"];
-function labelForKind(k: string): string { return k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
-const kindOptions = computed(() => (props.subjectType === "organization" ? ORG_KINDS : DRIVER_KINDS).map((k) => ({ value: k, label: labelForKind(k) })));
+/** The catalogue's name for a kind ("IFTA licence", "PHMSA registration"); title case only for one it has none for. */
+function labelForKind(k: string): string {
+  return DQ_KIND_LABELS[k] ?? k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+/**
+ * The kinds this READER may file here (DQ-INTO-DRIVERS-PLAN DD3). The organization's list is the
+ * contract's (`ORGANIZATION_CERT_KINDS`, which now carries IFTA), and each kind is offered only when
+ * the caller manages the section that paper belongs to (`fileSectionFor`, D-UF5) — the question
+ * `POST /api/compliance/certifications` asks. So a safety manager (roster manage, equipment view) is
+ * offered PHMSA registration and operating authority, and not the fleet's insurance or IFTA, which are
+ * the equipment section's and would be refused.
+ */
+const session = useSessionStore();
+const fileableKinds = computed(() =>
+  (props.subjectType === "organization" ? ORGANIZATION_CERT_KINDS : DRIVER_KINDS).filter((k) =>
+    session.can(fileSectionFor(props.subjectType, k)),
+  ),
+);
+const kindOptions = computed(() => fileableKinds.value.map((k) => ({ value: k, label: labelForKind(k) })));
 const trainingTypeOptions = HAZMAT_TRAINING_TYPES.map((t) => ({ value: t, label: labelForKind(t) }));
 
 // issuingAuthority + the two §172.704(d) fields + notes were accepted by the contract and the table
@@ -126,7 +143,7 @@ const columns: DataTableColumn[] = [
       </div>
     </div>
 
-    <div class="border-t border-edge pt-5">
+    <div v-if="fileableKinds.length" class="border-t border-edge pt-5">
       <h3 class="text-sm font-semibold text-ink">Add record</h3>
       <div class="mt-3 space-y-4">
         <FormField v-slot="{ id }" label="Type">
