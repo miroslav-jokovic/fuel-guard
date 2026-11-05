@@ -1,0 +1,114 @@
+{
+  "name": "many-campaigns",
+  "about": "Four campaigns, figures in the thousands, one with no lead.",
+  "input": {
+    "fold": {
+      "day": "2026-11-03",
+      "month": {
+        "month": "2026-11",
+        "days_left": 28
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 145678,
+          "impressions": 92400,
+          "clicks": 1310,
+          "leads": 41,
+          "cost_per_lead_cents": 3553,
+          "ctr": 0.014177489177489178
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Dedicated night runs",
+          "spend_cents": 38900,
+          "impressions": 21005,
+          "clicks": 260,
+          "leads": 9,
+          "cost_per_lead_cents": 4322,
+          "ctr": 0.01237800523684837
+        },
+        {
+          "campaign_id": "c3",
+          "name": "Owner operators",
+          "spend_cents": 12450,
+          "impressions": 7700,
+          "clicks": 51,
+          "leads": 0,
+          "cost_per_lead_cents": null,
+          "ctr": 0.006623376623376623
+        },
+        {
+          "campaign_id": "c4",
+          "name": "Recent graduates",
+          "spend_cents": 61020,
+          "impressions": 40118,
+          "clicks": 702,
+          "leads": 17,
+          "cost_per_lead_cents": 3589,
+          "ctr": 0.017498379779650033
+        }
+      ],
+      "month_to_date": {
+        "meta": 1253406
+      },
+      "cohorts": [
+        {
+          "week": "2026-09-21",
+          "leads": 38,
+          "reached": {
+            "contacted": 33,
+            "qualified": 17,
+            "applied": 10,
+            "hired": 4,
+            "lost": 8
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-28",
+          "leads": 40,
+          "reached": {
+            "contacted": 36,
+            "qualified": 20,
+            "applied": 12,
+            "hired": 5,
+            "lost": 9
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 12,
+          "reached": {
+            "contacted": 9,
+            "qualified": 3,
+            "applied": 1,
+            "hired": 0,
+            "lost": 1
+          },
+          "mature": false
+        }
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "analyst@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T02:56:13.533Z",
+    "output": {
+      "headline": "On 2026-11-03, 4 campaigns delivered 67 leads across 161,223 impressions at a cost per lead of $38.51.",
+      "points": [
+        "Total spend for the day was $2,580.48, with 2,323 clicks and an overall click rate of 1.4%.",
+        "Regional Class A — Joliet was the day's largest campaign: $1,456.78 spent, 92,400 impressions, 1,310 clicks, 41 leads, and a cost per lead of $35.53 at a 1.4% click rate.",
+        "Recent graduates was the strongest performer on click rate at 1.7%, generating 17 leads at $35.89 each from $610.20 in spend across 40,118 impressions.",
+        "Dedicated night runs spent $389.00 for 9 leads at $43.22 per lead, with a 1.2% click rate across 21,005 impressions.",
+        "Owner operators spent $124.50 across 7,700 impressions and 51 clicks but produced no leads, so there is no cost per lead to report; its 0.7% click rate was the lowest of the 4 campaigns.",
+        "Month-to-date spend on Meta stands at $12,534.06 for 2026-11, with 28 days left in the month."
+      ]
+    }
+  }
+}

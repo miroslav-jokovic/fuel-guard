@@ -1,9 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { z } from "zod";
-import { AD_PEOPLE_POLICIES, AD_VISUAL_CHECKS, adBrandKitSchema, adBriefSchema, adPresetRecipeSchema, judgeArt, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
+import { AD_PEOPLE_POLICIES, AD_VISUAL_CHECKS, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, judgeArt, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
 import type { ForcedToolRequest } from "../../../lib/anthropic.js";
 import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, judgeCopy, type AdCopy } from "./copywriter/copywriter.js";
 import { ART_DIRECTOR_PROMPT_VERSION, buildArtRequest } from "./artDirector/artDirector.js";
+import { ANALYST_PROMPT_VERSION, briefTool, buildBriefRequest, judgeBrief, type BriefAnswer } from "./analyst/analyst.js";
 import { CHECKER_PROMPT_VERSION, applicableChecks, buildVisualRequest, judgeVisual, prepareSubject, visualTool, type VisualAnswer, type VisualSubject } from "./checker/checker.js";
 
 /**
@@ -155,7 +156,38 @@ export const CHECKER_EVAL: EvalWorker<CheckerFixture, VisualAnswer> = {
   agrees: (f, verdict, findings) => (f.truth.planted === null ? verdict === "ready" : verdict === "refused" && findings.includes(f.truth.planted as AdVisualCheck)),
 };
 
-export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL, checker: CHECKER_EVAL } as const;
+/**
+ * The analyst's cases are FOLDS (F1): what `adsReport.ts` produced for a day, named. A planted answer is a
+ * narration a person wrote with one figure the fold did not produce; a model answer is the live model's
+ * brief over the same fold, and it agrees only when it states nothing but the sheet (`ready`).
+ */
+export const analystFixtureSchema = z.object({
+  name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,60}$/),
+  about: z.string().min(10),
+  input: z.object({ fold: briefFoldSchema }).strict(),
+  expect: z.enum(["ready", "refused", "off_schema"]),
+  expect_findings: z.array(z.string()).optional(),
+  recorded: recordingSchema,
+}).strict();
+export type AnalystFixture = z.infer<typeof analystFixtureSchema>;
+
+export const ANALYST_EVAL: EvalWorker<AnalystFixture, BriefAnswer> = {
+  promptVersion: ANALYST_PROMPT_VERSION,
+  dir: new URL("./analyst/fixtures/", import.meta.url),
+  parse: (raw) => analystFixtureSchema.parse(raw),
+  name: (f) => f.name,
+  source: (f) => f.recorded.source,
+  request: (f) => buildBriefRequest(f.input.fold),
+  judge: (f, output) => {
+    const parsed = briefTool.schema.safeParse(output);
+    if (!parsed.success) return { verdict: "off_schema", findings: [] };
+    const found = judgeBrief(parsed.data, briefFacts(f.input.fold));
+    return found.length === 0 ? { verdict: "ready", findings: [] } : { verdict: "refused", findings: [...new Set(found.map((x) => x.kind))].sort() };
+  },
+  withRecording: (f, recorded) => ({ ...f, recorded }),
+};
+
+export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL, checker: CHECKER_EVAL, analyst: ANALYST_EVAL } as const;
 
 /** Every fixture of a worker, parsed, in file-name order; a file whose `name` is not its file name throws. */
 export function loadFixtures<F, T>(w: EvalWorker<F, T>): Array<{ file: URL; fixture: F }> {

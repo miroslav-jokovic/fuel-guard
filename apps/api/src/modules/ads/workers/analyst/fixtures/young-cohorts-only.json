@@ -1,0 +1,71 @@
+{
+  "name": "young-cohorts-only",
+  "about": "§4R L2: a young account — every cohort is younger than 28 days, so the sheet holds counts and no rates at all.",
+  "input": {
+    "fold": {
+      "day": "2026-11-03",
+      "month": {
+        "month": "2026-11",
+        "days_left": 28
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 7500,
+          "impressions": 3900,
+          "clicks": 48,
+          "leads": 3,
+          "cost_per_lead_cents": 2500,
+          "ctr": 0.012307692307692308
+        }
+      ],
+      "month_to_date": {
+        "meta": 22500
+      },
+      "cohorts": [
+        {
+          "week": "2026-10-19",
+          "leads": 9,
+          "reached": {
+            "contacted": 8,
+            "qualified": 4,
+            "applied": 2,
+            "hired": 1,
+            "lost": 0
+          },
+          "mature": false
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 14,
+          "reached": {
+            "contacted": 10,
+            "qualified": 3,
+            "applied": 1,
+            "hired": 0,
+            "lost": 2
+          },
+          "mature": false
+        }
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "analyst@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T02:56:44.249Z",
+    "output": {
+      "headline": "On 2026-11-03, 1 campaign ran and delivered 3 leads at a cost per lead of $25.00.",
+      "points": [
+        "Regional Class A — Joliet was the only campaign active, spending $75.00 to generate 3,900 impressions, 48 clicks, and 3 leads at a 1.2% click rate.",
+        "Month-to-date spend on Meta stands at $225.00 for 2026-11, with 28 days left in the month.",
+        "The 2026-10-19 cohort has 9 leads: 8 contacted, 4 qualified, 2 applied, 1 hired, and 0 lost — still too young to judge rates.",
+        "The 2026-10-26 cohort has 14 leads: 10 contacted, 3 qualified, 1 applied, 0 hired, and 2 lost — also too young to judge rates.",
+        "Both cohorts are still moving and worth watching as leads continue to progress through the funnel."
+      ]
+    }
+  }
+}
