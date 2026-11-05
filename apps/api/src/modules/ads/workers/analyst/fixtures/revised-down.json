@@ -1,0 +1,84 @@
+{
+  "name": "revised-down",
+  "about": "§4R L2: Meta revised yesterday's numbers down overnight; the fold holds only the revised figures, which are smaller than the first report.",
+  "input": {
+    "fold": {
+      "day": "2026-11-02",
+      "month": {
+        "month": "2026-11",
+        "days_left": 29
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 11090,
+          "impressions": 6015,
+          "clicks": 70,
+          "leads": 2,
+          "cost_per_lead_cents": 5545,
+          "ctr": 0.011637572734829594
+        }
+      ],
+      "month_to_date": {
+        "meta": 19800
+      },
+      "cohorts": [
+        {
+          "week": "2026-09-21",
+          "leads": 38,
+          "reached": {
+            "contacted": 33,
+            "qualified": 17,
+            "applied": 10,
+            "hired": 4,
+            "lost": 8
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-28",
+          "leads": 40,
+          "reached": {
+            "contacted": 36,
+            "qualified": 20,
+            "applied": 12,
+            "hired": 5,
+            "lost": 9
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 12,
+          "reached": {
+            "contacted": 9,
+            "qualified": 3,
+            "applied": 1,
+            "hired": 0,
+            "lost": 1
+          },
+          "mature": false
+        }
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "analyst@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T02:56:39.666Z",
+    "output": {
+      "headline": "On 2026-11-02, 1 campaign ran and delivered 2 leads at $55.45 each from $110.90 in spend.",
+      "points": [
+        "Regional Class A — Joliet was the only campaign active, pulling 70 clicks from 6,015 impressions at a 1.2% click rate.",
+        "The 2 leads it produced came at $55.45 cost per lead, which accounts for all of the day's $110.90 spend.",
+        "Month-to-date spend on Meta for 2026-11 sits at $198.00, with 29 days still remaining in the month.",
+        "The mature cohort from the week of 2026-09-28 continues to show solid funnel movement: 40 leads, with 36 contacted (90.0%), 20 qualified (50.0%), 12 applied (30.0%), 5 hired (12.5%), and 9 lost (22.5%).",
+        "The mature cohort from the week of 2026-09-21 had 38 leads, with 33 contacted (86.8%), 17 qualified (44.7%), 10 applied (26.3%), 4 hired (10.5%), and 8 lost (21.1%).",
+        "The cohort from the week of 2026-10-26 has 12 leads with 9 contacted, 3 qualified, 1 applied, 1 lost, and 0 hired so far — it is too young to judge rates."
+      ]
+    }
+  }
+}

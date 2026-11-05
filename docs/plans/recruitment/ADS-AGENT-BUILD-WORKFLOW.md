@@ -1629,3 +1629,38 @@ blocking step in §3 above.
   green. The fix is a repository-variable change, the owner's to approve; E1a's staging pass is owed until then. Next:
   E1b (alerts + connections), E1c (spend vs caps), E2 (editors; the preset editor asks `overlay_slots` AND
   `platform_slots`), E3, E5, G-walk.
+- **2026-11-04, F1a: the Analyst writes the brief, and a number the fold did not produce is refused**, Track W. No
+  migration, no production caller yet. **Analyst L0 → L2.**
+  - **The sheet (shared `analystBrief.ts`):**
+    - `briefFacts` turns the folds (`foldCampaignSpend` per campaign, `monthToDateByPlatform`, `foldLeadCohorts`)
+      into display strings: "$1,234.56", "42,100", "1.4%". The model is shown no raw number and asked to work
+      nothing out.
+    - New in `adsReport.ts`: `sumCampaignTotals` (the day across every campaign) and `cohortRates`.
+      `cohortRates` is null for an immature cohort, so a young cohort's rate is not on the sheet and cannot be
+      stated.
+  - **The check (`checkNarration`), written the way the copy check is:**
+    - Every figure must equal one on the sheet, of the same kind (money, percent, date or count). The allowed set
+      is the sheet's own strings read by the same tokenizer.
+    - "$12" passes for "$12.00". A rounding ("$1,235" for "$1,234.56") is refused.
+    - Numbers in words are refused ("two campaigns", "a dozen", "twice"). "One" is allowed, because of "no one".
+    - A campaign's exact name is blanked before the scan, so the digits in "CDL-A 2026" pass inside the name and
+      not outside it.
+    - It proves §4R's bar (0 numbers the fold did not produce). It does not prove a figure is attached to the right
+      label; a person reads the brief.
+  - **The worker (`workers/analyst/`, `analyst@1`):**
+    - It calls the model through the A4 rail under the key `brief:<day>:<attempt>`.
+    - One finding in any sentence refuses the whole brief.
+    - It joins `EVAL_WORKERS`, and `lint:agent-fixtures` finds it on its own.
+  - **Eval, `pnpm ads:eval analyst` (15 fixtures: 8 model, 7 planted):**
+    - The first prompt got 4 of 8. The check caught real faults: the model added campaigns up ("7 leads combined"),
+      counted in words ("two campaigns"), and once returned its points as one string.
+    - The fold now produces `day_totals`, and the prompt says copy, never count, and that points are a list.
+    - After that: 8 of 8, and 8 of 8 again on a second run (`baseline.json`).
+  - **§4R L2 faults:** a zero day (no cost per lead, never "$0 per lead"), a revised-down day (the pre-revision
+    figure is refused), a young account (no rates at all), and an instruction inside a campaign's name.
+  - **Not built here:**
+    - Per-preset hook and hold rate for video: there is no video before L4 (Q-AD29).
+    - **F1b:** reading the stored rows into the fold, the morning job, and where the brief goes. Until F1b,
+      nothing calls `writeBrief`.
+  - Mutation: 14 mutants (the young-cohort null, the name blanking, the kind split, the number words, the day
+    totals, the points check, the key, the sheet sent rather than the fold, the agent). All 14 killed.

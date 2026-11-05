@@ -1,0 +1,72 @@
+{
+  "name": "no-campaign-ran",
+  "about": "A day with no campaign spending: no campaign rows, the month's spend so far, and the cohorts.",
+  "input": {
+    "fold": {
+      "day": "2026-11-03",
+      "month": {
+        "month": "2026-11",
+        "days_left": 28
+      },
+      "campaigns": [],
+      "month_to_date": {
+        "meta": 40000
+      },
+      "cohorts": [
+        {
+          "week": "2026-09-21",
+          "leads": 38,
+          "reached": {
+            "contacted": 33,
+            "qualified": 17,
+            "applied": 10,
+            "hired": 4,
+            "lost": 8
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-28",
+          "leads": 40,
+          "reached": {
+            "contacted": 36,
+            "qualified": 20,
+            "applied": 12,
+            "hired": 5,
+            "lost": 9
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 12,
+          "reached": {
+            "contacted": 9,
+            "qualified": 3,
+            "applied": 1,
+            "hired": 0,
+            "lost": 1
+          },
+          "mature": false
+        }
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "analyst@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T02:56:26.293Z",
+    "output": {
+      "headline": "No campaigns ran on 2026-11-03, so there was no spend, no impressions, no clicks, and no leads for the day.",
+      "points": [
+        "Day totals for 2026-11-03: $0.00 spent, 0 impressions, 0 clicks, and no leads, meaning there is no cost per lead or click rate to report.",
+        "For the month 2026-11, there are 28 days left and the only spend so far is $400.00 on Meta.",
+        "The mature cohort from the week of 2026-09-21 brought in 38 leads: 33 contacted (86.8%), 17 qualified (44.7%), 10 applied (26.3%), 4 hired (10.5%), and 8 lost (21.1%).",
+        "The mature cohort from the week of 2026-09-28 brought in 40 leads: 36 contacted (90.0%), 20 qualified (50.0%), 12 applied (30.0%), 5 hired (12.5%), and 9 lost (22.5%).",
+        "The cohort from the week of 2026-10-26 is too young to judge: it has 12 leads so far, with 9 contacted, 3 qualified, 1 applied, 0 hired, and 1 lost — movement is still ongoing."
+      ]
+    }
+  }
+}

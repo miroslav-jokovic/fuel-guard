@@ -37,6 +37,8 @@ const COPYWRITER = "apps/api/src/modules/ads/workers/copywriter/copywriter.test.
 const ART_DIRECTOR = "apps/api/src/modules/ads/workers/artDirector/artDirector.test.ts";
 const RENDER = "apps/api/src/modules/ads/creative/higgsfield/render.test.ts";
 const CHECKER = "apps/api/src/modules/ads/workers/checker/checker.test.ts";
+const ANALYST = "apps/api/src/modules/ads/workers/analyst/analyst.test.ts";
+const BRIEF = "packages/shared/src/ads/analystBrief.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -714,7 +716,52 @@ export const READINESS = [
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
-  { worker: "Analyst", levels: { L1: [notBuilt("F1 daily brief + cohort report")], L2: later("L2"), L3: later("L3"), L4: [{ need: "a brief over sandbox insights", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
+  {
+    worker: "Analyst",
+    levels: {
+      L1: [
+        {
+          need: "the pure number check that makes the L3 bar absolute (0 numbers the fold did not produce), over a sheet built from the fold alone",
+          tests: [{ file: BRIEF, titles: [
+            "formats money, counts and shares the way the narration must copy them",
+            "the day's totals are the fold's sum, so the model never adds campaigns up itself",
+            "an immature cohort gets its counts and no rates; a mature one gets both",
+            "refuses a planted number, a rounding of a real one, and a figure of the wrong kind",
+            "refuses numbers written in words, so a figure cannot route around the check",
+            "reads a campaign's name as the advertiser's words, and the same digits outside it as a figure",
+          ] }],
+        },
+        {
+          need: "the worker, through the A4 rail, with every recorded brief replayed and every sentence number-checked",
+          tests: [{ file: ANALYST, titles: [
+            "has model recordings under the prompt in force and planted numbers beside them",
+            "planted-invented-number", "planted-rounded-money", "planted-computed-change", "planted-number-in-words",
+            "refuses the planted number, naming the sentence it is in",
+            "asks once per day and attempt, as the analyst, showing the model the fact sheet and nothing else",
+            "asks no model when the analyst is switched off",
+          ] }],
+        },
+      ],
+      L2: [
+        {
+          need: "§4R's faults: a fold with a zero, a negative revision, a young cohort (and an instruction inside a campaign's name)",
+          tests: [
+            { file: ANALYST, titles: [
+              "zero-day", "revised-down", "planted-pre-revision-figure", "young-cohorts-only", "planted-young-cohort-rate",
+              "instruction-in-name", "planted-obeys-the-name",
+            ] },
+            { file: BRIEF, titles: [
+              "a campaign with no lead and no impression gets no cost per lead and no click rate, not a zero",
+              "refuses a rate for the young cohort, which the sheet does not hold",
+            ] },
+          ],
+        },
+      ],
+      L3: [{ need: "the evaluation set at its bar: 0 numbers in the narration that the fold did not produce", gap: "F1a measured 8 of 8 live briefs passing the number check, twice (pnpm ads:eval analyst, baseline.json, 2026-11-04) on 8 fixture folds; the brief is not yet read from stored rows or delivered (F1b), and the set grows over real folds" }],
+      L4: [{ need: "a brief over sandbox insights", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
   {
     worker: "Renderer / Higgsfield client",
     levels: {
