@@ -472,6 +472,9 @@
   "mcleod_deductions": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
+  "mcleod_tractor_periods": [
+    "apps/api/src/modules/mcleod/tractorPeriods.ts"
+  ],
   "mcleod_dispatch_movements": [
     "apps/api/src/modules/mcleod/dispatchMovementIngest.ts"
   ],
