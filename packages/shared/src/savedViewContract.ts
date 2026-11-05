@@ -127,6 +127,14 @@ export interface BuiltInView {
 export const BUILT_IN_VIEWS: Record<SavedViewTable, readonly BuiltInView[]> = {
   "roster.drivers": [
     {
+      // First, because it is the safety manager's whole morning in one view, and the page the retired
+      // `/compliance` list redirects into (DQ-INTO-DRIVERS-PLAN D-DQ16). `sort=file` is the File
+      // column's own sort: worst file first, then soonest due (`compareDqUrgency`).
+      name: "Qualification: needs attention",
+      query: "file=attention&sort=file",
+      description: "Every driver whose qualification file has something expired, missing or due soon, worst first.",
+    },
+    {
       name: "Medical expiring in 30 days",
       query: "req=medical_card&due=30&sort=full_name",
       description: "Drivers whose §391.45 medical certificate lapses inside a month.",

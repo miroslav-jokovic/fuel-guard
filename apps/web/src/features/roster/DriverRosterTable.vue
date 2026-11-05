@@ -62,6 +62,8 @@ const emit = defineEmits<{
   "open-file": [driver: Driver, documentId?: string];
   /** A scan was dropped on the File cell: the page opens its upload dialog with it (DQ-FILE-COLUMN). */
   "upload-file": [driver: Driver, file: File];
+  /** The File cell's outstanding control (DQ-INTO-DRIVERS-PLAN DD1): the page picks where it leads. */
+  outstanding: [driver: Driver];
 }>();
 
 const session = useSessionStore();
@@ -182,8 +184,10 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
         :paper-count="overviewByDriver.get(row.id)!.paper_count ?? 0"
         :items="overviewByDriver.get(row.id)!.requirements"
         :subject-label="row.full_name"
+        :outstanding="overviewByDriver.get(row.id)!.attention"
         @open="emit('open-file', row, $event)"
         @drop="emit('upload-file', row, $event[0]!)"
+        @outstanding="emit('outstanding', row)"
       />
       <span v-else class="text-ink-tertiary">—</span>
     </template>

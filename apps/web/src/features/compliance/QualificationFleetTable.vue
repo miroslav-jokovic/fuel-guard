@@ -22,7 +22,9 @@ import {
   DQ_EXPORT_MAX_DRIVERS,
   FILE_FILTERS,
   dqDueFilterOptions,
+  compareDqUrgency,
   dqSoonest,
+  dqWorstRank,
   fileFilterOptions,
   matchesDqFilters,
   type DriverOverviewRow,
@@ -136,7 +138,6 @@ export interface FleetRow {
   soonest: number | null;
 }
 
-const WORST_RANK = { expired: 0, missing: 1, expiring: 2, none: 3 } as const;
 
 const all = computed<FleetRow[]>(() =>
   (query.data.value?.drivers ?? []).map((d) => {
@@ -150,14 +151,7 @@ const all = computed<FleetRow[]>(() =>
       requirements: d.requirements,
       papers: d.papers ?? [],
       paper_count: d.paper_count ?? 0,
-      worst:
-        d.counts.expired > 0
-          ? WORST_RANK.expired
-          : d.counts.missing > 0
-            ? WORST_RANK.missing
-            : d.counts.expiring > 0
-              ? WORST_RANK.expiring
-              : WORST_RANK.none,
+      worst: dqWorstRank(d),
       soonest: dqSoonest(d),
     };
   }),
@@ -179,15 +173,12 @@ const filtered = computed(() =>
   }),
 );
 
-/** Default order: worst file first, most urgent date first within a state, then name. */
+/**
+ * Default order: worst file first, most urgent date first within a state, then name — the shared
+ * `compareDqUrgency`, which the Drivers page's File column sorts by too (DQ-INTO-DRIVERS-PLAN DD1).
+ */
 function bySeverity(a: FleetRow, b: FleetRow): number {
-  if (a.worst !== b.worst) return a.worst - b.worst;
-  if (a.soonest !== b.soonest) {
-    if (a.soonest === null) return 1;
-    if (b.soonest === null) return -1;
-    return a.soonest - b.soonest;
-  }
-  return a.driver_name.localeCompare(b.driver_name);
+  return compareDqUrgency(a, b) || a.driver_name.localeCompare(b.driver_name);
 }
 
 const sorted = computed(() =>

@@ -3,6 +3,8 @@ import {
   BUILT_IN_VIEWS,
   SAVED_VIEW_TABLES,
   builtInViewsFor,
+  compareDqUrgency,
+  dqWorstRank,
   DQ_DUE_FILTERS,
   FILE_FILTERS,
   dqSoonest,
@@ -59,6 +61,37 @@ describe("dqSoonest", () => {
 
   it("takes the most urgent, including an overdue one", () => {
     expect(dqSoonest(row({ attention: [attention({ daysRemaining: 5 }), attention({ daysRemaining: -3 })] }))).toBe(-3);
+  });
+});
+
+describe("compareDqUrgency — worst file first, then soonest due (DQ-INTO-DRIVERS-PLAN DD1)", () => {
+  const counts = (over: Partial<DriverOverviewRow["counts"]>) => ({ current: 5, expiring: 0, expired: 0, missing: 0, ...over });
+
+  it("ranks expired above missing above expiring above nothing outstanding", () => {
+    const ranked = [
+      row({ driver_id: "ok" }),
+      row({ driver_id: "soon", counts: counts({ expiring: 1 }) }),
+      row({ driver_id: "gone", counts: counts({ missing: 1 }) }),
+      row({ driver_id: "lapsed", counts: counts({ expired: 1 }) }),
+    ].sort(compareDqUrgency);
+    expect(ranked.map((r) => r.driver_id)).toEqual(["lapsed", "gone", "soon", "ok"]);
+  });
+
+  it("sorts an empty file with the missing ones, not after the complete ones", () => {
+    const empty = row({ state: "not_started", counts: counts({ current: 0, missing: 16 }) });
+    expect(dqWorstRank(empty)).toBe(dqWorstRank(row({ counts: counts({ missing: 1 }) })));
+    expect(compareDqUrgency(empty, row())).toBeLessThan(0);
+  });
+
+  it("within one state, the most overdue first and an undated item last", () => {
+    const at = (id: string, daysRemaining: number | null) =>
+      row({ driver_id: id, counts: counts({ expired: 1 }), attention: [attention({ state: "expired", daysRemaining })] });
+    const ranked = [at("undated", null), at("week", 7), at("overdue", -20), at("yesterday", -1)].sort(compareDqUrgency);
+    expect(ranked.map((r) => r.driver_id)).toEqual(["overdue", "yesterday", "week", "undated"]);
+  });
+
+  it("calls two equally urgent files a tie, for the caller to break by name", () => {
+    expect(compareDqUrgency(row(), row())).toBe(0);
   });
 });
 

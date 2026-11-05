@@ -55,7 +55,8 @@ export const DRIVER_ROSTER_COLUMNS: DataTableColumn[] = [
    * disagree. A stored `?hide=` that still names a removed key is harmless: `useTableColumns` keeps
    * what it finds in this list and ignores the rest.
    */
-  { key: "file", label: "File", width: "lg" },
+  // Sortable since DQ-INTO-DRIVERS-PLAN DD1: worst file first, then soonest due (`sortRoster`).
+  { key: "file", label: "File", width: "lg", sortable: true },
   /**
    * The three §391.51 expiry columns (R4, D-ROS9).
    *
@@ -68,9 +69,9 @@ export const DRIVER_ROSTER_COLUMNS: DataTableColumn[] = [
    * Pinned by "counts days to expiry the same way the queue does, so the two cannot disagree" in
    * packages/shared/src/dqFile.test.ts.
    */
-  { key: "cdl_expiry", label: "CDL expires", width: "md" },
-  { key: "medical_expiry", label: "Medical expires", width: "md" },
-  { key: "hazmat_expiry", label: "Hazmat expires", width: "md" },
+  { key: "cdl_expiry", label: "CDL expires", width: "md", sortable: true },
+  { key: "medical_expiry", label: "Medical expires", width: "md", sortable: true },
+  { key: "hazmat_expiry", label: "Hazmat expires", width: "md", sortable: true },
   {
     key: "phone",
     label: "Phone",

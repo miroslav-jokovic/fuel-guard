@@ -6,6 +6,7 @@ import { ref } from "vue";
 import type { Driver, Vehicle } from "@silvicom/shared";
 import DriversPage from "@/pages/DriversPage.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
+import { DRIVER_ROSTER_COLUMNS } from "@/features/roster/driverRosterColumns";
 import { FilterBar } from "@silvicom/ui";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
@@ -208,7 +209,11 @@ beforeEach(() => {
         driver_id: "d-1",
         state: "incomplete",
         counts: { expired: 0, expiring: 1, missing: 1, current: 3 },
-        attention: [{ daysRemaining: 12 }],
+        // The real `attention` shape, because the File cell's "still needed" card lists it (DD1, D-DQ22).
+        attention: [
+          { key: "medical_card", label: "Medical card", state: "expiring", goodUntil: "2026-09-11", daysRemaining: 12 },
+          { key: "endorsement_hazmat", label: "Hazmat endorsement", state: "missing", goodUntil: null, daysRemaining: null },
+        ],
         documents: { onFile: 8, of: 17 },
         requirements: [
           { key: "cdl", state: "current", goodUntil: "2030-01-01", daysRemaining: 1220, expiryUnknown: false, documentId: "cdl-1" },
@@ -226,7 +231,7 @@ beforeEach(() => {
         driver_id: "d-2",
         state: "complete",
         counts: { expired: 1, expiring: 0, missing: 0, current: 4 },
-        attention: [{ daysRemaining: -241 }],
+        attention: [{ key: "cdl", label: "CDL", state: "expired", goodUntil: "2026-01-01", daysRemaining: -241 }],
         documents: { onFile: 0, of: 14 },
         // No hazmat entry at all: this carrier does not ask it of this driver, so the cell reads "—".
         requirements: [
@@ -481,6 +486,104 @@ describe("DriversPage roster table", () => {
     expect(dialog.props("subjectLabel")).toBe("Marcus Reyes");
     expect(dialog.props("initialFile")).toBe(scan);
     expect(dialog.props("fileLink")).toBe("/drivers/d-1?section=qualification");
+  });
+
+  /**
+   * DQ-INTO-DRIVERS-PLAN DD1. The Drivers page takes over what the Driver Qualification list was kept
+   * for: worst file first, counts beside each File word, and what a file still needs.
+   */
+  const fileSelect = (w: Awaited<ReturnType<typeof mountPage>>) =>
+    w.findAllComponents(FilterSelect).find((f) => f.props("label") === "File")!;
+  const optionCount = (w: Awaited<ReturnType<typeof mountPage>>, value: string) => {
+    const option = (fileSelect(w).props("options") as { value: string; label: string }[]).find((o) => o.value === value)!;
+    return Number(/\((\d+)\)$/.exec(option.label)?.[1]);
+  };
+  const names = (w: Awaited<ReturnType<typeof mountPage>>) =>
+    w.findAll("tbody tr").map((r) => (r.text().includes("Ana Whitfield") ? "Ana" : r.text().includes("Marcus Reyes") ? "Marcus" : "?"));
+
+  it("counts beside each File word exactly the rows that choosing it leaves (D-DQ18)", async () => {
+    const w = await mountPage();
+    // Active drivers: d-1's worst is missing, d-2's is expired; d-4 is inactive and off the default list.
+    expect(optionCount(w, "attention")).toBe(2);
+    expect(optionCount(w, "expired")).toBe(1);
+    expect(optionCount(w, "missing")).toBe(1);
+    expect(optionCount(w, "complete")).toBe(0);
+    for (const value of ["attention", "expired", "missing", "expiring", "complete"]) {
+      const narrowed = await mountPage(`/drivers?file=${value}`);
+      expect(narrowed.findAll("tbody tr").filter((r) => !r.text().includes("No drivers")), value).toHaveLength(
+        optionCount(w, value),
+      );
+    }
+  });
+
+  it("counts with the other controls as they are set, not over the whole fleet", async () => {
+    const w = await mountPage("/drivers?q=ana");
+    expect(optionCount(w, "attention")).toBe(1);
+    expect(optionCount(w, "missing")).toBe(0);
+  });
+
+  it("puts no number beside a File word before the rollup arrives", async () => {
+    overview.value = undefined;
+    const w = await mountPage();
+    const labels = (fileSelect(w).props("options") as { label: string }[]).map((o) => o.label);
+    expect(labels.some((l) => /\(\d+\)$/.test(l))).toBe(false);
+  });
+
+  it("sorts by the File column worst file first, and reverses on the second click", async () => {
+    // Insertion order is Marcus then Ana; Ana's CDL lapsed, Marcus is missing hazmat.
+    expect(names(await mountPage("/drivers?sort=file"))).toEqual(["Ana", "Marcus"]);
+    expect(names(await mountPage("/drivers?sort=file&dir=desc"))).toEqual(["Marcus", "Ana"]);
+  });
+
+  it("sorts an expiry column by the date in the cell", async () => {
+    // Medical: Marcus 09/11/2026, Ana 06/30/2027. CDL: Ana 01/01/2026, Marcus 01/01/2030.
+    expect(names(await mountPage("/drivers?sort=medical_expiry"))).toEqual(["Marcus", "Ana"]);
+    expect(names(await mountPage("/drivers?sort=cdl_expiry"))).toEqual(["Ana", "Marcus"]);
+  });
+
+  it("offers the needs-attention view first, and sorts by a column the table can sort", async () => {
+    const w = await mountPage();
+    const first = (w.findComponent(SavedViewMenu).props("builtIns") as readonly { name: string; query: string }[])[0]!;
+    expect(first.name).toBe("Qualification: needs attention");
+    const sortable = DRIVER_ROSTER_COLUMNS.filter((c) => c.sortable).map((c) => c.key);
+    for (const view of w.findComponent(SavedViewMenu).props("builtIns") as readonly { query: string }[]) {
+      const sort = new URLSearchParams(view.query).get("sort");
+      if (sort) expect(sortable, view.query).toContain(sort);
+    }
+  });
+
+  it("lists what a file still needs on the File cell, even with no paper on it (D-DQ22)", async () => {
+    const w = await mountPage();
+    const rows = w.findAll("tbody tr");
+    // d-2 has no papers at all — the 183-of-183 case — and still says what is outstanding.
+    const card = rows[1]!.find("[data-test=file-outstanding]");
+    expect(card.findAll("li").map((li) => li.text())).toEqual(["CDL · Expired 01/01/2026"]);
+    expect(rows[0]!.find("[data-test=file-outstanding]").text()).toContain("Hazmat endorsement");
+  });
+
+  it("opens the upload panel from the outstanding control for a reader who files", async () => {
+    const w = await mountPage();
+    await w.findAll("tbody tr")[1]!.find("[data-test=file-outstanding] button").trigger("click");
+    await flushPromises();
+    const dialog = w.findComponent(FileUploadDialog);
+    expect(dialog.props("subject")).toEqual({ type: "driver", id: "d-2" });
+    expect(dialog.props("outstanding")).toHaveLength(1);
+  });
+
+  it("takes a reader who cannot file to the driver's qualification section instead", async () => {
+    const { __session: session } = (await import("@/stores/session")) as unknown as {
+      __session: import("@/testing/fakeSession").FakeSession;
+    };
+    session.role = "dispatcher";
+    try {
+      const w = await mountPage();
+      await w.findAll("tbody tr")[1]!.find("[data-test=file-outstanding] button").trigger("click");
+      await flushPromises();
+      expect(w.findComponent(FileUploadDialog).props("subject")).toBeNull();
+      expect(w.vm.$router.currentRoute.value.fullPath).toBe("/drivers/d-2?section=qualification");
+    } finally {
+      session.role = "admin";
+    }
   });
 
   it("hides a column from the table when the picker turns it off", async () => {
