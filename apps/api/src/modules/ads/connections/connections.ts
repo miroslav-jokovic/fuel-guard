@@ -71,7 +71,11 @@ export async function connectMeta(deps: ConnectionDeps, orgId: string, actor: Co
   const accountId = ask.account_id.replace(/^act_/, "");
   const moved = await movesDeliveringSlot(deps.admin, orgId, ask.sandbox, accountId, ask.page_id);
   if (moved) return moved;
-  const graph = new MetaGraph({ token: ask.token, throttleKey: `connect:${orgId}`, baseUrl: deps.metaBaseUrl, now: deps.now });
+  // G-sec, 2026-11-05: the base URL is passed only when a test names one. `MetaGraph` spreads its options over
+  // its defaults, so an explicit `baseUrl: undefined` — what the route's deps carry — replaced the real Graph
+  // with nothing, and every Connect through the app answered 500 (the route sweep in
+  // `security/adsRouteSweep.test.ts` found it; every earlier connect test handed FakeMeta's URL in).
+  const graph = new MetaGraph({ token: ask.token, throttleKey: `connect:${orgId}`, ...(deps.metaBaseUrl ? { baseUrl: deps.metaBaseUrl } : {}), now: deps.now });
   const target: ConnectionTarget = { accountId, pageId: ask.page_id };
   const { report, pageToken, tokenRefused } = await testMetaConnection(graph, target);
   if (tokenRefused) return { kind: "token_refused", report };
