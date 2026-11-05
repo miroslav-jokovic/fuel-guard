@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { recordId } from "./recordId.js";
+import { FLEET_WIDE_UNIT_KINDS } from "./equipmentFileCatalogue.js";
 
 /**
  * Compliance master data contract — `/api/compliance/*` (PLAN §3, M1.5).
@@ -32,6 +33,27 @@ export const CERTIFICATION_KINDS = [
   "financial_responsibility", "operating_authority",
 ] as const;
 export const certificationKindSchema = z.enum(CERTIFICATION_KINDS);
+
+/** The kinds that are only ever the carrier's own (§0.6): never a driver's, never a unit's. */
+export const CARRIER_ONLY_CERT_KINDS = [
+  "phmsa_registration", "hazmat_safety_permit", "security_plan", "financial_responsibility", "operating_authority",
+] as const satisfies readonly CertificationKind[];
+
+/**
+ * Every kind a certification on the ORGANIZATION may be: the carrier's own, plus each fleet-wide unit
+ * paper filed once for the whole fleet (UNIT-FILES-PLAN D-UF6: insurance, IFTA). The second half is
+ * DERIVED from the equipment catalogue's `fleetWide` items, never listed here.
+ *
+ * ── THE DEFECT THIS CLOSES (DQ-INTO-DRIVERS-PLAN DD3, 2026-11-05) ────────────────────────────────
+ * The refinement below kept its own list, which had `insurance` and not `ifta`. So the unit rollup
+ * read an organization IFTA certification (`unitFiles.ts`, `FLEET_WIDE_UNIT_KINDS`) that this schema
+ * refused to let anybody write, and every tractor read "missing" on IFTA with no way to clear it.
+ * The database never refused it (0490's CHECK lists `ifta` for any subject); only this copy did.
+ */
+export const ORGANIZATION_CERT_KINDS: readonly CertificationKind[] = [
+  ...CARRIER_ONLY_CERT_KINDS,
+  ...(FLEET_WIDE_UNIT_KINDS as CertificationKind[]),
+];
 export type CertificationKind = (typeof CERTIFICATION_KINDS)[number];
 
 /** §172.704(a): hazmat training is FIVE distinct requirements, not one. */
@@ -223,11 +245,10 @@ export const certificationCreateSchema = z
     }
     // Subject/kind coherence: the carrier holds org-level certifications (§0.6); people and
     // equipment hold the rest. A CDL on an organization is a data-entry error, catch it at the door.
-    const ORG_KINDS: readonly string[] = ["phmsa_registration", "hazmat_safety_permit", "security_plan", "financial_responsibility", "operating_authority", "insurance"];
-    if (v.subjectType === "organization" && !ORG_KINDS.includes(v.kind)) {
+    if (v.subjectType === "organization" && !(ORGANIZATION_CERT_KINDS as readonly string[]).includes(v.kind)) {
       ctx.addIssue({ code: "custom", path: ["kind"], message: `'${v.kind}' is not an organization-level certification` });
     }
-    if (v.subjectType !== "organization" && ["phmsa_registration", "hazmat_safety_permit", "security_plan", "operating_authority", "financial_responsibility"].includes(v.kind)) {
+    if (v.subjectType !== "organization" && (CARRIER_ONLY_CERT_KINDS as readonly string[]).includes(v.kind)) {
       ctx.addIssue({ code: "custom", path: ["kind"], message: `'${v.kind}' belongs to the organization, not a ${v.subjectType}` });
     }
   });

@@ -146,6 +146,8 @@ describe("PageHeader breadcrumbs (G2)", () => {
     let w = await mountAt("/settings/audit");
     expect(w.find("nav[aria-label='Breadcrumb']").findAll("a").map((a) => a.attributes("href"))).toEqual(["/settings"]);
     session.role = "fleet_manager";
+    // Carrier records starts on for a fleet manager (DQ-INTO-DRIVERS-PLAN D-DQ20), which opens /settings.
+    session.surfaces = { "safety.carrier-records": false };
     try {
       w = await mountAt("/settings/audit");
       const nav = w.find("nav[aria-label='Breadcrumb']");
@@ -153,6 +155,7 @@ describe("PageHeader breadcrumbs (G2)", () => {
       expect(nav.text()).toContain("Settings");
     } finally {
       session.role = "admin";
+      session.surfaces = null;
     }
   });
 

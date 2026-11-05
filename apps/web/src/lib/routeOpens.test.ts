@@ -17,11 +17,12 @@ const as = (role: RouteCaller["role"], extra: Partial<RouteCaller> = {}): RouteC
 describe("routeOpens", () => {
   it("opens /settings to the admin and closes it to a fleet manager with nothing turned on", () => {
     expect(routeOpens("/settings", {}, as("admin"))).toBe(true);
-    expect(routeOpens("/settings", {}, as("fleet_manager"))).toBe(false);
+    // Carrier records starts on for a fleet manager (D-DQ20), so "nothing turned on" switches it off.
+    expect(routeOpens("/settings", {}, as("fleet_manager", { surfaces: { "safety.carrier-records": false } }))).toBe(false);
   });
 
   it("opens /settings to a fleet manager once one screen behind it is turned on", () => {
-    expect(routeOpens("/settings", {}, as("fleet_manager", { surfaces: { "admin.settings.org": true } }))).toBe(true);
+    expect(routeOpens("/settings", {}, as("fleet_manager", { surfaces: { "safety.carrier-records": false, "admin.settings.org": true } }))).toBe(true);
   });
 
   it("judges a detail route by its declared path and its parent's screen", () => {

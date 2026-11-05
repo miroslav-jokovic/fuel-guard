@@ -68,14 +68,27 @@ describe("the section gates on the navigation guard", () => {
   // exactly when a screen behind it does, and every such screen starts off for everyone but the admin.
   it("keeps /settings to the admin until a screen behind it is turned on for the role", async () => {
     expect(await landsOn("admin", "/settings")).toBe("settings");
-    expect(await landsOn("fleet_manager", "/settings")).toBe("dashboard");
     expect(await landsOn("auditor", "/settings")).toBe("dashboard");
-    session.surfaces = { "admin.settings.data": true };
+    // Carrier records starts ON for a fleet manager (DQ-INTO-DRIVERS-PLAN D-DQ20), so the role is
+    // "nothing turned on" only once the org switches that one screen off too.
+    session.surfaces = { "safety.carrier-records": false };
+    expect(await landsOn("fleet_manager", "/settings")).toBe("dashboard");
+    session.surfaces = { "safety.carrier-records": false, "admin.settings.data": true };
     expect(await landsOn("fleet_manager", "/settings")).toBe("settings");
   });
 
+  it("opens /settings to a roster manager, for the one screen that starts on for them (D-DQ20)", async () => {
+    expect(await landsOn("safety_manager", "/settings")).toBe("settings");
+    expect(await landsOn("safety_manager", "/settings/carrier-records")).toBe("carrier-records");
+    expect(await landsOn("fleet_manager", "/settings/carrier-records")).toBe("carrier-records");
+    // A roster READER does not get it by default: Q-SET2 still holds for everyone the ruling did not name.
+    expect(await landsOn("dispatcher", "/settings/carrier-records")).toBe("dashboard");
+    expect(await landsOn("recruiter", "/settings/carrier-records")).toBe("dashboard");
+  });
+
   it("still refuses /settings to a role holding none of it", async () => {
-    // dispatcher, safety_manager, recruiter, accountant and technician are all `settings: "none"`.
+    // dispatcher, recruiter, accountant and technician are all `settings: "none"` and start with no
+    // screen behind it (safety_manager starts with Carrier records since D-DQ20).
     expect(await landsOn("dispatcher", "/settings")).toBe("dashboard");
     expect(await landsOn("technician", "/settings")).toBe("dashboard");
   });

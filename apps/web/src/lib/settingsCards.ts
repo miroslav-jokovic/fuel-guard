@@ -8,6 +8,7 @@ import {
   ClipboardDocumentCheckIcon,
   PrinterIcon,
   ClipboardDocumentListIcon,
+  LicenseIcon,
   ConnectIcon,
   LockIcon,
   DatabaseSyncIcon,
@@ -48,6 +49,7 @@ export interface SettingsCard {
 
 export const SETTINGS_CARDS: readonly SettingsCard[] = [
   { key: "admin.settings.org", icon: BuildingOffice2Icon, desc: "Profile, allowed domains, and operating hours.", block: "config" },
+  { key: "safety.carrier-records", icon: LicenseIcon, desc: "PHMSA registration, operating authority, and the insurance and IFTA every truck's file counts.", block: "config" },
   { key: "admin.settings.notifications", icon: BellIcon, desc: "The carrier's alerts, on or off, and who is emailed.", block: "config" },
   // Users is a SIDEBAR entry as well as a card, which is why it is named here rather than being one
   // of the catalogue's `reachedFrom` screens.

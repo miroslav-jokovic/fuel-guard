@@ -614,6 +614,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/org",
   },
   {
+    "name": "carrier-records",
+    "params": {},
+    "url": "/settings/carrier-records",
+  },
+  {
     "name": "notifications",
     "params": {},
     "url": "/settings/notifications",
@@ -1347,6 +1352,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "card-control-settings",
     "path": "/settings/card-control",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "Carrier records",
+    },
+    "name": "carrier-records",
+    "path": "/settings/carrier-records",
     "redirect": null,
   },
   {

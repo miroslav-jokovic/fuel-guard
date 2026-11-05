@@ -1005,6 +1005,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Shop parts → /shop/inventory",
     ],
   },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+    ],
+  },
 ]
 `;
 
@@ -1072,6 +1078,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Shop parts → /shop/inventory",
     ],
   },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+    ],
+  },
 ]
 `;
 
@@ -1135,6 +1147,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
       "Shop parts → /shop/inventory",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
     ],
   },
 ]
@@ -1273,6 +1291,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
       "Odometer mismatches → /odometer",
     ],
   },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+    ],
+  },
 ]
 `;
 
@@ -1320,6 +1344,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
       "Odometer mismatches → /odometer",
     ],
   },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
+    ],
+  },
 ]
 `;
 
@@ -1365,6 +1395,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
       "Trailers → /trailers",
       "Drivers → /drivers",
       "Odometer mismatches → /odometer",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
     ],
   },
 ]
@@ -1546,6 +1582,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
       "Equipment → /shop/assets",
       "Annual inspections → /shop/inspections",
       "Shop parts → /shop/inventory",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Settings → /settings",
     ],
   },
 ]
