@@ -969,7 +969,8 @@ rate, and Higgsfield credits per approved creative.
   gate itself documents for an accepted dependency. **Meanwhile:** E1c is committed on
   `claude/ads-e1c-spend`, rebased on main `6bfbdbb`. Every other `ci:local` step is green (54/55).
 - **Q-AD38 · Who adds a new `/api/ads` route to the Security L3 ledger** (us, found rebasing E1c onto Security L3
-  #2070, 2026-11-05; **blocks E1c**). Security L3 pins the walked `/api/ads` routes to a ledger, in two files:
+  #2070, 2026-11-05; **ruled 2026-11-05 by the orchestrator: (a)** — a route's own PR adds its ledger lines, and
+  Track S may add lines to the two files, add-only). Security L3 pins the walked `/api/ads` routes to a ledger, in two files:
   `security/adsRouteGates.test.ts` (route → gates) and `security/adsRouteSweep.test.ts` (one call per route).
   E1c's `GET /api/ads/spend` is a new route, so both fail until it is listed. The entry is mechanical:
   `"GET /api/ads/spend": VIEW` and `["GET /api/ads/spend", "spend"]`, the same shape as

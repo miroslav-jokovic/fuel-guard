@@ -1958,3 +1958,9 @@ blocking step in §3 above.
   - Mutation: 23 mutants, 23 killed — after adding the four tests the first run's five survivors asked for
     (the carrier's day start, paging past 1,000, the `external_change` filter, the at-least-one-day floor, the
     spend refresh on save).
+  - **Security L3 ledger** (Q-AD38 ruled (a)): `GET /api/ads/spend` is listed in `adsRouteGates.test.ts` (VIEW)
+    and called by `adsRouteSweep.test.ts`. Both carriers have an hour of spend and a finished reconcile with figures
+    of their own, and the answer must carry this carrier's (1,234¢, its run time) and never the other's 8,765¢.
+    Mutants: dropping the org filter from each of spendView's four reads is killed by the sweep. Dropping it from
+    `lastDoneJobByKey` is a no-op there (the key names a connection id), and `spendView.test.ts`'s
+    `expectOrgScoped` (no `jobs` exemption) kills it instead.

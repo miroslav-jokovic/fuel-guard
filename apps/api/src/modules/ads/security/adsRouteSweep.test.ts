@@ -81,6 +81,10 @@ function carrier(org: string, ids: ReturnType<typeof idsOf>): Record<string, Fix
     ads_actions: [{ id: ids.action, org_id: org, campaign_id: ids.campaign, approval_id: null, kind: "connection_test", status: "succeeded", created_at: T }],
     ad_brand_kits: [{ id: ids.kit, org_id: org, name: "Our kit", archived_at: null, created_at: T }],
     ad_concept_presets: [{ id: ids.preset, org_id: org, key: "P1", enabled: true, archived_at: null, created_at: T }],
+    // The spend card's read (E1c) folds these. Each carrier has an hour it paid for and a finished daily
+    // check, with figures of its own, so a fold or a ledger read that lost its org filter would show it.
+    ads_spend_hourly: [{ org_id: org, campaign_id: ids.campaign, hour: T, spend_cents: org === ORG ? 1_234 : 8_765, impressions: 10, clicks: 1, leads: 1 }],
+    jobs: [{ id: randomUUID(), org_id: org, kind: "ads_reconcile", dedup_key: `ads_reconcile:${ids.conn}`, status: "done", started_at: org === ORG ? T : "2026-11-05T13:00:00.000Z" }],
   };
 }
 
@@ -140,6 +144,7 @@ const SWEEP: Array<[string, string, unknown?]> = [
   ["POST /api/ads/kill-switch", "kill-switch", { reason: "sweep" }],
   ["POST /api/ads/kill-switch/clear", "kill-switch/clear", { reason: "sweep" }],
   ["POST /api/ads/campaigns/:campaignId/approvals", `campaigns/${MINE.campaign}/approvals`, { kind: "launch", daily_budget_cents: 5_000, lifetime_cap_cents: 50_000 }],
+  ["GET /api/ads/spend", "spend"],
   ["GET /api/ads/connections", "connections"],
   ["POST /api/ads/connections/meta", "connections/meta", { token: TOKEN, account_id: "act_100100", page_id: "200200", sandbox: false }],
   ["POST /api/ads/connections/simulator", "connections/simulator", {}],
@@ -206,6 +211,12 @@ describe("Security L3 — the sweep reaches every ads route", () => {
     expect(answers.get("POST /api/ads/connections/:connectionId/test")!.status).toBe(200);
     expect(answers.get("GET /api/ads/connections")!.text).toContain(MINE.conn);
     expect(answers.get("GET /api/ads/campaigns")!.text).toContain(MINE.campaign);
+    const spend = answers.get("GET /api/ads/spend")!;
+    expect(spend.status).toBe(200);
+    expect(spend.text).toContain(MINE.campaign);
+    expect(spend.text).toContain(`"lifetime_spend_cents":1234`);
+    expect(spend.text).toContain(`"last_run_at":"${T}"`);
+    expect(spend.text).not.toContain("8765");
   });
 
   it("Launch on a real connection answers the door's refusal through the app: its code, its sentence and every worker below L4", () => {
