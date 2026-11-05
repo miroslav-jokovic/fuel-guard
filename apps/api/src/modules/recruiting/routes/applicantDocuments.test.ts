@@ -31,12 +31,12 @@ const CTX: Record<string, AuthContext> = {
 
 const capture = (id: string, slot: string, over: Record<string, unknown> = {}) => ({
   id, org_id: ORG, invitation_id: INVITE, driver_id: DRIVER, slot, storage_path: `${ORG}/${INVITE}/${id}`,
-  content_type: "image/webp", captured_at: "2026-11-01T10:00:00Z", promoted_document_id: null, ...over,
+  content_type: "image/webp", captured_at: "2026-11-01T10:00:00Z", promoted_document_id: null, bytes: 2048, sha256: SHA, ...over,
 });
 const doc = (id: string, kind: string, over: Record<string, unknown> = {}) => ({
   id, org_id: ORG, subject_type: "driver", subject_id: DRIVER, kind, page: 1, variant: "original",
   content_type: "image/jpeg", storage_path: `${ORG}/driver/${DRIVER}/${id}.jpg`, created_at: "2026-10-30T10:00:00Z",
-  uploaded_by: null, ...over,
+  uploaded_by: null, bytes: 4096, sha256: SHA, ...over,
 });
 
 const seed = (permissions: Record<string, unknown>[] = []): SupabaseRecorder =>
@@ -44,7 +44,7 @@ const seed = (permissions: Record<string, unknown>[] = []): SupabaseRecorder =>
     tables: {
       // §15.1 (Q-WF4b): the carrier's identity-picture switches; none = the shipped default.
       org_role_permissions: postgrestFixture(permissions),
-      drivers: postgrestFixture([{ id: DRIVER, org_id: ORG }]),
+      drivers: postgrestFixture([{ id: DRIVER, org_id: ORG, full_name: "Ana Marie Lopez" }]),
       application_captures: postgrestFixture([
         capture("cap-ssn", "ssn_card"),
         capture("cap-tc", "training_certificate", { content_type: "application/pdf", captured_at: "2026-11-01T11:00:00Z" }),
@@ -69,6 +69,10 @@ const seed = (permissions: Record<string, unknown>[] = []): SupabaseRecorder =>
     storage: {
       createSignedUrls: (paths: string[]) => ({
         data: paths.map((path) => ({ path, signedUrl: `https://signed.test/${path}` })),
+        error: null,
+      }),
+      createSignedUrl: (path: string, _ttl: number, opts?: { download?: string }) => ({
+        data: { signedUrl: `https://signed.test/${path}?download=${opts?.download ?? ""}` },
         error: null,
       }),
       createSignedUploadUrl: (path: string) => ({ data: { signedUrl: `https://upload.test/${path}`, token: "tok", path }, error: null }),
@@ -202,5 +206,55 @@ describe("the office's upload (§9 P9)", () => {
     expect(rec.writes()).toEqual([]);
     holder.client = seed().client;
     expect((await call("POST", "auditor", BODY)).status).toBe(403);
+  });
+});
+
+describe("one paper as a download — the shared viewer's Download original", () => {
+  const download = (token: string, id: string) =>
+    fetch(`${baseUrl}/api/recruitment/applicants/${DRIVER}/documents/${id}/download`, { headers: { Authorization: `Bearer ${token}` } });
+  const signCalls = (rec: SupabaseRecorder) => rec.storageCalls().filter((c) => c.fn === "createSignedUrl");
+
+  it("signs a paper still in the link's staging bucket, named for the driver, and audits it", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await download("recruiter", "cap-tc");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.json()).toEqual({
+      url: `https://signed.test/${ORG}/${INVITE}/cap-tc?download=lopez-training_certificate-2026-11-01.pdf`,
+      filename: "lopez-training_certificate-2026-11-01.pdf",
+    });
+    const audit = rec.writes().find((w) => w.table === "audit_logs")?.write;
+    expect(audit?.payload).toMatchObject({ action: "compliance.document_downloaded", entity: "application_captures", meta: expect.objectContaining({ filename: "lopez-training_certificate-2026-11-01.pdf", via: "applicant_record" }) });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("signs a filed paper from the documents bucket", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await download("recruiter", "doc-cdl");
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { filename: string }).filename).toBe("lopez-cdl-2026-10-30.jpeg");
+    expect(signCalls(rec)[0]?.args[0]).toBe(`${ORG}/driver/${DRIVER}/doc-cdl.jpg`);
+  });
+
+  it("will not serve what the list does not show — a drawn mark, another org's paper, an unknown id", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    for (const id of ["doc-mark", "doc-stranger", "cap-selfie", DOC_ID]) expect((await download("admin", id)).status, id).toBe(404);
+    expect(signCalls(rec)).toEqual([]);
+    expect(rec.writes().filter((w) => w.table === "audit_logs")).toEqual([]);
+  });
+
+  it("refuses an SSN card's bytes to a role whose list withholds its picture (Q-WF4b)", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    expect((await download("auditor", "cap-ssn")).status).toBe(403);
+    expect(signCalls(rec)).toEqual([]);
+  });
+
+  it("is the recruitment section's — a dispatcher is refused", async () => {
+    holder.client = seed().client;
+    expect((await download("dispatcher", "cap-tc")).status).toBe(403);
   });
 });

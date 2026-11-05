@@ -6,6 +6,7 @@ import { AppSelect } from "@silvicom/ui";
 import type { ApplicantDocument } from "@silvicom/shared";
 import ApplicantDocumentsSection from "@/features/recruitment/ApplicantDocumentsSection.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
+import DocumentPreview from "@/components/DocumentPreview.vue";
 
 /**
  * The applicant record's Documents section (HIRING-WORKFLOW-AUDIT §9 P9). Pinned: the office's upload
@@ -48,7 +49,8 @@ vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => state.
 
 const row = (over: Partial<ApplicantDocument>): ApplicantDocument => ({
   id: "x", slot: "twic", kind: "twic", contentType: "image/webp", at: "2026-10-30T15:00:00Z",
-  source: "applicant", addedBy: null, staged: false, url: "https://signed.test/x", imageWithheld: false, ...over,
+  source: "applicant", addedBy: null, staged: false, bytes: 2048, sha256: "a1".repeat(32),
+  url: "https://signed.test/x", imageWithheld: false, ...over,
 });
 
 const settle = async (w: ReturnType<typeof mount>) => {
@@ -57,8 +59,10 @@ const settle = async (w: ReturnType<typeof mount>) => {
     await new Promise((r) => setTimeout(r, 0));
   }
 };
+// The viewer's modal drawn in place (DocumentPreview.test.ts's stub), so its frame can be asserted on.
+const MODAL_STUB = { BaseModal: { template: "<div><slot /><slot name='footer' /></div>", props: ["open", "title", "size", "printable"] } };
 const mountSection = () =>
-  mount(ApplicantDocumentsSection, { props: { driverId: DRIVER }, global: { plugins: [VueQueryPlugin] } });
+  mount(ApplicantDocumentsSection, { props: { driverId: DRIVER }, global: { plugins: [VueQueryPlugin], stubs: MODAL_STUB } });
 
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -121,6 +125,39 @@ describe("the list", () => {
     expect(li.text()).toContain("Social Security card");
     expect(li.find("img").exists()).toBe(false);
     expect(li.find("a").exists()).toBe(false);
+    expect(li.find("[data-document-view]").exists()).toBe(false);
     expect(li.find("[data-image-withheld]").exists()).toBe(true);
+  });
+});
+
+describe("the viewer — the same one a truck's and a trailer's file opens", () => {
+  it("opens a paper in the shared viewer beside the record, never a new tab", async () => {
+    state.docs = [row({ id: "tc", slot: "training_certificate", kind: "training_certificate", contentType: "application/pdf", staged: true })];
+    const w = mountSection();
+    await settle(w);
+    const li = w.find('[data-document="tc"]');
+    expect(li.find('a[target="_blank"]').exists()).toBe(false);
+    expect(w.findComponent(DocumentPreview).props("open")).toBe(false);
+    await li.find("[data-document-view]").trigger("click");
+    await settle(w);
+    const viewer = w.findComponent(DocumentPreview);
+    expect(viewer.props()).toMatchObject({ open: true, label: "Training certificate" });
+    expect(viewer.props("doc")).toMatchObject({ id: "tc", url: "https://signed.test/x" });
+    // Download goes through the recruitment door, which can serve a paper still in staging.
+    expect(viewer.props("downloadPath")).toBe(`/api/recruitment/applicants/${DRIVER}/documents/tc/download`);
+    expect(viewer.find("iframe").attributes("src")).toBe("https://signed.test/x");
+    viewer.vm.$emit("close");
+    await settle(w);
+    expect(w.findComponent(DocumentPreview).props("open")).toBe(false);
+  });
+
+  it("opens a photo from its thumbnail", async () => {
+    state.docs = [row({ id: "cdl", slot: "cdl_front", kind: "cdl" })];
+    const w = mountSection();
+    await settle(w);
+    await w.find('[data-document="cdl"] img').trigger("click");
+    await settle(w);
+    expect(w.findComponent(DocumentPreview).props()).toMatchObject({ open: true });
+    expect(w.findComponent(DocumentPreview).find("img").attributes("src")).toBe("https://signed.test/x");
   });
 });

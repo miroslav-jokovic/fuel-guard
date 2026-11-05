@@ -57,6 +57,8 @@ interface CaptureRow {
   content_type: string;
   captured_at: string;
   promoted_document_id: string | null;
+  bytes: number | null;
+  sha256: string;
 }
 
 interface DocumentRow {
@@ -67,16 +69,21 @@ interface DocumentRow {
   storage_path: string;
   created_at: string;
   uploaded_by: string | null;
+  bytes: number | null;
+  sha256: string;
 }
 
-export type ApplicantDocumentsError = { code: "not_found"; message: string };
+export type ApplicantDocumentsError =
+  | { code: "not_found"; message: string }
+  | { code: "forbidden"; message: string }
+  | { code: "sign_failed"; message: string };
 export const isApplicantDocumentsError = (v: object): v is ApplicantDocumentsError => "code" in v && "message" in v;
 
 const NOT_FOUND: ApplicantDocumentsError = { code: "not_found", message: "That applicant is not in this organization." };
 
-async function driverInOrg(admin: SupabaseClient, orgId: string, driverId: string): Promise<boolean> {
-  const { data } = await admin.from("drivers").select("id").eq("org_id", orgId).eq("id", driverId).maybeSingle();
-  return data !== null;
+async function driverInOrg(admin: SupabaseClient, orgId: string, driverId: string): Promise<{ full_name: string | null } | null> {
+  const { data } = await admin.from("drivers").select("id, full_name").eq("org_id", orgId).eq("id", driverId).maybeSingle();
+  return data as { full_name: string | null } | null;
 }
 
 /** One Storage batch per bucket; a path that will not sign is a row with no link, never a failed page. */
@@ -92,24 +99,37 @@ async function sign(admin: SupabaseClient, bucket: string, paths: string[]): Pro
 
 const LISTED_SLOTS: ReadonlySet<string> = new Set(APPLICANT_DOCUMENT_SLOTS);
 
-export async function listApplicantDocuments(
+/** A listed paper and where its bytes are — the storage half never leaves this module. */
+interface LocatedDocument {
+  row: ApplicantDocument;
+  bucket: string;
+  storagePath: string;
+}
+
+/**
+ * The list, with each row's bucket and path beside it. The read AND the download go through this one
+ * function, so the download can never serve a paper the list would not show (a restricted kind, a
+ * drawn mark, another driver's) — its visibility rules are these rules, not a second copy of them.
+ */
+async function locateApplicantDocuments(
   admin: SupabaseClient,
   orgId: string,
   driverId: string,
   role: UserRole | null,
-): Promise<ApplicantDocument[] | ApplicantDocumentsError> {
-  if (!(await driverInOrg(admin, orgId, driverId))) return NOT_FOUND;
+): Promise<{ driverName: string | null; docs: LocatedDocument[] } | ApplicantDocumentsError> {
+  const driver = await driverInOrg(admin, orgId, driverId);
+  if (!driver) return NOT_FOUND;
 
   // §15.1 (Q-WF4b): the carrier's switch for identity pictures, read for this request (closed on a failed read).
   const [{ data: captureData }, { data: documentData }, grants] = await Promise.all([
     admin
       .from("application_captures")
-      .select("id, slot, storage_path, content_type, captured_at, promoted_document_id")
+      .select("id, slot, storage_path, content_type, captured_at, promoted_document_id, bytes, sha256")
       .eq("org_id", orgId)
       .eq("driver_id", driverId),
     admin
       .from("documents")
-      .select("id, kind, page, content_type, storage_path, created_at, uploaded_by")
+      .select("id, kind, page, content_type, storage_path, created_at, uploaded_by, bytes, sha256")
       .eq("org_id", orgId)
       .eq("subject_type", "driver")
       .eq("subject_id", driverId)
@@ -140,30 +160,79 @@ export async function listApplicantDocuments(
     memberLabels(admin, orgId, filed.map((d) => d.uploaded_by).filter((u): u is string => typeof u === "string")),
   ]);
 
-  const rows: ApplicantDocument[] = [
-    ...staged.map((c): ApplicantDocument => {
+  const docs: LocatedDocument[] = [
+    ...staged.map((c): LocatedDocument => {
       const kind = stagedKind(c);
       const withheld = !canSeePaperImage(kind, role, grants);
       return {
-        id: c.id, slot: c.slot, kind, contentType: c.content_type, at: c.captured_at,
-        source: "applicant", addedBy: null, staged: true,
-        url: withheld ? null : (stagedUrls.get(c.storage_path) ?? null), imageWithheld: withheld,
+        bucket: APPLICATION_CAPTURES_BUCKET, storagePath: c.storage_path,
+        row: {
+          id: c.id, slot: c.slot, kind, contentType: c.content_type, at: c.captured_at,
+          source: "applicant", addedBy: null, staged: true, bytes: c.bytes, sha256: c.sha256,
+          url: withheld ? null : (stagedUrls.get(c.storage_path) ?? null), imageWithheld: withheld,
+        },
       };
     }),
-    ...filed.map((d): ApplicantDocument => {
+    ...filed.map((d): LocatedDocument => {
       const withheld = !canSeePaperImage(d.kind, role, grants);
       return {
-        id: d.id, slot: slotOf.get(d.id) ?? applicantDocumentSlot(d.kind, d.page ?? 1), kind: d.kind,
-        contentType: d.content_type, at: d.created_at,
-        // `uploaded_by` is null exactly when the link filed it (0376's two filing functions write null).
-        source: d.uploaded_by ? "office" : "applicant",
-        addedBy: d.uploaded_by ? (labelOf(labels.get(d.uploaded_by)) ?? null) : null,
-        staged: false,
-        url: withheld ? null : (filedUrls.get(d.storage_path) ?? null), imageWithheld: withheld,
+        bucket: DOCUMENTS_BUCKET, storagePath: d.storage_path,
+        row: {
+          id: d.id, slot: slotOf.get(d.id) ?? applicantDocumentSlot(d.kind, d.page ?? 1), kind: d.kind,
+          contentType: d.content_type, at: d.created_at,
+          // `uploaded_by` is null exactly when the link filed it (0376's two filing functions write null).
+          source: d.uploaded_by ? "office" : "applicant",
+          addedBy: d.uploaded_by ? (labelOf(labels.get(d.uploaded_by)) ?? null) : null,
+          staged: false, bytes: d.bytes, sha256: d.sha256,
+          url: withheld ? null : (filedUrls.get(d.storage_path) ?? null), imageWithheld: withheld,
+        },
       };
     }),
   ];
-  return rows.sort((a, b) => b.at.localeCompare(a.at));
+  docs.sort((a, b) => b.row.at.localeCompare(a.row.at));
+  return { driverName: driver.full_name, docs };
+}
+
+export async function listApplicantDocuments(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  role: UserRole | null,
+): Promise<ApplicantDocument[] | ApplicantDocumentsError> {
+  const located = await locateApplicantDocuments(admin, orgId, driverId, role);
+  return "code" in located ? located : located.docs.map((d) => d.row);
+}
+
+/**
+ * One listed paper as a DOWNLOAD — the shared viewer's "Download original" (`DocumentPreview`'s
+ * `downloadPath`), the attachment-disposition URL every browser saves cross-origin.
+ *
+ * Why not `/api/compliance/documents/:id/download`: a paper still in the link's staging bucket has no
+ * `documents` row for that route to find, and the route answers to the roster section, not the one this
+ * record belongs to. The filename follows `signDocumentDownload`'s `<last name>-<kind>-<date>.<ext>`.
+ */
+export async function signApplicantDocumentDownload(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  documentId: string,
+  role: UserRole | null,
+): Promise<{ url: string; filename: string; kind: string; staged: boolean } | ApplicantDocumentsError> {
+  const located = await locateApplicantDocuments(admin, orgId, driverId, role);
+  if ("code" in located) return located;
+  const doc = located.docs.find((d) => d.row.id === documentId);
+  if (!doc) return { code: "not_found", message: "That document is not on this applicant's record." };
+  // Q-WF4: the list withholds the picture's URL, so the download withholds the bytes.
+  if (doc.row.imageWithheld) {
+    return { code: "forbidden", message: "Your role cannot open SSN-card or passport pictures. An administrator can change that in Settings → Permissions." };
+  }
+  const last = (located.driverName ?? "").trim().split(/\s+/).pop() ?? "";
+  const namePart = last.toLowerCase().replace(/[^a-z0-9-]/g, "") || "driver";
+  const ext = doc.row.contentType === "application/pdf" ? "pdf" : (doc.row.contentType.split("/")[1] ?? "bin");
+  const filename = `${namePart}-${doc.row.kind}-${doc.row.at.slice(0, 10)}.${ext}`;
+  const { data } = await admin.storage.from(doc.bucket).createSignedUrl(doc.storagePath, URL_TTL_SECONDS, { download: filename });
+  if (!data?.signedUrl) return { code: "sign_failed", message: "Could not sign the download." };
+  return { url: data.signedUrl, filename, kind: doc.row.kind, staged: doc.row.staged };
 }
 
 /**

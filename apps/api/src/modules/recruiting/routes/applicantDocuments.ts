@@ -11,13 +11,14 @@ import {
   isApplicantDocumentsError,
   listApplicantDocuments,
   registerApplicantDocument,
+  signApplicantDocumentDownload,
 } from "../applicantDocuments.js";
 
 /**
  * The Documents section of the applicant record (HIRING-WORKFLOW-AUDIT-2026-10-31 §9 P9). The service
  * (`applicantDocuments.ts`) carries why this is a recruitment door; this file is the guard and the audit.
  *
- * GET = `recruitment: view`, POST = `recruitment: manage` — the section the applicant board answers to,
+ * GET (the list and one paper's download) = `recruitment: view`, POST = `recruitment: manage` — the section the applicant board answers to,
  * so a recruiter (`roster: view`) can file a TWIC without being handed the roster's writes. The kind is
  * composed from the slot, and nothing on the list is a restricted kind (`applicantDocumentsContract`
  * test "produces no restricted kind"), so the section is the whole of the gate for the write.
@@ -42,6 +43,37 @@ export function recruitmentApplicantDocumentsRouter(): Router {
       // Five-minute URLs to identity papers: never kept by a browser or a proxy.
       res.setHeader("Cache-Control", "no-store");
       res.json({ documents: result });
+    }),
+  );
+
+  // One paper as a download — the viewer's "Download original". Gated like the list it is read from,
+  // and audited like the compliance route's download: taking a person's ID card out of the system is
+  // worth a ledger line, whichever door it went through.
+  router.get(
+    "/applicants/:driverId/documents/:documentId/download",
+    requireOrg,
+    requireSection("recruitment", "view"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const driverId = String(req.params.driverId ?? "");
+      const documentId = String(req.params.documentId ?? "");
+      const result = await signApplicantDocumentDownload(admin, orgId, driverId, documentId, req.auth!.role);
+      if (isApplicantDocumentsError(result)) {
+        const status = result.code === "not_found" ? 404 : result.code === "forbidden" ? 403 : 500;
+        res.status(status).json(apiError(result.code, result.message));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "compliance.document_downloaded",
+        entity: result.staged ? "application_captures" : "documents",
+        entityId: documentId,
+        meta: { filename: result.filename, kind: result.kind, subjectId: driverId, via: "applicant_record" },
+      });
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ url: result.url, filename: result.filename });
     }),
   );
 
