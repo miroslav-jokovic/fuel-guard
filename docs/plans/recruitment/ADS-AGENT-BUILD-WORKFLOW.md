@@ -1832,3 +1832,44 @@ blocking step in §3 above.
   - Filling those with 0 would put a false figure on the analyst's fact sheet. Q-AD37 records three candidates and
     recommends reading "qualified" as the conversion, worded as such, until recruiting builds a lead close-out.
   - The brief's `cohorts` stays empty. Analyst stays **L2**; its eval was not re-run, because no cohort fold can be built yet.
+- **2026-11-05, G-sec and Security L3**, Track G. No migration. Security (all) **L2 → L3**.
+  - **The review** (`/security-review`'s method, on code already on main). B4b's webhook was skipped because it had its own review.
+    - *A5 guard* (`guard/`): no finding. Checked: every `ads_approvals` / `ads_actions` / settings query names the org;
+      an approval is single-use and covers amounts by `>=`; the kill switch's clear is `ads.spend` + fresh sign-in; a
+      withdrawal must name a non-withdrawal row of the same org and campaign.
+    - *B1 Meta client + Connect* (`graphClient.ts`, `connectionTest.ts`, `connections/`): no security finding. Checked: the
+      token travels only as `Authorization: Bearer`, never in a URL; `scrub` removes it from every failure message; the
+      report holds no token; the Page token is kept only from a Page that passed; tokens are sealed before any write
+      (AAD = org + purpose); every answer selects `ADS_CONNECTION_VIEW_COLUMNS` by name; the Connect body is zod-checked
+      (digits-only ids, so there is no path injection into Graph). **One bug found by the sweep, fixed:** Connect passed
+      `baseUrl: undefined` and `MetaGraph`'s option spread replaced the real Graph URL with it, so every Connect
+      through the app answered 500. Every earlier test passed FakeMeta's URL in. Fixed in `connections.ts`.
+    - *C3 Higgsfield* (`creative/higgsfield/`): no exploitable finding. Checked: the key is sealed, opened only for its own
+      org, sent only as a header and never to the presigned storage URL; nothing logs it. **Hardening owed** (see below):
+      error `detail` is not scrubbed of the key the way Meta's messages are of the token.
+    - *Routes* (`routes/`, without the webhook): no finding. Checked: every route behind `requireAuth` + `requireOrg`; spend,
+      connect and disconnect admin-only by name with a fresh sign-in; every id param is `isRecordId`-checked; every
+      service read and write names the org (the sweep proves it); brand-kit uploads are keyed `<org>/incoming/<uuid>`.
+      The error responder answers 500s without the message.
+  - **L3, four tests** in `apps/api/src/modules/ads/security/`, registered in `scripts/ads-readiness.registry.mjs`:
+    - `adsLogScrape.test.ts`: `fetch` is wrapped, so every Bearer token that leaves the process is collected, and Meta
+      echoes it in every error. The monitor goldens, the lead goldens, the orchestrator over the real Meta path (a refused
+      read-back and pause, which STORES Meta's message in `ads_actions.response`) and the webhook's refusals run through
+      it. Console lines, job failures and written rows are then scraped for the tokens, the app secret and the sealing key.
+    - `adsRouteSweep.test.ts`: every `/api/ads` route the app serves, read from the walk, is called once against two
+      carriers. Each answer is scraped for credentials, ciphertext and sealed column names (token in a response), and for
+      the other carrier's ids, with `expectOrgScoped` over every query (cross-org read).
+    - `adsRouteGates.test.ts`: a ledger of every `/api/ads` route with its exact gates, so an unclassified route fails.
+      Then every role but admin hits each money or account door with a fresh sign-in, gets 403 and writes nothing, and
+      the admin gets past the gate.
+    - The route walk moved from `routeGateLedger.test.ts` to `testing/routeWalk.ts` unchanged, so both read one walk.
+  - **Mutation:** 17 mutants, all killed by a named test. The gates: clear, launch, save and connect each opened to
+    managers; fresh sign-in dropped; an unclassified route. Responses: `select("*")` on a list and on Connect; scrub
+    removed; the Page token in the report. Cross-org: four org filters dropped. Logs: scrub removed; the app secret
+    logged. And the Connect fix reverted. **Scrub-removed first SURVIVED the log scrape.** The monitor and lead roads keep
+    only error codes, so the orchestrator road was added, and then it was killed.
+  - **Depends on another track (Track W):** `creative/higgsfield/higgsfieldClient.ts:107`, where `detail` is Higgsfield's
+    JSON verbatim. If the vendor echoes the key, `render.ts:129,167,172,181` carry it into a pending render's `why` and
+    the job's result. Recommended: a `scrub` like `MetaGraph`'s (split on `key.secret` and `${id}:${secret}`) applied to
+    every `detail`, with a FakeHiggsfield echo in `render.test.ts`. Also `platforms/meta/graphClient.ts:114`: spread
+    only defined options over the defaults, so no other caller can repeat Connect's `undefined` base URL.

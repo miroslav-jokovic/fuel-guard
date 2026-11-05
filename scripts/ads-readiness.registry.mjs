@@ -44,6 +44,9 @@ const ANALYST = "apps/api/src/modules/ads/workers/analyst/analyst.test.ts";
 const BRIEF = "packages/shared/src/ads/analystBrief.test.ts";
 const DAILY_BRIEF = "apps/api/src/modules/ads/workers/analyst/dailyBrief.test.ts";
 const BRIEF_FOLD = "apps/api/src/modules/ads/workers/analyst/briefFold.test.ts";
+const SEC_LOGS = "apps/api/src/modules/ads/security/adsLogScrape.test.ts";
+const SEC_SWEEP = "apps/api/src/modules/ads/security/adsRouteSweep.test.ts";
+const SEC_GATES = "apps/api/src/modules/ads/security/adsRouteGates.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -999,7 +1002,38 @@ export const READINESS = [
           ] }],
         },
       ],
-      L3: later("L3"),
+      // G-sec, 2026-11-05: L2 pinned each door and each leak by hand; L3 asks the same four questions of ALL of
+      // them at once, each a test that fails on the leak and each shown red by a mutant (the PR lists them).
+      L3: [
+        {
+          need: "a token, key or app secret in any log line — console, job failure or written row — with Meta echoing the token in every error",
+          tests: [{ file: SEC_LOGS, titles: [
+            "the scrape had something to find: tokens were sent, Meta echoed them, and the roads logged",
+            "no console line, job failure or written row holds a token, the app secret or the sealing key",
+          ] }],
+        },
+        {
+          need: "a token, key or app secret in any ads route's answer — every route the app serves, called once",
+          tests: [{ file: SEC_SWEEP, titles: [
+            "every /api/ads route the app serves was called once, and none answered a server error",
+            "no ads answer carries a token, key or secret — plain or sealed — or a sealed column, even when Meta echoes the token",
+          ] }],
+        },
+        {
+          need: "a cross-org read on every ads service query the routes reach, and on the job roads",
+          tests: [
+            { file: SEC_SWEEP, titles: ["no answer names another carrier's row, and every query and write the routes made names this org"] },
+            { file: MONITOR_GOLDEN, titles: ["%s"] },
+          ],
+        },
+        {
+          need: "a non-admin hitting Connect, Launch, kill-switch clear or settings save — and an ads route nobody classified",
+          tests: [{ file: SEC_GATES, titles: [
+            "the walked /api/ads routes are exactly the ledger's, each behind exactly its gates",
+            "%s is refused for every role but admin, with a fresh sign-in, and writes nothing",
+          ] }],
+        },
+      ],
       L4: [{ need: "a token scrape over a sandbox run's logs", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
