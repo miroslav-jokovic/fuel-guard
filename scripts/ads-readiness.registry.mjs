@@ -38,6 +38,7 @@ const ART_DIRECTOR = "apps/api/src/modules/ads/workers/artDirector/artDirector.t
 const RENDER = "apps/api/src/modules/ads/creative/higgsfield/render.test.ts";
 const CHECKER = "apps/api/src/modules/ads/workers/checker/checker.test.ts";
 const MONITOR_GOLDEN = "apps/api/src/modules/ads/monitor/golden.test.ts";
+const LEAD_GOLDEN = "apps/api/src/modules/ads/leads/golden.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -591,7 +592,37 @@ export const READINESS = [
           ],
         },
       ],
-      L3: later("L3"),
+      L3: [
+        {
+          need: "0 lost, 0 duplicated leads over the scenario set, on the two roads (the store's SQL is the matrix's, below)",
+          tests: [{ file: LEAD_GOLDEN, titles: [
+            "ads lead golden scenarios — every one, through the real roads and the real sink",
+            "the lead is stored once, by the road that reached the store first, whatever the order",
+            "a lead stored twice, a lead on the wrong road, a lost ring and a stray write each fail",
+            "a scenario cannot leave a lead unaccounted for, or drop one of ours",
+            "every fault has at least one scenario",
+          ] }],
+          scenarios: [
+            "leads/webhook-brings-the-lead.yaml", "leads/delivered-twice-while-queued.yaml", "leads/delivered-again-after-it-was-stored.yaml",
+            "leads/webhook-lost-the-backfill-brings-it.yaml", "leads/the-backfill-first-then-a-late-webhook.yaml", "leads/forged-delivery-believes-nothing.yaml",
+            "leads/a-batch-with-one-lead-lost.yaml", "leads/a-refused-read-is-retried.yaml", "leads/a-failed-store-fails-both-roads-loudly.yaml",
+            "leads/stored-but-the-answer-was-lost.yaml", "leads/an-outage-past-the-window-closes-itself.yaml", "leads/a-spanish-form-by-both-roads.yaml",
+            "leads/one-person-on-two-forms.yaml", "leads/a-form-no-campaign-holds.yaml",
+          ],
+        },
+        {
+          need: "the store itself keeps one row per lead: the real ingest_lead on PGlite",
+          tests: [{ file: "supabase/tests/recruiting-lead-functions.test.mjs", titles: [
+            "the same lead again (a retried webhook) answers `duplicate` with the first id",
+            "there is one row for that lead",
+          ] }],
+        },
+        {
+          need: "injection text never reaches an action",
+          tests: [{ file: "apps/api/src/modules/recruiting/leads/leadSink.test.ts", titles: ["reaches no model: nothing on a lead's road imports the AI rail"] }],
+          scenarios: ["leads/text-aimed-at-a-reader-stays-data.yaml"],
+        },
+      ],
       L4: [{ need: "a test lead from Meta's lead-ads testing tool", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },

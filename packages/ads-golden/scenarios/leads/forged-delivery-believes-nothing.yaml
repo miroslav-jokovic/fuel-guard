@@ -1,0 +1,14 @@
+name: "A forged delivery is refused and queues nothing, and the backfill still brings the real lead"
+why: >
+  leadgenWebhook.ts: the HMAC is checked over the raw bytes first, a mismatch is 401 and nothing after it runs; "the
+  hourly backfill is the net under all of it: a delivery we refused or never got is read there".
+covers: [forged, webhook_lost]
+verifiedBy: "Claude (Lead intake L3), from leadgenWebhook.ts"
+timeline:
+  - submit: { lead: l1 }
+  - forged_webhook: [l1]
+  - jobs: true
+  - backfill: true
+expect:
+  stored: { l1: backfill }
+  refused: 1

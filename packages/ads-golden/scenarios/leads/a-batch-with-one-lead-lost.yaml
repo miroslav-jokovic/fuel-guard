@@ -1,0 +1,16 @@
+name: "A batch names two of three leads: those two come by webhook, the third by the backfill, each once"
+why: >
+  leadgenWebhook.ts: a delivery may batch updates, one job per lead. Meta does not guarantee a batch is whole, and
+  backfill.ts reads the form, so it finds the third and passes over the two already stored.
+covers: [webhook, webhook_lost]
+verifiedBy: "Claude (Lead intake L3), from leadgenWebhook.ts, backfill.ts"
+timeline:
+  - submit: { lead: l1 }
+  - submit: { lead: l2 }
+  - submit: { lead: l3 }
+  - webhook: [l1, l3]
+  - jobs: true
+  - backfill: true
+expect:
+  stored: { l1: webhook, l2: backfill, l3: webhook }
+  accepted: 1

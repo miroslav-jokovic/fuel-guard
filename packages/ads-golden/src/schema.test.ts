@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { loadMonitorScenarios, loadScenarios } from "./load.js";
+import { parseLeadScenario } from "./leadSchema.js";
+import { loadLeadScenarios, loadMonitorScenarios, loadScenarios } from "./load.js";
 import { parseMonitorScenario } from "./monitorSchema.js";
 import { parseScenario } from "./schema.js";
 
@@ -92,5 +93,26 @@ describe("@silvicom/ads-golden — the monitor scenarios", () => {
     refuses({ campaigns: [{ id: "c1" }, { id: "c2" }] }, /campaign "c2"'s final state/);
     refuses({ timeline: [{ hourly_job: true }, { ads_manager: { campaign: "c1", status: "PAUSED", spend_cap_cents: 1 } }] }, /one edit per step/);
     refuses({ verifiedBy: "" }, /verifiedBy/);
+  });
+});
+
+describe("@silvicom/ads-golden — the lead scenarios", () => {
+  const lead = { name: "n", why: "w", covers: ["webhook"], verifiedBy: "v", timeline: [{ submit: { lead: "l1" } }, { backfill: true }], expect: { stored: { l1: "backfill" } } };
+  const refuses = (patch: Record<string, unknown>, why: RegExp) =>
+    expect(() => parseLeadScenario({ ...lead, ...patch }, "bad.yaml")).toThrow(why);
+
+  it("every lead file parses, and the orchestrator's loader never reads them", () => {
+    const files = loadLeadScenarios().map((l) => l.file);
+    expect(files.length).toBeGreaterThanOrEqual(15);
+    expect(loadScenarios().map((l) => l.file).filter((f) => files.includes(f))).toEqual([]);
+  });
+
+  it("refuses a scenario that loses a lead, or names one it never submitted", () => {
+    refuses({ expect: { stored: {} } }, /exactly one of/);
+    refuses({ expect: { stored: { l1: "backfill" }, dropped: ["l1"] } }, /exactly one of/);
+    refuses({ expect: { stored: {}, dropped: ["l1"] } }, /losing it/);
+    refuses({ timeline: [{ submit: { lead: "l1", form: "other" } }, { backfill: true }] }, /cannot be stored/);
+    refuses({ timeline: [{ submit: { lead: "l1" } }, { submit: { lead: "l1" } }] }, /submitted twice/);
+    refuses({ timeline: [{ submit: { lead: "l1" } }, { webhook: ["l9"] }] }, /names lead "l9"/);
   });
 });

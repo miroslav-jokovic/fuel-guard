@@ -33,6 +33,16 @@ runner (`apps/api/src/testing/adsMonitorGolden.ts`) and test (`apps/api/src/modu
 - Start from `scenarios/monitor/TEMPLATE.yaml`. A rule's scenario holds a campaign a cent under, at, and over.
 - Run `pnpm --filter @silvicom/api exec vitest run src/modules/ads/monitor/golden.test.ts`.
 
+## The lead scenarios
+
+`scenarios/leads/*.yaml` are Lead intake's L3 bar: a timeline of leads and of what happened to their deliveries on
+the two roads, ending in a count. Schema `src/leadSchema.ts`, runner `apps/api/src/testing/adsLeadGolden.ts`, test
+`apps/api/src/modules/ads/leads/golden.test.ts`. The schema refuses a scenario that leaves a lead unaccounted for.
+
+**Which proves what.** The receiver, queue key, fetch, backfill, sink, projection and verdicts are real. `ingest_lead`
+is a map keyed as its unique index is, because the recorder cannot run SQL. So these prove the two roads ask for the
+same key and retry correctly; `supabase/tests/recruiting-lead-functions.test.mjs` proves the database keeps one row.
+
 ## The independence rule
 
 `expect` is written from the rules, never pasted from a run:

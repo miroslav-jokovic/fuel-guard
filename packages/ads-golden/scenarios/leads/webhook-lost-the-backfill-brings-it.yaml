@@ -1,0 +1,12 @@
+name: "A lead whose webhook never came is brought in by the hour's backfill"
+why: >
+  §4R: "webhook lost (backfill must bring it)". backfill.ts reads every form of every campaign in its 48-hour window.
+  No delivery, so nothing was accepted, and the lead still rings: it is new to the sink by whichever road.
+covers: [webhook_lost]
+verifiedBy: "Claude (Lead intake L3), from backfill.ts"
+timeline:
+  - submit: { lead: l1 }
+  - advance: { hours: 1 }
+  - backfill: true
+expect:
+  stored: { l1: backfill }

@@ -1,0 +1,15 @@
+name: "A webhook that arrives after the backfill brought the lead stores nothing more and rings nobody again"
+why: >
+  leadFetch.ts: "a lead the webhook brings and the same lead the hourly backfill brings must be the same PlatformLead,
+  or the sink's stored once would be comparing two shapes". The mapping is one function, so the ref is one.
+covers: [duplicate_webhook, webhook_lost]
+verifiedBy: "Claude (Lead intake L3), from leadFetch.ts"
+timeline:
+  - submit: { lead: l1 }
+  - backfill: true
+  - advance: { hours: 2 }
+  - webhook: [l1]
+  - jobs: true
+expect:
+  stored: { l1: backfill }
+  accepted: 1

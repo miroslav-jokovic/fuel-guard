@@ -1,0 +1,16 @@
+name: "The same person on two forms is two leads, each stored once, not merged here"
+why: >
+  ingest_lead stores once per (org, channel, ref), and each form answer has its own ref, each with its attribution.
+  Naming them as one person is the SQL's, proven by the matrix ("it names the first lead as the same person"). This
+  shows only that neither road folds them together on the way there.
+covers: [two_forms]
+verifiedBy: "Claude (Lead intake L3), from leadSink.ts"
+timeline:
+  - submit: { lead: first, form: en }
+  - submit: { lead: second, form: es }
+  - webhook: [first, second]
+  - jobs: true
+  - backfill: true
+expect:
+  stored: { first: webhook, second: webhook }
+  accepted: 1

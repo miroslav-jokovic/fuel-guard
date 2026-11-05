@@ -1,0 +1,16 @@
+name: "The same delivery after the lead was stored is fetched again and stored once"
+why: >
+  leadgenWebhook.ts: one "after it finished is fetched again and the sink stores it once". Meta retries over 36 hours,
+  so this is the delivery that arrives a day later. It rings once.
+covers: [duplicate_webhook]
+verifiedBy: "Claude (Lead intake L3), from leadgenWebhook.ts, leadSink.ts"
+timeline:
+  - submit: { lead: l1 }
+  - webhook: [l1]
+  - jobs: true
+  - advance: { hours: 24 }
+  - webhook: [l1]
+  - jobs: true
+expect:
+  stored: { l1: webhook }
+  accepted: 2

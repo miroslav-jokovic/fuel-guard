@@ -1,0 +1,16 @@
+name: "A lead on a form no campaign of ours holds is acknowledged and not stored, and a lead of ours beside it is"
+why: >
+  leadgenWebhook.ts: "A form no carrier of ours owns is answered 200 (so Meta stops retrying) and logged by id". The
+  backfill reads only forms our campaigns hold, so it never finds it. Owner-form intake waits on counsel (Q-AD32).
+covers: [webhook]
+verifiedBy: "Claude (Lead intake L3), from leadgenWebhook.ts, backfill.ts"
+timeline:
+  - submit: { lead: l1 }
+  - submit: { lead: stranger, form: other, answers: { full_name: "Not Ours" } }
+  - webhook: [l1, stranger]
+  - jobs: true
+  - backfill: true
+expect:
+  stored: { l1: webhook }
+  dropped: [stranger]
+  accepted: 1

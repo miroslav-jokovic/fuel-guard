@@ -1,0 +1,14 @@
+name: "The same delivery twice while the first is queued is one job"
+why: >
+  leadgenWebhook.ts: "A duplicate delivery while the first is queued is then the queue's own 'already on it'". Both
+  are answered 200, or Meta keeps retrying for 36 hours.
+covers: [duplicate_webhook]
+verifiedBy: "Claude (Lead intake L3), from leadgenWebhook.ts"
+timeline:
+  - submit: { lead: l1 }
+  - webhook: [l1]
+  - webhook: [l1]
+  - jobs: true
+expect:
+  stored: { l1: webhook }
+  accepted: 2

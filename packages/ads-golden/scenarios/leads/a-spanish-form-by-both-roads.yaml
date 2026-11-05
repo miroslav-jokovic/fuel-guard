@@ -1,0 +1,15 @@
+name: "A campaign's Spanish form is one of its forms on both roads"
+why: >
+  formRefs.ts: "every reader that finds a campaign BY its form, the webhook, the fetch, the backfill, reads them through
+  here", in every language. So a delivery for the es form finds the campaign, and the backfill lists that form too.
+covers: [two_forms]
+verifiedBy: "Claude (Lead intake L3), from formRefs.ts"
+timeline:
+  - submit: { lead: by-webhook, form: es, answers: { full_name: "Ana Ruiz", phone_number: "+13125550101" } }
+  - submit: { lead: by-backfill, form: es, answers: { full_name: "Luis Mora", phone_number: "+13125550102" } }
+  - webhook: [by-webhook]
+  - jobs: true
+  - backfill: true
+expect:
+  stored: { by-webhook: webhook, by-backfill: backfill }
+  accepted: 1

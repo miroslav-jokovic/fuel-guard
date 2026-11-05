@@ -1,0 +1,16 @@
+name: "Meta refuses the read of a lead: the job fails, stays queued, and the retry stores it"
+why: >
+  leadFetch.ts "THROWS on anything that did not bring the lead in, so the job is failed, retried with backoff, and
+  listed". The failure names the lead by id and the reason, never the person.
+covers: [retry]
+verifiedBy: "Claude (Lead intake L3), from leadFetch.ts"
+timeline:
+  - submit: { lead: l1 }
+  - webhook: [l1]
+  - meta_refuses: { reads: 1 }
+  - jobs: true
+  - jobs: true
+expect:
+  stored: { l1: webhook }
+  accepted: 1
+  failures: ["jobs 1: l1 graph:token_invalid"]
