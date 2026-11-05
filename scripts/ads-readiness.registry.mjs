@@ -605,7 +605,18 @@ export const READINESS = [
           tests: [{ file: COPYWRITER, titles: ["no-pay-in-brief", "spanish-subject", "instruction-in-subject", "short-slots"] }],
         },
       ],
-      L3: [{ need: "the evaluation set (≥ 40 briefs × presets, EN + ES) at its bar; human-rated approve-without-edit baseline", gap: "C2 recorded 10 briefs (pnpm ads:eval copywriter: 9 of 10, baseline.json); the set grows to 40 and a person rates it" }],
+      L3: [
+        {
+          need: "the evaluation set (≥ 40 briefs × presets, EN + ES) at its bar: 0 claims outside the brief reach review",
+          tests: [{ file: COPYWRITER, titles: [
+            "has model recordings under the prompt in force and planted defects beside them",
+            "the evaluation set covers every proposed preset, P1–P5, with Spanish-written briefs beside English ones",
+          ] }, { file: "packages/shared/src/ads/adClaims.test.ts", titles: [
+            "every leftover digit is reported, so a figure cannot hide inside an unrecognised shape",
+          ] }],
+        },
+        { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "40 briefs over P1–P5, 15+ in Spanish: 40 of 40 live answers pass the claim and length checks, twice (pnpm ads:eval copywriter, baseline.json, 2026-11-05); the owner rates the 40 (the rating sheet in the PR) and the rate is recorded here" },
+      ],
       L4: [{ need: "not applicable to a model worker beyond the eval set", gap: "decided with C2: whether a Claude worker has an L4 at all" }],
       L5: [{ need: "canary", gap: CANARY }],
     },

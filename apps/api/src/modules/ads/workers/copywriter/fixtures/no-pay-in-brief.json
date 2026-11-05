@@ -54,7 +54,8 @@
       "formats": [
         "1:1",
         "4:5"
-      ]
+      ],
+      "overlay_slots": null
     }
   },
   "expect": "ready",
@@ -62,17 +63,17 @@
     "source": "model",
     "prompt_version": "copywriter@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T05:02:19.389Z",
+    "recorded_at": "2026-11-05T15:16:13.153Z",
     "output": {
       "en": {
-        "hook": "Drive regional, come home weekly — Class A drivers.",
-        "body": "This regional Class A role keeps you home weekly so you can maintain the life you want. You will handle no-touch freight, meaning no loading or unloading on your part. Join a team that respects your time.",
-        "cta": "Apply today and join us."
+        "hook": "Pay details inside — Class A regional drivers.",
+        "body": "Drive regional routes with no-touch freight and get home weekly. We want skilled Class A drivers who are ready to join a team that keeps you moving and brings you back.",
+        "cta": "Apply today."
       },
       "es": {
-        "hook": "Conductor Clase A regional: a casa cada semana.",
-        "body": "Esta posición regional Clase A te permite regresar a casa cada semana. La carga es sin contacto, así que no cargas ni descargas. Únete a un equipo que valora tu tiempo.",
-        "cta": "Aplica hoy y únete."
+        "hook": "Detalles de pago — conductores Clase A regionales.",
+        "body": "Rutas regionales con carga sin contacto y regreso a casa cada semana. Si tienes tu Clase A y buscas un trabajo regional serio, este lugar es para ti.",
+        "cta": "Postúlate hoy."
       }
     }
   }

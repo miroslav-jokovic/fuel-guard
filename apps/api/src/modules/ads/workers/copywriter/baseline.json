@@ -2,10 +2,10 @@
   "worker": "copywriter",
   "prompt_version": "copywriter@1",
   "model": "claude-sonnet-4-6",
-  "fixtures": 15,
-  "asked": 10,
-  "agreed": 9,
-  "agreement": 0.9,
+  "fixtures": 45,
+  "asked": 40,
+  "agreed": 40,
+  "agreement": 1,
   "planted_skipped": 5,
-  "recorded_at": "2026-11-04T05:02:45.753Z"
+  "recorded_at": "2026-11-05T15:20:38.252Z"
 }

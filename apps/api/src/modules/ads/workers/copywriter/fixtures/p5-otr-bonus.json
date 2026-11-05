@@ -1,0 +1,110 @@
+{
+  "name": "p5-otr-bonus",
+  "about": "P5 Straight talk: OTR with a sign-on bonus as a flat amount.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A over-the-road driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 72,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 500000,
+          "per": null
+        },
+        {
+          "kind": "term",
+          "term": "sign-on bonus"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P5 Straight talk",
+      "hook_formula": "Three cards: what you get, what we need, how to apply. Plain and short.",
+      "copy_slots": [
+        {
+          "name": "card_get",
+          "max_chars": 90
+        },
+        {
+          "name": "card_need",
+          "max_chars": 90
+        },
+        {
+          "name": "card_apply",
+          "max_chars": 60
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 220
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A plain {color} card background with soft texture, no text, no logos, no lettering",
+      "image_slots": [
+        "color"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "card_get",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:20:02.539Z",
+    "output": {
+      "en": {
+        "card_get": "$0.72/mile plus a $5,000 sign-on bonus.",
+        "card_need": "Class A CDL and over-the-road experience.",
+        "card_apply": "Apply today and join our team.",
+        "cta": "Apply Now",
+        "primary_text": "We pay $0.72 per mile and offer a $5,000 sign-on bonus for Class A over-the-road drivers. If you hold a Class A CDL and have over-the-road experience, we want to hear from you.",
+        "headline": "Class A Drivers Wanted"
+      },
+      "es": {
+        "card_get": "$0.72 por milla más un bono de $5,000 por contratación.",
+        "card_need": "CDL clase A y experiencia en rutas de larga distancia.",
+        "card_apply": "Aplica hoy y únete a nuestro equipo.",
+        "cta": "Aplica ya",
+        "primary_text": "Pagamos $0.72 por milla y ofrecemos un bono de $5,000 por contratación a conductores clase A de larga distancia. Si tienes CDL clase A y experiencia en carretera, queremos saber de ti.",
+        "headline": "Conductores clase A"
+      }
+    }
+  }
+}

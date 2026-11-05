@@ -1,0 +1,100 @@
+{
+  "name": "p1-otr-bonus",
+  "about": "P1 Windshield sunrise: OTR with a sign-on bonus as a flat amount.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A over-the-road driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 72,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 500000,
+          "per": null
+        },
+        {
+          "kind": "term",
+          "term": "sign-on bonus"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P1 Windshield sunrise",
+      "hook_formula": "Second person, present tense: put the reader in the driver's seat at dawn, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield at {time_of_day} on an open {road} highway, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day",
+        "road"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": "Slow push-in down the highway as the light rises",
+      "formats": [
+        "9:16",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:16:50.534Z",
+    "output": {
+      "en": {
+        "hook": "You're rolling at dawn. $0.72/mile.",
+        "cta": "Apply now",
+        "primary_text": "You're behind the wheel of a Class A rig as the sun comes up — and you're earning $0.72 per mile every mile you turn. A $5,000 sign-on bonus is waiting when you join. Apply today and get moving.",
+        "headline": "Drive and earn $0.72/mile"
+      },
+      "es": {
+        "hook": "Al volante al amanecer. $0.72/milla.",
+        "cta": "Postúlate ya",
+        "primary_text": "Imagina el amanecer desde tu cabina, con $0.72 por milla acumulándose cada kilómetro recorrido. Además, recibes un bono de contratación de $5,000 al unirte. Postúlate hoy y empieza a rodar.",
+        "headline": "Maneja y gana $0.72 por milla"
+      }
+    }
+  }
+}

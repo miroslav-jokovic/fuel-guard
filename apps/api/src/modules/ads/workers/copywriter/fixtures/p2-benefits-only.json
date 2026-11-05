@@ -1,0 +1,97 @@
+{
+  "name": "p2-benefits-only",
+  "about": "P2 The number: No pay figure, only benefits.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A dedicated driver",
+      "claims": [
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "term",
+          "term": "dental and vision"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P2 The number",
+      "hook_formula": "Open with the pay figure alone, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A late-model tractor on a dark {background} background, studio light, no text, no logos, no lettering",
+      "image_slots": [
+        "background"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:17:03.373Z",
+    "output": {
+      "en": {
+        "pay": "Pay for dedicated",
+        "cta": "Apply today",
+        "primary_text": "This dedicated route is built for Class A drivers who want consistency. You get a 401k and dental and vision coverage. Join our team and find out what a dedicated position can do for your career.",
+        "headline": "A dedicated Class A role for you"
+      },
+      "es": {
+        "pay": "Pago en ruta dedicada",
+        "cta": "Aplica hoy",
+        "primary_text": "Esta ruta dedicada es para conductores Clase A que buscan estabilidad. Contamos con plan 401k y cobertura dental y de visión. Únete a nuestro equipo y descubre lo que una posición dedicada puede hacer por ti.",
+        "headline": "Ruta dedicada para Clase A"
+      }
+    }
+  }
+}

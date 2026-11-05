@@ -53,8 +53,18 @@ export function copyTool(recipe: Pick<AdPresetRecipe, "copy_slots">): ForcedTool
  * 10 briefs): told the real limit, the model ran over it by 1–11 characters in 3 of 10 answers, mostly in
  * Spanish — a model does not count characters exactly. The schema still enforces the real limit; the
  * margin only makes an honest answer fit it.
+ *
+ * A SHORT slot gets a wider margin. Measured 2026-11-05 over P1–P5's slots (40 briefs): at 85 %, 7 of 40
+ * answers still ran over, every one in a slot of 30–42 characters (an overlay line, Meta's 40-character
+ * headline), by up to 13 characters past what the model was told — mostly the Spanish, a translation of
+ * an English answer that itself only just fit. An overrun is a whole creative lost, so the short slots,
+ * where a few characters are a large share, are told 70 %.
  */
 export const TOLD_LIMIT_SHARE = 0.85;
+export const SHORT_SLOT_CHARS = 60;
+export const TOLD_SHORT_SHARE = 0.7;
+export const toldLimit = (maxChars: number): number =>
+  Math.floor(maxChars * (maxChars <= SHORT_SLOT_CHARS ? TOLD_SHORT_SHARE : TOLD_LIMIT_SHARE));
 
 /** The user message: the brief's facts and the concept, as data. */
 export function copyUserMessage(brief: Pick<AdBrief, "subject" | "claims">, recipe: AdPresetRecipe): string {
@@ -64,7 +74,7 @@ export function copyUserMessage(brief: Pick<AdBrief, "subject" | "claims">, reci
     concept: {
       name: recipe.name,
       hook_formula: recipe.hook_formula,
-      slots: recipe.copy_slots.map((s) => ({ name: s.name, max_chars: Math.floor(s.max_chars * TOLD_LIMIT_SHARE) })),
+      slots: recipe.copy_slots.map((s) => ({ name: s.name, max_chars: toldLimit(s.max_chars) })),
     },
   }, null, 2);
 }

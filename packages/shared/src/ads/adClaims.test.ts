@@ -28,6 +28,10 @@ describe("checkClaims — copy that only says what the opening says passes", () 
     "1 year of Class A experience required.",
     "68 CPM, home weekends.",
     "Debes ser mayor de 23 años.",
+    "If you are 23 or older, apply.",
+    "Drivers 23 years or older.",
+    "Open to drivers 23 and over.",
+    "Conductores de 23 años o más.",
   ])("%s", (copy) => {
     expect(kinds(copy)).toEqual([]);
   });
@@ -46,6 +50,8 @@ describe("checkClaims — a planted figure fails, however it is written", () => 
     ["En casa cada diez días.", "quantity_not_in_brief:diez días"],
     ["Must be 21+.", "age_not_in_brief:21+"],
     ["Debes ser mayor de 21 años.", "age_not_in_brief:mayor de 21 años"],
+    ["If you are 21 or older, apply.", "age_not_in_brief:21 or older"],
+    ["Conductores de 25 años o más.", "age_not_in_brief:25 años o más"],
     ["Run 48 states.", "quantity_not_in_brief:48 states"],
     ["Earn up to 85 on every run.", "unrecognised_number:85"],
     ["Call 815-555-0100 today.", "unrecognised_number:815"],

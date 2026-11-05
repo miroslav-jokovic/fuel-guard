@@ -1,0 +1,94 @@
+{
+  "name": "p3-es-team",
+  "about": "P3 Home on time: A Spanish subject for team drivers, weekly pay.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Conductores en equipo Clase A",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 250000,
+          "per": "week"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P3 Home on time",
+      "hook_formula": "Lead with being home, then the facts that make it true.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our truck pulling into a quiet {street} at dusk, a porch light on, no people, no text, no logos, no lettering",
+      "image_slots": [
+        "street"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "formats": [
+        "4:5",
+        "9:16"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:18:30.442Z",
+    "output": {
+      "en": {
+        "hook": "Home on your schedule.",
+        "cta": "Apply today.",
+        "primary_text": "Team Class A drivers keep moving and get paid weekly. Earn $2,500 per week and get your pay on a weekly basis. Join our team and start driving with a partner who keeps you on the road and on track.",
+        "headline": "Team drivers: $2,500/week."
+      },
+      "es": {
+        "hook": "En casa cuando corresponde.",
+        "cta": "Aplica hoy.",
+        "primary_text": "Conductores en equipo Clase A ganan $2,500 por semana con pago semanal. Maneja con un compañero y recibe tu pago cada semana. Únete a nuestro equipo y lleva tu carrera al siguiente nivel.",
+        "headline": "Equipo Clase A: $2,500/semana."
+      }
+    }
+  }
+}
