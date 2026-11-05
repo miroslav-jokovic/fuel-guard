@@ -19,6 +19,14 @@ vi.mock("@silvicom/ui", async (importOriginal) => ({
     return confirmAnswer.value;
   },
 }));
+// Signed out unless a test says otherwise, so the PSP read (HW6b) stays off for the tests above it.
+const sessionHolder = vi.hoisted(() => ({ s: null as null | { role: string | null } }));
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession(null);
+  sessionHolder.s = s;
+  return { useSessionStore: () => s };
+});
 const OfficeJobsSection = (await import("./OfficeJobsSection.vue")).default;
 
 const KEY_A = "40000000-0000-4000-8000-00000000000a";
@@ -39,7 +47,7 @@ const settle = async (w: ReturnType<typeof mount>) => {
 const yearAgo = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
 const mountIt = (employers = [job(KEY_A, "Old Carrier", "2015-01-01", yearAgo), { key: KEY_B, employer_name: "" }]) =>
   mount(OfficeJobsSection, {
-    props: { invitationId: "inv-1", employers, givenGaps: [], revision: 7, v2: true, editable: true },
+    props: { invitationId: "inv-1", driverId: "drv-1", employers, givenGaps: [], revision: 7, v2: true, editable: true },
     global: {
       plugins: [VueQueryPlugin],
       stubs: { SlideOver: { template: "<div v-if='open'><slot /><slot name='footer' /></div>", props: ["open", "title", "size", "description"] } },
@@ -60,6 +68,7 @@ beforeEach(() => {
   apiFetch.mockResolvedValue({ ok: true, data: { ok: true } });
   confirmAnswer.value = true;
   confirmAnswer.asked = [];
+  sessionHolder.s!.role = null;
 });
 
 describe("removing a job (AF-4, Q-AX7)", () => {
@@ -114,5 +123,116 @@ describe("a gap, on the timeline", () => {
     await settle(w);
     const from = w.findAllComponents({ name: "AppDateField" }).find((d) => d.html().includes('id="office-employer-started_on"'))!;
     expect(from.props("modelValue")).toBe(yearAgo);
+  });
+});
+
+describe("HW6b: what the applicant's PSP record suggests", () => {
+  const SUGGESTIONS = {
+    report: { requestId: "psp-1", pulledOn: "2026-08-20" },
+    unlisted: [
+      { usdotNumber: "113529", carrierName: "ACME HAULING", firstSeen: "2024-10-06", lastSeen: "2025-04-03", inspections: 2, crashes: 0, owedTo: "b10" },
+    ],
+    employers: [
+      { key: KEY_A, index: 0, match: "corroborated", inspections: 1, crashes: 0 },
+      { key: KEY_B, index: 1, match: "no_psp_activity", inspections: 0, crashes: 0 },
+    ],
+    inspectionWindowStart: "2023-08-20",
+    crashWindowStart: "2021-08-20",
+  };
+  const pspReads = () => apiFetch.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("psp-employment"));
+  const answering = (body: unknown) =>
+    apiFetch.mockImplementation(async (url: string) =>
+      url.includes("psp-employment") ? { ok: true, data: body } : { ok: true, data: { ok: true } });
+
+  it("asks for the DRAFT's suggestions, and names the carrier the list does not, with its dates and an honest limit", async () => {
+    sessionHolder.s!.role = "recruiter";
+    answering(SUGGESTIONS);
+    const w = mountIt();
+    await settle(w);
+    expect(pspReads()).toEqual(["/api/recruitment/drivers/drv-1/psp-employment?invitationId=inv-1"]);
+    const block = w.get('[data-testid="psp-suggestions"]').text();
+    expect(block).toContain(
+      "PSP shows 2 inspections under ACME HAULING, DOT 113529, between 10/06/2024 and 04/03/2025 — not on their list.",
+    );
+    expect(block).toContain("PSP report of 08/20/2026.");
+    expect(block).toContain("Most drivers have more jobs than this.");
+    expect(block).toContain("Inside the last 3 years, so it belongs on the list.");
+  });
+
+  it("marks the job PSP backs up, and only that one", async () => {
+    sessionHolder.s!.role = "recruiter";
+    answering(SUGGESTIONS);
+    const w = mountIt();
+    await settle(w);
+    expect(w.find(`[data-job="${KEY_A}"] [data-seen-in-psp]`).exists()).toBe(true);
+    expect(w.find(`[data-job="${KEY_B}"] [data-seen-in-psp]`).exists()).toBe(false);
+  });
+
+  it("finds a keyless job from before AW1 by its position", async () => {
+    sessionHolder.s!.role = "recruiter";
+    answering({ ...SUGGESTIONS, employers: [{ key: null, index: 0, match: "corroborated", inspections: 1, crashes: 0 }] });
+    const w = mountIt([{ employer_name: "Legacy", started_on: "2020-01-01" } as never]);
+    await settle(w);
+    expect(w.find('[data-job="row-0"] [data-seen-in-psp]').exists()).toBe(true);
+  });
+
+  it("'Add as a job' opens the one employer form with the carrier in it, and writes nothing by itself", async () => {
+    sessionHolder.s!.role = "recruiter";
+    answering(SUGGESTIONS);
+    const w = mountIt();
+    await settle(w);
+    await w.get('[data-psp-carrier="113529"]').findAll("button").find((b) => b.text() === "Add as a job")!.trigger("click");
+    await settle(w);
+    expect((w.get("#office-employer-employer_name").element as HTMLInputElement).value).toBe("ACME HAULING");
+    expect((w.get("#office-employer-usdot_number").element as HTMLInputElement).value).toBe("113529");
+    const date = (id: string) =>
+      w.findAllComponents({ name: "AppDateField" }).find((d) => d.html().includes(`id="office-employer-${id}"`))!.props("modelValue");
+    expect([date("started_on"), date("ended_on")]).toEqual(["2024-10-06", "2025-04-03"]);
+    expect(patches()).toEqual([]);
+  });
+
+  it("offers no Add once the window has closed", async () => {
+    sessionHolder.s!.role = "recruiter";
+    answering(SUGGESTIONS);
+    const w = mount(OfficeJobsSection, {
+      props: { invitationId: "inv-1", driverId: "drv-1", employers: [], givenGaps: [], revision: 7, v2: true, editable: false },
+      global: { plugins: [VueQueryPlugin] },
+    });
+    await settle(w);
+    expect(w.get('[data-testid="psp-suggestions"]').text()).toContain("ACME HAULING");
+    expect(w.findAll("button").some((b) => b.text() === "Add as a job")).toBe(false);
+  });
+
+  it("never shows one applicant's PSP carriers over another's", async () => {
+    sessionHolder.s!.role = "recruiter";
+    answering(SUGGESTIONS);
+    const w = mountIt();
+    await settle(w);
+    expect(w.find('[data-testid="psp-suggestions"]').exists()).toBe(true);
+    // The next applicant, at the SAME revision number: only the driver and the invitation tell the two
+    // apart, so a cache keyed on anything less hands back the first applicant's carriers.
+    answering({ report: null, unlisted: [], employers: [], inspectionWindowStart: null, crashWindowStart: null });
+    await w.setProps({ driverId: "drv-2", invitationId: "inv-2" });
+    await settle(w);
+    expect(pspReads()).toContain("/api/recruitment/drivers/drv-2/psp-employment?invitationId=inv-2");
+    expect(w.find('[data-testid="psp-suggestions"]').exists()).toBe(false);
+  });
+
+  it("never asks for a fleet manager, who may not read a PSP report", async () => {
+    sessionHolder.s!.role = "fleet_manager";
+    answering(SUGGESTIONS);
+    const w = mountIt();
+    await settle(w);
+    expect(pspReads()).toEqual([]);
+    expect(w.find('[data-testid="psp-suggestions"]').exists()).toBe(false);
+  });
+
+  it("shows nothing when there is no machine-readable report", async () => {
+    sessionHolder.s!.role = "recruiter";
+    answering({ report: null, unlisted: [], employers: [], inspectionWindowStart: null, crashWindowStart: null });
+    const w = mountIt();
+    await settle(w);
+    expect(pspReads()).toHaveLength(1);
+    expect(w.find('[data-testid="psp-suggestions"]').exists()).toBe(false);
   });
 });

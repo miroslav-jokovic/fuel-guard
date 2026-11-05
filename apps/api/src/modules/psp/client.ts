@@ -89,6 +89,14 @@ export interface PspRecordsResult {
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
+/**
+ * The one driver record inside a PSP body. The API answers with an array of one element per request
+ * (Thomas asked with two licences and got one, `uatResponses.test.ts`) and the guide documents a bare
+ * object; both are read the same way. Exported because `response_raw` stores the body verbatim and
+ * the employment suggestions (HW6b) re-read it — one unwrapping rule, not two.
+ */
+export const pspResponseElement = (raw: unknown): unknown => (Array.isArray(raw) ? raw[0] : raw);
+
 /** PSP wants the date of birth as `M/D/YYYY` (§9.1.1's test data); we hold ISO everywhere else. */
 export function toPspDate(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
@@ -197,7 +205,7 @@ export async function requestRecord(
 
   // A validation refusal comes back as an array of `{originalRequest, validationIssues}` (§5.4.2),
   // not as a driver record. It is an Error status, so §8 does not charge for it.
-  const first = Array.isArray(parsed) ? parsed[0] : parsed;
+  const first = pspResponseElement(parsed);
   const issues = (first as { validationIssues?: unknown })?.validationIssues;
   if (Array.isArray(issues) && issues.length > 0) {
     const detail = Number((issues[0] as { statusDetail?: unknown }).statusDetail ?? NaN);

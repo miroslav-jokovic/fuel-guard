@@ -1,4 +1,4 @@
-import { employmentHistoryCreateSchema, type EmploymentHistory } from "@silvicom/shared";
+import { employmentHistoryCreateSchema, type EmploymentHistory, type EmploymentSource } from "@silvicom/shared";
 import { blankEmployer, employerRecord, type EmployerFields } from "@/components/employment/employerRow";
 
 /**
@@ -64,9 +64,11 @@ export function historyWrite(
   notes: string,
   driverId: string,
   existing: EmploymentHistory | null,
+  /** Where an ADDED job came from — `psp_discovery` when the office added a carrier PSP named (HW6b). */
+  source: EmploymentSource = "manual",
 ): { body: Record<string, unknown> | null; errors: Record<string, string> } {
   const columns = { ...fieldsToColumns(fields), notes: notes.trim() === "" ? null : notes.trim() };
-  const candidate = { ...columns, driver_id: driverId, source: existing?.source ?? "manual" };
+  const candidate = { ...columns, driver_id: driverId, source: existing?.source ?? source };
   const parsed = employmentHistoryCreateSchema.safeParse(candidate);
   if (!parsed.success) {
     const errors: Record<string, string> = {};

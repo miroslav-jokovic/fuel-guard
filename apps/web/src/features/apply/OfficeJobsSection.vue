@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from "vue";
 import { AppButton as BaseButton, AppInput as BaseInput } from "@silvicom/ui";
-import { formatDisplayDate, type ApplicationPath } from "@silvicom/shared";
+import { formatDisplayDate, type ApplicationPath, type UnlistedCarrier } from "@silvicom/shared";
 import EmploymentTimeline from "@/components/employment/EmploymentTimeline.vue";
 import EmployerFormDrawer from "@/components/employment/EmployerFormDrawer.vue";
 import { EMPLOYMENT_OFFICE_COPY } from "@/components/employment/employmentCopy";
@@ -12,6 +12,10 @@ import {
   type EmployerFields,
 } from "@/components/employment/employerRow";
 import type { TimelineJob } from "@/components/employment/timeline";
+import PspSuggestionsBlock from "@/components/employment/PspSuggestionsBlock.vue";
+import { PSP_SUGGESTION_COPY, corroboratedJobKeys, pspJobPrefill } from "@/components/employment/pspSuggestions";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { usePspEmploymentQuery } from "@/composables/usePspEmployment";
 import { ymd } from "@/lib/dateWindow";
 import { useToastStore } from "@/stores/toast";
 import { employerName } from "./officeJobs";
@@ -35,6 +39,8 @@ import { useEditApplicationAnswer } from "./useApplicationReview";
  */
 const props = defineProps<{
   invitationId: string;
+  /** The applicant — whose PSP record, if one was bought, is read against these jobs (HW6b). */
+  driverId: string | null;
   employers: Record<string, unknown>[];
   givenGaps: Array<{ from: string; explanation?: string }>;
   revision: number;
@@ -81,6 +87,16 @@ const explanations = computed(() =>
   Object.fromEntries(props.givenGaps.filter((g) => g.explanation).map((g) => [g.from, g.explanation!])),
 );
 
+/**
+ * HW6b: what the applicant's PSP record suggests about THESE jobs — the draft's, read by the route
+ * against the invitation, and read again at every revision so an added carrier leaves the block.
+ */
+const pspQ = usePspEmploymentQuery(toRef(props, "driverId"), {
+  invitationId: toRef(props, "invitationId"),
+  version: toRef(props, "revision"),
+});
+const seenInPsp = computed(() => corroboratedJobKeys(pspQ.data.value));
+
 // ── the panel ────────────────────────────────────────────────────────────────────────────────
 const open = ref(false);
 const editingId = ref<string | null>(null);
@@ -95,12 +111,16 @@ function openJob(id: string): void {
   errors.value = {};
   open.value = true;
 }
-function addJob(dates?: { started_on: string; ended_on: string }): void {
+/** A gap's dates, a PSP suggestion's carrier, or nothing — what the one employer form opens with. */
+function addJob(seed?: Partial<EmployerFields>): void {
   editingId.value = null;
-  prefill.value = dates ?? null;
+  prefill.value = seed ?? null;
   errors.value = {};
   open.value = true;
 }
+
+/** "Add as a job": the form filled from the suggestion; the job exists when the office saves it. */
+const addFromPsp = (carrier: UnlistedCarrier): void => addJob(pspJobPrefill(carrier));
 
 /** The job's answers as the contract holds them, without its key — the fields a `set` may name. */
 const answers = (f: EmployerFields): Record<string, unknown> => {
@@ -186,6 +206,11 @@ async function explainGap(gap: { from: string; to: string }): Promise<void> {
       @edit="openJob"
       @add="addJob"
     >
+      <template #job-meta="{ job }">
+        <span v-if="seenInPsp.has(job.key)" :class="[BADGE_BASE, toneClass('success')]" data-seen-in-psp>
+          {{ PSP_SUGGESTION_COPY.seen }}
+        </span>
+      </template>
       <template v-if="editable" #gap="{ gap }">
         <p v-if="explanations[gap.from]" class="text-sm text-ink-secondary">
           {{ copy.gapExplained }} {{ explanations[gap.from] }}
@@ -208,6 +233,8 @@ async function explainGap(gap: { from: string; to: string }): Promise<void> {
         </div>
       </template>
     </EmploymentTimeline>
+
+    <PspSuggestionsBlock :suggestions="pspQ.data.value" :editable="editable" @add="addFromPsp" />
 
     <BaseButton v-if="editable" size="sm" variant="secondary" @click="addJob()">Add a job</BaseButton>
 

@@ -494,6 +494,26 @@ Each has a recommendation; none is mine to rule.
   governs whether suggestions may be stored or only shown).
   **Q-OR7: the owner, 2026-11-04, "analyze and solve this properly"** — §15.2 (the policy text itself is
   still the owner's to supply, Q-DAP1).
+- **Q-HW6b1 — what HW6b leaves undone until PSP-PLAN Q10 is answered (2026-11-05).** HW6b ships §4.6
+  show-only: suggestions are re-derived from `psp_requests.response_raw` on every read and nothing
+  PSP-derived is written. Three pieces of §4.6 are each a PSP-derived row, so each waits on Q10 rather
+  than routing around it:
+  1. **Dismiss** (§4.6.2, "records that the recruiter looked"). It needs a row naming a carrier PSP
+     reported for this driver. Candidates: (a) a `psp_suggestion_reviews` table (driver, request, DOT
+     number, who, when), purged with the request it was read from *(recommended if Q10 allows
+     retention until the purge — the row would be no longer-lived than the response it came from)*;
+     (b) an `audit_logs` row only, which is append-only and outlives the response — the wrong home if
+     Q10 says no; (c) none, as now — a carrier stays listed until it is added.
+  2. **`source = 'psp_discovery'` on a job added before filing.** On the record it is set (the add
+     from a suggestion saves "Found in a PSP record"). In the application's draft the job is an
+     `add_employer` op, the draft's employers carry no source, and filing writes every draft job with
+     a literal `'application'` (0376's filing function). Recording it needs a `source` in the draft's
+     employer contract and in filing's copy into `driver_employment_history` — contract + migration. Recommend doing it
+     only if Q10 allows: the label IS a statement derived from PSP that outlives the decision.
+  3. **The 3/5-year window and the "Seen in PSP" mark are not printed** in the DQ file or any PDF —
+     on screen only, for the same reason.
+  If Q10 comes back **no**, HW6b's design stands as built: nothing to delete. If **yes**, (1a) and (2)
+  are the next PR pair. QCMobile (§4.6.4, HW6a) is independent of Q10 and still waits on the FMCSA key.
 
 ---
 
@@ -1327,3 +1347,25 @@ at submit, the review, the office drawer and the filed PDF.
   items landed clear of the footer under a broken page break (now eight shifted fixtures). The survivor
   (`carrier_answers` in `editableFields`' `NOT_AN_ANSWER`) is a no-op mutant, because the walk already skips a
   non-scalar value; the entry states intent (Q-CQ7).
+- **2026-11-05** — **HW6b, PSP employment suggestions on both timelines (`claude/hw6b-psp-employment-suggestions`),
+  no migration, show-only because PSP-PLAN Q10 is open.** `crossMatchEmployment` finally has a caller:
+  `psp/pspEmployment.ts` re-reads the newest `succeeded`/`partial` `psp_requests.response_raw` through
+  `parsePspReport` on every request and stores nothing (`PspEmploymentSuggestions`,
+  `psp/employmentSuggestionsContract.ts`). One route, `GET /drivers/:driverId/psp-employment` in
+  `routes/employment.ts`: against the filed record (measured from the hire date), or with `?invitationId=`
+  against that application's draft (the invitation must be this driver's). Gated on view-Recruitment AND
+  `canReadRestrictedKind("psp_report")` — the report's own reader test, so the fleet_manager is refused
+  before any read; the web asks only when `session.canReadKind("psp_report")` says so. "Our DOT" is
+  `organizations.dot_number`, NOT `carrierIdentity()`: in UAT the PSP account is a different carrier, and
+  the first test run caught it excluding nothing. A typed "DOT 113 529" is matched as PSP's digits. On
+  screen (`PspSuggestionsBlock`, under the timeline): "PSP shows 2 inspections under X, DOT n, between … —
+  not on their list", which list it was owed to, the limit in plain words, a "Seen in PSP" mark on
+  corroborated jobs, and **Add as a job** opening the one employer form pre-filled (dates = when PSP saw
+  the truck, said so). On the record the add saves as `psp_discovery`; in the draft it is an ordinary
+  `add_employer`. Not built, each a PSP-derived row waiting on Q10: Dismiss, the draft's
+  `psp_discovery` label, anything printed — **Q-HW6b1** in §6. A `placeholderData` to stop the block
+  blinking on save was removed: query-core reuses a placeholder without re-running its function, and
+  one applicant's carriers stayed over the next one's (test "never shows one applicant's PSP carriers
+  over another's"). Mutation-proved 37/37; two first survived and were the tests' fault — no case had a
+  settled report with no stored response, and the applicant-switch test also changed the revision, which
+  hid a cache key without the driver. Tests replay Litton's real UAT response.

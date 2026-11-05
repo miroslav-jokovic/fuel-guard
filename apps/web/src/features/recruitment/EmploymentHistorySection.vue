@@ -10,6 +10,7 @@ import {
   type EmploymentHistory,
   type EmploymentPeriod,
   type EmploymentSource,
+  type UnlistedCarrier,
 } from "@silvicom/shared";
 import {
   AppCard as BaseCard,
@@ -22,6 +23,9 @@ import {
 } from "@silvicom/ui";
 import EmploymentTimeline from "@/components/employment/EmploymentTimeline.vue";
 import EmployerFormDrawer from "@/components/employment/EmployerFormDrawer.vue";
+import PspSuggestionsBlock from "@/components/employment/PspSuggestionsBlock.vue";
+import { PSP_SUGGESTION_COPY, corroboratedJobKeys, pspJobPrefill } from "@/components/employment/pspSuggestions";
+import { usePspEmploymentQuery } from "@/composables/usePspEmployment";
 import { EMPLOYMENT_OFFICE_COPY } from "@/components/employment/employmentCopy";
 import { employerProblems, type EmployerFields } from "@/components/employment/employerRow";
 import { buildTimeline, type TimelineJob } from "@/components/employment/timeline";
@@ -131,6 +135,13 @@ const unplacedGaps = computed(() =>
   ),
 );
 
+/**
+ * HW6b: the carriers PSP names that this list does not, and a "Seen in PSP" mark on the jobs it backs
+ * up. Read again whenever the list is (`version`), so a carrier added from here leaves the block.
+ */
+const pspQ = usePspEmploymentQuery(driverId, { version: computed(() => historyQ.dataUpdatedAt.value) });
+const seenInPsp = computed(() => corroboratedJobKeys(pspQ.data.value));
+
 // ── the panel ────────────────────────────────────────────────────────────────────────────────
 const drawerOpen = ref(false);
 const editing = ref<EmploymentHistory | null>(null);
@@ -140,7 +151,11 @@ const errors = ref<Record<string, string>>({});
 const notes = ref("");
 const saving = computed(() => add.isPending.value || update.isPending.value || remove.isPending.value);
 
+/** What an added job is saved as: the office's, or — opened from a PSP suggestion — PSP's discovery. */
+const addSource = ref<EmploymentSource>("manual");
+
 function openPanel(row: EmploymentHistory | null, dates: Partial<EmployerFields> | null = null): void {
+  addSource.value = "manual";
   editing.value = row;
   prefill.value = dates;
   notes.value = row?.notes ?? "";
@@ -148,8 +163,14 @@ function openPanel(row: EmploymentHistory | null, dates: Partial<EmployerFields>
   drawerOpen.value = true;
 }
 
+/** "Add as a job": the one employer form, filled from the suggestion; saved only when Save is pressed. */
+function addFromPsp(carrier: UnlistedCarrier): void {
+  openPanel(null, pspJobPrefill(carrier));
+  addSource.value = "psp_discovery";
+}
+
 async function save(fields: EmployerFields): Promise<void> {
-  const { body, errors: found } = historyWrite(fields, notes.value, driverId.value, editing.value);
+  const { body, errors: found } = historyWrite(fields, notes.value, driverId.value, editing.value, addSource.value);
   errors.value = found;
   if (!body) return;
   try {
@@ -248,11 +269,15 @@ const sourceLabel = (s: string): string =>
               {{ employmentInquiryBadge(rowById(job.key)?.inquiry_status ?? "").label }}
             </span>
             <span class="text-xs text-ink-muted">{{ sourceLabel(rowById(job.key)?.source ?? "") }}</span>
+            <span v-if="seenInPsp.has(job.key)" :class="[BADGE_BASE, toneClass('success')]" data-seen-in-psp>
+              {{ PSP_SUGGESTION_COPY.seen }}
+            </span>
           </template>
           <template #gap="{ gap }">
             <RecordGapBox :driver-id="driverId" :gap="gap" :view="gapsQ.data.value ?? null" :can-edit="canEdit" />
           </template>
         </EmploymentTimeline>
+        <PspSuggestionsBlock class="mt-4" :suggestions="pspQ.data.value" :editable="canEdit" @add="addFromPsp" />
         <div v-if="unplacedGaps.length" class="mt-4 space-y-1 border-t border-edge pt-3" data-unplaced-gaps>
           <h3 class="text-sm font-semibold text-ink">Gaps recorded for other dates</h3>
           <p v-for="g in unplacedGaps" :key="g.id" class="text-xs" :class="g.withdrawnAt ? 'text-ink-muted line-through' : 'text-ink-secondary'">
