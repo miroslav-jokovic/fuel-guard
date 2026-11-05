@@ -1,0 +1,30 @@
+name: "A deleted object fails the jobs until reconcile records it, and then stops failing them"
+why: >
+  recordedGone.ts: a refusal stops being a failure only with reconcile's missing row beside it. So the first hourly
+  run and the first reconcile fail, each mismatch is flagged and rung once, and every run after is clean. A deleted
+  campaign is recorded at the campaign, so its ad set's refusal settles on that row; an ad set alone settles on its own.
+covers: [missing]
+verifiedBy: "Claude (Q-AD35), from recordedGone.ts, insightsPull.ts and checks.ts"
+campaigns:
+  - { id: fine }
+  - { id: deleted }
+  - { id: lost-adset }
+timeline:
+  - ads_manager: { campaign: deleted, remove: adset }
+  - ads_manager: { campaign: deleted, remove: campaign }
+  - ads_manager: { campaign: lost-adset, remove: adset }
+  - hourly_job: true
+  - daily_reconcile: true
+  - hourly_job: true
+  - daily_reconcile: true
+expect:
+  states: { fine: live, deleted: live, lost-adset: live }
+  flags:
+    - "run 1: deleted campaign missing live -> none warning"
+    - "run 1: lost-adset adset missing live -> none warning"
+  bell: ["ads_external_change warning", "ads_external_change warning"]
+  failures:
+    - "hourly 1: deleted graph:meta_100"
+    - "hourly 1: deleted delivery:stage:meta_100"
+    - "hourly 1: lost-adset delivery:stage:meta_100"
+    - "reconcile 1: deleted insights:graph:meta_100"

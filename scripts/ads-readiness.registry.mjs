@@ -486,7 +486,7 @@ export const READINESS = [
           need: "reconcile flags every planted mismatch and nothing else",
           tests: [{ file: MONITOR_GOLDEN, titles: ["every rule and every reconcile field has at least one scenario"] }],
           scenarios: [
-            "monitor/reconcile-clean-run.yaml", "monitor/reconcile-every-mismatch-once.yaml", "monitor/reconcile-missing.yaml", "monitor/reconcile-status.yaml",
+            "monitor/deleted-object-settles.yaml", "monitor/reconcile-clean-run.yaml", "monitor/reconcile-every-mismatch-once.yaml", "monitor/reconcile-missing.yaml", "monitor/reconcile-status.yaml",
             "monitor/reconcile-daily-budget.yaml", "monitor/reconcile-spend-cap.yaml", "monitor/reconcile-overrun.yaml", "monitor/reconcile-not-ours.yaml",
           ],
         },

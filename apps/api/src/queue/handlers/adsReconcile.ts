@@ -7,7 +7,7 @@ import type { JobHandler } from "../types.js";
  *
  * The job THROWS when anything could not be compared — an object Meta would not read for a reason other than
  * "does not exist", the account's campaign list, an insights day — so it is failed and listed; tomorrow's run
- * compares again. A mismatch is not a failure: it is the job's answer, recorded and rung, and the job is done.
+ * compares again. A campaign already recorded as gone does not fail it again (Q-AD35). A mismatch is not a failure: it is the job's answer, recorded and rung, and the job is done.
  */
 export const adsReconcileHandler: JobHandler = async (ctx, job) => {
   const payload = (job.payload ?? {}) as { connectionId?: unknown };

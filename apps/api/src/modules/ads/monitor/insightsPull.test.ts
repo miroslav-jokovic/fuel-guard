@@ -37,7 +37,7 @@ function metaCampaign(id: string) {
 }
 
 /** One run: a recorder over the rows held now, then its upserts folded back in by (campaign, hour). */
-async function run(opts: { days?: number; now?: Date } = {}) {
+async function run(opts: { days?: number; now?: Date; actions?: Array<Record<string, unknown>> } = {}) {
   const rec = createSupabaseRecorder({
     tables: {
       ads_platform_connections: postgrestFixture([
@@ -55,6 +55,7 @@ async function run(opts: { days?: number; now?: Date } = {}) {
         { id: "00000000-0000-4000-8000-00000000aa05", org_id: OTHER_ORG, connection_id: CONN, state: "live", platform_refs: { meta_campaign_id: META_A } },
       ]),
       ads_spend_hourly: postgrestFixture([...stored.values()]),
+      ads_actions: postgrestFixture(opts.actions ?? []),
     },
   });
   const r = await pullConnectionInsights({ admin: rec.client as never, env: testEnv(), processEnv: { NODE_ENV: "test" }, now: () => opts.now ?? NOW }, ORG, CONN, { days: opts.days });
@@ -135,6 +136,48 @@ describe("the hourly insights pull → ads_spend_hourly (B5a)", () => {
     expect([r.hours_zeroed, r.failures]).toEqual([1, [{ campaign_id: CAMP_B, reason: "graph:token_invalid" }]]);
     expect(held(CAMP_A, "2026-11-02T16:00:00.000Z")).toMatchObject({ spend_cents: 0, clicks: 0, currency: "USD" });
     expect(held(CAMP_B, "2026-11-02T16:00:00.000Z")).toMatchObject({ spend_cents: 600 });
+  });
+
+  describe("a campaign Meta says does not exist (Q-AD35)", () => {
+    const recorded = (over: Record<string, unknown> = {}) => ({ id: "a1", org_id: ORG, status: "succeeded", idempotency_key: `external_change:${CONN}:campaign:${META_B}:missing:none`, ...over });
+    const heldHour = "2026-11-02T16:00:00.000Z";
+    const deleteB = async () => {
+      plantHour(fake, META_B, "2026-11-02", 10, { spend_cents: 600 });
+      await run();
+      fake.campaigns.delete(META_B);
+    };
+
+    it("once reconcile has recorded it missing, it is no failure and its stored hours stay", async () => {
+      await deleteB();
+      const { r, rec } = await run({ actions: [recorded()] });
+      expect(r.failures).toEqual([]);
+      expect(held(CAMP_B, heldHour)).toMatchObject({ spend_cents: 600 });
+      expectOrgScoped(rec, ORG);
+    });
+
+    it("with no record, or one for another carrier, another connection, or a row that never finished, it stays a failure", async () => {
+      await deleteB();
+      const failed = [{ campaign_id: CAMP_B, reason: "graph:meta_100" }];
+      for (const actions of [
+        [],
+        [recorded({ org_id: OTHER_ORG })],
+        [recorded({ idempotency_key: `external_change:other-connection:campaign:${META_B}:missing:none` })],
+        [recorded({ status: "started" })],
+      ]) expect((await run({ actions })).r.failures).toEqual(failed);
+    });
+
+    it("a recorded campaign refused for any other reason stays a failure", async () => {
+      fake.inject("GET", new RegExp(`^${META_B}/insights$`), { kind: "token_expired" }, 1);
+      const { r } = await run({ actions: [recorded()] });
+      expect(r.failures).toEqual([{ campaign_id: CAMP_B, reason: "graph:token_invalid" }]);
+    });
+
+    it("if Meta still answers for a recorded campaign, its hours keep arriving", async () => {
+      plantHour(fake, META_B, "2026-11-02", 10, { spend_cents: 700 });
+      const { r } = await run({ actions: [recorded()] });
+      expect(r.failures).toEqual([]);
+      expect(held(CAMP_B, heldHour)).toMatchObject({ spend_cents: 700 });
+    });
   });
 
   it("the fall-back day lands on the right UTC hours: the doubled 01:00 on its first, 02:00 two hours later", async () => {

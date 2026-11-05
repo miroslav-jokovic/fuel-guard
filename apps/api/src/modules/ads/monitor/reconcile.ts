@@ -5,6 +5,7 @@ import { sendAdsAlert } from "../alerts/adsAlerts.js";
 import type { MetaGraph } from "../platforms/meta/graphClient.js";
 import { graphForConnection, type RegistryDeps } from "../platforms/registry.js";
 import { INSIGHTS_MAX_DAYS, pullConnectionInsights, type InsightsResult } from "./insightsPull.js";
+import { externalChangeKey, isNoSuchObject } from "./recordedGone.js";
 
 /**
  * The daily reconcile (ADS-AGENT-BUILD-WORKFLOW.md B5c; D-AD4). For one connection: what Meta holds for every
@@ -34,7 +35,8 @@ import { INSIGHTS_MAX_DAYS, pullConnectionInsights, type InsightsResult } from "
  * ── WHAT IS NEVER SILENT ─────────────────────────────────────────────────────────────────────────
  * A read Meta refuses for any reason other than "does not exist" is reported, and that object is left out of
  * the comparison rather than called missing: a throttle is not a deleted campaign. The job fails on any of
- * them, so it is listed.
+ * them, so it is listed. The run that first records a deleted campaign still fails, because its insights re-read
+ * comes before the comparison; from the next run the record settles that refusal (Q-AD35, `recordedGone.ts`).
  */
 
 const AGENT_NAME = "Meta (reconcile)";
@@ -57,10 +59,9 @@ export interface ReconcileResult {
 
 type Read = { kind: "seen"; object: MetaObjectSeen } | { kind: "gone" } | { kind: "failed"; reason: string };
 
-/** Meta's "does not exist" (code 100, subcode 33) — the one refusal that means the object is gone. */
 async function readObject(graph: MetaGraph, id: string, amountField: "spend_cap" | "daily_budget"): Promise<Read> {
   const r = await graph.get<{ id?: string; name?: unknown; status?: unknown; spend_cap?: unknown; daily_budget?: unknown }>(id, { fields: `id,name,status,${amountField}` });
-  if (!r.ok) return r.error.code === 100 && r.error.subcode === 33 ? { kind: "gone" } : { kind: "failed", reason: `graph:${r.error.error_code}` };
+  if (!r.ok) return isNoSuchObject(r.error) ? { kind: "gone" } : { kind: "failed", reason: `graph:${r.error.error_code}` };
   const amount = Number(r.data[amountField]);
   return {
     kind: "seen",
@@ -187,7 +188,7 @@ export async function reconcileConnection(deps: ReconcileDeps, orgId: string, co
     const row = await startAction(deps.admin, {
       org_id: orgId, campaign_id: m.campaign_id, connection_id: connectionId, kind: "external_change",
       actor_kind: "platform", actor_id: null, actor_name: AGENT_NAME, cause: `${m.level} ${m.field}: ours ${m.ours ?? "none"}, Meta ${m.theirs ?? "none"}`,
-      idempotency_key: `external_change:${connectionId}:${m.key}`,
+      idempotency_key: externalChangeKey(connectionId, m.key),
       request: { level: m.level, meta_id: m.meta_id, field: m.field, ours: m.ours, theirs: m.theirs, severity: m.severity },
     }, at);
     if (row === "duplicate") {
