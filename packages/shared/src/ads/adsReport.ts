@@ -1,5 +1,6 @@
 import { wallClockInZone, wallClockToUtc, DEFAULT_ORG_TIMEZONE } from "../calendarDay.js";
-import type { AdPlatform, OutcomeStage } from "./contracts.js";
+import type { AdPlatform } from "./contracts.js";
+import { LEAD_OUTCOME_STAGES, NOT_RECORDED, UNRECORDED_LEAD_STAGES, type LeadOutcome, type LeadOutcomeStage, type UnrecordedLeadStage } from "./leadOutcomes.js";
 
 /**
  * D-AD5: numbers come from a fold; the model only narrates. Every figure the settings page, the ads
@@ -127,19 +128,17 @@ export function monthToDateByPlatform(
 }
 
 // ── lead cohorts (D-RA10's outcome report) ──────────────────────────────────────────────────────
-export interface LeadOutcomeRow {
-  lead_id: string;
-  campaign_id: string | null;
-  created_at: string;
-  /** Every stage the lead reached, any order. */
-  stages: readonly OutcomeStage[];
-}
+/**
+ * One week's ad leads and how many reached each stage. The stages are `leadOutcomes.ts`'s: the five a row
+ * records are counts; the two nothing records carry `not_recorded`, never 0 (Q-AD37, ruled 2026-11-05).
+ */
+export type CohortReached = Record<LeadOutcomeStage, number> & Record<UnrecordedLeadStage, typeof NOT_RECORDED>;
 
 export interface Cohort {
   /** The Monday (zone-local) the cohort's week starts. */
   week: string;
   leads: number;
-  reached: Record<OutcomeStage, number>;
+  reached: CohortReached;
   /**
    * False while the cohort is younger than `matureAfterDays` from its week's end: its hire rate is
    * still climbing, and showing it beside an old cohort's would read as a decline. The screens grey an
@@ -148,7 +147,7 @@ export interface Cohort {
   mature: boolean;
 }
 
-const STAGES: readonly OutcomeStage[] = ["contacted", "qualified", "applied", "hired", "lost"];
+const unrecorded = () => Object.fromEntries(UNRECORDED_LEAD_STAGES.map((s) => [s, NOT_RECORDED])) as Record<UnrecordedLeadStage, typeof NOT_RECORDED>;
 
 /** The zone-local Monday of an instant's week, "YYYY-MM-DD". */
 function mondayOf(at: Date, zone: string): string {
@@ -160,20 +159,20 @@ function mondayOf(at: Date, zone: string): string {
 }
 
 export function foldLeadCohorts(
-  leads: readonly LeadOutcomeRow[],
+  leads: readonly LeadOutcome[],
   now: Date,
   matureAfterDays = 28,
   zone: string = DEFAULT_ORG_TIMEZONE,
 ): Cohort[] {
   const by = new Map<string, Cohort>();
   for (const l of leads) {
-    const week = mondayOf(new Date(l.created_at), zone);
+    const week = mondayOf(new Date(l.arrived_at), zone);
     const c = by.get(week) ?? {
       week, leads: 0, mature: false,
-      reached: { contacted: 0, qualified: 0, applied: 0, hired: 0, lost: 0 },
+      reached: { ...(Object.fromEntries(LEAD_OUTCOME_STAGES.map((s) => [s, 0])) as Record<LeadOutcomeStage, number>), ...unrecorded() },
     };
     c.leads += 1;
-    for (const s of new Set(l.stages)) if (STAGES.includes(s)) c.reached[s] += 1;
+    for (const s of LEAD_OUTCOME_STAGES) if (l.reached[s] !== undefined) c.reached[s] += 1;
     by.set(week, c);
   }
   // Whole zone-local days, compared as UTC dates so a DST night is not an hour short of a day.
@@ -187,11 +186,12 @@ export function foldLeadCohorts(
 }
 
 /**
- * The share of a cohort's leads that reached each stage, 0–1. Null for an immature cohort (its rates are
- * still climbing — `Cohort.mature`) and for one with no lead, so no reader is handed a rate to compare that
- * the fold does not stand behind (F1: the analyst narrates only what this returns).
+ * The share of a cohort's leads that reached each recorded stage, 0–1; an unrecorded stage has no rate
+ * either (`not_recorded`). Null for an immature cohort (its rates are still climbing — `Cohort.mature`) and
+ * for one with no lead, so no reader is handed a rate to compare that the fold does not stand behind (F1:
+ * the analyst narrates only what this returns).
  */
-export function cohortRates(c: Cohort): Record<OutcomeStage, number> | null {
+export function cohortRates(c: Cohort): (Record<LeadOutcomeStage, number> & Record<UnrecordedLeadStage, typeof NOT_RECORDED>) | null {
   if (!c.mature || c.leads === 0) return null;
-  return Object.fromEntries(STAGES.map((s) => [s, c.reached[s] / c.leads])) as Record<OutcomeStage, number>;
+  return { ...(Object.fromEntries(LEAD_OUTCOME_STAGES.map((s) => [s, c.reached[s] / c.leads])) as Record<LeadOutcomeStage, number>), ...unrecorded() };
 }

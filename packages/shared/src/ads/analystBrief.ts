@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { AD_PLATFORMS, type AdPlatform, type OutcomeStage } from "./contracts.js";
+import { AD_PLATFORMS, type AdPlatform } from "./contracts.js";
+import { LEAD_OUTCOME_STAGES, NOT_RECORDED, UNRECORDED_LEAD_STAGES, type LeadOutcomeStage, type UnrecordedLeadStage } from "./leadOutcomes.js";
 import { cohortRates, sumCampaignTotals, type CampaignTotals, type Cohort, type MonthContext } from "./adsReport.js";
 
 /**
@@ -27,6 +28,12 @@ import { cohortRates, sumCampaignTotals, type CampaignTotals, type Cohort, type 
  * What it does NOT prove: that a figure is attached to the right label ("leads" vs "clicks"). It proves
  * §4R's bar — 0 numbers in the narration that the fold did not produce — and a person reads the brief.
  * A sign is a word ("fell", "down"), so figures are compared by magnitude.
+ *
+ * ── A STAGE NOTHING RECORDS GETS NO NUMBER (Q-AD37, ruled 2026-11-05) ──────────────────────────────
+ * `qualified` and `lost_before_conversion` have no writer (`leadOutcomes.ts`), so the sheet prints them as
+ * "not recorded". The digit check alone cannot stop "4 were qualified": 4 is on the sheet as another stage's
+ * count. So a SENTENCE that names an unrecorded stage may hold no figure at all (`number_for_unrecorded_stage`)
+ * — the narration may say the stage is not recorded, in a sentence of its own, and nothing more.
  */
 
 const fold = z.object({
@@ -39,7 +46,11 @@ const fold = z.object({
   cost_per_lead_cents: z.number().int().nullable(),
   ctr: z.number().min(0).nullable(),
 }).strict() satisfies z.ZodType<CampaignTotals & { name: string }>;
-const stageCounts = z.object({ contacted: z.number().int(), qualified: z.number().int(), applied: z.number().int(), hired: z.number().int(), lost: z.number().int() }).strict();
+// The recorded stages are counts; the two nothing records carry the `not_recorded` marker, never a number.
+const stageCounts = z.object({
+  ...Object.fromEntries(LEAD_OUTCOME_STAGES.map((s) => [s, z.number().int()])) as Record<LeadOutcomeStage, z.ZodNumber>,
+  ...Object.fromEntries(UNRECORDED_LEAD_STAGES.map((s) => [s, z.literal(NOT_RECORDED)])) as Record<UnrecordedLeadStage, z.ZodLiteral<typeof NOT_RECORDED>>,
+}).strict();
 
 /** What the brief is built from: the day's `foldCampaignSpend` (named), `monthToDateByPlatform`, `foldLeadCohorts`. */
 export const briefFoldSchema = z.object({
@@ -52,7 +63,9 @@ export const briefFoldSchema = z.object({
 }).strict();
 export type BriefFold = z.infer<typeof briefFoldSchema>;
 
-type Stages = Record<OutcomeStage, string>;
+type Stages = Record<LeadOutcomeStage | UnrecordedLeadStage, string>;
+/** How the sheet and the plain brief write a stage nothing records. No digit, so the number check never allows one through it. */
+export const NOT_RECORDED_TEXT = "not recorded";
 type Figures = { spend: string; impressions: string; clicks: string; leads: string; cost_per_lead: string | null; click_rate: string | null };
 export interface BriefFacts {
   day: string;
@@ -68,8 +81,8 @@ const sign = (n: number) => (n < 0 ? "-" : "");
 export const showMoney = (cents: number) => `${sign(cents)}$${grouped(Math.trunc(Math.abs(cents) / 100))}.${String(Math.abs(cents) % 100).padStart(2, "0")}`;
 export const showCount = (n: number) => `${sign(n)}${grouped(n)}`;
 export const showShare = (fraction: number) => `${(fraction * 100).toFixed(1)}%`;
-const showStages = (r: Record<OutcomeStage, number>, show: (n: number) => string) =>
-  Object.fromEntries(Object.entries(r).map(([k, v]) => [k, show(v)])) as Stages;
+const showStages = (r: Record<string, number | typeof NOT_RECORDED>, show: (n: number) => string) =>
+  Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v === NOT_RECORDED ? NOT_RECORDED_TEXT : show(v)])) as Stages;
 
 /** The sheet the model is shown: every figure formatted once, here. */
 function figures(c: Omit<CampaignTotals, "campaign_id">): Figures {
@@ -116,13 +129,14 @@ export function plainBrief(f: BriefFacts): { headline: string; points: string[] 
     points: [
       ...f.campaigns.map((c) => `${c.name}: ${each(c)}.`),
       `Spend so far in ${f.month.month}: ${spend || "none"}, with ${f.month.days_left} days left.`,
-      ...f.cohorts.map((c) => `Leads from the week of ${c.week}: ${c.leads}, ${c.reached.hired} hired${c.rates ? ` (${c.rates.hired})` : ", too young to judge"}.`),
+      ...f.cohorts.map((c) => `Leads from the week of ${c.week}: ${c.leads}, ${c.reached.converted} made applicants, ${c.reached.hired} hired${c.rates ? ` (${c.rates.hired})` : ", too young to judge"}.`),
+      ...(f.cohorts.length > 0 ? ["Which leads were qualified, and which were lost before becoming applicants, is not recorded yet."] : []),
     ],
   };
 }
 
 // ── the check ───────────────────────────────────────────────────────────────────────────────────
-export type NarrationFindingKind = "number_not_in_fold" | "number_in_words";
+export type NarrationFindingKind = "number_not_in_fold" | "number_in_words" | "number_for_unrecorded_stage";
 export interface NarrationFinding {
   kind: NarrationFindingKind;
   text: string;
@@ -153,6 +167,14 @@ function sheetStrings(v: unknown, key = ""): string[] {
   return [];
 }
 
+/**
+ * A mention of a stage nothing records: any form of "qualified" (also "unqualified", "disqualified"), or a
+ * lead lost, dropped or closed BEFORE it became an applicant / was converted. "Lost after converting" is a
+ * recorded stage and is not matched. Read per sentence, after the campaign names are blanked.
+ */
+const UNRECORDED_STAGE = /\b(?:un|dis|pre-?)?qualif\w*|\b(?:lost|dropped|closed|fell away|gave up)\b[^.;!?\n]*\bbefore\b|\bnever (?:became|converted|made it)\b/i;
+const SENTENCE = /[^.;!?\n]+(?:[.;!?]+(?=\s|$)|$)/g;
+
 export function checkNarration(text: string, facts: BriefFacts): NarrationFinding[] {
   const allowed = new Set(sheetStrings(facts).flatMap((s) => figuresIn(s).map((f) => f.key)));
   let scanned = text;
@@ -160,5 +182,12 @@ export function checkNarration(text: string, facts: BriefFacts): NarrationFindin
   const findings: NarrationFinding[] = [];
   for (const f of figuresIn(scanned)) if (!allowed.has(f.key)) findings.push({ kind: "number_not_in_fold", text: f.text, index: f.index });
   for (const m of scanned.matchAll(NUMBER_WORDS)) findings.push({ kind: "number_in_words", text: m[0], index: m.index });
+  // Sentence ends are read on the text with its decimals intact: "$1,234.56" holds a dot that is not an end.
+  const ends = scanned.replace(/(\d)\.(\d)/g, "$1,$2");
+  for (const m of ends.matchAll(SENTENCE)) {
+    if (!UNRECORDED_STAGE.test(m[0])) continue;
+    const first = figuresIn(scanned.slice(m.index, m.index + m[0].length))[0];
+    if (first) findings.push({ kind: "number_for_unrecorded_stage", text: first.text, index: m.index + first.index });
+  }
   return findings.sort((a, b) => a.index - b.index);
 }

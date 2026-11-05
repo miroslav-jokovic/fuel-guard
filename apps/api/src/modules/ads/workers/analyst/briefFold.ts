@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  DEFAULT_ORG_TIMEZONE, foldCampaignSpend, monthContext, monthToDateByPlatform, wallClockInZone, wallClockToUtc,
-  type AdPlatform, type BriefFold, type SpendHourRow,
+  DEFAULT_ORG_TIMEZONE, foldCampaignSpend, foldLeadCohorts, leadOutcomeSchema, monthContext, monthToDateByPlatform, wallClockInZone, wallClockToUtc,
+  type AdPlatform, type BriefFold, type LeadOutcomes, type SpendHourRow,
 } from "@silvicom/shared";
 
 /**
@@ -15,14 +15,27 @@ import {
  * day's month: the brief written on 1 November reports 31 October and October's spend, not a November
  * with nothing in it. `days_left` counts the days after the reported one (0 on the month's last day).
  *
- * ── NO COHORTS YET (Q-AD34) ────────────────────────────────────────────────────────────────────────
- * Which stages each lead reached is recruiting's (`recruiting_leads`, its contacts and conversions), and
- * D-AD17 lets ads reach recruiting only through `BriefSource` and `LeadSink`; neither carries an outcome.
- * `ads_outcome_events` will (B6), but nothing writes it yet. So `cohorts` is empty here — said in the plan
- * as Q-AD34, not read around the boundary — and the brief reports spend and leads until that seam exists.
+ * ── COHORTS, THROUGH RECRUITING'S LeadOutcomes (Q-AD34, ruled 2026-11-05) ─────────────────────────
+ * Which stages each lead reached is recruiting's, and D-AD17 lets ads reach recruiting only through an
+ * interface recruiting implements. `LeadOutcomes` is that interface (shared `leadOutcomes.ts`); the job's
+ * composition root hands recruiting's in (`queue/handlers/adsDailyBrief.ts`), and nothing here reads a
+ * recruiting table. Every row is parsed against the shared shape, so an implementation that drifts from the
+ * contract fails the brief loudly rather than folding a stage it does not mean.
+ *
+ * The window is the last `COHORT_WEEKS` zone-local weeks up to the reported day's: long enough that the oldest
+ * cohorts are past the fold's 28-day maturity, short enough to stay one screen. Stages nothing records
+ * (`qualified`, `lost_before_conversion`) are `not_recorded` in every cohort (Q-AD37), never 0.
  */
 
 const PAGE = 1000;
+export const COHORT_WEEKS = 8;
+
+/** The zone-local Monday `COHORT_WEEKS - 1` weeks before the reported day's week, as the instant it starts. */
+export function cohortsSince(reported: string, zone: string = DEFAULT_ORG_TIMEZONE): string {
+  const d = new Date(`${reported}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) - 7 * (COHORT_WEEKS - 1));
+  return new Date(wallClockToUtc({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate(), hour: 0, minute: 0, second: 0 }, zone)).toISOString();
+}
 
 /** The zone-local day before `now`: "YYYY-MM-DD" and its [start, end) in UTC. */
 export function reportedDay(now: Date, zone: string = DEFAULT_ORG_TIMEZONE): { day: string; start: string; end: string } {
@@ -33,7 +46,7 @@ export function reportedDay(now: Date, zone: string = DEFAULT_ORG_TIMEZONE): { d
   return { day: y.toISOString().slice(0, 10), start: new Date(at(y)).toISOString(), end: new Date(at(new Date(today))).toISOString() };
 }
 
-export async function readBriefFold(admin: SupabaseClient, orgId: string, now: Date): Promise<BriefFold> {
+export async function readBriefFold(admin: SupabaseClient, orgId: string, now: Date, leadOutcomes: LeadOutcomes): Promise<BriefFold> {
   const day = reportedDay(now);
   const month = monthContext(new Date(day.start));
 
@@ -71,6 +84,6 @@ export async function readBriefFold(admin: SupabaseClient, orgId: string, now: D
     month: { month: month.month, days_left: month.days_left - 1 },
     campaigns: foldCampaignSpend(inDay).map((t) => ({ ...t, name: campaigns.get(t.campaign_id)?.name ?? t.campaign_id })),
     month_to_date: monthToDateByPlatform(rows, platformOf, { start: month.start, end: day.end }).by_platform,
-    cohorts: [],
+    cohorts: foldLeadCohorts((await leadOutcomes.outcomesSince(orgId, cohortsSince(day.day))).map((o) => leadOutcomeSchema.parse(o)), now),
   };
 }

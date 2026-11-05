@@ -1873,3 +1873,32 @@ blocking step in §3 above.
     the job's result. Recommended: a `scrub` like `MetaGraph`'s (split on `key.secret` and `${id}:${secret}`) applied to
     every `detail`, with a FakeHiggsfield echo in `render.test.ts`. Also `platforms/meta/graphClient.ts:114`: spread
     only defined options over the defaults, so no other caller can repeat Connect's `undefined` base URL.
+- **2026-11-05, Q-AD34 built (Q-AD37 ruled (b)+(c))**, Track W. No migration. Analyst stays **L2**.
+  - **The seam:**
+    - `packages/shared/src/ads/leadOutcomes.ts` is the contract: `LeadOutcomes.outcomesSince(org, since)` returns each
+      ad lead's arrival time and the time it reached each stage.
+    - The recorded stages are `contacted`, `converted`, `applied`, `hired` and `lost_after_conversion`.
+      `qualified` and `lost_before_conversion` are `not_recorded`.
+    - `recruiting/leads/leadOutcomes.ts` implements it over recruiting's rows: org-scoped, paged past 1,000 rows,
+      and `.in()` lists cut into chunks of 100.
+    - It is wired once, in `queue/handlers/adsDailyBrief.ts`.
+  - **Hired:** checked against the roster lifecycle. It is `hire_date` with the status past `applicant`, so a driver
+    the retirement sweep later terminated still counts as hired. It is never `status = 'active'`, and never a hire
+    date from before the lead arrived (a lead merged into an old roster row).
+  - **The brief:** the last 8 Central weeks of cohorts, each row parsed against the shared shape.
+    - The fact sheet and the plain brief print the unrecorded stages as "not recorded".
+    - `checkNarration` gains `number_for_unrecorded_stage`: any figure in a sentence naming qualified or lost-before
+      is refused, because a bare digit check would pass "3 qualified" whenever 3 is another stage's count.
+    - A planted fixture shows it refused.
+  - **Prompt `analyst@2`:** the stages explained, plus a rule never to give a not-recorded stage a number. All
+    fixtures were moved to the new stages; two cohort folds were added (eight weeks; losses and no hire).
+    - Live eval: **10 of 11, twice** (was 9 of 9 on analyst@1).
+    - The refusal is the same both times: the model wrote "November 2026", and 2026 is not on the sheet. The check
+      caught it, so the brief would retry and then fall back to the plain figures.
+    - The L3 line does not move: the bar is held by the check, not yet by the model, and still over fixture folds.
+      Not tuned to pass.
+  - Mutation: 19 mutants, all killed by a named test, each file restored byte for byte. They covered: active instead
+    of hired, a hire date before arrival, an unscoped contacts read, one page only, the oldest disposition, a loss
+    despite a hire, the latest contact, typed-in leads read, arrival not filtered, chunks of 1,000, the window a week
+    long, no contract parse, unrecorded as 0, the schema allowing a count, the rule off, "qualif" not matched, the
+    decimal split, the plain brief silent on the gap, and the planted fixture passing.

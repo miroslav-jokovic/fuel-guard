@@ -897,8 +897,9 @@ rate, and Higgsfield credits per approved creative.
   The plain fallback and the prompt both handle an empty list, and an eval fixture of that shape passes.
   **Ruled 2026-11-05 (orchestrator): recruiting-owned `LeadOutcomes`, injected** — option (a): the interface and its
   zod shape in `packages/shared/src/ads/`, recruiting's implementation in `recruiting/leads/`, handed to the brief at
-  the composition root as `briefSourcesFor` is; B6 reuses it. **Not built yet: blocked on Q-AD37** (one of the five
-  stages has no record to read).
+  the composition root as `briefSourcesFor` is; B6 reuses it. **Built 2026-11-05** after Q-AD37's ruling:
+  `packages/shared/src/ads/leadOutcomes.ts` (the contract), `recruiting/leads/leadOutcomes.ts` (the implementation),
+  wired in `queue/handlers/adsDailyBrief.ts`; the brief's `cohorts` is no longer empty.
 - **Q-AD37 · Nothing records that a recruiter confirmed a lead qualified, or that a lead was lost before it became an
   applicant** (us, found building Q-AD34, 2026-11-05). `LeadOutcomes` must say which stages each ad lead reached and
   when, from rows that exist. Four of the five stages have a record today:
@@ -936,6 +937,16 @@ rate, and Higgsfield credits per approved creative.
   serves B6 too, since Meta needs a stage that 1–40 % of leads reach. (a) replaces it without changing the interface.
   (c) is refused as a first step: it changes a shared fold to describe a gap that (b) closes. Owner or orchestrator to
   rule. Until then `cohorts` stays empty, as Q-AD34 left it.
+
+  **Ruled 2026-11-05 (orchestrator): (b)+(c).** Count only what is recorded, under its true name; a stage with no
+  writer is "not recorded", never 0. The stages are `contacted`, `converted` (never called "qualified"), `applied`,
+  `hired` and `lost_after_conversion`. `qualified` and `lost_before_conversion` carry an explicit `not_recorded`
+  marker in the shared fold; the fact sheet prints them as "not recorded", and the narration check refuses any
+  figure in a sentence that names them. "Hired" was checked against the roster lifecycle: it is `hire_date` set
+  with the status past `applicant` (a hire later terminated by the retirement sweep is still a hire), never
+  `status = 'active'`, and never a hire date from before the lead arrived. **Later, recruiting backlog, needs a
+  migration:** (a), a recruiter's qualify / close act on a lead with a dated record. When it lands, those stages
+  move from `UNRECORDED_LEAD_STAGES` to `LEAD_OUTCOME_STAGES` and every reader learns them from there.
 - **Q-AD35 · Whether a campaign deleted at Meta should fail the monitor's jobs** (found building Monitor L3, 2026-11-04;
   **ruled by the owner 2026-11-05: fixed, not left for L4**). Reconcile flagged it `missing` and rang once, but the
   insights read and the ad-set checks kept failing on every run. **Ruling:** a refusal stops being a failure only when

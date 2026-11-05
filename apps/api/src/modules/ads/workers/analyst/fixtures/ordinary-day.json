@@ -39,10 +39,12 @@
           "leads": 38,
           "reached": {
             "contacted": 33,
-            "qualified": 17,
+            "converted": 17,
             "applied": 10,
             "hired": 4,
-            "lost": 8
+            "lost_after_conversion": 8,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
           },
           "mature": true
         },
@@ -51,10 +53,12 @@
           "leads": 40,
           "reached": {
             "contacted": 36,
-            "qualified": 20,
+            "converted": 20,
             "applied": 12,
             "hired": 5,
-            "lost": 9
+            "lost_after_conversion": 9,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
           },
           "mature": true
         },
@@ -63,10 +67,12 @@
           "leads": 12,
           "reached": {
             "contacted": 9,
-            "qualified": 3,
+            "converted": 3,
             "applied": 1,
             "hired": 0,
-            "lost": 1
+            "lost_after_conversion": 1,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
           },
           "mature": false
         }
@@ -76,18 +82,18 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@1",
+    "prompt_version": "analyst@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T14:30:51.768Z",
+    "recorded_at": "2026-11-05T21:19:19.072Z",
     "output": {
-      "headline": "On 2026-11-03, 2 campaigns delivered 7 leads across 14,600 impressions at a combined cost per lead of $40.61.",
+      "headline": "On 2026-11-03, both campaigns delivered 7 leads across 14,600 impressions at a combined cost per lead of $40.61.",
       "points": [
-        "Regional Class A — Joliet was the stronger performer, drawing 6 of the day's 7 leads at $30.75 cost per lead from 9,120 impressions and a 1.5% click rate on $184.50 spent.",
-        "Dedicated night runs brought in 1 lead at $99.75 cost per lead — the full day's spend on that campaign — with 5,480 impressions and a 1.1% click rate.",
-        "Overall day totals: $284.25 spent, 203 clicks, and a 1.4% click rate across both campaigns.",
-        "Month-to-date spend on Meta stands at $612.30 for 2026-11, with 28 days left in the month.",
-        "The mature 2026-09-21 cohort shows 38 leads, a contact rate of 86.8%, a hire rate of 10.5%, and 4 hired so far.",
-        "The mature 2026-09-28 cohort shows 40 leads, a contact rate of 90.0%, a hire rate of 12.5%, and 5 hired; the 2026-10-26 cohort has 12 leads with 9 contacted and 1 applied, but it is too young to judge its rates."
+        "Total spend for the day was $284.25 across 203 clicks and a click rate of 1.4%, with Regional Class A — Joliet driving 6 of the 7 leads at $30.75 per lead, while Dedicated night runs produced 1 lead at $99.75 per lead.",
+        "Regional Class A — Joliet spent $184.50 across 9,120 impressions and 141 clicks at a 1.5% click rate, making it the stronger performer on cost per lead today.",
+        "Dedicated night runs spent $99.75 across 5,480 impressions and 62 clicks at a 1.1% click rate; with only 1 lead, its cost per lead was $99.75.",
+        "Month-to-date spend on Meta for 2026-11 stands at $612.30 with 28 days left in the month.",
+        "The mature 2026-09-21 cohort shows 38 leads, with 33 contacted (86.8%), 17 converted (44.7%), 10 applied (26.3%), 4 hired (10.5%), and 8 lost after conversion (21.1%); the 2026-09-28 cohort shows 40 leads, with 36 contacted (90.0%), 20 converted (50.0%), 12 applied (30.0%), 5 hired (12.5%), and 9 lost after conversion (22.5%).",
+        "The 2026-10-26 cohort has 12 leads with 9 contacted, 3 converted, 1 applied, and 1 lost after conversion — it is too young to judge, and its leads are still moving. Qualified leads and leads lost before becoming applicants are not recorded in the system."
       ]
     }
   }

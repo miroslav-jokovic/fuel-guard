@@ -10,6 +10,7 @@ export * from "./naming.js";
 export * from "./metaLeadForm.js";
 export * from "./adsRulesSpec.js";
 export * from "./renderGeometry.js";
+export * from "./leadOutcomes.js";
 export * from "./adsReport.js";
 export * from "./analystBrief.js";
 export * from "./aiRail.js";

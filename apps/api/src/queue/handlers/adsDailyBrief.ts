@@ -1,5 +1,6 @@
 import { anthropicClient } from "../../lib/anthropic.js";
 import { runDailyBrief } from "../../modules/ads/index.js";
+import { recruitingLeadOutcomes } from "../../modules/recruiting/index.js";
 import type { JobHandler } from "../types.js";
 
 /**
@@ -9,6 +10,6 @@ import type { JobHandler } from "../types.js";
  */
 export const adsDailyBriefHandler: JobHandler = async (ctx, job) => {
   const now = new Date();
-  const r = await runDailyBrief({ admin: ctx.admin, client: anthropicClient(ctx.env), now: () => now }, job.org_id);
+  const r = await runDailyBrief({ admin: ctx.admin, client: anthropicClient(ctx.env), now: () => now, leadOutcomes: recruitingLeadOutcomes(ctx.admin) }, job.org_id);
   return { ok: true, detail: JSON.stringify(r) };
 };

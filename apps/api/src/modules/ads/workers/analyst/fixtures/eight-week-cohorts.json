@@ -1,0 +1,170 @@
+{
+  "name": "eight-week-cohorts",
+  "about": "Q-AD34: eight weeks of cohorts from LeadOutcomes, four mature with rates and four young without; qualified and lost-before-conversion are not recorded.",
+  "input": {
+    "fold": {
+      "day": "2026-11-03",
+      "month": {
+        "month": "2026-11",
+        "days_left": 27
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 21450,
+          "impressions": 10230,
+          "clicks": 152,
+          "leads": 7,
+          "cost_per_lead_cents": 3064,
+          "ctr": 0.014858260019550342
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Dedicated night runs",
+          "spend_cents": 8800,
+          "impressions": 4410,
+          "clicks": 51,
+          "leads": 2,
+          "cost_per_lead_cents": 4400,
+          "ctr": 0.011564625850340135
+        }
+      ],
+      "month_to_date": {
+        "meta": 60500
+      },
+      "cohorts": [
+        {
+          "week": "2026-09-14",
+          "leads": 31,
+          "reached": {
+            "contacted": 28,
+            "converted": 9,
+            "applied": 6,
+            "hired": 3,
+            "lost_after_conversion": 2,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-21",
+          "leads": 44,
+          "reached": {
+            "contacted": 39,
+            "converted": 14,
+            "applied": 10,
+            "hired": 4,
+            "lost_after_conversion": 5,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-28",
+          "leads": 27,
+          "reached": {
+            "contacted": 22,
+            "converted": 6,
+            "applied": 4,
+            "hired": 1,
+            "lost_after_conversion": 3,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-05",
+          "leads": 52,
+          "reached": {
+            "contacted": 47,
+            "converted": 18,
+            "applied": 11,
+            "hired": 5,
+            "lost_after_conversion": 4,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-12",
+          "leads": 38,
+          "reached": {
+            "contacted": 30,
+            "converted": 10,
+            "applied": 5,
+            "hired": 0,
+            "lost_after_conversion": 2,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": false
+        },
+        {
+          "week": "2026-10-19",
+          "leads": 41,
+          "reached": {
+            "contacted": 33,
+            "converted": 9,
+            "applied": 3,
+            "hired": 0,
+            "lost_after_conversion": 1,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": false
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 29,
+          "reached": {
+            "contacted": 20,
+            "converted": 4,
+            "applied": 1,
+            "hired": 0,
+            "lost_after_conversion": 0,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": false
+        },
+        {
+          "week": "2026-11-02",
+          "leads": 12,
+          "reached": {
+            "contacted": 5,
+            "converted": 0,
+            "applied": 0,
+            "hired": 0,
+            "lost_after_conversion": 0,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": false
+        }
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "analyst@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T21:18:37.400Z",
+    "output": {
+      "headline": "On 2026-11-03, both campaigns delivered 9 leads across 14,640 impressions at a combined spend of $302.50 and a cost per lead of $33.61.",
+      "points": [
+        "Regional Class A — Joliet was the stronger performer: $214.50 spent, 10,230 impressions, 152 clicks, 7 leads, a click rate of 1.5%, and a cost per lead of $30.64.",
+        "Dedicated night runs added $88.00 in spend, 4,410 impressions, 51 clicks, and 2 leads at a cost per lead of $44.00 and a click rate of 1.2%.",
+        "Month-to-date spend on Meta for 2026-11 sits at $605.00 with 27 days still remaining.",
+        "The 2026-10-05 cohort is the most active mature group: 52 leads, with 47 contacted, 18 converted, 11 applied, 5 hired, and 4 lost after conversion — rates of 90.4% contacted, 34.6% converted, and 9.6% hired.",
+        "The 2026-11-02 cohort is too young to judge: 12 leads have come in, only 5 have been contacted, and no one has converted or moved further yet.",
+        "Qualified leads and leads lost before becoming applicants are not recorded in the system."
+      ]
+    }
+  }
+}

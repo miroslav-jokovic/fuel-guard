@@ -29,10 +29,12 @@
           "leads": 9,
           "reached": {
             "contacted": 8,
-            "qualified": 4,
+            "converted": 4,
             "applied": 2,
             "hired": 1,
-            "lost": 0
+            "lost_after_conversion": 0,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
           },
           "mature": false
         },
@@ -41,10 +43,12 @@
           "leads": 14,
           "reached": {
             "contacted": 10,
-            "qualified": 3,
+            "converted": 3,
             "applied": 1,
             "hired": 0,
-            "lost": 2
+            "lost_after_conversion": 2,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
           },
           "mature": false
         }
@@ -54,17 +58,17 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@1",
+    "prompt_version": "analyst@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T14:31:03.450Z",
+    "recorded_at": "2026-11-05T21:19:31.014Z",
     "output": {
-      "headline": "On 2026-11-03, 1 campaign ran and delivered 3 leads at $25.00 each.",
+      "headline": "On 2026-11-03, Regional Class A — Joliet was the only campaign running and brought in 3 leads at $25.00 each.",
       "points": [
-        "Regional Class A — Joliet was the only campaign active, spending $75.00 to generate 3,900 impressions, 48 clicks, and 3 leads at a click rate of 1.2%.",
-        "Month-to-date spend on Meta through 2026-11 sits at $225.00, with 28 days left in the month.",
-        "The 2026-10-19 cohort has 9 leads: 8 contacted, 4 qualified, 2 applied, 1 hired, and 0 lost — it is still young, so no rates yet.",
-        "The 2026-10-26 cohort has 14 leads: 10 contacted, 3 qualified, 1 applied, 0 hired, and 2 lost — also too young to judge rates.",
-        "Both cohorts are still moving, so watch them before drawing conclusions on funnel performance."
+        "Regional Class A — Joliet spent $75.00 to reach 3,900 impressions and 48 clicks, with a click rate of 1.2%.",
+        "Month-to-date spend on Meta stands at $225.00, with 28 days left in 2026-11.",
+        "The week-of-2026-10-19 cohort has 9 leads: 8 contacted, 4 converted to applicants, 2 applied, 1 hired, and none lost after conversion — but it is still young, so no rates are available yet.",
+        "The week-of-2026-10-26 cohort has 14 leads: 10 contacted, 3 converted to applicants, 1 applied, no hires, and 2 lost after conversion — also too young to judge by rates.",
+        "Qualified leads and leads lost before becoming applicants are not recorded in the system."
       ]
     }
   }

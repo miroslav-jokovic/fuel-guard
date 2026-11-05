@@ -29,6 +29,7 @@ export { partOneFactsForMedstop } from "./medstopApplicantFacts.js";
 export { recruitingLeadSink } from "./leads/leadSink.js";
 // S1b (D-AD17): an open opening as an ad brief; the composition root hands it to the ads router.
 export { recruitingBriefSource } from "./leads/adBriefSource.js";
+export { recruitingLeadOutcomes } from "./leads/leadOutcomes.js";
 export type { ConfiguredRecipients } from "./leads/leadNotify.js";
 // D2c: the alarm on a lead nobody has contacted, and its scheduler.
 export { startLeadUncontacted, sweepUncontactedLeads } from "./leads/leadUncontacted.js";
