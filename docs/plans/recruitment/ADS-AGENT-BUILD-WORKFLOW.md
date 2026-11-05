@@ -1612,3 +1612,13 @@ blocking step in §3 above.
   - Mutation: 6 mutants, all killed by the test written for them. The first pass left one survivor: the import check
     missed a bare `import "x"`. Widened to every form.
   - Next: Monitor L2's one real gap, 30 simulated days with fatigue, overspend and zero-lead spend.
+- **2026-11-04, Monitor L2** — the leads track, after Lead intake L2. No migration, no production code.
+  - Four of §4R's five faults already had tests and were only unpinned. New: `monitor/thirtyDays.test.ts`, four campaigns
+    on one account over 30 simulated days, across the month's end. Each case sits a day at its threshold first, so a rule
+    firing early is as red as one that never fires. Expected days were worked out from the settings, not read off a run.
+  - **What it does not do:** spend is written straight to `ads_spend_hourly`, so the 30 days exercise the checks, not the
+    pull. The pull's own faults stay in `insightsPull.test.ts`.
+  - Mutation: 6 mutants. Five killed by the new test. Adding `pausing` to the pure `DELIVERING` list passes it, because
+    `checks.ts` filters first; the pure test in `monitorChecks.test.ts` kills that one.
+  - Next: L3 for both, golden scenarios. The runner (`adsGolden.ts`) drives the orchestrator, so it needs a monitor and an
+    intake mode first.
