@@ -1,10 +1,13 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ADS_SETTINGS_UNSET, type AdsSettings } from "@silvicom/shared";
 import { FakeClock } from "../../../../testing/fakeClock.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../../testing/supabaseRecorder.js";
+import { assetKey } from "../brandAssets.js";
 import { FakeHiggsfield } from "./fakeHiggsfield.js";
 import { HiggsfieldClient } from "./higgsfieldClient.js";
-import { renderKey, renderStep, type RenderInput } from "./render.js";
+import { renderInputFromPayload, renderKey, renderStatus, renderStep, type RenderInput } from "./render.js";
 
 /**
  * The Higgsfield client's render step (C3) over real HTTP against FakeHiggsfield, with `ad_generations` an
@@ -16,6 +19,11 @@ const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const MODEL = "higgsfield-ai/soul/v2/standard";
 const KEY = { id: "kid", secret: "ksecret" };
 const PRICE = 40;
+/** Two documented image-input models (`HIGGSFIELD_IMAGE_INPUT`): a list field and a single-URL field. */
+const EDIT = "alibaba/qwen-image-3/edit";
+const REMIX = "ideogram/v4.0";
+const PHOTO = readFileSync(new URL("../../workers/checker/fixtures/images/reference.jpg", import.meta.url));
+const PHOTO_REF = { sha256: createHash("sha256").update(PHOTO).digest("hex"), format: "jpeg" as const };
 const settings = (budget: number | null, on = true): AdsSettings => ({
   ...ADS_SETTINGS_UNSET,
   budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_credits_monthly: budget, agents_enabled: { renderer: on } },
@@ -43,7 +51,13 @@ function generations(q: RecordedQuery) {
     if (row) Object.assign(row, q.write.payload as object);
     return row ? [row] : [];
   }
-  if ("idempotency_key" in f) return ledger.filter((r) => r.org_id === f.org_id && r.idempotency_key === f.idempotency_key);
+  // The replay read answers only the columns it selected, as PostgREST does: a row the step did not ask
+  // for (`request`, which carries the final params) must not reach it by the fixture's generosity.
+  if ("idempotency_key" in f) {
+    const cols = String(q.ops.find((o) => o.method === "select")?.args[0] ?? "*").split(",").map((c) => c.trim());
+    return ledger.filter((r) => r.org_id === f.org_id && r.idempotency_key === f.idempotency_key)
+      .map((r) => (cols.includes("*") ? r : Object.fromEntries(cols.map((c) => [c, r[c]]))));
+  }
   // The month fold: provider rows of this org, with the price read out of `request`, as PostgREST's `->>` would.
   return ledger.filter((r) => r.org_id === f.org_id && r.provider === f.provider)
     .map((r) => ({ ...r, price: (r.request as { price_credits?: number }).price_credits?.toString() ?? null }));
@@ -51,10 +65,10 @@ function generations(q: RecordedQuery) {
 
 beforeEach(async () => {
   clock = new FakeClock("2026-11-04T12:00:00.000Z");
-  hf = new FakeHiggsfield({ keyId: KEY.id, keySecret: KEY.secret, webhookSecret: `whsec_${Buffer.alloc(32, 1).toString("base64")}`, balanceCents: 1_000, prices: { [MODEL]: PRICE }, now: clock.now });
+  hf = new FakeHiggsfield({ keyId: KEY.id, keySecret: KEY.secret, webhookSecret: `whsec_${Buffer.alloc(32, 1).toString("base64")}`, balanceCents: 1_000, prices: { [MODEL]: PRICE, [EDIT]: PRICE, [REMIX]: PRICE }, now: clock.now });
   base = await hf.start();
   ledger = [];
-  objects = new Map();
+  objects = new Map([[assetKey(ORG, PHOTO_REF), PHOTO]]);
   saved = settings(1_000);
   seq = 0;
   db = createSupabaseRecorder({
@@ -63,15 +77,18 @@ beforeEach(async () => {
       ad_generations: generations,
     },
     storage: {
+      download: (k: string) => (objects.has(k) ? { data: new Blob([new Uint8Array(objects.get(k)!)]), error: null } : { data: null, error: { message: "Object not found" } }),
       upload: (k: string, b: Buffer) => (objects.has(k) ? { data: null, error: { statusCode: "409", message: "The resource already exists" } } : (objects.set(k, Buffer.from(b)), { data: { path: k }, error: null })),
     },
   });
 });
 afterEach(async () => hf.stop());
 
-const input: RenderInput = { orgId: ORG, campaignId: null, creativeId: "cr-1", attempt: 1, model: MODEL, params: { prompt: "Our tractor at dawn, no text, no logos, no lettering" } };
-const step = (over: Partial<RenderInput> = {}, prices: Record<string, number> = { [MODEL]: PRICE }) =>
-  renderStep({ admin: db.client, client: new HiggsfieldClient(KEY, { baseUrl: base }), now: clock.now, prices }, { ...input, ...over });
+const input: RenderInput = { orgId: ORG, campaignId: null, creativeId: "cr-1", attempt: 1, model: MODEL, params: { prompt: "Our tractor at dawn, no text, no logos, no lettering" }, reference: null };
+const PRICES = { [MODEL]: PRICE, [EDIT]: PRICE, [REMIX]: PRICE };
+const step = (over: Partial<RenderInput> = {}, prices: Record<string, number> = PRICES, client = new HiggsfieldClient(KEY, { baseUrl: base })) =>
+  renderStep({ admin: db.client, client, now: clock.now, prices }, { ...input, ...over });
+const submitted = () => JSON.parse(onlyRequest().params.split("\n").slice(1).join("\n")) as Record<string, unknown>;
 const onlyRequest = () => [...hf.requests.values()][0]!;
 const row = () => ledger[0]!;
 
@@ -130,7 +147,7 @@ describe("renderStep — the output is ours, and an expired URL never reaches an
     clock.advance({ days: 8 });
     expect(await step()).toMatchObject({ kind: "failed", errorCode: "output_expired" });
     expect(row()).toMatchObject({ status: "failed", error_code: "output_expired", cost_units: PRICE, asset_path: null });
-    expect(objects.size).toBe(0);
+    expect([...objects.keys()]).toEqual([assetKey(ORG, PHOTO_REF)]);
   });
 
   it("a failed or nsfw render is not charged and completes failed", async () => {
@@ -174,5 +191,81 @@ describe("renderStep — the credit budget is checked before the submit", () => 
     hf.balanceCents = 1;
     expect(await step()).toMatchObject({ kind: "failed", errorCode: "provider_balance" });
     expect(row()).toMatchObject({ status: "failed", cost_units: 0 });
+  });
+});
+
+describe("renderStep — image-to-image from the kit photo (D-AD9)", () => {
+  const fromPhoto = { model: EDIT, reference: PHOTO_REF };
+
+  it("uploads the photo once, names its public URL in the model's image field, and every replay submits the row's params", async () => {
+    expect(await step(fromPhoto)).toMatchObject({ kind: "pending", why: "queued" });
+    const [upload] = [...hf.uploads.values()];
+    expect(hf.uploads.size).toBe(1);
+    expect(upload!.content_type).toBe("image/jpeg");
+    expect(upload!.bytes!.equals(PHOTO)).toBe(true);
+    const urls = submitted().image_urls as string[];
+    expect(urls).toHaveLength(1);
+    expect(urls[0]).toMatch(/\/inputs\/[0-9a-f]+\.jpeg$/);
+    expect(row().request).toMatchObject({ params: { image_urls: urls }, reference: PHOTO_REF.sha256 });
+    // A replay that uploaded again would name a different URL under the same key: Higgsfield's 422.
+    expect(await step(fromPhoto)).toMatchObject({ kind: "pending", why: "queued" });
+    expect(hf.uploads.size).toBe(1);
+    await hf.finish(onlyRequest().request_id, "completed");
+    expect(await step(fromPhoto)).toMatchObject({ kind: "stored", replayed: false });
+    expect(hf.submits).toBe(1);
+    expectOrgScoped(db, ORG);
+  });
+
+  it("a model whose field takes one URL gets the URL itself, not a list", async () => {
+    await step({ ...fromPhoto, model: REMIX });
+    expect(typeof submitted().image_url).toBe("string");
+    expect(submitted().image_urls).toBeUndefined();
+  });
+
+  it("a model with no documented image field is refused before any row or upload, and renderStatus says so too", async () => {
+    expect(await step({ ...fromPhoto, model: MODEL })).toEqual({ kind: "refused", refusal: "reference_unsupported" });
+    expect(await renderStatus(db.client, PRICES, { ...input, ...fromPhoto, model: MODEL })).toEqual({ kind: "refused", refusal: "reference_unsupported" });
+    expect(ledger).toEqual([]);
+    expect(hf.uploads.size).toBe(0);
+    // A text-only scene on the same model renders as before.
+    expect(await renderStatus(db.client, PRICES, { ...input, model: MODEL })).toEqual({ kind: "absent" });
+  });
+
+  it("the budget goes first: a spent month records budget_exhausted and uploads nothing", async () => {
+    saved = settings(PRICE - 1);
+    expect(await step(fromPhoto)).toMatchObject({ kind: "budget_exhausted" });
+    expect(hf.uploads.size).toBe(0);
+  });
+
+  it("an upload that fails for a moment writes no row, and the next run uploads and submits", async () => {
+    hf.inject(/generate-upload-url/, { kind: "server_error" });
+    expect(await step(fromPhoto)).toMatchObject({ kind: "pending", why: expect.stringMatching(/^upload:/) });
+    expect(ledger).toEqual([]);
+    expect(await step(fromPhoto)).toMatchObject({ kind: "pending", why: "queued" });
+    expect(hf.submits).toBe(1);
+  });
+
+  it("a refused upload fails the render uncharged, and a run after a crash before that completion still submits nothing", async () => {
+    const client = new HiggsfieldClient(KEY, { baseUrl: base });
+    client.upload = async () => ({ ok: false, kind: "refused", status: 422, detail: "unsupported" });
+    expect(await step(fromPhoto, PRICES, client)).toMatchObject({ kind: "failed", errorCode: "upload_422" });
+    expect(row()).toMatchObject({ status: "failed", error_code: "upload_422", cost_units: 0 });
+    Object.assign(row(), { status: "started", error_code: null, finished_at: null });
+    expect(await step(fromPhoto)).toMatchObject({ kind: "failed", errorCode: "upload_422" });
+    expect(hf.submits).toBe(0);
+    expect(hf.uploads.size).toBe(0);
+  });
+});
+
+describe("renderInputFromPayload — the ads_render job reads back what queuedRender queued", () => {
+  it("round-trips the input with its kit photo, and with none; the org is the job's, not the payload's", () => {
+    const withPhoto: RenderInput = { ...input, campaignId: "c-1", model: EDIT, reference: PHOTO_REF };
+    expect(renderInputFromPayload(ORG, JSON.parse(JSON.stringify({ ...withPhoto, orgId: "someone-else" })))).toEqual(withPhoto);
+    expect(renderInputFromPayload(ORG, JSON.parse(JSON.stringify(input)))).toEqual(input);
+  });
+
+  it("refuses a payload whose reference is not a stored photo's sha256 and format", () => {
+    expect(() => renderInputFromPayload(ORG, { ...input, reference: { sha256: PHOTO_REF.sha256, format: "svg" } })).toThrow(/reference needs/);
+    expect(() => renderInputFromPayload(ORG, { ...input, model: undefined })).toThrow(/needs model/);
   });
 });

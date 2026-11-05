@@ -1,4 +1,4 @@
-import { HIGGSFIELD_CREDIT_PRICES, HiggsfieldClient, higgsfieldKeyFor, renderStep } from "../../modules/ads/index.js";
+import { HIGGSFIELD_CREDIT_PRICES, HiggsfieldClient, higgsfieldKeyFor, renderInputFromPayload, renderStep } from "../../modules/ads/index.js";
 import type { JobHandler } from "../types.js";
 
 /**
@@ -11,18 +11,12 @@ import type { JobHandler } from "../types.js";
  * picks it up where it was, at no cost. A refusal or a finished render completes the job with its answer.
  */
 export const adsRenderHandler: JobHandler = async (ctx, job) => {
-  const p = (job.payload ?? {}) as Record<string, unknown>;
-  if (typeof p.model !== "string" || !p.params || typeof p.params !== "object" || typeof p.attempt !== "number") {
-    throw new Error("ads_render: payload needs model, params and attempt");
-  }
+  const input = renderInputFromPayload(job.org_id, job.payload);
   const key = await higgsfieldKeyFor(ctx.admin, ctx.env, job.org_id);
   if (!key.ok) return { ok: false, detail: `higgsfield ${key.reason}` };
   const out = await renderStep(
     { admin: ctx.admin, client: new HiggsfieldClient(key.key), now: () => new Date(), prices: HIGGSFIELD_CREDIT_PRICES },
-    {
-      orgId: job.org_id, campaignId: typeof p.campaignId === "string" ? p.campaignId : null, creativeId: typeof p.creativeId === "string" ? p.creativeId : null,
-      attempt: p.attempt, model: p.model, params: p.params as Record<string, unknown>,
-    },
+    input,
   );
   if (out.kind === "pending") throw new Error(`ads_render: still rendering (${out.why})`);
   return { ok: out.kind === "stored", detail: JSON.stringify(out) };

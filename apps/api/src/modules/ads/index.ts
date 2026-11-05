@@ -41,7 +41,7 @@ export { checkConnection } from "./monitor/checks.js";
 export { reconcileConnection } from "./monitor/reconcile.js";
 export { adsReconcileDedupKey, startAdsReconcile } from "./monitor/reconcileTick.js";
 // C3: the Higgsfield client — one render step (submit under the row's id, poll, copy to our storage), the sealed key.
-export { renderStep, renderKey } from "./creative/higgsfield/render.js";
+export { renderStep, renderKey, renderInputFromPayload } from "./creative/higgsfield/render.js";
 export type { RenderDeps, RenderInput, RenderOutcome } from "./creative/higgsfield/render.js";
 export { HiggsfieldClient } from "./creative/higgsfield/higgsfieldClient.js";
 export { higgsfieldKeyFor, sealHiggsfieldKey } from "./creative/higgsfield/higgsfieldKey.js";

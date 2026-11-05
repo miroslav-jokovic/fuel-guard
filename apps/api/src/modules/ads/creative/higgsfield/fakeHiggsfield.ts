@@ -31,6 +31,28 @@ import type { AddressInfo } from "node:net";
  *   Billing: "Requests ending as `failed` or `nsfw` are not charged"; a canceled queued request is
  *       refunded. https://docs.higgsfield.ai/docs/concepts/billing-and-retention.md
  *
+ *
+ * ── INPUT IMAGES (D-AD9; read 2026-11-04) ────────────────────────────────────────────────────────
+ *   POST /files/generate-upload-url `{ content_type }` → `{ public_url, upload_url, content_type,
+ *       upload_headers: { Content-Type, x-amz-tagging: "retention=temporary" } }`; the upload URL "expires
+ *       after one hour". Then PUT the file to `upload_url` "with every header returned in upload_headers";
+ *       "Do not send Higgsfield API credentials to the presigned storage URL". Pass `public_url` in "the
+ *       model parameter that accepts an input URL, such as image_url". Types: image/jpeg, image/jpg,
+ *       image/png, image/webp, image/gif (+ audio, video); "The content type used for the upload must match
+ *       the value used to create the presigned URL." https://docs.higgsfield.ai/docs/concepts/file-uploads.md
+ *   Uploads are outside `Idempotency-Key` ("Status polling, cancellation, uploads … use their existing retry
+ *       behavior"), and a key reused with "different URLs" is a different request (422).
+ *       https://docs.higgsfield.ai/docs/concepts/idempotency.md
+ *   Uploaded files are "stored independently of any single request and deleted within seven days".
+ *       https://docs.higgsfield.ai/docs/enterprise/data-retention.md
+ *   Which field each still model reads: `prices.ts` `HIGGSFIELD_IMAGE_INPUT`, with each model's page.
+ *
+ * ⚠ OUR READING of the upload, not theirs: the presigned PUT's refusals are storage's, undocumented here —
+ * this fake answers a PUT carrying our credentials with 400, a Content-Type or tag other than the one
+ * signed with 403 (a signature mismatch, as S3 answers), and an unknown or expired URL with 403. A submit
+ * naming one of this fake's input URLs whose PUT never arrived is 422 — the docs do not say what a model
+ * does with an empty input; refusing makes "submitted before the upload finished" a bug a test can see.
+ *
  * ⚠ OUR READING, NOT THEIRS: the docs do not say whether the balance is debited at submit or at
  * completion, nor the body of a 403. This fake RESERVES the price at submit (refusing with 403 when the
  * balance cannot cover it) and refunds on failed / nsfw / cancel — the reading under which "a replayed
@@ -77,6 +99,8 @@ export interface FakeHiggsfieldOptions {
 }
 
 const RETENTION_SECONDS = 604_800;
+const UPLOAD_URL_TTL_MS = 3_600_000;
+const UPLOAD_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "audio/wav", "audio/x-wav", "video/mp4"]);
 const KEY_RE = /^[\x21-\x7e]{1,255}$/;
 
 export class FakeHiggsfield {
@@ -88,6 +112,8 @@ export class FakeHiggsfield {
   readonly requests = new Map<string, FakeHiggsfieldRequest>();
   /** Every webhook attempted, with the exact bytes and headers sent — for signature and dedupe tests. */
   readonly deliveries: Array<{ url: string; headers: Record<string, string>; body: string; status: number | null }> = [];
+  /** Input images by upload id: what was asked for, and the bytes once the presigned PUT arrived. */
+  readonly uploads = new Map<string, { content_type: string; bytes: Buffer | null; made_at: number }>();
   /** Every submit that reached the model (after auth and faults), keyed or not — the "0 double charges" count. */
   submits = 0;
   balanceCents: number;
@@ -172,6 +198,16 @@ export class FakeHiggsfield {
       res.setHeader("content-type", fileMatch[2] === "mp4" ? "video/mp4" : "image/png");
       return void res.end(fileMatch[2] === "png" ? pngFor(fileMatch[1]!) : Buffer.from(`fake-${fileMatch[1]}`));
     }
+    const presigned = /^\/presigned\/([^/]+)$/.exec(url.pathname);
+    if (req.method === "PUT" && presigned) return this.receiveUpload(req, res, presigned[1]!, corr);
+    const input = /^\/inputs\/([^/.]+)\.[a-z]+$/.exec(url.pathname);
+    if (req.method === "GET" && input) {
+      const u = this.uploads.get(input[1]!);
+      if (!u?.bytes) return send(res, 404, { detail: "Not Found" }, corr);
+      res.statusCode = 200;
+      res.setHeader("content-type", u.content_type);
+      return void res.end(u.bytes);
+    }
     if (req.headers.authorization !== `Key ${this.opts.keyId}:${this.opts.keySecret}`) return send(res, 401, { detail: "Invalid credentials" }, corr);
 
     const fault = this.takeFault(url.pathname);
@@ -187,6 +223,7 @@ export class FakeHiggsfield {
     if (req.method === "GET" && status) return this.readStatus(res, status[1]!, corr);
     const cancel = /^\/requests\/([^/]+)\/cancel$/.exec(url.pathname);
     if (req.method === "POST" && cancel) return this.cancel(res, cancel[1]!, corr);
+    if (req.method === "POST" && url.pathname === "/files/generate-upload-url") return this.uploadUrl(res, await readBody(req), corr);
     if (req.method === "POST") {
       const answer = this.submit(url, req.headers["idempotency-key"], await readBody(req));
       if (fault?.kind === "accepted_then_error" && answer.status === 200) return send(res, 500, { detail: "Internal Server Error" }, corr);
@@ -204,6 +241,8 @@ export class FakeHiggsfield {
     } catch {
       return { status: 400, body: { detail: "Invalid JSON body" } };
     }
+    const missing = [...body.matchAll(/\/inputs\/([^/."]+)\./g)].find((m) => !this.uploads.get(m[1]!)?.bytes);
+    if (missing) return { status: 422, body: { detail: `input image ${missing[1]} could not be read` } };
     const key = typeof rawKey === "string" ? rawKey : null;
     if (key !== null && !KEY_RE.test(key)) return { status: 422, body: { detail: [{ loc: ["header", "Idempotency-Key"], msg: "invalid" }] } };
     const params = `${model}\n${body}`;
@@ -229,6 +268,28 @@ export class FakeHiggsfield {
       status_url: `${this.base}/requests/${r.request_id}/status`, cancel_url: `${this.base}/requests/${r.request_id}/cancel`,
       expires_after: RETENTION_SECONDS,
     };
+  }
+
+  private uploadUrl(res: ServerResponse, body: string, corr: string): void {
+    const type = (() => { try { return (JSON.parse(body) as { content_type?: unknown }).content_type; } catch { return null; } })();
+    if (typeof type !== "string" || !UPLOAD_TYPES.has(type)) return send(res, 422, { detail: [{ loc: ["body", "content_type"], msg: "unsupported" }] }, corr);
+    const id = randomUUID().replace(/-/g, "");
+    this.uploads.set(id, { content_type: type, bytes: null, made_at: this.now().getTime() });
+    send(res, 200, {
+      public_url: `${this.base}/inputs/${id}.${type.split("/")[1]}`, upload_url: `${this.base}/presigned/${id}`, content_type: type,
+      upload_headers: { "Content-Type": type, "x-amz-tagging": "retention=temporary" },
+    }, corr);
+  }
+
+  private async receiveUpload(req: IncomingMessage, res: ServerResponse, id: string, corr: string): Promise<void> {
+    const u = this.uploads.get(id);
+    const bytes = Buffer.from(await readBody(req, "binary"), "binary");
+    if (req.headers.authorization) return send(res, 400, { detail: "credentials sent to the storage URL" }, corr);
+    if (!u || this.now().getTime() - u.made_at > UPLOAD_URL_TTL_MS) return send(res, 403, { detail: "Request has expired" }, corr);
+    if (req.headers["content-type"] !== u.content_type || req.headers["x-amz-tagging"] !== "retention=temporary") return send(res, 403, { detail: "SignatureDoesNotMatch" }, corr);
+    u.bytes = bytes;
+    res.statusCode = 200;
+    res.end();
   }
 
   private readStatus(res: ServerResponse, id: string, corr: string): void {
@@ -290,10 +351,10 @@ function send(res: ServerResponse, status: number, body: unknown, correlation: s
   res.end(JSON.stringify(body));
 }
 
-async function readBody(req: IncomingMessage): Promise<string> {
+async function readBody(req: IncomingMessage, encoding: BufferEncoding = "utf8"): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks).toString(encoding);
 }
 
 /**

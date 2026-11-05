@@ -1563,3 +1563,39 @@ blocking step in §3 above.
     not written, both pre-checks, re-recording an already-decided ad, no withdrawal on a lost race, approve recorded as
     reject, both scopes, the campaign-approval check, a rejected ad counted, a reject without reason, the gate) — 12 of
     12 killed.
+- **2026-11-04, D9 — image-to-image from the kit photo (D-AD9), Track W.** No migration. The render now STARTS from
+  the photo the Art director chose, the same one the visual check compares against.
+  - **Docs read 2026-11-04** (cited in `fakeHiggsfield.ts`'s header; our readings marked there):
+    - `concepts/file-uploads.md`: `POST /files/generate-upload-url {content_type}` → `public_url`, `upload_url`,
+      `upload_headers`. You PUT the bytes with exactly those headers and never with our credentials. The URL
+      lasts an hour.
+    - `concepts/idempotency.md`: uploads are outside `Idempotency-Key`, and a key reused with "different URLs" is
+      a 422.
+    - `enterprise/data-retention.md`: uploads are deleted within seven days.
+  - **The image field is per model** (`prices.ts` `HIGGSFIELD_IMAGE_INPUT`, each model's page cited):
+    - Grok Image 2 and Qwen Image 3 edit take `image_urls`; Ideogram 4 takes `image_url`.
+    - **Soul V2 and Soul standard take no image**, only a trained `custom_reference_id`.
+    - Marketing Studio edits only with `enhance_prompt=false`, so it waits for V4 to try it.
+    - **V4 constraint:** the still model V4 picks must be in that table, or every equipment preset is refused
+      `reference_unsupported`, visibly, before any row or upload.
+  - **`render.ts`:**
+    - `RenderInput.reference` is a ref into our `ad-assets` storage, never a URL.
+    - With no row yet, and only after the budget gate, it reads the photo, uploads it, puts the public URL in the
+      model's field, and writes the `started` row with those final params.
+    - **Every run after that submits the row's params** (`GenerationRow.request`). The upload never repeats, and
+      the key never meets different params.
+    - A crash between the upload and the row costs one orphan upload: uncharged, and deleted within seven days.
+    - A momentary upload failure writes no row. A refused upload completes `failed`, uncharged. The refusal is on
+      the row's `request`, so a run after a crash fails the same way instead of submitting without the photo.
+  - **Client:** `upload()` sends exactly the signed headers. A Content-Type of our own beside theirs was sent
+    twice, joined; the fake's signature check caught it.
+  - **FakeHiggsfield:** the upload URL, the presigned PUT, and the public file. The PUT refuses credentials (400),
+    a different Content-Type or tag (403), and an expired URL (403). A submit naming an input whose PUT never
+    arrived is 422.
+  - **Compose and job:** compose passes the photo through `queuedRender` to `ads_render`.
+    `renderInputFromPayload` (pure, tested) reads it back from the job. The org comes from the job row.
+  - The "NOT BUILT" line in `composeCreative.ts` is gone. Q-AD27 (c) is re-measured only on real renders (V4).
+  - Tests: render +8, fake +3, compose +2.
+  - Mutation: 23 mutants, 22 killed on the first pass. The survivor was dropping `request` from the ledger's
+    select: the test ledger returned whole rows whatever was selected (memory "the recorder does not filter"). It
+    now answers only the selected columns, and that mutant is killed. 23 of 23.

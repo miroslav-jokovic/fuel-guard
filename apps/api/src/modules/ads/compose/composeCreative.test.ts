@@ -99,6 +99,28 @@ describe("composeCreative — a creative from copy to ready (C5b)", () => {
     expect(dims[2]![1]).toBeLessThan(700);
   });
 
+  it("the render starts from the kit photo the Art director chose — the same photo the visual check compares against (D-AD9)", async () => {
+    const h = harness();
+    await h.run();
+    const chosen = KIT.equipment_photos.find((p) => p.asset.sha256 === (artFx.recorded.output as { reference_photo: string }).reference_photo)!.asset;
+    expect(h.render.mock.calls[0]![0].reference).toEqual({ sha256: chosen.sha256, format: chosen.format });
+    const read = h.deps.readAsset.mock.calls.map((c) => c[1].sha256);
+    expect(read).toContain(chosen.sha256);
+  });
+
+  it("a text-only scene renders from no photo", async () => {
+    const textOnly = loadFixtures(ART_DIRECTOR_EVAL).find((f) => f.fixture.name === "empty-cab-interior")!.fixture;
+    const h = harness();
+    h.create.mockImplementation((async (body: { tools: Array<{ name: string; input_schema: { properties: { checks?: { properties: object } } } }> }) => {
+      const tool = body.tools[0]!;
+      const input = tool.name === "write_copy" ? copyFx.recorded.output : tool.name === "direct_art" ? textOnly.recorded.output : pass(Object.keys(tool.input_schema.properties.checks!.properties));
+      return { id: "msg_1", stop_reason: "tool_use", content: [{ type: "tool_use", id: "t1", name: tool.name, input }], usage: { input_tokens: 100, output_tokens: 50 } };
+    }) as never);
+    await h.run({ recipe: { ...textOnly.input.recipe, copy_slots: copyFx.input.recipe.copy_slots, formats: ["4:5"], overlay_slots: { headline: "hook", cta: "cta" } }, kit: { ...KIT, ...textOnly.input.kit, overlays: KIT.overlays } });
+    expect(h.render).toHaveBeenCalledTimes(1);
+    expect(h.render.mock.calls[0]![0].reference).toBeNull();
+  });
+
   it("a visual fail regenerates once with our fixed clause in the prompt, under new keys, and a pass then is ready", async () => {
     const h = harness({ visual: [failOn("no_glyphs"), pass] });
     expect(await h.run()).toEqual({ kind: "ready" });
