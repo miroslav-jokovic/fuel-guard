@@ -96,6 +96,11 @@ export interface FakeHiggsfieldOptions {
   prices: Record<string, number>;
   /** The clock `expires_at` and webhook timestamps are read from (a FakeClock's `now` in scenarios). */
   now?: () => Date;
+  /**
+   * The staging simulator's mode (`simulatedRender.ts`): every accepted request finishes at once and its file is
+   * these bytes, drawn from the request's uploaded input images. Tests leave it out and finish requests by hand.
+   */
+  draw?: (inputs: Buffer[]) => Promise<Buffer>;
 }
 
 const RETENTION_SECONDS = 604_800;
@@ -196,6 +201,7 @@ export class FakeHiggsfield {
       if (this.fileExpired(fileMatch[1]!)) return send(res, 404, { detail: "Not Found" }, corr);
       res.statusCode = 200;
       res.setHeader("content-type", fileMatch[2] === "mp4" ? "video/mp4" : "image/png");
+      if (this.opts.draw) return void res.end(await this.opts.draw(this.inputsOf(this.mustGet(fileMatch[1]!).params)));
       return void res.end(fileMatch[2] === "png" ? pngFor(fileMatch[1]!) : Buffer.from(`fake-${fileMatch[1]}`));
     }
     const presigned = /^\/presigned\/([^/]+)$/.exec(url.pathname);
@@ -259,7 +265,14 @@ export class FakeHiggsfield {
       status: "queued", price_cents: price, output: null, error: null, expires_at: null,
     };
     this.requests.set(r.request_id, r);
+    // No webhook is ever asked for in this mode, so `finish` is done before it first awaits.
+    if (this.opts.draw) void this.finish(r.request_id, "completed");
     return { status: 200, body: this.submitted(r) };
+  }
+
+  /** The bytes of every input image a request's params name, as submit's own check reads them. */
+  private inputsOf(params: string): Buffer[] {
+    return [...params.matchAll(/\/inputs\/([^/."]+)\./g)].flatMap((m) => this.uploads.get(m[1]!)?.bytes ?? []);
   }
 
   private submitted(r: FakeHiggsfieldRequest) {

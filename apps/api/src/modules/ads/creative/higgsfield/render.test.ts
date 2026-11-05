@@ -1,13 +1,17 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ADS_SETTINGS_UNSET, type AdsSettings } from "@silvicom/shared";
 import { FakeClock } from "../../../../testing/fakeClock.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../../testing/supabaseRecorder.js";
+import { testEnv } from "../../../../testing/testEnv.js";
 import { assetKey } from "../brandAssets.js";
 import { FakeHiggsfield } from "./fakeHiggsfield.js";
 import { HiggsfieldClient } from "./higgsfieldClient.js";
+import { SIMULATED_STILL_MODEL } from "./prices.js";
 import { renderInputFromPayload, renderKey, renderStatus, renderStep, type RenderInput } from "./render.js";
+import { renderClientFor, stopSimulatedRenderForTests } from "./simulatedRender.js";
 
 /**
  * The Higgsfield client's render step (C3) over real HTTP against FakeHiggsfield, with `ad_generations` an
@@ -91,6 +95,38 @@ const step = (over: Partial<RenderInput> = {}, prices: Record<string, number> = 
 const submitted = () => JSON.parse(onlyRequest().params.split("\n").slice(1).join("\n")) as Record<string, unknown>;
 const onlyRequest = () => [...hf.requests.values()][0]!;
 const row = () => ledger[0]!;
+
+describe("renderStep — the simulator is the same step", () => {
+  const simulated = async () => {
+    const r = await renderClientFor(db.client, testEnv(), ORG, SIMULATED_STILL_MODEL, { DEPLOY_ENVIRONMENT: "staging" });
+    if (!r.ok) throw new Error(r.reason);
+    return r;
+  };
+  afterEach(async () => stopSimulatedRenderForTests());
+
+  it("a simulated render stores its image in one step, its row names the simulator, and a replay asks nothing", async () => {
+    const { client, prices } = await simulated();
+    const done = await step({ model: SIMULATED_STILL_MODEL }, { ...prices }, client);
+    expect(done).toMatchObject({ kind: "stored", replayed: false });
+    expect(row()).toMatchObject({ model: SIMULATED_STILL_MODEL, status: "succeeded" });
+    expect(await step({ model: SIMULATED_STILL_MODEL }, { ...prices }, client)).toMatchObject({ kind: "stored", replayed: true });
+    expect(ledger).toHaveLength(1);
+    expectOrgScoped(db, ORG);
+  });
+
+  it("a simulated render from a kit photo stores that photo's picture", async () => {
+    const { client, prices } = await simulated();
+    const done = await step({ model: SIMULATED_STILL_MODEL, reference: PHOTO_REF }, { ...prices }, client);
+    const photo = await sharp(PHOTO).metadata();
+    expect(done).toMatchObject({ kind: "stored", assets: [{ width: photo.width, height: photo.height }] });
+  });
+
+  it("a simulated render meets the month's budget like a real one", async () => {
+    saved = settings(0);
+    const { client, prices } = await simulated();
+    expect(await step({ model: SIMULATED_STILL_MODEL }, { ...prices }, client)).toMatchObject({ kind: "budget_exhausted" });
+  });
+});
 
 describe("renderStep — a replayed generation spends nothing", () => {
   it("submits once under the row's id, polls until done, and a replay after that asks Higgsfield nothing", async () => {

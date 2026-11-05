@@ -49,6 +49,7 @@ export type { RenderDeps, RenderInput, RenderOutcome } from "./creative/higgsfie
 export { HiggsfieldClient } from "./creative/higgsfield/higgsfieldClient.js";
 export { higgsfieldKeyFor, sealHiggsfieldKey } from "./creative/higgsfield/higgsfieldKey.js";
 export { HIGGSFIELD_CREDIT_PRICES } from "./creative/higgsfield/prices.js";
+export { renderClientFor } from "./creative/higgsfield/simulatedRender.js";
 // C4: the overlay renderer for stills — our words on the image, refused rather than shrunk or invented.
 export { renderOverlay, EEO_LINE } from "./creative/overlay/overlay.js";
 export type { OverlayInput, OverlayOutcome, OverlayFinding } from "./creative/overlay/overlay.js";
