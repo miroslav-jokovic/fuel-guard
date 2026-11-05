@@ -863,7 +863,16 @@ export const READINESS = [
           ] }],
         },
       ],
-      L3: later("L3"),
+      L3: [
+        {
+          need: "§4R's bar over every way a render is cut short: 0 double charges across replays (the fake counts submits); every stored asset matches its sha256",
+          tests: [{ file: "apps/api/src/modules/ads/creative/higgsfield/render.sweep.test.ts", titles: [
+            "killed just after …",
+            "recovered from …",
+            "a finished render replayed after every case asks Higgsfield nothing more",
+          ] }],
+        },
+      ],
       L4: [{ need: "a small real Higgsfield API budget", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },

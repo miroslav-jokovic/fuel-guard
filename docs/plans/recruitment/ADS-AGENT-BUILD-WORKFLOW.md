@@ -1736,3 +1736,26 @@ blocking step in §3 above.
     healthy account (now one line); **connect buttons offered while the list failed to load**. Staging pass
     owed: staging's web still calls the dead `uat` API (`STAGING_VITE_API_URL`, the 11/04 blocker).
   - Mutation: 21 mutants, 20 killed; the survivor (`admin &&` before `connecting`) was a no-op guard, removed.
+- **2026-11-05, Renderer L3: a render cut short anywhere is charged once and stores true bytes**, Track W. No migration,
+  no production code. **Renderer / Higgsfield client L2 → L3.**
+  - **The bar is §4R's:** 0 double charges across replays (the fake counts submits), and every stored asset matches its
+    sha256. Until now it was held by a handful of named cases in `render.test.ts`. `render.sweep.test.ts` holds it over
+    every way a render can be cut short. Each case runs one render to its end as the `ads_render` job does, and runs
+    with and without a kit photo (D-AD9).
+    - **Killed:** the process dies once, just after a side effect and before the step hears of it: the photo
+      uploaded, the ledger row written, the submit accepted, the first and a later status read, the file downloaded,
+      the file stored, the row completed.
+    - **Faulted:** every transient fault FakeHiggsfield can inject (queue full, server error, unavailable, accepted
+      then the answer lost), on the upload URL, the submit and the status read.
+    - **What every case must end with:** the image stored; one submit; the price taken once; one ledger row. Every
+      object in the bucket holds the bytes its name's hash says, and the row's `asset_sha256`, `asset_path` and
+      output name those same bytes.
+    - **The guards against a vacuous case:** a kill case asserts its kill point was reached, and a fault case asserts
+      the job waited on the faulted call.
+  - **The one thing a crash may repeat is the photo upload.** It repeats only when the process dies between the upload
+    and the ledger row: nothing was submitted or charged yet, so the first submit's fresh URL is not "same key,
+    different URLs". After the row exists, the upload never repeats. The sweep checks both.
+  - 30 cases. A finished render replayed again asks Higgsfield nothing.
+  - Mutation: 7 mutants, all killed: a replay under a fresh key, the row's params ignored, the photo re-uploaded
+    with a row, a stored-file conflict treated as a failure, the row naming another hash, the replay read skipped, and
+    a file stored under a hash its bytes do not have.
