@@ -7,7 +7,7 @@ import { loadEnv } from "../../../env.js";
 import { expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { STEP_UP_TOKEN_HEADER, mintStepUpToken } from "../../../lib/stepUpToken.js";
-import { campaign, createAdsWorld, LIVE_SETTINGS, ORG, type AdsWorld } from "../../../testing/adsWorld.js";
+import { campaign, CONN, createAdsWorld, LIVE_SETTINGS, ORG, type AdsWorld } from "../../../testing/adsWorld.js";
 
 /**
  * A person's moves and the approver's launch (`/api/ads/campaigns/:id/moves`, `/launch`; Track S, S1c), through
@@ -111,10 +111,44 @@ describe("POST /campaigns/:id/moves — what the machine lets a person press", (
   });
 });
 
+const connection = () => ({ id: CONN, org_id: ORG });
+
+describe("POST /campaigns/:id/launch — a real ad account waits for L4 (§4R)", () => {
+  const launch = () => call(`${C}/launch`, { daily_budget_cents: 5_000, lifetime_cap_cents: 50_000 }, true);
+  const on = (connections: Array<Record<string, unknown>>) => {
+    caller = as("admin");
+    world("paused", { approvals: [approval()], connections });
+  };
+  const real = { provider: "meta", is_sandbox: false };
+
+  it("a real ad account is refused while any worker is below L4, and the campaign does not move", async () => {
+    on([{ ...connection(), ...real }]);
+    const res = await launch();
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("workers_below_l4");
+    expect(body.error.message).toContain("Orchestrator");
+    expect(body.error.message).not.toContain("Outcome feed");
+    expect(w.byId(C)).toMatchObject({ state: "paused", daily_budget_cents: null });
+    expectOrgScoped(w.rec, ORG, { exempt: ["user_profiles"] });
+  });
+
+  it("a connection that cannot be read counts as real", async () => {
+    on([]);
+    expect(await code(await launch())).toBe("workers_below_l4");
+  });
+
+  it.each([["Meta's sandbox", { provider: "meta", is_sandbox: true }], ["the simulator", { provider: "simulator", is_sandbox: true }]])("%s launches, because L4 is earned there", async (_, c) => {
+    on([{ ...connection(), ...c }]);
+    expect((await launch()).status).toBe(200);
+  });
+});
+
 describe("POST /campaigns/:id/launch — the approver's door (Security L2)", () => {
   beforeEach(() => {
     caller = as("admin");
-    world("paused", { approvals: [approval()] });
+    // The simulator: this describe is about who may launch, and a real account has its own describe above.
+    world("paused", { approvals: [approval()], connections: [{ ...connection(), provider: "simulator" }] });
   });
 
   it("an admin, freshly signed in, with a covering approval: paused → launching, the budget written with the move", async () => {

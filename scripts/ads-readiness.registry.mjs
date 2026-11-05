@@ -225,6 +225,13 @@ export const READINESS = [
           ] }],
         },
         {
+          need: "a real launch below L4 (§4R: refused in code)",
+          tests: [{ file: "apps/api/src/modules/ads/routes/campaignMoves.test.ts", titles: [
+            "a real ad account is refused while any worker is below L4, and the campaign does not move",
+            "a connection that cannot be read counts as real",
+          ] }],
+        },
+        {
           need: "kill switch pressed while a call is in flight",
           tests: [{ file: GUARD, titles: ["the kill switch pressed between the guard's read and the write (AX021) is a refusal, not a call"] }],
         },
@@ -664,7 +671,7 @@ export const READINESS = [
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
-  { worker: "Outcome feed", levels: { L1: [notBuilt("B6 Conversions API events per stage")], L2: later("L2"), L3: later("L3"), L4: [{ need: "events accepted by the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
+  { worker: "Outcome feed", notAtLaunch: "B6 comes after the canary (§5), so a first campaign uses no outcome feed; take this off when B6 is wired", levels: { L1: [notBuilt("B6 Conversions API events per stage")], L2: later("L2"), L3: later("L3"), L4: [{ need: "events accepted by the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
   {
     worker: "Copywriter",
     levels: {
@@ -710,7 +717,8 @@ export const READINESS = [
         },
         { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "40 briefs over P1–P5, 15+ in Spanish: 40 of 40 live answers pass the claim and length checks, twice (pnpm ads:eval copywriter, baseline.json, 2026-11-05); the owner rates the 40 (the rating sheet in the PR) and the rate is recorded here" },
       ],
-      L4: [{ need: "not applicable to a model worker beyond the eval set", gap: "decided with C2: whether a Claude worker has an L4 at all" }],
+      // The owner, 2026-11-05: a Claude worker has an L4 like any other, so no worker launches on the eval set alone.
+      L4: [{ need: "its live copy accepted on Meta's sandbox: ads made from real answers, in English and Spanish, created there without a refusal", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },

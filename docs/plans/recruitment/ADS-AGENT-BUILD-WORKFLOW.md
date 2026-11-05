@@ -307,7 +307,8 @@ titles) and fails `build` if a listed test is missing, renamed, skipped, focused
 `pnpm ads:readiness` prints the scorecard (worker × level). **Production launch (L5) is refused in
 code** unless the scorecard shows L4 for every worker the campaign uses: the Launch route reads
 the scorecard committed at the deployed sha. Retiring a required test means editing that list in
-a PR that review sees.
+a PR that review sees. **Ruled 2026-11-05: a Claude worker has an L4 like any other**, so none launches on its evaluation set alone. **Built:** the
+door reads `guard/launchReadiness.json`, the scorecard as committed, and only a simulator or sandbox account is exempt.
 
 ### The harness (built in Stage 1; no new dependencies)
 
@@ -1822,3 +1823,16 @@ blocking step in §3 above.
     storing another `billing_event`, the image read, the write-only waiver, 80004 not counted as a throttle, a creative
     not found by its name, and the token alert. The first hang mutant survived (a timeout and a 5xx looked alike), so
     the ledger's fault kind is now pinned.
+- **2026-11-05, the owner rules Claude workers have an L4, and a real launch is refused below it.** No migration.
+  - **The ruling:** a Claude worker needs L4 like any other. Art director, Checker and Analyst already had an L4 need.
+    Copywriter's was the open question since C2. Its need is now its live copy accepted on Meta's sandbox, in both
+    languages. **That wording is ours, written from the ruling, not the owner's;** change it in the registry if it is wrong.
+  - **Built:** `launchCampaign` refuses `workers_below_l4` before it reads any approval. `guard/launchReadiness.json` is the
+    scorecard at the deployed sha, because the API cannot run the script that reads test sources. It holds only who a
+    first campaign uses and who is at L4, so a worker climbing to L3 never touches it. `lint:ads-readiness` fails if it
+    disagrees with the registry. `--write-launch-card` rewrites it.
+  - **What counts as real:** everything but a simulator or a sandbox account, a connection that cannot be read included.
+    Those two stay open because L4 is earned on them. The host is not asked: a real account spends real money from staging too.
+  - **Who is required:** every worker but Outcome feed (`notAtLaunch`), because B6 comes after the canary. Analyst is
+    required, because G-launch's done-when includes the next morning's brief.
+  - **A known wrinkle:** the screen records the spend approval before it launches, so a refused launch leaves an approval row.

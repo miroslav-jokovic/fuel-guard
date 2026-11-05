@@ -1,0 +1,16 @@
+{
+  "required": [
+    "Orchestrator",
+    "Budget guard",
+    "Publisher (per adapter)",
+    "Monitor",
+    "Lead intake",
+    "Copywriter",
+    "Art director",
+    "Checker",
+    "Analyst",
+    "Renderer / Higgsfield client",
+    "Security (all)"
+  ],
+  "certified": []
+}

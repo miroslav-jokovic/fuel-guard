@@ -6,6 +6,7 @@ import {
 } from "@silvicom/shared";
 import { listBrandKits } from "../creative/kitVersions.js";
 import { findCoveringApproval } from "../guard/approvals.js";
+import { launchBlockedBy } from "../guard/launchReadiness.js";
 import { applyCampaignEvent, insertCampaign, loadCampaign, type TransitionResult } from "../orchestrator/transitions.js";
 import { settingsInForce, type Actor } from "../settings/settingsVersions.js";
 import { hasApprovedCreative } from "./creativeDecisions.js";
@@ -90,7 +91,9 @@ export type MoveOutcome =
   /** Someone else moved the campaign first (`state_moved`), or this exact move was already recorded. */
   | { kind: "conflict" }
   /** Launch only: no standing approval covers these amounts, or a second approver is still owed. */
-  | { kind: "needs_approval"; refusal: "no_standing_approval" | "second_approver_missing" };
+  | { kind: "needs_approval"; refusal: "no_standing_approval" | "second_approver_missing" }
+  /** Launch only: a real ad account, and these workers are below L4 (§4R). */
+  | { kind: "not_certified"; workers: string[] };
 
 const fromTransition = (r: TransitionResult): MoveOutcome => {
   switch (r.kind) {
@@ -130,6 +133,8 @@ export async function launchCampaign(admin: SupabaseClient, orgId: string, actor
   if (!c) return { kind: "not_found" };
   const step = stepCampaign(c.state, "launch", "approver");
   if (!step.ok) return { kind: "refused", reason: step.reason };
+  const belowL4 = await launchBlockedBy(admin, orgId, c.connection_id);
+  if (belowL4.length > 0) return { kind: "not_certified", workers: belowL4 };
   const { settings } = await settingsInForce(admin, orgId);
   const verdict = await findCoveringApproval(admin, orgId, settings, {
     campaignId, kind: "launch", daily_cents: ask.daily_budget_cents, lifetime_cents: ask.lifetime_cap_cents,

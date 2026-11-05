@@ -40,6 +40,7 @@ function sendMove(res: Response, out: MoveOutcome): void {
       : out.reason === "no_approved_creative" ? "Approve at least one ad first."
       : "The campaign cannot do that from where it is now. Reload to see its state."));
     case "conflict": return void res.status(409).json(apiError("state_moved", "The campaign moved while you were looking. Reload and try again."));
+    case "not_certified": return void res.status(409).json(apiError("workers_below_l4", `This campaign cannot launch on a real ad account yet. Not certified on a sandbox (L4): ${out.workers.join(", ")}.`));
     case "needs_approval": return void res.status(409).json(apiError(out.refusal, out.refusal === "second_approver_missing"
       ? "This budget needs a second, different approver before it can launch."
       : "Approve the launch at these amounts (or higher) first."));

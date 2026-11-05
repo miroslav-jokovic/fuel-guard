@@ -902,6 +902,10 @@ rate, and Higgsfield credits per approved creative.
   first, and every other refusal stays a failure. The first run after a deletion stays loud. **Left for L4:** whether
   real Meta refuses that read or still returns the history. Either answer works; L4 only records which it is.
 
+- **Whether a Claude worker has an L4** (open since C2; **ruled by the owner 2026-11-05: yes**). No worker launches on its
+  evaluation set alone. Copywriter's L4 is its live copy accepted on Meta's sandbox, in both languages (the wording is
+  ours, in `scripts/ads-readiness.registry.mjs`). The Launch door refuses a real account below L4 (`guard/launchReadiness.ts`).
+
 ---
 
 ## Sources (read 2026-10-31)

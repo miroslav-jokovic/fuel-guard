@@ -22,17 +22,20 @@
  * Copied from `scripts/check-reader-gate.mjs` (RC8): the same title scan and the same NOT_RUN list, so a
  * test either gate trusts is a test both would. `--self-test` proves the checks catch what they claim to.
  *
- * Not here yet, by design: the Launch route refusing a worker below L4 by reading this scorecard at the
- * deployed sha (§4R "Production launch (L5) is refused in code"). It needs the route (E3) and is moot
- * until something can reach L4 (Stage 2); `--json` is the shape it will read.
+ *   launch card (`apps/api/src/modules/ads/guard/launchReadiness.json`) — §4R: "Production launch is refused in
+ *         code" below L4, reading the scorecard at the deployed sha. The API cannot run this file (it reads
+ *         test sources), so what it needs is committed: the workers a real campaign uses and those at L4 or above.
+ *         A worker moving from L2 to L3 does not touch it, so the tracks climbing to L3 cannot conflict over it.
+ *         The gate fails when it disagrees with the registry; `--write-launch-card` rewrites it.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { READINESS, SCENARIO_DIR } from "./ads-readiness.registry.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 export const LEVELS = ["L1", "L2", "L3", "L4", "L5"];
 const WORKFLOW = "docs/plans/recruitment/ADS-AGENT-BUILD-WORKFLOW.md";
+const LAUNCH_CARD = "apps/api/src/modules/ads/guard/launchReadiness.json";
 
 // `ok` is a PGlite matrix's assertion: the same-person match is only provable in SQL, so §4R pins one.
 const TEST_TITLE = /\b(?:it|test|describe|ok)(?:\.each\s*\([\s\S]*?\))?\s*\(\s*(["'`])((?:\\.|(?!\1)[\s\S])*?)\1/g;
@@ -117,6 +120,14 @@ export function scorecard(registry) {
   });
 }
 
+/** What the Launch door reads: who a real campaign uses, and who has reached L4. Sorted by the registry's order. */
+export function launchCard(registry) {
+  const certified = scorecard(registry).filter((c) => Number(c.level.slice(1)) >= 4).map((c) => c.worker);
+  return { required: registry.filter((r) => !r.notAtLaunch).map((r) => r.worker), certified };
+}
+
+const launchCardText = (registry) => `${JSON.stringify(launchCard(registry), null, 2)}\n`;
+
 function selfTest() {
   const clean = `describe("a guard", () => { it("refuses a launch", () => {}); it(\`killed at \${1}\`, () => {}); });`;
   const titleCases = [
@@ -149,6 +160,9 @@ function selfTest() {
     ["L1 and L2 met is L2", () => scorecard([{ worker: "W", levels: full({ L1: [pinned(["a guard"])], L2: [pinned(["a guard"])] }) }])[0].level === "L2"],
     ["an L3 met above an L2 gap stays L1", () => scorecard([{ worker: "W", levels: full({ L1: [pinned(["a guard"])], L3: [pinned(["a guard"])] }) }])[0].level === "L1"],
     ["one gap among met needs holds the level", () => scorecard([{ worker: "W", levels: full({ L1: [pinned(["a guard"]), gap] }) }])[0].level === "L0"],
+    ["a worker below L4 is not certified", () => launchCard([{ worker: "W", levels: full({ L1: [pinned(["a guard"])] }) }]).certified.length === 0],
+    ["a worker with L1 to L4 met is certified", () => launchCard([{ worker: "W", levels: full(Object.fromEntries(LEVELS.slice(0, 4).map((l) => [l, [pinned(["a guard"])]]))) }]).certified[0] === "W"],
+    ["a worker kept out of launch is not required", () => launchCard([{ worker: "W", notAtLaunch: "later", levels: full({}) }, { worker: "V", levels: full({}) }]).required.join() === "V"],
     ["the workflow table's bold names are read", () => JSON.stringify(workersInWorkflow("### What each worker must survive\n| W | x |\n|---|\n| **Orchestrator** | a |\n| **Publisher** (per adapter) | b |\n\n---\n| **Not this** |")) === '["Orchestrator","Publisher"]'],
   ];
   let bad = 0;
@@ -177,7 +191,9 @@ function printScorecard(card) {
 function main() {
   const args = new Set(process.argv.slice(2));
   if (args.has("--self-test")) return selfTest();
+  if (args.has("--write-launch-card")) writeFileSync(join(ROOT, LAUNCH_CARD), launchCardText(READINESS));
   const failures = [...shapeProblems(READINESS), ...pinProblems(READINESS, readFile)];
+  if (readFile(LAUNCH_CARD) !== launchCardText(READINESS)) failures.push(`${LAUNCH_CARD} disagrees with the registry: run node scripts/check-ads-readiness.mjs --write-launch-card`);
   const table = workersInWorkflow(readFile(WORKFLOW) ?? "");
   if (!table || table.length === 0) failures.push(`${WORKFLOW}: §4R's worker table was not found — the registry cannot be checked against it`);
   else {
