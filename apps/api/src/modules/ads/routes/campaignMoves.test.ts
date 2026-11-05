@@ -7,7 +7,7 @@ import { loadEnv } from "../../../env.js";
 import { expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { STEP_UP_TOKEN_HEADER, mintStepUpToken } from "../../../lib/stepUpToken.js";
-import { campaign, createAdsWorld, LIVE_SETTINGS, ORG, type AdsWorld } from "../../../testing/adsWorld.js";
+import { campaign, CONN, createAdsWorld, LIVE_SETTINGS, ORG, type AdsWorld } from "../../../testing/adsWorld.js";
 
 /**
  * A person's moves and the approver's launch (`/api/ads/campaigns/:id/moves`, `/launch`; Track S, S1c), through
@@ -114,7 +114,9 @@ describe("POST /campaigns/:id/moves — what the machine lets a person press", (
 describe("POST /campaigns/:id/launch — the approver's door (Security L2)", () => {
   beforeEach(() => {
     caller = as("admin");
-    world("paused", { approvals: [approval()] });
+    // A simulator connection (G-launch-gate, 2026-11-05): these tests are about the approval rule, and a real
+    // Meta connection now meets the L4 certification first (campaigns/launchGate.test.ts), which no worker has yet.
+    world("paused", { approvals: [approval()], connections: [{ id: CONN, org_id: ORG, provider: "simulator" }] });
   });
 
   it("an admin, freshly signed in, with a covering approval: paused → launching, the budget written with the move", async () => {

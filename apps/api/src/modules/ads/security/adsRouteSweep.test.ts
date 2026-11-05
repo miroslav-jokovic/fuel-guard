@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { AuthContext } from "@silvicom/shared";
+import { ADS_CAMPAIGN_WORKERS, type AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { seal, secretAad } from "../../../lib/secretBox.js";
@@ -154,9 +154,10 @@ const SWEEP: Array<[string, string, unknown?]> = [
   ["GET /api/ads/campaigns", "campaigns"],
   ["GET /api/ads/campaigns/:campaignId", `campaigns/${MINE.campaign}`],
   ["POST /api/ads/campaigns", "campaigns", { id: randomUUID(), brief_source: "recruiting_opening", brief_ref: MINE.campaign, connection_id: MINE.conn, brand_kit_id: MINE.kit }],
+  ["POST /api/ads/campaigns/:campaignId/launch", `campaigns/${MINE.campaign}/launch`, { daily_budget_cents: 5_000, lifetime_cap_cents: 50_000 }],
+  // Launch before the archive move below: G-launch-gate's refusal is asserted on a paused campaign.
   ["POST /api/ads/campaigns/:campaignId/moves", `campaigns/${MINE.campaign}/moves`, { event: "archive", reason: "sweep" }],
   ["POST /api/ads/campaigns/:campaignId/creatives/:creativeId/decision", `campaigns/${MINE.campaign}/creatives/${MINE.creative}/decision`, { decision: "reject", reason: "sweep" }],
-  ["POST /api/ads/campaigns/:campaignId/launch", `campaigns/${MINE.campaign}/launch`, { daily_budget_cents: 5_000, lifetime_cap_cents: 50_000 }],
 ];
 
 beforeAll(async () => {
@@ -205,6 +206,15 @@ describe("Security L3 — the sweep reaches every ads route", () => {
     expect(answers.get("POST /api/ads/connections/:connectionId/test")!.status).toBe(200);
     expect(answers.get("GET /api/ads/connections")!.text).toContain(MINE.conn);
     expect(answers.get("GET /api/ads/campaigns")!.text).toContain(MINE.campaign);
+  });
+
+  it("Launch on a real connection answers the door's refusal through the app: its code, its sentence and every worker below L4", () => {
+    const launch = answers.get("POST /api/ads/campaigns/:campaignId/launch")!;
+    expect(launch.status).toBe(409);
+    const body = JSON.parse(launch.text) as { error: { code: string; message: string }; missing: Array<{ worker: string; level: string; needs: string }> };
+    expect(body.error.code).toBe("not_certified");
+    expect(body.missing.map((m) => m.worker)).toEqual(ADS_CAMPAIGN_WORKERS["meta:still"]!.map((u) => u.worker));
+    for (const m of body.missing) expect(body.error.message).toContain(m.worker);
   });
 });
 
