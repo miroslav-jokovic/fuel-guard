@@ -189,3 +189,16 @@ check. Recorded here so it is not lost; it is its own plan.
 
 - 2026-11-05: plan written; A1, A2, binder and carrier-record counts measured on production (§2).
   Owner accepted §3 and Q-DD1/Q-DD2. Next: DD1.
+- 2026-11-05: DD1 built. Shared `dqWorstRank` / `compareDqUrgency` (dqFleetFilter.ts), now also the old
+  qualification table's default order, so the two lists rank identically until DD4. Drivers: File, CDL,
+  Medical and Hazmat columns sortable; File filter options carry counts computed with the other controls
+  as set (`features/roster/rosterRows.ts`); built-in view "Qualification: needs attention" first in the
+  menu. Three deviations from the text above, each smaller than what it replaces:
+  (1) the sort key is `file`, the File column's own header, not a separate `soonest`: the order is
+  reachable by clicking the column, and D-DQ16's redirect target becomes `/drivers?file=attention&sort=file`;
+  (2) outstanding items are a small control at the end of the File cell with its own hover card, not a
+  line on the thumbnails' cards, because with no driver papers on production there is no thumbnail to
+  hover. Clicking it opens the upload panel for a reader who files, and the driver's qualification
+  section for one who cannot;
+  (3) the browser pass found the card clipped by the table's scroller and its line unwrapped
+  (`whitespace-nowrap` inherited from the cell). It now opens leftward and wraps. Next: DD2.
