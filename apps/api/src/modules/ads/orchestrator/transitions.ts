@@ -142,6 +142,31 @@ export async function applyCampaignEvent(admin: SupabaseClient, campaign: Campai
   return moved ? { kind: "moved", from: campaign.state, to } : { kind: "state_moved" };
 }
 
+/**
+ * A legal move a door refused for its own reason (G-launch-gate, 2026-11-05: Launch below L4). Nothing moves; one
+ * refused `transition` row says why, and the campaign carries the reason as `last_error` so the review screen
+ * shows it (E3). Under the same compare-and-set as a move: a campaign that moved meanwhile keeps its own error.
+ * The next move clears it, as every move without an error does.
+ */
+export async function recordCampaignRefusal(
+  admin: SupabaseClient, campaign: CampaignRow, ask: { event: CampaignEvent; actor: TransitionActor; error_code: string; error: string }, at: string,
+): Promise<void> {
+  await recordFinished(admin, {
+    org_id: campaign.org_id, campaign_id: campaign.id, connection_id: campaign.connection_id, kind: "transition",
+    ...actorColumns(ask.actor), cause: clip(ask.error),
+    request: { from: campaign.state, event: ask.event, from_changed_at: campaign.state_changed_at },
+  }, { status: "refused", error_code: ask.error_code, at });
+  const { error } = await admin
+    .from("ads_campaigns")
+    .update({ last_error: clip(ask.error) })
+    .eq("org_id", campaign.org_id)
+    .eq("id", campaign.id)
+    .eq("state", campaign.state)
+    .eq("state_changed_at", campaign.state_changed_at)
+    .select("id");
+  if (error) throw new Error(`ads_campaigns: ${error.message}`);
+}
+
 interface OpenTransition {
   id: string;
   status: string;

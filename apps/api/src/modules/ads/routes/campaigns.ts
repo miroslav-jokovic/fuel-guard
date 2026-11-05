@@ -43,6 +43,8 @@ function sendMove(res: Response, out: MoveOutcome): void {
     case "needs_approval": return void res.status(409).json(apiError(out.refusal, out.refusal === "second_approver_missing"
       ? "This budget needs a second, different approver before it can launch."
       : "Approve the launch at these amounts (or higher) first."));
+    // G-launch-gate: the door's own sentence and list, passed through (campaigns/launchCertification.ts writes both).
+    case "launch_refused": return void res.status(409).json({ ...apiError(out.refusal, out.message), missing: out.missing });
   }
 }
 

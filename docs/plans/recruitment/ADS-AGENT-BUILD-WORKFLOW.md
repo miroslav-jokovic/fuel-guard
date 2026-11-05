@@ -1902,3 +1902,36 @@ blocking step in §3 above.
     despite a hire, the latest contact, typed-in leads read, arrival not filtered, chunks of 1,000, the window a week
     long, no contract parse, unrecorded as 0, the schema allowing a count, the rule off, "qualif" not matched, the
     decimal split, the plain brief silent on the gap, and the planted fixture passing.
+- **2026-11-05, G-launch-gate**, Track G. No migration. A real-platform Launch now refuses unless every worker the campaign
+  uses is certified L4. No scorecard level moved: nothing has a sandbox run yet, so every Meta launch is refused today,
+  and the simulator still launches on staging.
+  - **L4 is a run, not a test.** `scripts/ads-certifications.json` holds one record per sandbox (L4) or canary (L5) run:
+    worker, platform for a per-platform worker, level, target, run date, sha, result and evidence. Only `pass` counts,
+    and only a PR changes it. `check-ads-readiness.mjs` now reads L4/L5 from these records alone. The registry's L4/L5
+    needs stay as what a run must cover, shown as "next" until a record closes them. The gate refuses a malformed
+    record: an unknown worker, a short sha, an "L3 run", a canary target for L4, or a per-platform run with no platform.
+  - **One table.** `CAMPAIGN_WORKERS` in the registry, keyed `provider:creative_kind`. `meta:still` lists ten workers:
+    Orchestrator, Budget guard, Publisher (meta), Monitor, Lead intake, Copywriter, Art director, Checker, Renderer and
+    Security. The Analyst is not listed (the brief never touches delivery), and neither is the Outcome feed (not built).
+    The Publisher is `perPlatform`, so a Meta run certifies the Meta adapter only. A provider with no row cannot launch.
+    The creative kind is `still`, the only kind compose makes; a video kind becomes a campaign column when it exists.
+  - **Baked, not read.** `pnpm gen:ads-readiness` (also in `pnpm gen`) writes
+    `packages/shared/src/ads/launchReadiness.generated.ts` with the table, the levels (by worker and as `worker|platform`)
+    and the records. `lint:ads-readiness` regenerates it in memory and fails on any byte of difference, so it is never
+    hand-edited and Launch's answer is the one committed at the deployed sha. The server reads no file and runs no
+    command.
+  - **The door** (`campaigns/launchCertification.ts`, called from `launchCampaign` after the state check and before any
+    approval is read): a refusal names each missing worker with its level, in the 409 body (`missing`) and on the
+    campaign's `last_error`. The `last_error` is written through a new `recordCampaignRefusal` in
+    `orchestrator/transitions.ts` (the table's one writer): one refused transition row plus `last_error` under the
+    move's compare-and-set. **Simulator:** exempt only where `simulatorGate` allows it. On production, or on a built
+    server with no deployment name, a simulator Launch is refused at the door, before it can reach `launching`. A Meta
+    **sandbox** connection is NOT exempt, because it reaches Meta. L4 comes from the contract suite run with
+    `ADS_TARGET=sandbox`, not through this door, so the rule is not circular.
+  - **Outside my files:** `routes/campaigns.ts` gains one `case` that passes the door's code, sentence and list through.
+    `routes/campaignMoves.test.ts`'s approval tests now use a simulator connection, because their subject is the
+    approval rule and a Meta connection meets the certification first.
+  - **Mutation:** 13 mutants, all killed by a named test: L3 let through (the bar; the comparison); a worker ignored (the
+    first; the last; its platform); a real connection exempted; the simulator exempted on production; the door losing
+    the connection's provider; no `last_error`; the route dropping `missing`; a failed run certifying; L4 read from tests;
+    a hand-edited generated file.

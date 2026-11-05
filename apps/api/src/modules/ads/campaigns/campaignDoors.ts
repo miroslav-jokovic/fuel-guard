@@ -6,9 +6,10 @@ import {
 } from "@silvicom/shared";
 import { listBrandKits } from "../creative/kitVersions.js";
 import { findCoveringApproval } from "../guard/approvals.js";
-import { applyCampaignEvent, insertCampaign, loadCampaign, type TransitionResult } from "../orchestrator/transitions.js";
+import { applyCampaignEvent, insertCampaign, loadCampaign, recordCampaignRefusal, type TransitionResult } from "../orchestrator/transitions.js";
 import { settingsInForce, type Actor } from "../settings/settingsVersions.js";
 import { hasApprovedCreative } from "./creativeDecisions.js";
+import { BAKED_READINESS, launchCertification, type LaunchReadiness, type MissingWorker } from "./launchCertification.js";
 
 /**
  * The campaign doors behind `/api/ads/campaigns` (ADS-AGENT-BUILD-WORKFLOW Track S, S1b). Create, list, read.
@@ -90,7 +91,12 @@ export type MoveOutcome =
   /** Someone else moved the campaign first (`state_moved`), or this exact move was already recorded. */
   | { kind: "conflict" }
   /** Launch only: no standing approval covers these amounts, or a second approver is still owed. */
-  | { kind: "needs_approval"; refusal: "no_standing_approval" | "second_approver_missing" };
+  | { kind: "needs_approval"; refusal: "no_standing_approval" | "second_approver_missing" }
+  /**
+   * Launch only (G-launch-gate): a worker this campaign uses is below L4, or the simulator on a host that refuses it.
+   * `message` is the sentence the campaign's `last_error` now carries; `missing` names each worker and its level.
+   */
+  | { kind: "launch_refused"; refusal: "not_certified" | "simulator_not_allowed" | "platform_not_listed"; missing: MissingWorker[]; message: string };
 
 const fromTransition = (r: TransitionResult): MoveOutcome => {
   switch (r.kind) {
@@ -125,11 +131,22 @@ export async function personMove(admin: SupabaseClient, orgId: string, actor: Ac
  * leaves `paused`. The guard checks again at the platform call, against the caps then in force; that
  * check, not this one, is the one that can spend.
  */
-export async function launchCampaign(admin: SupabaseClient, orgId: string, actor: Actor, campaignId: string, ask: AdsCampaignLaunch, at: Date): Promise<MoveOutcome> {
+export async function launchCampaign(
+  admin: SupabaseClient, orgId: string, actor: Actor, campaignId: string, ask: AdsCampaignLaunch, at: Date,
+  readiness: LaunchReadiness = BAKED_READINESS,
+): Promise<MoveOutcome> {
   const c = await loadCampaign(admin, orgId, campaignId);
   if (!c) return { kind: "not_found" };
   const step = stepCampaign(c.state, "launch", "approver");
   if (!step.ok) return { kind: "refused", reason: step.reason };
+  // G-launch-gate: before any approval is read, the parts this campaign uses must be certified (launchCertification.ts).
+  const { data: conn, error } = await admin.from("ads_platform_connections").select("provider").eq("org_id", orgId).eq("id", c.connection_id).maybeSingle();
+  if (error) throw new Error(`ads_platform_connections: ${error.message}`);
+  const cert = launchCertification({ provider: (conn as { provider: string } | null)?.provider ?? "unknown" }, readiness);
+  if (!cert.ok) {
+    await recordCampaignRefusal(admin, c, { event: "launch", actor: { kind: "approver", id: actor.id, name: actor.name }, error_code: cert.refusal, error: cert.message }, at.toISOString());
+    return { kind: "launch_refused", refusal: cert.refusal, missing: cert.missing, message: cert.message };
+  }
   const { settings } = await settingsInForce(admin, orgId);
   const verdict = await findCoveringApproval(admin, orgId, settings, {
     campaignId, kind: "launch", daily_cents: ask.daily_budget_cents, lifetime_cents: ask.lifetime_cap_cents,

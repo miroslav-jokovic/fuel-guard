@@ -21,3 +21,4 @@ export * from "./adsReconcile.js";
 export * from "./brandKitContract.js";
 export * from "./artDirection.js";
 export * from "./campaignContract.js";
+export * from "./launchReadiness.generated.js";

@@ -1,0 +1,4 @@
+{
+  "//": "Sandbox (L4) and canary (L5) certifications of the ads workers — ADS-AGENT-BUILD-WORKFLOW §4R. One record per run that PASSED or FAILED: worker (the registry's name), platform (only for a per-platform worker, e.g. \"meta\" for the Publisher), level, target (\"sandbox\" for L4, \"canary\" for L5), run_date (YYYY-MM-DD, Central), sha (the 40-hex commit the run tested), result (\"pass\" or \"fail\"), evidence (the CI run or PR that shows it). Only a \"pass\" counts. Edited only in a PR; `pnpm gen:ads-readiness` then bakes it into packages/shared/src/ads/launchReadiness.generated.ts, which Launch reads (G-launch-gate, 2026-11-05). Empty until Stage 2 brings credentials.",
+  "certifications": []
+}

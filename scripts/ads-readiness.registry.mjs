@@ -247,6 +247,8 @@ export const READINESS = [
   },
   {
     worker: "Publisher (per adapter)",
+    // Certified per platform (G-launch-gate): a Meta sandbox run certifies the Meta adapter, not TikTok's.
+    perPlatform: true,
     levels: {
       L1: [
         {
@@ -1061,3 +1063,31 @@ export const READINESS = [
     },
   },
 ];
+
+/**
+ * Which workers a campaign uses, by its connection's provider and its creative kind (G-launch-gate,
+ * 2026-11-05). The ONE table: `check-ads-readiness.mjs` bakes it into
+ * `packages/shared/src/ads/launchReadiness.generated.ts`, and Launch refuses a real-platform campaign unless
+ * every worker listed for it is certified L4 there. A per-platform worker names its platform. A provider or
+ * kind with no row cannot launch at all, so a new adapter must be listed here before it can spend.
+ *
+ * Not listed, on purpose: the Analyst (the morning brief reads spend; it never touches delivery) and the Outcome
+ * feed (B6, not built — it joins Meta's row when it sends events). The simulator has no row: its own gate
+ * (`simulatorGate`) refuses it everywhere but a positively non-production host.
+ *
+ * @type {Record<string, Array<{ worker: string, platform?: string }>>}
+ */
+export const CAMPAIGN_WORKERS = {
+  "meta:still": [
+    { worker: "Orchestrator" },
+    { worker: "Budget guard" },
+    { worker: "Publisher (per adapter)", platform: "meta" },
+    { worker: "Monitor" },
+    { worker: "Lead intake" },
+    { worker: "Copywriter" },
+    { worker: "Art director" },
+    { worker: "Checker" },
+    { worker: "Renderer / Higgsfield client" },
+    { worker: "Security (all)" },
+  ],
+};
