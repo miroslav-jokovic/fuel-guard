@@ -1,5 +1,9 @@
 # Driver Qualification — redesign (2026-08-08) — **BUILT**
 
+> **Superseded in part, 2026-11-05:** §3's fleet list (`/compliance`) folds into the Drivers page and the
+> route becomes a redirect. D-DQ6 to D-DQ11 still bind; only the separate page goes. See
+> `DQ-INTO-DRIVERS-PLAN.md`.
+
 The surface shipped in DQ2 is correct and hard to use. This is why, and what replaces it.
 
 ## 1. What is actually wrong

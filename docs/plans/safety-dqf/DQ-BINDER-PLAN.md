@@ -1,5 +1,8 @@
 # Audit binder + document lifecycle — plan (2026-08-08) — **BUILT**
 
+> **2026-11-05:** the fleet binder's selection and the exports ledger move from `/compliance` to the
+> Drivers page (D-DQ19 in `DQ-INTO-DRIVERS-PLAN.md`). What a binder contains does not change.
+
 Four things, agreed with the owner, planned together because they share a mechanism.
 
 1. **The audit binder** — an auditor names a sample of drivers; one action produces their qualification
