@@ -401,3 +401,25 @@ describe("DataTable fill (DR5)", () => {
     expect(mountFill(false).attributes("class") ?? "").not.toContain("h-full");
   });
 });
+
+/**
+ * A row checkbox is named by what the reader sees on the row, not by its key (DQ-INTO-DRIVERS-PLAN
+ * DD2). The Drivers roster keys rows by database id, so "Select row 3f1c…" was every row's name.
+ */
+describe("DataTable row checkbox names", () => {
+  const mountSelectable = (rows: Record<string, unknown>[], columns: DataTableColumn[]) =>
+    mount(DataTable, {
+      props: { columns, rows, rowKey: "id", selectable: true, selected: new Set<string>() },
+      global: { stubs: { RouterLink: true, AppIcon: true, TableSkeleton: true, ErrorState: true } },
+    });
+
+  it("names the checkbox by the first column, not by the row key", () => {
+    const w = mountSelectable([{ id: "3f1c-uuid", name: "Marcus Reyes" }], [{ key: "name", label: "Name" }]);
+    expect(w.find("tbody input[type=checkbox]").attributes("aria-label")).toBe("Select Marcus Reyes");
+  });
+
+  it("falls back to the key when the first column has no plain value", () => {
+    const w = mountSelectable([{ id: "3f1c-uuid", name: "" }], [{ key: "name", label: "Name" }]);
+    expect(w.find("tbody input[type=checkbox]").attributes("aria-label")).toBe("Select row 3f1c-uuid");
+  });
+});

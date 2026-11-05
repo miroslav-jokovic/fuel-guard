@@ -202,3 +202,16 @@ check. Recorded here so it is not lost; it is its own plan.
   section for one who cannot;
   (3) the browser pass found the card clipped by the table's scroller and its line unwrapped
   (`whitespace-nowrap` inherited from the cell). It now opens leftward and wraps. Next: DD2.
+- 2026-11-05: DD2 built. Drivers: row checkboxes and `DriverBinderBar` for `roster: manage`, an
+  "Audit binders" header button opening `ExportHistory` in a `SlideOver` for `safety: view` (an auditor
+  reads it and builds nothing; a dispatcher sees neither), the cap read from `DQ_EXPORT_MAX_DRIVERS`
+  (`binderSelection.ts`), and a build opens the ledger. Three things found on the way:
+  (1) the driver page's "Export this file" toast and the ledger's empty state both pointed at the old
+  page's Exports tab; both now name Audit binders on Drivers;
+  (2) the shared `DataTable` named every row checkbox "Select row <key>", which on the roster is a
+  database id; it now reads the first column ("Select Marcus Reyes"), as the narrow card layout already
+  did, and falls back to the key;
+  (3) the browser pass showed the six-column ledger clipped in an 896 px panel. It is four columns now:
+  "As at" joins the detail line under each binder, and "By" stacks under "Requested".
+  `QualificationFleetTable` keeps its own copy of the cap until DD4 deletes it (a feature may not import
+  another's internals). Next: DD3.
