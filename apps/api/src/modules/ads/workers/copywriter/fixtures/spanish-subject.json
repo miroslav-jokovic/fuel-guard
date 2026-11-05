@@ -55,7 +55,8 @@
       "formats": [
         "1:1",
         "4:5"
-      ]
+      ],
+      "overlay_slots": null
     }
   },
   "expect": "ready",
@@ -63,17 +64,17 @@
     "source": "model",
     "prompt_version": "copywriter@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T05:02:30.938Z",
+    "recorded_at": "2026-11-05T15:20:21.363Z",
     "output": {
       "en": {
-        "hook": "$0.68/mile for regional Class A drivers.",
-        "body": "Run regional routes and come home on weekends. If you hold a Class A CDL and want consistent miles with competitive pay, this is the opportunity you have been looking for. Join our team today.",
-        "cta": "Apply now and get started."
+        "hook": "$0.68/mile for Class A regional drivers.",
+        "body": "You earn $0.68 per mile on a regional route that brings you home weekends. If you hold a Class A CDL and want consistent miles close to home, this run is built for you. Join our team and keep your weekends.",
+        "cta": "Apply today."
       },
       "es": {
-        "hook": "$0.68 por milla para conductores Clase A regionales.",
-        "body": "Rutas regionales con regreso a casa los fines de semana. Si tienes CDL Clase A y buscas pago competitivo con rutas consistentes, esta es tu oportunidad. Únete a nuestro equipo.",
-        "cta": "Aplica hoy mismo."
+        "hook": "$0.68 por milla para conductores Clase A regional.",
+        "body": "Gana $0.68 por milla en una ruta regional con regreso a casa los fines de semana. Si tienes CDL Clase A y buscas millas constantes cerca de tu familia, esta posición es para ti.",
+        "cta": "Aplica hoy."
       }
     }
   }

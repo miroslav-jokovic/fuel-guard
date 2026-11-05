@@ -1,0 +1,99 @@
+{
+  "name": "p1-es-dedicated-annual",
+  "about": "P1 Windshield sunrise: A Spanish subject, annual pay, dedicated, benefits.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Chofer Clase A para cuenta dedicada",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 9000000,
+          "per": "year"
+        },
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P1 Windshield sunrise",
+      "hook_formula": "Second person, present tense: put the reader in the driver's seat at dawn, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield at {time_of_day} on an open {road} highway, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day",
+        "road"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": "Slow push-in down the highway as the light rises",
+      "formats": [
+        "9:16",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:16:21.642Z",
+    "output": {
+      "en": {
+        "hook": "You drive. Dawn. $90,000/year.",
+        "cta": "Apply now",
+        "primary_text": "You are behind the wheel on a dedicated route, with a steady paycheck of $90,000 per year and health insurance included. Join our team and apply today.",
+        "headline": "Dedicated CDL-A Driver"
+      },
+      "es": {
+        "hook": "Manejas. Amanecer. $90,000/año.",
+        "cta": "Aplica ahora",
+        "primary_text": "Estás al volante en una cuenta dedicada, con un salario de $90,000 al año y seguro médico incluido. Únete al equipo y postúlate hoy.",
+        "headline": "Chofer Clase A Dedicado"
+      }
+    }
+  }
+}

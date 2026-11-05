@@ -8,7 +8,7 @@ The earlier handoffs' traps and process, and the 11/01 owner rulings, **still ho
 
 **Status, end of 11/04: §3 steps 1 to 3 are built, in #2047, #2048 and this docs PR, a stack waiting on the owner's merge.**
 Merge from the bottom, by §5's first trap. Once merged, Monitor and Lead intake are L3 and this track stops at L4 (Stage 2).
-Still open from this work: Q-AD34, and the owner's view of the restated extractor line (§2).
+Still open from this work: Q-AD35, and the owner's view of the restated extractor line (§2).
 
 ## 0. Read first, in this order
 

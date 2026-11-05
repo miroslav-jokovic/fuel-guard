@@ -51,7 +51,8 @@
       "formats": [
         "1:1",
         "4:5"
-      ]
+      ],
+      "overlay_slots": null
     }
   },
   "expect": "ready",
@@ -59,17 +60,17 @@
     "source": "model",
     "prompt_version": "copywriter@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T05:02:14.196Z",
+    "recorded_at": "2026-11-05T15:16:03.583Z",
     "output": {
       "en": {
-        "hook": "$0.68/mile for Class A drivers ready to roll.",
-        "body": "We pay $0.68 per mile, putting solid earnings in your pocket every mile you drive. If you hold a Class A license and are ready to get to work, we want to hear from you. Join our team today.",
+        "hook": "$0.68/mile for Class A drivers.",
+        "body": "Put your Class A CDL to work and earn $0.68 for every mile you drive. Join a team that values your time on the road. Apply today and see what this opportunity can do for your career.",
         "cta": "Apply now and join us."
       },
       "es": {
         "hook": "$0.68 por milla para conductores Clase A.",
-        "body": "Pagamos $0.68 por milla, lo que pone ingresos sólidos en tu bolsillo con cada kilómetro recorrido. Si tienes licencia Clase A y estás listo para trabajar, queremos saber de ti.",
-        "cta": "Aplica hoy y únete."
+        "body": "Pon tu CDL Clase A a trabajar y gana $0.68 por cada milla recorrida. Únete a un equipo que valora tu tiempo en la carretera. Postúlate hoy y descubre lo que esta oportunidad puede hacer por tu carrera.",
+        "cta": "Postúlate hoy."
       }
     }
   }

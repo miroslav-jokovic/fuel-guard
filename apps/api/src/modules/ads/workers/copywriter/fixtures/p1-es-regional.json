@@ -1,0 +1,95 @@
+{
+  "name": "p1-es-regional",
+  "about": "P1 Windshield sunrise: A Spanish subject, pay per mile, home weekends.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Conductor de camión Clase A, regional",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 66,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekends"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P1 Windshield sunrise",
+      "hook_formula": "Second person, present tense: put the reader in the driver's seat at dawn, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield at {time_of_day} on an open {road} highway, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day",
+        "road"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": "Slow push-in down the highway as the light rises",
+      "formats": [
+        "9:16",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:16:30.066Z",
+    "output": {
+      "en": {
+        "hook": "You drive at dawn, home weekends.",
+        "cta": "Apply now",
+        "primary_text": "Picture the sun rising through your windshield as you roll out on a regional route. You earn $0.66 per mile and you are home on weekends. If you hold a Class A CDL and are ready to get moving, we want to hear from you. Apply today and join our team.",
+        "headline": "Regional CDL-A: $0.66/mile"
+      },
+      "es": {
+        "hook": "Al volante al alba, en casa fines.",
+        "cta": "Aplica ahora",
+        "primary_text": "Imagina el amanecer frente a ti mientras conduces una ruta regional. Ganas $0.66 por milla y regresas a casa los fines de semana. Si tienes licencia Clase A y estás listo para empezar, queremos saber de ti. Únete a nuestro equipo hoy.",
+        "headline": "Regional Clase A: $0.66/milla"
+      }
+    }
+  }
+}

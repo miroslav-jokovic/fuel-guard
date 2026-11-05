@@ -172,8 +172,11 @@ const SPELLED_QUANTITY = new RegExp(String.raw`\b(${Object.keys(SPELLED).join("|
  * An age floor: "23+", "age 23", "23 years old", "mayores de 23", "mayor de 23 años", "23 anos de edad".
  * "mayor de 23 años" (singular, with the unit) is how a Spanish ad addresses one reader; before C2's eval
  * it was read as a bare "23 años" — a quantity of years — and refused (measured 2026-11-03).
+ * "23 or older", "23 years or older", "23 and over", "23 años o más": the same floor in the words a person
+ * writes it in. The live model wrote "if you are 23 or older" for an `age` claim of 23 (the 40-brief eval,
+ * 2026-11-05) and the check read the 23 as a figure it could not place — a valid ad refused.
  */
-const AGE = /\b(\d{2})\s?\+|\bage\s(\d{2})\b|\b(\d{2})\s(?:years?\sold|anos\sde\sedad)\b|\bmayor(?:es)?\sde\s(\d{2})(?:\sanos)?\b/g;
+const AGE = /\b(\d{2})\s?\+|\bage\s(\d{2})\b|\b(\d{2})\s(?:years?\sold|anos\sde\sedad|(?:years?\s)?(?:or|and)\s(?:older|over)|anos\so\smas)\b|\bmayor(?:es)?\sde\s(\d{2})(?:\sanos)?\b/g;
 
 function moneyMatches(claims: AdClaim[], cents: number, per: string | null): boolean {
   return claims.some((c) => c.kind === "money" && c.cents === cents && (per === null || c.per === per));

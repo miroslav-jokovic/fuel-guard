@@ -1,0 +1,84 @@
+{
+  "name": "revised-down",
+  "about": "§4R L2: Meta revised yesterday's numbers down overnight; the fold holds only the revised figures, which are smaller than the first report.",
+  "input": {
+    "fold": {
+      "day": "2026-11-02",
+      "month": {
+        "month": "2026-11",
+        "days_left": 29
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 11090,
+          "impressions": 6015,
+          "clicks": 70,
+          "leads": 2,
+          "cost_per_lead_cents": 5545,
+          "ctr": 0.011637572734829594
+        }
+      ],
+      "month_to_date": {
+        "meta": 19800
+      },
+      "cohorts": [
+        {
+          "week": "2026-09-21",
+          "leads": 38,
+          "reached": {
+            "contacted": 33,
+            "qualified": 17,
+            "applied": 10,
+            "hired": 4,
+            "lost": 8
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-28",
+          "leads": 40,
+          "reached": {
+            "contacted": 36,
+            "qualified": 20,
+            "applied": 12,
+            "hired": 5,
+            "lost": 9
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 12,
+          "reached": {
+            "contacted": 9,
+            "qualified": 3,
+            "applied": 1,
+            "hired": 0,
+            "lost": 1
+          },
+          "mature": false
+        }
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "analyst@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T14:30:58.660Z",
+    "output": {
+      "headline": "On 2026-11-02, 1 campaign ran and delivered 2 leads at $55.45 each from $110.90 in spend.",
+      "points": [
+        "Regional Class A — Joliet was the only campaign active, generating 6,015 impressions, 70 clicks, and a click rate of 1.2%.",
+        "Both leads came from Regional Class A — Joliet at a cost per lead of $55.45.",
+        "Month-to-date spend on Meta for 2026-11 sits at $198.00 with 29 days left in the month.",
+        "The 2026-09-28 cohort (40 leads) is the strongest mature group: contact rate 90.0%, qualified rate 50.0%, hired rate 12.5%.",
+        "The 2026-09-21 cohort (38 leads) shows a contact rate of 86.8%, a qualified rate of 44.7%, and a hired rate of 10.5%.",
+        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 qualified, 1 applied, and 1 lost — but it is too young to judge its rates."
+      ]
+    }
+  }
+}

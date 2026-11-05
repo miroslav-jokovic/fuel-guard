@@ -63,7 +63,8 @@
       "formats": [
         "1:1",
         "4:5"
-      ]
+      ],
+      "overlay_slots": null
     }
   },
   "expect": "ready",
@@ -71,17 +72,17 @@
     "source": "model",
     "prompt_version": "copywriter@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T05:02:09.706Z",
+    "recorded_at": "2026-11-05T15:15:51.367Z",
     "output": {
       "en": {
-        "hook": "$85,000/year for Class A dedicated drivers.",
-        "body": "This dedicated route gives you steady, reliable work. Benefits include health insurance and a 401k plan. If you hold a Class A CDL and want consistency, this seat is worth a look.",
-        "cta": "Apply today and join us."
+        "hook": "$85,000/yr for Class A dedicated drivers.",
+        "body": "Run a dedicated route and take home $85,000 a year. This position includes health insurance and a 401k, so you can build a future while you work. Join a team that values your time on the road.",
+        "cta": "Apply today."
       },
       "es": {
-        "hook": "$85,000 al año para conductores Class A dedicados.",
-        "body": "Esta ruta dedicada ofrece trabajo estable y constante. Los beneficios incluyen seguro médico y plan 401k. Si tiene CDL Class A y busca consistencia, esta posición es para usted.",
-        "cta": "Postúlese hoy con nosotros."
+        "hook": "$85,000 al año para conductores Clase A dedicados.",
+        "body": "Con ruta dedicada y $85,000 anuales, esta posición incluye seguro médico y plan 401k. Es una oportunidad para crecer profesional y financieramente. Únase a nuestro equipo.",
+        "cta": "Postúlese hoy."
       }
     }
   }

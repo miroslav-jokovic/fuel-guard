@@ -1,0 +1,109 @@
+{
+  "name": "p5-es-dedicated-annual",
+  "about": "P5 Straight talk: A Spanish subject, annual pay, dedicated, benefits.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Chofer Clase A para cuenta dedicada",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 9000000,
+          "per": "year"
+        },
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P5 Straight talk",
+      "hook_formula": "Three cards: what you get, what we need, how to apply. Plain and short.",
+      "copy_slots": [
+        {
+          "name": "card_get",
+          "max_chars": 90
+        },
+        {
+          "name": "card_need",
+          "max_chars": 90
+        },
+        {
+          "name": "card_apply",
+          "max_chars": 60
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 220
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A plain {color} card background with soft texture, no text, no logos, no lettering",
+      "image_slots": [
+        "color"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "card_get",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:19:35.344Z",
+    "output": {
+      "en": {
+        "card_get": "Get: $90,000/year, dedicated route, and health insurance.",
+        "card_need": "Need: A valid Class A CDL and a clean driving record.",
+        "card_apply": "Apply: Submit your application today.",
+        "cta": "Apply Now",
+        "primary_text": "A dedicated Class A driving position with $90,000 per year and health insurance. Consistent work, honest pay. If you hold a Class A CDL, we want to hear from you. Apply today and join our team.",
+        "headline": "Class A Driver — $90K/yr"
+      },
+      "es": {
+        "card_get": "Obtienes: $90,000/año, ruta dedicada y seguro médico.",
+        "card_need": "Necesitas: Licencia Clase A vigente y buen historial de manejo.",
+        "card_apply": "Aplica: Envía tu solicitud hoy mismo.",
+        "cta": "Aplica ya",
+        "primary_text": "Posición dedicada para conductor Clase A con $90,000 al año y seguro médico incluido. Trabajo constante y pago justo. Si tienes licencia Clase A, queremos conocerte. Únete a nuestro equipo.",
+        "headline": "Conductor Clase A — $90K/año"
+      }
+    }
+  }
+}

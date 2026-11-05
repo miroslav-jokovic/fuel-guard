@@ -55,7 +55,8 @@
       "formats": [
         "1:1",
         "4:5"
-      ]
+      ],
+      "overlay_slots": null
     }
   },
   "expect": "ready",
@@ -63,17 +64,17 @@
     "source": "model",
     "prompt_version": "copywriter@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T05:02:26.354Z",
+    "recorded_at": "2026-11-05T15:20:17.232Z",
     "output": {
       "en": {
-        "hook": "$0.68/mile, CDL-A.",
-        "body": "Regional routes with home weekly. Join our team.",
-        "cta": "Apply today."
+        "hook": "$0.68/mi, CDL-A",
+        "body": "Regional run, home weekly. Join our team.",
+        "cta": "Apply now"
       },
       "es": {
-        "hook": "$0.68 por milla.",
-        "body": "Rutas regionales, casa cada semana. Únase hoy.",
-        "cta": "Postúlese."
+        "hook": "$0.68/mi, CDL-A",
+        "body": "Ruta regional, regreso a casa cada semana.",
+        "cta": "Aplica ya"
       }
     }
   }
