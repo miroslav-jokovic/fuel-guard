@@ -1713,3 +1713,26 @@ blocking step in §3 above.
   - **The rating:** a sheet of the 40 ads, both languages slot by slot, is posted on the PR for the owner. The rate
     they give is recorded in the registry and the Copywriter reaches L3.
   - Mutation: 5 mutants (each new age form, the short-slot bound and share, the told limit), all killed.
+- **2026-11-05, E1b: Settings › Ads control — alerts and ad accounts**, Track S. No migration, no new route.
+  - **Alerts** are a section of the E1a form, saved in the same version (one save of one object; two saves
+    would each write a version). Per `ADS_ALERT_CATEGORIES` category: the people chosen, an "Add someone"
+    picker, and, when nobody is chosen, who hears it by default. An emptied list is left out, so a saved version
+    reads back as itself. `uncontacted_lead_minutes` 5–1440, judged by the contract.
+  - **The default audience is derived, not restated:** shared `ADS_LEAD_CALL_ALERTS` (`lead_new`,
+    `lead_uncontacted` → recruitment managers; every other → the admins). `adsAlerts.ts`'s `AdsAlert.category`
+    and `leadNotify.ts`'s `LeadAlert.category` are now typed from it, so the page and the bell cannot disagree.
+  - **People** come from the Users page's `useMembersQuery` (`GET /api/members`, admin-only), asked by
+    `AdsControlPage.vue` (one feature may not import another) and only for an admin. A non-admin sees
+    "2 people chosen", never names. Suspended members are not offered; an id that left reads "Someone no
+    longer in the company".
+  - **Ad accounts** card over `/api/ads/connections`: list (status, refs, last test), Test, Disconnect (with a
+    confirm), Connect the simulator (only while none is live), Connect a Meta account (form judged by
+    `adsMetaConnectSchema`, then "Test and connect"). Admin-only acts, by the route's gates; step-ups through
+    `useStepUpRetry`. A refused connect's report (nothing stored) is shown from the 422's body.
+  - **The test report's shape moved to shared** (`AdsConnectionReport`, `ADS_CONNECTION_CHECKS` in
+    `connectionContract.ts`; `connectionTest.ts` aliases them), so `last_test` is typed rather than `unknown`.
+  - **Browser pass** (build + preview, dev bypass; fail / empty / saved / ad-accounts-fail, 1280 + 390). It found
+    and fixed: a full-width picker per row; a failing account saying its failure twice; seven "Passed" rows per
+    healthy account (now one line); **connect buttons offered while the list failed to load**. Staging pass
+    owed: staging's web still calls the dead `uat` API (`STAGING_VITE_API_URL`, the 11/04 blocker).
+  - Mutation: 21 mutants, 20 killed; the survivor (`admin &&` before `connecting`) was a no-op guard, removed.

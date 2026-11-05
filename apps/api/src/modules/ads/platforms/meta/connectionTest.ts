@@ -1,3 +1,4 @@
+import { ADS_CONNECTION_CHECKS, type AdsConnectionCheck, type AdsConnectionCheckKey, type AdsConnectionReport } from "@silvicom/shared";
 import type { GraphFailure, MetaGraph } from "./graphClient.js";
 
 /**
@@ -37,27 +38,11 @@ import type { GraphFailure, MetaGraph } from "./graphClient.js";
 
 export const META_SCOPES = ["ads_management", "ads_read", "leads_retrieval", "pages_manage_metadata", "pages_read_engagement", "pages_show_list"] as const;
 
-export const CONNECTION_CHECKS = ["token", "permissions", "ad_account", "currency", "spending_limit", "page", "leadgen"] as const;
-export type ConnectionCheckKey = (typeof CONNECTION_CHECKS)[number];
-
-export interface ConnectionCheck {
-  key: ConnectionCheckKey;
-  /** null = not reached (an earlier check made it meaningless). */
-  ok: boolean | null;
-  detail: string;
-}
-
-export interface ConnectionReport {
-  ok: boolean;
-  checks: ConnectionCheck[];
-  user: { id: string; name: string | null } | null;
-  account: { id: string; name: string | null; account_status: number | null; currency: string | null; spend_cap_cents: number | null; amount_spent_cents: number | null } | null;
-  page: { id: string; name: string | null; tasks: string[] } | null;
-  scopes_granted: string[];
-  scopes_extra: string[];
-  /** The first failed check's Meta code (`token_invalid`, `meta_100`…) or the check's own key. */
-  error_code: string | null;
-}
+/** The report's shape is shared (`connectionContract.ts`): Settings › Ads control draws it (E1b). */
+export const CONNECTION_CHECKS = ADS_CONNECTION_CHECKS;
+export type ConnectionCheckKey = AdsConnectionCheckKey;
+export type ConnectionCheck = AdsConnectionCheck;
+export type ConnectionReport = AdsConnectionReport;
 
 export interface ConnectionTestResult {
   report: ConnectionReport;

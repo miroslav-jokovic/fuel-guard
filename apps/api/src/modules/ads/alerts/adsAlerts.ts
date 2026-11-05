@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ADS_SETTINGS_UNSET, type AdsAlertCategory, type NotificationCategory, type NotificationSeverity } from "@silvicom/shared";
+import { ADS_SETTINGS_UNSET, type AdsAlertCategory, type AdsLeadCallAlert, type NotificationSeverity } from "@silvicom/shared";
 import { notify } from "../../messaging/index.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 
@@ -18,7 +18,8 @@ import { settingsInForce } from "../settings/settingsVersions.js";
  */
 
 export interface AdsAlert {
-  category: Extract<NotificationCategory, `ads_${string}` | "lead_intake_failing">;
+  /** Every ads alert but the two that ask for a call (`ADS_LEAD_CALL_ALERTS`, whose fallback is recruiting). */
+  category: Exclude<AdsAlertCategory, AdsLeadCallAlert>;
   title: string;
   body: string;
   severity: NotificationSeverity;

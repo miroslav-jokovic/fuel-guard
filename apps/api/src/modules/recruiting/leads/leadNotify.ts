@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AdsAlertCategory, NotificationSeverity } from "@silvicom/shared";
+import type { AdsAlertCategory, AdsLeadCallAlert, NotificationSeverity } from "@silvicom/shared";
 import { notify } from "../../messaging/index.js";
 import { sectionManagerIds } from "../../org/index.js";
 
@@ -24,7 +24,7 @@ import { sectionManagerIds } from "../../org/index.js";
 
 export type ConfiguredRecipients = (orgId: string, category: AdsAlertCategory) => Promise<string[]>;
 
-type LeadAlert = { category: "lead_new" | "lead_uncontacted"; title: string; body: string; severity: NotificationSeverity };
+type LeadAlert = { category: AdsLeadCallAlert; title: string; body: string; severity: NotificationSeverity };
 
 async function recipients(admin: SupabaseClient, orgId: string, category: LeadAlert["category"], configured: ConfiguredRecipients): Promise<string[]> {
   const chosen = await configured(orgId, category);
