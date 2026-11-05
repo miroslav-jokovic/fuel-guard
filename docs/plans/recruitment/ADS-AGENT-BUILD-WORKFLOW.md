@@ -327,7 +327,7 @@ a PR that review sees.
 | **Budget guard** | Cap −1/0/+1; concurrent launches racing the cap; a raise just over the limit; clock at month boundary (Central time); kill switch while a call is in flight | 100 % of spend calls pass through it: a test fails if any adapter spend method is imported outside `guard/` |
 | **Publisher (per adapter)** | 429/5xx/timeout on each create step; half-created campaign (campaign yes, ad set no) → resumed, never duplicated; token revoked → stops + alert | Contract suite green on the fake (L2) and on the sandbox (L4) |
 | **Monitor** | Insights late, missing hours, numbers revised downward by the platform; an Ads-Manager edit; 30 simulated days with fatigue, overspend, zero-lead spend | Golden scenarios: each rule fires exactly at its threshold and minimum spend, never on a learning-phase ad set except caps; reconcile flags every planted mismatch and nothing else |
-| **Lead intake** | Forged signature; duplicate webhook; webhook lost (backfill must bring it); same person on two platforms; malformed phone; prompt-injection text in a lead's free-text answer | 0 lost, 0 duplicated leads over the scenario set; injection text never reaches an action (extractor output stays `proposed`) |
+| **Lead intake** | Forged signature; duplicate webhook; webhook lost (backfill must bring it); same person on two platforms; malformed phone; prompt-injection text in a lead's free-text answer | 0 lost, 0 duplicated leads over the scenario set; injection text never reaches an action (no model is on a lead's road; if an extractor is ever added, its output stays `proposed`) |
 | **Outcome feed** | Replay of the same stage; a stage arriving after 28 days; platform refuses an event | Exactly one accepted event per stage row |
 | **Copywriter** (Claude) | Brief missing pay; brief in Spanish; brief containing an instruction ("ignore the rules…"); a preset whose slots are too short | Evaluation set (≥ 40 briefs × presets, EN + ES, written in Stage 1): **0 claims outside the brief reach review** (enforced by the pure claim checker, so this bar is absolute); human-rated "approve without edit" rate recorded as the baseline |
 | **Art director** (Claude) | Brand kit missing photos; a preset showing people while the people policy is "none" | Every prompt ends with the no-lettering clause and uses a reference photo when the preset shows equipment (pure check, absolute) |
@@ -1622,3 +1622,20 @@ blocking step in §3 above.
     `checks.ts` filters first; the pure test in `monitorChecks.test.ts` kills that one.
   - Next: L3 for both, golden scenarios. The runner (`adsGolden.ts`) drives the orchestrator, so it needs a monitor and an
     intake mode first.
+- **2026-11-04, Monitor L3 and Lead intake L3** — the leads track, #2047 and #2048. No migration, no production code. Both
+  workers read L3; L4 needs vendor credentials, so this track stops here unless the owner gives it more.
+  - **Monitor:** 20 scenarios in `packages/ads-golden/scenarios/monitor/`, with their own schema and runner, because a
+    monitor run shares almost nothing with a campaign's timeline. `loadScenarios` does not descend into the folder. Each
+    rule sits a cent under, at and over its threshold, and every reconcile field has a scenario. Spend now arrives through
+    `insightsPull` (`adsWorld` holds its upserts), which closes the limit `thirtyDays.test.ts` recorded.
+  - **Lead intake:** 15 scenarios in `scenarios/leads/`, and a sweep of one lead through all 121 orders of delivery, worker
+    run and backfill. The schema refuses a scenario that leaves a lead unaccounted for.
+  - **Which proves what:** the receiver, queue key, fetch, backfill, sink, projection and verdicts are real, and
+    `ingest_lead` is a map keyed as its unique index is. So the scenarios prove the two roads, and
+    `recruiting-lead-functions.test.mjs` proves the SQL. L3 pins both.
+  - **The extractor line:** §4R's bar is restated. No model is on a lead's road, and the old wording stays as the rule if
+    an extractor is ever added. **Not ruled by the owner;** this took the previous handoff's recommendation.
+  - **Found:** a campaign deleted at Meta fails `ads_reconcile` and `ads_insights` on every run (Q-AD34), going by the
+    simulator's answer. Nothing changed; L4 shows what Meta really does. Also, a cost per lead of 4200.33 fires against 4200
+    and is ledgered "4200 > 4200", because `measured` is rounded. The rule is right, the line reads oddly.
+  - Mutation: 42 mutants on the monitor and 20 on the lead roads, all killed by a named scenario, none by a compile error.

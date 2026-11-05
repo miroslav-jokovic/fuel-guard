@@ -1,5 +1,7 @@
 # Handoff · 2026-11-04 · After the leads screen — owner-made campaigns
 
+**Superseded by `HANDOFF-2026-11-04-MONITOR-INTAKE-L3.md`.** Step 1 here is answered and step 2 is blocked on Q-AD32.
+
 **Paste this whole file into a fresh chat.** It continues `HANDOFF-2026-11-04-LEADS-E4B3.md`, whose steps 1–3 are done
 and merged. This is still the SECOND track beside the ads agent's own (`HANDOFF-2026-11-04-ADS-STAGE1-TRACKS.md`).
 **That chat owns `modules/ads/`, the monitor and reconcile, and `features/ads/`.** Coordinate through the progress log.
