@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADS_AUTHORITY, checkSpend, isSafeDirection, mayAct, needsSecondApprover, type SpendRequest } from "./adsPolicy.js";
+import { ADS_AUTHORITY, checkSpend, forecastMonthCents, isSafeDirection, mayAct, needsSecondApprover, type SpendRequest } from "./adsPolicy.js";
 import { ADS_SETTINGS_UNSET, ADS_ALERT_CATEGORIES, adsSettingsSchema, type AdsSettings } from "./settingsContract.js";
 
 const settings = (patch: Partial<AdsSettings["limits"]> = {}, approvals: Partial<AdsSettings["approvals"]> = {}): AdsSettings => ({
@@ -136,5 +136,14 @@ describe("settings contract", () => {
     expect(bad({ limits: { ...ADS_SETTINGS_UNSET.limits, daily_max_cents: 0 } })).toBe(false);
     expect(bad({ limits: { ...ADS_SETTINGS_UNSET.limits, monthly_cap_cents: { meta: -1 } } })).toBe(false);
     expect(bad({ budgets: { ...ADS_SETTINGS_UNSET.budgets, max_regenerations: 6 } })).toBe(false);
+  });
+});
+
+describe("forecastMonthCents (E1c: the launch check's forecast, also shown on Settings › Ads control)", () => {
+  it("spent so far plus every live daily budget for each day left, today included", () => {
+    expect(forecastMonthCents(8_000, 5_000, 16)).toBe(88_000);
+  });
+  it("counts at least today, and whole days only", () => {
+    expect([forecastMonthCents(100, 50, 0), forecastMonthCents(100, 50, 2.7)]).toEqual([150, 200]);
   });
 });

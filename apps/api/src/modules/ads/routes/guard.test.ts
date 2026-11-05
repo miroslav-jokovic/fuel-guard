@@ -83,6 +83,15 @@ describe("/api/ads — who may do what", () => {
     expect((await call("GET", "settings")).status).toBe(403);
   });
 
+  it("spend so far (E1c) has the settings' readers: anyone who can see recruitment, and no outsider", async () => {
+    caller = as(MANAGER);
+    const res = await call("GET", "spend");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ platforms: [], campaigns: [], reconcile: [] });
+    caller = as(OUTSIDER);
+    expect((await call("GET", "spend")).status).toBe(403);
+  });
+
   it("only an admin with a fresh sign-in saves settings", async () => {
     const body = { settings: ADS_SETTINGS_UNSET };
     caller = as(MANAGER);

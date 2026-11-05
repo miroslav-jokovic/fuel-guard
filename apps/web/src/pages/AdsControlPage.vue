@@ -5,13 +5,14 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import AdsConnectionsCard from "@/features/ads/AdsConnectionsCard.vue";
 import AdsKillSwitchCard from "@/features/ads/AdsKillSwitchCard.vue";
 import AdsSettingsForm from "@/features/ads/AdsSettingsForm.vue";
+import AdsSpendCard from "@/features/ads/AdsSpendCard.vue";
 import { useAdsSettings } from "@/features/ads/useAdsSettings";
 import { useMembersQuery } from "@/features/permissions/usePermissions";
 import { useSessionStore } from "@/stores/session";
 
 /**
  * Settings › Ads control (ADS-AGENT-PLAN §4b; ADS-AGENT-BUILD-WORKFLOW E1). The recruiting ads agent's
- * limits, automatic pauses, approvals, AI budgets, alerts, ad accounts and kill switch, on one page.
+ * limits, automatic pauses, approvals, AI budgets, alerts, ad accounts, spend so far and kill switch, on one page.
  *
  * ── WHO REACHES IT ────────────────────────────────────────────────────────────────────────────
  * The catalogue's `admin.recruiting.ads`, `section("recruitment")`, as Settings › Recruiting is: anyone
@@ -25,8 +26,9 @@ import { useSessionStore } from "@/stores/session";
  * (`lint:boundaries`). That read is admin-only at the API, so it is asked only for an admin: anyone else
  * would get a 403 for a list the alerts section then shows only as a count.
  *
- * ── STILL TO COME (E1c) ───────────────────────────────────────────────────────────────────────
- * Spend so far against the caps (the D-AD5 fold) is E1c, which needs its own read.
+ * ── SPEND SO FAR (E1c) ────────────────────────────────────────────────────────────────────────
+ * Its own read (`GET /api/ads/spend`), placed under the kill switch: the question someone opening this page
+ * in a hurry asks is "how much has gone out", and the answer sits beside the brake.
  */
 const session = useSessionStore();
 const settings = useAdsSettings();
@@ -47,6 +49,7 @@ const membersFailed = computed(() => Boolean(members?.error.value));
     >
       <div v-if="settings.data.value" class="space-y-6">
         <AdsKillSwitchCard :view="settings.data.value" />
+        <AdsSpendCard />
         <AdsConnectionsCard />
         <AdsSettingsForm :view="settings.data.value" :members="memberList" :members-failed="membersFailed" />
       </div>

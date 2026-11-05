@@ -1935,3 +1935,25 @@ blocking step in §3 above.
     first; the last; its platform); a real connection exempted; the simulator exempted on production; the door losing
     the connection's provider; no `last_error`; the route dropping `missing`; a failed run certifying; L4 read from tests;
     a hand-edited generated file.
+
+- **2026-11-05, E1c: Settings › Ads control — spend so far**, Track S. No migration. **New read
+  `GET /api/ads/spend`** (`routes/guard.ts`, same gate as the settings read: `section("recruitment")` view), shape
+  shared as `AdsSpendView` (`spendContract.ts`). Every figure is code the guard and the rails already gate on:
+  - per platform: the guard's `platformSpend` (month-to-date + live daily budgets), `monthlyCapFor`, and the
+    forecast from the new shared **`forecastMonthCents`**, which `checkSpend` now calls too — one formula. A test
+    pins the page's forecast to `checkSpend`'s for the same inputs.
+  - per campaign (paused onward; drafts and review have spent nothing): `foldCampaignSpend` over every page of
+    `ads_spend_hourly`, today in Central time (a 9 pm Saturday row on the UTC 15th is pinned as yesterday) and
+    lifetime, beside the daily budget and lifetime cap.
+  - AI: `anthropicTokensThisMonth` / `higgsfieldCreditsThisMonth` against the saved budgets.
+  - reconcile per Meta connection: the last finished `ads_reconcile` job (org's `lastDoneJobByKey`), late after
+    2 × `ADS_RECONCILE_MS`, and the `external_change` rows since.
+  - The page says spend is from our hourly pull and that a launch also takes Meta's own figure if larger (the
+    page makes no platform call).
+  - A settings save now refreshes the spend read too (the caps it is measured against moved).
+  - Browser pass (fail / empty / saved, 1280 + 390): fixed the campaign name truncated by the platform suffix
+    on a phone (platform is its own short column) and an empty table under "no ad account is connected".
+    Staging pass owed (the same `STAGING_VITE_API_URL` blocker).
+  - Mutation: 23 mutants, 23 killed — after adding the four tests the first run's five survivors asked for
+    (the carrier's day start, paging past 1,000, the `external_change` filter, the at-least-one-day floor, the
+    spend refresh on save).
