@@ -435,7 +435,29 @@ export const READINESS = [
           ],
         },
       ],
-      L2: later("L2"), L3: later("L3"), L4: [{ need: "insights from the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }],
+      L2: [
+        {
+          need: "insights late, missing hours, numbers revised down by the platform",
+          tests: [{ file: "apps/api/src/modules/ads/monitor/insightsPull.test.ts", titles: [
+            "a late hour — not reported on one run — fills in on the next, beside the hours already held",
+            "an hour Meta stops reporting is written as zero — but a failed read leaves every stored hour alone",
+            "an hour Meta revises DOWN replaces the stored hour on the next run",
+          ] }],
+        },
+        {
+          need: "an Ads-Manager edit",
+          tests: [{ file: "apps/api/src/modules/ads/monitor/reconcile.test.ts", titles: [
+            "an Ads-Manager status change → exactly one external_change, by the platform, and one critical bell — and the next run adds none",
+          ] }],
+        },
+        {
+          need: "30 simulated days with fatigue, overspend, zero-lead spend",
+          tests: [{ file: "apps/api/src/modules/ads/monitor/thirtyDays.test.ts", titles: [
+            "each rule pauses its campaign once, on the day it is passed, and a healthy campaign runs the whole month",
+          ] }],
+        },
+      ],
+      L3: later("L3"), L4: [{ need: "insights from the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }],
     },
   },
   {
