@@ -4,6 +4,7 @@ import {
   type AdBriefSource, type AdsCampaignCreate, type AdsCampaignCreateRefusal, type AdsCampaignLaunch, type AdsCampaignMove,
   type AdsCampaignSummary, type AdsCampaignView, type AdsCreativeView, type CampaignState,
 } from "@silvicom/shared";
+import { AD_ASSETS_BUCKET } from "../creative/brandAssets.js";
 import { listBrandKits } from "../creative/kitVersions.js";
 import { findCoveringApproval } from "../guard/approvals.js";
 import { applyCampaignEvent, insertCampaign, loadCampaign, recordCampaignRefusal, type TransitionResult } from "../orchestrator/transitions.js";
@@ -79,7 +80,26 @@ export async function readCampaign(admin: SupabaseClient, orgId: string, id: str
   if (!data) return null;
   const { data: cr, error: e2 } = await admin.from("ads_creatives").select(CREATIVE).eq("org_id", orgId).eq("campaign_id", id).order("created_at", { ascending: true });
   if (e2) throw new Error(`ads_creatives: ${e2.message}`);
-  return { ...(data as unknown as Omit<AdsCampaignView, "creatives">), creatives: (cr ?? []) as unknown as AdsCreativeView[] };
+  return { ...(data as unknown as Omit<AdsCampaignView, "creatives">), creatives: await withImageUrls(admin, orgId, (cr ?? []) as unknown as AdsCreativeView[]) };
+}
+
+/** Long enough to look an ad over; the screen reads the campaign again and gets fresh links after that. */
+const IMAGE_URL_SECONDS = 600;
+
+/**
+ * E3's review screen shows each finished ad (D-AD12: a person approves what they have seen). `ad-assets` is
+ * private, so the read hands out short-lived links, made from the paths on this org's own rows. A stored path
+ * outside this org's folder gets none: the service role would sign anything it is asked, so the folder is checked here.
+ */
+async function withImageUrls(admin: SupabaseClient, orgId: string, creatives: AdsCreativeView[]): Promise<AdsCreativeView[]> {
+  const ours = [...new Set(creatives.flatMap((c) => (c.assets ?? []).map((a) => a.path)))].filter((p) => p.startsWith(`${orgId}/`));
+  const urls = new Map<string, string>();
+  if (ours.length > 0) {
+    const { data, error } = await admin.storage.from(AD_ASSETS_BUCKET).createSignedUrls(ours, IMAGE_URL_SECONDS);
+    if (error) throw new Error(`ad-assets links: ${error.message}`);
+    for (const d of data ?? []) if (d.path && d.signedUrl) urls.set(d.path, d.signedUrl);
+  }
+  return creatives.map((c) => ({ ...c, assets: (c.assets ?? []).map((a) => ({ ...a, url: urls.get(a.path) ?? null })) }));
 }
 
 // ── S1c: a person's moves, and the approver's launch ─────────────────────────────────────────────

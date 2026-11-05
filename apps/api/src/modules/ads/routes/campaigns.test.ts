@@ -97,7 +97,10 @@ beforeEach(() => {
     ads_campaigns: [{ id: THEIRS, org_id: OTHER, name: "Theirs", state: "review", brief_source: "recruiting_opening", brief_ref: "x", created_at: "2026-11-01T00:00:00Z" }],
     ads_creatives: [],
   };
-  db = createSupabaseRecorder({ tables: Object.fromEntries(Object.keys(tables).map((t) => [t, store(t)])) });
+  db = createSupabaseRecorder({
+    tables: Object.fromEntries(Object.keys(tables).map((t) => [t, store(t)])),
+    storage: { createSignedUrls: (paths: string[]) => ({ data: paths.map((path) => ({ path, signedUrl: `https://store/${path}?token=t`, error: null })), error: null }) },
+  });
   holder.client = db.client;
 });
 
@@ -196,6 +199,25 @@ describe("GET /api/ads/campaigns(/:id) — the list and the review screen's read
     expect(body.campaign.creatives.map((c) => c.id)).toEqual(["c1", "c2"]);
     expect(body.campaign.creatives[1]?.last_error).toBe("visual: a foreign logo");
     expectOrgScoped(db, ORG);
+  });
+
+  it("hands the review screen a short-lived link to each image in this carrier's folder, and none outside it", async () => {
+    await call("POST", "campaigns", ask());
+    const asset = { format: "1:1", language: "en", sha256: "a".repeat(64), width: 1080, height: 1080 };
+    tables.ads_creatives = [{
+      id: "c1", org_id: ORG, campaign_id: NEW_ID, state: "ready", created_at: "2026-11-04T10:01:00Z",
+      assets: [{ ...asset, path: `${ORG}/a.png` }, { ...asset, language: "es", path: `${OTHER}/b.png` }],
+    }];
+    const body = (await (await call("GET", `campaigns/${NEW_ID}`)).json()) as { campaign: { creatives: Array<{ assets: Array<{ url: string | null }> }> } };
+    expect(body.campaign.creatives[0]!.assets.map((a) => a.url)).toEqual([`https://store/${ORG}/a.png?token=t`, null]);
+    expect(db.storageCalls()).toEqual([{ bucket: "ad-assets", fn: "createSignedUrls", args: [[`${ORG}/a.png`], 600] }]);
+  });
+
+  it("a campaign with no finished image asks storage for nothing", async () => {
+    await call("POST", "campaigns", ask());
+    tables.ads_creatives = [{ id: "c1", org_id: ORG, campaign_id: NEW_ID, state: "generating", created_at: "2026-11-04T10:01:00Z" }];
+    expect((await call("GET", `campaigns/${NEW_ID}`)).status).toBe(200);
+    expect(db.storageCalls()).toEqual([]);
   });
 
   it("another carrier's campaign is not found, and a malformed id is a bad request", async () => {
