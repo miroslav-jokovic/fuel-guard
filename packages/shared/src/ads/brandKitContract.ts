@@ -75,6 +75,12 @@ const overlaySchema = z.object({
   plate_color: hex.nullable(),
 });
 
+/**
+ * The overlay a new kit starts with for each format: white text on a dark plate. A format with no overlay is
+ * refused at compose (`no_template`), so the editor (E2) fills these in; the render check still measures contrast.
+ */
+export const AD_OVERLAY_START = { text_color: "#FFFFFF", plate_color: "#111111" } as const;
+
 export const adBrandKitSchema = z.object({
   /** Exactly as it should read in an ad. */
   company_name: z.string().trim().min(1).max(120),

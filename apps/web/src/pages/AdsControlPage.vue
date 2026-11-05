@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { QueryState } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import AdsBrandKitCard from "@/features/ads/AdsBrandKitCard.vue";
 import AdsConnectionsCard from "@/features/ads/AdsConnectionsCard.vue";
 import AdsKillSwitchCard from "@/features/ads/AdsKillSwitchCard.vue";
 import AdsSettingsForm from "@/features/ads/AdsSettingsForm.vue";
@@ -51,6 +52,7 @@ const membersFailed = computed(() => Boolean(members?.error.value));
         <AdsKillSwitchCard :view="settings.data.value" />
         <AdsSpendCard />
         <AdsConnectionsCard />
+        <AdsBrandKitCard />
         <AdsSettingsForm :view="settings.data.value" :members="memberList" :members-failed="membersFailed" />
       </div>
     </QueryState>
