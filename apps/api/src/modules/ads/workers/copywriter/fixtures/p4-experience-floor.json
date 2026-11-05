@@ -1,0 +1,94 @@
+{
+  "name": "p4-experience-floor",
+  "about": "P4 Walk-around: An experience requirement as a quantity.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A tanker driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 75,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P4 Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our tractor parked in a {setting}, three-quarter view, no text, no logos, no lettering",
+      "image_slots": [
+        "setting"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": "A slow orbit around the tractor",
+      "formats": [
+        "9:16"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:19:23.636Z",
+    "output": {
+      "en": {
+        "hook": "Tanker. $0.75/mile.",
+        "cta": "Apply Now",
+        "primary_text": "Put your Class A CDL and 2 years of experience to work in a tanker seat that pays $0.75 per mile. If you are ready to drive and want honest, straightforward pay, apply today and join our team.",
+        "headline": "Class A Tanker Driver Needed"
+      },
+      "es": {
+        "hook": "Tanque. $0.75 por milla.",
+        "cta": "Aplica ya",
+        "primary_text": "Pon tu CDL Clase A y tus 2 años de experiencia al volante de un tanque con pago de $0.75 por milla. Si buscas un trabajo directo y bien remunerado, únete a nuestro equipo hoy mismo.",
+        "headline": "Conductor Clase A con Tanque"
+      }
+    }
+  }
+}

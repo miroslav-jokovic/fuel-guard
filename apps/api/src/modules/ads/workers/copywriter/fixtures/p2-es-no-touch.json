@@ -1,0 +1,98 @@
+{
+  "name": "p2-es-no-touch",
+  "about": "P2 The number: A Spanish subject, no-touch freight, drop and hook.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Chofer de caja seca Clase A",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 64,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "no-touch freight"
+        },
+        {
+          "kind": "term",
+          "term": "drop and hook"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P2 The number",
+      "hook_formula": "Open with the pay figure alone, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A late-model tractor on a dark {background} background, studio light, no text, no logos, no lettering",
+      "image_slots": [
+        "background"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T15:17:26.583Z",
+    "output": {
+      "en": {
+        "pay": "$0.64/mile for CDL-A",
+        "cta": "Apply today",
+        "primary_text": "Earn $0.64 per mile hauling no-touch freight with drop and hook loads. If you hold a Class A CDL and want straightforward work, join our team and get started.",
+        "headline": "Class A dry van opportunity"
+      },
+      "es": {
+        "pay": "$0.64/milla para CDL-A",
+        "cta": "Aplica hoy",
+        "primary_text": "Gana $0.64 por milla transportando carga sin contacto con operaciones de drop and hook. Si tienes licencia Clase A, únete a nuestro equipo.",
+        "headline": "Oportunidad en caja seca CDL-A"
+      }
+    }
+  }
+}

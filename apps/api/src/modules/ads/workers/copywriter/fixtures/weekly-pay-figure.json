@@ -59,29 +59,27 @@
       "formats": [
         "1:1",
         "4:5"
-      ]
+      ],
+      "overlay_slots": null
     }
   },
-  "expect": "refused",
+  "expect": "ready",
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T05:02:45.752Z",
+    "recorded_at": "2026-11-05T15:20:38.252Z",
     "output": {
       "en": {
         "hook": "$1,500/week for Class A local drivers.",
-        "body": "This local route gets you home daily, so you keep your life on your schedule. Work is drop and hook, keeping you moving without the wait. If you hold a Class A and want steady weekly pay, we want you on our team.",
-        "cta": "Apply today and join us."
+        "body": "This local route gets you home daily, so you keep your life while you work. Loads are drop and hook, meaning no waiting around. If you hold a Class A CDL and want steady, local work, this is the seat for you.",
+        "cta": "Apply with us today."
       },
       "es": {
         "hook": "$1,500 por semana para conductores locales Clase A.",
-        "body": "Esta ruta local te permite llegar a casa todos los días. El trabajo es drop and hook, sin largas esperas. Si tienes licencia Clase A y buscas pago semanal estable, únete a nuestro equipo.",
-        "cta": "Postúlate hoy con nosotros."
+        "body": "Esta ruta local le permite regresar a casa todos los días. Las cargas son drop and hook, sin esperas. Si tiene una CDL Clase A y busca trabajo local y estable, esta posición es para usted.",
+        "cta": "Postúlese hoy mismo."
       }
     }
-  },
-  "expect_findings": [
-    "term_not_in_brief"
-  ]
+  }
 }

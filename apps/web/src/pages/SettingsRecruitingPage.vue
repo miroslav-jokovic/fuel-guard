@@ -8,6 +8,7 @@ import CarrierStepsEditor from "@/features/recruitment/CarrierStepsEditor.vue";
 import ApplicationFormSettings from "@/features/recruitment/ApplicationFormSettings.vue";
 import CarrierQuestionsEditor from "@/features/recruitment/CarrierQuestionsEditor.vue";
 import ApplicantMessagesSettings from "@/features/recruitment/ApplicantMessagesSettings.vue";
+import DrugAlcoholPolicyCard from "@/features/recruitment/DrugAlcoholPolicyCard.vue";
 
 /**
  * Settings → Recruiting (APPLICATION-FLOW-V2-PLAN.md R1, Q-AW42 ruled (a) by the owner 2026-09-28).
@@ -43,6 +44,11 @@ import ApplicantMessagesSettings from "@/features/recruitment/ApplicantMessagesS
  * The questions an applicant must answer and the documents the application asks for, after the hiring
  * steps: both shape what the office sends, and each applicant keeps what they were sent (D-RS3). Under them,
  * the carrier's own questions (§15.3 D-CQ1, 0567) — in the same card, because they are the same form.
+ *
+ * ── DRUG AND ALCOHOL POLICY (§15.2 DAP2) ──────────────────────────────────────────────────────
+ * The carrier's §382.601 policy, which every applicant is given at page 28 and signs for. Read-only — its
+ * text is in code (D-DAP1) — so the card only opens it blank and names the text in use. Under the form,
+ * because it is one of the papers the form hands the applicant.
  *
  * ── MESSAGES (§12 MT2, 0551) ──────────────────────────────────────────────────────────────────
  * The carrier's own words in the invitation, "your application is ready", the reminder and the videos
@@ -81,6 +87,15 @@ import ApplicantMessagesSettings from "@/features/recruitment/ApplicantMessagesS
         <div class="border-t border-edge pt-4">
           <CarrierQuestionsEditor />
         </div>
+      </div>
+    </SettingsSection>
+
+    <SettingsSection
+      title="Drug and alcohol policy"
+      description="The policy every applicant is given and signs for. Open it to read the pages a driver gets."
+    >
+      <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
+        <DrugAlcoholPolicyCard />
       </div>
     </SettingsSection>
 

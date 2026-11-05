@@ -88,6 +88,21 @@ export function foldCampaignSpend(rows: readonly SpendHourRow[]): CampaignTotals
 }
 
 /**
+ * The day across every campaign: how many ran, and their totals with the same cost-per-lead and CTR
+ * rules as one campaign's. A reader asks "how many leads did we get yesterday" before any campaign's —
+ * and a sum the model works out is a number no fold produced (F1), so the fold produces it.
+ */
+export function sumCampaignTotals(ts: readonly CampaignTotals[]): Omit<CampaignTotals, "campaign_id"> & { campaigns: number } {
+  const s = ts.reduce((a, t) => ({ spend_cents: a.spend_cents + t.spend_cents, impressions: a.impressions + t.impressions, clicks: a.clicks + t.clicks, leads: a.leads + t.leads }),
+    { spend_cents: 0, impressions: 0, clicks: 0, leads: 0 });
+  return {
+    campaigns: ts.length, ...s,
+    cost_per_lead_cents: s.leads > 0 ? Math.round(s.spend_cents / s.leads) : null,
+    ctr: s.impressions > 0 ? s.clicks / s.impressions : null,
+  };
+}
+
+/**
  * Month-to-date spend per platform — `SpendRequest.month_to_date_cents`. Rows outside [start, end)
  * are ignored, so the caller may pass a wider read safely. A campaign with no known platform is
  * counted under none and reported, never guessed into one.
@@ -169,4 +184,14 @@ export function foldLeadCohorts(
     c.mature = todayUtc - weekEnd >= matureAfterDays * 86_400_000;
   }
   return [...by.values()].sort((a, b) => (a.week < b.week ? -1 : 1));
+}
+
+/**
+ * The share of a cohort's leads that reached each stage, 0–1. Null for an immature cohort (its rates are
+ * still climbing — `Cohort.mature`) and for one with no lead, so no reader is handed a rate to compare that
+ * the fold does not stand behind (F1: the analyst narrates only what this returns).
+ */
+export function cohortRates(c: Cohort): Record<OutcomeStage, number> | null {
+  if (!c.mature || c.leads === 0) return null;
+  return Object.fromEntries(STAGES.map((s) => [s, c.reached[s] / c.leads])) as Record<OutcomeStage, number>;
 }

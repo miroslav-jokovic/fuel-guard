@@ -1,0 +1,82 @@
+{
+  "name": "planted-pre-revision-figure",
+  "about": "§4R L2: the figure Meta first reported, before it revised the day down — the fold holds only the revised one.",
+  "input": {
+    "fold": {
+      "day": "2026-11-02",
+      "month": {
+        "month": "2026-11",
+        "days_left": 29
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 11090,
+          "impressions": 6015,
+          "clicks": 70,
+          "leads": 2,
+          "cost_per_lead_cents": 5545,
+          "ctr": 0.011637572734829594
+        }
+      ],
+      "month_to_date": {
+        "meta": 19800
+      },
+      "cohorts": [
+        {
+          "week": "2026-09-21",
+          "leads": 38,
+          "reached": {
+            "contacted": 33,
+            "qualified": 17,
+            "applied": 10,
+            "hired": 4,
+            "lost": 8
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-28",
+          "leads": 40,
+          "reached": {
+            "contacted": 36,
+            "qualified": 20,
+            "applied": 12,
+            "hired": 5,
+            "lost": 9
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 12,
+          "reached": {
+            "contacted": 9,
+            "qualified": 3,
+            "applied": 1,
+            "hired": 0,
+            "lost": 1
+          },
+          "mature": false
+        }
+      ]
+    }
+  },
+  "expect": "refused",
+  "expect_findings": [
+    "number_not_in_fold"
+  ],
+  "recorded": {
+    "source": "planted",
+    "prompt_version": "analyst@1",
+    "model": "none (written by a person)",
+    "recorded_at": "2026-11-04T00:00:00Z",
+    "output": {
+      "headline": "Regional Class A — Joliet spent $118.40 on 2026-11-02.",
+      "points": [
+        "It brought 2 leads."
+      ]
+    }
+  }
+}

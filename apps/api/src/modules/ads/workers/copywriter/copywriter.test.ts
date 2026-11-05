@@ -3,7 +3,7 @@ import { ADS_SETTINGS_UNSET, type AdsSettings } from "@silvicom/shared";
 import type { MessagesClient } from "../../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../../testing/supabaseRecorder.js";
 import { COPYWRITER_EVAL, loadFixtures } from "../agentFixtures.js";
-import { COPYWRITER_PROMPT_VERSION, TOLD_LIMIT_SHARE, copyUserMessage, writeCopy } from "./copywriter.js";
+import { COPYWRITER_PROMPT_VERSION, copyUserMessage, toldLimit, writeCopy } from "./copywriter.js";
 
 /**
  * The Copywriter's replay (workflow C2; §4R "CI replays recorded model outputs"). Every fixture's RECORDED
@@ -40,9 +40,16 @@ const fixtures = loadFixtures(COPYWRITER_EVAL);
 
 describe("copywriter replay — every recorded answer reaches its fixture's verdict", () => {
   it("has model recordings under the prompt in force and planted defects beside them", () => {
-    expect(fixtures.filter((f) => f.fixture.recorded.source === "model").length).toBeGreaterThanOrEqual(10);
+    expect(fixtures.filter((f) => f.fixture.recorded.source === "model").length).toBeGreaterThanOrEqual(40);
     expect(fixtures.filter((f) => f.fixture.recorded.source === "planted").length).toBeGreaterThanOrEqual(4);
     for (const { fixture } of fixtures) expect(fixture.recorded.prompt_version, fixture.name).toBe(COPYWRITER_PROMPT_VERSION);
+  });
+
+  it("the evaluation set covers every proposed preset, P1–P5, with Spanish-written briefs beside English ones", () => {
+    const model = fixtures.map((f) => f.fixture).filter((f) => f.recorded.source === "model");
+    for (const p of ["P1", "P2", "P3", "P4", "P5"]) expect(model.filter((f) => f.input.recipe.name.startsWith(`${p} `)).length, p).toBeGreaterThanOrEqual(6);
+    const spanish = model.filter((f) => /\b(conductor|conductores|chofer|cami[oó]n)\b/i.test(f.input.brief.subject));
+    expect(spanish.length).toBeGreaterThanOrEqual(15);
   });
 
   // The cases a readiness level is pinned to are named here literally, so `lint:ads-readiness` can see
@@ -109,7 +116,11 @@ describe("copywriter — what it sends and under which key", () => {
 
   it("tells the model a margin under each slot's limit, and the check holds the real limit", () => {
     const sent = JSON.parse(copyUserMessage(fx.input.brief, fx.input.recipe)) as { concept: { slots: Array<{ name: string; max_chars: number }> } };
-    expect(sent.concept.slots).toEqual(fx.input.recipe.copy_slots.map((s) => ({ name: s.name, max_chars: Math.floor(s.max_chars * TOLD_LIMIT_SHARE) })));
+    expect(sent.concept.slots).toEqual(fx.input.recipe.copy_slots.map((s) => ({ name: s.name, max_chars: toldLimit(s.max_chars) })));
+  });
+
+  it("tells a short slot a wider margin than a long one, never more than the real limit", () => {
+    expect([toldLimit(40), toldLimit(60), toldLimit(61), toldLimit(220)]).toEqual([28, 42, 51, 187]);
   });
 
   it("asks no model when the copywriter is switched off", async () => {

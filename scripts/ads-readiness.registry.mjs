@@ -39,6 +39,10 @@ const RENDER = "apps/api/src/modules/ads/creative/higgsfield/render.test.ts";
 const CHECKER = "apps/api/src/modules/ads/workers/checker/checker.test.ts";
 const MONITOR_GOLDEN = "apps/api/src/modules/ads/monitor/golden.test.ts";
 const LEAD_GOLDEN = "apps/api/src/modules/ads/leads/golden.test.ts";
+const ANALYST = "apps/api/src/modules/ads/workers/analyst/analyst.test.ts";
+const BRIEF = "packages/shared/src/ads/analystBrief.test.ts";
+const DAILY_BRIEF = "apps/api/src/modules/ads/workers/analyst/dailyBrief.test.ts";
+const BRIEF_FOLD = "apps/api/src/modules/ads/workers/analyst/briefFold.test.ts";
 
 export const SCENARIO_DIR = "packages/ads-golden/scenarios";
 
@@ -661,7 +665,18 @@ export const READINESS = [
           tests: [{ file: COPYWRITER, titles: ["no-pay-in-brief", "spanish-subject", "instruction-in-subject", "short-slots"] }],
         },
       ],
-      L3: [{ need: "the evaluation set (≥ 40 briefs × presets, EN + ES) at its bar; human-rated approve-without-edit baseline", gap: "C2 recorded 10 briefs (pnpm ads:eval copywriter: 9 of 10, baseline.json); the set grows to 40 and a person rates it" }],
+      L3: [
+        {
+          need: "the evaluation set (≥ 40 briefs × presets, EN + ES) at its bar: 0 claims outside the brief reach review",
+          tests: [{ file: COPYWRITER, titles: [
+            "has model recordings under the prompt in force and planted defects beside them",
+            "the evaluation set covers every proposed preset, P1–P5, with Spanish-written briefs beside English ones",
+          ] }, { file: "packages/shared/src/ads/adClaims.test.ts", titles: [
+            "every leftover digit is reported, so a figure cannot hide inside an unrecognised shape",
+          ] }],
+        },
+        { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "40 briefs over P1–P5, 15+ in Spanish: 40 of 40 live answers pass the claim and length checks, twice (pnpm ads:eval copywriter, baseline.json, 2026-11-05); the owner rates the 40 (the rating sheet in the PR) and the rate is recorded here" },
+      ],
       L4: [{ need: "not applicable to a model worker beyond the eval set", gap: "decided with C2: whether a Claude worker has an L4 at all" }],
       L5: [{ need: "canary", gap: CANARY }],
     },
@@ -774,7 +789,68 @@ export const READINESS = [
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
-  { worker: "Analyst", levels: { L1: [notBuilt("F1 daily brief + cohort report")], L2: later("L2"), L3: later("L3"), L4: [{ need: "a brief over sandbox insights", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
+  {
+    worker: "Analyst",
+    levels: {
+      L1: [
+        {
+          need: "the pure number check that makes the L3 bar absolute (0 numbers the fold did not produce), over a sheet built from the fold alone",
+          tests: [{ file: BRIEF, titles: [
+            "formats money, counts and shares the way the narration must copy them",
+            "the day's totals are the fold's sum, so the model never adds campaigns up itself",
+            "an immature cohort gets its counts and no rates; a mature one gets both",
+            "refuses a planted number, a rounding of a real one, and a figure of the wrong kind",
+            "refuses numbers written in words, so a figure cannot route around the check",
+            "reads a campaign's name as the advertiser's words, and the same digits outside it as a figure",
+          ] }],
+        },
+        {
+          need: "the worker, through the A4 rail, with every recorded brief replayed and every sentence number-checked",
+          tests: [{ file: ANALYST, titles: [
+            "has model recordings under the prompt in force and planted numbers beside them",
+            "planted-invented-number", "planted-rounded-money", "planted-computed-change", "planted-number-in-words",
+            "refuses the planted number, naming the sentence it is in",
+            "asks once per day and attempt, as the analyst, showing the model the fact sheet and nothing else",
+            "asks no model when the analyst is switched off",
+          ] }],
+        },
+        {
+          need: "the brief read from stored hours (F1b) and delivered once a day: the checked narration, else the plain figures",
+          tests: [
+            { file: BRIEF_FOLD, titles: [
+              "folds only yesterday's hours into the day, and the month up to yesterday's end into the month",
+              "on the 1st it reports the last day of the month before, with that month's spend and no day left",
+              "pages past PostgREST's 1,000-row cap, so a busy month is never cut short",
+            ] },
+            { file: DAILY_BRIEF, titles: [
+              "sends the analyst's checked narration to the admins, once, under the day's key",
+              "a narration refused twice is never sent: the plain figures go instead, after one retry under a new key",
+              "a day already sent stops before any read or model call",
+            ] },
+            { file: BRIEF, titles: ["states every figure as the sheet holds it, so it passes the same check a narration must"] },
+          ],
+        },
+      ],
+      L2: [
+        {
+          need: "§4R's faults: a fold with a zero, a negative revision, a young cohort (and an instruction inside a campaign's name)",
+          tests: [
+            { file: ANALYST, titles: [
+              "zero-day", "revised-down", "planted-pre-revision-figure", "young-cohorts-only", "planted-young-cohort-rate",
+              "instruction-in-name", "planted-obeys-the-name",
+            ] },
+            { file: BRIEF, titles: [
+              "a campaign with no lead and no impression gets no cost per lead and no click rate, not a zero",
+              "refuses a rate for the young cohort, which the sheet does not hold",
+            ] },
+          ],
+        },
+      ],
+      L3: [{ need: "the evaluation set at its bar: 0 numbers in the narration that the fold did not produce", gap: "F1b measured 9 of 9 live briefs passing the number check, twice (pnpm ads:eval analyst, baseline.json, 2026-11-05) on 9 fixture folds; the cohort report waits on Q-AD34 (no seam carries a lead's stages to ads), and the set grows over real folds" }],
+      L4: [{ need: "a brief over sandbox insights", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
   {
     worker: "Renderer / Higgsfield client",
     levels: {

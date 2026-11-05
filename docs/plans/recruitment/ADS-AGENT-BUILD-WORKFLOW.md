@@ -1622,3 +1622,94 @@ blocking step in §3 above.
     `checks.ts` filters first; the pure test in `monitorChecks.test.ts` kills that one.
   - Next: L3 for both, golden scenarios. The runner (`adsGolden.ts`) drives the orchestrator, so it needs a monitor and an
     intake mode first.
+- **2026-11-04 (late), Track S hands off** — `HANDOFF-2026-11-04-ADS-TRACK-S-2.md`. Merged this chat: S1a #2025, S1b #2030,
+  S1c #2033, E1a #2037, S1d #2041 — every campaign door E3 needs, and Settings › Ads control. **Found:** staging cannot be
+  checked in a browser — its web build calls `STAGING_VITE_API_URL` = the old `fleetguardapi-uat` host (last deployed
+  10/28), whose CORS refuses the new staging origin, so every page's API read fails while `verify:live staging` reads
+  green. The fix is a repository-variable change, the owner's to approve; E1a's staging pass is owed until then. Next:
+  E1b (alerts + connections), E1c (spend vs caps), E2 (editors; the preset editor asks `overlay_slots` AND
+  `platform_slots`), E3, E5, G-walk.
+- **2026-11-04, F1a: the Analyst writes the brief, and a number the fold did not produce is refused**, Track W. No
+  migration, no production caller yet. **Analyst L0 → L2.**
+  - **The sheet (shared `analystBrief.ts`):**
+    - `briefFacts` turns the folds (`foldCampaignSpend` per campaign, `monthToDateByPlatform`, `foldLeadCohorts`)
+      into display strings: "$1,234.56", "42,100", "1.4%". The model is shown no raw number and asked to work
+      nothing out.
+    - New in `adsReport.ts`: `sumCampaignTotals` (the day across every campaign) and `cohortRates`.
+      `cohortRates` is null for an immature cohort, so a young cohort's rate is not on the sheet and cannot be
+      stated.
+  - **The check (`checkNarration`), written the way the copy check is:**
+    - Every figure must equal one on the sheet, of the same kind (money, percent, date or count). The allowed set
+      is the sheet's own strings read by the same tokenizer.
+    - "$12" passes for "$12.00". A rounding ("$1,235" for "$1,234.56") is refused.
+    - Numbers in words are refused ("two campaigns", "a dozen", "twice"). "One" is allowed, because of "no one".
+    - A campaign's exact name is blanked before the scan, so the digits in "CDL-A 2026" pass inside the name and
+      not outside it.
+    - It proves §4R's bar (0 numbers the fold did not produce). It does not prove a figure is attached to the right
+      label; a person reads the brief.
+  - **The worker (`workers/analyst/`, `analyst@1`):**
+    - It calls the model through the A4 rail under the key `brief:<day>:<attempt>`.
+    - One finding in any sentence refuses the whole brief.
+    - It joins `EVAL_WORKERS`, and `lint:agent-fixtures` finds it on its own.
+  - **Eval, `pnpm ads:eval analyst` (15 fixtures: 8 model, 7 planted):**
+    - The first prompt got 4 of 8. The check caught real faults: the model added campaigns up ("7 leads combined"),
+      counted in words ("two campaigns"), and once returned its points as one string.
+    - The fold now produces `day_totals`, and the prompt says copy, never count, and that points are a list.
+    - After that: 8 of 8, and 8 of 8 again on a second run (`baseline.json`).
+  - **§4R L2 faults:** a zero day (no cost per lead, never "$0 per lead"), a revised-down day (the pre-revision
+    figure is refused), a young account (no rates at all), and an instruction inside a campaign's name.
+  - **Not built here:**
+    - Per-preset hook and hold rate for video: there is no video before L4 (Q-AD29).
+    - **F1b:** reading the stored rows into the fold, the morning job, and where the brief goes. Until F1b,
+      nothing calls `writeBrief`.
+  - Mutation: 14 mutants (the young-cohort null, the name blanking, the kind split, the number words, the day
+    totals, the points check, the key, the sheet sent rather than the fold, the agent). All 14 killed.
+- **2026-11-05, F1b: the morning brief is read from stored hours and rung once a day**, Track W. No migration. Analyst
+  stays **L2**; L3 waits on a growing eval set and Q-AD34.
+  - **The read (`workers/analyst/briefFold.ts`):** yesterday, the whole Central day before now, and that day's month,
+    from `ads_spend_hourly` through the shared folds. So the brief, the settings page and the caps share one figure.
+    - On 1 November it reports 31 October and October's spend. `days_left` counts the days after the reported one.
+    - Hours are compared as instants (PostgREST answers `+00:00`, not `Z`).
+    - It pages past the 1,000-row cap.
+  - **The job (`ads_daily_brief`, `dailyBrief.ts`):**
+    - A day whose `ads_brief` bell was already sent stops before any read (`keysAlreadySent`). A day with no spend
+      this month sends nothing.
+    - It asks the analyst; a refused narration is asked once more under a new key.
+    - Refused twice, switched off, out of budget or failed: the **plain brief** goes instead (`plainBrief`, shared).
+      It is the same figures in fixed sentences, and a test holds every line of it to the number check.
+    - A call in flight fails the job, so the next run takes the answer from the ledger.
+    - Recipients are Settings › Ads control's for `ads_brief`, else the admins (`sendAdsAlert`).
+  - **The scheduler (`ads-daily-brief`, `briefTick.ts`):** hourly from 07:00 Central, one job per carrier
+    (`dedup_key` = `ads_daily_brief:<org>`). Hourly so a deploy in the 07:00 hour delays the brief rather than losing
+    it. Off unless `ADS_ENABLED`. It is in `WORKER-DEPLOYMENT.md`.
+  - **Not built: the cohort report.** A lead's stages are recruiting's, and D-AD17 gives ads no seam to them; that is
+    **Q-AD34** (recommendation: a `LeadOutcomes` interface owned by recruiting, which B6 needs too). `cohorts` is
+    empty until then.
+    - An eval fixture of that shape (no cohorts, the month's last day) was added and the set re-recorded: 9 of 9,
+      and 9 of 9 again on a second run.
+  - Mutation: 18 mutants (yesterday's offset, the reported day's month, `days_left`, comparing hours as strings, the
+    paging, the month's end, bigint text, the already-sent stop, the nothing-to-report stop, the retry, the in-flight
+    throw, the bell's key, the 07:00 bound, the per-carrier dedup, the `ADS_ENABLED` brake, the plain brief's missing
+    cost per lead). All 18 killed.
+- **2026-11-05, Copywriter's evaluation set at 40**, Track W. No migration. Copywriter stays **L2**: §4R's L3 bar has two
+  halves, and the second, the owner's approve-without-edit rating, is now the only gap.
+  - **The set:** 30 new briefs, 6 on each of P1–P5 as the plan proposes them (§4a; re-run when the owner edits them,
+    Q-AD12). Each preset has its real slots: overlay lines of 30–42 characters, Meta's 40-character headline, the
+    primary text, P5's three cards. 16 briefs are written in Spanish. Facts cover pay per mile, hour, week, year and
+    load, a flat sign-on bonus, an experience floor, the legal age floor, and benefits-only briefs with no pay. With
+    the 10 from C2: **40 model fixtures and 5 planted**. A test holds the floor and the P1–P5 and Spanish coverage.
+  - **First live run: 31 of 40.** Every refusal was the check working, and two of them were our fault:
+    - **7 slot overruns,** all in slots of 30–42 characters, by up to 13 characters past what the model was told,
+      mostly in the Spanish. Slots of 60 characters or fewer are now told 70 % of their limit (`toldLimit`); longer
+      slots stay at 85 %.
+    - **"if you are 23 or older" was refused** for an `age` claim of 23: the check read the 23 as a figure it could not
+      place. It now reads "23 or older", "23 years or older", "23 and over" and "23 años o más" as the same floor,
+      and refuses them for any other age.
+    - **One invented rate, caught:** for a brief paying $0.66 a mile, the model wrote "$0.68" in both languages, and
+      `money_not_in_brief` refused it. That is §4R's bar holding against a real model mistake.
+    - **One promise:** "$1,500 weekly pay", where "weekly pay" is a listed term the brief does not hold. The refusal is
+      correct and is kept.
+  - **After the two fixes: 40 of 40**, and 40 of 40 again on a run without recording (`baseline.json`).
+  - **The rating:** a sheet of the 40 ads, both languages slot by slot, is posted on the PR for the owner. The rate
+    they give is recorded in the registry and the Copywriter reaches L3.
+  - Mutation: 5 mutants (each new age form, the short-slot bound and share, the told limit), all killed.
