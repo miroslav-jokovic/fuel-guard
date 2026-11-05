@@ -1,0 +1,93 @@
+{
+  "name": "cohorts-losses-no-hire",
+  "about": "Q-AD34: a mature cohort with no hire and losses after conversion, beside young ones; the brief must not invent a qualified count.",
+  "input": {
+    "fold": {
+      "day": "2026-11-03",
+      "month": {
+        "month": "2026-11",
+        "days_left": 27
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 21450,
+          "impressions": 10230,
+          "clicks": 152,
+          "leads": 7,
+          "cost_per_lead_cents": 3064,
+          "ctr": 0.014858260019550342
+        }
+      ],
+      "month_to_date": {
+        "meta": 21450
+      },
+      "cohorts": [
+        {
+          "week": "2026-10-05",
+          "leads": 19,
+          "reached": {
+            "contacted": 15,
+            "converted": 5,
+            "applied": 3,
+            "hired": 0,
+            "lost_after_conversion": 4,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-19",
+          "leads": 23,
+          "reached": {
+            "contacted": 17,
+            "converted": 6,
+            "applied": 2,
+            "hired": 0,
+            "lost_after_conversion": 1,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": false
+        },
+        {
+          "week": "2026-11-02",
+          "leads": 7,
+          "reached": {
+            "contacted": 3,
+            "converted": 0,
+            "applied": 0,
+            "hired": 0,
+            "lost_after_conversion": 0,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": false
+        }
+      ]
+    }
+  },
+  "expect": "refused",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "analyst@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-05T21:18:30.648Z",
+    "output": {
+      "headline": "On 2026-11-03, Regional Class A — Joliet was the only campaign running, delivering 7 leads at $30.64 each from $214.50 in spend.",
+      "points": [
+        "Regional Class A — Joliet produced 10,230 impressions, 152 clicks, and a 1.5% click rate — all figures match the day totals since it was the sole campaign.",
+        "November 2026 is 27 days in with $214.50 spent so far, all of it on Meta.",
+        "The 2026-10-05 cohort is mature at 19 leads: 15 were contacted (78.9%), 5 converted to applicants (26.3%), 3 filed applications (15.8%), and 4 ended after conversion without a hire (21.1%) — no one has been hired from this group yet.",
+        "The 2026-10-19 cohort has 23 leads — 17 contacted, 6 converted, 2 applied, 1 lost after conversion, and no hires — but it is too young to judge by rates.",
+        "The 2026-11-02 cohort has 7 leads with only 3 contacted and no conversions yet; it is also too young to judge.",
+        "Qualified leads and leads lost before becoming applicants are not recorded in the system."
+      ]
+    }
+  },
+  "expect_findings": [
+    "number_not_in_fold"
+  ]
+}

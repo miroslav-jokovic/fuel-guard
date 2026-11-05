@@ -1,4 +1,4 @@
-import { briefFacts, plainBrief } from "@silvicom/shared";
+import { briefFacts, plainBrief, type LeadOutcomes } from "@silvicom/shared";
 import { keysAlreadySent } from "../../../messaging/index.js";
 import { sendAdsAlert } from "../../alerts/adsAlerts.js";
 import type { ClaudeGenerationDeps } from "../../generations/claudeGeneration.js";
@@ -34,12 +34,15 @@ export type DailyBriefResult =
   | { kind: "nothing_to_report"; day: string }
   | { kind: "sent"; day: string; by: "analyst" | "plain"; why?: string; refused?: BriefFinding[]; recipients: number };
 
-export async function runDailyBrief(deps: ClaudeGenerationDeps, orgId: string): Promise<DailyBriefResult> {
+/** Recruiting's `LeadOutcomes` arrives from the composition root (D-AD17, Q-AD34): ads never reads a recruiting table. */
+export type DailyBriefDeps = ClaudeGenerationDeps & { leadOutcomes: LeadOutcomes };
+
+export async function runDailyBrief(deps: DailyBriefDeps, orgId: string): Promise<DailyBriefResult> {
   const now = deps.now();
   const { day } = reportedDay(now);
   const key = briefDedupeKey(day);
   if ((await keysAlreadySent(deps.admin, orgId, [key])).has(key)) return { kind: "already_sent", day };
-  const fold = await readBriefFold(deps.admin, orgId, now);
+  const fold = await readBriefFold(deps.admin, orgId, now, deps.leadOutcomes);
   if (fold.campaigns.length === 0 && Object.keys(fold.month_to_date).length === 0) return { kind: "nothing_to_report", day: fold.day };
 
   let brief: BriefAnswer | null = null;

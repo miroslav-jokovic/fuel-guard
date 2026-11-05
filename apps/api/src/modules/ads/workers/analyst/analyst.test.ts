@@ -59,6 +59,9 @@ describe("analyst replay — every recorded brief reaches its fixture's verdict"
   it("planted-young-cohort-rate", () => replay("planted-young-cohort-rate"));
   it("planted-pre-revision-figure", () => replay("planted-pre-revision-figure"));
   it("planted-obeys-the-name", () => replay("planted-obeys-the-name"));
+  it("planted-unrecorded-stage-number", () => replay("planted-unrecorded-stage-number"));
+  it("eight-week-cohorts", () => replay("eight-week-cohorts"));
+  it("cohorts-losses-no-hire", () => replay("cohorts-losses-no-hire"));
   it("zero-day", () => replay("zero-day"));
   it("revised-down", () => replay("revised-down"));
   it("young-cohorts-only", () => replay("young-cohorts-only"));
@@ -67,6 +70,7 @@ describe("analyst replay — every recorded brief reaches its fixture's verdict"
 });
 
 const PINNED = new Set([
+  "planted-unrecorded-stage-number", "eight-week-cohorts", "cohorts-losses-no-hire",
   "planted-invented-number", "planted-rounded-money", "planted-computed-change", "planted-number-in-words", "planted-young-cohort-rate",
   "planted-pre-revision-figure", "planted-obeys-the-name", "zero-day", "revised-down", "young-cohorts-only", "instruction-in-name",
 ]);

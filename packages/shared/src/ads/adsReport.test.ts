@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldCampaignSpend, foldLeadCohorts, monthContext, monthToDateByPlatform, type SpendHourRow } from "./adsReport.js";
+import { cohortRates, foldCampaignSpend, foldLeadCohorts, monthContext, monthToDateByPlatform, type SpendHourRow } from "./adsReport.js";
 
 const row = (campaign_id: string, hour: string, spend_cents: number, leads = 0, impressions = 0, clicks = 0): SpendHourRow =>
   ({ campaign_id, hour, spend_cents, impressions, clicks, leads });
@@ -55,19 +55,26 @@ describe("monthToDateByPlatform", () => {
 });
 
 describe("foldLeadCohorts", () => {
-  const lead = (id: string, created_at: string, stages: ("contacted" | "qualified" | "applied" | "hired" | "lost")[]) =>
-    ({ lead_id: id, campaign_id: "a", created_at, stages });
-  it("groups by the Central Monday and counts each stage once per lead", () => {
+  // A stage reached = a time on `reached`; the time itself is not what the cohort counts.
+  const T = "2026-10-20T15:00:00Z";
+  const lead = (id: string, arrived_at: string, stages: Array<"contacted" | "converted" | "applied" | "hired" | "lost_after_conversion">) =>
+    ({ lead_id: `00000000-0000-4000-8000-00000000000${id}`, campaign_id: "a", arrived_at, reached: Object.fromEntries(stages.map((s) => [s, T])) });
+  it("groups by the Central Monday and counts each recorded stage once per lead", () => {
     const c = foldLeadCohorts([
-      lead("1", "2026-10-05T15:00:00Z", ["contacted", "contacted", "hired"]),
-      lead("2", "2026-10-11T23:00:00Z", ["contacted"]), // Sunday 18:00 CDT — the same week
-      lead("3", "2026-10-12T04:00:00Z", []),            // Sunday 23:00 CDT — still the same week
-      lead("4", "2026-10-12T06:00:00Z", ["lost"]),      // Monday 01:00 CDT — the next week
+      lead("1", "2026-10-05T15:00:00Z", ["contacted", "converted", "hired"]),
+      lead("2", "2026-10-11T23:00:00Z", ["contacted"]),        // Sunday 18:00 CDT — the same week
+      lead("3", "2026-10-12T04:00:00Z", []),                   // Sunday 23:00 CDT — still the same week
+      lead("4", "2026-10-12T06:00:00Z", ["converted", "lost_after_conversion"]), // Monday 01:00 CDT — the next week
     ], new Date("2026-11-20T12:00:00Z"));
-    expect(c.map((x) => [x.week, x.leads, x.reached.contacted, x.reached.hired, x.reached.lost])).toEqual([
-      ["2026-10-05", 3, 2, 1, 0],
-      ["2026-10-12", 1, 0, 0, 1],
+    expect(c.map((x) => [x.week, x.leads, x.reached.contacted, x.reached.converted, x.reached.hired, x.reached.lost_after_conversion])).toEqual([
+      ["2026-10-05", 3, 2, 1, 1, 0],
+      ["2026-10-12", 1, 0, 1, 0, 1],
     ]);
+  });
+  it("a stage nothing records is carried as not_recorded in every cohort, never as 0 (Q-AD37)", () => {
+    const c = foldLeadCohorts([lead("1", "2026-10-05T15:00:00Z", ["contacted", "converted"])], new Date("2026-11-20T12:00:00Z"));
+    expect(c[0]!.reached).toMatchObject({ qualified: "not_recorded", lost_before_conversion: "not_recorded" });
+    expect(cohortRates(c[0]!)).toMatchObject({ converted: 1, qualified: "not_recorded", lost_before_conversion: "not_recorded" });
   });
   it("a cohort is mature only 28 days after its week ends — young cohorts are greyed", () => {
     // Week of 10/05 ends 10/12; mature from 11/09 (Central). Week of 10/12 matures 11/16.

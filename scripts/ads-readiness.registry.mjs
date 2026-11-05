@@ -881,8 +881,30 @@ export const READINESS = [
             ] },
           ],
         },
+        {
+          // Q-AD34 built (2026-11-05): the cohort half through recruiting's LeadOutcomes; Q-AD37's unrecorded stages are never a number.
+          need: "the cohort report (Q-AD34/Q-AD37): stages from recruiting's LeadOutcomes, only what a row records; an unrecorded stage is never a number",
+          tests: [
+            { file: "apps/api/src/modules/recruiting/leads/leadOutcomes.test.ts", titles: [
+              "reads each recorded stage from its row: first contact, conversion, filed application, hire, and a loss only without a hire",
+              "hired means hire_date set and status no longer applicant — never a hire date from before the lead arrived",
+              "only this org's ad leads that arrived since: a typed-in lead, another org's and an older one are not read",
+              "reads past PostgREST's 1,000-row cap on the leads and on each stage's rows",
+            ] },
+            { file: BRIEF_FOLD, titles: [
+              "asks this org's leads from the Monday seven weeks before the reported day's week, and folds them by week",
+              "a LeadOutcomes answering outside the shared shape fails the brief, never folds a stage it does not mean",
+            ] },
+            { file: "packages/shared/src/ads/adsReport.test.ts", titles: ["a stage nothing records is carried as not_recorded in every cohort, never as 0 (Q-AD37)"] },
+            { file: BRIEF, titles: [
+              "refuses any figure in a sentence about a stage nothing records, even one the sheet holds for another stage",
+              "the fold refuses a count for a stage nothing records: qualified must be the not_recorded marker",
+            ] },
+            { file: ANALYST, titles: ["planted-unrecorded-stage-number", "eight-week-cohorts", "cohorts-losses-no-hire"] },
+          ],
+        },
       ],
-      L3: [{ need: "the evaluation set at its bar: 0 numbers in the narration that the fold did not produce", gap: "F1b measured 9 of 9 live briefs passing the number check, twice (pnpm ads:eval analyst, baseline.json, 2026-11-05) on 9 fixture folds; the cohort report waits on Q-AD34 (no seam carries a lead's stages to ads), and the set grows over real folds" }],
+      L3: [{ need: "the evaluation set at its bar: 0 numbers in the narration that the fold did not produce", gap: "analyst@2 (2026-11-05, Q-AD34 built): 10 of 11 live briefs pass the number check, twice, on 11 fixture folds with cohorts (pnpm ads:eval analyst, baseline.json); the one refusal both times is the model writing \"November 2026\" (2026 is not a figure on the sheet) and the check caught it, so nothing off the fold is sent. The bar is met by the check, not yet by the model, and the set grows over real folds" }],
       L4: [{ need: "a brief over sandbox insights", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },

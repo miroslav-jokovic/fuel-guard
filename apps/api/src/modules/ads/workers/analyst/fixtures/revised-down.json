@@ -29,10 +29,12 @@
           "leads": 38,
           "reached": {
             "contacted": 33,
-            "qualified": 17,
+            "converted": 17,
             "applied": 10,
             "hired": 4,
-            "lost": 8
+            "lost_after_conversion": 8,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
           },
           "mature": true
         },
@@ -41,10 +43,12 @@
           "leads": 40,
           "reached": {
             "contacted": 36,
-            "qualified": 20,
+            "converted": 20,
             "applied": 12,
             "hired": 5,
-            "lost": 9
+            "lost_after_conversion": 9,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
           },
           "mature": true
         },
@@ -53,10 +57,12 @@
           "leads": 12,
           "reached": {
             "contacted": 9,
-            "qualified": 3,
+            "converted": 3,
             "applied": 1,
             "hired": 0,
-            "lost": 1
+            "lost_after_conversion": 1,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
           },
           "mature": false
         }
@@ -66,18 +72,18 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@1",
+    "prompt_version": "analyst@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T14:30:58.660Z",
+    "recorded_at": "2026-11-05T21:19:25.446Z",
     "output": {
-      "headline": "On 2026-11-02, 1 campaign ran and delivered 2 leads at $55.45 each from $110.90 in spend.",
+      "headline": "On 2026-11-02, 1 campaign ran and delivered 2 leads at $55.45 each.",
       "points": [
-        "Regional Class A — Joliet was the only campaign active, generating 6,015 impressions, 70 clicks, and a click rate of 1.2%.",
-        "Both leads came from Regional Class A — Joliet at a cost per lead of $55.45.",
+        "Regional Class A — Joliet was the only campaign active, spending $110.90 to reach 6,015 impressions, earn 70 clicks at a 1.2% click rate, and bring in 2 leads.",
         "Month-to-date spend on Meta for 2026-11 sits at $198.00 with 29 days left in the month.",
-        "The 2026-09-28 cohort (40 leads) is the strongest mature group: contact rate 90.0%, qualified rate 50.0%, hired rate 12.5%.",
-        "The 2026-09-21 cohort (38 leads) shows a contact rate of 86.8%, a qualified rate of 44.7%, and a hired rate of 10.5%.",
-        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 qualified, 1 applied, and 1 lost — but it is too young to judge its rates."
+        "The mature 2026-09-21 cohort produced 38 leads: 33 contacted (86.8%), 17 converted (44.7%), 10 applied (26.3%), 4 hired (10.5%), and 8 lost after conversion (21.1%).",
+        "The mature 2026-09-28 cohort produced 40 leads: 36 contacted (90.0%), 20 converted (50.0%), 12 applied (30.0%), 5 hired (12.5%), and 9 lost after conversion (22.5%).",
+        "The 2026-10-26 cohort has 12 leads so far — 9 contacted, 3 converted, 1 applied, 1 lost after conversion, and no hires recorded yet — but it is too young to judge its rates.",
+        "Qualified leads and leads lost before becoming applicants are not recorded in the system."
       ]
     }
   }
