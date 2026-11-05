@@ -1947,7 +1947,8 @@ blocking step in §3 above.
     lifetime, beside the daily budget and lifetime cap.
   - AI: `anthropicTokensThisMonth` / `higgsfieldCreditsThisMonth` against the saved budgets.
   - reconcile per Meta connection: the last finished `ads_reconcile` job (org's `lastDoneJobByKey`), late after
-    2 × `ADS_RECONCILE_MS`, and the `external_change` rows since.
+    2 × `ADS_RECONCILE_MS`, and the `external_change` rows since. That read is a new `"ads -> org"` edge in
+    `API_ALLOW` (Q-AD36, ruled (a): `lastDoneJobByKey` only, through org's index).
   - The page says spend is from our hourly pull and that a launch also takes Meta's own figure if larger (the
     page makes no platform call).
   - A settings save now refreshes the spend read too (the caps it is measured against moved).

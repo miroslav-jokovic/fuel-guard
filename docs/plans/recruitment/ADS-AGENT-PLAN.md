@@ -954,7 +954,8 @@ rate, and Higgsfield credits per approved creative.
   first, and every other refusal stays a failure. The first run after a deletion stays loud. **Left for L4:** whether
   real Meta refuses that read or still returns the history. Either answer works; L4 only records which it is.
 - **Q-AD36 · How the spend card asks whether the daily Meta check ran** (us, found taking E1c to a PR,
-  2026-11-05; **blocks E1c**). The card's reconcile line needs the last finished `ads_reconcile` job per
+  2026-11-05; **ruled 2026-11-05 by the orchestrator: (a)** — `"ads -> org"` is in `API_ALLOW`; (b) refused
+  because the deps seam is D-AD17's, not a way round a gate). The card's reconcile line needs the last finished `ads_reconcile` job per
   connection. `jobs` belongs to org, and its door is `lastDoneJobByKey` in `modules/org/index.ts`, which the
   queue handler `adsLeadsBackfill.ts` already uses from outside `modules/`. Called from
   `modules/ads/spend/spendView.ts`, it is an `ads -> org` edge, and `lint:boundaries` refuses it
