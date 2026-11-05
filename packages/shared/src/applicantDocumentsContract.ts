@@ -102,6 +102,9 @@ export interface ApplicantDocument {
   addedBy: string | null;
   /** Still in the link's staging bucket — sent, and not yet filed with Part 1 or the application. */
   staged: boolean;
+  /** The bytes' size and hash as registered — what the shared viewer prints under the paper (§390.32(c)). */
+  bytes: number | null;
+  sha256: string;
   /** A five-minute URL to the image or PDF. Null when it could not be signed — or is withheld below. */
   url: string | null;
   /** Q-WF4: the caller may see the row and not the picture (`canSeePaperImage`). */

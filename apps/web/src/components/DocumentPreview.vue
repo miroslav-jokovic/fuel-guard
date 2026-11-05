@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { DocumentRow } from "@silvicom/shared";
+
+/**
+ * The fields this viewer actually reads off a filed paper — a filed `DocumentRow` is one, and so is an
+ * applicant's paper still in the link's staging bucket (`ApplicantDocument`), which has a hash and a URL
+ * but no `documents` row yet. Declared as the subset rather than the whole row so a caller never has to
+ * invent a page or a variant to open a paper here.
+ */
+export type PreviewDocument = Pick<DocumentRow, "id" | "kind" | "contentType" | "bytes" | "sha256" | "url"> &
+  Partial<Pick<DocumentRow, "capturedAt" | "normalizedUrl">>;
 import { AppIcon, AppButton as BaseButton, BaseModal } from "@silvicom/ui";
 import { ArrowDownTrayIcon, PrinterIcon } from "@silvicom/ui/icons";
 import { apiFetch, fetchObjectUrl } from "@/lib/api";
@@ -64,7 +73,7 @@ const props = withDefaults(
     /** The requirement's human label — the modal title ("Medical examiner's certificate"). */
     label: string;
     /** A filed document: a row, signed URLs, a hash. */
-    doc?: DocumentRow | null;
+    doc?: PreviewDocument | null;
     /** A document the API renders on demand: a path to fetch, and no evidence to print. */
     rendered?: RenderedDocument | null;
     /**

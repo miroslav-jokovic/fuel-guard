@@ -4,9 +4,11 @@ import {
   AppButton as BaseButton,
   AppCard as BaseCard,
   AppFormField as FormField,
+  AppIcon,
   AppSelect,
   QueryState,
 } from "@silvicom/ui";
+import { EyeIcon } from "@silvicom/ui/icons";
 import {
   APPLICANT_DOCUMENT_OFFICE_LABELS,
   APPLICANT_DOCUMENT_SLOTS,
@@ -16,6 +18,7 @@ import {
   type PromotedCaptureSlot,
 } from "@silvicom/shared";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
+import DocumentPreview from "@/components/DocumentPreview.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { pickImageFile } from "@/lib/filePicker";
 import { useSessionStore } from "@/stores/session";
@@ -52,6 +55,18 @@ const slot = ref<PromotedCaptureSlot | null>(null);
 const labelOf = (d: ApplicantDocument): string =>
   d.slot ? (APPLICANT_DOCUMENT_OFFICE_LABELS[d.slot as PromotedCaptureSlot] ?? d.kind) : (DQ_KIND_LABELS[d.kind] ?? d.kind);
 const isImage = (d: ApplicantDocument): boolean => d.contentType.startsWith("image/");
+
+/**
+ * The sanctioned viewer (`DocumentPreview`), as the truck's and trailer's file opens a paper — in a
+ * modal beside the record, never a new browser tab. "Download original" goes through this section's own
+ * door, which serves a paper still in the link's staging bucket as well as a filed one.
+ */
+const previewId = ref<string | null>(null);
+const previewDoc = computed(() => (documentsQ.data.value ?? []).find((d) => d.id === previewId.value && d.url) ?? null);
+const previewLabel = computed(() => (previewDoc.value ? labelOf(previewDoc.value) : ""));
+const previewDownloadPath = computed(() =>
+  previewDoc.value ? `/api/recruitment/applicants/${props.driverId}/documents/${previewDoc.value.id}/download` : null,
+);
 
 async function add(files: File[]): Promise<void> {
   const file = files[0];
@@ -117,12 +132,20 @@ async function photograph(): Promise<void> {
             class="flex flex-wrap items-center gap-3 py-3"
             :data-document="d.id"
           >
-            <img
+            <BaseButton
               v-if="d.url && isImage(d)"
-              :src="d.url"
-              :alt="labelOf(d)"
-              class="h-12 w-16 shrink-0 rounded-detail object-cover ring-1 ring-inset ring-edge"
-            />
+              variant="ghost"
+              class="inline-block shrink-0 p-0"
+              :aria-label="`View ${labelOf(d)}`"
+              @click="previewId = d.id"
+            >
+              <img
+                :src="d.url"
+                alt=""
+                loading="lazy"
+                class="h-12 w-16 rounded-detail object-cover ring-1 ring-inset ring-edge"
+              />
+            </BaseButton>
             <div class="min-w-0 flex-1">
               <p class="text-sm font-medium text-ink">{{ labelOf(d) }}</p>
               <p class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
@@ -134,15 +157,18 @@ async function photograph(): Promise<void> {
                 <span v-if="d.staged">Filed when the applicant finishes</span>
               </p>
             </div>
-            <a
+            <BaseButton
               v-if="d.url"
-              :href="d.url"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-sm font-medium text-link hover:text-link-hover"
+              variant="ghost"
+              size="sm"
+              class="px-0 font-medium text-link hover:text-link-hover"
+              :aria-label="`View ${labelOf(d)}`"
+              data-document-view
+              @click="previewId = d.id"
             >
-              Open
-            </a>
+              <AppIcon :icon="EyeIcon" class="size-4" aria-hidden="true" />
+              View
+            </BaseButton>
             <p v-else-if="d.imageWithheld" class="text-xs text-ink-muted" data-image-withheld>
               Your role cannot open this picture. An administrator can change that in Settings → Permissions.
             </p>
@@ -150,5 +176,13 @@ async function photograph(): Promise<void> {
         </ul>
       </QueryState>
     </div>
+
+    <DocumentPreview
+      :open="previewDoc !== null"
+      :label="previewLabel"
+      :doc="previewDoc"
+      :download-path="previewDownloadPath"
+      @close="previewId = null"
+    />
   </BaseCard>
 </template>
