@@ -3,10 +3,12 @@ import { ADS_SETTINGS_UNSET, type AdsSettings } from "@silvicom/shared";
 import { toFormValues, toSettings } from "./adsSettingsForm";
 
 /** Settings › Ads control's form ↔ the stored settings (E1a): blank is "not set", dollars are cents, the rest passes through. */
+const MEMBER_A = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+const MEMBER_B = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
 const SAVED: AdsSettings = {
   ...ADS_SETTINGS_UNSET,
   limits: { monthly_cap_cents: { meta: 300_000 }, daily_max_cents: 10_000, lifetime_max_cents: 150_000, max_raise_pct: 25, max_raise_cents: 5_000 },
-  alerts: { recipients: { ads_overspend: ["0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"] }, uncontacted_lead_minutes: 30 },
+  alerts: { recipients: { ads_overspend: [MEMBER_A] }, uncontacted_lead_minutes: 30 },
   budgets: { ...ADS_SETTINGS_UNSET.budgets, agents_enabled: { copywriter: true } },
 };
 
@@ -53,9 +55,25 @@ describe("adsSettingsForm", () => {
     }
   });
 
-  it("keeps what this page does not edit — the alerts and their recipients", () => {
-    const out = toSettings(SAVED, { ...toFormValues(SAVED), daily_max: "90" });
-    expect(out.ok && out.settings.alerts).toEqual(SAVED.alerts);
+  // E1b: the alerts joined this form, so the pin that used to read "keeps the alerts untouched" now reads the
+  // other way round — a change to the alerts alone leaves every E1a field as it was saved.
+  it("E1a's fields pass through an alerts-only change", () => {
+    const v = toFormValues(SAVED);
+    const out = toSettings(SAVED, { ...v, uncontacted_lead_minutes: "45", recipients: { ...v.recipients, lead_new: [MEMBER_B] } });
+    expect(out.ok && { ...out.settings, alerts: SAVED.alerts }).toEqual(SAVED);
+    expect(out.ok && out.settings.alerts).toEqual({ recipients: { ads_overspend: [MEMBER_A], lead_new: [MEMBER_B] }, uncontacted_lead_minutes: 45 });
+  });
+
+  it("an alert emptied of people is left out, so it goes to its default audience", () => {
+    const v = toFormValues(SAVED);
+    const out = toSettings(SAVED, { ...v, recipients: { ...v.recipients, ads_overspend: [] } });
+    expect(out.ok && out.settings.alerts.recipients).toEqual({});
+  });
+
+  it.each([["4"], ["1441"], ["7.5"], [""]])("refuses %j minutes before a lead counts as waiting", (minutes) => {
+    const out = toSettings(SAVED, { ...toFormValues(SAVED), uncontacted_lead_minutes: minutes });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.message).toBe("The minutes must be a whole number from 5 to 1,440 (a day).");
   });
 
   it("an agent switched on is saved on; one never switched on stays off", () => {

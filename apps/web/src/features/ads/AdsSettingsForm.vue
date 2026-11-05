@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AD_AI_AGENTS, AD_PLATFORMS, ADS_BENCHMARK_SUGGESTIONS, type AdAiAgent, type AdPlatform, type AdsSettingsView } from "@silvicom/shared";
+import { AD_AI_AGENTS, AD_PLATFORMS, ADS_BENCHMARK_SUGGESTIONS, type AdAiAgent, type AdPlatform, type AdsSettingsView, type OrgMember } from "@silvicom/shared";
 import {
   AppButton as BaseButton, AppCard as BaseCard, AppFormField as FormField, AppInput as BaseInput, AppSwitch as BaseSwitch,
 } from "@silvicom/ui";
@@ -12,6 +12,7 @@ import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { toFormValues, toSettings, type AdsSettingsFormValues } from "./adsSettingsForm";
 import { useSaveAdsSettings } from "./useAdsSettings";
+import AdsAlertsSection from "./AdsAlertsSection.vue";
 
 /**
  * Settings › Ads control's limits, rules, approvals and AI budgets (ADS-AGENT-PLAN §4b; Track S, E1a). Read
@@ -19,9 +20,10 @@ import { useSaveAdsSettings } from "./useAdsSettings";
  * `session.admin` is the same `isAdmin` the API's `requireAdminOnly` asks. Every save is a new version with
  * its author; nothing is edited in place, and nothing is in force until the first save (G5: a cap in code
  * would be a spending decision nobody made). The suggestions beside the auto-pause fields are the shared
- * benchmark's, labelled with their source, and are never saved by themselves.
+ * benchmark's, labelled with their source, and are never saved by themselves. The alerts (E1b) are a
+ * section of this form, saved in the same version; `members` is the page's to hand in (AdsAlertsSection).
  */
-const props = defineProps<{ view: AdsSettingsView }>();
+const props = withDefaults(defineProps<{ view: AdsSettingsView; members?: OrgMember[] | null; membersFailed?: boolean }>(), { members: null, membersFailed: false });
 
 const session = useSessionStore();
 const toast = useToastStore();
@@ -141,6 +143,15 @@ async function submit(): Promise<void> {
         </div>
       </BaseCard>
     </SettingsSection>
+
+    <AdsAlertsSection
+      v-model:recipients="values.recipients"
+      v-model:minutes="values.uncontacted_lead_minutes"
+      :editable="editable"
+      :members="members"
+      :members-failed="membersFailed"
+      :error="errorOn('alerts')"
+    />
 
     <div v-if="editable" class="flex justify-end">
       <BaseButton type="submit" variant="primary" :disabled="save.isPending.value">Save as a new version</BaseButton>

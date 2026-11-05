@@ -67,6 +67,16 @@ export const ADS_ALERT_CATEGORIES = NOTIFICATION_CATEGORIES.filter(
   (c): c is AdsAlertCategory => c.startsWith("ads_") || c.startsWith("lead_"),
 ) as [AdsAlertCategory, ...AdsAlertCategory[]];
 
+/**
+ * Who hears an alert nobody was chosen for. The alerts that ask a person to CALL a lead fall back to
+ * everybody who manages recruitment (`leadNotify.ts`); every other one to the org's admins, the people who
+ * can pause an ad in the platform's own tool (`adsAlerts.ts`). Both API paths type their categories from
+ * this list, so Settings › Ads control (E1b) can say who the default is without a second copy of the rule.
+ */
+export const ADS_LEAD_CALL_ALERTS = ["lead_new", "lead_uncontacted"] as const satisfies readonly AdsAlertCategory[];
+export type AdsLeadCallAlert = (typeof ADS_LEAD_CALL_ALERTS)[number];
+export const isLeadCallAlert = (c: AdsAlertCategory): c is AdsLeadCallAlert => (ADS_LEAD_CALL_ALERTS as readonly string[]).includes(c);
+
 export const adsAlertsSchema = z.object({
   /** Member ids per alert; an empty list sends to the admins (a lead alert: to who holds recruitment manage). */
   recipients: z.partialRecord(
