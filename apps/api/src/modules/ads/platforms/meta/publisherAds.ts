@@ -132,11 +132,18 @@ async function publishOne(deps: PublisherDeps, input: PublishInput, creative: Pu
   return { ok: true, ad: { creative_id: creative.id, language, image_hash: image.hash, meta_creative_id: made.id, meta_ad_id: ad.id } };
 }
 
-/** The stored PNG onto the ad account; Meta's hash back. Re-sendable: the same bytes answer the same hash. */
+/**
+ * The stored PNG onto the ad account; Meta's hash back. Re-sendable: the same bytes answer the same hash.
+ *
+ * A failure carries the client's own code (`token_invalid`, `rate_limited`, …), the step named in its
+ * response. Until Publisher L3 (2026-11-05) it was prefixed `image_`, so a token revoked mid-run that met
+ * the upload first came back `image_token_invalid` — a code the runner's connection alert
+ * (`alerts/connectionAlerts.ts` CONNECTION_CODES) does not know, and no admin was told.
+ */
 async function uploadImage(deps: PublisherDeps, input: PublishInput, sha256: string): Promise<{ ok: true; hash: string } | { ok: false; error_code: string; response?: unknown }> {
   const bytes = await deps.readAsset(input.orgId, { sha256, format: "png" });
   const r = await deps.graph.post<{ images?: Record<string, { hash?: unknown }> }>(`act_${input.accountId}/adimages`, { bytes: bytes.toString("base64") }, { idempotent: true });
-  if (!r.ok) return { ok: false, error_code: `image_${r.error.error_code}`, response: failureBody(r.error) };
+  if (!r.ok) return { ok: false, error_code: r.error.error_code, response: { step: "image", ...failureBody(r.error) } };
   const entries = Object.values(r.data.images ?? {});
   const hash = entries.length === 1 ? entries[0]!.hash : undefined;
   return typeof hash === "string" && hash ? { ok: true, hash } : { ok: false, error_code: "image_hash_missing", response: { images: entries.length } };

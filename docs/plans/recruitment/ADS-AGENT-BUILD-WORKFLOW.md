@@ -1798,3 +1798,27 @@ blocking step in §3 above.
   - **Not measured:** the real vision check has not judged the drawn road yet. The first staging walk will. A walk also
     needs `ADS_ENABLED` on, the renderer switched on and a monthly credit budget saved in Settings › Ads control.
   - Security's L2 now pins "a simulated render reaching production". Mutation: 10 mutants, all killed by a named test.
+- **2026-11-05, Publisher L3**, Track W. No migration. **Publisher L2 → L3.**
+  - **Built:** `platforms/meta/publisher.contract.test.ts`, the Meta contract suite (31 tests). `meta/contract/metaTarget.ts`
+    is the one switch: FakeMeta by default; `ADS_TARGET=sandbox` points it at Meta's Graph host with four `META_SANDBOX_*`
+    variables, and a missing one refuses the run instead of quietly running on the fake. Faults are injected on the
+    wire by `meta/contract/faultProxy.ts` in front of either target. Everything the suite checks is read through
+    Graph, never from the fake's maps. So L4 is the same file, and the fake run already uses the proxy the sandbox run needs.
+  - **Covered:** each of the six create steps under a 429, a 5xx and a timeout (18 cases; the ledger records which fault
+    it was); the three half-created states, resumed and never duplicated; a revoked token before the first call and
+    mid-run at each step, through the real runner, with the connection marked failing and one admin alert; and every
+    object it made read back and compared with the request. A field that is sent but neither compared nor named
+    write-only fails the test.
+  - **Found and fixed:** an image upload failure came back as `image_<code>`. A token revoked mid-run that met the upload
+    first was therefore `image_token_invalid`, which the runner's connection alert does not recognise, so no admin was
+    told. `publisherAds.ts` now keeps the client's code and names the step in the response.
+  - **FakeMeta split by concern** (it was at 456 lines): `fakeMetaFaults.ts` holds the faults, shared with the proxy;
+    `fakeMetaCampaigns.ts` holds the campaigns; `fakeMeta.ts` is down to ~350 lines. The fake now keeps `buying_type`
+    and `bid_strategy` and answers `GET act_{id}/adimages?hashes=`, so those can be read back.
+  - **OUR reading, left for L4:** a form's `block_display_for_non_targeted_viewer` and its privacy `link_text` are
+    treated as not readable. The sandbox run will say whether they are.
+  - Mutation: 11 mutants killed by a named test, each file restored byte for byte. They covered the image code, a hang
+    that forwards, `made()` counting unanswered calls, the sandbox credential refusal, a mistyped target, the fake
+    storing another `billing_event`, the image read, the write-only waiver, 80004 not counted as a throttle, a creative
+    not found by its name, and the token alert. The first hang mutant survived (a timeout and a 5xx looked alike), so
+    the ledger's fault kind is now pinned.

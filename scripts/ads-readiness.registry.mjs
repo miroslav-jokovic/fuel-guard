@@ -30,6 +30,7 @@ const POLICY = "packages/shared/src/ads/adsPolicy.test.ts";
 const REPORT = "packages/shared/src/ads/adsReport.test.ts";
 const ROUTES = "apps/api/src/modules/ads/routes/guard.test.ts";
 const PUBLISHER = "apps/api/src/modules/ads/platforms/meta/publisher.test.ts";
+const PUBLISHER_CONTRACT = "apps/api/src/modules/ads/platforms/meta/publisher.contract.test.ts";
 const META_ADAPTER = "apps/api/src/modules/ads/platforms/meta/metaAdapter.test.ts";
 const META_PATH = "apps/api/src/modules/ads/orchestrator/metaPath.test.ts";
 const RULES_SYNC = "apps/api/src/modules/ads/platforms/meta/rulesSync.test.ts";
@@ -388,8 +389,40 @@ export const READINESS = [
           ] }],
         },
       ],
-      L3: later("L3"),
-      L4: [{ need: "contract suite on Meta's sandbox", gap: STAGE2 }],
+      // Publisher L3 (2026-11-05): one contract suite, two targets — `contract/metaTarget.ts` switches FakeMeta for
+      // the sandbox on ADS_TARGET, and the fault proxy injects the same faults in front of either, so L4 is this
+      // list re-run, not a second one.
+      L3: [
+        {
+          need: "the contract suite runs unchanged on either target: ADS_TARGET picks FakeMeta or Meta's sandbox, and a sandbox run without its credentials is refused",
+          tests: [{ file: PUBLISHER_CONTRACT, titles: [
+            "ADS_TARGET picks the target: unset or fake is FakeMeta, sandbox is Meta, anything else is refused",
+            "a sandbox run without its credentials is refused, naming each missing variable — never a quiet fake run",
+          ] }],
+        },
+        {
+          need: "every create step (campaign, ad set, form, image, ad creative, ad) under a 429, a 5xx and a timeout",
+          tests: [{ file: PUBLISHER_CONTRACT, titles: [
+            "the %s create meeting %s: the step stops or recovers, nothing after it is sent, and the next stint ends with every object made once",
+          ] }],
+        },
+        {
+          need: "half-created objects resumed, never duplicated: campaign yes / ad set no; ad set yes / creative no; creative yes / ad no",
+          tests: [{ file: PUBLISHER_CONTRACT, titles: ["half-created (%s): the next stint adopts what exists and makes only what is missing"] }],
+        },
+        {
+          need: "token revoked → stop + an alert, before the first call and met mid-run at each create step",
+          tests: [{ file: PUBLISHER_CONTRACT, titles: [
+            "a revoked token stops the create at its first call, marks the connection failing and tells an admin once",
+            "a token revoked mid-run, met first at the %s create, stops there as token_invalid and tells an admin once",
+          ] }],
+        },
+        {
+          need: "every created object read back from the target and compared with what was asked",
+          tests: [{ file: PUBLISHER_CONTRACT, titles: ["every created object is read back and holds what was asked; each field sent is compared or says why not"] }],
+        },
+      ],
+      L4: [{ need: "contract suite on Meta's sandbox: publisher.contract.test.ts with ADS_TARGET=sandbox", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
