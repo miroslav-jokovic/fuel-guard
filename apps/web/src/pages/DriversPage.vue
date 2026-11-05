@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { AppIcon, FilterBar, DataWorkspace, AppButton as BaseButton, sortRows } from "@silvicom/ui";
+import { AppIcon, FilterBar, DataWorkspace, AppButton as BaseButton } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
+import { useRouter } from "vue-router";
 import type { Driver, DriverInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import {
@@ -34,11 +35,12 @@ import { useTableColumns } from "@/composables/useTableColumns";
 import {
   SAVED_VIEW_TABLES,
   canManageDriverIdentity,
-  matchesDqFilters,
   seatedDriverIds,
   dqDueFilterOptions,
   fileFilterOptions,
+  type FileFilterKind,
 } from "@silvicom/shared";
+import { filterRoster, fileFilterCounts, sortRoster, type RosterRowFilters } from "@/features/roster/rosterRows";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import {
@@ -99,8 +101,6 @@ const reconcileOpen = ref(false);
  */
 const ROSTER_TABLE = SAVED_VIEW_TABLES[0];
 const DQ_DUE_OPTIONS = dqDueFilterOptions();
-/** The File cell's chip as a filter — the same options the Vehicles and Trailers toolbars carry (UF4b, Q-UF9). */
-const FILE_OPTIONS = fileFilterOptions();
 
 /** Which columns this reader keeps (R3b). */
 const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS);
@@ -161,6 +161,15 @@ const uploadItems = useDriverDropItems(computed(() => upload.value?.driver.id ??
 function openUpload(d: Driver, file?: File) {
   if (session.can("roster")) upload.value = { driver: d, file: file ?? null };
 }
+/**
+ * The File cell's "still needed" control (D-DQ22): a reader who files opens the upload panel, which
+ * lists the same items with Record beside each; a reader who cannot is taken to the file to read it.
+ */
+const router = useRouter();
+function openOutstanding(d: Driver) {
+  if (session.can("roster")) openUpload(d);
+  else void router.push(`/drivers/${d.id}?section=qualification`);
+}
 
 const archiving = ref<Driver | null>(null);
 const archiveDriver = useArchiveDriver();
@@ -202,31 +211,34 @@ const overviewRows = computed(
   () => new Map((overviewQ.data.value?.drivers ?? []).map((d) => [d.driver_id, d])),
 );
 
-const filtered = computed(() => {
-  const term = search.value.toLowerCase();
-  const dq = { file: fileFilter.value, due: dqDue.value, req: dqRequirement.value };
-  const filteringDq = Boolean(dqDue.value || dqRequirement.value || fileFilter.value);
-  return (drivers.value ?? []).filter((d) => {
-    if (Boolean(d.archived_at) !== showArchived.value) return false;
-    if (statusFilter.value && d.status !== statusFilter.value) return false;
-    if (seat.value === "none" && seated.value.has(d.id)) return false;
-    if (filteringDq) {
-      const row = overviewRows.value.get(d.id);
-      // A driver the rollup does not return (an EFS stub, a terminated file) has no §391.51 picture
-      // to match against — so a qualification filter excludes them rather than admitting them
-      // silently as "nothing wrong".
-      // The file word asks the chip's own function (UF4b, Q-UF9): "2 expiring" clicked lists exactly
-      // the rows whose chip reads expiring, and no row whose chip says something worse.
-      if (!row || !matchesDqFilters(row, dq)) return false;
-    }
-    if (!term) return true;
-    return [d.full_name, d.employee_id, d.phone, d.samsara_username]
-      .filter(Boolean)
-      .some((f) => f!.toLowerCase().includes(term));
-  });
+/** What the toolbar asks for, in the shape `rosterRows` reads (DQ-INTO-DRIVERS-PLAN DD1). */
+const rowFilters = computed<RosterRowFilters>(() => ({
+  term: search.value,
+  status: statusFilter.value,
+  showArchived: showArchived.value,
+  seat: seat.value,
+  seated: seated.value,
+  file: fileFilter.value,
+  due: dqDue.value,
+  req: dqRequirement.value,
+}));
+const filtered = computed(() => filterRoster(drivers.value ?? [], overviewRows.value, rowFilters.value));
+
+/**
+ * The File cell's chip as a filter — the Vehicles and Trailers toolbars' options (UF4b, Q-UF9) — each
+ * with how many drivers choosing it would leave, the other controls as set (D-DQ18). Plain words until
+ * the rollup arrives: a "(0)" that only means "not loaded yet" would read as a clean fleet.
+ */
+const fileOptions = computed(() => {
+  const counts = overviewQ.data.value
+    ? fileFilterCounts(drivers.value ?? [], overviewRows.value, rowFilters.value)
+    : null;
+  return fileFilterOptions().map((o) =>
+    counts && o.value ? { ...o, label: `${o.label} (${counts[o.value as FileFilterKind]})` } : o,
+  );
 });
 
-const sorted = computed(() => sortRows(filtered.value, sort.value));
+const sorted = computed(() => sortRoster(filtered.value, sort.value, overviewRows.value));
 
 const pageRows = computed(() =>
   sorted.value.slice((page.value - 1) * ROSTER_PAGE_SIZE, page.value * ROSTER_PAGE_SIZE),
@@ -306,7 +318,7 @@ async function onSubmit(input: DriverInput) {
              toolbars carry too. It used to sit beside a "File status" (`?dq=`, "has ANY item in this
              state") that disagreed with the chip; Q-UF9 retired that one, which returned Due to the
              toolbar within its four controls (`lint:ui-adoption`). -->
-        <FilterSelect v-model="fileFilter" label="File" :options="FILE_OPTIONS" />
+        <FilterSelect v-model="fileFilter" label="File" :options="fileOptions" />
         <FilterSelect v-model="dqDue" label="Due" :options="DQ_DUE_OPTIONS" />
       </template>
       <template #actions>
@@ -344,6 +356,7 @@ async function onSubmit(input: DriverInput) {
       @manage-access="openAccess"
       @open-file="openGallery"
       @upload-file="openUpload"
+      @outstanding="openOutstanding"
       @archive="archiving = $event"
       @restore="setArchived($event, false)"
     />

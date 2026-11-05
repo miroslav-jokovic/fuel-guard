@@ -68,6 +68,42 @@ export function dqSoonest(row: Pick<DriverOverviewRow, "attention">): number | n
   return dated.length ? Math.min(...dated.map((a) => a.daysRemaining as number)) : null;
 }
 
+/**
+ * How bad a file is, for ordering: expired, then missing, then expiring, then nothing outstanding.
+ *
+ * Read from `counts`, not from `fileChip`, and that is deliberate. The chip's word order puts
+ * `not_started` LAST (it is a whole-file word, not a count), but an empty file is missing every item
+ * and must sort with the missing ones, not after the complete ones. `counts.missing` already says so.
+ */
+export const DQ_WORST_RANK = { expired: 0, missing: 1, expiring: 2, none: 3 } as const;
+
+export function dqWorstRank(row: Pick<DriverOverviewRow, "counts">): number {
+  if (row.counts.expired > 0) return DQ_WORST_RANK.expired;
+  if (row.counts.missing > 0) return DQ_WORST_RANK.missing;
+  if (row.counts.expiring > 0) return DQ_WORST_RANK.expiring;
+  return DQ_WORST_RANK.none;
+}
+
+/**
+ * Worst file first, then the most urgent DATED item first (an overdue one before one due next week),
+ * then undated. The caller breaks a tie (by name). One comparator for both lists that order files
+ * this way: the qualification table's default order and the Drivers page's File column
+ * (DQ-INTO-DRIVERS-PLAN DD1). Two copies would be D-DQ6's drift, in the order rather than the filter.
+ */
+export function compareDqUrgency(
+  a: Pick<DriverOverviewRow, "counts" | "attention">,
+  b: Pick<DriverOverviewRow, "counts" | "attention">,
+): number {
+  const byWorst = dqWorstRank(a) - dqWorstRank(b);
+  if (byWorst !== 0) return byWorst;
+  const sa = dqSoonest(a);
+  const sb = dqSoonest(b);
+  if (sa === sb) return 0;
+  if (sa === null) return 1;
+  if (sb === null) return -1;
+  return sa - sb;
+}
+
 /** Does this driver's most urgent item fall inside the chosen horizon? */
 export function matchesDqDue(row: Pick<DriverOverviewRow, "attention">, filter: string): boolean {
   const soonest = dqSoonest(row);

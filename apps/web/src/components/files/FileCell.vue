@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
-import { ArrowDownTrayIcon, DocumentTextIcon } from "@silvicom/ui/icons";
-import { DQ_KIND_LABELS, type PaperThumb } from "@silvicom/shared";
+import { ArrowDownTrayIcon, ClipboardDocumentListIcon, DocumentTextIcon } from "@silvicom/ui/icons";
+import { DQ_KIND_LABELS, FILE_CHIP_LABELS, type PaperThumb } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
@@ -39,12 +39,24 @@ const props = defineProps<{
   items: ReadonlyArray<{ documentId: string | null; goodUntil: string | null }>;
   /** "Unit 654" — for the accessible names. */
   subjectLabel: string;
+  /**
+   * What the file still needs (DQ-INTO-DRIVERS-PLAN DD1, D-DQ22) — a driver's `attention` items. When
+   * set and not empty, the cell ends in one control whose hover card lists them and whose click is the
+   * page's to answer. Only Drivers passes it: a truck's outstanding items are mostly the organization's
+   * insurance and IFTA, the same two words on every row, which is what Q-UF11 took out of this cell.
+   *
+   * A control and not just a line on the thumbnails' cards, because on 2026-11-05 no driver had a
+   * scanned paper (183 of 183), so the cell had no thumbnail to hover and showed nothing at all.
+   */
+  outstanding?: ReadonlyArray<{ key: string; label: string; state: string; goodUntil: string | null }>;
 }>();
 const emit = defineEmits<{
   /** Open the gallery: on this paper, or with no id for "+N" — the first paper this cell did not draw. */
   open: [documentId?: string];
   /** Files were dropped on the cell: the page opens its upload dialog with them. */
   drop: [files: File[]];
+  /** The outstanding control was clicked: the page decides where that leads for this reader. */
+  outstanding: [];
 }>();
 
 const toast = useToastStore();
@@ -55,6 +67,11 @@ function onDrop(e: DragEvent): void {
   const files = Array.from(e.dataTransfer?.files ?? []);
   if (files.length) emit("drop", files);
 }
+/** "Expired", "Missing", "Expiring" — the File filter's own words for an item's state, not a second list. */
+const stateWord = (state: string) => FILE_CHIP_LABELS[state as keyof typeof FILE_CHIP_LABELS] ?? state;
+/** "Expired 01/01/2026", or the word alone when the item has no date ("Missing"). */
+const itemStatus = (o: { state: string; goodUntil: string | null }) =>
+  o.goodUntil ? `${stateWord(o.state)} ${formatDate(o.goodUntil)}` : stateWord(o.state);
 const more = computed(() => Math.max(0, props.paperCount - props.papers.length));
 const label = (kind: string) => DQ_KIND_LABELS[kind] ?? (kind === "other" ? "Other paper" : kind);
 /** The requirement this paper is the evidence for, if any — its good-until is the date that matters. */
@@ -121,5 +138,30 @@ async function download(documentId: string): Promise<void> {
       data-test="file-more"
       @click="emit('open')"
     >+{{ more }}</BaseButton>
+
+    <div v-if="props.outstanding?.length" class="group relative" data-test="file-outstanding">
+      <BaseButton
+        variant="ghost"
+        size="sm"
+        class="text-ink-muted"
+        :aria-label="`${props.outstanding.length} outstanding on ${props.subjectLabel}'s file`"
+        @click="emit('outstanding')"
+      >
+        <AppIcon :icon="ClipboardDocumentListIcon" class="size-4" aria-hidden="true" />
+      </BaseButton>
+      <!-- Opens LEFTWARD from the control's right edge: the control ends the cell, File is often the
+           last column on screen, and the table's horizontal scroller clips anything past its edge. -->
+      <div
+        role="tooltip"
+        class="invisible absolute right-0 top-full z-popover mt-1 w-72 whitespace-normal rounded-surface bg-surface p-3 text-xs shadow-overlay ring-1 ring-edge group-focus-within:visible group-hover:visible"
+      >
+        <p class="font-medium text-ink">Still needed</p>
+        <ul class="mt-1 space-y-1">
+          <li v-for="o in props.outstanding" :key="o.key" class="text-ink-muted">
+            <span class="text-ink">{{ o.label }}</span> · {{ itemStatus(o) }}
+          </li>
+        </ul>
+      </div>
+    </div>
   </div>
 </template>
