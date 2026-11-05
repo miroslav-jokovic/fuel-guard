@@ -40,6 +40,9 @@ export { checkConnection } from "./monitor/checks.js";
 // B5c: the daily reconcile — Meta against our rows, each mismatch one external_change — and its scheduler.
 export { reconcileConnection } from "./monitor/reconcile.js";
 export { adsReconcileDedupKey, startAdsReconcile } from "./monitor/reconcileTick.js";
+// F1b: the morning brief — yesterday's fold, the analyst's checked narration (or the plain figures), the ads_brief bell.
+export { runDailyBrief } from "./workers/analyst/dailyBrief.js";
+export { adsDailyBriefDedupKey, startAdsDailyBrief } from "./workers/analyst/briefTick.js";
 // C3: the Higgsfield client — one render step (submit under the row's id, poll, copy to our storage), the sealed key.
 export { renderStep, renderKey, renderInputFromPayload } from "./creative/higgsfield/render.js";
 export type { RenderDeps, RenderInput, RenderOutcome } from "./creative/higgsfield/render.js";
