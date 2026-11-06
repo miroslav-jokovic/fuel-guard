@@ -10,6 +10,7 @@ import {
 } from "@silvicom/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import FeedFreshnessCard from "@/features/settings/FeedFreshnessCard.vue";
+import FailedJobsCard from "@/features/jobs/FailedJobsCard.vue";
 import { useTelematicsCoverageQuery, useWebhookStatusQuery } from "@/features/settings/useSamsaraStatus";
 import { useJob } from "@/features/jobs/useJob";
 import { useSessionStore } from "@/stores/session";
@@ -321,6 +322,9 @@ const integrity = computed(() => {
 
     <!-- Feed freshness: how stale each Samsara tier is against its own stated bound (S5, D-SAM6). -->
     <FeedFreshnessCard />
+
+    <!-- Failed background jobs (E5): the other half of "did the background work run?" -->
+    <FailedJobsCard />
 
     <!-- Telematics history: how much of the WHOLE history the collector has corroborated (S4, D-SAM7). -->
     <BaseCard>
