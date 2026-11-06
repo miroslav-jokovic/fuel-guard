@@ -71,3 +71,24 @@ export function faultAnswer(f: AnsweredFault, businessId: string, traceId: strin
   const code = f.code ?? 2;
   return { ...graphError(500, code, "OAuthException", code === 1 ? "An unknown error occurred" : "An unexpected error has occurred. Please retry your request later.", traceId), headers: {} };
 }
+
+/**
+ * Meta's review turned an ad down (monitor-alerts, 2026-11-06; ADS-RUNBOOK Gap 3). Not a `FakeMetaFault`: a fault
+ * answers in place of one call, and a verdict stands until the ad changes, so it is held on the fake
+ * (`FakeMeta.reviewAd`) and every read of that ad answers it. Read 2026-11-06, OUR reading until L4:
+ * https://developers.facebook.com/docs/marketing-api/reference/adgroup/ — `effective_status` enum includes
+ * DISAPPROVED and WITH_ISSUES; `ad_review_feedback` is an AdgroupReviewFeedback, whose `global` is
+ * `map<string, string>`, "Reasons for review disapproval across all platforms … Each reason has a key and a
+ * description" (https://developers.facebook.com/docs/marketing-api/reference/adgroup-review-feedback/).
+ */
+export interface AdReviewVerdict {
+  effective_status: "DISAPPROVED" | "WITH_ISSUES";
+  reasons?: Record<string, string>;
+}
+
+/** An ad's read answer under a verdict: its status, and its reasons when the read asked for them. */
+export function reviewedAd(body: unknown, v: AdReviewVerdict, fields: string | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...(body as Record<string, unknown>), effective_status: v.effective_status };
+  if ((fields ?? "").split(",").includes("ad_review_feedback")) out.ad_review_feedback = { global: { ...(v.reasons ?? {}) } };
+  return out;
+}

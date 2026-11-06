@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MetaGraph } from "../platforms/meta/graphClient.js";
 import { graphForConnection, type RegistryDeps } from "../platforms/registry.js";
+import { alertIfTokenRefused } from "../alerts/connectionAlerts.js";
 import { bucketHour, isKnownZone, localHourToUtc, windowDays } from "./localHours.js";
 import { isNoSuchObject, recordedGone } from "./recordedGone.js";
 
@@ -190,7 +191,17 @@ async function writeRows(admin: SupabaseClient, rows: SpendRow[]): Promise<void>
   }
 }
 
+/**
+ * One connection's pull, and (monitor-alerts, 2026-11-06; ADS-RUNBOOK Gap 4) the bell when Meta refused its token:
+ * the hourly pull is often the first thing to meet a dead token, and its failure alone rang nobody.
+ */
 export async function pullConnectionInsights(deps: InsightsDeps, orgId: string, connectionId: string, opts: { days?: number } = {}): Promise<InsightsResult> {
+  const result = await pullOnce(deps, orgId, connectionId, opts);
+  await alertIfTokenRefused(deps.admin, deps.now(), { org_id: orgId, connection_id: connectionId }, result.failures.map((f) => f.reason), "insights");
+  return result;
+}
+
+async function pullOnce(deps: InsightsDeps, orgId: string, connectionId: string, opts: { days?: number }): Promise<InsightsResult> {
   const days = Math.min(INSIGHTS_MAX_DAYS, Math.max(1, Math.floor(opts.days ?? INSIGHTS_WINDOW_DAYS)));
   const result: InsightsResult = { connection_id: connectionId, zone: null, days: [], campaigns: 0, hours_written: 0, hours_zeroed: 0, failures: [] };
 

@@ -80,13 +80,15 @@ docs/WORKER-DEPLOYMENT.md § Ads*). It is a deploy variable, not an office contr
 *docs/plans/recruitment/ADS-AGENT-PLAN.md*): its expiry is stored as empty. A dead token shows up the next
 time something uses it:
 - the bell shows **"An ad account connection stopped working"** (category *Ad account connection expiring*),
-  once a day per connection. This happens when a **pause** or a **create-paused** meets the dead token
-  (*apps/api/src/modules/ads/alerts/connectionAlerts.ts*);
+  once a day per connection, whichever job meets the dead token first: a **pause**, a **create-paused**, the
+  hourly **spend pull**, the hourly **lead backfill**, or **reconcile**. Its text names the job, for example
+  "Bringing in new leads from Meta failed…" (*apps/api/src/modules/ads/alerts/connectionAlerts.ts*; since
+  2026-11-06, *monitor/insightsPull.ts, leads/backfill.ts, monitor/reconcile.ts*). A second run on the same day
+  rings nothing new, and the job still records its failure;
 - the connection on Ads control turns **failing** (*apps/api/src/modules/ads/connections/connections.ts*, `markConnectionFailing`);
 - or an admin presses **Test** and the report fails at its first check, **token**.
 
-The hourly jobs (spend pull, lead backfill, reconcile) also fail on a dead token, but they ring no bell
-(**Gap 4**).
+There is still no warning **before** a token expires (**Q-AD24**): the first bell comes on the first failure.
 
 ### Reconnect
 1. An **admin** makes a new system-user token in Meta Business Settings, with all six permissions the test
@@ -136,7 +138,8 @@ The hourly jobs (spend pull, lead backfill, reconcile) also fail on a dead token
 
 ### What the bell shows
 - **"Ads that could not be paused"**, only if a pause fails three minutes in a row (§1).
-- Nothing for a failed spend pull or backfill (**Gap 2**, **Gap 4**).
+- **"An ad account connection stopped working"** if Meta refuses the token, from whichever job met it (§2).
+- Nothing for a failed spend pull or backfill for any other reason, such as Meta being down (**Gap 2**).
 
 ### When to act
 1. If Meta is down and **nothing is being paused**, wait. Everything catches up on its own.
@@ -163,9 +166,19 @@ reasons (*apps/api/src/modules/ads/compose/composeCampaign.ts*; states in *packa
 - **The screen for this is the campaign review screen (E3), not built yet** (**Gap 1**).
 
 ### Refused by Meta (after it is created)
-- The bell category **"Ads rejected by the platform"** exists, but **nothing raises it yet**, and the
-  system does not read Meta's review verdict on an ad (**Gap 3**). Today a rejected ad is noticed in Meta
-  Ads Manager or in Meta's own email to the account owner, not here.
+Every hour, reconcile reads Meta's review verdict on each ad of every campaign that is launching or live
+(*apps/api/src/modules/ads/monitor/adReview.ts*, since 2026-11-06). It reads only; it never changes anything at Meta.
+1. The bell shows **"Ads rejected by the platform"**, with one of two titles:
+   - **"Meta turned down an ad"** (critical): Meta will not show it (`DISAPPROVED`);
+   - **"Meta found a problem with an ad"** (warning): Meta shows it with a problem (`WITH_ISSUES`).
+   The text quotes Meta's reason when Meta gives one.
+2. It rings **once** per ad and verdict. The same verdict the next hour rings nothing. If the ad comes back
+   and Meta turns it down again with the other verdict, that is a new bell.
+3. **What to do:** read Meta's reason. If our words or picture caused it, regenerate the ad (§4 above; the
+   screen is **Gap 1**). If you think Meta is wrong, ask Meta to review it again in Ads Manager. The rest of the
+   campaign keeps running: another ad of the same campaign can still deliver.
+4. The verdict is also on the ad's record as a ledger row of kind `external_change`, so an engineer can see when
+   Meta decided.
 
 ---
 
@@ -268,15 +281,11 @@ Each one is reported, not worked around. The cost is a rough size of the honest 
 2. **No page shows failed jobs.** During an outage, a failed spend pull, backfill or reconcile is invisible
    to the office. *GET /api/org/jobs/failed* exists and nothing renders it (*apps/api/src/modules/org/jobs.ts*).
    **Fix:** E5, in Track S's queue. About 1 day.
-3. **A Meta-rejected ad is not detected.** The bell category "Ads rejected by the platform" exists
-   (*packages/shared/src/notificationsContract.ts*), but nothing raises it, and nothing reads an ad's review
-   status. **Fix:** reconcile reads each of our ads' `effective_status` (DISAPPROVED / WITH_ISSUES) and review
-   feedback, records it once like any external change, and rings `ads_rejected`. FakeMeta needs the
-   field; L4 confirms Meta's shape. About 1 day (Track W: monitor and platforms).
-4. **A dead token rings the bell only when a pause or a create meets it.** The hourly spend pull, backfill
-   and reconcile fail on it silently, and there is no warning before expiry (**Q-AD24**). **Fix:** call the
-   existing `alertConnectionUnusable` from those three jobs on `token_invalid`, which is small (Track W). The
-   advance warning is Q-AD24 (b) in Stage 2, once our app secret is sealed.
+3. ~~**A Meta-rejected ad is not detected.**~~ Closed 2026-11-06 (monitor-alerts): reconcile reads each delivering
+   ad's verdict (§4).
+4. ~~**A dead token rings the bell only when a pause or a create meets it.**~~ Closed 2026-11-06 (monitor-alerts):
+   the spend pull, the backfill and reconcile ring the same alert (§2). The advance warning before expiry is
+   still **Q-AD24** (b), in Stage 2 once our app secret is sealed.
 5. **No "this campaign is ours" mark for reconcile** (**Q-AD33** ruling: it "needs a new record"; nothing is
    built). **Fix:** a record of campaigns the owner runs by hand, which lowers their alert and keeps them
    counted. A migration plus about half a day. It is needed only once the owner actually runs one.

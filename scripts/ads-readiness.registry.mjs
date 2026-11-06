@@ -489,6 +489,22 @@ export const READINESS = [
           ] }],
         },
         {
+          // monitor-alerts, 2026-11-06 (ADS-RUNBOOK Gaps 3, 4): a dead token and a Meta-rejected ad reach a person.
+          need: "a dead token met by the hourly jobs, and an ad Meta turns down, each ring the bell once and leave the run failed",
+          tests: [
+            { file: "apps/api/src/modules/ads/monitor/tokenAlerts.test.ts", titles: [
+              "%s: one critical bell to the admins, the connection marked failing, and the run still fails",
+              "%s: a second run in the same outage rings nothing new, and still fails",
+              "reconcile rings on its own reads too, not only through the pull inside it",
+            ] },
+            { file: "apps/api/src/modules/ads/monitor/adReview.test.ts", titles: [
+              "DISAPPROVED: one external_change row keyed on the ad and status, with Meta's reasons, and one critical 'ads_rejected' bell",
+              "the same verdict on the next run is already recorded: no second row, no second bell",
+              "an ad read that fails is a failure of the run, not a green pass",
+            ] },
+          ],
+        },
+        {
           need: "an Ads-Manager edit",
           tests: [{ file: "apps/api/src/modules/ads/monitor/reconcile.test.ts", titles: [
             "an Ads-Manager status change → exactly one external_change, by the platform, and one critical bell — and the next run adds none",
