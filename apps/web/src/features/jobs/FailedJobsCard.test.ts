@@ -56,6 +56,11 @@ describe("FailedJobsCard", () => {
     expect(w.text()).toContain(JOB_KIND_CATALOGUE.ads_insights.label);
   });
 
+  it("an answer that is not a list is the card's failure, not a crash of the page", async () => {
+    api.apiFetch.mockResolvedValue({ ok: true, data: { secretConfigured: true } });
+    expect((await mountCard()).text()).toContain("Could not load the failed jobs.");
+  });
+
   it("a job with no item, a kind this build does not know, and no error text are each still shown", async () => {
     api.apiFetch.mockResolvedValue({ ok: true, data: [
       { ...FAILED, id: "j2", kind: "ads_daily_brief", payload: {}, error: null },

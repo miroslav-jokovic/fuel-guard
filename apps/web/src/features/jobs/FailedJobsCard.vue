@@ -42,6 +42,9 @@ const query = useQuery({
   queryFn: async (): Promise<FailedJob[]> => {
     const res = await apiFetch<FailedJob[]>("/api/jobs/failed?limit=50");
     if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not read the failed jobs");
+    // An answer that is not a list is this card's failure, drawn with its Retry, never a throw in render that
+    // takes the rest of Data & sync down with it (found by DataSyncPage.test.ts's dispatcher, 2026-11-06).
+    if (!Array.isArray(res.data)) throw new Error("The failed jobs answer was not a list");
     return res.data;
   },
 });
