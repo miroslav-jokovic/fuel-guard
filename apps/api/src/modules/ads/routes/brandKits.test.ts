@@ -32,9 +32,9 @@ const KIT: AdBrandKit = {
   people_policy: "none", forbidden_marks: [],
 };
 const RECIPE: AdPresetRecipe = {
-  name: "Fixture preset", hook_formula: "Lead with the pay figure.", copy_slots: [{ name: "hook", max_chars: 60 }, { name: "pay", max_chars: 40 }, { name: "cta", max_chars: 30 }],
+  name: "Fixture preset", hook_formula: "Lead with the pay figure.", copy_slots: [{ name: "hook", max_chars: 60 }, { name: "pay", max_chars: 40 }, { name: "cta", max_chars: 30 }, { name: "title", max_chars: 40 }],
   image_prompt_template: "An empty highway at {time_of_day}, no text, no logos, no lettering", image_slots: ["time_of_day"],
-  overlay_slots: { headline: "hook", cta: "cta" },
+  overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: { primary_text: "pay", headline: "title" },
   starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null, formats: ["4:5"],
 };
 
@@ -225,6 +225,16 @@ describe("a save is a new version, never an edit", () => {
   it("refuses a recipe whose template names a slot it does not declare (400), writing nothing", async () => {
     const res = await call("POST", "presets", { key: "P1", enabled: true, recipe: { ...RECIPE, image_slots: [] } });
     expect(res.status).toBe(400);
+    expect(adWrites()).toEqual([]);
+  });
+
+  it("refuses a new version that does not say what the platform shows beside the image (400), writing nothing", async () => {
+    // A stored recipe may lack platform_slots (saved before B2c); a version saved today may not, or the publisher
+    // would refuse every campaign made from it (`no_platform_slots`).
+    const { platform_slots: _, ...older } = RECIPE;
+    const res = await call("POST", "presets", { key: "P1", enabled: true, recipe: older });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toContain("Meta shows beside the image");
     expect(adWrites()).toEqual([]);
   });
 });

@@ -5,6 +5,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import AdsBrandKitCard from "@/features/ads/AdsBrandKitCard.vue";
 import AdsConnectionsCard from "@/features/ads/AdsConnectionsCard.vue";
 import AdsKillSwitchCard from "@/features/ads/AdsKillSwitchCard.vue";
+import AdsPresetCard from "@/features/ads/AdsPresetCard.vue";
 import AdsSettingsForm from "@/features/ads/AdsSettingsForm.vue";
 import AdsSpendCard from "@/features/ads/AdsSpendCard.vue";
 import { useAdsSettings } from "@/features/ads/useAdsSettings";
@@ -53,6 +54,7 @@ const membersFailed = computed(() => Boolean(members?.error.value));
         <AdsSpendCard />
         <AdsConnectionsCard />
         <AdsBrandKitCard />
+        <AdsPresetCard />
         <AdsSettingsForm :view="settings.data.value" :members="memberList" :members-failed="membersFailed" />
       </div>
     </QueryState>
