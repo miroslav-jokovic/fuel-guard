@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { DQ_ITEMS, EQUIPMENT_ITEMS } from "@silvicom/shared";
+import { CARRIER_ITEMS, DQ_ITEMS, EQUIPMENT_ITEMS } from "@silvicom/shared";
 import RequirementDrawer from "@/components/files/RequirementDrawer.vue";
 
 /**
@@ -115,5 +115,44 @@ describe("RequirementDrawer — a document-only item (a title)", () => {
     await new Promise((r) => setTimeout(r));
     expect(calls.map((c) => c.path)).toEqual([]);
     expect(w.emitted("close")).toBeTruthy();
+  });
+});
+
+/**
+ * The carrier's file (DQ-INTO-DRIVERS-PLAN DD5, D-DQ23 §5): the organization is a subject the drawer
+ * files against, and a policy is asked its start date — the one field `CertManager` had that the drawer
+ * lacked, so deleting that form lost nothing.
+ */
+describe("RequirementDrawer — the carrier's records (D-DQ23)", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    calls.length = 0;
+  });
+  const mountCarrier = (itemKey: string) =>
+    mount(RequirementDrawer, {
+      props: { open: true, subject: { type: "organization", id: "00000000-0000-4000-8000-0000000000o1" }, specs: CARRIER_ITEMS, itemKey },
+      global: { plugins: [VueQueryPlugin], stubs: { SlideOver: SlideOverStub, teleport: true } },
+    });
+  const dateFields = (w: ReturnType<typeof mountCarrier>) => w.findAllComponents({ name: "AppDateField" });
+
+  it("records the fleet insurance on the organization with the day the policy starts", async () => {
+    const w = mountCarrier("insurance");
+    expect(w.text()).toContain("Effective from");
+    // Issued, Effective from, Expires — in template order.
+    dateFields(w)[1]!.vm.$emit("update:modelValue", "2026-04-01");
+    dateFields(w)[2]!.vm.$emit("update:modelValue", "2027-03-31");
+    await w.vm.$nextTick();
+    await w.findAll("button").find((b) => b.text().includes("Record it"))!.trigger("click");
+    await new Promise((r) => setTimeout(r));
+    expect(calls.find((c) => c.path === "/api/compliance/certifications")?.init?.body).toMatchObject({
+      subjectType: "organization",
+      kind: "insurance",
+      effectiveFrom: "2026-04-01",
+      expiresAt: "2027-03-31",
+    });
+  });
+
+  it("does not ask a PHMSA registration for a start date", () => {
+    expect(mountCarrier("phmsa_registration").text()).not.toContain("Effective from");
   });
 });

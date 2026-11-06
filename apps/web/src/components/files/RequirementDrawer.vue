@@ -53,6 +53,8 @@ export interface RequirementSpec {
   evidenceKinds: readonly string[];
   recurrence: string;
   trainingType?: string;
+  /** A policy's start date is asked too (the carrier's insurance and financial responsibility, D-DQ23 §5). */
+  effectiveFrom?: boolean;
 }
 
 const props = defineProps<{
@@ -100,6 +102,7 @@ const form = reactive({
   identifier: "",
   issuingAuthority: "",
   issuedAt: "",
+  effectiveFrom: "",
   expiresAt: "",
   qualifier: "H",
   trainingProviderName: "",
@@ -123,6 +126,7 @@ function reset(): void {
     identifier: "",
     issuingAuthority: "",
     issuedAt: "",
+    effectiveFrom: "",
     expiresAt: "",
     qualifier: "H",
     trainingProviderName: "",
@@ -192,6 +196,7 @@ async function save(): Promise<void> {
         identifier: form.identifier.trim() || null,
         issuingAuthority: form.issuingAuthority.trim() || null,
         issuedAt: form.issuedAt || null,
+        effectiveFrom: s.effectiveFrom ? form.effectiveFrom || null : null,
         expiresAt: form.expiresAt || null,
         documentId: documentId ?? null,
         notes: form.notes.trim() || null,
@@ -292,9 +297,13 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
             <BaseInput :id="id" v-model="form.issuingAuthority" placeholder="Optional" />
           </FormField>
 
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <!-- A policy's three dates read left to right as its life: issued, in force from, expires. -->
+          <div :class="['grid grid-cols-1 gap-4', spec.effectiveFrom ? 'sm:grid-cols-3' : 'sm:grid-cols-2']">
             <FormField v-slot="{ id }" label="Issued">
               <AppDateField :id="id" v-model="form.issuedAt" />
+            </FormField>
+            <FormField v-if="spec.effectiveFrom" v-slot="{ id }" label="Effective from" hint="The day the policy starts.">
+              <AppDateField :id="id" v-model="form.effectiveFrom" />
             </FormField>
             <FormField
               v-slot="{ id }"

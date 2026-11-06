@@ -30,6 +30,7 @@ export * from "./inquiryQueue.js";
 export * from "./dqFile.js";
 export * from "./fileEngine.js";
 export * from "./equipmentFileCatalogue.js";
+export * from "./carrierFileCatalogue.js";
 export * from "./unitFile.js";
 export * from "./unitFileContract.js";
 export * from "./fileChip.js";
