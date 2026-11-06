@@ -16,8 +16,11 @@ import { writeAudit } from "../../lib/audit.js";
 export interface RehireFacts {
   driverId: string;
   externalId: string;
-  tmsHireDate: string;
+  /** Null when McLeod has no hire date: the D-RL6 case proves the rehire without one. */
+  tmsHireDate: string | null;
   previousTerminationDate: string;
+  /** Which rule proved it: McLeod's later hire date (D-MR7a), or McLeod clearing its own termination (D-RL6). */
+  proof: "hire_after_termination" | "tms_termination_reversed";
   previousStatus: string | null;
   wasArchived: boolean;
 }

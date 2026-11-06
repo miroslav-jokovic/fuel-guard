@@ -132,6 +132,28 @@ dispatch truth is the load's driver and tractor, which the VM already sends ever
 - **Q-RL3 — as recommended:** McLeod dispatch is the fallback only, and disagreements are flagged.
 - **Q-RL4 — Ferguson is driving.** RL1 creates him on its first sweep.
 
+## 5b. Rulings (owner, 2026-11-06)
+
+- **D-RL5 — McLeod's hire is the hire, including for somebody who applied through 360.** The owner, about
+  the held list's "finish the hire in Hiring": *"hiring is not done from 360"*. RL1's applicant hold waited
+  for a Hire press that never comes, so Curtis Hairston (applied 10-21, hired in McLeod 10-28) was still
+  missing from Drivers on 11-06. Now, when McLeod lists a driver active and exactly one open application
+  matches on the licence **and** the name (full name, or given name and surname), the sweep links that
+  application row to McLeod and hires it through `hire_applicant`, with McLeod's hire date and no person as
+  the actor (`rosterApplicantHire.ts` → recruiting's `recordHireFromTms`). The application, its consents and
+  every screening stay on the same row. Licence or name alone stays held: one archived application carried
+  another driver's licence. **Relation to Q-HM5:** the 360 Hire button still refuses an unfinished file.
+  The sweep cannot refuse a hire that has already happened, so it writes what the button would have refused
+  for onto the `driver.hired_from_tms` audit row (`openSteps`), and the DQ file shows the gaps.
+- **D-RL6 — McLeod taking back its own termination is a rehire.** Amable Rafael Nin Diaz was terminated
+  in McLeod 10-28 (copied here by the 10-30 retire run). By 11-04 McLeod listed him active again with no
+  termination date and his 2024 hire date, so D-MR7a's "hire date after termination" could not prove it.
+  The held list also told the office to "unarchive" a row that was terminated, not archived. Now the sweep
+  restores the row when McLeod sends `termination_date: null` for an active driver and nobody HERE ended
+  the employment: no `driver.updated` audit row touching status or termination date, and no
+  `driver.archived` by a member. A termination or archive done in 360 stays a review item (D-MR7's case).
+  The audit row says which rule proved it (`proof`).
+
 ## 6. Progress log
 
 - 2026-10-30 — measured and written (this document). Nothing built, nothing changed on the VM or in
@@ -173,3 +195,12 @@ dispatch truth is the load's driver and tractor, which the VM already sends ever
   former row whose rehire McLeod's dates do not prove was read as `unmatched` and would have been created
   a second time. `ingestDrivers` now never inserts for a `rehireReview` id. It had not happened yet:
   today's three hires have no former rows.
+- 2026-11-06 — **D-RL5 + D-RL6 built** (§5b). Measured first, read-only, against `lme` and production:
+  of McLeod's 185 active drivers, every one had a linked row here except CHAIRSTO (an application row, same
+  licence, same name). AMABLER was linked but terminated (10-28, by the retire run) while McLeod listed him
+  active with no termination date.
+  Both are on the held list and re-sent every sweep (`retry`), so the first sweep after the release settles
+  them without a VM change. Ten mutants against the new guards (the name check, the live-row check, the
+  office check, `=== null`, the failed-audit-read answer, the system-archive exemption, the unfinished-file
+  refusal, the null actor, the ended links, the refused-hire count), all ten caught. The held list's two
+  wrong instructions were rewritten.

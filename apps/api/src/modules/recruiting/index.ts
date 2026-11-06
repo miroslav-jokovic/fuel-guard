@@ -35,3 +35,4 @@ export type { ConfiguredRecipients } from "./leads/leadNotify.js";
 export { startLeadUncontacted, sweepUncontactedLeads } from "./leads/leadUncontacted.js";
 // MSO1: a Med-Stop pre-employment order fills the step's appointment — handed to medstop by app.ts.
 export { recordOrderedDrugTest, releaseOrderedDrugTest } from "./applicantDrugTest.js";
+export { recordHireFromTms } from "./hireApplicant.js";

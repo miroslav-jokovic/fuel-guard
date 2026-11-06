@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { returnToDutyHold } from "./returnToDuty.js";
 import { carrierToday } from "./carrierClock.js";
+import { writeAudit } from "../../lib/audit.js";
 import { endApplicantLinks } from "./applicationLink.js";
 import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
 import {
@@ -250,6 +251,59 @@ export async function hireApplicant(
     // last sight of this hire is the toast, so the obligation has to survive into it.
     ...(await returnToDutyFields(admin, orgId, body.driver_id)),
   };
+}
+
+/**
+ * Record a hire the carrier already made in McLeod (ROSTER-LIFECYCLE-PLAN D-RL5, owner 2026-11-06:
+ * "hiring is not done from 360"). The McLeod sweep decides that the McLeod driver IS this applicant
+ * (`rosterApplicantHire`); this files the hire the way `hireApplicant` does — same door (`hire_applicant`,
+ * 0386), same §391.23 records, same links ended — minus the refusal.
+ *
+ * Q-HM5's refusal is a rule for the Hire BUTTON: 360 will not be the one to bring an unfinished file on.
+ * Here the hire is a fact elsewhere and the person may already be driving; refusing to record it would
+ * not stop the employment, only hide the driver from every screen. So what the button would have
+ * refused for is written onto the audit row as `openSteps`, and the DQ file shows the gaps.
+ */
+export async function recordHireFromTms(
+  admin: SupabaseClient,
+  orgId: string,
+  facts: { driverId: string; externalId: string; hireDate: string },
+): Promise<{ filed: number; openSteps: string[] } | HireError> {
+  const today = await carrierToday(admin, orgId);
+  const refused = await hireRefusal(admin, orgId, facts.driverId, today);
+  if (refused && refused.code !== "not_ready_to_hire") return refused;
+  const openSteps = [...(refused?.missing ?? []), ...(refused?.missingCarrierSteps ?? [])];
+
+  const { employment, existing } = await loadFile(admin, orgId, facts.driverId);
+  const plan = planHireHandoff({ employment, existing });
+  const { data, error } = await admin.rpc("hire_applicant", {
+    p_org: orgId,
+    p_driver: facts.driverId,
+    p_hire_date: facts.hireDate,
+    p_actor: null,
+    p_records: plan.records.map((r) => ({
+      kind: r.kind,
+      occurred_on: r.occurredOn,
+      result: r.result,
+      performed_by: r.performedBy,
+      reference: r.reference,
+      detail: r.detail,
+    })),
+  });
+  if (error) return { code: error.code === "HA010" ? "not_an_applicant" : "hire_failed", message: error.message };
+  await endApplicantLinks(admin, orgId, facts.driverId, new Date());
+
+  const filed = Number((data as { filed?: number } | null)?.filed ?? 0);
+  const recorded = await writeAudit(admin, {
+    orgId,
+    actorId: null,
+    action: "driver.hired_from_tms",
+    entity: "drivers",
+    entityId: facts.driverId,
+    meta: { externalId: facts.externalId, hireDate: facts.hireDate, openSteps, filed, source: "mcleod_active_roster" },
+  });
+  if (!recorded) throw new Error(`Could not audit the McLeod hire of ${facts.externalId}`);
+  return { filed, openSteps };
 }
 
 async function returnToDutyFields(admin: SupabaseClient, orgId: string, driverId: string) {

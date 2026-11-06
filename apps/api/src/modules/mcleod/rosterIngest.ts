@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TmsDriverInput, TmsVehicleInput, TmsTrailerInput } from "@silvicom/shared";
 import { deriveFullName, todayInZone, DEFAULT_ORG_TIMEZONE } from "@silvicom/shared";
 import { mayClaimIdentity, rehireFormerDrivers, withRetry } from "./rosterDriverSettle.js";
+import { hireApplicantsFromTms } from "./rosterApplicantHire.js";
 import { driverPatch, vehiclePatch, trailerPatch } from "./rosterFields.js";
 import { recordSyncedCredentials } from "../evidence/index.js";
 import { recordFuelTaxExclusion } from "../ifta/index.js";
@@ -123,6 +124,8 @@ export interface RosterIngestResult {
   /** drivers: former rows restored because McLeod rehired them, and those left for a human (D-MR7a). */
   rehired?: string[];
   rehireReview?: string[];
+  /** drivers: applications McLeod's hire turned into drivers (D-RL5, `rosterApplicantHire`). */
+  hiredFromTms?: string[];
 }
 
 const empty = (): RosterIngestResult => ({
@@ -333,7 +336,8 @@ export async function ingestDrivers(
   const out = empty();
   out.received = rows.length;
   // Before the candidates load, so a restored row is linked and refreshed by this same sweep.
-  if (writesIdentity(mode) || mode === "report") Object.assign(out, await rehireFormerDrivers(admin, orgId, rows, WRITES[mode]));
+  // Then McLeod's hires of applicants (D-RL5), so the hired application is in the pool too.
+  if (writesIdentity(mode) || mode === "report") Object.assign(out, await rehireFormerDrivers(admin, orgId, rows, WRITES[mode]), await hireApplicantsFromTms(admin, orgId, rows, WRITES[mode]));
   const candidates = await loadCandidates(admin, orgId, "drivers");
   const sourceOf = provenanceLookup(candidates);
   const matcher = makeDriverMatcher(candidates);

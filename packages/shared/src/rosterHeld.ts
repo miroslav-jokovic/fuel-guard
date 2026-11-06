@@ -10,13 +10,15 @@
  */
 
 export const ROSTER_HELD_REASONS = [
-  /** A Hiring applicant answers to this McLeod driver. The hire is finished in Hiring, then linked. */
+  /** An application answers to this McLeod driver on the licence or the name, but not both. When both
+   *  agree the sweep hires the application itself (D-RL5), so this is the case a person must check. */
   "applicant",
   /** A fuel-card row answers by name only. Linked when a licence arrives (Samsara) or by hand. */
   "fuel_card",
   /** Two or more rows answer to the same key. Never guessed between: a person merges them. */
   "ambiguous",
-  /** A former driver's row answers, but McLeod's dates do not prove the rehire (D-MR7a). */
+  /** A former driver's row answers, but McLeod does not prove the rehire: no later hire date (D-MR7a)
+   *  and no termination McLeod itself took back (D-RL6) — usually the row was ended here, in 360. */
   "rehire_review",
   /** Nothing answers and the sweep did not create a row (link or identity mode, or no name). */
   "not_created",
