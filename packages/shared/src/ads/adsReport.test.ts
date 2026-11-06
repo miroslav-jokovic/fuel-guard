@@ -58,7 +58,7 @@ describe("foldLeadCohorts", () => {
   // A stage reached = a time on `reached`; the time itself is not what the cohort counts.
   const T = "2026-10-20T15:00:00Z";
   const lead = (id: string, arrived_at: string, stages: Array<"contacted" | "converted" | "applied" | "hired" | "lost_after_conversion">) =>
-    ({ lead_id: `00000000-0000-4000-8000-00000000000${id}`, campaign_id: "a", arrived_at, reached: Object.fromEntries(stages.map((s) => [s, T])) });
+    ({ lead_id: `00000000-0000-4000-8000-00000000000${id}`, provider: "meta", platform_lead_ref: `leadgen-${id}`, campaign_id: "a", arrived_at, reached: Object.fromEntries(stages.map((s) => [s, T])) });
   it("groups by the Central Monday and counts each recorded stage once per lead", () => {
     const c = foldLeadCohorts([
       lead("1", "2026-10-05T15:00:00Z", ["contacted", "converted", "hired"]),

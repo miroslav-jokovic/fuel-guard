@@ -9,6 +9,7 @@ import { leadUncontactedHandler } from "./leadUncontacted.js";
 import { adsInsightsHandler } from "./adsInsights.js";
 import { adsReconcileHandler } from "./adsReconcile.js";
 import { adsDailyBriefHandler } from "./adsDailyBrief.js";
+import { adsOutcomeFeedHandler } from "./adsOutcomeFeed.js";
 import { adsRenderHandler } from "./adsRender.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
@@ -109,6 +110,8 @@ export function registerAllHandlers(): void {
   registerHandler("ads_reconcile", adsReconcileHandler);
   // F1b: one carrier's morning brief; dedup-keyed per org by its tick, once a day by the bell's key.
   registerHandler("ads_daily_brief", adsDailyBriefHandler);
+  // B6: one Meta connection's daily outcome feed; dedup-keyed per connection by its tick.
+  registerHandler("ads_outcome_feed", adsOutcomeFeedHandler);
   // D2c: one carrier's sweep for leads nobody has contacted; dedup-keyed per org by its tick.
   registerHandler("lead_uncontacted", leadUncontactedHandler);
   registerHandler("ads_render", adsRenderHandler);

@@ -102,7 +102,8 @@ const WAIVERS = new Map([
   // schema-only first PR only.
   // ads_creatives left on 2026-11-04 (C5b1): modules/ads/compose/composeCreative.ts writes each creative's
   // content and its end state; the campaign's compose step (C5b2) inserts the rows.
-  ["ads_outcome_events", "ADS-AGENT-BUILD-WORKFLOW.md B6 — the outcome feed queues a stage event from the LeadSink (schema-only A2, 0537)"],
+  // ads_outcome_events left on 2026-11-06 (B6): modules/ads/outcomes/outcomeLedger.ts queues and records each
+  // stage the outcome feed sends. Pinned for the schema-only A2 (0537) only.
   // orientation_videos (0539, HIRING-WORKFLOW-AUDIT-2026-10-31 HW8a) left on 2026-11-01 in HW8a's second PR:
   // recruiting/orientationVideos.ts writes it behind Settings → Recruiting's list. Pinned for the schema-only
   // first PR only.
