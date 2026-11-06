@@ -110,7 +110,7 @@ describe("GET /api/version", () => {
     ]);
   });
 
-  // That it alone turns `ok` false is `routes/version.test.ts`'s: here the schema is unknown, so `ok` is false anyway.
+  // That it alone turns `ok` false is `lib/maintenanceHealth.test.ts`'s: here the schema is unknown, so `ok` is false anyway.
   it("says step-up cannot work here by setting name only", async () => {
     const body = (await (await fetch(`${baseUrl}/api/version`)).json()) as { stepUp: string };
     // This app's env has none of the three, so all three are named, in `stepUpMissing`'s order.

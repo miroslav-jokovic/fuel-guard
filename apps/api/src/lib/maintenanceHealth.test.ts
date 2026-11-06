@@ -48,6 +48,14 @@ const { loadEnv } = await import("../env.js");
 const { closeTestServer } = await import("../testing/httpServer.js");
 
 const CURRENT = { expected: "0360", applied: "0360", state: "current", drift: false };
+/**
+ * A deploy whose "Confirm it's you" can work: the sixth input to `ok` (Q-AD41 (b), 2026-11-06, `stepUpMissing` in
+ * envAuth.ts). Every healthy case needs it, as a real healthy deploy does; the last describe drops one.
+ */
+const HEALTHY_ENV = {
+  NODE_ENV: "test", VITE_API_URL: "https://api.example.test",
+  SUPABASE_URL: "https://p.supabase.co", SUPABASE_ANON_KEY: "anon", SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
+};
 const health = (state: string) => ({ state, lastSucceededAt: null, partitionedTables: 0 });
 
 describe("toMaintenanceHealth", () => {
@@ -94,7 +102,7 @@ describe("GET /api/version folds maintenance into ok", () => {
   let baseUrl: string;
 
   beforeAll(async () => {
-    const app = createApp(loadEnv({ NODE_ENV: "test", VITE_API_URL: "https://api.example.test" } as NodeJS.ProcessEnv));
+    const app = createApp(loadEnv({ ...HEALTHY_ENV } as NodeJS.ProcessEnv));
     await new Promise<void>((resolve) => {
       server = app.listen(0, () => {
         baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -178,7 +186,7 @@ describe("GET /api/version/ready — the same verdict as a status code, for an e
   let server: Server;
   let baseUrl = "";
   beforeAll(async () => {
-    const app = createApp(loadEnv({ NODE_ENV: "test", VITE_API_URL: "https://api.example.test" } as NodeJS.ProcessEnv));
+    const app = createApp(loadEnv({ ...HEALTHY_ENV } as NodeJS.ProcessEnv));
     await new Promise<void>((resolve) => {
       server = app.listen(0, () => {
         baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -199,7 +207,7 @@ describe("GET /api/version/ready — the same verdict as a status code, for an e
     const res = await fetch(`${baseUrl}/api/version/ready`);
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
-    expect(await res.json()).toMatchObject({ ok: true, maintenance: "ok", schedulers: { egress: "held", general: "held" } });
+    expect(await res.json()).toMatchObject({ ok: true, maintenance: "ok", schedulers: { egress: "held", general: "held" }, stepUp: "ready" });
   });
 
   it("answers 503 when any input is unhealthy, and says which", async () => {
@@ -215,5 +223,38 @@ describe("GET /api/version/ready — the same verdict as a status code, for an e
     const stale = await fetch(`${baseUrl}/api/version/ready`);
     expect(stale.status).toBe(503);
     expect(await stale.json()).toMatchObject({ ok: false, storageBackup: "stale" });
+  });
+});
+
+describe("GET /api/version folds step-up readiness into ok (Q-AD41 (b))", () => {
+  let server: Server;
+  let baseUrl: string;
+
+  beforeAll(async () => {
+    // Every other input healthy; only the anon key the password grant needs is missing — staging, 2026-11-06.
+    const { SUPABASE_ANON_KEY: _missing, ...withoutAnonKey } = HEALTHY_ENV;
+    const app = createApp(loadEnv(withoutAnonKey as NodeJS.ProcessEnv));
+    await new Promise<void>((resolve) => {
+      server = app.listen(0, () => {
+        baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+        resolve();
+      });
+    });
+  });
+  afterAll(async () => closeTestServer(server));
+  beforeEach(() => {
+    mocks.schema.mockResolvedValue(CURRENT);
+    mocks.maintenance.mockResolvedValue(health("ok"));
+    mocks.schedulers.mockResolvedValue(LANES_HELD);
+    mocks.storageBackup.mockResolvedValue(BACKUP_OFF);
+    mocks.realtime.mockResolvedValue(REALTIME_PENDING);
+  });
+
+  it("is NOT ok when step-up cannot work, names the setting, and /ready answers 503", async () => {
+    const body = (await (await fetch(`${baseUrl}/api/version`)).json()) as { ok: boolean; stepUp: string };
+    expect(body).toMatchObject({ ok: false, stepUp: "missing:SUPABASE_ANON_KEY" });
+    const ready = await fetch(`${baseUrl}/api/version/ready`);
+    expect(ready.status).toBe(503);
+    expect(await ready.json()).toMatchObject({ ok: false, stepUp: "missing:SUPABASE_ANON_KEY" });
   });
 });
