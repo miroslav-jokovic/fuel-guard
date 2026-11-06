@@ -3,6 +3,7 @@ import { ADS_CONNECTION_VIEW_COLUMNS, type AdsConnectionView, type AdsMetaConnec
 import { writeAudit } from "../../../lib/audit.js";
 import { seal, secretAad } from "../../../lib/secretBox.js";
 import { recordFinished } from "../actions/actionLedger.js";
+import { sandboxOnlyVerdict } from "../guard/sandboxOnly.js";
 import { testMetaConnection, type ConnectionReport, type ConnectionTarget } from "../platforms/meta/connectionTest.js";
 import { MetaGraph } from "../platforms/meta/graphClient.js";
 import {
@@ -79,6 +80,10 @@ export async function connectMeta(deps: ConnectionDeps, orgId: string, actor: Co
   const target: ConnectionTarget = { accountId, pageId: ask.page_id };
   const { report, pageToken, tokenRefused } = await testMetaConnection(graph, target);
   if (tokenRefused) return { kind: "token_refused", report };
+  // D-AD8 (Q-AD42): on a non-production host only a listed sandbox account Meta says cannot be billed. Asked after the
+  // token is known good (so a bad token is reported as such) and before anything is sealed or stored.
+  const sandbox = await sandboxOnlyVerdict(deps, "meta", accountId, async () => graph);
+  if (!sandbox.ok) return { kind: "refused", error_code: sandbox.refusal, reason: sandbox.message };
 
   // Seal before any write: no SECRETS_ENCRYPTION_KEY → seal throws, and nothing is stored in plaintext.
   const token_sealed = seal(deps.env, ask.token, secretAad(orgId, metaTokenPurpose(ask.sandbox)));

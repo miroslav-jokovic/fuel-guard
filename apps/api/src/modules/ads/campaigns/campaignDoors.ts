@@ -11,6 +11,8 @@ import { applyCampaignEvent, insertCampaign, loadCampaign, recordCampaignRefusal
 import { settingsInForce, type Actor } from "../settings/settingsVersions.js";
 import { hasApprovedCreative } from "./creativeDecisions.js";
 import { BAKED_READINESS, launchCertification, type LaunchReadiness, type MissingWorker } from "./launchCertification.js";
+import { sandboxOnlyVerdict, type SandboxOnlyRefusal } from "../guard/sandboxOnly.js";
+import { graphForConnection, type ConnectionForGraph, type RegistryDeps } from "../platforms/registry.js";
 
 /**
  * The campaign doors behind `/api/ads/campaigns` (ADS-AGENT-BUILD-WORKFLOW Track S, S1b). Create, list, read.
@@ -116,7 +118,7 @@ export type MoveOutcome =
    * Launch only (G-launch-gate): a worker this campaign uses is below L4, or the simulator on a host that refuses it.
    * `message` is the sentence the campaign's `last_error` now carries; `missing` names each worker and its level.
    */
-  | { kind: "launch_refused"; refusal: "not_certified" | "simulator_not_allowed" | "platform_not_listed"; missing: MissingWorker[]; message: string };
+  | { kind: "launch_refused"; refusal: "not_certified" | "simulator_not_allowed" | "platform_not_listed" | SandboxOnlyRefusal; missing: MissingWorker[]; message: string };
 
 const fromTransition = (r: TransitionResult): MoveOutcome => {
   switch (r.kind) {
@@ -154,17 +156,28 @@ export async function personMove(admin: SupabaseClient, orgId: string, actor: Ac
 export async function launchCampaign(
   admin: SupabaseClient, orgId: string, actor: Actor, campaignId: string, ask: AdsCampaignLaunch, at: Date,
   readiness: LaunchReadiness = BAKED_READINESS,
+  /** The deploy (D-AD8): its sandbox allowlist and the sealed token's key. The route passes the app's env through. */
+  registry: RegistryDeps,
 ): Promise<MoveOutcome> {
   const c = await loadCampaign(admin, orgId, campaignId);
   if (!c) return { kind: "not_found" };
   const step = stepCampaign(c.state, "launch", "approver");
   if (!step.ok) return { kind: "refused", reason: step.reason };
   // G-launch-gate: before any approval is read, the parts this campaign uses must be certified (launchCertification.ts).
-  const { data: conn, error } = await admin.from("ads_platform_connections").select("provider").eq("org_id", orgId).eq("id", c.connection_id).maybeSingle();
+  const { data: conn, error } = await admin.from("ads_platform_connections")
+    .select("id, org_id, provider, is_sandbox, token_sealed, account_ref").eq("org_id", orgId).eq("id", c.connection_id).maybeSingle();
   if (error) throw new Error(`ads_platform_connections: ${error.message}`);
-  const cert = launchCertification({ provider: (conn as { provider: string } | null)?.provider ?? "unknown" }, readiness);
+  const row = conn as (ConnectionForGraph & { account_ref: string | null }) | null;
+  const approverActor = { kind: "approver" as const, id: actor.id, name: actor.name };
+  // D-AD8 (Q-AD42), asked first: on a non-production host, an account connected before the rule cannot launch either.
+  const sandbox = await launchSandboxVerdict(registry, row);
+  if (!sandbox.ok) {
+    await recordCampaignRefusal(admin, c, { event: "launch", actor: approverActor, error_code: sandbox.refusal, error: sandbox.message }, at.toISOString());
+    return { kind: "launch_refused", refusal: sandbox.refusal, missing: [], message: sandbox.message };
+  }
+  const cert = launchCertification({ provider: row?.provider ?? "unknown" }, readiness);
   if (!cert.ok) {
-    await recordCampaignRefusal(admin, c, { event: "launch", actor: { kind: "approver", id: actor.id, name: actor.name }, error_code: cert.refusal, error: cert.message }, at.toISOString());
+    await recordCampaignRefusal(admin, c, { event: "launch", actor: approverActor, error_code: cert.refusal, error: cert.message }, at.toISOString());
     return { kind: "launch_refused", refusal: cert.refusal, missing: cert.missing, message: cert.message };
   }
   const { settings } = await settingsInForce(admin, orgId);
@@ -177,4 +190,13 @@ export async function launchCampaign(
     cause: `${actor.name} launched at ${ask.daily_budget_cents} cents a day, ${ask.lifetime_cap_cents} cents in all`,
     budget: { daily_budget_cents: ask.daily_budget_cents, lifetime_cap_cents: ask.lifetime_cap_cents },
   }, at.toISOString()));
+}
+
+/** D-AD8 at launch: the stored connection's account, read through the stored token (`graphForConnection`, as every Meta step opens it). */
+function launchSandboxVerdict(registry: RegistryDeps, row: (ConnectionForGraph & { account_ref: string | null }) | null) {
+  return sandboxOnlyVerdict(registry, row?.provider ?? "unknown", row?.account_ref ?? "", async () => {
+    if (!row) return null;
+    const opened = await graphForConnection(registry, row);
+    return opened.ok ? opened.graph : null;
+  });
 }

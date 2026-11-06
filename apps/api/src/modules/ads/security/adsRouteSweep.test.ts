@@ -39,7 +39,9 @@ const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const OTHER = "5b6c7d8e-9f00-4a1b-8c2d-3e4f5a6b7c8d";
 const SEALING_KEY = Buffer.alloc(32, 7).toString("base64");
 const APP_SECRET = "app-secret-0d9e8f7a6b5c4d3e2f1a";
-const env = loadEnv({ NODE_ENV: "test", SECRETS_ENCRYPTION_KEY: SEALING_KEY, META_APP_SECRET: APP_SECRET } as NodeJS.ProcessEnv);
+// A non-production host (the test process) with this carrier's account on its sandbox allowlist (D-AD8): Connect and
+// Launch then also read the account's payment method from Meta, which the stub answers with none.
+const env = loadEnv({ NODE_ENV: "test", SECRETS_ENCRYPTION_KEY: SEALING_KEY, META_APP_SECRET: APP_SECRET, META_SANDBOX_AD_ACCOUNT_IDS: "act_100100" } as NodeJS.ProcessEnv);
 
 /** The credentials, each unmistakable in a body. */
 const TOKEN = "EAAGsystemusertokenAAAA1111222233334444";

@@ -266,6 +266,10 @@ A real-platform Launch is refused until every worker the campaign uses is at **L
 from a recorded passing sandbox run (*apps/api/src/modules/ads/campaigns/launchCertification.ts*;
 ADS-AGENT-BUILD-WORKFLOW §4R). This one is for an engineer, by pull request.
 
+0. **Before the first sandbox run (Stage 2), the owner adds the sandbox ad account's id** to staging's deploy
+   setting `META_SANDBOX_AD_ACCOUNT_IDS` (AWS Parameter Store, `/silvicom/staging/api`), then staging is
+   redeployed. Without it, staging refuses every Meta account, the sandbox included (§8, D-AD8). The sandbox
+   account must have no payment method in Meta, or staging refuses it too.
 1. Run the worker's contract suite against Meta's sandbox with `ADS_TARGET=sandbox` (§4R L4). Note the
    commit it ran on (the full 40-character sha), the date, and the CI run or PR link.
 2. Add one record per worker to `scripts/ads-certifications.json`:
@@ -304,9 +308,12 @@ ADS-AGENT-BUILD-WORKFLOW §4R). This one is for an engineer, by pull request.
     role. `miki+staging-admin@silvicominc.com` is an **admin**: it sees Ads control, Data & sync, and Launch.
     `miki+staging-fleet-manager@silvicominc.com` is a **fleet manager**: it sees Recruitment › Campaigns, but
     not Data & sync (admin-only, §3). `miki+staging-dispatcher@silvicominc.com` is a **dispatcher**.
-    **Staging is not automatically safe:** the simulator works only there, but nothing stops an admin connecting a
-    real Meta account on staging (*connections.ts* checks the token, not the host), and that would spend real money.
-    Connect only the simulator or Meta's sandbox account on staging.
+    **Staging spends nothing (D-AD8, the rule since 2026-11-06).** On staging, and on any host that is not production,
+    a Meta ad account is used only if **both** hold: its id is on that host's list `META_SANDBOX_AD_ACCOUNT_IDS` (its
+    deploy settings; empty = no Meta account at all), **and** Meta says the account has **no payment method**. Connect
+    and Launch both ask (*apps/api/src/modules/ads/guard/sandboxOnly.ts*). Anything else is refused with **"Staging may
+    only use a Meta sandbox ad account."** and the reason: not on the list, Meta says it can be billed, or Meta could
+    not be asked. Production is not affected.
 - **What logs never hold:** tokens, keys or secrets. A test fails the build if one appears
   (*apps/api/src/modules/ads/security/adsLogScrape.test.ts*). If you ever see one, tell the owner: the token
   must be replaced (§2).

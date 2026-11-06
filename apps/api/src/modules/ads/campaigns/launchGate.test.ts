@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AD_WORKER_OFFICE_LABEL, ADS_CAMPAIGN_WORKERS, ADS_WORKER_LEVELS, launchMissingLines, type AdsReadinessLevel } from "@silvicom/shared";
 import { campaign, CONN, createAdsWorld, ORG, type AdsWorld } from "../../../testing/adsWorld.js";
 import { expectOrgScoped } from "../../../testing/supabaseRecorder.js";
+import type { Env } from "../../../env.js";
+import { testEnv } from "../../../testing/testEnv.js";
 import { launchCampaign } from "./campaignDoors.js";
 import { BAKED_READINESS, CAMPAIGN_CREATIVE_KIND, LAUNCH_LEVEL, type LaunchReadiness } from "./launchCertification.js";
 
@@ -30,13 +32,18 @@ const world = (connection: Record<string, unknown>) => {
   const approval = { id: "ap-1", org_id: ORG, campaign_id: C, kind: "launch", withdraws_id: null, approved_by: "u-admin", approved_by_name: "Owner", ...ASK, created_at: "2026-11-02T11:00:00Z" };
   w = createAdsWorld({ campaigns: [campaign(C, "paused", { daily_budget_cents: null, lifetime_cap_cents: null })], approvals: [approval], connections: [{ id: CONN, org_id: ORG, ...connection }] });
 };
-const launch = (readiness?: LaunchReadiness) => launchCampaign(w.admin, ORG, ADMIN, C, ASK, new Date("2026-11-05T15:00:00Z"), readiness);
+/** The launch door, on whatever host `vi.stubEnv` makes this process; no sandbox allowlist unless a test gives one. */
+const launch = (readiness?: LaunchReadiness, env: Partial<Env> = {}) =>
+  launchCampaign(w.admin, ORG, ADMIN, C, ASK, new Date("2026-11-05T15:00:00Z"), readiness, { env: { ...testEnv(), ...env } as Env });
 const refusedRows = () => w.transitions(C).filter((a) => a.status === "refused");
 const asked = (table: string) => w.rec.forTable(table).length;
 
 afterEach(() => vi.unstubAllEnvs());
 
 describe("G-launch-gate — a real platform launches only with every worker it uses at L4", () => {
+  // The certification rule as production applies it; a non-production host adds D-AD8's sandbox rule first (below).
+  beforeEach(() => vi.stubEnv("DEPLOY_ENVIRONMENT", "production"));
+
   it("on what is committed today, a Meta campaign is refused: every worker it uses is named with its level, and the campaign says so", async () => {
     world({ provider: "meta", is_sandbox: false });
     const out = await launch();
