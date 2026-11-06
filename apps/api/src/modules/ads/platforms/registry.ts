@@ -55,6 +55,13 @@ export interface RegistryDeps {
   /** The process environment the simulator gate reads; injectable so a test can be production. */
   processEnv?: NodeJS.ProcessEnv;
   now?: () => Date;
+  /**
+   * Where a META connection's Graph is (stage2-kit-2c). Unset is Meta's own host, which is what every caller in
+   * production passes: nothing reads it from the environment. The L4 contract suites set it to the fault proxy in
+   * front of their target (`contract/metaTarget.ts`), so the monitor and lead intake reach FakeMeta or Meta's
+   * sandbox through their own production code, tokens unsealed the production way. The simulator ignores it.
+   */
+  metaGraphBase?: string;
 }
 
 export async function graphForConnection(deps: RegistryDeps, c: ConnectionForGraph): Promise<GraphForConnection> {
@@ -75,7 +82,7 @@ export async function graphForConnection(deps: RegistryDeps, c: ConnectionForGra
     const why = e instanceof SecretBoxError ? e.code : "unknown";
     return { ok: false, error_code: "token_unreadable", reason: `The stored token could not be opened (${why}). Connect it again.` };
   }
-  return { ok: true, simulated: false, graph: new MetaGraph({ token, throttleKey, now: deps.now }) };
+  return { ok: true, simulated: false, graph: new MetaGraph({ token, throttleKey, now: deps.now, baseUrl: deps.metaGraphBase }) };
 }
 
 /**
@@ -96,7 +103,7 @@ export async function pageGraphForConnection(deps: RegistryDeps, c: ConnectionFo
   if (!c.page_token_sealed) return { ok: false, error_code: "no_token", reason: "This connection holds no Page token. Run the connection test or connect it again." };
   try {
     const token = open(deps.env, c.page_token_sealed, secretAad(c.org_id, metaPageTokenPurpose(c.is_sandbox)));
-    return { ok: true, simulated: false, graph: new MetaGraph({ token, throttleKey, now: deps.now }) };
+    return { ok: true, simulated: false, graph: new MetaGraph({ token, throttleKey, now: deps.now, baseUrl: deps.metaGraphBase }) };
   } catch (e) {
     const why = e instanceof SecretBoxError ? e.code : "unknown";
     return { ok: false, error_code: "token_unreadable", reason: `The stored Page token could not be opened (${why}). Connect it again.` };

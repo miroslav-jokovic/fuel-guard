@@ -15,6 +15,9 @@ import { EVENTS_SANDBOX_VARIABLES, SANDBOX_VARIABLES } from "../modules/ads/plat
 const CONTRACT = "src/modules/ads/platforms/meta/publisher.contract.test.ts";
 const GRAPH_READINGS = "src/modules/ads/platforms/meta/contract/readings.contract.test.ts";
 const EVENTS_READINGS = "src/modules/ads/outcomes/outcomeReadings.contract.test.ts";
+const ORCHESTRATOR = "src/modules/ads/orchestrator/orchestrator.contract.test.ts";
+const MONITOR = "src/modules/ads/monitor/monitor.contract.test.ts";
+const LEAD_INTAKE = "src/modules/ads/leads/leadIntake.contract.test.ts";
 
 /** D-AD8 (guard/sandboxOnly.ts): the machine's own allowlist the sandbox account must be on. */
 const ALLOWLIST = "META_SANDBOX_AD_ACCOUNT_IDS";
@@ -24,16 +27,19 @@ export type WorkerRun =
   | { unbuilt: string };
 
 export const WORKER_RUNS: Readonly<Record<string, WorkerRun>> = {
-  "Orchestrator": { unbuilt: "its L4 is a campaign driven by the orchestrator through the real Meta adapter on the sandbox; no suite runs the golden scenarios over a real adapter yet" },
-  "Budget guard": { unbuilt: "its L4 is the guard over the sandbox account's real spend_cap and amount_spent; no suite reads them through the guard yet" },
+  // stage2-kit-2c: the runner and machine with the real publisher on the target — created paused, half-made,
+  // resumed, read back, deleted and read back deleted.
+  "Orchestrator": { suites: [ORCHESTRATOR], vars: [...SANDBOX_VARIABLES, ALLOWLIST] },
+  "Budget guard": { unbuilt: "its L4 is the guard over the sandbox account's real spend_cap and amount_spent; its code is Track G's (modules/ads/guard/), so the suite is theirs to write" },
   "Publisher (per adapter)": { suites: [CONTRACT, GRAPH_READINGS], vars: [...SANDBOX_VARIABLES, ALLOWLIST], platform: "meta" },
-  "Monitor": { unbuilt: "its L4 is hourly insights pulled from the sandbox account; no suite pulls them from a real target yet" },
-  "Lead intake": { unbuilt: "its L4 is a test lead made with Meta's Lead Ads Testing Tool (a step a person does on developers.facebook.com) read back through leads retrieval; no suite reads one yet" },
+  "Monitor": { suites: [MONITOR], vars: [...SANDBOX_VARIABLES, ALLOWLIST] },
+  // The lead is the one the owner makes with Meta's Lead Ads Testing Tool on the sandbox Page.
+  "Lead intake": { suites: [LEAD_INTAKE], vars: [...SANDBOX_VARIABLES, "META_SANDBOX_LEAD_ID", ALLOWLIST] },
   "Outcome feed": { suites: [EVENTS_READINGS], vars: [...SANDBOX_VARIABLES, ...EVENTS_SANDBOX_VARIABLES, ALLOWLIST] },
   "Copywriter": { unbuilt: "its L4 is ads made from its live answers, English and Spanish, created on the sandbox without refusal; publisher.contract.test.ts sends fixed copy, and the run carrying live answers (ANTHROPIC_API_KEY) is stage2-kit 2b" },
   "Art director": { unbuilt: "its L4 is its live prompts rendered by the real Higgsfield API, each picture passing the no-lettering check; that run (and FakeHiggsfield's recorded readings) is stage2-kit 2b, and it needs the owner's Higgsfield key (Q-AD20)" },
-  "Checker": { unbuilt: "its L4 is the planted-defect corpus on real Higgsfield renders at the owner's recall threshold; no threshold is set anywhere this command can read (Q-AD45), so it refuses before anything else, and the run is stage2-kit 2b" },
-  "Analyst": { unbuilt: "its L4 is a live brief over a sandbox day's real hourly insights; it waits for the Monitor's sandbox pull, and the run is stage2-kit 2b" },
+  "Checker": { unbuilt: "its L4 is the planted-defect corpus on real Higgsfield renders at the owner's recall threshold; its threshold is the owner's number in workers/checker/baseline.json (Q-AD45, ruled (a)), not set yet; the run is stage2-kit 2b" },
+  "Analyst": { unbuilt: "its L4 is a live brief over a sandbox day's real hourly insights, read by the Monitor's sandbox pull (built, stage2-kit-2c); the run is stage2-kit 2b" },
   "Renderer / Higgsfield client": { unbuilt: "its L4 is renders on a small real Higgsfield budget, with FakeHiggsfield's OUR readings (higgsfieldClient.ts) recorded and diffed; stage2-kit 2b, and it needs the owner's Higgsfield key (Q-AD20)" },
   // Its need is "a token scrape over the sandbox run's logs": the Publisher's run, every byte it printed
   // searched for each secret it was given.

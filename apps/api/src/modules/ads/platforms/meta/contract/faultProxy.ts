@@ -22,6 +22,10 @@ import { META_GRAPH_VERSION } from "../graphClient.js";
  *                           half-created object a lost answer leaves behind.
  *   accepted_not_applied  — answered `{ success: true }` here; nothing reaches the target.
  *
+ * And one that is not a fault (stage2-kit-2c): `overlay` plays a verdict only the platform gives — Meta turning
+ * an ad down — on a GET the target answered, by setting fields of its answer. Meta's sandbox will not reject an
+ * ad on request either, so the monitor's rejected-ad path meets the same overlaid answer on both targets.
+ *
  * The log never holds a token: the Authorization header is not recorded, and a body `access_token` is
  * redacted, as FakeMeta's own log does.
  */
@@ -41,6 +45,7 @@ export interface ProxiedCall {
 export class FaultProxy {
   readonly faults = new FaultBook();
   readonly calls: ProxiedCall[] = [];
+  private readonly overlays: Array<{ path: RegExp; fields: Record<string, unknown> }> = [];
   private server: Server | null = null;
   private trace = 0;
 
@@ -63,6 +68,11 @@ export class FaultProxy {
     this.server.closeAllConnections();
     await new Promise<void>((resolve) => this.server!.close(() => resolve()));
     this.server = null;
+  }
+
+  /** Every later successful GET of a path matching `path` answers `fields` over what the target said. */
+  overlay(path: RegExp, fields: Record<string, unknown>): void {
+    this.overlays.push({ path, fields });
   }
 
   /** Every POST to a path matching `edge` that the TARGET answered with success — what it really made. */
@@ -113,6 +123,8 @@ export class FaultProxy {
       return send(res, a.status, a.body, a.headers);
     }
     const usage = forwarded.headers.get("x-business-use-case-usage");
+    const over = method === "GET" && forwarded.status < 400 && parsed && typeof parsed === "object" ? this.overlays.filter((o) => o.path.test(path)) : [];
+    if (over.length > 0) parsed = Object.assign({}, parsed, ...over.map((o) => o.fields));
     send(res, forwarded.status, parsed, usage ? { "X-Business-Use-Case-Usage": usage } : {});
   }
 

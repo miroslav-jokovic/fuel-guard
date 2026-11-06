@@ -48,6 +48,9 @@ describe("ads:certify — refusals before anything runs", () => {
     const h = io({ env });
     expect(await certify(["Publisher (per adapter)", "--target", "sandbox"], h.io)).toBe(2);
     expect(h.out()).toContain("Publisher (per adapter) needs META_SANDBOX_PAGE_ID");
+    const lead = io({ env: SANDBOX_ENV });
+    expect(await certify(["Lead intake", "--target", "sandbox"], lead.io)).toBe(2);
+    expect(lead.out()).toContain("Lead intake needs META_SANDBOX_LEAD_ID");
     expect(h.runSuite).not.toHaveBeenCalled();
     expect(h.checkSandboxAccount).not.toHaveBeenCalled();
   });
@@ -77,7 +80,7 @@ describe("ads:certify — verdicts", () => {
     const h = io({ env: SANDBOX_ENV });
     expect(await certify(["Checker", "--target", "sandbox"], h.io)).toBe(1);
     expect(h.out()).toMatch(/NOT BUILT\s+Checker/);
-    expect(h.out()).toContain("no threshold is set anywhere this command can read (Q-AD45)");
+    expect(h.out()).toContain("the owner's number in workers/checker/baseline.json (Q-AD45, ruled (a)), not set yet");
     expect(h.runSuite).not.toHaveBeenCalled();
     expect(() => readFileSync(join(h.root, DRAFT))).toThrow();
   });

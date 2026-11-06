@@ -38,6 +38,41 @@
         "error.code": 100,
         "events_received": "undefined"
       }
+    },
+    "monitor-account": {
+      "fake": "platforms/simulator/fakeMeta.ts",
+      "observed": {
+        "status": 200,
+        "timezone_name": "string",
+        "currency": "string"
+      }
+    },
+    "monitor-insights": {
+      "fake": "platforms/simulator/fakeMetaInsightsHourly.ts",
+      "observed": {
+        "status": 200,
+        "data": "array",
+        "paging": "object"
+      }
+    },
+    "monitor-ad-review": {
+      "fake": "platforms/simulator/fakeMetaFaults.ts",
+      "observed": {
+        "status": 200,
+        "effective_status": "string",
+        "ad_review_feedback on a fresh ad": false
+      }
+    },
+    "lead-read": {
+      "fake": "platforms/simulator/fakeMetaLeads.ts",
+      "observed": {
+        "status": 200,
+        "id": "string",
+        "form_id": "string",
+        "field_data": "array",
+        "created_time is +0000": true,
+        "each answer is { name, values[] }": true
+      }
     }
   }
 }
