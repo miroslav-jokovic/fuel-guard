@@ -4,10 +4,11 @@ import { AD_FORMATS, adPresetSaveSchema, templateSlots, type AdFormat, type AdPr
  * The preset editor's form (E2; plan D-AD11), kept apart from the screen so what a save sends can be tested.
  * `adPresetSaveSchema` judges it, here as at the API, so its own sentence is what a person reads.
  *
- * ── TWO THINGS THE FORM ASKS FOR THAT THE CONTRACT LEAVES OPTIONAL ────────────────────────────────
- * `overlay_slots` and `platform_slots` may be null in the contract so older bodies still parse, but compose
+ * ── BOTH SLOT SETS ARE REQUIRED BY THE SAVE CONTRACT, NOT HERE ────────────────────────────────────
+ * `overlay_slots` and `platform_slots` may be null in a stored recipe so older bodies still parse, but compose
  * refuses a preset without the first (`no_overlay_slots`) and the publisher one without the second
- * (`no_platform_slots`). A preset saved without them would fail a campaign later, so this form refuses now.
+ * (`no_platform_slots`). `adPresetSaveSchema` refuses a NEW version without either, at the API and here alike;
+ * this form only sends null for a half-chosen pair and shows the contract's sentence.
  *
  * ── `image_slots` IS READ FROM THE TEMPLATE ───────────────────────────────────────────────────────
  * The contract requires them to be exactly the template's `{slots}`, so asking a person to list them again would
@@ -54,8 +55,6 @@ export type PresetSaveAsk = { ok: true; save: AdPresetSave } | { ok: false; mess
 
 /** What the door is sent, or the sentence that says why not. */
 export function presetSaveFrom(f: PresetForm): PresetSaveAsk {
-  if (!f.overlay_headline || !f.overlay_cta) return { ok: false, message: "Choose which copy goes on the image: its headline and its call to action." };
-  if (!f.platform_primary_text || !f.platform_headline) return { ok: false, message: "Choose which copy Meta shows beside the image: its primary text and its headline." };
   const parsed = adPresetSaveSchema.safeParse({
     key: f.key, enabled: f.enabled,
     recipe: {
@@ -63,8 +62,9 @@ export function presetSaveFrom(f: PresetForm): PresetSaveAsk {
       image_prompt_template: f.image_prompt_template, image_slots: templateSlots(f.image_prompt_template),
       starts_from: f.starts_from, shows_equipment: f.shows_equipment, shows_people: f.shows_people,
       motion_template: f.motion_template, formats: f.formats,
-      overlay_slots: { headline: f.overlay_headline, cta: f.overlay_cta },
-      platform_slots: { primary_text: f.platform_primary_text, headline: f.platform_headline },
+      // Either half unchosen sends no slots at all, so the save contract's own sentence is what a person reads.
+      overlay_slots: f.overlay_headline && f.overlay_cta ? { headline: f.overlay_headline, cta: f.overlay_cta } : null,
+      platform_slots: f.platform_primary_text && f.platform_headline ? { primary_text: f.platform_primary_text, headline: f.platform_headline } : null,
     },
   });
   return parsed.success ? { ok: true, save: parsed.data } : { ok: false, message: parsed.error.issues[0]!.message };

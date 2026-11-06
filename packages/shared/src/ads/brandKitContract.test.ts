@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adBrandKitSaveSchema, adBrandKitSchema, adPresetRecipeSchema, kitAssets, templateSlots, type AdBrandKit, type AdPresetRecipe } from "./brandKitContract.js";
+import { adBrandKitSaveSchema, adBrandKitSchema, adPresetRecipeSchema, adPresetSaveSchema, kitAssets, templateSlots, type AdBrandKit, type AdPresetRecipe } from "./brandKitContract.js";
 import { safeZone } from "./renderGeometry.js";
 
 /** Fixtures only — never a real brand value or preset (Q-AD14, Q-AD12 are the owner's). */
@@ -83,5 +83,17 @@ describe("preset recipe contract", () => {
   it("refuses a format or a slot listed twice", () => {
     expect(adPresetRecipeSchema.safeParse({ ...RECIPE, formats: ["1:1", "1:1"] }).success).toBe(false);
     expect(adPresetRecipeSchema.safeParse({ ...RECIPE, copy_slots: [{ name: "hook", max_chars: 60 }, { name: "hook", max_chars: 60 }] }).success).toBe(false);
+  });
+
+  it("a new version must say where its copy goes on the image and beside it, though a stored recipe may not", () => {
+    const four = { ...RECIPE, copy_slots: [...RECIPE.copy_slots, { name: "body", max_chars: 200 }, { name: "title", max_chars: 40 }] };
+    const whole = { ...four, overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: { primary_text: "body", headline: "title" } };
+    expect(adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: whole }).success).toBe(true);
+    const noOverlay = adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: { ...whole, overlay_slots: null, platform_slots: whole.platform_slots } });
+    expect(noOverlay.error?.issues.map((i) => i.path.join("."))).toEqual(["recipe.overlay_slots"]);
+    const noPlatform = adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: { ...whole, platform_slots: null } });
+    expect(noPlatform.error?.issues.map((i) => i.path.join("."))).toEqual(["recipe.platform_slots"]);
+    // The recipe itself still parses without them: a body saved before B2c is history, not an error.
+    expect(adPresetRecipeSchema.safeParse({ ...whole, overlay_slots: null, platform_slots: null }).success).toBe(true);
   });
 });

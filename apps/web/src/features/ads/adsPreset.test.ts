@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { ref } from "vue";
+import { AppSwitch } from "@silvicom/ui";
 import { adPresetRecipeSchema, type AdPresetRecipe, type AdPresetSave, type AdPresetView } from "@silvicom/shared";
 
 /**
@@ -9,14 +10,17 @@ import { adPresetRecipeSchema, type AdPresetRecipe, type AdPresetSave, type AdPr
  * not edit, and the buttons follow `requireAdminOnly("ads.brand-kit")`.
  */
 const who = vi.hoisted(() => ({ admin: true }));
-const state = vi.hoisted(() => ({ saves: [] as AdPresetSave[], presets: [] as unknown[] }));
+const state = vi.hoisted(() => ({ saves: [] as AdPresetSave[], presets: [] as unknown[], refreshed: [] as unknown[] }));
 vi.mock("@/lib/api", () => ({ apiFetch: async () => ({ ok: true }) }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ admin: who.admin }) }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
 vi.mock("@tanstack/vue-query", () => ({
   useQuery: () => ({ data: ref(state.presets), isLoading: ref(false), isFetching: ref(false), error: ref(null), refetch: vi.fn() }),
-  useMutation: (o: { mutationFn: (v: AdPresetSave) => Promise<void> }) => ({ isPending: ref(false), mutateAsync: async (v: AdPresetSave) => (state.saves.push(v), o.mutationFn(v)) }),
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useMutation: (o: { mutationFn: (v: AdPresetSave) => Promise<void>; onSuccess?: () => unknown }) => ({
+    isPending: ref(false),
+    mutateAsync: async (v: AdPresetSave) => { state.saves.push(v); await o.mutationFn(v); await o.onSuccess?.(); },
+  }),
+  useQueryClient: () => ({ invalidateQueries: (q: unknown) => state.refreshed.push(q) }),
 }));
 
 import AdsPresetCard from "./AdsPresetCard.vue";
@@ -37,6 +41,7 @@ const filled = (over: Partial<PresetForm> = {}): PresetForm => ({ ...presetFormF
 beforeEach(() => {
   state.saves = [];
   state.presets = [];
+  state.refreshed = [];
   who.admin = true;
   setActivePinia(createPinia());
 });
@@ -122,5 +127,16 @@ describe("AdsPresetDrawer", () => {
     await flushPromises();
     expect(state.saves[0]).toMatchObject({ key: "P2", enabled: false });
     expect(w.emitted("close")).toHaveLength(1);
+    // The list is read again, so the card shows the version just saved.
+    expect(state.refreshed).toEqual([{ queryKey: ["ads", "presets"] }]);
+  });
+
+  it("a format switched off is left out of the next version, and the others keep their order", async () => {
+    const w = drawer(VIEW);
+    const square = w.findAllComponents(AppSwitch).find((s) => s.props("label") === "1:1")!;
+    square.vm.$emit("update:modelValue", false);
+    await w.find("[data-test=preset-form]").trigger("submit");
+    await flushPromises();
+    expect(state.saves[0]?.recipe.formats).toEqual(["4:5"]);
   });
 });
