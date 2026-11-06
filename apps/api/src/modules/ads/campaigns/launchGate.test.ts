@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ADS_CAMPAIGN_WORKERS, ADS_WORKER_LEVELS, type AdsReadinessLevel } from "@silvicom/shared";
+import { AD_WORKER_OFFICE_LABEL, ADS_CAMPAIGN_WORKERS, ADS_WORKER_LEVELS, launchMissingLines, type AdsReadinessLevel } from "@silvicom/shared";
 import { campaign, CONN, createAdsWorld, ORG, type AdsWorld } from "../../../testing/adsWorld.js";
 import { expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { launchCampaign } from "./campaignDoors.js";
@@ -45,7 +45,9 @@ describe("G-launch-gate — a real platform launches only with every worker it u
     // Every worker the table lists is below L4 today (nothing has a sandbox run), and each is named once.
     expect(out.missing.map(keyOf)).toEqual(META_STILL.map(keyOf));
     for (const m of out.missing) expect(m).toEqual({ worker: m.worker, platform: m.platform, level: ADS_WORKER_LEVELS[keyOf(m)] ?? "L0", needs: LAUNCH_LEVEL });
-    expect(out.message).toContain("Publisher (per adapter) (meta) at L3");
+    // Office words (g-tidy): the Publisher's line names the platform, and no registry name or level reaches a person.
+    expect(out.message).toContain(`${AD_WORKER_OFFICE_LABEL["Publisher (per adapter)"]}, on Meta (Facebook, Instagram)`);
+    expect(out.message).not.toMatch(/\bL[0-5]\b|Publisher \(per adapter\)/);
     // Nothing moved; the reason is on the campaign for the review screen, and in one refused transition row.
     expect(w.byId(C)).toMatchObject({ state: "paused", daily_budget_cents: null, last_error: out.message });
     expect(refusedRows()).toEqual([expect.objectContaining({ error_code: "not_certified", actor_kind: "person", actor_id: "u-admin" })]);
@@ -77,8 +79,21 @@ describe("G-launch-gate — a real platform launches only with every worker it u
     expect(out).toMatchObject({ kind: "launch_refused", refusal: "not_certified", missing: [{ worker: "Analyst", platform: null, level: "L3", needs: "L4" }] });
     if (out.kind !== "launch_refused") throw new Error("not refused");
     expect(out.missing).toHaveLength(1);
-    expect(out.message).toContain("Analyst at L3");
+    expect(out.message).toContain(AD_WORKER_OFFICE_LABEL.Analyst);
     expect(w.byId(C)).toMatchObject({ state: "paused", last_error: out.message });
+  });
+
+  it("the campaign's last_error says exactly what the Launch form lists for the same refusal, in the same order", async () => {
+    // On what is committed every part is missing, so the order is visible (a one-line refusal would hide it).
+    world({ provider: "meta", is_sandbox: false });
+    const out = await launch();
+    if (out.kind !== "launch_refused") throw new Error("not refused");
+    // What the screen renders for this refusal: `AdsCampaignLaunch.vue` lists `launchMissingLines(missing)`, one per line.
+    const rendered = launchMissingLines(out.missing);
+    const stored = String(w.byId(C).last_error);
+    expect(stored).toBe(out.message);
+    expect(rendered.length).toBeGreaterThan(1);
+    expect(stored.slice(stored.indexOf(": ") + 2, -" Nothing was spent.".length - 1).split("; ")).toEqual(rendered);
   });
 
   it("a per-platform worker is read on its platform: the Publisher certified somewhere else is not certified on Meta", async () => {
