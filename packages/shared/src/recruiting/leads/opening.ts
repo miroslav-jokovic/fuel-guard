@@ -26,6 +26,16 @@ export interface OpeningListItem {
   current: { title: string } | null;
 }
 
+/**
+ * One answer of `GET /recruitment/place-suggest` (Q-AD44 (a)): a place a person can pick as an opening's area
+ * point. `lat`/`lng` become `adAreaSchema`'s `latitude`/`longitude`; the label is a starting `area.label`.
+ */
+export interface PlaceSuggestion {
+  label: string;
+  lat: number;
+  lng: number;
+}
+
 export const openingFactsSchema = z
   .object({
     pay: z
