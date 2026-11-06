@@ -56,6 +56,31 @@ export const openingFactsSchema = z
   .strict();
 export type OpeningFacts = z.infer<typeof openingFactsSchema>;
 
+/**
+ * One opening as `GET /recruitment/openings` answers it (`listOpenings`, apps/api `recruiting/leads/hiringSetup.ts`):
+ * the parent row and its newest version, the area in its 0553 columns. The Openings editor reads it; the
+ * campaign picker needs only `OpeningListItem`'s part of it.
+ */
+export interface OpeningVersionView {
+  id: string;
+  version: number;
+  profile_version_id: string;
+  title: string;
+  facts: OpeningFacts;
+  headcount: number | null;
+  area_label: string;
+  area_latitude: number;
+  area_longitude: number;
+  area_radius_miles: number;
+  area_reason: string;
+  created_by_name: string;
+  created_at: string;
+}
+export interface OpeningView extends OpeningListItem {
+  created_at: string;
+  current: OpeningVersionView | null;
+}
+
 export const openingSaveSchema = z.object({
   /** Null creates the opening; an id saves its next version (`save_opening_version`, 0554). */
   opening_id: recordId().nullable(),
