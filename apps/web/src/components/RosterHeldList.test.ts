@@ -36,7 +36,7 @@ describe("RosterHeldList", () => {
     expect(w.get("[data-testid=roster-held]").text()).toContain("2 drivers in McLeod are not on this list yet");
     const rows = w.findAll("[data-testid=roster-held-driver]").map((r) => r.text());
     expect(rows[0]).toContain("CURTIS HAIRSTON (CHAIRSTO, hired 10/28/2026)");
-    expect(rows[0]).toContain("still an applicant in Hiring");
+    expect(rows[0]).toContain("not on both the licence number and the name");
     expect(rows[1]).toContain("fuel-card driver here by name only");
   });
 
