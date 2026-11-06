@@ -381,6 +381,7 @@ export async function ingestDriverTimeOff(
  *
  * `next` turns the stored list into the new one (`mergeHeld`, `clearedByRetire`). The write is skipped
  * when nothing changed, so `last_synced_at` means "the list last changed", not "a POST arrived".
+ * Returns the list as it now stands, which the driver route turns into `retry` (D-RL7).
  */
 export const ROSTER_HELD_PROVIDER = "mcleod_roster_held";
 
@@ -388,7 +389,7 @@ export async function updateRosterHeld(
   admin: SupabaseClient,
   orgId: string,
   next: (previous: RosterHeldDriver[]) => RosterHeldDriver[],
-): Promise<void> {
+): Promise<RosterHeldDriver[]> {
   const { data, error } = await admin
     .from("org_integrations")
     .select("config")
@@ -398,7 +399,7 @@ export async function updateRosterHeld(
   if (error) throw new Error(`Could not read the roster's held list: ${error.message}`);
   const previous = ((data as { config?: { drivers?: RosterHeldDriver[] } } | null)?.config?.drivers ?? []) as RosterHeldDriver[];
   const drivers = next(previous);
-  if (JSON.stringify(drivers) === JSON.stringify(previous) && data) return;
+  if (JSON.stringify(drivers) === JSON.stringify(previous) && data) return drivers;
   const at = new Date().toISOString();
   const config = { drivers };
   if (data) {
@@ -408,10 +409,11 @@ export async function updateRosterHeld(
       .eq("org_id", orgId)
       .eq("provider", ROSTER_HELD_PROVIDER);
     if (upErr) throw new Error(`Could not record the roster's held list: ${upErr.message}`);
-    return;
+    return drivers;
   }
   const { error: insErr } = await admin
     .from("org_integrations")
     .insert({ org_id: orgId, provider: ROSTER_HELD_PROVIDER, enabled: true, config, last_synced_at: at });
   if (insErr && insErr.code !== "23505") throw new Error(`Could not record the roster's held list: ${insErr.message}`);
+  return drivers;
 }

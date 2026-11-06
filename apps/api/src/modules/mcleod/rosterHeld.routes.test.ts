@@ -11,6 +11,8 @@ import { closeTestServer } from "../../testing/httpServer.js";
  * call it at all, with what the sweep actually carried, and never from a report, which decides nothing.
  */
 const updates: Array<(prev: RosterHeldDriver[]) => RosterHeldDriver[]> = [];
+/** What the stored list holds before a POST; the mock applies `next` to it, as the real writer does. */
+const stored: RosterHeldDriver[] = [];
 const ingestResult = { unmatched: [] as string[], ambiguous: [] as string[], applicants: ["CHAIRSTO"], retry: ["CHAIRSTO"] };
 const retireResult: { refused?: string } = {};
 
@@ -34,6 +36,7 @@ vi.mock("./tmsIngest.js", async (importOriginal) => {
     touchLastSynced: async () => {},
     updateRosterHeld: async (_a: unknown, _o: string, next: (prev: RosterHeldDriver[]) => RosterHeldDriver[]) => {
       updates.push(next);
+      return next([...stored]);
     },
   };
 });
@@ -48,12 +51,15 @@ const post = async (path: string, body: unknown) => {
     body: JSON.stringify(body),
   });
   expect(res.status).toBe(200);
+  return (await res.json()) as { retry?: string[] };
 };
 const hairston = { external_id: "CHAIRSTO", company_id: "TMS", first_name: "CURTIS", last_name: "HAIRSTON", hire_date: "2026-10-28" };
 const held = (id: string): RosterHeldDriver => ({ externalId: id, name: id, hireDate: null, reason: "applicant", since: "2026-10-30T00:00:00.000Z" });
 
 beforeEach(async () => {
   updates.length = 0;
+  stored.length = 0;
+  ingestResult.retry = ["CHAIRSTO"];
   delete retireResult.refused;
   const app = express();
   app.use("/api/tms", tmsIngestRouter());
@@ -75,6 +81,24 @@ describe("the driver sweep records what it held", () => {
   it("speaks only for the drivers it carried — another held driver stays on the list", async () => {
     await post("/api/tms/roster/drivers?mode=create", { drivers: [hairston] });
     expect(updates[0]!([held("SVIRGIN")]).map((d) => d.externalId)).toEqual(["SVIRGIN", "CHAIRSTO"]);
+  });
+
+  it("names every driver still on the list in retry, carried or not — AMABLER, held for a rehire review, is asked for again", async () => {
+    stored.push({ ...held("AMABLER"), reason: "rehire_review" });
+    const body = await post("/api/tms/roster/drivers?mode=create", { drivers: [hairston] });
+    expect([...(body.retry ?? [])].sort()).toEqual(["AMABLER", "CHAIRSTO"]);
+  });
+
+  it("does not name a driver this POST took off the list", async () => {
+    stored.push(held("CHAIRSTO"));
+    ingestResult.retry = [];
+    ingestResult.applicants = [];
+    try {
+      const body = await post("/api/tms/roster/drivers?mode=create", { drivers: [hairston] });
+      expect(body.retry).toEqual([]);
+    } finally {
+      ingestResult.applicants = ["CHAIRSTO"];
+    }
   });
 
   it("not from a report, which decides nothing", async () => {

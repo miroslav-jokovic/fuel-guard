@@ -106,6 +106,21 @@ dispatch truth is the load's driver and tractor, which the VM already sends ever
 - **Q-RL4 — Ferguson (hired 09/14, no card, no ELD row).** Is he actually driving? RL1 would create him
   on its first sweep.
 
+- **Q-RL5 — Kenneth Satterwhite (KSATTERW): McLeod lists him active AND terminated on 11-07.** Asked
+  2026-11-06. Read from `lme` at 21:00Z: `is_active = 'Y'`, termination date 2026-11-07 (the day after),
+  hire date 2025-01-29. The 19:35Z retire run had received him as NOT active and terminated our row with
+  that date. By 20:15Z McLeod listed him active again, so he went on the held list as a rehire to
+  review, and the list tells the office he "worked here before". For him that reads backwards: he seems to
+  be leaving, not returning. Candidate answers:
+  (a) **leave it**. When McLeod sets him inactive the retire run keeps our row as it is and takes him off
+  the list. Costs nothing, but if McLeod keeps `is_active = 'Y'` past 11-07 he stays held.
+  (b) **a new rule: active in McLeod with a termination date still ahead means notice was given and the
+  driver is still employed.** Our row goes back to active and keeps the date, and the retire run ends it on
+  the day. This is right only if the office enters a last day ahead of time, and nothing measured says
+  they do. One driver, one day.
+  **Recommend (a)**, after asking the office what they changed on him today. Build (b) only if entering
+  the last day in advance turns out to be their habit.
+
 ## 5a. Rulings (owner, 2026-10-30)
 
 - **Q-RL1 — as recommended:** McLeod's hire record is when a driver comes to exist in 360.
@@ -204,3 +219,14 @@ dispatch truth is the load's driver and tractor, which the VM already sends ever
   office check, `=== null`, the failed-audit-read answer, the system-archive exemption, the unfinished-file
   refusal, the null actor, the ended links, the refused-hire count), all ten caught. The held list's two
   wrong instructions were rewritten.
+- 2026-11-06 — **Release v2026.11.06 checked against production, and D-RL7 built.** The deploy went live
+  20:51:50Z. The 20:46Z sweep had run the old code, and the 21:01Z sweep was the first under D-RL5/D-RL6.
+  **CHAIRSTO settled**: hired from his application, linked to McLeod, active with hire date 10-28, and off
+  the list. **AMABLER did not**, and the entry above was wrong to say held drivers are "re-sent every
+  sweep". `withRetry` names the unmatched, the ambiguous and the applicants. It never named
+  `rehireReview`, so after the 11-04 sweep that held him he was never carried again, and D-RL6 never saw
+  him. **D-RL7:** the driver route now names every driver on the held list after the POST in `retry`,
+  carried or not, using the list itself rather than a list of buckets. `forgetUnsettled` forgets any id it
+  is told, so AMABLER is re-sent on the sweep after the next driver POST, and D-RL6 restores him there.
+  No VM change. With the union removed, the new route test fails. KSATTERW is a separate case and is
+  Q-RL5.

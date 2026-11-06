@@ -15,6 +15,7 @@ import {
   tmsRetirePayloadSchema,
   tmsRosterCheckpointSchema,
   type TmsDriverInput,
+  type RosterHeldDriver,
 } from "@silvicom/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynced } from "../tmsIngest.js";
@@ -37,11 +38,16 @@ const ROSTER_MODES = ["report", "link", "identity", "create", "reconcile"] as co
  * Best-effort, like the freshness stamps: the list explains the sweep, so failing to record it must
  * never fail the sweep it explains. Logged, so a list that stops moving has a reason in the logs.
  */
-async function recordHeld(admin: SupabaseClient, orgId: string, next: Parameters<typeof updateRosterHeld>[2]): Promise<void> {
+async function recordHeld(
+  admin: SupabaseClient,
+  orgId: string,
+  next: Parameters<typeof updateRosterHeld>[2],
+): Promise<RosterHeldDriver[] | null> {
   try {
-    await updateRosterHeld(admin, orgId, next);
+    return await updateRosterHeld(admin, orgId, next);
   } catch (e) {
     console.error(`[roster-held] org ${orgId}: ${(e as Error).message}`);
+    return null;
   }
 }
 
@@ -193,9 +199,25 @@ export function tmsIngestRouter(): Router {
         // The "needs a decision" list (RL3). A report decides nothing, so it changes nothing here.
         if (key === "drivers" && mode !== "report") {
           const sent = rows as TmsDriverInput[];
-          await recordHeld(admin, orgId, (prev) =>
+          const held = await recordHeld(admin, orgId, (prev) =>
             mergeHeld(prev, sent.map((r) => r.external_id), heldFromIngest(sent, result, new Date().toISOString())),
           );
+          /**
+           * ── EVERY HELD DRIVER IS ASKED FOR AGAIN (ROSTER-LIFECYCLE-PLAN D-RL7, 2026-11-06) ──────────
+           * The list is only ever re-decided for a driver a POST carries, and the agent carries a driver
+           * only when McLeod's row changed or `retry` named him. `withRetry` names the unmatched, the
+           * ambiguous and the applicants — but not `rehireReview`, so a driver held for a rehire review
+           * was never sent again, and his entry stood exactly as the sweep that wrote it left it.
+           * Measured in production 2026-11-06: D-RL6 shipped at 20:51Z to restore Amable Rafael Nin
+           * Diaz (AMABLER), and the 21:01Z sweep never carried him — held since 11-04 by a rule that no
+           * longer held him, with nothing that would ever re-ask.
+           *
+           * So the list itself is the retry, read rather than restated per bucket: whatever is on it
+           * after this POST is named here, carried or not (`forgetUnsettled` forgets any id it is told,
+           * not only the batch's). A driver who has left McLeod's active list is named harmlessly — the
+           * agent has no hash to forget, and the retire route takes him off the list.
+           */
+          if (held) result.retry = [...new Set([...result.retry, ...held.map((d) => d.externalId)])];
         }
         res.json(result);
       }),
