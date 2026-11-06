@@ -1029,6 +1029,30 @@ rate, and Higgsfield credits per approved creative.
   **Built:** migration `0570_ads_outcome_stages.sql` limits the CHECK to `LEAD_OUTCOME_STAGES`;
   `OUTCOME_STAGES` is derived from that list; `adsSchemaParity.test.ts` reads `alter table … add constraint`.
   Counted on 2026-11-06: 0 rows on both staging and production. B6 follows as the next merge.
+- **Whether a Claude worker has an L4** (open since C2; **ruled by the owner 2026-11-05: yes**). Recorded first in
+  #2074, which was **closed unmerged on 2026-11-06** as superseded by #2078, so until this entry (L4-ruling,
+  Track G, 2026-11-06) the ruling was on no branch of main. #2074's entry, as it stood:
+  > **Whether a Claude worker has an L4** (open since C2; **ruled by the owner 2026-11-05: yes**). No worker launches on its
+  > evaluation set alone. Copywriter's L4 is its live copy accepted on Meta's sandbox, in both languages (the wording is
+  > ours, in `scripts/ads-readiness.registry.mjs`). The Launch door refuses a real account below L4 (`guard/launchReadiness.ts`).
+
+  **On main** the door is #2078's, not that file: `apps/api/src/modules/ads/campaigns/launchCertification.ts`
+  refuses a real-account Launch unless every worker in the registry's `CAMPAIGN_WORKERS` for the campaign has a
+  passing sandbox run in `scripts/ads-certifications.json` (`guard/launchReadiness.ts` was not carried over). A
+  test passing is never L4 (§4R); for a Claude worker, its evaluation set is its L3 and only a sandbox run is its L4.
+  **The four Claude workers' L4 needs** are in the registry, and **their wording is ours, written from the ruling,
+  not the owner's**:
+  · Copywriter: its live copy accepted on Meta's sandbox, ads made from real answers, in English and Spanish,
+    created without refusal (#2074's wording);
+  · Art director: its live prompts rendered by the real Higgsfield API, from the kit photo where the preset shows
+    equipment, each picture passing the no-lettering check;
+  · Checker: the planted-defect corpus re-run on pictures the real Higgsfield API drew, at the owner-set recall
+    threshold, plus a verdict on every picture of the Art director's L4 run;
+  · Analyst: a live brief written over a day of the sandbox account's real hourly insights, every number from the
+    fact sheet.
+  **The Analyst is now a worker a Meta campaign uses** (`CAMPAIGN_WORKERS["meta:still"]`), because G-launch's
+  done-when includes "next morning's brief arrives". **The Outcome feed stays out**: B6 comes after the canary
+  (§5), so a first campaign sends no outcome. It joins Meta's row when it is wired.
 
 ---
 
