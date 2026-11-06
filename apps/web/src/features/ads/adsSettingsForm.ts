@@ -1,4 +1,4 @@
-import { AD_AI_AGENTS, AD_PLATFORMS, ADS_ALERT_CATEGORIES, adsSettingsSchema, type AdAiAgent, type AdPlatform, type AdsAlertCategory, type AdsSettings } from "@silvicom/shared";
+import { AD_AI_AGENTS, AD_PLATFORMS, ADS_ALERT_CATEGORIES, adsSettingsSchema, outcomeFeedOf, type AdAiAgent, type AdPlatform, type AdsAlertCategory, type AdsSettings } from "@silvicom/shared";
 
 /**
  * Settings › Ads control's form, as text a person types, to and from the stored settings (Track S, E1a).
@@ -21,6 +21,13 @@ import { AD_AI_AGENTS, AD_PLATFORMS, ADS_ALERT_CATEGORIES, adsSettingsSchema, ty
  * An alert with nobody chosen goes to its default audience (`ADS_LEAD_CALL_ALERTS`). The contract reads
  * an absent list and an empty one the same, so only lists with somebody on them are written — the
  * agents' switches' rule, for the same reason: a saved version must read back as itself.
+ *
+ * ── THE OUTCOME FEED IS CARRIED, AND AN ABSENT ONE STAYS ABSENT ──────────────────────────────────
+ * `outcome_feed` (Q-AD40) is optional in the contract, and absent reads as off (`outcomeFeedOf`). Because a
+ * save replaces the whole object, a form that dropped it would turn the feed off on every unrelated save, so
+ * the group is written from the form's two fields every time. But a version saved before the group existed
+ * and still left off is written WITHOUT it: `{ enabled: false, dataset_id: null }` beside an absent group
+ * would be a different object for the same choice. Its refusals are the contract's own sentences.
  */
 
 export interface AdsSettingsFormValues {
@@ -43,6 +50,9 @@ export interface AdsSettingsFormValues {
   /** Member ids per alert, in the order they were added; empty = the alert's default audience. */
   recipients: Record<AdsAlertCategory, string[]>;
   uncontacted_lead_minutes: string;
+  outcome_feed_enabled: boolean;
+  /** Meta's dataset id as typed; blank = none named. */
+  outcome_dataset_id: string;
 }
 
 const dollars = (cents: number | null | undefined): string => (cents == null ? "" : (cents / 100).toFixed(2).replace(/\.00$/, ""));
@@ -68,7 +78,16 @@ export function toFormValues(s: AdsSettings): AdsSettingsFormValues {
     agents_enabled: Object.fromEntries(AD_AI_AGENTS.map((a) => [a, s.budgets.agents_enabled[a] === true])) as Record<AdAiAgent, boolean>,
     recipients: Object.fromEntries(ADS_ALERT_CATEGORIES.map((c) => [c, [...(s.alerts.recipients[c] ?? [])]])) as Record<AdsAlertCategory, string[]>,
     uncontacted_lead_minutes: String(s.alerts.uncontacted_lead_minutes),
+    outcome_feed_enabled: outcomeFeedOf(s).enabled,
+    outcome_dataset_id: outcomeFeedOf(s).dataset_id ?? "",
   };
+}
+
+/** The group to write, or undefined to leave an absent group absent (see the header). */
+function outcomeFeedFrom(base: AdsSettings, v: AdsSettingsFormValues): AdsSettings["outcome_feed"] {
+  const dataset = v.outcome_dataset_id.trim();
+  if (base.outcome_feed === undefined && !v.outcome_feed_enabled && dataset === "") return undefined;
+  return { enabled: v.outcome_feed_enabled, dataset_id: dataset === "" ? null : dataset };
 }
 
 /** A typed number, or null for blank; NaN for anything else, which the schema then refuses. */
@@ -122,11 +141,21 @@ export function toSettings(base: AdsSettings, v: AdsSettingsFormValues): FormRes
       uncontacted_lead_minutes: num(v.uncontacted_lead_minutes) ?? Number.NaN,
     },
   };
+  const feed = outcomeFeedFrom(base, v);
+  if (feed === undefined) delete candidate.outcome_feed;
+  else candidate.outcome_feed = feed;
   const parsed = adsSettingsSchema.safeParse(candidate);
   if (parsed.success) return { ok: true, settings: parsed.data };
   const issue = parsed.error.issues[0]!;
+  // The outcome feed's refusals are already sentences for a person (settingsContract.ts); they are shown as written.
+  if (issue.path[0] === "outcome_feed") return { ok: false, field: issue.path.join("."), message: sentence(issue.message) };
   return { ok: false, field: issue.path.join("."), message: FIELD_LABELS[issue.path.slice(0, 2).join(".")] ?? "Check the values on this page." };
 }
+
+const sentence = (m: string): string => {
+  const t = m.charAt(0).toUpperCase() + m.slice(1);
+  return /[.!?]$/.test(t) ? t : `${t}.`;
+};
 
 /** What a refused field is called on the page, by its contract path. */
 const FIELD_LABELS: Record<string, string> = {
