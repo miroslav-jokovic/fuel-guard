@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import sharp from "sharp";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { inspect } from "node:util";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ADS_SETTINGS_UNSET, type AdsSettings } from "@silvicom/shared";
 import { FakeClock } from "../../../../testing/fakeClock.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../../testing/supabaseRecorder.js";
@@ -290,6 +291,49 @@ describe("renderStep — image-to-image from the kit photo (D-AD9)", () => {
     expect(await step(fromPhoto)).toMatchObject({ kind: "failed", errorCode: "upload_422" });
     expect(hf.submits).toBe(0);
     expect(hf.uploads.size).toBe(0);
+  });
+});
+
+describe("renderStep — Higgsfield's key never leaves in an error (sec-fixes, G-sec #2070)", () => {
+  // Every road a vendor `detail` can take: a temporary answer becomes the pending `why`, which the ads_render job
+  // throws (`jobs.last_error`, the log); a refusal ends the row. Each road meets a Higgsfield that QUOTES the
+  // credentials it was sent, and the key must reach no outcome, ledger row or console line.
+  it("the client blanks the key, and its id:secret form, from every kind of failure it answers", async () => {
+    const client = new HiggsfieldClient(KEY, { baseUrl: base });
+    for (const status of [500, 403, 422]) {
+      hf.inject(/higgsfield-ai/, { kind: "echo_key", status });
+      const r = await client.submit(MODEL, { prompt: "x" }, `00000000-0000-4000-8000-00000000099${status % 10}`);
+      if (r.ok) throw new Error("expected a failure");
+      expect([r.kind, r.detail.includes("[key]"), r.detail.includes(KEY.secret)]).toEqual([{ 500: "temporary", 403: "balance", 422: "refused" }[status], true, false]);
+    }
+    // A vendor may quote the secret without its id: blanked as well.
+    hf.inject(/higgsfield-ai/, { kind: "echo_key", quote: "secret" });
+    const alone = await client.submit(MODEL, { prompt: "x" }, "00000000-0000-4000-8000-000000000999");
+    expect(alone.ok ? null : [alone.detail.includes("[key]"), alone.detail.includes(KEY.secret)]).toEqual([true, false]);
+  });
+
+  const leaks = (texts: string[]) => texts.filter((t) => t.includes(KEY.secret) || t.includes(`${KEY.id}:${KEY.secret}`));
+  it.each([
+    ["the submit, temporary", /higgsfield-ai/, 500, {}],
+    ["the submit, refused", /higgsfield-ai/, 401, {}],
+    ["the status read", /\/status$/, 503, {}],
+    ["the kit photo's upload", /generate-upload-url/, 500, { model: EDIT, reference: PHOTO_REF }],
+  ] as const)("a key Higgsfield echoes in %s reaches no job result, ledger row or log line", async (_road, path, status, over) => {
+    const lines: string[] = [];
+    const spies = (["log", "info", "warn", "error", "debug"] as const).map((l) => vi.spyOn(console, l).mockImplementation((...a: unknown[]) => { lines.push(a.map((x) => inspect(x, { depth: 6 })).join(" ")); }));
+    try {
+      if (path.source.includes("status")) expect(await step()).toMatchObject({ kind: "pending", why: "queued" });
+      hf.inject(path, { kind: "echo_key", status });
+      const out = await step(over as Partial<RenderInput>);
+      // The job's own words for it: the handler throws `still rendering (why)` or completes with the JSON.
+      const job = out.kind === "pending" ? `ads_render: still rendering (${out.why})` : JSON.stringify(out);
+      // On the pending roads the echo came back and was blanked, not merely absent; a refusal keeps only its code.
+      if (out.kind === "pending") expect(job).toContain("[key]");
+      else expect(out).toMatchObject({ kind: "failed", errorCode: `provider_${status}` });
+      expect(leaks([job, JSON.stringify(ledger), ...db.writes().map((q) => JSON.stringify(q.write?.payload ?? null)), ...lines])).toEqual([]);
+    } finally {
+      for (const s of spies) s.mockRestore();
+    }
   });
 });
 

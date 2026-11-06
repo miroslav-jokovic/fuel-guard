@@ -84,7 +84,13 @@ export type FakeHiggsfieldFault =
   | { kind: "unavailable" }
   | { kind: "hang" }
   /** The submit is accepted and charged, then the answer is a 500 — the caller must replay with its key. */
-  | { kind: "accepted_then_error" };
+  | { kind: "accepted_then_error" }
+  /**
+   * The answer QUOTES the credentials it was sent (`Key id:secret`) in its `detail`, at `status` (500 unless
+   * told): the vendor echo the client's scrub exists for (sec-fixes, 2026-11-06). OUR fault, not a documented
+   * Higgsfield behaviour — the point is that our code is safe if it ever happens.
+   */
+  | { kind: "echo_key"; status?: number; quote?: "pair" | "secret" };
 
 export interface FakeHiggsfieldOptions {
   keyId: string;
@@ -224,6 +230,10 @@ export class FakeHiggsfield {
     }
     if (fault?.kind === "server_error") return send(res, 500, { detail: "Internal Server Error" }, corr);
     if (fault?.kind === "unavailable") return send(res, 503, { detail: "admission_control_unavailable" }, corr);
+    if (fault?.kind === "echo_key") {
+      const quoted = fault.quote === "secret" ? this.opts.keySecret : req.headers.authorization ?? "";
+      return send(res, fault.status ?? 500, { detail: `request failed for credentials ${quoted}` }, corr);
+    }
 
     const status = /^\/requests\/([^/]+)\/status$/.exec(url.pathname);
     if (req.method === "GET" && status) return this.readStatus(res, status[1]!, corr);

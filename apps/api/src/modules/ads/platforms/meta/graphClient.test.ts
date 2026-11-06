@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeClock } from "../../../../testing/fakeClock.js";
 import { FAKE_META_VERSION, FakeMeta } from "../simulator/fakeMeta.js";
-import { classify, META_GRAPH_VERSION, MetaGraph, readUsage, resetGraphThrottles } from "./graphClient.js";
+import { classify, META_GRAPH_BASE, META_GRAPH_VERSION, MetaGraph, readUsage, resetGraphThrottles } from "./graphClient.js";
 
 /**
  * The Meta Graph client's contract (B1a), against FakeMeta over real HTTP. Each rule in the client's
@@ -57,6 +57,16 @@ describe("MetaGraph — the shapes and the token", () => {
     const r = await client({ fetch: echo as unknown as typeof fetch }).get("act_1001");
     expect(JSON.stringify(r)).not.toContain(TOKEN);
     expect(r).toMatchObject({ ok: false, error: { message: "bad token [token]" } });
+  });
+});
+
+describe("MetaGraph — an option left undefined keeps its default (sec-fixes)", () => {
+  it("constructed with { baseUrl: undefined } it calls the real Graph URL, not \"undefined/…\"", async () => {
+    const seen: string[] = [];
+    const record = (async (url: string | URL) => { seen.push(String(url)); return Response.json({ id: "1" }); }) as unknown as typeof fetch;
+    const g = new MetaGraph({ token: "EAAB-undefined-option", throttleKey: "undefined-option", baseUrl: undefined, timeoutMs: undefined, fetch: record });
+    expect((await g.get("act_1001")).ok).toBe(true);
+    expect(seen).toEqual([`${META_GRAPH_BASE}/act_1001`]);
   });
 });
 
