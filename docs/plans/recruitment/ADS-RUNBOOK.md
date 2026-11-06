@@ -337,6 +337,14 @@ ADS-AGENT-BUILD-WORKFLOW §4R). This one is for an engineer, by pull request.
     and Launch both ask (*apps/api/src/modules/ads/guard/sandboxOnly.ts*). Anything else is refused with **"Staging may
     only use a Meta sandbox ad account."** and the reason: not on the list, Meta says it can be billed, or Meta could
     not be asked. Production is not affected.
+- **"The server can't confirm passwords right now. Tell your administrator."** This is what "Confirm it's you" says
+  when the server cannot check any password. Saving Ads control, Connect, Launch and clearing the kill switch all
+  ask for it, so none of them can be done until it is fixed. It is a missing server setting, not a wrong password;
+  retyping does not help (Q-AD41, staging ran this way for two weeks until 2026-11-06). For the engineer: open
+  `/api/version` on that host. `stepUp` is `"ready"`, or `"missing:"` and the setting names (only names, never
+  values). Set those settings in AWS Parameter Store `/silvicom/<staging|production>/api` and redeploy. The deploy
+  log's boot line starts `[step-up] ⚠`. `pnpm verify:live staging` and deploy-verify fail staging on it. On
+  production they only warn, because a rollback cannot set a setting.
 - **What logs never hold:** tokens, keys or secrets. A test fails the build if one appears
   (*apps/api/src/modules/ads/security/adsLogScrape.test.ts*). If you ever see one, tell the owner: the token
   must be replaced (§2).
