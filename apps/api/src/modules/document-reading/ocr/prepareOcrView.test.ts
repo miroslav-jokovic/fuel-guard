@@ -107,10 +107,7 @@ describe("prepareOcrView over how a page is photographed", () => {
       if (off > 0.006) wrong.push(`${tag}: mark ${(off * 100).toFixed(2)} % of the photo off`);
     }
     expect(wrong).toEqual([]);
-    // 600 s, the budget of the 33-second test below, because this one takes 38 s alone and a loaded CI shard runs this
-    // file up to 11× slower (2026-11-06, PR #2086: the crooked page took 39.5 s there and 3.5 s alone). At 240 s it timed
-    // out on main and on PRs with nothing wrong, and a red main stops migrate-staging. A real hang still fails here.
-  }, 600_000);
+  }, 240_000);
 
   it("levels a page printed crooked on paper that fills the frame — Sonny's corrosives page", async () => {
     const wrong: string[] = [];
