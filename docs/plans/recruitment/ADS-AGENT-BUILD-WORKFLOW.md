@@ -255,7 +255,7 @@ template headings, the mutation that went red, CI green, merged by hand, staging
 |---|---|---|
 | **G-walk** | Staging walk script (in the PR body of the release): connect sandbox → set limits → upload brand kit → generate → review → create paused → launch → test lead → queue → convert → kill switch → reconcile | Every line ticked by the owner |
 | **G-sec** | `/security-review` on A5, B1, B4, C3; secrets never in logs (grep of a staging log); tokens never in API responses (test) | No open finding |
-| **G-runbook** | `docs/plans/recruitment/ADS-RUNBOOK.md`: kill switch, token rotation, a platform outage, a refused ad, rolling back a release with live campaigns (campaigns are paused before a rollback) | Merged |
+| **G-runbook** | [`docs/plans/recruitment/ADS-RUNBOOK.md`](ADS-RUNBOOK.md) (written 2026-11-06; its Gaps section lists what on-call needs that has no code yet): kill switch, token rotation, a platform outage, a refused ad, rolling back a release with live campaigns (campaigns are paused before a rollback) | Merged |
 | **G-launch** | Production: owner connects the real accounts, saves limits (G5), approves presets (G6), creates the first opening (G4), launches at a small budget | First real lead reaches a recruiter; next morning's brief arrives; reconcile shows zero unexplained |
 
 ### Phase H — further platforms (each is an adapter + its V-step)
@@ -1970,3 +1970,12 @@ blocking step in §3 above.
     Mutants: dropping the org filter from each of spendView's four reads is killed by the sweep. Dropping it from
     `lastDoneJobByKey` is a no-op there (the key names a connection id), and `spendView.test.ts`'s
     `expectOrgScoped` (no `jobs` exemption) kills it instead.
+- **2026-11-06, G-runbook**, Track G. Docs only. `ADS-RUNBOOK.md` gives an office reader on call eight procedures in
+  numbered steps: the kill switch, a dead Meta token, a Meta outage, a refused ad, a rollback with live ads,
+  reconcile's external changes, certifying a worker, and who to call. Each step cites the file or route that does
+  it, checked against main `9850e18`. **Five gaps found, not worked around** (the runbook's last section):
+  (1) no campaign screen, so "is it paused?" cannot be answered on a page (E3); (2) no failed-jobs page (E5);
+  (3) a Meta-rejected ad is never detected (`ads_rejected` exists, nothing raises it); (4) a dead token rings the
+  bell only on a pause or create, and the hourly jobs fail silently; (5) Q-AD33's "this campaign is ours" record
+  is not built. 1–2 are Track S's queue; 3–4 are Track W's (monitor, alerts); 5 waits on the owner running a
+  campaign by hand.
