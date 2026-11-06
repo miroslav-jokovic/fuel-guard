@@ -1155,7 +1155,8 @@ rate, and Higgsfield credits per approved creative.
   sized as one step: a list and a versioned drawer like the brand kit's. **Meanwhile:** E3's done-when (four clicks
   to a paused campaign) and the launch half are owed; everything before "New campaign" was walked.
 - **Q-AD44 · The Openings editor (Q-AD43 (b)) needs two things the doors don't give a recruiter** (us, found reading
-  the doors for openings-editor, 2026-11-06; **blocks Q-AD43 (b)**). Read before building, as the step asked:
+  the doors for openings-editor, 2026-11-06; **ruled 2026-11-06 by the orchestrator: (a)**, Track S builds both
+  halves). Read before building, as the step asked:
   - **The yard is a point, and no place search is open to recruiting.** `openingSaveSchema.area` is
     `adAreaSchema` (`packages/shared/src/ads/contracts.ts:97`): a label, a **latitude and longitude**, a radius of
     15–500 miles and a reason. Nobody can type a latitude. The app's one place search is
@@ -1183,6 +1184,10 @@ rate, and Higgsfield credits per approved creative.
 
   **Rec: (a).** It is one small API route in `modules/routing` (outside every track's paths today, so it needs an
   owner), then the editor as planned. **Nothing is built meanwhile.**
+
+  **Built (a):** the route is recruiting's own (`modules/recruiting/routes/placeSuggest.ts`), calling routing's
+  `geocodeSuggest` through routing's index (`recruiting -> routing` in `check-feature-boundaries.mjs`), so routing
+  itself did not change; the editor and its profile step follow in Recruitment › Openings.
 
 ---
 
