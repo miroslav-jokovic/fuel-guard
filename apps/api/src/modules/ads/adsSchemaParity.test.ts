@@ -7,6 +7,7 @@ import {
   APPROVAL_KINDS,
   CAMPAIGN_STATES,
   CREATIVE_STATES,
+  OUTCOME_PROVIDERS,
   OUTCOME_STAGES,
 } from "@silvicom/shared";
 
@@ -59,6 +60,7 @@ describe("ads lists vs the migrations' CHECKs", () => {
     ["ads_approvals", "kind", APPROVAL_KINDS],
     ["ads_actions", "kind", ACTION_KINDS],
     ["ads_outcome_events", "stage", OUTCOME_STAGES],
+    ["ads_outcome_events", "provider", OUTCOME_PROVIDERS],
   ] as const)("%s.%s matches the shared list", (table, column, list) => {
     expect(checkedList(SQL, table, column)).toEqual([...list].sort());
   });
