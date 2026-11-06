@@ -77,10 +77,10 @@ export async function readLeadOutcomes(admin: SupabaseClient, orgId: string, sin
   // Received is never before the platform's own time, so `received_at >= since` reads every lead that can
   // have ARRIVED since; the arrival itself is filtered below, on the platform's time when there is one.
   const leadRows = await allPages("recruiting_leads", () => admin.from("recruiting_leads")
-    .select("id, campaign_ref, platform_created_at, received_at")
+    .select("id, channel, external_ref, campaign_ref, platform_created_at, received_at")
     .eq("org_id", orgId).not("campaign_ref", "is", null).gte("received_at", since).order("id"));
   const leads = leadRows
-    .map((l) => ({ id: String(l.id), campaign: String(l.campaign_ref), arrived: new Date(String(l.platform_created_at ?? l.received_at)).toISOString() }))
+    .map((l) => ({ id: String(l.id), provider: String(l.channel), ref: String(l.external_ref), campaign: String(l.campaign_ref), arrived: new Date(String(l.platform_created_at ?? l.received_at)).toISOString() }))
     .filter((l) => Date.parse(l.arrived) >= Date.parse(since));
   if (leads.length === 0) return [];
   const leadIds = leads.map((l) => l.id);
@@ -134,6 +134,6 @@ export async function readLeadOutcomes(admin: SupabaseClient, orgId: string, sin
       const end = lost.get(conv.driver);
       if (!hired && end) reached.lost_after_conversion = end.at;
     }
-    return { lead_id: l.id, campaign_id: l.campaign, arrived_at: l.arrived, reached };
+    return { lead_id: l.id, provider: l.provider, platform_lead_ref: l.ref, campaign_id: l.campaign, arrived_at: l.arrived, reached };
   });
 }

@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { META_GRAPH_VERSION } from "../meta/graphClient.js";
 import { FakeAds } from "./fakeMetaAds.js";
+import { FakeDatasets } from "./fakeMetaEvents.js";
 import { FakeAdSets } from "./fakeMetaAdSets.js";
 import { FakeCampaigns, listByName, type FakeCampaign } from "./fakeMetaCampaigns.js";
 import { FaultBook, faultAnswer, reviewedAd, type AdReviewVerdict, type FakeMetaFault } from "./fakeMetaFaults.js";
@@ -103,6 +104,8 @@ export interface FakeMetaOptions {
   pages?: FakeMetaPage[];
   /** The app secret leadgen deliveries are signed with (B4b). */
   appSecret?: string;
+  /** The fake's clock, for the Conversions API's 7-day rule (B6); default the real one. */
+  now?: () => Date;
 }
 
 export interface FakeMetaPage {
@@ -134,6 +137,8 @@ export class FakeMeta {
   readonly rules: FakeRules;
   /** Page subscriptions and signed leadgen deliveries (B4b), in `fakeMetaWebhooks.ts`. */
   readonly webhooks: FakeWebhooks;
+  /** Conversions API datasets and the events they accepted (B6), in `fakeMetaEvents.ts`. */
+  readonly datasets: FakeDatasets;
   private revoked = false;
   private readonly verdicts = new Map<string, AdReviewVerdict>();
   readonly accounts: Map<string, FakeMetaAccount>;
@@ -158,6 +163,7 @@ export class FakeMeta {
     this.webhooks = new FakeWebhooks(opts.appSecret ?? "fake-meta-app-secret", () => this.traceId());
     this.rules = new FakeRules(() => String(this.nextId++), () => this.traceId());
     this.sets = new FakeAdSets(() => String(this.nextId++), () => this.traceId(), (id) => this.campaigns.get(id));
+    this.datasets = new FakeDatasets(() => this.traceId(), opts.now ?? (() => new Date()));
     this.ads = new FakeAds(() => String(this.nextId++), () => this.traceId(), this.sets, this.forms);
   }
 
@@ -280,6 +286,8 @@ export class FakeMeta {
     if (adsets && method === "POST") return this.accounts.has(adsets[1]!) ? this.sets.create(adsets[1]!, body) : graphError(400, 100, "OAuthException", "(#100) Ad account does not exist", this.traceId());
     const children = /^(\d+)\/adsets$/.exec(path);
     if (children && method === "GET") return listByName([...this.sets.adsets.values()].filter((a) => a.campaign_id === children[1]), body, () => this.traceId());
+    const events = this.datasets.route(method, path, body);
+    if (events) return events;
     const adPart = this.ads.route(method, path, body);
     if (adPart) return adPart;
     const formLeads = /^(\d+)\/leads$/.exec(path);

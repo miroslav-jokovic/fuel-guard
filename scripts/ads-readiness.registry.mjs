@@ -685,7 +685,59 @@ export const READINESS = [
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
-  { worker: "Outcome feed", levels: { L1: [notBuilt("B6 Conversions API events per stage")], L2: later("L2"), L3: later("L3"), L4: [{ need: "events accepted by the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
+  {
+    worker: "Outcome feed",
+    levels: {
+      L1: [
+        {
+          need: "B6: one Conversions API CRM event per RECORDED stage (Q-AD37), event_id = lead:stage, nothing about the person (D-AD14), ledgered",
+          tests: [
+            { file: "apps/api/src/modules/ads/outcomes/outcomeEvents.test.ts", titles: [
+              "one candidate per recorded stage, its ref the lead id and the stage, in the shared stage order",
+              "no unrecorded stage can become a candidate (Q-AD37: never sent)",
+              "seven days old is still sent; a millisecond more is too old",
+              "the Conversions API event is a CRM event in seconds, the lead id a string",
+            ] },
+            { file: "apps/api/src/modules/ads/outcomes/outcomeFeed.test.ts", titles: [
+              "sends one CRM event per recorded stage of each Meta lead, under the lead's Meta id, and ledgers each as sent",
+              "the event carries the lead id and the stage and nothing about the person (D-AD14)",
+              "a lead from another platform is never sent, and a stage nobody records is refused as malformed",
+              "a carrier whose feed is off (no target) is not read, sends nothing and writes nothing",
+            ] },
+            { file: "apps/api/src/modules/ads/outcomes/outcomeTick.test.ts", titles: [
+              "queues one run per connected or failing Meta connection whose carrier has a feed target, and no other",
+            ] },
+            { file: "apps/api/src/modules/ads/adsSchemaParity.test.ts", titles: ["%s.%s matches the shared list"] },
+          ],
+        },
+      ],
+      L2: [
+        {
+          need: "§4R faults: replay, a stage after 28 days, a refusal (recorded, rung once, never retried), 429/5xx/timeout, revoked token — exactly one accepted event per stage row",
+          tests: [{ file: "apps/api/src/modules/ads/outcomes/outcomeFeed.test.ts", titles: [
+            "replayed the next day, every stage is already on the ledger: nothing is sent twice",
+            "killed after Meta accepted but before the ledger said so, the resend is dropped by its event_id: one accepted event",
+            "two runs racing to queue the same stage store it once (the unique ref), and it is sent once",
+            "a stage reached more than 28 days after the lead arrived is still sent, once (28 days is Meta's optimisation window, not a send limit)",
+            "a stage that failed until it turned 7 days old is then recorded skipped, never sent",
+            "a stage that is no longer recorded when its turn comes is recorded skipped, never sent",
+            "a stage reached more than 7 days ago is recorded skipped and never sent: Meta would refuse the whole request",
+            "an event Meta refuses is recorded failed and final, rung once, and the rest of its batch is still sent",
+            "%s fails the run and leaves the stage due; the next run sends it once",
+            "a stage that keeps failing is tried MAX_ATTEMPTS times and never again",
+            "a revoked token fails the run, keeps the stage due, marks the connection failing and rings ads_token_expiring once",
+            "a dataset Meta does not have fails the run as a setup fault and writes no event's result",
+          ] }],
+        },
+      ],
+      L3: [{
+        need: "scenario bar: exactly one accepted event per stage row across every crash point × fault (a sweep, as the Renderer's)",
+        gap: "reachable on the fakes, not built in B6: a sweep killing the run after every ledger write and Meta call, × each FakeMeta fault",
+      }],
+      L4: [{ need: "events accepted by the sandbox (Events Manager test code; OUR readings in fakeMetaEvents.ts checked)", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
   {
     worker: "Copywriter",
     levels: {

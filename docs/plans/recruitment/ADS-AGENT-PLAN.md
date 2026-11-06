@@ -1053,6 +1053,30 @@ rate, and Higgsfield credits per approved creative.
   **The Analyst is now a worker a Meta campaign uses** (`CAMPAIGN_WORKERS["meta:still"]`), because G-launch's
   done-when includes "next morning's brief arrives". **The Outcome feed stays out**: B6 comes after the canary
   (§5), so a first campaign sends no outcome. It joins Meta's row when it is wired.
+- **Q-AD40 · Where a carrier's outcome-feed switch and Conversions API dataset live** (us, found building B6,
+  2026-11-06). The Conversions API writes to a dataset (`POST /{dataset_id}/events`, Meta's using-the-api page),
+  and D-AD14 says the feed is "disabled per org by a switch". Nothing stored names either one:
+  - `ads_platform_connections` holds an ad account and a Page.
+  - `adsSettingsSchema` has no outcome group.
+
+  B6 reads both through an injected `OutcomeFeedTargets` (`modules/ads/outcomes/feedTarget.ts`). Its one
+  production implementation is `NO_FEED_TARGET`, which answers "off" for every carrier, so the scheduler
+  queues nothing. That is labelled in the file as a seam, with what removes it. It is also the safe state
+  until L4: V3 is unanswered, and the feed is uncertified against the sandbox.
+
+  Candidates:
+  - **(a)** An `outcome_feed: { enabled, dataset_id }` group in the versioned ads settings (actor and version
+    kept, as every other switch is), shown on Settings › Ads control by Track S. The admin copies the dataset
+    id from Events Manager.
+  - **(b)** A connection column filled by Connect from the account's datasets. That needs a migration, and we
+    have not yet read which edge lists a Page's or account's datasets: an L4 question.
+
+  **Recommendation: (a).** It is the switch D-AD14 already names. It needs no migration, adds only to shared,
+  and keeps the setting beside the caps it sits with. One trap for Track S: the settings save replaces the
+  whole object, so the form must carry the group through, or a save turns the feed off.
+  **Second, smaller gap:** 0537's `ads_outcome_events.provider` CHECK has no `simulator`, so a simulator lead
+  cannot be ledgered, and the owner's staging walk does not exercise the feed. Fix with a later migration if
+  the walk should include it; not needed for production.
 
 ---
 
