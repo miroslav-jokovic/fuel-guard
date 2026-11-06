@@ -50,6 +50,7 @@ export type { Retracted, RetractInput } from "./retract.js";
 export { getComplianceOverview } from "./complianceOverview.js";
 export { deriveDocument, DERIVER_VERSION } from "./documentDerivatives.js";
 export { buildBinder } from "./dqBinder/index.js";
+export { splitStack } from "./intake/paperIntake.js";
 export { markDone, markFailed, markRunning, storeBinder } from "./dqExports.js";
 export { startDqAlertScheduler } from "./dqAlertScheduler.js";
 export { startDqExportSweeper } from "./dqExportSweeper.js";

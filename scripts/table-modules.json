@@ -2400,6 +2400,28 @@
         "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
       }
     },
+    "paper_intake_parts": {
+      "module": "evidence",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 200,
+        "why": "DRIVER-PAPER-INTAKE-PLAN PI2 (0572): one row per piece of at most ten pages of a scanned stack, about three per driver, so the fleet's paper (183 drivers) is ~600 rows once and a few a month after. A work queue, not evidence."
+      }
+    },
+    "paper_intake_stacks": {
+      "module": "evidence",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "DRIVER-PAPER-INTAKE-PLAN PI2 (0572): one row per scanned PDF the office uploads, five to ten driver folders each, so the fleet's paper is ~20-40 stacks once and a few a month after. A work queue, not evidence."
+      }
+    },
     "part_movements": {
       "module": "maintenance",
       "layer": "core",

@@ -80,6 +80,9 @@ const KIND_CAPS: Record<string, number> = {
   document_intake: 2,
   hazmat_analyze: 4,
   dq_binder: 2,
+  // ONE: a stack is up to 50 MB held whole by pdf-lib while its pieces are cut, plus one 150-dpi page
+  // painted at a time; two stacks at once is a second copy of that on a worker that also reads.
+  paper_intake_split: 1,
   // ⚠ ONE. FleetPal publishes no rate limit and sends no limiter headers — 94 sequential requests
   // on 2026-09-21 returned not one `X-RateLimit-*` and not one 429 — so there is no measured budget
   // to spend and the `Retry-After` path in the client is the only defence. A cap above 1 would be a
