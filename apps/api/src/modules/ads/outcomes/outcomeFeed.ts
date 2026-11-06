@@ -7,8 +7,8 @@ import { isNoSuchObject } from "../monitor/recordedGone.js";
 import type { GraphFailure, MetaGraph } from "../platforms/meta/graphClient.js";
 import { graphForConnection, type ConnectionForGraph, type GraphForConnection } from "../platforms/registry.js";
 import type { OutcomeFeedTargets } from "./feedTarget.js";
-import { CAPI_MAX_BATCH, capiEvent, outcomeCandidates, tooOldToSend, type OutcomeCandidate } from "./outcomeEvents.js";
-import { dueRows, queueOutcomes, recordSend, type DueRow } from "./outcomeLedger.js";
+import { CAPI_MAX_BATCH, capiEvent, outcomeCandidates, tooOldToSend, type FeedProvider, type OutcomeCandidate } from "./outcomeEvents.js";
+import { dueRows, newestRefusal, queueOutcomes, recordSend, type DueRow } from "./outcomeLedger.js";
 
 /**
  * One Meta connection's outcome feed run (B6; D-AD14): read which stages the carrier's ad leads reached, from
@@ -22,8 +22,8 @@ import { dueRows, queueOutcomes, recordSend, type DueRow } from "./outcomeLedger
  *                                            back. That is right under both of Meta's pages (fakeMetaEvents.ts
  *                                            header), because a resend of an accepted event is dropped as a
  *                                            duplicate by its `event_id`.
- *   one event refused alone                  `failed`, final (never retried), and the carrier's admins are told
- *                                            ONCE: one `ads_rejected` bell per connection per day
+ *   one event refused alone                  `failed`, final (never retried), marked `refused`, and the admins
+ *                                            told ONCE: one `ads_rejected` bell per newest refused row
  *   the dataset does not exist (100/33)      nothing written; the run fails, listed: a setup fault, not an event's
  *   429 / 5xx / timeout                      the client's own retries (`graphClient.ts`), then `failed` with
  *                                            attempts + 1, retried tomorrow up to MAX_ATTEMPTS; the run fails
@@ -33,8 +33,9 @@ import { dueRows, queueOutcomes, recordSend, type DueRow } from "./outcomeLedger
  *                                            so this means the stage itself is gone)  `skipped`, final
  *
  * A send is idempotent at Meta (dedup by `event_id` + `event_name`), so the Graph client may retry it.
- * Only `meta` connections run: 0537's provider CHECK has no `simulator`, so a simulator lead cannot be
- * ledgered (Q-AD40 records it). The optimisation switch (Conversion Leads) is not here: it stays hidden until
+ * Meta and SIMULATOR connections run (0571, Q-AD40 (2)), each with its own platform's leads only. A simulator
+ * connection opens only where `simulatorGate` allows (`graphForConnection`), and its target is refused there
+ * first (`settingsFeedTargets`), so a production host never ledgers or sends a simulator event. The optimisation switch (Conversion Leads) is not here: it stays hidden until
  * V3 is answered in the sandbox.
  */
 
@@ -47,6 +48,8 @@ export interface OutcomeFeedDeps {
   now: () => Date;
   outcomes: LeadOutcomes;
   targets: OutcomeFeedTargets;
+  /** The process environment the simulator gate reads (the registry's); injectable so a test can be production. */
+  processEnv?: NodeJS.ProcessEnv;
   /** The connection's Graph client; the registry's by default, FakeMeta's in tests. */
   openGraph?: (c: ConnectionForGraph) => Promise<GraphForConnection>;
   batchSize?: number;
@@ -59,24 +62,29 @@ export interface OutcomeFeedResult {
   skipped: number;
   sent: number;
   refused: number;
+  /** The platform the run spoke for, once it knew (null when it stopped before reading the connection). */
+  provider: FeedProvider | null;
   failures: Array<{ reason: string }>;
 }
 
 export async function runOutcomeFeed(deps: OutcomeFeedDeps, orgId: string, connectionId: string): Promise<OutcomeFeedResult> {
   const r = await runOnce(deps, orgId, connectionId);
+  if (r.ran) await alertRefused(deps, orgId, connectionId, r.provider);
   await alertIfTokenRefused(deps.admin, deps.now(), { org_id: orgId, connection_id: connectionId }, r.failures.map((f) => f.reason), "outcomes");
   return r;
 }
 
 async function runOnce(deps: OutcomeFeedDeps, orgId: string, connectionId: string): Promise<OutcomeFeedResult> {
-  const result: OutcomeFeedResult = { connection_id: connectionId, ran: false, queued: 0, skipped: 0, sent: 0, refused: 0, failures: [] };
+  const result: OutcomeFeedResult = { connection_id: connectionId, ran: false, queued: 0, skipped: 0, sent: 0, refused: 0, provider: null, failures: [] };
   const target = await deps.targets.targetFor(orgId, connectionId);
   if (!target) return result;
   const { data, error } = await deps.admin.from("ads_platform_connections")
     .select("id, org_id, provider, is_sandbox, token_sealed, status").eq("org_id", orgId).eq("id", connectionId).maybeSingle();
   if (error) throw new Error(`ads_platform_connections: ${error.message}`);
-  const c = data as (ConnectionForGraph & { status: string }) | null;
-  if (!c || c.provider !== "meta") return result;
+  const c = data as (ConnectionForGraph & { provider: FeedProvider | string; status: string }) | null;
+  if (!c || (c.provider !== "meta" && c.provider !== "simulator")) return result;
+  const provider = c.provider;
+  result.provider = provider;
   if (c.status === "disconnected") return { ...result, failures: [{ reason: "connection:disconnected" }] };
   result.ran = true;
 
@@ -89,12 +97,12 @@ async function runOnce(deps: OutcomeFeedDeps, orgId: string, connectionId: strin
     if (parsed.success) outcomes.push(parsed.data);
     else result.failures.push({ reason: "outcomes:malformed" });
   }
-  const candidates = outcomeCandidates(outcomes);
-  const q = await queueOutcomes(deps.admin, orgId, candidates, now);
+  const candidates = outcomeCandidates(outcomes, provider);
+  const q = await queueOutcomes(deps.admin, orgId, provider, candidates, now);
   result.queued = q.queued;
   result.skipped = q.skipped;
 
-  const due = await dueRows(deps.admin, orgId);
+  const due = await dueRows(deps.admin, orgId, provider);
   if (due.length === 0) return result;
   const opened = await (deps.openGraph ?? ((x) => graphForConnection(deps, x)))(c);
   if (!opened.ok) return { ...result, failures: [...result.failures, { reason: `graph:${opened.error_code}` }] };
@@ -115,7 +123,6 @@ async function runOnce(deps: OutcomeFeedDeps, orgId: string, connectionId: strin
   for (let i = 0; i < sendable.length; i += size) {
     if (!(await send.batch(sendable.slice(i, i + size)))) break;
   }
-  if (result.refused > 0) await alertRefused(deps, orgId, connectionId, result.refused, now);
   return result;
 }
 
@@ -152,7 +159,7 @@ class Sender {
         return true;
       }
       const response = failure ? errorOf(failure) : { error_code: "events_not_counted", answer: r.ok ? r.data : null };
-      await recordSend(this.deps.admin, this.orgId, items[0]!.row, { status: "failed", final: true, response });
+      await recordSend(this.deps.admin, this.orgId, items[0]!.row, { status: "failed", final: true, response: { ...response, refused: true } });
       this.result.refused += 1;
       return true;
     }
@@ -162,14 +169,23 @@ class Sender {
   }
 }
 
-async function alertRefused(deps: OutcomeFeedDeps, orgId: string, connectionId: string, n: number, now: Date): Promise<void> {
+/**
+ * The refusal bell, read from the LEDGER, not from this run's tally (found by the L3 sweep, 2026-11-06). A run killed
+ * between recording a refusal and ringing would otherwise never ring: the next run sees that row as final, and
+ * its own count is 0. So every run that ran asks for the newest refused row, and rings keyed by THAT row. A
+ * repeat is dropped by the bell's dedupe, and a later refusal is a new key and a new bell.
+ */
+async function alertRefused(deps: OutcomeFeedDeps, orgId: string, connectionId: string, provider: FeedProvider | null): Promise<void> {
+  if (!provider) return;
+  const newest = await newestRefusal(deps.admin, orgId, provider);
+  if (!newest) return;
   await sendAdsAlert(deps.admin, orgId, {
     category: "ads_rejected",
     title: "Meta refused lead progress updates",
-    body: `Meta refused ${n} update${n === 1 ? "" : "s"} on how ad leads progressed (contacted, converted, applied, hired). They will not be sent again. Ads keep running; Meta only learns less about which leads became drivers.`,
+    body: "Meta refused one or more updates on how ad leads progressed (contacted, converted, applied, hired). They will not be sent again. Ads keep running; Meta only learns less about which leads became drivers.",
     severity: "warning",
     entityType: "ads_platform_connection",
     entityId: connectionId,
-    dedupeKey: `ads_outcome_refused:${connectionId}:${now.toISOString().slice(0, 10)}`,
+    dedupeKey: `ads_outcome_refused:${connectionId}:${newest}`,
   });
 }

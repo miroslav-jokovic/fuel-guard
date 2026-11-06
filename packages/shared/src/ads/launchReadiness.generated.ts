@@ -70,7 +70,7 @@ export const ADS_WORKER_LEVELS: Readonly<Record<string, AdsReadinessLevel>> = {
   "Lead intake": "L3",
   "Monitor": "L3",
   "Orchestrator": "L3",
-  "Outcome feed": "L2",
+  "Outcome feed": "L3",
   "Publisher (per adapter)": "L3",
   "Publisher (per adapter)|meta": "L3",
   "Renderer / Higgsfield client": "L3",

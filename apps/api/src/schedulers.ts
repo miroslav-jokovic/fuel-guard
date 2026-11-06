@@ -99,7 +99,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "ads-insights", lane: "general", start: startAdsInsights }, // B5a: hourly, one ads_insights job per connected Meta connection (3 local days, hourly grain → ads_spend_hourly); OFF unless ADS_ENABLED
   { name: "ads-reconcile", lane: "general", start: startAdsReconcile }, // B5c: daily, one ads_reconcile job per connected Meta connection (28-day insights re-read + Meta vs our rows → external_change); OFF unless ADS_ENABLED
   { name: "ads-daily-brief", lane: "general", start: startAdsDailyBrief }, // F1b: hourly from 07:00 Central, one ads_daily_brief job per carrier with a connected Meta connection (yesterday's fold → analyst → ads_brief bell, once a day); OFF unless ADS_ENABLED
-  { name: "ads-outcome-feed", lane: "general", start: startAdsOutcomeFeed }, // B6: daily, one ads_outcome_feed job per Meta connection whose carrier has a feed target (none until Q-AD40); OFF unless ADS_ENABLED
+  { name: "ads-outcome-feed", lane: "general", start: startAdsOutcomeFeed }, // B6: daily, one ads_outcome_feed job per Meta/simulator connection whose carrier turned the feed on in Ads settings (Q-AD40); OFF unless ADS_ENABLED
 
   { name: "lead-uncontacted", lane: "general", start: startLeadUncontacted }, // D2c: every 5 min, one lead_uncontacted job per carrier with new leads; rings once per lead past alerts.uncontacted_lead_minutes; OFF unless ADS_ENABLED
 ];

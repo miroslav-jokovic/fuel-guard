@@ -1,94 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ADS_SETTINGS_UNSET, type LeadOutcome } from "@silvicom/shared";
-import { postgrestFixture, type FixtureRow } from "../../../testing/postgrestFixture.js";
-import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
+import type { LeadOutcome } from "@silvicom/shared";
+import { expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { testEnv } from "../../../testing/testEnv.js";
 import { MetaGraph, resetGraphThrottles } from "../platforms/meta/graphClient.js";
 import { FakeMeta } from "../platforms/simulator/fakeMeta.js";
-import type { OutcomeFeedTargets } from "./feedTarget.js";
 import { runOutcomeFeed, type OutcomeFeedDeps } from "./outcomeFeed.js";
 import { MAX_ATTEMPTS } from "./outcomeLedger.js";
+import { CAMP, CONN, DATASET, hoursAgo, lead, NOW, ORG, outcome, TOKEN, world } from "./outcomeWorld.js";
 
 /**
- * The outcome feed (B6) against FakeMeta's Conversions API dataset and a ledger that keeps 0537's two rules the
- * feed leans on: the unique `(org_id, provider, source_event_ref)` (23505) and the guard's "only a queued or
- * failed row is written" (AX011). The append-only trigger itself is the PGlite matrix's (`ads-foundation`).
+ * The outcome feed (B6) against FakeMeta's Conversions API dataset and `outcomeWorld.ts`'s ledger (0537's unique
+ * ref and its queued-or-failed guard).
  */
-
-const ORG = "00000000-0000-4000-8000-0000000000a1";
-const CONN = "00000000-0000-4000-8000-0000000000c1";
-const ADMIN = "00000000-0000-4000-8000-0000000000d1";
-const CAMP = "00000000-0000-4000-8000-0000000000e1";
-const DATASET = "770000000000001";
-const TOKEN = "fake-system-user-token";
-const NOW = "2026-11-06T18:00:00.000Z";
-const lead = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-const hoursAgo = (h: number) => new Date(Date.parse(NOW) - h * 3_600_000).toISOString();
-
-function outcome(n: number, reached: LeadOutcome["reached"], patch: Partial<LeadOutcome> = {}): LeadOutcome {
-  return { lead_id: lead(n), provider: "meta", platform_lead_ref: `12000000000000${n}`, campaign_id: CAMP, arrived_at: hoursAgo(72), reached, ...patch };
-}
-
-function world(opts: { outcomes: LeadOutcome[]; target?: boolean }) {
-  const events: FixtureRow[] = [];
-  const connections: FixtureRow[] = [{ id: CONN, org_id: ORG, provider: "meta", is_sandbox: true, token_sealed: "v1.sealed", status: "connected" }];
-  const bell: Array<{ category: string; dedupe: string | null }> = [];
-  let seq = 0;
-  let crashUpdates = 0;
-  const matching = (rows: FixtureRow[], q: RecordedQuery) =>
-    rows.filter((r) => postgrestFixture([{ ...r }])({ ...q, ops: q.ops.filter((o) => o.method !== "select") }).length > 0);
-  const rec = createSupabaseRecorder({
-    tables: {
-      ads_outcome_events: (q) => {
-        if (q.write?.method === "insert") {
-          const row = q.write.payload as FixtureRow;
-          if (events.some((e) => e.org_id === row.org_id && e.provider === row.provider && e.source_event_ref === row.source_event_ref)) {
-            const dup = { code: "23505", message: "duplicate key value violates unique constraint" };
-            return { data: null, error: dup, writeError: dup };
-          }
-          events.push({ id: `oe-${++seq}`, attempts: 0, sent_at: null, response: null, status: "queued", campaign_id: null, created_at: `${NOW}#${String(seq).padStart(4, "0")}`, ...row });
-          return [];
-        }
-        if (q.write?.method === "update") {
-          if (crashUpdates > 0) {
-            crashUpdates -= 1;
-            const dead = { message: "connection terminated (injected crash)" };
-            return { data: null, error: dead, writeError: dead };
-          }
-          for (const e of matching(events, q)) {
-            if (e.status !== "queued" && e.status !== "failed") throw new Error("AX011: only a queued or failed event is sent");
-            Object.assign(e, q.write.payload as object);
-          }
-          return [];
-        }
-        return postgrestFixture(events)(q);
-      },
-      ads_platform_connections: (q) => {
-        if (q.write?.method === "update") {
-          for (const c of matching(connections, q)) Object.assign(c, q.write.payload as object);
-          return [];
-        }
-        return postgrestFixture(connections)(q);
-      },
-      memberships: postgrestFixture([{ org_id: ORG, user_id: ADMIN, role: "admin", suspended_at: null }]),
-      ads_settings_versions: () => [{ id: "set-1", version: 1, settings: ADS_SETTINGS_UNSET, kill_switch: false, kill_reason: null, created_at: NOW, created_by_name: "Owner" }],
-    },
-    rpc: (fn, args) => {
-      if (fn !== "emit_notification") return null;
-      const a = args as { p_category: string; p_dedupe_key: string | null };
-      if (a.p_dedupe_key && bell.some((b) => b.dedupe === a.p_dedupe_key)) return null;
-      bell.push({ category: a.p_category, dedupe: a.p_dedupe_key });
-      return `ntf-${bell.length}`;
-    },
-  });
-  const targets: OutcomeFeedTargets = { targetFor: async (o, c) => (opts.target === false || o !== ORG || c !== CONN ? null : { dataset_id: DATASET }) };
-  return {
-    rec, events, connections, bell, targets,
-    outcomes: { outcomesSince: async () => opts.outcomes.map((o) => ({ ...o, reached: { ...o.reached } })) },
-    /** The next `n` ledger UPDATEs fail as the process dying there would. */
-    crashUpdates: (n = 1) => { crashUpdates += n; },
-  };
-}
 
 let meta: FakeMeta;
 let base: string;

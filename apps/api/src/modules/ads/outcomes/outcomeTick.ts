@@ -2,17 +2,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
-import { NO_FEED_TARGET, type OutcomeFeedTargets } from "./feedTarget.js";
+import { settingsFeedTargets, type OutcomeFeedTargets } from "./feedTarget.js";
 
 /**
  * The `ads-outcome-feed` scheduler (B6; docs/WORKER-DEPLOYMENT.md, ads row): once a day, one `ads_outcome_feed`
- * job per `connected` or `failing` META connection whose carrier has a feed target (`feedTarget.ts`). Meta asks
+ * job per `connected` or `failing` Meta or simulator connection whose carrier has a feed target (`feedTarget.ts`:
+ * the settings version in force, Q-AD40). Meta asks
  * for an upload "at least once per day" (CRM guide); an event older than 7 days is refused, so a daily run
  * keeps a day's outage well inside the window. Daily from boot, like `ads-reconcile`, for its reason: no hour
  * matters, and a second clock is a second thing to keep right. `dedup_key` = `ads_outcome_feed:<connection>`.
  *
- * Only `meta`: 0537's ledger has no `simulator` provider (Q-AD40). Until Q-AD40 gives the targets a source, the
- * injected `NO_FEED_TARGET` makes this queue nothing (feedTarget.ts says why that is the safe state).
+ * A carrier is queued only when its settings turn the feed on with a dataset; a simulator connection only where
+ * `simulatorGate` allows (both in `settingsFeedTargets`).
  * Off unless `ADS_ENABLED`. First tick 20 minutes after boot, after reconcile's 15.
  */
 export const ADS_OUTCOME_FEED_MS = 24 * 60 * 60_000;
@@ -26,7 +27,7 @@ export async function outcomeFeedTick(admin: SupabaseClient, targets: OutcomeFee
   const result = { connections: 0, queued: 0, off: 0 };
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await admin.from("ads_platform_connections").select("id, org_id")
-      .eq("provider", "meta").in("status", ["connected", "failing"]).order("id").range(from, from + PAGE - 1);
+      .in("provider", ["meta", "simulator"]).in("status", ["connected", "failing"]).order("id").range(from, from + PAGE - 1);
     if (error) throw new Error(`ads_platform_connections: ${error.message}`);
     const rows = (data ?? []) as Array<{ id: string; org_id: string }>;
     for (const c of rows) {
@@ -47,7 +48,7 @@ export function startAdsOutcomeFeed(env: Env): void {
     running = true;
     try {
       const admin = getSupabaseAdmin(env);
-      const r = await outcomeFeedTick(admin, NO_FEED_TARGET, async (orgId, connectionId) => {
+      const r = await outcomeFeedTick(admin, settingsFeedTargets(admin), async (orgId, connectionId) => {
         const d = await dispatchJob(admin, env, "ads_outcome_feed", { orgId, payload: { connectionId }, dedupKey: adsOutcomeFeedDedupKey(connectionId) });
         return "conflict" in d ? "conflict" : "queued";
       });
