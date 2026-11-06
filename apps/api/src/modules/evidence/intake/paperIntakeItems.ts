@@ -55,6 +55,8 @@ export interface StackReading {
   done: number;
   pending: number;
   failed: number;
+  /** Each finished piece's reader source, by piece index — how a review row finds its piece. */
+  sources: Map<number, string>;
 }
 
 type ItemRow = Record<string, unknown>;
@@ -146,7 +148,7 @@ export async function syncStackItems(admin: SupabaseClient, orgId: string, stack
     .eq("stack_id", stack.id)
     .order("part_index");
   if (parts.error) throw new Error(`paper_intake_parts: ${parts.error.message}`);
-  const reading: StackReading = { done: 0, pending: 0, failed: 0 };
+  const reading: StackReading = { done: 0, pending: 0, failed: 0, sources: new Map() };
   let roster: DriverCandidate[] | null = null;
 
   for (const part of (parts.data ?? []) as PartRow[]) {
@@ -158,6 +160,7 @@ export async function syncStackItems(admin: SupabaseClient, orgId: string, stack
       continue;
     }
     const sourceId = read.sourceId;
+    reading.sources.set(part.part_index, sourceId);
     const existing = await admin.from("file_intake_items").select("id").eq("org_id", orgId).eq("source_id", sourceId).limit(1);
     if (existing.error) throw new Error(`file_intake_items: ${existing.error.message}`);
     if ((existing.data ?? []).length) continue;

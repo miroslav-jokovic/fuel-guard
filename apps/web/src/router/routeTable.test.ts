@@ -51,7 +51,7 @@ const PROBES = [
   "/vehicles", "/vehicles/v_1",
   "/odometer", "/coverage", "/recall-audit", "/trailers", "/trailers/tr_1", "/reefer-coverage",
   "/fuel-planning", "/truck-stops", "/idling", "/drug-alcohol", "/roadside-inspections", "/roadside-inspections/ri_1",
-  "/drivers", "/drivers/dr_1",
+  "/drivers", "/drivers/dr_1", "/drivers/paper-intake",
   "/compliance", "/compliance/dr_1",
   // R7 added `/recruitment/:id`, which makes these (five since E4b) another specificity pair: the two static
   // segments must keep beating the param, or the inquiry queue starts rendering an applicant record

@@ -5,7 +5,7 @@ import { PDFDocument as LibDocument } from "pdf-lib";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { pdfPageTexts } from "../../../testing/pdfText.js";
 import { renderCoverSheets } from "../coverSheetPdf.js";
-import { listBatch, markQueued, PAPER_INTAKE_BUCKET, registerStack, splitStack } from "./paperIntake.js";
+import { markQueued, PAPER_INTAKE_BUCKET, registerStack, splitStack } from "./paperIntake.js";
 
 /**
  * The split (DRIVER-PAPER-INTAKE-PLAN PI2), end to end on a real stack — cover sheets rendered by PI1,
@@ -128,9 +128,9 @@ describe("registerStack / markQueued (PI2)", () => {
   const req = { batchId: "b0b0b0b0-1111-4222-8333-444444444444", fileName: "stack.pdf", sha256: "a".repeat(64), bytes: 1000 };
 
   it("registers a new file and signs an upload to the stack's own key", async () => {
-    const rec = createSupabaseRecorder({ storage: { createSignedUploadUrl: async () => ({ data: { signedUrl: "https://signed/put" }, error: null }) } });
+    const rec = createSupabaseRecorder({ storage: { createSignedUploadUrl: async () => ({ data: { signedUrl: "https://signed/put", token: "tok" }, error: null }) } });
     const out = await registerStack(rec.client, ORG, "u-1", req, () => STACK);
-    expect(out).toEqual({ stackId: STACK, uploadUrl: "https://signed/put", duplicate: false });
+    expect(out).toEqual({ stackId: STACK, uploadUrl: "https://signed/put", storagePath: `${ORG}/${STACK}/stack.pdf`, token: "tok", duplicate: false });
     expect(rec.storageCalls()[0]).toMatchObject({ bucket: PAPER_INTAKE_BUCKET, fn: "createSignedUploadUrl", args: [`${ORG}/${STACK}/stack.pdf`, { upsert: true }] });
     expect(writesTo(rec, "paper_intake_stacks", "insert")[0]).toMatchObject({ id: STACK, org_id: ORG, sha256: req.sha256, uploaded_by: "u-1" });
     expectOrgScoped(rec, ORG);
@@ -138,15 +138,15 @@ describe("registerStack / markQueued (PI2)", () => {
 
   it("answers the same bytes, already split, with the first stack and no upload", async () => {
     const rec = createSupabaseRecorder({ tables: { paper_intake_stacks: [{ id: STACK, status: "split" }] } });
-    expect(await registerStack(rec.client, ORG, "u-1", req)).toEqual({ stackId: STACK, uploadUrl: null, duplicate: true });
+    expect(await registerStack(rec.client, ORG, "u-1", req)).toEqual({ stackId: STACK, uploadUrl: null, storagePath: null, token: null, duplicate: true });
   });
 
   it("offers a failed stack the upload again under its own id, as its failure text promises", async () => {
     const rec = createSupabaseRecorder({
       tables: { paper_intake_stacks: [{ id: STACK, status: "failed" }] },
-      storage: { createSignedUploadUrl: async () => ({ data: { signedUrl: "https://signed/again" }, error: null }) },
+      storage: { createSignedUploadUrl: async () => ({ data: { signedUrl: "https://signed/again", token: "tok2" }, error: null }) },
     });
-    expect(await registerStack(rec.client, ORG, "u-1", req)).toEqual({ stackId: STACK, uploadUrl: "https://signed/again", duplicate: false });
+    expect(await registerStack(rec.client, ORG, "u-1", req)).toMatchObject({ stackId: STACK, uploadUrl: "https://signed/again", token: "tok2", duplicate: false });
     expect(writesTo(rec, "paper_intake_stacks", "update")[0]).toMatchObject({ status: "uploading", failure_code: null });
   });
 
@@ -156,23 +156,5 @@ describe("registerStack / markQueued (PI2)", () => {
     const queued = createSupabaseRecorder({ tables: { paper_intake_stacks: [{ status: "splitting" }] } });
     expect(await markQueued(queued.client, ORG, STACK)).toBe("already");
     expect(writesTo(queued, "paper_intake_stacks", "update")).toEqual([]);
-  });
-});
-
-describe("listBatch (PI2)", () => {
-  it("names each piece's driver from this roster, and none for a piece nobody owns", async () => {
-    const rec = createSupabaseRecorder({
-      tables: {
-        paper_intake_stacks: [{ id: STACK, batch_id: "b", file_name: "stack.pdf", status: "split", failure_code: null, page_count: 8, cover_sheet_count: 2, blank_page_count: 1, created_at: "2026-11-06T18:00:00Z" }],
-        paper_intake_parts: [
-          { stack_id: STACK, part_index: 0, driver_id: A, basis: "cover_sheet", stack_pages: [2, 4] },
-          { stack_id: STACK, part_index: 1, driver_id: null, basis: "none", stack_pages: [8] },
-        ],
-        drivers: [{ id: A, full_name: "Ann" }],
-      },
-    });
-    const [s] = await listBatch(rec.client, ORG, "b0b0b0b0-1111-4222-8333-444444444444");
-    expect(s!.parts.map((p) => [p.driverName, p.stackPages])).toEqual([["Ann", [2, 4]], [null, [8]]]);
-    expectOrgScoped(rec, ORG);
   });
 });

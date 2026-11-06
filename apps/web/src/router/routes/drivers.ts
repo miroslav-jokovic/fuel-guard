@@ -10,6 +10,14 @@ export const driverRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Drivers" },
   },
   {
+    // DRIVER-PAPER-INTAKE-PLAN PI4: scanned stacks of paper driver files — upload, then review what the
+    // reader found. Before `/drivers/:id` for the reader's sake; vue-router ranks a static segment first anyway.
+    path: "/drivers/paper-intake",
+    name: "driver-paper-intake",
+    component: () => import("@/pages/DriverPaperIntakePage.vue"),
+    meta: { requiresAuth: true, title: "Upload scanned files", parent: "/drivers" },
+  },
+  {
     path: "/drivers/:id",
     name: "driver-detail",
     component: () => import("@/pages/DriverDetailPage.vue"),

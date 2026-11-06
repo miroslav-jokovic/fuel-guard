@@ -284,6 +284,7 @@ export const SURFACES: readonly Surface[] = [
   // Settings screens were children too, until SP1 made each its own grant — see `reachedFrom` below.)
   { key: "dispatch.loads.detail", label: "Load", path: "/loads/:id", group: "dispatch", gate: section("dispatch"), module: "dispatch", parent: "dispatch.loads" },
   { key: "fleet.drivers.detail", label: "Driver", path: "/drivers/:id", group: "fleet", gate: section("roster"), parent: "fleet.drivers" },
+  { key: "fleet.drivers.paper-intake", label: "Upload scanned files", path: "/drivers/paper-intake", group: "fleet", gate: manage("roster"), parent: "fleet.drivers" }, // DRIVER-PAPER-INTAKE-PLAN PI4
   { key: "fleet.vehicles.detail", label: "Vehicle", path: "/vehicles/:id", group: "fleet", gate: section("equipment"), parent: "fleet.vehicles" },
   { key: "fleet.trailers.detail", label: "Trailer", path: "/trailers/:id", group: "fleet", gate: section("equipment"), parent: "fleet.trailers" },
   { key: "fuel.cards.detail", label: "Fuel Card", path: "/fuel-cards/:id", group: "fuel", gate: section("fuel"), parent: "fuel.cards" },

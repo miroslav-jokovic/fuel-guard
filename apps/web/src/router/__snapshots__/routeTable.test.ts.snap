@@ -230,6 +230,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/drivers/dr_1",
   },
   {
+    "name": "driver-paper-intake",
+    "params": {},
+    "url": "/drivers/paper-intake",
+  },
+  {
     "name": "compliance",
     "params": {},
     "url": "/compliance",
@@ -877,6 +882,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "driver-detail",
     "path": "/drivers/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/drivers",
+      "requiresAuth": true,
+      "title": "Upload scanned files",
+    },
+    "name": "driver-paper-intake",
+    "path": "/drivers/paper-intake",
     "redirect": null,
   },
   {

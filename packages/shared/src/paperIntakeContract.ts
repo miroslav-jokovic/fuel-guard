@@ -44,7 +44,41 @@ export interface PaperStackRegisterResponse {
   stackId: string;
   /** Null when the org already uploaded these exact bytes: nothing to send, `duplicate` is true. */
   uploadUrl: string | null;
+  /** What `storage.uploadToSignedUrl(path, token, file)` takes in the browser — null with `uploadUrl`. */
+  storagePath: string | null;
+  token: string | null;
   duplicate: boolean;
+}
+
+/**
+ * One review row of a batch (PI4): a paper the reader found in one piece, or pages it could not place.
+ * `pages` are the STACK's page numbers — what the person sees on the scan they made.
+ */
+export interface PaperIntakeItemDto {
+  id: string;
+  stackId: string;
+  partIndex: number;
+  pages: number[];
+  /** Pages within the piece's own PDF, for its preview. */
+  pieceFrom: number;
+  pieceTo: number;
+  driverId: string | null;
+  driverName: string | null;
+  /** `scope` = under that driver's cover sheet; `cdl` / `name` = proposed by the matcher; null = nobody. */
+  basis: string | null;
+  kind: string | null;
+  issuedOn: string | null;
+  expiresOn: string | null;
+  /** The paper's own printed heading, as the reader transcribed it. */
+  title: string | null;
+  /** True when the reader could not read the piece at all: the row is the whole piece, unclassified. */
+  unread: boolean;
+  status: "pending" | "filed" | "discarded" | "duplicate";
+}
+
+export interface PaperBatchResponse {
+  stacks: PaperStackDto[];
+  items: PaperIntakeItemDto[];
 }
 
 export interface PaperStackPartDto {

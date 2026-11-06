@@ -7,7 +7,8 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
-import { listBatch, markQueued, registerStack } from "../intake/paperIntake.js";
+import { markQueued, registerStack } from "../intake/paperIntake.js";
+import { listBatch, pieceUrl } from "../intake/paperIntakeBatch.js";
 
 /**
  * Scanned stacks of paper driver files (DRIVER-PAPER-INTAKE-PLAN PI2). Mounted inside the compliance
@@ -15,7 +16,8 @@ import { listBatch, markQueued, registerStack } from "../intake/paperIntake.js";
  *
  *   POST /paper-intake/stacks                → register one file, get a signed PUT URL (or `duplicate`)
  *   POST /paper-intake/stacks/:id/complete   → the PUT finished: queue the split
- *   GET  /paper-intake/batches/:batchId      → one drop's stacks and the pieces they were cut into
+ *   GET  /paper-intake/batches/:batchId      → one drop's stacks, their pieces, and its review rows (PI4)
+ *   GET  /paper-intake/stacks/:id/parts/:i   → a signed URL to one piece's PDF, for the viewer (PI4)
  *
  * Every route is `roster: manage`: these are papers on their way into drivers' files, the section's
  * write (D-UF5), and the review that follows (PI4) is the same reader — Q-PI5's safety manager and
@@ -100,7 +102,27 @@ export function paperIntakeRouter(): Router {
         return;
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      res.json({ stacks: await listBatch(admin, req.auth!.orgId!, batchId) });
+      res.json(await listBatch(admin, req.auth!.orgId!, batchId));
+    }),
+  );
+
+  // One piece's PDF, signed for five minutes, for the review page's viewer (PI4).
+  router.get(
+    "/paper-intake/stacks/:id/parts/:index",
+    ...gate,
+    asyncHandler(async (req: Request, res: Response) => {
+      const stackId = String(req.params.id);
+      const index = Number(req.params.index);
+      if (!isRecordId(stackId) || !Number.isInteger(index) || index < 0) {
+        res.status(400).json(apiError("bad_id", "Not a piece of an upload."));
+        return;
+      }
+      const url = await pieceUrl(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, stackId, index);
+      if (!url) {
+        res.status(404).json(apiError("not_found", "That piece is not on file."));
+        return;
+      }
+      res.json({ url });
     }),
   );
 
