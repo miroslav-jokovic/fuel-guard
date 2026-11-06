@@ -336,3 +336,9 @@ check. Recorded here so it is not lost; it is its own plan.
   Found on the way: (1) financial responsibility sits in the Insurance group beside the fleet policy, not
   under Hazmat, since it is so often the same paper (Q-DD6); (2) the security plan stays `expiry`, not
   `annual` as D-DQ23 first said, because the hazmat gate reads its `expires_at`; D-DQ23 corrected.
+- 2026-11-06: owner: *"implement best solution for open questions … we will upload documents for drivers
+  later"*. The two the roster plan still held, both answered there (§6): **Q7** — an overdue item is due;
+  the Due options now read "Overdue or due in N days" and the built-in views "expired or expiring in 30
+  days" (they always listed lapsed drivers, the names said otherwise). **Q6** — a requirement dated with no
+  scan keeps its state and the driver file says "Date on file, no scan" (D-UF3's rule, now on both files).
+  Driver paper intake (§6 of this plan) stays the owner's, scheduled for later.

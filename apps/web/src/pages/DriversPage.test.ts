@@ -401,7 +401,7 @@ describe("DriversPage roster table", () => {
   });
 
   it("narrows to ONE requirement when a built-in view asks for it", async () => {
-    // "Medical expiring in 30 days" must not list a driver whose CDL is the thing expiring.
+    // "Medical expired or expiring in 30 days" must not list a driver whose CDL is the thing expiring.
     const medical = await mountPage("/drivers?req=medical_card&due=30");
     expect(medical.find("table").text()).toContain("Marcus Reyes");
     expect(medical.find("table").text()).not.toContain("Ana Whitfield");
@@ -413,12 +413,12 @@ describe("DriversPage roster table", () => {
     const menu = w.findComponent(SavedViewMenu);
     const builtIns = menu.props("builtIns") as readonly { name: string; query: string }[];
     expect(builtIns.length).toBeGreaterThan(0);
-    expect(builtIns.map((v) => v.name)).toContain("Medical expiring in 30 days");
+    expect(builtIns.map((v) => v.name)).toContain("Medical expired or expiring in 30 days");
   });
 
   it("names the built-in view it is currently showing", async () => {
     const w = await mountPage("/drivers?req=medical_card&due=30&sort=full_name");
-    expect(w.findComponent(SavedViewMenu).props("activeName")).toBe("Medical expiring in 30 days");
+    expect(w.findComponent(SavedViewMenu).props("activeName")).toBe("Medical expired or expiring in 30 days");
   });
 
   /**
