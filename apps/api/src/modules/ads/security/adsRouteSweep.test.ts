@@ -166,6 +166,9 @@ const SWEEP: Array<[string, string, unknown?]> = [
 ];
 
 beforeAll(async () => {
+  // A non-production host (the test process) with this carrier's account on its sandbox allowlist (D-AD8): Connect and
+  // Launch then also read the account's payment method from Meta, which the stub answers with none.
+  vi.stubEnv("META_SANDBOX_AD_ACCOUNT_IDS", "act_100100");
   vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     return url.hostname === "graph.facebook.com" ? Promise.resolve(graph(url, init)) : realFetch(input, init);
@@ -195,6 +198,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   await closeTestServer(server);
   await stopSimulatorForTests();
 });

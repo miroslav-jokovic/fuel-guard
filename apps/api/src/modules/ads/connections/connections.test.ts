@@ -72,7 +72,10 @@ const projected = (written: FixtureRow[], q: Parameters<ReturnType<typeof postgr
   postgrestFixture(written)({ ...q, ops: q.ops.filter((o) => o.method === "select") });
 
 let db: ReturnType<typeof world>;
-const deps = (patch: Record<string, unknown> = {}) => ({ admin: db.client, env, now: () => NOW, metaBaseUrl: base, ...patch });
+// These cases are Connect's PRODUCTION behaviour, so they run as production (D-AD8, 2026-11-06: a non-production host
+// accepts only a listed sandbox account, which `guard/sandboxOnly.test.ts` and `connectSandboxOnly.test.ts` prove).
+// The simulator's cases pass their own host.
+const deps = (patch: Record<string, unknown> = {}) => ({ admin: db.client, env, now: () => NOW, metaBaseUrl: base, processEnv: { DEPLOY_ENVIRONMENT: "production", NODE_ENV: "production" }, ...patch });
 const ask = (patch: Record<string, unknown> = {}) => ({ token: TOKEN, account_id: "act_1001", page_id: PAGE.id, sandbox: false, ...patch });
 
 beforeEach(async () => {

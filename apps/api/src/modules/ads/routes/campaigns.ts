@@ -127,6 +127,7 @@ export function mountCampaignRoutes(router: Router, deps: CampaignRouteDeps): vo
     if (!id) return;
     const parsed = adsCampaignLaunchSchema.safeParse(req.body);
     if (!parsed.success) return void res.status(400).json(apiError("bad_request", "A daily budget and a lifetime cap are required"));
-    sendMove(res, await launchCampaign(admin(req), req.auth!.orgId!, await deps.actorOf(req), id, parsed.data, new Date()));
+    // D-AD8: the app's env passed through, for the host's sandbox allowlist and the sealed token's key.
+    sendMove(res, await launchCampaign(admin(req), req.auth!.orgId!, await deps.actorOf(req), id, parsed.data, new Date(), undefined, { env: getAppLocals(req).env }));
   }));
 }

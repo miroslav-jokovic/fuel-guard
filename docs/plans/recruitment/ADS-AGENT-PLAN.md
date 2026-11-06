@@ -1040,8 +1040,8 @@ rate, and Higgsfield credits per approved creative.
   refuses a real-account Launch unless every worker in the registry's `CAMPAIGN_WORKERS` for the campaign has a
   passing sandbox run in `scripts/ads-certifications.json` (`guard/launchReadiness.ts` was not carried over). A
   test passing is never L4 (§4R); for a Claude worker, its evaluation set is its L3 and only a sandbox run is its L4.
-  **The four Claude workers' L4 needs** are in the registry, and **their wording is ours, written from the ruling,
-  not the owner's**:
+  **The four Claude workers' L4 needs** are in the registry. We wrote them from the ruling, and **the owner
+  confirmed them on 2026-11-06**:
   · Copywriter: its live copy accepted on Meta's sandbox, ads made from real answers, in English and Spanish,
     created without refusal (#2074's wording);
   · Art director: its live prompts rendered by the real Higgsfield API, from the kit photo where the preset shows
@@ -1134,7 +1134,12 @@ rate, and Higgsfield credits per approved creative.
     D-AD8's sandbox, and with it L4, which is earned on that sandbox.
   · (d) Treat an account whose token user is an app test user as a sandbox. The 2016-era wiki route; undocumented for
     a system user, so it is not evidence.
-  **Recommendation: (a)**, to be checked against a real sandbox account at L4 before it is trusted. If L4 shows a
+  **Ruled by the orchestrator 2026-11-06: (a) AND (b), both required on a non-production host.** The account id
+  must be on the host's allowlist `META_SANDBOX_AD_ACCOUNT_IDS` (deploy settings; empty = refuse every Meta account),
+  AND Meta's read of the account must show no payment method. Production is unchanged. "Non-production" is
+  `simulatorGate`'s answer. **Built** (D-AD8, Track G): one function, `guard/sandboxOnly.ts`, asked by Connect and by
+  the launch door. The rest of this entry is the question as it was asked.
+  **Recommendation (as asked): (a)**, to be checked against a real sandbox account at L4 before it is trusted. If L4 shows a
   sandbox account DOES report a funding source, fall back to (b). Built with it: one check, called by Connect and by
   the launch path; the host test is `simulatorGate`'s notion of production. **Nothing is built meanwhile.**
   **Whose files:** the connection test and the launch read sit in `platforms/meta/` (Track W); Connect sits in
