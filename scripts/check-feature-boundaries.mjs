@@ -136,6 +136,12 @@ const API_ALLOW = new Set([
   // construction: recordVehicleFleetCodes only, through roster's index, which writes ONE column and
   // only on change; mcleod keeps its own `tms_fleets` seed.
   "mcleod -> roster",
+  // McLeod's hire of somebody who applied through 360 (ROSTER-LIFECYCLE-PLAN D-RL5, 2026-11-06: "hiring
+  // is not done from 360"). The sweep decides the McLeod driver IS the applicant; the hire itself is
+  // recruiting's — the `hire_applicant` door 0386 leaves open, the §391.23 records, the ended links — so
+  // it is made through recruiting's interface rather than restated in the collector. Narrow by
+  // construction: recordHireFromTms only, through recruiting's index.
+  "mcleod -> recruiting",
   // The dispatch board's scope (DISPATCH-BOARD-PLAN DB3/DB4). Whose fleet is whose lives in mcleod's
   // `tms_fleets` and `tms_dispatchers`, both layer=raw and sealed to mcleod, so the board asks mcleod
   // for the caller's scope instead of reading them. Narrow by construction: readDispatchLinks only.

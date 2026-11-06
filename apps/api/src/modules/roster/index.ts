@@ -41,6 +41,7 @@ export { rosterCredentialsRouter } from "./routes/credentials.js";
 export { disableDriverLogin } from "./driverCredentials.js";
 // A former driver the TMS has rehired (D-MR7a): `mcleod` proves it, roster writes it.
 export { restoreRehiredDriver, type RehireFacts } from "./driverRehire.js";
+export { handApplicationToTms } from "./driverTmsHandover.js";
 export { rosterSevenDayRouter } from "./routes/sevenDay.js";
 export { recordInferredTrailerPairing } from "./trailerPairing.js";
 // The equipment half of the §396.17 inspection — `maintenance` reads identity and projects the

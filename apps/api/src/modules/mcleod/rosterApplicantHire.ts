@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { driverFirstLastKey, driverMatchKey, deriveFullName, type TmsDriverInput } from "@silvicom/shared";
 import { recordHireFromTms } from "../recruiting/index.js";
+import { handApplicationToTms } from "../roster/index.js";
 import { cdlKey } from "./rosterMatch.js";
 
 /**
@@ -96,12 +97,8 @@ export async function hireApplicantsFromTms(
     // The link FIRST, the hire second. Linked but not yet hired is a state the next sweep finishes (this
     // function runs again: an application is never `live`). Hired but not linked would be stuck — an
     // active row whose applicant-typed identity the matcher stands off from, never to be linked.
-    const { error: linkErr } = await admin
-      .from("drivers")
-      .update({ mcleod_driver_id: r.external_id, mcleod_company_id: r.company_id ?? null, identity_source: "mcleod" })
-      .eq("id", app.id)
-      .eq("org_id", orgId);
-    if (linkErr) continue; // 23505: McLeod's id is claimed elsewhere — left held, the matcher reports it
+    const handed = await handApplicationToTms(admin, orgId, { driverId: app.id, externalId: r.external_id, companyId: r.company_id ?? null });
+    if (!handed) continue; // 23505: McLeod's id is claimed elsewhere — left held, the matcher reports it
     const hired = await recordHireFromTms(admin, orgId, { driverId: app.id, externalId: r.external_id, hireDate: r.hire_date });
     if ("code" in hired) continue;
     out.hiredFromTms.push(r.external_id);
