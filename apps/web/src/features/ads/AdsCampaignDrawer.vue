@@ -6,14 +6,16 @@ import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import AdsCampaignLaunch from "./AdsCampaignLaunch.vue";
 import AdsCreativeReview from "./AdsCreativeReview.vue";
-import { CAMPAIGN_STATE_LABEL, CAMPAIGN_STATE_TONE, isWorking, personMoves } from "./adsCampaignFlow";
+import { CAMPAIGN_STATE_LABEL, CAMPAIGN_STATE_TONE, canLaunchFrom, isWorking, personMoves } from "./adsCampaignFlow";
 import { useAdsCampaign, useCampaignMove, useCreativeDecision } from "./useAdsCampaigns";
 
 /**
  * One campaign (E3): review its ads and move it on. The moves are the machine's (`personMoves`), shown to whoever
  * manages recruiting, the door's own gate. Launch (approving the spend at its amounts, with a fresh sign-in) is
- * E3b-2's, in its own door.
+ * `AdsCampaignLaunch`, shown to an admin from the state the machine launches from: `session.admin` is what
+ * `requireAdminOnly("ads.spend")` asks.
  */
 const props = defineProps<{ campaignId: string }>();
 const emit = defineEmits<{ close: [] }>();
@@ -27,6 +29,7 @@ const decide = useCreativeDecision();
 const view = computed(() => campaign.data.value ?? null);
 const canManage = computed(() => session.can("recruitment"));
 const moves = computed(() => (view.value && canManage.value ? personMoves(view.value.state) : []));
+const showLaunch = computed(() => Boolean(view.value && session.admin && canLaunchFrom(view.value.state)));
 const busy = computed(() => move.isPending.value || decide.isPending.value);
 
 async function act(work: () => Promise<void>, done: string): Promise<void> {
@@ -51,6 +54,7 @@ const reject = (creativeId: string, reason: string) => act(() => decide.mutateAs
           <span v-if="isWorking(view.state)" class="text-sm text-ink-muted">The agent is working. This page updates by itself.</span>
         </div>
         <AppCallout v-if="view.last_error" tone="danger" data-test="campaign-error">{{ view.last_error }}</AppCallout>
+        <AdsCampaignLaunch v-if="showLaunch" :campaign-id="campaignId" />
         <p v-if="view.creatives.length === 0" class="text-sm text-ink-muted" data-test="no-ads">No ads yet.</p>
         <AdsCreativeReview
           v-for="c in view.creatives" :key="c.id" :creative="c" :can-decide="canManage && view.state === 'review'" :busy="busy"

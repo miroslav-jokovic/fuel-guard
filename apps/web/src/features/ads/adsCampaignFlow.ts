@@ -42,6 +42,16 @@ const MOVE_LABEL: Partial<Record<CampaignEvent, string>> = {
 
 export interface CampaignMove { event: CampaignEvent; label: string }
 
+/** Launch has its own door (E3b-2), and the machine says which state it leaves from. */
+export const canLaunchFrom = (s: CampaignState): boolean => campaignEventsFrom(s).some((t) => t.event === "launch");
+
+/** A dollar amount typed by a person, in whole cents; null for anything that is not a positive amount. */
+export function centsFrom(dollars: string): number | null {
+  const n = Number(dollars.trim());
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * 100);
+}
+
 /** What a person who manages recruiting may press from this state. */
 export function personMoves(state: CampaignState): CampaignMove[] {
   return campaignEventsFrom(state)
