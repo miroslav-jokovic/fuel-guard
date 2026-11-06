@@ -703,7 +703,7 @@ export const READINESS = [
               "a carrier whose feed is off (no target) is not read, sends nothing and writes nothing",
             ] },
             { file: "apps/api/src/modules/ads/outcomes/outcomeTick.test.ts", titles: [
-              "queues one run per connected or failing Meta connection whose carrier has a feed target, and no other",
+              "queues one run per connected or failing Meta or simulator connection whose carrier has a feed target, and no other",
             ] },
             { file: "apps/api/src/modules/ads/adsSchemaParity.test.ts", titles: ["%s.%s matches the shared list"] },
           ],
@@ -728,10 +728,30 @@ export const READINESS = [
           ] }],
         },
       ],
-      L3: [{
-        need: "scenario bar: exactly one accepted event per stage row across every crash point × fault (a sweep, as the Renderer's)",
-        gap: "reachable on the fakes, not built in B6: a sweep killing the run after every ledger write and Meta call, × each FakeMeta fault",
-      }],
+      L3: [
+        {
+          need: "scenario bar: exactly one accepted event per stage row across every crash point × fault (a sweep, as the Renderer's)",
+          tests: [{ file: "apps/api/src/modules/ads/outcomes/outcomeFeed.sweep.test.ts", titles: [
+            "a clean run makes the writes and calls the sweep kills at (5 inserts, 5 updates, 3 batches)",
+            "killed at %s ends with one accepted event per stage row",
+          ] }],
+        },
+        {
+          need: "Q-AD40: on only when the settings version in force says so with a dataset (absent group = off), and the simulator only where its gate allows",
+          tests: [{ file: "apps/api/src/modules/ads/outcomes/feedTarget.test.ts", titles: [
+            "is off by default: a carrier who never saved settings has no target",
+            "a version saved WITHOUT the group (an older form) parses, and reads as off",
+            "on with a dataset id, a Meta connection's target is that dataset",
+            "switched off with a dataset id still named, there is no target",
+            "the switch cannot be saved on without a dataset, nor with a dataset id that is not digits",
+            "the replace-whole-object trap: a save carrying the group keeps the feed on; a save without it turns it off",
+            "on staging, a simulator connection's stages reach the simulator's own dataset, once each",
+            "a run speaks only for its own platform: a Meta row due on the ledger is never sent to the simulator",
+            "on production, a simulator connection has no target: nothing is ledgered or sent, even with the switch on",
+            "on production, even a target handed in by mistake cannot open the simulator: the registry refuses and nothing is sent",
+          ] }],
+        },
+      ],
       L4: [{ need: "events accepted by the sandbox (Events Manager test code; OUR readings in fakeMetaEvents.ts checked)", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },

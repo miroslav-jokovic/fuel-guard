@@ -1084,7 +1084,9 @@ rate, and Higgsfield credits per approved creative.
   - **(2)** The provider CHECK gains `simulator`, and a production host still cannot send a simulator event
     (`simulatorGate`).
   - **Built:** (2) as migration `0571_ads_outcome_simulator.sql` (shared `OUTCOME_PROVIDERS`, parity-pinned);
-    (1) in the next merge.
+    (1) in the next merge: shared `outcome_feed` (optional, `outcomeFeedOf` = off when absent), read by
+    `settingsFeedTargets`; `SIMULATOR_DATASET_ID` is the simulator's dataset. The Outcome feed reached L3 in the
+    same merge (crash × fault sweep).
 - **Q-AD41 · Staging cannot check a password, so no fresh sign-in works there** (us, found on the staging walk,
   2026-11-06; **blocks the G-walk's money and permission lines**). `POST /api/auth/step-up` on
   `staging-api.360.silvicominc.com` answers 503 `step_up_unavailable`, "Password verification is not configured on

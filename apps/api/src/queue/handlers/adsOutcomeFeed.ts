@@ -1,12 +1,12 @@
-import { NO_FEED_TARGET, runOutcomeFeed } from "../../modules/ads/index.js";
+import { runOutcomeFeed, settingsFeedTargets } from "../../modules/ads/index.js";
 import { recruitingLeadOutcomes } from "../../modules/recruiting/index.js";
 import type { JobHandler } from "../types.js";
 
 /**
  * One Meta connection's daily outcome feed (B6, `modules/ads/outcomes/outcomeFeed.ts`). The composition root:
  * recruiting's `LeadOutcomes` (Q-AD34) is handed to ads here, the one place the two modules meet (D-AD17), as
- * the morning brief's handler does. The feed targets are `NO_FEED_TARGET` until Q-AD40 gives them a source
- * (`feedTarget.ts`), so today a run queued by hand sends nothing and is done.
+ * the morning brief's handler does. The target is the settings version in force (`settingsFeedTargets`, Q-AD40):
+ * a carrier whose feed is off is a run that reads nothing and is done.
  *
  * The job THROWS when a send did not complete (Meta unreachable, throttled, the token or the dataset refused,
  * a malformed outcome), so it is failed and listed; tomorrow's run retries what is still due. An event Meta
@@ -17,7 +17,7 @@ export const adsOutcomeFeedHandler: JobHandler = async (ctx, job) => {
   if (typeof payload.connectionId !== "string" || !payload.connectionId) throw new Error("ads_outcome_feed: payload.connectionId is required");
   const now = new Date();
   const r = await runOutcomeFeed(
-    { admin: ctx.admin, env: ctx.env, now: () => now, outcomes: recruitingLeadOutcomes(ctx.admin), targets: NO_FEED_TARGET },
+    { admin: ctx.admin, env: ctx.env, now: () => now, outcomes: recruitingLeadOutcomes(ctx.admin), targets: settingsFeedTargets(ctx.admin) },
     job.org_id, payload.connectionId,
   );
   if (r.failures.length) {

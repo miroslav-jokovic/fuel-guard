@@ -86,12 +86,34 @@ export const adsAlertsSchema = z.object({
   uncontacted_lead_minutes: z.number().int().min(5).max(1440),
 });
 
+/**
+ * The outcome feed (B6; D-AD14 "disabled per org by a switch"; Q-AD40 (1), ruled by the orchestrator 2026-11-06):
+ * whether a carrier's ad leads' stages go back to Meta, and the Conversions API dataset (Events Manager's dataset
+ * id, digits) they go to. On only with a dataset: a switch with nowhere to send is refused at the save, not
+ * discovered by a failed job.
+ *
+ * ── OPTIONAL, AND WHY (the replace-whole-object trap) ────────────────────────────────────────────
+ * Every version saved before this group existed has no `outcome_feed`, and must still parse. So the group is
+ * optional, and `outcomeFeedOf` reads an absent group as OFF. Optional rather than a zod default, so that every
+ * `AdsSettings` a screen builds still type-checks. The trap: a save REPLACES the whole settings object
+ * (`saveSettingsVersion`), so a form that does not carry this group through saves a version without it, and
+ * that turns the feed off. Track S's Settings › Ads control form must round-trip it.
+ */
+export const adsOutcomeFeedSchema = z.object({
+  enabled: z.boolean(),
+  dataset_id: z.string().regex(/^\d{1,20}$/, "a Meta dataset id is its digits, from Events Manager").nullable(),
+}).refine((f) => !f.enabled || f.dataset_id !== null, { message: "Name the Meta dataset before turning the outcome feed on", path: ["dataset_id"] });
+export type AdsOutcomeFeed = z.infer<typeof adsOutcomeFeedSchema>;
+
+export const ADS_OUTCOME_FEED_OFF: AdsOutcomeFeed = { enabled: false, dataset_id: null };
+
 export const adsSettingsSchema = z.object({
   limits: adsSpendLimitsSchema,
   auto_pause: adsAutoPauseSchema,
   approvals: adsApprovalsSchema,
   budgets: adsBudgetsSchema,
   alerts: adsAlertsSchema,
+  outcome_feed: adsOutcomeFeedSchema.optional(),
 });
 export type AdsSettings = z.infer<typeof adsSettingsSchema>;
 
@@ -106,6 +128,11 @@ export const ADS_SETTINGS_UNSET: AdsSettings = {
   budgets: { anthropic_tokens_monthly: null, higgsfield_credits_monthly: null, max_regenerations: 1, agents_enabled: {} },
   alerts: { recipients: {}, uncontacted_lead_minutes: 15 },
 };
+
+/** The outcome feed a version says, an absent group (any version saved before Q-AD40) being OFF. */
+export function outcomeFeedOf(settings: AdsSettings): AdsOutcomeFeed {
+  return settings.outcome_feed ?? ADS_OUTCOME_FEED_OFF;
+}
 
 export function monthlyCapFor(settings: AdsSettings, platform: AdPlatform): number | null {
   return settings.limits.monthly_cap_cents[platform] ?? null;

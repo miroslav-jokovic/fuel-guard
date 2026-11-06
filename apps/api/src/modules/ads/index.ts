@@ -45,7 +45,7 @@ export { runDailyBrief } from "./workers/analyst/dailyBrief.js";
 export { adsDailyBriefDedupKey, startAdsDailyBrief } from "./workers/analyst/briefTick.js";
 // B6: the outcome feed — recorded lead stages to Meta's Conversions API, one ledger row each — and its scheduler.
 export { runOutcomeFeed } from "./outcomes/outcomeFeed.js";
-export { NO_FEED_TARGET } from "./outcomes/feedTarget.js";
+export { settingsFeedTargets } from "./outcomes/feedTarget.js";
 export { adsOutcomeFeedDedupKey, startAdsOutcomeFeed } from "./outcomes/outcomeTick.js";
 // C3: the Higgsfield client — one render step (submit under the row's id, poll, copy to our storage), the sealed key.
 export { renderStep, renderKey, renderInputFromPayload } from "./creative/higgsfield/render.js";

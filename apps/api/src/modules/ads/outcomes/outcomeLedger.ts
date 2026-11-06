@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OutcomeStage } from "@silvicom/shared";
-import { tooOldToSend, type OutcomeCandidate } from "./outcomeEvents.js";
+import { tooOldToSend, type FeedProvider, type OutcomeCandidate } from "./outcomeEvents.js";
 
 /**
  * The outcome feed's ledger: `ads_outcome_events` (0537, stages 0570), its ONE writer (B6). Append-only and
@@ -39,13 +39,13 @@ export interface Queued {
 }
 
 /** Inserts every candidate not yet on the ledger: `queued`, or `skipped` when it is already too old to send. */
-export async function queueOutcomes(admin: SupabaseClient, orgId: string, candidates: readonly OutcomeCandidate[], now: Date): Promise<Queued> {
+export async function queueOutcomes(admin: SupabaseClient, orgId: string, provider: FeedProvider, candidates: readonly OutcomeCandidate[], now: Date): Promise<Queued> {
   const result: Queued = { queued: 0, skipped: 0, already: 0 };
   const known = new Set<string>();
   const refs = candidates.map((c) => c.source_event_ref);
   for (let i = 0; i < refs.length; i += CHUNK) {
     const { data, error } = await admin.from("ads_outcome_events").select("source_event_ref")
-      .eq("org_id", orgId).eq("provider", "meta").in("source_event_ref", refs.slice(i, i + CHUNK));
+      .eq("org_id", orgId).eq("provider", provider).in("source_event_ref", refs.slice(i, i + CHUNK));
     if (error) throw new Error(`ads_outcome_events: ${error.message}`);
     for (const r of (data ?? []) as Array<{ source_event_ref: string }>) known.add(r.source_event_ref);
   }
@@ -74,12 +74,12 @@ export async function queueOutcomes(admin: SupabaseClient, orgId: string, candid
 }
 
 /** Every row still to send, oldest first. */
-export async function dueRows(admin: SupabaseClient, orgId: string): Promise<DueRow[]> {
+export async function dueRows(admin: SupabaseClient, orgId: string, provider: FeedProvider): Promise<DueRow[]> {
   const out: DueRow[] = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await admin.from("ads_outcome_events")
       .select("id, source_event_ref, platform_lead_ref, stage, attempts")
-      .eq("org_id", orgId).eq("provider", "meta").in("status", ["queued", "failed"]).lt("attempts", MAX_ATTEMPTS)
+      .eq("org_id", orgId).eq("provider", provider).in("status", ["queued", "failed"]).lt("attempts", MAX_ATTEMPTS)
       .order("created_at").order("id").range(from, from + PAGE - 1);
     if (error) throw new Error(`ads_outcome_events: ${error.message}`);
     const rows = (data ?? []) as DueRow[];
@@ -103,4 +103,13 @@ export async function recordSend(admin: SupabaseClient, orgId: string, row: DueR
   const { error } = await admin.from("ads_outcome_events").update(patch)
     .eq("org_id", orgId).eq("id", row.id).in("status", ["queued", "failed"]);
   if (error) throw new Error(`ads_outcome_events: ${error.message}`);
+}
+
+/** The newest row Meta refused for good (`recordSend` marks it `refused`), or null: what the refusal bell is keyed by. */
+export async function newestRefusal(admin: SupabaseClient, orgId: string, provider: FeedProvider): Promise<string | null> {
+  const { data, error } = await admin.from("ads_outcome_events").select("id")
+    .eq("org_id", orgId).eq("provider", provider).eq("status", "failed").eq("response->>refused", "true")
+    .order("created_at", { ascending: false }).limit(1);
+  if (error) throw new Error(`ads_outcome_events: ${error.message}`);
+  return ((data ?? []) as Array<{ id: string }>)[0]?.id ?? null;
 }

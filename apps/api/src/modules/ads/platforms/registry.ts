@@ -35,6 +35,8 @@ export const metaPageTokenPurpose = (sandbox: boolean): string => `meta_ads_page
 /** The simulator's one ad account and Page: what the Connect-the-simulator door points the connection at. */
 export const SIMULATOR_ACCOUNT_ID = "990000000001";
 export const SIMULATOR_PAGE_ID = "990000000101";
+/** The simulator's Conversions API dataset (B6, Q-AD40 (2)): the id a staging admin saves as the outcome feed's dataset. */
+export const SIMULATOR_DATASET_ID = "990000000201";
 
 export interface ConnectionForGraph {
   id: string;
@@ -139,6 +141,7 @@ function simulatorMeta(): Promise<{ token: string; base: string; fake: FakeMeta 
       user: { id: "990000000900", name: "Simulator system user" },
       pages: [{ id: SIMULATOR_PAGE_ID, name: "Simulator Page", access_token: `simpage-${randomBytes(24).toString("hex")}`, tasks: ["ADVERTISE", "ANALYZE", "CREATE_CONTENT", "MODERATE"] }],
     });
+    fake.datasets.create(SIMULATOR_DATASET_ID);
     return { token, base: await fake.start(), fake };
   })();
   return simulator;

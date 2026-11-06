@@ -1,5 +1,8 @@
 import { isRecordId, OUTCOME_STAGES, type LeadOutcome, type OutcomeStage } from "@silvicom/shared";
 
+/** The platforms whose leads the feed tells their progress to: Meta, and its staging stand-in (Q-AD40 (2)). */
+export type FeedProvider = "meta" | "simulator";
+
 /**
  * The outcome feed's pure half (B6; D-AD14; Q-AD39, ruled 2026-11-06): which stage events a lead's recorded
  * outcomes make, and the Conversions API event each one becomes. No clock of its own, no database.
@@ -43,7 +46,7 @@ export const outcomeEventRef = (leadId: string, stage: OutcomeStage): string => 
 /** One stage a lead reached, as the ledger holds it, plus the time it is sent with (not a ledger column). */
 export interface OutcomeCandidate {
   source_event_ref: string;
-  provider: "meta";
+  provider: FeedProvider;
   platform_lead_ref: string;
   stage: OutcomeStage;
   /** Our campaign when the lead names one we hold (`campaign_ref` is a record id for an ad lead), else null. */
@@ -53,20 +56,21 @@ export interface OutcomeCandidate {
 }
 
 /**
- * Every recorded stage of every Meta lead, one candidate each. Only the stages a row records (`OUTCOME_STAGES`,
- * derived from Q-AD37's list), so a `not_recorded` stage can never be a candidate. A lead from another platform
- * is not Meta's to hear about.
+ * Every recorded stage of every lead from `provider`, one candidate each. Only the stages a row records
+ * (`OUTCOME_STAGES`, derived from Q-AD37's list), so a `not_recorded` stage can never be a candidate. A lead from
+ * another platform is not this platform's to hear about: a simulator lead never reaches real Meta, and a Meta
+ * lead never reaches the simulator.
  */
-export function outcomeCandidates(outcomes: readonly LeadOutcome[]): OutcomeCandidate[] {
+export function outcomeCandidates(outcomes: readonly LeadOutcome[], provider: FeedProvider = "meta"): OutcomeCandidate[] {
   const out: OutcomeCandidate[] = [];
   for (const o of outcomes) {
-    if (o.provider !== "meta") continue;
+    if (o.provider !== provider) continue;
     for (const stage of OUTCOME_STAGES) {
       const at = o.reached[stage];
       if (at === undefined) continue;
       const event_time = new Date(Math.max(Date.parse(at), Date.parse(o.arrived_at))).toISOString();
       out.push({
-        source_event_ref: outcomeEventRef(o.lead_id, stage), provider: "meta", platform_lead_ref: o.platform_lead_ref,
+        source_event_ref: outcomeEventRef(o.lead_id, stage), provider, platform_lead_ref: o.platform_lead_ref,
         stage, campaign_id: isRecordId(o.campaign_id) ? o.campaign_id : null, event_time,
       });
     }
