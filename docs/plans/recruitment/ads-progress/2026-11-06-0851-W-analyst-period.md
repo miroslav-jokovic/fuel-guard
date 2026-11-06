@@ -1,4 +1,4 @@
-**2026-11-06 · Track W · w-two-smalls, PR 2: the Analyst's period label (#PR)** — no migration. **Analyst L2 → L3.**
+**2026-11-06 · Track W · w-two-smalls, PR 2: the Analyst's period label (#2089)** — no migration. **Analyst L2 → L3.**
 
 - **Why:** analyst@2's one refusal, in 2 of 2 live runs, was the model writing "November 2026". The year was not on
   the fact sheet, so the check refused it (correctly).
