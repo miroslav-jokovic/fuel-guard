@@ -56,10 +56,13 @@ export interface AdsCampaignSummary {
 /** One format of a creative's image, as compose stored it (0537 `ads_creatives.assets`). */
 export interface AdsCreativeAsset {
   format: string;
+  language: string;
   sha256: string;
   path: string;
   width: number;
   height: number;
+  /** A short-lived link to the finished image for the review screen; null when one could not be made. Never stored. */
+  url: string | null;
 }
 
 export interface AdsCreativeView {
