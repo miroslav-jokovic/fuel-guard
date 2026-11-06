@@ -143,8 +143,11 @@ There is still no warning **before** a token expires (**Q-AD24**): the first bel
   the **Failed background jobs** card instead (below).
 
 ### Where failed jobs are listed
-1. Open **Settings › Data & sync** (`/settings/data`). Admins and fleet managers can see it
-   (*apps/web/src/pages/DataSyncPage.vue*; its gate is `admin.settings.data` in *packages/shared/src/surfaceCatalogue.ts*).
+1. Open **Settings › Data & sync** (`/settings/data`). **Admins** see it. Other roles see it only if the carrier
+   turns it on for them in **Settings › Permissions**, because it starts off for every role but admin
+   (*apps/web/src/pages/DataSyncPage.vue*; `admin.settings.data`, `startsOnFor: []`, in
+   *packages/shared/src/surfaceCatalogue.ts*). Whoever is on call for ads needs it, so an admin should
+   switch it on for that person's role before the first launch.
 2. Scroll to the card **Failed background jobs** (*apps/web/src/features/jobs/FailedJobsCard.vue*, reading
    *GET /api/jobs/failed*, *apps/api/src/modules/org/routes/jobs.ts*). It lists the newest 50 jobs that failed
    every try, newest first.
