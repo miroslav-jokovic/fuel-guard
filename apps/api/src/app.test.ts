@@ -103,9 +103,20 @@ describe("GET /api/version", () => {
       "schema",
       "service",
       "startedAt",
+      // Whether "Confirm it's you" can work (Q-AD41 (b)): "ready", or setting NAMES — never a value.
+      "stepUp",
       "storageBackup",
       "version",
     ]);
+  });
+
+  // That it alone turns `ok` false is `routes/version.test.ts`'s: here the schema is unknown, so `ok` is false anyway.
+  it("says step-up cannot work here by setting name only", async () => {
+    const body = (await (await fetch(`${baseUrl}/api/version`)).json()) as { stepUp: string };
+    // This app's env has none of the three, so all three are named, in `stepUpMissing`'s order.
+    expect(body.stepUp).toBe("missing:SUPABASE_URL,SUPABASE_ANON_KEY,SECRETS_ENCRYPTION_KEY");
+    const ready = (await (await fetch(`${baseUrl}/api/version/ready`)).json()) as { stepUp: string };
+    expect(ready.stepUp).toBe(body.stepUp);
   });
 });
 

@@ -9,6 +9,7 @@ import { getReleaseVersion } from "../lib/releaseVersion.js";
 import { getSchedulerHealth, laneHealthy } from "../lib/schedulerHealth.js";
 import { getStorageBackupHealth, storageBackupHealthy } from "../modules/org/index.js";
 import { getRealtimeHealth, realtimeHealthy } from "../modules/messaging/index.js";
+import { stepUpReadiness } from "../envAuth.js";
 
 /**
  * `GET /api/version` — what is actually running (ship-pipeline plan D0.3).
@@ -29,6 +30,10 @@ import { getRealtimeHealth, realtimeHealthy } from "../modules/messaging/index.j
  * And since CHA4 (0515), whenever Supabase Realtime has stopped delivering: the quarter-hourly probe's
  * broadcast did not reach its subscriber, or the probe itself stopped (`realtime`,
  * modules/messaging/realtimeHealth.ts) — office chat's "instant" falls back to its poll without a word.
+ * And since Q-AD41 (b) (2026-11-06), whenever "Confirm it's you" cannot work (`stepUp`: "ready", or "missing:" and the
+ * setting NAMES from `stepUpMissing` in envAuth.ts). The one piece of configuration this route publishes, and only as
+ * names: which settings are absent is not a secret, their values never appear. Staging ran two weeks without one of
+ * them, and every admin act behind a fresh sign-in failed while the prompt blamed the password.
  *
  * `GET /api/version/ready` is the same verdict as an HTTP STATUS — 200 when `ok`, 503 when not — for
  * an external uptime monitor that can only read a status code (D-RLY5). `/healthz` cannot be that:
@@ -38,7 +43,7 @@ import { getRealtimeHealth, realtimeHealthy } from "../modules/messaging/index.j
 export function versionRouter(): Router {
   const router = Router();
 
-  const read = async (env: Parameters<typeof getSchemaStatus>[0]) => {
+  const read = async (env: Parameters<typeof getSchemaStatus>[0] & Parameters<typeof stepUpReadiness>[0]) => {
     const [schema, maintenance, schedulers, storageBackup, realtime, version] = await Promise.all([
       getSchemaStatus(env),
       getMaintenanceHealth(env),
@@ -47,13 +52,15 @@ export function versionRouter(): Router {
       getRealtimeHealth(env),
       getReleaseVersion(),
     ]);
+    const stepUp = stepUpReadiness(env);
     const ok =
       !schema.drift &&
       maintenanceHealthy(maintenance.state) &&
       schedulers.every((l) => laneHealthy(l.state)) &&
       storageBackupHealthy(storageBackup.state) &&
-      realtimeHealthy(realtime.state);
-    return { schema, maintenance, schedulers, storageBackup, realtime, version, ok };
+      realtimeHealthy(realtime.state) &&
+      stepUp === "ready";
+    return { schema, maintenance, schedulers, storageBackup, realtime, version, stepUp, ok };
   };
 
   router.get(
@@ -61,7 +68,7 @@ export function versionRouter(): Router {
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
       const build = getBuildInfo();
-      const { schema, maintenance, schedulers, storageBackup, realtime, version, ok } = await read(env);
+      const { schema, maintenance, schedulers, storageBackup, realtime, version, stepUp, ok } = await read(env);
       res.setHeader("Cache-Control", "no-store");
       res.json({
         service: `${APP_NAME} API`,
@@ -79,6 +86,7 @@ export function versionRouter(): Router {
         schedulers,
         storageBackup,
         realtime,
+        stepUp,
         ok,
       });
     }),
@@ -88,7 +96,7 @@ export function versionRouter(): Router {
     "/ready",
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
-      const { schema, maintenance, schedulers, storageBackup, realtime, ok } = await read(env);
+      const { schema, maintenance, schedulers, storageBackup, realtime, stepUp, ok } = await read(env);
       res.setHeader("Cache-Control", "no-store");
       // The body names what failed, for the person who opens the alert; the status is the verdict.
       res.status(ok ? 200 : 503).json({
@@ -99,6 +107,7 @@ export function versionRouter(): Router {
         schedulers: Object.fromEntries(schedulers.map((l) => [l.lane, l.state])),
         storageBackup: storageBackup.state,
         realtime: realtime.state,
+        stepUp,
       });
     }),
   );

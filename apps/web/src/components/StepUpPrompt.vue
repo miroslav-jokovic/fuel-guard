@@ -29,15 +29,24 @@ const emit = defineEmits<{ confirmed: []; cancel: [] }>();
 
 const password = ref("");
 const error = ref<string | null>(null);
+/** Only a refused password marks the field invalid; a server that cannot check one is not the password's fault. */
+const blamesPassword = ref(false);
 const busy = ref(false);
 
 async function confirm(): Promise<void> {
   busy.value = true;
   error.value = null;
-  const ok = await verifyStepUp(password.value);
+  const result = await verifyStepUp(password.value);
   password.value = "";
   busy.value = false;
-  if (!ok) {
+  blamesPassword.value = result === "refused";
+  if (result === "unavailable") {
+    // The server cannot check any password (503 step_up_unavailable, Q-AD41): retyping will not help, and
+    // "check it" blames a password that may be right. Only an administrator can fix the deploy's settings.
+    error.value = "The server can't confirm passwords right now. Tell your administrator.";
+    return;
+  }
+  if (result !== "verified") {
     // Deliberately not "wrong password": the same message covers a wrong password and an SSO account
     // with none, and neither case should be told anything about the other.
     error.value = "Could not confirm your password. Check it and try again.";
@@ -64,7 +73,7 @@ async function confirm(): Promise<void> {
             type="password"
             autocomplete="current-password"
             :disabled="busy"
-            :invalid="!!error"
+            :invalid="!!error && blamesPassword"
           />
         </template>
       </FormField>

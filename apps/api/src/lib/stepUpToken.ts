@@ -51,6 +51,10 @@ function subkey(env: Env): Buffer | null {
 const sign = (key: Buffer, userId: string, orgId: string, exp: number): string =>
   createHmac("sha256", key).update(`${VERSION}:${userId}:${orgId}:${exp}`).digest("hex");
 
+/** Whether this deploy can mint (and so verify) a step-up token: the same `subkey` both use. Read by
+ *  `stepUpMissing` (envAuth.ts), so readiness asks exactly what minting does. */
+export const canMintStepUp = (env: Env): boolean => subkey(env) !== null;
+
 /** Null when the deploy has no SECRETS_ENCRYPTION_KEY — the caller turns that into a 503, because a
  *  step-up endpoint that silently cannot mint is a gate nobody can ever pass. */
 export function mintStepUpToken(

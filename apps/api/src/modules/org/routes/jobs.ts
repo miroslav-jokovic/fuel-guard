@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { callerCanManage, JOB_KIND_CATALOGUE, jobKindEntry, type JobArea } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -6,28 +7,26 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { failedJobs, latestJob, lastDoneJob, requestJobCancel, type JobKind } from "../jobs.js";
 import { queueMetrics } from "../../../queue/metrics.js";
 
-const KNOWN_KINDS = new Set<JobKind>([
-  "rebuild",
-  "backfill",
-  "score_import",
-  "score_declined_import",
-  "rescore_declined",
-  "sync_vehicles",
-  "sync_trailers",
-  "sync_idle",
-  "idle_event_twins",
-  "sync_odometer",
-  "sync_hos",
-  "sync_stats",
-  "sync_drivers",
-  "sync_driver_scores",
-  "snapshot_driver_week",
-  "nightly_reconcile",
-  "efs_ingest",
-  "efs_process_import",
-  "efs_card_sync",
-  "efs_card_status",
-]);
+/**
+ * Every kind the API runs, read from the shared catalogue (`jobKindCatalogue.ts`), which `jobKindCatalogue.test.ts`
+ * holds equal to `JobKind` both ways. This was a hand list of 20 that missed `efs_store_sync`, so Settings › Data &
+ * sync's card for it answered 400 on every load (three times per page view, Q-AD41 (b) 2026-11-06), and FleetPal's
+ * and Med-Stop's settings cards the same.
+ */
+const KNOWN_KINDS: ReadonlySet<string> = new Set(Object.keys(JOB_KIND_CATALOGUE));
+
+/**
+ * Who may read a kind's latest run. `/latest` returns the whole job row — payload, stats and error text — so widening
+ * it from 20 kinds to every kind would have shown any org member, a dispatcher or a driver-facing role, rows that
+ * name an ad campaign or a Meta lead, a Med-Stop drug-test sync, a driver-file binder or McLeod financial totals.
+ *
+ * Ruled from the catalogue's own `area`, not a second list of kinds: the 20 kinds this route always served are
+ * exactly the fuel, Samsara (telematics) and EFS areas, read by fuel pages any member can open, so those areas stay
+ * open to `requireOrg` as before (and gain their nine siblings, the same class of sync status). Every other area
+ * needs the Settings section, the gate `/failed` already uses for the same rows. A new kind takes its area's rule.
+ */
+const OPEN_AREAS: ReadonlySet<JobArea> = new Set<JobArea>(["fuel", "telematics", "efs"]);
+const openToEveryMember = (kind: string): boolean => OPEN_AREAS.has(jobKindEntry(kind).area);
 
 export function jobsRouter(): Router {
   const router = Router();
@@ -44,6 +43,10 @@ export function jobsRouter(): Router {
       const kind = String(req.query.kind ?? "") as JobKind;
       if (!KNOWN_KINDS.has(kind)) {
         res.status(400).json(apiError("bad_request", "Unknown or missing job kind"));
+        return;
+      }
+      if (!openToEveryMember(kind) && !callerCanManage(req.auth!.role ?? null, "settings", req.auth!.sections ?? null)) {
+        res.status(403).json(apiError("forbidden", "Insufficient role"));
         return;
       }
       const [latest, lastDone] = await Promise.all([latestJob(admin, orgId, kind), lastDoneJob(admin, orgId, kind)]);
