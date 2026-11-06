@@ -783,7 +783,7 @@ export const READINESS = [
       ],
       // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
       // evaluation set alone (ADS-AGENT-PLAN §9). The run below is OUR wording, written from the ruling, not the owner's.
-      L4: [{ need: "its live copy accepted on Meta's sandbox: ads made from real answers, in English and Spanish, created without refusal", gap: STAGE2 }],
+      L4: [{ need: "its live copy accepted on Meta's sandbox: ads made from real answers, in English and Spanish, created without refusal", gap: `${STAGE2}; publisher.contract.test.ts sends fixed copy today, so that run must also carry Copywriter's real answers` }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
