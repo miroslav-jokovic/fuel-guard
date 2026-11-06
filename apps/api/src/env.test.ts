@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -95,10 +95,12 @@ describe("env defaults have exactly one source", () => {
    * reads only one half would quietly stop covering the other, which is the failure mode this whole
    * describe block exists to prevent.
    */
-  const schema = [
-    readFileSync(path.join(SRC, "env.ts"), "utf8"),
-    readFileSync(path.join(SRC, "envEfs.ts"), "utf8"),
-  ].join("\n");
+  // Every `env*.ts` beside this file, read from the directory rather than listed: the 2026-11-06 split (ads Track G)
+  // moved most keys into eight more files, and a hand list here had already gone blind to the six split before it.
+  const schema = readdirSync(SRC)
+    .filter((f) => /^env[A-Za-z]*\.ts$/.test(f))
+    .map((f) => readFileSync(path.join(SRC, f), "utf8"))
+    .join("\n");
 
   /**
    * Three outcomes, because "is it optional" is the wrong question on its own.
