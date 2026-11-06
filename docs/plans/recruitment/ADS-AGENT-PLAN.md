@@ -1212,6 +1212,30 @@ rate, and Higgsfield credits per approved creative.
   **Rec: (a), owner sets the number** (one recall, or one per defect type). The certify run reads it from
   there. Until it is set, the Checker stays at L2.
 
+- **Q-AD46 · Staging's ads agent is braked, so a campaign started there never leaves "Starting"** (us, found on the
+  openings-editor staging walk, 2026-11-06; **blocks G-walk lines 11–16 and E3's four-click done-when**). With the
+  first hiring profile and opening saved through the new Openings screen, G-walk line 10 ran: four clicks to New
+  campaign, the opening offered, Start campaign answered 201 (campaign `7f40f13e-…`, brief snapshot correct: 62¢ and 70¢
+  a mile, age 23, 2 years, "home weekly", Joliet + 50 mi). It then sat in `draft` for 15 minutes with no failed job.
+  The reason is read, not guessed: neither uat service (`@fleetguard/api`, `@fleetguard/web`) sets `ADS_ENABLED`
+  (read 2026-11-06), so the orchestrator ticks under the brake (`orchestrator/brake.ts`). Every org reads as killed,
+  `compose` is null, and `agentHasWork("draft")` is false (`orchestrator/workers.ts:122`). That is the designed
+  behaviour (WORKER-DEPLOYMENT.md § Ads, "off until Stage 1's exit"), so nothing is broken. But no staging walk can
+  reach review, approval, paused, launch or the kill switch's Pausing → Paused while it holds.
+  Candidates:
+  - (a) **The owner sets `ADS_ENABLED=true` on the uat service that holds the `general` lane** (today `@fleetguard/web`,
+    whose `RUN_SCHEDULERS_IN_PROCESS` is unset, so it is true; the API's is `false`). That also starts the staging ads
+    schedulers: leads backfill, insights, reconcile, outcome feed, daily brief and uncontacted. Every one of them
+    reads only the simulator connection there (D-AD8 refuses any real Meta account off production). It also makes
+    staging spend the AI budgets saved in ads settings v1: Claude copy, Higgsfield picture credits, and the analyst's
+    brief. Those caps hold the spend, but it is real money.
+  - (b) As (a), but only for the walk window, then unset. This is the same act twice, and the brake comes back
+    between walks.
+  - (c) Refused: moving the campaign's state by hand or with the service role, or a staging-only bypass of the
+    brake. Either one walks a path the product does not take.
+  **Rec: (a)**, by the owner (a Railway variable on a host and a spend decision; not a track's to set). Then G-walk
+  11–16 continue on the campaign already started.
+
 ---
 
 ## Sources (read 2026-10-31)
