@@ -1970,10 +1970,3 @@ blocking step in §3 above.
     Mutants: dropping the org filter from each of spendView's four reads is killed by the sweep. Dropping it from
     `lastDoneJobByKey` is a no-op there (the key names a connection id), and `spendView.test.ts`'s
     `expectOrgScoped` (no `jobs` exemption) kills it instead.
-- **2026-11-05, E2a: Settings › Ads control — brand kits.** No migration, no new route. A card on the Ads control page and one
-  drawer over C1's doors: company name, phone, colours, logo, equipment photos, text and plate colours per format, the
-  people policy and forbidden marks. Saving adds a version; a save with no edit keeps a format's text zone.
-  - **Why the card fills in overlays:** the contract lets them be empty, but `renderOverlay` refuses a format with none, so
-    such a kit would save and then stop every campaign at compose. `AD_OVERLAY_START` is the starting point.
-  - **Not shown yet:** the images themselves. No route serves a stored ad asset to a browser; E3 needs that read for review.
-  - Browser pass on failed, empty and saved, over a stubbed API, as an admin. **Staging pass owed.** E2b is the preset editor.
