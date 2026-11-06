@@ -296,9 +296,8 @@ export const SURFACES: readonly Surface[] = [
   /**
    * The board's two other tabs (D-HUI8, B4). Non-nav, parented on the board, keys unchanged.
    *
-   * U1/D-UI1 gave both a nav entry in 2026-08-20's P0b incident, when they were reachable only from
-   * two buttons and a recruiter arriving from a notification had no way back. This does NOT
-   * reintroduce it: the tab strip is on all three pages and every URL still resolves.
+   * U1/D-UI1 gave both a nav entry in 2026-08-20's P0b incident (reachable only from two buttons). This
+   * does NOT reintroduce it: the tab strip is on all three pages and every URL still resolves.
    * ⚠ A `parent` makes them answer to the board's key (D-SURF8), so a separate denial of either
    * would become a denial of the board. Measured on production first, 2026-09-18: both override
    * tables hold ZERO rows for any `recruitment.*` key, so nothing stored is reinterpreted.
@@ -307,6 +306,7 @@ export const SURFACES: readonly Surface[] = [
   { key: "recruitment.inquiries", label: "Safety-history inquiries", path: "/recruitment/inquiries", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   { key: "recruitment.templates", label: "Templates", path: "/recruitment/templates", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   { key: "recruitment.leads", label: "Leads", path: "/recruitment/leads", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
+  { key: "recruitment.campaigns", label: "Campaigns", path: "/recruitment/campaigns", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   // One roadside inspection, the row the list opens (INSPECTION-CHALLENGE-PLAN §6's Inspection page).
   { key: "safety.roadside-inspections.detail", label: "Roadside inspection", path: "/roadside-inspections/:id", group: "safety", gate: section("safety"), parent: "safety.roadside-inspections" },
   { key: "maintenance.inspections.detail", label: "Annual inspection", path: "/shop/inspections/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.inspections" },
