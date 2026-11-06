@@ -404,6 +404,12 @@ blocking step in §3 above.
 
 ## Progress log
 
+> **From 2026-11-06 this log is closed to new entries.** Each PR writes its entry as its own file in
+> [`ads-progress/`](ads-progress/README.md), named `YYYY-MM-DD-HHMM-<track>-<step>.md` so the folder lists in
+> order. Three parallel chats appending to the end of this one file turned every open ads PR
+> CONFLICTING on each merge (E1c, #2075, took six rebases at ~25 min of CI each); separate files cannot
+> conflict. The entries below stay as written, oldest first.
+
 - **2026-11-01** — Workflow written. Measured on main: last migration 0535 (parallel HW
   program); no DB CHECK on `jobs.kind` but one active job per (org, kind) without `dedup_key`;
   `rawBody` captured; `ADMIN_ONLY_CAPABILITIES` is the home for spend/connection rights; `sharp` +
