@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import sharp from "sharp";
+import { imageIncomplete } from "./imageComplete.js";
 import { AD_ASSET_MAX_BYTES, FORMAT_LABELS, FORMAT_MIMES, sniffFormat, type AdAssetFormat, type AdAssetRef } from "@silvicom/shared";
 
 /**
@@ -66,6 +67,10 @@ export async function prepareAsset(bytes: Buffer): Promise<PreparedAsset> {
   const sniffed = sniffFormat(bytes);
   const format = sniffed ? ACCEPTED[sniffed] : undefined;
   if (format) {
+    // Completeness first, from the file's own structure: libvips's refusal of a cut-short file is not reliable
+    // while other decodes fail in the same process (`imageComplete.ts` has the measurements).
+    const broken = imageIncomplete(format, bytes);
+    if (broken) return refuse("unreadable", `The file starts like a ${FORMAT_LABELS[sniffed!]} but cannot be read as one: ${broken}.`);
     try {
       // `stats()` decodes every pixel, so a truncated or corrupt file is refused here, not in the renderer.
       const img = sharp(bytes, { failOn: "error" });

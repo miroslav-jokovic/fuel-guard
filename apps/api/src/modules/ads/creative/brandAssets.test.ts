@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
+import { deflateSync } from "node:zlib";
 import sharp from "sharp";
+import { crc32 } from "./imageComplete.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { AD_ASSETS_BUCKET, acceptAsset, assetKey, mismatchedAssets, prepareAsset, svgHazard } from "./brandAssets.js";
 
@@ -18,6 +20,24 @@ const png = (width = 40, height = 20) =>
 const PDF = Buffer.from("%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
 const SVG = (inner = '<rect width="100" height="50" fill="#0B3D2E"/>') =>
   Buffer.from(`<?xml version="1.0"?>\n<!-- logo -->\n<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50" viewBox="0 0 100 50">${inner}</svg>`);
+
+/** A PNG chunk: length, type, data, CRC (PNG spec §5.3). */
+function chunk(type: string, data: Buffer): Buffer {
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([len, body, crc]);
+}
+/** A 200×200 RGB PNG built from constants: the brand green with a stripe every 10 rows, deflated at level 9. */
+const CONSTANT_PNG = (() => {
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(200, 0); ihdr.writeUInt32BE(200, 4); ihdr[8] = 8; ihdr[9] = 2;
+  const rows = Array.from({ length: 200 }, (_, y) => Buffer.concat([Buffer.from([0]), Buffer.alloc(600, y % 10 === 0 ? 0xff : 0x3d)]));
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(Buffer.concat(rows), { level: 9 })), chunk("IEND", Buffer.alloc(0))]);
+})();
+const IDAT_AT = 8 + 25;
+const IDAT_LEN = CONSTANT_PNG.readUInt32BE(IDAT_AT);
+/** Ten bytes into the IDAT's data: inside the picture, past every header. */
+const CUT_PNG_OFFSET = IDAT_AT + 8 + 10;
 
 let objects: Map<string, Buffer>;
 let db: SupabaseRecorder;
@@ -76,8 +96,44 @@ describe("an upload is what its bytes are", () => {
   });
 
   it("refuses a file that starts like a PNG but is cut short", async () => {
-    const bytes = await png(200, 200);
-    expect(await prepareAsset(bytes.subarray(0, Math.floor(bytes.length / 2)))).toMatchObject({ kind: "refused", code: "unreadable" });
+    // Cut at a FIXED offset inside the IDAT chunk of a PNG built from constants (no sharp, no randomness).
+    expect(CUT_PNG_OFFSET).toBeGreaterThan(IDAT_AT + 8);
+    expect(CUT_PNG_OFFSET).toBeLessThan(IDAT_AT + 8 + IDAT_LEN);
+    expect(await prepareAsset(CONSTANT_PNG)).toMatchObject({ kind: "ready", ref: { width: 200, height: 200 } });
+    expect(await prepareAsset(CONSTANT_PNG.subarray(0, CUT_PNG_OFFSET))).toEqual({ kind: "refused", code: "unreadable", reason: "The file starts like a PNG but cannot be read as one: it is cut short." });
+  });
+
+  it("refuses a cut-short PNG even while other decodes are failing beside it (the libvips race, 2026-11-06)", async () => {
+    // Measured: with other failing decodes in the same process, libvips accepted this cut file 8–15 times in 40.
+    const cut = CONSTANT_PNG.subarray(0, CUT_PNG_OFFSET);
+    const noise = Array.from({ length: 15 }, (_, i) => Buffer.from(`not an image ${i}`));
+    const verdicts: unknown[] = [];
+    for (let round = 0; round < 40; round++) {
+      const [mine] = await Promise.all([prepareAsset(Buffer.from(cut)), ...noise.map((n) => sharp(n, { failOn: "error" }).stats().catch(() => null))]);
+      verdicts.push(mine);
+    }
+    expect(new Set(verdicts.map((v) => JSON.stringify(v)))).toEqual(new Set([JSON.stringify({ kind: "refused", code: "unreadable", reason: "The file starts like a PNG but cannot be read as one: it is cut short." })]));
+  });
+
+  it("refuses a PNG whose chunks are whole but whose picture data stops early, and a cut JPEG and WebP", async () => {
+    // Re-wrap half of the deflate stream as a complete IDAT with a correct CRC: the chunk walk passes, inflate does not.
+    const head = CONSTANT_PNG.subarray(0, IDAT_AT);
+    const half = CONSTANT_PNG.subarray(IDAT_AT + 8, IDAT_AT + 8 + Math.floor(IDAT_LEN / 2));
+    const short = Buffer.concat([head, chunk("IDAT", half), chunk("IEND", Buffer.alloc(0))]);
+    expect(await prepareAsset(short)).toEqual({ kind: "refused", code: "unreadable", reason: "The file starts like a PNG but cannot be read as one: its picture data ends early." });
+    // A whole, valid zlib stream holding only 100 of the 200 rows the header promises: only the size check sees it.
+    const rows100 = Buffer.concat(Array.from({ length: 100 }, () => Buffer.concat([Buffer.from([0]), Buffer.alloc(600, 0x3d)])));
+    const fewer = Buffer.concat([head, chunk("IDAT", deflateSync(rows100)), chunk("IEND", Buffer.alloc(0))]);
+    expect(await prepareAsset(fewer)).toEqual({ kind: "refused", code: "unreadable", reason: "The file starts like a PNG but cannot be read as one: its picture data ends early." });
+    // One flipped byte inside the picture data, the length untouched: the chunk's CRC names it.
+    const flipped = Buffer.from(CONSTANT_PNG); flipped[IDAT_AT + 8 + 20]! ^= 0x01;
+    expect(await prepareAsset(flipped)).toEqual({ kind: "refused", code: "unreadable", reason: "The file starts like a PNG but cannot be read as one: its IDAT chunk is damaged." });
+    const jpg = await sharp({ create: { width: 64, height: 64, channels: 3, background: "#123456" } }).jpeg().toBuffer();
+    expect(await prepareAsset(jpg.subarray(0, jpg.length - 40))).toMatchObject({ kind: "refused", code: "unreadable", reason: expect.stringMatching(/JPEG.*it is cut short\.$/) });
+    const webp = await sharp({ create: { width: 64, height: 64, channels: 3, background: "#123456" } }).webp().toBuffer();
+    expect(await prepareAsset(webp.subarray(0, webp.length - 10))).toMatchObject({ kind: "refused", code: "unreadable", reason: expect.stringMatching(/WebP.*it is cut short\.$/) });
+    expect((await prepareAsset(jpg)).kind).toBe("ready");
+    expect((await prepareAsset(webp)).kind).toBe("ready");
   });
 
   it("refuses formats the kit does not take, naming what the file is", async () => {
