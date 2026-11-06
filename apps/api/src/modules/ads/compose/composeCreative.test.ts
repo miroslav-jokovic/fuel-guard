@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import sharp from "sharp";
-import { describe, expect, it, vi } from "vitest";
-import { ADS_SETTINGS_UNSET, REGENERATION_CLAUSES, type AdAssetRef, type AdBrandKit, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import type { ZodType } from "zod";
+import { ADS_SETTINGS_UNSET, adCreativeChecksSchema, REGENERATION_CLAUSES, type AdAssetRef, type AdBrandKit, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
 import type { MessagesClient } from "../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
@@ -32,6 +33,41 @@ const settings: AdsSettings = {
   budgets: { ...ADS_SETTINGS_UNSET.budgets, anthropic_tokens_monthly: 1_000_000, agents_enabled: { copywriter: true, art_director: true, checker: true } },
 };
 
+/**
+ * The writer and the review screen read one shape (Track S's finding, 11/06): every `checks` object a test
+ * here makes compose write is parsed through `adCreativeChecksSchema`, the schema the review grid reads.
+ * That schema is a `looseObject` on purpose (a key compose adds later must not blank the screen), so a
+ * parse alone would let a renamed key through as an extra; the walk below also names every key the schema
+ * does not hold, at any depth. A new key is added to the schema first, in the same PR.
+ */
+type Def = { type: string; shape?: Record<string, ZodType>; innerType?: ZodType; element?: ZodType; valueType?: ZodType };
+function keysTheSchemaLacks(schema: ZodType, value: unknown, at = "checks"): string[] {
+  const def = (schema as unknown as { _zod: { def: Def } })._zod.def;
+  if (def.type === "optional" || def.type === "nullable") return value == null ? [] : keysTheSchemaLacks(def.innerType!, value, at);
+  if (def.type === "array" && Array.isArray(value)) return value.flatMap((v, i) => keysTheSchemaLacks(def.element!, v, `${at}[${i}]`));
+  if (def.type === "record" && value && typeof value === "object") return Object.entries(value).flatMap(([k, v]) => keysTheSchemaLacks(def.valueType!, v, `${at}.${k}`));
+  if (def.type !== "object" || !value || typeof value !== "object") return [];
+  return Object.entries(value).flatMap(([k, v]) => (def.shape![k] ? keysTheSchemaLacks(def.shape![k]!, v, `${at}.${k}`) : [`${at}.${k}`]));
+}
+let checksWritten = 0;
+const recorders: Array<ReturnType<typeof createSupabaseRecorder>> = [];
+afterEach(() => {
+  for (const rec of recorders.splice(0)) {
+    for (const q of rec.forTable("ads_creatives")) {
+      const checks = (q.write?.payload as { checks?: unknown } | undefined)?.checks;
+      // `null` (a stop before any check ran) is read before the schema: `creativeCheckGrid` answers it not_run.
+      if (checks === undefined || checks === null) continue;
+      checksWritten += 1;
+      expect(adCreativeChecksSchema.safeParse(checks).error).toBeUndefined();
+      expect(keysTheSchemaLacks(adCreativeChecksSchema, checks)).toEqual([]);
+    }
+  }
+});
+afterAll(() => {
+  // Not vacuous: the file's tests make compose write checks this many times at least (8 measured 11/06).
+  expect(checksWritten).toBeGreaterThanOrEqual(8);
+});
+
 const pass = (checks: readonly string[]) => ({ checks: Object.fromEntries(checks.map((c) => [c, { reason: "Looks right here.", verdict: "pass" }])) });
 const failOn = (bad: string) => (checks: readonly string[]) => ({ checks: Object.fromEntries(checks.map((c) => [c, { reason: c === bad ? "Lettering on the trailer side." : "Looks right here.", verdict: c === bad ? "fail" : "pass" }])) });
 
@@ -43,6 +79,7 @@ function harness(opts: { visual?: Array<(checks: readonly string[]) => unknown>;
       ads_creatives: [],
     },
   });
+  recorders.push(rec);
   const visual = [...(opts.visual ?? [pass])];
   const create = vi.fn(async (body: { tools: Array<{ name: string; input_schema: { properties: { checks?: { properties: object } } } }> }) => {
     const tool = body.tools[0]!;

@@ -30,10 +30,19 @@ const visualResultSchema = z.looseObject({
 });
 const visualResults = z.record(z.string(), z.array(visualResultSchema));
 
+// Every key compose writes is named here, optional, so the writer cannot drift from what this reads unseen:
+// `composeCreative.test.ts` walks each `checks` its tests make compose write and fails on a key not named
+// below (Track S's finding, 11/06 — `visual.attempt`, the findings' fields and `render.findings` were written
+// and never named). A finding is the copywriter's `SlotFinding` or the overlay's `OverlayFinding`.
+const num = z.number().optional();
+const str = z.string().optional();
+const copyFinding = z.looseObject({ kind: str, language: str, slot: str, text: str, index: num, rule: str, length: num, max_chars: num });
+const renderFinding = z.looseObject({ kind: str, label: str, format: str, needed_width: num, width: num, worst: num, required: num, lines: num, max_lines: num });
+
 export const adCreativeChecksSchema = z.looseObject({
-  copy: z.looseObject({ ok: z.boolean(), findings: z.array(z.looseObject({ language: z.string().optional() })).optional() }).optional(),
-  render: z.looseObject({ ok: z.boolean(), format: z.string().optional(), language: z.string().optional() }).optional(),
-  visual: z.looseObject({ ok: z.boolean(), results: visualResults.optional() }).optional(),
+  copy: z.looseObject({ ok: z.boolean(), findings: z.array(copyFinding).optional() }).optional(),
+  render: z.looseObject({ ok: z.boolean(), format: str, language: str, findings: z.array(renderFinding).optional() }).optional(),
+  visual: z.looseObject({ ok: z.boolean(), attempt: num, results: visualResults.optional() }).optional(),
   visual_attempts: z.array(z.looseObject({ attempt: z.number(), visual: visualResults })).optional(),
 });
 export type AdCreativeChecks = z.infer<typeof adCreativeChecksSchema>;
