@@ -174,13 +174,8 @@ export const SURFACES: readonly Surface[] = [
   // first slice; FLEET-MANAGER-HOME-PLAN Q-FM7 (a), 2026-10-13) — and the list the Operations tab's
   // Roadside card opens. `safety` per D-IC12; cases and filings join this page in IC4.
   { key: "safety.roadside-inspections", label: "Roadside inspections", path: "/roadside-inspections", group: "safety", gate: section("safety") },
-  /**
-   * The driver qualification file (§391.51) — certifications, the DQF event history, and the scans
-   * behind both. `roster` and not `safety`: the §391.51 file is a fact about a PERSON, and that gate
-   * was `fleet` until the D-ROS12 split. Named for what it is rather than "Compliance", which said
-   * nothing; `/compliance` stays the path so nobody's bookmark breaks.
-   */
-  { key: "safety.driver-qualification", label: "Driver qualification", path: "/compliance", group: "safety", gate: section("roster") },
+  // `safety.driver-qualification` (/compliance) folded into Drivers on 2026-11-06 (DQ-INTO-DRIVERS-PLAN
+  // DD4); its path is a redirect now, and a stored override naming the key grants and denies nothing (0296).
   { key: "safety.carrier-records", label: "Carrier records", path: "/settings/carrier-records", group: "admin", gate: section("roster"), reachedFrom: "admin.settings", startsOnFor: ["fleet_manager", "safety_manager"] }, // D-DQ20: why roster, why a card, why not Q-SET2 — CarrierRecordsSettingsPage.vue
   /**
    * TWO hazmat entries (D-H15, owner decision 2026-08-30) — the hub they used to share is gone.
@@ -289,7 +284,6 @@ export const SURFACES: readonly Surface[] = [
   // Settings screens were children too, until SP1 made each its own grant — see `reachedFrom` below.)
   { key: "dispatch.loads.detail", label: "Load", path: "/loads/:id", group: "dispatch", gate: section("dispatch"), module: "dispatch", parent: "dispatch.loads" },
   { key: "fleet.drivers.detail", label: "Driver", path: "/drivers/:id", group: "fleet", gate: section("roster"), parent: "fleet.drivers" },
-  { key: "safety.driver-qualification.detail", label: "Driver Qualification", path: "/compliance/:id", group: "safety", gate: section("roster"), parent: "safety.driver-qualification" },
   { key: "fleet.vehicles.detail", label: "Vehicle", path: "/vehicles/:id", group: "fleet", gate: section("equipment"), parent: "fleet.vehicles" },
   { key: "fleet.trailers.detail", label: "Trailer", path: "/trailers/:id", group: "fleet", gate: section("equipment"), parent: "fleet.trailers" },
   { key: "fuel.cards.detail", label: "Fuel Card", path: "/fuel-cards/:id", group: "fuel", gate: section("fuel"), parent: "fuel.cards" },

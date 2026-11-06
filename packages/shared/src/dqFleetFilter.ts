@@ -6,24 +6,19 @@ import { fileChip, matchesFileFilter } from "./fileChip.js";
  * a fleet of qualification files (R4b).
  *
  * ── WHY THIS IS SHARED AND NOT A COPY PER PAGE ───────────────────────────────────────────────────
- * The vocabulary was written inline in `QualificationFleetTable.vue`, and R4 gives the roster the
- * same filters. Two copies of a legal-ish predicate is the defect D-DQ6 and D-ROS9 both name from
- * their own ends: the compliance page and the roster would answer "is this driver behind on their
- * §391.51 file" differently, and neither would look wrong on its own screen.
+ * The vocabulary was written inline in the Driver Qualification page's fleet table, and R4 gave the
+ * roster the same filters. Two copies of a legal-ish predicate is the defect D-DQ6 and D-ROS9 both
+ * name from their own ends: two lists would answer "is this driver behind on their §391.51 file"
+ * differently, and neither would look wrong on its own screen. Since DQ-INTO-DRIVERS-PLAN DD4
+ * (2026-11-06) the Drivers page is the one list that reads this.
  *
- * `dqSoonest` was ALREADY duplicated before this — once in the fleet table's row builder and once in
- * `attentionStrip.ts` — which is how the drift below started.
- *
- * ── A DISAGREEMENT THIS FILE RECORDS RATHER THAN RESOLVES ────────────────────────────────────────
- * `matchesDqDue` admits an OVERDUE driver into every horizon: it excludes only `soonest > days`. The
- * attention strip's own count does not — it requires `soonest >= 0`. So the tile reading "Due in 30
- * days: 2" opens a list of 3.
- *
- * Both behaviours are preserved exactly as they were, because which one is right is a product ruling
- * (is a lapsed item "due"?) and answering it inside a refactor would change what a compliance screen
- * reports without anyone deciding to. Recorded in DRIVER-ROSTER-PLAN.md §6 as Q7. Pinned by
- * "disagrees with the attention tile that sets it, for the overdue driver (recorded, not endorsed)"
- * in apps/web/src/features/compliance/QualificationFleetTable.test.ts.
+ * ── AN OVERDUE ITEM IS INSIDE EVERY HORIZON (Q7, now one answer) ──────────────────────────────────
+ * `matchesDqDue` admits an OVERDUE driver into every horizon: it excludes only `soonest > days`. Until
+ * 2026-11-06 the Driver Qualification page's attention strip counted "Due in 30 days" with
+ * `soonest >= 0`, so the tile reading 2 opened a list of 3 (DRIVER-ROSTER-PLAN.md §6 Q7). The strip
+ * left with that page (DQ-INTO-DRIVERS-PLAN DD4), and the Drivers page's Due filter is this predicate
+ * alone, so the disagreement Q7 recorded no longer exists. Whether a lapsed item should read as
+ * "due" at all is still the owner's to rule; until then it does, everywhere.
  *
  * ── THE FILE-STATUS WORDS LEFT THIS FILE (Q-UF9, 2026-10-20) ─────────────────────────────────────
  * `DQ_STATE_FILTERS` and `matchesDqState` ("has ANY item in this state") are gone: the state filter

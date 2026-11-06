@@ -38,8 +38,10 @@ function candidates(category: string, entityType: string | null, entityId: strin
 }
 
 function destination(category: string, entityType: string | null, entityId: string | null): string | null {
+  // The driver's qualification section directly (DQ-INTO-DRIVERS-PLAN DD4). `/compliance/:id` still
+  // redirects there for the notifications already sent; a new one need not take the detour.
   if (category.startsWith("dq_") && entityType === "driver" && entityId) {
-    return `/compliance/${entityId}`;
+    return `/drivers/${entityId}?section=qualification`;
   }
   // UF6: a truck's or trailer's paper, on the unit's own page opened at its File section, where the
   // drop card files the renewal (UF5). The entity is the unit itself, so the subject type picks the page.

@@ -3,7 +3,6 @@ import type { ModuleSet } from "@silvicom/shared";
 import {
   BuildingOffice2Icon,
   HazmatPlacardIcon,
-  LicenseIcon,
   ShieldExclamationIcon,
   UserListIcon,
 } from "@silvicom/ui/icons";
@@ -46,21 +45,22 @@ describe("buildNavGroups", () => {
     expect(names).not.toContain("Hazmat review");
   });
 
-  it("places Driver qualification in Safety without duplicating it in Fleet", () => {
-    const groups = buildNavGroups("admin", null);
-    const safety = groups.find((group) => group.label === "Safety");
-    const fleet = groups.find((group) => group.label === "Fleet");
-
-    expect(safety?.items.map((item) => item.name)).toContain("Driver qualification");
-    expect(fleet?.items.map((item) => item.name)).not.toContain("Driver qualification");
+  /**
+   * DQ-INTO-DRIVERS-PLAN DD4 (2026-11-06): Driver qualification left the sidebar. Its list is Fleet ›
+   * Drivers, which every role that could open it (`roster: view`) still reaches — so the file is one
+   * entry, not two, in whichever group.
+   */
+  it("lists Driver qualification nowhere, and Drivers once, in Fleet", () => {
+    for (const role of ["admin", "dispatcher", "recruiter", "safety_manager"] as const) {
+      const items = buildNavGroups(role, null).flatMap((group) => group.items.map((item) => `${group.label}/${item.name}`));
+      expect(items.filter((i) => i.endsWith("/Driver qualification")), role).toEqual([]);
+      expect(items.filter((i) => i.endsWith("/Drivers")), role).toEqual(["Fleet/Drivers"]);
+    }
   });
 
-  it("preserves the existing Fleet permission gate for Driver qualification", () => {
-    const dispatcherSafety = buildNavGroups("dispatcher", null).find((group) => group.label === "Safety");
-    const driverSafety = buildNavGroups("driver", null).find((group) => group.label === "Safety");
-
-    expect(dispatcherSafety?.items.map((item) => item.name)).toEqual(["Driver qualification"]);
-    expect(driverSafety).toBeUndefined();
+  it("leaves a dispatcher, whose only Safety entry it was, with no Safety group", () => {
+    expect(buildNavGroups("dispatcher", null).find((group) => group.label === "Safety")).toBeUndefined();
+    expect(buildNavGroups("driver", null).find((group) => group.label === "Safety")).toBeUndefined();
   });
 });
 
@@ -140,9 +140,9 @@ describe("recruitment is navigable, not just routed", () => {
     expect(applicants?.icon).toBe(UserListIcon);
     expect(applicants?.icon).not.toBe(BuildingOffice2Icon);
 
-    const qualification = items.find((i) => i.to === "/compliance");
-    expect(qualification?.icon).toBe(LicenseIcon);
-    expect(qualification?.icon).not.toBe(items.find((i) => i.to === "/assignments")?.icon);
+    // Driver qualification left the sidebar on 2026-11-06 (DQ-INTO-DRIVERS-PLAN DD4): its list is
+    // the Drivers page now, so no entry may lead to the redirect.
+    expect(items.find((i) => i.to === "/compliance")).toBeUndefined();
   });
 });
 

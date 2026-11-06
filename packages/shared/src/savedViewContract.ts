@@ -124,16 +124,21 @@ export interface BuiltInView {
   description: string;
 }
 
+/**
+ * The safety manager's whole morning in one view, and where the retired `/compliance` list redirects
+ * (DQ-INTO-DRIVERS-PLAN D-DQ16): the route reads this query rather than spelling its own, so the
+ * redirect and the menu cannot drift. `sort=file` is the File column's own sort: worst file first, then
+ * soonest due (`compareDqUrgency`).
+ */
+export const QUALIFICATION_ATTENTION_VIEW: BuiltInView = {
+  name: "Qualification: needs attention",
+  query: "file=attention&sort=file",
+  description: "Every driver whose qualification file has something expired, missing or due soon, worst first.",
+};
+
 export const BUILT_IN_VIEWS: Record<SavedViewTable, readonly BuiltInView[]> = {
   "roster.drivers": [
-    {
-      // First, because it is the safety manager's whole morning in one view, and the page the retired
-      // `/compliance` list redirects into (DQ-INTO-DRIVERS-PLAN D-DQ16). `sort=file` is the File
-      // column's own sort: worst file first, then soonest due (`compareDqUrgency`).
-      name: "Qualification: needs attention",
-      query: "file=attention&sort=file",
-      description: "Every driver whose qualification file has something expired, missing or due soon, worst first.",
-    },
+    QUALIFICATION_ATTENTION_VIEW,
     {
       name: "Medical expiring in 30 days",
       query: "req=medical_card&due=30&sort=full_name",

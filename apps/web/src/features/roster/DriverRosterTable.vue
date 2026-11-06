@@ -15,7 +15,6 @@ import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import KebabMenu from "@/components/KebabMenu.vue";
 import FileCell from "@/components/files/FileCell.vue";
-import { useOpens } from "@/composables/useOpens";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { formatPhone, formatDate } from "@/lib/format";
 import { BADGE_BASE, appAccessBadge, dqExpiryBadge, hosStatusBadge, toneClass } from "@/lib/badges";
@@ -74,13 +73,6 @@ const emit = defineEmits<{
 }>();
 
 const session = useSessionStore();
-/**
- * SP5 (plan §4b): the qualification file is its own screen (`safety.driver-qualification`), which
- * the admin can switch off per role and per person apart from the roster. Where it does not open,
- * the row menu drops "Open qualification file…". The cell itself is no longer a door to it since
- * UF4b — the thumbs open the gallery — so there is nothing in the row to gate.
- */
-const opens = useOpens();
 
 // HOS badge lives in lib/badges.ts (D3); the "as of" tooltip stays here with its data.
 function hosAgo(iso: string | null): string {
@@ -243,9 +235,8 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
         <BaseButton v-if="canManageDriverIdentity(session.role)" class="kebab-item" @click="emit('manage-access', row)">
           {{ row.user_id ? "Manage app login…" : "Create app login…" }}
         </BaseButton>
-        <RouterLink v-if="opens(`/compliance/${row.id}`)" :to="`/compliance/${row.id}`" class="kebab-item"
-          >Open qualification file…</RouterLink
-        >
+        <!-- No "Open qualification file…" since DQ-INTO-DRIVERS-PLAN DD4: the file is a section of the
+             driver's own page, which the name and every expiry date on this row already open. -->
         <!-- Never "Delete". `drivers` is in RETENTION_FORBIDDEN and 0235 refuses the DELETE for
              everybody, service role included — §391.51 keeps the file for employment plus three
              years. The word on the button matches what the database will actually do. -->

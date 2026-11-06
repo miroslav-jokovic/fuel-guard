@@ -192,7 +192,7 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <!-- The counts are FILTERS: `StatCard`'s toggle mode, as CompliancePage's strip, carrying the
+    <!-- The counts are FILTERS: `StatCard`'s toggle mode, carrying the
          pressed state in `aria-pressed` and the ring (D-UI5). They were AppButtons holding three
          stacked spans, which the button's own pill shape squeezed into one overlapping line — seen in
          a browser in FS3, invisible to every test. Inert when the lines were not kept: there is

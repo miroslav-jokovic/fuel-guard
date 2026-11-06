@@ -35,7 +35,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -263,7 +262,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
       "Placard calculator → /hazmat/calculator",
       "Hazmat review → /hazmat/review",
     ],
@@ -347,7 +345,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -427,7 +424,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -507,7 +503,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -579,7 +574,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -649,7 +643,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -726,7 +719,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
       "Placard calculator → /hazmat/calculator",
       "Hazmat review → /hazmat/review [4]",
     ],
@@ -802,12 +794,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     ],
   },
   {
-    "group": "Safety",
-    "items": [
-      "Driver qualification → /compliance",
-    ],
-  },
-  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -847,12 +833,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     ],
   },
   {
-    "group": "Safety",
-    "items": [
-      "Driver qualification → /compliance",
-    ],
-  },
-  {
     "group": "Fleet",
     "items": [
       "Vehicles → /vehicles",
@@ -887,12 +867,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
-    ],
-  },
-  {
-    "group": "Safety",
-    "items": [
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -977,7 +951,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -1050,7 +1023,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -1121,7 +1093,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -1168,12 +1139,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     ],
   },
   {
-    "group": "Safety",
-    "items": [
-      "Driver qualification → /compliance",
-    ],
-  },
-  {
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
@@ -1197,12 +1162,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     ],
   },
   {
-    "group": "Safety",
-    "items": [
-      "Driver qualification → /compliance",
-    ],
-  },
-  {
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
@@ -1223,12 +1182,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     "group": null,
     "items": [
       "Dashboard → /",
-    ],
-  },
-  {
-    "group": "Safety",
-    "items": [
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -1273,7 +1226,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -1326,7 +1278,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -1379,7 +1330,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -1556,7 +1506,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
       "Driver performance → /driver-performance",
       "Drug & alcohol → /drug-alcohol",
       "Roadside inspections → /roadside-inspections",
-      "Driver qualification → /compliance",
     ],
   },
   {
@@ -1614,12 +1563,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       ],
     },
     {
-      "group": "Safety",
-      "items": [
-        "Driver qualification → /compliance",
-      ],
-    },
-    {
       "group": "Fleet",
       "items": [
         "Vehicles → /vehicles",
@@ -1635,12 +1578,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "items": [
         "Dashboard → /",
         "Chat → /chat",
-      ],
-    },
-    {
-      "group": "Safety",
-      "items": [
-        "Driver qualification → /compliance",
       ],
     },
     {

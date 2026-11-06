@@ -784,13 +784,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "title": "Driver qualification",
-    },
+    "meta": {},
     "name": "compliance",
     "path": "/compliance",
-    "redirect": null,
+    "redirect": {
+      "name": "drivers",
+      "query": {
+        "file": "attention",
+        "sort": "file",
+      },
+    },
   },
   {
     "meta": {},
