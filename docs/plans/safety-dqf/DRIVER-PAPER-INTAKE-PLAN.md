@@ -102,6 +102,13 @@ filed paper, and PI5 cuts filed papers out of the original stack, never out of a
 A cover sheet naming a driver not on this roster still ENDS the previous driver's pages — they become
 nobody's, never the previous driver's.
 
+**D-PI3 · The review page ships read-only; correcting and filing are one step (PI5).** The plan put
+confirm/correct/discard in PI4. A confirm that files nothing is a click with no consequence, and an edit
+saved onto the row would overwrite the reader's proposal, losing D-UF8's measurement of how often a
+person changed it. So a correction travels in the FILE request (PI5) and the row keeps what the reader
+proposed. PI4 is useful on its own: an office can scan, upload and check what was found against the
+pages before PI5 lands.
+
 ## 4. Steps (one PR each)
 
 | Step | What | Migration |
@@ -109,8 +116,8 @@ nobody's, never the previous driver's.
 | PI1 | Driver cover sheets: "Print scan cover sheets" on Drivers; the QR names the driver's id (D-PI1); the server-side sheet finder | no (D-PI1) |
 | PI2 | Upload + split: a stack is registered, PUT to Storage, split on the worker at its cover sheets, blank pages dropped, cut into ≤ 10-page pieces (D-PI2) | yes, 0572 (new tables, exempt from ordering) |
 | PI3 | Reader learns the DQ papers (profile 1.1.0); each piece queued for reading at split; finished reads → `file_intake_items`, every page in exactly one row | yes, 0573 (an index) |
-| PI4 | Review page (UF7c) for drivers and units: rows, viewer, "still missing", confirm/correct/discard | no |
-| PI5 | Filing: documents per paper, certifications, `paper_intake` qualification records, application/road test for hired drivers, restricted handling, duplicates | possibly (a CHECK on `detail.source` for the two ceremony kinds) |
+| PI4 | Drivers › Upload scanned files: drop PDFs, watch them split and read, see each proposed paper on the scan's page numbers with its pages one click away (read-only, D-PI3) | no |
+| PI5 | Review actions and filing: correct driver/kind/dates, confirm, discard, "review without reading" for a stuck piece, "still missing" per driver; filing cuts the paper from the stack → document + certification or `paper_intake` record, application/road test for hired drivers, restricted handling, duplicates | possibly (a CHECK on `detail.source` for the two ceremony kinds) |
 | PI6 | Office trial: 5 real folders end to end, measure pages/driver, read accuracy, review minutes; then the fleet | no |
 
 ## 5. What the office does (once built)
@@ -189,3 +196,15 @@ nobody's, never the previous driver's.
   ⚠ **For PI4:** a piece whose reader intake is REFUSED (a page below the reader's minimum size) has no source,
   so `readOfBytes` answers `no_source` forever and the piece reads "still reading". PI4 offers "review without
   reading" for a piece pending past a few minutes, which writes the unread row by hand. Not built here.
+- 2026-11-06: **PI4 built.** Drivers gains "Upload scanned files" (roster manage) → `/drivers/paper-intake?batch=`
+  (surface `fleet.drivers.paper-intake`, `manage("roster")`). Drop PDFs: hash in the browser, register, PUT
+  straight to Storage (`uploadToSignedUrl`; the register answer now carries `storagePath`/`token`), complete; a
+  file over 50 MB is refused before anything is sent, a duplicate said as such. Each stack's line says what it
+  became ("63 pages · 2 drivers · 21 blank pages left out · 2 pages with no cover sheet — Reading 4 of 6
+  pieces…") or why it failed. The rows show driver and HOW it was named (cover sheet / licence number / name),
+  the paper and its printed heading, the STACK's page numbers, the dates, and View, which opens the piece in
+  the browser's PDF viewer at the row's first page. Polled every 4 s only while something is moving.
+  `listBatch` moved to `paperIntakeBatch.ts` (read side). Deviation: D-PI3 (read-only until PI5).
+  Found by the browser pass: the reading line counted pieces from the stack's list and the progress from the
+  reader, which can disagree ("Reading 4 of 3"); it now counts both from the reading. The page test had pinned
+  the wrong number ("2 of 2" with one still reading) and now expects "2 of 3".

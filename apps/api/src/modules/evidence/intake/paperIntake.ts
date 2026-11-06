@@ -2,10 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
 import {
-  PAPER_STACK_FAILURES,
   PAPER_STACK_MAX_PAGES,
   planParts,
-  type PaperStackDto,
   type PaperStackFailure,
   type PaperStackRegisterRequest,
   type PaperStackRegisterResponse,
@@ -13,7 +11,6 @@ import {
 } from "@silvicom/shared";
 import { chunks } from "../../../lib/paging.js";
 import { scanStack } from "./findCoverSheets.js";
-import { syncStackItems, type StackReading } from "./paperIntakeItems.js";
 
 /**
  * Scanned stacks of paper driver files: register the upload, split it, read it back
@@ -53,7 +50,7 @@ async function stackBySha(admin: SupabaseClient, orgId: string, sha256: string):
 async function signUpload(admin: SupabaseClient, orgId: string, stackId: string): Promise<PaperStackRegisterResponse | PaperIntakeError> {
   const signed = await admin.storage.from(PAPER_INTAKE_BUCKET).createSignedUploadUrl(stackPath(orgId, stackId), { upsert: true });
   if (signed.error || !signed.data) return fail("sign_failed", signed.error?.message ?? "The upload could not be started.");
-  return { stackId, uploadUrl: signed.data.signedUrl, duplicate: false };
+  return { stackId, uploadUrl: signed.data.signedUrl, storagePath: stackPath(orgId, stackId), token: signed.data.token, duplicate: false };
 }
 
 export async function registerStack(
@@ -77,7 +74,7 @@ export async function registerStack(
       if (reset.error) return fail("query_failed", reset.error.message);
       return signUpload(admin, orgId, existing.id);
     }
-    if (existing) return { stackId: existing.id, uploadUrl: null, duplicate: true };
+    if (existing) return { stackId: existing.id, uploadUrl: null, storagePath: null, token: null, duplicate: true };
     const stackId = newId();
     const { error } = await admin.from("paper_intake_stacks").insert({
       id: stackId,
@@ -92,7 +89,7 @@ export async function registerStack(
       // Two drops of the same file racing: the loser reads the winner's stack.
       if (error.code === "23505") {
         const raced = await stackBySha(admin, orgId, req.sha256);
-        if (raced) return { stackId: raced.id, uploadUrl: null, duplicate: true };
+        if (raced) return { stackId: raced.id, uploadUrl: null, storagePath: null, token: null, duplicate: true };
       }
       return fail("query_failed", error.message);
     }
@@ -228,70 +225,4 @@ export async function splitStack(
     parts: rows.length,
     unknownSheets: scan.sheets.length - known.length,
   };
-}
-
-/** One drop's stacks with their pieces, for the upload page (PI2) and review (PI4). */
-export async function listBatch(admin: SupabaseClient, orgId: string, batchId: string): Promise<PaperStackDto[]> {
-  const stacks = await admin
-    .from("paper_intake_stacks")
-    .select("id, batch_id, file_name, status, failure_code, page_count, cover_sheet_count, blank_page_count, created_at")
-    .eq("org_id", orgId)
-    .eq("batch_id", batchId)
-    .order("created_at");
-  if (stacks.error) throw new Error(`paper_intake_stacks: ${stacks.error.message}`);
-  const list = (stacks.data ?? []) as Array<{
-    id: string; batch_id: string; file_name: string; status: PaperStackStatus; failure_code: string | null;
-    page_count: number | null; cover_sheet_count: number | null; blank_page_count: number | null; created_at: string;
-  }>;
-  if (!list.length) return [];
-
-  const parts = await admin
-    .from("paper_intake_parts")
-    .select("stack_id, part_index, driver_id, basis, stack_pages")
-    .eq("org_id", orgId)
-    .in("stack_id", list.map((s) => s.id))
-    .order("part_index");
-  if (parts.error) throw new Error(`paper_intake_parts: ${parts.error.message}`);
-  const partRows = (parts.data ?? []) as Array<{ stack_id: string; part_index: number; driver_id: string | null; basis: "cover_sheet" | "none"; stack_pages: number[] }>;
-
-  const names = new Map<string, string>();
-  for (const part of chunks([...new Set(partRows.flatMap((p) => (p.driver_id ? [p.driver_id] : [])))])) {
-    const { data, error } = await admin.from("drivers").select("id, full_name").eq("org_id", orgId).in("id", part);
-    if (error) throw new Error(`drivers: ${error.message}`);
-    for (const d of (data ?? []) as Array<{ id: string; full_name: string }>) names.set(d.id, d.full_name);
-  }
-
-  // Each split stack's finished reads become review rows now (PI3); the page shows where reading stands.
-  const reading = new Map<string, StackReading>();
-  const itemCounts = new Map<string, number>();
-  for (const s of list.filter((x) => x.status === "split")) {
-    reading.set(s.id, await syncStackItems(admin, orgId, { id: s.id, batchId: s.batch_id }));
-  }
-  if (reading.size) {
-    const items = await admin.from("file_intake_items").select("id").eq("org_id", orgId).eq("batch_id", batchId);
-    if (items.error) throw new Error(`file_intake_items: ${items.error.message}`);
-    itemCounts.set(batchId, (items.data ?? []).length);
-  }
-
-  return list.map((s) => ({
-    id: s.id,
-    batchId: s.batch_id,
-    fileName: s.file_name,
-    status: s.status,
-    failure: s.failure_code ? (PAPER_STACK_FAILURES[s.failure_code as PaperStackFailure] ?? s.failure_code) : null,
-    pageCount: s.page_count,
-    coverSheetCount: s.cover_sheet_count,
-    blankPageCount: s.blank_page_count,
-    createdAt: s.created_at,
-    reading: reading.get(s.id) ?? null,
-    parts: partRows
-      .filter((p) => p.stack_id === s.id)
-      .map((p) => ({
-        partIndex: p.part_index,
-        driverId: p.driver_id,
-        driverName: p.driver_id ? (names.get(p.driver_id) ?? null) : null,
-        basis: p.basis,
-        stackPages: p.stack_pages,
-      })),
-  }));
 }

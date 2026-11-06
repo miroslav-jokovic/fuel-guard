@@ -310,6 +310,8 @@ async function onSubmit(input: DriverInput) {
           >
             Reconcile with Samsara
           </BaseButton>
+          <!-- Paper driver files, scanned in stacks under cover sheets (DRIVER-PAPER-INTAKE-PLAN PI4). -->
+          <BaseButton :to="{ name: 'driver-paper-intake' }">Upload scanned files</BaseButton>
           <BaseButton variant="primary" @click="openNew">
             <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New driver
           </BaseButton>

@@ -96,7 +96,7 @@ describe("syncStackItems", () => {
       },
     });
     const reading = await syncStackItems(rec.client, ORG, { id: "stack-1", batchId: "batch-1" });
-    expect(reading).toEqual({ done: 1, pending: 1, failed: 1 });
+    expect(reading).toEqual({ done: 1, pending: 1, failed: 1, sources: new Map([[0, "s1"], [2, "s3"]]) });
     const inserts = rec.forTable("file_intake_items").filter((q) => q.write?.method === "insert");
     expect(inserts).toHaveLength(1);
     expect(inserts[0]!.write!.payload).toEqual([expect.objectContaining({ source_id: "s1", page_from: 1, page_to: 2, proposed_kind: "mvr", batch_id: "batch-1", org_id: ORG })]);
@@ -109,6 +109,6 @@ describe("syncStackItems", () => {
     const rec = createSupabaseRecorder({
       tables: { paper_intake_parts: [parts[0]], file_intake_items: { data: [], writeError: { code: "23505", message: "duplicate key" } } },
     });
-    await expect(syncStackItems(rec.client, ORG, { id: "stack-1", batchId: "batch-1" })).resolves.toEqual({ done: 0, pending: 0, failed: 1 });
+    await expect(syncStackItems(rec.client, ORG, { id: "stack-1", batchId: "batch-1" })).resolves.toEqual({ done: 0, pending: 0, failed: 1, sources: new Map([[0, "s1"]]) });
   });
 });
