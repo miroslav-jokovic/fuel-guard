@@ -16,8 +16,6 @@
 
 const STAGE2 = "needs vendor credentials: the same contract suite re-run with ADS_TARGET=sandbox (Stage 2, from Mon 11/09)";
 const CANARY = "one real campaign, small cap, created paused and launched by the owner; 72 h with zero unexplained reconcile rows";
-const notBuilt = (step) => ({ need: "the worker exists with its contract and boundary tests", gap: `not built yet — ${step}` });
-const later = (level) => [{ need: `${level} for this worker`, gap: "follows the level below it" }];
 
 const GOLDEN = "apps/api/src/modules/ads/orchestrator/golden.test.ts";
 const RUNNER = "apps/api/src/modules/ads/orchestrator/runner.test.ts";
