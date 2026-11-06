@@ -121,7 +121,7 @@ three files from `compliance-exports` (`<org>/chat/<export>/`) seven days after 
 `chat_exports` row purged; the row, its hashes and its ledger entry stay. Hourly, first tick four minutes
 after boot, the `dq-export-sweeper` shape. A bounded indexed read that returns nothing on almost every run.
 
-**Ads (`ads-orchestrator`, `ads-insights`, `ads-leads-backfill`, `ads-reconcile`; general lane; planned
+**Ads (`ads-orchestrator`, `ads-insights`, `ads-leads-backfill`, `ads-reconcile`, `ads-outcome-feed`; general lane; planned
 2026-11-01, D-AD16/D-AD17, `docs/plans/recruitment/ADS-AGENT-BUILD-WORKFLOW.md` A6/B4/B5).**
 `ads-orchestrator` is BUILT (A6, 2026-11-02; `modules/ads/orchestrator/tick.ts`): every minute,
 first tick 90 s after boot, one `ads_step` job (`KIND_CAPS` 2 — a step makes at most one platform
@@ -161,7 +161,7 @@ run. After the pull the same job runs the auto-pause checks (B5b, `monitor/check
 **`ads_reconcile`** job (`KIND_CAPS` 1) per connection, `dedup_key` = `ads_reconcile:<connection>`. Each run re-reads 28
 days of insights, then compares Meta's campaigns and ad sets with our rows and records each mismatch once as an
 `ads_actions` `external_change` row + bell (the ledger's unique idempotency key is the "once"); it writes nothing to
-Meta and changes no row of ours. **`ads-daily-brief`** is BUILT (F1b, 2026-11-05;
+Meta and changes no row of ours. **`ads-outcome-feed`** is BUILT (B6, 2026-11-06; `modules/ads/outcomes/outcomeTick.ts`): daily from boot (first tick 20 min after), one **`ads_outcome_feed`** job (`KIND_CAPS` 1) per `connected` or `failing` META connection whose carrier has a feed target, `dedup_key` = `ads_outcome_feed:<connection>`. The run sends each recorded lead stage to the carrier's Conversions API dataset and writes `ads_outcome_events` (its one writer). Until Q-AD40 gives the targets a source, `NO_FEED_TARGET` queues nothing. Off unless `ADS_ENABLED`; runs where the other ads schedulers run (`api`). **`ads-daily-brief`** is BUILT (F1b, 2026-11-05;
 `modules/ads/workers/analyst/briefTick.ts`): hourly from 07:00 Central (first tick 9 min after boot), one
 **`ads_daily_brief`** job (`KIND_CAPS` 1) per carrier with a `connected` or `failing` Meta or simulator connection —
 the same connection read — `dedup_key` = `ads_daily_brief:<org>`. Each run stops at once for a day whose `ads_brief`

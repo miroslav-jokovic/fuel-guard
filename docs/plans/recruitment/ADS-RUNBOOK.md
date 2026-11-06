@@ -143,8 +143,11 @@ There is still no warning **before** a token expires (**Q-AD24**): the first bel
   the **Failed background jobs** card instead (below).
 
 ### Where failed jobs are listed
-1. Open **Settings › Data & sync** (`/settings/data`). Admins and fleet managers can see it
-   (*apps/web/src/pages/DataSyncPage.vue*; its gate is `admin.settings.data` in *packages/shared/src/surfaceCatalogue.ts*).
+1. Open **Settings › Data & sync** (`/settings/data`). **Admins** see it. Other roles see it only if the carrier
+   turns it on for them in **Settings › Permissions**, because it starts off for every role but admin
+   (*apps/web/src/pages/DataSyncPage.vue*; `admin.settings.data`, `startsOnFor: []`, in
+   *packages/shared/src/surfaceCatalogue.ts*). Whoever is on call for ads needs it, so an admin should
+   switch it on for that person's role before the first launch.
 2. Scroll to the card **Failed background jobs** (*apps/web/src/features/jobs/FailedJobsCard.vue*, reading
    *GET /api/jobs/failed*, *apps/api/src/modules/org/routes/jobs.ts*). It lists the newest 50 jobs that failed
    every try, newest first.
@@ -260,8 +263,8 @@ ADS-AGENT-BUILD-WORKFLOW §4R). This one is for an engineer, by pull request.
 4. Run `pnpm ads:readiness`. The worker should now show **L4**.
 5. Open the PR with the run's link in the body. CI checks the record (known worker, full sha, L4 = sandbox,
    platform named for the Publisher). Merge when green.
-6. **What opens Launch:** once **all ten** workers listed for Meta still ads in `CAMPAIGN_WORKERS`
-   (*scripts/ads-readiness.registry.mjs*) are L4, a Meta Launch is allowed on the next **release** that
+6. **What opens Launch:** once **every** worker listed for Meta still ads in `CAMPAIGN_WORKERS`
+   (*scripts/ads-readiness.registry.mjs*) is L4, a Meta Launch is allowed on the next **release** that
    carries the record. Until then, Launch answers which ones are missing, and the campaign shows the same
    sentence (409 `not_certified`).
    - Staging's **simulator** launches without any of this, and production refuses the simulator.

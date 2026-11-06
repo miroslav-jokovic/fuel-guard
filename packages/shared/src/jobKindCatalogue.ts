@@ -94,6 +94,10 @@ export const JOB_KIND_CATALOGUE = {
     label: "Checking the ad account against our records", area: "ads", item: { key: "connectionId", noun: "Ad account" },
     hint: `${ADS_CONNECTION_HINT} Nothing is changed by this check, so a failure only delays its alerts.`,
   },
+  ads_outcome_feed: {
+    label: "Telling Meta how ad leads progressed", area: "ads", item: { key: "connectionId", noun: "Ad account" },
+    hint: `${ADS_CONNECTION_HINT} A stage Meta did not receive is tried again tomorrow; after 7 days Meta no longer takes it, and the ads keep running regardless.`,
+  },
   ads_daily_brief: { label: "Writing the morning ads brief", area: "ads", hint: "The brief did not arrive this morning. Spend and leads are still recorded; tomorrow's brief covers its own day." },
   lead_uncontacted: { label: "Finding leads nobody has called yet", area: "recruiting" },
   ads_render: {

@@ -13,7 +13,7 @@ import { sendAdsAlert } from "./adsAlerts.js";
 export const CONNECTION_CODES: ReadonlySet<string> = new Set(["token_invalid", "no_platform"]);
 
 /** What a person was trying to do, in the alert's own words. */
-export type ConnectionAct = "pause" | "create" | "insights" | "backfill" | "reconcile";
+export type ConnectionAct = "pause" | "create" | "insights" | "backfill" | "reconcile" | "outcomes";
 const ACT_WORDS: Record<ConnectionAct, string> = {
   pause: "Pausing an ad",
   create: "Putting a new campaign on the ad account",
@@ -22,6 +22,8 @@ const ACT_WORDS: Record<ConnectionAct, string> = {
   insights: "Reading the ads' spend from Meta",
   backfill: "Bringing in new leads from Meta",
   reconcile: "Checking the ad account against our records",
+  // B6, 2026-11-06 (Track W, add-only): the daily outcome feed meets a dead token on its own road too.
+  outcomes: "Telling Meta how ad leads progressed",
 };
 
 /**

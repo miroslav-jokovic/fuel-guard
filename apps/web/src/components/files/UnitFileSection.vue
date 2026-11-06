@@ -64,12 +64,24 @@ const filesQ = useUnitFilesQuery(props.subject.type);
 const docsQ = useDocumentsQuery(subjectType, subjectId);
 const row = computed<UnitFileRow | null>(() => (filesQ.data.value?.units ?? []).find((u) => u.subject_id === props.subject.id) ?? null);
 
+/**
+ * The fleet's own papers (D-UF6): an insurance or IFTA row covered by the company's certification cites
+ * a scan filed on the ORGANIZATION, which this unit's documents never hold. Without this read the row
+ * said "Covered by the fleet's paper" and offered nothing to open — DQ-INTO-DRIVERS-PLAN DD5's "done
+ * when" (the paper shows on a truck's file) half met, found 2026-11-06. Asked only when a row is
+ * covered that way, and answered per kind by the route (`mayFile`: insurance and IFTA are the
+ * equipment section's, the same one this file is), so it shows no paper this reader cannot open.
+ */
+const hasFleetPaper = computed(() => (row.value?.items ?? []).some((c) => c.fleetWide && c.documentId));
+const orgDocsQ = useDocumentsQuery(ref("organization"), computed(() => (hasFleetPaper.value ? (session.orgId ?? null) : null)));
+
 const loading = computed(() => filesQ.isLoading.value || docsQ.isLoading.value);
-const retrying = computed(() => filesQ.isFetching.value || docsQ.isFetching.value);
+const retrying = computed(() => filesQ.isFetching.value || docsQ.isFetching.value || orgDocsQ.isFetching.value);
 const errorMessage = computed<string | null>(() => (filesQ.isError.value || docsQ.isError.value ? "Could not load this unit's file." : null));
 function retry(): void {
   void filesQ.refetch();
   void docsQ.refetch();
+  if (hasFleetPaper.value) void orgDocsQ.refetch();
 }
 
 const specByKey = new Map(EQUIPMENT_ITEMS.map((s) => [s.key, s]));
@@ -121,7 +133,7 @@ const qs = useQueryState("uf");
 const showAll = qs.flag("all");
 const docById = computed(() => {
   const m = new Map<string, DocumentRow>();
-  for (const d of docsQ.data.value ?? []) if (d.url) m.set(d.id, d);
+  for (const d of [...(docsQ.data.value ?? []), ...(orgDocsQ.data.value ?? [])]) if (d.url) m.set(d.id, d);
   return m;
 });
 const needsAttention = (c: UnitFileCell) => c.state !== "current";
@@ -140,8 +152,7 @@ const toRow = (c: UnitFileCell): RequirementRow => {
     goodUntil: c.goodUntil,
     expiryUnknown: c.expiryUnknown,
     documentId: docId,
-    // A fleet paper is filed on the organization (D-UF6): its URL is not in this unit's documents,
-    // so the cell says it is covered and the paper is opened from the fleet's own file.
+    // A fleet paper is filed on the organization (D-UF6); its URL comes from `orgDocsQ` above.
     documentUrl: doc?.url ?? null,
     documentThumbUrl: doc?.thumbUrl ?? (doc?.contentType.startsWith("image/") ? doc.url : null) ?? null,
     documentIsImage: doc?.contentType.startsWith("image/") ?? false,

@@ -91,7 +91,7 @@ describe("readBriefFold — yesterday's campaigns and the month so far, from sto
 
 describe("readBriefFold — cohorts from recruiting's LeadOutcomes (Q-AD34)", () => {
   const lead = (n: number, arrived_at: string, reached: LeadOutcome["reached"]): LeadOutcome =>
-    ({ lead_id: `00000000-0000-4000-8000-00000000000${n}`, campaign_id: "c1", arrived_at, reached });
+    ({ lead_id: `00000000-0000-4000-8000-00000000000${n}`, provider: "meta", platform_lead_ref: `leadgen-${n}`, campaign_id: "c1", arrived_at, reached });
 
   it("asks this org's leads from the Monday seven weeks before the reported day's week, and folds them by week", async () => {
     const src = outcomes([

@@ -585,6 +585,7 @@ therefore reads "Due in 30 days: 2" and opens a list of 3.
   tidy-up. Both behaviours are preserved exactly and pinned by "disagrees with the attention tile
   that sets it, for the overdue driver (recorded, not endorsed)" in `QualificationFleetTable.test.ts`.
 
+**Q8 — ANSWERED 2026-08-31 by R6c (PR #408)** — recorded 2026-11-06, the question had stayed marked open: the drawer keeps the roster's quick status change, the record page's `DriverContactSection` writes the inline-editable fields through the audited PATCH (§7 R6c). Original question kept below.
 **Q8 — Where does a driver get EDITED, now that the record page is one scroll?** (raised by R6b)
 D-ROS1 says "the record page writes", and R6a made the roster drawer audited, honest and
 claim-warning — so the product now has one good editor in the place D-ROS1 says is the wrong one.
@@ -595,6 +596,7 @@ drawer's job MOVES rather than being copied.
   GRID may touch at all. Answer Q4 and Q8 together — they are the same question asked at two
   altitudes, and answering either alone produces the duplication.
 
+**Q4 — ANSWERED 2026-08-31 by R6c (PR #408)** — recorded 2026-11-06: `DRIVER_INLINE_EDITABLE` lives in `@silvicom/shared`, and `apps/api/src/driverFieldOwnership.test.ts` intersects it with McLeod's real `driverPatch` output, so a synced field cannot join it (§7 R6c). Original question kept below.
 **Q4 — What exactly is in `DRIVER_INLINE_EDITABLE`?** (blocks R2's cell affordances)
 Candidates with no sync owner and no legal consequence: `employee_id`, `phone_alt`,
 `emergency_contact_*`, `eld_id`. Explicitly **not**: any `DRIVER_IDENTITY_FIELDS` member, `status`,
@@ -614,6 +616,7 @@ apart exists and is simply not rendered.
   step and not a rider on R1. R1 will therefore stamp every synced row with a `notes` line naming
   McLeod as the source, so the rows are identifiable when this is answered.
 
+**Q5 — ANSWERED: `/drivers/:id` stays** (D-ROS5, R6b one-scroll page, 2026-08-31) — recorded 2026-11-06. It is where `dq_*` notifications land (DQ-INTO-DRIVERS-PLAN DD4), what binders and the retired `/compliance/:id` redirect cite, and the inbound deep links resolve to it. Original question kept below.
 **Q5 — Does the ask survive this plan?** The original request was to delete `/drivers/:id`. This
 plan keeps it and instead deletes six tabs, one global boolean and (at R8) probably two pages. If
 the owner still wants zero detail page after reading §2.1 and §2.3, then §6 Q6 is: where does a

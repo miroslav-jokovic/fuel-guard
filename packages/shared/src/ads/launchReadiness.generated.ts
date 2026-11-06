@@ -50,6 +50,10 @@ export const ADS_CAMPAIGN_WORKERS: Readonly<Record<string, readonly AdsCampaignW
       "platform": null
     },
     {
+      "worker": "Analyst",
+      "platform": null
+    },
+    {
       "worker": "Security (all)",
       "platform": null
     }
@@ -66,7 +70,7 @@ export const ADS_WORKER_LEVELS: Readonly<Record<string, AdsReadinessLevel>> = {
   "Lead intake": "L3",
   "Monitor": "L3",
   "Orchestrator": "L3",
-  "Outcome feed": "L0",
+  "Outcome feed": "L2",
   "Publisher (per adapter)": "L3",
   "Publisher (per adapter)|meta": "L3",
   "Renderer / Higgsfield client": "L3",

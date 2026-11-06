@@ -33,7 +33,7 @@ function applying(rows: Array<Record<string, unknown>>) {
 }
 
 const lead = (n: number, patch: Record<string, unknown> = {}) => ({
-  id: id(n), org_id: ORG, campaign_ref: "camp-1", platform_created_at: "2026-10-06T15:00:00Z", received_at: "2026-10-06T15:01:00Z", ...patch,
+  id: id(n), org_id: ORG, channel: "meta", external_ref: `leadgen-${n}`, campaign_ref: "camp-1", platform_created_at: "2026-10-06T15:00:00Z", received_at: "2026-10-06T15:01:00Z", ...patch,
 });
 
 function world(t: Partial<Record<string, Array<Record<string, unknown>>>>) {
@@ -62,7 +62,7 @@ describe("recruiting's LeadOutcomes — each stage from the row that records it 
     });
     const out = await readLeadOutcomes(rec.client, ORG, SINCE);
     expect(out.map((o) => leadOutcomeSchema.parse(o))).toHaveLength(3);
-    expect(out[0]).toEqual({ lead_id: id(1), campaign_id: "camp-1", arrived_at: "2026-10-06T15:00:00.000Z", reached: {
+    expect(out[0]).toEqual({ lead_id: id(1), provider: "meta", platform_lead_ref: "leadgen-1", campaign_id: "camp-1", arrived_at: "2026-10-06T15:00:00.000Z", reached: {
       contacted: "2026-10-06T18:00:00.000Z", converted: "2026-10-08T15:00:00.000Z", applied: "2026-10-10T15:00:00.000Z",
       // Hired and later terminated is still a hire; a disposition on a hired driver is not a loss.
       hired: "2026-10-20T05:00:00.000Z",

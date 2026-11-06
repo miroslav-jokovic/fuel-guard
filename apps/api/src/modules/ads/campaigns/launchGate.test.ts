@@ -70,6 +70,17 @@ describe("G-launch-gate — a real platform launches only with every worker it u
     expect(w.byId(C).state).toBe("paused");
   });
 
+  it("the Analyst is a worker a Meta campaign uses (L4-ruling): at L3, with every other worker at L4, Launch is refused naming it", async () => {
+    // G-launch's done-when includes the next morning's brief, so the brief's writer must be certified too.
+    world({ provider: "meta", is_sandbox: false });
+    const out = await launch(levels("L4", "Analyst"));
+    expect(out).toMatchObject({ kind: "launch_refused", refusal: "not_certified", missing: [{ worker: "Analyst", platform: null, level: "L3", needs: "L4" }] });
+    if (out.kind !== "launch_refused") throw new Error("not refused");
+    expect(out.missing).toHaveLength(1);
+    expect(out.message).toContain("Analyst at L3");
+    expect(w.byId(C)).toMatchObject({ state: "paused", last_error: out.message });
+  });
+
   it("a per-platform worker is read on its platform: the Publisher certified somewhere else is not certified on Meta", async () => {
     world({ provider: "meta", is_sandbox: false });
     const publisher = META_STILL.find((u) => u.platform)!;

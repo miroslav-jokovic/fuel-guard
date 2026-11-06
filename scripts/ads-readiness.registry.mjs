@@ -16,8 +16,6 @@
 
 const STAGE2 = "needs vendor credentials: the same contract suite re-run with ADS_TARGET=sandbox (Stage 2, from Mon 11/09)";
 const CANARY = "one real campaign, small cap, created paused and launched by the owner; 72 h with zero unexplained reconcile rows";
-const notBuilt = (step) => ({ need: "the worker exists with its contract and boundary tests", gap: `not built yet — ${step}` });
-const later = (level) => [{ need: `${level} for this worker`, gap: "follows the level below it" }];
 
 const GOLDEN = "apps/api/src/modules/ads/orchestrator/golden.test.ts";
 const RUNNER = "apps/api/src/modules/ads/orchestrator/runner.test.ts";
@@ -685,7 +683,59 @@ export const READINESS = [
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
-  { worker: "Outcome feed", levels: { L1: [notBuilt("B6 Conversions API events per stage")], L2: later("L2"), L3: later("L3"), L4: [{ need: "events accepted by the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }] } },
+  {
+    worker: "Outcome feed",
+    levels: {
+      L1: [
+        {
+          need: "B6: one Conversions API CRM event per RECORDED stage (Q-AD37), event_id = lead:stage, nothing about the person (D-AD14), ledgered",
+          tests: [
+            { file: "apps/api/src/modules/ads/outcomes/outcomeEvents.test.ts", titles: [
+              "one candidate per recorded stage, its ref the lead id and the stage, in the shared stage order",
+              "no unrecorded stage can become a candidate (Q-AD37: never sent)",
+              "seven days old is still sent; a millisecond more is too old",
+              "the Conversions API event is a CRM event in seconds, the lead id a string",
+            ] },
+            { file: "apps/api/src/modules/ads/outcomes/outcomeFeed.test.ts", titles: [
+              "sends one CRM event per recorded stage of each Meta lead, under the lead's Meta id, and ledgers each as sent",
+              "the event carries the lead id and the stage and nothing about the person (D-AD14)",
+              "a lead from another platform is never sent, and a stage nobody records is refused as malformed",
+              "a carrier whose feed is off (no target) is not read, sends nothing and writes nothing",
+            ] },
+            { file: "apps/api/src/modules/ads/outcomes/outcomeTick.test.ts", titles: [
+              "queues one run per connected or failing Meta connection whose carrier has a feed target, and no other",
+            ] },
+            { file: "apps/api/src/modules/ads/adsSchemaParity.test.ts", titles: ["%s.%s matches the shared list"] },
+          ],
+        },
+      ],
+      L2: [
+        {
+          need: "§4R faults: replay, a stage after 28 days, a refusal (recorded, rung once, never retried), 429/5xx/timeout, revoked token — exactly one accepted event per stage row",
+          tests: [{ file: "apps/api/src/modules/ads/outcomes/outcomeFeed.test.ts", titles: [
+            "replayed the next day, every stage is already on the ledger: nothing is sent twice",
+            "killed after Meta accepted but before the ledger said so, the resend is dropped by its event_id: one accepted event",
+            "two runs racing to queue the same stage store it once (the unique ref), and it is sent once",
+            "a stage reached more than 28 days after the lead arrived is still sent, once (28 days is Meta's optimisation window, not a send limit)",
+            "a stage that failed until it turned 7 days old is then recorded skipped, never sent",
+            "a stage that is no longer recorded when its turn comes is recorded skipped, never sent",
+            "a stage reached more than 7 days ago is recorded skipped and never sent: Meta would refuse the whole request",
+            "an event Meta refuses is recorded failed and final, rung once, and the rest of its batch is still sent",
+            "%s fails the run and leaves the stage due; the next run sends it once",
+            "a stage that keeps failing is tried MAX_ATTEMPTS times and never again",
+            "a revoked token fails the run, keeps the stage due, marks the connection failing and rings ads_token_expiring once",
+            "a dataset Meta does not have fails the run as a setup fault and writes no event's result",
+          ] }],
+        },
+      ],
+      L3: [{
+        need: "scenario bar: exactly one accepted event per stage row across every crash point × fault (a sweep, as the Renderer's)",
+        gap: "reachable on the fakes, not built in B6: a sweep killing the run after every ledger write and Meta call, × each FakeMeta fault",
+      }],
+      L4: [{ need: "events accepted by the sandbox (Events Manager test code; OUR readings in fakeMetaEvents.ts checked)", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
   {
     worker: "Copywriter",
     levels: {
@@ -731,8 +781,9 @@ export const READINESS = [
         },
         { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "40 briefs over P1–P5, 15+ in Spanish: 40 of 40 live answers pass the claim and length checks, twice (pnpm ads:eval copywriter, baseline.json, 2026-11-05); the owner rates the 40 (the rating sheet in the PR) and the rate is recorded here" },
       ],
-      // The owner, 2026-11-05: a Claude worker has an L4 like any other, so no worker launches on its evaluation set alone.
-      L4: [{ need: "its live copy accepted on Meta's sandbox: ads made from real answers, in English and Spanish, created there without a refusal", gap: `${STAGE2}; publisher.contract.test.ts sends fixed copy today, so that run must also carry Copywriter's real answers` }],
+      // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
+      // evaluation set alone (ADS-AGENT-PLAN §9). The run below is OUR wording, written from the ruling, not the owner's.
+      L4: [{ need: "its live copy accepted on Meta's sandbox: ads made from real answers, in English and Spanish, created without refusal", gap: `${STAGE2}; publisher.contract.test.ts sends fixed copy today, so that run must also carry Copywriter's real answers` }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
@@ -768,7 +819,9 @@ export const READINESS = [
         },
       ],
       L3: [{ need: "the evaluation set at its bar: every prompt ends with the clause and starts from a reference photo when the preset shows equipment", gap: "C2 measured 10 of 10 (pnpm ads:eval artDirector, baseline.json) on fixture presets; §4R sets no set size — it is re-run on P1–P5 once the owner approves them (Q-AD12)" }],
-      L4: [{ need: "a render through the real Higgsfield API", gap: STAGE2 }],
+      // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
+      // evaluation set alone (ADS-AGENT-PLAN §9). The run below is OUR wording, written from the ruling, not the owner's.
+      L4: [{ need: "its live prompts rendered by the real Higgsfield API, from the kit photo where the preset shows equipment, each picture passing the no-lettering check", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
@@ -840,7 +893,9 @@ export const READINESS = [
         },
       ],
       L3: [{ need: "pure checks catch 100 % of planted defects; the vision checklist's recall per defect type measured, at an owner-set threshold", gap: "C5a measured recall 10 of 10 on a 10-image corpus, twice (pnpm ads:eval checker, baseline.json, 2026-11-04); the owner sets the threshold, and the corpus grows past one image per defect" }],
-      L4: [{ need: "the planted-defect corpus re-run on real renders", gap: STAGE2 }],
+      // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
+      // evaluation set alone (ADS-AGENT-PLAN §9). The run below is OUR wording, written from the ruling, not the owner's.
+      L4: [{ need: "the planted-defect corpus re-run on pictures the real Higgsfield API drew, at the owner-set recall threshold, plus a verdict on every picture of the Art director's L4 run", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
@@ -938,7 +993,9 @@ export const READINESS = [
           ],
         },
       ],
-      L4: [{ need: "a brief over sandbox insights", gap: STAGE2 }],
+      // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
+      // evaluation set alone (ADS-AGENT-PLAN §9). The run below is OUR wording, written from the ruling, not the owner's.
+      L4: [{ need: "a live brief written over a day of the sandbox account's real hourly insights, every number from the fact sheet", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
@@ -1102,9 +1159,10 @@ export const READINESS = [
  * every worker listed for it is certified L4 there. A per-platform worker names its platform. A provider or
  * kind with no row cannot launch at all, so a new adapter must be listed here before it can spend.
  *
- * Not listed, on purpose: the Analyst (the morning brief reads spend; it never touches delivery) and the Outcome
- * feed (B6, not built — it joins Meta's row when it sends events). The simulator has no row: its own gate
- * (`simulatorGate`) refuses it everywhere but a positively non-production host.
+ * The Analyst is listed (L4-ruling, 2026-11-06): G-launch's done-when includes "next morning's brief arrives", so a
+ * campaign uses it. Not listed, on purpose: the Outcome feed (B6 comes after the canary, §5; it joins Meta's row when
+ * it sends events). The simulator has no row: its own gate (`simulatorGate`) refuses it everywhere but a positively
+ * non-production host.
  *
  * @type {Record<string, Array<{ worker: string, platform?: string }>>}
  */
@@ -1119,6 +1177,7 @@ export const CAMPAIGN_WORKERS = {
     { worker: "Art director" },
     { worker: "Checker" },
     { worker: "Renderer / Higgsfield client" },
+    { worker: "Analyst" },
     { worker: "Security (all)" },
   ],
 };

@@ -41,6 +41,13 @@ export const leadOutcomeSchema = z.object({
   lead_id: recordId(),
   /** The ads campaign the lead came from (`recruiting_leads.campaign_ref`, as the platform named it). */
   campaign_id: z.string().trim().min(1).max(200),
+  /**
+   * Which platform the lead came from and the platform's own id for it (`recruiting_leads.channel` /
+   * `external_ref`, as `leadFromPlatform` stored them). The outcome feed (B6) sends a stage back under that id
+   * (Meta's `user_data.lead_id`); Q-AD39 added both, add-only, ruled 2026-11-06.
+   */
+  provider: z.string().trim().min(1).max(40),
+  platform_lead_ref: z.string().trim().min(1).max(200),
   /** When the lead arrived: the platform's time when it gave one, else when we received it. */
   arrived_at: instant,
   /** When each recorded stage was first reached; a stage not reached is absent. */

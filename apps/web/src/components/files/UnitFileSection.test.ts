@@ -28,10 +28,17 @@ const unitRow = {
 const trailerRow = { ...unitRow, subject_type: "trailer", subject_id: "t1", unit_number: "5302", items: [], ownership_unknown: [], state: "incomplete", counts: { current: 1, expiring: 0, expired: 1, missing: 0 } };
 const q = <T,>(data: T) => ({ data: ref(data), isLoading: ref(false), isError: ref(false), isFetching: ref(false), refetch: vi.fn() });
 
+const docReads = vi.hoisted(() => [] as Array<{ type: string; id: string | null }>);
 const setVehicleOwnership = vi.hoisted(() => ({ mutateAsync: vi.fn(async () => undefined), isPending: { value: false } }));
 vi.mock("@/composables/useCompliance", () => ({
   useUnitFilesQuery: (type: string) => q({ units: [type === "tractor" ? unitRow : trailerRow] }),
-  useDocumentsQuery: () => q([{ id: "reg1", kind: "registration", contentType: "application/pdf", url: "https://signed.test/reg1.pdf", thumbUrl: null }]),
+  // The unit's own papers, and the organization's for the fleet-covered row (D-UF6, DD5).
+  useDocumentsQuery: (type: { value: string }, id: { value: string | null }) => {
+    docReads.push({ type: type.value, id: id.value });
+    return q(type.value === "organization"
+      ? [{ id: "pol", kind: "insurance", contentType: "application/pdf", url: "https://signed.test/pol.pdf", thumbUrl: null }]
+      : [{ id: "reg1", kind: "registration", contentType: "application/pdf", url: "https://signed.test/reg1.pdf", thumbUrl: null }]);
+  },
   useComplianceOverviewQuery: () => q({ drivers: [{ driver_id: "d1", state: "incomplete", counts: { current: 3, expiring: 1, expired: 0, missing: 0 }, attention: [], requirements: [] }] }),
 }));
 vi.mock("@/composables/useVehicles", () => ({
@@ -142,5 +149,16 @@ describe("UnitFileSection", () => {
     expect(w.find("[data-test=ownership-unknown]").exists()).toBe(true);
     expect(w.findAll("button").some((b) => b.text() === "Set ownership")).toBe(false);
     expect(w.findComponent(RequirementTable).props("canManage")).toBe(false);
+  });
+
+  it("opens the fleet's insurance scan from a truck's file, read from the organization's papers (DD5)", async () => {
+    Object.assign((await session()).__session, { orgId: "org-1" });
+    docReads.length = 0;
+    const w = await mountSection();
+    await w.findAll("button").find((b) => b.text().startsWith("Show all"))!.trigger("click");
+    await flushPromises();
+    const rows = w.findComponent(RequirementTable).props("rows") as Array<{ key: string; documentUrl: string | null }>;
+    expect(rows.find((r) => r.key === "insurance")?.documentUrl).toBe("https://signed.test/pol.pdf");
+    expect(docReads).toContainEqual({ type: "organization", id: "org-1" });
   });
 });
