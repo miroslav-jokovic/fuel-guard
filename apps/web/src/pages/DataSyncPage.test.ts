@@ -28,6 +28,8 @@ vi.mock("@/lib/api", () => ({
     if (url.includes("feed-freshness")) {
       return { ok: true, data: { feeds: [], alerting: [], error: null } };
     }
+    // E5's card (2026-11-06), the third time this note applies: its own shape, a list of failed jobs.
+    if (url.includes("/api/jobs/failed")) return { ok: true, data: [] };
     if (url.includes("telematics-coverage")) {
       return coverageFetched.ok
         ? { ok: true, data: coverageFetched.value }

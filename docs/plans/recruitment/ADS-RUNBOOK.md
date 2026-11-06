@@ -139,7 +139,23 @@ There is still no warning **before** a token expires (**Q-AD24**): the first bel
 ### What the bell shows
 - **"Ads that could not be paused"**, only if a pause fails three minutes in a row (§1).
 - **"An ad account connection stopped working"** if Meta refuses the token, from whichever job met it (§2).
-- Nothing for a failed spend pull or backfill for any other reason, such as Meta being down (**Gap 2**).
+- Nothing for a failed spend pull or backfill for any other reason, such as Meta being down. Those are on
+  the **Failed background jobs** card instead (below).
+
+### Where failed jobs are listed
+1. Open **Settings › Data & sync** (`/settings/data`). Admins and fleet managers can see it
+   (*apps/web/src/pages/DataSyncPage.vue*; its gate is `admin.settings.data` in *packages/shared/src/surfaceCatalogue.ts*).
+2. Scroll to the card **Failed background jobs** (*apps/web/src/features/jobs/FailedJobsCard.vue*, reading
+   *GET /api/jobs/failed*, *apps/api/src/modules/org/routes/jobs.ts*). It lists the newest 50 jobs that failed
+   every try, newest first.
+3. Each row says, in plain words, **what failed** ("Reading ad spend from Meta", "Bringing in new leads from
+   Meta", "Checking the ad account against our records"...), its area (**Recruiting ads**), the **ad account**
+   or **campaign** it was for, **when**, **how many tries**, and **what to do**, with the system's own error
+   text under it for an engineer. The words come from one catalogue (*packages/shared/src/jobKindCatalogue.ts*).
+4. **"No background job has failed."** means nothing is waiting on you. **"Could not load the failed jobs."**
+   with **Retry** means the list itself could not be read. It does not mean nothing failed.
+5. A Meta outage shows as a run of failed ads rows that stops once Meta answers again. The jobs run again by
+   themselves (above), so act only on what the row's advice says, or when the same row keeps coming back for a day.
 
 ### When to act
 1. If Meta is down and **nothing is being paused**, wait. Everything catches up on its own.
@@ -255,7 +271,8 @@ ADS-AGENT-BUILD-WORKFLOW §4R). This one is for an engineer, by pull request.
 ## 8. Who to call, and where the logs are
 
 - **First:** the owner. For anything about spend, a refused ad or a connection, the owner decides.
-- **For a technical fault** (a pause stuck for over an hour, a job failing all day, a rollback): the
+- **For a technical fault** (a pause stuck for over an hour, a job on Settings › Data & sync's **Failed
+  background jobs** card failing all day, a rollback): the
   developer on call. Give them the bell's text and the time.
 - **Logs** (engineers, Railway access needed; no secret goes in a ticket or a chat). Ads lines start with a
   tag:
@@ -278,9 +295,8 @@ Each one is reported, not worked around. The cost is a rough size of the honest 
    §5), and cannot review, regenerate or approve creatives (§4). The API exists
    (*GET /api/ads/campaigns*, *…/:campaignId*). **Fix:** E3, the campaign flow and review screen, already
    in Track S's queue. About 2 days.
-2. **No page shows failed jobs.** During an outage, a failed spend pull, backfill or reconcile is invisible
-   to the office. *GET /api/org/jobs/failed* exists and nothing renders it (*apps/api/src/modules/org/jobs.ts*).
-   **Fix:** E5, in Track S's queue. About 1 day.
+2. ~~**No page shows failed jobs.**~~ Closed 2026-11-06 (E5): the **Failed background jobs** card on
+   Settings › Data & sync (§3, "Where failed jobs are listed").
 3. ~~**A Meta-rejected ad is not detected.**~~ Closed 2026-11-06 (monitor-alerts): reconcile reads each delivering
    ad's verdict (§4).
 4. ~~**A dead token rings the bell only when a pause or a create meets it.**~~ Closed 2026-11-06 (monitor-alerts):
