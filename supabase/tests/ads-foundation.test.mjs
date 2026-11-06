@@ -246,6 +246,16 @@ ok("a sent event is final (AX011)",
   (await sqlstate(`update ads_outcome_events set status = 'failed' where id = $1`, [OE])) === "AX011");
 ok("an outcome event is never deleted (AX010)",
   (await sqlstate(`delete from ads_outcome_events where id = $1`, [OE])) === "AX010");
+// 0570 (Q-AD39): the stage list is the recorded stages under their true names (Q-AD37), never 0537's old words.
+const stageRow = (stage, ref) => sqlstate(
+  `insert into ads_outcome_events (org_id, campaign_id, provider, platform_lead_ref, stage, source_event_ref)
+   values ($1, $2, 'meta', 'leadgen-1', $3, $4)`, [ORG, CAMP, stage, ref]);
+for (const stage of ["converted", "applied", "hired", "lost_after_conversion"]) {
+  ok(`the recorded stage ${stage} is stored (0570)`, (await stageRow(stage, `stage-${stage}`)) === null);
+}
+for (const stage of ["qualified", "lost", "lost_before_conversion"]) {
+  ok(`the unrecorded or retired stage ${stage} is refused (23514, 0570)`, (await stageRow(stage, `stage-${stage}`)) === "23514");
+}
 
 // ── spend by hour ─────────────────────────────────────────────────────────────────────────────
 ok("an hour's spend is recorded",

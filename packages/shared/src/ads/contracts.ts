@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { recordId } from "../recordId.js";
+import { LEAD_OUTCOME_STAGES, type LeadOutcomeStage } from "./leadOutcomes.js";
 
 /**
  * The ads module's contracts (ADS-AGENT-BUILD-WORKFLOW.md A3; D-AD16, D-AD17).
@@ -9,7 +10,7 @@ import { recordId } from "../recordId.js";
  * platform lead leaves through a `LeadSink`. A second brief source — a fuel-card offer, a customer
  * campaign — plugs into the same module without touching it.
  *
- * The state and kind lists below mirror the CHECK constraints of migration 0537. The two copies are
+ * The state and kind lists below mirror the CHECK constraints of migration 0537 (the stage list, 0570). The two copies are
  * held together by `adsSchemaParity.test.ts` in apps/api (this package is also built for React Native
  * and cannot read a file), which fails when either side moves alone.
  */
@@ -44,8 +45,14 @@ export const ACTION_KINDS = [
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
-export const OUTCOME_STAGES = ["contacted", "qualified", "applied", "hired", "lost"] as const;
-export type OutcomeStage = (typeof OUTCOME_STAGES)[number];
+/**
+ * The stages the outcome feed may send and `ads_outcome_events.stage` may hold: exactly the stages a row
+ * records (Q-AD37), DERIVED from `LEAD_OUTCOME_STAGES` and never restated (Q-AD39, migration 0570). A stage
+ * with no writer (`UNRECORDED_LEAD_STAGES`) is never sent, so it is not here. `adsSchemaParity.test.ts` holds
+ * this list and the newest CHECK together.
+ */
+export const OUTCOME_STAGES = LEAD_OUTCOME_STAGES;
+export type OutcomeStage = LeadOutcomeStage;
 
 /**
  * The five workers that ask a model (ADS-AGENT-PLAN §2c's worker table: "five of the eleven workers
