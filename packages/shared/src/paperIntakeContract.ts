@@ -66,6 +66,8 @@ export interface PaperStackDto {
   coverSheetCount: number | null;
   blankPageCount: number | null;
   createdAt: string;
+  /** Once split: how many of its pieces the reader has finished, is still on, or could not read (PI3). */
+  reading: { done: number; pending: number; failed: number } | null;
   parts: PaperStackPartDto[];
 }
 

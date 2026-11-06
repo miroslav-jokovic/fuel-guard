@@ -33,7 +33,12 @@ import type { FieldCriticality } from "./shippingDocumentContract.js";
 const str = () => z.string().nullable().default(null);
 const strList = () => z.array(z.string()).default([]);
 
-export const COMPLIANCE_PAPER_PROFILE_VERSION = "compliance_paper-1.0.0";
+/**
+ * 1.1.0 (DRIVER-PAPER-INTAKE-PLAN PI3, 2026-11-06): the kind list names a paper driver file's papers, not
+ * only a vehicle's and a licence, and `issuedOn` also carries the date a dated record HAPPENED (a test, a
+ * review, an inquiry). A version bump is a new cache key: nothing read under 1.0.0 is reused as 1.1.0.
+ */
+export const COMPLIANCE_PAPER_PROFILE_VERSION = "compliance_paper-1.1.0";
 
 export const compliancePaperSchema = z.object({
   pageFrom: z.number().int().nullable().default(null).describe("The first page of this paper in the file, counting from 1."),
@@ -46,7 +51,17 @@ export const compliancePaperSchema = z.object({
       "Which paper this is. registration = a state registration card; irp = an IRP apportioned cab card; " +
         "annual_inspection = an annual / periodic vehicle inspection report; insurance = an insurance policy or " +
         "certificate; ifta = an IFTA licence; title = a vehicle title; lease = an equipment lease; " +
-        "medical_card = a DOT medical examiner's certificate; cdl = a driver's licence. other = none of the list.",
+        "medical_card = a DOT medical examiner's certificate; cdl = a driver's licence; " +
+        "employment_application = a driver's application for employment; mvr = a motor vehicle record (driving " +
+        "record) printout; annual_mvr_review = an annual review of a driver's record, signed by the carrier; " +
+        "road_test = a road test certificate or form; cdl_equivalency = a certificate accepting a licence in " +
+        "place of a road test; previous_employer_inquiry = a carrier's request to a previous employer; " +
+        "previous_employer_response = a previous employer's answer about safety performance; drug_test = a drug " +
+        "test form or result; alcohol_test = an alcohol test form or result; clearinghouse_full = an FMCSA " +
+        "Clearinghouse full query result; clearinghouse_limited = a Clearinghouse limited query result; " +
+        "medical_registry_verification = a note that the examiner was verified on the National Registry; " +
+        "eldt = an entry-level driver training certificate; psp_report = a Pre-Employment Screening Program " +
+        "report. other = none of the list.",
     ),
   title: z.string().nullable().default(null).describe("The paper's own printed title or heading, as printed."),
   issuer: z.string().nullable().default(null).describe("Who issued it — the state, agency, insurer or inspector — as printed."),
@@ -58,7 +73,11 @@ export const compliancePaperSchema = z.object({
     .describe("Every licence plate printed on this paper."),
   driverName: z.string().nullable().default(null).describe("The person the paper is about, as printed — null for a vehicle's paper."),
   licenseNumber: z.string().nullable().default(null).describe("That person's driver's licence number, every character as printed."),
-  issuedOn: z.string().nullable().default(null).describe("The date the paper was issued or the inspection was done, exactly as printed."),
+  issuedOn: z
+    .string()
+    .nullable()
+    .default(null)
+    .describe("The date the paper was issued, signed, or the thing it records happened (an inspection, a test, a review), exactly as printed."),
   expiresOn: z.string().nullable().default(null).describe("The date the paper expires or is valid until, exactly as printed."),
 });
 export type CompliancePaper = z.infer<typeof compliancePaperSchema>;

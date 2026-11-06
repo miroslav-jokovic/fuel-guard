@@ -25,6 +25,7 @@ export * from "./complianceContract.js";
 export * from "./dqExportContract.js";
 export * from "./driverCoverSheet.js";
 export * from "./paperIntakeContract.js";
+export * from "./printedDate.js";
 export * from "./driverDobCsv.js";
 export * from "./employerInquiryContract.js";
 export * from "./employerResponseContract.js";

@@ -444,6 +444,12 @@ const API_ALLOW = new Set([
   //   profile, and its finished read fetched with `readOfBytes` — inspections' IC10 shape exactly.
   //   document-reading imports nothing of recruiting's; the read gate is wired at the composition root.
   "recruiting -> document-reading",
+  // · evidence -> document-reading — DRIVER-PAPER-INTAKE-PLAN PI3: a scanned stack's pieces are read under the
+  //   `compliance_paper` profile and their finished reads fetched with `readOfBytes`, which paper intake turns
+  //   into `file_intake_items` review rows — the IC10/OF6b shape. The pieces are QUEUED through
+  //   `intakeStoredBytes` from the composition root (queue/handlers/paperIntakeSplit.ts), so this edge carries
+  //   only the read-back. document-reading imports nothing of evidence's.
+  "evidence -> document-reading",
   // · inspections -> fleetpal — IC11 (INSPECTION-CHALLENGE-PLAN D-IC14): the repair record proposes the
   //   FleetPal work orders on an inspected unit; FleetPal's tables are read through its index
   //   (`readWorkOrdersOnUnits`), as the dispatch board reads `readUnitMaintenance`.

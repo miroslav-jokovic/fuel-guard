@@ -13,6 +13,7 @@ import {
 } from "@silvicom/shared";
 import { chunks } from "../../../lib/paging.js";
 import { scanStack } from "./findCoverSheets.js";
+import { syncStackItems, type StackReading } from "./paperIntakeItems.js";
 
 /**
  * Scanned stacks of paper driver files: register the upload, split it, read it back
@@ -138,7 +139,20 @@ export type SplitOutcome =
   | { outcome: "split"; pageCount: number; coverSheets: number; blankPages: number; parts: number; unknownSheets: number }
   | { outcome: "skipped"; reason: string };
 
-export async function splitStack(admin: SupabaseClient, orgId: string, stackId: string, now: () => Date = () => new Date()): Promise<SplitOutcome> {
+/**
+ * Hand one stored piece to the document reader (PI3). Injected by the job handler, which holds the env
+ * `intakeStoredBytes` needs, so this file stays free of the queue. Idempotent: the reader folds the same
+ * bytes into the source it already has (D-DR12).
+ */
+export type QueuePieceRead = (bytes: Buffer) => Promise<void>;
+
+export async function splitStack(
+  admin: SupabaseClient,
+  orgId: string,
+  stackId: string,
+  deps: { now?: () => Date; queueRead?: QueuePieceRead } = {},
+): Promise<SplitOutcome> {
+  const now = deps.now ?? (() => new Date());
   const { data, error } = await admin.from("paper_intake_stacks").select("id, status, sha256").eq("org_id", orgId).eq("id", stackId).maybeSingle();
   if (error) throw new Error(`paper_intake_stacks: ${error.message}`);
   const row = data as { id: string; status: PaperStackStatus; sha256: string } | null;
@@ -168,6 +182,7 @@ export async function splitStack(admin: SupabaseClient, orgId: string, stackId: 
 
   const source = await PDFDocument.load(bytes, { ignoreEncryption: true });
   const rows: Array<Record<string, unknown>> = [];
+  const pieces: Buffer[] = [];
   for (const [index, part] of plan.entries()) {
     const piece = await PDFDocument.create();
     for (const page of await piece.copyPages(source, part.pages.map((n) => n - 1))) piece.addPage(page);
@@ -175,6 +190,7 @@ export async function splitStack(admin: SupabaseClient, orgId: string, stackId: 
     const path = partPath(orgId, stackId, index);
     const up = await admin.storage.from(PAPER_INTAKE_BUCKET).upload(path, pieceBytes, { contentType: "application/pdf", upsert: true });
     if (up.error) throw new Error(`paper-intake upload: ${up.error.message}`);
+    pieces.push(pieceBytes);
     rows.push({
       org_id: orgId,
       stack_id: stackId,
@@ -193,6 +209,10 @@ export async function splitStack(admin: SupabaseClient, orgId: string, stackId: 
     const ins = await admin.from("paper_intake_parts").insert(rows);
     if (ins.error) throw new Error(`paper_intake_parts: ${ins.error.message}`);
   }
+  // Reads are queued only once the pieces are recorded, so a read can never finish for a piece review
+  // does not know about; and before the stack says `split`, so a retry after a crash here queues them again
+  // (each a no-op if it already ran).
+  if (deps.queueRead) for (const piece of pieces) await deps.queueRead(piece);
   await setStatus(admin, orgId, stackId, {
     status: "split",
     page_count: scan.pageCount,
@@ -241,6 +261,18 @@ export async function listBatch(admin: SupabaseClient, orgId: string, batchId: s
     for (const d of (data ?? []) as Array<{ id: string; full_name: string }>) names.set(d.id, d.full_name);
   }
 
+  // Each split stack's finished reads become review rows now (PI3); the page shows where reading stands.
+  const reading = new Map<string, StackReading>();
+  const itemCounts = new Map<string, number>();
+  for (const s of list.filter((x) => x.status === "split")) {
+    reading.set(s.id, await syncStackItems(admin, orgId, { id: s.id, batchId: s.batch_id }));
+  }
+  if (reading.size) {
+    const items = await admin.from("file_intake_items").select("id").eq("org_id", orgId).eq("batch_id", batchId);
+    if (items.error) throw new Error(`file_intake_items: ${items.error.message}`);
+    itemCounts.set(batchId, (items.data ?? []).length);
+  }
+
   return list.map((s) => ({
     id: s.id,
     batchId: s.batch_id,
@@ -251,6 +283,7 @@ export async function listBatch(admin: SupabaseClient, orgId: string, batchId: s
     coverSheetCount: s.cover_sheet_count,
     blankPageCount: s.blank_page_count,
     createdAt: s.created_at,
+    reading: reading.get(s.id) ?? null,
     parts: partRows
       .filter((p) => p.stack_id === s.id)
       .map((p) => ({

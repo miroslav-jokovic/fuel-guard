@@ -68,7 +68,8 @@ describe("splitStack (PI2)", () => {
   it("cuts the stack at its cover sheets, drops the blank back, and gives an unknown sheet's pages to nobody", async () => {
     const bytes = await stack();
     const { rec, uploads } = recorderFor(bytes);
-    const outcome = await splitStack(rec.client, ORG, STACK, () => new Date("2026-11-06T18:00:00Z"));
+    const queued: Buffer[] = [];
+    const outcome = await splitStack(rec.client, ORG, STACK, { now: () => new Date("2026-11-06T18:00:00Z"), queueRead: async (b) => void queued.push(b) });
     expect(outcome).toEqual({ outcome: "split", pageCount: 8, coverSheets: 2, blankPages: 1, parts: 3, unknownSheets: 1 });
 
     const [rows] = writesTo(rec, "paper_intake_parts", "insert") as Array<Array<Record<string, unknown>>>;
@@ -81,6 +82,8 @@ describe("splitStack (PI2)", () => {
     expect(uploads.map((u) => u.path)).toEqual([`${ORG}/${STACK}/part-000.pdf`, `${ORG}/${STACK}/part-001.pdf`, `${ORG}/${STACK}/part-002.pdf`]);
     expect(await pdfPageTexts(uploads[0]!.bytes)).toEqual([expect.stringContaining("A application"), expect.stringContaining("A road test")]);
     expect(rows![0]!.sha256).toBe(createHash("sha256").update(uploads[0]!.bytes).digest("hex"));
+    // PI3: every stored piece, and only those, is handed to the reader — the same bytes that were stored.
+    expect(queued.map((b) => createHash("sha256").update(b).digest("hex"))).toEqual(rows!.map((r) => r.sha256));
     expect(rec.storageCalls().every((c) => c.bucket === PAPER_INTAKE_BUCKET)).toBe(true);
 
     // A retry replaces the set rather than adding to it: delete before insert, both on this stack.

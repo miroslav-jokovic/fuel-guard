@@ -239,6 +239,9 @@
   "employer_verification_calls": [
     "apps/api/src/modules/recruiting/applicantEmployerCalls.ts"
   ],
+  "file_intake_items": [
+    "apps/api/src/modules/evidence/intake/paperIntakeItems.ts"
+  ],
   "finance_month_closes": [
     "apps/api/src/modules/financial/monthClose.ts"
   ],
