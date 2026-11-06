@@ -29,24 +29,16 @@ const tone = computed(() => (props.creative.state === "check_failed" || props.cr
     <span :class="[BADGE_BASE, toneClass(tone)]">{{ CREATIVE_STATE_LABEL[creative.state] }}</span>
     <p v-if="creative.last_error" class="text-sm text-ink-muted" data-test="creative-error">{{ creative.last_error }}</p>
     <p v-if="!grid.readable" class="text-sm text-ink-muted" data-test="checks-unreadable">The checks on this ad could not be read, so it cannot be judged from this screen.</p>
-    <table v-else-if="grid.rows.length > 0" class="w-full text-sm" data-test="checks">
-      <caption class="sr-only">The three checks on this ad, per format and language</caption>
-      <thead>
-        <tr class="text-left text-xs text-ink-muted">
-          <th scope="col" class="py-1 font-medium">Format</th>
-          <th v-for="c in grid.rows[0]!.cells" :key="c.check" scope="col" class="py-1 font-medium">{{ CHECK_LABEL[c.check] }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="r in grid.rows" :key="`${r.format}-${r.language}`" class="border-t border-edge align-top" :data-test="`checks-${r.format}-${r.language}`">
-          <th scope="row" class="py-1 pr-2 font-normal text-ink">{{ r.format }} · {{ r.language.toUpperCase() }}</th>
-          <td v-for="c in r.cells" :key="c.check" class="py-1 pr-2">
-            <span :class="[BADGE_BASE, toneClass(CHECK_VERDICT_TONE[c.verdict])]">{{ CHECK_VERDICT_LABEL[c.verdict] }}</span>
-            <p v-for="(why, i) in c.reasons" :key="i" class="mt-1 text-xs text-ink-muted">{{ why }}</p>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <ul v-else-if="grid.rows.length > 0" class="divide-y divide-edge text-sm" aria-label="The three checks on this ad, per format and language" data-test="checks">
+      <li v-for="r in grid.rows" :key="`${r.format}-${r.language}`" class="flex flex-wrap items-start gap-x-4 gap-y-1 py-1" :data-test="`checks-${r.format}-${r.language}`">
+        <span class="w-20 shrink-0 text-ink" data-test="checks-where">{{ r.format }} · {{ r.language.toUpperCase() }}</span>
+        <div v-for="c in r.cells" :key="c.check" class="min-w-0" data-test="check">
+          <span class="mr-1 text-xs text-ink-muted">{{ CHECK_LABEL[c.check] }}</span>
+          <span :class="[BADGE_BASE, toneClass(CHECK_VERDICT_TONE[c.verdict])]">{{ CHECK_VERDICT_LABEL[c.verdict] }}</span>
+          <p v-for="(why, i) in c.reasons" :key="i" class="mt-1 text-xs text-ink-muted">{{ why }}</p>
+        </div>
+      </li>
+    </ul>
     <section v-for="l in languages" :key="l" class="space-y-2">
       <h3 class="text-sm font-semibold text-ink">{{ l.toUpperCase() }}</h3>
       <div class="grid grid-cols-3 gap-2">

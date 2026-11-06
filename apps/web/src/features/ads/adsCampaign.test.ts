@@ -194,7 +194,7 @@ describe("AdsCreativeReview", () => {
     const w = review(creative({ state: "check_failed", checks, last_error: "visual check failed after 1 attempt(s)" }));
     const es = w.find("[data-test=\"checks-1:1-es\"]");
     expect(es.text()).toContain("1:1 · ES");
-    expect(es.findAll("td").map((t) => t.text())).toEqual(["Passed", "Passed", "FailedA logo on the cab door."]);
+    expect(es.findAll("[data-test=check]").map((t) => t.text())).toEqual(["WordsPassed", "Text on the picturePassed", "PictureFailedA logo on the cab door."]);
     expect(w.findAll("[data-test^=\"checks-1\"]")).toHaveLength(2);
   });
 
