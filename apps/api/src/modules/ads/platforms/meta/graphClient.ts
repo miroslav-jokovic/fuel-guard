@@ -118,7 +118,10 @@ export class MetaGraph {
       sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
       timeoutMs: 30_000,
       retries: BACKOFF_MS.length,
-      ...opts,
+      // Only the options a caller SET (sec-fixes, 2026-11-06): `{ baseUrl: undefined }` spread as-is replaced the
+      // real Graph host with undefined — the cause of Connect's "Unexpected server error", once fixed at its caller
+      // in connections.ts. Dropping undefined here means no caller can do it again.
+      ...(Object.fromEntries(Object.entries(opts).filter(([, v]) => v !== undefined)) as MetaGraphOptions),
     };
   }
 

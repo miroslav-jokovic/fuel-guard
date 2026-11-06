@@ -11,6 +11,13 @@
  *     not exist; asked again with the SAME Idempotency-Key it is found, never made twice;
  *   · `balance`   — 403: the Higgsfield account cannot pay. Nothing was made;
  *   · `refused`   — any other 4xx (422 includes a key reused with different parameters: a bug of ours).
+ *
+ * ── THE KEY NEVER LEAVES IN A `detail` (G-sec #2070 finding; fixed 2026-11-06, sec-fixes) ──────────
+ * A failure's `detail` is Higgsfield's own words, and `render.ts` carries a temporary one into a pending
+ * render's `why`, which the job's error keeps (`jobs.last_error`, the log). If the vendor ever echoes the
+ * credentials it was sent, they would ride along. So every answer leaves through ONE scrub at this boundary
+ * (`scrubbed`), which blanks the secret and the `id:secret` form, as `MetaGraph.scrub` does for its token. No
+ * call site scrubs, so a new call cannot forget to.
  */
 
 export const HIGGSFIELD_BASE_URL = "https://api.higgsfield.ai";
@@ -44,7 +51,7 @@ export class HiggsfieldClient {
 
   /** POST /{model}. `idempotencyKey` is our generation id: a retry returns the original request, free. */
   submit(model: string, params: Record<string, unknown>, idempotencyKey: string): Promise<HfAnswer<{ request_id: string }>> {
-    return this.call("POST", `/${model.replace(/^\//, "")}`, { "Idempotency-Key": idempotencyKey, "content-type": "application/json" }, JSON.stringify(params));
+    return this.scrubbed(this.call("POST", `/${model.replace(/^\//, "")}`, { "Idempotency-Key": idempotencyKey, "content-type": "application/json" }, JSON.stringify(params)));
   }
 
   /**
@@ -54,7 +61,11 @@ export class HiggsfieldClient {
    * `public_url` a model's image field takes. Uploads are not idempotent (idempotency.md): `render.ts`
    * makes sure one is done once per render, by writing its URL on the ledger row before the submit.
    */
-  async upload(bytes: Buffer, contentType: string): Promise<HfAnswer<{ public_url: string }>> {
+  upload(bytes: Buffer, contentType: string): Promise<HfAnswer<{ public_url: string }>> {
+    return this.scrubbed(this.uploadOnce(bytes, contentType));
+  }
+
+  private async uploadOnce(bytes: Buffer, contentType: string): Promise<HfAnswer<{ public_url: string }>> {
     const made = await this.call<{ public_url?: unknown; upload_url?: unknown; upload_headers?: unknown }>(
       "POST", "/files/generate-upload-url", { "content-type": "application/json" }, JSON.stringify({ content_type: contentType }),
     );
@@ -77,11 +88,15 @@ export class HiggsfieldClient {
   }
 
   status(requestId: string): Promise<HfAnswer<HfRequestState>> {
-    return this.call("GET", `/requests/${encodeURIComponent(requestId)}/status`, {}, undefined);
+    return this.scrubbed(this.call("GET", `/requests/${encodeURIComponent(requestId)}/status`, {}, undefined));
   }
 
   /** An output file's bytes. The URL is Higgsfield's and expires; it is read once and never stored. */
-  async download(url: string): Promise<HfAnswer<Buffer>> {
+  download(url: string): Promise<HfAnswer<Buffer>> {
+    return this.scrubbed(this.downloadOnce(url));
+  }
+
+  private async downloadOnce(url: string): Promise<HfAnswer<Buffer>> {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
       if (res.status === 404 || res.status === 410) return { ok: false, kind: "refused", status: res.status, detail: "output file is gone" };
@@ -90,6 +105,17 @@ export class HiggsfieldClient {
     } catch (e) {
       return { ok: false, kind: "temporary", retryAfterSeconds: null, detail: e instanceof Error ? e.message : String(e) };
     }
+  }
+
+  /** The one exit: a failure's `detail` with the key blanked. A success carries nothing of ours to scrub. */
+  private async scrubbed<T>(answer: Promise<HfAnswer<T>>): Promise<HfAnswer<T>> {
+    const a = await answer;
+    return a.ok ? a : { ...a, detail: this.scrub(a.detail) };
+  }
+
+  /** The `id:secret` pair first, then the secret alone (a vendor may quote either). */
+  private scrub(s: string): string {
+    return s.split(`${this.key.id}:${this.key.secret}`).join("[key]").split(this.key.secret).join("[key]");
   }
 
   private async call<T>(method: string, path: string, headers: Record<string, string>, body: string | undefined): Promise<HfAnswer<T>> {

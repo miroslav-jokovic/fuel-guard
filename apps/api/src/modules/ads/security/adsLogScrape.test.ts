@@ -13,6 +13,11 @@ import { SIMULATOR_ACCOUNT_ID, simulatorFakeForTests, stopSimulatorForTests } fr
 import { runCampaignStep } from "../orchestrator/runner.js";
 import { adsWorkers } from "../orchestrator/workers.js";
 import type { FakeMeta } from "../platforms/simulator/fakeMeta.js";
+import { ADS_SETTINGS_UNSET } from "@silvicom/shared";
+import { createSupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { FakeHiggsfield } from "../creative/higgsfield/fakeHiggsfield.js";
+import { HiggsfieldClient } from "../creative/higgsfield/higgsfieldClient.js";
+import { renderStep } from "../creative/higgsfield/render.js";
 
 /**
  * Security L3, "a token in a log line" (ADS-AGENT-BUILD-WORKFLOW §4R, row "Security (all)"; G-sec, 2026-11-05).
@@ -36,11 +41,11 @@ import type { FakeMeta } from "../platforms/simulator/fakeMeta.js";
  *   · every row written (`ads_actions.response`, a connection's `last_error`, an alert's body).
  * The scrape is not vacuous: it first checks that tokens were sent, and that Meta's echo came back.
  *
- * NOT covered here, and said so: a Higgsfield key echoed in Higgsfield's error `detail`. `HiggsfieldClient`
- * passes `detail` through unscrubbed, and a pending render's `why` carries it into the job's result. Our code adds
- * the key to nothing — the client sends it only as a header — so the gap is a vendor echo, the one `MetaGraph`
- * defends against and this client does not yet. The client is Track W's (`creative/higgsfield/`); the fix is
- * recorded in the 2026-11-05 G-sec entry of the workflow's progress log.
+ * Added by Track W's sec-fixes (2026-11-06, add-only, this one road): a Higgsfield key echoed in Higgsfield's
+ * error `detail`. G-sec found `HiggsfieldClient` passing `detail` through unscrubbed, so a pending render's `why`
+ * carried a vendor echo into the ads_render job's error. The client now scrubs at its boundary; the render road
+ * below runs a FakeHiggsfield that quotes the `Key id:secret` it was sent, and its job error, ledger rows and
+ * console lines join the scrape.
  */
 
 const SESSION = "Bearer session";
@@ -67,6 +72,11 @@ async function wrapped(input: string | URL | Request, init?: RequestInit): Promi
   const auth = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined)).get("authorization");
   const bearer = auth && auth !== SESSION && auth.startsWith("Bearer ") ? auth.slice(7) : null;
   if (bearer) credentials.add(bearer);
+  // Higgsfield's `Key id:secret`: the pair and the secret alone are both things no log may hold.
+  if (auth?.startsWith("Key ")) {
+    credentials.add(auth.slice(4));
+    credentials.add(auth.slice(4).split(":").slice(1).join(":"));
+  }
   const res = await realFetch(input, init);
   if (!bearer || res.ok) return res;
   const text = await res.text();
@@ -97,6 +107,7 @@ beforeAll(async () => {
     recorders.push(run.rec);
   }
   await failingLaunchAndPause();
+  await echoedRenderKey();
   const body = Buffer.from(JSON.stringify({ object: "page", entry: [] }));
   const quiet = { env: { META_APP_SECRET: fake.webhooks.appSecret }, admin: {} as never, enqueue: async () => undefined };
   await receiveLeadgenDelivery(quiet as never, body, "sha256=forged");
@@ -122,6 +133,35 @@ async function failingLaunchAndPause(): Promise<void> {
   recorders.push(w.rec);
 }
 
+/**
+ * A render whose submit Higgsfield answers with a 500 that QUOTES the credentials (`echo_key`). The step stays
+ * pending, and the ads_render job throws `ads_render: still rendering (<why>)` (`queue/handlers/adsRender.ts`):
+ * that message is the job's failure, kept in `jobs.last_error`.
+ */
+let renderEchoed = false;
+async function echoedRenderKey(): Promise<void> {
+  const key = { id: "hf-scrape-id", secret: `hf-scrape-secret-${Math.random().toString(36).slice(2)}` };
+  const model = "higgsfield-ai/soul/v2/standard";
+  const hf = new FakeHiggsfield({ keyId: key.id, keySecret: key.secret, webhookSecret: `whsec_${Buffer.alloc(32, 7).toString("base64")}`, balanceCents: 1_000, prices: { [model]: 40 } });
+  const base = await hf.start();
+  try {
+    const settings = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, higgsfield_credits_monthly: 1_000, agents_enabled: { renderer: true } } };
+    const rec = createSupabaseRecorder({ tables: {
+      ads_settings_versions: [{ id: "v1", org_id: ORG, version: 1, settings, kill_switch: false, kill_reason: null, created_at: T0, created_by_name: "X" }],
+      ad_generations: (q) => (q.write?.method === "insert" ? [{ id: "00000000-0000-4000-8000-0000000000e1", ...(q.write.payload as object) }] : []),
+    } });
+    hf.inject(/higgsfield-ai/, { kind: "echo_key" });
+    const out = await renderStep({ admin: rec.client, client: new HiggsfieldClient(key, { baseUrl: base }), now: () => new Date(T0), prices: { [model]: 40 } },
+      { orgId: ORG, campaignId: null, creativeId: "cr-scrape", attempt: 1, model, params: { prompt: "a road at dawn" }, reference: null });
+    if (out.kind !== "pending") throw new Error(`the echoed render should stay pending, got ${out.kind}`);
+    renderEchoed = out.why.includes("[key]");
+    failures.push(`ads_render: still rendering (${out.why})`);
+    recorders.push(rec);
+  } finally {
+    await hf.stop();
+  }
+}
+
 afterAll(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -140,6 +180,9 @@ describe("Security L3 — a token in a log line", () => {
     expect(failures.length).toBeGreaterThan(0);
     // The orchestrator road stored Meta's (scrubbed) message: without this the scrub would have nothing to show.
     expect(stored.some((r) => r.includes("access_token=[token]"))).toBe(true);
+    // The render road met a Higgsfield that quoted its key, and the job's failure shows it blanked.
+    expect(renderEchoed).toBe(true);
+    expect([...credentials].some((c) => c.startsWith("hf-scrape-id:"))).toBe(true);
   });
 
   it("no console line, job failure or written row holds a token, the app secret or the sealing key", () => {
