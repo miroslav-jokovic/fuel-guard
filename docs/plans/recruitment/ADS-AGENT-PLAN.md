@@ -1077,6 +1077,23 @@ rate, and Higgsfield credits per approved creative.
   **Second, smaller gap:** 0537's `ads_outcome_events.provider` CHECK has no `simulator`, so a simulator lead
   cannot be ledgered, and the owner's staging walk does not exercise the feed. Fix with a later migration if
   the walk should include it; not needed for production.
+- **Q-AD41 · Staging cannot check a password, so no fresh sign-in works there** (us, found on the staging walk,
+  2026-11-06; **blocks the G-walk's money and permission lines**). `POST /api/auth/step-up` on
+  `staging-api.360.silvicominc.com` answers 503 `step_up_unavailable`, "Password verification is not configured on
+  this deploy" (`apps/api/src/routes/authStepUp.ts:51`: `env.SUPABASE_URL` or `env.SUPABASE_ANON_KEY` is unset;
+  `env.ts:445` also accepts `VITE_SUPABASE_ANON_KEY`). So every `requireFreshAuth` door on staging refuses, the
+  first one captured being `PUT /api/surface-access` (403 `step_up_required`, then the step-up's 503). That is why
+  the owner's 11/06 grant of Ads control to fleet_manager never saved. The ads doors it stops: settings save,
+  every connection act, kill-switch clear, spend approval, launch. Staging's settings come from AWS Parameter Store
+  `/silvicom/staging/api` (`infra/server/fetch-settings.sh`); this chat had no AWS credentials to read the names.
+  Candidates: (a) set `SUPABASE_ANON_KEY` (the staging project's anon key, `dssmxlddtyimrwwuqwqq`) in
+  `/silvicom/staging/api` and redeploy, the owner's or the platform chat's act; (b) also make the gap loud: the
+  API could refuse to boot, or `/api/version` say so, when a fresh-auth door exists and step-up cannot work.
+  (c) refused: walking those lines with the service role, which would prove nothing about the doors. **Rec: (a)
+  now, (b) as a follow-up.** The web side makes it worse: `apps/web/src/lib/stepUp.ts:47` returns `false` on any
+  non-ok answer, and `StepUpPrompt.vue:43` then says "Could not confirm your password. Check it and try again", so
+  a correct password is blamed for a server that cannot check it. Production was not tested (no production login
+  for an agent).
 
 ---
 

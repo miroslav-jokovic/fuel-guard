@@ -253,7 +253,7 @@ template headings, the mutation that went red, CI green, merged by hand, staging
 
 | Step | What | Done when |
 |---|---|---|
-| **G-walk** | Staging walk script (in the PR body of the release): connect sandbox → set limits → upload brand kit → generate → review → create paused → launch → test lead → queue → convert → kill switch → reconcile | Every line ticked by the owner |
+| **G-walk** | Staging walk script ([`ADS-G-WALK.md`](ADS-G-WALK.md), 2026-11-06; in the PR body of the release): connect sandbox → set limits → upload brand kit → generate → review → create paused → launch → test lead → queue → convert → kill switch → reconcile | Every line ticked by the owner |
 | **G-sec** | `/security-review` on A5, B1, B4, C3; secrets never in logs (grep of a staging log); tokens never in API responses (test) | No open finding |
 | **G-runbook** | [`docs/plans/recruitment/ADS-RUNBOOK.md`](ADS-RUNBOOK.md) (written 2026-11-06; its Gaps section lists what on-call needs that has no code yet): kill switch, token rotation, a platform outage, a refused ad, rolling back a release with live campaigns (campaigns are paused before a rollback) | Merged |
 | **G-launch** | Production: owner connects the real accounts, saves limits (G5), approves presets (G6), creates the first opening (G4), launches at a small budget | First real lead reaches a recruiter; next morning's brief arrives; reconcile shows zero unexplained |

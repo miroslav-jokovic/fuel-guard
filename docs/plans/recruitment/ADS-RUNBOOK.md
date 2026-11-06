@@ -14,6 +14,9 @@ carrier's newest 200 campaigns, newest first. The column **Where it is** gives e
 *Live*, *Pausing* or *Paused*. Clicking a campaign opens its drawer: its ads, their checks, the moves a person may
 make, and its last error. The list does **not** refresh by itself, so reload the page to see a change.
 
+**Walking the whole agent on staging** (connect → limits → brand kit → campaign → review → launch → kill switch →
+leads → reconcile) is the owner's checklist [`ADS-G-WALK.md`](ADS-G-WALK.md), not this runbook.
+
 **Words used here**
 - **Ads control**: *Settings › Ads control*, `/settings/recruiting/ads` (*apps/web/src/router/routes/settings.ts*).
 - **The bell**: the notification bell at the top of every page. Each kind of ads alert goes to the people
