@@ -1,6 +1,6 @@
 # Driver paper intake — scan the paper DQ files in bulk (2026-11-06)
 
-**Status:** proposal, waiting on the owner's rulings (§5). Nothing here is built.
+**Status:** ruled 2026-11-06 (§5), building. PI1 built.
 
 **The ask (owner, 2026-11-06):** *"add some bulk upload function for drivers, so we can scan and upload
 multiple driver files. Because we only have this DQF printed on physical paper."*
@@ -81,18 +81,30 @@ each paper → a person confirms → it is filed.** Nothing is filed without a p
   may read them; for anyone else the row says it needs a testing-record reader.
 - The same intake serves truck and trailer papers (UF7c) with no second build.
 
-## 3. Steps (one PR each)
+## 3. Decisions taken while building
+
+**D-PI1 · The cover sheet's QR carries the driver's id (`SILDQF1:<uuid>`), not a `DRV` tag code.** The steps table first
+said a `DRV` tag kind with a code table, as trucks have (`unit_tags`, 0531). A tag is a label that lives on
+a truck for years and is read aloud when scuffed, so it needs a short permanent code; a cover sheet is a
+separator printed for one scan. A full id on a letter page reads as easily, and a table keyed to
+`drivers(id)` must join `merge_driver`'s list in the same migration or a merge destroys it silently
+(memory `merge-driver-cascade-trap`, twice so far). No table, no migration, no list to forget; nothing in
+the shop scans a driver. A sheet naming a driver a merge has folded away is reported as such and the
+pages are assigned by hand. `parseTag` refuses the payload and the sheet parser refuses a tag
+(`driverCoverSheet.test.ts`).
+
+## 4. Steps (one PR each)
 
 | Step | What | Migration |
 | --- | --- | --- |
-| PI1 | Driver cover sheets: a `DRV` tag kind + resolver (as trucks got `VEH`), "Print scan cover sheets" on Drivers | yes (driver tag codes, as 0531 did for units) |
+| PI1 | Driver cover sheets: "Print scan cover sheets" on Drivers; the QR names the driver's id (D-PI1); the server-side sheet finder | no (D-PI1) |
 | PI2 | Intake API (UF7b3): upload, page render, cover-sheet split, blank-page drop, chunked reads → `file_intake_items` | no |
 | PI3 | Reader learns the DQ papers: kinds, dates, the "never read the result" rule tested | profile version bump |
 | PI4 | Review page (UF7c) for drivers and units: rows, viewer, "still missing", confirm/correct/discard | no |
 | PI5 | Filing: documents per paper, certifications, `paper_intake` qualification records, application/road test for hired drivers, restricted handling, duplicates | possibly (a CHECK on `detail.source` for the two ceremony kinds) |
 | PI6 | Office trial: 5 real folders end to end, measure pages/driver, read accuracy, review minutes; then the fleet | no |
 
-## 4. What the office does (once built)
+## 5. What the office does (once built)
 
 1. Drivers → select ~5–10 drivers → Print scan cover sheets.
 2. Put each sheet on its driver's folder, remove staples, stack.
@@ -101,26 +113,42 @@ each paper → a person confirms → it is filed.** Nothing is filed without a p
 4. Drivers → Upload scanned files → drop the PDF(s).
 5. Review and file (estimate 2–4 minutes per driver → ~6–12 office hours for 183 drivers).
 
-## 5. Open questions — need the owner
+## 6. Open questions — answered 2026-11-06
 
+- **Q-PI1 — ANSWERED 2026-11-06:** a **Brother scanner with a document feeder that saves PDF** — option (a). Original question kept below.
 - **Q-PI1 — What scanner does the office have?** It needs a document feeder (and ideally duplex) that
   saves to PDF. Candidates: (a) the office copier/MFP, if it scans to email/USB/folder; (b) buy a
   desktop feeder scanner (Brother ADS / Epson DS / Ricoh fi class, roughly $300–1,200).
   **Recommendation: (a) if it has a feeder; otherwise (b).** Phone photos work but not for 5,000 pages.
+- **Q-PI2 — ANSWERED 2026-11-06: (a) cover sheets**, as recommended.
 - **Q-PI2 — Cover sheets, or no separators?** (a) a printed QR cover sheet per driver; (b) one file per
   driver, named by the office; (c) one big stack, the AI decides whose page is whose.
   **Recommendation: (a)** — deterministic, and (b)'s file naming is the error-prone step it removes.
+- **Q-PI3 — ANSWERED 2026-11-06: (a)**, as recommended: from intake only, marked "filed from paper scan", scan required, never for an applicant.
 - **Q-PI3 — May a hired driver's paper application and road test certificate be filed from a scan?**
   Today nothing can file them (§1). (a) yes, from intake only, marked "filed from paper scan", the scan
   required, never for an applicant; (b) no, those two items stay "missing" for every legacy driver.
   **Recommendation: (a)** — the signed paper is the evidence §391.21/§391.31 ask for.
+- **Q-PI4 — ANSWERED 2026-11-06:** the paper is kept "until we polish and ensure this as 100% reliable and precise and safe". Nothing in this plan destroys or asks to destroy an original.
 - **Q-PI4 — Keep the paper after scanning?** Electronic DQ records are allowed (§390.32) if accurate and
   legible; whether to destroy originals is a policy/counsel call. **Recommendation:** keep the paper
   until the fleet is scanned and an audit has been passed on the electronic file.
+- **Q-PI5 — ANSWERED 2026-11-06:** the **safety manager and the admin** review ("optional" — either may). Built as: review and filing are offered to whoever manages the roster section, which today is those two roles plus fleet manager; the restricted rule stands.
 - **Q-PI5 — Who reviews?** **Recommendation:** the safety manager (roster: manage), with drug/alcohol and
   Clearinghouse pages filed only by someone holding the testing-record read.
 
-## 6. Progress log
+## 7. Progress log
 
 - 2026-11-06: proposal written from the code on `main` (e5d4642) and production facts above. Waiting on
   Q-PI1–Q-PI5.
+- 2026-11-06: owner ruled Q-PI1–Q-PI5 (§6): Brother feeder scanner to PDF, cover sheets, legacy application
+  and road test filed from scan, paper kept until the process is proven, safety manager and admin review.
+- 2026-11-06: **PI1 built.** Drivers: "Print scan cover sheets" on the selection bar (same reader and cap as
+  the binder, `roster: manage`, ≤ 25). `POST /api/compliance/cover-sheets` → one letter page per driver: name
+  (Unicode), employee id, hire date, a 3½" ECC-H QR, instructions. `driverCoverSheet.ts` (shared) builds and
+  parses the payload; `evidence/intake/findCoverSheets.ts` paints each page at 150 dpi and decodes it with
+  `zxing-wasm` (added to the API, the web's pinned 3.1.4). Proved end to end, nothing stubbed: a stack of
+  sheet, papers, sheet, paper is cut at pages 1 and 4 with the right drivers, and a sheet tilted 3°, blurred
+  and saved as a 55 %-quality JPEG still reads. Deviation: D-PI1 (no tag table, no migration).
+  ⚠ The sheet's step 4 names "Upload scanned files", which PI2–PI4 build; a stack scanned before then is
+  only a PDF to keep and upload later.

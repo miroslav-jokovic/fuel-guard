@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { AppIcon, AppButton as BaseButton, AppCheckbox as BaseCheckbox, BulkActionBar } from "@silvicom/ui";
-import { ArrowDownTrayIcon } from "@silvicom/ui/icons";
+import { ArrowDownTrayIcon, PrinterIcon } from "@silvicom/ui/icons";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { selectionFull } from "./binderSelection";
+import { useCoverSheets } from "./coverSheets";
 
 /**
  * The audit binder for the drivers ticked on the roster (DQ-INTO-DRIVERS-PLAN DD2, D-DQ19). It came
@@ -16,6 +17,10 @@ import { selectionFull } from "./binderSelection";
  * `POST /api/compliance/exports/binder` asks (`canManage = requireSection("roster")`), so nobody is
  * offered a button the API refuses. Restricted pages (§382.401 drug and alcohol, §391.53 PSP) stay out
  * unless a role that reads them all opts in, D-DQ15; the API checks the opt-in again and records it.
+ *
+ * "Print scan cover sheets" (DRIVER-PAPER-INTAKE-PLAN PI1) sits on the same bar for the same reader:
+ * `POST /api/compliance/cover-sheets` asks `roster: manage` too, and a sheet is how the office starts
+ * scanning the same drivers' paper folders. Same selection, same cap.
  */
 const props = defineProps<{ selected: Set<string> }>();
 const emit = defineEmits<{
@@ -28,6 +33,21 @@ const session = useSessionStore();
 const toast = useToastStore();
 const requestBinder = useRequestBinder();
 const includeRestricted = ref(false);
+const coverSheets = useCoverSheets();
+
+async function printCoverSheets(): Promise<void> {
+  const driverIds = [...props.selected];
+  if (driverIds.length === 0) return;
+  try {
+    await coverSheets.print(driverIds);
+    toast.success(
+      "Cover sheets ready",
+      `Print ${driverIds.length === 1 ? "it" : `all ${driverIds.length}`} and put each one on top of that driver's folder before scanning.`,
+    );
+  } catch (e) {
+    toast.error("Could not make the cover sheets", e instanceof Error ? e.message : undefined);
+  }
+}
 
 async function build(): Promise<void> {
   const driverIds = [...props.selected];
@@ -61,6 +81,12 @@ async function build(): Promise<void> {
     <template v-if="selectionFull(props.selected)" #note>
       That is the most drivers one binder holds. Send the rest as a second binder.
     </template>
+    <!-- First, and apart from the binder's controls: the restricted opt-in beside the binder is the
+         binder's alone, and a sheet carries no record at all. -->
+    <BaseButton variant="secondary" size="sm" :disabled="coverSheets.printing.value" @click="printCoverSheets">
+      <AppIcon :icon="PrinterIcon" class="size-4" aria-hidden="true" />
+      {{ coverSheets.printing.value ? "Preparing…" : "Print scan cover sheets" }}
+    </BaseButton>
     <BaseCheckbox v-if="session.restrictedAccess" v-model="includeRestricted">
       Include restricted records
     </BaseCheckbox>
