@@ -85,7 +85,7 @@
   ],
   "recorded": {
     "source": "planted",
-    "prompt_version": "analyst@2",
+    "prompt_version": "analyst@3",
     "model": "none (written by a person)",
     "recorded_at": "2026-11-04T00:00:00Z",
     "output": {

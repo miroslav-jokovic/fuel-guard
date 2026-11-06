@@ -58,7 +58,7 @@ export const ADS_CAMPAIGN_WORKERS: Readonly<Record<string, readonly AdsCampaignW
 
 /** Each worker's level, by name and, for a per-platform worker, as `worker|platform`. L4/L5 only from a passing run. */
 export const ADS_WORKER_LEVELS: Readonly<Record<string, AdsReadinessLevel>> = {
-  "Analyst": "L2",
+  "Analyst": "L3",
   "Art director": "L2",
   "Budget guard": "L3",
   "Checker": "L2",

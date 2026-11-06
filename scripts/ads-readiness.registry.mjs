@@ -922,7 +922,21 @@ export const READINESS = [
           ],
         },
       ],
-      L3: [{ need: "the evaluation set at its bar: 0 numbers in the narration that the fold did not produce", gap: "analyst@2 (2026-11-05, Q-AD34 built): 10 of 11 live briefs pass the number check, twice, on 11 fixture folds with cohorts (pnpm ads:eval analyst, baseline.json); the one refusal both times is the model writing \"November 2026\" (2026 is not a figure on the sheet) and the check caught it, so nothing off the fold is sent. The bar is met by the check, not yet by the model, and the set grows over real folds" }],
+      // Analyst L3 (2026-11-06, w-two-smalls): the fact sheet names its period in words (`showPeriod`), the check reads a
+      // date in words as a date of its own kind, and analyst@3 met the bar on all 11 live folds, twice. "The set grows
+      // over real folds" is not an L3 condition: real folds exist only after live campaigns (L4/L5).
+      L3: [
+        {
+          need: "the evaluation set at its bar: 0 numbers in the narration that the fold did not produce",
+          tests: [
+            { file: ANALYST, titles: [
+              "the live eval met the bar on every fold: each model recording under the prompt in force is ready, and the baseline agrees on all",
+              "eight-week-cohorts", "cohorts-losses-no-hire", "planted-wrong-year", "planted-unrecorded-stage-number",
+            ] },
+            { file: BRIEF, titles: ["the sheet names the period in words, and a narration may quote it — the right year only"] },
+          ],
+        },
+      ],
       L4: [{ need: "a brief over sandbox insights", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },

@@ -82,18 +82,18 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@2",
+    "prompt_version": "analyst@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T21:19:38.692Z",
+    "recorded_at": "2026-11-06T14:48:33.524Z",
     "output": {
-      "headline": "On 2026-11-03, both campaigns together spent $42.10 across 2,300 impressions and 19 clicks, but produced no leads.",
+      "headline": "On November 3, 2026, 2 campaigns ran and brought in no leads, with all $42.10 in spend and all 19 clicks coming from Dedicated night runs.",
       "points": [
-        "Dedicated night runs carried all the activity: $42.10 spent, 2,300 impressions, 19 clicks, and a click rate of 0.8%, but no leads, so there is no cost per lead to report.",
-        "Regional Class A — Joliet served no impressions and recorded no clicks or leads, spending $0.00 for the day.",
-        "Month-to-date in 2026-11, all $42.10 in spend has run through Meta, with 28 days still remaining in the month.",
-        "The 2026-09-21 cohort (38 leads) is mature: 33 were contacted (86.8%), 17 converted (44.7%), 10 applied (26.3%), 4 hired (10.5%), and 8 were lost after conversion (21.1%).",
-        "The 2026-09-28 cohort (40 leads) is also mature: 36 contacted (90.0%), 20 converted (50.0%), 12 applied (30.0%), 5 hired (12.5%), and 9 lost after conversion (22.5%).",
-        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 converted, 1 applied, and 1 lost after conversion — but it is too young to judge, so no rates are shown; qualified leads and leads lost before becoming applicants are not recorded in the system."
+        "Dedicated night runs spent $42.10 across 2,300 impressions and 19 clicks at a 0.8% click rate, but produced no leads, so there is no cost per lead to report.",
+        "Regional Class A — Joliet served no impressions, recorded no clicks, and spent $0.00 — it was effectively idle on this day, with no leads and no cost per lead.",
+        "November 2026 has 28 days left; Meta is the only platform with spend so far this month, at $42.10.",
+        "The mature week-of-2026-09-28 cohort is the strongest on record: 40 leads, 36 contacted (90.0%), 20 converted to applicants (50.0%), 12 applied (30.0%), 5 hired (12.5%), and 9 lost after conversion (22.5%).",
+        "The mature week-of-2026-09-21 cohort shows 38 leads, 33 contacted (86.8%), 17 converted (44.7%), 10 applied (26.3%), 4 hired (10.5%), and 8 lost after conversion (21.1%).",
+        "The week-of-2026-10-26 cohort has 12 leads — 9 contacted, 3 converted, 1 applied, 1 lost after conversion, and no hires yet — but it is too young to judge; leads are still moving through the pipeline. Qualified leads and leads lost before conversion are not recorded in the system."
       ]
     }
   }
