@@ -6,8 +6,10 @@ import {
   compareDqUrgency,
   dqWorstRank,
   DQ_DUE_FILTERS,
+  DQ_DUE_FILTER_LABELS,
   FILE_FILTERS,
   dqSoonest,
+  matchesDqDue,
   matchesDqFilters,
   matchesDqRequirement,
   type DriverOverviewRow,
@@ -205,5 +207,22 @@ describe("BUILT_IN_VIEWS", () => {
 
   it("declares a table that saved views also accept", () => {
     expect(Object.keys(BUILT_IN_VIEWS)).toEqual([...SAVED_VIEW_TABLES]);
+  });
+});
+
+/**
+ * DRIVER-ROSTER-PLAN §6 Q7, answered 2026-11-06: an overdue item is inside every horizon, and the
+ * words say so. Before the ruling "Due in 30 days" listed drivers whose paper had already lapsed.
+ */
+describe("an overdue item is due, and the labels say so (Q7)", () => {
+  const lapsed = { attention: [attention({ state: "expired", daysRemaining: -9 })] };
+  it("admits a lapsed requirement into every horizon", () => {
+    for (const h of ["7", "14", "30"]) expect(matchesDqDue(lapsed, h)).toBe(true);
+  });
+  it("names the overdue half on every horizon it admits, and in every built-in view that uses one", () => {
+    for (const h of ["7", "14", "30"] as const) expect(DQ_DUE_FILTER_LABELS[h]).toBe(`Overdue or due in ${h} days`);
+    const horizonViews = BUILT_IN_VIEWS["roster.drivers"].filter((v) => /(^|&)due=\d/.test(v.query));
+    expect(horizonViews.length).toBeGreaterThan(0);
+    for (const v of horizonViews) expect(v.name).toMatch(/expired or expiring/);
   });
 });

@@ -108,6 +108,45 @@ surface nobody watches. A future bulk import (§6) is a paper upload, not this f
 hover card (it already lists papers) and in `FileUploadDialog`'s `outstanding` list. An expander would
 make the Drivers table a second qualification table, the thing this plan removes.
 
+**D-DQ23 · The carrier is a file subject, with its own catalogue** (DD5, Q-DD4 (a); decided 2026-11-06
+from the four blockers the DD4 handoff named). Measured first: the API needs nothing. `documents` has
+admitted `organization` since 0146 (`COMPLIANCE_DOCUMENT_SUBJECT_TYPES`), both write routes ask
+`mayFile(req, "manage", "organization", kind)` per kind, and the unit rollup already reads the scan an
+organization insurance/IFTA certification cites (`unitFiles.ts`, `readCitedDocuments`). So the second
+half of DD5's "done when" follows from the first; DD5 is a shared catalogue and the web.
+
+1. **`FileSubject` admits `organization`; no wrapper.** Its comment excluded the carrier because
+   "an org paper is always SHOWN inside a unit's file, never as a file of its own" (D-UF6). Q-DD4 (a)
+   made that untrue: Settings › Carrier records IS the carrier's file. The drawer's only subject uses
+   are the upload and the certification write, both of which the API accepts on the organization;
+   its record branch already refuses any subject but a driver. A wrapper would be a second form.
+2. **`carrierFileCatalogue.ts` in `@silvicom/shared`, `CARRIER_ITEMS`.** One spec per
+   `CARRIER_ONLY_CERT_KINDS` kind (label, citation, recurrence, group, scope), the same `FileItemSpecBase`
+   both other catalogues extend, built by `fileEngine.buildFile`. The fleet papers are NOT restated:
+   their items are `EQUIPMENT_ITEMS.filter(fleetWide)`, so a change to insurance on the truck file
+   is a change here. A test pins catalogue kinds == `ORGANIZATION_CERT_KINDS`, each exactly once.
+   Recurrence: `expiry` for everything `qualifyOrg` reads (it reads `expires_at` and reports a record
+   without one, so the security plan's yearly review (§172.802(c)) is typed as its expiry, not computed);
+   operating authority `one_time` (it does not lapse, it is revoked, and no gate reads it).
+3. **Permission per row, from the matrix.** `RequirementTable`'s `canManage` is one boolean for the
+   table, right for a driver's or a truck's file, wrong here: `fileSectionFor("organization", kind)` puts
+   insurance/IFTA in `equipment` and the rest in `roster`. The prop also takes a per-row answer, and the
+   page passes `session.can(fileSectionFor("organization", key), "manage")` — the question the route asks.
+   DD3's behaviour (a safety manager is not offered the fleet papers) holds row by row.
+4. **Hazmat kinds follow the driver catalogue's `scope: "hazmat"`** — shown only when `hazmatguard` is
+   on (`moduleEnabled`, as `QualificationSection` and `useDriverDropItems` already do). Within it, the
+   split is `qualifyOrg`'s (qualificationGate.ts §10.5), not a new one: PHMSA registration and financial
+   responsibility it checks on every hazmat load, so they are required; the security plan and the safety
+   permit it checks only when a load trips §172.800(b) / §385.403(b), so they are `advisory` (never
+   "missing"; filed first through the page's drop zone, as ELDT is on a driver's file, then a row).
+   Production 2026-11-06: Silvicom Inc has `hazmatguard` on, so its page will open with five rows
+   missing (operating authority, PHMSA registration, financial responsibility, insurance, IFTA) — the
+   truth, since it has no organization record of any kind (§2).
+5. **`CertManager` is deleted.** Its one field the drawer lacks is `effectiveFrom` (the binder and
+   `CertificationHistory` print it; a policy has a start). The drawer gains it for specs that carry
+   `effectiveFrom: true` (fleet insurance, financial responsibility), rather than the page keeping a
+   second form for one date. Carrier records was its last caller (DD4).
+
 ## 4. Steps — each one PR, in this order
 
 ### DD1 — Drivers answers "who is behind, soonest first"
@@ -175,6 +214,20 @@ tractor's File cell on Vehicles stops counting insurance as missing.
   (b) hide the File column and the three expiry columns for roles without `safety: view`.
   **Recommendation: (a).** Ask the owner before DD4 ships, since DD4 is when the override stops
   having anything to hide.
+- **Q-DD5 — is operating authority required of every carrier?** ANSWERED 2026-11-06: (a), owner: *"implement best solutions for open questions"*. Nothing
+  reads `operating_authority` today (no gate, no binder line), so D-DQ23 has no derivation to lean on.
+  Candidates: (a) required (`scope: "always"`): a for-hire carrier's MC authority is the first paper
+  an auditor or broker asks for, and Silvicom is for-hire; (b) advisory: a private carrier holds none,
+  and a future tenant that is one would read "missing" forever. **Recommendation: (a)** — every tenant
+  today is for-hire; a private carrier is a carrier-type setting the product does not have yet, and
+  inventing it here would be a workaround.
+- **Q-DD6 — one scan for insurance and financial responsibility, or two rows?** ANSWERED 2026-11-06: (a),
+  same ruling. The fleet policy (§387.7, every truck counts it) and the hazmat financial-responsibility
+  proof (§387.9 minimums, `qualifyOrg` reads its own kind) may be the same document with an MCS-90
+  endorsement. Candidates: (a) two rows, two certifications; the office files the same PDF to both if
+  it is one paper; (b) the insurance row satisfies both, which changes what the hazmat gate accepts.
+  **Recommendation: (a)** — §387.9's hazmat minimum ($1M–$5M by commodity) is a separate fact from
+  "the fleet is insured", and (b) would silently clear a hazmat load on a policy below the minimum.
 
 ## 6. Found while planning, not in this plan's scope
 
@@ -270,3 +323,22 @@ check. Recorded here so it is not lost; it is its own plan.
   scan uploads before the record is written, as on the driver and unit files), and keeps `CertManager` only
   if a kind needs fields the drawer lacks. Done when a PHMSA registration filed there cites a document an
   auditor can open, and the unit rollup's organization insurance/IFTA show their paper on a truck's file.
+- 2026-11-06: DD4 confirmed merged (#2083). DD5's four blockers resolved as D-DQ23 (§3): the API already
+  files and reads organization scans, so DD5 is a shared `CARRIER_ITEMS` catalogue + the web. Two
+  choices left for the owner before building, recorded as Q-DD5 and Q-DD6 (§5).
+- 2026-11-06: owner: *"implement best solutions for open questions"* — **Q-DD5 (a)**, **Q-DD6 (a)**. DD5 built.
+  `carrierFileCatalogue.ts` (shared): `CARRIER_ITEMS`, `carrierFileSpecs`, `buildCarrierFile` on `fileEngine`;
+  the fleet papers are the equipment catalogue's `fleetWide` items re-shaped, and a test pins its kinds to
+  `ORGANIZATION_CERT_KINDS`. Settings › Carrier records is now `RequirementTable` + `RequirementDrawer` +
+  `DocumentDropCard` + `CertificationHistory` on the organization; `CertManager.vue` is deleted.
+  `FileSubject` admits `organization`; `RequirementTable.canManage` also takes a per-row answer; the drawer
+  asks "Effective from" for specs that carry `effectiveFrom` (fleet insurance, financial responsibility).
+  Found on the way: (1) financial responsibility sits in the Insurance group beside the fleet policy, not
+  under Hazmat, since it is so often the same paper (Q-DD6); (2) the security plan stays `expiry`, not
+  `annual` as D-DQ23 first said, because the hazmat gate reads its `expires_at`; D-DQ23 corrected.
+- 2026-11-06: owner: *"implement best solution for open questions … we will upload documents for drivers
+  later"*. The two the roster plan still held, both answered there (§6): **Q7** — an overdue item is due;
+  the Due options now read "Overdue or due in N days" and the built-in views "expired or expiring in 30
+  days" (they always listed lapsed drivers, the names said otherwise). **Q6** — a requirement dated with no
+  scan keeps its state and the driver file says "Date on file, no scan" (D-UF3's rule, now on both files).
+  Driver paper intake (§6 of this plan) stays the owner's, scheduled for later.

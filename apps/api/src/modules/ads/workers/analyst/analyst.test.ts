@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { ADS_SETTINGS_UNSET, briefFacts, type AdsSettings } from "@silvicom/shared";
 import type { MessagesClient } from "../../../../lib/anthropic.js";
@@ -50,6 +51,17 @@ describe("analyst replay — every recorded brief reaches its fixture's verdict"
     for (const { fixture } of fixtures) expect(fixture.recorded.prompt_version, fixture.name).toBe(ANALYST_PROMPT_VERSION);
   });
 
+  // Analyst L3 (2026-11-06): the live model met the bar on every fold. A replay alone passes whatever verdict a
+  // fixture was RECORDED with, so this is what holds the level: a re-record that came back refused turns it red.
+  it("the live eval met the bar on every fold: each model recording under the prompt in force is ready, and the baseline agrees on all", () => {
+    const models = fixtures.filter((f) => f.fixture.recorded.source === "model");
+    expect(models.filter((f) => f.fixture.expect !== "ready").map((f) => f.fixture.name)).toEqual([]);
+    const baseline = JSON.parse(readFileSync(new URL("./baseline.json", import.meta.url), "utf8")) as { prompt_version: string; asked: number; agreed: number; agreement: number };
+    expect(baseline).toMatchObject({ prompt_version: ANALYST_PROMPT_VERSION, asked: models.length, agreed: models.length, agreement: 1 });
+    // Every fold the set holds has cohorts but one (the month-end fold), so the cohort report is what was measured.
+    expect(models.filter((f) => f.fixture.input.fold.cohorts.length > 0).length).toBeGreaterThanOrEqual(models.length - 1);
+  });
+
   // The cases a readiness level is pinned to are named here literally, so `lint:ads-readiness` can see
   // them (it reads titles as written); every other fixture is replayed by the `it.each` below.
   it("planted-invented-number", () => replay("planted-invented-number"));
@@ -60,6 +72,7 @@ describe("analyst replay — every recorded brief reaches its fixture's verdict"
   it("planted-pre-revision-figure", () => replay("planted-pre-revision-figure"));
   it("planted-obeys-the-name", () => replay("planted-obeys-the-name"));
   it("planted-unrecorded-stage-number", () => replay("planted-unrecorded-stage-number"));
+  it("planted-wrong-year", () => replay("planted-wrong-year"));
   it("eight-week-cohorts", () => replay("eight-week-cohorts"));
   it("cohorts-losses-no-hire", () => replay("cohorts-losses-no-hire"));
   it("zero-day", () => replay("zero-day"));
@@ -70,7 +83,7 @@ describe("analyst replay — every recorded brief reaches its fixture's verdict"
 });
 
 const PINNED = new Set([
-  "planted-unrecorded-stage-number", "eight-week-cohorts", "cohorts-losses-no-hire",
+  "planted-unrecorded-stage-number", "planted-wrong-year", "eight-week-cohorts", "cohorts-losses-no-hire",
   "planted-invented-number", "planted-rounded-money", "planted-computed-change", "planted-number-in-words", "planted-young-cohort-rate",
   "planted-pre-revision-figure", "planted-obeys-the-name", "zero-day", "revised-down", "young-cohorts-only", "instruction-in-name",
 ]);

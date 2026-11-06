@@ -573,6 +573,7 @@ again when a second non-admin role exists in a real org and a carrier asks for a
 team shares — not before. The table is designed so adding `shared boolean` later is one column and
 one RLS clause, and the primary key is the only thing that would have to move.
 
+**Q7 — Is a LAPSED requirement "due"?** **ANSWERED 2026-11-06** (owner: *"implement the best solution"*): yes. An overdue item stays inside every horizon (`matchesDqDue`), and the WORDS now say so: the Due options read "Overdue or due in N days", and the three built-in views "… expired or expiring in 30 days". Pinned by "names the overdue half on every horizon it admits, and in every built-in view that uses one" (`dqFleetFilter.test.ts`). Original question kept below.
 **Q7 — Is a LAPSED requirement "due"?** (found by R4b; blocks nothing, but the two answers are on
 screen together today)
 `buildAttentionStrip`'s tile counts `soonest >= 0 && soonest <= days` — future-dated only. The filter
@@ -599,6 +600,7 @@ Candidates with no sync owner and no legal consequence: `employee_id`, `phone_al
 `emergency_contact_*`, `eld_id`. Explicitly **not**: any `DRIVER_IDENTITY_FIELDS` member, `status`,
 `termination_date`, `hire_date`, `date_of_birth`, `pay_*`, anything McLeod writes.
 
+**Q6 — ANSWERED 2026-11-06** (owner: *"implement the best solution … we will upload documents for drivers later"*): the item KEEPS its state and the driver's file row says "Date on file, no scan", the truck file's D-UF3 rule applied to drivers, so both files answer it alike. Not a new state: demoting to `missing` would turn all 183 drivers blocked before the scheduled paper intake. Not said to a reader the scan is withheld from. Pinned by "keeps a synced CDL current and notes that its scan is missing" (`qualificationSectionNoScan.test.ts`). Original question kept below.
 **Q6 — May the DQ file read `current` on a date with no scan behind it?** (raised by Q2's ruling;
 does not block R1)
 `buildDqFile` treats any certification as presence, and R1 will start creating certifications from a

@@ -978,6 +978,51 @@ rate, and Higgsfield credits per approved creative.
   (a) a new route's own PR adds its ledger lines, which is what the ledger exists to force, and Track S's paths
   gain `modules/ads/security/*Route*.test.ts` add-only, as the surface catalogue already is;
   (b) Track G adds the lines on request, which costs a round trip per route. **Recommendation: (a).**
+- **Q-AD39 · The outcome ledger cannot hold the stages Q-AD37 says are recorded** (us, found starting B6,
+  2026-11-06; blocks B6, the Outcome feed). B6 writes one `ads_outcome_events` row per stage it sends (D-AD14).
+  0537 created that table before Q-AD37 was ruled, so its CHECK still allows the old names:
+  `stage in ('contacted', 'qualified', 'applied', 'hired', 'lost')`. The shared `OUTCOME_STAGES` (`contracts.ts`)
+  restates the same list, and `adsSchemaParity.test.ts` pins the two together. `LeadOutcomes` (the feed's only
+  input) reports `contacted`, `converted`, `applied`, `hired` and `lost_after_conversion`. Two of those five have
+  no column value:
+  - **converted.** The only allowed value it could take is `qualified`, and Q-AD37 ruled that conversion is never
+    called "qualified".
+  - **lost_after_conversion.** It would be stored as the broader `lost`, so the ledger would stop saying which
+    "lost" it was.
+
+  Under Q-AD37's ruling the ledger also has to say what we told Meta under its true name: the CRM event name
+  Meta receives is the stage name.
+  Two smaller gaps, neither of which needs a migration:
+  - `LeadOutcome` carries our lead id but not the platform's (`recruiting_leads.channel` / `external_ref`, which
+    `leadFromPlatform` stores). The table's `provider` and `platform_lead_ref` need both.
+  - `LeadOutcome` carries no stage-row id. D-AD14 says `event_id` = the stage row's id, and the shared
+    `LeadStageEvent.event_ref` is described as one, but nothing builds it.
+
+  Candidates:
+  - **(a)** The next-numbered migration replaces the CHECK with exactly `LEAD_OUTCOME_STAGES`, the five recorded
+    names. The table has had no writer since 0537, so no row is affected and old code still meets the schema. The
+    same PR derives `OUTCOME_STAGES` from `LEAD_OUTCOME_STAGES` instead of restating it. It also teaches
+    `adsSchemaParity.test.ts` to read the newest CHECK: today it reads only `create table` bodies, so an
+    `alter table … add constraint` would be invisible to it. `qualified` and `lost_before_conversion` join when
+    Q-AD37 (a) gives them a writer, through another migration. B6 then ships as the NEXT merge
+    (`lint:migration-ordering`).
+  - **(b)** Store `converted` as `qualified` and `lost_after_conversion` as `lost`. Refused: this is the false
+    name Q-AD37 ruled out, written into an evidence table that can never be corrected in place.
+  - **(c)** Send only the three stages that fit (`contacted`, `applied`, `hired`) and leave out `converted`.
+    Refused: it routes around the schema, and it drops the stage Q-AD37 picked because Meta's lead optimisation
+    needs one that 1–40 % of leads reach.
+
+  For the smaller gaps: B6's PR adds `provider` and `platform_lead_ref` to `leadOutcomeSchema` (add-only, shared),
+  and recruiting's reader selects `channel, external_ref`. That is a two-line touch to
+  `recruiting/leads/leadOutcomes.ts`, outside Track W's paths, so it needs the orchestrator's yes. The event id is
+  derived as `<lead id>:<stage>`, not taken from a row id. That is a deviation from D-AD14's wording, made
+  because each stage is "first reached", and the first contact row can change when an earlier contact is
+  back-dated, which would change a row-based id and send that stage twice. The ledger's
+  `unique (org_id, provider, source_event_ref)` does the dedup. OUR reading, to be checked at L4: Meta's own
+  `event_id` dedup covers a limited window, so it cannot be the dedup we rely on.
+  **Recommendation: (a), plus the two smaller fixes inside B6.** The migration is about 10 lines; a separate
+  PR merged first, then B6 unchanged in scope. Who writes the migration (Track W, or the orchestrator) is the
+  orchestrator's call. Track W's rules say to stop on a migration. **Nothing is built meanwhile.**
 - **Whether a Claude worker has an L4** (open since C2; **ruled by the owner 2026-11-05: yes**). A Claude worker has an
   L4 like any other, so no worker launches on its evaluation set alone. Copywriter's need is its live copy accepted on
   Meta's sandbox, in English and Spanish; that wording is ours, not the owner's, and lives in

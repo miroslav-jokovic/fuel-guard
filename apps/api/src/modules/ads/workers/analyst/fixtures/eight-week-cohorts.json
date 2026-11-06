@@ -152,18 +152,18 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@2",
+    "prompt_version": "analyst@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T21:18:37.400Z",
+    "recorded_at": "2026-11-06T14:47:24.735Z",
     "output": {
-      "headline": "On 2026-11-03, both campaigns delivered 9 leads across 14,640 impressions at a combined spend of $302.50 and a cost per lead of $33.61.",
+      "headline": "On November 3, 2026, both campaigns ran and together spent $302.50 to bring in 9 leads at a cost per lead of $33.61.",
       "points": [
-        "Regional Class A — Joliet was the stronger performer: $214.50 spent, 10,230 impressions, 152 clicks, 7 leads, a click rate of 1.5%, and a cost per lead of $30.64.",
-        "Dedicated night runs added $88.00 in spend, 4,410 impressions, 51 clicks, and 2 leads at a cost per lead of $44.00 and a click rate of 1.2%.",
-        "Month-to-date spend on Meta for 2026-11 sits at $605.00 with 27 days still remaining.",
-        "The 2026-10-05 cohort is the most active mature group: 52 leads, with 47 contacted, 18 converted, 11 applied, 5 hired, and 4 lost after conversion — rates of 90.4% contacted, 34.6% converted, and 9.6% hired.",
-        "The 2026-11-02 cohort is too young to judge: 12 leads have come in, only 5 have been contacted, and no one has converted or moved further yet.",
-        "Qualified leads and leads lost before becoming applicants are not recorded in the system."
+        "Regional Class A — Joliet drove most of the day's volume with 7 leads, $214.50 spend, 10,230 impressions, 152 clicks, a 1.5% click rate, and a cost per lead of $30.64.",
+        "Dedicated night runs added 2 leads on $88.00 spend across 4,410 impressions and 51 clicks, with a 1.2% click rate and a cost per lead of $44.00.",
+        "All November 2026 spend so far is on Meta at $605.00, with 27 days left in the month.",
+        "The 2026-10-05 mature cohort is the strongest on record: 52 leads, 47 contacted, 18 converted, 11 applied, and 5 hired, with a lost-after-conversion rate of 7.7%.",
+        "The 3 youngest cohorts — weeks of 2026-10-26, 2026-11-02, and others still active — are too young to judge on rates; the 2026-11-02 cohort has 12 leads with only 5 contacted and no conversions yet.",
+        "Qualified leads and leads lost before becoming applicants are not recorded in the system, so those stages are absent from all cohort figures."
       ]
     }
   }
