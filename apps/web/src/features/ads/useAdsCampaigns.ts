@@ -1,14 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { Ref } from "vue";
-import type { AdsCampaignCreate, AdsCampaignLaunch, AdsCampaignMove, AdsCampaignSummary, AdsCampaignView, AdsCreativeDecision } from "@silvicom/shared";
+import type { AdsCampaignCreate, AdsCampaignMove, AdsCampaignSummary, AdsCampaignView, AdsCreativeDecision } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { apiRefusal } from "@/composables/useStepUpRetry";
 import { isWorking } from "./adsCampaignFlow";
 
 /**
  * The campaign doors (`routes/campaigns.ts`, `routes/guard.ts`). Reading is anyone who can view recruiting; a
- * move, a create and an ad's decision are whoever manages it; the spend approval and Launch are `ads.spend` with a
- * fresh sign-in, so their refusals keep the API's `code` for `useStepUpRetry`.
+ * move, a create and an ad's decision are whoever manages it. Refusals keep the API's `code` (`apiRefusal`), so a
+ * door that later asks for a fresh sign-in (E3b-2's spend approval and Launch) is answered the same way.
  */
 export const ADS_CAMPAIGNS_KEY = ["ads", "campaigns"] as const;
 const WORKING_POLL_MS = 5_000;
@@ -54,10 +54,3 @@ export const useCampaignMove = () => useCampaignWrite<{ id: string; move: AdsCam
 export const useCreativeDecision = () =>
   useCampaignWrite<{ id: string; creativeId: string; decision: AdsCreativeDecision }>(({ id, creativeId, decision }) =>
     post(`/api/ads/campaigns/${id}/creatives/${creativeId}/decision`, decision, "Could not record the decision"));
-
-/** Approve the spend at these amounts, then launch at them: the launch door refuses without a covering approval. */
-export const useApproveAndLaunch = () =>
-  useCampaignWrite<{ id: string; launch: AdsCampaignLaunch }>(async ({ id, launch }) => {
-    await post(`/api/ads/campaigns/${id}/approvals`, { kind: "launch", ...launch }, "Could not approve the spend");
-    await post(`/api/ads/campaigns/${id}/launch`, launch, "Could not launch");
-  });

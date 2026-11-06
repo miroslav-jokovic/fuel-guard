@@ -31,6 +31,8 @@ const opening = ref<string | null>(null);
 const connection = ref<string | null>(null);
 const kit = ref<string | null>(null);
 const refused = ref<string | null>(null);
+/** A failed read is not "nothing is set up": saying so would send a person to Settings for nothing. */
+const setupUnread = computed(() => Boolean(connections.error.value || kits.error.value));
 const ready = computed(() => Boolean(opening.value && connection.value && kit.value));
 
 watch(() => props.open, (open) => {
@@ -67,7 +69,8 @@ async function submit(): Promise<void> {
       <FormField v-slot="{ id: f }" label="Brand kit" required>
         <AppSelect :id="f" v-model="kit" :options="kitOptions" placeholder="Choose…" data-test="kit" />
       </FormField>
-      <p v-if="accounts.length === 0 || kitOptions.length === 0" class="text-sm text-ink-muted" data-test="setup-missing">
+      <AppCallout v-if="setupUnread" tone="danger" data-test="setup-unread">Could not load the ad accounts or brand kits. Close this and try again.</AppCallout>
+      <p v-else-if="accounts.length === 0 || kitOptions.length === 0" class="text-sm text-ink-muted" data-test="setup-missing">
         A campaign needs a connected ad account and a saved brand kit, both in Settings › Ads control.
       </p>
       <AppCallout v-if="refused" tone="danger" role="alert" data-test="campaign-refusal">{{ refused }}</AppCallout>

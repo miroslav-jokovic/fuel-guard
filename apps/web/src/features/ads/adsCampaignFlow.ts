@@ -1,6 +1,6 @@
 import {
   ADS_PERSON_DOOR_EXCLUDED, campaignEventsFrom,
-  type CampaignEvent, type CampaignState, type CreativeState,
+  type AdCheckVerdict, type AdCreativeCheck, type CampaignEvent, type CampaignState, type CreativeState,
 } from "@silvicom/shared";
 
 /**
@@ -26,6 +26,11 @@ export const CREATIVE_STATE_LABEL: Record<CreativeState, string> = {
   approved: "Approved", rejected: "Rejected", live: "Live", paused: "Paused", archived: "Archived",
 };
 
+/** D-AD12's three checks in office words: the words, the text drawn on the picture, and the picture itself. */
+export const CHECK_LABEL: Record<AdCreativeCheck, string> = { copy: "Words", render: "Text on the picture", visual: "Picture" };
+export const CHECK_VERDICT_LABEL: Record<AdCheckVerdict, string> = { passed: "Passed", failed: "Failed", not_run: "Not checked" };
+export const CHECK_VERDICT_TONE: Record<AdCheckVerdict, string> = { passed: "success", failed: "danger", not_run: "neutral" };
+
 /** The agent is working: the page reads the campaign again until it stops. */
 const WORKING: ReadonlySet<CampaignState> = new Set<CampaignState>(["draft", "composing", "approved", "creating", "launching", "pausing"]);
 export const isWorking = (s: CampaignState): boolean => WORKING.has(s);
@@ -35,23 +40,13 @@ const MOVE_LABEL: Partial<Record<CampaignEvent, string>> = {
   pause: "Pause", archive: "Archive", resume_compose: "Try making the ads again", resume_create: "Try creating it again",
 };
 
-export interface CampaignMove { event: CampaignEvent; label: string; safe: boolean }
+export interface CampaignMove { event: CampaignEvent; label: string }
 
 /** What a person who manages recruiting may press from this state. */
 export function personMoves(state: CampaignState): CampaignMove[] {
   return campaignEventsFrom(state)
     .filter((t) => t.by.includes("person") && !ADS_PERSON_DOOR_EXCLUDED.includes(t.event))
-    .map((t) => ({ event: t.event, label: MOVE_LABEL[t.event] ?? t.event, safe: t.event !== "archive" }));
-}
-
-/** Launch has its own door, and the machine says which state it leaves from. */
-export const canLaunchFrom = (s: CampaignState): boolean => campaignEventsFrom(s).some((t) => t.event === "launch");
-
-/** A dollar amount typed by a person, in whole cents; null for anything that is not a positive amount. */
-export function centsFrom(dollars: string): number | null {
-  const n = Number(dollars.trim());
-  if (dollars.trim() === "" || !Number.isFinite(n) || n <= 0) return null;
-  return Math.round(n * 100);
+    .map((t) => ({ event: t.event, label: MOVE_LABEL[t.event] ?? t.event }));
 }
 
 /** The copy of one language as label and text, in the order the creative holds it. */

@@ -5,12 +5,12 @@ import { ref } from "vue";
 import { ADS_PERSON_DOOR_EXCLUDED, CAMPAIGN_STATES, CREATIVE_STATES, campaignEventsFrom, type AdsCampaignView, type AdsCreativeView, type CampaignState } from "@silvicom/shared";
 
 /**
- * The campaign page (E3): the buttons are the machine's and the doors', the id is made once per form, an ad a
- * person has not seen cannot be decided, and Launch goes to an admin at amounts they typed.
+ * The campaign page (E3b-1): the buttons are the machine's and the doors', the id is made once per form, an ad a
+ * person has not seen cannot be decided, and each ad shows its three checks. Launch is E3b-2's (`adsLaunch.test.ts`).
  */
 const api = vi.hoisted(() => ({ calls: [] as Array<{ path: string; body: unknown }>, failNext: null as null | { code: string; message: string } }));
 const who = vi.hoisted(() => ({ admin: false, manages: true }));
-const state = vi.hoisted(() => ({ campaign: null as unknown, connections: [] as unknown[], kits: [] as unknown[] }));
+const state = vi.hoisted(() => ({ campaign: null as unknown, connections: [] as unknown[], kits: [] as unknown[], setupFailed: null as Error | null }));
 vi.mock("@/lib/api", () => ({
   apiFetch: async (path: string, o: { body?: unknown } = {}) => {
     api.calls.push({ path, body: o.body });
@@ -21,8 +21,8 @@ vi.mock("@/lib/api", () => ({
 }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ admin: who.admin, can: () => who.manages }) }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
-vi.mock("./useAdsConnections", () => ({ useAdsConnections: () => ({ data: ref(state.connections) }) }));
-vi.mock("./useAdsBrandKits", () => ({ useAdsBrandKits: () => ({ data: ref(state.kits) }) }));
+vi.mock("./useAdsConnections", () => ({ useAdsConnections: () => ({ data: ref(state.connections), error: ref(state.setupFailed) }) }));
+vi.mock("./useAdsBrandKits", () => ({ useAdsBrandKits: () => ({ data: ref(state.kits), error: ref(null) }) }));
 vi.mock("@tanstack/vue-query", () => ({
   useQuery: () => ({ data: ref(state.campaign), isLoading: ref(false), isFetching: ref(false), error: ref(null), refetch: vi.fn() }),
   useMutation: (o: { mutationFn: (v: unknown) => Promise<void> }) => ({ isPending: ref(false), mutateAsync: o.mutationFn }),
@@ -32,7 +32,7 @@ vi.mock("@tanstack/vue-query", () => ({
 import AdsCampaignCreateDrawer from "./AdsCampaignCreateDrawer.vue";
 import AdsCampaignDrawer from "./AdsCampaignDrawer.vue";
 import AdsCreativeReview from "./AdsCreativeReview.vue";
-import { CAMPAIGN_STATE_LABEL, CAMPAIGN_STATE_TONE, CREATIVE_STATE_LABEL, canLaunchFrom, centsFrom, copyLines, isWorking, personMoves } from "./adsCampaignFlow";
+import { CAMPAIGN_STATE_LABEL, CAMPAIGN_STATE_TONE, CREATIVE_STATE_LABEL, copyLines, isWorking, personMoves } from "./adsCampaignFlow";
 
 const ID = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const CONN = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
@@ -45,7 +45,7 @@ const creative = (over: Partial<AdsCreativeView> = {}): AdsCreativeView => ({
 });
 const campaign = (s: CampaignState, creatives: AdsCreativeView[] = [creative()]) => ({ id: ID, name: "Dallas drivers", state: s, last_error: null, creatives }) as unknown as AdsCampaignView;
 const slide = { template: "<div><slot /><slot name='footer' /></div>" };
-const stubs = { SlideOver: slide, StepUpPrompt: { props: ["reason"], template: "<p data-test='step-up'>{{ reason }}</p>" } };
+const stubs = { SlideOver: slide };
 const drawer = () => mount(AdsCampaignDrawer, { props: { campaignId: ID }, global: { stubs } });
 
 beforeEach(() => {
@@ -54,6 +54,7 @@ beforeEach(() => {
   who.admin = false;
   who.manages = true;
   state.campaign = null;
+  state.setupFailed = null;
   state.connections = [{ id: CONN, provider: "simulator", status: "connected", account_ref: "990000000001" }];
   state.kits = [{ id: KIT, name: "Main", archived_at: null, current: {} }];
   setActivePinia(createPinia());
@@ -79,20 +80,10 @@ describe("adsCampaignFlow — the machine decides, this words it", () => {
     }
   });
 
-  it("launch is offered from paused and nowhere else", () => {
-    expect(CAMPAIGN_STATES.filter(canLaunchFrom)).toEqual(["paused"]);
-  });
-
   it("the page keeps reading while the agent works and stops when a person's turn comes", () => {
     expect(isWorking("composing")).toBe(true);
     expect(isWorking("review")).toBe(false);
     expect(isWorking("paused")).toBe(false);
-  });
-
-  it("reads dollars as whole cents, and anything else as nothing", () => {
-    expect(centsFrom("50")).toBe(5_000);
-    expect(centsFrom("12.34")).toBe(1_234);
-    for (const bad of ["", "  ", "0", "-5", "abc"]) expect(centsFrom(bad)).toBeNull();
   });
 
   it("lists one language's copy and skips anything that is not text", () => {
@@ -129,6 +120,22 @@ describe("AdsCampaignCreateDrawer", () => {
     expect(w.emitted("created")).toEqual([[a!.id]]);
   });
 
+  it("each opening of the form makes a new campaign id, so a second campaign is never the first one again", async () => {
+    const w = mountIt();
+    await w.find("select[data-test=opening]").setValue("op-1");
+    await w.find("[data-test=campaign-form]").trigger("submit");
+    await flushPromises();
+    await w.setProps({ open: false });
+    await w.setProps({ open: true });
+    await w.find("select[data-test=opening]").setValue("op-1");
+    await w.find("[data-test=campaign-form]").trigger("submit");
+    await flushPromises();
+    const [a, b] = api.calls.map((c) => (c.body as { id: string }).id);
+    expect(a).toMatch(/^[0-9a-f-]{36}$/);
+    expect(b).toMatch(/^[0-9a-f-]{36}$/);
+    expect(a).not.toBe(b);
+  });
+
   it("a refused create shows the API's sentence", async () => {
     api.failNext = { code: "settings_not_saved", message: "Save the ads spending limits before creating a campaign." };
     const w = mountIt();
@@ -142,6 +149,14 @@ describe("AdsCampaignCreateDrawer", () => {
   it("says what is missing when no account is connected, and a failing account is not offered", () => {
     state.connections = [{ id: CONN, provider: "meta", status: "failing", account_ref: "1" }];
     expect(mountIt().find("[data-test=setup-missing]").exists()).toBe(true);
+  });
+
+  it("a failed read of the accounts says it failed, never that nothing is set up", () => {
+    state.connections = [];
+    state.setupFailed = new Error("down");
+    const w = mountIt();
+    expect(w.find("[data-test=setup-unread]").exists()).toBe(true);
+    expect(w.find("[data-test=setup-missing]").exists()).toBe(false);
   });
 });
 
@@ -173,6 +188,21 @@ describe("AdsCreativeReview", () => {
     expect(review(creative({ state: "check_failed", last_error: "visual: a logo" })).find("[data-test=creative-error]").text()).toContain("a logo");
     expect(review(creative(), false).find("[data-test=approve]").exists()).toBe(false);
   });
+
+  it("shows the three checks for every format and language, with the checker's reason where one failed", () => {
+    const checks = { copy: { ok: true }, render: { ok: true }, visual: { ok: false }, visual_attempts: [{ attempt: 1, visual: { "1:1": [{ check: "no_foreign_logos", verdict: "fail", reason: "A logo on the cab door." }] } }] };
+    const w = review(creative({ state: "check_failed", checks, last_error: "visual check failed after 1 attempt(s)" }));
+    const es = w.find("[data-test=\"checks-1:1-es\"]");
+    expect(es.text()).toContain("1:1 · ES");
+    expect(es.findAll("td").map((t) => t.text())).toEqual(["Passed", "Passed", "FailedA logo on the cab door."]);
+    expect(w.findAll("[data-test^=\"checks-1\"]")).toHaveLength(2);
+  });
+
+  it("checks it cannot read say so instead of drawing passes", () => {
+    const w = review(creative({ checks: { copy: { ok: "yes" } } }));
+    expect(w.find("[data-test=checks-unreadable]").exists()).toBe(true);
+    expect(w.find("[data-test=checks]").exists()).toBe(false);
+  });
 });
 
 describe("AdsCampaignDrawer", () => {
@@ -201,44 +231,6 @@ describe("AdsCampaignDrawer", () => {
   it("an ad outside review cannot be decided", () => {
     state.campaign = campaign("paused");
     expect(drawer().find("[data-test=approve]").exists()).toBe(false);
-  });
-
-  it("launch is an admin's, from paused only", () => {
-    state.campaign = campaign("paused");
-    expect(drawer().find("[data-test=launch-form]").exists()).toBe(false);
-    who.admin = true;
-    expect(drawer().find("[data-test=launch-form]").exists()).toBe(true);
-    state.campaign = campaign("review");
-    expect(drawer().find("[data-test=launch-form]").exists()).toBe(false);
-  });
-
-  it("launch approves the typed amounts, then launches at them", async () => {
-    who.admin = true;
-    state.campaign = campaign("paused");
-    const w = drawer();
-    expect(w.find("[data-test=launch]").attributes("disabled")).toBeDefined();
-    await w.find("[data-test=daily]").setValue("50");
-    await w.find("[data-test=lifetime]").setValue("500");
-    await w.find("[data-test=launch-form]").trigger("submit");
-    await flushPromises();
-    const amounts = { daily_budget_cents: 5_000, lifetime_cap_cents: 50_000 };
-    expect(api.calls).toEqual([
-      { path: `/api/ads/campaigns/${ID}/approvals`, body: { kind: "launch", ...amounts } },
-      { path: `/api/ads/campaigns/${ID}/launch`, body: amounts },
-    ]);
-  });
-
-  it("a launch that needs a fresh sign-in asks for the password and sends no launch", async () => {
-    who.admin = true;
-    state.campaign = campaign("paused");
-    api.failNext = { code: "step_up_required", message: "Confirm your password to spend." };
-    const w = drawer();
-    await w.find("[data-test=daily]").setValue("50");
-    await w.find("[data-test=lifetime]").setValue("500");
-    await w.find("[data-test=launch-form]").trigger("submit");
-    await flushPromises();
-    expect(w.find("[data-test=step-up]").text()).toContain("Confirm your password");
-    expect(api.calls).toHaveLength(1);
   });
 
   it("shows why a campaign stopped", () => {
