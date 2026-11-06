@@ -52,6 +52,22 @@ export const hiringProfileSaveSchema = z.object({
 export type HiringProfileSave = z.infer<typeof hiringProfileSaveSchema>;
 
 /**
+ * One profile as `GET /recruitment/hiring-profiles` answers it (`listHiringProfiles`): the parent and its newest
+ * version. The answer also carries `defaults` — this file's `HIRING_PROFILE_V1` — so a first save starts from it.
+ */
+export interface HiringProfileView {
+  id: string;
+  name: string;
+  archived_at: string | null;
+  created_at: string;
+  current: { id: string; version: number; requirements: HiringRequirements; created_by_name: string; created_at: string } | null;
+}
+export interface HiringProfileList {
+  profiles: HiringProfileView[];
+  defaults: HiringRequirements;
+}
+
+/**
  * Profile v1 exactly as the owner ruled it on 2026-10-26 (RECRUITER-AUTOMATION-PLAN §3a): the values a
  * carrier's first save starts from. It is not seeded in the database (0553 header): until somebody saves,
  * there is no profile, and nothing claims one.
