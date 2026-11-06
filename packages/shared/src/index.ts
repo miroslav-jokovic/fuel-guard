@@ -23,6 +23,7 @@ export * from "./documentScoring.js";
 export * from "./qualificationGate.js";
 export * from "./complianceContract.js";
 export * from "./dqExportContract.js";
+export * from "./driverCoverSheet.js";
 export * from "./driverDobCsv.js";
 export * from "./employerInquiryContract.js";
 export * from "./employerResponseContract.js";

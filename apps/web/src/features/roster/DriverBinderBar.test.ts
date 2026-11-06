@@ -11,6 +11,8 @@ import DriverBinderBar from "./DriverBinderBar.vue";
 const mutateAsync = vi.fn();
 const isPending = ref(false);
 vi.mock("@/composables/useDqExports", () => ({ useRequestBinder: () => ({ mutateAsync, isPending }) }));
+const fetchObjectUrl = vi.hoisted(() => vi.fn(async () => "blob:cover-sheets"));
+vi.mock("@/lib/api", () => ({ fetchObjectUrl }));
 const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
 vi.mock("@/stores/toast", () => ({ useToastStore: () => toast }));
 vi.mock("@/stores/session", async () => {
@@ -85,5 +87,31 @@ describe("DriverBinderBar", () => {
     const full = new Set(Array.from({ length: DQ_EXPORT_MAX_DRIVERS }, (_, i) => `d${i}`));
     expect(mountBar(full).text()).toContain("most drivers one binder holds");
     expect(mountBar().text()).not.toContain("most drivers one binder holds");
+  });
+});
+
+/** DRIVER-PAPER-INTAKE-PLAN PI1: the same selection prints one scan cover sheet per driver. */
+describe("DriverBinderBar — scan cover sheets", () => {
+  const coverButton = (w: ReturnType<typeof mountBar>) => w.findAll("button").find((b) => b.text().includes("Print scan cover sheets"))!;
+  beforeEach(() => {
+    fetchObjectUrl.mockClear();
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it("asks for a sheet for every ticked driver and says what to do with them", async () => {
+    const w = mountBar(new Set(["d1", "d2"]));
+    await coverButton(w).trigger("click");
+    await flushPromises();
+    expect(fetchObjectUrl).toHaveBeenCalledWith("/api/compliance/cover-sheets", { method: "POST", body: { driverIds: ["d1", "d2"] } });
+    expect(toast.success).toHaveBeenCalledWith("Cover sheets ready", expect.stringContaining("on top of that driver's folder"));
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:cover-sheets");
+  });
+
+  it("reports the API's refusal instead of a silent nothing", async () => {
+    fetchObjectUrl.mockRejectedValueOnce(new Error("One of those drivers is not on this organization's roster."));
+    const w = mountBar(new Set(["d1"]));
+    await coverButton(w).trigger("click");
+    await flushPromises();
+    expect(toast.error).toHaveBeenCalledWith("Could not make the cover sheets", "One of those drivers is not on this organization's roster.");
   });
 });
