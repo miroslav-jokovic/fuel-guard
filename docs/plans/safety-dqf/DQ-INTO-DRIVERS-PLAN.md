@@ -342,3 +342,12 @@ check. Recorded here so it is not lost; it is its own plan.
   days" (they always listed lapsed drivers, the names said otherwise). **Q6** — a requirement dated with no
   scan keeps its state and the driver file says "Date on file, no scan" (D-UF3's rule, now on both files).
   Driver paper intake (§6 of this plan) stays the owner's, scheduled for later.
+- 2026-11-06: **DD5's second "done when" was half met, found by checking the truck page against it.** A
+  truck's insurance/IFTA row covered by the company's certification read "Covered by the fleet's paper" and
+  offered no View: `UnitFileSection` loaded only the unit's own documents, and the cited scan is filed on the
+  organization. It now also reads the organization's documents when a row is covered that way (the route
+  filters them per kind, so a reader sees only what equipment `view` allows), and the scan opens from the
+  truck's file. Pinned by "opens the fleet's insurance scan from a truck's file, read from the organization's
+  papers (DD5)". The roster plan's Q4, Q5 and Q8, settled by R6b/R6c on 2026-08-31 and still marked open, are
+  now marked answered. Nothing in this plan or the roster plan is left to build; the driver paper intake (§6)
+  waits on the owner.
