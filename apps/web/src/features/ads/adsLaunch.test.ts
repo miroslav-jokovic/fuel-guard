@@ -111,6 +111,16 @@ describe("launch — when the launch gate says the agent is not ready", () => {
     expect(w.find("[data-test=not-certified]").text()).not.toMatch(/L3|L4|Higgsfield client/);
   });
 
+  it("says the refusal once: the door's own sentence is hidden while the office list shows it", async () => {
+    api.answers = [{ ok: true }, NOT_CERTIFIED];
+    state.campaign = { ...campaign("paused"), last_error: "Not launched: … Renderer / Higgsfield client at L3." };
+    const w = drawer();
+    expect(w.find("[data-test=campaign-error]").exists()).toBe(true);
+    await launchAt(w, "50", "500");
+    expect(w.find("[data-test=not-certified]").exists()).toBe(true);
+    expect(w.find("[data-test=campaign-error]").exists()).toBe(false);
+  });
+
   it("reads the campaign again after a refusal, so the reason the door wrote shows", async () => {
     api.answers = [{ ok: true }, NOT_CERTIFIED];
     await launchAt(drawer(), "50", "500");

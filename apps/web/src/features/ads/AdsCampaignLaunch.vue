@@ -21,6 +21,8 @@ import { launchMissingFrom, useApproveAndLaunch } from "./useAdsCampaigns";
  * allows the simulator at all.
  */
 const props = defineProps<{ campaignId: string }>();
+/** The gate's list, or null once a launch is tried again: the drawer hides the same refusal in the door's words. */
+const emit = defineEmits<{ refused: [missing: AdsLaunchMissing | null] }>();
 
 const toast = useToastStore();
 const launch = useApproveAndLaunch();
@@ -39,12 +41,14 @@ async function goLive(): Promise<void> {
   const a = amounts.value;
   if (!a) return;
   missing.value = null;
+  emit("refused", null);
   try {
     await launch.mutateAsync({ id: props.campaignId, launch: a });
     toast.success("Campaign launching");
   } catch (e) {
     if (holdForStepUp(e, goLive)) return;
     missing.value = launchMissingFrom(e);
+    emit("refused", missing.value);
     if (!missing.value) toast.error("Not launched", e instanceof Error ? e.message : undefined);
   }
 }
