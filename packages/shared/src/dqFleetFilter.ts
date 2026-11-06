@@ -12,13 +12,16 @@ import { fileChip, matchesFileFilter } from "./fileChip.js";
  * differently, and neither would look wrong on its own screen. Since DQ-INTO-DRIVERS-PLAN DD4
  * (2026-11-06) the Drivers page is the one list that reads this.
  *
- * ── AN OVERDUE ITEM IS INSIDE EVERY HORIZON (Q7, now one answer) ──────────────────────────────────
- * `matchesDqDue` admits an OVERDUE driver into every horizon: it excludes only `soonest > days`. Until
- * 2026-11-06 the Driver Qualification page's attention strip counted "Due in 30 days" with
- * `soonest >= 0`, so the tile reading 2 opened a list of 3 (DRIVER-ROSTER-PLAN.md §6 Q7). The strip
- * left with that page (DQ-INTO-DRIVERS-PLAN DD4), and the Drivers page's Due filter is this predicate
- * alone, so the disagreement Q7 recorded no longer exists. Whether a lapsed item should read as
- * "due" at all is still the owner's to rule; until then it does, everywhere.
+ * ── AN OVERDUE ITEM IS INSIDE EVERY HORIZON (DRIVER-ROSTER-PLAN §6 Q7, ANSWERED 2026-11-06) ───────
+ * `matchesDqDue` admits an OVERDUE driver into a horizon: it excludes only `soonest > days`. That is
+ * the owner's ruling ("implement the best solution", 2026-11-06): a requirement that lapsed last week
+ * is the MOST due thing on the list, and a horizon that dropped it would under-report the work. Until
+ * DD4 the old page's attention strip counted `soonest >= 0` instead, so a tile reading 2 opened a list
+ * of 3; that strip is gone, and this predicate is the only answer.
+ *
+ * What the ruling changed is the WORDS: "Due in 30 days" read as future-only while it listed lapsed
+ * drivers too, so the options now say "Overdue or due in 30 days", and the built-in views say
+ * "expired or expiring" (savedViewContract.ts). "Overdue" alone stays its own option.
  *
  * ── THE FILE-STATUS WORDS LEFT THIS FILE (Q-UF9, 2026-10-20) ─────────────────────────────────────
  * `DQ_STATE_FILTERS` and `matchesDqState` ("has ANY item in this state") are gone: the state filter
@@ -41,9 +44,9 @@ export type DqDueFilter = (typeof DQ_DUE_FILTERS)[number];
 export const DQ_DUE_FILTER_LABELS: Record<DqDueFilter, string> = {
   "": "Due any time",
   overdue: "Overdue",
-  "7": "Due in 7 days",
-  "14": "Due in 14 days",
-  "30": "Due in 30 days",
+  "7": "Overdue or due in 7 days",
+  "14": "Overdue or due in 14 days",
+  "30": "Overdue or due in 30 days",
 };
 
 /** Ready-made `FilterSelect` options, so no page hand-builds the pair. */

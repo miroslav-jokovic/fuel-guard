@@ -140,19 +140,19 @@ export const BUILT_IN_VIEWS: Record<SavedViewTable, readonly BuiltInView[]> = {
   "roster.drivers": [
     QUALIFICATION_ATTENTION_VIEW,
     {
-      name: "Medical expiring in 30 days",
+      name: "Medical expired or expiring in 30 days",
       query: "req=medical_card&due=30&sort=full_name",
-      description: "Drivers whose §391.45 medical certificate lapses inside a month.",
+      description: "Drivers whose §391.45 medical certificate has lapsed or lapses inside a month.",
     },
     {
-      name: "CDL expiring in 30 days",
+      name: "CDL expired or expiring in 30 days",
       query: "req=cdl&due=30&sort=full_name",
-      description: "Drivers whose commercial licence lapses inside a month.",
+      description: "Drivers whose commercial licence has lapsed or lapses inside a month.",
     },
     {
-      name: "Anything expiring in 30 days",
+      name: "Anything expired or expiring in 30 days",
       query: "due=30&sort=full_name",
-      description: "Any §391.51 requirement lapsing inside a month, whichever one it is.",
+      description: "Any §391.51 requirement already lapsed or lapsing inside a month, whichever one it is.",
     },
     {
       name: "Not qualified to dispatch",

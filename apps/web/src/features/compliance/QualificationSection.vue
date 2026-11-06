@@ -171,8 +171,27 @@ const toRow = (i: DqFileItem): Row => {
     // has to be resolved per reader here rather than re-gated in the table.
     restricted: i.spec.evidenceKinds.some((k) => !session.canReadKind(k)),
     advisory: i.spec.advisory === true,
+    note: noScanNote(i),
   };
 };
+
+/**
+ * DRIVER-ROSTER-PLAN §6 Q6, answered 2026-11-06: a requirement whose date is on file with no scan
+ * behind it KEEPS its state (the date is a fact — a synced CDL expiry is the licence's real expiry)
+ * and says what is missing, the way a truck's file says "Date only, no paper" (UNIT-FILES-PLAN D-UF3).
+ * One rule for both files. Demoting it to `missing` instead would turn all 183 Silvicom drivers'
+ * files (none has a scanned paper, measured 2026-11-05) to blocked in the attention queue, the File
+ * filter and the expiry alerts before the paper intake the owner has scheduled, and §391.51 asks for
+ * the paper, not for the dispatch block that state would imply.
+ *
+ * Not said to a reader the scan is withheld from (`restricted`): the API drops restricted papers from
+ * their list, so "no scan" would be this reader's blind spot reported as the file's gap.
+ */
+function noScanNote(i: DqFileItem): string | null {
+  if (i.state === "missing" || i.documentId) return null;
+  if (i.spec.evidenceKinds.some((k) => !session.canReadKind(k))) return null;
+  return "Date on file, no scan";
+}
 
 const rows = computed<Row[]>(() =>
   file.value.items.filter((i) => showAll.value || attentionKeys.value.has(i.spec.key)).map(toRow),
