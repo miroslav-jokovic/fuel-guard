@@ -34,7 +34,7 @@ const world = (connection: Record<string, unknown>) => {
 };
 /** The launch door, on whatever host `vi.stubEnv` makes this process; no sandbox allowlist unless a test gives one. */
 const launch = (readiness?: LaunchReadiness, env: Partial<Env> = {}) =>
-  launchCampaign(w.admin, ORG, ADMIN, C, ASK, new Date("2026-11-05T15:00:00Z"), readiness, { env: { ...testEnv(), ...env } as Env });
+  launchCampaign(w.admin, ORG, ADMIN, C, ASK, new Date("2026-11-05T15:00:00Z"), readiness, { env: testEnv(env) });
 const refusedRows = () => w.transitions(C).filter((a) => a.status === "refused");
 const asked = (table: string) => w.rec.forTable(table).length;
 
