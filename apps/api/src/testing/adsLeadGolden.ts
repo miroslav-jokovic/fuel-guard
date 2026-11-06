@@ -46,6 +46,8 @@ export interface LeadRun {
   refused: number;
   failures: string[];
   rung: string[];
+  /** `ads_token_expiring` bells, by dedupe key: one per connection per day (`connectionAlerts.ts`). */
+  connectionBells: string[];
   waiting: string[];
   /** What the store was handed, by lead. */
   handed: Record<string, LeadProjection>;
@@ -79,6 +81,7 @@ export async function runLeadGolden(s: LeadScenario, fake: FakeMeta): Promise<Le
   const faults: Array<"fail" | "answer_lost"> = [];
   const verdictRows: FixtureRow[] = [];
   const rung = new Set<string>();
+  const connectionBells = new Set<string>();
 
   const ingest = (args: { p_org: string; p_lead: LeadProjection }) => {
     const fault = faults.shift();
@@ -112,6 +115,7 @@ export async function runLeadGolden(s: LeadScenario, fake: FakeMeta): Promise<Le
       if (fn !== "emit_notification") return null;
       const key = (args as { p_dedupe_key?: string | null }).p_dedupe_key ?? "";
       if (key.startsWith("lead_new:")) rung.add(key.slice("lead_new:".length));
+      if (key.startsWith("ads_token_expiring:")) connectionBells.add(key);
       return `ntf-${rung.size}`;
     },
   });
@@ -197,12 +201,16 @@ export async function runLeadGolden(s: LeadScenario, fake: FakeMeta): Promise<Le
     ...out,
     stored: Object.fromEntries([...rows.values()].map((r) => [label(r), r.roads])),
     rung: [...rung].map((id) => label(byId.get(id)!)),
+    connectionBells: [...connectionBells],
     waiting: [...queue.values()].map((j) => labelOf(j.leadgenId)),
     handed: Object.fromEntries([...rows.values()].map((r) => [label(r), r.projection])),
     verdicts,
     verdictRows: counts,
     strayWrites: [
-      ...rec.writes().map((q) => q.table).filter((t) => !LEAD_WRITES.has(t)),
+      // Marking the connection `failing` on a refused token is the alert's half (connectionAlerts.ts), stated by
+      // `connection_bells`; any other write to it is still stray.
+      ...rec.writes().filter((q) => !(q.table === "ads_platform_connections" && (q.write?.payload as { status?: string } | null)?.status === "failing"))
+        .map((q) => q.table).filter((t) => !LEAD_WRITES.has(t)),
       ...rec.rpcs().map((c) => c.fn).filter((fn) => !LEAD_RPCS.has(fn)),
     ],
     metaWrites: fake.requests.filter((q) => q.method === "POST" && !q.path.endsWith("/leadgen_forms")).length,
@@ -225,6 +233,10 @@ export function compareLeads(s: LeadScenario, run: LeadRun): GoldenFailure[] {
   check("failures", sorted(s.expect.failures), sorted(run.failures));
   check("rung", sorted(s.expect.rung ?? leads), sorted(run.rung));
   check("waiting", sorted(s.expect.waiting), sorted(run.waiting));
+  // Rung once per connection per day: a scenario that says so sees exactly one bell, one that does not sees none.
+  check("connection_bells", s.expect.connection_bells, run.connectionBells.length);
+  const marked = run.rec.writes().filter((q) => q.table === "ads_platform_connections").length > 0;
+  check("connection_marked_failing", s.expect.connection_bells > 0, marked);
   for (const [l, want] of Object.entries(s.expect.answers)) for (const [k, v] of Object.entries(want)) check(`answers.${l}.${k}`, v, run.handed[l]?.answers[k]);
   for (const [l, want] of Object.entries(s.expect.verdicts)) for (const [k, v] of Object.entries(want)) check(`verdicts.${l}.${k}`, v, run.verdicts[l]?.[k]);
   for (const [l, want] of Object.entries(s.expect.contact)) check(`contact.${l}`, want.phone_e164, run.handed[l]?.phone_e164 ?? null);

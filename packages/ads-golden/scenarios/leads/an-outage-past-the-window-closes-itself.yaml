@@ -19,6 +19,9 @@ timeline:
   - backfill: true
 expect:
   stored: { l1: backfill }
+  # monitor-alerts (2026-11-06): each refusing run rings the office, deduped per connection per day. The two
+  # refusing runs are 72 hours apart, so two days, two bells; each run's two forms make one.
+  connection_bells: 2
   failures:
     - "backfill 2: en graph:token_invalid"
     - "backfill 2: es graph:token_invalid"

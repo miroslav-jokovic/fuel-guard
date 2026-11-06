@@ -4,8 +4,10 @@ import { completeAction, startAction } from "../actions/actionLedger.js";
 import { sendAdsAlert } from "../alerts/adsAlerts.js";
 import type { MetaGraph } from "../platforms/meta/graphClient.js";
 import { graphForConnection, type RegistryDeps } from "../platforms/registry.js";
+import { alertIfTokenRefused } from "../alerts/connectionAlerts.js";
 import { INSIGHTS_MAX_DAYS, pullConnectionInsights, type InsightsResult } from "./insightsPull.js";
 import { externalChangeKey, isNoSuchObject } from "./recordedGone.js";
+import { adIdsOf, reviewAds, type AdReviewResult, type AdReviewTarget } from "./adReview.js";
 
 /**
  * The daily reconcile (ADS-AGENT-BUILD-WORKFLOW.md B5c; D-AD4). For one connection: what Meta holds for every
@@ -55,6 +57,8 @@ export interface ReconcileResult {
   recorded: Array<{ field: ReconcileMismatch["field"]; meta_id: string }>;
   already_recorded: number;
   failures: Array<{ campaign_id?: string; reason: string }>;
+  /** Meta's review verdict on each delivering ad (monitor-alerts, ADS-RUNBOOK Gap 3; `adReview.ts`). */
+  ad_review: AdReviewResult | null;
 }
 
 type Read = { kind: "seen"; object: MetaObjectSeen } | { kind: "gone" } | { kind: "failed"; reason: string };
@@ -90,7 +94,7 @@ async function accountCampaigns(graph: MetaGraph, accountRef: string): Promise<M
 }
 
 /** Our campaigns on this connection that reached Meta, with their lifetime spend from our copy of Meta's numbers. */
-async function ourCampaigns(admin: SupabaseClient, orgId: string, connectionId: string): Promise<ReconcileOurCampaign[]> {
+async function ourCampaigns(admin: SupabaseClient, orgId: string, connectionId: string, ads: AdReviewTarget[] = []): Promise<ReconcileOurCampaign[]> {
   const { data, error } = await admin
     .from("ads_campaigns").select("id, state, daily_budget_cents, lifetime_cap_cents, platform_refs")
     .eq("org_id", orgId).eq("connection_id", connectionId).order("id").limit(1000);
@@ -101,6 +105,7 @@ async function ourCampaigns(admin: SupabaseClient, orgId: string, connectionId: 
   for (const r of rows) {
     const mc = r.platform_refs?.meta_campaign_id;
     if (typeof mc !== "string" || !mc) continue;
+    ads.push({ campaign_id: r.id, state: r.state, ad_ids: adIdsOf(r.platform_refs) });
     let spend = 0;
     for (let from = 0; ; from += 1000) {
       const { data: hrs, error: hErr } = await admin.from("ads_spend_hourly").select("spend_cents").eq("org_id", orgId).eq("campaign_id", r.id).order("hour").range(from, from + 999);
@@ -140,8 +145,18 @@ function alertFor(m: ReconcileMismatch, connectionId: string): Parameters<typeof
   };
 }
 
+/**
+ * One connection's reconcile, and (monitor-alerts, 2026-11-06; ADS-RUNBOOK Gap 4) the bell when Meta refused the
+ * token. The pull inside it may already have rung: the alert's dedupe makes the two one bell.
+ */
 export async function reconcileConnection(deps: ReconcileDeps, orgId: string, connectionId: string): Promise<ReconcileResult> {
-  const result: ReconcileResult = { connection_id: connectionId, insights: null, compared: 0, recorded: [], already_recorded: 0, failures: [] };
+  const result = await reconcileOnce(deps, orgId, connectionId);
+  await alertIfTokenRefused(deps.admin, deps.now(), { org_id: orgId, connection_id: connectionId }, result.failures.map((f) => f.reason), "reconcile");
+  return result;
+}
+
+async function reconcileOnce(deps: ReconcileDeps, orgId: string, connectionId: string): Promise<ReconcileResult> {
+  const result: ReconcileResult = { connection_id: connectionId, insights: null, compared: 0, recorded: [], already_recorded: 0, failures: [], ad_review: null };
   const { data: conn, error } = await deps.admin
     .from("ads_platform_connections").select("id, org_id, provider, is_sandbox, token_sealed, account_ref, status")
     .eq("org_id", orgId).eq("id", connectionId).maybeSingle();
@@ -161,7 +176,8 @@ export async function reconcileConnection(deps: ReconcileDeps, orgId: string, co
     result.failures.push({ reason: `graph:${opened.error_code}` });
     return result;
   }
-  const ours = await ourCampaigns(deps.admin, orgId, connectionId);
+  const ads: AdReviewTarget[] = [];
+  const ours = await ourCampaigns(deps.admin, orgId, connectionId, ads);
   const objects = new Map<string, MetaObjectSeen>();
   const compared: ReconcileOurCampaign[] = [];
   for (const k of ours) {
@@ -200,5 +216,7 @@ export async function reconcileConnection(deps: ReconcileDeps, orgId: string, co
     result.recorded.push({ field: m.field, meta_id: m.meta_id });
     await sendAdsAlert(deps.admin, orgId, alertFor(m, connectionId));
   }
+  result.ad_review = await reviewAds(deps, opened.graph, orgId, connectionId, ads);
+  result.failures.push(...result.ad_review.failures);
   return result;
 }

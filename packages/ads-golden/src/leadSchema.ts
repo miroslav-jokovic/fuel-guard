@@ -65,6 +65,12 @@ export const leadExpectSchema = z
     failures: z.array(z.string()).default([]),
     /** The leads whose `lead_new` rang. Omitted = every lead stored. A lost ring stays lost (`leadNotify.ts`). */
     rung: z.array(id).optional(),
+    /**
+     * `ads_token_expiring` bells when Meta refused the token (monitor-alerts, 2026-11-06): one per connection per
+     * DAY of the outage, whatever the number of runs (`connectionAlerts.ts`' dedupe). Above 0, the connection was
+     * also marked `failing`.
+     */
+    connection_bells: z.number().int().nonnegative().default(0),
     /** Leads with an `ads_lead_fetch` job still queued at the end. */
     waiting: z.array(id).default([]),
     /** What must have been kept as typed, by lead. */

@@ -4,7 +4,7 @@ import { META_GRAPH_VERSION } from "../meta/graphClient.js";
 import { FakeAds } from "./fakeMetaAds.js";
 import { FakeAdSets } from "./fakeMetaAdSets.js";
 import { FakeCampaigns, listByName, type FakeCampaign } from "./fakeMetaCampaigns.js";
-import { FaultBook, faultAnswer, type FakeMetaFault } from "./fakeMetaFaults.js";
+import { FaultBook, faultAnswer, reviewedAd, type AdReviewVerdict, type FakeMetaFault } from "./fakeMetaFaults.js";
 import { FakeForms } from "./fakeMetaForms.js";
 import { FakeLeads } from "./fakeMetaLeads.js";
 import { FakeRules } from "./fakeMetaRules.js";
@@ -135,6 +135,7 @@ export class FakeMeta {
   /** Page subscriptions and signed leadgen deliveries (B4b), in `fakeMetaWebhooks.ts`. */
   readonly webhooks: FakeWebhooks;
   private revoked = false;
+  private readonly verdicts = new Map<string, AdReviewVerdict>();
   readonly accounts: Map<string, FakeMetaAccount>;
   /** Every request, in order, for "exactly one create" assertions. */
   readonly requests: Array<{ method: string; path: string; body: Record<string, string> }> = [];
@@ -190,6 +191,12 @@ export class FakeMeta {
     return this.camps.campaigns;
   }
 
+  /** Meta's review verdict on an ad (`fakeMetaFaults.ts`, `AdReviewVerdict`): every read of it answers this until cleared. */
+  reviewAd(adId: string, verdict: AdReviewVerdict | null): void {
+    if (verdict) this.verdicts.set(adId, verdict);
+    else this.verdicts.delete(adId);
+  }
+
   /** The owner revokes our access in Business Settings: every call from now on is 190/463. */
   revokeToken(): void {
     this.token = `revoked:${this.token}`;
@@ -231,6 +238,8 @@ export class FakeMeta {
     if (fault && fault.kind !== "applied_then_temporary") return this.fault(res, fault);
 
     const answer = this.route(method, path, body);
+    const verdict = method === "GET" ? this.verdicts.get(path) : undefined;
+    if (verdict && answer.status < 400) return send(res, 200, reviewedAd(answer.body, verdict, body.fields));
     if (fault?.kind === "applied_then_temporary" && answer.status < 400) return this.fault(res, { kind: "temporary" });
     send(res, answer.status, answer.body);
   }

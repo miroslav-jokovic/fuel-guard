@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { platformLeadSchema, type LeadSink, type PlatformLead } from "@silvicom/shared";
 import type { MetaGraph } from "../platforms/meta/graphClient.js";
 import { pageGraphForConnection, type RegistryDeps } from "../platforms/registry.js";
+import { alertIfTokenRefused } from "../alerts/connectionAlerts.js";
 import { campaignFormIds } from "./formRefs.js";
 
 /**
@@ -164,12 +165,22 @@ async function campaignsWithForms(admin: SupabaseClient, orgId: string, connecti
   }
 }
 
+/**
+ * One connection's backfill, and (monitor-alerts, 2026-11-06; ADS-RUNBOOK Gap 4) the bell when Meta refused the
+ * Page token: leads stop arriving with a dead token, and the failed job alone rang nobody.
+ */
 export async function backfillConnectionLeads(
   deps: BackfillDeps,
   orgId: string,
   connectionId: string,
   opts: { since?: Date } = {},
 ): Promise<BackfillResult> {
+  const result = await backfillOnce(deps, orgId, connectionId, opts);
+  await alertIfTokenRefused(deps.admin, deps.now(), { org_id: orgId, connection_id: connectionId }, result.failures.map((f) => f.reason), "backfill");
+  return result;
+}
+
+async function backfillOnce(deps: BackfillDeps, orgId: string, connectionId: string, opts: { since?: Date }): Promise<BackfillResult> {
   const now = deps.now();
   const floor = new Date(now.getTime() - META_LEAD_RETENTION_DAYS * 86_400_000);
   const asked = opts.since ?? new Date(now.getTime() - BACKFILL_WINDOW_HOURS * 3_600_000);
