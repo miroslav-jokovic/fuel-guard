@@ -24,6 +24,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { loadEnv } from "../env.js";
 import { sandboxOnlyVerdict } from "../modules/ads/guard/sandboxOnly.js";
 import { MetaGraph } from "../modules/ads/platforms/meta/graphClient.js";
 import { centralDate, draftRecord, preflight, scrape, selectWorkers, targetOf, verdictOf, WORKER_RUNS, type DraftRecord, type Git, type SuiteResult, type Verdict } from "./adsCertifyPlan.js";
@@ -144,7 +145,9 @@ export function runVitest(file: string, env: NodeJS.ProcessEnv, out: string): Su
 
 async function realSandboxCheck(env: NodeJS.ProcessEnv): Promise<string | null> {
   const graph = new MetaGraph({ token: env.META_SANDBOX_TOKEN!, throttleKey: "ads-certify" });
-  const v = await sandboxOnlyVerdict({ processEnv: env }, "meta", env.META_SANDBOX_AD_ACCOUNT_ID!, async () => graph);
+  // The host's allowlist comes through the typed Env (envAds.ts) since the 2026-11-06 env split (#2115), parsed the
+  // way the server parses it; the host's name still comes from the raw environment, as simulatorGate reads it.
+  const v = await sandboxOnlyVerdict({ env: loadEnv(env), processEnv: env }, "meta", env.META_SANDBOX_AD_ACCOUNT_ID!, async () => graph);
   if (!v.ok) return v.message;
   // On a host simulatorGate reads as production, D-AD8 checks nothing (it answers yes unread); a
   // certification must be where the check runs, so that answer is a refusal here, not a pass.
