@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { RouteLocationRaw, RouteLocation } from "vue-router";
+import { QUALIFICATION_ATTENTION_VIEW } from "@silvicom/shared";
 import { router } from "./index";
 
 /**
@@ -22,7 +23,15 @@ describe("/compliance/:id redirect (D2)", () => {
     });
   });
 
-  it("the list page /compliance itself is untouched", () => {
-    expect(router.resolve("/compliance").name).toBe("compliance");
+  /**
+   * DQ-INTO-DRIVERS-PLAN D-DQ16: the list folded into Drivers on 2026-11-06. Its path redirects to the
+   * built-in "Qualification: needs attention" view, so a bookmark lands on the drivers it was kept for.
+   */
+  it("sends the retired list /compliance to Drivers, on the drivers whose file needs attention", () => {
+    const rec = router.getRoutes().find((r) => r.name === "compliance");
+    expect(rec?.redirect).toEqual({ name: "drivers", query: { file: "attention", sort: "file" } });
+    // …which is exactly the built-in view the Drivers menu offers, so the redirect names it.
+    expect(new URLSearchParams(QUALIFICATION_ATTENTION_VIEW.query).toString()).toBe("file=attention&sort=file");
+    expect(rec?.components?.default).toBeUndefined();
   });
 });

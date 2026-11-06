@@ -22,7 +22,6 @@ export * from "./documentFieldMatch.js";
 export * from "./documentScoring.js";
 export * from "./qualificationGate.js";
 export * from "./complianceContract.js";
-export * from "./complianceSeed.js";
 export * from "./dqExportContract.js";
 export * from "./driverDobCsv.js";
 export * from "./employerInquiryContract.js";

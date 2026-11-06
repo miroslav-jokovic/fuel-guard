@@ -269,7 +269,7 @@ const mountPage = async (at = "/drivers") => {
     history: createMemoryHistory(),
     // The two pages the roster's cells link to are here because every link asks the router whether
     // its page opens (SP5) — a route this harness did not declare would read as "nowhere to go".
-    routes: ["/drivers", "/drivers/:id", "/compliance/:id"].map((path) => ({ path, component: { template: "<div/>" } })),
+    routes: ["/drivers", "/drivers/:id"].map((path) => ({ path, component: { template: "<div/>" } })),
   });
   // Awaited: an unresolved route has no match, and the column picker's first `replace` throws on one.
   await router.push(at);
@@ -318,31 +318,15 @@ describe("DriversPage roster table", () => {
     expect(table.html()).toMatchSnapshot();
   });
 
-  /**
-   * SP5 (plan §4b): the qualification file (`/compliance/:id`) is a screen the admin can switch off
-   * for one person apart from the roster. Since UF4b the row's only door to it is the menu's "Open
-   * qualification file…", and that is what the guard gates; the cell has no link to lose.
-   */
-  it("drops the row menu's door to the qualification file where it does not open (SP5)", async () => {
-    const { __session: session } = (await import("@/stores/session")) as unknown as {
-      __session: import("@/testing/fakeSession").FakeSession;
-    };
-    const open = async () => {
-      const w = await mountPage();
-      await w.find("td[class*=pl-2] button").trigger("click");
-      const text = document.body.textContent ?? "";
-      // The menu is teleported to `document.body`; unmounting takes it with it, so the second
-      // mount's menu is read on its own.
-      w.unmount();
-      return text;
-    };
-    expect(await open()).toContain("Open qualification file…");
-    session.surfaces = { "safety.driver-qualification": false };
-    try {
-      expect(await open()).not.toContain("Open qualification file…");
-    } finally {
-      session.surfaces = null;
-    }
+  // The row menu's "Open qualification file…" left with the Driver Qualification page
+  // (DQ-INTO-DRIVERS-PLAN DD4): the driver's own page holds the file, and the row's name and dates open it.
+  it("offers no separate door to the qualification file in the row menu", async () => {
+    const w = await mountPage();
+    await w.find("td[class*=pl-2] button").trigger("click");
+    const text = document.body.textContent ?? "";
+    w.unmount();
+    expect(text).toContain("Edit driver");
+    expect(text).not.toContain("Open qualification file");
   });
 
   it("renders the archived view unchanged by the R2 extraction", async () => {

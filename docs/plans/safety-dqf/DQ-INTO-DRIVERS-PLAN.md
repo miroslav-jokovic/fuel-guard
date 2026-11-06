@@ -243,3 +243,30 @@ check. Recorded here so it is not lost; it is its own plan.
   scan first. Candidates: (a) give the carrier records a `RequirementDrawer` per kind, as the unit file has;
   (b) leave it, since these papers live with the carrier's own filing. **Recommendation: (a)**, as its own step
   after DD4.
+- 2026-11-06: owner: *"proceed as recommended and proposed"*. **Q-DD3 ANSWERED (a)**: dispatchers keep the
+  File and expiry columns on Drivers. **Q-DD4 ANSWERED (a)**: carrier records will carry their scan through a
+  `RequirementDrawer` per kind, as its own step after DD4 (DD5 below).
+- 2026-11-06: DD4 built. Deleted `CompliancePage.vue`, `QualificationFleetTable.vue` (+ test), `attentionStrip.ts`
+  (+ test), `QualificationSeedPanel.vue` (+ test), `compliancePageTilesInUrl.test.ts`, shared `complianceSeed.ts`
+  (+ test) and the API's `POST /certifications/seed` (D-DQ21; nothing else called either). `/compliance`
+  redirects to `QUALIFICATION_ATTENTION_VIEW`'s query, read from that built-in view rather than restated, so
+  the two cannot drift; `/compliance/:id` keeps its redirect. Surfaces `safety.driver-qualification` and its
+  `.detail` gone, with their nav icon; the Silvicom dispatcher override row is inert (0296) and left alone.
+  The `surfaceCatalogue.ts` 501 pin DD3 added is deleted (the file is 494). `dq_*` notifications open
+  `/drivers/:id?section=qualification` directly. The roster's "Open qualification file…" item is gone. The
+  hazmat load's "Fix the record in Compliance" now links the driver's qualification section (the load's
+  `driver_id`) and, for a carrier finding, Settings › Carrier records, each where it opens for the reader.
+  Found on the way:
+  (1) **Q7 of the roster plan dissolved.** It recorded the attention tile counting "Due in 30 days" without
+  overdue drivers while the filter included them. The tile went with the page, so one rule remains (an
+  overdue item is inside every horizon); whether that is right is still the owner's to rule, and
+  dqFleetFilter.ts now says so instead of citing the deleted test.
+  (2) Six sidebar cases lose an otherwise empty Safety group: dispatcher and recruiter, whose only Safety
+  entry was Driver qualification. Both keep Fleet › Drivers.
+  (3) `DESIGN-SYSTEM-CONTRACT.md`'s "In-cell link" row named `text-brand-600`, which no file used; 46 use the
+  `link` token. The row now says so and cites live files.
+- **DD5 — carrier records carry their scan (Q-DD4 (a)). NEXT.** Settings › Carrier records lists each
+  organization kind as a requirement row with its state, using `RequirementTable` + `RequirementDrawer` (the
+  scan uploads before the record is written, as on the driver and unit files), and keeps `CertManager` only
+  if a kind needs fields the drawer lacks. Done when a PHMSA registration filed there cites a document an
+  auditor can open, and the unit rollup's organization insurance/IFTA show their paper on a truck's file.

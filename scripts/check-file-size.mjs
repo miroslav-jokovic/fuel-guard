@@ -109,13 +109,6 @@ const GRANDFATHERED = {
   // itself rather than a hand-written trio, because a second definition of "clear an override" would
   // make a green result say nothing about the path that ships.
   "apps/api/src/modules/efs/routes/experiments.ts": 517,
-  // Pinned 2026-11-05 at 501, ONE line over, for DQ-INTO-DRIVERS-PLAN DD3: the catalogue sat at
-  // exactly 500 and DD3 adds the `safety.carrier-records` entry, written as one line with its reasoning
-  // moved to CarrierRecordsSettingsPage.vue. Not split: the SURFACES literal is what `lint:surfaces`
-  // parses out of this one file, so a split is a gate change too. DD4 DELETES THIS ENTRY: it removes the
-  // retired Driver Qualification page's two entries and their comment (about eight lines), which takes
-  // the file back under BUDGET. Still here after DD4 is a bug in that step, not a new normal.
-  "packages/shared/src/surfaceCatalogue.ts": 501,
   // soapClient.ts (571) and efsSoap.ts (519) left this list on 2026-08-10. The EFS card-control work
   // split them — soapClient → soapClient + efsTls, efsSoap → efsSoap + efsSoapSession + efsXml — and
   // all five now sit under BUDGET on their own. Deleting an entry is the intended end state of this

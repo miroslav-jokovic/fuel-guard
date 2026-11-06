@@ -7,9 +7,11 @@ import { notificationRoute } from "./notificationRoute";
  */
 describe("notificationRoute", () => {
   it("dq_* + driver goes to the qualification file", () => {
-    expect(notificationRoute("dq_expired", "driver", "d1")).toBe("/compliance/d1");
-    expect(notificationRoute("dq_expiring", "driver", "d1")).toBe("/compliance/d1");
-    expect(notificationRoute("dq_mvr_received", "driver", "d1")).toBe("/compliance/d1");
+    // Straight to the driver's qualification section since DQ-INTO-DRIVERS-PLAN DD4, not via the
+    // `/compliance/:id` redirect that stays for notifications already sent.
+    expect(notificationRoute("dq_expired", "driver", "d1")).toBe("/drivers/d1?section=qualification");
+    expect(notificationRoute("dq_expiring", "driver", "d1")).toBe("/drivers/d1?section=qualification");
+    expect(notificationRoute("dq_mvr_received", "driver", "d1")).toBe("/drivers/d1?section=qualification");
   });
 
   it("hazmat and dispatch loads route to their detail pages", () => {
@@ -67,7 +69,7 @@ describe("notificationRoute", () => {
   it("returns null for a destination the reader's guard would refuse (SP5)", () => {
     const opens = (to: string) => !to.startsWith("/hazmat");
     expect(notificationRoute("hazmat_review", "load", "L1", opens)).toBeNull();
-    expect(notificationRoute("dq_expired", "driver", "d1", opens)).toBe("/compliance/d1");
+    expect(notificationRoute("dq_expired", "driver", "d1", opens)).toBe("/drivers/d1?section=qualification");
   });
 
   it("anything uncertain returns null — no destination beats a wrong one", () => {

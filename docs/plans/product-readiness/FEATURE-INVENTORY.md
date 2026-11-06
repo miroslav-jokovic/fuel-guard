@@ -202,9 +202,9 @@ There are 22 features. For each one:
 
 ### F11 Driver qualification (DQF)
 - **Pages:**
-  - `/compliance` → `CompliancePage` (200): **being retired into Drivers**, `safety-dqf/DQ-INTO-DRIVERS-PLAN.md`
+  - `/compliance` → redirect to `/drivers?file=attention&sort=file` since 2026-11-06: the list folded into Drivers (`safety-dqf/DQ-INTO-DRIVERS-PLAN.md`); binders and exports on Drivers, carrier records at `/settings/carrier-records`
   - Sections inside `DriverDetailPage`
-- **Components:** `features/compliance`: QualificationFleetTable, QualificationSection, RequirementTable, RequirementDrawer, CertificationHistory, DocumentDropCard, ExportHistory, QualificationSeedPanel
+- **Components:** `features/compliance`: QualificationSection, CertificationHistory, ExportHistory, DriverFilesWidget; `components/files`: RequirementTable, RequirementDrawer, DocumentDropCard; `features/roster`: DriverBinderBar
 - **API:** `/api/compliance` · module `evidence`
 - **Data:**
   - `certifications` (74 in 30 days)

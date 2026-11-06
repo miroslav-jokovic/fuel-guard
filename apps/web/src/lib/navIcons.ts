@@ -26,7 +26,6 @@ import {
   RoadIcon,
   ShieldExclamationIcon,
   HazmatPlacardIcon,
-  LicenseIcon,
   SparklesIcon,
   ToolboxIcon,
   UnitKitIcon,
@@ -86,10 +85,6 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   // sidebar — the argument "they never sit side by side in one group" did not survive being looked at.
   "safety.drug-alcohol": MicroscopeIcon,
   "safety.roadside-inspections": RoadIcon,
-  // ⚠ U5/D-UI6: this wore ClipboardDocumentCheckIcon, which Assignments also wears — one glyph on
-  // two unrelated items in two different sections, both on screen at once. A §391.51 file is a
-  // licence and a medical card, so LicenseIcon says what it holds.
-  "safety.driver-qualification": LicenseIcon,
   "safety.placard-calculator": HazmatPlacardIcon,
   "safety.hazmat-review": ShieldExclamationIcon,
 
@@ -114,9 +109,9 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   // reads as "the shop at a glance", which is what the page became, and the glyph is unique in the
   // menu already. Changing it would have been churn without a reason (D-UI6 is about COLLISIONS).
   "maintenance.repair-spend": GaugeIcon,
-  // A part is a discrete thing on a shelf. `CubeIcon` is unused anywhere else in the menu — the
-  // note on `safety.driver-qualification` records what happened the last time two live nav items
-  // shared a glyph, and the collapsed rail is where that failure is worst.
+  // A part is a discrete thing on a shelf. `CubeIcon` is unused anywhere else in the menu — the last
+  // time two live nav items shared a glyph (Driver qualification and Assignments, U5/D-UI6), the
+  // collapsed rail is where that failure was worst.
   "maintenance.parts": CubeIcon,
   // An asset is a thing with a number on it, kept in a box or on a truck. `ToolboxIcon` is unused
   // anywhere else in the menu; see the barrel for why it is not the wrench the group wears. A row

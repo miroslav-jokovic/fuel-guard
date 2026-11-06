@@ -67,7 +67,8 @@ function mountBell() {
     history: createMemoryHistory(),
     routes: [
       { path: "/", component: { template: "<div />" } },
-      { path: "/compliance/:id", component: { template: "<div />" } },
+      // A DQ notification opens the driver's qualification section (DQ-INTO-DRIVERS-PLAN DD4).
+      { path: "/drivers/:id", component: { template: "<div />" } },
     ],
   });
   return mount(NotificationBell, {
@@ -115,12 +116,13 @@ describe("NotificationBell (C6)", () => {
     expect(read!.init?.body).toEqual({ ids: ["00000000-0000-4000-8000-0000000000e1"] });
     // The invalidated refetch now reports zero unread — the badge is gone.
     expect(w.get("button[aria-label]").attributes("aria-label")).toBe("Notifications");
-    expect(router.currentRoute.value.path).toBe("/compliance/00000000-0000-4000-8000-0000000000d1");
+    expect(router.currentRoute.value.fullPath).toBe("/drivers/00000000-0000-4000-8000-0000000000d1?section=qualification");
   });
 
   it("marks it read but stays put when the destination does not open for the reader (SP5)", async () => {
     session.role = "admin";
-    session.surfaces = { "safety.driver-qualification": false };
+    // The driver page answers to Drivers (D-SURF8), so switching Drivers off shuts the destination.
+    session.surfaces = { "fleet.drivers": false };
     const w = mountBell();
     await flushPromises();
     const item = w.findAll("button").find((b) => b.text().includes("Marcus Reyes"))!;

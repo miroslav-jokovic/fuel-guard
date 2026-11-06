@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useRoute } from "vue-router";
+import { RouterLink, useRoute } from "vue-router";
 import { HAZMAT_REVIEW_ROLES, type HazmatRunRow } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useOpens } from "@/composables/useOpens";
@@ -107,6 +107,12 @@ const qualFindings = computed(() => {
     ...q.org.map((f) => ({ subject: "Carrier", message: f.message, citation: f.citation })),
   ];
 });
+const qualDriverLink = computed(() =>
+  load.value?.driver_id && (latestRun.value?.qualification?.driver.length ?? 0) > 0
+    ? `/drivers/${load.value.driver_id}?section=qualification`
+    : null,
+);
+const hasCarrierFinding = computed(() => (latestRun.value?.qualification?.org.length ?? 0) > 0);
 function isVerdict(v: unknown): boolean {
   return typeof v === "object" && v !== null && "placards" in (v as Record<string, unknown>);
 }
@@ -195,8 +201,23 @@ const canPrimary = computed(() => ["draft", "submitted"].includes(load.value?.st
         <BaseCard v-if="qualFindings.length" class="border-l-4 border-danger-400">
           <h2 class="text-sm font-semibold text-ink">Qualification — cannot clear</h2>
           <p class="mt-1 text-xs text-ink-muted">
-            A legal disqualification (49 CFR §391 / §172.704). Fix the record in Compliance and re-run — this can never be override-cleared.
+            A legal disqualification (49 CFR §391 / §172.704). Fix the record and re-run — this can never be override-cleared.
           </p>
+          <!-- To the driver's qualification section (DQ-INTO-DRIVERS-PLAN DD4), where it said "in
+               Compliance" with no link — and that page has gone. A carrier finding is fixed in
+               Settings › Carrier records. Each shown only where it opens for this reader. -->
+          <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            <RouterLink
+              v-if="qualDriverLink && opens(qualDriverLink)"
+              :to="qualDriverLink"
+              class="font-medium text-link hover:text-link-hover"
+            >Open the driver's qualification file</RouterLink>
+            <RouterLink
+              v-if="hasCarrierFinding && opens('/settings/carrier-records')"
+              to="/settings/carrier-records"
+              class="font-medium text-link hover:text-link-hover"
+            >Open carrier records</RouterLink>
+          </div>
           <ul class="mt-3 space-y-2">
             <li v-for="(f, i) in qualFindings" :key="i" class="text-sm">
               <span class="inline-block rounded-control bg-danger-50 px-1.5 py-0.5 text-xs font-medium text-danger-700 ring-1 ring-inset ring-danger-200">{{ f.subject }}</span>
