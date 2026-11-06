@@ -307,7 +307,9 @@ titles) and fails `build` if a listed test is missing, renamed, skipped, focused
 `pnpm ads:readiness` prints the scorecard (worker × level). **Production launch (L5) is refused in
 code** unless the scorecard shows L4 for every worker the campaign uses: the Launch route reads
 the scorecard committed at the deployed sha. Retiring a required test means editing that list in
-a PR that review sees.
+a PR that review sees. **Ruled by the owner 2026-11-05: a Claude worker has an L4 like any
+other**, so none launches on its evaluation set alone (ADS-AGENT-PLAN §9). Built by #2078: the door is
+`campaigns/launchCertification.ts`, reading the levels baked from `scripts/ads-certifications.json`.
 
 ### The harness (built in Stage 1; no new dependencies)
 

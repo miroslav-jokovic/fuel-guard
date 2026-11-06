@@ -731,7 +731,9 @@ export const READINESS = [
         },
         { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "40 briefs over P1–P5, 15+ in Spanish: 40 of 40 live answers pass the claim and length checks, twice (pnpm ads:eval copywriter, baseline.json, 2026-11-05); the owner rates the 40 (the rating sheet in the PR) and the rate is recorded here" },
       ],
-      L4: [{ need: "not applicable to a model worker beyond the eval set", gap: "decided with C2: whether a Claude worker has an L4 at all" }],
+      // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
+      // evaluation set alone (ADS-AGENT-PLAN §9). The run below is OUR wording, written from the ruling, not the owner's.
+      L4: [{ need: "its live copy accepted on Meta's sandbox: ads made from real answers, in English and Spanish, created without refusal", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
@@ -767,7 +769,9 @@ export const READINESS = [
         },
       ],
       L3: [{ need: "the evaluation set at its bar: every prompt ends with the clause and starts from a reference photo when the preset shows equipment", gap: "C2 measured 10 of 10 (pnpm ads:eval artDirector, baseline.json) on fixture presets; §4R sets no set size — it is re-run on P1–P5 once the owner approves them (Q-AD12)" }],
-      L4: [{ need: "a render through the real Higgsfield API", gap: STAGE2 }],
+      // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
+      // evaluation set alone (ADS-AGENT-PLAN §9). The run below is OUR wording, written from the ruling, not the owner's.
+      L4: [{ need: "its live prompts rendered by the real Higgsfield API, from the kit photo where the preset shows equipment, each picture passing the no-lettering check", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
@@ -839,7 +843,9 @@ export const READINESS = [
         },
       ],
       L3: [{ need: "pure checks catch 100 % of planted defects; the vision checklist's recall per defect type measured, at an owner-set threshold", gap: "C5a measured recall 10 of 10 on a 10-image corpus, twice (pnpm ads:eval checker, baseline.json, 2026-11-04); the owner sets the threshold, and the corpus grows past one image per defect" }],
-      L4: [{ need: "the planted-defect corpus re-run on real renders", gap: STAGE2 }],
+      // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
+      // evaluation set alone (ADS-AGENT-PLAN §9). The run below is OUR wording, written from the ruling, not the owner's.
+      L4: [{ need: "the planted-defect corpus re-run on pictures the real Higgsfield API drew, at the owner-set recall threshold, plus a verdict on every picture of the Art director's L4 run", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
@@ -937,7 +943,9 @@ export const READINESS = [
           ],
         },
       ],
-      L4: [{ need: "a brief over sandbox insights", gap: STAGE2 }],
+      // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
+      // evaluation set alone (ADS-AGENT-PLAN §9). The run below is OUR wording, written from the ruling, not the owner's.
+      L4: [{ need: "a live brief written over a day of the sandbox account's real hourly insights, every number from the fact sheet", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
@@ -1101,9 +1109,10 @@ export const READINESS = [
  * every worker listed for it is certified L4 there. A per-platform worker names its platform. A provider or
  * kind with no row cannot launch at all, so a new adapter must be listed here before it can spend.
  *
- * Not listed, on purpose: the Analyst (the morning brief reads spend; it never touches delivery) and the Outcome
- * feed (B6, not built — it joins Meta's row when it sends events). The simulator has no row: its own gate
- * (`simulatorGate`) refuses it everywhere but a positively non-production host.
+ * The Analyst is listed (L4-ruling, 2026-11-06): G-launch's done-when includes "next morning's brief arrives", so a
+ * campaign uses it. Not listed, on purpose: the Outcome feed (B6 comes after the canary, §5; it joins Meta's row when
+ * it sends events). The simulator has no row: its own gate (`simulatorGate`) refuses it everywhere but a positively
+ * non-production host.
  *
  * @type {Record<string, Array<{ worker: string, platform?: string }>>}
  */
@@ -1118,6 +1127,7 @@ export const CAMPAIGN_WORKERS = {
     { worker: "Art director" },
     { worker: "Checker" },
     { worker: "Renderer / Higgsfield client" },
+    { worker: "Analyst" },
     { worker: "Security (all)" },
   ],
 };

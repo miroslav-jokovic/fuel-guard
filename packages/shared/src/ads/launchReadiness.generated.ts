@@ -50,6 +50,10 @@ export const ADS_CAMPAIGN_WORKERS: Readonly<Record<string, readonly AdsCampaignW
       "platform": null
     },
     {
+      "worker": "Analyst",
+      "platform": null
+    },
+    {
       "worker": "Security (all)",
       "platform": null
     }
