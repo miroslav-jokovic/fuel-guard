@@ -46,7 +46,7 @@ export interface RequirementRow {
   note?: string | null;
 }
 
-defineProps<{
+const props = defineProps<{
   rows: RequirementRow[];
   loading: boolean;
   error: string | null;
@@ -56,8 +56,13 @@ defineProps<{
   releasingKey: string | null;
   /** Removes the table's outer card when it is composed inside a DataWorkspace. */
   embedded?: boolean;
-  /** May this reader record or renew a requirement — the subject's own section, asked by the caller. */
-  canManage: boolean;
+  /**
+   * May this reader record or renew a requirement — the subject's own section, asked by the caller.
+   * A driver's or a unit's file is one section, so one answer. The carrier's file is two (D-DQ23 §3:
+   * `fileSectionFor("organization", kind)` puts insurance and IFTA in `equipment`, the rest in
+   * `roster`), so it passes the question per row instead.
+   */
+  canManage: boolean | ((key: string) => boolean);
   /**
    * Whether a scan can be released as a stamped copy (D-BD10). The stamp names a DRIVER and a
    * requirement, so a unit's file (UF5) turns it off rather than offering an export that cannot run.
@@ -70,6 +75,9 @@ const emit = defineEmits<{
   preview: [row: RequirementRow];
   release: [row: RequirementRow];
 }>();
+
+const mayManage = (key: string): boolean =>
+  typeof props.canManage === "function" ? props.canManage(key) : props.canManage;
 
 const columns: DataTableColumn[] = [
   { key: "label", label: "Requirement", width: "2xl", cellClass: "font-medium text-ink" },
@@ -153,7 +161,7 @@ const columns: DataTableColumn[] = [
     </template>
     <template #actions="{ row }">
       <KebabMenu
-        v-if="canManage && !row.restricted"
+        v-if="mayManage(String(row.key)) && !row.restricted"
         :trigger-label="`${row.state === 'missing' ? 'Record' : 'Renew'} ${row.label}`"
       >
         <BaseButton type="button" class="kebab-item" @click="emit('open', row.key)">

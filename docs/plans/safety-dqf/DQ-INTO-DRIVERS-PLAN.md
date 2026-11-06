@@ -125,9 +125,9 @@ half of DD5's "done when" follows from the first; DD5 is a shared catalogue and 
    both other catalogues extend, built by `fileEngine.buildFile`. The fleet papers are NOT restated:
    their items are `EQUIPMENT_ITEMS.filter(fleetWide)`, so a change to insurance on the truck file
    is a change here. A test pins catalogue kinds == `ORGANIZATION_CERT_KINDS`, each exactly once.
-   Recurrence: PHMSA registration, safety permit, financial responsibility and the fleet papers `expiry`;
-   operating authority `one_time` (it does not lapse, it is revoked); security plan `annual` (§172.802(c),
-   reviewed at least yearly).
+   Recurrence: `expiry` for everything `qualifyOrg` reads (it reads `expires_at` and reports a record
+   without one, so the security plan's yearly review (§172.802(c)) is typed as its expiry, not computed);
+   operating authority `one_time` (it does not lapse, it is revoked, and no gate reads it).
 3. **Permission per row, from the matrix.** `RequirementTable`'s `canManage` is one boolean for the
    table, right for a driver's or a truck's file, wrong here: `fileSectionFor("organization", kind)` puts
    insurance/IFTA in `equipment` and the rest in `roster`. The prop also takes a per-row answer, and the
@@ -214,15 +214,15 @@ tractor's File cell on Vehicles stops counting insurance as missing.
   (b) hide the File column and the three expiry columns for roles without `safety: view`.
   **Recommendation: (a).** Ask the owner before DD4 ships, since DD4 is when the override stops
   having anything to hide.
-- **Q-DD5 — is operating authority required of every carrier?** OPEN, blocks DD5's catalogue. Nothing
+- **Q-DD5 — is operating authority required of every carrier?** ANSWERED 2026-11-06: (a), owner: *"implement best solutions for open questions"*. Nothing
   reads `operating_authority` today (no gate, no binder line), so D-DQ23 has no derivation to lean on.
   Candidates: (a) required (`scope: "always"`): a for-hire carrier's MC authority is the first paper
   an auditor or broker asks for, and Silvicom is for-hire; (b) advisory: a private carrier holds none,
   and a future tenant that is one would read "missing" forever. **Recommendation: (a)** — every tenant
   today is for-hire; a private carrier is a carrier-type setting the product does not have yet, and
   inventing it here would be a workaround.
-- **Q-DD6 — one scan for insurance and financial responsibility, or two rows?** OPEN, blocks DD5's
-  catalogue. The fleet policy (§387.7, every truck counts it) and the hazmat financial-responsibility
+- **Q-DD6 — one scan for insurance and financial responsibility, or two rows?** ANSWERED 2026-11-06: (a),
+  same ruling. The fleet policy (§387.7, every truck counts it) and the hazmat financial-responsibility
   proof (§387.9 minimums, `qualifyOrg` reads its own kind) may be the same document with an MCS-90
   endorsement. Candidates: (a) two rows, two certifications; the office files the same PDF to both if
   it is one paper; (b) the insurance row satisfies both, which changes what the hazmat gate accepts.
@@ -326,3 +326,13 @@ check. Recorded here so it is not lost; it is its own plan.
 - 2026-11-06: DD4 confirmed merged (#2083). DD5's four blockers resolved as D-DQ23 (§3): the API already
   files and reads organization scans, so DD5 is a shared `CARRIER_ITEMS` catalogue + the web. Two
   choices left for the owner before building, recorded as Q-DD5 and Q-DD6 (§5).
+- 2026-11-06: owner: *"implement best solutions for open questions"* — **Q-DD5 (a)**, **Q-DD6 (a)**. DD5 built.
+  `carrierFileCatalogue.ts` (shared): `CARRIER_ITEMS`, `carrierFileSpecs`, `buildCarrierFile` on `fileEngine`;
+  the fleet papers are the equipment catalogue's `fleetWide` items re-shaped, and a test pins its kinds to
+  `ORGANIZATION_CERT_KINDS`. Settings › Carrier records is now `RequirementTable` + `RequirementDrawer` +
+  `DocumentDropCard` + `CertificationHistory` on the organization; `CertManager.vue` is deleted.
+  `FileSubject` admits `organization`; `RequirementTable.canManage` also takes a per-row answer; the drawer
+  asks "Effective from" for specs that carry `effectiveFrom` (fleet insurance, financial responsibility).
+  Found on the way: (1) financial responsibility sits in the Insurance group beside the fleet policy, not
+  under Hazmat, since it is so often the same paper (Q-DD6); (2) the security plan stays `expiry`, not
+  `annual` as D-DQ23 first said, because the hazmat gate reads its `expires_at`; D-DQ23 corrected.

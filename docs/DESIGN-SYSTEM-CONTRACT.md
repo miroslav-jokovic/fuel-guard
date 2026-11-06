@@ -318,7 +318,7 @@ Soft tint panel (inline note/alert, *not* a card):
 
 ### 3.5 The standard section inside a drawer
 
-Measured from `DriverAccessModal.vue` (the best drawer in the repo) and `CertManager.vue`:
+Measured from `DriverAccessModal.vue` (the best drawer in the repo) and `CertManager.vue` (deleted 2026-11-06, DQ-INTO-DRIVERS-PLAN DD5; its records are filed through `RequirementDrawer.vue` now):
 
 ```html
 <div class="space-y-6">            <!-- drawer body: sections separated by space-y-6 -->
