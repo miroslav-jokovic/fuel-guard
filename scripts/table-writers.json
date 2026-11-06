@@ -185,6 +185,7 @@
     "apps/api/src/modules/roster/driverCreate.ts",
     "apps/api/src/modules/roster/driverCredentials.ts",
     "apps/api/src/modules/roster/driverRehire.ts",
+    "apps/api/src/modules/roster/driverTmsHandover.ts",
     "apps/api/src/modules/roster/routes/archive.ts",
     "apps/api/src/modules/roster/routes/drivers.ts",
     "apps/api/src/modules/samsara/hosSync.ts",

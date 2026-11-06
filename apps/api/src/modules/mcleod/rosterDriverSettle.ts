@@ -31,6 +31,19 @@ import { cdlKey, type MatchOutcome } from "./rosterMatch.js";
  * `rosterRetire` never moves a date that is already set, so the NEXT termination would keep 2026-09-14
  * and start the clock years early. A re-employed driver's file is retained through the new employment,
  * so clearing it only ever lengthens retention.
+ *
+ * ── 2a. McLEOD TAKING BACK ITS OWN TERMINATION (D-RL6, owner 2026-11-06) ───────────────────────────
+ * The date rule missed the commonest rehire: McLeod un-terminating a driver without a new hire date.
+ * Amable Rafael Nin Diaz: McLeod terminated him 10-28 and the 10-30 retire run copied that here; by
+ * 11-04 McLeod had cleared the termination and listed him active again, hire date still 2024-04-29. The
+ * held list told the office to "unarchive" a row that was never archived, and he stayed terminated.
+ *
+ * When McLeod reports the driver active with NO termination date, and nobody here ever terminated or
+ * archived the row (no office `driver.updated` touching status or termination date, no `driver.archived`
+ * by a person), the termination on our row can only have come from McLeod — the retire and reconcile
+ * runs are its only other writers. McLeod has taken it back, and so does the sweep. A row the office
+ * terminated or archived itself stays a review item: that is D-MR7's case, a decision made HERE that
+ * McLeod has not caught up with.
  */
 
 const CLAIMABLE = new Set<string>(TMS_CLAIMABLE_SOURCES);
@@ -101,9 +114,12 @@ export async function rehireFormerDrivers(
     const hits = keys.map((k) => former.get(k)).filter((h) => h !== undefined);
     if (hits.length === 0) continue;
     const row = hits.every((h) => h && h.id === hits[0]?.id) ? hits[0]! : null;
-    const proven =
-      row !== null && row.identity_source !== "manual" && !!row.termination_date && !!r.hire_date && r.hire_date > row.termination_date;
-    if (!proven) {
+    const terminatedOn = row && row.identity_source !== "manual" ? row.termination_date : null;
+    const datesProve = !!terminatedOn && !!r.hire_date && r.hire_date > terminatedOn;
+    // `=== null`, not falsy: an agent that does not send the field says nothing about it.
+    const reversed =
+      !!row && !!terminatedOn && !datesProve && r.termination_date === null && !(await officeEndedEmployment(admin, orgId, row.id));
+    if (!row || !terminatedOn || (!datesProve && !reversed)) {
       out.rehireReview.push(r.external_id);
       continue;
     }
@@ -113,13 +129,37 @@ export async function rehireFormerDrivers(
     await restoreRehiredDriver(admin, orgId, {
       driverId: row.id,
       externalId: r.external_id,
-      tmsHireDate: r.hire_date!,
-      previousTerminationDate: row.termination_date!,
+      tmsHireDate: r.hire_date ?? null,
+      previousTerminationDate: terminatedOn,
+      proof: datesProve ? "hire_after_termination" : "tms_termination_reversed",
       previousStatus: row.status,
       wasArchived: row.archived_at !== null,
     });
   }
   return out;
+}
+
+/**
+ * Did a PERSON here end this driver's employment? Read from the audit log the office's own acts write —
+ * the roster PATCH (`driver.updated`, with the fields it was sent) and an archive by a member — rather
+ * than restated as a flag on the row, which nothing would keep true. Asked only for a former row McLeod
+ * lists as active, so a handful of reads a sweep at most.
+ */
+async function officeEndedEmployment(admin: SupabaseClient, orgId: string, driverId: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from("audit_logs")
+    .select("action, actor_id, meta")
+    .eq("org_id", orgId)
+    .eq("entity", "drivers")
+    .eq("entity_id", driverId)
+    .in("action", ["driver.updated", "driver.archived"]);
+  // Unknown is answered as yes: a failed read must never bring somebody back.
+  if (error) return true;
+  return ((data ?? []) as Array<{ action: string; actor_id: string | null; meta: { fields?: unknown } | null }>).some((a) =>
+    a.action === "driver.archived"
+      ? a.actor_id !== null
+      : Array.isArray(a.meta?.fields) && (a.meta.fields.includes("status") || a.meta.fields.includes("termination_date")),
+  );
 }
 
 /**

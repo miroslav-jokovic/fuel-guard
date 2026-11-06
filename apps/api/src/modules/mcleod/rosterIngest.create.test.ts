@@ -57,11 +57,15 @@ describe("create mode — a McLeod hire becomes a driver row (RL1)", () => {
     expect(r.retry).toEqual(["SVIRGIN"]);
   });
 
-  it("holds an applicant reached by licence", async () => {
+  // D-RL5 (2026-11-06) replaced RL1's hold here: the carrier hires in McLeod, so an application McLeod
+  // meets on licence AND name is hired onto that same row (`rosterApplicantHire.test.ts`) — never a second.
+  it("hires an applicant reached by licence and name onto the application row, and never inserts a second", async () => {
     const rec = seed([driver({ id: "d-app", status: "applicant", identity_source: "manual", full_name: "CURTIS HAIRSTON", cdl_number: "H5550001" })]);
     const r = await ingestDrivers(rec.client, ORG, [hairston], "create");
-    expect(rec.writtenRows("drivers")).toEqual([]);
-    expect(r.applicants).toEqual(["CHAIRSTO"]);
+    expect(rec.writtenRows("drivers")[0]).toEqual({ mcleod_driver_id: "CHAIRSTO", mcleod_company_id: "TMS", identity_source: "mcleod" });
+    expect(rec.rpcs().find((c) => c.fn === "hire_applicant")?.args).toMatchObject({ p_driver: "d-app", p_hire_date: "2026-10-28", p_actor: null });
+    expect(r.created).toBe(0);
+    expect(rec.forTable("drivers").some((q) => q.ops.some((o) => o.method === "insert"))).toBe(false);
   });
 
   it("holds an applicant reached only by name — a blank or mistyped licence on the form must not make a second driver", async () => {
