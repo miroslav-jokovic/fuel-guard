@@ -240,6 +240,9 @@
   "employer_verification_calls": [
     "apps/api/src/modules/recruiting/applicantEmployerCalls.ts"
   ],
+  "file_intake_items": [
+    "apps/api/src/modules/evidence/intake/paperIntakeItems.ts"
+  ],
   "finance_month_closes": [
     "apps/api/src/modules/financial/monthClose.ts"
   ],
@@ -558,6 +561,12 @@
   ],
   "orientation_videos": [
     "apps/api/src/modules/recruiting/orientationVideos.ts"
+  ],
+  "paper_intake_parts": [
+    "apps/api/src/modules/evidence/intake/paperIntake.ts"
+  ],
+  "paper_intake_stacks": [
+    "apps/api/src/modules/evidence/intake/paperIntake.ts"
   ],
   "part_stock": [
     "apps/api/src/modules/maintenance/inventory/stockSettings.ts",

@@ -91,6 +91,14 @@ describe("every /api ROUTE is gated, or is open with a written argument (S7, Q-S
       expect(routes.get(key), key).toContain("role(dispatch/view)");
     }
   });
+
+  /**
+   * The same geocoder's second door (Q-AD44 (a), 2026-11-06): an opening's area for a recruiter, who holds no
+   * `dispatch`. It asks the RECRUITMENT section, so the fueling door above stays narrow.
+   */
+  it("recruiting's place search asks the recruitment section, not dispatch", () => {
+    expect(everyRoute().get("GET /api/recruitment/place-suggest")).toContain("role(recruitment/view)");
+  });
 });
 
 // ── ADMIN ONLY, BY NAME (SP11, Q-SET11) ─────────────────────────────────────────────────────────

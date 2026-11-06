@@ -1,3 +1,4 @@
+import type { Env } from "../../../env.js";
 import type { MetaGraph } from "../platforms/meta/graphClient.js";
 import { simulatorGate } from "../platforms/simulatorGate.js";
 
@@ -5,11 +6,11 @@ import { simulatorGate } from "../platforms/simulatorGate.js";
  * D-AD8, "Staging spends nothing", enforced (Q-AD42, ruled by the orchestrator 2026-11-06: (a) AND (b)). On a host that
  * is not production, a Meta ad account is accepted only when BOTH hold:
  *
- *   (b) its id is in that host's allowlist, `META_SANDBOX_AD_ACCOUNT_IDS`, read from its deploy settings (Parameter
+ *   (b) its id is in that host's allowlist, `META_SANDBOX_AD_ACCOUNT_IDS`, set in its deploy settings (Parameter
  *       Store), comma-separated, `act_` optional. Empty or unset = every Meta account is refused there. The
- *       engineer's word, kept where only a deploy can change it. Read from the process environment, the same place
- *       and the same way `simulatorGate` reads the host's name: both are facts about the HOST, so they come from one
- *       source. (Not in `env.ts`, which sits at its 500-line budget: that file's split is its own change.);
+ *       engineer's word, kept where only a deploy can change it. Declared and parsed in the typed `Env`
+ *       (`envAds.ts`) like every other setting; #2110 read it from `process.env` only because `env.ts` sat at its
+ *       500-line budget, and the 2026-11-06 env split removed that reason;
  *   (a) Meta's own read of the account shows NO payment method. The Ad Account reference, `funding_source` (read
  *       2026-11-06, https://developers.facebook.com/docs/marketing-api/reference/ad-account/): "If the account does not
  *       have a payment method it will still be possible to create ads but these ads will get no delivery." So this
@@ -38,16 +39,13 @@ export type SandboxOnlyVerdict =
   | { ok: false; refusal: SandboxOnlyRefusal; message: string };
 
 export interface SandboxOnlyDeps {
-  /** The host's environment: its name (`simulatorGate`) and its sandbox allowlist. Defaults to this process's. */
+  /** The host's sandbox allowlist, parsed to bare ids by the schema (`envAds.ts`). */
+  env: Pick<Env, "META_SANDBOX_AD_ACCOUNT_IDS">;
+  /** The host's name, which `simulatorGate` reads. Defaults to this process's environment. */
   processEnv?: NodeJS.ProcessEnv;
 }
 
 const bare = (id: string): string => id.trim().replace(/^act_/, "");
-
-/** The host's allowlist, `act_` stripped. Unset or empty = nothing is allowed. */
-export function sandboxAllowlist(processEnv: NodeJS.ProcessEnv): string[] {
-  return (processEnv.META_SANDBOX_AD_ACCOUNT_IDS ?? "").split(",").map(bare).filter((x) => x !== "");
-}
 
 /** A `funding_source` that names a payment method: anything but absent, empty or "0". */
 const hasPaymentMethod = (v: unknown): boolean => v !== undefined && v !== null && String(v).trim() !== "" && String(v).trim() !== "0";
@@ -59,11 +57,10 @@ const hasPaymentMethod = (v: unknown): boolean => v !== undefined && v !== null 
 export async function sandboxOnlyVerdict(
   deps: SandboxOnlyDeps, provider: string, accountId: string, openGraph: () => Promise<Pick<MetaGraph, "get"> | null>,
 ): Promise<SandboxOnlyVerdict> {
-  const host = deps.processEnv ?? process.env;
   if (provider !== "meta") return { ok: true, checked: false };
-  if (!simulatorGate(host).allowed) return { ok: true, checked: false };
+  if (!simulatorGate(deps.processEnv ?? process.env).allowed) return { ok: true, checked: false };
   const id = bare(accountId);
-  if (!sandboxAllowlist(host).includes(id)) {
+  if (!deps.env.META_SANDBOX_AD_ACCOUNT_IDS.includes(id)) {
     return { ok: false, refusal: "sandbox_not_listed", message: `${SANDBOX_ONLY_MESSAGE} Ad account ${id} is not one of this server's sandbox accounts.` };
   }
   const graph = await openGraph();

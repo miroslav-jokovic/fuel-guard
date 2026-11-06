@@ -30,6 +30,12 @@ import { FaultProxy } from "./faultProxy.js";
 export type TargetName = "fake" | "sandbox";
 
 export const SANDBOX_VARIABLES = ["META_SANDBOX_TOKEN", "META_SANDBOX_PAGE_TOKEN", "META_SANDBOX_AD_ACCOUNT_ID", "META_SANDBOX_PAGE_ID"] as const;
+/**
+ * The Conversions API's sandbox half (the Outcome feed's L4): a dataset, the Events Manager "Test events" code,
+ * and a lead Meta knows (one the Lead Ads Testing Tool made). Optional for the Publisher's suite; the events
+ * readings refuse without them (`readings.ts`).
+ */
+export const EVENTS_SANDBOX_VARIABLES = ["META_SANDBOX_DATASET_ID", "META_SANDBOX_TEST_EVENT_CODE", "META_SANDBOX_LEAD_ID"] as const;
 
 export interface MetaTarget {
   name: TargetName;
@@ -37,6 +43,10 @@ export interface MetaTarget {
   base: string;
   accountId: string;
   pageId: string;
+  /** The Conversions API dataset, its test code and a lead it can match; null on a sandbox not given them. */
+  datasetId: string | null;
+  testEventCode: string | null;
+  leadId: string | null;
   /** The client's timeout: short on the in-process fake, a real network's on the sandbox. */
   timeoutMs: number;
   proxy: FaultProxy;
@@ -59,6 +69,7 @@ export async function openMetaTarget(env: NodeJS.ProcessEnv = process.env): Prom
   let upstream: string;
   let tokens: { user: string; page: string };
   let ids: { account: string; page: string };
+  let events: { dataset: string | null; code: string | null; lead: string | null };
   let fake: FakeMeta | null = null;
   if (name === "sandbox") {
     const missing = SANDBOX_VARIABLES.filter((k) => !env[k]);
@@ -66,6 +77,7 @@ export async function openMetaTarget(env: NodeJS.ProcessEnv = process.env): Prom
     upstream = META_GRAPH_BASE;
     tokens = { user: env.META_SANDBOX_TOKEN!, page: env.META_SANDBOX_PAGE_TOKEN! };
     ids = { account: env.META_SANDBOX_AD_ACCOUNT_ID!.replace(/^act_/, ""), page: env.META_SANDBOX_PAGE_ID! };
+    events = { dataset: env.META_SANDBOX_DATASET_ID || null, code: env.META_SANDBOX_TEST_EVENT_CODE || null, lead: env.META_SANDBOX_LEAD_ID || null };
   } else {
     tokens = { user: `contract-${randomBytes(12).toString("hex")}`, page: `contract-page-${randomBytes(12).toString("hex")}` };
     ids = { account: "2001", page: "3001" };
@@ -74,6 +86,8 @@ export async function openMetaTarget(env: NodeJS.ProcessEnv = process.env): Prom
       accounts: [{ id: ids.account, spend_cap_cents: 300_000, amount_spent_cents: 0, account_status: 1, currency: "USD" }],
       pages: [{ id: ids.page, name: "Contract Page", access_token: tokens.page, tasks: ["ADVERTISE"] }],
     });
+    fake.datasets.create("4001");
+    events = { dataset: "4001", code: "TEST-CONTRACT", lead: "5001" };
     upstream = await fake.start();
   }
 
@@ -82,6 +96,7 @@ export async function openMetaTarget(env: NodeJS.ProcessEnv = process.env): Prom
   const original = { ...tokens };
   return {
     name, base, proxy, accountId: ids.account, pageId: ids.page,
+    datasetId: events.dataset, testEventCode: events.code, leadId: events.lead,
     timeoutMs: name === "fake" ? 300 : 20_000,
     token: () => tokens.user,
     pageToken: () => tokens.page,

@@ -75,7 +75,7 @@ describe("POST /api/compliance/cover-sheets", () => {
     expect(pages.map((p) => (p.includes("Ann Driver") ? "B" : p.includes("Marko") ? "A" : "?"))).toEqual(["B", "A"]);
     expect(pages[0]).toContain("Printed 11/06/2026");
     expectOrgScoped(rec, ORG);
-  });
+  }, 30_000); // renders a PDF with embedded fonts and reads it back
 
   it("is gated on managing the roster, the section a driver's papers belong to", async () => {
     await import("./coverSheets.js").then((m) => m.coverSheetsRouter());

@@ -9,7 +9,7 @@ import type { LaunchReadiness } from "../campaigns/launchCertification.js";
 import { connectMeta } from "../connections/connections.js";
 import { resetGraphThrottles } from "../platforms/meta/graphClient.js";
 import { metaTokenPurpose } from "../platforms/registry.js";
-import { SANDBOX_ONLY_MESSAGE, sandboxAllowlist, sandboxOnlyVerdict } from "./sandboxOnly.js";
+import { SANDBOX_ONLY_MESSAGE, sandboxOnlyVerdict } from "./sandboxOnly.js";
 
 /**
  * D-AD8, "Staging spends nothing" (Q-AD42 ruled (a) AND (b), 2026-11-06): on a non-production host a Meta ad account is
@@ -27,9 +27,16 @@ const TOKEN = "EAAGsandboxonlytokenAAAA1111222233334444";
 const C = "70000000-0000-4000-8000-000000000001";
 const ASK = { daily_budget_cents: 5_000, lifetime_cap_cents: 50_000 };
 
-const ENV: Env = loadEnv({ NODE_ENV: "test", SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") } as NodeJS.ProcessEnv);
-/** A host: its name and, when given, its sandbox allowlist (both host facts, read from its environment). */
-const host = (base: Record<string, string>, ids?: string): NodeJS.ProcessEnv => ({ ...base, ...(ids === undefined ? {} : { META_SANDBOX_AD_ACCOUNT_IDS: ids }) });
+const SEALING = { NODE_ENV: "test", SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") };
+const ENV: Env = loadEnv(SEALING as NodeJS.ProcessEnv);
+/**
+ * A host: its name (the process environment `simulatorGate` reads) and, when given, its sandbox allowlist — set the
+ * way a deploy sets it and parsed by the real schema (`envAds.ts`), so the `act_`/spacing rules are the schema's.
+ */
+const host = (base: Record<string, string>, ids?: string) => ({
+  processEnv: base as NodeJS.ProcessEnv,
+  env: loadEnv({ ...SEALING, ...(ids === undefined ? {} : { META_SANDBOX_AD_ACCOUNT_IDS: ids }) } as NodeJS.ProcessEnv),
+});
 
 /** Which accounts Meta says have a payment method. */
 let paying = new Set<string>();
@@ -75,45 +82,45 @@ const graphOf = (fundingSource?: string) => {
 describe("D-AD8 — the rule (guard/sandboxOnly.ts)", () => {
   it("on a non-production host, a listed account Meta says has no payment method is used", async () => {
     const g = graphOf();
-    expect(await sandboxOnlyVerdict({ processEnv: host(STAGING, SANDBOX) }, "meta", SANDBOX, g.open)).toEqual({ ok: true, checked: true });
+    expect(await sandboxOnlyVerdict(host(STAGING, SANDBOX), "meta", SANDBOX, g.open)).toEqual({ ok: true, checked: true });
     expect(g.reads).toEqual([`act_${SANDBOX}`]);
   });
 
   it("listed but Meta says it has a payment method: refused, naming the rule", async () => {
-    const out = await sandboxOnlyVerdict({ processEnv: host(STAGING, SANDBOX) }, "meta", SANDBOX, graphOf("6011").open);
+    const out = await sandboxOnlyVerdict(host(STAGING, SANDBOX), "meta", SANDBOX, graphOf("6011").open);
     expect(out).toMatchObject({ ok: false, refusal: "account_can_pay" });
     expect((out as { message: string }).message).toContain(SANDBOX_ONLY_MESSAGE);
   });
 
   it("unlisted, even with no payment method: refused without asking Meta", async () => {
     const g = graphOf();
-    expect(await sandboxOnlyVerdict({ processEnv: host(STAGING, SANDBOX) }, "meta", REAL, g.open)).toMatchObject({ ok: false, refusal: "sandbox_not_listed" });
+    expect(await sandboxOnlyVerdict(host(STAGING, SANDBOX), "meta", REAL, g.open)).toMatchObject({ ok: false, refusal: "sandbox_not_listed" });
     expect(g.reads).toEqual([]);
   });
 
   it("an empty or missing allowlist refuses every Meta account", async () => {
     for (const ids of [undefined, "", " , "]) {
-      expect(await sandboxOnlyVerdict({ processEnv: host(STAGING, ids) }, "meta", SANDBOX, graphOf().open), String(ids)).toMatchObject({ ok: false, refusal: "sandbox_not_listed" });
+      expect(await sandboxOnlyVerdict(host(STAGING, ids), "meta", SANDBOX, graphOf().open), String(ids)).toMatchObject({ ok: false, refusal: "sandbox_not_listed" });
     }
   });
 
   it("an account nobody can ask about (the read fails, or the token cannot be opened) is refused", async () => {
     const failing = async () => ({ get: async () => ({ ok: false as const, error: { kind: "network", error_code: "network" } as never }) });
-    expect(await sandboxOnlyVerdict({ processEnv: host(STAGING, SANDBOX) }, "meta", SANDBOX, failing)).toMatchObject({ ok: false, refusal: "account_unreadable" });
-    expect(await sandboxOnlyVerdict({ processEnv: host(STAGING, SANDBOX) }, "meta", SANDBOX, async () => null)).toMatchObject({ ok: false, refusal: "account_unreadable" });
+    expect(await sandboxOnlyVerdict(host(STAGING, SANDBOX), "meta", SANDBOX, failing)).toMatchObject({ ok: false, refusal: "account_unreadable" });
+    expect(await sandboxOnlyVerdict(host(STAGING, SANDBOX), "meta", SANDBOX, async () => null)).toMatchObject({ ok: false, refusal: "account_unreadable" });
   });
 
   it("production is unchanged: any account, listed or not, paying or not, and nothing is read", async () => {
     for (const processEnv of [PRODUCTION, { NODE_ENV: "production" }]) {
       const g = graphOf("6011");
-      expect(await sandboxOnlyVerdict({ processEnv: host(processEnv, undefined) }, "meta", REAL, g.open)).toEqual({ ok: true, checked: false });
+      expect(await sandboxOnlyVerdict(host(processEnv, undefined), "meta", REAL, g.open)).toEqual({ ok: true, checked: false });
       expect(g.reads).toEqual([]);
     }
   });
 
   it("the allowlist takes ids with or without act_, and a simulator connection is its own gate's", async () => {
-    expect(sandboxAllowlist({ META_SANDBOX_AD_ACCOUNT_IDS: `act_${SANDBOX}, 300300 ,` })).toEqual([SANDBOX, "300300"]);
-    expect(await sandboxOnlyVerdict({ processEnv: host(STAGING, undefined) }, "simulator", "990000000001", graphOf("6011").open)).toEqual({ ok: true, checked: false });
+    expect(host(STAGING, `act_${SANDBOX}, 300300 ,`).env.META_SANDBOX_AD_ACCOUNT_IDS).toEqual([SANDBOX, "300300"]);
+    expect(await sandboxOnlyVerdict(host(STAGING, undefined), "simulator", "990000000001", graphOf("6011").open)).toEqual({ ok: true, checked: false });
   });
 });
 
@@ -125,8 +132,8 @@ describe("D-AD8 — at Connect (connections/connections.ts)", () => {
       ads_campaigns: [], ads_actions: [{ id: "a-1" }], audit_logs: [{ id: "au-1" }],
     } });
   });
-  const connect = (accountId: string, processEnv: NodeJS.ProcessEnv) =>
-    connectMeta({ admin: db.client, env: ENV, processEnv, now: () => new Date("2026-11-06T18:00:00Z") }, ORG, { id: "u-admin", name: "Admin" }, { token: TOKEN, account_id: accountId, page_id: "300300", sandbox: true });
+  const connect = (accountId: string, h: ReturnType<typeof host>) =>
+    connectMeta({ admin: db.client, env: { ...ENV, ...h.env }, processEnv: h.processEnv, now: () => new Date("2026-11-06T18:00:00Z") }, ORG, { id: "u-admin", name: "Admin" }, { token: TOKEN, account_id: accountId, page_id: "300300", sandbox: true });
   const stored = () => db.queries.filter((q) => q.write && q.table === "ads_platform_connections");
 
   it("staging + a real (paying) account: refused in the rule's words, and nothing is sealed or stored", async () => {
@@ -150,7 +157,7 @@ describe("D-AD8 — at Connect (connections/connections.ts)", () => {
 
   it("production + a real paying account: connected as before, and the payment method is never asked", async () => {
     paying.add(REAL);
-    expect(await connect(REAL, PRODUCTION)).toMatchObject({ kind: "saved" });
+    expect(await connect(REAL, host(PRODUCTION))).toMatchObject({ kind: "saved" });
     expect(accountReads.some((r) => r.endsWith(":funding_source"))).toBe(false);
   });
 });
@@ -170,7 +177,7 @@ describe("D-AD8 — at Launch (campaigns/campaignDoors.ts), for an account conne
     });
   };
   // Every worker at L4, so a refusal here can only be the sandbox rule's.
-  const launch = (processEnv: NodeJS.ProcessEnv) => launchCampaign(w.admin, ORG, { id: "u-admin", name: "Owner" }, C, ASK, new Date("2026-11-06T18:00:00Z"), ALL_L4, { env: ENV, processEnv });
+  const launch = (h: ReturnType<typeof host>) => launchCampaign(w.admin, ORG, { id: "u-admin", name: "Owner" }, C, ASK, new Date("2026-11-06T18:00:00Z"), ALL_L4, h);
 
   it("staging + a real (paying) account: refused in the rule's words, the campaign stays paused and says why", async () => {
     paying.add(REAL);
@@ -195,7 +202,7 @@ describe("D-AD8 — at Launch (campaigns/campaignDoors.ts), for an account conne
   it("production + a real paying account: launches as before, and the payment method is never asked", async () => {
     paying.add(REAL);
     world(REAL);
-    expect(await launch(PRODUCTION)).toEqual({ kind: "moved", to: "launching" });
+    expect(await launch(host(PRODUCTION))).toEqual({ kind: "moved", to: "launching" });
     expect(accountReads).toEqual([]);
   });
 });

@@ -46,15 +46,21 @@ export const READ_PROMPTS = {
   // medical cards, insurance certificates — one file, one paper or many. Splitting the file into papers is
   // the one thing asked beyond transcription; which paper each one is (`kind`) is the one judgement, and
   // the person filing it checks both (D-UF8).
+  // DRIVER-PAPER-INTAKE-PLAN PI3 (1.1.0): the same profile reads a driver's paper qualification file —
+  // application, MVRs, road test, employer inquiries, test forms — cut into pieces of up to ten pages, each
+  // piece one driver's. A paper may continue past the last page of a piece; the reviewer joins them.
   compliance_paper: {
-    version: "compliance_paper-1.0.0",
+    version: "compliance_paper-1.1.0",
     system:
       "You are a transcription tool for a carrier's compliance papers — vehicle registrations and IRP cab " +
       "cards, annual inspection reports, insurance certificates, titles, leases, driver's licences and medical " +
-      `certificates — scanned into one file. ${RULES} The file may hold one paper or several; each separate ` +
-      "paper is one entry, in page order, with the pages it covers. Say which kind of paper each one is from " +
-      "the list the schema gives, and other when it is none of them. Do not transcribe dates of birth, home " +
-      "addresses, Social Security numbers or medical findings.",
+      "certificates, and the papers of a driver's qualification file: employment applications, motor vehicle " +
+      "records and their annual reviews, road test certificates, previous employer inquiries and responses, " +
+      `drug and alcohol test forms, Clearinghouse query results — scanned into one file. ${RULES} The file may ` +
+      "hold one paper or several; each separate paper is one entry, in page order, with the pages it covers. " +
+      "Say which kind of paper each one is from the list the schema gives, and other when it is none of them. " +
+      "Do not transcribe dates of birth, home addresses, Social Security numbers, medical findings, or the " +
+      "result of a drug or alcohol test — for a test, only its kind and date.",
   },
   // HIRING-WORKFLOW-AUDIT §14 OF6. A motor vehicle record — a state's printout or SambaSafety's PDF. What a
   // recruiter checks before hiring; the verdict is `mvrReportFindings`', never the model's.

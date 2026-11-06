@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import PDFDocument from "pdfkit";
 import { renderCoverSheets } from "../coverSheetPdf.js";
-import { coverSheetOnImage, findCoverSheets } from "./findCoverSheets.js";
+import { coverSheetOnImage, findCoverSheets, scanStack } from "./findCoverSheets.js";
 import sharp from "sharp";
 import { openPdf, paintPdfPage } from "../../../lib/pdfRaster.js";
 import { pdfPageTexts } from "../../../testing/pdfText.js";
@@ -77,4 +77,26 @@ describe("driver scan cover sheets (PI1)", () => {
       .toBuffer();
     expect(await coverSheetOnImage(await sharp(scanned).png().toBuffer())).toBe(A);
   }, 60_000);
+
+  it("drops blank duplex backs and keeps a page with a single short line or a lone signature", async () => {
+    const doc = new PDFDocument({ size: "LETTER", autoFirstPage: false });
+    const chunks: Buffer[] = [];
+    doc.on("data", (c: Buffer) => chunks.push(c));
+    const done = new Promise<Buffer>((r) => doc.on("end", () => r(Buffer.concat(chunks))));
+    doc.addPage().fontSize(14).text("Employment application page 1", 72, 72); // 1 paper
+    doc.addPage(); // 2 blank back
+    doc.addPage().fontSize(10).text("Page 3", 300, 700); // 3 one short line only — kept
+    // 4 a back with scanner specks: a few 1-pt dots
+    doc.addPage();
+    for (const [x, y] of [[100, 100], [400, 300], [200, 600], [500, 700]]) doc.rect(x!, y!, 1, 1).fill("#000000");
+    // 5 a lone signature stroke — kept
+    doc.addPage().moveTo(200, 650).bezierCurveTo(240, 610, 280, 690, 340, 640).lineWidth(1.5).stroke();
+    doc.end();
+    const scan = await scanStack(await done);
+    expect(scan).toEqual({ ok: true, pageCount: 5, sheets: [], blankPages: [2, 4] });
+  }, 60_000);
+
+  it("refuses a stack over the page cap before painting a page", async () => {
+    expect(await scanStack(await paperPages(3), 2)).toEqual({ ok: false, code: "too_many_pages" });
+  });
 });

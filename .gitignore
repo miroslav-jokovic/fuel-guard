@@ -225,3 +225,7 @@ graphify-out/
 .windsurf/
 WARP.md
 .github/copilot-instructions.md
+
+# pnpm ads:certify (stage2-kit): a run's logs + evidence summary, and the draft record a person copies into scripts/ads-certifications.json
+.ads-certify/
+ads-certifications.draft.json

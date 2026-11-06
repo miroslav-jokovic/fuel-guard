@@ -65,4 +65,12 @@ export const recruitmentRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/RecruitmentCampaignsPage.vue"),
     meta: { requiresAuth: true, title: "Campaigns", parent: "/recruitment" },
   },
+
+  {
+    // Q-AD43 (b): what the carrier hires for, each opening the brief a campaign is made from.
+    path: "/recruitment/openings",
+    name: "recruitment-openings",
+    component: () => import("@/pages/RecruitmentOpeningsPage.vue"),
+    meta: { requiresAuth: true, title: "Openings", parent: "/recruitment" },
+  },
 ];

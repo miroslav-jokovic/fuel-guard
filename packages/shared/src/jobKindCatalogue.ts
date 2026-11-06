@@ -66,6 +66,10 @@ export const JOB_KIND_CATALOGUE = {
   data_retention: { label: "Removing data past its keep date", area: "platform" },
   dq_binder: { label: "Building a driver-file binder", area: "compliance" },
   document_derive: { label: "Preparing a document's preview", area: "documents" },
+  paper_intake_split: {
+    label: "Splitting a scanned stack of driver files", area: "documents", item: { key: "stackId", noun: "Scanned file" },
+    hint: "The scanned PDF could not be split into drivers. Upload it again; if it fails twice, save it from the scanner as a plain PDF without a password.",
+  },
   financial_projection: { label: "Loading McLeod financials", area: "finance" },
   fuel_spend_rollup: { label: "Totalling daily fuel spend", area: "fuel" },
   fleetpal_sync: { label: "Syncing repairs from FleetPal", area: "maintenance" },

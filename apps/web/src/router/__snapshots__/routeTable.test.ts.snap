@@ -267,6 +267,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/recruitment/leads",
   },
   {
+    "name": "recruitment-openings",
+    "params": {},
+    "url": "/recruitment/openings",
+  },
+  {
     "name": "recruitment-campaigns",
     "params": {},
     "url": "/recruitment/campaigns",
@@ -1264,6 +1269,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "recruitment-leads",
     "path": "/recruitment/leads",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/recruitment",
+      "requiresAuth": true,
+      "title": "Openings",
+    },
+    "name": "recruitment-openings",
+    "path": "/recruitment/openings",
     "redirect": null,
   },
   {

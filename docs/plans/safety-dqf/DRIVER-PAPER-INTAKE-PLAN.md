@@ -93,13 +93,22 @@ the shop scans a driver. A sheet naming a driver a merge has folded away is repo
 pages are assigned by hand. `parseTag` refuses the payload and the sheet parser refuses a tag
 (`driverCoverSheet.test.ts`).
 
+**D-PI2 · A stack is split before anything is read, and pieces are stored, not read, in PI2.** The plan had
+PI2 queue the reads. The reader's prompt still describes vehicle papers until PI3; a piece read now would
+be paid for and then read again. So PI2 stops at stored pieces (`paper_intake_parts`, a ≤ 10-page PDF each
+in the `paper-intake` bucket) and PI3 hands each to the reader (`intakeStoredBytes`). The stack keeps its
+own bucket: at up to 50 MB and hundreds of pages it is neither a reader source (25 MB, 10 pages) nor a
+filed paper, and PI5 cuts filed papers out of the original stack, never out of a re-encoded piece.
+A cover sheet naming a driver not on this roster still ENDS the previous driver's pages — they become
+nobody's, never the previous driver's.
+
 ## 4. Steps (one PR each)
 
 | Step | What | Migration |
 | --- | --- | --- |
 | PI1 | Driver cover sheets: "Print scan cover sheets" on Drivers; the QR names the driver's id (D-PI1); the server-side sheet finder | no (D-PI1) |
-| PI2 | Intake API (UF7b3): upload, page render, cover-sheet split, blank-page drop, chunked reads → `file_intake_items` | no |
-| PI3 | Reader learns the DQ papers: kinds, dates, the "never read the result" rule tested | profile version bump |
+| PI2 | Upload + split: a stack is registered, PUT to Storage, split on the worker at its cover sheets, blank pages dropped, cut into ≤ 10-page pieces (D-PI2) | yes, 0572 (new tables, exempt from ordering) |
+| PI3 | Reader learns the DQ papers (profile 1.1.0); each piece queued for reading at split; finished reads → `file_intake_items`, every page in exactly one row | yes, 0573 (an index) |
 | PI4 | Review page (UF7c) for drivers and units: rows, viewer, "still missing", confirm/correct/discard | no |
 | PI5 | Filing: documents per paper, certifications, `paper_intake` qualification records, application/road test for hired drivers, restricted handling, duplicates | possibly (a CHECK on `detail.source` for the two ceremony kinds) |
 | PI6 | Office trial: 5 real folders end to end, measure pages/driver, read accuracy, review minutes; then the fleet | no |
@@ -152,3 +161,31 @@ pages are assigned by hand. `parseTag` refuses the payload and the sheet parser 
   and saved as a 55 %-quality JPEG still reads. Deviation: D-PI1 (no tag table, no migration).
   ⚠ The sheet's step 4 names "Upload scanned files", which PI2–PI4 build; a stack scanned before then is
   only a PDF to keep and upload later.
+- 2026-11-06: **PI2 built** (migration 0572). `paper_intake_stacks` (one per uploaded PDF; `unique (org_id,
+  sha256)`, so a re-upload is a duplicate, except a failed or never-finished one, which is offered the upload
+  again under its own id as its failure text promises) and `paper_intake_parts` (`driver_id` with no FK, D-PI1);
+  bucket `paper-intake`, 50 MB, the project's per-file limit. Routes `POST /api/compliance/paper-intake/stacks`,
+  `…/stacks/:id/complete`, `GET …/batches/:batchId`, all `roster: manage`, audited; job `paper_intake_split`
+  (cap 1: a stack is held whole while it is cut). `planParts` (shared, pure) decides the pieces; `scanStack`
+  paints each page once at 150 dpi for both questions, cover sheet and blank. Deviation: D-PI2 (no reads yet).
+  Found on the way: **the blank-page threshold first written, 0.15 % dark pixels, would have dropped a lone
+  signature, a page with one short line, and a one-line page** — measured on rendered pages it is 0.046 %,
+  0.014 % and 0.12 %, against 0.0007 % for dust specks. It is 0.004 %, with the measurements in its comment and
+  a test that keeps both the short line and the signature. Also: one of my own tests asserted "delete before
+  insert" with `indexOf` and passed with the delete removed (−1 is less than anything); it now asserts the
+  exact write sequence, and the mutation fails it.
+- 2026-11-06: **PI3 built** (migration 0573). The `compliance_paper` profile is 1.1.0: its kind list names a paper
+  DQ file's papers (application, MVR and annual review, road test and equivalency, employer inquiry and response,
+  drug and alcohol tests, Clearinghouse queries, registry note, ELDT, PSP), `issuedOn` also carries the day a
+  dated record happened, and the prompt forbids a test's RESULT as it already forbade DOB/SSN/medical findings.
+  The split queues each piece (`intakeStoredBytes`, from the job handler, so evidence imports only the read-back:
+  boundary edge `evidence -> document-reading`, IC10's shape). `paperIntakeItems.ts` turns each FINISHED read into
+  review rows when the batch is asked for: a cover sheet's driver is the scope (basis `scope`); an unsheeted piece
+  asks the matcher; dates are parsed in code (`printedDate.ts`, month first, two-digit years pivot at 50, an
+  impossible day is null); **every page lands in exactly one row** — pages no paper covers become a row, a failed
+  read becomes one row over the whole piece, an overlapping page stays with the first paper. 0573's unique index
+  makes two tabs polling at once insert one set. For a record kind, `proposed_issued_on` is the day it happened —
+  `file_intake_items` has no separate column, and adding one would take two merges (column, then reader).
+  ⚠ **For PI4:** a piece whose reader intake is REFUSED (a page below the reader's minimum size) has no source,
+  so `readOfBytes` answers `no_source` forever and the piece reads "still reading". PI4 offers "review without
+  reading" for a piece pending past a few minutes, which writes the unread row by hand. Not built here.

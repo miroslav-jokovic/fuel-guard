@@ -450,6 +450,12 @@ const API_ALLOW = new Set([
   //   profile, and its finished read fetched with `readOfBytes` — inspections' IC10 shape exactly.
   //   document-reading imports nothing of recruiting's; the read gate is wired at the composition root.
   "recruiting -> document-reading",
+  // · evidence -> document-reading — DRIVER-PAPER-INTAKE-PLAN PI3: a scanned stack's pieces are read under the
+  //   `compliance_paper` profile and their finished reads fetched with `readOfBytes`, which paper intake turns
+  //   into `file_intake_items` review rows — the IC10/OF6b shape. The pieces are QUEUED through
+  //   `intakeStoredBytes` from the composition root (queue/handlers/paperIntakeSplit.ts), so this edge carries
+  //   only the read-back. document-reading imports nothing of evidence's.
+  "evidence -> document-reading",
   // · inspections -> fleetpal — IC11 (INSPECTION-CHALLENGE-PLAN D-IC14): the repair record proposes the
   //   FleetPal work orders on an inspected unit; FleetPal's tables are read through its index
   //   (`readWorkOrdersOnUnits`), as the dispatch board reads `readUnitMaintenance`.
@@ -511,6 +517,11 @@ const API_ALLOW = new Set([
   // `mcleod_fuel_tax_receipts`; ifta maps McLeod's unit to our truck and drops card duplicates.
   // Same shape as `fleetpal -> mcleod`: a reader of McLeod facts, with nothing written back.
   "ifta -> mcleod",
+  // An opening's area is a point (`adAreaSchema`), and a recruiter types a yard or a town: recruiting's
+  // `GET /recruitment/place-suggest` (Q-AD44 (a), 2026-11-06) asks routing's `geocodeSuggest`, through
+  // routing's index, under recruiting's own `recruitment: view` gate. Narrow by construction: that one
+  // function, so there is one HERE client and one key; recruiting plans no routes and reads no route tables.
+  "recruiting -> routing",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

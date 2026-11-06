@@ -81,10 +81,8 @@ const WAIVERS = new Map([
   // their schema: mcleod/fleetCodes.ts seeds the first from the roster sweep, samsara/hosClocksFeed.ts
   // writes the second from the clocks poll.
   //
-  // file_intake_items (0505, UNIT-FILES-PLAN.md UF7a) ships schema-only: the plan splits UF7 as migration,
-  // then the reader and the routes that write it. It leaves in UF7b, whose intake read inserts one row per
-  // proposed paper and whose file/discard routes decide them.
-  ["file_intake_items", "UNIT-FILES-PLAN.md UF7b — the compliance intake read and the file/discard routes write it (schema-only, 0505)"],
+  // file_intake_items (0505, UNIT-FILES-PLAN.md UF7a) left on 2026-11-06, DRIVER-PAPER-INTAKE-PLAN PI3:
+  // evidence/intake/paperIntakeItems.ts turns each read piece of a scanned stack into its review rows.
   //
   // The ads module's thirteen (0537, ADS-AGENT-BUILD-WORKFLOW.md A2) ship schema-only: the workflow
   // builds the store first and each worker after it, one PR per step. Each entry names the step whose

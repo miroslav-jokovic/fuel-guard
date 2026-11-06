@@ -424,6 +424,14 @@ export const READINESS = [
           need: "every created object read back from the target and compared with what was asked",
           tests: [{ file: PUBLISHER_CONTRACT, titles: ["every created object is read back and holds what was asked; each field sent is compared or says why not"] }],
         },
+        {
+          // stage2-kit (2026-11-06): §4R L4's "every recorded fixture re-recorded and diffed", as requests.
+          need: "fakeMeta.ts's and fakeMetaAds.ts's OUR readings, re-recorded on the target and diffed against readings.recorded.json; a difference names the field and the fake",
+          tests: [{ file: "apps/api/src/modules/ads/platforms/meta/contract/readings.contract.test.ts", titles: [
+            "every OUR reading of FakeMeta's Graph (fakeMeta.ts, fakeMetaAds.ts) answers on the target as committed",
+            "a planted difference fails, naming the reading, the field and the fake to correct",
+          ] }],
+        },
       ],
       L4: [{ need: "contract suite on Meta's sandbox: publisher.contract.test.ts with ADS_TARGET=sandbox", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
@@ -749,6 +757,14 @@ export const READINESS = [
             "a run speaks only for its own platform: a Meta row due on the ledger is never sent to the simulator",
             "on production, a simulator connection has no target: nothing is ledgered or sent, even with the switch on",
             "on production, even a target handed in by mistake cannot open the simulator: the registry refuses and nothing is sent",
+          ] }],
+        },
+        {
+          // stage2-kit (2026-11-06): the readings its L4 settles, held on the fake every CI run, so the sandbox
+          // run diffs against what the fake really answers.
+          need: "fakeMetaEvents.ts's OUR readings, re-recorded on the target and diffed against readings.recorded.json",
+          tests: [{ file: "apps/api/src/modules/ads/outcomes/outcomeReadings.contract.test.ts", titles: [
+            "every OUR reading of FakeMeta's Conversions API (fakeMetaEvents.ts) answers on the target as committed",
           ] }],
         },
       ],

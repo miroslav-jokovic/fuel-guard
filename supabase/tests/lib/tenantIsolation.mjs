@@ -227,6 +227,12 @@ const FORMAT_PINNED = {
   "chat_exports.scope": "'search'",
   "chat_attachments.sha256": "repeat('a', 64)", // check (sha256 ~ '^[0-9a-f]{64}$') (0540)
   "chat_attachments.mime": "'application/pdf'", // check (mime ~ '^[a-z]+/[a-z0-9.+-]+$') (0540)
+  // Unique per row, not a constant: 0572 also holds unique (org_id, sha256) on stacks.
+  "paper_intake_stacks.sha256": "(md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text))", // check (sha256 ~ '^[0-9a-f]{64}$') (0572)
+  "paper_intake_parts.sha256": "repeat('a', 64)", // same format check (0572)
+  // basis ↔ driver_id (0572): the seeder leaves the nullable driver_id empty, so the piece is nobody's yet.
+  "paper_intake_parts.basis": "'none'",
+  "paper_intake_parts.stack_pages": "'{1}'::integer[]", // check (cardinality(stack_pages) between 1 and 10) (0572)
   // Its check's only quoted literal is the forbidden-character class '[/\\]', which the CHECK reader would seed.
   "chat_attachments.file_name": "'seed.pdf'",
 };

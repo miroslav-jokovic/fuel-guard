@@ -25,6 +25,7 @@ const routes = [
   { path: "/recruitment/inquiries", name: "inquiry-queue", component: { template: "<div />" } },
   { path: "/recruitment/templates", name: "recruitment-templates", component: { template: "<div />" } },
   { path: "/recruitment/leads", name: "recruitment-leads", component: { template: "<div />" } },
+  { path: "/recruitment/openings", name: "recruitment-openings", component: { template: "<div />" } },
   { path: "/recruitment/campaigns", name: "recruitment-campaigns", component: { template: "<div />" } },
   { path: "/recruitment/:id", name: "applicant-record", component: { template: "<div />" } },
 ];
@@ -49,12 +50,13 @@ describe("every recruitment view is reachable from every recruitment page", () =
    * ⚠ The P0b guarantee, at its new address. Asserted on all three pages rather than on the board,
    * because the board was never the page somebody got stranded on.
    */
-  for (const path of ["/recruitment", "/recruitment/leads", "/recruitment/campaigns", "/recruitment/screening", "/recruitment/inquiries", "/recruitment/templates"]) {
-    it(`offers all six views from ${path}`, async () => {
+  for (const path of ["/recruitment", "/recruitment/leads", "/recruitment/openings", "/recruitment/campaigns", "/recruitment/screening", "/recruitment/inquiries", "/recruitment/templates"]) {
+    it(`offers all seven views from ${path}`, async () => {
       const { wrapper } = await mountAt(path);
       expect(tabLabels(wrapper)).toEqual([
         "Applicants",
         "Leads",
+        "Openings",
         "Campaigns",
         "Screening readiness",
         "Safety-history inquiries",
@@ -66,6 +68,7 @@ describe("every recruitment view is reachable from every recruitment page", () =
   it("marks the view you are actually on", async () => {
     expect(selected((await mountAt("/recruitment")).wrapper)).toBe("Applicants");
     expect(selected((await mountAt("/recruitment/leads")).wrapper)).toBe("Leads");
+    expect(selected((await mountAt("/recruitment/openings")).wrapper)).toBe("Openings");
     expect(selected((await mountAt("/recruitment/screening")).wrapper)).toBe("Screening readiness");
     expect(selected((await mountAt("/recruitment/inquiries")).wrapper)).toBe("Safety-history inquiries");
   });
