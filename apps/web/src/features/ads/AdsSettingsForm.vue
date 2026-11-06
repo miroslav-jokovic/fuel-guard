@@ -13,6 +13,7 @@ import { useToastStore } from "@/stores/toast";
 import { toFormValues, toSettings, type AdsSettingsFormValues } from "./adsSettingsForm";
 import { useSaveAdsSettings } from "./useAdsSettings";
 import AdsAlertsSection from "./AdsAlertsSection.vue";
+import AdsOutcomeFeedSection from "./AdsOutcomeFeedSection.vue";
 
 /**
  * Settings › Ads control's limits, rules, approvals and AI budgets (ADS-AGENT-PLAN §4b; Track S, E1a). Read
@@ -21,7 +22,8 @@ import AdsAlertsSection from "./AdsAlertsSection.vue";
  * its author; nothing is edited in place, and nothing is in force until the first save (G5: a cap in code
  * would be a spending decision nobody made). The suggestions beside the auto-pause fields are the shared
  * benchmark's, labelled with their source, and are never saved by themselves. The alerts (E1b) are a
- * section of this form, saved in the same version; `members` is the page's to hand in (AdsAlertsSection).
+ * section of this form, saved in the same version; `members` is the page's to hand in (AdsAlertsSection). So is the
+ * outcome feed (Q-AD40), for the same reason: a second save of the one object would undo the first's other half.
  */
 const props = withDefaults(defineProps<{ view: AdsSettingsView; members?: OrgMember[] | null; membersFailed?: boolean }>(), { members: null, membersFailed: false });
 
@@ -151,6 +153,13 @@ async function submit(): Promise<void> {
       :members="members"
       :members-failed="membersFailed"
       :error="errorOn('alerts')"
+    />
+
+    <AdsOutcomeFeedSection
+      v-model:enabled="values.outcome_feed_enabled"
+      v-model:dataset-id="values.outcome_dataset_id"
+      :editable="editable"
+      :error="errorOn('outcome_feed')"
     />
 
     <div v-if="editable" class="flex justify-end">
