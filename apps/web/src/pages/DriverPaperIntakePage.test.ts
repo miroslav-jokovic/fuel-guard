@@ -28,6 +28,7 @@ vi.mock("@/lib/supabase", () => ({
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => toast }));
 vi.mock("@/components/ui/PageHeader.vue", () => ({ default: { template: "<header />" } }));
+vi.mock("@/features/roster/PaperReviewDrawer.vue", () => ({ default: { name: "PaperReviewDrawer", props: ["open", "item"], template: "<div />" } }));
 
 import DriverPaperIntakePage from "./DriverPaperIntakePage.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";

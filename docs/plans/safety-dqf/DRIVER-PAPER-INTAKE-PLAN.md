@@ -208,3 +208,22 @@ pages before PI5 lands.
   Found by the browser pass: the reading line counted pieces from the stack's list and the progress from the
   reader, which can disagree ("Reading 4 of 3"); it now counts both from the reading. The page test had pinned
   the wrong number ("2 of 2" with one still reading) and now expects "2 of 3".
+- 2026-11-06: **PI5 built** (no migration). "Check and file" on each pending row opens a drawer on the reader's
+  proposal — driver (the roster, applicants excluded by the shared list), paper (`PAPER_FILE_KINDS`, restricted
+  kinds only for a role that may read them), its date(s) — with the driver's still-missing items beside it and
+  View to compare. Filing (`paperIntakeFiling.ts`, `POST …/items/:id/file`): the paper's pages are cut from the
+  ORIGINAL stack and filed on the driver (`fileGeneratedDocument`); then a certification (CDL, medical card,
+  supersede chain) or a dated qualification record with `detail.source = "paper_intake"`, the intake row, stack
+  and stack pages; or nothing more for an `other` paper. The row records `changed`. Every write takes the ROW's
+  id, so a retried request files onto the same document/certification/record rather than a second copy. A paper
+  already in that driver's file (same SHA-256) is marked `duplicate` and nothing is written. Refused, in words:
+  a driver not on this roster; a dated paper with no date; an applicant's application or road test (Q-PI3: hired
+  drivers only — their ceremonies own them); a restricted paper for a role that cannot read it (403); and the kinds
+  with their own door (PSP report → Employment tab, whose CHECK requires `psp_api`/`portal_import` provenance;
+  handbook, endorsement, hazmat training, return-to-duty → the qualification file). "Not a driver-file paper" sets
+  a row aside, its reason kept in the audit row (the table has no reason column). Measured on the way: a mutation
+  that dropped the DRIVER half of `changed` survived, because the only test that changed something also changed
+  the kind and dates; a test now changes the driver alone. Not built, and why: "review without reading" for a
+  piece whose intake was refused (a piece always comes from a 300 dpi scan re-saved unencrypted, so neither the
+  reader's size nor its encryption refusal can occur; a 10-page piece over 25 MB would, and the stack's line would
+  then keep saying "Reading…" — PI6 measures real piece sizes before that is worth a button).
