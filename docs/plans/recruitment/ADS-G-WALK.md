@@ -8,7 +8,7 @@ each line is either one that was **walked** and seen, or marked:
 - **✅ Walked 11/06 (walk 2):** seen on staging after Q-AD41's fix, as written.
 - **⛔ Blocked (Q-AD43):** the step needed an open opening, and no screen made one. Q-AD43 was built on 11/06
   (Recruitment › Openings), so these lines are now marked by what stops them today.
-- **⛔ Blocked (Q-AD46):** staging's ads agent runs under the brake (`ADS_ENABLED` unset on uat), so a started
+- **⛔ Blocked (Q-AD46):** staging's ads agent runs under the brake (`ADS_ENABLED` unset in `/silvicom/staging/api`), so a started
   campaign stays at **Starting**. The line is written from the code and the browser tests; walk it once Q-AD46 is
   ruled.
 - **Stage 2:** the simulator cannot show it; it needs Meta's sandbox or a real Meta test lead (from Mon 11/09).

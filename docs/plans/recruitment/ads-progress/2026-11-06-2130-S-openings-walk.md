@@ -10,8 +10,8 @@ Staging at `f00a30d` (#2114), through the UI only:
   `201 POST /api/recruitment/openings`; row Open · v1 · "Staging Test — Fleet Manager".
 - **G-walk 10 (start):** home → Recruitment group → Applicants → Campaigns tab → New campaign = 4 clicks. The opening
   is offered → Start campaign → `201 POST /api/ads/campaigns` (`7f40f13e-…`). The brief snapshot is right.
-- **Stopped:** the campaign stayed **Starting** (`draft`) for 15 min and no job failed. `ADS_ENABLED` is unset on
-  both uat services, so the orchestrator is braked and `compose` is null: designed behaviour, not a bug. Recorded as
-  **Q-AD46** (rec: the owner sets it on the uat `general`-lane service; it also starts real AI spend under the v1
+- **Stopped:** the campaign stayed **Starting** (`draft`) for 15 min and no job failed. `ADS_ENABLED` is unset for
+  staging's API (AWS, Parameter Store `/silvicom/staging/api`; corrected from "both uat services"), so the orchestrator is braked and `compose` is null: designed behaviour, not a bug. Recorded as
+  **Q-AD46** (rec: set in `/silvicom/staging/api`, by the owner's decision; it also starts real AI spend under the v1
   caps). Lines 11–16 and the four-click done-when wait on it; nothing was forced by hand.
 - G-walk updated: 9a/9b added and walked, 10 split ✅/⛔, 11–16 re-pointed from Q-AD43 to Q-AD46.
