@@ -270,18 +270,41 @@ ADS-AGENT-BUILD-WORKFLOW §4R). This one is for an engineer, by pull request.
    setting `META_SANDBOX_AD_ACCOUNT_IDS` (AWS Parameter Store, `/silvicom/staging/api`), then staging is
    redeployed. Without it, staging refuses every Meta account, the sandbox included (§8, D-AD8). The sandbox
    account must have no payment method in Meta, or staging refuses it too.
-1. Run the worker's contract suite against Meta's sandbox with `ADS_TARGET=sandbox` (§4R L4). Note the
-   commit it ran on (the full 40-character sha), the date, and the CI run or PR link.
-2. Add one record per worker to `scripts/ads-certifications.json`:
-   `{ "worker": "<name exactly as in scripts/ads-readiness.registry.mjs>", "platform": "meta" (Publisher only),
-   "level": "L4", "target": "sandbox", "run_date": "YYYY-MM-DD", "sha": "<40-hex>", "result": "pass",
-   "evidence": "<link>" }`. Record a failed run too, with `"result": "fail"`. It is kept, and it opens nothing.
-3. Run `pnpm gen:ads-readiness`. It rewrites `packages/shared/src/ads/launchReadiness.generated.ts`. Never
+1. **On a laptop, on main, with a clean tree:** `git fetch && git switch --detach origin/main`. The command
+   refuses a dirty tree or a commit that is not on main, because the record carries the commit that ran.
+2. **Put the sandbox values in `apps/api/.env`** (never in chat, never committed). The command refuses and
+   lists every missing name, per worker, before it runs anything:
+   - Publisher and Security: `META_SANDBOX_TOKEN`, `META_SANDBOX_PAGE_TOKEN`, `META_SANDBOX_AD_ACCOUNT_ID`,
+     `META_SANDBOX_PAGE_ID`, and `META_SANDBOX_AD_ACCOUNT_IDS` (the same allowlist as step 0. D-AD8's own check,
+     *guard/sandboxOnly.ts*, runs on the account before anything else, and refuses one that can pay).
+   - Outcome feed: also `META_SANDBOX_DATASET_ID`, `META_SANDBOX_TEST_EVENT_CODE` (Events Manager → the
+     dataset → Test events) and `META_SANDBOX_LEAD_ID` (a lead the Lead Ads Testing Tool made).
+3. **Rehearse first, on the fake:** `pnpm ads:certify all --target fake`. Same suites, nothing real is
+   touched, and the draft it writes can never be committed: the gate refuses an L4 whose target is not the sandbox.
+4. **Certify:** `pnpm ads:certify all --target sandbox`, or name one worker, e.g.
+   `pnpm ads:certify "Outcome feed" --target sandbox`. Each worker prints one line:
+   - **PASS:** its suites passed on the sandbox, and every *OUR reading* re-recorded there matches
+     `platforms/meta/contract/readings.recorded.json`.
+   - **FAIL:** each failed test, difference or leak is listed. A reading difference names the field and
+     the fake to correct (for example `image-upload "hash is the md5 of the bytes": committed true, target
+     answered false — correct platforms/simulator/fakeMetaAds.ts`). The fix is a PR that corrects the fake
+     and re-records the file from it. Never edit a value to match. Merge it, then go back to step 1.
+   - **NOT BUILT:** the worker's L4 run does not exist yet, and the line says what is missing. As of
+     11/06 that is Orchestrator, Budget guard, Monitor, Lead intake, and the Claude and Higgsfield workers
+     (stage2-kit 2b). Nothing is certified for it.
+5. **Each PASS is in `ads-certifications.draft.json`** at the repo root (gitignored): `{ worker, platform
+   (Publisher only), level: "L4", target: "sandbox", run_date, sha, result: "pass", evidence }`. The
+   draft has already passed the gate's own shape check. `evidence` is the run's
+   `.ads-certify/<time>-<sha>/summary.json`. Its logs sit beside it and stay on the laptop.
+   Copy the records into `scripts/ads-certifications.json`. A failed run may be recorded by hand with
+   `"result": "fail"`. It is kept, and it opens nothing.
+6. Run `pnpm gen:ads-readiness`. It rewrites `packages/shared/src/ads/launchReadiness.generated.ts`. Never
    edit that file by hand: `lint:ads-readiness` fails on any byte of difference (*scripts/check-ads-readiness.mjs*).
-4. Run `pnpm ads:readiness`. The worker should now show **L4**.
-5. Open the PR with the run's link in the body. CI checks the record (known worker, full sha, L4 = sandbox,
+7. Run `pnpm ads:readiness`. The worker should now show **L4**.
+8. Open the PR with `summary.json` pasted in the body (it holds verdicts and readings, never a token:
+   Security's scrape checked the run's output). CI checks the record (known worker, full sha, L4 = sandbox,
    platform named for the Publisher). Merge when green.
-6. **What opens Launch:** once **every** worker listed for Meta still ads in `CAMPAIGN_WORKERS`
+9. **What opens Launch:** once **every** worker listed for Meta still ads in `CAMPAIGN_WORKERS`
    (*scripts/ads-readiness.registry.mjs*) is L4, a Meta Launch is allowed on the next **release** that
    carries the record. Until then, Launch answers which ones are missing, and the campaign shows the same
    sentence (409 `not_certified`).

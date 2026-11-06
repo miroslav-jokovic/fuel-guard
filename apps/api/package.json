@@ -15,6 +15,7 @@
     "doc:score": "tsx src/scripts/scoreDocumentCorpus.ts",
     "doc:replay": "tsx src/scripts/replayDocumentReads.ts",
     "ads:eval": "node --env-file-if-exists=.env --import tsx src/scripts/adsEval.ts",
+    "ads:certify": "node --env-file-if-exists=.env --import tsx src/scripts/adsCertify.ts",
     "doc:derive-backfill": "tsx src/scripts/backfillDocumentDerivatives.ts",
     "mcleod:import-unit-papers": "tsx src/scripts/importMcleodUnitPapers.ts",
     "seed:psp-qa": "tsx src/scripts/seedPspQaDrivers.ts",

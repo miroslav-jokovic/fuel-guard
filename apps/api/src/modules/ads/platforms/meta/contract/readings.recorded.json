@@ -1,0 +1,43 @@
+{
+  "//": "FakeMeta's answers to each OUR reading (contract/readings.ts), committed. Re-record from the fake when a fake's reading changes on purpose; never edit a value to match a sandbox run — correct the fake, then re-record (stage2-kit, ADS-RUNBOOK §7).",
+  "readings": {
+    "error-envelope": {
+      "fake": "platforms/simulator/fakeMeta.ts",
+      "observed": {
+        "status": 400,
+        "error.code": 100,
+        "error.type": "string",
+        "error.error_subcode": "number",
+        "error.fbtrace_id": "string",
+        "error_subcode outside error": false
+      }
+    },
+    "image-upload": {
+      "fake": "platforms/simulator/fakeMetaAds.ts",
+      "observed": {
+        "status": 200,
+        "images entries": 1,
+        "hash is the md5 of the bytes": true,
+        "re-upload answers the same hash": true,
+        "url": "string"
+      }
+    },
+    "events-accepted": {
+      "fake": "platforms/simulator/fakeMetaEvents.ts",
+      "observed": {
+        "status": 200,
+        "events_received": 1,
+        "messages": "array",
+        "fbtrace_id": "string"
+      }
+    },
+    "events-older-than-7-days": {
+      "fake": "platforms/simulator/fakeMetaEvents.ts",
+      "observed": {
+        "status": 400,
+        "error.code": 100,
+        "events_received": "undefined"
+      }
+    }
+  }
+}

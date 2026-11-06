@@ -37,6 +37,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { CAMPAIGN_WORKERS, READINESS, SCENARIO_DIR } from "./ads-readiness.registry.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
@@ -339,4 +340,5 @@ function main() {
   console.log(`check-ads-readiness: ${pins} needs pinned across ${READINESS.length} workers, all in force; ${certs.length} certification(s); ${GENERATED} current — ${card.map((c) => `${c.worker} ${c.level}`).join(", ")}`);
 }
 
-main();
+// Run only as a command: `pnpm ads:certify` imports `certificationProblems` to hold its draft to this gate's shape.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main();
