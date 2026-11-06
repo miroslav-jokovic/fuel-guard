@@ -1,4 +1,4 @@
-**2026-11-06 · Track W · w-two-smalls, PR 1: the brandAssets flake (#PR)** — no migration, no readiness change.
+**2026-11-06 · Track W · w-two-smalls, PR 1: the brandAssets flake (#2087)** — no migration, no readiness change.
 
 - **The real cause was not the fixture.** The old cut was already deterministic: 544 of 1,088 bytes, inside IDAT.
   The non-determinism is libvips. `sharp(bytes, { failOn: "error" })` + `stats()` refused the cut PNG 0 of 200
