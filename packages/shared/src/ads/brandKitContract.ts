@@ -83,21 +83,21 @@ export const AD_OVERLAY_START = { text_color: "#FFFFFF", plate_color: "#111111" 
 
 export const adBrandKitSchema = z.object({
   /** Exactly as it should read in an ad. */
-  company_name: z.string().trim().min(1).max(120),
+  company_name: z.string().trim().min(1, "the company name is what the ad prints, so it cannot be empty").max(120, "the company name is at most 120 characters"),
   /** The phone an ad shows, as printed; null = no phone in the overlay. */
-  phone: z.string().trim().min(7).max(40).nullable(),
-  colors: z.array(z.object({ name: z.string().trim().min(1).max(40), hex })).min(1).max(12),
+  phone: z.string().trim().min(7, "a phone number is at least 7 characters, as printed").max(40, "a phone number is at most 40 characters").nullable(),
+  colors: z.array(z.object({ name: z.string().trim().min(1, "each colour needs a name, like primary").max(40, "a colour's name is at most 40 characters"), hex })).min(1, "a kit has at least one colour").max(12, "a kit has at most 12 colours"),
   /** Null = Q-AD14's fallback: no logo overlay. */
   logo: adAssetRefSchema.nullable(),
   /**
    * The reference photos of our real equipment (D-AD9): a preset that shows equipment starts from one.
    * `label` says what it shows ("white Freightliner, front three-quarter") for the art director's slot.
    */
-  equipment_photos: z.array(z.object({ label: z.string().trim().min(2).max(120), asset: adAssetRefSchema })).max(20),
+  equipment_photos: z.array(z.object({ label: z.string().trim().min(2, "say what each photo shows").max(120, "a photo's label is at most 120 characters"), asset: adAssetRefSchema })).max(20, "a kit holds at most 20 photos"),
   overlays: z.partialRecord(z.enum(AD_FORMATS), overlaySchema),
   people_policy: z.enum(AD_PEOPLE_POLICIES),
   /** Other companies' names and marks the visual check looks for — a competitor's logo on a trailer fails. */
-  forbidden_marks: z.array(z.string().trim().min(2).max(80)).max(40),
+  forbidden_marks: z.array(z.string().trim().min(2, "each name that must not appear is at least 2 characters").max(80, "each name that must not appear is at most 80 characters")).max(40, "at most 40 names that must not appear"),
 }).superRefine((kit, ctx) => {
   for (const [format, overlay] of Object.entries(kit.overlays) as [AdFormat, z.infer<typeof overlaySchema>][]) {
     if (overlay.zone && !tightenZone(safeZone(format), overlay.zone)) {
@@ -131,22 +131,25 @@ export function templateSlots(template: string): string[] {
  * text-only scene is allowed only for roads, skies and empty cabs.
  */
 export const adPresetRecipeSchema = z.object({
-  name: z.string().trim().min(2).max(80),
-  hook_formula: z.string().trim().min(5).max(500),
+  name: z.string().trim().min(2, "a preset's name is at least 2 characters").max(80, "a preset's name is at most 80 characters"),
+  hook_formula: z.string().trim().min(5, "say what the first line should do, in at least 5 characters").max(500, "the hook is at most 500 characters"),
   /**
    * The copy's slots, in reading order ("hook", "pay", "cta"), each with the most characters it may hold
    * in either language. The limit is the preset's (an overlay line, a Meta headline), so the copywriter's
    * tool schema carries it and an answer that runs over is refused, never trimmed (C2).
    */
-  copy_slots: z.array(z.object({ name: slotName, max_chars: z.number().int().min(10).max(500) })).min(1).max(8),
-  image_prompt_template: z.string().trim().min(10).max(2000),
+  copy_slots: z.array(z.object({
+    name: slotName,
+    max_chars: z.number({ error: "give each slot the most characters it may hold" }).int("a slot's limit is a whole number of characters").min(10, "a slot holds at least 10 characters").max(500, "a slot holds at most 500 characters"),
+  })).min(1, "a preset has at least one copy slot").max(8, "a preset has at most 8 copy slots"),
+  image_prompt_template: z.string().trim().min(10, "the image prompt is at least 10 characters").max(2000, "the image prompt is at most 2,000 characters"),
   image_slots: z.array(slotName).max(8),
   starts_from: z.enum(["equipment_photo", "text_only"]),
   shows_equipment: z.boolean(),
   shows_people: z.boolean(),
   /** Null = a still-only preset (C6 owns motion). */
   motion_template: z.string().trim().min(10).max(2000).nullable(),
-  formats: z.array(z.enum(AD_FORMATS)).min(1).max(AD_FORMATS.length),
+  formats: z.array(z.enum(AD_FORMATS)).min(1, "choose at least one format").max(AD_FORMATS.length),
   /**
    * Which copy slots the overlay draws (C5b): the headline (≤ 2 lines) and the call to action. The other
    * slots are the platform's text (B2c). Null = not said, and compose refuses the preset by name
@@ -201,7 +204,7 @@ export type AdPresetRecipe = z.infer<typeof adPresetRecipeSchema>;
  */
 export const adBrandKitSaveSchema = z.object({
   kit_id: recordId().nullable(),
-  name: z.string().trim().min(1).max(120).optional(),
+  name: z.string().trim().min(1, "a new kit needs a name").max(120, "a kit's name is at most 120 characters").optional(),
   kit: adBrandKitSchema,
 }).refine((s) => (s.kit_id === null) === (s.name !== undefined), "a new kit is given a name; a new version of a kit is not");
 export type AdBrandKitSave = z.infer<typeof adBrandKitSaveSchema>;

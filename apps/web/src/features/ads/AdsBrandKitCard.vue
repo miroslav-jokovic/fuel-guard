@@ -11,7 +11,9 @@ import { useAdsBrandKits } from "./useAdsBrandKits";
  * Settings › Ads control's brand kits (E2; plan D-AD10). On this page and not its own because the plan puts the
  * kit in Settings and everything a kit needs from a person fits one drawer. `session.admin` is the `isAdmin`
  * that `requireAdminOnly("ads.brand-kit")` asks, as on the settings form, so nobody is offered a save the API
- * refuses; anyone else who can view recruiting reads what is saved.
+ * refuses; anyone else who can view recruiting reads what is saved. While the list has failed to load, nobody
+ * is offered a new kit either: without the list they cannot see the kit they may be about to make twice (the
+ * rule E1b set for ad accounts).
  */
 const session = useSessionStore();
 const kits = useAdsBrandKits();
@@ -38,7 +40,7 @@ function open(kit: AdBrandKitView | null): void {
         <h2 class="text-sm font-semibold text-ink">Brand kits</h2>
         <p class="text-sm text-ink-muted">The company name, colours, logo and equipment photos every ad is made from.</p>
       </div>
-      <BaseButton v-if="admin" data-test="new-kit" @click="open(null)">New brand kit</BaseButton>
+      <BaseButton v-if="admin && !kits.error.value" data-test="new-kit" @click="open(null)">New brand kit</BaseButton>
     </div>
     <QueryState :loading="kits.isLoading.value" :error="kits.error.value" error-text="Could not load the brand kits." :retrying="kits.isFetching.value" @retry="kits.refetch()">
       <p v-if="live.length === 0" class="mt-4 text-sm text-ink-muted" data-test="no-kits">No brand kit yet, so no ad can be made.</p>

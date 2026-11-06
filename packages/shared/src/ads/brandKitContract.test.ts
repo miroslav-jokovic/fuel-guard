@@ -97,3 +97,32 @@ describe("preset recipe contract", () => {
     expect(adPresetRecipeSchema.safeParse({ ...whole, overlay_slots: null, platform_slots: null }).success).toBe(true);
   });
 });
+
+/**
+ * The editors (E2) show a refusal's first message as it is. Zod's own default ("Invalid input", "Too small:
+ * expected string to have >=1 characters") is what the brand kit drawer showed for a blank kit in the E2-finish
+ * browser pass, so every rule a blank form reaches carries a sentence of its own.
+ */
+describe("a blank editor form is refused in words", () => {
+  const ZOD_DEFAULT = /^(Invalid|Too (small|big)|expected)/;
+  const blankKitSave = {
+    kit_id: null, name: "",
+    kit: { company_name: "", phone: "12", colors: [{ name: "", hex: "#000000" }], logo: null, equipment_photos: [{ label: "", asset: ASSET }], overlays: {}, people_policy: "none", forbidden_marks: ["x"] },
+  };
+  const blankPresetSave = {
+    key: "P1", enabled: true,
+    recipe: { ...RECIPE, name: "", hook_formula: "", copy_slots: [{ name: "hook", max_chars: null }, { name: "cta", max_chars: 5 }], image_prompt_template: "", image_slots: [], formats: [], overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: null },
+  };
+
+  it("every refusal of a blank kit and a blank preset is a sentence, not Zod's default", () => {
+    const issues = [...(adBrandKitSaveSchema.safeParse(blankKitSave).error?.issues ?? []), ...(adPresetSaveSchema.safeParse(blankPresetSave).error?.issues ?? [])];
+    // Not vacuous: every field a blank form leaves empty was refused, each by its own rule.
+    expect(issues.map((i) => i.path.join(".")).sort()).toEqual([
+      "kit.colors.0.name", "kit.company_name", "kit.equipment_photos.0.label", "kit.forbidden_marks.0", "kit.phone", "name",
+      "recipe.copy_slots.0.max_chars", "recipe.copy_slots.1.max_chars", "recipe.formats", "recipe.hook_formula", "recipe.image_prompt_template", "recipe.name",
+    ]);
+    // `recipe.platform_slots` is not among them: the save rule runs once the recipe itself parses, so the form shows
+    // it after these. That rule has its own case in the describe above.
+    expect(issues.filter((i) => ZOD_DEFAULT.test(i.message)).map((i) => `${i.path.join(".")}: ${i.message}`)).toEqual([]);
+  });
+});

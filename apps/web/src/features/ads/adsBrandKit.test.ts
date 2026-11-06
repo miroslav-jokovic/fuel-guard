@@ -129,6 +129,11 @@ describe("AdsBrandKitCard", () => {
     expect(w.find("[data-test=edit-kit]").exists()).toBe(false);
   });
 
+  it("offers no new kit while the list has failed to load", () => {
+    sent.failed = new Error("down");
+    expect(mount(AdsBrandKitCard, { global: { stubs } }).find("[data-test=new-kit]").exists()).toBe(false);
+  });
+
   it("an archived kit is not listed", () => {
     sent.kits = [{ ...VIEW, archived_at: "2026-11-01T00:00:00Z" }];
     expect(mount(AdsBrandKitCard, { global: { stubs } }).find("[data-test=kit-row]").exists()).toBe(false);

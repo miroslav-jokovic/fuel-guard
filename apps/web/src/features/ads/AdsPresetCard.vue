@@ -9,7 +9,8 @@ import { useAdsPresets } from "./useAdsPresets";
 
 /**
  * Settings › Ads control's concept presets (E2; plan D-AD11). The same doors and the same rule as the brand kits
- * card: `session.admin` is what `requireAdminOnly("ads.brand-kit")` asks, and anyone else reads what is saved.
+ * card: `session.admin` is what `requireAdminOnly("ads.brand-kit")` asks, and anyone else reads what is saved. No
+ * new preset is offered while the list has failed to load, as for kits.
  */
 const session = useSessionStore();
 const presets = useAdsPresets();
@@ -31,7 +32,7 @@ function open(preset: AdPresetView | null): void {
         <h2 class="text-sm font-semibold text-ink">Presets</h2>
         <p class="text-sm text-ink-muted">The ad concepts the agent may use. It fills in their slots and changes nothing else.</p>
       </div>
-      <BaseButton v-if="admin" data-test="new-preset" @click="open(null)">New preset</BaseButton>
+      <BaseButton v-if="admin && !presets.error.value" data-test="new-preset" @click="open(null)">New preset</BaseButton>
     </div>
     <QueryState :loading="presets.isLoading.value" :error="presets.error.value" error-text="Could not load the presets." :retrying="presets.isFetching.value" @retry="presets.refetch()">
       <p v-if="live.length === 0" class="mt-4 text-sm text-ink-muted" data-test="no-presets">No preset yet, so no ad can be made.</p>

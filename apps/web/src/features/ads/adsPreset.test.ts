@@ -10,12 +10,12 @@ import { adPresetRecipeSchema, type AdPresetRecipe, type AdPresetSave, type AdPr
  * not edit, and the buttons follow `requireAdminOnly("ads.brand-kit")`.
  */
 const who = vi.hoisted(() => ({ admin: true }));
-const state = vi.hoisted(() => ({ saves: [] as AdPresetSave[], presets: [] as unknown[], refreshed: [] as unknown[] }));
+const state = vi.hoisted(() => ({ saves: [] as AdPresetSave[], presets: [] as unknown[], refreshed: [] as unknown[], failed: null as Error | null }));
 vi.mock("@/lib/api", () => ({ apiFetch: async () => ({ ok: true }) }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ admin: who.admin }) }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
 vi.mock("@tanstack/vue-query", () => ({
-  useQuery: () => ({ data: ref(state.presets), isLoading: ref(false), isFetching: ref(false), error: ref(null), refetch: vi.fn() }),
+  useQuery: () => ({ data: ref(state.presets), isLoading: ref(false), isFetching: ref(false), error: ref(state.failed), refetch: vi.fn() }),
   useMutation: (o: { mutationFn: (v: AdPresetSave) => Promise<void>; onSuccess?: () => unknown }) => ({
     isPending: ref(false),
     mutateAsync: async (v: AdPresetSave) => { state.saves.push(v); await o.mutationFn(v); await o.onSuccess?.(); },
@@ -42,6 +42,7 @@ beforeEach(() => {
   state.saves = [];
   state.presets = [];
   state.refreshed = [];
+  state.failed = null;
   who.admin = true;
   setActivePinia(createPinia());
 });
@@ -101,6 +102,11 @@ describe("AdsPresetCard", () => {
     expect(w.find("[data-test=preset-row]").exists()).toBe(true);
     expect(w.find("[data-test=new-preset]").exists()).toBe(false);
     expect(w.find("[data-test=edit-preset]").exists()).toBe(false);
+  });
+
+  it("offers no new preset while the list has failed to load", () => {
+    state.failed = new Error("down");
+    expect(mount(AdsPresetCard, { global: { stubs } }).find("[data-test=new-preset]").exists()).toBe(false);
   });
 
   it("an archived preset is not listed", () => {
