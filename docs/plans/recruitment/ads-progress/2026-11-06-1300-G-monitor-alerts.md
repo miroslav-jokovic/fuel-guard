@@ -1,4 +1,4 @@
-**2026-11-06 · Track G · monitor-alerts (#PR)**: ADS-RUNBOOK Gaps 3 and 4. No migration. No scorecard level moved.
+**2026-11-06 · Track G · monitor-alerts (#2085)**: ADS-RUNBOOK Gaps 3 and 4. No migration. No scorecard level moved.
 
 **Built**
 - **Gap 4: a dead token rings from the jobs that meet it.** The hourly insights pull, the leads backfill and
