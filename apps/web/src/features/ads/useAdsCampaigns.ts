@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { Ref } from "vue";
-import type { AdsCampaignCreate, AdsCampaignMove, AdsCampaignSummary, AdsCampaignView, AdsCreativeDecision } from "@silvicom/shared";
+import { adsLaunchMissingSchema, type AdsCampaignCreate, type AdsCampaignLaunch, type AdsCampaignMove, type AdsCampaignSummary, type AdsCampaignView, type AdsCreativeDecision, type AdsLaunchMissing } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { apiRefusal } from "@/composables/useStepUpRetry";
 import { isWorking } from "./adsCampaignFlow";
@@ -37,19 +37,44 @@ export function useAdsCampaign(id: Ref<string>) {
   });
 }
 
+/**
+ * Every write reads the campaigns again when it settles, refused or not: a refusal can move the campaign too (the
+ * launch gate writes its `last_error`; a move another person made first changed the state the button came from).
+ */
 function useCampaignWrite<V>(send: (v: V) => Promise<void>) {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: send, onSuccess: () => qc.invalidateQueries({ queryKey: ADS_CAMPAIGNS_KEY }) });
+  return useMutation({ mutationFn: send, onSettled: () => qc.invalidateQueries({ queryKey: ADS_CAMPAIGNS_KEY }) });
 }
 
 async function post(path: string, body: object, fallback: string): Promise<void> {
   const res = await apiFetch(path, { method: "POST", body });
-  if (!res.ok) throw apiRefusal(res.error, fallback);
+  if (!res.ok) throw Object.assign(apiRefusal(res.error, fallback), { detail: res.detail });
+}
+
+/**
+ * The launch gate's list (G-launch-gate, 409 `not_certified`): which parts of the agent have not passed their test
+ * run yet. Null for any other refusal, or a list the screen cannot read.
+ */
+export function launchMissingFrom(e: unknown): AdsLaunchMissing | null {
+  const r = e as { code?: string; detail?: { missing?: unknown } };
+  if (r?.code !== "not_certified") return null;
+  const parsed = adsLaunchMissingSchema.safeParse(r.detail?.missing);
+  return parsed.success && parsed.data.length > 0 ? parsed.data : null;
 }
 
 export const useCreateCampaign = () => useCampaignWrite<AdsCampaignCreate>((ask) => post("/api/ads/campaigns", ask, "Could not create the campaign"));
 
 export const useCampaignMove = () => useCampaignWrite<{ id: string; move: AdsCampaignMove }>(({ id, move }) => post(`/api/ads/campaigns/${id}/moves`, move, "Could not do that"));
+
+/**
+ * Approve the spend at these amounts, then launch at them (E3b-2): the launch door refuses without a covering
+ * approval. Both are `ads.spend` with a fresh sign-in, so a refusal keeps its `code` for `useStepUpRetry`.
+ */
+export const useApproveAndLaunch = () =>
+  useCampaignWrite<{ id: string; launch: AdsCampaignLaunch }>(async ({ id, launch }) => {
+    await post(`/api/ads/campaigns/${id}/approvals`, { kind: "launch", ...launch }, "Could not approve the spend");
+    await post(`/api/ads/campaigns/${id}/launch`, launch, "Could not launch");
+  });
 
 export const useCreativeDecision = () =>
   useCampaignWrite<{ id: string; creativeId: string; decision: AdsCreativeDecision }>(({ id, creativeId, decision }) =>
