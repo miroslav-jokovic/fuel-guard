@@ -1138,7 +1138,8 @@ rate, and Higgsfield credits per approved creative.
   **Whose files:** the connection test and the launch read sit in `platforms/meta/` (Track W); Connect sits in
   `connections/` (Track G).
 - **Q-AD43 · No screen makes an opening, so no campaign can be started from the app** (us, found on staging-walk-2,
-  2026-11-06; **blocks E3's done-when and G-walk lines 10–17**). A campaign's brief is an open opening
+  2026-11-06; **ruled 2026-11-06 by the orchestrator: (b)**, because no recruiting/leads chat is running, so (a)
+  would leave it unowned; **blocks E3's done-when and G-walk lines 10–17**). A campaign's brief is an open opening
   (`OPENING_BRIEF_SOURCE`; the create form lists `GET /api/recruitment/openings`, status `open` only). The door that
   makes one exists, `POST /api/recruitment/openings` (`apps/api/src/modules/recruiting/routes/hiringSetup.ts:81`,
   `recruitment: manage`, `openingSaveSchema` in `packages/shared/src/recruiting/leads/opening.ts`), but nothing in
@@ -1151,6 +1152,35 @@ rate, and Higgsfield credits per approved creative.
   service role, which routes around the missing screen and leaves the owner's G4 with nowhere to type. **Rec: (a)**,
   sized as one step: a list and a versioned drawer like the brand kit's. **Meanwhile:** E3's done-when (four clicks
   to a paused campaign) and the launch half are owed; everything before "New campaign" was walked.
+- **Q-AD44 · The Openings editor (Q-AD43 (b)) needs two things the doors don't give a recruiter** (us, found reading
+  the doors for openings-editor, 2026-11-06; **blocks Q-AD43 (b)**). Read before building, as the step asked:
+  - **The yard is a point, and no place search is open to recruiting.** `openingSaveSchema.area` is
+    `adAreaSchema` (`packages/shared/src/ads/contracts.ts:97`): a label, a **latitude and longitude**, a radius of
+    15–500 miles and a reason. Nobody can type a latitude. The app's one place search is
+    `GET /api/fueling/geocode-suggest` (`apps/api/src/modules/routing/routes/mapProxies.ts:242`), gated
+    `requireSection("dispatch", "view")`, and its web helper sits in `features/fueling/useFuelPlan.ts:95`. A
+    recruiter (`dispatch: none`, `packages/shared/src/auth.ts:158`) and a safety manager (`dispatch: none`, `:146`)
+    are refused by it, though the openings door serves them (`recruitment: manage`). Calling it from recruiting
+    would also reach into fueling's internals (`lint:boundaries`).
+  - **An opening needs a hiring profile, and no screen makes one.** `openingSaveSchema.profile_version_id` is
+    required. The profile door exists (`GET`/`POST /api/recruitment/hiring-profiles`, `hiringSetup.ts:41,51`, and
+    the GET carries the owner's v1 `defaults`, HIRING_PROFILE_V1), but no web code calls it. Staging has **0
+    profiles and 0 openings** (read 2026-11-06 as the fleet-manager member).
+  Candidates:
+  - (a) **The routing module adds a place search under the openings' own gate**, e.g. `GET
+    /api/recruitment/place-suggest` behind `recruitment: view` over the same `geocodeSuggest`. **Plus a profile
+    step**: the openings drawer offers the hiring profiles that exist. When there is none, it shows the owner's v1
+    defaults read-only and one "Save as the first hiring profile" over the existing POST (deriving from
+    `defaults`, never restating them); a full profile editor stays recruiting's.
+  - (b) Widen `geocode-suggest`'s gate to `dispatch: view` OR `recruitment: view`, so one route serves both
+    screens. It is smaller, but it is fueling's route answering a second section.
+  - (c) Refused:
+    - asking for a latitude and longitude typed by hand, which leaves the owner's G4 untypeable;
+    - calling the fueling route from recruiting, which fails for a recruiter and crosses a feature boundary;
+    - hard-coding a staging profile.
+
+  **Rec: (a).** It is one small API route in `modules/routing` (outside every track's paths today, so it needs an
+  owner), then the editor as planned. **Nothing is built meanwhile.**
 
 ---
 
