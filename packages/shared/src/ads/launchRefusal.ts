@@ -54,3 +54,13 @@ export function launchMissingLines(missing: AdsLaunchMissing): string[] {
     return m.platform ? `${what}, on ${PLATFORM_LABEL[m.platform] ?? m.platform}` : what;
   });
 }
+
+/**
+ * The refusal as ONE sentence, for the campaign's `last_error` (g-tidy, Track G, 2026-11-06). Built from
+ * `launchMissingLines`, the lines the Launch form lists, so the stored error and the screen say the same office words
+ * from one source. Before, the door wrote its own sentence in registry names and levels ("Renderer / Higgsfield
+ * client at L3"), and the campaign drawer showed that to the person deciding whether to spend.
+ */
+export function launchRefusalSentence(missing: AdsLaunchMissing): string {
+  return `Not launched. These parts of the ads agent have not passed a test run against the real platform yet: ${launchMissingLines(missing).join("; ")}. Nothing was spent.`;
+}

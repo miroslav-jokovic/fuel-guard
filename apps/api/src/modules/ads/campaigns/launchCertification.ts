@@ -1,6 +1,6 @@
 import {
-  ADS_CAMPAIGN_WORKERS, ADS_WORKER_LEVELS,
-  type AdsCampaignWorker, type AdsReadinessLevel,
+  ADS_CAMPAIGN_WORKERS, ADS_WORKER_LEVELS, launchRefusalSentence,
+  type AdsCampaignWorker, type AdsLaunchMissing, type AdsReadinessLevel,
 } from "@silvicom/shared";
 import { simulatorGate } from "../platforms/simulatorGate.js";
 
@@ -35,12 +35,8 @@ export const CAMPAIGN_CREATIVE_KIND = "still";
 
 const RANK: Record<AdsReadinessLevel, number> = { L0: 0, L1: 1, L2: 2, L3: 3, L4: 4, L5: 5 };
 
-export interface MissingWorker {
-  worker: string;
-  platform: string | null;
-  level: AdsReadinessLevel;
-  needs: AdsReadinessLevel;
-}
+/** One part below L4: the shared `AdsLaunchMissing` shape the screen parses (g-tidy; never restated here). */
+export type MissingWorker = AdsLaunchMissing[number];
 
 export interface LaunchReadiness {
   workers: Readonly<Record<string, readonly AdsCampaignWorker[]>>;
@@ -77,9 +73,6 @@ export function launchCertification(
     if (RANK[level] < RANK[LAUNCH_LEVEL]) missing.push({ worker: u.worker, platform: u.platform, level, needs: LAUNCH_LEVEL });
   }
   if (missing.length === 0) return { ok: true, exempt: null };
-  const named = missing.map((m) => `${m.worker}${m.platform ? ` (${m.platform})` : ""} at ${m.level}`).join(", ");
-  return {
-    ok: false, refusal: "not_certified", missing,
-    message: `Not launched: ${missing.length} of the ${uses.length} parts this ad uses have not passed a sandbox run (${LAUNCH_LEVEL}) yet — ${named}.`,
-  };
+  // The office's words, from the same lines the Launch form lists (g-tidy): `last_error` and the screen agree.
+  return { ok: false, refusal: "not_certified", missing, message: launchRefusalSentence(missing) };
 }

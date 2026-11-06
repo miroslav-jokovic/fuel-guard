@@ -5,9 +5,14 @@ to press, and what you should see. Every step names, in *italics*, the file or r
 engineer can check that the step is still true. (G-runbook, ADS-AGENT-BUILD-WORKFLOW.md Phase G; written
 2026-11-06 against main `9850e18`.)
 
-**Read this first.** Some things on-call needs have no screen yet. Where a step needs one, the runbook says
-so and points to **Gaps** at the end, instead of describing a way around it. The biggest gap: no screen
-lists campaigns or their states yet (Gap 1), so "is it paused?" cannot be answered on a page today.
+**Read this first.** Where a step needs a screen that does not exist yet, the runbook says so and points to
+**Gaps** at the end, instead of describing a way around it.
+
+**The campaign screen** is **Recruitment › Campaigns** (`/recruitment/campaigns`; *apps/web/src/pages/RecruitmentCampaignsPage.vue*).
+Anyone who can see Recruitment sees it (`recruitment.campaigns`, *packages/shared/src/surfaceCatalogue.ts*). It lists the
+carrier's newest 200 campaigns, newest first. The column **Where it is** gives each campaign's state, for example
+*Live*, *Pausing* or *Paused*. Clicking a campaign opens its drawer: its ads, their checks, the moves a person may
+make, and its last error. The list does **not** refresh by itself, so reload the page to see a change.
 
 **Words used here**
 - **Ads control**: *Settings › Ads control*, `/settings/recruiting/ads` (*apps/web/src/router/routes/settings.ts*).
@@ -54,9 +59,12 @@ None of these read the kill switch, so they carry on:
   launches (*runner.ts* acts on the kill switch only in `launching` and `live`).
 
 ### Check it worked
-- The card reads **"Kill switch — on"**. That is all a screen can show today. Seeing each campaign reach
-  *paused* needs the campaign screen (**Gap 1**). Until then, watch the bell for **"Ads that could not be paused"**:
-  if it stays quiet for ten minutes, every pause took.
+1. The card reads **"Kill switch — on"**.
+2. Open **Recruitment › Campaigns** and reload it after a minute or two. In **Where it is**, every campaign
+   that was *Live* or *Launching* should read **Paused**. **Pausing** means Meta has not confirmed yet; reload
+   again (*runner.ts*: launching/live → pausing → paused).
+3. A campaign still **Pausing** after a few minutes: open it. Its drawer shows why in its last error. The bell
+   will also ring **"Ads that could not be paused"** after three failures in a row (§2 and §3 then apply).
 
 ### Clear it
 1. Only an **admin** can clear it. Open **Ads control** and type a **Reason** (for example "Checked the
@@ -143,11 +151,10 @@ There is still no warning **before** a token expires (**Q-AD24**): the first bel
   the **Failed background jobs** card instead (below).
 
 ### Where failed jobs are listed
-1. Open **Settings › Data & sync** (`/settings/data`). **Admins** see it. Other roles see it only if the carrier
-   turns it on for them in **Settings › Permissions**, because it starts off for every role but admin
-   (*apps/web/src/pages/DataSyncPage.vue*; `admin.settings.data`, `startsOnFor: []`, in
-   *packages/shared/src/surfaceCatalogue.ts*). Whoever is on call for ads needs it, so an admin should
-   switch it on for that person's role before the first launch.
+1. Open **Settings › Data & sync** (`/settings/data`). It is **admin-only by rule** (owner, 2026-11-06): it starts
+   off for every role but admin (*apps/web/src/pages/DataSyncPage.vue*; `admin.settings.data`, `startsOnFor: []`, in
+   *packages/shared/src/surfaceCatalogue.ts*). **The rule for on-call:** an admin turns it on in **Settings ›
+   Permissions** for the role of whoever is on call for ads, before the first launch.
 2. Scroll to the card **Failed background jobs** (*apps/web/src/features/jobs/FailedJobsCard.vue*, reading
    *GET /api/jobs/failed*, *apps/api/src/modules/org/routes/jobs.ts*). It lists the newest 50 jobs that failed
    every try, newest first.
@@ -182,7 +189,10 @@ reasons (*apps/api/src/modules/ads/compose/composeCampaign.ts*; states in *packa
 - A person then presses **Regenerate**, which makes new creatives for the failed ones. The old ones are
   kept as a record (*POST /api/ads/campaigns/:id/moves* with `regenerate`, *routes/campaigns.ts*). Approving and
   rejecting are per creative (*POST /api/ads/campaigns/:id/creatives/:creativeId/decision*).
-- **The screen for this is the campaign review screen (E3), not built yet** (**Gap 1**).
+- **Where:** open the campaign on **Recruitment › Campaigns**. The drawer shows each ad with its checks:
+  **Approve** or **Reject** an ad (a reason is required to reject), **Make new ads** to regenerate, and
+  **Approve campaign** once at least one ad is approved (*apps/web/src/features/ads/AdsCampaignDrawer.vue,
+  AdsCreativeReview.vue, adsCampaignFlow.ts*).
 
 ### Refused by Meta (after it is created)
 Every hour, reconcile reads Meta's review verdict on each ad of every campaign that is launching or live
@@ -193,8 +203,8 @@ Every hour, reconcile reads Meta's review verdict on each ad of every campaign t
    The text quotes Meta's reason when Meta gives one.
 2. It rings **once** per ad and verdict. The same verdict the next hour rings nothing. If the ad comes back
    and Meta turns it down again with the other verdict, that is a new bell.
-3. **What to do:** read Meta's reason. If our words or picture caused it, regenerate the ad (§4 above; the
-   screen is **Gap 1**). If you think Meta is wrong, ask Meta to review it again in Ads Manager. The rest of the
+3. **What to do:** read Meta's reason. If our words or picture caused it, regenerate the ad (§4 above: the campaign's
+   drawer, **Make new ads**). If you think Meta is wrong, ask Meta to review it again in Ads Manager. The rest of the
    campaign keeps running: another ad of the same campaign can still deliver.
 4. The verdict is also on the ad's record as a ledger row of kind `external_change`, so an engineer can see when
    Meta decided.
@@ -211,8 +221,9 @@ mode **rollback**, the **tag** to return to (for example `v2026.10.06`) and a **
 ### Ads first: stop them before the rollback
 1. **Press the kill switch** (§1) for every carrier with ads, giving the rollback as the reason. An
    engineer can do all carriers at once with `ADS_ENABLED=false` (§1, "for an engineer").
-2. Wait until every campaign is paused. **This cannot be checked on a screen today** (**Gap 1**). The
-   closest signal is a quiet bell: no "Ads that could not be paused" for ten minutes.
+2. Wait until every campaign is paused: on **Recruitment › Campaigns**, reload until no campaign reads *Live*,
+   *Launching* or *Pausing* in **Where it is** (§1, "Check it worked"). Do not start the rollback while one
+   still reads *Pausing*.
 3. Run the rollback (above). Its summary email says whether it verified.
 4. After it verifies, leave the kill switch **on** until the owner decides. The older release still
    honours it: the switch and the database refusal (AX021) date from the ads foundation (migration 0537).
@@ -284,6 +295,15 @@ ADS-AGENT-BUILD-WORKFLOW §4R). This one is for an engineer, by pull request.
   `[ads-daily-brief]`, `[ads-alerts]`, `[meta-webhook]`, `[intake-alerts]`. The ads jobs run on the
   scheduler lane's holder. Which service holds it is in `docs/DEPLOYMENT.md` § "Exactly one process runs each
   scheduler lane" and in `/api/version` → `schedulers`.
+- **Who can log in where** (no password is written here; they are in the owner's Keychain):
+  - **Production** (`https://360.silvicominc.com`): real office logins only. No test account exists there.
+  - **Staging** (`https://staging-api.360.silvicominc.com`): three test members in staging's one org, for checks by
+    role. `miki+staging-admin@silvicominc.com` is an **admin**: it sees Ads control, Data & sync, and Launch.
+    `miki+staging-fleet-manager@silvicominc.com` is a **fleet manager**: it sees Recruitment › Campaigns, but
+    not Data & sync (admin-only, §3). `miki+staging-dispatcher@silvicominc.com` is a **dispatcher**.
+    **Staging is not automatically safe:** the simulator works only there, but nothing stops an admin connecting a
+    real Meta account on staging (*connections.ts* checks the token, not the host), and that would spend real money.
+    Connect only the simulator or Meta's sandbox account on staging.
 - **What logs never hold:** tokens, keys or secrets. A test fails the build if one appears
   (*apps/api/src/modules/ads/security/adsLogScrape.test.ts*). If you ever see one, tell the owner: the token
   must be replaced (§2).
@@ -294,10 +314,8 @@ ADS-AGENT-BUILD-WORKFLOW §4R). This one is for an engineer, by pull request.
 
 Each one is reported, not worked around. The cost is a rough size of the honest fix.
 
-1. **No screen lists campaigns or their states.** On-call cannot see "paused" after the kill switch (§1,
-   §5), and cannot review, regenerate or approve creatives (§4). The API exists
-   (*GET /api/ads/campaigns*, *…/:campaignId*). **Fix:** E3, the campaign flow and review screen, already
-   in Track S's queue. About 2 days.
+1. ~~**No screen lists campaigns or their states.**~~ Closed 2026-11-06 (E3, #2071/#2095): **Recruitment ›
+   Campaigns** (see "Read this first"); §1, §4 and §5 now use it.
 2. ~~**No page shows failed jobs.**~~ Closed 2026-11-06 (E5): the **Failed background jobs** card on
    Settings › Data & sync (§3, "Where failed jobs are listed").
 3. ~~**A Meta-rejected ad is not detected.**~~ Closed 2026-11-06 (monitor-alerts): reconcile reads each delivering

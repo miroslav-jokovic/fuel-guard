@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { ADS_CAMPAIGN_WORKERS, type AuthContext } from "@silvicom/shared";
+import { ADS_CAMPAIGN_WORKERS, launchMissingLines, type AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { seal, secretAad } from "../../../lib/secretBox.js";
@@ -225,7 +225,8 @@ describe("Security L3 — the sweep reaches every ads route", () => {
     const body = JSON.parse(launch.text) as { error: { code: string; message: string }; missing: Array<{ worker: string; level: string; needs: string }> };
     expect(body.error.code).toBe("not_certified");
     expect(body.missing.map((m) => m.worker)).toEqual(ADS_CAMPAIGN_WORKERS["meta:still"]!.map((u) => u.worker));
-    for (const m of body.missing) expect(body.error.message).toContain(m.worker);
+    // The sentence is the screen's office words (g-tidy), one line per missing part.
+    for (const line of launchMissingLines(body.missing.map((m) => ({ ...m, platform: (m as { platform?: string | null }).platform ?? null })))) expect(body.error.message).toContain(line);
   });
 });
 
