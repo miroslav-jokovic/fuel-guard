@@ -73,7 +73,7 @@ export function paperIntakeRouter(): Router {
         // Deduplicated on the stack: a double-click or a retried request queues one split.
         await dispatchJob(admin, env, "paper_intake_split", {
           orgId,
-          payload: { stackId },
+          payload: { stackId, requestedBy: req.auth!.userId },
           dedupKey: `paper_intake_split:${stackId}`,
           requestedBy: req.auth!.userId,
         });

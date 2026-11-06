@@ -108,7 +108,7 @@ nobody's, never the previous driver's.
 | --- | --- | --- |
 | PI1 | Driver cover sheets: "Print scan cover sheets" on Drivers; the QR names the driver's id (D-PI1); the server-side sheet finder | no (D-PI1) |
 | PI2 | Upload + split: a stack is registered, PUT to Storage, split on the worker at its cover sheets, blank pages dropped, cut into ≤ 10-page pieces (D-PI2) | yes, 0572 (new tables, exempt from ordering) |
-| PI3 | Reader learns the DQ papers: kinds, dates, the "never read the result" rule tested; each piece read → `file_intake_items` | profile version bump |
+| PI3 | Reader learns the DQ papers (profile 1.1.0); each piece queued for reading at split; finished reads → `file_intake_items`, every page in exactly one row | yes, 0573 (an index) |
 | PI4 | Review page (UF7c) for drivers and units: rows, viewer, "still missing", confirm/correct/discard | no |
 | PI5 | Filing: documents per paper, certifications, `paper_intake` qualification records, application/road test for hired drivers, restricted handling, duplicates | possibly (a CHECK on `detail.source` for the two ceremony kinds) |
 | PI6 | Office trial: 5 real folders end to end, measure pages/driver, read accuracy, review minutes; then the fleet | no |
@@ -174,3 +174,18 @@ nobody's, never the previous driver's.
   a test that keeps both the short line and the signature. Also: one of my own tests asserted "delete before
   insert" with `indexOf` and passed with the delete removed (−1 is less than anything); it now asserts the
   exact write sequence, and the mutation fails it.
+- 2026-11-06: **PI3 built** (migration 0573). The `compliance_paper` profile is 1.1.0: its kind list names a paper
+  DQ file's papers (application, MVR and annual review, road test and equivalency, employer inquiry and response,
+  drug and alcohol tests, Clearinghouse queries, registry note, ELDT, PSP), `issuedOn` also carries the day a
+  dated record happened, and the prompt forbids a test's RESULT as it already forbade DOB/SSN/medical findings.
+  The split queues each piece (`intakeStoredBytes`, from the job handler, so evidence imports only the read-back:
+  boundary edge `evidence -> document-reading`, IC10's shape). `paperIntakeItems.ts` turns each FINISHED read into
+  review rows when the batch is asked for: a cover sheet's driver is the scope (basis `scope`); an unsheeted piece
+  asks the matcher; dates are parsed in code (`printedDate.ts`, month first, two-digit years pivot at 50, an
+  impossible day is null); **every page lands in exactly one row** — pages no paper covers become a row, a failed
+  read becomes one row over the whole piece, an overlapping page stays with the first paper. 0573's unique index
+  makes two tabs polling at once insert one set. For a record kind, `proposed_issued_on` is the day it happened —
+  `file_intake_items` has no separate column, and adding one would take two merges (column, then reader).
+  ⚠ **For PI4:** a piece whose reader intake is REFUSED (a page below the reader's minimum size) has no source,
+  so `readOfBytes` answers `no_source` forever and the piece reads "still reading". PI4 offers "review without
+  reading" for a piece pending past a few minutes, which writes the unread row by hand. Not built here.

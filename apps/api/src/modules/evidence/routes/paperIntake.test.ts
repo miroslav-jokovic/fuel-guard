@@ -68,7 +68,7 @@ describe("paper-intake routes (PI2)", () => {
     await import("./paperIntake.js").then((m) => m.paperIntakeRouter());
     expect(gates.length).toBeGreaterThan(0);
     expect(new Set(gates.map((g) => g.join(":")))).toEqual(new Set(["roster:manage"]));
-  });
+  }, 30_000); // the first import of the router
 
   it("registers a file and audits it; a duplicate is answered without a second audit row", async () => {
     svc.registerStack.mockResolvedValueOnce({ stackId: STACK, uploadUrl: "https://put", duplicate: false });
@@ -90,7 +90,7 @@ describe("paper-intake routes (PI2)", () => {
   it("queues the split once, deduplicated on the stack, and not again for a stack already on its way", async () => {
     svc.markQueued.mockResolvedValueOnce("queued");
     expect((await call("POST", `/paper-intake/stacks/${STACK}/complete`)).status).toBe(202);
-    expect(dispatchJob).toHaveBeenCalledWith({}, {}, "paper_intake_split", expect.objectContaining({ orgId: ORG, payload: { stackId: STACK }, dedupKey: `paper_intake_split:${STACK}` }));
+    expect(dispatchJob).toHaveBeenCalledWith({}, {}, "paper_intake_split", expect.objectContaining({ orgId: ORG, payload: { stackId: STACK, requestedBy: "u-1" }, dedupKey: `paper_intake_split:${STACK}` }));
 
     dispatchJob.mockClear();
     svc.markQueued.mockResolvedValueOnce("already");
