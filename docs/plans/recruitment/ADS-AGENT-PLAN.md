@@ -1137,6 +1137,20 @@ rate, and Higgsfield credits per approved creative.
   the launch path; the host test is `simulatorGate`'s notion of production. **Nothing is built meanwhile.**
   **Whose files:** the connection test and the launch read sit in `platforms/meta/` (Track W); Connect sits in
   `connections/` (Track G).
+- **Q-AD43 · No screen makes an opening, so no campaign can be started from the app** (us, found on staging-walk-2,
+  2026-11-06; **blocks E3's done-when and G-walk lines 10–17**). A campaign's brief is an open opening
+  (`OPENING_BRIEF_SOURCE`; the create form lists `GET /api/recruitment/openings`, status `open` only). The door that
+  makes one exists, `POST /api/recruitment/openings` (`apps/api/src/modules/recruiting/routes/hiringSetup.ts:81`,
+  `recruitment: manage`, `openingSaveSchema` in `packages/shared/src/recruiting/leads/opening.ts`), but nothing in
+  `apps/web` calls it: the only web reader is `useOpenOpeningsQuery` (`features/recruitment/useLeads.ts:54`). Staging
+  has none, so "New campaign" offers no opening and cannot start. G4 ("First opening: pay basis + range, home time,
+  equipment, lanes, yard + radius + reason", owner) assumed a screen to type it into. Candidates: (a) an Openings
+  editor on Recruitment (beside Templates and Leads), over the existing door, with the hiring profile it needs: the
+  recruiting/leads track's, since the contract and door are theirs; (b) Track S builds it as an ads step, because
+  only ads reads an opening today; (c) refused: making the walk's opening with the member's token by hand, or the
+  service role, which routes around the missing screen and leaves the owner's G4 with nowhere to type. **Rec: (a)**,
+  sized as one step: a list and a versioned drawer like the brand kit's. **Meanwhile:** E3's done-when (four clicks
+  to a paused campaign) and the launch half are owed; everything before "New campaign" was walked.
 
 ---
 

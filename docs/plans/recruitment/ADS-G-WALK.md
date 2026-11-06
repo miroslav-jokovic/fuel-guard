@@ -5,10 +5,9 @@ The owner's walk of the whole ads agent on staging, before any real spend: ADS-A
 see. Written 2026-11-06 by Track S from a walk on `https://staging-api.360.silvicominc.com` (main `c04ee30`), so
 each line is either one that was **walked** and seen, or marked:
 
-- **⛔ Blocked (Q-AD41):** the step needs a fresh sign-in. On staging today every fresh sign-in fails, because the
-  API cannot check a password (`POST /api/auth/step-up` → 503 `step_up_unavailable`, "Password verification is
-  not configured on this deploy"). The line is written from the code and the browser tests; walk it once
-  Q-AD41 is fixed.
+- **✅ Walked 11/06 (walk 2):** seen on staging after Q-AD41's fix, as written.
+- **⛔ Blocked (Q-AD43):** the step needs an open opening, and no screen makes one. It is written from the code and
+  the browser tests; walk it once Q-AD43 is built.
 - **Stage 2:** the simulator cannot show it; it needs Meta's sandbox or a real Meta test lead (from Mon 11/09).
 
 **Who you sign in as.** Three staging test members (passwords in the owner's Keychain, service
@@ -23,40 +22,42 @@ spends money: the ad account is the **Simulator**.
 
 ## A. Who may see Ads control
 
-1. **[Admin] ⛔** Settings › Permissions › Roles › **Fleet manager** › Screens › Settings › **Ads control** →
+1. **[Admin] ✅** Settings › Permissions › Roles › **Fleet manager** › Screens › Settings › **Ads control** →
    switch it on → **Confirm it is you**: type your password → **Confirm**.
-   *Should see:* the switch stays on after a reload. *Walked 11/06:* the password was refused with "Could not
-   confirm your password. Check it and try again", though it was right; underneath, step-up answered 503
-   (Q-AD41). This is why the 11/06 grant did not persist.
-2. **[Manager]** Sign in as the fleet manager → Settings › Recruiting › **Ads control**.
-   *Should see:* the page opens (after line 1), every field greyed, **no Save**, **Stop all ads** offered, **no
-   Clear**, and the **Spend so far** card readable. *Walked 11/06:* the page sends the fleet manager to the home
-   page, correct while line 1 is undone.
+   *Should see, walked 11/06:* the switch stays on after a reload, and the fleet manager's sidebar gains Ads control.
+   (Walk 1 found every "Confirm it is you" failing on staging, Q-AD41, fixed the same day.)
+2. **[Manager] ✅** Sign in as the fleet manager → Settings › Recruiting › **Ads control**.
+   *Should see, walked 11/06 at 1280 and 390:* the page opens; every field greyed (only the kill switch's Reason box
+   takes typing); **no Save**; **Stop all ads** offered; **no Clear**; no New brand kit, New preset, Edit, Connect,
+   Test or Disconnect; and **Spend so far** readable.
 
 ## B. Ads control (admin)
 
-3. **[Admin]** Settings › Recruiting › **Ads control**.
+3. **[Admin] ✅** Settings › Recruiting › **Ads control**.
    *Should see, walked 11/06:* **Kill switch — off** with a Reason box and **Stop all ads**. Below it, **Spend so
    far**: "No ad account is connected, so nothing has spent", then two red lines, "0 AI tokens used. No monthly
    budget is saved…" and "0 picture credits used…". Then **Ad accounts**, **Brand kits**, **Presets**, and the
    limits form.
-4. **[Admin] ⛔** **Ad accounts** → **Connect the simulator** → confirm your password.
-   *Should see:* a **Simulator** row, status connected. *Walked 11/06:* the password prompt appeared in the card;
-   the connect itself answered `step_up_required` (Q-AD41).
-5. **[Admin] ⛔** On the Simulator row → **Test**.
-   *Should see:* one line saying every check passed.
-6. **[Admin] ⛔** The limits form: a monthly cap for **Simulator** (e.g. $100), a daily budget most per campaign
+4. **[Admin] ✅** **Ad accounts** → **Connect the simulator** → confirm your password (the prompt opens inside the
+   card).
+   *Should see, walked 11/06:* a **Simulator** row marked **Connected**, "Account 990000000001 · Page 990000000101 ·
+   Last tested …".
+5. **[Admin] ✅** On the Simulator row → **Test** (no second password within five minutes of the first).
+   *Should see, walked 11/06:* "Every check passed (7 of 7)."
+6. **[Admin] ✅** The limits form: a monthly cap for **Simulator** (e.g. $100), a daily budget most per campaign
    (e.g. $20), a lifetime most (e.g. $200), the auto-pause rules (the suggested benchmark values beside each
    box are fine), the AI tokens a month (e.g. 1,000,000) and picture credits a month (e.g. 500), and switch on
    **Draws the picture** (and the other agents) → **Save as a new version** → confirm your password.
-   *Should see:* "Ads settings saved as version 1". In **Spend so far**, the Simulator line reads "$0 of $100 spent this
-   month" and both red AI lines turn grey.
-7. **[Admin]** **Brand kits** → **New brand kit**: Kit name, Company name, one colour (a name and a hex like
+   *Should see:* "Ads settings saved as version 1" (walked 11/06: the save answered version 1; the toast was not
+   caught on screen). In **Spend so far**: "Simulator: $0
+   of $100 spent this month · On course for $0 if today's daily budgets run for the 25 days left", and the two red
+   AI lines become "0 of 1,000,000 AI tokens used this month" and "0 of 500 picture credits used this month".
+7. **[Admin] ✅** **Brand kits** → **New brand kit**: Kit name, Company name, one colour (a name and a hex like
    `#C0392B`), drop a photo of a truck with **no lettering** into "Drop photos here", say what it shows →
    **Save brand kit**.
    *Should see, walked 11/06:* the photo row appears after the upload; the drawer closes with "Brand kit saved";
    the row reads "Version 1 · 1 photo · saved … by …" and is still there after a reload.
-8. **[Admin]** **Presets** → **New preset**: Key `P1`, a name, a hook, four copy slots (e.g. `headline` 40,
+8. **[Admin] ✅** **Presets** → **New preset**: Key `P1`, a name, a hook, four copy slots (e.g. `headline` 40,
    `cta` 25, `body` 200, `title` 40), then **Where the copy goes**: on the image `headline` and `cta`, beside it
    `body` and `title`; an image prompt with `{time_of_day}` and "no text, no logos, no lettering" → **Save
    preset**.
@@ -67,45 +68,45 @@ spends money: the ad account is the **Simulator**.
 
 ## C. A campaign, made and reviewed (manager)
 
-10. **[Manager] ⛔** Recruitment (sidebar) › **Applicants** › **Campaigns** tab → **New campaign** → choose an
+10. **[Manager] ⛔ (Q-AD43)** Recruitment (sidebar) › **Applicants** › **Campaigns** tab → **New campaign** → choose an
     open **Opening**; the **Ad account** (Simulator) and **Brand kit** are chosen already when there is one of
     each → **Start campaign**.
     *Should see:* "Campaign started", and the campaign drawer opens on **Making the ads**, saying the agent is
-    working and the page updates by itself. *Walked 11/06:* the tab and the form open for the fleet manager, and
-    the form says "A campaign needs a connected ad account and a saved brand kit", correct while lines 4 and 6
-    are blocked.
-11. **[Manager]** Wait for **Waiting for review** (minutes: the agent writes, draws and checks every ad).
+    working and the page updates by itself. *Walked 11/06 (walk 2):* Recruitment group › Applicants › Campaigns tab ›
+    New campaign is **4 clicks**; the form has the Simulator and "Staging walk kit" ready, but **Opening offers
+    nothing**: staging has no open opening, and no screen in the app makes one (Q-AD43). Stopped here.
+11. **[Manager] ⛔ (Q-AD43)** Wait for **Waiting for review** (minutes: the agent writes, draws and checks every ad).
     *Should see:* each ad with its pictures in every format and both languages (EN, ES), its words, and its
     **checks**: one row per format and language, each with **Words**, **Text on the picture** and **Picture**
     marked Passed, Failed or Not checked. A failed picture check shows the checker's sentence ("A logo on the
     cab door."); an ad that failed says why above its rows.
-12. **[Manager]** On each ready ad → **Approve** (or **Reject**, which needs a reason).
+12. **[Manager] ⛔ (Q-AD43)** On each ready ad → **Approve** (or **Reject**, which needs a reason).
     *Should see:* the ad reads **Approved**.
-13. **[Manager]** In the drawer's footer → **Approve this campaign**, then **Create it paused** when it is offered.
+13. **[Manager] ⛔ (Q-AD43)** In the drawer's footer → **Approve this campaign**, then **Create it paused** when it is offered.
     *Should see:* **Approved**, then **Creating on the platform**, then **Paused**.
-14. **[Manager]** Close the drawer, then from the home page: **Recruitment** › **Applicants** › **Campaigns** › the
+14. **[Manager] ⛔ (Q-AD43)** Close the drawer, then from the home page: **Recruitment** › **Applicants** › **Campaigns** › the
     row. *Should see:* the paused campaign open in **four clicks** (E3's done-when): the Recruitment group, Applicants, the
-    Campaigns tab, the row. *Walked 11/06* on the tab
-    with no campaign yet: three clicks reach the list.
+    Campaigns tab, the row. *Walked 11/06:* three clicks reach the list; the fourth waits on a campaign.
 
 ## D. Launch, and the brake
 
-15. **[Admin] ⛔** Open the paused campaign → **Launch**: Daily budget $5, Lifetime cap $50 → **Approve and
+15. **[Admin] ⛔ (Q-AD43)** Open the paused campaign → **Launch**: Daily budget $5, Lifetime cap $50 → **Approve and
     launch** → confirm your password.
     *Should see:* "Campaign launching", then **Launching**, then **Live**. The simulator spends nothing.
-16. **[Manager]** The same campaign as the fleet manager.
+16. **[Manager] ⛔ (Q-AD43)** The same campaign as the fleet manager.
     *Should see:* no Launch form (Launch is an admin's).
 17. **[Admin] Stage 2** A campaign on a **Meta** account (sandbox) → Approve and launch.
     *Should see, until every part has passed its sandbox run:* "Not launched. These parts of the ads agent have
     not passed a test run against the real platform yet:" with a list in plain words ("Making the pictures",
     "Putting the ads on the platform, on Meta (Facebook, Instagram)") and "Nothing was spent".
-18. **[Manager]** Ads control → **Kill switch** → type a reason → **Stop all ads**. (No password: stopping is
+18. **[Manager] ✅** Ads control → **Kill switch** → type a reason → **Stop all ads**. (No password: stopping is
     always allowed.)
     *Should see:* "Ads stopped", **Kill switch — on** with your reason, and within about a minute the live
-    campaign reads **Pausing**, then **Paused**. *Not walked 11/06 on purpose:* line 19 is blocked, so the
-    switch could not have been cleared, and staging would have been left with every ad stopped.
-19. **[Admin] ⛔** **Clear the kill switch** → reason → confirm your password.
-    *Should see:* "Kill switch cleared", **Kill switch — off**. Nothing relaunches by itself; a paused campaign stays paused.
+    campaign reads **Pausing**, then **Paused**. *Walked 11/06, with no campaign to pause:* no password asked; the
+    card reads "Kill switch — on · Every campaign that was running is paused, and nothing can launch or raise its
+    budget. Reason given: …", and the manager is offered no Clear. The Pausing → Paused half waits on Q-AD43.
+19. **[Admin] ✅** **Clear the kill switch** → reason → confirm your password.
+    *Should see, walked 11/06:* **Kill switch — off** after a reload. Nothing relaunches by itself; a paused campaign stays paused.
 
 ## E. Leads, and what reconcile says
 
@@ -122,11 +123,12 @@ spends money: the ad account is the **Simulator**.
     the daily check.
     *Should see:* the bell's **Ads changed outside Silvicom**, and in **Spend so far** the daily-check line
     for the Meta account: when it last ran and "1 difference recorded since". The simulator has no daily check.
-24. **[Admin]** Settings › **Data & sync** › **Failed background jobs** (E5).
+24. **[Admin] ✅** Settings › **Data & sync** › **Failed background jobs** (E5).
     *Should see, walked 11/06:* the card, listing any job that failed every try it was allowed. As the fleet
     manager, Data & sync is not reachable (admin-only, owner's ruling 11/06).
 
 ---
 
 **Where the evidence is.** Each walked line's screenshots and network log are in the walking chat's scratchpad,
-not this repo. The walk's findings are in `ads-progress/2026-11-06-1100-S-staging-walk.md`.
+not this repo. The walks' findings are in `ads-progress/2026-11-06-1100-S-staging-walk.md` and
+`ads-progress/2026-11-06-1110-S-staging-walk-2.md`.
