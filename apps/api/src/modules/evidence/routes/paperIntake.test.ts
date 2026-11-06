@@ -16,10 +16,13 @@ const svc = vi.hoisted(() => ({
   markQueued: vi.fn(),
   listBatch: vi.fn(async () => []),
 }));
+const filing = vi.hoisted(() => ({ fileIntakeItem: vi.fn(), discardIntakeItem: vi.fn() }));
 const dispatchJob = vi.hoisted(() => vi.fn(async () => ({ jobId: "j1" })));
 const writeAudit = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock("../intake/paperIntake.js", () => svc);
+vi.mock("../intake/paperIntakeBatch.js", () => ({ listBatch: svc.listBatch, pieceUrl: vi.fn() }));
+vi.mock("../intake/paperIntakeFiling.js", () => filing);
 vi.mock("../../../queue/dispatch.js", () => ({ dispatchJob }));
 vi.mock("../../../lib/audit.js", () => ({ writeAudit }));
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => ({}) }));
@@ -59,7 +62,7 @@ async function call(method: string, path: string, body?: unknown): Promise<{ sta
 const register = { batchId: "b0b0b0b0-1111-4222-8333-444444444444", fileName: "stack.pdf", sha256: "a".repeat(64), bytes: 1000 };
 
 beforeEach(() => {
-  for (const f of [svc.registerStack, svc.markQueued, dispatchJob, writeAudit]) f.mockClear();
+  for (const f of [svc.registerStack, svc.markQueued, dispatchJob, writeAudit, filing.fileIntakeItem, filing.discardIntakeItem]) f.mockClear();
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -110,5 +113,36 @@ describe("paper-intake routes (PI2)", () => {
     expect((await call("GET", "/paper-intake/batches/not-an-id")).status).toBe(400);
     expect(svc.markQueued).not.toHaveBeenCalled();
     expect(svc.listBatch).not.toHaveBeenCalled();
+  });
+
+  const ITEM = "11111111-2222-4333-8444-555555555555";
+  const fileBody = { driverId: "3f2b9c1e-8d4a-4b6f-9e21-5c7a0d1e2f34", kind: "mvr", date: "2026-01-05", expiresOn: null };
+
+  it("files a reviewed paper as the signed-in person and audits it (PI5)", async () => {
+    filing.fileIntakeItem.mockResolvedValueOnce({ status: "filed", documentId: ITEM, certificationId: null, recordId: ITEM });
+    expect((await call("POST", `/paper-intake/items/${ITEM}/file`, fileBody)).status).toBe(201);
+    expect(filing.fileIntakeItem).toHaveBeenCalledWith({}, ORG, { id: "u-1", role: "safety_manager" }, ITEM, fileBody);
+    expect(writeAudit).toHaveBeenCalledWith({}, expect.objectContaining({ action: "compliance.paper_filed", entityId: ITEM, meta: expect.objectContaining({ kind: "mvr", recordId: ITEM }) }));
+  });
+
+  it("answers a refusal in words with the right status, and audits nothing", async () => {
+    for (const [code, status] of [["refused", 422], ["forbidden", 403], ["already_decided", 409], ["not_found", 404]] as const) {
+      filing.fileIntakeItem.mockResolvedValueOnce({ code, error: "x" });
+      expect((await call("POST", `/paper-intake/items/${ITEM}/file`, fileBody)).status).toBe(status);
+    }
+    expect(writeAudit).not.toHaveBeenCalled();
+  });
+
+  it("refuses a file request with no driver or no kind before the service is asked", async () => {
+    expect((await call("POST", `/paper-intake/items/${ITEM}/file`, { ...fileBody, driverId: "" })).status).toBe(400);
+    expect((await call("POST", `/paper-intake/items/${ITEM}/file`, { ...fileBody, kind: "" })).status).toBe(400);
+    expect(filing.fileIntakeItem).not.toHaveBeenCalled();
+  });
+
+  it("sets a row aside with its reason in the audit row, the only place it is kept", async () => {
+    filing.discardIntakeItem.mockResolvedValueOnce({ status: "discarded" });
+    expect((await call("POST", `/paper-intake/items/${ITEM}/discard`, { reason: "not_dq_paper" })).status).toBe(200);
+    expect(writeAudit).toHaveBeenCalledWith({}, expect.objectContaining({ action: "compliance.paper_discarded", meta: { reason: "not_dq_paper" } }));
+    expect((await call("POST", `/paper-intake/items/${ITEM}/discard`, { reason: "because" })).status).toBe(400);
   });
 });

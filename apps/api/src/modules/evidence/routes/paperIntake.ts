@@ -1,6 +1,14 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { isRecordId, paperStackRegisterSchema, type PaperStackRegisterRequest } from "@silvicom/shared";
+import {
+  isRecordId,
+  paperDiscardRequestSchema,
+  paperFileRequestSchema,
+  paperStackRegisterSchema,
+  type PaperDiscardRequest,
+  type PaperFileRequest,
+  type PaperStackRegisterRequest,
+} from "@silvicom/shared";
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -9,6 +17,7 @@ import { writeAudit } from "../../../lib/audit.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
 import { markQueued, registerStack } from "../intake/paperIntake.js";
 import { listBatch, pieceUrl } from "../intake/paperIntakeBatch.js";
+import { discardIntakeItem, fileIntakeItem, type FilingError } from "../intake/paperIntakeFiling.js";
 
 /**
  * Scanned stacks of paper driver files (DRIVER-PAPER-INTAKE-PLAN PI2). Mounted inside the compliance
@@ -18,6 +27,8 @@ import { listBatch, pieceUrl } from "../intake/paperIntakeBatch.js";
  *   POST /paper-intake/stacks/:id/complete   → the PUT finished: queue the split
  *   GET  /paper-intake/batches/:batchId      → one drop's stacks, their pieces, and its review rows (PI4)
  *   GET  /paper-intake/stacks/:id/parts/:i   → a signed URL to one piece's PDF, for the viewer (PI4)
+ *   POST /paper-intake/items/:id/file        → file a reviewed paper into the driver's file (PI5)
+ *   POST /paper-intake/items/:id/discard     → set a row aside (PI5)
  *
  * Every route is `roster: manage`: these are papers on their way into drivers' files, the section's
  * write (D-UF5), and the review that follows (PI4) is the same reader — Q-PI5's safety manager and
@@ -123,6 +134,63 @@ export function paperIntakeRouter(): Router {
         return;
       }
       res.json({ url });
+    }),
+  );
+
+  const filingStatus = (e: FilingError) =>
+    ({ not_found: 404, already_decided: 409, refused: 422, forbidden: 403, piece_missing: 409, failed: 500 })[e.code];
+
+  router.post(
+    "/paper-intake/items/:id/file",
+    ...gate,
+    validateBody(paperFileRequestSchema),
+    asyncHandler(async (req: Request, res: Response) => {
+      const itemId = String(req.params.id);
+      if (!isRecordId(itemId)) {
+        res.status(400).json(apiError("bad_id", "Not a paper of an upload."));
+        return;
+      }
+      const body = res.locals.body as PaperFileRequest;
+      const orgId = req.auth!.orgId!;
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await fileIntakeItem(admin, orgId, { id: req.auth!.userId, role: req.auth!.role ?? null }, itemId, body);
+      if ("code" in result) {
+        res.status(filingStatus(result)).json(apiError(result.code, result.error));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: result.status === "filed" ? "compliance.paper_filed" : "compliance.paper_duplicate",
+        entity: "file_intake_items",
+        entityId: itemId,
+        meta: { driverId: body.driverId, kind: body.kind, date: body.date, expiresOn: body.expiresOn, ...result },
+      });
+      res.status(result.status === "filed" ? 201 : 200).json(result);
+    }),
+  );
+
+  router.post(
+    "/paper-intake/items/:id/discard",
+    ...gate,
+    validateBody(paperDiscardRequestSchema),
+    asyncHandler(async (req: Request, res: Response) => {
+      const itemId = String(req.params.id);
+      if (!isRecordId(itemId)) {
+        res.status(400).json(apiError("bad_id", "Not a paper of an upload."));
+        return;
+      }
+      const body = res.locals.body as PaperDiscardRequest;
+      const orgId = req.auth!.orgId!;
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await discardIntakeItem(admin, orgId, req.auth!.userId, itemId, body);
+      if ("code" in result) {
+        res.status(filingStatus(result)).json(apiError(result.code, result.error));
+        return;
+      }
+      // The row has no reason column; the reason a page was set aside lives in the audit row.
+      await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "compliance.paper_discarded", entity: "file_intake_items", entityId: itemId, meta: { reason: body.reason } });
+      res.json(result);
     }),
   );
 

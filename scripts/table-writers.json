@@ -241,6 +241,7 @@
     "apps/api/src/modules/recruiting/applicantEmployerCalls.ts"
   ],
   "file_intake_items": [
+    "apps/api/src/modules/evidence/intake/paperIntakeFiling.ts",
     "apps/api/src/modules/evidence/intake/paperIntakeItems.ts"
   ],
   "finance_month_closes": [

@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { PaperBatchResponse, PaperStackRegisterResponse } from "@silvicom/shared";
+import type { PaperBatchResponse, PaperDiscardRequest, PaperFileRequest, PaperStackRegisterResponse } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { sha256Hex } from "@/composables/useCompliance";
@@ -67,4 +67,43 @@ export async function fetchPieceUrl(stackId: string, partIndex: number): Promise
   const res = await apiFetch<{ url: string }>(`/api/compliance/paper-intake/stacks/${stackId}/parts/${partIndex}`);
   if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not open those pages.");
   return res.data.url;
+}
+
+/**
+ * File a reviewed paper, or set it aside (PI5). Both refresh the batch, and filing refreshes every driver
+ * file read (`["compliance"]`): the paper is now evidence, and the Drivers File column counts it.
+ */
+export function useFilePaper() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ itemId, body }: { itemId: string; body: PaperFileRequest }) => {
+      const res = await apiFetch<{ status: "filed" | "duplicate" }>(`/api/compliance/paper-intake/items/${itemId}/file`, { method: "POST", body });
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not file that paper.");
+      return res.data;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["compliance"] }),
+  });
+}
+
+export function useDiscardPaper() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ itemId, reason }: { itemId: string; reason: PaperDiscardRequest["reason"] }) => {
+      const res = await apiFetch(`/api/compliance/paper-intake/items/${itemId}/discard`, { method: "POST", body: { reason } });
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not set that paper aside.");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+/** "Pages 4–5" from the stack's own numbers, which may skip a blank page left out ("Pages 3, 5–6"). */
+export function pagesLabel(pages: number[]): string {
+  const runs: Array<[number, number]> = [];
+  for (const p of pages) {
+    const last = runs[runs.length - 1];
+    if (last && last[1] === p - 1) last[1] = p;
+    else runs.push([p, p]);
+  }
+  const text = runs.map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(", ");
+  return `${pages.length === 1 ? "Page" : "Pages"} ${text}`;
 }

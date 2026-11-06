@@ -167,3 +167,71 @@ export function isBlankPage(grey: Uint8Array, darkBelow = 128): boolean {
   for (let i = 0; i < grey.length; i++) if (grey[i]! < darkBelow) dark++;
   return grey.length > 0 && dark / grey.length < BLANK_PAGE_DARK_FRACTION;
 }
+
+// ── filing (PI5): what a reviewed paper becomes ──────────────────────────────────────────────────────
+
+/** A paper filed from intake: the reviewer's word on whose it is, what it is, and its dates. */
+export const paperFileRequestSchema = z.object({
+  driverId: recordId("Choose the driver this paper belongs to"),
+  kind: z.string().trim().min(1, "Say which paper this is").max(80),
+  /** The day it was issued, or the day the thing it records happened (a test, a review). */
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+  expiresOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+});
+export type PaperFileRequest = z.infer<typeof paperFileRequestSchema>;
+
+export const paperDiscardRequestSchema = z.object({ reason: z.enum(["not_dq_paper", "duplicate_page", "unreadable", "other"]) });
+export type PaperDiscardRequest = z.infer<typeof paperDiscardRequestSchema>;
+
+/**
+ * The kinds a paper filed from intake may be, and what each writes (DRIVER-PAPER-INTAKE-PLAN PI5).
+ *   certification — CDL, medical card: dated by expiry (or issue), the supersede chain decides "current".
+ *   record        — the dated §391.51 events, `occurred_on` = the paper's date, `detail.source = "paper_intake"`.
+ *   document      — `other`: kept on the driver's file as a paper, proving no requirement.
+ * Every one files the scan first (D-DQ10); a record or certification always cites it.
+ */
+export const PAPER_FILE_CERTIFICATION_KINDS = ["cdl", "medical_card"] as const;
+export const PAPER_FILE_RECORD_KINDS = [
+  "employment_application", "mvr", "annual_mvr_review", "road_test", "cdl_equivalency",
+  "previous_employer_inquiry", "previous_employer_response", "clearinghouse_full", "clearinghouse_limited",
+  "eldt", "medical_registry_verification", "drug_test", "alcohol_test",
+] as const;
+export const PAPER_FILE_KINDS = [...PAPER_FILE_CERTIFICATION_KINDS, ...PAPER_FILE_RECORD_KINDS, "other"] as const;
+
+/**
+ * The two papers only the hiring ceremony may write for an APPLICANT (`CEREMONY_OWNED_KINDS`, A-9), which
+ * Q-PI3 (a) lets intake file for a driver already HIRED: the signed paper of a driver hired years ago is
+ * the evidence §391.21 and §391.31 ask for, and nothing else could ever file it.
+ */
+export const PAPER_FILE_HIRED_ONLY_KINDS = ["employment_application", "road_test"] as const;
+
+/**
+ * Why a kind is NOT fileable from intake, said where the reviewer will act on it — each of these has its
+ * own path in the driver's file, and intake must not become a second door to it.
+ */
+export const PAPER_FILE_ELSEWHERE: Readonly<Record<string, string>> = {
+  psp_report: "File a PSP report from the driver's Employment tab, which records where it came from.",
+  handbook: "The handbook is signed on the applicant's link; a scanned one can be kept as an other paper.",
+  endorsement: "Record an endorsement from the driver's qualification file, where its letter is chosen.",
+  hazmat_training: "Record hazmat training from the driver's qualification file, which asks for its provider.",
+  return_to_duty: "Record return-to-duty paperwork from the driver's qualification file.",
+};
+
+export type PaperFilePath = "certification" | "record" | "document";
+
+export function paperFilePlan(
+  req: Pick<PaperFileRequest, "kind" | "date" | "expiresOn">,
+  driver: { status: string },
+): { ok: true; path: PaperFilePath } | { ok: false; message: string } {
+  const kind = req.kind;
+  if (kind in PAPER_FILE_ELSEWHERE) return { ok: false, message: PAPER_FILE_ELSEWHERE[kind]! };
+  if (!(PAPER_FILE_KINDS as readonly string[]).includes(kind)) return { ok: false, message: "That is not a paper a driver's file holds. Keep it as an other paper, or discard it." };
+  if (kind === "other") return { ok: true, path: "document" };
+  if ((PAPER_FILE_HIRED_ONLY_KINDS as readonly string[]).includes(kind) && driver.status === "applicant") {
+    return { ok: false, message: "An applicant's application and road test are filed by their own signing steps, not from a scan." };
+  }
+  if ((PAPER_FILE_CERTIFICATION_KINDS as readonly string[]).includes(kind)) {
+    return req.expiresOn || req.date ? { ok: true, path: "certification" } : { ok: false, message: "Enter the expiry date printed on it." };
+  }
+  return req.date ? { ok: true, path: "record" } : { ok: false, message: "Enter the date printed on it — the day it was signed or the thing happened." };
+}

@@ -9,14 +9,16 @@ import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
-import { fetchPieceUrl, usePaperBatch, useUploadStack } from "@/features/roster/usePaperIntake";
+import { fetchPieceUrl, pagesLabel, usePaperBatch, useUploadStack } from "@/features/roster/usePaperIntake";
+import PaperReviewDrawer from "@/features/roster/PaperReviewDrawer.vue";
 
 /**
  * Drivers › Upload scanned files (DRIVER-PAPER-INTAKE-PLAN PI4). The office drops the PDFs the Brother
  * scanner saved — several driver folders each, every folder under its cover sheet (PI1) — and watches them
  * split (PI2) and read (PI3). What the reader found is listed per paper, on the scan's own page numbers,
  * with the pages a click away, so the person can see each proposal against the paper before anything is
- * filed. Filing and correcting are PI5's; nothing on this page writes to a driver's file.
+ * filed. "Check and file" (PI5) opens one row: correct it against its pages, then file it into the
+ * driver's file or set it aside.
  *
  * The drop's id is in the URL (`?batch=`), so a reload, a second tab or a link to a colleague shows the
  * same drop; a new drop on a page with no batch starts one.
@@ -47,6 +49,7 @@ async function onFiles(files: File[]): Promise<void> {
 
 const stacks = computed<PaperStackDto[]>(() => batch.data.value?.stacks ?? []);
 const items = computed<PaperIntakeItemDto[]>(() => batch.data.value?.items ?? []);
+const pendingCount = computed(() => items.value.filter((i) => i.status === "pending").length);
 const fileNameOf = computed(() => new Map(stacks.value.map((s) => [s.id, s.fileName])));
 
 /** What a stack is doing, in the office's words. */
@@ -74,18 +77,6 @@ function stackLine(s: PaperStackDto): { text: string; tone: string } {
   }
 }
 
-/** "Pages 4–5" from the stack's own numbers, which may skip a blank page left out ("Pages 3, 5–6"). */
-function pagesLabel(pages: number[]): string {
-  const runs: Array<[number, number]> = [];
-  for (const p of pages) {
-    const last = runs[runs.length - 1];
-    if (last && last[1] === p - 1) last[1] = p;
-    else runs.push([p, p]);
-  }
-  const text = runs.map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(", ");
-  return `${pages.length === 1 ? "Page" : "Pages"} ${text}`;
-}
-
 const whoLabel = (i: PaperIntakeItemDto): string =>
   i.driverName ?? (i.driverId ? "A driver no longer on the roster" : "No driver yet");
 const basisLabel = (i: PaperIntakeItemDto): string | null =>
@@ -99,7 +90,11 @@ const columns: DataTableColumn[] = [
   { key: "pages", label: "Pages", headerClass: "w-40", cellClass: "text-ink-secondary" },
   { key: "dates", label: "Dates", headerClass: "w-48", cellClass: "text-ink-secondary" },
   { key: "view", label: "Scan", headerClass: "w-24" },
+  { key: "review", label: "", headerClass: "w-36" },
 ];
+
+const reviewing = ref<PaperIntakeItemDto | null>(null);
+const statusLabel: Record<PaperIntakeItemDto["status"], string> = { pending: "", filed: "Filed", discarded: "Set aside", duplicate: "Already in the file" };
 
 // ── the pages of one row, in the browser's own PDF viewer, opened at the row's first page ────────────
 const viewing = ref<{ title: string; url: string } | null>(null);
@@ -142,8 +137,8 @@ async function view(i: PaperIntakeItemDto): Promise<void> {
       </ul>
     </BaseCard>
 
-    <AppCallout v-if="items.length" tone="info">
-      Check each paper against its pages. Filing them into the drivers' files comes next; nothing here has been filed yet.
+    <AppCallout v-if="pendingCount" tone="info">
+      {{ pendingCount }} {{ pendingCount === 1 ? "paper is" : "papers are" }} waiting to be checked. Open each one, compare it with its pages, and file it into the driver's file.
     </AppCallout>
 
     <template v-if="batchId">
@@ -165,7 +160,7 @@ async function view(i: PaperIntakeItemDto): Promise<void> {
         <template #cell-paper="{ row }">
           <span :class="[(row as PaperIntakeItemDto).kind ? 'text-ink' : 'text-ink-muted']">{{ kindLabel(row as PaperIntakeItemDto) }}</span>
           <span v-if="(row as PaperIntakeItemDto).title" class="mt-0.5 block text-xs text-ink-muted">“{{ (row as PaperIntakeItemDto).title }}”</span>
-          <span v-if="(row as PaperIntakeItemDto).status !== 'pending'" :class="['mt-1', BADGE_BASE, toneClass('neutral')]">{{ (row as PaperIntakeItemDto).status }}</span>
+          <span v-if="(row as PaperIntakeItemDto).status !== 'pending'" :class="['mt-1', BADGE_BASE, toneClass((row as PaperIntakeItemDto).status === 'filed' ? 'success' : 'neutral')]">{{ statusLabel[(row as PaperIntakeItemDto).status] }}</span>
         </template>
         <template #cell-pages="{ row }">{{ pagesLabel((row as PaperIntakeItemDto).pages) }}</template>
         <template #cell-dates="{ row }">
@@ -173,11 +168,16 @@ async function view(i: PaperIntakeItemDto): Promise<void> {
           <span v-if="(row as PaperIntakeItemDto).expiresOn" class="block">until {{ formatDate((row as PaperIntakeItemDto).expiresOn) }}</span>
           <span v-if="!(row as PaperIntakeItemDto).issuedOn && !(row as PaperIntakeItemDto).expiresOn" class="text-ink-tertiary">—</span>
         </template>
+        <template #cell-review="{ row }">
+          <BaseButton v-if="(row as PaperIntakeItemDto).status === 'pending'" size="sm" @click="reviewing = row as PaperIntakeItemDto">Check and file</BaseButton>
+        </template>
         <template #cell-view="{ row }">
           <BaseButton variant="ghost" size="sm" class="px-0 font-medium text-link hover:text-link-hover" :aria-label="`View ${pagesLabel((row as PaperIntakeItemDto).pages)}`" @click="view(row as PaperIntakeItemDto)">View</BaseButton>
         </template>
       </DataTable>
     </template>
+
+    <PaperReviewDrawer :open="reviewing !== null" :item="reviewing" @close="reviewing = null" @view="view" />
 
     <SlideOver :open="viewing !== null" size="xl" :title="viewing?.title ?? 'Scan'" @close="viewing = null">
       <iframe v-if="viewing" :src="viewing.url" title="Scanned pages" class="h-[80vh] w-full rounded-control ring-1 ring-edge" />
