@@ -1023,6 +1023,12 @@ rate, and Higgsfield credits per approved creative.
   **Recommendation: (a), plus the two smaller fixes inside B6.** The migration is about 10 lines; a separate
   PR merged first, then B6 unchanged in scope. Who writes the migration (Track W, or the orchestrator) is the
   orchestrator's call. Track W's rules say to stop on a migration. **Nothing is built meanwhile.**
+  **Ruled 2026-11-06 (orchestrator): (a).** event_id = `<lead id>:<stage>` and the dedup on
+  `unique (org_id, provider, source_event_ref)` are accepted. B6 may add `provider` and `platform_lead_ref`
+  to `leadOutcomeSchema` (add-only) and select `channel, external_ref` in recruiting's reader (two lines).
+  **Built:** migration `0570_ads_outcome_stages.sql` limits the CHECK to `LEAD_OUTCOME_STAGES`;
+  `OUTCOME_STAGES` is derived from that list; `adsSchemaParity.test.ts` reads `alter table … add constraint`.
+  Counted on 2026-11-06: 0 rows on both staging and production. B6 follows as the next merge.
 
 ---
 
