@@ -1094,6 +1094,41 @@ rate, and Higgsfield credits per approved creative.
   non-ok answer, and `StepUpPrompt.vue:43` then says "Could not confirm your password. Check it and try again", so
   a correct password is blamed for a server that cannot check it. Production was not tested (no production login
   for an agent).
+- **Q-AD42 · How staging tells a Meta sandbox ad account from a real one** (us, found starting D-AD8's enforcement,
+  2026-11-06; **blocks D-AD8's "a test asserts that the staging config cannot hold a non-sandbox account id"**). D-AD8
+  says staging uses only a sandbox ad account. Nothing enforces it: Connect checks the token, not the host
+  (`connections/connections.ts`), so a real account connected on staging would spend real money (ADS-RUNBOOK §8 warns).
+  The orchestrator's rule for the fix: the proof that an account IS a sandbox must come from Meta, not from a box an
+  admin ticks. **Meta documents no such signal** (read 2026-11-06):
+  · the Ad Account reference (https://developers.facebook.com/docs/marketing-api/reference/ad-account/) has no
+    sandbox, test or mock field; its `is_*` flags are attribution, direct deals, 3DS, notifications, personal, prepay
+    and tax id; `account_status` has no sandbox value;
+  · a sandbox account is created by hand in the App Dashboard (Quickstart › "Create Sandbox Ad Account", one per app;
+    https://developers.facebook.com/documentation/development/create-an-app/marketing-api-use-cases.md), with no
+    documented Graph endpoint or edge naming it; the 2016 announcement
+    (https://developers.facebook.com/ads/blog/post/v2/2016/10/19/sandbox-ad-accounts/) says it "doesn't need a
+    funding source" because ads are not delivered.
+  Our `connect` form's `sandbox` box (`adsMetaConnectSchema`) is the admin's word, which the rule excludes.
+  Candidates:
+  · **(a) Refuse, on a non-production host, an account that HAS a payment method.** Meta documents the property that
+    matters: "If the account does not have a payment method it will still be possible to create ads but these ads will
+    get no delivery" (Ad Account reference, `funding_source`). So the check is on spending, not on a label: an
+    account that cannot be billed cannot spend. Read at Connect (the connection test already reads `act_<id>`) and
+    again on use, from Meta both times, so no column is needed. **OUR reading, for L4 to confirm:** that a sandbox
+    account reports no `funding_source` (or `funding_source_details.type` `DUMMY` = 18), and which permission the
+    read needs (`funding_source_details` needs MANAGE; `funding_source` names none). Also refuses a real account
+    with no card on file, which is safe: it cannot spend either.
+  · (b) An allow-list of sandbox account ids in staging's deploy settings (Parameter Store), checked at Connect and
+    on use. Matches D-AD8's words "the staging config", but the proof is an engineer's word, not Meta's.
+  · (c) Refuse every Meta connection on a non-production host and use only the simulator there. Safe, but it drops
+    D-AD8's sandbox, and with it L4, which is earned on that sandbox.
+  · (d) Treat an account whose token user is an app test user as a sandbox. The 2016-era wiki route; undocumented for
+    a system user, so it is not evidence.
+  **Recommendation: (a)**, to be checked against a real sandbox account at L4 before it is trusted. If L4 shows a
+  sandbox account DOES report a funding source, fall back to (b). Built with it: one check, called by Connect and by
+  the launch path; the host test is `simulatorGate`'s notion of production. **Nothing is built meanwhile.**
+  **Whose files:** the connection test and the launch read sit in `platforms/meta/` (Track W); Connect sits in
+  `connections/` (Track G).
 
 ---
 
