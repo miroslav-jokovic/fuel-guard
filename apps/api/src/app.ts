@@ -69,6 +69,7 @@ import { rosterArchiveRouter, rosterCredentialsRouter, rosterDriversRouter, rost
 import { authRouter } from "./routes/auth.js";
 import { authStepUpRouter } from "./routes/authStepUp.js";
 import { versionRouter } from "./routes/version.js";
+import { stepUpBootWarning } from "./envAuth.js";
 
 /**
  * Everything that guards `/api/fuel-cards`, before the routers on that prefix run.
@@ -282,6 +283,8 @@ function mountApiRouters(app: Express, env: Env): void {
   if (samsaraWebhookWarning) console.warn(samsaraWebhookWarning);
   const metaWebhookWarning = metaWebhookBootWarning(env);
   if (metaWebhookWarning) console.warn(metaWebhookWarning);
+  const stepUpWarning = stepUpBootWarning(env); // Q-AD41 (b): a deploy that cannot do "Confirm it's you" says so here
+  if (stepUpWarning) console.warn(stepUpWarning);
   app.use(META_WEBHOOK_PATH, metaWebhookRouter({ kick: (e, admin, n) => drainKindNow(e, admin, "ads_lead_fetch", n) })); // Meta leadgen (ads B4b): X-Hub-Signature-256; no user auth
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
 }

@@ -1104,6 +1104,23 @@ rate, and Higgsfield credits per approved creative.
   non-ok answer, and `StepUpPrompt.vue:43` then says "Could not confirm your password. Check it and try again", so
   a correct password is blamed for a server that cannot check it. Production was not tested (no production login
   for an agent).
+
+  **(a) done 2026-11-06** (the orchestrator set the parameter and redeployed staging; step-up as the staging admin
+  answered 200). **(b) built 2026-11-06 (Track G loud-config, after the env split #2115):** we chose the loud
+  report, not refusing to boot. A boot refusal would take down every page because of one door.
+  - **One definition:** `stepUpMissing` in `apps/api/src/envAuth.ts`, beside the step-up settings. It checks what the
+    path needs: SUPABASE_URL and SUPABASE_ANON_KEY for the password grant, and a usable SECRETS_ENCRYPTION_KEY through
+    `canMintStepUp`, the same decode minting runs. The route refuses on it before the grant.
+  - **`/api/version`** reports `stepUp`: `"ready"` or `"missing:<names>"`. It shows names only, never values. `ok` is
+    false and `/ready` answers 503 while it is not ready.
+  - **Boot log:** the server writes one `[step-up] ⚠` line at startup.
+  - **deploy-verify** fails STAGING on it. On PRODUCTION it posts a warning and a summary line instead. The reason is
+    in the code: release.yml's auto-rollback cannot set a setting, and would only swap good code for older code
+    missing the same setting. `pnpm verify:live` applies the same rule.
+  - **Web:** on 503 `step_up_unavailable`, the prompt says "The server can't confirm passwords right now. Tell your
+    administrator." and no longer marks the password field invalid.
+  - **Same PR:** `/api/jobs/latest` serves every kind in the shared `jobKindCatalogue.ts` (the hand list missed
+    `efs_store_sync`). Kinds outside the fuel, Samsara and EFS areas need the Settings section, like `/failed`.
 - **Q-AD42 · How staging tells a Meta sandbox ad account from a real one** (us, found starting D-AD8's enforcement,
   2026-11-06; **blocks D-AD8's "a test asserts that the staging config cannot hold a non-sandbox account id"**). D-AD8
   says staging uses only a sandbox ad account. Nothing enforces it: Connect checks the token, not the host

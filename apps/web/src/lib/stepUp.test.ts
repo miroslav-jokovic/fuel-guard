@@ -34,17 +34,31 @@ describe("verifyStepUp", () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ token: "tok-abc", expiresAt }), { status: 200 }));
     const { verifyStepUp, stepUpHeader } = await load();
 
-    expect(await verifyStepUp("hunter2")).toBe(true);
+    expect(await verifyStepUp("hunter2")).toBe("verified");
     expect(stepUpHeader()).toEqual({ "x-step-up-token": "tok-abc" });
     // The password went to our endpoint, once.
     expect(fetchMock).toHaveBeenCalledWith("/api/auth/step-up", expect.objectContaining({ method: "POST" }));
   });
 
-  it("returns false and holds nothing when the server refuses", async () => {
+  it("answers refused and holds nothing when the server refuses", async () => {
     fetchMock.mockResolvedValue(new Response("{}", { status: 403 }));
     const { verifyStepUp, stepUpHeader } = await load();
-    expect(await verifyStepUp("wrong")).toBe(false);
+    expect(await verifyStepUp("wrong")).toBe("refused");
     expect(stepUpHeader()).toEqual({});
+  });
+
+  // Q-AD41: staging's API had no SUPABASE_ANON_KEY for two weeks and answered every step-up this way.
+  it("a server that cannot check any password (503 step_up_unavailable) is unavailable, not a refused password", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: { code: "step_up_unavailable", message: "x" } }), { status: 503 }));
+    const { verifyStepUp, stepUpHeader } = await load();
+    expect(await verifyStepUp("hunter2")).toBe("unavailable");
+    expect(stepUpHeader()).toEqual({});
+  });
+
+  it("a 503 that is not the step-up refusal (a proxy's, say) stays refused", async () => {
+    fetchMock.mockResolvedValue(new Response("<html>Service Unavailable</html>", { status: 503 }));
+    const { verifyStepUp } = await load();
+    expect(await verifyStepUp("hunter2")).toBe("refused");
   });
 
   it("stops emitting a token once it has expired", async () => {

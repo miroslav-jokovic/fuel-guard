@@ -197,7 +197,10 @@ jobs:
             body=$(curl -sS --max-time 15 "${TARGET_URL%/}/api/version" || echo '{}')
             live=$(echo "$body" | jq -r '.commit // empty')
             schema=$(echo "$body" | jq -r '.schema.state // "unknown"')
-            echo "[$HOST] live=${live:-none} schema=${schema}"
+            # Q-AD41 (b): "ready", or "missing:<setting names>" when this deploy cannot do "Confirm it's you"; empty
+            # on a host that does not report it (an API older than that merge).
+            stepup=$(echo "$body" | jq -r '.stepUp // empty')
+            echo "[$HOST] live=${live:-none} schema=${schema} stepUp=${stepup:-not reported}"
             if [ "$ROLLBACK" != "true" ] && [ -n "$live" ] && [ "$live" != "$EXPECTED" ] && [ "$live" != "$checked" ]; then
               checked="$live"
               rel=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${EXPECTED}...${live}" --jq .status 2>/dev/null || echo unknown)
@@ -206,6 +209,21 @@ jobs:
             fi
             if [ "$live" = "$EXPECTED" ] || { [ "$live" = "$checked" ] && [ -n "$contains" ]; }; then
               if [ "$schema" = "current" ] || { [ "$ROLLBACK" = "true" ] && [ "$schema" = "ahead" ]; }; then
+                # A host that serves the commit but cannot do "Confirm it's you" is not a good deploy: staging ran two
+                # weeks that way, every admin act behind a fresh sign-in failing as a "wrong password" (Q-AD41).
+                # STAGING (URL_PREFIX set) fails here. PRODUCTION is annotated and summarised, NOT failed: release.yml
+                # auto-rolls back on a failure of this job, and a rollback cannot set a missing setting — it would
+                # swap good code for older code missing the same setting. The fix is Parameter Store and a redeploy.
+                # `pnpm verify:live` applies the same rule. Only setting NAMES reach this log, never values.
+                if [ -n "$stepup" ] && [ "$stepup" != "ready" ]; then
+                  if [ -n "$URL_PREFIX" ]; then
+                    echo "::error::${HOST} serves ${live::7} but step-up cannot work (${stepup}): every 'Confirm it's you' answers 503. Set the named settings in Parameter Store and redeploy."
+                    echo "✗ [${HOST}] step-up cannot work: \`${stepup}\` — every 'Confirm it's you' answers 503." >> "$GITHUB_STEP_SUMMARY"
+                    exit 1
+                  fi
+                  echo "::warning::${HOST} serves ${live::7} but step-up cannot work (${stepup}): every 'Confirm it's you' answers 503. Not failed on production (a rollback cannot set a setting): set it in Parameter Store and redeploy."
+                  echo "⚠ [${HOST}] step-up cannot work: \`${stepup}\` — reported, not failed, on production." >> "$GITHUB_STEP_SUMMARY"
+                fi
                 if [ "$live" = "$EXPECTED" ]; then
                   echo "✓ ${TARGET_URL} is serving ${EXPECTED::7} with a matching schema."
                 else

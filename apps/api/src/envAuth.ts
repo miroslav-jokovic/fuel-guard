@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Env } from "./env.js";
+import { canMintStepUp } from "./lib/stepUpToken.js";
 
 /**
  * The server's own identity: Supabase, and the key that seals stored secrets and signs step-up tokens.
@@ -40,4 +41,41 @@ export function applyAnonKeyFallback(env: Env, source: NodeJS.ProcessEnv): void 
     (env as { SUPABASE_ANON_KEY?: string }).SUPABASE_ANON_KEY = source.VITE_SUPABASE_ANON_KEY;
     console.info("[env] SUPABASE_ANON_KEY taken from VITE_SUPABASE_ANON_KEY");
   }
+}
+
+/**
+ * Can "Confirm it's you" work on this deploy? What it lacks, by setting NAME — never a value. Empty = ready.
+ *
+ * The ONE definition (Q-AD41 (b), 2026-11-06), derived from what the step-up path itself needs: the password grant in
+ * `routes/authStepUp.ts` calls Supabase with SUPABASE_URL and SUPABASE_ANON_KEY (after `applyAnonKeyFallback`), and
+ * `lib/stepUpToken.ts` mints and verifies with an HKDF subkey of SECRETS_ENCRYPTION_KEY — asked through
+ * `canMintStepUp`, the same decode the minting runs, so a key that is set but unusable counts as missing. The route
+ * refuses on this, `/api/version` reports it (`stepUp`), `pnpm verify:live` and deploy-verify read that, and the boot
+ * log says it.
+ *
+ * Why it is loud: staging's Parameter Store lost SUPABASE_ANON_KEY and for about two weeks every step-up answered 503
+ * `step_up_unavailable`. The web prompt called that a wrong password, so permission saves, ads Connect, settings
+ * saves, launch and kill-switch clears all failed while looking like typing mistakes. A setting a route cannot work
+ * without has to be visible where a deploy is checked, not only where a person types a password.
+ */
+export function stepUpMissing(env: Env): string[] {
+  return [
+    !env.SUPABASE_URL && "SUPABASE_URL",
+    !env.SUPABASE_ANON_KEY && "SUPABASE_ANON_KEY",
+    !canMintStepUp(env) && "SECRETS_ENCRYPTION_KEY",
+  ].filter((name): name is string => typeof name === "string");
+}
+
+/** `/api/version`'s word for it: "ready", or "missing:" and the names, comma-separated. */
+export type StepUpReadiness = "ready" | `missing:${string}`;
+export function stepUpReadiness(env: Env): StepUpReadiness {
+  const missing = stepUpMissing(env);
+  return missing.length === 0 ? "ready" : `missing:${missing.join(",")}`;
+}
+
+/** Said once at boot when step-up cannot work, as `metaWebhookBootWarning` is for its receiver. Null when ready. */
+export function stepUpBootWarning(env: Env): string | null {
+  const missing = stepUpMissing(env);
+  if (missing.length === 0) return null;
+  return `[step-up] ⚠ ${missing.join(" and ")} not set — every "Confirm it's you" answers 503 step_up_unavailable, so no admin act behind a fresh sign-in (permission saves, ads Connect, settings saves, launch, kill-switch clear) can be done on this deploy. /api/version reports stepUp: ${stepUpReadiness(env)}.`;
 }

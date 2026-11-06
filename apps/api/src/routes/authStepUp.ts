@@ -4,6 +4,7 @@ import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
 import { apiError, asyncHandler } from "../lib/http.js";
 import { mintStepUpToken } from "../lib/stepUpToken.js";
+import { stepUpMissing } from "../envAuth.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -48,7 +49,11 @@ export function authStepUpRouter(): Router {
       res.status(400).json(apiError("invalid_request", "This session cannot step up — no email or org on the token."));
       return;
     }
-    if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+    // `stepUpMissing` (envAuth.ts) is the one readiness definition; /api/version and the boot log say the same thing.
+    // Asked before the password grant, so a deploy that could check a password but never mint the token does not
+    // spend a grant on a yes it cannot honour. (The two direct checks after it only narrow the types for the grant.)
+    // The message names no setting: it goes to a person, and the names go to /api/version.
+    if (stepUpMissing(env).length > 0 || !env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
       res.status(503).json(apiError("step_up_unavailable", "Password verification is not configured on this deploy."));
       return;
     }

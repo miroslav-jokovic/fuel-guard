@@ -128,7 +128,7 @@ export const OPEN_ROUTES = new Map<string, string>([
   // ── Progress and lifecycle pings, each scoped to the caller by something other than a role. ────
   [
     "GET /api/jobs/latest",
-    "the progress ping every sync and import screen polls: status + timestamps for ONE known job kind in the caller's own org. It names no row and grants nothing; the acts that CREATE those jobs are each gated, and gating this at one section would break the other sections' pages",
+    "the progress ping every sync and import screen polls: the latest run of ONE catalogued job kind in the caller's own org. It grants nothing; the acts that CREATE those jobs are each gated, and gating this at one section would break the other sections' pages. Since 2026-11-06 (Q-AD41 (b)) it serves every kind, and the handler holds the kinds outside the fuel, Samsara and EFS areas to the Settings section, as /failed is — their rows can name a lead, a campaign, a drug-test sync or finance totals",
   ],
   [
     "POST /api/invites/accept",

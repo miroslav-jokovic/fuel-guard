@@ -137,6 +137,11 @@ console.log(row("code expects", want.schema, live.schema?.expected, null));
 const maint = live.maintenance?.state;
 const maintOk = maint === undefined ? null : maint === "ok" || maint === "pending";
 console.log(row("partition upkeep", "ok", maint ?? "not reported", maintOk));
+// Q-AD41 (b): can "Confirm it's you" work here? "ready", or "missing:" and setting NAMES (never values). Absent on an
+// API older than that merge, which is shown, never counted.
+const stepUp = live.stepUp;
+const stepUpOk = stepUp === undefined ? null : stepUp === "ready";
+console.log(row("step-up", "ready", stepUp ?? "not reported", stepUpOk));
 console.log(`\n  deployment ${live.deploymentId ?? "—"}   up since ${live.startedAt}`);
 
 const problems = [];
@@ -157,6 +162,18 @@ if (maintOk === false)
       ? "The API could not read the partition maintenance state (lifecycle_maintenance_health, 0360)."
       : `The database's hourly partition maintenance is "${maint}" (last success ${live.maintenance.lastSucceededAt ?? "never"}) — check cron.job_run_details for the partman-maintenance job.`,
   );
+/**
+ * Step-up not ready FAILS every target except production, where it is a warning (Q-AD41 (b)). The rule is the same as
+ * deploy-verify's, for the same reason: a missing setting is fixed in Parameter Store and a redeploy, never by moving
+ * code, and on production a failure there triggers release.yml's auto-rollback, which would swap good code for older
+ * code that is missing the same setting. So production says it loudly and leaves the verdict to the commit and schema.
+ */
+const warnings = [];
+if (stepUpOk === false) {
+  const said = `Step-up cannot work on this host (${stepUp}): every "Confirm it's you" answers 503, so no admin act behind a fresh sign-in can be done. Set the named settings in Parameter Store and redeploy.`;
+  (isProduction ? warnings : problems).push(said);
+}
+if (warnings.length) console.log("\n⚠ Warning (production: reported, not failed):\n" + warnings.map((w) => `  · ${w}`).join("\n"));
 if (schemaOk === false && live.schema?.state === "current") problems.push(`Live schema ${live.schema.applied} differs from ${want.label}'s ${want.schema}.`);
 
 if (problems.length === 0) {

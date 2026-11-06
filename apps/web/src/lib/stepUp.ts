@@ -30,27 +30,36 @@ const EXPIRY_MARGIN_MS = 5_000;
 /**
  * Verify the password with the server and hold the resulting step-up token.
  *
- * Returns true on success. The password is sent ONCE, to our API, over the same TLS as every other
- * call; it is never stored and never logged. A failure (wrong password, SSO account with none)
- * returns false with no held token — the caller shows the same neutral message for both.
+ * The password is sent ONCE, to our API, over the same TLS as every other call; it is never stored
+ * and never logged. `"refused"` covers a wrong password and an SSO account with none alike, with no
+ * held token — the caller shows the same neutral message for both. `"unavailable"` is the server
+ * saying it cannot check ANY password (503 `step_up_unavailable`: a setting missing on that deploy).
+ * Staging ran that way for two weeks while this prompt told people to check a password that was
+ * right (Q-AD41), so that answer gets its own words; which settings are missing is on /api/version.
  */
-export async function verifyStepUp(password: string): Promise<boolean> {
+export type StepUpResult = "verified" | "refused" | "unavailable";
+
+export async function verifyStepUp(password: string): Promise<StepUpResult> {
   const { data } = await supabase.auth.getSession();
   const bearer = data.session?.access_token;
-  if (!bearer) return false;
+  if (!bearer) return "refused";
 
   const res = await fetch("/api/auth/step-up", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearer}` },
     body: JSON.stringify({ password }),
   });
-  if (!res.ok) return false;
+  if (res.status === 503) {
+    const refusal = (await res.json().catch(() => null)) as { error?: { code?: string } } | null;
+    if (refusal?.error?.code === "step_up_unavailable") return "unavailable";
+  }
+  if (!res.ok) return "refused";
 
   const body = (await res.json().catch(() => null)) as { token?: string; expiresAt?: string } | null;
-  if (!body?.token || !body.expiresAt) return false;
+  if (!body?.token || !body.expiresAt) return "refused";
 
   held = { token: body.token, expiresAtMs: Date.parse(body.expiresAt) };
-  return true;
+  return "verified";
 }
 
 /** The header to merge into a request, when a live step-up token is held. Empty otherwise, so a
