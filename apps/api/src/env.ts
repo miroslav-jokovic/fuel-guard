@@ -74,10 +74,7 @@ const EnvSchema = z.object({
   // Meta leadgen webhook (ads B4b): unset = that half answers 503; why in `modules/ads/leads/leadgenWebhook.ts`.
   META_APP_SECRET: z.string().min(1).optional(),
   META_WEBHOOK_VERIFY_TOKEN: z.string().min(1).optional(),
-  // D-AD8 (Q-AD42, 2026-11-06): on a non-production host, the ONLY Meta ad account ids Connect and Launch accept,
-  // comma-separated, `act_` optional. Unset or empty = every Meta account is refused there. Production ignores it.
-  // Why and the rest of the rule: `modules/ads/guard/sandboxOnly.ts`.
-  META_SANDBOX_AD_ACCOUNT_IDS: z.string().optional(),
+  META_SANDBOX_AD_ACCOUNT_IDS: z.string().optional(), // D-AD8: the only Meta ad accounts a non-prod host accepts (ads/guard/sandboxOnly.ts)
   // Background auto-sync. DEPRECATED as a cadence — kept only as a kill switch: SAMSARA_SYNC_HOURS=0
   // disables ALL Samsara schedulers (manual buttons still work). Cadence is now tiered below.
   SAMSARA_SYNC_HOURS: z.coerce.number().min(0).default(6),
