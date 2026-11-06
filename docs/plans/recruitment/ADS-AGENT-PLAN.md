@@ -978,6 +978,12 @@ rate, and Higgsfield credits per approved creative.
   (a) a new route's own PR adds its ledger lines, which is what the ledger exists to force, and Track S's paths
   gain `modules/ads/security/*Route*.test.ts` add-only, as the surface catalogue already is;
   (b) Track G adds the lines on request, which costs a round trip per route. **Recommendation: (a).**
+- **Whether a Claude worker has an L4** (open since C2; **ruled by the owner 2026-11-05: yes**). A Claude worker has an
+  L4 like any other, so no worker launches on its evaluation set alone. Copywriter's need is its live copy accepted on
+  Meta's sandbox, in English and Spanish; that wording is ours, not the owner's, and lives in
+  `scripts/ads-readiness.registry.mjs`. The door is #2078's: `campaigns/launchCertification.ts` refuses a real-platform
+  launch unless every worker in `CAMPAIGN_WORKERS` has a passing run in `scripts/ads-certifications.json`, and Copywriter
+  is in `meta:still`.
 
 ---
 

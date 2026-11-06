@@ -731,7 +731,8 @@ export const READINESS = [
         },
         { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "40 briefs over P1–P5, 15+ in Spanish: 40 of 40 live answers pass the claim and length checks, twice (pnpm ads:eval copywriter, baseline.json, 2026-11-05); the owner rates the 40 (the rating sheet in the PR) and the rate is recorded here" },
       ],
-      L4: [{ need: "not applicable to a model worker beyond the eval set", gap: "decided with C2: whether a Claude worker has an L4 at all" }],
+      // The owner, 2026-11-05: a Claude worker has an L4 like any other, so no worker launches on its evaluation set alone.
+      L4: [{ need: "its live copy accepted on Meta's sandbox: ads made from real answers, in English and Spanish, created there without a refusal", gap: `${STAGE2}; publisher.contract.test.ts sends fixed copy today, so that run must also carry Copywriter's real answers` }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
