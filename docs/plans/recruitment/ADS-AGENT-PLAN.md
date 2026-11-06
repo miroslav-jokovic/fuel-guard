@@ -1229,6 +1229,33 @@ rate, and Higgsfield credits per approved creative.
   **Rec: (a), owner sets the number** (one recall, or one per defect type). The certify run reads it from
   there. Until it is set, the Checker stays at L2.
 
+- **Q-AD46 · Staging's ads agent is braked, so a campaign started there never leaves "Starting"** (us, found on the
+  openings-editor staging walk, 2026-11-06; corrected the same day by the orchestrator; **blocks G-walk lines 11–16
+  and E3's four-click done-when**). With the first hiring profile and opening saved through the new Openings screen,
+  G-walk line 10 ran: four clicks to New campaign, the opening offered, Start campaign answered 201 (campaign
+  `7f40f13e-…`, brief snapshot correct: 62¢ and 70¢ a mile, age 23, 2 years, "home weekly", Joliet + 50 mi). It then
+  sat in `draft` for 15 minutes with no failed job. The orchestrator runs under the brake (`orchestrator/brake.ts`)
+  while `ADS_ENABLED` is unset. Every org then reads as killed, `compose` is null, and `agentHasWork("draft")` is
+  false (`orchestrator/workers.ts:122`). That is the designed behaviour (WORKER-DEPLOYMENT.md § Ads, "off until Stage
+  1's exit"), so nothing is broken. But no staging walk can reach review, approval, paused, launch or the kill
+  switch's Pausing → Paused while it holds.
+  **Where the setting lives (corrected):** staging's API runs on AWS now. It reads its settings from Parameter Store
+  under `/silvicom/staging/api` and runs the schedulers itself: its `/api/version` shows both the `egress` and the
+  `general` lane held (read 2026-11-06). So `ADS_ENABLED` belongs there. The first version of this entry pointed at
+  Railway's uat services, which no longer serve staging's API.
+  Candidates:
+  - (a) **Set `ADS_ENABLED=true` in `/silvicom/staging/api`** (the owner decides; the orchestrator sets it). That also
+    starts the staging ads schedulers: leads backfill, insights, reconcile, outcome feed, daily brief and
+    uncontacted. Each one reads only the simulator connection there (D-AD8 refuses any real Meta account off
+    production). It also makes staging spend the AI budgets saved in ads settings v1: Claude copy, Higgsfield picture
+    credits and the analyst's brief. Those caps hold the spend, but it is real money.
+  - (b) As (a), but only for the walk window, then unset. This is the same act twice, and the brake comes back
+    between walks.
+  - (c) Refused: moving the campaign's state by hand or with the service role, or a staging-only bypass of the
+    brake. Either one walks a path the product does not take.
+  **Rec: (a)**, by the owner's decision, set by the orchestrator. Then G-walk 11–16 continue on the campaign already
+  started.
+
 ---
 
 ## Sources (read 2026-10-31)
