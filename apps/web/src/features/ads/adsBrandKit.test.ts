@@ -10,14 +10,17 @@ import { AD_FORMATS, AD_OVERLAY_START, adBrandKitSchema, type AdAssetRef, type A
  */
 const api = vi.hoisted(() => ({ calls: [] as Array<{ path: string; body: unknown }>, answers: [] as unknown[] }));
 const who = vi.hoisted(() => ({ admin: true }));
-const sent = vi.hoisted(() => ({ saves: [] as AdBrandKitSave[], kits: [] as unknown[], failed: null as Error | null }));
+const sent = vi.hoisted(() => ({ saves: [] as AdBrandKitSave[], kits: [] as unknown[], failed: null as Error | null, refreshed: [] as unknown[] }));
 vi.mock("@/lib/api", () => ({ apiFetch: async (path: string, o: { body?: unknown } = {}) => (api.calls.push({ path, body: o.body }), api.answers.shift()) }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ admin: who.admin }) }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
 vi.mock("@tanstack/vue-query", () => ({
   useQuery: () => ({ data: ref(sent.kits), isLoading: ref(false), isFetching: ref(false), error: ref(sent.failed), refetch: vi.fn() }),
-  useMutation: (o: { mutationFn: (v: AdBrandKitSave) => Promise<void> }) => ({ isPending: ref(false), mutateAsync: async (v: AdBrandKitSave) => (sent.saves.push(v), o.mutationFn(v)) }),
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useMutation: (o: { mutationFn: (v: AdBrandKitSave) => Promise<void>; onSuccess?: () => unknown }) => ({
+    isPending: ref(false),
+    mutateAsync: async (v: AdBrandKitSave) => { sent.saves.push(v); await o.mutationFn(v); await o.onSuccess?.(); },
+  }),
+  useQueryClient: () => ({ invalidateQueries: (q: unknown) => sent.refreshed.push(q) }),
 }));
 
 import AdsBrandKitCard from "./AdsBrandKitCard.vue";
@@ -41,6 +44,7 @@ beforeEach(() => {
   sent.saves = [];
   sent.kits = [];
   sent.failed = null;
+  sent.refreshed = [];
   who.admin = true;
   setActivePinia(createPinia());
 });
@@ -74,6 +78,11 @@ describe("kitFormFrom — the next version starts from the last", () => {
   it("keeps every field, a format's text zone included, through a save with no edit", () => {
     const ask = kitSaveFrom(kitFormFrom("Main", KIT), VIEW.id);
     expect(ask.ok && ask.save.kit).toMatchObject({ ...KIT, overlays: { "1:1": KIT.overlays["1:1"] } });
+  });
+
+  it("carries a printed phone into the next version as it was saved", () => {
+    const ask = kitSaveFrom(kitFormFrom("Main", { ...KIT, phone: "(555) 010-0199" }), VIEW.id);
+    expect(ask.ok && ask.save.kit.phone).toBe("(555) 010-0199");
   });
 
   it("gives a format the kit lacks the starting overlay", () => {
@@ -145,5 +154,7 @@ describe("AdsBrandKitDrawer", () => {
     await flushPromises();
     expect(sent.saves[0]).toMatchObject({ kit_id: VIEW.id });
     expect(w.emitted("close")).toHaveLength(1);
+    // The list is read again, so the card shows the version just saved.
+    expect(sent.refreshed).toEqual([{ queryKey: ["ads", "brand-kits"] }]);
   });
 });
