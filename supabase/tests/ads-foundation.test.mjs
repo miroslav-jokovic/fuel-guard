@@ -253,6 +253,11 @@ const stageRow = (stage, ref) => sqlstate(
 for (const stage of ["converted", "applied", "hired", "lost_after_conversion"]) {
   ok(`the recorded stage ${stage} is stored (0570)`, (await stageRow(stage, `stage-${stage}`)) === null);
 }
+// 0571 (Q-AD40): a simulator lead's stage can be ledgered, so the staging walk exercises the feed; Higgsfield cannot.
+ok("a simulator outcome event is stored (0571)", (await sqlstate(
+  `insert into ads_outcome_events (org_id, provider, platform_lead_ref, stage, source_event_ref) values ($1, 'simulator', 'sim-1', 'contacted', 'sim-ref-1')`, [ORG])) === null);
+ok("a higgsfield outcome event is refused (23514, 0571)", (await sqlstate(
+  `insert into ads_outcome_events (org_id, provider, platform_lead_ref, stage, source_event_ref) values ($1, 'higgsfield', 'h-1', 'contacted', 'h-ref-1')`, [ORG])) === "23514");
 for (const stage of ["qualified", "lost", "lost_before_conversion"]) {
   ok(`the unrecorded or retired stage ${stage} is refused (23514, 0570)`, (await stageRow(stage, `stage-${stage}`)) === "23514");
 }

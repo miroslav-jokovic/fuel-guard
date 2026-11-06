@@ -1077,6 +1077,14 @@ rate, and Higgsfield credits per approved creative.
   **Second, smaller gap:** 0537's `ads_outcome_events.provider` CHECK has no `simulator`, so a simulator lead
   cannot be ledgered, and the owner's staging walk does not exercise the feed. Fix with a later migration if
   the walk should include it; not needed for production.
+  **Ruled 2026-11-06 (orchestrator):**
+  - **(1) = (a).** `outcome_feed: { enabled, dataset_id }` is an OPTIONAL group of the versioned ads settings,
+    default `{ enabled: false, dataset_id: null }`. Every stored version still parses, and the feed stays off
+    until an admin saves it on. Track S builds the screen later.
+  - **(2)** The provider CHECK gains `simulator`, and a production host still cannot send a simulator event
+    (`simulatorGate`).
+  - **Built:** (2) as migration `0571_ads_outcome_simulator.sql` (shared `OUTCOME_PROVIDERS`, parity-pinned);
+    (1) in the next merge.
 - **Q-AD41 · Staging cannot check a password, so no fresh sign-in works there** (us, found on the staging walk,
   2026-11-06; **blocks the G-walk's money and permission lines**). `POST /api/auth/step-up` on
   `staging-api.360.silvicominc.com` answers 503 `step_up_unavailable`, "Password verification is not configured on

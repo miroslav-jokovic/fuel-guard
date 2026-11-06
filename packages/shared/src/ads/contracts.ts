@@ -23,6 +23,14 @@ export type AdProvider = (typeof AD_PROVIDERS)[number];
 export const AD_PLATFORMS = ["meta", "tiktok", "x", "simulator"] as const;
 export type AdPlatform = (typeof AD_PLATFORMS)[number];
 
+/**
+ * The platforms the outcome feed (B6) may tell a lead's progress to, which is what `ads_outcome_events.provider`
+ * holds: the ad platforms (Higgsfield renders; it hears no outcome). Derived, never restated; 0571 widened the
+ * CHECK to the simulator (Q-AD40), and `adsSchemaParity.test.ts` pins the two.
+ */
+export const OUTCOME_PROVIDERS = AD_PLATFORMS;
+export type OutcomeProvider = AdPlatform;
+
 export const CAMPAIGN_STATES = [
   "draft", "composing", "review", "approved", "creating", "paused",
   "launching", "live", "pausing", "archived", "failed",
