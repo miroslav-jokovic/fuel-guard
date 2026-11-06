@@ -505,6 +505,11 @@ const API_ALLOW = new Set([
   // `mcleod_fuel_tax_receipts`; ifta maps McLeod's unit to our truck and drops card duplicates.
   // Same shape as `fleetpal -> mcleod`: a reader of McLeod facts, with nothing written back.
   "ifta -> mcleod",
+  // An opening's area is a point (`adAreaSchema`), and a recruiter types a yard or a town: recruiting's
+  // `GET /recruitment/place-suggest` (Q-AD44 (a), 2026-11-06) asks routing's `geocodeSuggest`, through
+  // routing's index, under recruiting's own `recruitment: view` gate. Narrow by construction: that one
+  // function, so there is one HERE client and one key; recruiting plans no routes and reads no route tables.
+  "recruiting -> routing",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");
