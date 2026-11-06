@@ -161,6 +161,14 @@ export const READINESS = [
           ] }],
           scenarios: ["happy-path-draft-to-live.yaml"],
         },
+        {
+          // stage2-kit-2c (2026-11-06): the L4 suite itself, green on FakeMeta every CI run, so the sandbox run
+          // under `pnpm ads:certify` is this file unchanged.
+          need: "the L4 suite on either target: created paused, half-made, resumed without a duplicate, read back, deleted and read back deleted",
+          tests: [{ file: "apps/api/src/modules/ads/orchestrator/orchestrator.contract.test.ts", titles: [
+            "a run on the target: created PAUSED, half-made after a lost answer, resumed by a person without a duplicate, every object read back as asked",
+          ] }],
+        },
       ],
       L4: [{ need: "the orchestrator over the real adapters' sandbox runs", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
@@ -550,6 +558,17 @@ export const READINESS = [
             "monitor/reconcile-daily-budget.yaml", "monitor/reconcile-spend-cap.yaml", "monitor/reconcile-overrun.yaml", "monitor/reconcile-not-ours.yaml",
           ],
         },
+        {
+          // stage2-kit-2c (2026-11-06): the L4 suite itself, green on FakeMeta every CI run, so the sandbox run
+          // under `pnpm ads:certify` is this file unchanged.
+          need: "the L4 suite on either target: the hourly pull through the sealed connection, a rejected ad, a dead token, the readings diffed",
+          tests: [{ file: "apps/api/src/modules/ads/monitor/monitor.contract.test.ts", titles: [
+            "the hourly pull reads the target through the sealed connection: the account's zone, every hour it reports, no failure",
+            "an ad the platform turned down is recorded once and rings ads_rejected once, with Meta's reason",
+            "a dead token stops the pull as token_invalid, writes no hour, and tells an admin once",
+            "the target's answers to the monitor's reads are what FakeMeta committed to (OUR readings, diffed by field)",
+          ] }],
+        },
       ],
       L4: [{ need: "insights from the sandbox", gap: STAGE2 }], L5: [{ need: "canary", gap: CANARY }],
     },
@@ -685,6 +704,16 @@ export const READINESS = [
           need: "injection text never reaches an action",
           tests: [{ file: "apps/api/src/modules/recruiting/leads/leadSink.test.ts", titles: ["reaches no model: nothing on a lead's road imports the AI rail"] }],
           scenarios: ["leads/text-aimed-at-a-reader-stays-data.yaml"],
+        },
+        {
+          // stage2-kit-2c (2026-11-06): the L4 suite itself, green on FakeMeta every CI run, so the sandbox run
+          // under `pnpm ads:certify` is this file unchanged.
+          need: "the L4 suite on either target: the target's test lead webhook → fetch → one row, a duplicate delivery no second row, the readings diffed",
+          tests: [{ file: "apps/api/src/modules/ads/leads/leadIntake.contract.test.ts", titles: [
+            "the target's test lead goes webhook → fetch → one lead row, and a second delivery of it makes no second row",
+            "a delivery signed with another secret is refused and nothing is fetched",
+            "the target's answer to the lead read is what FakeMeta committed to (OUR readings, diffed by field)",
+          ] }],
         },
       ],
       L4: [{ need: "a test lead from Meta's lead-ads testing tool", gap: STAGE2 }],

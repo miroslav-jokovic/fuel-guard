@@ -152,8 +152,27 @@ export function diffReadings(committed: Recording, recorded: Recording): string[
  * command sets ADS_CERTIFY_OUT, and the recording and its differences land there for the run's verdict.
  */
 export async function rerecord(group: string, readings: readonly Reading[], t: ReadingTarget & { name: string }, env: NodeJS.ProcessEnv = process.env): Promise<string[]> {
-  const recorded = await record(readings, t);
+  return compareRecorded(group, await record(readings, t), t.name, env);
+}
+
+/** The kind of a value as a reading keeps it: never the value itself, so no id or token is recorded. */
+export const kindOf = kind;
+
+/**
+ * A reading taken from what crossed the wire in a suite's own run (stage2-kit-2c: the monitor's and lead intake's
+ * reads), rather than asked separately. The answer the TARGET gave to the first call on a path matching `path`,
+ * reduced by `observe` to kinds and flags; a call that never happened is itself the observation.
+ */
+export function fromWire(calls: ReadonlyArray<{ method: string; path: string; upstream: { status: number; body: unknown } | null }>, path: RegExp, fake: string, observe: (body: Record<string, unknown>) => Observed): Recording[string] {
+  const call = calls.find((c) => c.method === "GET" && path.test(c.path) && c.upstream !== null);
+  if (!call) return { fake, observed: { called: false } };
+  return { fake, observed: { status: call.upstream!.status, ...observe((call.upstream!.body ?? {}) as Record<string, unknown>) } };
+}
+
+/** Diff a recording against the committed file; under `pnpm ads:certify`, write it beside the run's verdict. */
+export function compareRecorded(group: string, recorded: Recording, target: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const differences = diffReadings(committedReadings(), recorded);
+  const t = { name: target };
   if (env.ADS_CERTIFY_OUT) writeFileSync(join(env.ADS_CERTIFY_OUT, `readings-${group}.json`), `${JSON.stringify({ group, target: t.name, recorded, differences }, null, 2)}\n`);
   return differences;
 }

@@ -1211,7 +1211,7 @@ rate, and Higgsfield credits per approved creative.
   `geocodeSuggest` through routing's index (`recruiting -> routing` in `check-feature-boundaries.mjs`), so routing
   itself did not change; the editor and its profile step follow in Recruitment › Openings.
 
-- **Q-AD45 · The Checker's recall threshold has nowhere to live** (us, found building stage2-kit, 2026-11-06;
+- **Q-AD45 · The Checker's recall threshold has nowhere to live — RULED (a), 2026-11-06** (us, found building stage2-kit, 2026-11-06;
   **blocks the Checker's L4 run, and its L3**). §4R: "the vision checklist's recall per defect type measured,
   and an owner-set threshold gates L3". The L4 ruling (11/05) re-runs the planted-defect corpus on real renders
   "at the owner-set recall threshold". But no file, setting or registry field holds such a number. `pnpm ads:eval checker`
@@ -1228,6 +1228,10 @@ rate, and Higgsfield credits per approved creative.
 
   **Rec: (a), owner sets the number** (one recall, or one per defect type). The certify run reads it from
   there. Until it is set, the Checker stays at L2.
+
+  **Ruled (a)** (orchestrator, 2026-11-06, recorded in stage2-kit-2c). The threshold lives in
+  `workers/checker/baseline.json`, set by the owner's PR, and `lint:agent-fixtures` enforces it. **The number is the
+  owner's and is not set yet**, so the Checker stays at L2 and `pnpm ads:certify Checker` answers NOT BUILT, naming it.
 
 - **Q-AD46 · Staging's ads agent is braked, so a campaign started there never leaves "Starting"** (us, found on the
   openings-editor staging walk, 2026-11-06; corrected the same day by the orchestrator; **blocks G-walk lines 11–16

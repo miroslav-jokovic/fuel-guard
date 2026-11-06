@@ -87,7 +87,14 @@ export async function openMetaTarget(env: NodeJS.ProcessEnv = process.env): Prom
       pages: [{ id: ids.page, name: "Contract Page", access_token: tokens.page, tasks: ["ADVERTISE"] }],
     });
     fake.datasets.create("4001");
-    events = { dataset: "4001", code: "TEST-CONTRACT", lead: "5001" };
+    // The fake's stand-in for the Lead Ads Testing Tool: one form on the Page and one lead submitted on it, as the
+    // owner makes on the sandbox Page (META_SANDBOX_LEAD_ID). The suites read its form from Graph, as on the sandbox.
+    const form = (fake.forms.create(ids.page, {
+      name: "Contract form", locale: "EN_US", questions: JSON.stringify([{ type: "FULL_NAME", key: "full_name" }, { type: "PHONE", key: "phone_number" }]),
+      privacy_policy: JSON.stringify({ url: "https://app.silvicom360.com/privacy" }),
+    }).body as { id: string }).id;
+    const lead = fake.leads.submit(form, { full_name: "Test Lead", phone_number: "+13125550100" }, new Date(Date.now() - 60_000));
+    events = { dataset: "4001", code: "TEST-CONTRACT", lead: lead.id };
     upstream = await fake.start();
   }
 

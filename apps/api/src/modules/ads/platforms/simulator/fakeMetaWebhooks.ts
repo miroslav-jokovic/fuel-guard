@@ -66,22 +66,29 @@ export class FakeWebhooks {
    */
   leadgenDelivery(pageId: string, leads: FakeLead[], opts: { forge?: boolean; at?: Date } = {}): FakeDelivery | null {
     if (!this.subscriptions.get(pageId)?.has("leadgen")) return null;
-    const time = Math.floor((opts.at ?? new Date()).getTime() / 1000);
-    const body = JSON.stringify({
-      object: "page",
-      entry: [{
-        id: pageId, time,
-        changes: leads.map((l) => ({
-          field: "leadgen",
-          value: {
-            leadgen_id: l.id, page_id: pageId, form_id: l.form_id, adgroup_id: l.ad_id ?? "0", ad_id: l.ad_id ?? "0",
-            created_time: Math.floor(Date.parse(l.created_time.replace("+0000", "Z")) / 1000),
-          },
-        })),
-      }],
-    });
+    const body = leadgenDeliveryBody(pageId, leads, opts.at ?? new Date());
     return { body, signature: signMetaBody(opts.forge ? `${this.appSecret}-forged` : this.appSecret, body) };
   }
+}
+
+/**
+ * The body of one leadgen delivery, as this fake reads Meta's webhook pages. Pure, so the Lead intake L4 suite
+ * (stage2-kit-2c) builds the same body for a lead on Meta's sandbox, whose webhook cannot reach a laptop.
+ */
+export function leadgenDeliveryBody(pageId: string, leads: ReadonlyArray<Pick<FakeLead, "id" | "form_id" | "ad_id" | "created_time">>, at: Date): string {
+  return JSON.stringify({
+    object: "page",
+    entry: [{
+      id: pageId, time: Math.floor(at.getTime() / 1000),
+      changes: leads.map((l) => ({
+        field: "leadgen",
+        value: {
+          leadgen_id: l.id, page_id: pageId, form_id: l.form_id, adgroup_id: l.ad_id ?? "0", ad_id: l.ad_id ?? "0",
+          created_time: Math.floor(Date.parse(l.created_time.replace("+0000", "Z")) / 1000),
+        },
+      })),
+    }],
+  });
 }
 
 /** `sha256=<hex>` of the bytes as sent — Meta's header value. */

@@ -274,11 +274,16 @@ ADS-AGENT-BUILD-WORKFLOW §4R). This one is for an engineer, by pull request.
    refuses a dirty tree or a commit that is not on main, because the record carries the commit that ran.
 2. **Put the sandbox values in `apps/api/.env`** (never in chat, never committed). The command refuses and
    lists every missing name, per worker, before it runs anything:
-   - Publisher and Security: `META_SANDBOX_TOKEN`, `META_SANDBOX_PAGE_TOKEN`, `META_SANDBOX_AD_ACCOUNT_ID`,
+   - Publisher, Security, Orchestrator and Monitor: `META_SANDBOX_TOKEN`, `META_SANDBOX_PAGE_TOKEN`, `META_SANDBOX_AD_ACCOUNT_ID`,
      `META_SANDBOX_PAGE_ID`, and `META_SANDBOX_AD_ACCOUNT_IDS` (the same allowlist as step 0. D-AD8's own check,
      *guard/sandboxOnly.ts*, runs on the account before anything else, and refuses one that can pay).
    - Outcome feed: also `META_SANDBOX_DATASET_ID`, `META_SANDBOX_TEST_EVENT_CODE` (Events Manager → the
      dataset → Test events) and `META_SANDBOX_LEAD_ID` (a lead the Lead Ads Testing Tool made).
+   - Lead intake: also `META_SANDBOX_LEAD_ID`. Make the lead first: developers.facebook.com → Tools → Lead Ads
+     Testing Tool → the sandbox Page and any form on it → Create lead, and copy its id. Its form is read from Meta.
+   - Nothing these runs make is ever made active. The Orchestrator's run creates one paused campaign, then deletes
+     it and reads it back as deleted. The Monitor's run publishes one paused campaign the same way. Meta's sandbox
+     cannot turn an ad down or kill a token on request, so the suites play both on the wire, in front of Meta.
 3. **Rehearse first, on the fake:** `pnpm ads:certify all --target fake`. Same suites, nothing real is
    touched, and the draft it writes can never be committed: the gate refuses an L4 whose target is not the sandbox.
 4. **Certify:** `pnpm ads:certify all --target sandbox`, or name one worker, e.g.
@@ -290,8 +295,8 @@ ADS-AGENT-BUILD-WORKFLOW §4R). This one is for an engineer, by pull request.
      answered false — correct platforms/simulator/fakeMetaAds.ts`). The fix is a PR that corrects the fake
      and re-records the file from it. Never edit a value to match. Merge it, then go back to step 1.
    - **NOT BUILT:** the worker's L4 run does not exist yet, and the line says what is missing. As of
-     11/06 that is Orchestrator, Budget guard, Monitor, Lead intake, and the Claude and Higgsfield workers
-     (stage2-kit 2b). Nothing is certified for it.
+     11/06 (stage2-kit-2c) that is Budget guard (Track G's suite) and the Claude and Higgsfield workers
+     (stage2-kit 2b). The Checker also waits for the owner's threshold (Q-AD45). Nothing is certified for it.
 5. **Each PASS is in `ads-certifications.draft.json`** at the repo root (gitignored): `{ worker, platform
    (Publisher only), level: "L4", target: "sandbox", run_date, sha, result: "pass", evidence }`. The
    draft has already passed the gate's own shape check. `evidence` is the run's
