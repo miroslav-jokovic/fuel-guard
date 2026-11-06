@@ -11,10 +11,12 @@ import { deriveFullName, type RosterHeldDriver, type RosterHeldReason, type TmsD
  * keeps the state the last POST that carried it gave it. Replacing the list wholesale would empty it on
  * the second batch of a large sweep, and keep a resolved driver on it forever after a quiet one.
  *
- * It stays correct because a held driver is always re-sent: every reason here is in `retry`
- * (`withRetry`), so the agent forgets its hash and carries it on the next sweep. That sweep settles it or
- * holds it again. The one way a held driver stops being sent is leaving McLeod's active list, which is
- * why the retire route clears departures from the list (`clearedByRetire`).
+ * It stays correct because a held driver is always re-sent: the driver route names every driver left on
+ * the list in `retry` (D-RL7), so the agent forgets its hash and carries it on the next sweep. That sweep
+ * settles it or holds it again. Until 2026-11-06 this paragraph said `withRetry` did it, and `withRetry`
+ * never named `rehire_review`, so a driver held for a rehire review was never asked about again (AMABLER).
+ * The one way a held driver stops being sent is leaving McLeod's active list, which is why the retire
+ * route clears departures from the list (`clearedByRetire`).
  */
 
 /**
