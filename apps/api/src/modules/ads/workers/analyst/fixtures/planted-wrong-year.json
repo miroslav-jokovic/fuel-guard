@@ -1,0 +1,98 @@
+{
+  "name": "planted-wrong-year",
+  "about": "The period named with a year the sheet does not hold (\"November 2025\" for a 2026-11 brief): refused whole, though \"November 2026\" from `period` would pass.",
+  "input": {
+    "fold": {
+      "day": "2026-11-03",
+      "month": {
+        "month": "2026-11",
+        "days_left": 28
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 18450,
+          "impressions": 9120,
+          "clicks": 141,
+          "leads": 6,
+          "cost_per_lead_cents": 3075,
+          "ctr": 0.015460526315789473
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Dedicated night runs",
+          "spend_cents": 9975,
+          "impressions": 5480,
+          "clicks": 62,
+          "leads": 1,
+          "cost_per_lead_cents": 9975,
+          "ctr": 0.011313868613138687
+        }
+      ],
+      "month_to_date": {
+        "meta": 61230
+      },
+      "cohorts": [
+        {
+          "week": "2026-09-21",
+          "leads": 38,
+          "reached": {
+            "contacted": 33,
+            "converted": 17,
+            "applied": 10,
+            "hired": 4,
+            "lost_after_conversion": 8,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-28",
+          "leads": 40,
+          "reached": {
+            "contacted": 36,
+            "converted": 20,
+            "applied": 12,
+            "hired": 5,
+            "lost_after_conversion": 9,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 12,
+          "reached": {
+            "contacted": 9,
+            "converted": 3,
+            "applied": 1,
+            "hired": 0,
+            "lost_after_conversion": 1,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": false
+        }
+      ]
+    }
+  },
+  "expect": "refused",
+  "expect_findings": [
+    "number_not_in_fold"
+  ],
+  "recorded": {
+    "source": "planted",
+    "prompt_version": "analyst@3",
+    "model": "none (written by a person)",
+    "recorded_at": "2026-11-06T00:00:00Z",
+    "output": {
+      "headline": "Spend so far in November 2025 is on track.",
+      "points": [
+        "Regional Class A — Joliet brought 6 leads."
+      ]
+    }
+  }
+}

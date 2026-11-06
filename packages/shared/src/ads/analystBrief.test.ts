@@ -63,6 +63,16 @@ describe("the fact sheet — every figure from the fold, formatted once", () => 
 });
 
 describe("checkNarration — every figure in the narration is on the sheet", () => {
+  it("the sheet names the period in words, and a narration may quote it — the right year only", () => {
+    expect(FACTS.period).toEqual({ day: "November 3, 2026", month: "November 2026" });
+    expect(kinds("Spend so far in November 2026 is $3,000.00; on November 3, 2026 it was $1,234.56.")).toEqual([]);
+    // A wrong year or day is a date the fold did not produce, refused whole.
+    expect(kinds("Spend so far in November 2025 is $3,000.00.")).toEqual([["number_not_in_fold", "November 2025"]]);
+    expect(kinds("On November 4, 2026 it was $1,234.56.")).toEqual([["number_not_in_fold", "November 4, 2026"]]);
+    // The label lends no COUNT: its year and day are not allowed loose (2026 is not a figure on the sheet).
+    expect(kinds("2026 leads came in.")).toEqual([["number_not_in_fold", "2026"]]);
+  });
+
   it("passes figures copied from the sheet, in any of their written forms", () => {
     expect(kinds("Regional CDL-A 2026 Joliet spent $1,234.56 on 2026-11-03 for 30 leads ($41.15 each, 1.4% of 42,100 views clicked).")).toEqual([]);
     expect(kinds("Meta has spent $3000 in 2026-11 with 28 days left; the 2026-09-28 week hired 12.5 percent of its 40 leads.")).toEqual([]);

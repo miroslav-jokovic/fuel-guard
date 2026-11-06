@@ -102,18 +102,18 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@2",
+    "prompt_version": "analyst@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T21:18:51.701Z",
+    "recorded_at": "2026-11-06T14:47:42.501Z",
     "output": {
-      "headline": "On 2026-11-03, 4 campaigns delivered 67 leads across 161,223 impressions at a combined cost per lead of $38.51.",
+      "headline": "On November 3, 2026, 4 campaigns spent $2,580.48 to deliver 161,223 impressions, 2,323 clicks, and 67 leads at a cost per lead of $38.51 and a click rate of 1.4%.",
       "points": [
-        "Total spend for the day was $2,580.48, with 2,323 clicks at a click rate of 1.4%; month-to-date spend on Meta stands at $12,534.06 with 28 days left in 2026-11.",
-        "Regional Class A — Joliet was the largest campaign: $1,456.78 spent, 92,400 impressions, 1,310 clicks, 41 leads, cost per lead $35.53, click rate 1.4%.",
-        "Recent graduates was the strongest performer on click rate at 1.7%, producing 17 leads at $35.89 each from $610.20 spent across 40,118 impressions.",
-        "Dedicated night runs spent $389.00 for 9 leads at $43.22 per lead, the highest cost per lead of the day, with a click rate of 1.2% across 21,005 impressions.",
-        "Owner operators drew no leads from $124.50 spent across 7,700 impressions and 51 clicks at a 0.7% click rate, so there is no cost per lead to report.",
-        "The 2026-10-26 cohort (12 leads, 9 contacted, 3 converted, 1 applied, 1 lost after conversion, 0 hired) is too young to judge; note that qualified leads and leads lost before becoming applicants are not recorded in the system."
+        "Regional Class A — Joliet was the day's dominant campaign: $1,456.78 spent, 92,400 impressions, 1,310 clicks, 41 leads, and a cost per lead of $35.53 at a 1.4% click rate.",
+        "Recent graduates was the strongest performer by click rate at 1.7%, producing 17 leads at $35.89 each from $610.20 in spend across 40,118 impressions.",
+        "Dedicated night runs returned 9 leads at $43.22 each — the highest cost per lead of any campaign that produced leads — on $389.00 of spend and 21,005 impressions.",
+        "Owner operators generated no leads from $124.50 in spend, 7,700 impressions, and 51 clicks at a 0.7% click rate, so there is no cost per lead for that campaign.",
+        "November 2026 has 28 days left and $12,534.06 spent on Meta so far this month.",
+        "The mature 2026-09-28 cohort shows the strongest conversion funnel of the settled cohorts: 40 leads, 36 contacted (90.0%), 20 converted (50.0%), 12 applied (30.0%), 5 hired (12.5%), and 9 lost after conversion (22.5%); the 2026-10-26 cohort has only 12 leads with movement still in progress, so it is too young to judge."
       ]
     }
   }

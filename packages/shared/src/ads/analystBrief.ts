@@ -69,6 +69,13 @@ export const NOT_RECORDED_TEXT = "not recorded";
 type Figures = { spend: string; impressions: string; clicks: string; leads: string; cost_per_lead: string | null; click_rate: string | null };
 export interface BriefFacts {
   day: string;
+  /**
+   * The period the brief covers, in words, so the narration may name it ("November 2026") instead of the model
+   * writing a year the sheet did not hold (analyst@2's one refusal, 2 of 2 live runs, 2026-11-05). One formatter,
+   * `showPeriod`; the number check reads these as DATES of their own kind, so the label allows exactly its
+   * day and month — never a stray count of 3 or 2026, and never another year.
+   */
+  period: { day: string; month: string };
   /** Every campaign together (`sumCampaignTotals`), so "how many leads yesterday" is a figure, not a sum the model makes. */
   day_totals: Figures & { campaigns_ran: string };
   campaigns: Array<Figures & { name: string }>;
@@ -81,6 +88,14 @@ const sign = (n: number) => (n < 0 ? "-" : "");
 export const showMoney = (cents: number) => `${sign(cents)}$${grouped(Math.trunc(Math.abs(cents) / 100))}.${String(Math.abs(cents) % 100).padStart(2, "0")}`;
 export const showCount = (n: number) => `${sign(n)}${grouped(n)}`;
 export const showShare = (fraction: number) => `${(fraction * 100).toFixed(1)}%`;
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
+/** "2026-11-03" → "November 3, 2026"; "2026-11" → "November 2026". The ONE way a period is written in words. */
+export function showPeriod(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-");
+  const month = MONTH_NAMES[Number(m) - 1];
+  if (!month || !y) throw new Error(`showPeriod: not a date: ${isoDate}`);
+  return d ? `${month} ${Number(d)}, ${y}` : `${month} ${y}`;
+}
 const showStages = (r: Record<string, number | typeof NOT_RECORDED>, show: (n: number) => string) =>
   Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v === NOT_RECORDED ? NOT_RECORDED_TEXT : show(v)])) as Stages;
 
@@ -100,6 +115,7 @@ export function briefFacts(f: BriefFold): BriefFacts {
   const total = sumCampaignTotals(f.campaigns);
   return {
     day: f.day,
+    period: { day: showPeriod(f.day), month: showPeriod(f.month.month) },
     day_totals: { campaigns_ran: showCount(total.campaigns), ...figures(total) },
     campaigns: f.campaigns.map((c) => ({ name: c.name, ...figures(c) })),
     month: {
@@ -147,16 +163,27 @@ export interface NarrationFinding {
 const FIGURE = /(?<![\d.,])(\d{4}-\d{2}(?:-\d{2})?)(?![\d])|\$\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?|(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(\s?%|\s?percent\b|\s?per ?cent\b)?/gi;
 const NUMBER_WORDS = /\b(zero|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds?|thousands?|millions?|dozens?|twice|triple[ds]?|quadruple[ds]?)\b/gi;
 
+/** A date written in words: "November 2026", "November 3, 2026" (and "Nov 3 2026"). Read as the ISO date it names. */
+const WORDS_DATE = new RegExp(`\\b(${MONTH_NAMES.map((n) => `${n.slice(0, 3)}(?:${n.slice(3)})?\\.?`).join("|")})(?:\\s+(\\d{1,2})(?:st|nd|rd|th)?,?)?\\s+(\\d{4})\\b`, "gi");
+
 function figuresIn(text: string): Array<{ key: string; text: string; index: number }> {
   const out: Array<{ key: string; text: string; index: number }> = [];
-  for (const m of text.matchAll(FIGURE)) {
+  // Dates in words first, each a single figure of kind date; blanked so its digits are not read again as counts.
+  let rest = text;
+  for (const m of text.matchAll(WORDS_DATE)) {
+    const month = MONTH_NAMES.findIndex((n) => n.slice(0, 3).toLowerCase() === m[1]!.slice(0, 3).toLowerCase()) + 1;
+    const iso = `${m[3]}-${String(month).padStart(2, "0")}${m[2] ? `-${m[2].padStart(2, "0")}` : ""}`;
+    out.push({ key: `date:${iso}`, text: m[0], index: m.index });
+    rest = rest.slice(0, m.index) + " ".repeat(m[0].length) + rest.slice(m.index + m[0].length);
+  }
+  for (const m of rest.matchAll(FIGURE)) {
     const n = (whole: string, frac: string | undefined) => Number(`${whole.replace(/,/g, "")}.${frac ?? "0"}`);
     const key = m[1] !== undefined ? `date:${m[1]}`
       : m[2] !== undefined ? `money:${n(m[2], m[3])}`
       : `${m[6] ? "percent" : "count"}:${n(m[4]!, m[5])}`;
     out.push({ key, text: m[0].trim(), index: m.index });
   }
-  return out;
+  return out.sort((a, b) => a.index - b.index);
 }
 
 /** Every string on the sheet but the names: those are the advertiser's words, not the fold's figures. */
