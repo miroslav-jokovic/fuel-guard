@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import sharp from "sharp";
 import { prepareZXingModule, readBarcodes } from "zxing-wasm/reader";
-import { parseCoverSheetPayload } from "@silvicom/shared";
+import { isBlankPage, parseCoverSheetPayload } from "@silvicom/shared";
 import { openPdf, paintPdfPage } from "../../../lib/pdfRaster.js";
 
 /**
@@ -47,31 +47,51 @@ export async function coverSheetOnImage(png: Buffer): Promise<string | null> {
   return null;
 }
 
-export type FindCoverSheetsOutcome =
-  | { ok: true; pageCount: number; sheets: FoundCoverSheet[] }
-  | { ok: false; code: "encrypted_pdf" | "decode_failed" };
+export type ScanStackOutcome =
+  | { ok: true; pageCount: number; sheets: FoundCoverSheet[]; blankPages: number[] }
+  | { ok: false; code: "encrypted_pdf" | "decode_failed" | "too_many_pages" };
 
-export async function findCoverSheets(pdf: Buffer): Promise<FindCoverSheetsOutcome> {
+/**
+ * One pass over a stack (PI2): each page painted once, asked whether it is a cover sheet and, if not,
+ * whether it is blank (`isBlankPage`, the threshold's reasoning is there). `maxPages` is checked before
+ * a page is painted, as the reader's own intake does — a 2,000-page file costs nothing to refuse.
+ */
+export async function scanStack(pdf: Buffer, maxPages = Number.POSITIVE_INFINITY): Promise<ScanStackOutcome> {
   const opened = await openPdf(pdf);
   if (!opened.ok) return opened;
   const { doc, close } = opened;
   try {
+    if (doc.numPages > maxPages) return { ok: false, code: "too_many_pages" };
     const sheets: FoundCoverSheet[] = [];
+    const blankPages: number[] = [];
     for (let n = 1; n <= doc.numPages; n++) {
       const page = await doc.getPage(n);
       const painted = await paintPdfPage(page, SCAN_DPI / 72);
       page.cleanup();
-      const png = await sharp(painted.data, { raw: { width: painted.width, height: painted.height, channels: 3 } })
-        .grayscale()
-        .png({ compressionLevel: 1 })
-        .toBuffer();
-      const driverId = await coverSheetOnImage(png);
-      if (driverId) sheets.push({ page: n, driverId });
+      const grey = sharp(painted.data, { raw: { width: painted.width, height: painted.height, channels: 3 } }).grayscale();
+      const driverId = await coverSheetOnImage(await grey.clone().png({ compressionLevel: 1 }).toBuffer());
+      if (driverId) {
+        sheets.push({ page: n, driverId });
+        continue;
+      }
+      const raw = await grey.raw().toBuffer();
+      if (isBlankPage(new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength))) blankPages.push(n);
     }
-    return { ok: true, pageCount: doc.numPages, sheets };
+    return { ok: true, pageCount: doc.numPages, sheets, blankPages };
   } catch {
     return { ok: false, code: "decode_failed" };
   } finally {
     await close();
   }
+}
+
+export type FindCoverSheetsOutcome =
+  | { ok: true; pageCount: number; sheets: FoundCoverSheet[] }
+  | { ok: false; code: "encrypted_pdf" | "decode_failed" };
+
+/** The cover sheets alone (PI1's question). */
+export async function findCoverSheets(pdf: Buffer): Promise<FindCoverSheetsOutcome> {
+  const r = await scanStack(pdf);
+  if (!r.ok) return r.code === "too_many_pages" ? { ok: false, code: "decode_failed" } : { ok: false, code: r.code };
+  return { ok: true, pageCount: r.pageCount, sheets: r.sheets };
 }

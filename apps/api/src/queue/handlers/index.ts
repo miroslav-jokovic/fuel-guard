@@ -15,6 +15,7 @@ import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
 import { idleEngineHandler } from "./idleEngine.js";
 import { dqBinderHandler } from "./dqBinder.js";
+import { paperIntakeSplitHandler } from "./paperIntakeSplit.js";
 import { documentDeriveHandler } from "./documentDerive.js";
 import { efsCardStatusHandler, efsCardSyncHandler } from "./efsCardSync.js";
 import { efsSoapHandler, efsWindowRefetchHandler } from "./efsSoap.js";
@@ -93,6 +94,8 @@ export function registerAllHandlers(): void {
   registerHandler("idle_engine", idleEngineHandler);
   registerHandler("financial_projection", financialProjectionHandler);
   registerHandler("dq_binder", dqBinderHandler);
+  // Scanned stacks of paper driver files, cut at their cover sheets (DRIVER-PAPER-INTAKE-PLAN PI2).
+  registerHandler("paper_intake_split", paperIntakeSplitHandler);
   registerHandler("document_derive", documentDeriveHandler);
   // The FleetPal sweep (F8). Vendor-calling, so it shares the bounded lane the Samsara and EFS
   // kinds use — and its cap is 1 because FleetPal publishes no rate limit at all (F4).

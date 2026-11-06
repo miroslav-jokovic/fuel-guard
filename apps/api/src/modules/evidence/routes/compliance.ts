@@ -38,6 +38,7 @@ import { complianceExportsRouter } from "./complianceExports.js";
 import { anyFileSection, mayFile } from "./fileAccess.js";
 import { unitFilesRouter } from "./unitFiles.js";
 import { coverSheetsRouter } from "./coverSheets.js";
+import { paperIntakeRouter } from "./paperIntake.js";
 
 /**
  * Compliance master data API — /api/compliance/* (PLAN §3 / M1.5, Silvicom 360 slice).
@@ -369,6 +370,7 @@ export function complianceRouter(): Router {
   router.use(unitFilesRouter());
   // Scan cover sheets for the paper-file intake (DRIVER-PAPER-INTAKE-PLAN PI1).
   router.use(coverSheetsRouter());
+  router.use(paperIntakeRouter());
 
   return router;
 }
