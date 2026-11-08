@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { AppButton as BaseButton, AppSelect } from "@silvicom/ui";
-import type { Driver } from "@silvicom/shared";
+import { isFormerDriver, type Driver } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
 import { useToastStore } from "@/stores/toast";
 import { useDriverReconcile } from "./useDriverReconcile";
@@ -31,8 +31,9 @@ watch(
 );
 
 // Samsara drivers to pick from when manually linking (those already carrying a Samsara id).
+// Never an archived or former driver: merging into one takes the live driver off Drivers (2026-11-06).
 const samsaraCandidates = computed(() =>
-  props.drivers.filter((d) => d.samsara_driver_id).sort((a, b) => a.full_name.localeCompare(b.full_name)),
+  props.drivers.filter((d) => d.samsara_driver_id && !isFormerDriver(d)).sort((a, b) => a.full_name.localeCompare(b.full_name)),
 );
 // Unmatched drivers the auto-plan did NOT cover (need a manual link).
 const stillUnmatched = computed(() => {
@@ -101,6 +102,29 @@ async function linkDriver(sourceId: string) {
             class="px-3 py-2 text-sm text-ink-tertiary"
           >
             No confident merges found.
+          </li>
+        </ul>
+      </div>
+
+      <div v-if="(reconcile.report.value?.held ?? []).length">
+        <h4 class="text-sm font-semibold text-ink">
+          Needs a look ({{ reconcile.report.value?.held?.length }})
+        </h4>
+        <p class="mt-1 text-xs text-ink-tertiary">
+          These match, but one of the two is archived or no longer employed, so they are never merged
+          automatically. If it is the same person, restore the archived driver first, then link them by hand.
+        </p>
+        <ul class="mt-2 divide-y divide-edge-subtle rounded-control border border-edge">
+          <li
+            v-for="pr in reconcile.report.value?.held ?? []"
+            :key="pr.sourceId"
+            class="flex items-center justify-between px-3 py-2 text-sm"
+          >
+            <span
+              ><span class="text-ink-secondary">{{ pr.sourceName }}</span> →
+              <span class="font-medium text-ink">{{ pr.canonicalName }}</span></span
+            >
+            <span class="text-xs text-ink-tertiary">by {{ pr.matchedBy }}</span>
           </li>
         </ul>
       </div>
