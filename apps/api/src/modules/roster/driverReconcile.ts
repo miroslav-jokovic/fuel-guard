@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mergeDriver } from "./mergeDriver.js";
-import { planDriverMerges, type ReconcileDriver } from "@silvicom/shared";
+import { heldDriverMerges, isFormerDriver, planDriverMerges, type ReconcileDriver } from "@silvicom/shared";
 
 /**
  * `merge_driver` refuses a source that carries immutable evidence (migration 0234). Named here rather
@@ -38,6 +38,12 @@ export interface DriverReconcileResult {
    */
   skipped: DriverMergeSkip[];
   pairs: DriverMergePair[];
+  /**
+   * Pairs that touch an archived, terminated or inactive row (`heldDriverMerges`). Never applied here —
+   * on 2026-11-06 one such fold put a just-hired driver onto his archived row and he left Drivers. Shown
+   * so a person can restore the former row first, then link the two by hand.
+   */
+  held: DriverMergePair[];
 }
 
 /**
@@ -58,21 +64,23 @@ export async function reconcileDrivers(
 ): Promise<DriverReconcileResult> {
   const { data, error } = await admin
     .from("drivers")
-    .select("id, full_name, samsara_driver_id, efs_driver_id, phone")
+    .select("id, full_name, samsara_driver_id, efs_driver_id, phone, archived_at, status")
     .eq("org_id", orgId);
   if (error) throw new Error(error.message);
   const drivers = (data ?? []) as ReconcileDriver[];
 
   const nameById = new Map(drivers.map((d) => [d.id, d.full_name]));
   const plans = planDriverMerges(drivers);
-  const pairs: DriverMergePair[] = plans.map((p) => ({
+  const named = (p: (typeof plans)[number]): DriverMergePair => ({
     sourceId: p.sourceId,
     sourceName: nameById.get(p.sourceId) ?? null,
     canonicalId: p.canonicalId,
     canonicalName: nameById.get(p.canonicalId) ?? null,
     matchedBy: p.matchedBy,
     key: p.key,
-  }));
+  });
+  const pairs = plans.map(named);
+  const held = heldDriverMerges(drivers).map(named);
   const unmatched = drivers.filter((d) => !d.samsara_driver_id).length;
 
   let merged = 0;
@@ -94,7 +102,7 @@ export async function reconcileDrivers(
     }
   }
 
-  return { dryRun: !opts.apply, unmatched, planned: plans.length, merged, skipped, pairs };
+  return { dryRun: !opts.apply, unmatched, planned: plans.length, merged, skipped, pairs, held };
 }
 
 /**
@@ -111,11 +119,18 @@ export async function mergeDriverPair(
   if (sourceId === canonicalId) throw new Error("source and canonical are the same driver");
   const { data, error } = await admin
     .from("drivers")
-    .select("id")
+    .select("id, archived_at, status")
     .eq("org_id", orgId)
     .in("id", [sourceId, canonicalId]);
   if (error) throw new Error(error.message);
-  if ((data ?? []).length !== 2) throw new Error("driver not found in this org");
+  const rows = (data ?? []) as Array<{ id: string; archived_at: string | null; status: string | null }>;
+  if (rows.length !== 2) throw new Error("driver not found in this org");
+  // The bulk path's rule, held here too: merge_driver keeps the canonical row's archive and status, so
+  // folding a live driver into a former row takes him off Drivers (Christopher Weaver, 2026-11-06).
+  const canonical = rows.find((r) => r.id === canonicalId)!;
+  if (isFormerDriver(canonical)) {
+    throw new Error("The driver to keep is archived or no longer employed. Restore that driver first, then link.");
+  }
   const { error: mErr } = await mergeDriver(admin, orgId, sourceId, canonicalId);
   if (mErr) throw new Error(mErr.message);
 }

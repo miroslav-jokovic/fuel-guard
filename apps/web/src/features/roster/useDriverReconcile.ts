@@ -16,6 +16,8 @@ export interface DriverReconcileReport {
   planned: number;
   merged: number;
   pairs: DriverMergePair[];
+  /** Matches that touch an archived or former driver: never merged automatically, shown for review. */
+  held?: DriverMergePair[];
 }
 
 /** Drives the "Reconcile with Samsara" flow: preview (dry-run) the confident merges, apply them, or link one

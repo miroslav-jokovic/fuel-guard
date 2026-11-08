@@ -230,3 +230,17 @@ dispatch truth is the load's driver and tractor, which the VM already sends ever
   is told, so AMABLER is re-sent on the sweep after the next driver POST, and D-RL6 restores him there.
   No VM change. With the union removed, the new route test fails. KSATTERW is a separate case and is
   Q-RL5.
+- 2026-11-06 — **AMABLER restored; reconcile fixed (D-RL8).** McLeod sends driver rows only when one
+  changes, so after D-RL7 shipped (`e0f6123`) AMABLER would still have waited for the next McLeod driver
+  edit, about every few hours on weekdays and never at weekends (measured over 7 days). The owner ran
+  `agent.mjs --roster --full` on the VM at 21:56Z with the connector stopped: 181 drivers sent, AMABLER
+  restored (`driver.rehired_from_tms`, `proof: tms_termination_reversed`), and KSATTERW still held (Q-RL5).
+  The run also held **WCHRISTO (Christopher Weaver)**. That was not McLeod: at 21:46Z the owner's
+  **Reconcile duplicates (apply)** had merged 26 pairs, and for Weaver it folded his LIVE row (created by
+  the sweep 11-03) into his ARCHIVED, Samsara-linked July row and deleted the live one. `planDriverMerges`
+  read archived rows. **D-RL8:** an archived, terminated or inactive row is neither kept nor folded by an
+  automatic merge, and the manual link refuses to keep one. The pairs are shown as "Needs a look" in the
+  panel (`heldDriverMerges`, derived from the same planner). Weaver himself is unarchived by hand on
+  Drivers. Mutation: with the filter removed, 4 shared tests and 1 API test fail; with the manual-link
+  guard removed, 1 API test fails.
+

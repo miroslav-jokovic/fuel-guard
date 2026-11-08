@@ -88,6 +88,26 @@ describe("reconcileDrivers", () => {
    * that is NOT MD010 still throws. A recorder scripting a plain database error must not be quietly
    * collected as "skipped", or a broken merge looks like a policy decision.
    */
+  /**
+   * Christopher Weaver, 2026-11-06: the McLeod sweep created his live row on 11-03 (no Samsara id yet),
+   * and his July row, Samsara-linked, had been archived in the 09-14 duplicate cleanup. The applied
+   * reconcile folded the live row into the archived one and deleted it, so he left Drivers.
+   */
+  it("apply: never folds a live driver into an archived row — the pair is held for a person", async () => {
+    const rec = withDrivers([
+      { id: "live", full_name: "CHRISTOPHER WEAVER", samsara_driver_id: null, efs_driver_id: null, phone: null, archived_at: null, status: "active" },
+      { id: "july", full_name: "CHRISTOPHER WEAVER", samsara_driver_id: "55836857", efs_driver_id: null, phone: null, archived_at: "2026-09-14T19:10:53Z", status: "inactive" },
+    ]);
+    const r = await reconcileDrivers(rec.client, ORG, { apply: true });
+    expect(r.planned).toBe(0);
+    expect(r.merged).toBe(0);
+    expect(rec.rpcs()).toHaveLength(0);
+    expect(r.held).toEqual([
+      { sourceId: "live", sourceName: "CHRISTOPHER WEAVER", canonicalId: "july", canonicalName: "CHRISTOPHER WEAVER", matchedBy: "name", key: "christopher weaver" },
+    ]);
+    expectOrgScoped(rec, ORG);
+  });
+
   it("apply: any error that is not MD010 still throws", async () => {
     const rec = createSupabaseRecorder({
       tables: { drivers },
@@ -108,6 +128,12 @@ describe("mergeDriverPair", () => {
     await expect(mergeDriverPair(rec.client, ORG, "a", "b")).rejects.toThrow(/not found/);
     // The "in this org" in that error is only true if the lookup was actually org-filtered.
     expectOrgScoped(rec, ORG);
+  });
+
+  it("refuses to keep an archived or former driver, and calls no merge", async () => {
+    const rec = withDrivers([{ id: "a", archived_at: null, status: "active" }, { id: "b", archived_at: "2026-09-14T19:10:53Z", status: "inactive" }]);
+    await expect(mergeDriverPair(rec.client, ORG, "a", "b")).rejects.toThrow(/Restore that driver first/);
+    expect(rec.rpcs()).toHaveLength(0);
   });
 
   it("calls merge_driver_v2 when both drivers resolve", async () => {

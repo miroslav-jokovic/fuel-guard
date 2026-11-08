@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planDriverMerges, type ReconcileDriver } from "./reconcile.js";
+import { heldDriverMerges, planDriverMerges, type ReconcileDriver } from "./reconcile.js";
 
 const d = (o: Partial<ReconcileDriver> & { id: string }): ReconcileDriver => ({
   full_name: null, samsara_driver_id: null, efs_driver_id: null, phone: null, ...o,
@@ -53,5 +53,33 @@ describe("planDriverMerges", () => {
       d({ id: "s1", full_name: "Bob Carter" }),
     ]);
     expect(plans).toEqual([]);
+  });
+});
+
+describe("a former row is never part of an automatic merge (Christopher Weaver, 2026-11-06)", () => {
+  const live = d({ id: "live", full_name: "CHRISTOPHER WEAVER", status: "active" });
+  const archived = d({ id: "july", full_name: "CHRISTOPHER WEAVER", samsara_driver_id: "55836857", archived_at: "2026-09-14T19:10:53Z", status: "inactive" });
+
+  it("does not keep an archived Samsara row, and holds the pair instead", () => {
+    expect(planDriverMerges([live, archived])).toEqual([]);
+    expect(heldDriverMerges([live, archived])).toEqual([{ sourceId: "live", canonicalId: "july", matchedBy: "name", key: "christopher weaver" }]);
+  });
+
+  it("does not keep a terminated row either", () => {
+    const terminated = { ...archived, archived_at: null, status: "terminated" };
+    expect(planDriverMerges([live, terminated])).toEqual([]);
+  });
+
+  it("does not fold an archived stub away", () => {
+    const stub = d({ id: "stub", full_name: "ANGEL CORA COMP", archived_at: "2026-09-14T19:10:53Z" });
+    const canon = d({ id: "c1", full_name: "Angel Cora", samsara_driver_id: "S1", status: "active" });
+    expect(planDriverMerges([stub, canon])).toEqual([]);
+    expect(heldDriverMerges([stub, canon])).toEqual([{ sourceId: "stub", canonicalId: "c1", matchedBy: "name", key: "angel cora" }]);
+  });
+
+  it("an archived twin no longer makes a live match ambiguous — the live row is kept, nothing held", () => {
+    const liveCanon = d({ id: "now", full_name: "CHRISTOPHER WEAVER", samsara_driver_id: "S9", status: "active" });
+    expect(planDriverMerges([live, archived, liveCanon])).toEqual([{ sourceId: "live", canonicalId: "now", matchedBy: "name", key: "christopher weaver" }]);
+    expect(heldDriverMerges([live, archived, liveCanon])).toEqual([]);
   });
 });

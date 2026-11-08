@@ -396,6 +396,9 @@ export interface ReconcileDriver {
   samsara_driver_id: string | null;
   efs_driver_id: string | null;
   phone: string | null;
+  /** Read so a FORMER row is never folded into or kept (`isFormerDriver`). Absent = a live row. */
+  archived_at?: string | null;
+  status?: string | null;
 }
 
 export interface DriverMergePlan {
@@ -421,6 +424,40 @@ const digits = (p: string | null | undefined) => {
  * Never merges two canonical (Samsara) rows into each other; never merges a source into another source.
  */
 export function planDriverMerges(drivers: ReconcileDriver[]): DriverMergePlan[] {
+  return planAmong(drivers.filter((d) => !isFormerDriver(d)));
+}
+
+/**
+ * ── A FORMER ROW IS NEVER PART OF AN AUTOMATIC MERGE (2026-11-06) ─────────────────────────────────
+ * The planner was written before McLeod owned the roster, to fold EFS name-only stubs into their Samsara
+ * twin, and it read every row, archived ones included. On 2026-11-06 an applied reconcile folded
+ * Christopher Weaver's LIVE row (created by the McLeod sweep on 11-03 when McLeod hired him, no Samsara id
+ * yet) into his ARCHIVED July row (Samsara-linked, archived in the 09-14 duplicate cleanup) and deleted the
+ * live one. merge_driver keeps the canonical row's archive and status, so a driver McLeod had just hired
+ * vanished from Drivers, and there is no un-merge.
+ *
+ * So an archived, terminated or inactive row is neither kept nor folded away automatically. Those pairs
+ * are not dropped either: `heldDriverMerges` returns them for a person to look at, because "this hire is
+ * the same man as that archived row" may well be true — it is the direction of the fold that must be a
+ * decision (restore the former row first, then link), not a side effect of a bulk action.
+ */
+export function isFormerDriver(d: Pick<ReconcileDriver, "archived_at" | "status">): boolean {
+  return !!d.archived_at || d.status === "terminated" || d.status === "inactive";
+}
+
+/** The pairs the full roster would have planned that touch a former row, and that the live plan did not
+ *  make some other way. Derived from the same planner, so the two lists cannot disagree on a match. */
+export function heldDriverMerges(drivers: ReconcileDriver[]): DriverMergePlan[] {
+  const planned = new Set(planDriverMerges(drivers).map((p) => p.sourceId));
+  const byId = new Map(drivers.map((d) => [d.id, d]));
+  const former = (id: string) => {
+    const d = byId.get(id);
+    return !!d && isFormerDriver(d);
+  };
+  return planAmong(drivers).filter((p) => !planned.has(p.sourceId) && (former(p.sourceId) || former(p.canonicalId)));
+}
+
+function planAmong(drivers: ReconcileDriver[]): DriverMergePlan[] {
   const canon = drivers.filter((d) => d.samsara_driver_id);
   const sources = drivers.filter((d) => !d.samsara_driver_id);
 
