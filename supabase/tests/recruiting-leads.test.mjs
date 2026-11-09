@@ -118,6 +118,19 @@ ok("the opening has no ZIP column to fill",
 ok("the opening's status moves on the parent row",
   (await sqlstate(`update recruiting_openings set status = 'filled' where id = $1`, [OPENING])) === null);
 
+// 0574 (LQ2a, Q-AD50): the opening names its recruiter on the parent row, never in a version.
+const RECRUITER = (await one(`insert into auth.users (email) values ('recruiter@carrier.test') returning id`)).id;
+ok("an opening names its recruiter on the parent row (0574)",
+  (await sqlstate(`update recruiting_openings set recruiter_id = $2 where id = $1`, [OPENING, RECRUITER])) === null);
+ok("a recruiter who is not a user is refused (0574 FK)",
+  (await sqlstate(`update recruiting_openings set recruiter_id = $2 where id = $1`, [OPENING, randomUUID()])) === "23503");
+await db.query(`delete from auth.users where id = $1`, [RECRUITER]);
+ok("a deleted user leaves the opening unowned, not the opening gone (0574 on delete set null)",
+  (await one(`select recruiter_id from recruiting_openings where id = $1`, [OPENING])).recruiter_id === null);
+ok("the versions carry no recruiter: handing an opening over mints no new version (0574)",
+  (await one(`select count(*)::int as n from information_schema.columns
+               where table_name = 'recruiting_opening_versions' and column_name = 'recruiter_id'`)).n === 0);
+
 // ── 3. the lead: idempotent, attribution frozen, comparable contact details ──────────────────────
 const REF = "meta-lead-1";
 const L1 = await lead(ORG, { external_ref: REF, opening_id: OPENING, campaign_ref: "camp-1", full_name: "Ray Driver" });
