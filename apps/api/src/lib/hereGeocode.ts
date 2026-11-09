@@ -69,3 +69,53 @@ export async function hereReverseGeocodeState(env: Env, lat: number, lng: number
   const code = body?.items?.[0]?.address?.stateCode;
   return code ? code.toUpperCase() : null;
 }
+
+/** One Browse item, reduced to what callers read. */
+export interface HereBrowseItem {
+  title?: string;
+  distance?: number;
+  categories?: { id?: string }[];
+}
+
+/**
+ * How long a Browse call may take (D-LM31). HERE answered Browse for all 106 of the fleet's stopped
+ * trucks on 2026-11-09 without a failure; a miss costs one card its "At" line until the next open.
+ */
+export const HERE_BROWSE_TIMEOUT_MS = 4_000;
+
+/**
+ * HERE's place search around a point, filtered to the given categories (D-LM31, the truck card's
+ * "At" line). Returns HERE's items, nearest first, or THROWS — so a caller's cache does not keep a
+ * failure as an answer.
+ *
+ * ⚠ ONE attempt with a deadline, deliberately unlike `hereGet` above. That loop retries for up to
+ * ~12 s, which is right for a bulk geocode nobody is watching and wrong for a card a dispatcher just
+ * opened; and it has no deadline at all, so a wedged socket would hold for undici's five minutes.
+ *
+ * ⚠ The deadline is an OWNED controller cleared in `finally`, not `AbortSignal.timeout`: a timer
+ * left armed after the call has finished is what crashed the web service on 2026-09-17 (the tile
+ * proxy's comment in `mapProxies.ts` has the measurement). The body is read in full before returning,
+ * so nothing is left for a late abort to error.
+ */
+export async function hereBrowse(
+  env: Env,
+  at: { lat: number; lng: number },
+  radiusM: number,
+  categories: readonly string[],
+): Promise<HereBrowseItem[]> {
+  if (!env.HERE_API_KEY) return [];
+  const url =
+    `https://browse.search.hereapi.com/v1/browse?at=${at.lat},${at.lng}` +
+    `&in=circle:${at.lat},${at.lng};r=${Math.round(radiusM)}&limit=10&categories=${categories.join(",")}` +
+    `&apiKey=${encodeURIComponent(env.HERE_API_KEY)}`;
+  const deadline = new AbortController();
+  const timer = setTimeout(() => deadline.abort(), HERE_BROWSE_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: deadline.signal });
+    if (!res.ok) throw new Error(`HERE browse HTTP ${res.status}`);
+    const body = (await res.json()) as { items?: HereBrowseItem[] };
+    return body.items ?? [];
+  } finally {
+    clearTimeout(timer);
+  }
+}

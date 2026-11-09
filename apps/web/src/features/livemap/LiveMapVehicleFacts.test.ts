@@ -220,3 +220,29 @@ describe("LiveMapVehicleFacts — the route toggle (D-TC7)", () => {
     expect(mountCard({ route: off }).findAll("button").some((b) => b.text() === "Hide route")).toBe(false);
   });
 });
+
+/**
+ * D-LM31 — the "At" row. The owner could not tell from the card whether a parked truck was at a truck
+ * stop: Location is Samsara's street address. The row names the place and its kind, beside it.
+ */
+describe("LiveMapVehicleFacts — which truck place it is at", () => {
+  const withPlace = (place: { name: string; kind: "truck_stop" | "truck_repair"; distanceMeters: number } | null | undefined) =>
+    mount(LiveMapVehicleFacts, { props: { vehicle: vehicle(null), board, place }, global: { plugins: [router] } });
+  const labels = (w: ReturnType<typeof withPlace>) => w.get('[data-testid="truck-facts"]').findAll("dt").map((d) => d.text());
+
+  it("names the truck stop and its kind, beside the street address", () => {
+    const w = withPlace({ name: "Pilot", kind: "truck_stop", distanceMeters: 72 });
+    const list = w.get('[data-testid="truck-facts"]');
+    expect(list.text()).toContain("Pilot · Truck stop");
+    expect(list.text()).toContain("Gary, IN");
+    expect(labels(w)).toEqual(["Speed", "Fuel", "Heading", "Engine", "At", "Location"]);
+  });
+
+  it("words a repair shop as one", () => {
+    expect(withPlace({ name: "All Heart Fleet Services", kind: "truck_repair", distanceMeters: 27 }).text()).toContain("All Heart Fleet Services · Truck repair");
+  });
+
+  it("has no At row at all when nothing was named — not an em dash", () => {
+    for (const place of [null, undefined]) expect(labels(withPlace(place))).not.toContain("At");
+  });
+});

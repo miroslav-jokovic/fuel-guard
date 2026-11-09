@@ -2803,3 +2803,19 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   a stationary truck: 29 trucks flipped between the two in 2.5 minutes. **D-LM29**: the ECU engine
   state is collected and becomes the input. Measurements, findings and steps LS1a–LS4 are in
   `LIVE-MAP-STATUS-AUDIT-2026-09-30.md`.
+
+- **2026-11-09 — D-LM31: a stopped truck's card says which truck stop it is at.** The owner: "when I
+  see the truck and zoom in I don't know if that is a truck stop or what it is". The card's Location is
+  Samsara's street address ("IL-53, Joliet" for a truck inside the Pilot). Now a stopped or parked
+  truck's card adds **"At: Pilot · Truck stop"** from HERE Browse (`GET /api/livemap/vehicles/:id/place`,
+  `dispatch: view`). Asked only when a card opens, never per poll; moving and offline trucks are never
+  looked up; cached 24 h in memory by the fix rounded to ~11 m (`placeKey`, shared by API and web).
+  **The rule is measured** (`livemapPlace.ts`): all 106 of the real fleet's stopped trucks run through
+  Browse, the doubtful answers checked on satellite. Truck stop / rest area / truck parking: right in
+  every judgeable case out to 234 m → named within 250 m. Truck repair: right within 120 m, and the
+  two wrong answers past it were trucks in Silvicom's OWN Armitage Ave yard next to two repair shops →
+  named within 120 m only. "Nearest place of any kind" was measured and refused (it dropped real
+  plazas whose McDonald's was nearer than their pin). Under the final rule **41 of the 106 are named** (25
+  truck stops, 9 truck parking, 4 repair shops, 3 rest areas) and **0 of the 9 in the yard**. ⚠ The carrier has no stored yard (`terminals`
+  was dropped at 0259 with zero rows), so the yard is protected by the radius, not by knowing it is
+  the yard — a "Home yard" line would need that table back, which is its own decision.
