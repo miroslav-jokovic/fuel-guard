@@ -11,7 +11,6 @@ import LiveMapRail from "./LiveMapRail.vue";
 import LiveMapVehicleFacts from "./LiveMapVehicleFacts.vue";
 import { useLoadRoute } from "@/composables/useLoadRoute";
 import { useDrivenPath } from "@/composables/useDrivenPath";
-import { useVehiclePlace } from "@/composables/useVehiclePlace";
 import { useLiveMapView } from "./useLiveMapView";
 import { LIVE_MAP_POLL_MS } from "./useLiveMapBoard";
 
@@ -112,8 +111,6 @@ function toggleRoute(): void {
 function hideRoute(): void {
   routeOn.value = null;
 }
-// D-LM31: which truck stop, rest area or shop the selected truck is at, when it is stopped or parked.
-const selectedPlace = useVehiclePlace(selected);
 const routeCard = computed(() => ({
   shown: routeOn.value != null && routeOn.value.loadId === selected.value?.load?.id,
   pending: routeQuery.isFetching.value && !routeQuery.data.value,
@@ -404,7 +401,6 @@ watch(railVisible, async () => {
             :vehicle="selected"
             :board="board.data.value!"
             density="compact"
-            :place="selectedPlace"
             :route="routeCard"
             @toggle-route="toggleRoute"
           />

@@ -2819,3 +2819,13 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   truck stops, 9 truck parking, 4 repair shops, 3 rest areas) and **0 of the 9 in the yard**. ⚠ The carrier has no stored yard (`terminals`
   was dropped at 0259 with zero rows), so the yard is protected by the radius, not by knowing it is
   the yard — a "Home yard" line would need that table back, which is its own decision.
+
+- **2026-11-09 — D-LM31 is withdrawn; the "At:" line comes off the truck card.** The owner read it as
+  overkill and not what they asked for. They wanted the MAP to show place names when zoomed in, like
+  Google Maps: every named place, no filter, no card line. The truck-card row (HERE Browse per card
+  opened, `GET /api/livemap/vehicles/:id/place`, `livemapPlace.ts`) is reverted before it reached a
+  production release, so no office ever saw it. The entry above stays as the record of what was
+  measured. The Browse radii are still true if a card line is ever asked for. The request it
+  misread is followed in the basemap work as D-DR27. ⚠ The lesson is the plan's own rule, "build
+  what was asked": when a request is ambiguous, show one screenshot of the intended result before
+  building.
