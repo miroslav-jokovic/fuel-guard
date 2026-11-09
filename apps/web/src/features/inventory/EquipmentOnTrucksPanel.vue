@@ -16,6 +16,9 @@ import {
 import { KIT_RULES_SHOWN, type UnitKitDto } from "@silvicom/shared";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
+import { useSessionStore } from "@/stores/session";
+import { usePrintOneLabel } from "@/composables/usePrinting";
+import { unitLabelTarget } from "@/features/inventory/unitLabelTarget";
 import { useUnitsQuery } from "@/features/inventory/useUnits";
 import { missingWords, onBoardSentence } from "@/features/inventory/onBoardWords";
 import { formatDate } from "@/lib/format";
@@ -106,6 +109,11 @@ const openUnit = (row: Record<string, unknown>) => {
   // The URL carries the ROSTER's kind, because that is which table the id is in (a reefer is a trailer).
   void router.push({ name: "unit", params: { kind: u.kind === "tractor" ? "tractor" : "trailer", id: u.unitId }, query: { tab: "equipment" } });
 };
+
+// The row menu's Print label (owner 2026-11-09): one label to the default printer, no detour through
+// Labels (`usePrintOneLabel`). Shown to whoever may print — the print route asks `maintenance` manage.
+const session = useSessionStore();
+const { printOne } = usePrintOneLabel();
 </script>
 
 <template>
@@ -155,6 +163,7 @@ const openUnit = (row: Record<string, unknown>) => {
         <template #actions="{ row }">
           <KebabMenu>
             <BaseButton class="kebab-item" @click="openUnit(row)">Open</BaseButton>
+            <BaseButton v-if="session.can('maintenance')" class="kebab-item" @click="printOne(unitLabelTarget(row as unknown as UnitKitDto))">Print label</BaseButton>
           </KebabMenu>
         </template>
         <template #empty>

@@ -86,8 +86,7 @@ const printing = vi.hoisted(() => ({
 vi.mock("@/composables/usePrinting", async () => {
   const { ref, computed } = await import("vue");
   return {
-    usePrintDefaultsQuery: () => ({ data: computed(() => ({ effectivePrinterId: printing.defaultPrinter?.id ?? null })) }),
-    usePrintersQuery: () => ({ data: computed(() => (printing.defaultPrinter ? [printing.defaultPrinter] : [])) }),
+    useDefaultLabelPrinter: () => computed(() => printing.defaultPrinter),
     usePrintLabels: () => ({ mutateAsync: printing.printLabels }),
     usePrintJob: () => ({ data: ref(undefined) }),
     jobStatusText: () => "",

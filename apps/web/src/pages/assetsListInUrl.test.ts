@@ -29,6 +29,8 @@ vi.mock("@/features/inventory/useUnits", () => ({
 }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true, canManage: true }) }));
 vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => true }));
+// Each row's menu has Print label (`usePrintOneLabel`); printing is not what this file tests.
+vi.mock("@/composables/usePrinting", () => ({ usePrintOneLabel: () => ({ printOne: vi.fn() }) }));
 // DataTable swaps to cards below 768px and jsdom has no matchMedia; the desktop breakpoint is stubbed.
 vi.mock("@vueuse/core", async (orig) => ({ ...((await orig()) as object), useMediaQuery: () => ref(true) }));
 

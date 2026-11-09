@@ -105,6 +105,8 @@ vi.mock("@/features/inventory/usePurchases", async () => {
   };
 });
 vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => true }));
+// Each row's menu has Print label (`usePrintOneLabel`, its own suites); printing is not what this file tests.
+vi.mock("@/composables/usePrinting", () => ({ usePrintOneLabel: () => ({ printOne: vi.fn() }) }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true, canManage: true }) }));
 
 const AssetsPage = (await import("@/pages/AssetsPage.vue")).default;
