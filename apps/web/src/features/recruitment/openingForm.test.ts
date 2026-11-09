@@ -43,7 +43,7 @@ describe("openingSaveFrom", () => {
     if (!first.ok) throw new Error(first.message);
     const s = first.save;
     const view: OpeningView = {
-      id: OPENING, status: "open", created_at: "2026-11-06T00:00:00Z",
+      id: OPENING, status: "open", created_at: "2026-11-06T00:00:00Z", recruiter_id: null,
       current: {
         id: "ov1", version: 1, profile_version_id: s.profile_version_id, title: s.title, facts: s.facts, headcount: s.headcount,
         area_label: s.area.label, area_latitude: s.area.latitude, area_longitude: s.area.longitude, area_radius_miles: s.area.radius_miles,

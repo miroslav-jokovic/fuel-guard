@@ -15,13 +15,19 @@ import { postgrestFixture } from "../../../testing/postgrestFixture.js";
  * words.
  */
 
-const holder = vi.hoisted(() => ({ client: null as unknown }));
+const holder = vi.hoisted(() => ({ client: null as unknown, managers: vi.fn() }));
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
+// LQ2b: who may own an opening is the access matrix's answer (`sectionManagerIds`); its own test is
+// `accessReview.test.ts`. Mocked at its own file, not `org/index.js`: a partial mock of the index loads the
+// real one first, and this route's module is reached from it before the mock is in place.
+vi.mock("../../org/surfaceHolders.js", () => ({ sectionManagerIds: holder.managers, surfaceHolders: vi.fn(async () => []) }));
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const PROFILE = "80000000-0000-4000-8000-000000000001";
 const PV = "70000000-0000-4000-8000-000000000001";
 const OPENING = "60000000-0000-4000-8000-000000000001";
+const DANA = "10000000-0000-4000-8000-0000000000da";
+const SAM = "10000000-0000-4000-8000-00000000005a";
 const ctx = (role: string): AuthContext => ({ userId: `u-${role}`, email: `${role}@x.test`, orgId: ORG, role } as AuthContext);
 const CTX: Record<string, AuthContext> = Object.fromEntries(["admin", "recruiter", "auditor", "dispatcher"].map((r) => [r, ctx(r)]));
 
@@ -51,7 +57,7 @@ function seed(over: { rpcError?: string; version?: number } = {}): SupabaseRecor
           const id = q.filters().find((f) => f.col === "id")?.val;
           return { data: id === OPENING ? [{ id, ...(q.write.payload as object) }] : [] };
         }
-        return postgrestFixture([{ id: OPENING, org_id: ORG, status: "open", created_at: "2026-11-01T00:00:00Z" }])(q);
+        return postgrestFixture([{ id: OPENING, org_id: ORG, status: "open", created_at: "2026-11-01T00:00:00Z", recruiter_id: DANA }])(q);
       },
       recruiting_opening_versions: postgrestFixture([
         { id: "ov1", org_id: ORG, opening_id: OPENING, version: 1, title: "Old title", created_by_name: "Dana", created_at: "2026-11-01T00:00:00Z" },
@@ -65,10 +71,12 @@ function seed(over: { rpcError?: string; version?: number } = {}): SupabaseRecor
       if (over.rpcError) return { error: { code: over.rpcError, message: "refused" } };
       if (fn === "save_hiring_profile_version") return { profile_id: PROFILE, version_id: "pv3", version: over.version ?? 3 };
       if (fn === "save_opening_version") return { opening_id: OPENING, version_id: "ov3", version: over.version ?? 3 };
+      if (fn === "org_member_directory") return [{ user_id: DANA, email: "dana@x.test", full_name: "Dana Recruiter" }, { user_id: SAM, email: "sam@x.test", full_name: null }];
       return null;
     },
   });
   holder.client = rec.client;
+  holder.managers.mockReset().mockResolvedValue([SAM, DANA]);
   return rec;
 }
 /** `user_profiles` is read by the actor's own user id (`displayNameFor`): not a carrier's row (`notes.test.ts`). */
@@ -163,5 +171,49 @@ describe("openings", () => {
     expect((await post("/openings/60000000-0000-4000-8000-0000000000ff/status", "recruiter", { status: "closed" })).status).toBe(404);
     seed();
     expect((await post(`/openings/${OPENING}/status`, "recruiter", { status: "hired" })).status).toBe(400);
+  });
+});
+
+describe("who owns an opening's leads (LQ2b, Q-AD50 (a))", () => {
+  it("lists each opening with the recruiter who owns it", async () => {
+    seed();
+    const body = (await (await call("/openings", "recruiter")).json()) as { openings: Array<{ recruiter_id: string | null }> };
+    expect(body.openings[0]!.recruiter_id).toBe(DANA);
+  });
+
+  it("offers the recruitment managers, by name or else email, sorted — the same list to a viewer", async () => {
+    for (const who of ["recruiter", "auditor"]) {
+      seed();
+      const body = (await (await call("/recruiters", who)).json()) as { recruiters: Array<{ user_id: string; label: string }> };
+      expect(body.recruiters).toEqual([{ user_id: DANA, label: "Dana Recruiter" }, { user_id: SAM, label: "sam@x.test" }]);
+    }
+    seed();
+    expect((await call("/recruiters", "dispatcher")).status).toBe(403);
+  });
+
+  it("names a recruitment manager on the parent row only, inside the carrier, and audits it", async () => {
+    seed();
+    const res = await post(`/openings/${OPENING}/recruiter`, "recruiter", { recruiter_id: SAM });
+    expect(res.status).toBe(200);
+    expect(rec.writes().find((w) => w.table === "recruiting_openings")!.write!.payload).toEqual({ recruiter_id: SAM });
+    expect(rec.writes().find((w) => w.table === "audit_logs")!.write!.payload).toMatchObject({ action: "recruitment.opening_recruiter_changed" });
+    expectOrgScoped(rec, ORG, PROFILE_EXEMPT);
+  });
+
+  it("refuses somebody who cannot work recruitment leads, before writing anything", async () => {
+    seed();
+    const res = await post(`/openings/${OPENING}/recruiter`, "recruiter", { recruiter_id: "10000000-0000-4000-8000-0000000000dd" });
+    expect([res.status, ((await res.json()) as { error: { code: string } }).error.code]).toEqual([422, "not_a_recruiter"]);
+    expect(rec.writes().filter((w) => w.table === "recruiting_openings")).toEqual([]);
+  });
+
+  it("null hands the opening back to everybody; an unknown opening is a 404; a view-only role may not change it", async () => {
+    seed();
+    expect((await post(`/openings/${OPENING}/recruiter`, "recruiter", { recruiter_id: null })).status).toBe(200);
+    expect(rec.writes().find((w) => w.table === "recruiting_openings")!.write!.payload).toEqual({ recruiter_id: null });
+    seed();
+    expect((await post("/openings/60000000-0000-4000-8000-0000000000ff/recruiter", "recruiter", { recruiter_id: SAM })).status).toBe(404);
+    seed();
+    expect((await post(`/openings/${OPENING}/recruiter`, "auditor", { recruiter_id: SAM })).status).toBe(403);
   });
 });

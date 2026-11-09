@@ -79,6 +79,18 @@ export interface OpeningVersionView {
 export interface OpeningView extends OpeningListItem {
   created_at: string;
   current: OpeningVersionView | null;
+  /** Who owns this opening's leads (0574, Q-AD50 (a)); null = every recruitment manager is rung. */
+  recruiter_id: string | null;
+}
+
+/** `POST /recruitment/openings/:id/recruiter` (LQ2b): name the owner, or null to hand the opening back to everyone. */
+export const openingRecruiterSchema = z.object({ recruiter_id: recordId().nullable() });
+export type OpeningRecruiterSave = z.infer<typeof openingRecruiterSchema>;
+
+/** One person who may own an opening's leads: holds `recruitment: manage` today (`GET /recruitment/recruiters`). */
+export interface RecruiterOption {
+  user_id: string;
+  label: string;
 }
 
 export const openingSaveSchema = z.object({

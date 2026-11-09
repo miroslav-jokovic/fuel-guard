@@ -46,8 +46,14 @@ export async function ringLead(admin: SupabaseClient, orgId: string, leadId: str
   }
 }
 
-export const ringNewLead = (admin: SupabaseClient, orgId: string, leadId: string, configured: ConfiguredRecipients): Promise<void> =>
-  ringLead(admin, orgId, leadId, {
-    category: "lead_new", title: "New ad lead", severity: "info",
-    body: "A new lead is in the queue, waiting for a first contact.",
-  }, configured);
+/**
+ * `lead_new`. With an owner (LQ2b, Q-AD50 (a): the opening's recruiter, already checked against the access
+ * matrix by `leadAssignment.ts`), only the owner is rung — a lead everybody is told about is a lead nobody in
+ * particular calls. Without one, the carrier's list or the recruitment managers, as before. The escalation
+ * (`lead_uncontacted`) still goes to the whole list: it is the second chance when the owner did not call.
+ */
+export const ringNewLead = (admin: SupabaseClient, orgId: string, leadId: string, configured: ConfiguredRecipients, owner: string | null = null): Promise<void> =>
+  ringLead(admin, orgId, leadId, owner
+    ? { category: "lead_new", title: "New lead for your opening", severity: "info", body: "A new lead for an opening you own is waiting for your first call." }
+    : { category: "lead_new", title: "New ad lead", severity: "info", body: "A new lead is in the queue, waiting for a first contact." },
+  owner ? async () => [owner] : configured);

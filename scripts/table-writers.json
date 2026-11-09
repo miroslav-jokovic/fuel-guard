@@ -627,6 +627,7 @@
     "apps/api/src/modules/recruiting/leads/leadContacts.ts"
   ],
   "recruiting_leads": [
+    "apps/api/src/modules/recruiting/leads/leadAssignment.ts",
     "apps/api/src/modules/recruiting/leads/leadContacts.ts"
   ],
   "recruiting_message_wording": [

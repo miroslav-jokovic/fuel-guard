@@ -4,8 +4,10 @@ import {
   HIRING_PROFILE_V1,
   OPENING_STATUSES,
   hiringProfileSaveSchema,
+  openingRecruiterSchema,
   openingSaveSchema,
   type HiringProfileSave,
+  type OpeningRecruiterSave,
   type OpeningSave,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
@@ -14,7 +16,9 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { displayNameFor } from "../../../lib/memberLabels.js";
-import { isSetupError, listHiringProfiles, listOpenings, saveHiringProfile, saveOpening, setOpeningStatus } from "../leads/hiringSetup.js";
+import {
+  isSetupError, listHiringProfiles, listOpenings, listRecruiters, saveHiringProfile, saveOpening, setOpeningRecruiter, setOpeningStatus,
+} from "../leads/hiringSetup.js";
 
 /**
  * Hiring profiles and openings, office side (ADS-AGENT-BUILD-WORKFLOW.md D1c2; 0553/0554).
@@ -116,6 +120,39 @@ export function recruitmentHiringSetupRouter(): Router {
       await writeAudit(admin, {
         orgId, actorId: req.auth!.userId, action: "recruitment.opening_status_changed",
         entity: "recruiting_openings", entityId: result.id, meta: { status },
+      });
+      res.json(result);
+    }),
+  );
+
+  // LQ2b (Q-AD50 (a)): who may own an opening's leads, and naming them. The list is the access matrix's
+  // recruitment managers (`listRecruiters`), so a viewer sees the same names the picker offers a manager.
+  router.get(
+    "/recruiters",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      res.json({ recruiters: await listRecruiters(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!) });
+    }),
+  );
+
+  router.post(
+    "/openings/:openingId/recruiter",
+    requireOrg,
+    canManage,
+    validateBody(openingRecruiterSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const { recruiter_id } = res.locals.body as OpeningRecruiterSave;
+      const result = await setOpeningRecruiter(admin, orgId, String(req.params.openingId ?? ""), recruiter_id);
+      if (isSetupError(result)) {
+        res.status(result.status).json(apiError(result.code, result.message));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId, actorId: req.auth!.userId, action: "recruitment.opening_recruiter_changed",
+        entity: "recruiting_openings", entityId: result.id, meta: { recruiter_id },
       });
       res.json(result);
     }),

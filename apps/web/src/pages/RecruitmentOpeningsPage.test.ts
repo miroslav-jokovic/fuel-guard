@@ -24,8 +24,10 @@ vi.mock("@/lib/api", () => ({
 
 const PV = "70000000-0000-4000-8000-000000000001";
 const OPENING = "60000000-0000-4000-8000-000000000001";
+const DANA = "10000000-0000-4000-8000-0000000000da";
+const SAM = "10000000-0000-4000-8000-00000000005a";
 const SAVED: OpeningView = {
-  id: OPENING, status: "open", created_at: "2026-11-06T00:00:00Z",
+  id: OPENING, status: "open", created_at: "2026-11-06T00:00:00Z", recruiter_id: null,
   current: {
     id: "ov2", version: 2, profile_version_id: PV, title: "Class A regional", headcount: 3,
     facts: { pay: { per: "mile", min_cents: 62, max_cents: 70 }, home_time: "Home weekly", equipment: ["dry_van"], lanes: null, start_date: null },
@@ -41,6 +43,8 @@ function world(openings: OpeningView[] | "fail", profiles: unknown[] = []) {
     if (path === "/api/recruitment/openings") return openings === "fail" ? { ok: false, error: { message: "boom" } } : ok({ openings });
     if (path === "/api/recruitment/hiring-profiles") return ok({ profiles, defaults: HIRING_PROFILE_V1 });
     if (path.endsWith("/status")) return ok({ id: OPENING, status: "paused" });
+    if (path === "/api/recruitment/recruiters") return ok({ recruiters: [{ user_id: DANA, label: "Dana Recruiter" }, { user_id: SAM, label: "Sam Ortiz" }] });
+    if (path.endsWith("/recruiter")) return ok({ id: OPENING });
     return { ok: false, error: { message: "not stubbed" } };
   };
 }
@@ -155,5 +159,38 @@ describe("Recruitment › Openings", () => {
     const { w } = await render("/recruitment/openings");
     expect([w.find('[data-test="new-opening"]').exists(), w.find(`[data-test="move-${OPENING}-paused"]`).exists(), w.text().includes("Class A regional")])
       .toEqual([false, false, true]);
+  });
+
+  it("names the opening's recruiter through its door, and hands it back to everyone (LQ2b, Q-AD50 (a))", async () => {
+    api.answer = world([SAVED]);
+    const { w } = await render("/recruitment/openings");
+    const select = control(w, `recruiter-${OPENING}`);
+    expect(select.findAll("option").map((o) => o.text())).toEqual(["Everyone in recruiting", "Dana Recruiter", "Sam Ortiz"]);
+    await select.setValue(SAM);
+    await settle(w);
+    expect(posts(`/api/recruitment/openings/${OPENING}/recruiter`)).toEqual([{ recruiter_id: SAM }]);
+    api.answer = world([{ ...SAVED, recruiter_id: SAM }]);
+    const again = await render("/recruitment/openings");
+    await control(again.w, `recruiter-${OPENING}`).setValue("");
+    await settle(again.w);
+    expect(posts(`/api/recruitment/openings/${OPENING}/recruiter`).at(-1)).toEqual({ recruiter_id: null });
+  });
+
+  it("a recruiter who lost recruiting access is shown as such, never as everyone's", async () => {
+    api.answer = world([{ ...SAVED, recruiter_id: "10000000-0000-4000-8000-0000000000ff" }]);
+    const { w } = await render("/recruitment/openings");
+    const select = control(w, `recruiter-${OPENING}`);
+    expect((select.element as HTMLSelectElement).selectedOptions[0]?.textContent?.trim()).toBe("Someone without recruiting access");
+    session.can = () => false;
+    const ro = await render("/recruitment/openings");
+    expect(ro.w.find(`[data-test="recruiter-${OPENING}"]`).text()).toBe("Someone without recruiting access");
+  });
+
+  it("a view-only role reads the recruiter's name, with nothing to change", async () => {
+    session.can = () => false;
+    api.answer = world([{ ...SAVED, recruiter_id: DANA }]);
+    const { w } = await render("/recruitment/openings");
+    const cell = w.find(`[data-test="recruiter-${OPENING}"]`);
+    expect([cell.element.tagName, cell.text()]).toEqual(["SPAN", "Dana Recruiter"]);
   });
 });
