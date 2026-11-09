@@ -14,6 +14,8 @@ import {
 import type { AssetDto } from "@silvicom/shared";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
+import { useSessionStore } from "@/stores/session";
+import { usePrintOneLabel } from "@/composables/usePrinting";
 import { useOpens } from "@/composables/useOpens";
 import { ASSETS_PAGE_SIZE, useAssetsQuery, useNotReturnedCountQuery } from "@/features/inventory/useAssets";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -76,6 +78,11 @@ function openRow(row: Record<string, unknown>) {
   const driver = driverRoute(a);
   void router.push(a.holder.id && opens(driver) ? driver : { name: "asset", params: { id: a.id } });
 }
+
+// The row menu's Print label (owner 2026-11-09): one label to the default printer, no detour through
+// Labels (`usePrintOneLabel`). Shown to whoever may print — the print route asks `maintenance` manage.
+const session = useSessionStore();
+const { printOne } = usePrintOneLabel();
 </script>
 
 <template>
@@ -122,6 +129,7 @@ function openRow(row: Record<string, unknown>) {
       <template #actions="{ row }">
         <KebabMenu>
           <BaseButton class="kebab-item" @click="openRow(row)">Open</BaseButton>
+          <BaseButton v-if="session.can('maintenance')" class="kebab-item" @click="printOne({ kind: 'asset', assetId: String(row.id) })">Print label</BaseButton>
         </KebabMenu>
       </template>
       <template #empty>

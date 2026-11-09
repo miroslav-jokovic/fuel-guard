@@ -24,7 +24,7 @@ import { STOCK_PAGE_SIZE, useStockPageQuery } from "@/features/inventory/useInve
 import { fetchLabelSheet, useLabelFaces, useLabelPresetsQuery } from "@/features/inventory/useLabels";
 import { DEFAULT_LABEL_PRESET, pickLabelPreset, rememberLabelPreset } from "@/features/inventory/labelStockChoice";
 import { useToastStore } from "@/stores/toast";
-import { jobStatusText, usePrintDefaultsQuery, usePrintersQuery, usePrintJob, usePrintLabels } from "@/composables/usePrinting";
+import { jobStatusText, useDefaultLabelPrinter, usePrintJob, usePrintLabels } from "@/composables/usePrinting";
 
 /**
  * Printing labels (INVENTORY-PLAN.md I10 PR 2; D-INV25, research §5.15).
@@ -62,12 +62,8 @@ import { jobStatusText, usePrintDefaultsQuery, usePrintersQuery, usePrintJob, us
 const route = useRoute();
 const toast = useToastStore();
 
-const printDefaults = usePrintDefaultsQuery();
-const printerList = usePrintersQuery();
 const printLabels = usePrintLabels();
-const defaultPrinter = computed(
-  () => printerList.data.value?.find((p) => p.id === printDefaults.data.value?.effectivePrinterId) ?? null,
-);
+const defaultPrinter = useDefaultLabelPrinter();
 const lastJobId = ref<string | null>(null);
 const lastJob = usePrintJob(lastJobId);
 watch(

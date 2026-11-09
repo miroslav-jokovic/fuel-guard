@@ -1,4 +1,4 @@
-import { computed, toValue, type MaybeRefOrGetter } from "vue";
+import { computed, ref, toValue, watch, type MaybeRefOrGetter } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type {
   CreatePrinterRequest,
@@ -12,6 +12,7 @@ import type {
   UpdatePrinterRequest,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { useToastStore } from "@/stores/toast";
 
 /**
  * Printers chosen once in Settings, and the Print button that never asks
@@ -148,4 +149,58 @@ export function jobStatusText(job: Pick<PrintJobDto, "status" | "printerName" | 
     case "cancelled":
       return "Cancelled";
   }
+}
+
+/**
+ * The printer every Print button sends to: this person's own default, else the organisation's — the
+ * server answers which (`effectivePrinterId`), so no screen decides it again.
+ */
+export function useDefaultLabelPrinter() {
+  const defaults = usePrintDefaultsQuery();
+  const printers = usePrintersQuery();
+  return computed(() => printers.data.value?.find((p) => p.id === defaults.data.value?.effectivePrinterId) ?? null);
+}
+
+/**
+ * One label from a list row's menu, straight to the default printer (Equipment lists, owner
+ * 2026-11-09: "add print button in actions column"). The Labels screen stays the place for a run of
+ * many or a sheet; a row prints its own label without a detour there, as the printers ruling of
+ * 2026-10-28 asks — a printer chosen once in Settings is used without asking.
+ *
+ * The person learns three things in a toast: that it went (and to which printer, or that the printer
+ * is offline and the label waits), and — only if it goes wrong — that it did not print. A printed
+ * label is its own confirmation; a second toast for it would be noise. With no printer set up the
+ * toast says where to set one, rather than opening a PDF a row cannot lay out.
+ */
+export function usePrintOneLabel() {
+  const toast = useToastStore();
+  const printer = useDefaultLabelPrinter();
+  const send = usePrintLabels();
+  const jobId = ref<string | null>(null);
+  const job = usePrintJob(jobId);
+  watch(
+    () => job.data.value?.status,
+    (status) => {
+      const j = job.data.value;
+      if (j && (status === "failed" || status === "unknown")) toast.error("The label did not print", jobStatusText(j));
+    },
+  );
+
+  async function printOne(target: LabelTarget) {
+    const p = printer.value;
+    if (!p) {
+      toast.error("No label printer is set up", "Choose one in Settings → Printers & scanners, then print again.");
+      return;
+    }
+    try {
+      const { job: queued } = await send.mutateAsync({ targets: [target] });
+      jobId.value = queued.id;
+      if (p.online) toast.info(`Printing on ${p.name}`);
+      else toast.warning(`${p.name} is offline`, "The label waits and prints when it is back.");
+    } catch (e) {
+      toast.error("Could not print the label", e instanceof Error ? e.message : undefined);
+    }
+  }
+
+  return { printOne, printing: send.isPending };
 }

@@ -3,6 +3,7 @@ import { computed, watch } from "vue";
 import { DataTable, type DataTableColumn, TablePagination } from "@silvicom/ui";
 import type { UnitKitDto } from "@silvicom/shared";
 import { useUnitsQuery } from "./useUnits";
+import { unitLabelTable } from "./unitLabelTarget";
 
 /**
  * Labels' third list: trucks and trailers, each to get its own QR label (DE4; DRIVER-EQUIPMENT-AND-
@@ -24,7 +25,6 @@ const UNIT_PAGE_SIZE = 50;
 
 const { data, isLoading, isError, isFetching, refetch } = useUnitsQuery(computed(() => ({})));
 
-const tableOf = (u: Pick<UnitKitDto, "kind">) => (u.kind === "tractor" ? "vehicle" : "trailer");
 const rows = computed(() => {
   const q = props.search.trim().toLowerCase();
   const all = data.value?.units ?? [];
@@ -57,7 +57,7 @@ const columns: DataTableColumn[] = [
     :loading="isLoading"
     :error="isError ? 'Could not load the trucks and trailers.' : null"
     :retrying="isFetching"
-    :row-key="(r) => `unit:${tableOf(r)}:${r.unitId}`"
+    :row-key="(r) => `unit:${unitLabelTable(r)}:${r.unitId}`"
     selectable
     :selected="selected"
     @update:selected="emit('update:selected', $event)"
