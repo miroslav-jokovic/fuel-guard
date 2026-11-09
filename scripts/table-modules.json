@@ -1410,7 +1410,18 @@
         "why": "new in 0553 (2026-11-03); one row per call/text/email a person made to a lead, a few per lead; evidence, removed only by the applicant purge."
       }
     },
-    "recruiting_lead_closures": {
+    "phone_lookups": {
+    "module": "recruiting",
+    "layer": "core",
+    "lifecycle": {
+      "growth": "time",
+      "retention_days": 400,
+      "partition": null,
+      "budget_rows_per_day": 500,
+      "why": "new in 0583 (2026-11-10, LQ8a); one row per (org, E.164) the phone provider was asked about, replaced when re-looked; bounded by TELNYX_LOOKUP_DAILY_MAX (500/day/org); pruned at 400 days from looked_up_at."
+    }
+  },
+  "recruiting_lead_closures": {
     "module": "recruiting",
     "layer": "core",
     "lifecycle": {

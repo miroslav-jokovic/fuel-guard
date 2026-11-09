@@ -2397,6 +2397,10 @@ async function main() {
         `select '${org}', l.id, 'outbound', 'call', gen_random_uuid(), 'rls' from l`,
       // 0578 (LQ5a): `(kind = 'closed') = (reason is not null)` ties two columns, which the column-by-column
       // seeder cannot see; a qualified act carries no reason.
+      // 0583 (LQ8a): provider and line_type are enumerated; the seeder would pick the first literal of the
+      // first matching check, which is fine here, but the (org, phone) unique key needs a real E.164 value.
+      phone_lookups: (org) =>
+        `insert into phone_lookups (org_id, phone_e164, provider, line_type) values ('${org}', '+17082360042', 'telnyx', 'unknown')`,
       recruiting_lead_closures: (org) =>
         `with l as (insert into recruiting_leads (org_id, channel) values ('${org}', 'rls') returning id) ` +
         `insert into recruiting_lead_closures (org_id, lead_id, kind, status_after, actor, actor_name) ` +

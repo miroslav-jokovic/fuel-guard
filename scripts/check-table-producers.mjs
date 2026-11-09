@@ -115,6 +115,7 @@ const WAIVERS = new Map([
   // and `save_opening_version` write them. Their API caller follows in D1c.
   // recruiting_carrier_questions (0567, §15.3 CQ1) shipped schema-only and left on 2026-11-04 in CQ2:
   // Settings → Recruiting's "Your own questions" writes it (recruiting/carrierQuestions.ts).
+  ["phone_lookups", "ADS-LEAD-INTAKE-PLAN.md LQ8b — recruiting/leads/phoneLookup.ts writes it from the lead_new ring job (schema-only, 0583; leaves in LQ8b's merge)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
