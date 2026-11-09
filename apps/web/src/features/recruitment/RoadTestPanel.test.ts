@@ -117,17 +117,34 @@ const button = (w: ReturnType<typeof mount>) => w.findAll("button").find((b) => 
 const byText = (w: ReturnType<typeof mount>, text: string) => w.findAll("button").find((b) => b.text().trim() === text);
 
 describe("with no examiner on file (Q-RT2)", () => {
-  it("asks for the examiner and their signature before anything else", async () => {
+  /** Owner, 2026-11-09 (Option 1): no examiner is lawful — the §391.33 equivalency is the way through. */
+  it("names the licence equivalency as the way through and links the qualification file", async () => {
     state.examiners = [];
     const w = mountPanel();
     await settle(w);
-    expect(w.text()).toContain("Add an examiner");
+    expect(w.get('[data-testid="no-examiner"]').text()).toContain("§391.33");
+    expect(w.find('[data-testid="open-file"]').exists()).toBe(true);
     expect(w.text()).not.toContain("The road test given includes");
+  });
+
+  it("offers the admin adding an examiner as a choice, not a form they cannot dismiss", async () => {
+    state.examiners = [];
+    const w = mountPanel();
+    await settle(w);
+    expect(w.findComponent({ name: "SignatoryAddForm" }).exists()).toBe(false);
+    await w.get('[data-testid="add-examiner"]').trigger("click");
+    await settle(w);
+    expect(w.findComponent({ name: "SignatoryAddForm" }).exists()).toBe(true);
+    await byText(w, "Cancel")!.trigger("click");
+    await settle(w);
+    expect(w.findComponent({ name: "SignatoryAddForm" }).exists()).toBe(false);
   });
 
   it("puts the examiner just added in the Examiner field", async () => {
     state.examiners = [];
     const w = mountPanel();
+    await settle(w);
+    await w.get('[data-testid="add-examiner"]').trigger("click");
     await settle(w);
     const inputs = w.findAll("input:not([type=file])");
     await inputs[0]!.setValue("Arvidera Gakhal");
@@ -150,25 +167,25 @@ describe("with no examiner on file (Q-RT2)", () => {
  * D-5 / RT-A3 (§9 P1): a further examiner is a Settings act, so the panel links there instead of a form.
  */
 describe("who may add an examiner", () => {
-  for (const role of ["recruiter", "fleet_manager"]) {
-    it(`tells a ${role} to ask an administrator, in Settings → Recruiting, and offers no form`, async () => {
-      actAs(role);
-      state.examiners = [];
-      const w = mountPanel();
-      await settle(w);
-      expect(w.text()).toContain("Ask an administrator to add one in Settings → Recruiting");
-      expect(w.findComponent({ name: "SignatoryAddForm" }).exists()).toBe(false);
-    });
+  it("offers a recruiter no examiner and tells them who records the equivalency", async () => {
+    actAs("recruiter");
+    state.examiners = [];
+    const w = mountPanel();
+    await settle(w);
+    expect(w.text()).toContain("Ask a safety manager or an administrator to record it there");
+    expect(w.find('[data-testid="open-file"]').exists()).toBe(false);
+    expect(w.find('[data-testid="add-examiner"]').exists()).toBe(false);
+    expect(w.findComponent({ name: "SignatoryAddForm" }).exists()).toBe(false);
+  });
 
-    it(`offers a ${role} no link to the register beside the examiners on file, only who to ask`, async () => {
-      actAs(role);
-      const w = mountPanel();
-      await settle(w);
-      expect(w.text()).toContain("The road test given includes");
-      expect(w.find('[data-to="/settings/recruiting"]').exists()).toBe(false);
-      expect(w.text()).toContain("Ask an administrator to add them in Settings → Recruiting");
-    });
-  }
+  it("links a fleet manager to the file, which they write, and offers no examiner", async () => {
+    actAs("fleet_manager");
+    state.examiners = [];
+    const w = mountPanel();
+    await settle(w);
+    expect(w.find('[data-testid="open-file"]').exists()).toBe(true);
+    expect(w.find('[data-testid="add-examiner"]').exists()).toBe(false);
+  });
 
   it("offers a recruiter no form while the examiner list is still loading", async () => {
     actAs("recruiter");

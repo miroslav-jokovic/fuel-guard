@@ -156,3 +156,56 @@ describe("RequirementDrawer — the carrier's records (D-DQ23)", () => {
     expect(mountCarrier("phmsa_registration").text()).not.toContain("Effective from");
   });
 });
+
+/**
+ * Owner, 2026-11-09 (Option 1): with no road-test examiner on file, the road-test requirement is met by
+ * the §391.33 licence equivalency — its catalogue's second evidence. The first (`road_test`) is
+ * ceremony-owned, so until this change the drawer pointed elsewhere and could record nothing at all.
+ */
+describe("RequirementDrawer — the road test's licence equivalency (§391.33)", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    calls.length = 0;
+  });
+  const mountRoadTest = (presetDocument: { id: string; name: string } | null = null) =>
+    mount(RequirementDrawer, {
+      props: { open: true, subject: { type: "driver", id: "00000000-0000-4000-8000-0000000000d1" }, specs: DQ_ITEMS, itemKey: "road_test", presetDocument },
+      global: { plugins: [VueQueryPlugin], stubs: { SlideOver: SlideOverStub, teleport: true } },
+    });
+  const save = (w: ReturnType<typeof mountRoadTest>) => w.findAll("button").find((b) => b.text().includes("Record it"));
+
+  it("says where the road test is recorded and offers the equivalency here", () => {
+    const w = mountRoadTest();
+    const note = w.get('[data-testid="alternative-evidence"]').text();
+    expect(note).toContain("Road test step");
+    expect(note).toContain("licence equivalency to a road test");
+    expect(save(w)).toBeDefined();
+  });
+
+  it("will not record it without a copy of the licence", async () => {
+    const w = mountRoadTest();
+    expect(w.find('[data-testid="scan-required"]').exists()).toBe(true);
+    w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "2026-11-09");
+    await w.vm.$nextTick();
+    expect(save(w)!.attributes("disabled")).toBeDefined();
+  });
+
+  it("records a cdl_equivalency citing the licence, never a road_test", async () => {
+    const w = mountRoadTest({ id: "doc-cdl", name: "cdl.pdf" });
+    w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "2026-11-09");
+    await w.vm.$nextTick();
+    await save(w)!.trigger("click");
+    await new Promise((r) => setTimeout(r));
+    const rec = calls.find((c) => c.path === "/api/compliance/qualification-records");
+    expect(rec?.init?.body).toMatchObject({ kind: "cdl_equivalency", documentId: "doc-cdl", occurredOn: "2026-11-09" });
+  });
+
+  it("still only points elsewhere for a requirement whose every evidence is ceremony-owned", () => {
+    const w = mount(RequirementDrawer, {
+      props: { open: true, subject: { type: "driver", id: "00000000-0000-4000-8000-0000000000d1" }, specs: DQ_ITEMS, itemKey: "employment_application" },
+      global: { plugins: [VueQueryPlugin], stubs: { SlideOver: SlideOverStub, teleport: true } },
+    });
+    expect(save(w)).toBeUndefined();
+    expect(w.find('[data-testid="alternative-evidence"]').exists()).toBe(false);
+  });
+});
