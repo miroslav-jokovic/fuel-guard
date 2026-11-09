@@ -936,7 +936,8 @@ export const READINESS = [
         {
           need: "the campaign's compose step wired (C5b2): the seeded draw stored once, a creative per drawn preset in this stint, renders only through the one-at-a-time job, the campaign's verdict",
           tests: [{ file: "apps/api/src/modules/ads/compose/composeCampaign.test.ts", titles: [
-            "draws with the campaign id as the seed, stores the draw while none is stored, and composes the first two in its order",
+            "draws with the campaign id as the seed, stores the draw while none is stored, and composes every preset in its order when none is left drawing",
+            "a third preset enters once one of the first two has finished, and waits while both are still drawing",
             "leaves out a preset a live campaign for the same brief runs",
             "a creative that ended badly in an earlier stint is superseded by a new one in this stint",
             "any creative still under way keeps the campaign composing",
