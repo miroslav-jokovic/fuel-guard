@@ -8,6 +8,7 @@ import PacketCeremony from "@/features/apply/signing/PacketCeremony.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 import type { ApplicationDraft } from "@/features/apply/draft";
 import type { ApplyEdit, ApplyPacketStop } from "@/features/apply/useApplication";
+import type { SectionIssue } from "@/features/apply/useApplicationWizard";
 
 /**
  * The second visit, in full: what changed, the whole document, the packet, the filing (F4, P5).
@@ -44,6 +45,15 @@ const props = defineProps<{
   adoptions?: SignatureAdoptionsView;
   sending: boolean;
   error: string | null;
+  /**
+   * What filing's own rules refused at "Sign and send it" (`useApplicationSending.send`).
+   *
+   * ⚠ F0, APPLICATION-FIX-PLAN: this screen used to receive only `error`, while a refusal by the rules
+   * lands in the WIZARD's issue list — which only the form renders. So a document the rules refused
+   * left the driver pressing a button that visibly did nothing. Shown read-only, with who fixes it:
+   * on this visit the answers are the office's to correct (owner ruling Q-AM2, 2026-11-09).
+   */
+  issues: readonly SectionIssue[];
 }>();
 const draft = defineModel<ApplicationDraft>({ required: true });
 const emit = defineEmits<{ send: [] }>();
@@ -125,6 +135,15 @@ const blocked = computed(() => props.stops.length > 0 && !packetDone.value);
   -->
   <div class="mx-auto w-full max-w-3xl">
     <AppCallout v-if="error" tone="caution" class="mb-4">{{ error }}</AppCallout>
+    <AppCallout v-if="issues.length" tone="caution" class="mb-4" data-testid="signoff-blocked">
+      <p class="font-semibold">{{ copy.blockedHeading }}</p>
+      <p class="mt-1">{{ copy.blockedIntro(carrier) }}</p>
+      <ul class="mt-2 list-disc space-y-1 pl-5">
+        <li v-for="issue in issues" :key="issue.fieldId + issue.message">
+          <span class="font-medium">{{ issue.label }}</span> — {{ issue.say }}
+        </li>
+      </ul>
+    </AppCallout>
 
     <SignOffFields
       v-model="draft"

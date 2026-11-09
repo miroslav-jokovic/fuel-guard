@@ -139,9 +139,14 @@ describe("a v2 application's Part 1 answers", () => {
     for (const k of ["addresses.0.line1", "addresses.1.from", "first_name", "employers.40000000-0000-4000-8000-00000000000a.city"]) expect(offered, k).toContain(k);
   });
 
-  it("offers a legacy application everything it did before", () => {
+  it("offers a legacy application everything it did before — except the identity, which the record holds", () => {
     const offered = keys(false);
-    for (const k of ["phone", "cdl_number", "addresses.1.line1", "additional_licences.0.number"]) expect(offered, k).toContain(k);
+    for (const k of ["phone", "addresses.1.line1", "additional_licences.0.number"]) expect(offered, k).toContain(k);
+    // F0 (E1): laid over by the `drivers` row on every save, so an edit here was undone — not offered.
+    for (const k of ["date_of_birth", "cdl_number", "cdl_state"]) {
+      expect(offered, k).not.toContain(k);
+      expect(keys(true), k).not.toContain(k);
+    }
   });
 
   it("§11: never offers the questions an applicant was required to answer as something to correct", () => {

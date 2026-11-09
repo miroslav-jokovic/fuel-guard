@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
+import type { ApplicationCaptureView, ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -41,6 +41,8 @@ export interface ApplicationReview {
   partOne?: PartOneFactsView | null;
   /** §15.3 D-CQ2: the carrier's own questions as stamped on this invitation. Optional: an API before CQ2 sends none. */
   carrierQuestions?: CarrierQuestionStamp;
+  /** What the applicant has photographed (F0). Optional: an API from before F0 sends none. */
+  captures?: ApplicationCaptureView[];
   edits: ApplicationEditRow[];
 }
 

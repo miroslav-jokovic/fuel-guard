@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import {
   AppButton as BaseButton,
   AppInput as BaseInput,
@@ -53,10 +53,31 @@ function set(f: EditableField, value: string | boolean): void {
 
 function save(f: EditableField): void {
   emit("save", f.path, current(f));
-  // The row goes back to showing whatever comes back from the server, rather than holding what was
-  // typed: if the correction is refused, the answer on screen must be the one actually stored.
+}
+
+/** Put the row back to the answer on file. */
+function undo(f: EditableField): void {
   delete typed[pathKey(f.path)];
 }
+
+/**
+ * What was typed is kept until the SERVER holds it (F0, APPLICATION-FIX-PLAN E9).
+ *
+ * ⚠ This used to clear the box the moment Save was pressed, so that a refused correction would leave the
+ * stored answer on screen. It did that by throwing away what the recruiter had typed — a refusal (a stale
+ * revision, a value the contract rejects) cost them the whole correction. Now the typed value stays, with
+ * Save still offered, and the stored answer is printed under it as "On file", which is the honesty the old
+ * rule was after. A row clears itself when the refetched answer matches what was typed — the save landed.
+ */
+watch(
+  () => props.fields,
+  (fields) => {
+    for (const f of fields) {
+      const k = pathKey(f.path);
+      if (k in typed && typed[k] === f.value) delete typed[k];
+    }
+  },
+);
 </script>
 
 <template>
@@ -107,7 +128,13 @@ function save(f: EditableField): void {
           >
             Save
           </BaseButton>
+          <BaseButton v-if="changed(f)" variant="ghost" size="sm" class="sm:shrink-0" @click="undo(f)">
+            Undo
+          </BaseButton>
         </div>
+        <p v-if="changed(f)" class="mt-1 text-2xs text-ink-tertiary" data-testid="answer-on-file">
+          On file: {{ f.value === "" ? "not answered" : f.kind === "boolean" ? (f.value ? "Yes" : "No") : f.value }}
+        </p>
       </li>
     </ul>
   </div>

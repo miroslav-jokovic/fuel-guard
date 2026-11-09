@@ -65,9 +65,19 @@ const text = (v: string): string | null => (v.trim() === "" ? null : v.trim());
  */
 const EMPLOYER_KEY = recordId();
 const isEmployerKey = (v: unknown): v is string => EMPLOYER_KEY.safeParse(v).success;
-const num = (v: string): number => {
-  const n = Number.parseInt(v, 10);
-  return Number.isFinite(n) ? n : 0;
+/**
+ * A count the driver typed — miles, fatalities, injuries — as the number they meant, or NaN.
+ *
+ * ⚠ F0 (APPLICATION-FIX-PLAN, the 2026-11-09 audit): this was `parseInt(v) || 0`, and both halves
+ * filed something the driver never said. `parseInt("100,000")` stops at the comma and returned **100**
+ * miles; a box the driver cleared returned **0** fatalities. Digit separators a person actually types
+ * (`,` space `_`, and `.` only between groups of three) are read as separators; anything else is NaN,
+ * which the contract refuses and `messageFor` turns into "Enter a number". NaN rather than null
+ * because the contract's `z.coerce.number()` would read null and "" as 0 — the very default this ends.
+ */
+export const count = (v: string): number => {
+  const t = v.trim().replace(/[\s,_]/g, "").replace(/^(\d{1,3})((?:\.\d{3})+)$/, (_m, head: string, tail: string) => head + tail.replace(/\./g, ""));
+  return /^\d+$/.test(t) ? Number.parseInt(t, 10) : Number.NaN;
 };
 
 /**
@@ -131,13 +141,13 @@ export function toApplication(draft: ApplicationDraft): unknown {
         equipment_type: text(e.equipment_type),
         from: e.from,
         to: text(e.to),
-        approx_miles: e.approx_miles.trim() === "" ? null : num(e.approx_miles),
+        approx_miles: e.approx_miles.trim() === "" ? null : count(e.approx_miles),
       })),
     accidents: draft.accidents
       .filter((a) => a.occurred_on || a.nature.trim())
       .map((a) => ({
         occurred_on: a.occurred_on, nature: a.nature.trim(),
-        fatalities: num(a.fatalities), injuries: num(a.injuries), hazmat_spill: a.hazmat_spill,
+        fatalities: count(a.fatalities), injuries: count(a.injuries), hazmat_spill: a.hazmat_spill,
       })),
     declares_no_accidents: draft.declares_no_accidents,
     violations: draft.violations
