@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { Ref } from "vue";
-import { adsLaunchMissingSchema, type AdsCampaignCreate, type AdsCampaignLaunch, type AdsCampaignMove, type AdsCampaignSummary, type AdsCampaignView, type AdsCreativeDecision, type AdsLaunchMissing } from "@silvicom/shared";
+import { adsLaunchMissingSchema, type AdsCampaignCreate, type AdsCampaignLaunch, type AdsCampaignMove, type AdsCampaignSummary, type AdsCampaignView, type AdsCreativeDecision, type AdsLaunchMissing, type CampaignConcepts } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { apiRefusal } from "@/composables/useStepUpRetry";
 import { isWorking } from "./adsCampaignFlow";
@@ -34,6 +34,24 @@ export function useAdsCampaign(id: Ref<string>) {
       return res.data.campaign;
     },
     refetchInterval: (q) => (q.state.data && isWorking(q.state.data.state) ? WORKING_POLL_MS : false),
+  });
+}
+
+/**
+ * What each concept of the campaign did (CQ3's reader, D-AD22): read on demand, refreshed hourly like the pull that
+ * fills it. Asked only for a campaign that reached the platform (`AdsCampaignConcepts` decides), so a draft never
+ * shows a table of zeros.
+ */
+export function useCampaignConcepts(id: Ref<string>, enabled: Ref<boolean>) {
+  return useQuery({
+    queryKey: [...ADS_CAMPAIGNS_KEY, id, "concepts"],
+    enabled: () => id.value !== "" && enabled.value,
+    queryFn: async (): Promise<CampaignConcepts> => {
+      const res = await apiFetch<CampaignConcepts>(`/api/ads/campaigns/${id.value}/concepts`);
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the concepts");
+      return res.data;
+    },
+    staleTime: 60 * 60 * 1000,
   });
 }
 

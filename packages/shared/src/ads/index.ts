@@ -14,6 +14,7 @@ export * from "./renderGeometry.js";
 export * from "./leadOutcomes.js";
 export * from "./leadQuality.js";
 export * from "./adsReport.js";
+export * from "./conceptPerformance.js";
 export * from "./analystBrief.js";
 export * from "./aiRail.js";
 export * from "./guardContract.js";
