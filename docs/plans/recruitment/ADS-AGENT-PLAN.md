@@ -1279,6 +1279,17 @@ rate, and Higgsfield credits per approved creative.
   proposed lists) · Q-AD59 when performance weights the draw (owner; rec 50 leads per preset, by cost per converted
   lead) · Q-AD60 candidates per creative (owner; rec 3 copies / 2 images, ceiling 5/3) · Q-AD61 where the craft rubric
   lives (us; rec prompt pack + kit extras).
+- **Q-AD62–Q-AD67 · Lead intake, the recruiter's half of the loop** (opened 2026-11-09 by
+  [`ADS-LEAD-INTAKE-AUDIT-2026-11-09.md`](ADS-LEAD-INTAKE-AUDIT-2026-11-09.md) §5 — one home, not restated here; the
+  audit first took Q-AD54–58, renumbered when the creative-quality plan landed the same hour):
+  Q-AD62 phone line-type lookup at ingest · Q-AD63 a lead whose own answer fails a hard requirement: no bell, no SLA,
+  own lane · Q-AD64 close-out reasons and whether `qualified` is set by the recruiter · Q-AD65 send
+  `not_qualified`/`lost_before_conversion` to Meta through the outcome feed · Q-AD66 re-judge open leads when the
+  profile changes · Q-AD67 Indeed "OTR years" is not "Class A years". The finding that drives them: `qualified`,
+  `not_qualified` and `lost` have no writer (F-LA1). **Ruled 2026-11-09, by delegation (owner: "rule on the open
+  questions with the best possible solutions"):** Q-AD62 (a) every lead, once per number · Q-AD63 (a) · Q-AD64 (a)
+  fixed reason list, recruiter sets `qualified` · Q-AD65 (a), L4 records EMPLOYMENT's acceptance · Q-AD66 (a) ·
+  Q-AD67 rec (a) change the screener. Reasons and the LQ5–LQ9 build plan: [`ADS-LEAD-INTAKE-PLAN.md`](ADS-LEAD-INTAKE-PLAN.md).
 
 ---
 
