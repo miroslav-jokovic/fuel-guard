@@ -113,3 +113,57 @@ export function leadCloseReasonLabel(reason: LeadCloseReason): string {
   const req = requirementOfReason(reason);
   return req ? REQUIREMENT_WORDS[req] : LOST_WORDS[reason as LeadLostReason];
 }
+
+export const LEAD_CLOSURE_KIND_LABELS: Record<LeadClosureKind, string> = {
+  closed: "Closed",
+  qualified: "Qualified",
+  reopened: "Reopened",
+};
+
+/**
+ * What a lead has on record, as the drawer counts it from the contacts list and the same-person matches — the
+ * evidence 0578's functions read for themselves (`close_lead` RL055–RL057, `qualify_lead` RL055). Counted the
+ * SAME way: outbound `no_answer`/`voicemail` rows are attempts; any `reached` row (either direction) is a reached
+ * call; any `wrong_number` row is a wrong number; another lead of the person is a duplicate.
+ */
+export interface LeadEvidence {
+  reached: number;
+  wrong_number: number;
+  /** Outbound `no_answer` + `voicemail` contact rows. */
+  attempts: number;
+  /** Other leads of the same person (phone or e-mail), `LeadRecord.also`. */
+  same_person: number;
+}
+
+export function leadEvidenceFrom(
+  contacts: ReadonlyArray<{ direction: "outbound" | "inbound"; outcome: string | null }>,
+  samePersonLeads: number,
+): LeadEvidence {
+  return {
+    reached: contacts.filter((c) => c.outcome === "reached").length,
+    wrong_number: contacts.filter((c) => c.outcome === "wrong_number").length,
+    attempts: contacts.filter((c) => c.direction === "outbound" && (c.outcome === "no_answer" || c.outcome === "voicemail")).length,
+    same_person: samePersonLeads,
+  };
+}
+
+/**
+ * Why a reason cannot be used yet, in the words the database would refuse with (0578) — or null when it can.
+ * The drawer greys a reason out with this sentence instead of letting the press travel to a 409; the rule is the
+ * SAME rule, kept here so a test can hold the two together, and the database still decides.
+ */
+export function closeReasonUnavailable(reason: LeadCloseReason, e: LeadEvidence): string | null {
+  switch (reason) {
+    case "not_interested": return e.reached > 0 ? null : "Needs a call with outcome Reached on record — log the call first.";
+    case "wrong_number": return e.wrong_number > 0 ? null : "Needs a call with outcome Wrong number on record — log the call first.";
+    case "unreachable": return e.attempts >= UNREACHABLE_MIN_ATTEMPTS ? null
+      : `Needs ${UNREACHABLE_MIN_ATTEMPTS} outbound attempts with no answer on record; ${e.attempts} recorded.`;
+    case "duplicate": return e.same_person > 0 ? null : "Needs another lead of the same person; none shares this phone or e-mail.";
+    default: return null;
+  }
+}
+
+/** `qualify_lead` needs a reached call (RL055). */
+export function qualifyUnavailable(e: LeadEvidence): string | null {
+  return e.reached > 0 ? null : "Needs a call with outcome Reached on record — log the call first.";
+}

@@ -15,6 +15,8 @@ const api = vi.hoisted(() => ({
   writes: [] as Array<{ path: string; method: string; body: unknown }>,
   answer: null as null | ((path: string, method: string) => unknown),
   held: null as null | Promise<void>,
+  contacts: [] as unknown[],
+  closures: [] as unknown[],
 }));
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string, init?: { method?: string; body?: unknown }) => {
@@ -42,7 +44,9 @@ const SlideOverStub = { props: ["open", "title"], template: "<div v-if='open'><s
 async function render(lead = LEAD, write: (path: string, method: string) => unknown = () => ok({})) {
   api.answer = (path, method) => {
     if (method !== "GET") return write(path, method);
-    return path.endsWith("/contacts") ? ok({ contacts: [] }) : ok(lead);
+    if (path.endsWith("/contacts")) return ok({ contacts: api.contacts });
+    if (path.endsWith("/closures")) return ok({ closures: api.closures });
+    return ok(lead);
   };
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/:p(.*)*", component: { template: "<div />" } }] });
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -67,6 +71,8 @@ beforeEach(() => {
   setActivePinia(createPinia());
   api.writes = [];
   api.held = null;
+  api.contacts = [];
+  api.closures = [];
   session.role = "recruiter";
   session.can = () => true;
 });
@@ -308,5 +314,102 @@ describe("deleting details", () => {
     await w.find('[data-test="save-purge"]').trigger("click");
     await settle();
     expect(toasts()[0]).toContain(sentence);
+  });
+});
+
+describe("the recruiter's verdict (LQ5c over 0578)", () => {
+  const contact = (outcome: string | null, direction = "outbound") =>
+    ({ id: `c-${outcome}-${direction}`, direction, method: "call", outcome, note: null, note_withheld: false, created_by_name: "Dana", contacted_at: "2026-11-03T16:00:00Z" });
+  const done = (status: string, extra: Record<string, unknown> = {}) => ok({ kind: "done", closure_id: "cl-1", status, already: false, verdict_written: false, ...extra });
+
+  it("Qualify is greyed with the database's words until a reached call is on record, then sends the note", async () => {
+    const { w } = await render();
+    const q = w.find('[data-test="qualify"]');
+    expect(q.attributes("disabled")).toBeDefined();
+    expect(q.attributes("title")).toContain("Reached on record");
+    api.contacts = [contact("reached")];
+    const { w: w2 } = await render(LEAD, () => done("qualified"));
+    expect(w2.find('[data-test="qualify"]').attributes("disabled")).toBeUndefined();
+    await w2.find('[data-test="qualify"]').trigger("click");
+    expect(has(w2, "qualify-form")).toBe(true);
+    await w2.find('[data-test="decision-note"]').setValue("  wants regional  ");
+    await w2.find('[data-test="save-qualify"]').trigger("click");
+    await settle();
+    expect(api.writes[0]).toEqual({ path: "/api/recruitment/leads/lead-1/qualify", method: "POST", body: { note: "wants regional" } });
+    expect(toasts()[0]).toContain("Marked qualified");
+  });
+
+  it("Close offers the fixed list with each reason the record cannot support yet greyed, and sends the one chosen", async () => {
+    api.contacts = [contact("no_answer"), contact("voicemail"), contact("no_answer", "inbound")];
+    const { w } = await render(LEAD, () => done("not_qualified", { verdict_written: true }));
+    await w.find('[data-test="close"]').trigger("click");
+    const options = w.find('[data-test="close-reason"]').findAll("option").filter((o) => o.attributes("value"));
+    const byValue = Object.fromEntries(options.map((o) => [o.attributes("value"), o.attributes("disabled") !== undefined]));
+    // 2 outbound no-answer attempts (the inbound one does not count): unreachable not yet; nobody reached: not_interested not yet.
+    expect(byValue).toMatchObject({ "not_qualified:class_a": false, spam: false, out_of_area: false, unreachable: true, not_interested: true, wrong_number: true, duplicate: true });
+    expect(w.find('[data-test="save-close"]').attributes("disabled")).toBeDefined();
+    await w.find('[data-test="close-reason"]').setValue("not_qualified:class_a");
+    await w.find('[data-test="close-note"]').setValue("straight truck only");
+    expect(w.find('[data-test="save-close"]').attributes("disabled")).toBeUndefined();
+    await w.find('[data-test="close-form"]').trigger("submit");
+    await settle();
+    expect(api.writes[0]).toEqual({ path: "/api/recruitment/leads/lead-1/close", method: "POST", body: { reason: "not_qualified:class_a", note: "straight truck only" } });
+    expect(toasts()[0]).toContain("Closed — No Class A CDL");
+    expect(toasts()[0]).toContain("recorded as not met");
+  });
+
+  it("a greyed reason forced into the select still sends nothing, and the form shows the database's sentence", async () => {
+    const { w } = await render();
+    await w.find('[data-test="close"]').trigger("click");
+    await w.find('[data-test="close-reason"]').setValue("unreachable");
+    expect(w.find('[data-test="close-form"]').text()).toContain("Needs 3 outbound attempts with no answer on record; 0 recorded.");
+    expect(w.find('[data-test="save-close"]').attributes("disabled")).toBeDefined();
+    await w.find('[data-test="close-form"]').trigger("submit");
+    await settle();
+    expect(api.writes).toEqual([]);
+  });
+
+  it("the greyed-out rule is the database's: 3 outbound attempts free unreachable, a same-person lead frees duplicate", async () => {
+    api.contacts = [contact("no_answer"), contact("voicemail"), contact("no_answer")];
+    const { w } = await render({ ...LEAD, also: [{ id: "lead-2", channel: "indeed", status: "new", received_at: "2026-11-01T00:00:00Z" }] });
+    await w.find('[data-test="close"]').trigger("click");
+    const disabled = (v: string) => w.find(`[data-test="close-reason"] option[value="${v}"]`).attributes("disabled") !== undefined;
+    expect([disabled("unreachable"), disabled("duplicate"), disabled("not_interested")]).toEqual([false, false, true]);
+  });
+
+  it("a closed lead shows Reopen instead of Close and Qualify, and reopening says the status it came back as", async () => {
+    const { w } = await render({ ...LEAD, status: "lost" }, () => ok({ kind: "done", closure_id: "cl-2", status: "contacted", already: false, verdict_written: false }));
+    expect([has(w, "reopen"), has(w, "close"), has(w, "qualify")]).toEqual([true, false, false]);
+    await w.find('[data-test="reopen"]').trigger("click");
+    expect(has(w, "reopen-form")).toBe(true);
+    await w.find('[data-test="save-reopen"]').trigger("click");
+    await settle();
+    expect(api.writes[0]).toEqual({ path: "/api/recruitment/leads/lead-1/reopen", method: "POST", body: { note: null } });
+    expect(toasts()[0]).toBe("Reopened: The lead is contacted again.");
+  });
+
+  it("a converted lead has no verdict buttons; a refusal is the api's own sentence", async () => {
+    const { w } = await render({ ...LEAD, status: "converted" });
+    expect([has(w, "reopen"), has(w, "close"), has(w, "qualify")]).toEqual([false, false, false]);
+    const { w: w2 } = await render(LEAD, () => refused("this lead became an applicant; record the outcome on the applicant"));
+    await w2.find('[data-test="close"]').trigger("click");
+    await w2.find('[data-test="close-reason"]').setValue("spam");
+    await w2.find('[data-test="close-form"]').trigger("submit");
+    await settle();
+    expect(toasts()[0]).toContain("became an applicant");
+  });
+
+  it("lists the decisions newest first with reason, status and who, and says when a note was removed", async () => {
+    api.closures = [
+      { id: "cl-2", kind: "reopened", reason: null, status_after: "contacted", note: null, note_withheld: false, actor_name: "Dana", recorded_at: "2026-11-04T10:00:00Z" },
+      { id: "cl-1", kind: "closed", reason: "wrong_number", status_after: "lost", note: null, note_withheld: true, actor_name: "Koni", recorded_at: "2026-11-03T18:00:00Z" },
+    ];
+    const { w } = await render();
+    const rows = w.findAll('[data-test="decision"]').map((r) => r.text());
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain("Reopened");
+    expect(rows[1]).toContain("Closed · Wrong number");
+    expect(rows[1]).toContain("Koni");
+    expect(has(w, "decision-note-removed")).toBe(true);
   });
 });

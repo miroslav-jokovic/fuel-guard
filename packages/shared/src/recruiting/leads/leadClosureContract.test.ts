@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  closeReasonUnavailable,
+  leadEvidenceFrom,
+  qualifyUnavailable,
   LEAD_CLOSE_REASONS,
   LEAD_LOST_REASONS,
   LEAD_NOT_QUALIFIED_REASONS,
@@ -53,5 +56,27 @@ describe("leadClosureContract (LQ5a)", () => {
       expect(label).not.toMatch(/_/);
     }
     expect(leadCloseReasonLabel("unreachable")).toBe("Unreachable after 3 attempts");
+  });
+
+  it("counts the evidence the way 0578's functions do: outbound no-answer/voicemail are attempts, reached and wrong-number any direction", () => {
+    const e = leadEvidenceFrom([
+      { direction: "outbound", outcome: "no_answer" }, { direction: "outbound", outcome: "voicemail" },
+      { direction: "inbound", outcome: "no_answer" }, { direction: "outbound", outcome: "reached" },
+      { direction: "inbound", outcome: null }, { direction: "outbound", outcome: "wrong_number" },
+    ], 2);
+    expect(e).toEqual({ reached: 1, wrong_number: 1, attempts: 2, same_person: 2 });
+  });
+
+  it("says why a reason is not available yet, in the database's words (RL055–RL057), and nothing for the free reasons", () => {
+    const none = { reached: 0, wrong_number: 0, attempts: 2, same_person: 0 };
+    expect(closeReasonUnavailable("not_interested", none)).toMatch(/Reached on record/);
+    expect(closeReasonUnavailable("wrong_number", none)).toMatch(/Wrong number on record/);
+    expect(closeReasonUnavailable("unreachable", none)).toBe("Needs 3 outbound attempts with no answer on record; 2 recorded.");
+    expect(closeReasonUnavailable("duplicate", none)).toMatch(/none shares/);
+    for (const r of ["out_of_area", "spam", "not_qualified:class_a"] as const) expect(closeReasonUnavailable(r, none)).toBeNull();
+    const all = { reached: 1, wrong_number: 1, attempts: 3, same_person: 1 };
+    for (const r of LEAD_CLOSE_REASONS) expect(closeReasonUnavailable(r, all)).toBeNull();
+    expect(qualifyUnavailable(none)).toMatch(/Reached/);
+    expect(qualifyUnavailable(all)).toBeNull();
   });
 });

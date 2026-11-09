@@ -1,10 +1,13 @@
 import { computed, type Ref } from "vue";
 import { useInfiniteQuery, useQuery } from "@tanstack/vue-query";
-import type { LeadContactRecord, LeadQueuePage, LeadRecord, OpeningListItem } from "@silvicom/shared";
+import type { LeadClosureRecord, LeadContactRecord, LeadQueuePage, LeadRecord, OpeningListItem } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /** The office's reads of the lead queue (E4). "open" is the api's own default, so it sends no status at all. */
 export const LEADS_OPEN = "open";
+/** Both closed statuses at once (LQ5c): the api takes a comma-separated list. */
+export const LEADS_CLOSED = "closed";
+export const LEADS_CLOSED_STATUSES = "not_qualified,lost";
 export const LEADS_PAGE_SIZE = 50;
 
 /** Whose leads the queue shows: everyone's, or the signed-in recruiter's own (LQ2c, 0576). */
@@ -17,7 +20,8 @@ export function useLeadQueueQuery(show: Ref<string>, whose: Ref<string> = comput
     initialPageParam: null as LeadQueuePage["next"],
     queryFn: async ({ pageParam }): Promise<LeadQueuePage> => {
       const params = new URLSearchParams({ limit: String(LEADS_PAGE_SIZE) });
-      if (show.value !== LEADS_OPEN) params.set("status", show.value);
+      if (show.value === LEADS_CLOSED) params.set("status", LEADS_CLOSED_STATUSES);
+      else if (show.value !== LEADS_OPEN) params.set("status", show.value);
       if (whose.value === LEADS_MINE) params.set("mine", "1");
       if (pageParam) {
         params.set("before_at", pageParam.before_at);
@@ -51,6 +55,19 @@ export function useLeadContactsQuery(leadId: Ref<string>) {
       const res = await apiFetch<{ contacts: LeadContactRecord[] }>(`/api/recruitment/leads/${encodeURIComponent(leadId.value)}/contacts`);
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load who contacted this lead.");
       return res.data.contacts;
+    },
+  });
+}
+
+/** The recruiter's acts on a lead — closed, qualified, reopened — newest first (LQ5c; `GET …/closures`). */
+export function useLeadClosuresQuery(leadId: Ref<string>) {
+  return useQuery({
+    queryKey: computed(() => ["recruitment", "leads", "closures", leadId.value] as const),
+    enabled: computed(() => leadId.value !== ""),
+    queryFn: async (): Promise<LeadClosureRecord[]> => {
+      const res = await apiFetch<{ closures: LeadClosureRecord[] }>(`/api/recruitment/leads/${encodeURIComponent(leadId.value)}/closures`);
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the decisions on this lead.");
+      return res.data.closures;
     },
   });
 }
