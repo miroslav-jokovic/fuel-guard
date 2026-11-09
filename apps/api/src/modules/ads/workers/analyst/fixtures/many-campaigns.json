@@ -59,12 +59,13 @@
           "leads": 38,
           "reached": {
             "contacted": 33,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 17,
             "applied": 10,
             "hired": 4,
-            "lost_after_conversion": 8,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 8
           },
           "mature": true
         },
@@ -73,12 +74,13 @@
           "leads": 40,
           "reached": {
             "contacted": 36,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 20,
             "applied": 12,
             "hired": 5,
-            "lost_after_conversion": 9,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 9
           },
           "mature": true
         },
@@ -87,12 +89,13 @@
           "leads": 12,
           "reached": {
             "contacted": 9,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 3,
             "applied": 1,
             "hired": 0,
-            "lost_after_conversion": 1,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 1
           },
           "mature": false
         }
@@ -103,18 +106,18 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@4",
+    "prompt_version": "analyst@5",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:13:24.312Z",
+    "recorded_at": "2026-11-09T19:41:41.897Z",
     "output": {
-      "headline": "4 campaigns ran on November 3, 2026, delivering 67 leads at $38.51 cost per lead across $2,580.48 in spend.",
+      "headline": "4 campaigns spent $2,580.48 on November 3, 2026, delivering 67 leads at a $38.51 cost per lead across 161,223 impressions.",
       "points": [
-        "Regional Class A — Joliet led the day with 41 leads at $35.53 cost per lead on $1,456.78 spend and a 1.4% click rate. Recent graduates was next with 17 leads at $35.89 cost per lead.",
-        "Dedicated night runs brought in 9 leads at $43.22 cost per lead on $389.00 spend. Owner operators had no leads from 7,700 impressions and $124.50 spend, so there is no cost per lead to report.",
-        "All November 2026 spend so far is on Meta at $12,534.06, with 28 days left in the month.",
-        "The 2026-09-28 cohort shows 20 converted out of 40 leads, with 5 hired and 9 lost after conversion. The 2026-09-21 cohort had 17 converted from 38 leads, with 4 hired and 8 lost after conversion.",
-        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 converted, and 1 hired so far — but it is too young to judge.",
-        "Qualified leads and leads lost before becoming applicants are not recorded."
+        "Regional Class A — Joliet led the day: $1,456.78 spent, 92,400 impressions, 1,310 clicks, 41 leads at $35.53 cost per lead, and a 1.4% click rate.",
+        "Recent graduates was the strongest click-rate performer at 1.7%, producing 17 leads at $35.89 cost per lead on $610.20 spent.",
+        "Owner operators generated no leads on $124.50 spent, so there is no cost per lead to report. Its click rate of 0.7% was the lowest of the day.",
+        "Dedicated night runs brought in 9 leads at $43.22 cost per lead — the highest of any campaign today — on $389.00 spent and a 1.2% click rate.",
+        "November 2026 has 28 days left; Meta spend so far this month is $12,534.06. The 2026-10-26 cohort (12 leads, 9 contacted, 3 converted, 1 applied) is too young to judge.",
+        "The 2026-09-28 mature cohort converted 20 of 40 leads and reached a hired rate of 12.5%. The 2026-09-21 cohort hired 4 of 38 leads (10.5%), with 17 converted and 10 applied."
       ]
     }
   }

@@ -40,15 +40,16 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@4",
+    "prompt_version": "analyst@5",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:13:44.267Z",
+    "recorded_at": "2026-11-09T19:41:41.910Z",
     "output": {
-      "headline": "On October 31, 2026, 2 campaigns spent $284.25 to deliver 7 leads at $40.61 each across 14,600 impressions and 203 clicks.",
+      "headline": "October 31, 2026 closed the month with 2 campaigns delivering 7 leads at $40.61 each on $284.25 spent.",
       "points": [
-        "Regional Class A — Joliet was the stronger performer: $184.50 spent, 9,120 impressions, 141 clicks at a 1.5% click rate, and 6 leads at $30.75 each.",
-        "Dedicated night runs spent $99.75 for 5,480 impressions and 62 clicks at a 1.1% click rate, returning only 1 lead at $99.75 — notably higher cost per lead than Regional Class A — Joliet.",
-        "October 2026 closed today with $8,124.50 spent on Meta; no days remain in the month."
+        "Regional Class A — Joliet led the day: $184.50 spent, 9,120 impressions, 141 clicks, 6 leads at $30.75 cost per lead, and a 1.5% click rate.",
+        "Dedicated night runs added 1 lead at a cost per lead of $99.75 on $99.75 spent, 5,480 impressions, 62 clicks, and a 1.1% click rate — notably higher cost per lead than the other campaign.",
+        "October 2026 is now closed with 0 days left; total Meta spend for the month came to $8,124.50.",
+        "No cohort data and no lead quality data are available for this period."
       ]
     }
   }

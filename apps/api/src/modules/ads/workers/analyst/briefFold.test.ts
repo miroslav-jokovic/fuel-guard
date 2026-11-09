@@ -111,14 +111,14 @@ describe("readBriefFold — cohorts from recruiting's LeadOutcomes (Q-AD34)", ()
     expect(src.asked).toEqual([[ORG, "2026-09-14T05:00:00.000Z"]]);
     expect(fold.cohorts).toEqual([
       { week: "2026-09-21", leads: 2, mature: true,
-        reached: { contacted: 2, converted: 1, applied: 0, hired: 1, lost_after_conversion: 0, qualified: "not_recorded", lost_before_conversion: "not_recorded" } },
+        reached: { contacted: 2, qualified: 0, not_qualified: 0, converted: 1, applied: 0, hired: 1, lost_before_conversion: 0, lost_after_conversion: 0 } },
       { week: "2026-11-02", leads: 1, mature: false,
-        reached: { contacted: 0, converted: 0, applied: 0, hired: 0, lost_after_conversion: 0, qualified: "not_recorded", lost_before_conversion: "not_recorded" } },
+        reached: { contacted: 0, qualified: 0, not_qualified: 0, converted: 0, applied: 0, hired: 0, lost_before_conversion: 0, lost_after_conversion: 0 } },
     ]);
   });
 
   it("a LeadOutcomes answering outside the shared shape fails the brief, never folds a stage it does not mean", async () => {
-    const drifted = outcomes([{ ...lead(1, "2026-10-20T15:00:00Z", {}), reached: { qualified: "2026-10-21T15:00:00Z" } } as unknown as LeadOutcome]);
+    const drifted = outcomes([{ ...lead(1, "2026-10-20T15:00:00Z", {}), reached: { disqualified: "2026-10-21T15:00:00Z" } } as unknown as LeadOutcome]);
     await expect(readBriefFold(world([]).client, ORG, new Date("2026-11-04T13:00:00Z"), drifted, NO_QUALITY)).rejects.toThrow();
   });
 

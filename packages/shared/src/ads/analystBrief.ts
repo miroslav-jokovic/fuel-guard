@@ -30,19 +30,20 @@ import { LEAD_QUALITY_WINDOW_DAYS, type LeadQualityCounts } from "./leadQuality.
  * §4R's bar — 0 numbers in the narration that the fold did not produce — and a person reads the brief.
  * A sign is a word ("fell", "down"), so figures are compared by magnitude.
  *
- * ── A STAGE NOTHING RECORDS GETS NO NUMBER (Q-AD37, ruled 2026-11-05) ──────────────────────────────
- * `qualified` and `lost_before_conversion` have no writer (`leadOutcomes.ts`), so the sheet prints them as
- * "not recorded". The digit check alone cannot stop "4 were qualified": 4 is on the sheet as another stage's
- * count. So a SENTENCE that names an unrecorded stage may hold no figure at all (`number_for_unrecorded_stage`)
- * — the narration may say the stage is not recorded, in a sentence of its own, and nothing more.
+ * ── A STAGE NOTHING RECORDS GETS NO NUMBER (Q-AD37, ruled 2026-11-05; list empty since LQ5, 2026-11-09) ─
+ * A stage with no writer is printed "not recorded", and a SENTENCE that names it may hold no figure at all
+ * (`number_for_unrecorded_stage`): the digit check alone cannot stop "4 were qualified" when 4 is on the sheet
+ * as another stage's count. `qualified` and `lost_before_conversion` were such stages until 0578 gave them a
+ * writer (`recruiting_lead_closures`); `UNRECORDED_LEAD_STAGES` is empty today and the rule is derived from
+ * it, so it refuses nothing — and starts refusing again the day a stage without a writer is added.
  *
  * ── LEAD QUALITY, NAMED SO IT CANNOT READ AS "QUALIFIED" (LQ3c, 2026-11-09) ─────────────────────────
  * The sheet carries each campaign's last `LEAD_QUALITY_WINDOW_DAYS` days of what calls found (`leadQuality.ts`):
- * leads, called, wrong numbers, reached, and leads whose own answer MISSES A HARD REQUIREMENT. That last count is
- * never worded "unqualified" — a recruiter-confirmed "qualified" is a stage nothing records (Q-AD37), and the
- * unrecorded-stage rule above already refuses any sentence that puts a figure beside "qualif…". So the checker
- * itself holds the wording, and the prompt says why. Shares are on the sheet, formatted once here, so the
- * narration never divides; a share with nothing to divide by is null.
+ * leads, called, wrong numbers, reached, and leads that MISS A HARD REQUIREMENT — by their own form answer or by
+ * a recruiter's close for a named requirement (0578 writes the same verified verdict). It is worded "missed a
+ * hard requirement", not "not qualified", so it cannot be confused with the cohort stage `not_qualified`
+ * (a recruiter's close) — the two overlap but are not the same count. Shares are on the sheet, formatted once
+ * here, so the narration never divides; a share with nothing to divide by is null.
  */
 
 const fold = z.object({
@@ -55,7 +56,7 @@ const fold = z.object({
   cost_per_lead_cents: z.number().int().nullable(),
   ctr: z.number().min(0).nullable(),
 }).strict() satisfies z.ZodType<CampaignTotals & { name: string }>;
-// The recorded stages are counts; the two nothing records carry the `not_recorded` marker, never a number.
+// The recorded stages are counts; a stage nothing records (none today) carries the `not_recorded` marker, never a number.
 const stageCounts = z.object({
   ...Object.fromEntries(LEAD_OUTCOME_STAGES.map((s) => [s, z.number().int()])) as Record<LeadOutcomeStage, z.ZodNumber>,
   ...Object.fromEntries(UNRECORDED_LEAD_STAGES.map((s) => [s, z.literal(NOT_RECORDED)])) as Record<UnrecordedLeadStage, z.ZodLiteral<typeof NOT_RECORDED>>,
@@ -187,8 +188,8 @@ export function plainBrief(f: BriefFacts): { headline: string; points: string[] 
     points: [
       ...f.campaigns.map((c) => `${c.name}: ${each(c)}.`),
       `Spend so far in ${f.month.month}: ${spend || "none"}, with ${f.month.days_left} days left.`,
-      ...f.cohorts.map((c) => `Leads from the week of ${c.week}: ${c.leads}, ${c.reached.converted} made applicants, ${c.reached.hired} hired${c.rates ? ` (${c.rates.hired})` : ", too young to judge"}.`),
-      ...(f.cohorts.length > 0 ? ["Which leads were qualified, and which were lost before becoming applicants, is not recorded yet."] : []),
+      ...f.cohorts.map((c) => `Leads from the week of ${c.week}: ${c.leads}, ${c.reached.qualified} qualified by a recruiter, ${c.reached.not_qualified} closed as not qualified, ${c.reached.lost_before_conversion} closed for another reason, ${c.reached.converted} made applicants, ${c.reached.hired} hired${c.rates ? ` (${c.rates.hired})` : ", too young to judge"}.`),
+      ...(f.cohorts.length > 0 && UNRECORDED_LEAD_STAGES.length > 0 ? [`${(UNRECORDED_LEAD_STAGES as readonly string[]).join(" and ")}: not recorded yet.`] : []),
       // LQ3c. Never "unqualified": see the header's lead-quality note.
       ...f.lead_quality.campaigns.map((q) => `${q.name}, last ${f.lead_quality.window_days} days: ${q.leads} leads, ${q.called} called, ${q.wrong_numbers} wrong numbers, ${q.reached} reached, ${q.missed_a_hard_requirement} missed a hard requirement${q.median_minutes_to_first_call ? `, first call after ${q.median_minutes_to_first_call} minutes (median)` : ", none called yet"}.`),
     ],
@@ -239,11 +240,18 @@ function sheetStrings(v: unknown, key = ""): string[] {
 }
 
 /**
- * A mention of a stage nothing records: any form of "qualified" (also "unqualified", "disqualified"), or a
- * lead lost, dropped or closed BEFORE it became an applicant / was converted. "Lost after converting" is a
- * recorded stage and is not matched. Read per sentence, after the campaign names are blanked.
+ * A sentence that names a stage nothing records, per unrecorded stage. The list is DERIVED from
+ * `UNRECORDED_LEAD_STAGES`: when a stage gains a writer and leaves that list (as `qualified` and
+ * `lost_before_conversion` did with 0578, LQ5), its pattern leaves here with it and a number beside the word
+ * is allowed again. A pattern for a stage not on the list is a compile error, not a stale refusal. Read per
+ * sentence, after the campaign names are blanked. Empty today.
  */
-const UNRECORDED_STAGE = /\b(?:un|dis|pre-?)?qualif\w*|\b(?:lost|dropped|closed|fell away|gave up)\b[^.;!?\n]*\bbefore\b|\bnever (?:became|converted|made it)\b/i;
+const UNRECORDED_STAGE_PATTERNS: Record<UnrecordedLeadStage, RegExp> = {};
+const UNRECORDED_STAGE: RegExp | null = (() => {
+  const patterns: Readonly<Record<string, RegExp>> = UNRECORDED_STAGE_PATTERNS;
+  const parts = (UNRECORDED_LEAD_STAGES as readonly string[]).map((s) => patterns[s]!.source);
+  return parts.length ? new RegExp(parts.join("|"), "i") : null;
+})();
 const SENTENCE = /[^.;!?\n]+(?:[.;!?]+(?=\s|$)|$)/g;
 
 export function checkNarration(text: string, facts: BriefFacts): NarrationFinding[] {
@@ -255,8 +263,8 @@ export function checkNarration(text: string, facts: BriefFacts): NarrationFindin
   for (const m of scanned.matchAll(NUMBER_WORDS)) findings.push({ kind: "number_in_words", text: m[0], index: m.index });
   // Sentence ends are read on the text with its decimals intact: "$1,234.56" holds a dot that is not an end.
   const ends = scanned.replace(/(\d)\.(\d)/g, "$1,$2");
-  for (const m of ends.matchAll(SENTENCE)) {
-    if (!UNRECORDED_STAGE.test(m[0])) continue;
+  for (const m of UNRECORDED_STAGE ? ends.matchAll(SENTENCE) : []) {
+    if (!UNRECORDED_STAGE!.test(m[0])) continue;
     const first = figuresIn(scanned.slice(m.index, m.index + m[0].length))[0];
     if (first) findings.push({ kind: "number_for_unrecorded_stage", text: first.text, index: m.index + first.index });
   }

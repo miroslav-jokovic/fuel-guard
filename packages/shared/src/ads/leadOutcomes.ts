@@ -11,25 +11,30 @@ import { recordId } from "../recordId.js";
  *
  * ── ONLY WHAT IS RECORDED, UNDER ITS TRUE NAME (Q-AD37, ruled 2026-11-05: (b)+(c)) ───────────────
  * A stage is here only if a row records it:
- *   contacted              the lead's first contact, attempted or reached (`recruiting_contacts`)
- *   converted              a recruiter made the lead an applicant (`lead_conversions`) — NOT "qualified":
- *                          converting is the only deliberate act on a lead the product records
- *   applied                that applicant filed the application (`driver_applications.certified_at`)
- *   hired                  that applicant was hired (`drivers.hire_date`, set only by `hire_applicant`)
- *   lost_after_conversion  the application ended without a hire (`applicant_dispositions`)
+ *   contacted               the lead's first contact, attempted or reached (`recruiting_contacts`)
+ *   qualified               a recruiter's positive verdict after a reached call (`recruiting_lead_closures`,
+ *                           kind `qualified`; 0578, Q-AD64 (a)) — D-AD14's "a recruiter's confirmation"
+ *   not_qualified           a recruiter closed the lead for a named requirement (`recruiting_lead_closures`,
+ *                           kind `closed`, status `not_qualified`); the same act writes a verified verdict
+ *   converted               a recruiter made the lead an applicant (`lead_conversions`)
+ *   applied                 that applicant filed the application (`driver_applications.certified_at`)
+ *   hired                   that applicant was hired (`drivers.hire_date`, set only by `hire_applicant`)
+ *   lost_before_conversion  a recruiter closed the lead for any other reason — not interested, unreachable,
+ *                           wrong number, duplicate, out of area, spam (`recruiting_lead_closures`, status `lost`)
+ *   lost_after_conversion   the application ended without a hire (`applicant_dispositions`)
  *
- * Two stages a recruiter would name have NO writer anywhere, and are carried as `not_recorded`, never 0:
- *   qualified               D-AD14's "a recruiter's confirmation" — nothing records that confirmation
- *   lost_before_conversion  a lead closed before it became an applicant — nothing records the close
- * A 0 would be a figure the fold did not measure; the brief would then say no lead was ever qualified.
- * Recording them is recruiting's backlog (Q-AD37 (a), needs a migration); when it lands, a stage moves from
- * the second list to the first and every reader learns it from here.
+ * `qualified` and `lost_before_conversion` had NO writer until 0578 (LQ5a, 2026-11-09) and were carried as
+ * `not_recorded`, never 0, so the brief could not say "no lead was ever qualified" about a figure nobody
+ * measured. `UNRECORDED_LEAD_STAGES` is now empty; the machinery stays, so a future stage without a writer is
+ * carried the same way rather than as a zero. Every reader — the cohort fold, the brief, the outcome feed, the
+ * settings screen — learns the lists from here (Q-AD39, 0570/0580: the database CHECK is held to this list).
  */
-
-export const LEAD_OUTCOME_STAGES = ["contacted", "converted", "applied", "hired", "lost_after_conversion"] as const;
+export const LEAD_OUTCOME_STAGES = [
+  "contacted", "qualified", "not_qualified", "converted", "applied", "hired", "lost_before_conversion", "lost_after_conversion",
+] as const;
 export type LeadOutcomeStage = (typeof LEAD_OUTCOME_STAGES)[number];
 
-export const UNRECORDED_LEAD_STAGES = ["qualified", "lost_before_conversion"] as const;
+export const UNRECORDED_LEAD_STAGES = [] as const;
 export type UnrecordedLeadStage = (typeof UNRECORDED_LEAD_STAGES)[number];
 
 /** The marker a stage with no writer carries wherever a count would stand. */

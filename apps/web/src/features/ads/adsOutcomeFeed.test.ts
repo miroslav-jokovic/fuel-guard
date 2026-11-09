@@ -90,10 +90,13 @@ describe("Settings › Ads control › Outcome feed", () => {
     expect(sent.settings[0]!.outcome_feed).toEqual(FULL.outcome_feed);
   });
 
-  it("names every stage that is sent, and says the unrecorded ones are never sent", () => {
+  it("names every stage that is sent — the recruiter's acts included since LQ5 — and, with nothing unrecorded, says a stage is never sent as a zero", () => {
     const help = mountIt(FULL).find('[data-test="outcome-feed-help"]').text();
-    expect([help.includes("Made an applicant"), help.includes("Hired"), help.includes("never sent, not even as a zero"), help.includes("Qualified")]).toEqual([true, true, true, true]);
-    expect(LEAD_OUTCOME_STAGES.length).toBe(5);
+    expect([
+      help.includes("Made an applicant"), help.includes("Hired"), help.includes("Qualified by a recruiter"), help.includes("Closed as not qualified"),
+      help.includes("Closed before becoming an applicant"), help.includes("nothing is sent as a zero"), help.includes("not recorded anywhere yet"),
+    ]).toEqual([true, true, true, true, true, true, false]);
+    expect(LEAD_OUTCOME_STAGES.length).toBe(8);
   });
 
   it("a non-admin reads the feed but cannot change it", () => {

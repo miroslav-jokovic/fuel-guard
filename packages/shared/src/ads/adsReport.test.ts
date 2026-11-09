@@ -57,7 +57,7 @@ describe("monthToDateByPlatform", () => {
 describe("foldLeadCohorts", () => {
   // A stage reached = a time on `reached`; the time itself is not what the cohort counts.
   const T = "2026-10-20T15:00:00Z";
-  const lead = (id: string, arrived_at: string, stages: Array<"contacted" | "converted" | "applied" | "hired" | "lost_after_conversion">) =>
+  const lead = (id: string, arrived_at: string, stages: Array<"contacted" | "qualified" | "not_qualified" | "converted" | "applied" | "hired" | "lost_before_conversion" | "lost_after_conversion">) =>
     ({ lead_id: `00000000-0000-4000-8000-00000000000${id}`, provider: "meta", platform_lead_ref: `leadgen-${id}`, campaign_id: "a", arrived_at, reached: Object.fromEntries(stages.map((s) => [s, T])) });
   it("groups by the Central Monday and counts each recorded stage once per lead", () => {
     const c = foldLeadCohorts([
@@ -71,10 +71,11 @@ describe("foldLeadCohorts", () => {
       ["2026-10-12", 1, 0, 1, 0, 1],
     ]);
   });
-  it("a stage nothing records is carried as not_recorded in every cohort, never as 0 (Q-AD37)", () => {
-    const c = foldLeadCohorts([lead("1", "2026-10-05T15:00:00Z", ["contacted", "converted"])], new Date("2026-11-20T12:00:00Z"));
-    expect(c[0]!.reached).toMatchObject({ qualified: "not_recorded", lost_before_conversion: "not_recorded" });
-    expect(cohortRates(c[0]!)).toMatchObject({ converted: 1, qualified: "not_recorded", lost_before_conversion: "not_recorded" });
+  it("every recorded stage is a count, the recruiter's acts included; no stage is carried as not_recorded since LQ5 (0578/0580)", () => {
+    const c = foldLeadCohorts([lead("1", "2026-10-05T15:00:00Z", ["contacted", "qualified", "converted"])], new Date("2026-11-20T12:00:00Z"));
+    expect(c[0]!.reached).toEqual({ contacted: 1, qualified: 1, not_qualified: 0, converted: 1, applied: 0, hired: 0, lost_before_conversion: 0, lost_after_conversion: 0 });
+    expect(Object.values(c[0]!.reached).every((v) => typeof v === "number")).toBe(true);
+    expect(cohortRates(c[0]!)).toMatchObject({ converted: 1, qualified: 1, not_qualified: 0 });
   });
   it("a cohort is mature only 28 days after its week ends — young cohorts are greyed", () => {
     // Week of 10/05 ends 10/12; mature from 11/09 (Central). Week of 10/12 matures 11/16.
