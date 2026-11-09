@@ -1,0 +1,122 @@
+{
+  "name": "lead-quality-stands-out",
+  "about": "LQ3c: an ordinary day whose lead-quality rows show many wrong numbers on one campaign and many missed hard requirements on the other — the part the office most needs.",
+  "input": {
+    "fold": {
+      "day": "2026-11-03",
+      "month": {
+        "month": "2026-11",
+        "days_left": 28
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 18450,
+          "impressions": 9120,
+          "clicks": 141,
+          "leads": 6,
+          "cost_per_lead_cents": 3075,
+          "ctr": 0.015460526315789473
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Dedicated night runs",
+          "spend_cents": 9975,
+          "impressions": 5480,
+          "clicks": 62,
+          "leads": 1,
+          "cost_per_lead_cents": 9975,
+          "ctr": 0.011313868613138687
+        }
+      ],
+      "month_to_date": {
+        "meta": 61230
+      },
+      "cohorts": [
+        {
+          "week": "2026-09-21",
+          "leads": 38,
+          "reached": {
+            "contacted": 33,
+            "converted": 17,
+            "applied": 10,
+            "hired": 4,
+            "lost_after_conversion": 8,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-28",
+          "leads": 40,
+          "reached": {
+            "contacted": 36,
+            "converted": 20,
+            "applied": 12,
+            "hired": 5,
+            "lost_after_conversion": 9,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 12,
+          "reached": {
+            "contacted": 9,
+            "converted": 3,
+            "applied": 1,
+            "hired": 0,
+            "lost_after_conversion": 1,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": false
+        }
+      ],
+      "lead_quality": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "leads": 24,
+          "attempted": 15,
+          "wrong_number": 7,
+          "reached": 6,
+          "not_qualified": 3,
+          "median_first_attempt_minutes": 11
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Dedicated night runs",
+          "leads": 9,
+          "attempted": 8,
+          "wrong_number": 1,
+          "reached": 6,
+          "not_qualified": 5,
+          "median_first_attempt_minutes": 42
+        }
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "analyst@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T18:13:17.642Z",
+    "output": {
+      "headline": "November 3, 2026: 2 campaigns spent $284.25, pulled 14,600 impressions, 203 clicks, and 7 leads at a $40.61 cost per lead.",
+      "points": [
+        "Regional Class A — Joliet drove 6 of the day's 7 leads at $30.75 each across 9,120 impressions and a 1.5% click rate. Dedicated night runs returned 1 lead at $99.75 cost per lead on 5,480 impressions and a 1.1% click rate.",
+        "November 2026 has 28 days left; Meta is the only platform with recorded spend so far, at $612.30 for the month.",
+        "Lead quality over the last 14 days: Regional Class A — Joliet had 46.7% wrong numbers of those called — nearly half — which is worth a close look. It also had 3 leads who missed a hard requirement, making up 12.5% of its leads. Median time to first call was 11 minutes.",
+        "Lead quality for Dedicated night runs over the same 14 days is a sharper concern: 55.6% of its leads missed a hard requirement. Wrong numbers were 12.5% of those called, and median time to first call was 42 minutes.",
+        "The 2026-09-28 mature cohort shows 50.0% of leads converted to applicants, 12.5% hired, and 22.5% lost after conversion. The 2026-09-21 cohort sits at 44.7% converted, 10.5% hired, and 21.1% lost after conversion.",
+        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 converted, 1 applied, and 1 lost after conversion — but it is too young to judge rates yet."
+      ]
+    }
+  }
+}

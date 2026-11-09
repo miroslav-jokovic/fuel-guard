@@ -55,23 +55,24 @@
           },
           "mature": false
         }
-      ]
+      ],
+      "lead_quality": []
     }
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@3",
+    "prompt_version": "analyst@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-06T14:47:57.187Z",
+    "recorded_at": "2026-11-09T18:13:36.299Z",
     "output": {
-      "headline": "No campaigns ran on November 3, 2026, so there was no spend, no impressions, no clicks, and no leads for the day.",
+      "headline": "No campaigns ran on November 3, 2026, leaving the day with $0.00 spend and no leads.",
       "points": [
-        "November 2026 has 28 days left, and the only spend recorded so far this month is $400.00 on Meta — there is no cost per lead or click rate to report for the day since no ads ran.",
-        "The 2026-09-21 cohort produced 38 leads: 33 were contacted (86.8%), 17 converted to applicants (44.7%), 10 applied (26.3%), 4 were hired (10.5%), and 8 were lost after conversion (21.1%).",
-        "The 2026-09-28 cohort produced 40 leads: 36 were contacted (90.0%), 20 converted to applicants (50.0%), 12 applied (30.0%), 5 were hired (12.5%), and 9 were lost after conversion (22.5%).",
-        "The 2026-10-26 cohort has 12 leads so far — 9 contacted, 3 converted to applicants, 1 applied, 1 lost after conversion, and no hires yet — but it is too young to judge its rates.",
-        "Qualified leads and leads lost before becoming applicants are not recorded in the system for any cohort."
+        "No ads ran on 2026-11-03: $0.00 spent, 0 impressions, 0 clicks, and no leads across all campaigns.",
+        "November 2026 has 28 days left and $400.00 spent so far on Meta with no other platforms active yet.",
+        "The 2026-09-28 cohort (40 leads) shows 36 contacted, 20 converted, 12 applied, 5 hired, and 9 lost after conversion. The 2026-09-21 cohort (38 leads) shows 33 contacted, 17 converted, 10 applied, 4 hired, and 8 lost after conversion.",
+        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 converted, 1 applied, 0 hired, and 1 lost after conversion — but it is too young to judge.",
+        "Qualified leads and leads lost before becoming applicants are not recorded."
       ]
     }
   }

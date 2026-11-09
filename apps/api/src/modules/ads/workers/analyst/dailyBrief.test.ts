@@ -43,6 +43,7 @@ function answering(...outputs: unknown[]) {
 
 /** No ad lead yet: the brief is spend and leads only. The fold's cohort read is `briefFold.test.ts`'s. */
 const NO_LEADS = { outcomesSince: async () => [] };
+const NO_QUALITY = { qualitySince: async () => [] };
 
 const bell = (rec: ReturnType<typeof world>) => rec.rpcs().filter((r) => r.fn === "emit_notification").map((r) => r.args as Record<string, unknown>);
 
@@ -50,7 +51,7 @@ describe("the morning brief job (F1b)", () => {
   it("sends the analyst's checked narration to the admins, once, under the day's key", async () => {
     const rec = world();
     const { client, create } = answering(CLEAN);
-    const out = await runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS }, ORG);
+    const out = await runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS, leadQuality: NO_QUALITY }, ORG);
     expect(out).toEqual({ kind: "sent", day: "2026-11-03", by: "analyst", recipients: 1 });
     expect(create).toHaveBeenCalledTimes(1);
     expect(bell(rec)).toEqual([expect.objectContaining({
@@ -62,7 +63,7 @@ describe("the morning brief job (F1b)", () => {
   it("a narration refused twice is never sent: the plain figures go instead, after one retry under a new key", async () => {
     const rec = world();
     const { client, create } = answering(PLANTED, PLANTED);
-    const out = await runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS }, ORG);
+    const out = await runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS, leadQuality: NO_QUALITY }, ORG);
     expect(out).toMatchObject({ kind: "sent", by: "plain", why: "refused" });
     expect(create).toHaveBeenCalledTimes(2);
     expect(rec.writtenRows("ad_generations").filter((r) => r.status === "started").map((r) => r.idempotency_key)).toEqual(["brief:2026-11-03:1", "brief:2026-11-03:2"]);
@@ -74,7 +75,7 @@ describe("the morning brief job (F1b)", () => {
   it("refused once and clean the second time sends the second narration", async () => {
     const rec = world();
     const { client, create } = answering(PLANTED, CLEAN);
-    expect(await runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS }, ORG)).toMatchObject({ by: "analyst" });
+    expect(await runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS, leadQuality: NO_QUALITY }, ORG)).toMatchObject({ by: "analyst" });
     expect(create).toHaveBeenCalledTimes(2);
     expect(bell(rec)[0]!.p_title).toBe(CLEAN.headline);
   });
@@ -82,7 +83,7 @@ describe("the morning brief job (F1b)", () => {
   it("with the analyst switched off, the plain figures are sent and no model is asked", async () => {
     const rec = world({ settings: ADS_SETTINGS_UNSET });
     const { client, create } = answering(CLEAN);
-    expect(await runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS }, ORG)).toMatchObject({ by: "plain", why: "agent_off" });
+    expect(await runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS, leadQuality: NO_QUALITY }, ORG)).toMatchObject({ by: "plain", why: "agent_off" });
     expect(create).not.toHaveBeenCalled();
     expect(bell(rec)).toHaveLength(1);
   });
@@ -90,7 +91,7 @@ describe("the morning brief job (F1b)", () => {
   it("a day already sent stops before any read or model call", async () => {
     const rec = world({ sent: [KEY] });
     const { client, create } = answering(CLEAN);
-    expect(await runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS }, ORG)).toEqual({ kind: "already_sent", day: "2026-11-03" });
+    expect(await runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS, leadQuality: NO_QUALITY }, ORG)).toEqual({ kind: "already_sent", day: "2026-11-03" });
     expect(rec.forTable("ads_spend_hourly")).toHaveLength(0);
     expect(create).not.toHaveBeenCalled();
     expect(bell(rec)).toEqual([]);
@@ -99,7 +100,7 @@ describe("the morning brief job (F1b)", () => {
   it("a carrier with no spend this month gets no brief", async () => {
     const rec = world({ hours: [] });
     const { client, create } = answering(CLEAN);
-    expect(await runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS }, ORG)).toEqual({ kind: "nothing_to_report", day: "2026-11-03" });
+    expect(await runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS, leadQuality: NO_QUALITY }, ORG)).toEqual({ kind: "nothing_to_report", day: "2026-11-03" });
     expect(create).not.toHaveBeenCalled();
     expect(bell(rec)).toEqual([]);
   });
@@ -107,7 +108,7 @@ describe("the morning brief job (F1b)", () => {
   it("an analyst call still in flight fails the job and sends nothing, so the next run takes its answer", async () => {
     const rec = world({ generations: [{ id: "g1", status: "started", output: null, error_code: null, started_at: NOW.toISOString(), request: {} }] });
     const { client, create } = answering(CLEAN);
-    await expect(runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS }, ORG)).rejects.toThrow(/still in flight/);
+    await expect(runDailyBrief({ admin: rec.client, client, now: () => NOW, leadOutcomes: NO_LEADS, leadQuality: NO_QUALITY }, ORG)).rejects.toThrow(/still in flight/);
     expect(create).not.toHaveBeenCalled();
     expect(bell(rec)).toEqual([]);
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { LeadOutcome, LeadOutcomes } from "@silvicom/shared";
+import type { LeadOutcome, LeadOutcomes, LeadQuality, LeadQualityCounts } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../../testing/supabaseRecorder.js";
 import { cohortsSince, readBriefFold, reportedDay } from "./briefFold.js";
 
@@ -20,6 +20,12 @@ function outcomes(rows: LeadOutcome[] = []): LeadOutcomes & { asked: Array<[stri
   return { asked, outcomesSince: async (org, since) => { asked.push([org, since]); return rows; } };
 }
 const NONE = outcomes();
+/** A LeadQuality that answers `rows` and remembers the window it was asked — recruiting's own is `recruiting/leads/leadQuality.test.ts`. */
+function quality(rows: LeadQualityCounts[] = []): LeadQuality & { asked: string[] } {
+  const asked: string[] = [];
+  return { asked, qualitySince: async (_org, since) => { asked.push(since); return rows; } };
+}
+const NO_QUALITY = quality();
 
 function world(rows: unknown[] | { pages: unknown[][] }) {
   return createSupabaseRecorder({
@@ -49,7 +55,7 @@ describe("readBriefFold — yesterday's campaigns and the month so far, from sto
       spend("c2", "2026-11-03T18:00:00.000Z", 700, 0),
       spend("c1", "2026-11-04T06:00:00.000Z", 9_999, 9), // today: neither
     ]);
-    const fold = await readBriefFold(rec.client, ORG, new Date("2026-11-04T13:00:00Z"), NONE);
+    const fold = await readBriefFold(rec.client, ORG, new Date("2026-11-04T13:00:00Z"), NONE, NO_QUALITY);
     expect(fold).toEqual({
       day: "2026-11-03",
       month: { month: "2026-11", days_left: 27 },
@@ -59,6 +65,7 @@ describe("readBriefFold — yesterday's campaigns and the month so far, from sto
       ],
       month_to_date: { meta: 4_700 },
       cohorts: [],
+      lead_quality: [],
     });
     const read = rec.forTable("ads_spend_hourly")[0]!.ops;
     expect(read).toContainEqual({ method: "gte", args: ["hour", "2026-11-01T05:00:00.000Z"] });
@@ -68,7 +75,7 @@ describe("readBriefFold — yesterday's campaigns and the month so far, from sto
 
   it("on the 1st it reports the last day of the month before, with that month's spend and no day left", async () => {
     const rec = world([spend("c1", "2026-10-31T20:00:00.000Z", 1_200, 1), spend("c1", "2026-10-02T20:00:00.000Z", 800, 0)]);
-    const fold = await readBriefFold(rec.client, ORG, new Date("2026-11-01T13:00:00Z"), NONE);
+    const fold = await readBriefFold(rec.client, ORG, new Date("2026-11-01T13:00:00Z"), NONE, NO_QUALITY);
     expect(fold).toMatchObject({ day: "2026-10-31", month: { month: "2026-10", days_left: 0 }, month_to_date: { meta: 2_000 } });
     expect(fold.campaigns.map((c) => c.spend_cents)).toEqual([1_200]);
   });
@@ -76,14 +83,14 @@ describe("readBriefFold — yesterday's campaigns and the month so far, from sto
   it("pages past PostgREST's 1,000-row cap, so a busy month is never cut short", async () => {
     const first = Array.from({ length: 1000 }, (_, i) => spend("c2", new Date(Date.parse("2026-11-01T06:00:00Z") + (i % 40) * 3_600_000).toISOString(), 1));
     const rec = world({ pages: [first, [spend("c1", "2026-11-03T12:00:00.000Z", 5_000, 1)]] });
-    const fold = await readBriefFold(rec.client, ORG, new Date("2026-11-04T13:00:00Z"), NONE);
+    const fold = await readBriefFold(rec.client, ORG, new Date("2026-11-04T13:00:00Z"), NONE, NO_QUALITY);
     expect(rec.forTable("ads_spend_hourly")).toHaveLength(2);
     expect(fold.month_to_date).toEqual({ meta: 6_000 });
   });
 
   it("a carrier with no hours reads no campaign and reports nothing", async () => {
     const rec = world([]);
-    const fold = await readBriefFold(rec.client, ORG, new Date("2026-11-04T13:00:00Z"), NONE);
+    const fold = await readBriefFold(rec.client, ORG, new Date("2026-11-04T13:00:00Z"), NONE, NO_QUALITY);
     expect(fold).toMatchObject({ campaigns: [], month_to_date: {} });
     expect(rec.forTable("ads_campaigns")).toHaveLength(0);
   });
@@ -99,7 +106,7 @@ describe("readBriefFold — cohorts from recruiting's LeadOutcomes (Q-AD34)", ()
       lead(2, "2026-09-23T15:00:00Z", { contacted: "2026-09-23T18:00:00Z" }),
       lead(3, "2026-11-02T15:00:00Z", {}),
     ]);
-    const fold = await readBriefFold(world([]).client, ORG, new Date("2026-11-04T13:00:00Z"), src);
+    const fold = await readBriefFold(world([]).client, ORG, new Date("2026-11-04T13:00:00Z"), src, NO_QUALITY);
     // 11/03 is a Tuesday; its week starts 11/02, and seven weeks before that is 09/14 (CDT, 05:00Z).
     expect(src.asked).toEqual([[ORG, "2026-09-14T05:00:00.000Z"]]);
     expect(fold.cohorts).toEqual([
@@ -112,11 +119,36 @@ describe("readBriefFold — cohorts from recruiting's LeadOutcomes (Q-AD34)", ()
 
   it("a LeadOutcomes answering outside the shared shape fails the brief, never folds a stage it does not mean", async () => {
     const drifted = outcomes([{ ...lead(1, "2026-10-20T15:00:00Z", {}), reached: { qualified: "2026-10-21T15:00:00Z" } } as unknown as LeadOutcome]);
-    await expect(readBriefFold(world([]).client, ORG, new Date("2026-11-04T13:00:00Z"), drifted)).rejects.toThrow();
+    await expect(readBriefFold(world([]).client, ORG, new Date("2026-11-04T13:00:00Z"), drifted, NO_QUALITY)).rejects.toThrow();
   });
 
   it("the window crosses the clocks going back: the Monday is midnight Central in daylight time", () => {
     expect(cohortsSince("2026-11-03")).toBe("2026-09-14T05:00:00.000Z");
     expect(cohortsSince("2026-12-28")).toBe("2026-11-09T06:00:00.000Z");
+  });
+});
+
+describe("readBriefFold — lead quality from recruiting's LeadQuality (LQ3c)", () => {
+  const C1 = "00000000-0000-4000-8000-00000000aa01";
+  const C2 = "00000000-0000-4000-8000-00000000aa02";
+  const q = (campaign_id: string, leads: number): LeadQualityCounts =>
+    ({ campaign_id, leads, attempted: 3, wrong_number: 1, reached: 2, not_qualified: 1, median_first_attempt_minutes: 9 });
+  const named = () => createSupabaseRecorder({ tables: {
+    ads_spend_hourly: [],
+    ads_campaigns: [{ org_id: ORG, id: C1, name: "Joliet Class A" }, { org_id: ORG, id: C2, name: "Gary regional" }],
+  } });
+
+  it("asks the alert's 14-day window ending now, names each of this org's campaigns, most leads first", async () => {
+    const src = quality([q(C2, 4), q(C1, 9)]);
+    const fold = await readBriefFold(named().client, ORG, new Date("2026-11-20T13:00:00Z"), NONE, src);
+    expect(src.asked).toEqual(["2026-11-06T13:00:00.000Z"]);
+    expect(fold.lead_quality.map((r) => [r.name, r.leads])).toEqual([["Joliet Class A", 9], ["Gary regional", 4]]);
+  });
+
+  it("a ref that is not this org's campaign is left out, and a non-uuid ref never reaches the uuid column", async () => {
+    const rec = named();
+    const fold = await readBriefFold(rec.client, ORG, new Date("2026-11-20T13:00:00Z"), NONE, quality([q("00000000-0000-4000-8000-0000000000ff", 5), q("tenstreet-7", 5)]));
+    expect(fold.lead_quality).toEqual([]);
+    expect(JSON.stringify(rec.forTable("ads_campaigns")[0]!.ops)).not.toContain("tenstreet-7");
   });
 });
