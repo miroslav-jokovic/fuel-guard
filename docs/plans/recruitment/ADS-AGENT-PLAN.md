@@ -1259,6 +1259,13 @@ rate, and Higgsfield credits per approved creative.
     brake. Either one walks a path the product does not take.
   **Rec: (a)**, by the owner's decision, set by the orchestrator. Then G-walk 11–16 continue on the campaign already
   started.
+- **Q-AD47–Q-AD52 · Lead quality** (opened 2026-11-09 by the lead-quality audit; full text, candidates and sources in
+  [`ADS-LEAD-QUALITY-PLAN.md`](ADS-LEAD-QUALITY-PLAN.md) §4 — one home, not restated here):
+  Q-AD47 higher intent + SMS verification always on (owner; rec always on) · Q-AD48 proving SMS verification is on
+  when Meta returns no such field (us; rec read at L4, else owner's one-time preview as manual evidence) · Q-AD49
+  Meta's "close form" filtering has no documented API (us; rec do not use it) · Q-AD50 who owns a new lead (owner;
+  rec the opening's recruiter) · Q-AD51 lead-quality alert thresholds (owner; rec alert-only for 4 weeks) · Q-AD52
+  texting-consent checkbox on the form (counsel; deferred).
 
 ---
 
