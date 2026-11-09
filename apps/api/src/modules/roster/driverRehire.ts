@@ -18,9 +18,12 @@ export interface RehireFacts {
   externalId: string;
   /** Null when McLeod has no hire date: the D-RL6 case proves the rehire without one. */
   tmsHireDate: string | null;
-  previousTerminationDate: string;
-  /** Which rule proved it: McLeod's later hire date (D-MR7a), or McLeod clearing its own termination (D-RL6). */
-  proof: "hire_after_termination" | "tms_termination_reversed";
+  /** Null when the row was archived without one, and the archive day stood in for it (D-RL9). */
+  previousTerminationDate: string | null;
+  previousArchivedAt: string | null;
+  /** Which rule proved it: McLeod's hire date after our termination (D-MR7a) or after our archive with no
+   *  termination date (D-RL9), or McLeod clearing its own termination (D-RL6). */
+  proof: "hire_after_termination" | "hire_after_archive" | "tms_termination_reversed";
   previousStatus: string | null;
   wasArchived: boolean;
 }

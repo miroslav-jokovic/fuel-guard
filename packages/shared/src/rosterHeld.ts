@@ -20,6 +20,9 @@ export const ROSTER_HELD_REASONS = [
   /** A former driver's row answers, but McLeod does not prove the rehire: no later hire date (D-MR7a)
    *  and no termination McLeod itself took back (D-RL6) — usually the row was ended here, in 360. */
   "rehire_review",
+  /** McLeod lists the driver active but with a termination date on or after the hire date (D-RL10): the
+   *  employment ended or is ending in McLeod. Settled in McLeod — set inactive, or clear the date. */
+  "ended_in_mcleod",
   /** Nothing answers and the sweep did not create a row (link or identity mode, or no name). */
   "not_created",
 ] as const;
@@ -31,6 +34,9 @@ export interface RosterHeldDriver {
   /** As McLeod spells it, composed from its parts. Null when McLeod holds no name. */
   name: string | null;
   hireDate: string | null;
+  /** McLeod's termination date, carried for `ended_in_mcleod` so the list can say which day. Absent on
+   *  entries written before D-RL10. */
+  terminationDate?: string | null;
   reason: RosterHeldReason;
   /** When the sweep first held this driver for this reason, so a list can say how long it has waited. */
   since: string;

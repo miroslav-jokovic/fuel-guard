@@ -44,6 +44,33 @@ import { cdlKey, type MatchOutcome } from "./rosterMatch.js";
  * runs are its only other writers. McLeod has taken it back, and so does the sweep. A row the office
  * terminated or archived itself stays a review item: that is D-MR7's case, a decision made HERE that
  * McLeod has not caught up with.
+ *
+ * ── 2b. A ROW THE CLEANUP ARCHIVED WITHOUT A DATE (D-RL9, owner 2026-11-09) ─────────────────────────
+ * Rule 2 compares McLeod's hire date with OUR termination date, and the 2026-09-14 reconcile run
+ * archived 120 rows without writing one. Such a row could never be proven, whatever McLeod said.
+ * Christopher Weaver (WCHRISTO): archived 09-14, rehired in McLeod 11-03, driving and fuelling every day
+ * since, and on 11-06 the manual "Reconcile duplicates" folded his new row into the archived one (the
+ * D-RL8 bug). From then on he was "worked here before" on the held list, every sweep, for good.
+ *
+ * So when the row carries no termination date, the day it was archived stands in for it, under the same
+ * rule: McLeod's hire date strictly after it is a rehire. Narrower than rule 2 in two ways, because an
+ * archive is a weaker fact than a termination: McLeod must send no termination date of its own, and no
+ * person here may have archived or terminated the row (`officeEndedEmployment`) — a member's archive is
+ * often duplicate cleanup, not a departure, and that stays a decision for a person. The archive day is
+ * read in UTC; a hire on that same day is not "after" it, which can only hold somebody back, never
+ * bring somebody back early.
+ *
+ * ── 3. McLEOD ENDED THE DRIVER BUT STILL LISTS THEM ACTIVE (D-RL10, owner 2026-11-09) ──────────────
+ * Kenneth Satterwhite (KSATTERW): on 11-06 McLeod listed him `is_active = 'Y'` with a termination date
+ * of 11-07 and his 2025 hire date; on 11-09 it still did, and he had not logged an hour or bought fuel
+ * since 11-06. He had left. The held list told the office he "worked here before" and to set him back
+ * to Active — the one step that would have put a driver who left back on the roster.
+ *
+ * A McLeod record carrying a termination date on or after its hire date says the employment ended or is
+ * ending, whatever the active flag says. That is never a rehire, so it is held under its own reason,
+ * `ended_in_mcleod`, which tells the office to finish the departure IN McLeod (or clear the date there if
+ * the driver is staying — then rule 2a restores the row). Our row is not touched. A termination date
+ * BEFORE the hire date is an old employment McLeod never cleared, and the rules above still decide it.
  */
 
 const CLAIMABLE = new Set<string>(TMS_CLAIMABLE_SOURCES);
@@ -72,6 +99,18 @@ export interface RehireResult {
   rehired: string[];
   /** McLeod ids that answer to a former row we will not restore on our own — for a human. */
   rehireReview: string[];
+  /** McLeod ids listed active with a termination date on or after the hire date (D-RL10) — never a rehire. */
+  endedInTms: string[];
+}
+
+/** A driver the rehire step held for a person or for McLeod: never created beside its former row. */
+export function heldBack(out: Partial<Pick<RehireResult, "rehireReview" | "endedInTms">>, id: string): boolean {
+  return !!(out.rehireReview?.includes(id) || out.endedInTms?.includes(id));
+}
+
+/** McLeod's record says the employment ended or is ending, whatever its active flag says (D-RL10). */
+export function endedInTms(r: Pick<TmsDriverInput, "hire_date" | "termination_date">): boolean {
+  return !!r.termination_date && (!r.hire_date || r.termination_date >= r.hire_date);
 }
 
 /**
@@ -87,7 +126,7 @@ export async function rehireFormerDrivers(
   rows: readonly TmsDriverInput[],
   write: boolean,
 ): Promise<RehireResult> {
-  const out: RehireResult = { rehired: [], rehireReview: [] };
+  const out: RehireResult = { rehired: [], rehireReview: [], endedInTms: [] };
   const { data, error } = await admin
     .from("drivers")
     .select("id, status, archived_at, termination_date, cdl_number, mcleod_driver_id, identity_source")
@@ -114,12 +153,22 @@ export async function rehireFormerDrivers(
     const hits = keys.map((k) => former.get(k)).filter((h) => h !== undefined);
     if (hits.length === 0) continue;
     const row = hits.every((h) => h && h.id === hits[0]?.id) ? hits[0]! : null;
-    const terminatedOn = row && row.identity_source !== "manual" ? row.termination_date : null;
-    const datesProve = !!terminatedOn && !!r.hire_date && r.hire_date > terminatedOn;
+    if (endedInTms(r)) {
+      out.endedInTms.push(r.external_id);
+      continue;
+    }
+    const owned = !row || row.identity_source === "manual";
+    const terminatedOn = owned ? null : row.termination_date;
+    // D-RL9: no termination date on the row, so the archive day stands in for it (rule 2b).
+    const archivedOn = owned || terminatedOn || !row.archived_at ? null : row.archived_at.slice(0, 10);
+    const endedOn = terminatedOn ?? archivedOn;
+    const datesProve = !!endedOn && !!r.hire_date && r.hire_date > endedOn;
     // `=== null`, not falsy: an agent that does not send the field says nothing about it.
     const reversed =
       !!row && !!terminatedOn && !datesProve && r.termination_date === null && !(await officeEndedEmployment(admin, orgId, row.id));
-    if (!row || !terminatedOn || (!datesProve && !reversed)) {
+    const archiveProves =
+      !!row && !!archivedOn && datesProve && r.termination_date === null && !(await officeEndedEmployment(admin, orgId, row.id));
+    if (!row || !endedOn || (terminatedOn ? !datesProve && !reversed : !archiveProves)) {
       out.rehireReview.push(r.external_id);
       continue;
     }
@@ -131,7 +180,8 @@ export async function rehireFormerDrivers(
       externalId: r.external_id,
       tmsHireDate: r.hire_date ?? null,
       previousTerminationDate: terminatedOn,
-      proof: datesProve ? "hire_after_termination" : "tms_termination_reversed",
+      previousArchivedAt: row.archived_at,
+      proof: !terminatedOn ? "hire_after_archive" : datesProve ? "hire_after_termination" : "tms_termination_reversed",
       previousStatus: row.status,
       wasArchived: row.archived_at !== null,
     });
