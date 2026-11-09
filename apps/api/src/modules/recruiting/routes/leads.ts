@@ -1,7 +1,10 @@
 import { Router, type Request } from "express";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { leadContactSchema, leadFromManual, manualLeadSchema, recordId, type LeadContactInput, type ManualLead } from "@silvicom/shared";
+import {
+  leadCloseSchema, leadContactSchema, leadFromManual, leadNoteSchema, manualLeadSchema, recordId,
+  type LeadCloseInput, type LeadContactInput, type LeadNoteInput, type ManualLead,
+} from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -11,6 +14,7 @@ import { displayNameFor } from "../../../lib/memberLabels.js";
 import { ingestLead } from "../leads/leadSink.js";
 import { logLeadContact, readLeadContacts } from "../leads/leadContacts.js";
 import { liftDoNotContact, markDoNotContact, type DoNotContactOutcome } from "../leads/doNotContact.js";
+import { closeLead, qualifyLead, readLeadClosures, reopenLead, type LeadActOutcome } from "../leads/leadClosures.js";
 import { convertLead, isConvertError, parseQueueQuery, readLead, readLeadQueue } from "../leads/leadQueue.js";
 
 /**
@@ -197,6 +201,70 @@ export function recruitmentLeadsRouter(): Router {
       }),
     );
   }
+
+  // The recruiter's verdict (LQ5b; 0578): close with a reason from the fixed list, qualify after a reached
+  // call, reopen a closed lead. The database checks the evidence each reason needs and refuses in words;
+  // this only audits by lead id and reason — never the note, which may name the person.
+  const acts = {
+    close: (admin: SupabaseClient, orgId: string, actor: { userId: string; name: string }, leadId: string, body: LeadCloseInput) =>
+      closeLead(admin, orgId, actor, leadId, body.reason, body.note),
+    qualify: (admin: SupabaseClient, orgId: string, actor: { userId: string; name: string }, leadId: string, body: LeadNoteInput) =>
+      qualifyLead(admin, orgId, actor, leadId, body.note),
+    reopen: (admin: SupabaseClient, orgId: string, actor: { userId: string; name: string }, leadId: string, body: LeadNoteInput) =>
+      reopenLead(admin, orgId, actor, leadId, body.note),
+  } as const;
+  for (const name of ["close", "qualify", "reopen"] as const) {
+    router.post(
+      `/leads/:leadId/${name}`,
+      requireOrg,
+      canManage,
+      validateBody(name === "close" ? leadCloseSchema : leadNoteSchema),
+      asyncHandler(async (req, res) => {
+        const leadId = String(req.params.leadId ?? "");
+        if (!recordId().safeParse(leadId).success) {
+          res.status(404).json(apiError("not_found", "Lead not found"));
+          return;
+        }
+        const admin = getSupabaseAdmin(getAppLocals(req).env);
+        const orgId = req.auth!.orgId!;
+        const body = res.locals.body as LeadCloseInput & LeadNoteInput;
+        const actor = { userId: req.auth!.userId, name: await actorName(req, admin, orgId) };
+        const out: LeadActOutcome = await acts[name](admin, orgId, actor, leadId, body);
+        if (out.kind === "refused") {
+          res.status(out.status).json(apiError(out.code, out.message));
+          return;
+        }
+        if (!out.already) {
+          await writeAudit(admin, {
+            orgId, actorId: req.auth!.userId, action: `recruitment.lead_${name === "close" ? "closed" : name === "qualify" ? "qualified" : "reopened"}`,
+            entity: "recruiting_leads", entityId: leadId,
+            meta: { closureId: out.closure_id, status: out.status, ...(name === "close" ? { reason: body.reason, verdictWritten: out.verdict_written } : {}) },
+          });
+        }
+        res.status(out.already ? 200 : 201).json(out);
+      }),
+    );
+  }
+
+  // Every act on a lead, newest first, for the drawer's activity list.
+  router.get(
+    "/leads/:leadId/closures",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const leadId = String(req.params.leadId ?? "");
+      if (!recordId().safeParse(leadId).success) {
+        res.status(404).json(apiError("not_found", "Lead not found"));
+        return;
+      }
+      const out = await readLeadClosures(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, leadId);
+      if (out.kind === "refused") {
+        res.status(out.status).json(apiError(out.code, out.message));
+        return;
+      }
+      res.json({ closures: out.closures });
+    }),
+  );
 
   return router;
 }
