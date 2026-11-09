@@ -68,10 +68,11 @@ describe("the outcome feed — each recorded stage to Meta once (B6, L1)", () =>
     });
   });
 
-  it("a lead from another platform is never sent, and a stage nobody records is refused as malformed", async () => {
+  it("a lead from another platform is never sent, and a stage outside the recorded list is refused as malformed", async () => {
     const w = world({ outcomes: [
       outcome(1, { contacted: hoursAgo(5) }, { provider: "tiktok" }),
-      outcome(2, { qualified: hoursAgo(5) } as unknown as LeadOutcome["reached"]),
+      // `qualified` became a recorded stage with 0578/0580 (LQ5); `disqualified` is nobody's word.
+      outcome(2, { disqualified: hoursAgo(5) } as unknown as LeadOutcome["reached"]),
     ] });
     const r = await runOutcomeFeed(deps(w), ORG, CONN);
     expect(accepted()).toEqual([]);

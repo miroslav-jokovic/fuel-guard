@@ -37,7 +37,7 @@ const lead = (n: number, patch: Record<string, unknown> = {}) => ({
 });
 
 function world(t: Partial<Record<string, Array<Record<string, unknown>>>>) {
-  const names = ["recruiting_leads", "recruiting_contacts", "lead_conversions", "driver_applications", "drivers", "applicant_dispositions"];
+  const names = ["recruiting_leads", "recruiting_contacts", "recruiting_lead_closures", "lead_conversions", "driver_applications", "drivers", "applicant_dispositions"];
   return createSupabaseRecorder({ tables: Object.fromEntries(names.map((n) => [n, applying(t[n] ?? [])])) });
 }
 
@@ -70,6 +70,29 @@ describe("recruiting's LeadOutcomes — each stage from the row that records it 
     // The newest disposition stands (a correction is a new row, 0238).
     expect(out[1]!.reached).toEqual({ converted: "2026-10-08T16:00:00.000Z", lost_after_conversion: "2026-10-14T05:00:00.000Z" });
     expect(out[2]!.reached).toEqual({});
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("reads a recruiter's acts from the closures ledger (0578, LQ5): the EARLIEST qualify, not-qualified close and lost close each stand (a second qualify after a reopen does not move it), a reopen is no stage", async () => {
+    const rec = world({
+      recruiting_leads: [lead(1), lead(2), lead(3)],
+      recruiting_lead_closures: [
+        { id: id(51), org_id: ORG, lead_id: id(1), kind: "qualified", status_after: "qualified", recorded_at: "2026-10-07T10:00:00Z" },
+        { id: id(52), org_id: ORG, lead_id: id(1), kind: "closed", status_after: "not_qualified", recorded_at: "2026-10-09T10:00:00Z" },
+        { id: id(53), org_id: ORG, lead_id: id(1), kind: "reopened", status_after: "contacted", recorded_at: "2026-10-10T10:00:00Z" },
+        { id: id(54), org_id: ORG, lead_id: id(1), kind: "closed", status_after: "not_qualified", recorded_at: "2026-10-11T10:00:00Z" },
+        { id: id(58), org_id: ORG, lead_id: id(1), kind: "reopened", status_after: "contacted", recorded_at: "2026-10-12T10:00:00Z" },
+        { id: id(59), org_id: ORG, lead_id: id(1), kind: "qualified", status_after: "qualified", recorded_at: "2026-10-13T10:00:00Z" },
+        { id: id(55), org_id: ORG, lead_id: id(2), kind: "closed", status_after: "lost", recorded_at: "2026-10-08T10:00:00Z" },
+        { id: id(56), org_id: ORG, lead_id: id(2), kind: "reopened", status_after: "new", recorded_at: "2026-10-09T10:00:00Z" },
+        { id: id(57), org_id: ORG, lead_id: id(2), kind: "closed", status_after: "lost", recorded_at: "2026-10-12T10:00:00Z" },
+      ],
+    });
+    const out = await readLeadOutcomes(rec.client, ORG, SINCE);
+    expect(out[0]!.reached).toEqual({ qualified: "2026-10-07T10:00:00.000Z", not_qualified: "2026-10-09T10:00:00.000Z" });
+    expect(out[1]!.reached).toEqual({ lost_before_conversion: "2026-10-08T10:00:00.000Z" });
+    expect(out[2]!.reached).toEqual({});
+    expect(out.every((o) => leadOutcomeSchema.safeParse(o).success)).toBe(true);
     expectOrgScoped(rec, ORG);
   });
 

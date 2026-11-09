@@ -39,12 +39,13 @@
           "leads": 38,
           "reached": {
             "contacted": 33,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 17,
             "applied": 10,
             "hired": 4,
-            "lost_after_conversion": 8,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 8
           },
           "mature": true
         },
@@ -53,12 +54,13 @@
           "leads": 40,
           "reached": {
             "contacted": 36,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 20,
             "applied": 12,
             "hired": 5,
-            "lost_after_conversion": 9,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 9
           },
           "mature": true
         },
@@ -67,12 +69,13 @@
           "leads": 12,
           "reached": {
             "contacted": 9,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 3,
             "applied": 1,
             "hired": 0,
-            "lost_after_conversion": 1,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 1
           },
           "mature": false
         }
@@ -94,18 +97,18 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@4",
+    "prompt_version": "analyst@5",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:13:08.863Z",
+    "recorded_at": "2026-11-09T19:41:41.888Z",
     "output": {
-      "headline": "2 campaigns ran on November 3, 2026, spending $284.25 across 14,600 impressions and 203 clicks to deliver 7 leads at a $40.61 cost per lead.",
+      "headline": "2 campaigns ran on November 3, 2026, spending $284.25 for 7 leads at $40.61 each across 14,600 impressions.",
       "points": [
-        "Regional Class A — Joliet led the day with 6 leads at $30.75 cost per lead on $184.50 spend, a 1.5% click rate, and 141 clicks from 9,120 impressions. Dedicated night runs brought 1 lead at $99.75 cost per lead on $99.75 spend.",
-        "In November 2026, $612.30 has been spent on Meta with 28 days left in the month.",
-        "Lead quality over the last 14 days: Regional Class A — Joliet had 4 leads but nobody has been called yet, so there is no median time to first call. 1 of those leads — 25.0% of all the campaign's leads — missed a hard requirement on their own form, which is worth watching as call attempts begin.",
-        "The 2026-09-21 cohort (38 leads) reached a hire rate of 10.5% and a contacted rate of 86.8%; the 2026-09-28 cohort (40 leads) reached 12.5% hired and 90.0% contacted. Both are mature and tracking closely.",
-        "The 2026-10-26 cohort has 12 leads — 9 contacted and 3 converted so far — but it is too young to judge rates.",
-        "Qualified leads and leads lost before converting to applicants are not recorded in the system."
+        "Regional Class A — Joliet led the day: $184.50 spent, 9,120 impressions, 141 clicks, 6 leads at $30.75 each, and a 1.5% click rate.",
+        "Dedicated night runs was quieter: $99.75 spent, 5,480 impressions, 62 clicks, 1 lead at $99.75, and a 1.1% click rate.",
+        "Month to date in November 2026, Meta has taken $612.30 of spend with 28 days still left in the month.",
+        "Lead quality for Regional Class A — Joliet over the last 14 days: 4 leads, none called yet so no median time to first call, and 1 missed a hard requirement — that is 25.0% of the campaign's leads, which is worth watching.",
+        "The 2026-09-28 cohort is mature: 40 leads, 50.0% converted, 30.0% applied, 12.5% hired, and 22.5% lost after conversion. The 2026-09-21 cohort shows similar shape: 38 leads, 44.7% converted, 26.3% applied, 10.5% hired.",
+        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 converted, 1 applied — but it is too young to judge rates yet."
       ]
     }
   }

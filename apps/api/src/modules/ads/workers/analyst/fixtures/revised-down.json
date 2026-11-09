@@ -29,12 +29,13 @@
           "leads": 38,
           "reached": {
             "contacted": 33,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 17,
             "applied": 10,
             "hired": 4,
-            "lost_after_conversion": 8,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 8
           },
           "mature": true
         },
@@ -43,12 +44,13 @@
           "leads": 40,
           "reached": {
             "contacted": 36,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 20,
             "applied": 12,
             "hired": 5,
-            "lost_after_conversion": 9,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 9
           },
           "mature": true
         },
@@ -57,12 +59,13 @@
           "leads": 12,
           "reached": {
             "contacted": 9,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 3,
             "applied": 1,
             "hired": 0,
-            "lost_after_conversion": 1,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 1
           },
           "mature": false
         }
@@ -73,17 +76,17 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@4",
+    "prompt_version": "analyst@5",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:13:59.055Z",
+    "recorded_at": "2026-11-09T19:41:41.920Z",
     "output": {
-      "headline": "On November 2, 2026, Regional Class A — Joliet was the only campaign running, delivering 2 leads from $110.90 in spend at a $55.45 cost per lead.",
+      "headline": "November 2, 2026: Regional Class A — Joliet ran alone, spending $110.90 for 2 leads at $55.45 each from 6,015 impressions at a 1.2% click rate.",
       "points": [
-        "Regional Class A — Joliet produced 70 clicks from 6,015 impressions at a 1.2% click rate, with 2 leads at $55.45 each.",
-        "Month-to-date spend in November 2026 is $198.00 on Meta, with 29 days left in the month.",
-        "The 2026-09-21 cohort (38 leads) has 17 converted, 10 applied, 4 hired, and 8 lost after conversion. The 2026-09-28 cohort (40 leads) has 20 converted, 12 applied, 5 hired, and 9 lost after conversion.",
-        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 converted, 1 applied, and 1 lost after conversion — but it is too young to judge.",
-        "Qualified leads and leads lost before becoming applicants are not recorded."
+        "Regional Class A — Joliet was the only campaign running on November 2, 2026, with $110.90 spent, 6,015 impressions, 70 clicks, and 2 leads at a cost per lead of $55.45.",
+        "November 2026 has 29 days left; $198.00 has been spent on Meta so far this month.",
+        "The 2026-09-21 cohort (38 leads) is mature: 33 were contacted, 17 converted, 10 applied, 4 hired, and 8 lost after conversion. None were closed as not qualified and none were closed before applying.",
+        "The 2026-09-28 cohort (40 leads) is mature: 36 were contacted, 20 converted, 12 applied, 5 hired, and 9 lost after conversion. None were closed as not qualified and none were closed before applying.",
+        "The 2026-10-26 cohort (12 leads) is too young to judge: 9 were contacted, 3 converted, 1 applied, and 1 lost after conversion."
       ]
     }
   }

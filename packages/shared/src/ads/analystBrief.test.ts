@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { cohortRates, type Cohort } from "./adsReport.js";
 import { briefFacts, briefFoldSchema, checkNarration, plainBrief, showMoney, type BriefFold } from "./analystBrief.js";
 
-const reached = (contacted: number, converted: number, applied: number, hired: number, lost_after_conversion: number) =>
-  ({ contacted, converted, applied, hired, lost_after_conversion, qualified: "not_recorded" as const, lost_before_conversion: "not_recorded" as const });
+const reached = (contacted: number, converted: number, applied: number, hired: number, lost_after_conversion: number, qualified = 0, not_qualified = 0, lost_before_conversion = 0) =>
+  ({ contacted, qualified, not_qualified, converted, applied, hired, lost_before_conversion, lost_after_conversion });
 const FOLD: BriefFold = briefFoldSchema.parse({
   day: "2026-11-03",
   month: { month: "2026-11", days_left: 28 },
@@ -13,8 +13,8 @@ const FOLD: BriefFold = briefFoldSchema.parse({
   ],
   month_to_date: { meta: 300_000 },
   cohorts: [
-    { week: "2026-09-28", leads: 40, reached: reached(36, 20, 12, 5, 9), mature: true },
-    { week: "2026-10-26", leads: 12, reached: reached(9, 3, 1, 0, 1), mature: false },
+    { week: "2026-09-28", leads: 40, reached: reached(36, 20, 12, 5, 9, 18, 4, 6), mature: true },
+    { week: "2026-10-26", leads: 12, reached: reached(9, 3, 1, 0, 1, 2, 1, 1), mature: false },
   ],
 });
 const FACTS = briefFacts(FOLD);
@@ -38,20 +38,19 @@ describe("the fact sheet — every figure from the fold, formatted once", () => 
   });
 
   it("an immature cohort gets its counts and no rates; a mature one gets both", () => {
-    expect(FACTS.cohorts[1]).toEqual({ week: "2026-10-26", mature: false, leads: "12", reached: { contacted: "9", converted: "3", applied: "1", hired: "0", lost_after_conversion: "1", qualified: "not recorded", lost_before_conversion: "not recorded" }, rates: null });
-    expect(FACTS.cohorts[0]!.rates).toEqual({ contacted: "90.0%", converted: "50.0%", applied: "30.0%", hired: "12.5%", lost_after_conversion: "22.5%", qualified: "not recorded", lost_before_conversion: "not recorded" });
+    expect(FACTS.cohorts[1]).toEqual({ week: "2026-10-26", mature: false, leads: "12", reached: { contacted: "9", qualified: "2", not_qualified: "1", converted: "3", applied: "1", hired: "0", lost_before_conversion: "1", lost_after_conversion: "1" }, rates: null });
+    expect(FACTS.cohorts[0]!.rates).toEqual({ contacted: "90.0%", qualified: "45.0%", not_qualified: "10.0%", converted: "50.0%", applied: "30.0%", hired: "12.5%", lost_before_conversion: "15.0%", lost_after_conversion: "22.5%" });
   });
 
-  it("the fold refuses a count for a stage nothing records: qualified must be the not_recorded marker", () => {
-    const bad = { ...FOLD, cohorts: [{ ...FOLD.cohorts[0]!, reached: { ...FOLD.cohorts[0]!.reached, qualified: 0 } }] };
+  it("the fold refuses the not_recorded marker for a stage that IS recorded: qualified is a count since 0578 (LQ5)", () => {
+    const bad = { ...FOLD, cohorts: [{ ...FOLD.cohorts[0]!, reached: { ...FOLD.cohorts[0]!.reached, qualified: "not_recorded" } }] };
     expect(briefFoldSchema.safeParse(bad).success).toBe(false);
   });
 
-  it("the plain brief says the unrecorded stages are not recorded, in words, with no figure for them", () => {
+  it("the plain brief gives each cohort's recruiter acts as counts and never says a stage is not recorded", () => {
     const points = plainBrief(FACTS).points;
-    expect(points).toContain("Which leads were qualified, and which were lost before becoming applicants, is not recorded yet.");
-    expect(points.filter((p) => /qualif/i.test(p)).every((p) => !/\d/.test(p))).toBe(true);
-    expect(plainBrief(briefFacts({ ...FOLD, cohorts: [] })).points.some((p) => /qualif/i.test(p))).toBe(false);
+    expect(points.some((p) => /qualified by a recruiter/.test(p))).toBe(true);
+    expect(points.some((p) => /not recorded/.test(p))).toBe(false);
   });
 
   it("cohortRates stands behind no rate for an immature cohort or one with no lead", () => {
@@ -90,15 +89,11 @@ describe("checkNarration — every figure in the narration is on the sheet", () 
     expect(kinds("The 2026-10-26 cohort has 12 leads, 9 contacted.")).toEqual([]);
   });
 
-  it("refuses any figure in a sentence about a stage nothing records, even one the sheet holds for another stage", () => {
-    // 3 is on the sheet (the 2026-10-26 cohort's converted count): the digit check alone would pass it.
-    expect(kinds("The 2026-10-26 cohort has 3 qualified leads.")).toEqual([["number_for_unrecorded_stage", "2026-10-26"]]);
-    expect(kinds("Of its 40 leads, 9 were disqualified.")).toEqual([["number_for_unrecorded_stage", "40"]]);
-    expect(kinds("9 leads were lost before they became applicants.")).toEqual([["number_for_unrecorded_stage", "9"]]);
-    // A decimal point is not a sentence end: the whole figure is named, not "$41".
-    expect(kinds("Qualified leads cost $41.15 each.")).toEqual([["number_for_unrecorded_stage", "$41.15"]]);
-    // Said in words, in a sentence of its own, it passes; a recorded loss after conversion is not matched.
-    expect(kinds("The 2026-09-28 cohort has 40 leads, 20 made applicants. Which were qualified is not recorded.")).toEqual([]);
+  it("the unrecorded-stage rule is derived from UNRECORDED_LEAD_STAGES — empty since LQ5, so a recorded stage's figure passes the way any sheet figure does", () => {
+    // 3 is on the sheet (the 2026-10-26 cohort's converted count) and `qualified` is a recorded stage now: nothing to refuse.
+    expect(kinds("The 2026-10-26 cohort has 3 qualified leads.")).toEqual([]);
+    // A figure the sheet does not hold is still refused — by the digit check, under its own name.
+    expect(kinds("Of its 40 leads, 7 were closed as not qualified.")).toEqual([["number_not_in_fold", "7"]]);
     expect(kinds("In the 2026-09-28 cohort, 9 were lost after becoming applicants, at $1,234.56 spent.")).toEqual([]);
   });
 
@@ -124,7 +119,7 @@ describe("plainBrief — the figures with no model", () => {
     const plain = plainBrief(FACTS);
     expect(plain.headline).toBe("2026-11-03, campaigns that ran: 2. Together: $1,234.56 spent, 30 leads at $41.15 per lead, 42,100 impressions, 610 clicks.");
     expect(plain.points).toContain("Owner operators: $0.00 spent, 0 leads, 0 impressions, 0 clicks.");
-    expect(plain.points).toContain("Leads from the week of 2026-10-26: 12, 3 made applicants, 0 hired, too young to judge.");
+    expect(plain.points).toContain("Leads from the week of 2026-10-26: 12, 2 qualified by a recruiter, 1 closed as not qualified, 1 closed for another reason, 3 made applicants, 0 hired, too young to judge.");
     for (const line of [plain.headline, ...plain.points]) expect(checkNarration(line, FACTS), line).toEqual([]);
   });
 });
@@ -162,7 +157,8 @@ describe("lead quality on the sheet (LQ3c)", () => {
     // misattaching it to "all leads" passes. The check proves every figure came from the fold, not its label.
     expect(checkNarration("Wrong numbers were 40% of all 20 leads.", QF).map((f) => f.kind)).toEqual([]);
     expect(checkNarration("Wrong numbers were 20.0% of all leads.", QF).map((f) => [f.kind, f.text])).toEqual([["number_not_in_fold", "20.0%"]]);
-    expect(checkNarration("7 leads were unqualified.", QF).map((f) => f.kind)).toEqual(["number_for_unrecorded_stage"]);
+    // 7 IS on the sheet (missed a hard requirement); "unqualified" is a word the prompt forbids, not the checker — no unrecorded stage exists.
+    expect(checkNarration("7 leads were unqualified.", QF).map((f) => f.kind)).toEqual([]);
   });
 
   it("the plain brief states each campaign's quality in fixed words that pass the check, never 'qualified'", () => {

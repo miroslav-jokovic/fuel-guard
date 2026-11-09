@@ -19,17 +19,19 @@ const datasetId = defineModel<string>("datasetId", { required: true });
 
 const SENT: Record<LeadOutcomeStage, string> = {
   contacted: "Contacted",
+  qualified: "Qualified by a recruiter",
+  not_qualified: "Closed as not qualified",
   converted: "Made an applicant",
   applied: "Applied",
   hired: "Hired",
+  lost_before_conversion: "Closed before becoming an applicant",
   lost_after_conversion: "Did not work out after applying",
 };
-const NOT_SENT: Record<UnrecordedLeadStage, string> = {
-  qualified: "Qualified",
-  lost_before_conversion: "Lost before becoming an applicant",
-};
+// Empty since 0578 (LQ5): every stage a recruiter names has a writer. Kept so a future unrecorded stage is
+// named here rather than silently absent (the type makes a missing label a compile error).
+const NOT_SENT: Record<UnrecordedLeadStage, string> = {};
 const sent = LEAD_OUTCOME_STAGES.map((s) => SENT[s]).join(", ");
-const notSent = UNRECORDED_LEAD_STAGES.map((s) => NOT_SENT[s]).join(" and ");
+const notSent = (UNRECORDED_LEAD_STAGES as readonly UnrecordedLeadStage[]).map((s) => NOT_SENT[s]).join(" and ");
 const SWITCH = "Tell Meta how far each lead got";
 </script>
 
@@ -48,7 +50,8 @@ const SWITCH = "Tell Meta how far each lead got";
           Once a day, for each lead that came from a Meta ad, Silvicom sends the stages that lead reached, under their own names:
           {{ sent }}.
         </p>
-        <p>{{ notSent }} are not recorded anywhere yet, so they are never sent, not even as a zero.</p>
+        <p v-if="notSent">{{ notSent }} are not recorded anywhere yet, so they are never sent, not even as a zero.</p>
+        <p v-else>A stage is sent only when a recruiter's act or a record on file reached it — nothing is sent as a zero.</p>
         <p>Each stage goes with Meta's own id for the lead and nothing else: no name, phone or email. Meta takes stages up to 7 days old; an older one is skipped.</p>
       </div>
     </BaseCard>

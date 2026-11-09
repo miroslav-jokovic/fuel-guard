@@ -23,8 +23,8 @@ import {
  * contract fails the brief loudly rather than folding a stage it does not mean.
  *
  * The window is the last `COHORT_WEEKS` zone-local weeks up to the reported day's: long enough that the oldest
- * cohorts are past the fold's 28-day maturity, short enough to stay one screen. Stages nothing records
- * (`qualified`, `lost_before_conversion`) are `not_recorded` in every cohort (Q-AD37), never 0.
+ * cohorts are past the fold's 28-day maturity, short enough to stay one screen. Every stage is a count since
+ * 0578/0580 (LQ5); a stage nothing records would be `not_recorded`, never 0 (Q-AD37) — none exists today.
  *
  * ── LEAD QUALITY, THROUGH RECRUITING'S LeadQuality (LQ3c) ─────────────────────────────────────────
  * The same counts the lead-quality alert judges (`monitor/leadQualityCheck.ts`), over the same window ending at

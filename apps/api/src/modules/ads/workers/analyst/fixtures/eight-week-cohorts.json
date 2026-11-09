@@ -39,12 +39,13 @@
           "leads": 31,
           "reached": {
             "contacted": 28,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 9,
             "applied": 6,
             "hired": 3,
-            "lost_after_conversion": 2,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 2
           },
           "mature": true
         },
@@ -53,12 +54,13 @@
           "leads": 44,
           "reached": {
             "contacted": 39,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 14,
             "applied": 10,
             "hired": 4,
-            "lost_after_conversion": 5,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 5
           },
           "mature": true
         },
@@ -67,12 +69,13 @@
           "leads": 27,
           "reached": {
             "contacted": 22,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 6,
             "applied": 4,
             "hired": 1,
-            "lost_after_conversion": 3,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 3
           },
           "mature": true
         },
@@ -81,12 +84,13 @@
           "leads": 52,
           "reached": {
             "contacted": 47,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 18,
             "applied": 11,
             "hired": 5,
-            "lost_after_conversion": 4,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 4
           },
           "mature": true
         },
@@ -95,12 +99,13 @@
           "leads": 38,
           "reached": {
             "contacted": 30,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 10,
             "applied": 5,
             "hired": 0,
-            "lost_after_conversion": 2,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 2
           },
           "mature": false
         },
@@ -109,12 +114,13 @@
           "leads": 41,
           "reached": {
             "contacted": 33,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 9,
             "applied": 3,
             "hired": 0,
-            "lost_after_conversion": 1,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 1
           },
           "mature": false
         },
@@ -123,12 +129,13 @@
           "leads": 29,
           "reached": {
             "contacted": 20,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 4,
             "applied": 1,
             "hired": 0,
-            "lost_after_conversion": 0,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 0
           },
           "mature": false
         },
@@ -137,12 +144,13 @@
           "leads": 12,
           "reached": {
             "contacted": 5,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 0,
             "applied": 0,
             "hired": 0,
-            "lost_after_conversion": 0,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 0
           },
           "mature": false
         }
@@ -153,18 +161,17 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@4",
+    "prompt_version": "analyst@5",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:12:53.550Z",
+    "recorded_at": "2026-11-09T19:41:41.877Z",
     "output": {
-      "headline": "November 3, 2026: 2 campaigns ran, spending $302.50 to bring in 9 leads at $33.61 each across 14,640 impressions.",
+      "headline": "November 3, 2026: 2 campaigns spent $302.50 and brought in 9 leads at a cost per lead of $33.61.",
       "points": [
-        "Regional Class A — Joliet led the day with $214.50 spent, 10,230 impressions, 152 clicks, 7 leads, and a $30.64 cost per lead at a 1.5% click rate. Dedicated night runs added $88.00, 4,410 impressions, 51 clicks, 2 leads, and a $44.00 cost per lead at 1.2%.",
-        "November 2026 has $605.00 spent on Meta so far, with 27 days left in the month.",
-        "The 2026-10-05 cohort is the strongest mature week on record here: 52 leads, 47 contacted (90.4%), 18 converted, 11 applied, 5 hired, and a 7.7% lost-after-conversion rate.",
-        "The 2026-09-28 cohort shows the softest mature performance: 27 leads with a 22.2% conversion rate, 14.8% applied rate, and 3.7% hired rate — worth keeping in mind when reviewing similar traffic periods.",
-        "The 2026-11-02 cohort is too young to judge: 12 leads, 5 contacted, and no conversions yet — still early movement.",
-        "Qualified leads and leads lost before becoming applicants are not recorded in the system."
+        "Regional Class A — Joliet led the day with $214.50 spent, 10,230 impressions, 152 clicks, 7 leads, and a cost per lead of $30.64 at a 1.5% click rate. Dedicated night runs added $88.00, 4,410 impressions, 51 clicks, 2 leads, and a cost per lead of $44.00 at a 1.2% click rate.",
+        "November 2026 has 27 days left; Meta is the only platform running and has taken $605.00 in spend so far this month.",
+        "The 4 mature cohorts (weeks of 2026-09-14, 2026-09-21, 2026-09-28, and 2026-10-05) show hire rates of 9.7%, 9.1%, 3.7%, and 9.6% respectively — the 2026-09-28 week stands out as notably lower than the others.",
+        "The 4 younger cohorts (weeks of 2026-10-12, 2026-10-19, 2026-10-26, and 2026-11-02) are too young to judge. The 2026-11-02 cohort has 12 leads with 5 contacted and no conversions yet.",
+        "No lead quality data was reported for any campaign over the last 14 days."
       ]
     }
   }

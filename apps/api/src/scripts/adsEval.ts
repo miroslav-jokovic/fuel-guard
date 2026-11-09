@@ -62,6 +62,9 @@ async function run<F, T>(name: string, w: EvalWorker<F, T>, record: boolean, jso
     const right = w.agrees ? w.agrees(fixture, verdict, findings) : verdict === "ready";
     if (right) agreed += 1;
     if (!json) console.log(`${right ? "✓" : "✗"} ${w.name(fixture)}  ${verdict}${findings.length ? ` (${findings.join(", ")})` : ""}${fitted ? "  [after the fit pass]" : ""}`);
+    // A disagreement is only actionable with the words in front of you: `EVAL_SHOW=1` prints the model's answer
+    // for each one (never recorded, never on by default — the answer may be long).
+    if (!right && process.env.EVAL_SHOW) console.log(JSON.stringify(output, null, 2));
     if (record) {
       const next = w.withRecording(fixture, { source: "model", prompt_version: w.promptVersion, model: req.model, recorded_at: new Date().toISOString(), output });
       const withExpect = { ...(next as object), expect: verdict, ...(verdict === "refused" ? { expect_findings: findings } : { expect_findings: undefined }) };

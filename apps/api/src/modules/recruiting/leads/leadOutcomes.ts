@@ -9,6 +9,11 @@ import { DEFAULT_ORG_TIMEZONE, wallClockInZone, wallClockToUtc, type LeadOutcome
  *   arrived                `recruiting_leads.platform_created_at`, else `received_at`; only leads with a
  *                          `campaign_ref` (an ad's lead: `leadFromPlatform` sets it, a typed-in lead has none)
  *   contacted              the earliest `recruiting_contacts.contacted_at` (append-only, D-LS6)
+ *   qualified              the earliest `recruiting_lead_closures` row of kind `qualified` (0578, LQ5)
+ *   not_qualified          the earliest closure with `status_after = 'not_qualified'` (a named requirement)
+ *   lost_before_conversion the earliest closure with `status_after = 'lost'`; every closure precedes a
+ *                          conversion by construction (`lead_for_act` refuses a converted lead, RL053), so
+ *                          no "before" test is needed — a lead reopened and converted later still reached it
  *   converted              `lead_conversions.created_at` (one per lead, `unique (lead_id)`)
  *   applied                the earliest `driver_applications.certified_at` of the applicant it became
  *   hired                  that applicant's `drivers.hire_date`, when the status has left `applicant` and the
@@ -91,6 +96,18 @@ export async function readLeadOutcomes(admin: SupabaseClient, orgId: string, sin
     contacted.set(String(c.lead_id), earlier(contacted.get(String(c.lead_id)), new Date(String(c.contacted_at)).toISOString()));
   }
 
+  const qualified = new Map<string, string>();
+  const notQualified = new Map<string, string>();
+  const lostBefore = new Map<string, string>();
+  for (const c of await byIds("recruiting_lead_closures", leadIds, (ids) => admin.from("recruiting_lead_closures")
+    .select("lead_id, kind, status_after, recorded_at").eq("org_id", orgId).in("lead_id", ids).order("seq"))) {
+    const id = String(c.lead_id);
+    const at = new Date(String(c.recorded_at)).toISOString();
+    if (c.kind === "qualified") qualified.set(id, earlier(qualified.get(id), at));
+    else if (c.kind === "closed" && c.status_after === "not_qualified") notQualified.set(id, earlier(notQualified.get(id), at));
+    else if (c.kind === "closed" && c.status_after === "lost") lostBefore.set(id, earlier(lostBefore.get(id), at));
+  }
+
   const conversions = new Map<string, { driver: string; at: string }>();
   for (const c of await byIds("lead_conversions", leadIds, (ids) => admin.from("lead_conversions")
     .select("lead_id, driver_id, created_at").eq("org_id", orgId).in("lead_id", ids).order("id"))) {
@@ -123,6 +140,12 @@ export async function readLeadOutcomes(admin: SupabaseClient, orgId: string, sin
     const reached: LeadOutcome["reached"] = {};
     const contact = contacted.get(l.id);
     if (contact) reached.contacted = contact;
+    const q = qualified.get(l.id);
+    if (q) reached.qualified = q;
+    const nq = notQualified.get(l.id);
+    if (nq) reached.not_qualified = nq;
+    const lb = lostBefore.get(l.id);
+    if (lb) reached.lost_before_conversion = lb;
     const conv = conversions.get(l.id);
     if (conv) {
       reached.converted = conv.at;

@@ -736,7 +736,7 @@ export const READINESS = [
             { file: "apps/api/src/modules/ads/outcomes/outcomeFeed.test.ts", titles: [
               "sends one CRM event per recorded stage of each Meta lead, under the lead's Meta id, and ledgers each as sent",
               "the event carries the lead id and the stage and nothing about the person (D-AD14)",
-              "a lead from another platform is never sent, and a stage nobody records is refused as malformed",
+              "a lead from another platform is never sent, and a stage outside the recorded list is refused as malformed",
               "a carrier whose feed is off (no target) is not read, sends nothing and writes nothing",
             ] },
             { file: "apps/api/src/modules/ads/outcomes/outcomeTick.test.ts", titles: [
@@ -1035,12 +1035,12 @@ export const READINESS = [
               "asks this org's leads from the Monday seven weeks before the reported day's week, and folds them by week",
               "a LeadOutcomes answering outside the shared shape fails the brief, never folds a stage it does not mean",
             ] },
-            { file: "packages/shared/src/ads/adsReport.test.ts", titles: ["a stage nothing records is carried as not_recorded in every cohort, never as 0 (Q-AD37)"] },
+            { file: "packages/shared/src/ads/adsReport.test.ts", titles: ["every recorded stage is a count, the recruiter's acts included; no stage is carried as not_recorded since LQ5 (0578/0580)"] },
             { file: BRIEF, titles: [
-              "refuses any figure in a sentence about a stage nothing records, even one the sheet holds for another stage",
-              "the fold refuses a count for a stage nothing records: qualified must be the not_recorded marker",
+              "the unrecorded-stage rule is derived from UNRECORDED_LEAD_STAGES — empty since LQ5, so a recorded stage's figure passes the way any sheet figure does",
+              "the fold refuses the not_recorded marker for a stage that IS recorded: qualified is a count since 0578 (LQ5)",
             ] },
-            { file: ANALYST, titles: ["planted-unrecorded-stage-number", "eight-week-cohorts", "cohorts-losses-no-hire"] },
+            { file: ANALYST, titles: ["planted-stage-count-not-on-sheet", "eight-week-cohorts", "cohorts-losses-no-hire"] },
           ],
         },
       ],
@@ -1053,7 +1053,7 @@ export const READINESS = [
           tests: [
             { file: ANALYST, titles: [
               "the live eval met the bar on every fold: each model recording under the prompt in force is ready, and the baseline agrees on all",
-              "eight-week-cohorts", "cohorts-losses-no-hire", "planted-wrong-year", "planted-unrecorded-stage-number",
+              "eight-week-cohorts", "cohorts-losses-no-hire", "planted-wrong-year", "planted-stage-count-not-on-sheet", "planted-young-cohort-qualified-rate",
             ] },
             { file: BRIEF, titles: ["the sheet names the period in words, and a narration may quote it — the right year only"] },
           ],

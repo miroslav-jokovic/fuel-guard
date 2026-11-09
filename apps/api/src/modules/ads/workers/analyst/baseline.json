@@ -1,11 +1,11 @@
 {
   "worker": "analyst",
-  "prompt_version": "analyst@4",
+  "prompt_version": "analyst@5",
   "model": "claude-sonnet-4-6",
   "fixtures": 24,
   "asked": 13,
   "agreed": 13,
   "agreement": 1,
   "planted_skipped": 11,
-  "recorded_at": "2026-11-09T18:14:11.615Z"
+  "recorded_at": "2026-11-09T19:41:41.929Z"
 }

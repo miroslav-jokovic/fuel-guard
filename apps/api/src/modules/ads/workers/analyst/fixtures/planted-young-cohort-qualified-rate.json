@@ -1,6 +1,6 @@
 {
-  "name": "planted-unrecorded-stage-number",
-  "about": "Q-AD37 (ruled 2026-11-05): a count stated for \"qualified\", a stage nothing records. The figure IS on the sheet, as another stage's count, so only the unrecorded-stage rule refuses it.",
+  "name": "planted-young-cohort-qualified-rate",
+  "about": "LQ5: the young cohort's qualified share is a rate the sheet does not hold (mature: false has no rates), so the digit check refuses it. (Replaces LQ3c's planted-unqualified-count: 'unqualified' is now the prompt's word rule, not the checker's; the checker never held wording.)",
   "input": {
     "fold": {
       "day": "2026-11-03",
@@ -39,12 +39,13 @@
           "leads": 38,
           "reached": {
             "contacted": 33,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 17,
             "applied": 10,
             "hired": 4,
-            "lost_after_conversion": 8,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 8
           },
           "mature": true
         },
@@ -53,12 +54,13 @@
           "leads": 40,
           "reached": {
             "contacted": 36,
+            "qualified": 0,
+            "not_qualified": 0,
             "converted": 20,
             "applied": 12,
             "hired": 5,
-            "lost_after_conversion": 9,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 9
           },
           "mature": true
         },
@@ -67,32 +69,55 @@
           "leads": 12,
           "reached": {
             "contacted": 9,
+            "qualified": 4,
+            "not_qualified": 0,
             "converted": 3,
             "applied": 1,
             "hired": 0,
-            "lost_after_conversion": 1,
-            "qualified": "not_recorded",
-            "lost_before_conversion": "not_recorded"
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 1
           },
           "mature": false
+        }
+      ],
+      "lead_quality": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "leads": 24,
+          "attempted": 15,
+          "wrong_number": 7,
+          "reached": 6,
+          "not_qualified": 3,
+          "median_first_attempt_minutes": 11
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Dedicated night runs",
+          "leads": 9,
+          "attempted": 8,
+          "wrong_number": 1,
+          "reached": 6,
+          "not_qualified": 5,
+          "median_first_attempt_minutes": 42
         }
       ]
     }
   },
   "expect": "refused",
-  "expect_findings": [
-    "number_for_unrecorded_stage"
-  ],
   "recorded": {
     "source": "planted",
-    "prompt_version": "analyst@4",
+    "prompt_version": "analyst@5",
     "model": "none (written by a person)",
-    "recorded_at": "2026-11-05T00:00:00Z",
+    "recorded_at": "2026-11-09T00:00:00Z",
     "output": {
-      "headline": "The 2026-09-21 cohort has 17 qualified leads.",
+      "headline": "Leads from the week of 2026-10-26 are 33.3% qualified so far.",
       "points": [
         "Regional Class A — Joliet brought 6 leads."
       ]
     }
-  }
+  },
+  "expect_findings": [
+    "number_not_in_fold"
+  ]
 }
