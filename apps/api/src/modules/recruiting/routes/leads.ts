@@ -52,7 +52,7 @@ export function recruitmentLeadsRouter(): Router {
         res.status(400).json(apiError("invalid_request", q.error));
         return;
       }
-      res.json(await readLeadQueue(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, q));
+      res.json(await readLeadQueue(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, { ...q, assigned: q.mine ? req.auth!.userId : null }));
     }),
   );
 

@@ -110,6 +110,13 @@ describe("the lead queue", () => {
     expect(api.calls[0]).toBe("/api/recruitment/leads?limit=50&status=lost");
   });
 
+  it("asks for the signed-in recruiter's own leads when the URL says Mine, and says how a lead becomes theirs (LQ2c)", async () => {
+    api.answer = () => ok({ leads: [], next: null });
+    const { w } = await render("/recruitment/leads?whose=mine&show=lost");
+    expect(api.calls[0]).toBe("/api/recruitment/leads?limit=50&status=lost&mine=1");
+    expect(w.text()).toContain("A new ad lead is yours when its opening names you as its recruiter.");
+  });
+
   it("says so when there are no open leads, and when the queue cannot be read", async () => {
     api.answer = () => ok({ leads: [], next: null });
     expect((await render("/recruitment/leads")).w.text()).toContain("No open leads.");

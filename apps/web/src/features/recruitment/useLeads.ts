@@ -7,13 +7,18 @@ import { apiFetch } from "@/lib/api";
 export const LEADS_OPEN = "open";
 export const LEADS_PAGE_SIZE = 50;
 
-export function useLeadQueueQuery(show: Ref<string>) {
+/** Whose leads the queue shows: everyone's, or the signed-in recruiter's own (LQ2c, 0576). */
+export const LEADS_EVERYONE = "everyone";
+export const LEADS_MINE = "mine";
+
+export function useLeadQueueQuery(show: Ref<string>, whose: Ref<string> = computed(() => LEADS_EVERYONE)) {
   return useInfiniteQuery({
-    queryKey: computed(() => ["recruitment", "leads", "queue", show.value] as const),
+    queryKey: computed(() => ["recruitment", "leads", "queue", show.value, whose.value] as const),
     initialPageParam: null as LeadQueuePage["next"],
     queryFn: async ({ pageParam }): Promise<LeadQueuePage> => {
       const params = new URLSearchParams({ limit: String(LEADS_PAGE_SIZE) });
       if (show.value !== LEADS_OPEN) params.set("status", show.value);
+      if (whose.value === LEADS_MINE) params.set("mine", "1");
       if (pageParam) {
         params.set("before_at", pageParam.before_at);
         params.set("before_id", pageParam.before_id);

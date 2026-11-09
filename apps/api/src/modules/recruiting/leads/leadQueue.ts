@@ -15,7 +15,7 @@ import { readLeadVerdicts } from "./verdicts.js";
 export const LEAD_QUEUE_MAX = 100;
 
 export function parseQueueQuery(q: Record<string, unknown>):
-  { statuses: LeadStatus[]; beforeAt: string | null; beforeId: string | null; limit: number } | { error: string } {
+  { statuses: LeadStatus[]; beforeAt: string | null; beforeId: string | null; limit: number; mine: boolean } | { error: string } {
   const raw = typeof q.status === "string" && q.status.trim() ? q.status.split(",").map((s) => s.trim()) : [...OPEN_LEAD_STATUSES];
   const statuses = raw.filter((s): s is LeadStatus => (LEAD_STATUSES as readonly string[]).includes(s));
   if (statuses.length !== raw.length) return { error: "Unknown lead status." };
@@ -26,7 +26,10 @@ export function parseQueueQuery(q: Record<string, unknown>):
   }
   const n = Number(q.limit ?? 50);
   const limit = Number.isInteger(n) && n >= 1 ? Math.min(n, LEAD_QUEUE_MAX) : 50;
-  return { statuses, beforeAt, beforeId, limit };
+  // LQ2c: "mine" is the signed-in user's own leads (0576's p_assigned); the user comes from the session in the
+  // route, never from the query, so nobody can ask for another recruiter's view by naming them.
+  if (q.mine !== undefined && q.mine !== "1") return { error: "mine is 1 or absent." };
+  return { statuses, beforeAt, beforeId, limit, mine: q.mine === "1" };
 }
 
 type Derived = "verdicts" | "summary" | "do_not_contact";
@@ -48,10 +51,12 @@ async function withVerdictsAndHolds<T extends { id: string; phone_e164: string |
 export async function readLeadQueue(
   admin: SupabaseClient,
   orgId: string,
-  q: { statuses: LeadStatus[]; beforeAt: string | null; beforeId: string | null; limit: number },
+  q: { statuses: LeadStatus[]; beforeAt: string | null; beforeId: string | null; limit: number; assigned: string | null },
 ): Promise<LeadQueuePage> {
   const { data, error } = await admin.rpc("recruiting_lead_queue", {
     p_org: orgId, p_statuses: q.statuses, p_before_at: q.beforeAt, p_before_id: q.beforeId, p_limit: q.limit,
+    // Sent only when asked: a call without it is 0554's five arguments, the shape every caller made before 0576.
+    ...(q.assigned ? { p_assigned: q.assigned } : {}),
   });
   if (error) throw new Error(`Could not read the lead queue: ${error.message}`);
   const leads = await withVerdictsAndHolds(admin, orgId, (data ?? []) as Array<Omit<LeadQueueRow, Derived>>);
