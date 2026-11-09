@@ -66,24 +66,24 @@
           },
           "mature": false
         }
-      ]
+      ],
+      "lead_quality": []
     }
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@3",
+    "prompt_version": "analyst@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-06T14:47:15.662Z",
+    "recorded_at": "2026-11-09T18:12:45.560Z",
     "output": {
-      "headline": "On November 3, 2026, 1 campaign ran and delivered 7 leads at a cost per lead of $30.64.",
+      "headline": "Regional Class A — Joliet was the only campaign running on November 3, 2026, spending $214.50 for 7 leads at $30.64 each.",
       "points": [
-        "Regional Class A — Joliet was the only campaign active, spending $214.50 across 10,230 impressions and 152 clicks at a click rate of 1.5%.",
-        "November 2026 has 27 days left; all $214.50 spent so far this month is on Meta.",
-        "The mature 2026-10-05 cohort shows 19 leads, with 15 contacted (78.9%), 5 converted (26.3%), 3 applied (15.8%), and 4 lost after conversion (21.1%) — no one has been hired from it yet.",
-        "The 2026-10-19 cohort has 23 leads with 17 contacted, 6 converted, 2 applied, and 1 lost after conversion, but it is too young to judge by rates.",
-        "The 2026-11-02 cohort, which covers the most recent leads including today's, has 7 leads with only 3 contacted and no conversions yet — also too young to judge.",
-        "Qualified leads and leads lost before becoming applicants are not recorded in the system."
+        "Regional Class A — Joliet delivered 10,230 impressions, 152 clicks at a 1.5% click rate, and 7 leads. It is the sole campaign running so far in 2026-11, with all $214.50 of month-to-date spend on Meta.",
+        "The 2026-10-05 cohort (19 leads) is mature: 15 were contacted, 5 converted to applicants, 3 filed their application, and 4 were lost after conversion. No hires have been recorded from this group.",
+        "The 2026-10-19 cohort has 23 leads — 17 contacted, 6 converted, 2 applied, 1 lost after conversion — but it is too young to judge by rates.",
+        "The 2026-11-02 cohort has 7 leads with 3 contacted and no conversions yet; it is also too young to judge.",
+        "Qualified leads and leads lost before converting are not recorded in the system."
       ]
     }
   }

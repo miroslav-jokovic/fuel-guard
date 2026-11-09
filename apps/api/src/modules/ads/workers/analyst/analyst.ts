@@ -21,8 +21,8 @@ import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOut
  * replay. The key is the day and the attempt, so a re-run of the same morning asks no second model.
  */
 
-export const ANALYST_PROMPT_VERSION = "analyst@3";
-const PROMPT = readFileSync(new URL("./prompt.v3.md", import.meta.url), "utf8");
+export const ANALYST_PROMPT_VERSION = "analyst@4";
+const PROMPT = readFileSync(new URL("./prompt.v4.md", import.meta.url), "utf8");
 const MAX_TOKENS = 1200;
 
 export interface BriefAnswer {

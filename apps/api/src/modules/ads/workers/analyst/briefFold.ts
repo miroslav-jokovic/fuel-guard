@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  DEFAULT_ORG_TIMEZONE, foldCampaignSpend, foldLeadCohorts, leadOutcomeSchema, monthContext, monthToDateByPlatform, wallClockInZone, wallClockToUtc,
-  type AdPlatform, type BriefFold, type LeadOutcomes, type SpendHourRow,
+  DEFAULT_ORG_TIMEZONE, foldCampaignSpend, foldLeadCohorts, LEAD_QUALITY_WINDOW_DAYS, leadOutcomeSchema, monthContext, monthToDateByPlatform, recordId,
+  wallClockInZone, wallClockToUtc, type AdPlatform, type BriefFold, type LeadOutcomes, type LeadQuality, type SpendHourRow,
 } from "@silvicom/shared";
 
 /**
@@ -25,6 +25,12 @@ import {
  * The window is the last `COHORT_WEEKS` zone-local weeks up to the reported day's: long enough that the oldest
  * cohorts are past the fold's 28-day maturity, short enough to stay one screen. Stages nothing records
  * (`qualified`, `lost_before_conversion`) are `not_recorded` in every cohort (Q-AD37), never 0.
+ *
+ * ── LEAD QUALITY, THROUGH RECRUITING'S LeadQuality (LQ3c) ─────────────────────────────────────────
+ * The same counts the lead-quality alert judges (`monitor/leadQualityCheck.ts`), over the same window ending at
+ * `now`, so the brief and the alert can never disagree on a campaign. Only uuid-shaped refs of THIS org's
+ * campaigns are kept (a lead's `campaign_ref` is free text; any other value in an `.in()` on a uuid column is a
+ * 22P02 that would fail the brief), each with its name.
  */
 
 const PAGE = 1000;
@@ -46,7 +52,18 @@ export function reportedDay(now: Date, zone: string = DEFAULT_ORG_TIMEZONE): { d
   return { day: y.toISOString().slice(0, 10), start: new Date(at(y)).toISOString(), end: new Date(at(new Date(today))).toISOString() };
 }
 
-export async function readBriefFold(admin: SupabaseClient, orgId: string, now: Date, leadOutcomes: LeadOutcomes): Promise<BriefFold> {
+async function readLeadQualityFold(admin: SupabaseClient, orgId: string, now: Date, leadQuality: LeadQuality): Promise<BriefFold["lead_quality"]> {
+  const rows = await leadQuality.qualitySince(orgId, new Date(now.getTime() - LEAD_QUALITY_WINDOW_DAYS * 86_400_000).toISOString());
+  const ids = [...new Set(rows.map((r) => r.campaign_id))].filter((id) => recordId().safeParse(id).success);
+  if (ids.length === 0) return [];
+  const { data, error } = await admin.from("ads_campaigns").select("id, name").eq("org_id", orgId).in("id", ids);
+  if (error) throw new Error(`ads_campaigns: ${error.message}`);
+  const names = new Map(((data ?? []) as Array<{ id: string; name: string }>).map((c) => [c.id, c.name]));
+  return rows.flatMap((r) => (names.has(r.campaign_id) ? [{ ...r, name: names.get(r.campaign_id)! }] : []))
+    .sort((a, b) => b.leads - a.leads || a.name.localeCompare(b.name));
+}
+
+export async function readBriefFold(admin: SupabaseClient, orgId: string, now: Date, leadOutcomes: LeadOutcomes, leadQuality: LeadQuality): Promise<BriefFold> {
   const day = reportedDay(now);
   const month = monthContext(new Date(day.start));
 
@@ -85,5 +102,6 @@ export async function readBriefFold(admin: SupabaseClient, orgId: string, now: D
     campaigns: foldCampaignSpend(inDay).map((t) => ({ ...t, name: campaigns.get(t.campaign_id)?.name ?? t.campaign_id })),
     month_to_date: monthToDateByPlatform(rows, platformOf, { start: month.start, end: day.end }).by_platform,
     cohorts: foldLeadCohorts((await leadOutcomes.outcomesSince(orgId, cohortsSince(day.day))).map((o) => leadOutcomeSchema.parse(o)), now),
+    lead_quality: await readLeadQualityFold(admin, orgId, now, leadQuality),
   };
 }

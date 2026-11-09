@@ -128,3 +128,47 @@ describe("plainBrief — the figures with no model", () => {
     for (const line of [plain.headline, ...plain.points]) expect(checkNarration(line, FACTS), line).toEqual([]);
   });
 });
+
+describe("lead quality on the sheet (LQ3c)", () => {
+  const Q = briefFoldSchema.parse({
+    ...FOLD,
+    lead_quality: [
+      { campaign_id: "c1", name: "Regional CDL-A 2026 Joliet", leads: 20, attempted: 10, wrong_number: 4, reached: 5, not_qualified: 7, median_first_attempt_minutes: 12 },
+      { campaign_id: "c3", name: "Gary 77 nights", leads: 3, attempted: 0, wrong_number: 0, reached: 0, not_qualified: 0, median_first_attempt_minutes: null },
+    ],
+  });
+  const QF = briefFacts(Q);
+
+  it("a fold saved before LQ3c parses with no lead-quality rows", () => {
+    expect(FOLD.lead_quality).toEqual([]);
+    expect(FACTS.lead_quality).toEqual({ window_days: "14", campaigns: [] });
+  });
+
+  it("formats every figure and share once; nothing called means no share and no minutes, not a zero", () => {
+    expect(QF.lead_quality.campaigns).toEqual([
+      { name: "Regional CDL-A 2026 Joliet", leads: "20", called: "10", wrong_numbers: "4", reached: "5", missed_a_hard_requirement: "7",
+        wrong_number_share_of_called: "40.0%", missed_share_of_leads: "35.0%", median_minutes_to_first_call: "12" },
+      { name: "Gary 77 nights", leads: "3", called: "0", wrong_numbers: "0", reached: "0", missed_a_hard_requirement: "0",
+        wrong_number_share_of_called: null, missed_share_of_leads: "0.0%", median_minutes_to_first_call: null },
+    ]);
+  });
+
+  it("the narration may copy its figures, and a lead-quality campaign's name is not read as figures", () => {
+    expect(checkNarration("Gary 77 nights had 3 leads in the last 14 days; Regional CDL-A 2026 Joliet: 4 of 10 called were wrong numbers (40.0%), 7 missed a hard requirement.", QF)).toEqual([]);
+  });
+
+  it("a share the sheet does not hold is refused, and calling the misses 'unqualified' with a figure is refused", () => {
+    // The header's stated limit, pinned so nobody reads more into the check: 40% IS on the sheet (of the called), so
+    // misattaching it to "all leads" passes. The check proves every figure came from the fold, not its label.
+    expect(checkNarration("Wrong numbers were 40% of all 20 leads.", QF).map((f) => f.kind)).toEqual([]);
+    expect(checkNarration("Wrong numbers were 20.0% of all leads.", QF).map((f) => [f.kind, f.text])).toEqual([["number_not_in_fold", "20.0%"]]);
+    expect(checkNarration("7 leads were unqualified.", QF).map((f) => f.kind)).toEqual(["number_for_unrecorded_stage"]);
+  });
+
+  it("the plain brief states each campaign's quality in fixed words that pass the check, never 'qualified'", () => {
+    const plain = plainBrief(QF);
+    expect(plain.points).toContain("Regional CDL-A 2026 Joliet, last 14 days: 20 leads, 10 called, 4 wrong numbers, 5 reached, 7 missed a hard requirement, first call after 12 minutes (median).");
+    expect(plain.points).toContain("Gary 77 nights, last 14 days: 3 leads, 0 called, 0 wrong numbers, 0 reached, 0 missed a hard requirement, none called yet.");
+    for (const line of [plain.headline, ...plain.points]) expect(checkNarration(line, QF), line).toEqual([]);
+  });
+});

@@ -1,0 +1,120 @@
+{
+  "name": "planted-quality-share-computed",
+  "about": "LQ3c: a share the model worked out itself (7 of 24 leads as 29.2%) instead of copying the sheet's share of the called (46.7%).",
+  "input": {
+    "fold": {
+      "day": "2026-11-03",
+      "month": {
+        "month": "2026-11",
+        "days_left": 28
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 18450,
+          "impressions": 9120,
+          "clicks": 141,
+          "leads": 6,
+          "cost_per_lead_cents": 3075,
+          "ctr": 0.015460526315789473
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Dedicated night runs",
+          "spend_cents": 9975,
+          "impressions": 5480,
+          "clicks": 62,
+          "leads": 1,
+          "cost_per_lead_cents": 9975,
+          "ctr": 0.011313868613138687
+        }
+      ],
+      "month_to_date": {
+        "meta": 61230
+      },
+      "cohorts": [
+        {
+          "week": "2026-09-21",
+          "leads": 38,
+          "reached": {
+            "contacted": 33,
+            "converted": 17,
+            "applied": 10,
+            "hired": 4,
+            "lost_after_conversion": 8,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-28",
+          "leads": 40,
+          "reached": {
+            "contacted": 36,
+            "converted": 20,
+            "applied": 12,
+            "hired": 5,
+            "lost_after_conversion": 9,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 12,
+          "reached": {
+            "contacted": 9,
+            "converted": 3,
+            "applied": 1,
+            "hired": 0,
+            "lost_after_conversion": 1,
+            "qualified": "not_recorded",
+            "lost_before_conversion": "not_recorded"
+          },
+          "mature": false
+        }
+      ],
+      "lead_quality": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "leads": 24,
+          "attempted": 15,
+          "wrong_number": 7,
+          "reached": 6,
+          "not_qualified": 3,
+          "median_first_attempt_minutes": 11
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Dedicated night runs",
+          "leads": 9,
+          "attempted": 8,
+          "wrong_number": 1,
+          "reached": 6,
+          "not_qualified": 5,
+          "median_first_attempt_minutes": 42
+        }
+      ]
+    }
+  },
+  "expect": "refused",
+  "recorded": {
+    "source": "planted",
+    "prompt_version": "analyst@4",
+    "model": "none (written by a person)",
+    "recorded_at": "2026-11-09T00:00:00Z",
+    "output": {
+      "headline": "Regional Class A — Joliet brought 6 leads on 2026-11-03.",
+      "points": [
+        "Wrong numbers were 29.2% of Regional Class A — Joliet's leads in the last 14 days."
+      ]
+    }
+  },
+  "expect_findings": [
+    "number_not_in_fold"
+  ]
+}

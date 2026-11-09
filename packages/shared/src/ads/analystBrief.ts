@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AD_PLATFORMS, type AdPlatform } from "./contracts.js";
 import { LEAD_OUTCOME_STAGES, NOT_RECORDED, UNRECORDED_LEAD_STAGES, type LeadOutcomeStage, type UnrecordedLeadStage } from "./leadOutcomes.js";
 import { cohortRates, sumCampaignTotals, type CampaignTotals, type Cohort, type MonthContext } from "./adsReport.js";
+import { LEAD_QUALITY_WINDOW_DAYS, type LeadQualityCounts } from "./leadQuality.js";
 
 /**
  * The analyst's two pure halves (ADS-AGENT-BUILD-WORKFLOW F1; plan D-AD5 "numbers come from a fold; the
@@ -34,6 +35,14 @@ import { cohortRates, sumCampaignTotals, type CampaignTotals, type Cohort, type 
  * "not recorded". The digit check alone cannot stop "4 were qualified": 4 is on the sheet as another stage's
  * count. So a SENTENCE that names an unrecorded stage may hold no figure at all (`number_for_unrecorded_stage`)
  * — the narration may say the stage is not recorded, in a sentence of its own, and nothing more.
+ *
+ * ── LEAD QUALITY, NAMED SO IT CANNOT READ AS "QUALIFIED" (LQ3c, 2026-11-09) ─────────────────────────
+ * The sheet carries each campaign's last `LEAD_QUALITY_WINDOW_DAYS` days of what calls found (`leadQuality.ts`):
+ * leads, called, wrong numbers, reached, and leads whose own answer MISSES A HARD REQUIREMENT. That last count is
+ * never worded "unqualified" — a recruiter-confirmed "qualified" is a stage nothing records (Q-AD37), and the
+ * unrecorded-stage rule above already refuses any sentence that puts a figure beside "qualif…". So the checker
+ * itself holds the wording, and the prompt says why. Shares are on the sheet, formatted once here, so the
+ * narration never divides; a share with nothing to divide by is null.
  */
 
 const fold = z.object({
@@ -60,6 +69,17 @@ export const briefFoldSchema = z.object({
   campaigns: z.array(fold),
   month_to_date: z.partialRecord(z.enum(AD_PLATFORMS), z.number().int()),
   cohorts: z.array(z.object({ week: z.iso.date(), leads: z.number().int(), reached: stageCounts, mature: z.boolean() }).strict() satisfies z.ZodType<Cohort>),
+  /** LQ3c: per campaign, what calls found over the last `LEAD_QUALITY_WINDOW_DAYS` days. Absent in a fold made before it = none. */
+  lead_quality: z.array(z.object({
+    campaign_id: z.string(),
+    name: z.string().min(1),
+    leads: z.number().int(),
+    attempted: z.number().int(),
+    wrong_number: z.number().int(),
+    reached: z.number().int(),
+    not_qualified: z.number().int(),
+    median_first_attempt_minutes: z.number().int().nullable(),
+  }).strict() satisfies z.ZodType<LeadQualityCounts & { name: string }>).default([]),
 }).strict();
 export type BriefFold = z.infer<typeof briefFoldSchema>;
 
@@ -81,6 +101,14 @@ export interface BriefFacts {
   campaigns: Array<Figures & { name: string }>;
   month: { month: string; days_left: string; spend_by_platform: Partial<Record<AdPlatform, string>> };
   cohorts: Array<{ week: string; mature: boolean; leads: string; reached: Stages; rates: Stages | null }>;
+  /** LQ3c. `window_days` is the span every row covers; shares are of `called` (wrong numbers) and of `leads` (misses). */
+  lead_quality: {
+    window_days: string;
+    campaigns: Array<{
+      name: string; leads: string; called: string; wrong_numbers: string; reached: string; missed_a_hard_requirement: string;
+      wrong_number_share_of_called: string | null; missed_share_of_leads: string | null; median_minutes_to_first_call: string | null;
+    }>;
+  };
 }
 
 const grouped = (n: number) => String(Math.abs(Math.trunc(n))).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -127,6 +155,20 @@ export function briefFacts(f: BriefFold): BriefFacts {
       const rates = cohortRates(c);
       return { week: c.week, mature: c.mature, leads: showCount(c.leads), reached: showStages(c.reached, showCount), rates: rates && showStages(rates, showShare) };
     }),
+    lead_quality: {
+      window_days: showCount(LEAD_QUALITY_WINDOW_DAYS),
+      campaigns: (f.lead_quality ?? []).map((q) => ({
+        name: q.name,
+        leads: showCount(q.leads),
+        called: showCount(q.attempted),
+        wrong_numbers: showCount(q.wrong_number),
+        reached: showCount(q.reached),
+        missed_a_hard_requirement: showCount(q.not_qualified),
+        wrong_number_share_of_called: q.attempted > 0 ? showShare(q.wrong_number / q.attempted) : null,
+        missed_share_of_leads: q.leads > 0 ? showShare(q.not_qualified / q.leads) : null,
+        median_minutes_to_first_call: q.median_first_attempt_minutes === null ? null : showCount(q.median_first_attempt_minutes),
+      })),
+    },
   };
 }
 
@@ -147,6 +189,8 @@ export function plainBrief(f: BriefFacts): { headline: string; points: string[] 
       `Spend so far in ${f.month.month}: ${spend || "none"}, with ${f.month.days_left} days left.`,
       ...f.cohorts.map((c) => `Leads from the week of ${c.week}: ${c.leads}, ${c.reached.converted} made applicants, ${c.reached.hired} hired${c.rates ? ` (${c.rates.hired})` : ", too young to judge"}.`),
       ...(f.cohorts.length > 0 ? ["Which leads were qualified, and which were lost before becoming applicants, is not recorded yet."] : []),
+      // LQ3c. Never "unqualified": see the header's lead-quality note.
+      ...f.lead_quality.campaigns.map((q) => `${q.name}, last ${f.lead_quality.window_days} days: ${q.leads} leads, ${q.called} called, ${q.wrong_numbers} wrong numbers, ${q.reached} reached, ${q.missed_a_hard_requirement} missed a hard requirement${q.median_minutes_to_first_call ? `, first call after ${q.median_minutes_to_first_call} minutes (median)` : ", none called yet"}.`),
     ],
   };
 }
@@ -205,7 +249,7 @@ const SENTENCE = /[^.;!?\n]+(?:[.;!?]+(?=\s|$)|$)/g;
 export function checkNarration(text: string, facts: BriefFacts): NarrationFinding[] {
   const allowed = new Set(sheetStrings(facts).flatMap((s) => figuresIn(s).map((f) => f.key)));
   let scanned = text;
-  for (const name of new Set(facts.campaigns.map((c) => c.name))) scanned = scanned.split(name).join(" ".repeat(name.length));
+  for (const name of new Set([...facts.campaigns, ...facts.lead_quality.campaigns].map((c) => c.name))) scanned = scanned.split(name).join(" ".repeat(name.length));
   const findings: NarrationFinding[] = [];
   for (const f of figuresIn(scanned)) if (!allowed.has(f.key)) findings.push({ kind: "number_not_in_fold", text: f.text, index: f.index });
   for (const m of scanned.matchAll(NUMBER_WORDS)) findings.push({ kind: "number_in_words", text: m[0], index: m.index });

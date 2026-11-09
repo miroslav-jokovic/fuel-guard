@@ -14,7 +14,8 @@ import type { JobHandler } from "../types.js";
  */
 export const adsDailyBriefHandler: JobHandler = async (ctx, job) => {
   const now = new Date();
-  const quality = await checkLeadQuality({ admin: ctx.admin, now: () => now, leadQuality: recruitingLeadQuality(ctx.admin) }, job.org_id);
-  const r = await runDailyBrief({ admin: ctx.admin, client: anthropicClient(ctx.env), now: () => now, leadOutcomes: recruitingLeadOutcomes(ctx.admin) }, job.org_id);
+  const leadQuality = recruitingLeadQuality(ctx.admin);
+  const quality = await checkLeadQuality({ admin: ctx.admin, now: () => now, leadQuality }, job.org_id);
+  const r = await runDailyBrief({ admin: ctx.admin, client: anthropicClient(ctx.env), now: () => now, leadOutcomes: recruitingLeadOutcomes(ctx.admin), leadQuality }, job.org_id);
   return { ok: true, detail: JSON.stringify({ ...r, lead_quality: { breaches: quality.breaches.length, rung: quality.rung } }) };
 };

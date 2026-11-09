@@ -76,24 +76,25 @@
           },
           "mature": false
         }
-      ]
+      ],
+      "lead_quality": []
     }
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@3",
+    "prompt_version": "analyst@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-06T14:47:50.528Z",
+    "recorded_at": "2026-11-09T18:13:30.995Z",
     "output": {
-      "headline": "On November 3, 2026, 2 campaigns spent $219.50 and brought in 5 leads at a cost per lead of $43.90 across 11,850 impressions and 150 clicks.",
+      "headline": "On November 3, 2026, 2 campaigns spent $219.50 and brought in 5 leads at $43.90 each from 11,850 impressions and 150 clicks.",
       "points": [
-        "CDL-A 2026 Joliet 75mi drove all 5 leads on $153.40 spend, with 8,800 impressions, 120 clicks, a 1.4% click rate, and a cost per lead of $30.68.",
-        "Team drivers I-80 spent $66.10 across 3,050 impressions and 30 clicks at a 1.0% click rate, but produced no leads, so there is no cost per lead to report.",
-        "Month-to-date in November 2026, Meta has taken $487.00 in spend with 28 days left in the month.",
-        "The 2026-09-21 cohort (38 leads) is mature: 86.8% were contacted, 44.7% converted to applicants, 26.3% applied, 10.5% were hired, and 21.1% were lost after conversion.",
-        "The 2026-09-28 cohort (40 leads) is mature and shows the strongest hiring rate so far: 90.0% contacted, 50.0% converted, 30.0% applied, 12.5% hired, and 22.5% lost after conversion.",
-        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 converted to applicants, 1 applied, and 1 lost after conversion — but it is too young to judge rates yet."
+        "CDL-A 2026 Joliet 75mi drove all 5 leads on $153.40 spend, with a $30.68 cost per lead, 8,800 impressions, 120 clicks, and a 1.4% click rate.",
+        "Team drivers I-80 spent $66.10 across 3,050 impressions and 30 clicks at a 1.0% click rate but produced no leads, so there is no cost per lead.",
+        "November 2026 is 28 days from close; Meta spend so far this month is $487.00.",
+        "The 2026-09-21 cohort (38 leads) shows 33 contacted, 17 converted, 10 applied, 4 hired, and 8 lost after conversion. The 2026-09-28 cohort (40 leads) shows 36 contacted, 20 converted, 12 applied, 5 hired, and 9 lost after conversion.",
+        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 converted, 1 applied, and 1 lost after conversion — but it is too young to judge.",
+        "Qualified leads and leads lost before becoming applicants are not recorded."
       ]
     }
   }
