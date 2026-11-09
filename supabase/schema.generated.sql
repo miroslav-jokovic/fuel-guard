@@ -445,7 +445,7 @@
   constraint ads_outcome_events_provider_not_null: NOT NULL provider
   constraint ads_outcome_events_source_event_ref_check: CHECK (((length(btrim(source_event_ref)) >= 1) AND (length(btrim(source_event_ref)) <= 200)))
   constraint ads_outcome_events_source_event_ref_not_null: NOT NULL source_event_ref
-  constraint ads_outcome_events_stage_check: CHECK ((stage = ANY (ARRAY['contacted'::text, 'qualified'::text, 'not_qualified'::text, 'converted'::text, 'applied'::text, 'hired'::text, 'lost_before_conversion'::text, 'lost_after_conversion'::text])))
+  constraint ads_outcome_events_stage_check: CHECK ((stage = ANY (ARRAY['contacted'::text, 'converted'::text, 'applied'::text, 'hired'::text, 'lost_after_conversion'::text])))
   constraint ads_outcome_events_stage_not_null: NOT NULL stage
   constraint ads_outcome_events_status_check: CHECK ((status = ANY (ARRAY['queued'::text, 'sent'::text, 'failed'::text, 'skipped'::text])))
   constraint ads_outcome_events_status_not_null: NOT NULL status

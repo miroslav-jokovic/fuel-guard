@@ -2,7 +2,8 @@
 // a reached call, or reopens it. The row in `recruiting_lead_closures` is the fact; `recruiting_leads.status` is its
 // projection. Three reasons need evidence the database reads from `recruiting_contacts`; `duplicate` needs another
 // lead of the same person; a `not_qualified:<requirement>` close also writes a verified `does_not_meet` verdict.
-// `LEAD_CLOSE_REASONS` (shared) and the CHECK are held together here, as 0554's phone normalisation is.
+// `LEAD_CLOSE_REASONS` (shared) and the CHECK are held together here, as 0554's phone normalisation is. The outcome
+// feed's stage CHECK is NOT widened here (adsSchemaParity holds it to the shared list) — that is LQ5b2's.
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { readFileSync, readdirSync } from "node:fs";
@@ -112,11 +113,6 @@ ok("every shared reason passes the CHECK", accepted === LEAD_CLOSE_REASONS.lengt
     (await sqlstate(`insert into recruiting_lead_closures (org_id, lead_id, kind, reason, status_after, actor, actor_name) values ($1, $2, 'closed', null, 'lost', $3, 'Dana')`, [ORG, lead, RECRUITER])) === "23514");
   ok("a qualify with a reason is refused (23514)",
     (await sqlstate(`insert into recruiting_lead_closures (org_id, lead_id, kind, reason, status_after, actor, actor_name) values ($1, $2, 'qualified', 'spam', 'qualified', $3, 'Dana')`, [ORG, lead, RECRUITER])) === "23514");
-}
-{
-  const check = (await one(`select pg_get_constraintdef(oid) as d from pg_constraint where conrelid = 'public.ads_outcome_events'::regclass and conname = 'ads_outcome_events_stage_check'`)).d;
-  ok("the outcome feed's stage CHECK now carries qualified, not_qualified and lost_before_conversion",
-    ["qualified", "not_qualified", "lost_before_conversion", "contacted", "converted", "applied", "hired", "lost_after_conversion"].every((s) => check.includes(`'${s}'`)), check);
 }
 
 // ── 2. a not_qualified close: status, closure row, verified verdict ─────────────────────────────

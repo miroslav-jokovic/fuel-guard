@@ -34,6 +34,9 @@
 --   routes are retried, and a retry must not write a second act.
 -- · `purge_lead` (0558) is redefined whole to also empty the notes on the lead's closures and report it
 --   (`closure_notes_cleared`). The reasons stay: they are operational, not personal.
+-- · NOT here: the outcome feed's stage CHECK (0570). `adsSchemaParity.test.ts` holds it equal to the shared
+--   `LEAD_OUTCOME_STAGES`, which the daily brief and the Analyst read, so the CHECK, the list, the closures
+--   reader and the brief move together in LQ5b2's migration — never a CHECK ahead of its list.
 --
 -- The reason list is `LEAD_CLOSE_REASONS` in packages/shared/src/recruiting/leads/leadClosureContract.ts,
 -- derived from `LEAD_REQUIREMENTS` + six lost reasons; the CHECK below is its copy, and the matrix
@@ -59,8 +62,7 @@
 -- `verdicts.ts` writes). Nothing of another module's is touched.
 --
 -- ⚠ DEPLOY WINDOW: a new table nothing reads, three new functions nothing calls, one function redefined so
--- that its old caller's answer gains a key, and a CHECK widened (a wider CHECK refuses nothing old code
--- writes). Old code meets the new schema unchanged.
+-- that its old caller's answer gains a key. Old code meets the new schema unchanged.
 
 -- ── 1. the closures ledger ───────────────────────────────────────────────────────────────────────
 create table if not exists public.recruiting_lead_closures (
@@ -317,12 +319,6 @@ begin
                             'contacts_kept', v_contacts, 'closure_notes_cleared', v_notes);
 end;
 $$;
-
--- ── 7. the outcome feed may carry the three stages these acts record (Q-AD65 (a), Q-AD64 (a)) ───
-alter table public.ads_outcome_events drop constraint if exists ads_outcome_events_stage_check;
-alter table public.ads_outcome_events add constraint ads_outcome_events_stage_check
-  check (stage in ('contacted', 'qualified', 'not_qualified', 'converted', 'applied', 'hired',
-                   'lost_before_conversion', 'lost_after_conversion'));
 
 comment on table public.recruiting_lead_closures is
   'LQ5a (0578): one row per recruiter act on a lead — closed (with a fixed reason), qualified, reopened. The row is the fact; recruiting_leads.status is its projection. Append-only (RL061) except purge_lead emptying the note. Goes with the lead.';
