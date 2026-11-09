@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { HiringProfileList, HiringProfileSave, OpeningSave, OpeningStatus, OpeningView, PlaceSuggestion } from "@silvicom/shared";
+import type { HiringProfileList, HiringProfileSave, OpeningSave, OpeningStatus, OpeningView, PlaceSuggestion, RecruiterOption } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -30,6 +30,30 @@ export function useSaveOpening() {
       const res = await apiFetch<{ opening_id: string; version: number }>("/api/recruitment/openings", { method: "POST", body: save });
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not save the opening.");
       return res.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: OPENINGS }),
+  });
+}
+
+/** Who may own an opening's leads: the access matrix's recruitment managers (LQ2b, `GET /recruitment/recruiters`). */
+export function useRecruitersQuery() {
+  return useQuery({
+    queryKey: ["recruitment", "recruiters"] as const,
+    queryFn: async (): Promise<RecruiterOption[]> => {
+      const res = await apiFetch<{ recruiters: RecruiterOption[] }>("/api/recruitment/recruiters");
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the recruiters.");
+      return res.data.recruiters;
+    },
+  });
+}
+
+/** Name the recruiter who owns an opening's leads, or null to hand it back to everyone (LQ2b, Q-AD50 (a)). */
+export function useSetOpeningRecruiter() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, recruiter_id }: { id: string; recruiter_id: string | null }): Promise<void> => {
+      const res = await apiFetch(`/api/recruitment/openings/${encodeURIComponent(id)}/recruiter`, { method: "POST", body: { recruiter_id } });
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not change the opening's recruiter.");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: OPENINGS }),
   });

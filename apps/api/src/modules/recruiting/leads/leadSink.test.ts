@@ -25,6 +25,7 @@ function seed(): SupabaseRecorder {
   return createSupabaseRecorder({
     tables: {
       recruiting_leads: [],
+      recruiting_openings: postgrestFixture([{ org_id: ORG, id: OPENING, recruiter_id: null }]),
       recruiting_opening_versions: postgrestFixture([{ org_id: ORG, opening_id: OPENING, version: 2, profile_version_id: PV }]),
       hiring_profile_versions: postgrestFixture([{ org_id: ORG, id: PV, requirements: HIRING_PROFILE_V1 }]),
       lead_match_verdicts: (q: RecordedQuery) => (q.write?.method === "insert" ? { data: q.write.payload } : []),

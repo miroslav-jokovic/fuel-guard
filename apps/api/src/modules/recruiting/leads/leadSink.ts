@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { leadFromPlatform, type LeadProjection, type LeadSink } from "@silvicom/shared";
 import { recordLeadVerdicts } from "./verdicts.js";
 import { ringNewLead, type ConfiguredRecipients } from "./leadNotify.js";
+import { assignFromOpening } from "./leadAssignment.js";
 
 /**
  * Recruiting's `LeadSink` (D-AD17; ADS-AGENT-BUILD-WORKFLOW.md D1): the one door every lead comes in by,
@@ -14,6 +15,13 @@ import { ringNewLead, type ConfiguredRecipients } from "./leadNotify.js";
  * `accept` also rings `lead_new` on a lead stored for the first time (`leadNotify.ts`). That is here and not
  * in `ingestLead` because a lead a recruiter typed in goes through `ingestLead` too, and that person already
  * knows about it.
+ *
+ * LQ2b (Q-AD50 (a)): before ringing, a new platform lead is given its opening's recruiter
+ * (`leadAssignment.ts`), and the ring goes to that one person. Like the ring, an assignment that fails never
+ * fails the accept: the lead is stored by then, and a throw would have the job retry a lead the sink reads as a
+ * duplicate — assigned to nobody AND rung to nobody. So a failed assignment is logged and the lead rings
+ * everybody, as an unowned one does. A lead a recruiter typed in is not assigned here: the plan's rule is about
+ * ad leads arriving with nobody watching, and who owns a typed-in lead was not part of the ruling.
  */
 
 export interface LeadMatches {
@@ -51,8 +59,15 @@ export function recruitingLeadSink(
 ): LeadSink {
   return {
     async accept(orgId, lead) {
-      const r = await ingestLead(admin, orgId, leadFromPlatform(lead), clock());
-      if (r.stored === "new") await ringNewLead(admin, orgId, r.lead_id, configured);
+      const projection = leadFromPlatform(lead);
+      const r = await ingestLead(admin, orgId, projection, clock());
+      if (r.stored === "new") {
+        const owner = await assignFromOpening(admin, orgId, r.lead_id, projection.opening_id).catch((err: unknown) => {
+          console.error(`[lead-assign] org ${orgId}: lead ${r.lead_id} left unowned: ${err instanceof Error ? err.message : String(err)}`);
+          return null;
+        });
+        await ringNewLead(admin, orgId, r.lead_id, configured, owner);
+      }
       return { stored: r.stored, ref: r.lead_id };
     },
   };

@@ -1,6 +1,6 @@
 # Ads lead quality — plan (LQ1–LQ4)
 
-**Status:** planned 2026-11-09. **Owner ruled every recommendation the same day ("proceed as recommended"):** Q-AD47 (a), Q-AD48 (a) else (b), Q-AD49 (a), Q-AD50 (a), Q-AD51 (a). LQ1 built 2026-11-09 (see its progress entry); LQ2, LQ3 next; LQ4 waits on counsel. Owner's ask (2026-11-09): "make sure we get leads that are not random,
+**Status:** planned 2026-11-09. **Owner ruled every recommendation the same day ("proceed as recommended"):** Q-AD47 (a), Q-AD48 (a) else (b), Q-AD49 (a), Q-AD50 (a), Q-AD51 (a). LQ1 built 2026-11-09 (#2131); LQ2a (0574, #2134) and LQ2b built the same day; LQ2c (the queue's "Mine" filter: `recruiting_lead_queue` takes an assignee — a migration, then its reader) and LQ3 next; LQ4 waits on counsel. Owner's ask (2026-11-09): "make sure we get leads that are not random,
 that are real and reliable", and "these updates must have no assumptions, gaps or blockers".
 **Parent:** [`ADS-AGENT-PLAN.md`](ADS-AGENT-PLAN.md) (D-AD*, Q-AD*); build order and tracks per
 [`ADS-AGENT-BUILD-WORKFLOW.md`](ADS-AGENT-BUILD-WORKFLOW.md). Opens Q-AD47–Q-AD52 (§9 of the parent; detail here).
