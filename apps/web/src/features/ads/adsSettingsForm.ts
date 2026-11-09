@@ -1,4 +1,7 @@
-import { AD_AI_AGENTS, AD_PLATFORMS, ADS_ALERT_CATEGORIES, adsSettingsSchema, outcomeFeedOf, type AdAiAgent, type AdPlatform, type AdsAlertCategory, type AdsSettings } from "@silvicom/shared";
+import {
+  AD_AI_AGENTS, AD_PLATFORMS, ADS_ALERT_CATEGORIES, ADS_LEAD_QUALITY_DEFAULT, adsSettingsSchema, leadQualityOf, outcomeFeedOf,
+  type AdAiAgent, type AdPlatform, type AdsAlertCategory, type AdsSettings,
+} from "@silvicom/shared";
 
 /**
  * Settings › Ads control's form, as text a person types, to and from the stored settings (Track S, E1a).
@@ -28,6 +31,11 @@ import { AD_AI_AGENTS, AD_PLATFORMS, ADS_ALERT_CATEGORIES, adsSettingsSchema, ou
  * the group is written from the form's two fields every time. But a version saved before the group existed
  * and still left off is written WITHOUT it: `{ enabled: false, dataset_id: null }` beside an absent group
  * would be a different object for the same choice. Its refusals are the contract's own sentences.
+ *
+ * ── THE LEAD-QUALITY ALERT IS CARRIED THE SAME WAY (LQ3b) ────────────────────────────────────────
+ * `lead_quality` (Q-AD51 (a)) is optional too, but absent reads as the ruled defaults, ON (`leadQualityOf`). It
+ * is written from the form every save, so an unrelated save never resets it; a version without the group whose
+ * form still shows exactly the defaults is written without it, for the outcome feed's reason.
  */
 
 export interface AdsSettingsFormValues {
@@ -53,6 +61,10 @@ export interface AdsSettingsFormValues {
   outcome_feed_enabled: boolean;
   /** Meta's dataset id as typed; blank = none named. */
   outcome_dataset_id: string;
+  lead_quality_enabled: boolean;
+  lead_quality_min_attempted: string;
+  lead_quality_wrong_number_pct: string;
+  lead_quality_not_qualified_pct: string;
 }
 
 const dollars = (cents: number | null | undefined): string => (cents == null ? "" : (cents / 100).toFixed(2).replace(/\.00$/, ""));
@@ -80,7 +92,23 @@ export function toFormValues(s: AdsSettings): AdsSettingsFormValues {
     uncontacted_lead_minutes: String(s.alerts.uncontacted_lead_minutes),
     outcome_feed_enabled: outcomeFeedOf(s).enabled,
     outcome_dataset_id: outcomeFeedOf(s).dataset_id ?? "",
+    lead_quality_enabled: leadQualityOf(s).enabled,
+    lead_quality_min_attempted: String(leadQualityOf(s).min_attempted),
+    lead_quality_wrong_number_pct: String(leadQualityOf(s).wrong_number_pct),
+    lead_quality_not_qualified_pct: String(leadQualityOf(s).not_qualified_pct),
   };
+}
+
+/** The lead-quality group to write, or undefined to leave an absent group absent (see the header). */
+function leadQualityFrom(base: AdsSettings, v: AdsSettingsFormValues): AdsSettings["lead_quality"] {
+  const group = {
+    enabled: v.lead_quality_enabled,
+    min_attempted: num(v.lead_quality_min_attempted) ?? Number.NaN,
+    wrong_number_pct: num(v.lead_quality_wrong_number_pct) ?? Number.NaN,
+    not_qualified_pct: num(v.lead_quality_not_qualified_pct) ?? Number.NaN,
+  };
+  const same = (Object.keys(ADS_LEAD_QUALITY_DEFAULT) as Array<keyof typeof group>).every((k) => group[k] === ADS_LEAD_QUALITY_DEFAULT[k]);
+  return base.lead_quality === undefined && same ? undefined : group;
 }
 
 /** The group to write, or undefined to leave an absent group absent (see the header). */
@@ -144,6 +172,9 @@ export function toSettings(base: AdsSettings, v: AdsSettingsFormValues): FormRes
   const feed = outcomeFeedFrom(base, v);
   if (feed === undefined) delete candidate.outcome_feed;
   else candidate.outcome_feed = feed;
+  const quality = leadQualityFrom(base, v);
+  if (quality === undefined) delete candidate.lead_quality;
+  else candidate.lead_quality = quality;
   const parsed = adsSettingsSchema.safeParse(candidate);
   if (parsed.success) return { ok: true, settings: parsed.data };
   const issue = parsed.error.issues[0]!;
@@ -174,4 +205,7 @@ const FIELD_LABELS: Record<string, string> = {
   "budgets.max_regenerations": "Tries per ad must be a whole number from 0 to 5.",
   "alerts.recipients": "One alert can go to at most 50 people.",
   "alerts.uncontacted_lead_minutes": "The minutes must be a whole number from 5 to 1,440 (a day).",
+  "lead_quality.min_attempted": "The number of called leads must be a whole number from 1 to 1,000.",
+  "lead_quality.wrong_number_pct": "The wrong-number share must be a whole percent from 1 to 100.",
+  "lead_quality.not_qualified_pct": "The not-qualified share must be a whole percent from 1 to 100.",
 };
