@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ADMIN_USER, createAdsWorld, CONN, LIVE_SETTINGS, ORG } from "../../../testing/adsWorld.js";
 import { expectOrgScoped } from "../../../testing/supabaseRecorder.js";
-import { alertBackfillStale, alertWebhookLate, BACKFILL_STALE_HOURS } from "./intakeAlerts.js";
+import { alertBackfillStale, alertNoContactDetail, alertWebhookLate, BACKFILL_STALE_HOURS } from "./intakeAlerts.js";
 
 /** Leads that stop arriving on time reach a person (D2d). The bell is the world's `emit_notification`, with its dedupe. */
 
@@ -60,5 +60,26 @@ describe("a webhook lead that took too long", () => {
     await alertWebhookLate(w.admin, ORG, CONN, 900_000, new Date(NOW.getTime() + 60_000));
     await alertBackfillStale(w.admin, ORG, CONN, null, NOW);
     expect(w.bell.map((b) => b.title)).toEqual(["Ad leads are arriving late", "Ad leads are not arriving"]);
+  });
+});
+
+describe("leads that arrived with no phone or email (LQ6, F-LA6)", () => {
+  it("rings once a day per connection with the count, says nothing for 0, and is its own item beside the other two", async () => {
+    const w = world();
+    await alertNoContactDetail(w.admin, ORG, CONN, 0, NOW);
+    expect(w.bell).toEqual([]);
+    await alertNoContactDetail(w.admin, ORG, CONN, 3, NOW);
+    await alertNoContactDetail(w.admin, ORG, CONN, 1, new Date(NOW.getTime() + 3_600_000));
+    await alertWebhookLate(w.admin, ORG, CONN, 360_000, NOW);
+    expect(w.bell.map((b) => b.title)).toEqual(["Ad leads arrived with no phone or email", "Ad leads are arriving late"]);
+    // The body travels as the notification's `p_body`; the world keeps title + dedupe, so the body is read from the rpc.
+    const bodies = () => w.rec.rpcs().filter((c) => c.fn === "emit_notification" && (c.args as { p_title: string }).p_title.startsWith("Ad leads arrived with no")).map((c) => (c.args as { p_body: string }).p_body);
+    expect(bodies()[0]).toContain("3 new leads today");
+    await alertNoContactDetail(w.admin, ORG, CONN, 1, new Date(NOW.getTime() + 24 * 3_600_000));
+    expect(w.bell.filter((b) => b.title.startsWith("Ad leads arrived with no")).map((b) => b.dedupe)).toEqual([
+      `lead_intake_failing:no_contact:${CONN}:2026-11-03`, `lead_intake_failing:no_contact:${CONN}:2026-11-04`,
+    ]);
+    expect(bodies().at(-1)).toContain("1 new lead today");
+    expectOrgScoped(w.rec, ORG);
   });
 });

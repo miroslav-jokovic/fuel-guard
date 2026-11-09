@@ -37,7 +37,9 @@ function memorySink(opts: { refuse?: (l: PlatformLead) => boolean } = {}) {
       const key = `${lead.provider}|${lead.platform_lead_ref}`;
       if (stored.has(key)) return { stored: "duplicate", ref: key };
       stored.set(key, lead);
-      return { stored: "new", ref: key };
+      // What recruiting's sink answers (LQ6): whether a person could be reached with what was stored.
+      const contactable = Boolean(lead.answers.phone_number || lead.answers.phone || lead.answers.email);
+      return { stored: "new", ref: key, contactable };
     },
   };
   return { sink, stored };
@@ -82,6 +84,17 @@ beforeEach(() => {
 });
 
 describe("the hourly backfill — a lead the webhook never delivered", () => {
+  it("counts a new lead stored with neither phone nor email, once, never a duplicate or a refusal (LQ6, F-LA6)", async () => {
+    fake.leads.submit(formA, { full_name: "No Contact", class_a_held: "yes" }, hoursAgo(1));
+    fake.leads.submit(formA, { full_name: "Ray Driver", phone_number: "(708) 236-5732" }, hoursAgo(2));
+    seed();
+    const { sink } = memorySink();
+    const first = await backfillConnectionLeads(deps(sink), ORG, CONN);
+    expect([first.stored_new, first.no_contact_detail]).toEqual([2, 1]);
+    const again = await backfillConnectionLeads(deps(sink), ORG, CONN);
+    expect([again.duplicates, again.no_contact_detail]).toEqual([2, 0]);
+  });
+
   it("brings every lead in the window to the sink once, with its campaign, brief and answers", async () => {
     fake.leads.submit(formA, { full_name: "Ray Driver", phone_number: "(708) 236-5732", class_a_held: "yes" }, hoursAgo(1));
     fake.leads.submit(formB, { full_name: "Ana Lopez", email: "ana@example.com" }, hoursAgo(30));

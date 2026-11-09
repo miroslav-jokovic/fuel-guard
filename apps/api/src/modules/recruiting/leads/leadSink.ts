@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { leadFromPlatform, type LeadProjection, type LeadSink } from "@silvicom/shared";
-import { recordLeadVerdicts } from "./verdicts.js";
+import { readLeadVerdicts, recordLeadVerdicts } from "./verdicts.js";
 import { ringNewLead, type ConfiguredRecipients } from "./leadNotify.js";
 import { assignFromOpening } from "./leadAssignment.js";
 
@@ -66,9 +66,25 @@ export function recruitingLeadSink(
           console.error(`[lead-assign] org ${orgId}: lead ${r.lead_id} left unowned: ${err instanceof Error ? err.message : String(err)}`);
           return null;
         });
-        await ringNewLead(admin, orgId, r.lead_id, configured, owner);
+        // LQ6 (Q-AD63 (a)): a lead whose own answer fails a hard requirement is stored, owned and listed, but rings
+        // nobody — the person told us, after the form's intro stated the requirement. `unknown` still rings (D-LS3).
+        if (!(await failsHardRequirement(admin, orgId, r.lead_id))) await ringNewLead(admin, orgId, r.lead_id, configured, owner);
       }
-      return { stored: r.stored, ref: r.lead_id };
+      return { stored: r.stored, ref: r.lead_id, contactable: projection.phone_e164 !== null || projection.email_lower !== null };
     },
   };
+}
+
+/**
+ * Whether the lead's own answers already fail a hard requirement (`summariseLeadMatch().hardUnmet > 0`): the
+ * reading the queue shows and the quality alert counts (`leadQuality.ts`), so the bells can never be quieter than
+ * the queue is loud. A read that fails rings anyway — a missed bell costs more than a false one.
+ */
+export async function failsHardRequirement(admin: SupabaseClient, orgId: string, leadId: string): Promise<boolean> {
+  try {
+    return ((await readLeadVerdicts(admin, orgId, [leadId])).get(leadId)?.summary.hardUnmet ?? 0) > 0;
+  } catch (err) {
+    console.error(`[lead-notify] org ${orgId}: lead ${leadId} verdicts unreadable, ringing anyway: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
 }

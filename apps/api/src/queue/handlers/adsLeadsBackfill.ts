@@ -1,4 +1,4 @@
-import { adsLeadsBackfillDedupKey, alertBackfillStale, backfillConnectionLeads, catchUpSince } from "../../modules/ads/index.js";
+import { adsLeadsBackfillDedupKey, alertBackfillStale, alertNoContactDetail, backfillConnectionLeads, catchUpSince } from "../../modules/ads/index.js";
 import { lastDoneJobByKey } from "../../modules/org/index.js";
 import { leadSinkFor } from "./leadSinkFor.js";
 import type { JobHandler } from "../types.js";
@@ -34,6 +34,8 @@ export const adsLeadsBackfillHandler: JobHandler = async (ctx, job) => {
     await alertBackfillStale(ctx.admin, job.org_id, connectionId, lastDoneAt, now);
     throw error;
   });
+  // LQ6: rung before the failure check, so a run that also failed still reports the leads nobody can call.
+  await alertNoContactDetail(ctx.admin, job.org_id, connectionId, r.no_contact_detail, now);
   if (r.failures.length) {
     await alertBackfillStale(ctx.admin, job.org_id, connectionId, lastDoneAt, now);
     const line = r.failures.slice(0, 20).map((f) => `${f.campaign_id ? `${f.campaign_id}/${f.form_id}${f.lead_id ? `/${f.lead_id}` : ""} ` : ""}${f.reason}`).join("; ");

@@ -7,12 +7,12 @@ import { postgrestFixture, type FixtureRow } from "../../testing/postgrestFixtur
  * that reported green while a lead was not brought in would be the "lost lead" §4R forbids, so any failure
  * fails it — naming lead ids, never a person.
  */
-const ads = vi.hoisted(() => ({ backfillConnectionLeads: vi.fn(), alertBackfillStale: vi.fn() }));
+const ads = vi.hoisted(() => ({ backfillConnectionLeads: vi.fn(), alertBackfillStale: vi.fn(), alertNoContactDetail: vi.fn() }));
 const sinkMarker = vi.hoisted(() => ({ sink: { accept: vi.fn() } }));
 // The real `catchUpSince` and dedup key: how far back a run reaches is what the catch-up tests are about.
 vi.mock("../../modules/ads/index.js", async () => {
   const { catchUpSince } = await import("../../modules/ads/leads/backfill.js");
-  return { backfillConnectionLeads: ads.backfillConnectionLeads, alertBackfillStale: ads.alertBackfillStale, catchUpSince, adsLeadsBackfillDedupKey: (c: string) => `ads_leads_backfill:${c}` };
+  return { backfillConnectionLeads: ads.backfillConnectionLeads, alertBackfillStale: ads.alertBackfillStale, alertNoContactDetail: ads.alertNoContactDetail, catchUpSince, adsLeadsBackfillDedupKey: (c: string) => `ads_leads_backfill:${c}` };
 });
 vi.mock("../../modules/recruiting/index.js", () => ({ recruitingLeadSink: () => sinkMarker.sink }));
 
@@ -30,7 +30,7 @@ const done = (connection: string, started_at: string, org = "org-1", status = "d
 const reach = () => (ads.backfillConnectionLeads.mock.calls[0]![3].since as Date);
 const job = (payload: Record<string, unknown>): QueueJob =>
   ({ id: "j1", org_id: "org-1", kind: "ads_leads_backfill", payload, attempts: 1, max_attempts: 5 }) as unknown as QueueJob;
-const ok = { connection_id: "c1", since: "x", forms: 1, read: 2, stored_new: 1, duplicates: 1, failures: [] };
+const ok = { connection_id: "c1", since: "x", forms: 1, read: 2, stored_new: 1, duplicates: 1, no_contact_detail: 0, failures: [] };
 
 afterEach(() => vi.clearAllMocks());
 
@@ -116,6 +116,12 @@ describe("adsLeadsBackfillHandler", () => {
       ads.backfillConnectionLeads.mockResolvedValue(ok);
       await adsLeadsBackfillHandler(ctx, job({ connectionId: "c1" }), vi.fn());
       expect(ads.alertBackfillStale).not.toHaveBeenCalled();
+    });
+
+    it("hands the no-contact-detail count to its bell on every run, a failed one included (LQ6)", async () => {
+      ads.backfillConnectionLeads.mockResolvedValue({ ...ok, no_contact_detail: 2, failures: [{ reason: "x" }] });
+      await expect(adsLeadsBackfillHandler(ctx, job({ connectionId: "c1" }), vi.fn())).rejects.toThrow();
+      expect(ads.alertNoContactDetail.mock.calls.map((c) => [c[1], c[2], c[3]])).toEqual([["org-1", "c1", 2]]);
     });
   });
 

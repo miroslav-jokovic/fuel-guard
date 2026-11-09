@@ -54,6 +54,15 @@ const page = ref(1);
 watch([show, whose], () => (page.value = 1));
 const fetchedPages = computed(() => query.data.value?.pages.length ?? 0);
 const pageRows = computed<LeadQueueRow[]>(() => query.data.value?.pages[page.value - 1]?.leads ?? []);
+/**
+ * LQ6 (Q-AD63 (a)): a lead whose own form answer fails a hard requirement sits in its own lane under the list,
+ * collapsed — still here, still openable, still convertible, never hidden; it just does not compete with the leads
+ * a recruiter should call first. The split reads the same `summary.hardUnmet` the badge and the bells read; on the
+ * Closed view a close for a requirement is the point, so nothing is split there.
+ */
+const splitByAnswer = computed(() => show.value !== LEADS_CLOSED && show.value !== "not_qualified");
+const qualifyingRows = computed(() => (splitByAnswer.value ? pageRows.value.filter((r) => !(r.summary && r.summary.hardUnmet > 0)) : pageRows.value));
+const disqualifiedRows = computed(() => (splitByAnswer.value ? pageRows.value.filter((r) => r.summary !== null && r.summary.hardUnmet > 0) : []));
 const hasNext = computed(() => page.value < fetchedPages.value || query.hasNextPage.value);
 async function goTo(n: number): Promise<void> {
   if (n > fetchedPages.value) {
@@ -106,13 +115,13 @@ const personName = (row: LeadQueueRow) => row.full_name ?? (row.phone_e164 || ro
       </FilterBar>
       <DataTable
         :columns="columns"
-        :rows="pageRows"
+        :rows="qualifyingRows"
         embedded
         row-key="id"
         :loading="query.isLoading.value"
         :error="query.isError.value ? 'Could not load the leads.' : null"
         :retrying="query.isFetching.value"
-        :empty-text="emptyText"
+        :empty-text="disqualifiedRows.length > 0 ? 'Every lead on this page said they miss a requirement — see below.' : emptyText"
       >
         <template #cell-person="{ row }">
           <RouterLink :to="linkTo(row.id)" class="font-medium text-ink hover:underline">{{ personName(row) }}</RouterLink>
@@ -143,6 +152,29 @@ const personName = (row: LeadQueueRow) => row.full_name ?? (row.phone_e164 || ro
           />
         </template>
       </DataTable>
+      <details v-if="disqualifiedRows.length > 0" class="border-t border-edge px-4 py-3" data-test="disqualified-lane">
+        <summary class="cursor-pointer text-sm font-medium text-ink">
+          Does not qualify by their own answer
+          <span class="text-ink-muted">({{ disqualifiedRows.length }} on this page)</span>
+          <span class="ml-2 text-xs font-normal text-ink-muted">Not rung, not on the first-call clock. Still here to call, close or make an applicant.</span>
+        </summary>
+        <!-- ui-adoption: never-empty — the lane renders only when the page has such rows (v-if above). -->
+        <!-- ui-adoption: unpaged — a slice of the page the table above already pages; its pagination is theirs. -->
+        <DataTable :columns="columns" :rows="disqualifiedRows" embedded row-key="id" class="mt-2">
+          <template #cell-person="{ row }">
+            <RouterLink :to="linkTo(row.id)" class="font-medium text-ink hover:underline">{{ personName(row) }}</RouterLink>
+            <p class="text-xs text-ink-muted">{{ row.phone_e164 ? formatPhone(row.phone_e164) : row.email_lower }}</p>
+          </template>
+          <template #cell-source="{ row }">{{ leadChannelLabel(row.channel) }}</template>
+          <template #cell-match="{ row }">
+            <span :class="[BADGE_BASE, toneClass(leadMatchBadge(row.summary).tone)]">{{ leadMatchBadge(row.summary).label }}</span>
+          </template>
+          <template #cell-status="{ row }">
+            <span :class="[BADGE_BASE, leadStatusTone(row.status)]">{{ LEAD_STATUS_LABELS[row.status] }}</span>
+          </template>
+          <template #cell-received="{ row }">{{ formatDateTime(row.received_at) }}</template>
+        </DataTable>
+      </details>
     </DataWorkspace>
 
     <LeadDrawer :lead-id="openLeadId" @close="openLead = ''" />

@@ -52,3 +52,18 @@ export async function alertWebhookLate(admin: SupabaseClient, orgId: string, con
     dedupeKey: `lead_intake_failing:webhook:${connectionId}:${day(now)}`,
   });
 }
+
+/**
+ * LQ6 (audit F-LA6): leads arrived with neither a usable phone nor an e-mail. The form's phone is SMS-verified
+ * (LQ1), so this should be 0; when it is not, something upstream changed — a Meta field name, a form edited by
+ * hand in Ads Manager, a channel reader — and a recruiter is looking at rows nobody can call. The leads are still
+ * stored (the raw payload keeps what the person typed), so this is a warning, once a day per connection.
+ */
+export async function alertNoContactDetail(admin: SupabaseClient, orgId: string, connectionId: string, count: number, now: Date): Promise<void> {
+  if (count <= 0) return;
+  await sendIntakeAlert(admin, orgId, connectionId, {
+    title: "Ad leads arrived with no phone or email",
+    body: `${count} new lead${count === 1 ? "" : "s"} today came with no usable phone number or email. The form may have changed; the raw answers are kept on each lead.`,
+    dedupeKey: `lead_intake_failing:no_contact:${connectionId}:${day(now)}`,
+  });
+}

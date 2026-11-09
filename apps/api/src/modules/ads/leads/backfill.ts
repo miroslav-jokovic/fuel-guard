@@ -72,6 +72,8 @@ export interface BackfillResult {
   read: number;
   stored_new: number;
   duplicates: number;
+  /** Leads stored for the first time with neither a usable phone nor an e-mail (LQ6, F-LA6). */
+  no_contact_detail: number;
   failures: BackfillFailure[];
 }
 
@@ -185,7 +187,7 @@ async function backfillOnce(deps: BackfillDeps, orgId: string, connectionId: str
   const floor = new Date(now.getTime() - META_LEAD_RETENTION_DAYS * 86_400_000);
   const asked = opts.since ?? new Date(now.getTime() - BACKFILL_WINDOW_HOURS * 3_600_000);
   const since = asked < floor ? floor : asked;
-  const result: BackfillResult = { connection_id: connectionId, since: since.toISOString(), forms: 0, read: 0, stored_new: 0, duplicates: 0, failures: [] };
+  const result: BackfillResult = { connection_id: connectionId, since: since.toISOString(), forms: 0, read: 0, stored_new: 0, duplicates: 0, no_contact_detail: 0, failures: [] };
 
   const { data: conn, error } = await deps.admin
     .from("ads_platform_connections")
@@ -230,8 +232,10 @@ async function backfillOnce(deps: BackfillDeps, orgId: string, connectionId: str
       }
       try {
         const r = await deps.sink.accept(orgId, platformLead);
-        if (r.stored === "new") result.stored_new += 1;
-        else result.duplicates += 1;
+        if (r.stored === "new") {
+          result.stored_new += 1;
+          if (r.contactable === false) result.no_contact_detail += 1;
+        } else result.duplicates += 1;
       } catch {
         // The sink's message may carry the person's details (a CHECK violation names the value); the
         // failure line says which lead, and the sink's own error is logged by the sink's owner.
