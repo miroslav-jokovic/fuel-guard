@@ -158,6 +158,12 @@ ok("a creative under another carrier's preset is refused (23503)",
   (await sqlstate(`insert into ads_creatives (org_id, campaign_id, preset_version_id) values ($1, $2, $3)`, [ORG, CAMP, PV_OTHER])) === "23503");
 ok("the workers fill a creative while it is generating",
   (await sqlstate(`update ads_creatives set copy = '{"en": {"headline": "Home every weekend"}}', state = 'checking' where id = $1`, [CR])) === null);
+ok("the workers may keep the copy candidates on a generating creative, as an object (0579)",
+  (await sqlstate(`update ads_creatives set candidates = '{"chosen": 0, "ranked": [{"copy": {"en": {}, "es": {}}, "score": 4.2}]}' where id = $1`, [CR])) === null);
+ok("a candidates list that is not an object is refused (23514, 0579)",
+  (await sqlstate(`update ads_creatives set candidates = '[1, 2]' where id = $1`, [CR])) === "23514");
+ok("a creative made before 0579 has no candidates, and that is allowed",
+  (await sqlstate(`update ads_creatives set candidates = null where id = $1`, [CR])) === null);
 ok("a creative cannot be ready without its checks and assets (23514)",
   (await sqlstate(`update ads_creatives set state = 'ready' where id = $1`, [CR])) === "23514");
 ok("a checked creative with its assets becomes ready",
