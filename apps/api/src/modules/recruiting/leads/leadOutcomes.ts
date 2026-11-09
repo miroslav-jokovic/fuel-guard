@@ -36,10 +36,10 @@ export function recruitingLeadOutcomes(admin: SupabaseClient): LeadOutcomes {
   return { outcomesSince: (orgId, since) => readLeadOutcomes(admin, orgId, since) };
 }
 
-type Rows = Array<Record<string, unknown>>;
+export type Rows = Array<Record<string, unknown>>;
 
 /** Every row of one query, page by page; `build` makes a fresh query for each page (ordered, so pages are stable). */
-async function allPages(label: string, build: () => { range: (a: number, b: number) => PromiseLike<{ data: unknown; error: { message: string } | null }> }): Promise<Rows> {
+export async function allPages(label: string, build: () => { range: (a: number, b: number) => PromiseLike<{ data: unknown; error: { message: string } | null }> }): Promise<Rows> {
   const out: Rows = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await build().range(from, from + PAGE - 1);
@@ -51,7 +51,7 @@ async function allPages(label: string, build: () => { range: (a: number, b: numb
 }
 
 /** `allPages` over an id list cut into chunks of `CHUNK`. */
-async function byIds(label: string, ids: readonly string[], build: (chunk: string[]) => ReturnType<Parameters<typeof allPages>[1]>): Promise<Rows> {
+export async function byIds(label: string, ids: readonly string[], build: (chunk: string[]) => ReturnType<Parameters<typeof allPages>[1]>): Promise<Rows> {
   const out: Rows = [];
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK);

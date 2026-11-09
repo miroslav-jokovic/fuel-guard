@@ -42,6 +42,7 @@ export { reconcileConnection } from "./monitor/reconcile.js";
 export { adsReconcileDedupKey, startAdsReconcile } from "./monitor/reconcileTick.js";
 // F1b: the morning brief — yesterday's fold, the analyst's checked narration (or the plain figures), the ads_brief bell.
 export { runDailyBrief } from "./workers/analyst/dailyBrief.js";
+export { checkLeadQuality } from "./monitor/leadQualityCheck.js";
 export { adsDailyBriefDedupKey, startAdsDailyBrief } from "./workers/analyst/briefTick.js";
 // B6: the outcome feed — recorded lead stages to Meta's Conversions API, one ledger row each — and its scheduler.
 export { runOutcomeFeed } from "./outcomes/outcomeFeed.js";

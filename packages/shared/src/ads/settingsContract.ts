@@ -107,6 +107,28 @@ export type AdsOutcomeFeed = z.infer<typeof adsOutcomeFeedSchema>;
 
 export const ADS_OUTCOME_FEED_OFF: AdsOutcomeFeed = { enabled: false, dataset_id: null };
 
+/**
+ * The lead-quality alert (ADS-LEAD-QUALITY-PLAN LQ3; Q-AD51 ruled (a) 2026-11-09): once at least `min_attempted`
+ * of a campaign's recent leads have had a call attempt, the alert rings when the wrong-number share of those
+ * attempts, or the share of its leads that plainly do not meet a hard requirement, passes its threshold. An
+ * ALERT, never a pause, for the first weeks — the ruling.
+ *
+ * ── ABSENT = THE RULED DEFAULTS, ON ──────────────────────────────────────────────────────────────
+ * Unlike the outcome feed (which sends data to Meta and so stays off until somebody turns it on), this only
+ * rings a bell, and the owner ruled its numbers: 40 % / 40 % after 10 attempted leads — a practitioner's rule
+ * of thumb (Upgrowth's "false lead rate" threshold), said so in the screen's help. So a version saved before
+ * the group existed reads as those defaults, ON (`leadQualityOf`). Optional rather than a zod default for the
+ * outcome feed's reason: the save REPLACES the whole object, so the form must round-trip it.
+ */
+export const adsLeadQualitySchema = z.object({
+  enabled: z.boolean(),
+  min_attempted: z.number().int().min(1).max(1000),
+  wrong_number_pct: z.number().int().min(1).max(100),
+  not_qualified_pct: z.number().int().min(1).max(100),
+});
+export type AdsLeadQuality = z.infer<typeof adsLeadQualitySchema>;
+export const ADS_LEAD_QUALITY_DEFAULT: AdsLeadQuality = { enabled: true, min_attempted: 10, wrong_number_pct: 40, not_qualified_pct: 40 };
+
 export const adsSettingsSchema = z.object({
   limits: adsSpendLimitsSchema,
   auto_pause: adsAutoPauseSchema,
@@ -114,6 +136,7 @@ export const adsSettingsSchema = z.object({
   budgets: adsBudgetsSchema,
   alerts: adsAlertsSchema,
   outcome_feed: adsOutcomeFeedSchema.optional(),
+  lead_quality: adsLeadQualitySchema.optional(),
 });
 export type AdsSettings = z.infer<typeof adsSettingsSchema>;
 
@@ -132,6 +155,11 @@ export const ADS_SETTINGS_UNSET: AdsSettings = {
 /** The outcome feed a version says, an absent group (any version saved before Q-AD40) being OFF. */
 export function outcomeFeedOf(settings: AdsSettings): AdsOutcomeFeed {
   return settings.outcome_feed ?? ADS_OUTCOME_FEED_OFF;
+}
+
+/** The lead-quality alert in force: the saved group, else the ruled defaults (on). */
+export function leadQualityOf(settings: AdsSettings): AdsLeadQuality {
+  return settings.lead_quality ?? ADS_LEAD_QUALITY_DEFAULT;
 }
 
 export function monthlyCapFor(settings: AdsSettings, platform: AdPlatform): number | null {

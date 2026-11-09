@@ -14,6 +14,7 @@ import { toFormValues, toSettings, type AdsSettingsFormValues } from "./adsSetti
 import { useSaveAdsSettings } from "./useAdsSettings";
 import AdsAlertsSection from "./AdsAlertsSection.vue";
 import AdsOutcomeFeedSection from "./AdsOutcomeFeedSection.vue";
+import AdsLeadQualitySection from "./AdsLeadQualitySection.vue";
 
 /**
  * Settings › Ads control's limits, rules, approvals and AI budgets (ADS-AGENT-PLAN §4b; Track S, E1a). Read
@@ -160,6 +161,15 @@ async function submit(): Promise<void> {
       v-model:dataset-id="values.outcome_dataset_id"
       :editable="editable"
       :error="errorOn('outcome_feed')"
+    />
+
+    <AdsLeadQualitySection
+      v-model:enabled="values.lead_quality_enabled"
+      v-model:min-attempted="values.lead_quality_min_attempted"
+      v-model:wrong-pct="values.lead_quality_wrong_number_pct"
+      v-model:not-qualified-pct="values.lead_quality_not_qualified_pct"
+      :editable="editable"
+      :error-on="errorOn"
     />
 
     <div v-if="editable" class="flex justify-end">
