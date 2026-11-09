@@ -22,6 +22,7 @@
 import { onBeforeUnmount, onMounted, shallowRef, toValue, watch, type Ref } from "vue";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { HERE_MAX_TILE_ZOOM, TILE_CSS_PX, TILE_REQUEST } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -127,6 +128,18 @@ export interface UseMapLibreOptions {
  */
 const TILE_SOURCE = "here";
 
+/**
+ * A caller's tile template with the tile request appended (D-DR26, `@silvicom/shared` basemap.ts).
+ *
+ * ⚠ It is appended HERE and not by the callers, because `size=512&ppi=200` and the `tileSize` below
+ * are two halves of one decision: that tile is right only because the source lays it over
+ * `TILE_CSS_PX`. A caller writing `size=` into its own URL could change one half without the other —
+ * the live map and Fuel Planning would each be a copy of the rule. Pure, so a test can hold it still.
+ */
+export function withTileRequest(template: string): string {
+  return `${template}${template.includes("?") ? "&" : "?"}size=${TILE_REQUEST.size}&ppi=${TILE_REQUEST.ppi}`;
+}
+
 export function useMapLibre(options: UseMapLibreOptions): {
   map: Ref<maplibregl.Map | null>;
 } {
@@ -142,6 +155,22 @@ export function useMapLibre(options: UseMapLibreOptions): {
    * reader asks for it and kept for the life of the map.
    */
   const rasterLayers = new Map<string, string>();
+  const tileUrl = () => withTileRequest(toValue(options.tiles));
+  /**
+   * Both raster definitions in this file are built here so they cannot disagree.
+   *
+   * ⚠ `maxzoom` is HERE's deepest tile. maplibre defaults a raster source to 22 and asks for zoom 21
+   * tiles nobody serves — measured in the app on the code before D-DR26: 10 zoom-21 requests at the
+   * deepest zoom, each refused by the proxy's coordinate check. maplibre then falls back to the
+   * zoom-20 tile, so the picture was right and the requests were waste. With `maxzoom` it overzooms
+   * the zoom-20 tile without asking (measured after: deepest tile requested is 20).
+   */
+  const rasterSource = (tiles: string) => ({
+    type: "raster" as const,
+    tiles: [tiles],
+    tileSize: TILE_CSS_PX,
+    maxzoom: HERE_MAX_TILE_ZOOM,
+  });
 
   function attachAuth(url: string): maplibregl.RequestParameters {
     if (accessToken && url.includes(options.authPathFragment)) {
@@ -167,12 +196,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
       style: {
         version: 8,
         sources: {
-          [TILE_SOURCE]: {
-            type: "raster",
-            tiles: [toValue(options.tiles)],
-            tileSize: 512,
-            attribution: options.attribution,
-          },
+          [TILE_SOURCE]: { ...rasterSource(tileUrl()), attribution: options.attribution },
         },
         layers: [{ id: TILE_SOURCE, type: "raster", source: TILE_SOURCE }],
       },
@@ -182,7 +206,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
     // The style above declares the first basemap, so it is registered here rather than added again —
     // otherwise the first switch would build a second layer for a basemap already on screen, and
     // every id would be off by one.
-    rasterLayers.set(toValue(options.tiles), TILE_SOURCE);
+    rasterLayers.set(tileUrl(), TILE_SOURCE);
     /**
      * ⚠ `navControl: false` exists because maplibre only knows FOUR corners, and on the live map all
      * four are taken (D-DR21). Measured 2026-09-16: the built-in control lands at 1458,92 (39×68)
@@ -215,9 +239,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
   function addBasemapLayer(instance: maplibregl.Map, tiles: string): string {
     const id = rasterLayers.size === 0 ? TILE_SOURCE : `${TILE_SOURCE}-${rasterLayers.size}`;
     instance.addSource(id, {
-      type: "raster",
-      tiles: [tiles],
-      tileSize: 512,
+      ...rasterSource(tiles),
       // ⚠ Only the first source carries it: maplibre concatenates the attribution of every source
       // with a visible layer, and four sources naming HERE would print "© HERE" four times.
       ...(rasterLayers.size === 0 ? { attribution: options.attribution } : {}),
@@ -262,7 +284,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
    * this itself would be the copy that drifts — the ref is the supported way to ask.
    */
   watch(
-    () => toValue(options.tiles),
+    tileUrl,
     (next) => {
       const instance = map.value;
       if (!instance) return;
@@ -282,7 +304,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
         if (e.sourceId !== id || !instance.isSourceLoaded(id)) return;
         instance.off("sourcedata", onData);
         // The reader may have switched again while this one loaded; the last choice wins.
-        if (toValue(options.tiles) === next) reveal();
+        if (tileUrl() === next) reveal();
       };
       instance.on("sourcedata", onData);
     },

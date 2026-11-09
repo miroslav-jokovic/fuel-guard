@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { BASEMAPS, BASEMAP_CHOICES, basemapFor, resolveBasemapStyle, resolveBasemapFormat } from "./basemap.js";
+import {
+  BASEMAPS,
+  BASEMAP_CHOICES,
+  HERE_MAX_TILE_ZOOM,
+  TILE_CSS_PX,
+  TILE_REQUEST,
+  basemapFor,
+  resolveBasemapStyle,
+  resolveBasemapFormat,
+  resolveTileRequest,
+} from "./basemap.js";
 
 /**
  * The basemap allowlist (D-DR8).
@@ -96,5 +106,52 @@ describe("which basemap a map may ask for", () => {
     expect(resolveBasemapStyle(["explore.night", "explore.day"])).toBe("explore.day");
     expect(resolveBasemapStyle(["explore.night"])).toBe("explore.day");
     expect(resolveBasemapStyle({ toString: () => "explore.night" })).toBe("explore.day");
+  });
+});
+
+/**
+ * D-DR26 — the one tile every map asks for, and what the proxy will honour.
+ *
+ * ⚠ The values are pinned to what HERE ANSWERED, not to its documentation: `ppi` 100, 200 and 400
+ * answered 200 with the production key and 150, 250, 300 and 500 answered 400; zoom 20 answered on all
+ * four basemaps and zoom 21 answered 400. A value drifting off those fails every tile in view at once.
+ */
+describe("which tile a map asks for (D-DR26)", () => {
+  /**
+   * The pair is the fix: a 512 tile at ppi 200 over 256 CSS pixels is what named the Joliet Pilot at
+   * map zoom 16 on both a Retina and a standard screen. A 256 tile at ppi 100 — the "one pixel per
+   * pixel" choice — drew bare pins there, so this is pinned against a well-meant revert.
+   */
+  it("asks for a 512 tile at ppi 200 and lays it over 256 CSS pixels", () => {
+    expect(TILE_REQUEST).toEqual({ size: 512, ppi: 200 });
+    expect(TILE_CSS_PX).toBe(256);
+  });
+
+  it("stops at the deepest zoom HERE serves", () => {
+    expect(HERE_MAX_TILE_ZOOM).toBe(20);
+  });
+
+  it("passes the current request through off the wire", () => {
+    expect(resolveTileRequest("512", "200")).toEqual({ size: 512, ppi: 200 });
+  });
+
+  /**
+   * ⚠ The fallback is the pre-D-DR26 request, NOT `TILE_REQUEST`. A browser on an older bundle sends
+   * neither parameter and lays the tile over 512 CSS pixels; `TILE_REQUEST` would halve its labels.
+   */
+  it("serves an older client exactly the tile it was built for", () => {
+    expect(resolveTileRequest(undefined, undefined)).toEqual({ size: 512, ppi: 100 });
+  });
+
+  it("refuses any other pair, including a ppi HERE would reject", () => {
+    expect(resolveTileRequest("256", "200")).toEqual({ size: 512, ppi: 100 });
+    expect(resolveTileRequest("512", "300")).toEqual({ size: 512, ppi: 100 });
+    expect(resolveTileRequest("1024", "200")).toEqual({ size: 512, ppi: 100 });
+    expect(resolveTileRequest("512", undefined)).toEqual({ size: 512, ppi: 100 });
+  });
+
+  it("refuses a repeated parameter rather than trusting either copy", () => {
+    expect(resolveTileRequest(["512"], ["200"])).toEqual({ size: 512, ppi: 100 });
+    expect(resolveTileRequest("512", ["200", "200"])).toEqual({ size: 512, ppi: 100 });
   });
 });

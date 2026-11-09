@@ -1116,3 +1116,22 @@ conflict every time (`plan-progress-log-not-table-rows`).
 - **2026-11-01 — D-DR16 page half BUILT** by the sidebar redesign (`SIDEBAR-REDESIGN-PLAN.md` D-SB1):
   ⌘K / Ctrl K and a "Search pages" field go to any page the caller can open. Record search stays open
   there as Q-SB1.
+
+- **2026-11-09 — D-DR26: the map is sharp and names a truck stop a zoom earlier.** The owner: "the
+  map is a little blurry", and "when I zoom in I don't see place names — I can't tell whether the
+  truck is at a truck stop; on Google Maps I can". Both were one setting. Every map asked HERE for a
+  512-pixel tile and laid it over 512 CSS pixels, so a Retina screen stretched it 2×. And HERE
+  prints a business name only from tile zoom 17, which those tiles reached at map zoom 16.5. Now every
+  map asks for a 512 tile at `ppi=200` and lays it over 256 CSS pixels (`TILE_REQUEST`,
+  `TILE_CSS_PX` in `@silvicom/shared` basemap.ts, which carries the measurements). In the real app,
+  real HERE tiles, a truck parked at the Pilot in Joliet, map zoom 16: before, two bare "P" pins;
+  after, "Pilot Travel Center" twice, house numbers and bus stops, on a Retina AND a standard screen.
+  ⚠ The first build gave standard screens a 256 tile at ppi 100 ("one pixel per pixel") and it drew
+  bare pins there too — HERE decides names by ground resolution per pixel, so only the ppi-200 tile
+  names the place; maplibre mipmaps raster textures, so shrinking it 2× on a standard screen is
+  clean. ⚠ Cost, measured on the same zoom walk 9→21: **125 → 262 tile requests (DPR 2), 135 → 268
+  (DPR 1)** — about 2×. The fleet's monthly HERE tile count is still unmeasured (Q-LM21). ⚠ Found on
+  the way: today's map asked for 10 zoom-21 tiles at the deepest zoom, each refused by the proxy
+  (HERE stops at 20); the raster sources now carry `maxzoom: 20` and the walk's deepest request is
+  20. Not in this step: the "At: Pilot Travel Center — truck stop" line on the truck card, from HERE
+  Browse (category `700-7900-0132`, confirmed with our key) — the direct answer at fleet zoom.
