@@ -74,6 +74,12 @@ export interface PlatformSafe {
    * campaign is a success), which is what lets a step that crashed mid-call simply ask again.
    */
   pause(call: { campaign: PlatformCampaignRef; idempotency_key: string }): Promise<PlatformOutcome>;
+  /**
+   * Stop ONE ad's delivery while its campaign keeps running (CQ9, D-AD23): a tired ad is retired, the next concept
+   * enters. The safe direction, like `pause`: no guard, no approval, idempotent at the platform. `ad` is the
+   * platform's own id for the ad, as the publisher recorded it (`platform_refs.ads[].meta_ad_id`).
+   */
+  pauseAd(call: { campaign: PlatformCampaignRef; ad: string; idempotency_key: string }): Promise<PlatformOutcome>;
 }
 
 /** One connection's adapter, both halves. Built by B1's registry; the orchestrator never sees it whole. */

@@ -21,7 +21,7 @@ function fakes(w: AdsWorld, opts: { launch?: PlatformOutcome | Error; pause?: Pl
     return opts.launch ?? { ok: true as const, platform_refs: { meta_campaign: "m-1" } };
   });
   const adapter = {
-    safe: { readAccountHeadroomCents: vi.fn(async () => 300_000), readSpendCents: vi.fn(async () => 0), pause: vi.fn(async () => opts.pause ?? { ok: true as const }) },
+    safe: { readAccountHeadroomCents: vi.fn(async () => 300_000), readSpendCents: vi.fn(async () => 0), pause: vi.fn(async () => opts.pause ?? { ok: true as const }), pauseAd: vi.fn(async () => ({ ok: true as const })) },
     spend: { launch, raiseDailyBudget: vi.fn(), changeArea: vi.fn() },
   };
   const compose = vi.fn(async (_c: CampaignRow, _key: string): Promise<WorkerResult> => ({ ok: true }));

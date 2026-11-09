@@ -270,6 +270,12 @@ for (const stage of ["lost", "disqualified"]) {
   ok(`the retired or unknown stage ${stage} is refused (23514, 0570/0580)`, (await stageRow(stage, `stage-${stage}`)) === "23514");
 }
 
+// ── retiring one ad (0581, CQ9) ───────────────────────────────────────────────────────────────
+ok("a retire_ad action is a kind the ledger takes (0581)",
+  (await sqlstate(`insert into ads_actions (org_id, campaign_id, kind, actor_kind, actor_name) values ($1, $2, 'retire_ad', 'agent', 'monitor')`, [ORG, CAMP])) === null);
+ok("a kind nobody listed is still refused (23514)",
+  (await sqlstate(`insert into ads_actions (org_id, campaign_id, kind, actor_kind, actor_name) values ($1, $2, 'retire_campaign', 'agent', 'monitor')`, [ORG, CAMP])) === "23514");
+
 // ── spend by hour ─────────────────────────────────────────────────────────────────────────────
 ok("an hour's spend is recorded",
   (await sqlstate(`insert into ads_spend_hourly (org_id, campaign_id, hour, spend_cents, currency) values ($1, $2, '2026-11-02T14:00:00Z', 1250, 'USD')`, [ORG, CAMP])) === null);
@@ -297,6 +303,8 @@ const check = (await one(`select pg_get_constraintdef(oid) d from pg_constraint 
 ok("the category CHECK carries the eight new categories and keeps 0521's",
   ["ads_overspend", "ads_rejected", "ads_no_leads", "ads_external_change", "ads_token_expiring", "ads_brief", "lead_new", "lead_uncontacted", "chat_reply", "load_offered"]
     .every((c) => check.includes(`'${c}'`)), check);
+ok("the category CHECK carries ads_lead_quality (0575) and ads_creative_retired (0581)",
+  ["ads_lead_quality", "ads_creative_retired"].every((c) => check.includes(`'${c}'`)), check);
 
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

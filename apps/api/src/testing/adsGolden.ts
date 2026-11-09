@@ -130,6 +130,7 @@ export async function runGolden(s: GoldenScenario, file = s.name): Promise<Golde
         vendor.pause += 1;
         return platformAnswer(answer.forPause(), {});
       },
+      pauseAd: async () => { throw new Error("ads golden: no scenario retires an ad yet (CQ9b)"); },
     },
     spend: {
       launch: async (call) => {

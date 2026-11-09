@@ -2,6 +2,9 @@ import { z } from "zod";
 import { recordId } from "../recordId.js";
 import { NOTIFICATION_CATEGORIES, type NotificationCategory } from "../notificationsContract.js";
 import { AD_AI_AGENTS, AD_PLATFORMS, type AdPlatform } from "./contracts.js";
+import { adsCreativeRefreshSchema } from "./adFatigue.js";
+/** The literal, not the parsed default: a zod default must be a plain value the type of the field. */
+const ADS_CREATIVE_REFRESH_DEFAULT_LITERAL = { retire: false, min_days: 7, ctr_drop_pct: 25, min_impressions: 2000 } as const;
 
 /**
  * Settings › Ads control (ADS-AGENT-PLAN §4b): what one save of the page holds. Stored whole as
@@ -132,6 +135,8 @@ export const ADS_LEAD_QUALITY_DEFAULT: AdsLeadQuality = { enabled: true, min_att
 export const adsSettingsSchema = z.object({
   limits: adsSpendLimitsSchema,
   auto_pause: adsAutoPauseSchema,
+  /** CQ9 (D-AD23): when a tired ad is retired, judged against its own first week. Defaulted (off) so every saved version parses. */
+  creative_refresh: adsCreativeRefreshSchema.default(ADS_CREATIVE_REFRESH_DEFAULT_LITERAL),
   approvals: adsApprovalsSchema,
   budgets: adsBudgetsSchema,
   alerts: adsAlertsSchema,
@@ -147,6 +152,7 @@ export const ADS_SETTINGS_UNSET: AdsSettings = {
     cpl_max_cents: null, cpl_min_leads: null, no_lead_spend_cents: null, frequency_max: null,
     pause_at_daily_cap: true, pause_when_filled: true,
   },
+  creative_refresh: { retire: false, min_days: 7, ctr_drop_pct: 25, min_impressions: 2000 },
   approvals: { second_approver_above_cents: null },
   budgets: { anthropic_tokens_monthly: null, higgsfield_credits_monthly: null, max_regenerations: 1, agents_enabled: {} },
   alerts: { recipients: {}, uncontacted_lead_minutes: 15 },

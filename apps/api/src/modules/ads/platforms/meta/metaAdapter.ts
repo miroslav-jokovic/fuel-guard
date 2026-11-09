@@ -109,6 +109,19 @@ export function metaAdapter(deps: MetaAdapterDeps): PlatformAdapter {
         if (!back.ok) return back.outcome;
         return back.status === "PAUSED" ? { ok: true, response: { status: back.status, effective_status: back.effective } } : { ok: false, error_code: "pause_not_applied", response: back };
       },
+
+      // CQ9: one ad PAUSED, read back like the campaign's pause; an ad id the campaign's refs do not hold is refused
+      // before any call — this adapter pauses only what this campaign made.
+      async pauseAd({ campaign, ad }) {
+        const ids = refs(campaign, false);
+        if (!isRefs(ids)) return ids;
+        if (!ids.ads.includes(ad)) return { ok: false, error_code: "ad_not_in_campaign", response: { ad } };
+        const failed = await steps([["ad_paused", ad, { status: "PAUSED" }]]);
+        if (failed) return failed;
+        const back = await statusOf(ad);
+        if (!back.ok) return back.outcome;
+        return back.status === "PAUSED" ? { ok: true, response: { ad, status: back.status, effective_status: back.effective } } : { ok: false, error_code: "pause_not_applied", response: back };
+      },
     },
 
     spend: {

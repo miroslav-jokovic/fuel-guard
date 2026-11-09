@@ -64,6 +64,28 @@ describe("Meta adapter (B3) — pause", () => {
   });
 });
 
+describe("Meta adapter (CQ9) — retiring one ad", () => {
+  it("pauseAd sets that ad alone to PAUSED, read back from Meta, and leaves the campaign and the ad set as they were", async () => {
+    meta.sets.ads.set("503", { id: "503", adset_id: "501", name: "S360|ad2", status: "ACTIVE" });
+    meta.sets.ads.get("502")!.status = "ACTIVE";
+    meta.campaigns.get("500")!.status = "ACTIVE";
+    const out = await adapter().safe.pauseAd({ campaign: ref({ meta_ad_ids: ["502", "503"] }), ad: "503", idempotency_key: "retire:503" });
+    expect(out).toMatchObject({ ok: true, response: { ad: "503", status: "PAUSED" } });
+    expect(writes()).toEqual(["503:status=PAUSED"]);
+    expect([meta.campaigns.get("500")!.status, meta.sets.ads.get("502")!.status, meta.sets.ads.get("503")!.status]).toEqual(["ACTIVE", "ACTIVE", "PAUSED"]);
+  });
+
+  it("an ad the campaign's refs do not hold is refused before any call: this adapter pauses only what this campaign made", async () => {
+    expect(await adapter().safe.pauseAd({ campaign: ref(), ad: "999", idempotency_key: "k" })).toEqual({ ok: false, error_code: "ad_not_in_campaign", response: { ad: "999" } });
+    expect(writes()).toEqual([]);
+  });
+
+  it("pausing a paused ad succeeds (idempotent at Meta), so a retried step asks again safely", async () => {
+    expect((await adapter().safe.pauseAd({ campaign: ref(), ad: "502", idempotency_key: "k" })).ok).toBe(true);
+    expect((await adapter().safe.pauseAd({ campaign: ref(), ad: "502", idempotency_key: "k" })).ok).toBe(true);
+  });
+});
+
 describe("Meta adapter (B3) — launch, raise, area", () => {
   it("launch sets the approved amounts, then the ad and the ad set ACTIVE, and the campaign LAST, read back ACTIVE", async () => {
     expect(await adapter().spend.launch(call())).toMatchObject({ ok: true, response: { status: "ACTIVE" } });
