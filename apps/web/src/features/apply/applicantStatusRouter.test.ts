@@ -18,7 +18,7 @@ const OFF = {
   consentNeeded: false, consenting: false, consentFailed: false, partOneNeeded: false, partOneInputs: null,
   refreshPartOne: async () => null, isPartOneLink: false, identityNeeded: false, ceremonyNeeded: false, releases: [],
   waitingForApplication: false, awaitingOffice: false, locked: false, awaitingSignature: false, packetStops: [],
-  packetAdopted: null, sending: false, sendError: null,
+  packetAdopted: null, sending: false, sendError: null, sendIssues: [],
 };
 
 describe("the phase chain's wait screens", () => {
