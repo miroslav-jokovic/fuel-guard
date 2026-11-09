@@ -6,5 +6,6 @@ export * from "./leadContract.js";
 export * from "./leadMatch.js";
 export * from "./facts/index.js";
 export * from "./leadClosureContract.js";
+export * from "./phoneLookupContract.js";
 export * from "./leadDisplay.js";
 export * from "./openingBrief.js";

@@ -45,6 +45,19 @@ export interface RetentionRule {
 export const RETENTION_RULES: RetentionRule[] = [
   {
     /**
+     * LQ8a (0583): the phone provider's reading of a lead's number. A year-old line type says little about a
+     * number (ports happen), the lead it served is itself prunable (D-LS7), and a pruned row costs one lookup
+     * if the number ever turns up again. 400 = a year plus margin, the same figure `recruiting_leads` would get.
+     */
+    table: "phone_lookups",
+    timeColumn: "looked_up_at",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "A year-old line type says little about a number (ports happen); the lead it served is prunable (D-LS7); a pruned row costs one lookup if the number returns.",
+  },
+  {
+    /**
      * L3, docs/plans/architecture/DATA-LIFECYCLE-PLAN.md. The largest single line in the growth audit:
      * 991 MB and 2.21M rows/30d — 12.1 GB/year, more than `audit_logs` — and until 2026-09-22 this
      * table had NO rule at all, in a policy whose first principle is that derived and reproducible
