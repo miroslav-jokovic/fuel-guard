@@ -35,7 +35,7 @@ const recipe: AdPresetRecipe = {
   name: "Fixture", hook_formula: "Lead with the figure.",
   copy_slots: [{ name: "hook", max_chars: 60 }, { name: "cta", max_chars: 30 }, { name: "body", max_chars: 200 }, { name: "title", max_chars: 40 }],
   image_prompt_template: "A {vehicle} at dusk, no text, no logos, no lettering", image_slots: ["vehicle"],
-  starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null, formats: ["4:5"],
+  starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null, layout: "bottom_plate", formats: ["4:5"],
   overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: { primary_text: "body", headline: "title" },
 };
 

@@ -35,7 +35,7 @@ const RECIPE: AdPresetRecipe = {
   name: "Fixture preset", hook_formula: "Lead with the pay figure.", copy_slots: [{ name: "hook", max_chars: 60 }, { name: "pay", max_chars: 40 }, { name: "cta", max_chars: 30 }, { name: "title", max_chars: 40 }],
   image_prompt_template: "An empty highway at {time_of_day}, no text, no logos, no lettering", image_slots: ["time_of_day"],
   overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: { primary_text: "pay", headline: "title" },
-  starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null, formats: ["4:5"],
+  starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null, layout: "bottom_plate", formats: ["4:5"],
 };
 
 let server: Server;

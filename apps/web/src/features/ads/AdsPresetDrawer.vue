@@ -4,7 +4,7 @@ import { AD_FORMATS, type AdFormat, type AdPresetView } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppFormField as FormField, AppInput as BaseInput, AppSelect, AppSwitch as BaseSwitch, AppTextarea } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useToastStore } from "@/stores/toast";
-import { blankPresetForm, presetFormFrom, presetSaveFrom, type PresetForm } from "./adsPresetForm";
+import { blankPresetForm, layoutOptions, presetFormFrom, presetSaveFrom, type PresetForm } from "./adsPresetForm";
 import { useSavePreset } from "./useAdsPresets";
 
 /**
@@ -92,6 +92,7 @@ async function submit(): Promise<void> {
           <AppTextarea :id="id" v-model="form.image_prompt_template" rows="3" data-test="preset-template" />
         </FormField>
         <FormField v-slot="{ id }" label="The picture starts from" required><AppSelect :id="id" v-model="form.starts_from" :options="STARTS" /></FormField>
+        <FormField v-slot="{ id }" label="Where the words sit" hint="Part of the concept: two presets on one picture still read as two ads." required><AppSelect :id="id" v-model="form.layout" :options="layoutOptions()" data-test="preset-layout" /></FormField>
         <div class="flex items-center justify-between gap-4"><p class="text-sm text-ink">Shows our equipment</p><BaseSwitch v-model="form.shows_equipment" label="Shows our equipment" /></div>
         <div class="flex items-center justify-between gap-4"><p class="text-sm text-ink">Shows people</p><BaseSwitch v-model="form.shows_people" label="Shows people" /></div>
       </fieldset>

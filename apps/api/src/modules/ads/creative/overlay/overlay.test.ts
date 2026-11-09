@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { AD_FORMATS, FORMAT_SIZE, safeZone, type AdBrandKit, type AdFormat, type AdClaim } from "@silvicom/shared";
+import { AD_FORMATS, AD_OVERLAY_LAYOUTS, FORMAT_SIZE, safeZone, type AdBrandKit, type AdFormat, type AdClaim, type AdOverlayLayout } from "@silvicom/shared";
 import { renderOverlay, type OverlayInput } from "./overlay.js";
 
 /**
@@ -45,13 +45,20 @@ describe("overlay renderer — golden images per format", () => {
   it("1:1 matches its golden image", () => golden("1:1"));
   it("4:5 matches its golden image", () => golden("4:5"));
   it("9:16 matches its golden image", () => golden("9:16"));
+  // CQ6: the two other layouts, per format, each its own golden (`<format>-<layout>.png`).
+  it("1:1 top_band matches its golden image", () => golden("1:1", "top_band"));
+  it("4:5 top_band matches its golden image", () => golden("4:5", "top_band"));
+  it("9:16 top_band matches its golden image", () => golden("9:16", "top_band"));
+  it("1:1 centered matches its golden image", () => golden("1:1", "centered"));
+  it("4:5 centered matches its golden image", () => golden("4:5", "centered"));
+  it("9:16 centered matches its golden image", () => golden("9:16", "centered"));
 
-  async function golden(format: AdFormat): Promise<void> {
-    const out = await renderOverlay(await input(format));
+  async function golden(format: AdFormat, layout: AdOverlayLayout = "bottom_plate"): Promise<void> {
+    const out = await renderOverlay(await input(format, { layout }));
     if (out.kind !== "rendered") throw new Error(JSON.stringify(out.findings));
     const meta = await sharp(out.png).metadata();
     expect([meta.width, meta.height]).toEqual([FORMAT_SIZE[format].width, FORMAT_SIZE[format].height]);
-    const file = new URL(`${format.replace(":", "x")}.png`, GOLDEN);
+    const file = new URL(`${format.replace(":", "x")}${layout === "bottom_plate" ? "" : `-${layout}`}.png`, GOLDEN);
     if (process.env.UPDATE_GOLDEN === "1" || !existsSync(file)) {
       if (process.env.CI === "true" && !existsSync(file)) throw new Error(`golden ${file.pathname} is missing — run with UPDATE_GOLDEN=1 and commit it`);
       mkdirSync(GOLDEN, { recursive: true });
@@ -71,6 +78,43 @@ describe("overlay renderer — golden images per format", () => {
       }
       expect(out.blocks.map((b) => b.label)).toEqual(["headline", "cta", "eeo"]);
     }
+  });
+
+  it("every layout keeps every block inside the zone; top_band starts at its top, centered sits mid-zone, bottom_plate ends at its bottom", async () => {
+    for (const format of AD_FORMATS) {
+      const z = safeZone(format);
+      const by = Object.fromEntries(await Promise.all(AD_OVERLAY_LAYOUTS.map(async (layout) => {
+        const out = await renderOverlay(await input(format, { layout }));
+        if (out.kind !== "rendered") throw new Error(`${format} ${layout}: ${JSON.stringify(out.findings)}`);
+        for (const b of out.blocks) {
+          expect(b.box.x).toBeGreaterThanOrEqual(z.x);
+          expect(b.box.y).toBeGreaterThanOrEqual(z.y);
+          expect(b.box.y + b.box.height).toBeLessThanOrEqual(z.y + z.height);
+        }
+        return [layout, out.blocks] as const;
+      })));
+      const top = (l: AdOverlayLayout) => by[l]![0]!.box.y;
+      const bottom = (l: AdOverlayLayout) => { const last = by[l]![by[l]!.length - 1]!; return last.box.y + last.box.height; };
+      expect(top("top_band")).toBeLessThan(top("centered"));
+      expect(top("centered")).toBeLessThan(top("bottom_plate"));
+      expect(bottom("bottom_plate")).toBeGreaterThan(z.y + z.height - 60);
+      expect(top("top_band")).toBeLessThan(z.y + 60);
+      const mid = z.y + z.height / 2;
+      expect(Math.abs((top("centered") + bottom("centered")) / 2 - mid)).toBeLessThan(40);
+      // The stack's height is the layout's business nowhere: the same words make the same stack.
+      expect(bottom("top_band") - top("top_band")).toBe(bottom("bottom_plate") - top("bottom_plate"));
+    }
+  });
+
+  it("the same words on the same picture are three different images, one per layout", async () => {
+    const [a, b, c] = await Promise.all(AD_OVERLAY_LAYOUTS.map(async (layout) => {
+      const out = await renderOverlay(await input("4:5", { layout }));
+      if (out.kind !== "rendered") throw new Error(layout);
+      return out.png;
+    }));
+    expect(await differs(a!, b!)).toBeGreaterThan(0.02);
+    expect(await differs(b!, c!)).toBeGreaterThan(0.02);
+    expect(await differs(a!, c!)).toBeGreaterThan(0.02);
   });
 
   it("draws the Spanish EEO line and accented copy with the bundled font", async () => {
