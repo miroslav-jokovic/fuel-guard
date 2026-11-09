@@ -252,6 +252,16 @@ describe("the queue", () => {
     const lead = ((await (await call("/leads", "recruiter")).json()) as { leads: Array<{ verdicts: Array<{ requirement: string; verdict: string }>; summary: unknown }> }).leads[0]!;
     expect([lead.verdicts.find((x) => x.requirement === "class_a")?.verdict, lead.summary]).toEqual(["meets", { hardUnmet: 0, unknown: 1, met: 1 }]);
   });
+  it("mine=1 asks for the signed-in user's own leads (0576); without it the call is 0554's five arguments (LQ2c)", async () => {
+    seed();
+    await call("/leads?mine=1", "recruiter");
+    expect((rec.rpcs().find((c) => c.fn === "recruiting_lead_queue")!.args as Record<string, unknown>).p_assigned).toBe("u-recruiter");
+    seed();
+    await call("/leads", "recruiter");
+    expect("p_assigned" in (rec.rpcs().find((c) => c.fn === "recruiting_lead_queue")!.args as object)).toBe(false);
+    seed();
+    expect((await call("/leads?mine=someone-else", "recruiter")).status).toBe(400);
+  });
   it("a short page has no next cursor", async () => {
     seed({ queue: [QUEUE_ROW("a", "2026-11-03T12:02:00Z")] });
     expect(((await (await call("/leads?limit=2", "recruiter")).json()) as { next: unknown }).next).toBeNull();

@@ -11,7 +11,7 @@ import { formatDateTime, formatPhone } from "@/lib/format";
 import AddLeadDrawer from "@/features/recruitment/AddLeadDrawer.vue";
 import LeadDrawer from "@/features/recruitment/LeadDrawer.vue";
 import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
-import { LEADS_OPEN, LEADS_PAGE_SIZE, useLeadQueueQuery } from "@/features/recruitment/useLeads";
+import { LEADS_EVERYONE, LEADS_MINE, LEADS_OPEN, LEADS_PAGE_SIZE, useLeadQueueQuery } from "@/features/recruitment/useLeads";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -34,6 +34,9 @@ const statusOptions = [
   ...LEAD_STATUSES.map((s) => ({ value: s as string, label: LEAD_STATUS_LABELS[s] })),
 ];
 const show = qs.param("show", statusOptions.map((o) => o.value), LEADS_OPEN);
+// LQ2c: a recruiter's own leads (each new ad lead for an opening they own is theirs, LQ2b), in the URL like "show".
+const whoseOptions = [{ value: LEADS_EVERYONE, label: "Everyone's" }, { value: LEADS_MINE, label: "Mine" }];
+const whose = qs.param("whose", whoseOptions.map((o) => o.value), LEADS_EVERYONE);
 const openLead = qs.param("lead");
 const openLeadId = computed(() => openLead.value ?? "");
 
@@ -44,9 +47,9 @@ function added(leadId: string): void {
   openLead.value = leadId;
 }
 
-const query = useLeadQueueQuery(show);
+const query = useLeadQueueQuery(show, whose);
 const page = ref(1);
-watch(show, () => (page.value = 1));
+watch([show, whose], () => (page.value = 1));
 const fetchedPages = computed(() => query.data.value?.pages.length ?? 0);
 const pageRows = computed<LeadQueueRow[]>(() => query.data.value?.pages[page.value - 1]?.leads ?? []);
 const hasNext = computed(() => page.value < fetchedPages.value || query.hasNextPage.value);
@@ -59,9 +62,11 @@ async function goTo(n: number): Promise<void> {
   page.value = n;
 }
 
-const activeFilterCount = computed(() => (show.value !== LEADS_OPEN ? 1 : 0));
+const activeFilterCount = computed(() => (show.value !== LEADS_OPEN ? 1 : 0) + (whose.value !== LEADS_EVERYONE ? 1 : 0));
 const emptyText = computed(() =>
-  show.value === LEADS_OPEN
+  whose.value === LEADS_MINE
+    ? "No leads of yours here. A new ad lead is yours when its opening names you as its recruiter."
+    : show.value === LEADS_OPEN
     ? "No open leads. New ones appear here as they come in."
     : `No leads marked ${LEAD_STATUS_LABELS[show.value as LeadQueueRow["status"]].toLowerCase()}.`,
 );
@@ -89,9 +94,10 @@ const personName = (row: LeadQueueRow) => row.full_name ?? (row.phone_e164 || ro
     <RecruitmentTabs />
 
     <DataWorkspace>
-      <FilterBar embedded :active-count="activeFilterCount" @clear-all="qs.set({ show: undefined })">
+      <FilterBar embedded :active-count="activeFilterCount" @clear-all="qs.set({ show: undefined, whose: undefined })">
         <template #filters>
           <FilterSelect v-model="show" label="Show" :options="statusOptions" />
+          <FilterSelect v-model="whose" label="Whose" :options="whoseOptions" data-test="leads-whose" />
         </template>
       </FilterBar>
       <DataTable
