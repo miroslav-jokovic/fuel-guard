@@ -2395,6 +2395,12 @@ async function main() {
         `with l as (insert into recruiting_leads (org_id, channel) values ('${org}', 'rls') returning id) ` +
         `insert into recruiting_contacts (org_id, lead_id, direction, method, created_by, created_by_name) ` +
         `select '${org}', l.id, 'outbound', 'call', gen_random_uuid(), 'rls' from l`,
+      // 0578 (LQ5a): `(kind = 'closed') = (reason is not null)` ties two columns, which the column-by-column
+      // seeder cannot see; a qualified act carries no reason.
+      recruiting_lead_closures: (org) =>
+        `with l as (insert into recruiting_leads (org_id, channel) values ('${org}', 'rls') returning id) ` +
+        `insert into recruiting_lead_closures (org_id, lead_id, kind, status_after, actor, actor_name) ` +
+        `select '${org}', l.id, 'qualified', 'qualified', gen_random_uuid(), 'rls' from l`,
       lead_match_verdicts: (org) =>
         `with p as (insert into hiring_profiles (org_id, name) values ('${org}', 'rls') returning id), ` +
         `v as (insert into hiring_profile_versions (org_id, profile_id, version, requirements, created_by, created_by_name) ` +
