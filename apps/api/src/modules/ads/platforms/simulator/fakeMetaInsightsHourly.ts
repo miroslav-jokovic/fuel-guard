@@ -85,9 +85,38 @@ export function plantFrequency(fake: object, adsetId: string, frequency: number)
   frequencies.get(fake)!.set(adsetId, frequency);
 }
 
+/**
+ * AD-level hours (CQ3, `ads_ad_spend_hourly`): what Meta reports for one AD's local hour when the pull asks the
+ * campaign's insights edge with `level=ad`. Planted under the campaign, keyed by the ad id, so a test plants a
+ * campaign's two ads with different numbers and reads them apart. The fake does not check that the ad belongs to
+ * the campaign — it answers what was planted, as the campaign hours do.
+ */
+type AdStore = Map<string, Map<string, PlantedHour>>;
+const adStores = new WeakMap<object, AdStore>();
+const adStoreOf = (fake: object): AdStore => {
+  let s = adStores.get(fake);
+  if (!s) adStores.set(fake, (s = new Map()));
+  return s;
+};
+
+export function plantAdHour(fake: object, campaignId: string, adId: string, localDay: string, localHour: number, n: Partial<PlantedHour>): void {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(localDay) || !Number.isInteger(localHour) || localHour < 0 || localHour > 23) {
+    throw new Error(`plantAdHour: ${localDay} ${localHour} is not a local day and hour`);
+  }
+  const s = adStoreOf(fake);
+  if (!s.has(campaignId)) s.set(campaignId, new Map());
+  s.get(campaignId)!.set(`${adId}|${localDay}|${String(localHour).padStart(2, "0")}`, { spend_cents: 0, impressions: 0, clicks: 0, leads: 0, ...n });
+}
+
+/** Meta stopped reporting an ad's hour it reported before. */
+export function forgetAdHour(fake: object, campaignId: string, adId: string, localDay: string, localHour: number): void {
+  adStoreOf(fake).get(campaignId)?.delete(`${adId}|${localDay}|${String(localHour).padStart(2, "0")}`);
+}
+
 /** Every planted hour and frequency forgotten — a test's clean slate. */
 export function forgetAllHours(fake: object): void {
   storeOf(fake).clear();
+  adStoreOf(fake).clear();
   frequencies.get(fake)?.clear();
 }
 
@@ -125,14 +154,23 @@ export function campaignHourlyInsights(fake: object, campaignId: string, currenc
     return graphError(400, 100, "OAuthException", "(#100) time_range needs since <= until, as YYYY-MM-DD", trace);
   }
   const { since, until } = range as { since: string; until: string };
-  const planted = [...(storeOf(fake).get(campaignId) ?? new Map<string, PlantedHour>()).entries()]
-    .filter(([k, n]) => k.slice(0, 10) >= since && k.slice(0, 10) <= until && (n.spend_cents > 0 || n.impressions > 0 || n.clicks > 0 || n.leads > 0))
+  if (b.level !== undefined && b.level !== "campaign" && b.level !== "ad") {
+    return graphError(400, 100, "OAuthException", "(#100) FakeMeta answers campaign insights at level=campaign or level=ad", trace);
+  }
+  // level=ad: one row per ad per hour, `ad_id` on each (the Insights API's "one row per child"); a key here is
+  // `<ad>|<day>|<HH>` where a campaign hour's is `<day>|<HH>`, so the day is read from the end, not the start.
+  const atAd = b.level === "ad";
+  const dayOf = (k: string) => (atAd ? k.split("|")[1]! : k.slice(0, 10));
+  const planted = [...((atAd ? adStoreOf(fake) : storeOf(fake)).get(campaignId) ?? new Map<string, PlantedHour>()).entries()]
+    .filter(([k, n]) => dayOf(k) >= since && dayOf(k) <= until && (n.spend_cents > 0 || n.impressions > 0 || n.clicks > 0 || n.leads > 0))
     .sort(([a], [z]) => (a < z ? -1 : a > z ? 1 : 0));
   const limit = Math.max(1, Number(b.limit) || DEFAULT_LIMIT);
   const from = Math.max(0, Number(b.after ? Buffer.from(b.after, "base64").toString("utf8") : 0) || 0);
   const page = planted.slice(from, from + limit).map(([k, n]) => {
-    const [d, hh] = k.split("|") as [string, string];
+    const parts = k.split("|");
+    const [d, hh] = parts.slice(-2) as [string, string];
     return {
+      ...(atAd ? { ad_id: parts[0]! } : {}),
       campaign_id: campaignId, date_start: d, date_stop: d,
       [HOURLY_BREAKDOWN]: `${hh}:00:00 - ${hh}:59:59`,
       spend: (n.spend_cents / 100).toFixed(2), impressions: String(n.impressions), clicks: String(n.clicks),

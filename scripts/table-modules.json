@@ -3334,6 +3334,17 @@
         "budget_rows_per_day": 500,
         "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one row per live campaign per hour as the platform reports it; ~20 live campaigns x 24 h. Re-derivable from the platform; a retention rule can come with B5 once its reader's window is known."
       }
+    },
+    "ads_ad_spend_hourly": {
+      "module": "ads",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "new in 0577 (2026-11-09, ADS-CREATIVE-QUALITY-PLAN CQ3); one row per live AD per hour as the platform reports it — ~20 live campaigns x 5 concepts x 2 languages x 24 h. Re-derivable from the platform; a retention rule comes with the per-preset reader once its window is known."
+      }
     }
   }
 }

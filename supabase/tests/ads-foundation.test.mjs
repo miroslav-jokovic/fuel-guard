@@ -56,6 +56,7 @@ const TABLES = [
   "ads_settings_versions", "ad_brand_kits", "ad_brand_kit_versions", "ad_concept_presets",
   "ad_concept_preset_versions", "ads_platform_connections", "ads_campaigns", "ads_creatives",
   "ads_approvals", "ads_actions", "ad_generations", "ads_outcome_events", "ads_spend_hourly",
+  "ads_ad_spend_hourly",
 ];
 const PERSON = "00000000-0000-4000-8000-000000000001";
 const ENVELOPE = "v1.0a1b2c3d.aXZpdmFsdWU.dGFndmFsdWU.Y2lwaGVydGV4dA";
@@ -269,6 +270,20 @@ ok("a row not on the hour is refused (23514)",
   (await sqlstate(`insert into ads_spend_hourly (org_id, campaign_id, hour, spend_cents, currency) values ($1, $2, '2026-11-02T14:30:00Z', 1, 'USD')`, [ORG, CAMP])) === "23514");
 ok("spend against another carrier's campaign is refused (23503)",
   (await sqlstate(`insert into ads_spend_hourly (org_id, campaign_id, hour, spend_cents, currency) values ($1, $2, '2026-11-02T15:00:00Z', 1, 'USD')`, [ORG, CAMP_OTHER])) === "23503");
+
+// ── spend by hour, per AD (0577, CQ3) ─────────────────────────────────────────────────────────
+ok("an ad's hour is recorded against its creative and language (0577)",
+  (await sqlstate(`insert into ads_ad_spend_hourly (org_id, campaign_id, creative_id, language, meta_ad_id, hour, spend_cents, currency) values ($1, $2, $3, 'en', '880000000011', '2026-11-02T14:00:00Z', 800, 'USD')`, [ORG, CAMP, CR])) === null);
+ok("the same ad and hour again is the one row, not a second (23505, 0577)",
+  (await sqlstate(`insert into ads_ad_spend_hourly (org_id, campaign_id, creative_id, language, meta_ad_id, hour, spend_cents, currency) values ($1, $2, $3, 'en', '880000000011', '2026-11-02T14:00:00Z', 1, 'USD')`, [ORG, CAMP, CR])) === "23505");
+ok("an ad row naming another carrier's campaign is refused (23503, 0577)",
+  (await sqlstate(`insert into ads_ad_spend_hourly (org_id, campaign_id, creative_id, language, meta_ad_id, hour, spend_cents, currency) values ($1, $2, $3, 'en', '880000000012', '2026-11-02T14:00:00Z', 1, 'USD')`, [ORG, CAMP_OTHER, CR])) === "23503");
+ok("an ad row naming a creative that is not this carrier's is refused (23503, 0577)",
+  (await sqlstate(`insert into ads_ad_spend_hourly (org_id, campaign_id, creative_id, language, meta_ad_id, hour, spend_cents, currency) values ($1, $2, '00000000-0000-4000-8000-0000000000ee', 'en', '880000000013', '2026-11-02T14:00:00Z', 1, 'USD')`, [ORG, CAMP])) === "23503");
+ok("a language outside en/es is refused (23514, 0577)",
+  (await sqlstate(`insert into ads_ad_spend_hourly (org_id, campaign_id, creative_id, language, meta_ad_id, hour, spend_cents, currency) values ($1, $2, $3, 'fr', '880000000014', '2026-11-02T14:00:00Z', 1, 'USD')`, [ORG, CAMP, CR])) === "23514");
+ok("an ad row not on the hour is refused (23514, 0577)",
+  (await sqlstate(`insert into ads_ad_spend_hourly (org_id, campaign_id, creative_id, language, meta_ad_id, hour, spend_cents, currency) values ($1, $2, $3, 'en', '880000000015', '2026-11-02T14:30:00Z', 1, 'USD')`, [ORG, CAMP, CR])) === "23514");
 
 // ── the bell's categories ─────────────────────────────────────────────────────────────────────
 const check = (await one(`select pg_get_constraintdef(oid) d from pg_constraint where conname = 'notification_events_category_check'`)).d;

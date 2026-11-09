@@ -4,6 +4,7 @@ import { graphForConnection, type RegistryDeps } from "../platforms/registry.js"
 import { alertIfTokenRefused } from "../alerts/connectionAlerts.js";
 import { bucketHour, isKnownZone, localHourToUtc, windowDays } from "./localHours.js";
 import { isNoSuchObject, recordedGone } from "./recordedGone.js";
+import { adRefsOf, adSpendRow, writeAdHours, type AdRef, type AdSpendRow } from "./adInsightsPull.js";
 
 /**
  * The hourly insights pull (ADS-AGENT-BUILD-WORKFLOW.md B5a; §4R Monitor: "insights late, missing hours,
@@ -50,6 +51,8 @@ const PAGE_LIMIT = 200;
 /** 20 × 200 = 4,000 rows for one campaign — 28 days is 672; past it is reported, never trusted. */
 export const PAGES_MAX = 20;
 const FIELDS = "campaign_id,spend,impressions,clicks,actions,account_currency";
+/** The ad-level read (CQ3): the same figures, one row per ad, `ad_id` naming it. */
+const AD_FIELDS = `ad_id,${FIELDS}`;
 const BREAKDOWN = "hourly_stats_aggregated_by_advertiser_time_zone";
 const WRITE_CHUNK = 500;
 
@@ -61,7 +64,10 @@ export interface InsightsDeps extends RegistryDeps {
 
 export interface InsightsFailure {
   campaign_id?: string;
-  /** `graph:<code>`, `truncated`, `shape`, `no_such_hour:<day> <hh>`, `account:<code>`, `zone`, `connection:<status>`. */
+  /**
+   * `graph:<code>`, `truncated`, `shape`, `no_such_hour:<day> <hh>`, `account:<code>`, `zone`, `connection:<status>`;
+   * the ad-level read's (CQ3) carry an `ads:` prefix, plus `ads:unknown_ad:<meta ad id>` for an ad our refs do not name.
+   */
   reason: string;
 }
 
@@ -72,6 +78,9 @@ export interface InsightsResult {
   campaigns: number;
   hours_written: number;
   hours_zeroed: number;
+  /** Per-ad rows (CQ3, `ads_ad_spend_hourly`): a campaign with no recorded ads contributes nothing here. */
+  ad_hours_written: number;
+  ad_hours_zeroed: number;
   failures: InsightsFailure[];
 }
 
@@ -88,6 +97,7 @@ interface SpendRow {
 }
 
 interface MetaRow {
+  ad_id?: unknown;
   date_start?: unknown;
   spend?: unknown;
   impressions?: unknown;
@@ -131,12 +141,13 @@ export function spendRowFromMeta(row: MetaRow, ctx: { org_id: string; campaign_i
 
 type Listing = { data?: MetaRow[]; paging?: { cursors?: { after?: string }; next?: string } };
 
-async function readCampaignHours(graph: MetaGraph, metaCampaignId: string, since: string, until: string): Promise<{ ok: true; rows: MetaRow[]; truncated: boolean } | { ok: false; error_code: string; no_such_object: boolean }> {
+/** The campaign's hourly rows at one level: `campaign` (one row per hour) or `ad` (one row per ad per hour). */
+async function readCampaignHours(graph: MetaGraph, metaCampaignId: string, since: string, until: string, level: "campaign" | "ad" = "campaign"): Promise<{ ok: true; rows: MetaRow[]; truncated: boolean } | { ok: false; error_code: string; no_such_object: boolean }> {
   const rows: MetaRow[] = [];
   let after: string | undefined;
   for (let page = 0; page < PAGES_MAX; page += 1) {
     const r = await graph.get<Listing>(`${metaCampaignId}/insights`, {
-      level: "campaign", fields: FIELDS, breakdowns: BREAKDOWN, time_increment: 1,
+      level, fields: level === "ad" ? AD_FIELDS : FIELDS, breakdowns: BREAKDOWN, time_increment: 1,
       time_range: JSON.stringify({ since, until }), limit: PAGE_LIMIT, after,
     });
     if (!r.ok) return { ok: false, error_code: r.error.error_code, no_such_object: isNoSuchObject(r.error) };
@@ -162,7 +173,7 @@ const nextDay = (day: string): string => {
   return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
 };
 
-interface CampaignRow { id: string; meta_campaign_id: string }
+interface CampaignRow { id: string; meta_campaign_id: string; ads: AdRef[] }
 
 /** Our campaigns on this connection that Meta holds (a recorded campaign id), org-scoped; archived ones are done. */
 async function campaignsOnPlatform(admin: SupabaseClient, orgId: string, connectionId: string): Promise<CampaignRow[]> {
@@ -176,7 +187,7 @@ async function campaignsOnPlatform(admin: SupabaseClient, orgId: string, connect
     const rows = (data ?? []) as Array<{ id: string; platform_refs: Record<string, unknown> | null }>;
     for (const r of rows) {
       const id = r.platform_refs?.meta_campaign_id;
-      if (typeof id === "string" && id) out.push({ id: r.id, meta_campaign_id: id });
+      if (typeof id === "string" && id) out.push({ id: r.id, meta_campaign_id: id, ads: adRefsOf(r.platform_refs) });
     }
     if (rows.length < 1000) return out;
   }
@@ -203,7 +214,7 @@ export async function pullConnectionInsights(deps: InsightsDeps, orgId: string, 
 
 async function pullOnce(deps: InsightsDeps, orgId: string, connectionId: string, opts: { days?: number }): Promise<InsightsResult> {
   const days = Math.min(INSIGHTS_MAX_DAYS, Math.max(1, Math.floor(opts.days ?? INSIGHTS_WINDOW_DAYS)));
-  const result: InsightsResult = { connection_id: connectionId, zone: null, days: [], campaigns: 0, hours_written: 0, hours_zeroed: 0, failures: [] };
+  const result: InsightsResult = { connection_id: connectionId, zone: null, days: [], campaigns: 0, hours_written: 0, hours_zeroed: 0, ad_hours_written: 0, ad_hours_zeroed: 0, failures: [] };
 
   const { data: conn, error } = await deps.admin
     .from("ads_platform_connections").select("id, org_id, provider, is_sandbox, token_sealed, account_ref, status")
@@ -280,6 +291,37 @@ async function pullOnce(deps: InsightsDeps, orgId: string, connectionId: string,
     await writeRows(deps.admin, [...fresh.values(), ...zeroed]);
     result.hours_written += fresh.size;
     result.hours_zeroed += zeroed.length;
+    // The AD half (CQ3): only for a campaign whose refs name its ads — before the publisher ran there is no ad
+    // to read, and a read for one would only be a failure with nothing behind it.
+    if (k.ads.length > 0) await pullAdHours(deps, opened.graph, k, { orgId, zone, currency, pulledAt, since, until, from, to }, result);
   }
   return result;
+}
+
+type Window = { orgId: string; zone: string; currency: string; pulledAt: string; since: string; until: string; from: string; to: string };
+
+/** The same window at `level=ad`, each row named to its creative by the campaign's refs, written per ad. */
+async function pullAdHours(deps: InsightsDeps, graph: MetaGraph, k: CampaignRow, w: Window, result: InsightsResult): Promise<void> {
+  const read = await readCampaignHours(graph, k.meta_campaign_id, w.since, w.until, "ad");
+  if (!read.ok) {
+    // The campaign-level read just succeeded on this object, so a refusal here is the read's, not a gone object.
+    result.failures.push({ campaign_id: k.id, reason: `ads:graph:${read.error_code}` });
+    return;
+  }
+  const fresh = new Map<string, AdSpendRow>();
+  let whole = !read.truncated;
+  if (read.truncated) result.failures.push({ campaign_id: k.id, reason: "ads:truncated" });
+  for (const row of read.rows) {
+    const base = spendRowFromMeta(row, { org_id: w.orgId, campaign_id: k.id, zone: w.zone, currency: w.currency, pulled_at: w.pulledAt });
+    const r = "reason" in base ? base : adSpendRow(base, row.ad_id, k.ads);
+    if ("reason" in r) {
+      result.failures.push({ campaign_id: k.id, reason: `ads:${r.reason}` });
+      whole = false;
+      continue;
+    }
+    fresh.set(`${r.meta_ad_id}|${r.hour}`, r);
+  }
+  const out = await writeAdHours(deps.admin, { org_id: w.orgId, campaign_id: k.id }, [...fresh.values()], { from: w.from, to: w.to, whole, pulled_at: w.pulledAt });
+  result.ad_hours_written += out.written;
+  result.ad_hours_zeroed += out.zeroed;
 }

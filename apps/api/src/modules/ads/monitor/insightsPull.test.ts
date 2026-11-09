@@ -5,7 +5,8 @@ import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 import { SIMULATOR_ACCOUNT_ID, simulatorFakeForTests, stopSimulatorForTests } from "../platforms/registry.js";
 import { resetGraphThrottles } from "../platforms/meta/graphClient.js";
 import type { FakeMeta } from "../platforms/simulator/fakeMeta.js";
-import { forgetAllHours, forgetHour, plantHour } from "../platforms/simulator/fakeMetaInsightsHourly.js";
+import { forgetAdHour, forgetAllHours, forgetHour, plantAdHour, plantHour } from "../platforms/simulator/fakeMetaInsightsHourly.js";
+import type { AdRef } from "./adInsightsPull.js";
 import { INSIGHTS_WINDOW_DAYS, pullConnectionInsights } from "./insightsPull.js";
 
 /**
@@ -28,6 +29,18 @@ const NOW = new Date("2026-11-03T15:00:00Z");
 
 let fake: FakeMeta;
 let stored: Map<string, Record<string, unknown>>;
+/** `ads_ad_spend_hourly` held between runs, by (meta ad id, hour) — the table's key (CQ3). */
+let storedAds: Map<string, Record<string, unknown>>;
+const CREATIVE_1 = "00000000-0000-4000-8000-00000000cc01";
+const CREATIVE_2 = "00000000-0000-4000-8000-00000000cc02";
+const AD_1EN = "880000000011";
+const AD_1ES = "880000000012";
+const AD_2EN = "880000000021";
+const ADS_A: AdRef[] = [
+  { creative_id: CREATIVE_1, language: "en", meta_ad_id: AD_1EN },
+  { creative_id: CREATIVE_1, language: "es", meta_ad_id: AD_1ES },
+  { creative_id: CREATIVE_2, language: "en", meta_ad_id: AD_2EN },
+];
 
 function metaCampaign(id: string) {
   fake.campaigns.set(id, {
@@ -37,7 +50,7 @@ function metaCampaign(id: string) {
 }
 
 /** One run: a recorder over the rows held now, then its upserts folded back in by (campaign, hour). */
-async function run(opts: { days?: number; now?: Date; actions?: Array<Record<string, unknown>> } = {}) {
+async function run(opts: { days?: number; now?: Date; actions?: Array<Record<string, unknown>>; adsA?: AdRef[] } = {}) {
   const rec = createSupabaseRecorder({
     tables: {
       ads_platform_connections: postgrestFixture([
@@ -45,7 +58,7 @@ async function run(opts: { days?: number; now?: Date; actions?: Array<Record<str
         { id: CONN, org_id: OTHER_ORG, provider: "simulator", is_sandbox: true, token_sealed: null, account_ref: SIMULATOR_ACCOUNT_ID, status: "connected" },
       ]),
       ads_campaigns: postgrestFixture([
-        { id: CAMP_A, org_id: ORG, connection_id: CONN, state: "live", platform_refs: { meta_campaign_id: META_A } },
+        { id: CAMP_A, org_id: ORG, connection_id: CONN, state: "live", platform_refs: { meta_campaign_id: META_A, ...(opts.adsA ? { ads: opts.adsA } : {}) } },
         { id: CAMP_B, org_id: ORG, connection_id: CONN, state: "paused", platform_refs: { meta_campaign_id: META_B } },
         // Never reached Meta: nothing to read.
         { id: "00000000-0000-4000-8000-00000000aa03", org_id: ORG, connection_id: CONN, state: "creating", platform_refs: {} },
@@ -55,6 +68,7 @@ async function run(opts: { days?: number; now?: Date; actions?: Array<Record<str
         { id: "00000000-0000-4000-8000-00000000aa05", org_id: OTHER_ORG, connection_id: CONN, state: "live", platform_refs: { meta_campaign_id: META_A } },
       ]),
       ads_spend_hourly: postgrestFixture([...stored.values()]),
+      ads_ad_spend_hourly: postgrestFixture([...storedAds.values()]),
       ads_actions: postgrestFixture(opts.actions ?? []),
     },
   });
@@ -69,10 +83,15 @@ async function run(opts: { days?: number; now?: Date; actions?: Array<Record<str
       if (!(skip && stored.has(key))) stored.set(key, { ...row });
     }
   }
+  for (const q of rec.writes().filter((w) => w.table === "ads_ad_spend_hourly")) {
+    for (const row of ([] as Array<Record<string, unknown>>).concat(q.write!.payload as never)) storedAds.set(`${String(row.meta_ad_id)}|${String(row.hour)}`, { ...row });
+  }
   return { r, rec };
 }
 
 const held = (campaign: string, hour: string) => stored.get(`${campaign}|${hour}`);
+const heldAd = (adId: string, hour: string) => storedAds.get(`${adId}|${hour}`);
+const adReads = () => insightReads().filter((q) => q.body.level === "ad");
 const insightReads = () => fake.requests.filter((q) => q.path.endsWith("/insights") && !q.path.includes("act_"));
 
 beforeAll(async () => {
@@ -82,6 +101,7 @@ afterAll(async () => stopSimulatorForTests());
 beforeEach(() => {
   resetGraphThrottles();
   stored = new Map();
+  storedAds = new Map();
   forgetAllHours(fake);
   for (const id of [META_A, META_B, META_ARCHIVED]) {
     fake.campaigns.delete(id);
@@ -223,5 +243,65 @@ describe("the hourly insights pull → ads_spend_hourly (B5a)", () => {
     const wide = await run({ days: 28 });
     expect([wide.r.days[0], wide.r.hours_written, wide.r.failures]).toEqual(["2026-10-07", 19 * 24, []]);
     expect(insightReads().filter((q) => q.body.after).length).toBeGreaterThan(0);
+  });
+});
+
+describe("the same pull at level=ad → ads_ad_spend_hourly (CQ3, D-AD22)", () => {
+  it("writes one row per ad per hour, naming the creative and language the publisher recorded, beside the campaign's own row", async () => {
+    plantHour(fake, META_A, "2026-11-03", 8, { spend_cents: 1234, impressions: 900, clicks: 12, leads: 2 });
+    plantAdHour(fake, META_A, AD_1EN, "2026-11-03", 8, { spend_cents: 800, impressions: 600, clicks: 9, leads: 2 });
+    plantAdHour(fake, META_A, AD_1ES, "2026-11-03", 8, { spend_cents: 134, impressions: 100, clicks: 1 });
+    plantAdHour(fake, META_A, AD_2EN, "2026-11-03", 8, { spend_cents: 300, impressions: 200, clicks: 2 });
+    const { r, rec } = await run({ adsA: ADS_A });
+    expect([r.hours_written, r.ad_hours_written, r.ad_hours_zeroed, r.failures]).toEqual([1, 3, 0, []]);
+    expect(heldAd(AD_1EN, "2026-11-03T14:00:00.000Z")).toMatchObject({ org_id: ORG, campaign_id: CAMP_A, creative_id: CREATIVE_1, language: "en", spend_cents: 800, leads: 2, currency: "USD", pulled_at: NOW.toISOString() });
+    expect(heldAd(AD_1ES, "2026-11-03T14:00:00.000Z")).toMatchObject({ creative_id: CREATIVE_1, language: "es", spend_cents: 134 });
+    expect(heldAd(AD_2EN, "2026-11-03T14:00:00.000Z")).toMatchObject({ creative_id: CREATIVE_2, language: "en", spend_cents: 300 });
+    expect(held(CAMP_A, "2026-11-03T14:00:00.000Z")).toMatchObject({ spend_cents: 1234 });
+    // The ad read asks the same edge and window, one level down, with the ad id in its fields.
+    expect(adReads().map((q) => q.path.split("/").at(-2))).toEqual([META_A]);
+    expect(adReads()[0]!.body).toMatchObject({ level: "ad", fields: expect.stringMatching(/^ad_id,/), time_range: JSON.stringify({ since: "2026-11-01", until: "2026-11-03" }) });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("a campaign whose refs name no ads is not read at the ad level — nothing to name a row to", async () => {
+    plantHour(fake, META_A, "2026-11-03", 8, { spend_cents: 10 });
+    plantAdHour(fake, META_A, AD_1EN, "2026-11-03", 8, { spend_cents: 10 });
+    const { r } = await run();
+    expect([r.ad_hours_written, adReads().length, storedAds.size, r.failures]).toEqual([0, 0, 0, []]);
+  });
+
+  it("an ad our refs do not name is a failure, never a row — and its read, being partial, zeroes nothing", async () => {
+    plantAdHour(fake, META_A, AD_1EN, "2026-11-02", 9, { spend_cents: 700 });
+    await run({ adsA: ADS_A });
+    forgetAdHour(fake, META_A, AD_1EN, "2026-11-02", 9);
+    plantAdHour(fake, META_A, "889999999999", "2026-11-02", 10, { spend_cents: 55 });
+    plantAdHour(fake, META_A, AD_2EN, "2026-11-02", 11, { spend_cents: 40 });
+    const { r } = await run({ adsA: ADS_A });
+    expect(r.failures).toEqual([{ campaign_id: CAMP_A, reason: "ads:unknown_ad:889999999999" }]);
+    expect(heldAd("889999999999", "2026-11-02T16:00:00.000Z")).toBeUndefined();
+    expect([heldAd(AD_2EN, "2026-11-02T17:00:00.000Z")?.spend_cents, heldAd(AD_1EN, "2026-11-02T15:00:00.000Z")?.spend_cents]).toEqual([40, 700]);
+  });
+
+  it("an ad hour Meta stops reporting is zeroed on the next complete read, while another ad's hour stands", async () => {
+    plantAdHour(fake, META_A, AD_1EN, "2026-11-02", 9, { spend_cents: 700, leads: 1 });
+    plantAdHour(fake, META_A, AD_2EN, "2026-11-02", 9, { spend_cents: 300 });
+    await run({ adsA: ADS_A });
+    forgetAdHour(fake, META_A, AD_1EN, "2026-11-02", 9);
+    const { r } = await run({ adsA: ADS_A });
+    expect([r.ad_hours_written, r.ad_hours_zeroed]).toEqual([1, 1]);
+    expect(heldAd(AD_1EN, "2026-11-02T15:00:00.000Z")).toMatchObject({ spend_cents: 0, leads: 0, creative_id: CREATIVE_1, language: "en" });
+    expect(heldAd(AD_2EN, "2026-11-02T15:00:00.000Z")).toMatchObject({ spend_cents: 300 });
+  });
+
+  it("an ad hour revised down is replaced, never kept stale, and the upsert names every column", async () => {
+    plantAdHour(fake, META_A, AD_1EN, "2026-11-02", 10, { spend_cents: 5000, impressions: 1000, clicks: 40, leads: 3 });
+    await run({ adsA: ADS_A });
+    plantAdHour(fake, META_A, AD_1EN, "2026-11-02", 10, { spend_cents: 4210, impressions: 950, clicks: 38, leads: 2 });
+    const { rec } = await run({ adsA: ADS_A });
+    expect(heldAd(AD_1EN, "2026-11-02T16:00:00.000Z")).toMatchObject({ spend_cents: 4210, impressions: 950, clicks: 38, leads: 2 });
+    const up = rec.writes().find((w) => w.table === "ads_ad_spend_hourly")!.ops.find((o) => o.method === "upsert")!;
+    expect(up.args[1]).toEqual({ onConflict: "meta_ad_id,hour" });
+    expect(Object.keys(([] as Array<Record<string, unknown>>).concat(up.args[0] as never)[0]!).sort()).toEqual(["campaign_id", "clicks", "creative_id", "currency", "hour", "impressions", "language", "leads", "meta_ad_id", "org_id", "pulled_at", "spend_cents"]);
   });
 });

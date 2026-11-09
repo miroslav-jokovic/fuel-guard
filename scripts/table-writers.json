@@ -34,6 +34,9 @@
   "ads_spend_hourly": [
     "apps/api/src/modules/ads/monitor/insightsPull.ts"
   ],
+  "ads_ad_spend_hourly": [
+    "apps/api/src/modules/ads/monitor/adInsightsPull.ts"
+  ],
   "ads_outcome_events": [
     "apps/api/src/modules/ads/outcomes/outcomeLedger.ts"
   ],
