@@ -495,6 +495,18 @@ export const READINESS = [
       ],
       L2: [
         {
+          need: "CQ9b: a tired ad retired alone — one pause call at the platform, one retire_ad row, one bell; the campaign and its other ads untouched; the switch decides only the call; a platform refusal marks nothing",
+          tests: [{ file: "apps/api/src/modules/ads/monitor/retireTired.test.ts", titles: [
+            "the tired ad is paused at Meta, ledgered as retire_ad with its reason, marked retired on its creative, and rung once; the fresh ad and the campaign are untouched",
+            "the next run finds the ledger row and does nothing again: one pause call, one row, one bell",
+            "with the switch off, the verdict is computed and reported and nothing is called, written or rung",
+            "a platform refusal is a failed ledger row and a failure, never a mark or a bell",
+          ] }, { file: "packages/shared/src/ads/adFatigue.test.ts", titles: [
+            "retires an ad whose last week's click-through fell past the share, against its own first week",
+            "holds an ad younger than min_days, whatever its numbers",
+          ] }],
+        },
+        {
           need: "insights late, missing hours, numbers revised down by the platform",
           tests: [{ file: "apps/api/src/modules/ads/monitor/insightsPull.test.ts", titles: [
             "a late hour — not reported on one run — fills in on the next, beside the hours already held",

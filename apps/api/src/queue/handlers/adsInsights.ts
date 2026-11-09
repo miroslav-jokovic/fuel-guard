@@ -1,4 +1,4 @@
-import { checkConnection, pullConnectionInsights } from "../../modules/ads/index.js";
+import { checkConnection, pullConnectionInsights, retireTiredAds } from "../../modules/ads/index.js";
 import type { JobHandler } from "../types.js";
 
 /**
@@ -20,10 +20,13 @@ export const adsInsightsHandler: JobHandler = async (ctx, job) => {
   // The checks run on whatever the pull brought in, even when part of it failed: a cap breached by the hours
   // that did arrive must still pause. Without the account's zone there is no "today", so they wait an hour.
   const checks = r.zone ? await checkConnection(deps, job.org_id, payload.connectionId, r.zone) : null;
-  const failures = [...r.failures, ...(checks?.failures ?? []).map((f) => ({ ...f, reason: `check:${f.reason}` }))];
+  // CQ9b: each live ad judged against its own first week from the per-ad hours the pull just wrote; a tired one is
+  // retired at the platform only when the carrier's switch is on — else the verdicts are reported and nothing moves.
+  const retire = await retireTiredAds(deps, job.org_id, payload.connectionId);
+  const failures = [...r.failures, ...(checks?.failures ?? []).map((f) => ({ ...f, reason: `check:${f.reason}` })), ...retire.failures];
   if (failures.length) {
     const line = failures.slice(0, 20).map((f) => `${f.campaign_id ? `${f.campaign_id} ` : ""}${f.reason}`).join("; ");
-    throw new Error(`ads_insights: ${failures.length} not brought in (${r.hours_written} hours written, ${r.hours_zeroed} zeroed, ${checks?.paused.length ?? 0} paused) — ${line}`);
+    throw new Error(`ads_insights: ${failures.length} not brought in (${r.hours_written} hours written, ${r.hours_zeroed} zeroed, ${checks?.paused.length ?? 0} paused, ${retire.verdicts.filter((v) => v.acted === "retired").length} retired) — ${line}`);
   }
-  return { ok: true, detail: JSON.stringify({ ...r, checks }) };
+  return { ok: true, detail: JSON.stringify({ ...r, checks, retired: retire.verdicts.filter((v) => v.verdict.kind === "retire").map((v) => ({ campaign_id: v.campaign_id, meta_ad_id: v.meta_ad_id, acted: v.acted })) }) };
 };
