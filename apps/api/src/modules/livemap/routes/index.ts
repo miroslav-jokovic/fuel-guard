@@ -9,7 +9,6 @@ import { readLiveMapBoardCached } from "../liveMapBoardCache.js";
 import { readLoadRoute } from "../liveMapLoadRoute.js";
 import { readDrivenPathCached } from "../liveMapDrivenPath.js";
 import { readDispatchBoard } from "../dispatchBoard.js";
-import { readVehiclePlace } from "../liveMapVehiclePlace.js";
 
 /**
  * The live map's read surface (LM6).
@@ -101,36 +100,6 @@ export function liveMapRouter(): Router {
         return;
       }
       res.json({ ok: true, data: answer.path });
-    }),
-  );
-
-  /**
-   * D-LM31: the named truck place a stopped truck is at, for its card. 404 for a vehicle that is not
-   * on this org's board — another org's id included (`liveMapVehiclePlace.ts`). 502 when HERE does
-   * not answer, which the card shows as no line at all.
-   */
-  router.get(
-    "/vehicles/:id/place",
-    requireSection("dispatch", "view"),
-    asyncHandler(async (req, res) => {
-      const id = String(req.params.id ?? "");
-      if (!isRecordId(id)) {
-        res.status(404).json(apiError("not_found", "That truck is not on the map"));
-        return;
-      }
-      const env = getAppLocals(req).env;
-      let answer;
-      try {
-        answer = await readVehiclePlace(getSupabaseAdmin(env), env, req.auth!.orgId!, id);
-      } catch {
-        res.status(502).json(apiError("place_unavailable", "Could not look up where this truck is"));
-        return;
-      }
-      if (!answer.ok) {
-        res.status(answer.status).json(apiError(answer.code, answer.message));
-        return;
-      }
-      res.json({ ok: true, data: answer.data });
     }),
   );
 

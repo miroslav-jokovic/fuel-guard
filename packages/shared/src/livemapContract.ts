@@ -291,29 +291,3 @@ export interface LiveMapDrivenPath {
   /** One sentence when `points` is empty: not yet departed, no Samsara link, no GPS in the window. */
   note: string | null;
 }
-
-/** What kind of truck place a stopped truck is at — the rule and its measurements are in `livemapPlace.ts`. */
-export type TruckPlaceKind = "truck_stop" | "rest_area" | "truck_parking" | "truck_repair";
-
-/**
- * The named truck place a stopped or parked truck is at, from HERE's place search (D-LM31). The
- * owner, 2026-11-09: "when I see the truck and zoom in I don't know if that is a truck stop or what
- * it is". Samsara's `formattedLocation` is a street address and names no business at all.
- */
-export interface LiveMapTruckPlace {
-  /** HERE's title for the place, verbatim ("Pilot", "Love's Travel Stop"). */
-  name: string;
-  kind: TruckPlaceKind;
-  /** Straight-line metres from the truck's fix to HERE's pin for the place. */
-  distanceMeters: number;
-}
-
-/**
- * `GET /api/livemap/vehicles/:id/place`. `place` is null when the truck is moving or offline (it is at
- * nowhere in particular, or nobody knows where it is now), or when nothing qualifies. It is NEVER a
- * nearest-anything guess: see `pickTruckPlace`.
- */
-export interface LiveMapVehiclePlace {
-  vehicleId: string;
-  place: LiveMapTruckPlace | null;
-}

@@ -305,7 +305,6 @@ export * from "./medstopConnection.js";
 export * from "./basemap.js";
 export * from "./livemap.js";
 export * from "./livemapContract.js";
-export * from "./livemapPlace.js";
 export * from "./drivenPath.js";
 export * from "./paging.js";
 export * from "./iftaReceiptUploadContract.js";
