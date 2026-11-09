@@ -109,10 +109,15 @@ vi.mock("@/features/recruitment/useEmployment", async (importOriginal) => ({
  * against, so no kebab renders) unless a test sets it. Only `role` is replaced — the section and
  * surface answers stay the store's own.
  */
-const who = vi.hoisted(() => ({ role: null as string | null, sections: null as Record<string, string> | null }));
+const who = vi.hoisted(() => ({
+  role: null as string | null,
+  sections: null as Record<string, string> | null,
+  /** The carrier's named switches as `/api/me` would serve them (§15.1); `{}` = the shipped defaults. */
+  grants: {} as Record<string, Record<string, boolean>>,
+}));
 vi.mock("@/stores/session", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/stores/session")>();
-  const { callerCanManage } = await import("@silvicom/shared");
+  const { callerCanManage, effectivePermission } = await import("@silvicom/shared");
   return {
     ...real,
     useSessionStore: () =>
@@ -123,6 +128,8 @@ vi.mock("@/stores/session", async (importOriginal) => {
           // SP5: the page's gates are `session.can(...)`, which closes over the REAL store's role — so
           // the stand-in role answers them too, through the same shared matrix the store would read.
           if (key === "can") return (s: string) => callerCanManage(who.role as never, s as never, who.sections as never);
+          // The close switch, through the resolver the API's gate and `/api/me` both ask.
+          if (key === "hasPermission") return (k: string) => effectivePermission(who.role as never, k as never, who.grants as never);
           return Reflect.get(target, key);
         },
       }),
@@ -182,6 +189,7 @@ const mounted: Array<{ unmount: () => void }> = [];
 afterEach(() => {
   who.role = null;
   who.sections = null;
+  who.grants = {};
   while (mounted.length) mounted.pop()!.unmount();
   document.body.innerHTML = "";
 });
@@ -422,17 +430,23 @@ describe("who is offered Hire…", () => {
     return items;
   };
 
-  it("is offered to a recruiter the org granted roster manage", async () => {
-    who.role = "recruiter";
+  it("is offered to the admin and the safety manager, as shipped, and not to a fleet manager", async () => {
+    for (const role of ["admin", "safety_manager"]) {
+      who.role = role;
+      expect(await itemsOnLiveBoard()).toContain("Hire…");
+    }
+    who.role = "fleet_manager";
     expect(await itemsOnLiveBoard()).not.toContain("Hire…");
-    who.sections = { roster: "manage" };
-    expect(await itemsOnLiveBoard()).toContain("Hire…");
   });
 
-  it("is not offered to a fleet manager the org narrowed to viewing the roster", async () => {
-    who.role = "fleet_manager";
+  it("follows the carrier's Close an application switch, not the roster section", async () => {
+    who.role = "recruiter";
+    who.sections = { roster: "manage" };
+    expect(await itemsOnLiveBoard()).not.toContain("Hire…");
+    who.grants = { recruiter: { "recruitment.close_application": true } };
     expect(await itemsOnLiveBoard()).toContain("Hire…");
-    who.sections = { roster: "view" };
+    who.role = "safety_manager";
+    who.grants = { safety_manager: { "recruitment.close_application": false } };
     expect(await itemsOnLiveBoard()).not.toContain("Hire…");
   });
 });

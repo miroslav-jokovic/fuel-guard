@@ -30,9 +30,9 @@ let currentSession: Session | null = null;
  * identical string would make the rotation test silently exercise the no-op path instead.
  */
 let nonce = 0;
-const sessionFor = (sub: string, org: string): Session =>
+const sessionFor = (sub: string, org: string, role = "admin"): Session =>
   ({
-    access_token: `header.${btoa(JSON.stringify({ sub, org_id: org, user_role: "admin" }))}.sig-${++nonce}`,
+    access_token: `header.${btoa(JSON.stringify({ sub, org_id: org, user_role: role }))}.sig-${++nonce}`,
     user: { id: sub },
   }) as Session;
 
@@ -58,6 +58,7 @@ const me = {
   calls: 0,
   fullName: "Miroslav Jokovic" as string | null,
   surfaces: {} as Record<string, boolean>,
+  permissions: undefined as Record<string, boolean> | undefined,
   hold: false,
   pending: [] as ((v: { fullName: string | null; surfaces: Record<string, boolean> }) => void)[],
 };
@@ -65,7 +66,7 @@ vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string) => {
     if (path !== "/api/me") return { ok: true, data: {} };
     me.calls += 1;
-    if (!me.hold) return { ok: true, data: { fullName: me.fullName, surfaces: me.surfaces } };
+    if (!me.hold) return { ok: true, data: { fullName: me.fullName, surfaces: me.surfaces, permissions: me.permissions } };
     const data = await new Promise<{ fullName: string | null; surfaces: Record<string, boolean> }>((r) => me.pending.push(r));
     return { ok: true, data };
   }),
@@ -91,6 +92,7 @@ beforeEach(() => {
   me.calls = 0;
   me.fullName = "Miroslav Jokovic";
   me.surfaces = {};
+  me.permissions = undefined;
   me.hold = false;
   me.pending = [];
 });
@@ -227,5 +229,30 @@ describe("overlapping /api/me answers", () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(store.fullName, "a logged-out screen must not show the last person's name").toBeNull();
     expect(store.surfaces).toBeNull();
+  });
+});
+
+/** §15.1 / owner 2026-11-09: the screens ask the carrier's switches `/api/me` serves, not the roster. */
+describe("named permissions", () => {
+  it("reads the shipped default until /api/me answers, then the carrier's switch", async () => {
+    const store = useSessionStore();
+    await store.init();
+    expect(store.hasPermission("recruitment.close_application"), "nobody signed in").toBe(false);
+
+    me.permissions = { "recruitment.close_application": false, "recruitment.identity_number_images": true };
+    signInAs(sessionFor("user-1", "org-1", "safety_manager"));
+    await vi.waitFor(() => expect(store.permissions).toEqual(me.permissions));
+    expect(store.hasPermission("recruitment.close_application")).toBe(false);
+  });
+
+  it("falls back to the shipped answer when /api/me carries no switches", async () => {
+    const store = useSessionStore();
+    await store.init();
+    signInAs(sessionFor("user-1", "org-1", "safety_manager"));
+    await vi.waitFor(() => expect(store.fullName).toBe("Miroslav Jokovic"));
+    expect(store.hasPermission("recruitment.close_application")).toBe(true);
+    signInAs(sessionFor("user-2", "org-1", "fleet_manager"));
+    await vi.waitFor(() => expect(me.calls).toBe(2));
+    expect(store.hasPermission("recruitment.close_application")).toBe(false);
   });
 });

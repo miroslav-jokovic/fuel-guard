@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { Session } from "@supabase/supabase-js";
-import type { UserRole } from "@silvicom/shared";
+import { effectivePermission, type CallerPermissions, type EditablePermissionKey, type UserRole } from "@silvicom/shared";
 import {
   callerCanManage,
   callerCanView,
@@ -86,6 +86,15 @@ export const useSessionStore = defineStore("session", () => {
   const surfaces = ref<SurfaceClaim | null>(null);
   /** The caller's display name from `/api/me` (0301); null until loaded or when they have none. */
   const fullName = ref<string | null>(null);
+  /**
+   * The caller's NAMED permissions from `/api/me` (§15.1) — the carrier's per-role switches, read per
+   * request on the API like the surfaces above. `null` until answered, and then `hasPermission` reads
+   * the shipped default: a button shown that the API refuses is a toast, while the API's gate
+   * (`requireNamedPermission`) is the one that decides.
+   */
+  const permissions = ref<CallerPermissions | null>(null);
+  const hasPermission = (key: EditablePermissionKey): boolean =>
+    permissions.value?.[key] ?? effectivePermission(role.value, key, {});
 
   const isAuthenticated = computed(() => !!session.value);
   const hasOrg = computed(() => !!orgId.value); // false ⇒ "account pending" (audit B3)
@@ -152,6 +161,7 @@ export const useSessionStore = defineStore("session", () => {
       // while the replacement is in flight.
       surfaces.value = null;
       fullName.value = null;
+      permissions.value = null;
       /**
        * ⚠ **And then FETCH them again.** This call is the whole of the 2026-09-20 fix, and its
        * absence is instructive: the comment above already said "while the next `loadSurfaces()` is
@@ -198,12 +208,13 @@ export const useSessionStore = defineStore("session", () => {
   async function loadSurfaces() {
     if (!session.value) return;
     const seq = identitySeq;
-    const res = await apiFetch<{ surfaces?: SurfaceClaim; fullName?: string | null }>("/api/me");
+    const res = await apiFetch<{ surfaces?: SurfaceClaim; fullName?: string | null; permissions?: CallerPermissions }>("/api/me");
     // A newer identity has arrived while this was in flight (or we signed out). Its own call owns
     // these refs now; writing here would be the older answer winning by finishing later.
     if (seq !== identitySeq) return;
     surfaces.value = res.ok ? (res.data?.surfaces ?? {}) : null;
     fullName.value = res.ok ? (res.data?.fullName ?? null) : null;
+    permissions.value = res.ok ? (res.data?.permissions ?? null) : null;
   }
 
   async function signIn(emailAddr: string, password: string) {
@@ -269,6 +280,8 @@ export const useSessionStore = defineStore("session", () => {
     role,
     sections,
     surfaces,
+    permissions,
+    hasPermission,
     loadSurfaces,
     isAuthenticated,
     hasOrg,

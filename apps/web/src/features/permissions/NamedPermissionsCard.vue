@@ -9,8 +9,8 @@ import { useNamedPermissionsQuery, useSetNamedPermission } from "./useNamedPermi
 
 /**
  * One role's NAMED permissions (HIRING-WORKFLOW-AUDIT-2026-10-31 §15.1, owner ruling Q-WF4b): switches
- * that are neither a section nor a screen — today, who may open an applicant's SSN-card and passport
- * pictures. Each row reads the catalogue the API sends, says "Changed" when the carrier moved it off its
+ * that are neither a section nor a screen — who may open an applicant's SSN-card and passport
+ * pictures, and (2026-11-09) who may close an application. Each row reads the catalogue the API sends, says "Changed" when the carrier moved it off its
  * shipped value, and resets to that value; nothing here holds a default of its own (D-PERM4).
  *
  * A change applies on the next request: the API reads the switch per request, not from the sign-in
@@ -48,8 +48,8 @@ async function save(permission: EditablePermissionKey, allowed: boolean | null) 
 
 <template>
   <AccessCard
-    title="Sensitive papers"
-    description="Permissions that are not a page: who may open papers whose picture is the identity number itself."
+    title="Other permissions"
+    description="Permissions that are not a page: single acts and papers this role may or may not be trusted with."
     note="Applies the next time they open a page."
   >
     <QueryState

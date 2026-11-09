@@ -32,6 +32,22 @@ export interface EditablePermission {
 
 export const IDENTITY_NUMBER_IMAGES_PERMISSION = "recruitment.identity_number_images";
 
+/**
+ * Who may close an application — the act that ends the hiring checklist and puts the applicant on the
+ * roster (`POST /api/recruitment/hire`, §14 D-OF5's "Close application").
+ *
+ * ⚠ It was `roster: manage` until 2026-11-09, and that was the wrong unit: the owner ruled "safety and
+ * admin can close the application — and this needs to be in Settings so we can select", while
+ * `roster: manage` also hands over every write on the driver roster and is shipped to the fleet
+ * manager. Narrowing the fleet manager's roster to stop them closing would have taken their roster
+ * away; granting a recruiter roster to let them close would have handed them the roster (the leak
+ * RECRUITER-ROLE-SCOPE.md Option B closed). A named switch asks exactly the one question.
+ *
+ * No regulation names who closes an application (the six federal checks are what the hire refuses
+ * on, whoever presses it), so this is the carrier's own choice and belongs here, not in auth.ts.
+ */
+export const CLOSE_APPLICATION_PERMISSION = "recruitment.close_application";
+
 export const EDITABLE_PERMISSIONS = [
   {
     key: IDENTITY_NUMBER_IMAGES_PERMISSION,
@@ -40,6 +56,14 @@ export const EDITABLE_PERMISSIONS = [
       "Open the picture of an applicant's or driver's Social Security card or passport. Without it the paper is listed as on file and its picture is withheld.",
     // Owner, Q-WF4b (2026-11-04): "basically safety and recruiting".
     shippedRoles: ["safety_manager", "recruiter"],
+  },
+  {
+    key: CLOSE_APPLICATION_PERMISSION,
+    label: "Close an application",
+    description:
+      "Close a finished application, which puts the applicant on the roster. The six federal checks must still be on file whoever closes it.",
+    // Owner, 2026-11-09: "Safety and admin can close application" — the admin holds every permission.
+    shippedRoles: ["safety_manager"],
   },
 ] as const satisfies readonly EditablePermission[];
 
@@ -81,6 +105,18 @@ export function effectivePermission(
   if (role === "admin") return true;
   if (!role || !(EDITABLE_ROLES as string[]).includes(role)) return false;
   return grants[role]?.[key] ?? shippedPermission(role, key);
+}
+
+/**
+ * Every named permission for one caller, answered by `effectivePermission` — what `/api/me` serves so a
+ * screen hides a button the API would refuse, from the same resolver the API's gate asks.
+ */
+export type CallerPermissions = Record<EditablePermissionKey, boolean>;
+
+export function callerPermissions(role: UserRole | null | undefined, grants: PermissionGrants): CallerPermissions {
+  return Object.fromEntries(
+    EDITABLE_PERMISSION_KEYS.map((k) => [k, effectivePermission(role, k, grants)]),
+  ) as CallerPermissions;
 }
 
 export interface RolePermissionRow {

@@ -15,6 +15,7 @@ import {
   sortRows,
 } from "@silvicom/ui";
 import {
+  CLOSE_APPLICATION_PERMISSION,
   HIRING_PHASE_LABELS,
   canPurgeApplicant,
   type HiringPhase,
@@ -226,18 +227,17 @@ function openApplicant(id: string): void {
  * blocks. They see everything else on this board.
  */
 const session = useSessionStore();
-// SP5: `roster: manage` from the ORG's matrix — the gate `POST /api/recruitment/hire` now reads
-// (`requireSection("roster")`). `canWriteDriverLifecycle` was the same predicate on the SHIPPED
-// matrix, so an org's grant or narrowing of the roster section never reached the button.
-const canHire = computed(() => session.can("roster"));
+// The carrier's "Close an application" switch (Settings → Permissions, owner 2026-11-09), from the
+// resolver `POST /api/recruitment/hire`'s gate asks — so the button and the endpoint cannot disagree.
+const canHire = computed(() => session.hasPermission(CLOSE_APPLICATION_PERMISSION));
 const hiring = ref<PipelineApplicant | null>(null);
 
 /**
  * U1/D-UI1 — the act that STARTS an application, on the page named after applicants.
  *
  * It lived only inside a driver's Employment tab, which meant somebody had to be created as a
- * driver under Fleet before they could be invited to become one. Hiring is gated harder (0213
- * refuses a recruiter's status change in a trigger, so `canHire` is `roster: manage`);
+ * driver under Fleet before they could be invited to become one. Closing is gated harder (the
+ * carrier's "Close an application" switch, since it puts somebody on the roster);
  * inviting is recruitment's own work and takes the section gate.
  */
 // SP5: the ORG'S answer (the `sections` claim), the one `requireSection("recruitment")` reads — not
