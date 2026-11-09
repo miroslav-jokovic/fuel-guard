@@ -56,7 +56,8 @@
         "1:1",
         "4:5"
       ]
-    }
+    },
+    "candidates": 1
   },
   "expect": "refused",
   "expect_findings": [
@@ -64,20 +65,24 @@
   ],
   "recorded": {
     "source": "planted",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "none (written by a person)",
     "recorded_at": "2026-11-03T00:00:00Z",
     "output": {
-      "en": {
-        "hook": "Earn $0.75/mile on regional lanes",
-        "body": "Regional runs with home time every week.",
-        "cta": "Apply today"
-      },
-      "es": {
-        "hook": "Gana $0.75 por milla en rutas regionales",
-        "body": "Rutas regionales con tiempo en casa cada semana.",
-        "cta": "Aplica hoy"
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Earn $0.75/mile on regional lanes",
+            "body": "Regional runs with home time every week.",
+            "cta": "Apply today"
+          },
+          "es": {
+            "hook": "Gana $0.75 por milla en rutas regionales",
+            "body": "Rutas regionales con tiempo en casa cada semana.",
+            "cta": "Aplica hoy"
+          }
+        }
+      ]
     }
   }
 }

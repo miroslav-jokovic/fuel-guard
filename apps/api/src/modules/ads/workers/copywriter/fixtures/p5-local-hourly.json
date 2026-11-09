@@ -68,6 +68,7 @@
       "shows_equipment": false,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "1:1"
       ],
@@ -80,31 +81,72 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:38:45.943Z",
+    "recorded_at": "2026-11-09T20:26:40.703Z",
     "output": {
-      "en": {
-        "card_get": "Get: $31 per hour and home daily.",
-        "card_need": "Need: Class A CDL and a clean driving record.",
-        "card_apply": "Apply: Submit your application today.",
-        "cta": "Apply now",
-        "primary_text": "Local Class A driving means you earn $31 per hour and sleep in your own bed every night. No long hauls, no weeks away. If you hold a Class A CDL and want a steady local route, we want to hear from you.",
-        "headline": "Local CDL-A, $31/hr"
-      },
-      "es": {
-        "card_get": "Obtienes: $31 por hora y regresas a casa todos los días.",
-        "card_need": "Necesitas: CDL Clase A y récord de manejo limpio.",
-        "card_apply": "Aplica: Envía tu solicitud hoy mismo.",
-        "cta": "Aplica ya",
-        "primary_text": "Ruta local con CDL Clase A: ganas $31 por hora y llegas a casa cada noche. Sin viajes largos ni semanas fuera. Si tienes CDL Clase A y quieres una ruta estable, contáctanos.",
-        "headline": "CDL-A local, $31/hora"
-      }
+      "candidates": [
+        {
+          "en": {
+            "card_get": "$31 per hour. Home daily. Local Class A work.",
+            "card_need": "Class A CDL and a clean driving record.",
+            "card_apply": "Hit apply and we'll be in touch.",
+            "cta": "Apply now",
+            "primary_text": "$31 per hour and you're home every night. This is local Class A driving — no long hauls, no weeks away. If you have a Class A CDL, apply today.",
+            "headline": "Local CDL-A. $31/hr."
+          },
+          "es": {
+            "card_get": "$31 por hora. A casa cada día. Ruta local Clase A.",
+            "card_need": "CDL Clase A y récord de manejo limpio.",
+            "card_apply": "Aplica y te contactamos pronto.",
+            "cta": "Aplica ya",
+            "primary_text": "$31 por hora y llegas a casa cada noche. Trabajo local con CDL Clase A, sin viajes largos. Si tienes tu CDL Clase A, aplica hoy.",
+            "headline": "Local CDL-A. $31/hr."
+          }
+        },
+        {
+          "en": {
+            "card_get": "Home every night. Local runs. $31 per hour.",
+            "card_need": "Valid Class A CDL required to apply.",
+            "card_apply": "Apply today to get started.",
+            "cta": "Apply today",
+            "primary_text": "Home daily and $31 per hour — that's the job. Local Class A driving means your nights and weekends are yours. Hold a Class A CDL? Apply now.",
+            "headline": "Home daily. $31/hour."
+          },
+          "es": {
+            "card_get": "A casa cada día. Rutas locales. $31 por hora.",
+            "card_need": "Se requiere CDL Clase A vigente.",
+            "card_apply": "Aplica hoy para comenzar.",
+            "cta": "Aplica hoy",
+            "primary_text": "A casa cada día y $31 por hora. Conducción local Clase A: tus noches son tuyas. ¿Tienes CDL Clase A? Aplica ahora.",
+            "headline": "A casa cada día. $31/hr."
+          }
+        },
+        {
+          "en": {
+            "card_get": "Class A local seat. $31/hr. Sleep in your own bed.",
+            "card_need": "Class A CDL. Ready to run local routes.",
+            "card_apply": "Send your application to join us.",
+            "cta": "Join us",
+            "primary_text": "This local Class A seat pays $31 per hour and brings you home daily. No overnight runs. Bring your Class A CDL and join the team.",
+            "headline": "Class A local. $31/hr."
+          },
+          "es": {
+            "card_get": "Puesto local Clase A. $31/hr. Duerme en casa.",
+            "card_need": "CDL Clase A. Listo para rutas locales.",
+            "card_apply": "Envía tu solicitud para unirte.",
+            "cta": "Únete",
+            "primary_text": "Este puesto local Clase A paga $31 por hora y regresas a casa cada día. Sin noches fuera. Trae tu CDL Clase A y únete al equipo.",
+            "headline": "Local Clase A. $31/hr."
+          }
+        }
+      ]
     }
   }
 }

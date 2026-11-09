@@ -91,6 +91,7 @@
       "shows_equipment": false,
       "shows_people": false,
       "motion_template": "Slow push-in down the highway as the light rises",
+      "layout": "bottom_plate",
       "formats": [
         "9:16",
         "4:5"
@@ -104,27 +105,60 @@
         "headline": "headline"
       }
     },
-    "company_name": "Silvicom Inc"
+    "company_name": "Silvicom Inc",
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:34:44.446Z",
+    "recorded_at": "2026-11-09T20:16:36.057Z",
     "output": {
-      "en": {
-        "hook": "You're rolling at dawn. $0.72/mile.",
-        "cta": "Apply with us.",
-        "primary_text": "Silvicom Inc runs reefer freight on regional lanes, Chicago to Texas. You earn $0.64 to $0.72 per mile, get paid weekly, and sleep in your own bed weekly. No-touch freight. Must be 23+ with 2 years of experience. Dispatch speaks Spanish.",
-        "headline": "Home weekly. $0.72/mile."
-      },
-      "es": {
-        "hook": "Al amanecer, tú manejas. $0.72/milla.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Silvicom Inc mueve carga refrigerada en rutas regionales de Chicago a Texas. Ganas entre $0.64 y $0.72 por milla, con pago semanal y regreso a casa cada semana. Carga sin toque. Se requieren 23+ años y 2 años de experiencia. El despacho habla español.",
-        "headline": "A casa semanal. $0.72/milla."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "You're rolling. $0.72 a mile.",
+            "cta": "Apply with us",
+            "primary_text": "Reefer runs from Chicago to Texas, and you're home weekly. No-touch freight, weekly pay, and $0.64 to $0.72 per mile. Silvicom Inc needs Class A drivers with 2 years of experience, age 23+. Dispatch speaks Spanish.",
+            "headline": "Silvicom Inc is hiring"
+          },
+          "es": {
+            "hook": "Al volante. $0.72 por milla.",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales de Chicago a Texas con carga refrigerada, sin tocar la mercancía. Pago semanal, regreso a casa cada semana, y entre $0.64 y $0.72 por milla. Silvicom Inc busca conductores Clase A, mayores de 23 años y con 2 años de experiencia. El despacho habla español.",
+            "headline": "Silvicom Inc está contratando"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home weekly. Sun up, wheels down.",
+            "cta": "Join our team",
+            "primary_text": "Regional reefer lanes, Chicago to Texas. You're back every week, pulling no-touch freight and earning $0.64 to $0.72 per mile. Weekly pay, Class A required, 2 years experience, 23+. Dispatch speaks Spanish at Silvicom Inc.",
+            "headline": "Home weekly. $0.72/mile."
+          },
+          "es": {
+            "hook": "A casa cada semana. Sal a rodar.",
+            "cta": "Únete al equipo",
+            "primary_text": "Rutas regionales de Chicago a Texas. Regresas cada semana, con carga refrigerada sin tocar y entre $0.64 y $0.72 por milla. Pago semanal. Se requiere Licencia Clase A, 2 años de experiencia y ser mayor de 23 años. En Silvicom Inc el despacho habla español.",
+            "headline": "A casa cada semana. $0.72/milla."
+          }
+        },
+        {
+          "en": {
+            "hook": "Reefer lane. $0.72 per mile yours.",
+            "cta": "Apply now",
+            "primary_text": "Chicago to Texas reefer freight, no-touch. Class A, 2 years experience, age 23+. You earn $0.64 to $0.72 per mile, get paid weekly, and sleep in your own bed every week. Dispatch speaks Spanish — call Silvicom Inc.",
+            "headline": "No-touch reefer. Home weekly."
+          },
+          "es": {
+            "hook": "Ruta frigorífica. $0.72 por milla.",
+            "cta": "Aplica ahora",
+            "primary_text": "Carga refrigerada de Chicago a Texas, sin tocar la mercancía. Clase A, 2 años de experiencia, mayores de 23 años. Ganas entre $0.64 y $0.72 por milla, cobras cada semana y llegas a casa todas las semanas. El despacho habla español — llama a Silvicom Inc.",
+            "headline": "Sin tocar carga. A casa c/semana."
+          }
+        }
+      ]
     }
   }
 }

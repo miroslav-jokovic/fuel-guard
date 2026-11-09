@@ -1,0 +1,199 @@
+{
+  "name": "filler-last-p2-regional",
+  "about": "P2: the filler is offered first; it still ranks last.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A regional reefer driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 62,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 70,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "term",
+          "term": "no-touch freight"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "reefer freight",
+          "regional runs",
+          "Chicago to Texas and back"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P2 The number",
+      "hook_formula": "Open with the pay figure alone, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A late-model tractor on a dark {background} background, studio light, no text, no logos, no lettering",
+      "image_slots": [
+        "background"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "formats": [
+        "1:1",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": [
+      {
+        "en": {
+          "pay": "$0.62/mile",
+          "cta": "Apply today",
+          "primary_text": "Exciting opportunity for Class A drivers to join our dynamic team. We offer competitive pay, great freight and a family atmosphere where we truly value our drivers. Earn $0.62/mile. Apply today and take your career to the next level.",
+          "headline": "Great pay, great team"
+        },
+        "es": {
+          "pay": "$0.62 por milla",
+          "cta": "Aplica hoy",
+          "primary_text": "Emocionante oportunidad para conductores Clase A de unirse a nuestro equipo dinámico. Ofrecemos pago competitivo, excelente carga y un ambiente familiar donde valoramos a nuestros conductores. Gana $0.62 por milla. Aplica hoy.",
+          "headline": "Buen pago, gran equipo"
+        }
+      },
+      {
+        "en": {
+          "pay": "$0.70 per mile",
+          "cta": "Apply with us",
+          "primary_text": "Regional reefer runs, Chicago to Texas and back. No-touch freight, weekly pay, and home weekly. Silvicom Inc requires age 23+ and 2 years of experience. Start at $0.62 per mile and earn up to $0.70 per mile.",
+          "headline": "Reefer driver, home weekly"
+        },
+        "es": {
+          "pay": "$0.70 por milla",
+          "cta": "Aplica hoy",
+          "primary_text": "Rutas regionales en tráiler refrigerado, de Chicago a Texas y de regreso. Carga no-touch, pago semanal y regreso a casa cada semana. Silvicom Inc requiere mayores de 23 años y 2 años de experiencia. Comenzando en $0.62 por milla, llegando hasta $0.70 por milla.",
+          "headline": "Chofer reefer, casa cada semana"
+        }
+      },
+      {
+        "en": {
+          "pay": "$450 per load",
+          "cta": "Apply today",
+          "primary_text": "Class A flatbed drivers: $450 per load, home weekends. If you run flatbed and want your weekends back, this run is worth a look. Join our team.",
+          "headline": "Flatbed, home weekends"
+        },
+        "es": {
+          "pay": "$450 por carga",
+          "cta": "Aplica hoy",
+          "primary_text": "Conductores clase A con experiencia en plataforma: $450 por carga y en casa los fines de semana. Si manejas plataforma y quieres tus fines de semana libres, esta ruta es para ti.",
+          "headline": "Plataforma, fines en casa"
+        }
+      }
+    ],
+    "seed": "filler-last-p2-regional"
+  },
+  "expect": "ready",
+  "expect_rank": {
+    "candidate": 0,
+    "at": "last"
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "craftJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T20:31:49.856Z",
+    "output": {
+      "scores": [
+        {
+          "reason": "The pay slot opens correctly, but the primary_text is built almost entirely of filler: 'exciting opportunity,' 'dynamic team,' 'competitive pay,' 'family atmosphere,' 'truly value our drivers,' 'take your career to the next level.' No route, no schedule detail beyond the pay figure, no company name. Spanish mirrors the same filler word-for-word.",
+          "scores": {
+            "hook": 3,
+            "specific": 1,
+            "plain": 2,
+            "spanish": 2,
+            "no_filler": 1
+          }
+        },
+        {
+          "reason": "This candidate advertises flatbed and home weekends — neither is a fact in the brief, which calls for reefer, regional, and home weekly. The pay figure ($450/load) also does not appear in the facts. While the Spanish is natural and the copy is clean, it describes a completely different job.",
+          "scores": {
+            "hook": 2,
+            "specific": 1,
+            "plain": 4,
+            "spanish": 4,
+            "no_filler": 4
+          }
+        },
+        {
+          "reason": "Opens with the higher pay figure as the hook, then delivers every checkable fact: route (Chicago to Texas), freight type (reefer, no-touch), schedule (home weekly, weekly pay), pay range ($0.62–$0.70/mile), requirements (23+, 2 years), and company name. Spanish is natural, uses 'tráiler refrigerado,' 'rutas,' 'carga,' and keeps miles in miles — closest to how a dispatcher would actually talk.",
+          "scores": {
+            "hook": 5,
+            "specific": 5,
+            "plain": 4,
+            "spanish": 5,
+            "no_filler": 5
+          }
+        }
+      ]
+    }
+  }
+}

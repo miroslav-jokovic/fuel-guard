@@ -61,6 +61,7 @@
       "shows_equipment": false,
       "shows_people": false,
       "motion_template": "Slow push-in down the highway as the light rises",
+      "layout": "bottom_plate",
       "formats": [
         "9:16",
         "4:5"
@@ -74,27 +75,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:36:54.138Z",
+    "recorded_at": "2026-11-09T20:22:09.352Z",
     "output": {
-      "en": {
-        "hook": "Sun's up. You're rolling at $0.68/mile.",
-        "cta": "Apply now.",
-        "primary_text": "Class A regional route. You earn $0.68 per mile and get back home every week. Apply today and get behind the wheel.",
-        "headline": "Regional — home weekly."
-      },
-      "es": {
-        "hook": "Amanece. Ruedas y ganas $0.68/milla.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Ruta regional, Clase A. Ganas $0.68 por milla y llegas a casa cada semana. Únete al equipo hoy.",
-        "headline": "Regional — regresas cada semana."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "You're rolling at dawn. $0.68/mile.",
+            "cta": "Apply today",
+            "primary_text": "Regional Class A run. You earn $0.68 per mile and get home weekly. If you want a steady regional route and a check you can count on, join our team.",
+            "headline": "Home every week. Apply now."
+          },
+          "es": {
+            "hook": "Al amanecer, ruedas. $0.68/milla.",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta regional Clase A. Ganas $0.68 por milla y regresas a casa cada semana. Si buscas una ruta estable y un pago confiable, únete al equipo.",
+            "headline": "A casa cada semana. Aplica ya."
+          }
+        },
+        {
+          "en": {
+            "hook": "Home every week. Sun's up. Roll.",
+            "cta": "Join our team",
+            "primary_text": "You get home weekly — that's the schedule. You earn $0.68 per mile on a regional Class A route. Steady miles, weekly home time. Come drive with us.",
+            "headline": "Class A regional. $0.68/mile."
+          },
+          "es": {
+            "hook": "A casa cada semana. Sale el sol.",
+            "cta": "Únete al equipo",
+            "primary_text": "Regresas a casa cada semana — ese es el horario. Ganas $0.68 por milla en una ruta regional Clase A. Millas constantes, tiempo en casa semanal. Maneja con nosotros.",
+            "headline": "Regional Clase A. $0.68/milla."
+          }
+        },
+        {
+          "en": {
+            "hook": "Dawn. Open road. $0.68 a mile.",
+            "cta": "Get started now",
+            "primary_text": "You're in the seat as the sun comes up, running a regional Class A route at $0.68 per mile. You come home every week. That's the deal — straightforward and consistent.",
+            "headline": "Regional Class A. Home weekly."
+          },
+          "es": {
+            "hook": "Amanecer. Carretera. $0.68/milla.",
+            "cta": "Comienza hoy",
+            "primary_text": "Al salir el sol ya estás en el tráiler, en una ruta regional Clase A a $0.68 por milla. Regresas a casa cada semana. Así es el trato — claro y consistente.",
+            "headline": "Clase A regional. Casa semanal."
+          }
+        }
+      ]
     }
   }
 }

@@ -40,7 +40,11 @@ const copyFinding = z.looseObject({ kind: str, language: str, slot: str, text: s
 const renderFinding = z.looseObject({ kind: str, label: str, format: str, needed_width: num, width: num, worst: num, required: num, lines: num, max_lines: num });
 
 export const adCreativeChecksSchema = z.looseObject({
-  copy: z.looseObject({ ok: z.boolean(), findings: z.array(copyFinding).optional() }).optional(),
+  copy: z.looseObject({
+    ok: z.boolean(), findings: z.array(copyFinding).optional(),
+    /** CQ4: when every candidate was refused, each one's findings by its index in the writer's order. */
+    by_candidate: z.array(z.looseObject({ offered_as: z.number(), findings: z.array(copyFinding) })).optional(),
+  }).optional(),
   render: z.looseObject({ ok: z.boolean(), format: str, language: str, findings: z.array(renderFinding).optional() }).optional(),
   visual: z.looseObject({ ok: z.boolean(), attempt: num, results: visualResults.optional() }).optional(),
   visual_attempts: z.array(z.looseObject({ attempt: z.number(), visual: visualResults })).optional(),

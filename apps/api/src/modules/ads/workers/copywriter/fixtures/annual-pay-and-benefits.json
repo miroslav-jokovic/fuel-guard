@@ -64,31 +64,61 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "1:1",
         "4:5"
       ],
       "overlay_slots": null
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:33:54.611Z",
+    "recorded_at": "2026-11-09T20:14:20.160Z",
     "output": {
-      "en": {
-        "hook": "$85,000 a year. Class A dedicated drivers.",
-        "body": "This is a dedicated route — same lanes, consistent work, no guessing. You get health insurance and a 401k on top of the pay. If you hold a Class A and want steady miles, this is worth a look.",
-        "cta": "Apply today."
-      },
-      "es": {
-        "hook": "$85,000 al año. Conductores Clase A dedicados.",
-        "body": "Ruta dedicada: mismos carriles, trabajo constante, sin sorpresas. Además del sueldo, cuentas con seguro médico y plan 401k. Si tienes Clase A y buscas millas estables, esta plaza es para ti.",
-        "cta": "Aplica hoy mismo."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "$85,000 per year. Class A dedicated drivers.",
+            "body": "Dedicated route, so you run the same lanes and know what to expect. You earn $85,000 per year with health insurance and a 401k. If you have your Class A and want steady work, this is worth a look.",
+            "cta": "Apply today."
+          },
+          "es": {
+            "hook": "$85,000 al año. Conductores Clase A dedicados.",
+            "body": "Ruta dedicada: mismos carriles, misma operación, sin sorpresas. El puesto paga $85,000 al año e incluye seguro médico y plan 401k. Si tienes tu Clase A y buscas una ruta estable y constante, este trabajo es para ti.",
+            "cta": "Aplica hoy."
+          }
+        },
+        {
+          "en": {
+            "hook": "$85,000 per year for a Class A dedicated driver.",
+            "body": "Dedicated means consistency: a set operation you can plan around. Pay is $85,000 per year. Health insurance and a 401k are included. Hold a Class A CDL and want steady work? Come join our team.",
+            "cta": "Join us today."
+          },
+          "es": {
+            "hook": "$85,000 al año para conductor Clase A dedicado.",
+            "body": "Dedicado significa consistencia: operación fija, sin sorpresas. El salario es $85,000 al año, con seguro médico y 401k incluidos. Tienes CDL Clase A y quieres estabilidad? Únete a nuestro equipo.",
+            "cta": "Únete hoy."
+          }
+        },
+        {
+          "en": {
+            "hook": "$85,000 per year. Dedicated Class A opening.",
+            "body": "Dedicated work keeps you on a consistent operation rather than chasing different loads each week. You get $85,000 per year, health insurance, and a 401k. Hold a Class A CDL? This seat is open.",
+            "cta": "Apply now."
+          },
+          "es": {
+            "hook": "$85,000 al año. Plaza Clase A dedicada disponible.",
+            "body": "El trabajo dedicado te mantiene en una operación consistente, sin andar buscando cargas distintas cada semana. Pagas $85,000 al año, seguro médico y 401k. ¿Tienes CDL Clase A? Este asiento está disponible.",
+            "cta": "Aplica ahora."
+          }
+        }
+      ]
     }
   }
 }

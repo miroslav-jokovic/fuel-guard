@@ -86,6 +86,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "A slow orbit around the tractor",
+      "layout": "bottom_plate",
       "formats": [
         "9:16"
       ],
@@ -98,27 +99,60 @@
         "headline": "headline"
       }
     },
-    "company_name": "Dispatch Freight Lines"
+    "company_name": "Dispatch Freight Lines",
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:34:49.500Z",
+    "recorded_at": "2026-11-09T20:16:56.593Z",
     "output": {
-      "en": {
-        "hook": "Tanker CDL-A, $0.80/mile",
-        "cta": "Apply today",
-        "primary_text": "Regional tanker runs in Illinois and Indiana. Start at $0.76 per mile and earn up to $0.80 per mile. Home weekends. Pet policy available. Must be 23+ with 2 years experience. Join Dispatch Freight Lines.",
-        "headline": "Home weekends. Up to $0.80/mi."
-      },
-      "es": {
-        "hook": "Tanque CDL-A, $0.80/milla",
-        "cta": "Aplica hoy",
-        "primary_text": "Rutas regionales de tanque en Illinois e Indiana. Comienza en $0.76 por milla y llega hasta $0.80 por milla. Fines de semana en casa. Política para mascotas. Mayor de 23 años y 2 años de experiencia requeridos.",
-        "headline": "Fines de semana en casa."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Tanker. $0.76–$0.80/mile.",
+            "cta": "Apply now",
+            "primary_text": "Dispatch Freight Lines runs tanker freight through Illinois and Indiana. You earn $0.76 to $0.80 per mile on regional routes, and you are home weekends. Pets ride along. Must be 23+ with 2 years of experience. Join our team.",
+            "headline": "Home weekends. Apply today."
+          },
+          "es": {
+            "hook": "Tanque. $0.76–$0.80/milla.",
+            "cta": "Aplica ahora",
+            "primary_text": "Dispatch Freight Lines mueve carga en tanque por Illinois e Indiana. Ganas de $0.76 a $0.80 por milla, en casa los fines de semana. Se permiten mascotas. Mayor de 23 años con 2 años de experiencia.",
+            "headline": "Casa los fines. Aplica hoy."
+          }
+        },
+        {
+          "en": {
+            "hook": "Home weekends. Tanker CDL-A.",
+            "cta": "Get started",
+            "primary_text": "These are regional tanker routes in Illinois and Indiana — you sleep in your own bed every weekend. Pay runs $0.76 to $0.80 per mile. Pet policy in place. Must be 23+ with 2 years behind the wheel. Drive with Dispatch Freight Lines.",
+            "headline": "Up to $0.80/mile. Tanker runs."
+          },
+          "es": {
+            "hook": "Casa los fines. Tanque CDL-A.",
+            "cta": "Comienza ya",
+            "primary_text": "Rutas regionales en tanque por Illinois e Indiana: llegas a casa cada fin de semana. La paga va de $0.76 a $0.80 por milla. Se aceptan mascotas. Se requiere ser mayor de 23 años con 2 años de experiencia. Maneja con Dispatch Freight Lines.",
+            "headline": "Hasta $0.80/milla. Ruta tanque."
+          }
+        },
+        {
+          "en": {
+            "hook": "Illinois–Indiana tanker run.",
+            "cta": "Talk to us",
+            "primary_text": "You drive tanker through Illinois and Indiana — regional miles, home weekends, $0.76 to $0.80 per mile. Bring your pet. Two years of experience required, 23+. Talk to us and get rolling.",
+            "headline": "Dispatch Freight Lines hiring."
+          },
+          "es": {
+            "hook": "Ruta tanque IL–IN.",
+            "cta": "Contáctanos",
+            "primary_text": "Manejas tanque en Illinois e Indiana: rutas regionales, en casa los fines de semana, de $0.76 a $0.80 por milla. Se permiten mascotas. Se requieren 2 años de experiencia y ser mayor de 23 años. Contáctanos y empieza a rodar.",
+            "headline": "Dispatch Freight Lines contrata."
+          }
+        }
+      ]
     }
   }
 }

@@ -27,7 +27,7 @@ const FULL: AdsSettings = {
   auto_pause: { cpl_max_cents: 4_200, cpl_min_leads: 5, no_lead_spend_cents: 8_000, frequency_max: 3.5, pause_at_daily_cap: true, pause_when_filled: false },
   creative_refresh: { retire: false, min_days: 7, ctr_drop_pct: 25, min_impressions: 2000 },
   approvals: { second_approver_above_cents: 50_000 },
-  budgets: { anthropic_tokens_monthly: 1_000_000, higgsfield_credits_monthly: 500, max_regenerations: 2, agents_enabled: { copywriter: true, renderer: true } },
+  budgets: { anthropic_tokens_monthly: 1_000_000, higgsfield_credits_monthly: 500, max_regenerations: 2, candidates_per_creative: 3, agents_enabled: { copywriter: true, renderer: true } },
   alerts: { recipients: { ads_overspend: [MEMBER] }, uncontacted_lead_minutes: 30 },
   outcome_feed: { enabled: true, dataset_id: "990000000201" },
 };

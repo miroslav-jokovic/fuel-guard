@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { presentationOrder } from "../workers/craftJudge/craftJudge.js";
 import { readFileSync } from "node:fs";
 import sharp from "sharp";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
@@ -23,6 +24,9 @@ const jpg = (n: string) => readFileSync(new URL(`${n}.jpg`, IMAGES));
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 
 const copyFx = loadFixtures(COPYWRITER_EVAL).find((f) => f.fixture.name === "age-floor")!.fixture;
+const copySet = copyFx.recorded.output as { candidates: Array<{ en: Record<string, string>; es: Record<string, string> }> };
+/** With flat judge scores the order is the writer's, so the first candidate becomes the ad. */
+const firstCandidate = copySet.candidates[0]!;
 const artFx = loadFixtures(ART_DIRECTOR_EVAL).find((f) => f.fixture.name === "tractor-on-highway")!.fixture;
 const RECIPE: AdPresetRecipe = { ...artFx.input.recipe, copy_slots: copyFx.input.recipe.copy_slots, formats: ["4:5"], overlay_slots: { headline: "hook", cta: "cta" } };
 const KIT: AdBrandKit = { ...artFx.input.kit, overlays: { "4:5": { zone: null, text_color: "#FFFFFF", plate_color: "#0B3D2E" } }, people_policy: "none", forbidden_marks: ["ACME Logistics"] };
@@ -30,7 +34,7 @@ const RENDERED: AdAssetRef = { sha256: "d".repeat(64), format: "jpeg", source_fo
 
 const settings: AdsSettings = {
   ...ADS_SETTINGS_UNSET,
-  budgets: { ...ADS_SETTINGS_UNSET.budgets, anthropic_tokens_monthly: 1_000_000, agents_enabled: { copywriter: true, art_director: true, checker: true } },
+  budgets: { ...ADS_SETTINGS_UNSET.budgets, anthropic_tokens_monthly: 1_000_000, agents_enabled: { copywriter: true, art_director: true, checker: true, craft_judge: true } },
 };
 
 /**
@@ -71,10 +75,10 @@ afterAll(() => {
 const pass = (checks: readonly string[]) => ({ checks: Object.fromEntries(checks.map((c) => [c, { reason: "Looks right here.", verdict: "pass" }])) });
 const failOn = (bad: string) => (checks: readonly string[]) => ({ checks: Object.fromEntries(checks.map((c) => [c, { reason: c === bad ? "Lettering on the trailer side." : "Looks right here.", verdict: c === bad ? "fail" : "pass" }])) });
 
-function harness(opts: { visual?: Array<(checks: readonly string[]) => unknown>; copy?: unknown; render?: (i: RenderInput) => RenderOutcome } = {}) {
+function harness(opts: { settings?: AdsSettings; judge?: (n: number) => unknown; visual?: Array<(checks: readonly string[]) => unknown>; copy?: unknown; render?: (i: RenderInput) => RenderOutcome } = {}) {
   const rec = createSupabaseRecorder({
     tables: {
-      ads_settings_versions: [{ id: "v1", org_id: ORG, version: 1, settings, kill_switch: false, kill_reason: null, created_at: NOW.toISOString(), created_by_name: "X" }],
+      ads_settings_versions: [{ id: "v1", org_id: ORG, version: 1, settings: opts.settings ?? settings, kill_switch: false, kill_reason: null, created_at: NOW.toISOString(), created_by_name: "X" }],
       ad_generations: (q) => (q.write?.method === "insert" ? [{ id: `gen-${Math.random()}` }] : []),
       ads_creatives: [],
     },
@@ -84,6 +88,7 @@ function harness(opts: { visual?: Array<(checks: readonly string[]) => unknown>;
   const create = vi.fn(async (body: { tools: Array<{ name: string; input_schema: { properties: { checks?: { properties: object } } } }> }) => {
     const tool = body.tools[0]!;
     const input = tool.name === "write_copy" ? opts.copy ?? copyFx.recorded.output
+      : tool.name === "judge_copy" ? (opts.judge ?? ((n: number) => ({ scores: Array.from({ length: n }, () => ({ reason: "fixture", scores: { hook: 3, specific: 3, plain: 3, spanish: 3, no_filler: 3 } })) })))((tool.input_schema as unknown as { properties: { scores: { minItems: number } } }).properties.scores.minItems)
       : tool.name === "direct_art" ? artFx.recorded.output
       : (visual.length > 1 ? visual.shift()! : visual[0]!)(Object.keys(tool.input_schema.properties.checks!.properties));
     return { id: "msg_1", stop_reason: "tool_use", content: [{ type: "tool_use", id: "t1", name: tool.name, input }], usage: { input_tokens: 100, output_tokens: 50 } };
@@ -112,11 +117,13 @@ describe("composeCreative — a creative from copy to ready (C5b)", () => {
     let drawn = false;
     const h = harness({ render: (i) => (drawn ? { kind: "stored", generationId: "r", assets: [RENDERED], replayed: false } : { kind: "pending", generationId: "r", retryAfterSeconds: 5, why: `queued ${i.attempt}` }) });
     expect(await h.run()).toEqual({ kind: "pending", why: "render 1: queued 1" });
-    expect(h.creativeWrites()).toEqual([]);
+    // The only row written before the render is the candidates set (CQ4): what was written and how it was ranked exists
+    // before any picture does, so a stop at the render still shows it.
+    expect(h.creativeWrites().map((w) => Object.keys(w.write!.payload as object))).toEqual([["candidates"]]);
     drawn = true;
     expect(await h.run()).toEqual({ kind: "ready" });
     const last = h.creativeWrites().at(-1)!;
-    expect(last.write!.payload).toMatchObject({ state: "ready", regenerations: 0, last_error: null, copy: copyFx.recorded.output });
+    expect(last.write!.payload).toMatchObject({ state: "ready", regenerations: 0, last_error: null, copy: firstCandidate });
     const assets = (last.write!.payload as { assets: Array<{ format: string; language: string; width: number; height: number }> }).assets;
     expect(assets.map((a) => `${a.format} ${a.language} ${a.width}x${a.height}`)).toEqual(["4:5 en 1080x1350", "4:5 es 1080x1350"]);
     expect((last.write!.payload as { checks: { visual: { ok: boolean } } }).checks.visual.ok).toBe(true);
@@ -205,9 +212,64 @@ describe("composeCreative — a creative from copy to ready (C5b)", () => {
   });
 });
 
+describe("composeCreative — candidates and the craft judge (CQ4; D-AD19, D-AD21)", () => {
+  const scored = (totals: number[]) => (n: number) => ({ scores: Array.from({ length: n }, (_, pos) => ({ reason: `pos ${pos}`, scores: { hook: totals[pos]!, specific: totals[pos]!, plain: totals[pos]!, spanish: totals[pos]!, no_filler: totals[pos]! } })) });
+  /** The judge answers in the SHOWN order; this gives candidate `best` (writer's index) the top score whatever position it was shown at. */
+  const favouring = (best: number) => (n: number) => {
+    const presented = presentationOrder("cr-1", n);
+    return { scores: presented.map((candidate) => ({ reason: candidate === best ? "the strongest" : "weaker", scores: Object.fromEntries(["hook", "specific", "plain", "spanish", "no_filler"].map((k) => [k, candidate === best ? 5 : 2])) })) };
+  };
+
+  it("the judge's top-ranked candidate becomes the copy — not the writer's first — and the whole ranked set is stored with scores and reasons", async () => {
+    const h = harness({ judge: favouring(2) });
+    expect(await h.run()).toEqual({ kind: "ready" });
+    const last = h.creativeWrites().at(-1)!.write!.payload as { copy: unknown; candidates: { ranked: Array<{ offered_as: number; total: number | null; judged: { reason: string } | null }>; chosen: number; judge: string | null; offered: number; passed: number } };
+    expect(last.copy).toEqual(copySet.candidates[2]);
+    expect(last.candidates.ranked[0]).toMatchObject({ offered_as: 2, total: 25, judged: { reason: "the strongest" } });
+    expect(last.candidates.ranked.map((r) => r.total)).toEqual([25, 10, 10]);
+    expect(last.candidates).toMatchObject({ chosen: 0, judge: "craftJudge@1", offered: 3, passed: 3 });
+    expect(h.tools().slice(0, 2)).toEqual(["write_copy", "judge_copy"]);
+  });
+
+  it("a candidate refused for a figure the brief does not hold is dropped before the judge sees it; the rest go on", async () => {
+    const withOneBad = { candidates: copySet.candidates.map((c, i) => (i === 0 ? { en: { ...c.en, hook: "$0.95/mile for Class A drivers." }, es: c.es } : c)) };
+    const h = harness({ copy: withOneBad, judge: scored([3, 3]) });
+    expect(await h.run()).toEqual({ kind: "ready" });
+    const last = h.creativeWrites().at(-1)!.write!.payload as { candidates: { ranked: Array<{ offered_as: number }>; offered: number; passed: number } };
+    expect(last.candidates).toMatchObject({ offered: 3, passed: 2 });
+    expect(last.candidates.ranked.map((r) => r.offered_as).sort()).toEqual([1, 2]);
+    // The judge was asked about two, not three.
+    const judgeCall = h.create.mock.calls.find((c) => (c[0] as { tools: Array<{ name: string }> }).tools[0]!.name === "judge_copy")!;
+    expect(JSON.parse((judgeCall[0] as unknown as { messages: Array<{ content: string }> }).messages[0]!.content).candidates).toHaveLength(2);
+  });
+
+  it("with the craft judge switched off, the order is the writer's and the set says nobody ranked it", async () => {
+    const off: AdsSettings = { ...settings, budgets: { ...settings.budgets, agents_enabled: { copywriter: true, art_director: true, checker: true } } };
+    const h = harness({ settings: off });
+    expect(await h.run()).toEqual({ kind: "ready" });
+    const last = h.creativeWrites().at(-1)!.write!.payload as { copy: unknown; candidates: { judge: string | null; ranked: Array<{ total: number | null }> } };
+    expect(last.copy).toEqual(copySet.candidates[0]);
+    expect(last.candidates.judge).toBeNull();
+    expect(last.candidates.ranked.every((r) => r.total === null)).toBe(true);
+    expect(h.tools()).not.toContain("judge_copy");
+  });
+
+  it("one surviving candidate is not sent to the judge: there is nothing to rank", async () => {
+    const h = harness({ copy: { candidates: [copySet.candidates[0]] } });
+    expect(await h.run({ candidates: 1 })).toEqual({ kind: "ready" });
+    expect(h.tools()).not.toContain("judge_copy");
+  });
+
+  it("an answer with fewer candidates than asked is off-schema, not quietly accepted", async () => {
+    const h = harness({ copy: { candidates: [copySet.candidates[0]] } });
+    expect((await h.run({ candidates: 3 })).kind).toBe("check_failed");
+    expect(h.tools()).toEqual(["write_copy"]);
+  });
+});
+
 describe("composeCreative — what stops at once, never regenerated", () => {
   it("copy with a figure the brief does not hold stops before any art or render", async () => {
-    const bad = { en: { ...(copyFx.recorded.output as { en: object }).en, hook: "$0.95/mile for Class A drivers." }, es: (copyFx.recorded.output as { es: object }).es };
+    const bad = { candidates: copySet.candidates.map((c) => ({ en: { ...c.en, hook: "$0.95/mile for Class A drivers." }, es: c.es })) };
     const h = harness({ copy: bad });
     const out = await h.run();
     expect(out.kind === "check_failed" && out.reason).toMatch(/^copy check: /);
@@ -251,7 +313,10 @@ describe("composeCreative — what stops at once, never regenerated", () => {
   it("every write is guarded by the workers' states, so a re-run after the end changes nothing", async () => {
     const h = harness();
     await h.run();
-    const [checking, end] = h.creativeWrites();
+    const [candidates, checking, end] = h.creativeWrites();
+    // The candidates are kept while the workers hold the creative (CQ4), under the same guard as every other write.
+    expect(JSON.stringify(candidates!.filters())).toContain("generating");
+    expect(Object.keys(candidates!.write!.payload as object)).toEqual(["candidates"]);
     expect(checking!.filters()).toEqual(expect.arrayContaining([{ col: "state", val: "generating" }]));
     expect(JSON.stringify(end!.filters())).toContain("checking");
   });

@@ -61,6 +61,7 @@
       "shows_equipment": false,
       "shows_people": false,
       "motion_template": "Slow push-in down the highway as the light rises",
+      "layout": "bottom_plate",
       "formats": [
         "9:16",
         "4:5"
@@ -74,27 +75,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:36:35.287Z",
+    "recorded_at": "2026-11-09T20:21:20.894Z",
     "output": {
-      "en": {
-        "hook": "Sun up, wheels down, $0.66/mile.",
-        "cta": "Apply now.",
-        "primary_text": "Regional Class A run. You earn $0.66 per mile and get home weekends. Apply today.",
-        "headline": "Home every weekend."
-      },
-      "es": {
-        "hook": "Amanece, ruedas al piso, $0.66/milla.",
-        "cta": "Aplica ahora.",
-        "primary_text": "Ruta regional, Clase A. Ganas $0.66 por milla y llegas a casa los fines de semana. Únete hoy.",
-        "headline": "En casa los fines de semana."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "You're rolling at dawn: $0.66/mi.",
+            "cta": "Apply now",
+            "primary_text": "Regional Class A run. You earn $0.66 per mile and you're home weekends. Apply today.",
+            "headline": "Home every weekend."
+          },
+          "es": {
+            "hook": "Al amanecer, ganas $0.66/milla.",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta regional, Clase A. Ganas $0.66 por milla y llegas a casa los fines de semana. Únete al equipo.",
+            "headline": "En casa cada fin de semana."
+          }
+        },
+        {
+          "en": {
+            "hook": "Sunrise. Home by the weekend.",
+            "cta": "Join our team",
+            "primary_text": "You pull a regional route and you are home weekends. The rate is $0.66 per mile. If that fits your life, join us.",
+            "headline": "Earn $0.66 per mile."
+          },
+          "es": {
+            "hook": "Amaneces en ruta, llegas el fin.",
+            "cta": "Aplica aquí",
+            "primary_text": "Ruta regional Clase A. Regresas a casa los fines de semana y cobras $0.66 por milla. Si eso encaja con tu vida, aplica.",
+            "headline": "$0.66 por milla, regional."
+          }
+        },
+        {
+          "en": {
+            "hook": "You hit the road at first light.",
+            "cta": "Get started",
+            "primary_text": "Class A regional seat. You run your route at $0.66 per mile and you are home weekends. No guessing, no waiting — that is the deal.",
+            "headline": "Regional. Home weekends."
+          },
+          "es": {
+            "hook": "Sales al amanecer, vuelves pronto.",
+            "cta": "Empieza hoy",
+            "primary_text": "Puesto regional Clase A. Corres tu ruta a $0.66 por milla y estás en casa los fines de semana. Sin sorpresas — así es el trabajo.",
+            "headline": "Regional. Casa los fines."
+          }
+        }
+      ]
     }
   }
 }

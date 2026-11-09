@@ -4,6 +4,7 @@ import { creativeCheckGrid, type AdsCreativeView } from "@silvicom/shared";
 import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInput } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { CHECK_LABEL, CHECK_VERDICT_LABEL, CHECK_VERDICT_TONE, CREATIVE_STATE_LABEL, copyLines } from "./adsCampaignFlow";
+import AdsCopyCandidates from "./AdsCopyCandidates.vue";
 
 /**
  * One ad on the review screen (E3; D-AD12: a person approves what they have seen): every format and language, its
@@ -51,6 +52,7 @@ const tone = computed(() => (props.creative.state === "check_failed" || props.cr
       <div class="space-y-1">
         <p v-for="c in copyLines(creative.copy, l)" :key="c.slot" class="text-sm text-ink"><span class="text-ink-muted">{{ c.slot }}: </span>{{ c.text }}</p>
       </div>
+      <AdsCopyCandidates v-if="creative.candidates && creative.candidates.ranked.length > 1" :candidates="creative.candidates" :language="l" />
     </section>
     <div v-if="canDecide && creative.state === 'ready'" class="space-y-2">
       <FormField v-if="rejecting" v-slot="{ id }" label="Why is this ad rejected?" required>

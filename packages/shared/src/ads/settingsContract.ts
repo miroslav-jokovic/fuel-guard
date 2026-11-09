@@ -52,6 +52,11 @@ export const adsBudgetsSchema = z.object({
   /** 0–5, the same bounds as `ads_creatives.regenerations` (0537). */
   max_regenerations: z.number().int().min(0).max(5),
   /**
+   * How many copies the Copywriter offers per creative, for the craft judge to rank (CQ4, D-AD19; Q-AD60 taken as
+   * (a): 3, ceiling 5). Defaulted, so a version saved before CQ4 parses and keeps the one-copy behaviour of its day.
+   */
+  candidates_per_creative: z.number().int().min(1).max(5).default(3),
+  /**
    * D-RA9: every model-using worker has its own switch, OFF by default. An agent absent from this
    * record is off, so a worker added to `AD_AI_AGENTS` later starts switched off in every org that
    * saved settings before it existed — the safe direction, with no backfill. `.default({})` lets a
@@ -154,7 +159,7 @@ export const ADS_SETTINGS_UNSET: AdsSettings = {
   },
   creative_refresh: { retire: false, min_days: 7, ctr_drop_pct: 25, min_impressions: 2000 },
   approvals: { second_approver_above_cents: null },
-  budgets: { anthropic_tokens_monthly: null, higgsfield_credits_monthly: null, max_regenerations: 1, agents_enabled: {} },
+  budgets: { anthropic_tokens_monthly: null, higgsfield_credits_monthly: null, max_regenerations: 1, candidates_per_creative: 3, agents_enabled: {} },
   alerts: { recipients: {}, uncontacted_lead_minutes: 15 },
 };
 

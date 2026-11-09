@@ -76,6 +76,7 @@
       "shows_equipment": false,
       "shows_people": false,
       "motion_template": "Slow push-in down the highway as the light rises",
+      "layout": "bottom_plate",
       "formats": [
         "9:16",
         "4:5"
@@ -89,27 +90,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:35:43.677Z",
+    "recorded_at": "2026-11-09T20:19:11.606Z",
     "output": {
-      "en": {
-        "hook": "You're rolling at dawn: $0.60/mile.",
-        "cta": "Apply now.",
-        "primary_text": "Class A drivers earn $0.60 per mile hauling dry van freight and get home weekly. You need 2 years of experience and must be 23+. Apply today.",
-        "headline": "Dry van, home weekly."
-      },
-      "es": {
-        "hook": "Al amanecer, tú manejas: $0.60/milla.",
-        "cta": "Aplica ahora.",
-        "primary_text": "Conductores Clase A ganan $0.60 por milla en rutas de carga seca y regresan a casa cada semana. Se requieren 2 años de experiencia y ser mayor de 23 años. Únete al equipo.",
-        "headline": "Carga seca, casa cada semana."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "You roll at dawn: $0.60/mile.",
+            "cta": "Apply today.",
+            "primary_text": "Dry van runs, Class A seat, $0.60 per mile. You need 2 years of experience and to be 23+. Home weekly — the truck stops, you don't have to.",
+            "headline": "Home weekly. $0.60/mile."
+          },
+          "es": {
+            "hook": "Al amanecer arrancas: $0.60/milla.",
+            "cta": "Aplica hoy.",
+            "primary_text": "Carga seca, asiento Clase A, $0.60 por milla. Se requieren 2 años de experiencia y ser mayor de 23 años. Regresas a casa cada semana.",
+            "headline": "Casa semanal. $0.60/milla."
+          }
+        },
+        {
+          "en": {
+            "hook": "Home weekly starts at dawn.",
+            "cta": "Join our team.",
+            "primary_text": "You pull dry van freight and you're home every week. The pay is $0.60 per mile. Bring 2 years of Class A experience and be 23+. Apply and get moving.",
+            "headline": "Dry van. $0.60 per mile."
+          },
+          "es": {
+            "hook": "Casa cada semana, desde el alba.",
+            "cta": "Únete hoy.",
+            "primary_text": "Jalas carga seca y llegas a casa cada semana. La paga es $0.60 por milla. Necesitas 2 años de experiencia Clase A y ser mayor de 23 años. Aplica ya.",
+            "headline": "Carga seca. $0.60/milla."
+          }
+        },
+        {
+          "en": {
+            "hook": "Dry van freight at first light.",
+            "cta": "Apply now.",
+            "primary_text": "Class A dry van seat. You earn $0.60 per mile hauling dry van freight and come home weekly. Requirements: 2 years of experience, age 23+. Get in touch.",
+            "headline": "Class A. Home weekly."
+          },
+          "es": {
+            "hook": "Carga seca al primer rayo de luz.",
+            "cta": "Aplica ahora.",
+            "primary_text": "Puesto Clase A, tráiler de carga seca. Ganas $0.60 por milla y regresas a casa cada semana. Requisitos: 2 años de experiencia, mayores de 23 años. Contáctanos.",
+            "headline": "Clase A. Casa semanal."
+          }
+        }
+      ]
     }
   }
 }

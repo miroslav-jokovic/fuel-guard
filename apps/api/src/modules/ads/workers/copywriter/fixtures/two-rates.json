@@ -61,31 +61,61 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "1:1",
         "4:5"
       ],
       "overlay_slots": null
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:39:13.319Z",
+    "recorded_at": "2026-11-09T20:27:56.386Z",
     "output": {
-      "en": {
-        "hook": "Up to $0.72/mile for Class A regional drivers.",
-        "body": "Start at $0.60 per mile and earn up to $0.72 per mile as a regional Class A driver. Pay lands in your account every week, so you always know where you stand.",
-        "cta": "Apply today."
-      },
-      "es": {
-        "hook": "Hasta $0.72 por milla para conductores Clase A.",
-        "body": "Comienza en $0.60 por milla y llega hasta $0.72 por milla manejando ruta regional con licencia Clase A. El pago es semanal, directo a tu cuenta.",
-        "cta": "Aplica hoy mismo."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "$0.72/mile for Class A regional drivers.",
+            "body": "Top miles pay $0.72 per mile, and you get weekly pay every week without waiting. Regional runs keep you closer to home. If you hold a Class A CDL and want steady freight, this is a solid seat.",
+            "cta": "Apply today."
+          },
+          "es": {
+            "hook": "$0.72 por milla para conductores Clase A.",
+            "body": "Las rutas de mayor rendimiento pagan $0.72 por milla. El pago es semanal, sin esperas. Las rutas regionales te mantienen cerca de casa. Si tienes CDL Clase A y buscas carga constante, este asiento es tuyo.",
+            "cta": "Aplica hoy."
+          }
+        },
+        {
+          "en": {
+            "hook": "Weekly pay. Class A regional seat open.",
+            "body": "You get paid every week — $0.60 to $0.72 per mile depending on the run. Regional lanes, Class A CDL required. If you want a consistent check and miles you can count on, come drive with us.",
+            "cta": "Join our team."
+          },
+          "es": {
+            "hook": "Pago semanal. Ruta regional Clase A disponible.",
+            "body": "Cobras cada semana: de $0.60 a $0.72 por milla según la ruta. Se requiere CDL Clase A. Si quieres un cheque constante y millas confiables, tenemos el asiento para ti.",
+            "cta": "Únete al equipo."
+          }
+        },
+        {
+          "en": {
+            "hook": "$0.60–$0.72/mile. Regional Class A role.",
+            "body": "Pay runs $0.60 to $0.72 per mile on regional freight. Weekly pay means your check lands every week. Hold a Class A CDL? This regional seat is worth a look.",
+            "cta": "Apply now."
+          },
+          "es": {
+            "hook": "$0.60–$0.72 por milla. Puesto regional Clase A.",
+            "body": "El pago va de $0.60 a $0.72 por milla en rutas regionales. Con pago semanal, tu cheque llega cada semana. ¿Tienes CDL Clase A? Este puesto vale la pena.",
+            "cta": "Aplica ahora."
+          }
+        }
+      ]
     }
   }
 }

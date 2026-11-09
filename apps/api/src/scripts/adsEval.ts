@@ -68,6 +68,7 @@ async function run<F, T>(name: string, w: EvalWorker<F, T>, record: boolean, jso
     if (record) {
       const next = w.withRecording(fixture, { source: "model", prompt_version: w.promptVersion, model: req.model, recorded_at: new Date().toISOString(), output });
       const withExpect = { ...(next as object), expect: verdict, ...(verdict === "refused" ? { expect_findings: findings } : { expect_findings: undefined }) };
+      // A judge's "findings" are its ranking, not a finding list; they are read by `agrees`, never stored.
       writeFileSync(file, `${JSON.stringify(withExpect, null, 2)}\n`);
     }
   }

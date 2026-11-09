@@ -64,6 +64,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "A slow orbit around the tractor",
+      "layout": "bottom_plate",
       "formats": [
         "9:16"
       ],
@@ -76,27 +77,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:38:11.516Z",
+    "recorded_at": "2026-11-09T20:25:20.629Z",
     "output": {
-      "en": {
-        "hook": "Class A truck, $12,000/wk",
-        "cta": "Apply today",
-        "primary_text": "New Class A license? We have a spot for you. Earn $12,000 per week with weekly pay so you always know when your money arrives. Orientation is paid, so you start earning from day one. Join our team.",
-        "headline": "Weekly pay, paid orientation"
-      },
-      "es": {
-        "hook": "Clase A: $12,000 por semana",
-        "cta": "Aplica hoy",
-        "primary_text": "¿Recién licenciado Clase A? Hay un lugar para ti. Gana $12,000 por semana con pago semanal, para que siempre sepas cuándo llega tu dinero. La orientación es pagada desde el primer día. Únete al equipo.",
-        "headline": "Pago semanal, orientación pagada"
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Class A truck. $12,000/wk.",
+            "cta": "Apply now",
+            "primary_text": "You just got your Class A CDL. Here is a seat that pays $12,000 per week from day one. Orientation is paid, and your check comes every week. Apply today and get moving.",
+            "headline": "Weekly pay. Paid orientation."
+          },
+          "es": {
+            "hook": "Clase A. $12,000 por semana.",
+            "cta": "Aplica ahora",
+            "primary_text": "Tienes tu licencia Clase A y aquí hay un trabajo que paga $12,000 por semana desde el primer día. La orientación es pagada y cobras cada semana. Aplica hoy.",
+            "headline": "Pago semanal. Orientación pagada."
+          }
+        },
+        {
+          "en": {
+            "hook": "New CDL. Paid every week.",
+            "cta": "Get started",
+            "primary_text": "Fresh Class A license? Good. This seat pays $12,000 per week and you get paid every single week. Orientation is paid too, so you earn from the first day you show up. Join the team.",
+            "headline": "$12,000/wk — start strong."
+          },
+          "es": {
+            "hook": "CDL nuevo. Cobras cada semana.",
+            "cta": "Comienza ya",
+            "primary_text": "¿Tienes tu licencia Clase A recién expedida? Este puesto paga $12,000 por semana con pago semanal garantizado. La orientación es pagada, así que ganas desde el primer día. Únete al equipo.",
+            "headline": "$12,000/sem — empieza fuerte."
+          }
+        },
+        {
+          "en": {
+            "hook": "Class A rig. Weekly check.",
+            "cta": "Apply today",
+            "primary_text": "Put your new Class A CDL to work. This position offers $12,000 per week with weekly pay, so there is no waiting around to see your money. Orientation is paid. Apply and climb in.",
+            "headline": "Paid orientation included."
+          },
+          "es": {
+            "hook": "Tráiler Clase A. Pago semanal.",
+            "cta": "Aplica hoy",
+            "primary_text": "Pon tu nueva licencia Clase A a trabajar. Este puesto ofrece $12,000 por semana con pago cada semana, sin esperar para ver tu dinero. La orientación es pagada. Aplica y sube al tráiler.",
+            "headline": "Orientación pagada incluida."
+          }
+        }
+      ]
     }
   }
 }

@@ -91,6 +91,7 @@
       "shows_equipment": false,
       "shows_people": false,
       "motion_template": "Slow push-in down the highway as the light rises",
+      "layout": "bottom_plate",
       "formats": [
         "9:16",
         "4:5"
@@ -104,30 +105,60 @@
         "headline": "headline"
       }
     },
-    "company_name": "360 Logistics"
+    "company_name": "360 Logistics",
+    "candidates": 3
   },
-  "expect": "refused",
+  "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:35:27.407Z",
+    "recorded_at": "2026-11-09T20:18:23.536Z",
     "output": {
-      "en": {
-        "hook": "You're rolling. $320–$360 a day.",
-        "cta": "Apply with 360",
-        "primary_text": "Night intermodal runs, rail yards to Joliet warehouses. You're home every day, paid every week. Automatic transmission, so you can focus on the run. 360 Logistics needs Class A drivers with 2 years of experience, age 23+.",
-        "headline": "Home daily. Up to $360/day."
-      },
-      "es": {
-        "hook": "Al volante. $320–$360 por día.",
-        "cta": "Aplica con 360",
-        "primary_text": "Rutas nocturnas de intermodal, de patios ferroviarios a bodegas en Joliet. Regresas a casa cada día y cobras cada semana. Transmisión automática. 360 Logistics busca conductores Clase A con 2 años de experiencia, mayores de 23 años.",
-        "headline": "A casa diario. Hasta $360/día."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "You pull $320–$360 a day.",
+            "cta": "Apply now.",
+            "primary_text": "360 Logistics runs intermodal freight from rail yards to Joliet warehouses on the night shift. Local runs mean you're home daily. Automatic transmission, weekly pay. Class A, 2 years experience, age 23+.",
+            "headline": "Home daily. Up to $360/day."
+          },
+          "es": {
+            "hook": "Ganas $320–$360 por día.",
+            "cta": "Aplica ahora.",
+            "primary_text": "360 Logistics mueve carga intermodal de patios ferroviarios a bodegas en Joliet, turno nocturno. Rutas locales: regresas a casa cada día. Transmisión automática, pago semanal. Clase A, 2 años de experiencia, mayores de 23.",
+            "headline": "A casa cada día. $360/día."
+          }
+        },
+        {
+          "en": {
+            "hook": "Home every morning. Every day.",
+            "cta": "Join our team.",
+            "primary_text": "Night-shift intermodal out of the rail yards into Joliet. Local runs, home daily — no overnight stays. 360 Logistics pays $320 to $360 per day, every week. Automatic transmission. Class A with 2 years required, age 23+.",
+            "headline": "$320–$360/day, local runs."
+          },
+          "es": {
+            "hook": "De vuelta a casa cada mañana.",
+            "cta": "Únete al equipo.",
+            "primary_text": "Turno nocturno, carga intermodal de patios de tren a bodegas en Joliet. Rutas locales, a casa cada día. 360 Logistics paga de $320 a $360 por día, cada semana. Transmisión automática. Clase A con 2 años de experiencia, mayores de 23.",
+            "headline": "$320–$360/día, rutas locales."
+          }
+        },
+        {
+          "en": {
+            "hook": "Rail yards to Joliet, nights.",
+            "cta": "Apply today.",
+            "primary_text": "You run intermodal freight from the rail yard to Joliet warehouses on nights — then you're done and home daily. Automatic transmission keeps the shift smooth. 360 Logistics pays $320–$360 per day with weekly pay. Class A, 2 years experience, age 23+.",
+            "headline": "360 Logistics — $360/day."
+          },
+          "es": {
+            "hook": "Del patio al almacén, de noche.",
+            "cta": "Aplica hoy.",
+            "primary_text": "Manejas carga intermodal del patio ferroviario a bodegas en Joliet en turno nocturno, y llegas a casa cada día. Transmisión automática en cada unidad. 360 Logistics paga $320–$360 por día con pago semanal. Clase A, 2 años de experiencia, mayores de 23.",
+            "headline": "360 Logistics — $360/día."
+          }
+        }
+      ]
     }
-  },
-  "expect_findings": [
-    "unrecognised_number"
-  ]
+  }
 }

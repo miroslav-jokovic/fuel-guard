@@ -5,6 +5,7 @@ export * from "./settingsContract.js";
 export * from "./campaignMachine.js";
 export * from "./adsPolicy.js";
 export * from "./adClaims.js";
+export * from "./copyCandidates.js";
 export * from "./presetDraw.js";
 export * from "./naming.js";
 export * from "./metaLeadForm.js";

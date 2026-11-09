@@ -1,11 +1,11 @@
 {
   "worker": "copywriter",
-  "prompt_version": "copywriter@2",
+  "prompt_version": "copywriter@3",
   "model": "claude-sonnet-4-6",
   "fixtures": 65,
   "asked": 60,
   "agreed": 58,
   "agreement": 0.967,
   "planted_skipped": 5,
-  "recorded_at": "2026-11-09T18:39:23.885Z"
+  "recorded_at": "2026-11-09T20:28:20.903Z"
 }

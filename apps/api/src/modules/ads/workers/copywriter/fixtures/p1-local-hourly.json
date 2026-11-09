@@ -61,6 +61,7 @@
       "shows_equipment": false,
       "shows_people": false,
       "motion_template": "Slow push-in down the highway as the light rises",
+      "layout": "bottom_plate",
       "formats": [
         "9:16",
         "4:5"
@@ -74,27 +75,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:36:45.181Z",
+    "recorded_at": "2026-11-09T20:21:45.945Z",
     "output": {
-      "en": {
-        "hook": "You're rolling at dawn. $31/hr.",
-        "cta": "Apply today",
-        "primary_text": "This is a local Class A route. You start early, run your day, and sleep in your own bed every night. Pay is $31 per hour. Apply now and get behind the wheel.",
-        "headline": "Local. Home daily. Class A."
-      },
-      "es": {
-        "hook": "Al volante al amanecer. $31/hr.",
-        "cta": "Aplica hoy",
-        "primary_text": "Ruta local con Clase A. Arrancas temprano, cumples tu jornada y llegas a casa cada noche. El pago es de $31 por hora. Únete al equipo hoy.",
-        "headline": "Local. En casa cada día."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "You're home every night. $31/hr.",
+            "cta": "Apply now",
+            "primary_text": "Start your day local and end it at your own table. This Class A position pays $31 per hour and brings you home daily. No overnight runs, no guessing when you'll be back. Apply today.",
+            "headline": "Local Class A. $31 per hour."
+          },
+          "es": {
+            "hook": "En casa cada noche. $31/hora.",
+            "cta": "Aplica ahora",
+            "primary_text": "Sal en tu ruta y regresa a casa cada día. Esta posición Clase A paga $31 por hora y llegas a dormir en tu propia cama. Sin noches fuera, sin incertidumbre. Aplica hoy.",
+            "headline": "Local Clase A. $31 por hora."
+          }
+        },
+        {
+          "en": {
+            "hook": "Home daily. $31 an hour.",
+            "cta": "Join our team",
+            "primary_text": "Watch the sun come up behind the wheel, then watch it set from your driveway. This local Class A role pays $31 per hour. You're home every single day. Join our team and apply today.",
+            "headline": "Class A local — home daily."
+          },
+          "es": {
+            "hook": "A casa cada día. $31/hora.",
+            "cta": "Únete al equipo",
+            "primary_text": "Amanece al volante y anochece en tu casa. Este puesto local Clase A paga $31 por hora. Llegas a casa todos los días, sin excepción. Únete al equipo y aplica hoy mismo.",
+            "headline": "Clase A local — a casa cada día."
+          }
+        },
+        {
+          "en": {
+            "hook": "Dawn run. $31/hr. Home tonight.",
+            "cta": "See the job",
+            "primary_text": "You pull out at first light and you're back before the day is done. Class A local driving at $31 per hour, home daily. That's the whole deal. See if it fits — apply today.",
+            "headline": "Local Class A. Home every day."
+          },
+          "es": {
+            "hook": "Ruta al alba. $31/hora. Casa hoy.",
+            "cta": "Ver el trabajo",
+            "primary_text": "Sales con la primera luz y regresas antes de que caiga la noche. Conducción local Clase A a $31 por hora, a casa todos los días. Eso es todo lo que necesitas saber. Aplica hoy.",
+            "headline": "Clase A local. A casa cada día."
+          }
+        }
+      ]
     }
   }
 }

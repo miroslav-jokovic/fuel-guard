@@ -63,6 +63,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "A slow orbit around the tractor",
+      "layout": "bottom_plate",
       "formats": [
         "9:16"
       ],
@@ -75,27 +76,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:37:56.203Z",
+    "recorded_at": "2026-11-09T20:24:45.074Z",
     "output": {
-      "en": {
-        "hook": "Class A dedicated run.",
-        "cta": "Apply today.",
-        "primary_text": "This is a dedicated route — same lanes, steady work. Benefits include 401k, dental, and vision. If you hold a Class A CDL, apply today and get on a consistent run.",
-        "headline": "401k, dental and vision."
-      },
-      "es": {
-        "hook": "Ruta dedicada, Clase A.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Ruta dedicada con trabajo constante — mismas vías, horario estable. Incluye 401k, seguro dental y de visión. Si tienes CDL Clase A, únete al equipo hoy.",
-        "headline": "401k, dental y visión."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Class A. Dedicated run.",
+            "cta": "Apply today.",
+            "primary_text": "This is a dedicated Class A position. You run the same account, same lanes, same schedule. Benefits include 401k, dental, and vision. Apply and join our team.",
+            "headline": "401k, dental and vision."
+          },
+          "es": {
+            "hook": "Clase A. Ruta dedicada.",
+            "cta": "Aplica hoy.",
+            "primary_text": "Posición dedicada para conductor Clase A. Misma cuenta, mismas rutas, mismo horario. Beneficios incluyen 401k, dental y visión. Únete al equipo.",
+            "headline": "401k, dental y visión."
+          }
+        },
+        {
+          "en": {
+            "hook": "Dedicated Class A seat.",
+            "cta": "Join our team.",
+            "primary_text": "A dedicated Class A role means you know your account and your lanes. No surprises. You get 401k, dental, and vision coverage. Come drive with us.",
+            "headline": "Benefits: 401k, dental, vision."
+          },
+          "es": {
+            "hook": "Clase A, ruta fija.",
+            "cta": "Únete hoy.",
+            "primary_text": "Ruta dedicada para conductor Clase A. Mismas rutas, misma cuenta. Cobertura de 401k, dental y visión. Aplica y forma parte del equipo.",
+            "headline": "401k, dental y visión incluidos."
+          }
+        },
+        {
+          "en": {
+            "hook": "Class A, dedicated lanes.",
+            "cta": "Get started.",
+            "primary_text": "Class A dedicated driver needed. You stay on a set account with consistent lanes. Benefits on the table: 401k, dental, and vision. Reach out and get started.",
+            "headline": "401k plus dental and vision."
+          },
+          "es": {
+            "hook": "Clase A, rutas dedicadas.",
+            "cta": "Contáctanos.",
+            "primary_text": "Se necesita conductor Clase A para posición dedicada. Rutas fijas, misma cuenta cada semana. Beneficios: 401k, dental y visión. Contáctanos para empezar.",
+            "headline": "401k, dental y visión."
+          }
+        }
+      ]
     }
   }
 }

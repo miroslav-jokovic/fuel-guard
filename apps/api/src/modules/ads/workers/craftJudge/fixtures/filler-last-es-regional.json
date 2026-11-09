@@ -1,0 +1,200 @@
+{
+  "name": "filler-last-es-regional",
+  "about": "Spanish-first subject: the filler ranks last.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor Clase A regional, refrigerado",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 64,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 72,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "term",
+          "term": "no-touch freight"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "reefer freight",
+          "regional runs",
+          "Chicago a Texas"
+        ],
+        "in_our_words": "Despacho habla español."
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P1 Windshield sunrise",
+      "hook_formula": "Second person, present tense: put the reader in the driver's seat at dawn, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield at {time_of_day} on an open {road} highway, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day",
+        "road"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": "Slow push-in down the highway as the light rises",
+      "layout": "bottom_plate",
+      "formats": [
+        "9:16",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": [
+      {
+        "en": {
+          "hook": "You're rolling at dawn. $0.72/mile.",
+          "cta": "Apply with us.",
+          "primary_text": "Silvicom Inc runs reefer freight on regional lanes, Chicago to Texas. You earn $0.64 to $0.72 per mile, get paid weekly, and sleep in your own bed weekly. No-touch freight. Must be 23+ with 2 years of experience. Dispatch speaks Spanish.",
+          "headline": "Home weekly. $0.72/mile."
+        },
+        "es": {
+          "hook": "Al amanecer, tú manejas. $0.72/milla.",
+          "cta": "Aplica hoy.",
+          "primary_text": "Silvicom Inc mueve carga refrigerada en rutas regionales de Chicago a Texas. Ganas entre $0.64 y $0.72 por milla, con pago semanal y regreso a casa cada semana. Carga sin toque. Se requieren 23+ años y 2 años de experiencia. El despacho habla español.",
+          "headline": "A casa semanal. $0.72/milla."
+        }
+      },
+      {
+        "en": {
+          "hook": "Great pay, great team",
+          "cta": "Apply today",
+          "primary_text": "Exciting opportunity for Class A drivers to join our dynamic team. We offer competitive pay, great freight and a family atmosphere where we truly value our drivers. Earn $0.64/mile. Apply today and take your career to the next level.",
+          "headline": "Great pay, great team"
+        },
+        "es": {
+          "hook": "Buen pago, gran equipo",
+          "cta": "Aplica hoy",
+          "primary_text": "Emocionante oportunidad para conductores Clase A de unirse a nuestro equipo dinámico. Ofrecemos pago competitivo, excelente carga y un ambiente familiar donde valoramos a nuestros conductores. Gana $0.64 por milla. Aplica hoy.",
+          "headline": "Buen pago, gran equipo"
+        }
+      },
+      {
+        "en": {
+          "hook": "Sun up, wheels down, $0.66/mile.",
+          "cta": "Apply now.",
+          "primary_text": "Regional Class A run. You earn $0.66 per mile and get home weekends. Apply today.",
+          "headline": "Home every weekend."
+        },
+        "es": {
+          "hook": "Amanece, ruedas al piso, $0.66/milla.",
+          "cta": "Aplica ahora.",
+          "primary_text": "Ruta regional, Clase A. Ganas $0.66 por milla y llegas a casa los fines de semana. Únete hoy.",
+          "headline": "En casa los fines de semana."
+        }
+      }
+    ],
+    "seed": "filler-last-es-regional"
+  },
+  "expect": "ready",
+  "expect_rank": {
+    "candidate": 1,
+    "at": "last"
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "craftJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T20:31:29.263Z",
+    "output": {
+      "scores": [
+        {
+          "reason": "The hook ignores the concept entirely — no dawn, no driver's seat, just generic slogans. Primary text is a wall of filler ('exciting opportunity', 'dynamic team', 'competitive pay', 'family atmosphere', 'truly value our drivers', 'take your career to the next level'). No route, no freight type, no schedule detail beyond one pay rate. Spanish is a word-for-word translation with no trade voice.",
+          "scores": {
+            "hook": 1,
+            "specific": 1,
+            "plain": 2,
+            "spanish": 2,
+            "no_filler": 1
+          }
+        },
+        {
+          "reason": "Hook puts the driver at dawn with a pay figure — good concept fit — but the rate ($0.66/mile) is not in the facts, which is a problem for credibility even though truth-checking is out of scope here. Primary text is admirably short but says 'home weekends' instead of the stated 'home weekly', and omits freight type, route, and company name. Spanish is natural and uses trade words well.",
+          "scores": {
+            "hook": 4,
+            "specific": 2,
+            "plain": 4,
+            "spanish": 4,
+            "no_filler": 4
+          }
+        },
+        {
+          "reason": "Hook nails the concept — second person, present tense, dawn moment, strongest fact ($0.72/mile) — all within the char limit. Primary text names the carrier, the freight (reefer), the lane (Chicago to Texas), both pay rates, weekly pay, home weekly, no-touch freight, age and experience requirements, and Spanish dispatch — every checkable fact from the brief. Spanish is natural, uses 'carga refrigerada', 'rutas regionales', 'despacho', distances in miles, no filler.",
+          "scores": {
+            "hook": 5,
+            "specific": 5,
+            "plain": 5,
+            "spanish": 5,
+            "no_filler": 5
+          }
+        }
+      ]
+    }
+  }
+}

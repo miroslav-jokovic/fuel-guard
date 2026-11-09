@@ -64,6 +64,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "layout": "bottom_plate",
       "formats": [
         "4:5",
         "9:16"
@@ -77,27 +78,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:37:26.809Z",
+    "recorded_at": "2026-11-09T20:23:31.530Z",
     "output": {
-      "en": {
-        "hook": "Home on a dedicated route.",
-        "cta": "Apply today.",
-        "primary_text": "Dedicated account means consistent runs and predictable time at home. Earn $90,000 per year and get health insurance. If you hold a Class A CDL, apply today.",
-        "headline": "Class A — $90,000/year."
-      },
-      "es": {
-        "hook": "Ruta dedicada, en casa a tiempo.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Cuenta dedicada: rutas fijas y horario predecible para que llegues a casa. Gana $90,000 al año con seguro médico incluido. Si tienes CDL Clase A, únete al equipo.",
-        "headline": "Clase A — $90,000 al año."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Home on a dedicated route.",
+            "cta": "Apply today.",
+            "primary_text": "Dedicated accounts keep you on a consistent schedule — same lanes, same customers, same routine. You earn $90,000 per year and get health insurance. Join our team.",
+            "headline": "Dedicated. $90,000/year."
+          },
+          "es": {
+            "hook": "Ruta dedicada, en casa.",
+            "cta": "Aplica hoy.",
+            "primary_text": "Una cuenta dedicada te da rutas fijas, mismos clientes y horario predecible. Ganas $90,000 al año y cuentas con seguro médico. Únete al equipo.",
+            "headline": "Dedicado. $90,000 al año."
+          }
+        },
+        {
+          "en": {
+            "hook": "Earn $90,000 on dedicated.",
+            "cta": "Join the team.",
+            "primary_text": "This dedicated Class A position pays $90,000 per year. You run consistent lanes so your schedule stays predictable. Health insurance is included. Apply and get started.",
+            "headline": "$90,000/yr. Health ins."
+          },
+          "es": {
+            "hook": "$90,000 al año, dedicado.",
+            "cta": "Únete al equipo.",
+            "primary_text": "Posición Clase A en cuenta dedicada con pago de $90,000 al año. Rutas consistentes para un horario estable. Seguro médico incluido. Aplica y empieza.",
+            "headline": "$90,000/año. Seg. médico."
+          }
+        },
+        {
+          "en": {
+            "hook": "Dedicated lane. Good pay.",
+            "cta": "Apply now.",
+            "primary_text": "Class A dedicated position with health insurance and $90,000 per year. Dedicated runs mean you know your route and your schedule. No surprises. Come drive with us.",
+            "headline": "Dedicated + health ins."
+          },
+          "es": {
+            "hook": "Ruta fija. Buen sueldo.",
+            "cta": "Aplica ahora.",
+            "primary_text": "Posición Clase A dedicada con seguro médico y $90,000 al año. Las rutas dedicadas te dan estabilidad: conoces tu ruta y tu horario de antemano. Maneja con nosotros.",
+            "headline": "Dedicado + seg. médico."
+          }
+        }
+      ]
     }
   }
 }

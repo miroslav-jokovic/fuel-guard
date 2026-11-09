@@ -107,6 +107,7 @@
       "shows_equipment": false,
       "shows_people": false,
       "motion_template": "Slow push-in down the highway as the light rises",
+      "layout": "bottom_plate",
       "formats": [
         "9:16",
         "4:5"
@@ -120,27 +121,65 @@
         "headline": "headline"
       }
     },
-    "company_name": "Dispatch Freight Lines"
+    "company_name": "Dispatch Freight Lines",
+    "candidates": 3
   },
-  "expect": "ready",
+  "expect": "refused",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:35:54.704Z",
+    "recorded_at": "2026-11-09T20:19:38.255Z",
     "output": {
-      "en": {
-        "hook": "Sun up, flatbed loaded: $0.68.",
-        "cta": "Apply with us.",
-        "primary_text": "Dispatch Freight Lines runs flatbed OTR, Midwest to the Southeast. Start at $0.68 per mile, move to $0.74 per mile with 2 years of experience. $3,000 sign-on bonus. Health insurance and 401k included. Must be 23+. Runs go out 10 to 12 days.",
-        "headline": "Flatbed OTR. $0.68/mile."
-      },
-      "es": {
-        "hook": "Amanece. Plataforma lista: $0.68.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Dispatch Freight Lines opera rutas OTR de plataforma del Medio Oeste al Sureste. Comienzas a $0.68 por milla; con 2 años de experiencia llegas a $0.74 por milla. Bono de contratación de $3,000. Seguro médico y 401k. Mayores de 23. Salidas de 10 a 12 días.",
-        "headline": "Plataforma OTR. $0.68/milla."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "You're rolling. $0.74/mile.",
+            "cta": "Apply with us",
+            "primary_text": "Flatbed OTR, Midwest to the Southeast. You earn $0.68 per mile loaded, up to $0.74 per mile. Out 10 to 12 days, home 3. A $3,000 sign-on bonus, health insurance, and 401k come with the seat. Class A and 2 years of experience required. Dispatch Freight Lines is family-run — dispatch picks up the phone.",
+            "headline": "Flatbed OTR. $0.74/mile."
+          },
+          "es": {
+            "hook": "Al volante. $0.74 por milla.",
+            "cta": "Aplica hoy",
+            "primary_text": "Carga en plataforma, rutas de Midwest al Sureste. Ganas $0.68 por milla, hasta $0.74 por milla. Sales 10 a 12 días, regresas 3. Bono de contratación de $3,000, seguro médico y 401k incluidos. Se requiere Clase A y 2 años de experiencia. Dispatch Freight Lines es empresa familiar — el despacho contesta el teléfono.",
+            "headline": "Plataforma OTR. $0.74/milla."
+          }
+        },
+        {
+          "en": {
+            "hook": "Home in 12 days. Every time.",
+            "cta": "Join our team",
+            "primary_text": "Out 10 to 12 days on flatbed OTR runs from the Midwest to the Southeast, then back home for 3. You earn $0.68 to $0.74 per mile. Health insurance and 401k included. Class A and 2 years of experience required, age 23+. Ask about the $3,000 sign-on bonus.",
+            "headline": "Out 12 days. Back home."
+          },
+          "es": {
+            "hook": "De vuelta en 12 días. Siempre.",
+            "cta": "Únete al equipo",
+            "primary_text": "Rutas OTR en plataforma de Midwest al Sureste. Sales 10 a 12 días y vuelves 3 días a casa. Pagas $0.68 a $0.74 por milla. Seguro médico y 401k incluidos. Clase A y 2 años de experiencia requeridos, mayores de 23 años. Pregunta por el bono de contratación de $3,000 al aplicar.",
+            "headline": "12 días fuera. 3 en casa."
+          }
+        },
+        {
+          "en": {
+            "hook": "Flatbed. Sunrise. Open road.",
+            "cta": "Call us today",
+            "primary_text": "Dispatch Freight Lines runs flatbed freight from the Midwest to the Southeast. Class A drivers with 2 years of experience start at $0.68 per mile and earn up to $0.74 per mile. A $3,000 sign-on bonus, health insurance, and 401k included. Age 23+. Family-run operation — real people answer when you call.",
+            "headline": "Dispatch Freight Lines. Hire."
+          },
+          "es": {
+            "hook": "Plataforma. Amanecer. Ruta.",
+            "cta": "Llámanos hoy",
+            "primary_text": "Dispatch Freight Lines mueve carga en plataforma de Midwest al Sureste. Choferes Clase A con 2 años de experiencia ganan de $0.68 a $0.74 por milla. Bono de contratación de $3,000, seguro médico y 401k incluidos. Mayores de 23 años. Empresa familiar — siempre hay alguien en el despacho.",
+            "headline": "Dispatch Freight Lines. Aplica."
+          }
+        }
+      ]
     }
-  }
+  },
+  "expect_findings": [
+    "quantity_not_in_brief",
+    "too_long",
+    "unrecognised_number"
+  ]
 }

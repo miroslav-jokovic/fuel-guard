@@ -56,7 +56,8 @@
         "1:1",
         "4:5"
       ]
-    }
+    },
+    "candidates": 1
   },
   "expect": "refused",
   "expect_findings": [
@@ -64,20 +65,24 @@
   ],
   "recorded": {
     "source": "planted",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "none (written by a person)",
     "recorded_at": "2026-11-03T00:00:00Z",
     "output": {
-      "en": {
-        "hook": "$0.68/mile plus a sign-on bonus",
-        "body": "Home weekly on regional lanes.",
-        "cta": "Apply today"
-      },
-      "es": {
-        "hook": "$0.68 por milla y bono de contratacion",
-        "body": "En casa cada semana en rutas regionales.",
-        "cta": "Aplica hoy"
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "$0.68/mile plus a sign-on bonus",
+            "body": "Home weekly on regional lanes.",
+            "cta": "Apply today"
+          },
+          "es": {
+            "hook": "$0.68 por milla y bono de contratacion",
+            "body": "En casa cada semana en rutas regionales.",
+            "cta": "Aplica hoy"
+          }
+        }
+      ]
     }
   }
 }

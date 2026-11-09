@@ -856,7 +856,7 @@ export const READINESS = [
             "every leftover digit is reported, so a figure cannot hide inside an unrecognised shape",
           ] }],
         },
-        { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "60 briefs over P1–P5 (20 of them made through openingBrief from fields an opening can hold, CQ2), 20 in Spanish: 58 of 60 live answers pass the claim and length checks after the one fit pass (pnpm ads:eval copywriter, baseline.json, 2026-11-09; the two refused are a 22-character CTA that cannot hold the company's whole name and an opening with every benefit ticked); the owner rates them (the rating sheet in the PR) and the rate is recorded here" },
+        { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "60 briefs over P1–P5 (20 of them made through openingBrief from fields an opening can hold, CQ2), 20 in Spanish, THREE candidates each since CQ4 (prompt v3): 58 of 60 sets have at least one candidate pass the claim and length checks after the one fit pass (pnpm ads:eval copywriter, baseline.json, 2026-11-09); the owner rates them (the rating sheet in the PR) and the rate is recorded here" },
       ],
       // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
       // evaluation set alone (ADS-AGENT-PLAN §9). The run below was written by us from the ruling and CONFIRMED BY THE OWNER 2026-11-06.
@@ -899,6 +899,47 @@ export const READINESS = [
       // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
       // evaluation set alone (ADS-AGENT-PLAN §9). The run below was written by us from the ruling and CONFIRMED BY THE OWNER 2026-11-06.
       L4: [{ need: "its live prompts rendered by the real Higgsfield API, from the kit photo where the preset shows equipment, each picture passing the no-lettering check", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
+  {
+    worker: "Craft judge",
+    levels: {
+      L1: [
+        {
+          need: "the worker through the A4 rail under its own agent and key; the seeded presentation order and the mapping back; the ranking pure; a planted off-range score refused",
+          tests: [
+            { file: "apps/api/src/modules/ads/workers/craftJudge/craftJudge.test.ts", titles: [
+              "the order is a permutation drawn from the seed, the same every time, and not the identity for a typical seed",
+              "scores answered in the shown order come back in the Copywriter's order",
+              "asks once per creative and attempt, as the craft judge, under its own key and prompt version, and maps the scores back",
+              "has model recordings under the prompt in force and planted defects beside them",
+              "planted-score-out-of-range",
+            ] },
+            { file: "packages/shared/src/ads/copyCandidates.test.ts", titles: [
+              "orders judged candidates by total, high first; a tie keeps the Copywriter's own order",
+              "an unjudged candidate ranks after every judged one, in the model's order; none judged = the model's order, totals null",
+            ] },
+          ],
+        },
+      ],
+      L2: [
+        {
+          need: "§4R's faults: switched off (the Copywriter's order, said so); a candidate dropped before the judge sees it; one survivor not sent; an answer short of the candidates asked",
+          tests: [
+            { file: "apps/api/src/modules/ads/workers/craftJudge/craftJudge.test.ts", titles: ["asks no model when the craft judge is switched off"] },
+            { file: "apps/api/src/modules/ads/compose/composeCreative.test.ts", titles: [
+              "the judge's top-ranked candidate becomes the copy — not the writer's first — and the whole ranked set is stored with scores and reasons",
+              "a candidate refused for a figure the brief does not hold is dropped before the judge sees it; the rest go on",
+              "with the craft judge switched off, the order is the writer's and the set says nobody ranked it",
+              "one surviving candidate is not sent to the judge: there is nothing to rank",
+              "an answer with fewer candidates than asked is off-schema, not quietly accepted",
+            ] },
+          ],
+        },
+      ],
+      L3: [{ need: "agreement with the owner's ratings of real copy at the bar Q-AD57 sets (rec 0.8)", gap: "the planted-filler set ranks the filler last 6 of 6, twice (pnpm ads:eval craftJudge, baseline.json, 2026-11-09); the owner's rating sheet (#2054) is the ground truth this grows into and is not yet recorded" }],
+      L4: [{ need: "its ranking over the Copywriter's live candidates on a sandbox run, with the chosen copy created on Meta without refusal", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
@@ -1256,6 +1297,8 @@ export const CAMPAIGN_WORKERS = {
     { worker: "Checker" },
     { worker: "Renderer / Higgsfield client" },
     { worker: "Analyst" },
+    // CQ4 (2026-11-09): the judge ranks every creative's copy, so a campaign on Meta uses it; Launch needs its L4 too.
+    { worker: "Craft judge" },
     { worker: "Security (all)" },
   ],
 };

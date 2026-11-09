@@ -60,6 +60,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "1:1",
         "4:5"
@@ -73,27 +74,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:37:22.230Z",
+    "recorded_at": "2026-11-09T20:23:20.227Z",
     "output": {
-      "en": {
-        "pay": "$450 per load",
-        "cta": "Apply today",
-        "primary_text": "Class A flatbed drivers: $450 per load, home weekends. If you run flatbed and want your weekends back, this run is worth a look. Join our team.",
-        "headline": "Flatbed, home weekends"
-      },
-      "es": {
-        "pay": "$450 por carga",
-        "cta": "Aplica hoy",
-        "primary_text": "Conductores clase A con experiencia en plataforma: $450 por carga y en casa los fines de semana. Si manejas plataforma y quieres tus fines de semana libres, esta ruta es para ti.",
-        "headline": "Plataforma, fines en casa"
-      }
+      "candidates": [
+        {
+          "en": {
+            "pay": "$450 per load",
+            "cta": "Apply today",
+            "primary_text": "Flatbed drivers earn $450 per load and are home weekends. If you hold a Class A CDL and want a flatbed run with steady freight and a weekend home time, this is the seat. Apply today.",
+            "headline": "Class A flatbed, home weekends"
+          },
+          "es": {
+            "pay": "$450 por carga",
+            "cta": "Aplica hoy",
+            "primary_text": "Conductores de plataforma ganan $450 por carga y regresan a casa los fines de semana. Si tienes CDL Clase A y buscas una ruta de flatbed con carga constante y tiempo en casa, este trabajo es para ti.",
+            "headline": "Flatbed Clase A, fines de semana"
+          }
+        },
+        {
+          "en": {
+            "pay": "$450 per load",
+            "cta": "Join our team",
+            "primary_text": "Home weekends, $450 per load — that is what this flatbed seat pays. Class A CDL drivers, the freight is there and the schedule gets you home. Come run flatbed with us.",
+            "headline": "Home weekends, flatbed seat"
+          },
+          "es": {
+            "pay": "$450 por carga",
+            "cta": "Únete al equipo",
+            "primary_text": "Casa los fines de semana y $450 por carga — eso es lo que paga este puesto de plataforma. Conductores con CDL Clase A, la carga está disponible y el horario te lleva a casa cada semana.",
+            "headline": "Fines de semana en casa, flatbed"
+          }
+        },
+        {
+          "en": {
+            "pay": "$450 per load",
+            "cta": "Get started",
+            "primary_text": "This is a Class A flatbed run: $450 per load, home weekends. No guessing what you will make — the number is $450 every load you turn. CDL Class A required. Get started now.",
+            "headline": "Flatbed — $450 every load"
+          },
+          "es": {
+            "pay": "$450 por carga",
+            "cta": "Comienza ya",
+            "primary_text": "Esta es una ruta de plataforma Clase A: $450 por carga, en casa los fines de semana. Sin adivinar cuánto ganarás — son $450 por cada carga. Se requiere CDL Clase A. Comienza ya.",
+            "headline": "$450 por carga, flatbed Clase A"
+          }
+        }
+      ]
     }
   }
 }
