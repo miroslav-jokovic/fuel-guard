@@ -1380,3 +1380,14 @@ at submit, the review, the office drawer and the filed PDF.
   `session.hasPermission`. **Behaviour change:** a fleet manager no longer closes applications until an admin switches it
   on. The six federal checks still refuse the close whoever presses it. 11/11 mutants killed (one survivor first — the gate's
   catch when the client itself throws — got its test).
+- **2026-11-09** — **The road test without an examiner on file** (owner, 2026-11-09: "We will add road-test managers
+  later, maybe several, so this has to be optional" — then **Option 1**: accept the CDL until an examiner is on file), no
+  migration. Measured first: §391.51(b)(4) accepts a road test OR the §391.33 licence equivalency, the checklist fold
+  already counted `cdl_equivalency` and the hire reads that fold — but **no screen could write one**: the road-test row in
+  the qualification file read only its first evidence (`road_test`), which is ceremony-owned, so the drawer said "go to the
+  Road test step" and offered nothing. `RequirementDrawer` now records a requirement's first evidence kind that is not
+  ceremony-owned (derived from the catalogue's own list), saying where the ceremony one is made; for the equivalency the
+  licence copy is required (§391.33). The road-test step with no examiner (`RoadTestNoExaminer.vue`, out of
+  `RoadTestPanel` for the file budget) names that route and links the qualification file for a role that writes it
+  (`roster: manage`), tells anybody else who records it, and offers the admin "Or add a road-test examiner" as a choice —
+  it was a form the admin could not dismiss. 10/10 mutants killed.

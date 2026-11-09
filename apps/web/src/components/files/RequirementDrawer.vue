@@ -5,6 +5,7 @@ import { AppIcon } from "@silvicom/ui";
 import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
 import {
   CEREMONY_OWNED_KINDS,
+  DQ_KIND_LABELS,
   HAZMAT_TRAINING_TYPES,
   type CertificationCreateRequest,
   type CertificationKind,
@@ -94,6 +95,34 @@ const ceremonyOwner = computed<string | null>(() => {
   const kind = isCertification.value || isDocumentOnly.value ? null : spec.value?.evidenceKinds[0];
   return kind ? ((CEREMONY_OWNED_KINDS as Partial<Record<string, string>>)[kind] ?? null) : null;
 });
+/**
+ * The kind this form records: the requirement's first evidence kind that is NOT ceremony-owned,
+ * derived from the catalogue's own list — or null when every one is.
+ *
+ * ⚠ Until 2026-11-09 the drawer read only `evidenceKinds[0]`, so a requirement with TWO lawful
+ * evidences whose first is ceremony-owned had no door for the second. The one that mattered: the road
+ * test row is `["road_test", "cdl_equivalency"]` (§391.51(b)(4) accepts the §391.33 licence
+ * equivalency in place of a road test), the hiring checklist already counts the equivalency, and
+ * nothing in the product could write one. The owner's ruling of 2026-11-09 (Option 1: accept the CDL
+ * until a road-test examiner is on file) depends on that door, so this is the capability, not a detour.
+ */
+const recordKind = computed<string | null>(() => {
+  const s = spec.value;
+  if (!s) return null;
+  if (isCertification.value || isDocumentOnly.value) return s.evidenceKinds[0] ?? null;
+  return s.evidenceKinds.find((k) => !(k in CEREMONY_OWNED_KINDS)) ?? null;
+});
+/** The ceremony-owned first kind sends the user elsewhere and nothing here can be recorded. */
+const onlyElsewhere = computed(() => Boolean(ceremonyOwner.value) && !recordKind.value);
+/** Recording the requirement's second evidence: say which one, under its own name. */
+const alternativeLabel = computed(() =>
+  ceremonyOwner.value && recordKind.value ? (DQ_KIND_LABELS[recordKind.value] ?? recordKind.value) : null,
+);
+/**
+ * §391.33(b): a carrier that accepts a licence in place of a road test keeps a copy of that licence in
+ * the file, so the equivalency is the one record here whose scan is not optional.
+ */
+const scanRequired = computed(() => recordKind.value === "cdl_equivalency");
 const isEndorsement = computed(() => spec.value?.evidenceKinds[0] === "endorsement");
 const isTraining = computed(() => spec.value?.evidenceKinds[0] === "hazmat_training");
 
@@ -152,6 +181,7 @@ const saving = computed(
 const ready = computed(() => {
   if (!spec.value) return false;
   if (isDocumentOnly.value) return Boolean(scan.value || props.presetDocument);
+  if (scanRequired.value && !scan.value && !props.presetDocument) return false;
   return isCertification.value
     ? Boolean(form.expiresAt || form.issuedAt)
     : Boolean(form.occurredOn);
@@ -159,7 +189,8 @@ const ready = computed(() => {
 
 async function save(): Promise<void> {
   const s = spec.value;
-  if (!s) return;
+  const kind = recordKind.value;
+  if (!s || !kind) return;
   try {
     // The scan goes first, so the record can cite a document that already exists rather than a
     // document id that may never arrive. An orphaned scan is swept; an orphaned citation is a lie.
@@ -168,7 +199,7 @@ async function save(): Promise<void> {
       const res = await upload.mutateAsync({
         subjectType: props.subject.type,
         subjectId: props.subject.id,
-        kind: s.evidenceKinds[0] as ComplianceDocumentKind,
+        kind: kind as ComplianceDocumentKind,
         file: scan.value,
       });
       documentId = res.documentId;
@@ -209,7 +240,7 @@ async function save(): Promise<void> {
       const body: QualificationRecordCreateRequest = {
         id: crypto.randomUUID(),
         driverId: props.subject.id,
-        kind: s.evidenceKinds[0] as QualificationRecordKind,
+        kind: kind as QualificationRecordKind,
         occurredOn: form.occurredOn,
         coversUntil: form.coversUntil || null,
         result: form.result.trim() || null,
@@ -221,7 +252,7 @@ async function save(): Promise<void> {
       await createRecord.mutateAsync(body);
     }
 
-    toast.success(`${s.label} recorded`);
+    toast.success(`${alternativeLabel.value ?? s.label} recorded`);
     reset();
     emit("close");
   } catch (e) {
@@ -238,9 +269,13 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
 
 <template>
   <SlideOver :open="open" size="lg" :title="spec?.label ?? 'Requirement'" @close="emit('close')">
-    <p v-if="ceremonyOwner" class="text-sm text-ink-muted">{{ ceremonyOwner }}.</p>
+    <p v-if="onlyElsewhere" class="text-sm text-ink-muted">{{ ceremonyOwner }}.</p>
 
     <div v-else-if="spec" class="space-y-6">
+      <div v-if="alternativeLabel" class="space-y-1" data-testid="alternative-evidence">
+        <p class="text-sm text-ink-muted">{{ ceremonyOwner }}.</p>
+        <p class="text-sm text-ink">Or record the {{ alternativeLabel.toLowerCase() }} here.</p>
+      </div>
       <div class="space-y-4">
         <template v-if="isCertification">
           <FormField
@@ -362,6 +397,9 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
             {{ presetDocument.name }} is already filed and will be cited by this record. Drop a
             different scan to replace it.
           </p>
+          <p v-else-if="scanRequired" class="mt-1 text-sm text-ink-muted" data-testid="scan-required">
+            Required: a copy of the licence you accepted stays in the file (§391.33).
+          </p>
           <p v-else class="mt-1 text-sm text-ink-muted">
             Optional here — you can attach it later from the file.
           </p>
@@ -382,9 +420,9 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
     <template #footer>
       <div class="flex items-center justify-end gap-3">
         <BaseButton variant="ghost" :disabled="saving" @click="emit('close')">
-          {{ ceremonyOwner ? "Close" : "Cancel" }}
+          {{ onlyElsewhere ? "Close" : "Cancel" }}
         </BaseButton>
-        <BaseButton v-if="!ceremonyOwner" variant="primary" :disabled="saving || !ready" @click="save">
+        <BaseButton v-if="!onlyElsewhere" variant="primary" :disabled="saving || !ready" @click="save">
           <AppIcon :icon="ClipboardDocumentCheckIcon" class="size-4" aria-hidden="true" />
           {{ saving ? "Saving…" : "Record it" }}
         </BaseButton>

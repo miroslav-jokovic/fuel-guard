@@ -32,7 +32,7 @@ import {
   AppSegmentedControl,
   AppTextarea,
 } from "@silvicom/ui";
-import SignatoryAddForm from "@/features/recruitment/SignatoryAddForm.vue";
+import RoadTestNoExaminer from "@/features/recruitment/RoadTestNoExaminer.vue";
 import ApplicantIdentityCorrection from "@/features/recruitment/ApplicantIdentityCorrection.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -66,10 +66,9 @@ import {
  *
  * ── THE EXAMINER REGISTER IS SETTINGS' (Q-RT2, Q-AW19, D-5) ───────────────────────────────────
  * The owner ruled the examiner's signature is added from the dashboard and only by the admin
- * (`ROAD_TEST_EXAMINER_SECTION`). With no examiner on file the admin is offered the add form here,
- * once, because nothing else can be done on this step without one. A second examiner is a register
- * act, so it lives in Settings → Recruiting and this panel links there (D-5); anybody else is told to
- * ask an administrator (RT-A3).
+ * (`ROAD_TEST_EXAMINER_SECTION`). A second examiner is a register act, so it lives in Settings →
+ * Recruiting and this panel links there (D-5). With none on file, `RoadTestNoExaminer` names the §391.33
+ * licence equivalency as the way through and offers adding one as a choice (owner, 2026-11-09).
  *
  * ── THE DRIVER'S COPY (G-10, Q-AW19, owner 2026-09-29) ───────────────────────────────────────
  * §391.31(g) owes the driver a copy of the certificate. Each certificate on file says whether they have
@@ -375,10 +374,7 @@ const showForm = computed(() => !props.done || adding.value);
 
       <!-- The examiner first: without one there is nobody to sign the form (Q-RT2). -->
       <template v-if="examiners.length === 0 && !examinersQ.isLoading.value">
-        <SignatoryAddForm v-if="canAddExaminer" kind="examiner" :cancellable="false" @added="examinerAdded" />
-        <AppCallout v-else tone="caution">
-          No road-test examiner is on file. Ask an administrator to add one in Settings → Recruiting.
-        </AppCallout>
+        <RoadTestNoExaminer :driver-id="driverId" @added="examinerAdded" />
       </template>
 
       <div v-if="examiners.length > 0" class="space-y-5">
