@@ -143,6 +143,12 @@ export const NOTIFICATION_CATEGORIES = [
    * the backfill reaches back. Mirrored in the CHECK (0563); nothing writes it until the alert sender's merge.
    */
   "lead_intake_failing",
+  /**
+   * A campaign's leads, once people have tried to call them, are mostly wrong numbers or plainly do not meet
+   * the opening's hard requirements (ADS-LEAD-QUALITY-PLAN LQ3; Q-AD51 ruled (a): an alert, not a pause, for
+   * the first weeks). Mirrored in CHECK (0575); nothing writes it until the monitor's merge.
+   */
+  "ads_lead_quality",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -192,6 +198,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   lead_new: "New ad leads",
   lead_uncontacted: "Ad leads waiting for contact",
   lead_intake_failing: "Ad leads not arriving",
+  ads_lead_quality: "Ad leads that are unreachable or do not qualify",
 };
 
 /**
