@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * campaign Meta refused to report, or a zone we cannot convert, gets listed. Its failure line names
  * campaigns and reasons only.
  */
-const ads = vi.hoisted(() => ({ pullConnectionInsights: vi.fn(), checkConnection: vi.fn() }));
-vi.mock("../../modules/ads/index.js", () => ({ pullConnectionInsights: ads.pullConnectionInsights, checkConnection: ads.checkConnection }));
+const ads = vi.hoisted(() => ({ pullConnectionInsights: vi.fn(), checkConnection: vi.fn(), retireTiredAds: vi.fn(async () => ({ campaigns: 0, ads: 0, verdicts: [], failures: [] })) }));
+vi.mock("../../modules/ads/index.js", () => ({ pullConnectionInsights: ads.pullConnectionInsights, checkConnection: ads.checkConnection, retireTiredAds: ads.retireTiredAds }));
 
 import { adsInsightsHandler } from "./adsInsights.js";
 import type { JobContext, QueueJob } from "../types.js";
@@ -34,7 +34,7 @@ describe("adsInsightsHandler", () => {
     ads.pullConnectionInsights.mockResolvedValue(result([{ campaign_id: "camp-b", reason: "graph:token_invalid" }]));
     ads.checkConnection.mockResolvedValue(checked([{ campaign_id: "camp-a", reason: "delivery:stage:token_invalid" }], 1));
     await expect(adsInsightsHandler(ctx, job({ connectionId: "c1" }), vi.fn())).rejects.toThrow(
-      "ads_insights: 2 not brought in (5 hours written, 0 zeroed, 1 paused) — camp-b graph:token_invalid; camp-a check:delivery:stage:token_invalid",
+      "ads_insights: 2 not brought in (5 hours written, 0 zeroed, 1 paused, 0 retired) — camp-b graph:token_invalid; camp-a check:delivery:stage:token_invalid",
     );
   });
 
