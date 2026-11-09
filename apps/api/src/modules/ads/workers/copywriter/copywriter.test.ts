@@ -137,12 +137,12 @@ describe("copywriter — what it sends and under which key", () => {
 describe("copywriter — one fit pass for wording, none for an invented figure (CQ2)", () => {
   const fx = fixtures.find((f) => f.fixture.name === "opening-regional-reefer-weekly")!.fixture;
   const good = fx.recorded.output as { en: Record<string, string>; es: Record<string, string> };
-  const long = { ...good, es: { ...good.es, primary_text: `${good.es.primary_text} ${"Más palabras de relleno. ".repeat(12)}`.trim() } };
-  const kilometres = { ...good, es: { ...good.es, primary_text: good.es.primary_text.replace(/milla/, "kilómetro") } };
+  const long = { ...good, es: { ...good.es, primary_text: `${good.es.primary_text!} ${"Más palabras de relleno. ".repeat(12)}`.trim() } };
+  const kilometres = { ...good, es: { ...good.es, primary_text: good.es.primary_text!.replace(/milla/, "kilómetro") } };
   const invented = { ...good, en: { ...good.en, pay: "$0.99/mile" } };
 
   function scripted(answers: unknown[]) {
-    const create = vi.fn(async () => ({
+    const create = vi.fn(async (_body: unknown) => ({
       id: "msg", stop_reason: "tool_use", content: [{ type: "tool_use", id: "t", name: "write_copy", input: answers.shift() }], usage: { input_tokens: 1, output_tokens: 1 },
     }));
     return { client: { messages: { create } } as unknown as MessagesClient, create };
