@@ -1133,5 +1133,11 @@ conflict every time (`plan-progress-log-not-table-rows`).
   (DPR 1)** — about 2×. The fleet's monthly HERE tile count is still unmeasured (Q-LM21). ⚠ Found on
   the way: today's map asked for 10 zoom-21 tiles at the deepest zoom, each refused by the proxy
   (HERE stops at 20); the raster sources now carry `maxzoom: 20` and the walk's deepest request is
-  20. Not in this step: the "At: Pilot Travel Center — truck stop" line on the truck card, from HERE
-  Browse (category `700-7900-0132`, confirmed with our key) — the direct answer at fleet zoom.
+  20. ⚠ Two more places restated the old tile and moved with it. The `/api` rate limits were sized
+  on a busy seat of ~600 a quarter-hour (180 polls + ~420 tiles); doubled tiles make it ~1 020, and
+  the 18 000 per-address ceiling would have refused a full 30-seat office at once — C1's outage
+  (`LIVE-MAP-CONCURRENCY-PLAN.md`). Per caller 1 200 → 2 100, per address 18 000 → 31 000, the
+  derivation in `apiRateLimit.ts`. And the tutorial recorder's HERE stub hardcoded `size=512`; it now
+  uses the proxy's resolver. Not in this step: the "At: Pilot Travel Center — truck stop" line on the
+  truck card, from HERE Browse (category `700-7900-0132`, confirmed with our key) — the direct answer
+  at fleet zoom.
