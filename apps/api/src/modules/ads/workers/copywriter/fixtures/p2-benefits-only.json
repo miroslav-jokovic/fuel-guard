@@ -63,6 +63,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "1:1",
         "4:5"
@@ -76,27 +77,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:36:58.129Z",
+    "recorded_at": "2026-11-09T20:22:19.066Z",
     "output": {
-      "en": {
-        "pay": "Dedicated driving",
-        "cta": "Apply today",
-        "primary_text": "This is a dedicated Class A position with a consistent lane and regular runs. Benefits include 401k, dental, and vision. Join our team and get to work.",
-        "headline": "Class A dedicated drivers"
-      },
-      "es": {
-        "pay": "Ruta dedicada",
-        "cta": "Aplica hoy",
-        "primary_text": "Posición dedicada para conductores Clase A. Ruta fija y salidas regulares. Beneficios incluyen 401k, dental y visión. Únete al equipo.",
-        "headline": "Conductores Clase A dedicado"
-      }
+      "candidates": [
+        {
+          "en": {
+            "pay": "Dedicated. Apply.",
+            "cta": "Apply now",
+            "primary_text": "This is a dedicated Class A route. You get 401k, dental, and vision. Same run, same freight, steady work. Join our team.",
+            "headline": "Class A dedicated driver"
+          },
+          "es": {
+            "pay": "Dedicado. Aplica.",
+            "cta": "Aplica ahora",
+            "primary_text": "Ruta dedicada con CDL clase A. Incluye 401k, dental y visión. Misma ruta, misma carga, trabajo estable. Únete al equipo.",
+            "headline": "Conductor clase A dedicado"
+          }
+        },
+        {
+          "en": {
+            "pay": "401k + benefits",
+            "cta": "Join our team",
+            "primary_text": "Dedicated Class A seat with 401k, dental, and vision. A dedicated lane means you know your run before you leave the yard. Apply today.",
+            "headline": "Dedicated Class A opening"
+          },
+          "es": {
+            "pay": "401k + beneficios",
+            "cta": "Únete hoy",
+            "primary_text": "Puesto clase A dedicado con 401k, dental y visión. Ruta fija — conoces tu corrida antes de salir. Aplica hoy.",
+            "headline": "Puesto clase A dedicado"
+          }
+        },
+        {
+          "en": {
+            "pay": "Dental & vision incl.",
+            "cta": "Apply today",
+            "primary_text": "Class A dedicated driver wanted. Benefits include 401k, dental, and vision. Dedicated work means a consistent route and a steady paycheck. Come drive with us.",
+            "headline": "Benefits: 401k, dental, vision"
+          },
+          "es": {
+            "pay": "Dental y visión incl.",
+            "cta": "Aplica hoy",
+            "primary_text": "Se busca conductor clase A para ruta dedicada. Beneficios: 401k, dental y visión. Ruta consistente, ingreso estable. Ven a manejar con nosotros.",
+            "headline": "401k, dental y visión incluidos"
+          }
+        }
+      ]
     }
   }
 }

@@ -60,6 +60,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "layout": "bottom_plate",
       "formats": [
         "4:5",
         "9:16"
@@ -73,27 +74,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:37:51.983Z",
+    "recorded_at": "2026-11-09T20:24:35.215Z",
     "output": {
-      "en": {
-        "hook": "Home every week. $0.68/mile.",
-        "cta": "Apply now",
-        "primary_text": "This regional run gets you home every week. You earn $0.68 per mile behind the wheel. If you hold a Class A CDL and want a driving job with consistent home time, apply today.",
-        "headline": "Regional CDL-A. Home weekly."
-      },
-      "es": {
-        "hook": "A casa cada semana. $0.68/milla.",
-        "cta": "Aplica ahora",
-        "primary_text": "Esta ruta regional te lleva a casa cada semana. Ganas $0.68 por milla. Si tienes CDL-A y buscas una ruta con tiempo en casa regular, únete al equipo y aplica hoy.",
-        "headline": "Regional CDL-A. Regresas semanal."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Home every week.",
+            "cta": "Apply now",
+            "primary_text": "This is a regional Class A run. You get home weekly and earn $0.68 per mile while you're out. Regional miles, a consistent schedule, and a weekly reset at home. If that's the job you're looking for, apply today.",
+            "headline": "Regional at $0.68 per mile."
+          },
+          "es": {
+            "hook": "A casa cada semana.",
+            "cta": "Aplica ahora",
+            "primary_text": "Ruta regional Clase A. Regresas a casa cada semana y ganas $0.68 por milla. Rutas consistentes y tu reset semanal en casa. Si esto es lo que buscas, postúlate hoy.",
+            "headline": "Regional a $0.68 por milla."
+          }
+        },
+        {
+          "en": {
+            "hook": "Home weekly. $0.68 a mile.",
+            "cta": "Get started",
+            "primary_text": "You're home every week on this Class A regional position. The rate is $0.68 per mile — no guessing, no long-haul stretches away from home. Regional lanes, steady miles, and a weekly homecoming. Join our team.",
+            "headline": "Class A regional driving."
+          },
+          "es": {
+            "hook": "Semanal en casa. $0.68/milla.",
+            "cta": "Comienza ya",
+            "primary_text": "En esta posición regional Clase A llegas a casa cada semana. La tarifa es $0.68 por milla, sin largas ausencias. Rutas regionales, millas constantes y tu casa cada semana. Únete al equipo.",
+            "headline": "Conductor regional Clase A."
+          }
+        },
+        {
+          "en": {
+            "hook": "Back home every week.",
+            "cta": "Talk to us",
+            "primary_text": "Regional CDL-A seat. You earn $0.68 per mile and you're back home weekly. No cross-country hauls, no months on the road. Regional work means you sleep in your own bed every week. Apply and talk to us today.",
+            "headline": "Regional CDL-A. $0.68/mile."
+          },
+          "es": {
+            "hook": "De regreso a casa cada semana.",
+            "cta": "Habla con nosotros",
+            "primary_text": "Posición CDL-A regional. Ganas $0.68 por milla y llegas a casa cada semana. Sin rutas de costa a costa ni meses fuera. Trabajo regional: tu cama cada semana. Postúlate y habla con nosotros.",
+            "headline": "CDL-A regional. $0.68/milla."
+          }
+        }
+      ]
     }
   }
 }

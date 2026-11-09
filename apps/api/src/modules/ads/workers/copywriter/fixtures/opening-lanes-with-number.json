@@ -81,6 +81,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "layout": "bottom_plate",
       "formats": [
         "4:5",
         "9:16"
@@ -94,27 +95,60 @@
         "headline": "headline"
       }
     },
-    "company_name": "Dispatch Freight Lines"
+    "company_name": "Dispatch Freight Lines",
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:35:33.015Z",
+    "recorded_at": "2026-11-09T20:18:36.890Z",
     "output": {
-      "en": {
-        "hook": "Home weekly. No exceptions.",
-        "cta": "Apply today",
-        "primary_text": "Dispatch Freight Lines runs dry van on the I-80 corridor, Joliet to Des Moines. You are home weekly, touch nothing, and earn $0.67 per mile doing it. CDL-A required, 23+ with 2 years of experience.",
-        "headline": "Regional dry van, $0.67/mi"
-      },
-      "es": {
-        "hook": "A casa cada semana.",
-        "cta": "Aplica hoy",
-        "primary_text": "Dispatch Freight Lines opera carga seca en el corredor I-80, de Joliet a Des Moines. Regresa a casa cada semana, carga sin tocar y ganas $0.67 por milla. CDL-A, mayores de 23 con 2 años de experiencia.",
-        "headline": "Ruta regional, $0.67/milla"
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Home every week. No excuses.",
+            "cta": "Apply today",
+            "primary_text": "Dispatch Freight Lines runs dry van on the I-80 corridor, Joliet to Des Moines. Regional miles mean you get home weekly, every week. The freight is no-touch. You earn $0.67 per mile. Class A, 2 years experience, age 23+.",
+            "headline": "Regional. Home weekly."
+          },
+          "es": {
+            "hook": "A casa cada semana, siempre.",
+            "cta": "Aplica hoy",
+            "primary_text": "Dispatch Freight Lines corre van seco en el corredor I-80, de Joliet a Des Moines. Rutas regionales, a casa cada semana. Carga sin contacto. Pago de $0.67 por milla. Clase A, mayores de 23 años, 2 años de experiencia.",
+            "headline": "Regional. A casa semanal."
+          }
+        },
+        {
+          "en": {
+            "hook": "Home weekly. $0.67 a mile.",
+            "cta": "Join our team",
+            "primary_text": "Dry van, no-touch freight on the I-80 corridor between Joliet and Des Moines. Regional runs keep you close to home — and you're back every week. Class A with 2 years experience and age 23+ gets you in the seat.",
+            "headline": "No-touch. Regional miles."
+          },
+          "es": {
+            "hook": "A casa semanal. $0.67 por milla.",
+            "cta": "Únete al equipo",
+            "primary_text": "Van seco, carga sin contacto en el corredor I-80 entre Joliet y Des Moines. Las rutas regionales te mantienen cerca de casa y llegas cada semana. Clase A, 2 años de experiencia, mayores de 23 años.",
+            "headline": "Sin contacto. Rutas regionales."
+          }
+        },
+        {
+          "en": {
+            "hook": "Joliet to Des Moines. Home weekly.",
+            "cta": "Apply now",
+            "primary_text": "You run dry van on a straight regional corridor — I-80, Joliet to Des Moines. No-touch freight, so you drive. Home every week. Pay is $0.67 per mile. Bring a Class A and 2 years behind the wheel. Age 23+.",
+            "headline": "Dispatch Freight Lines hiring"
+          },
+          "es": {
+            "hook": "De Joliet a Des Moines. A casa semanal.",
+            "cta": "Aplica ahora",
+            "primary_text": "Manejas van seco en el corredor regional I-80, de Joliet a Des Moines. Carga sin contacto, tú solo conduces. A casa cada semana. Pago a $0.67 por milla. Clase A con 2 años de experiencia, mayores de 23 años.",
+            "headline": "Dispatch Freight Lines contrata"
+          }
+        }
+      ]
     }
   }
 }

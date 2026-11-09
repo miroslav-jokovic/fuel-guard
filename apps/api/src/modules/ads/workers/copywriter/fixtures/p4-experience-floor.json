@@ -61,6 +61,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "A slow orbit around the tractor",
+      "layout": "bottom_plate",
       "formats": [
         "9:16"
       ],
@@ -73,27 +74,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:38:16.931Z",
+    "recorded_at": "2026-11-09T20:25:32.515Z",
     "output": {
-      "en": {
-        "hook": "Tanker. $0.75 per mile.",
-        "cta": "Apply today",
-        "primary_text": "You will run tanker freight at $0.75 per mile. A Class A CDL and 2 years of verifiable experience are required. If you have the miles behind you, apply today and let's talk.",
-        "headline": "Class A tanker drivers wanted"
-      },
-      "es": {
-        "hook": "Tráiler tanque. $0.75/milla.",
-        "cta": "Aplica hoy",
-        "primary_text": "Manejarás tráiler tanque y ganarás $0.75 por milla. Se requiere licencia clase A CDL y 2 años de experiencia verificable. Si tienes el historial, únete al equipo hoy.",
-        "headline": "Se buscan choferes clase A"
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Tanker. $0.75 per mile.",
+            "cta": "Apply today.",
+            "primary_text": "You will haul tanker freight and earn $0.75 per mile from day one. You need 2 years of verifiable Class A experience to qualify. Join our team and put your tanker endorsement to work.",
+            "headline": "Class A tanker. Apply now."
+          },
+          "es": {
+            "hook": "Tánker. $0.75 por milla.",
+            "cta": "Aplica hoy.",
+            "primary_text": "Manejarás tráiler tánker y ganarás $0.75 por milla desde el primer día. Se requieren 2 años de experiencia verificable con licencia Clase A. Pon tu endoso de tánker a trabajar y únete al equipo.",
+            "headline": "Clase A tánker. Aplica ya."
+          }
+        },
+        {
+          "en": {
+            "hook": "Tanker driver wanted.",
+            "cta": "Get started.",
+            "primary_text": "This seat is for an experienced tanker driver. Bring 2 years of Class A time and you earn $0.75 per mile. If you have the endorsement and the experience, this run is ready for you.",
+            "headline": "$0.75/mile — start hauling."
+          },
+          "es": {
+            "hook": "Se busca conductor tánker.",
+            "cta": "Comienza ya.",
+            "primary_text": "Este puesto es para conductores con experiencia en tánker. Trae 2 años de manejo con Clase A y ganarás $0.75 por milla. Si tienes el endoso y la experiencia, la ruta te está esperando.",
+            "headline": "$0.75 por milla — maneja ya."
+          }
+        },
+        {
+          "en": {
+            "hook": "Class A tanker, $0.75/mi.",
+            "cta": "Apply now.",
+            "primary_text": "You have 2 years of Class A experience — put it in a tanker and earn $0.75 per mile. The qualification is straightforward and the rate is real. Take the next step and apply today.",
+            "headline": "2 years exp. gets you here."
+          },
+          "es": {
+            "hook": "Clase A tánker, $0.75/mi.",
+            "cta": "Aplica ahora.",
+            "primary_text": "Tienes 2 años de experiencia con Clase A — ponlos a trabajar en un tánker y gana $0.75 por milla. El requisito es claro y la tarifa es real. Da el siguiente paso y aplica hoy.",
+            "headline": "2 años de exp. te califican."
+          }
+        }
+      ]
     }
   }
 }

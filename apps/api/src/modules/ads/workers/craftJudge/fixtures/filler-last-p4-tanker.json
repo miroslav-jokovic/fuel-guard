@@ -1,0 +1,193 @@
+{
+  "name": "filler-last-p4-tanker",
+  "about": "P4: tanker regional, filler last.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A tanker driver, hazmat",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 75,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekends"
+        },
+        {
+          "kind": "term",
+          "term": "pet policy"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "tanker freight",
+          "regional runs",
+          "Illinois, Indiana, Wisconsin"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P4 Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our tractor parked in a {setting}, three-quarter view, no text, no logos, no lettering",
+      "image_slots": [
+        "setting"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": "A slow orbit around the tractor",
+      "layout": "bottom_plate",
+      "formats": [
+        "9:16"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": null,
+    "candidates": [
+      {
+        "en": {
+          "hook": "Tanker. $0.75 per mile.",
+          "cta": "Apply today.",
+          "primary_text": "Regional tanker runs through Illinois, Indiana, and Wisconsin. You earn $0.75 per mile, get paid weekly, and are home weekends. Pet policy available. Class A, tanker and hazmat endorsements required. Age 23+, 2 years experience required.",
+          "headline": "Home weekends. Weekly pay."
+        },
+        "es": {
+          "hook": "Tráiler tanque. $0.75/milla.",
+          "cta": "Aplica hoy.",
+          "primary_text": "Rutas regionales en Illinois, Indiana y Wisconsin. Ganas $0.75 por milla, pago semanal y regresas a casa los fines de semana. Se permiten mascotas. Clase A con endoso de tanque y hazmat, mayores de 23 años, 2 años de experiencia.",
+          "headline": "Casa fines de semana. Pago semanal."
+        }
+      },
+      {
+        "en": {
+          "hook": "Tanker. $0.75 per mile.",
+          "cta": "Apply today",
+          "primary_text": "You will run tanker freight at $0.75 per mile. A Class A CDL and 2 years of verifiable experience are required. If you have the miles behind you, apply today and let's talk.",
+          "headline": "Class A tanker drivers wanted"
+        },
+        "es": {
+          "hook": "Tráiler tanque. $0.75/milla.",
+          "cta": "Aplica hoy",
+          "primary_text": "Manejarás tráiler tanque y ganarás $0.75 por milla. Se requiere licencia clase A CDL y 2 años de experiencia verificable. Si tienes el historial, únete al equipo hoy.",
+          "headline": "Se buscan choferes clase A"
+        }
+      },
+      {
+        "en": {
+          "hook": "Great pay, great team",
+          "cta": "Apply today",
+          "primary_text": "Exciting opportunity for Class A drivers to join our dynamic team. We offer competitive pay, great freight and a family atmosphere where we truly value our drivers. Earn $0.75/mile. Apply today and take your career t",
+          "headline": "Great pay, great team"
+        },
+        "es": {
+          "hook": "Buen pago, gran equipo",
+          "cta": "Aplica hoy",
+          "primary_text": "Emocionante oportunidad para conductores Clase A de unirse a nuestro equipo dinámico. Ofrecemos pago competitivo, excelente carga y un ambiente familiar donde valoramos a nuestros conductores. Gana $0.75 por milla. A",
+          "headline": "Buen pago, gran equipo"
+        }
+      }
+    ],
+    "seed": "filler-last-p4-tanker"
+  },
+  "expect": "ready",
+  "expect_rank": {
+    "candidate": 2,
+    "at": "last"
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "craftJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T20:32:09.780Z",
+    "output": {
+      "scores": [
+        {
+          "reason": "The hook ignores the concept entirely — it leads with vague praise, not equipment or rate. Primary_text is packed with filler ('exciting opportunity,' 'dynamic team,' 'competitive pay,' 'family atmosphere,' 'truly value our drivers'). Region, endorsements, age, and experience requirements are all missing. Spanish is a word-for-word translation with no trade voice.",
+          "scores": {
+            "hook": 1,
+            "specific": 1,
+            "plain": 1,
+            "spanish": 2,
+            "no_filler": 1
+          }
+        },
+        {
+          "reason": "Hook nails the concept: equipment first, strongest fact second. Primary_text covers region (IL/IN/WI), pay, weekly pay, home weekends, pet policy, endorsements, age, and experience — every fact is present. Plain, dispatcher-style sentences. Spanish uses 'tráiler,' 'rutas,' 'endoso,' distances in miles, and reads naturally; headline is correctly adapted rather than translated literally.",
+          "scores": {
+            "hook": 5,
+            "specific": 5,
+            "plain": 5,
+            "spanish": 5,
+            "no_filler": 5
+          }
+        },
+        {
+          "reason": "Hook matches the concept well. Primary_text states the rate and CDL/experience requirements, but drops the region (IL/IN/WI), home weekends, weekly pay, pet policy, hazmat/tanker endorsements, and age minimum — most facts are missing. 'Let's talk' and 'if you have the miles behind you' are mild filler. Spanish omits the same facts and 'únete al equipo' is soft filler.",
+          "scores": {
+            "hook": 5,
+            "specific": 2,
+            "plain": 4,
+            "spanish": 3,
+            "no_filler": 3
+          }
+        }
+      ]
+    }
+  }
+}

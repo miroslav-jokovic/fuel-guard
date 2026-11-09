@@ -61,6 +61,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "1:1",
         "4:5"
@@ -74,27 +75,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:37:03.497Z",
+    "recorded_at": "2026-11-09T20:22:30.669Z",
     "output": {
-      "en": {
-        "pay": "$0.70 per mile",
-        "cta": "Apply today",
-        "primary_text": "Class A OTR drivers, this one is for you. You earn $0.70 per mile on long-haul runs. You must be 23+ to qualify. Join our team and put your miles to work.",
-        "headline": "OTR Class A — 23+ drivers"
-      },
-      "es": {
-        "pay": "$0.70 por milla",
-        "cta": "Aplica hoy",
-        "primary_text": "Conductores Clase A de larga distancia, esta ruta es para ustedes. Ganan $0.70 por milla. Se requiere ser mayor de 23 años. Únanse al equipo y pongan sus millas a trabajar.",
-        "headline": "Clase A OTR — mayores de 23"
-      }
+      "candidates": [
+        {
+          "en": {
+            "pay": "$0.70 per mile",
+            "cta": "Apply now",
+            "primary_text": "Class A drivers, this is your number: $0.70 per mile. You must be 23+ to qualify. If you have your CDL-A and you are ready to run, apply today and get behind the wheel.",
+            "headline": "CDL-A drivers, 23+, apply"
+          },
+          "es": {
+            "pay": "$0.70 por milla",
+            "cta": "Aplica ahora",
+            "primary_text": "Conductores Clase A, este es el número: $0.70 por milla. Debes ser mayor de 23 años para calificar. Si tienes tu CDL-A y estás listo para manejar, aplica hoy y súbete al tráiler.",
+            "headline": "CDL-A, mayores de 23, aplica"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.70 per mile",
+            "cta": "Join the team",
+            "primary_text": "If you hold a CDL-A and are 23+, here is what you earn: $0.70 per mile. No surprises, no fine print — just a straight per-mile rate for every mile you run. Come drive with us.",
+            "headline": "Earn $0.70/mile, CDL-A"
+          },
+          "es": {
+            "pay": "$0.70 por milla",
+            "cta": "Únete al equipo",
+            "primary_text": "Si tienes CDL-A y eres mayor de 23 años, aquí está lo que ganas: $0.70 por milla. Sin letra chica, sin sorpresas — una tarifa clara por cada milla que ruedas. Ven a manejar con nosotros.",
+            "headline": "Gana $0.70/milla, CDL-A"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.70 per mile",
+            "cta": "Get started",
+            "primary_text": "CDL-A and 23+? Then $0.70 per mile is waiting for you. Every mile counts at that rate. Bring your license and your experience — we will handle the rest. Apply and get rolling.",
+            "headline": "Class A: $0.70 a mile"
+          },
+          "es": {
+            "pay": "$0.70 por milla",
+            "cta": "Empieza hoy",
+            "primary_text": "¿Tienes CDL-A y eres mayor de 23 años? Entonces $0.70 por milla te está esperando. Cada milla cuenta a esa tarifa. Trae tu licencia y tu experiencia — del resto nos encargamos. Aplica y ponte en ruta.",
+            "headline": "Clase A: $0.70 la milla"
+          }
+        }
+      ]
     }
   }
 }

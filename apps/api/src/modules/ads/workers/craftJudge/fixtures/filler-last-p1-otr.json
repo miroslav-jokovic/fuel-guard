@@ -1,0 +1,216 @@
+{
+  "name": "filler-last-p1-otr",
+  "about": "P1: two real OTR copies and a filler candidate; the filler ranks last.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A OTR flatbed driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 68,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 74,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 10,
+          "unit": "day"
+        },
+        {
+          "kind": "quantity",
+          "value": 12,
+          "unit": "day"
+        },
+        {
+          "kind": "money",
+          "cents": 300000,
+          "per": null
+        },
+        {
+          "kind": "term",
+          "term": "sign-on bonus"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "flatbed freight",
+          "over-the-road runs",
+          "Midwest to the Southeast",
+          "Out 10 to 12 days, home 3"
+        ],
+        "in_our_words": "Family-run since the eighties; dispatch answers the phone."
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P1 Windshield sunrise",
+      "hook_formula": "Second person, present tense: put the reader in the driver's seat at dawn, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield at {time_of_day} on an open {road} highway, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day",
+        "road"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": "Slow push-in down the highway as the light rises",
+      "layout": "bottom_plate",
+      "formats": [
+        "9:16",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "Dispatch Freight Lines",
+    "candidates": [
+      {
+        "en": {
+          "hook": "Sun up, flatbed loaded: $0.68.",
+          "cta": "Apply with us.",
+          "primary_text": "Dispatch Freight Lines runs flatbed OTR, Midwest to the Southeast. Start at $0.68 per mile, move to $0.74 per mile with 2 years of experience. $3,000 sign-on bonus. Health insurance and 401k included. Must be 23+. Runs go out 10 to 12 days.",
+          "headline": "Flatbed OTR. $0.68/mile."
+        },
+        "es": {
+          "hook": "Amanece. Plataforma lista: $0.68.",
+          "cta": "Aplica hoy.",
+          "primary_text": "Dispatch Freight Lines opera rutas OTR de plataforma del Medio Oeste al Sureste. Comienzas a $0.68 por milla; con 2 años de experiencia llegas a $0.74 por milla. Bono de contratación de $3,000. Seguro médico y 401k. Mayores de 23. Salidas de 10 a 12 días.",
+          "headline": "Plataforma OTR. $0.68/milla."
+        }
+      },
+      {
+        "en": {
+          "hook": "Sun's up. You earn $0.72/mile.",
+          "cta": "Apply today.",
+          "primary_text": "Class A OTR drivers start at $0.72 per mile. Bring your CDL and pick up a $5,000 sign-on bonus. Apply today.",
+          "headline": "Plus a $5,000 sign-on bonus."
+        },
+        "es": {
+          "hook": "Amanece. Ganas $0.72 por milla.",
+          "cta": "Aplica hoy.",
+          "primary_text": "Conductores Clase A para rutas OTR: $0.72 por milla desde el primer día. Trae tu CDL y recibe un bono de $5,000 al contratarte. Únete al equipo.",
+          "headline": "Bono de $5,000 al contratar."
+        }
+      },
+      {
+        "en": {
+          "hook": "Great pay, great team",
+          "cta": "Apply today",
+          "primary_text": "Exciting opportunity for Class A drivers to join our dynamic team. We offer competitive pay, great freight and a family atmosphere where we truly value our drivers. Earn $0.68/mile. Apply today and take your career to the next level.",
+          "headline": "Great pay, great team"
+        },
+        "es": {
+          "hook": "Buen pago, gran equipo",
+          "cta": "Aplica hoy",
+          "primary_text": "Emocionante oportunidad para conductores Clase A de unirse a nuestro equipo dinámico. Ofrecemos pago competitivo, excelente carga y un ambiente familiar donde valoramos a nuestros conductores. Gana $0.68 por milla. Aplica hoy.",
+          "headline": "Buen pago, gran equipo"
+        }
+      }
+    ],
+    "seed": "filler-last-p1-otr"
+  },
+  "expect": "ready",
+  "expect_rank": {
+    "candidate": 2,
+    "at": "last"
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "craftJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T20:31:39.799Z",
+    "output": {
+      "scores": [
+        {
+          "reason": "Hook lands the driver in the cab at dawn and immediately hits the rate — exactly what the concept asks. Primary_text is specific: carrier name, flatbed OTR, Midwest-to-Southeast, both mileage rates, sign-on bonus, benefits, age, and schedule. Spanish uses 'milla', 'plataforma', 'rutas OTR' — natural trade language, no kilómetros. No filler at all; every sentence is checkable.",
+          "scores": {
+            "hook": 5,
+            "specific": 5,
+            "plain": 5,
+            "spanish": 5,
+            "no_filler": 5
+          }
+        },
+        {
+          "reason": "Hook ignores the concept entirely — no dawn, no driver's seat, just pure filler. Primary_text is built almost entirely of phrases any carrier could use: 'exciting opportunity', 'dynamic team', 'competitive pay', 'family atmosphere', 'truly value our drivers'. Only one real fact ($0.68/mile) survives. Spanish is a word-for-word mirror of the English filler, nothing trade-specific.",
+          "scores": {
+            "hook": 1,
+            "specific": 1,
+            "plain": 2,
+            "spanish": 2,
+            "no_filler": 1
+          }
+        },
+        {
+          "reason": "Hook puts the reader in the cab at dawn and leads with a rate — good concept execution — but the rate ($0.72/mile) and bonus ($5,000) are not in the facts, making both figures fabricated. Primary_text is extremely thin: no carrier name, no route, no schedule, no benefits listed. Spanish is otherwise serviceable with 'milla' and trade terms, but the false figures carry through.",
+          "scores": {
+            "hook": 4,
+            "specific": 1,
+            "plain": 4,
+            "spanish": 3,
+            "no_filler": 3
+          }
+        }
+      ]
+    }
+  }
+}

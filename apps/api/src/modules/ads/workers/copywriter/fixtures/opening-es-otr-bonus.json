@@ -97,6 +97,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "layout": "bottom_plate",
       "formats": [
         "4:5",
         "9:16"
@@ -110,27 +111,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:34:38.695Z",
+    "recorded_at": "2026-11-09T20:16:21.100Z",
     "output": {
-      "en": {
-        "hook": "Out 2 weeks, home 3 days.",
-        "cta": "Apply today.",
-        "primary_text": "Dry van, coast to coast. You run over-the-road and come home on a schedule you can count on. Pay is $0.70 per mile, plus a $2,500 sign-on bonus. CDL-A required, age 23+, 2 years experience. 401k available.",
-        "headline": "$0.70/mi + $2,500 bonus"
-      },
-      "es": {
-        "hook": "2 semanas fuera, 3 días en casa.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Carga seca, costa a costa. Rutas de larga distancia con regreso fijo a casa. Pago de $0.70 por milla más $2,500 de bono de contratación. Se requiere CDL-A, mayores de 23 años y 2 años de experiencia. Plan 401k disponible.",
-        "headline": "$0.70/milla + $2,500 bono"
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Home every 2 weeks, on time.",
+            "cta": "Apply now",
+            "primary_text": "Out 2 weeks, home 3 days — that's how this run works, every time. Dry van, over-the-road, coast to coast. You earn $0.70 per mile plus a $2,500 sign-on bonus. Need 2 years of experience and to be 23+. 401k included. Apply and get rolling.",
+            "headline": "$0.70/mile, coast to coast."
+          },
+          "es": {
+            "hook": "Casa cada 2 semanas, seguro.",
+            "cta": "Aplica ahora",
+            "primary_text": "2 semanas en ruta, 3 días en casa — así funciona siempre. Van seco, costa a costa. Ganas $0.70 por milla más bono de entrada de $2,500. Se requiere 2 años de experiencia y ser mayor de 23 años. 401k incluido.",
+            "headline": "$0.70 por milla, costa a costa."
+          }
+        },
+        {
+          "en": {
+            "hook": "Know when you're home.",
+            "cta": "Join our team",
+            "primary_text": "Dry van, over-the-road. Coast to coast runs, out 2 weeks, back home 3 days. You know the schedule before you leave the yard. Pay is $0.70 per mile. $2,500 sign-on bonus for qualified drivers. 401k. Must have 2 years experience and be 23+.",
+            "headline": "$2,500 sign-on bonus."
+          },
+          "es": {
+            "hook": "Sabes cuándo llegas a casa.",
+            "cta": "Únete al equipo",
+            "primary_text": "Van seco, costa a costa: 2 semanas fuera, 3 días en casa. Pago de $0.70 por milla. Bono de entrada de $2,500. 401k. Se requieren 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "Bono de entrada: $2,500."
+          }
+        },
+        {
+          "en": {
+            "hook": "Dry van, coast to coast.",
+            "cta": "Apply today",
+            "primary_text": "Over-the-road dry van running coast to coast. The cycle is straightforward: out 2 weeks, home 3 days. You earn $0.70 per mile and a $2,500 sign-on bonus. 401k available. Must be 23+ with 2 years of Class A experience. Good freight, honest schedule.",
+            "headline": "Home 3 days, $0.70/mile."
+          },
+          "es": {
+            "hook": "Van seco, costa a costa.",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta de larga distancia con van seco de costa a costa. El ciclo es claro: 2 semanas en ruta, 3 días en casa. Ganas $0.70 por milla y un bono de entrada de $2,500. 401k disponible. Debes ser mayor de 23 años con 2 años de experiencia Clase A. Buena carga, horario cumplido.",
+            "headline": "3 días en casa, $0.70/milla."
+          }
+        }
+      ]
     }
   }
 }

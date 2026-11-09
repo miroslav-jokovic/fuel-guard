@@ -36,6 +36,7 @@ export const AD_WORKER_OFFICE_LABEL: Readonly<Record<string, string>> = {
   "Renderer / Higgsfield client": "Making the pictures",
   "Security (all)": "Keeping logins and data safe",
   "Analyst": "The morning report",
+  "Craft judge": "Choosing the best of the ad texts offered",
   "Outcome feed": "Telling the platform which applicants were hired",
 };
 

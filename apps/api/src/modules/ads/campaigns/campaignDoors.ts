@@ -66,7 +66,7 @@ export async function createCampaign(deps: CreateDeps, orgId: string, userId: st
 }
 
 const SUMMARY = "id, name, state, state_changed_at, brief_source, brief_ref, connection_id, brand_kit_id, daily_budget_cents, lifetime_cap_cents, last_error, created_at";
-const CREATIVE = "id, preset_version_id, brand_kit_version_id, supersedes_id, state, copy, assets, checks, regenerations, last_error, created_at";
+const CREATIVE = "id, preset_version_id, brand_kit_version_id, supersedes_id, state, copy, assets, checks, candidates, regenerations, last_error, created_at";
 /** Newest first; the list is a page of a person's recent work, not an export. */
 export const CAMPAIGN_LIST_LIMIT = 200;
 

@@ -97,6 +97,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "layout": "bottom_plate",
       "formats": [
         "4:5",
         "9:16"
@@ -110,27 +111,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:36:04.647Z",
+    "recorded_at": "2026-11-09T20:20:04.517Z",
     "output": {
-      "en": {
-        "hook": "Home 4 days after 2 weeks out.",
-        "cta": "Apply today.",
-        "primary_text": "OTR reefer runs — produce out of the valley to the Midwest. You earn $0.70 per mile to start, rising to $0.78 per mile. The schedule is real: out 2 weeks, home 4 days. Requires 2 years of experience, age 23+. 401k and rider policy included.",
-        "headline": "Reefer OTR. $0.78/mile."
-      },
-      "es": {
-        "hook": "4 días en casa tras 2 semanas.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Rutas OTR reefer, produce del valle al Medio Oeste. Paga de $0.70 por milla, sube a $0.78 por milla. Ciclo fijo: 2 semanas fuera, 4 días en casa. Se requieren 2 años de experiencia y ser mayor de 23 años. 401k y política de acompañante.",
-        "headline": "Reefer OTR. $0.78/milla."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Home every 2 weeks. On time.",
+            "cta": "Apply now",
+            "primary_text": "Out 2 weeks, home 4 days — that schedule holds. Reefer runs, produce from the valley to the Midwest. Pay starts at $0.70 per mile, up to $0.78 per mile. Two years of experience required, age 23+. 401k and rider policy included.",
+            "headline": "OTR Reefer — $0.70/$0.78/mi"
+          },
+          "es": {
+            "hook": "Casa cada 2 semanas, siempre.",
+            "cta": "Aplica hoy",
+            "primary_text": "Sales 2 semanas, regresas 4 días. Carga refrigerada del valle al Medio Oeste. Pago desde $0.70 por milla, hasta $0.78 por milla. Se requieren 2 años de experiencia y ser mayor de 23 años. 401k y política de acompañante.",
+            "headline": "Reefer OTR — $0.70/$0.78/mi"
+          }
+        },
+        {
+          "en": {
+            "hook": "4 days home. Earned it.",
+            "cta": "Join our team",
+            "primary_text": "Two weeks out, then 4 days home — every time. Reefer freight, produce from the valley to the Midwest. Pay starts at $0.70 per mile, up to $0.78 per mile. Need 2 years of experience, age 23+. Rider policy and 401k available.",
+            "headline": "$0.78/mile on OTR reefer"
+          },
+          "es": {
+            "hook": "4 días en casa, bien ganados.",
+            "cta": "Únete hoy",
+            "primary_text": "Dos semanas en ruta, luego 4 días en casa. Carga refrigerada del valle al Medio Oeste. Pago de $0.70 por milla, hasta $0.78 por milla. Se requieren 2 años de experiencia y ser mayor de 23 años. 401k y política de acompañante.",
+            "headline": "$0.78/milla en ruta reefer"
+          }
+        },
+        {
+          "en": {
+            "hook": "Reefer OTR. Know your runs.",
+            "cta": "Get started",
+            "primary_text": "Valley produce to the Midwest — consistent OTR reefer lanes so you know what to expect. $0.70 per mile starting rate, up to $0.78 per mile. Home for 4 days after every 2-week run. Requires 2 years of Class A experience, age 23+. 401k and rider policy on offer.",
+            "headline": "2 weeks out, 4 days home"
+          },
+          "es": {
+            "hook": "Reefer OTR. Rutas definidas.",
+            "cta": "Empieza hoy",
+            "primary_text": "Produce del valle al Medio Oeste — rutas OTR en tráiler refrigerado, constantes y bien definidas. Pago inicial de $0.70 por milla, hasta $0.78 por milla. Regresas 4 días a casa tras cada salida de 2 semanas. Se requieren 2 años de experiencia y ser mayor de 23 años. 401k y política de acompañante disponibles.",
+            "headline": "2 semanas fuera, 4 días casa"
+          }
+        }
+      ]
     }
   }
 }

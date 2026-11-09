@@ -86,6 +86,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "1:1",
         "4:5"
@@ -99,27 +100,60 @@
         "headline": "headline"
       }
     },
-    "company_name": "360 Logistics"
+    "company_name": "360 Logistics",
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:34:22.921Z",
+    "recorded_at": "2026-11-09T20:15:25.774Z",
     "output": {
-      "en": {
-        "pay": "Up to $0.71/mile",
-        "cta": "Apply now",
-        "primary_text": "360 Logistics is hiring Class A regional drivers for dry van and reefer freight across the Midwest. Start at $0.65 per mile and earn up to $0.71 per mile. You get home weekly and paid every week. Must be 23+ with 2 years of experience. Join our team today.",
-        "headline": "Home weekly. Weekly pay."
-      },
-      "es": {
-        "pay": "Hasta $0.71/milla",
-        "cta": "Aplica ahora",
-        "primary_text": "360 Logistics busca conductores Clase A para rutas regionales en el Medio Oeste. Carga seca y refrigerada. Gana desde $0.65 hasta $0.71 por milla, pago semanal y regreso a casa cada semana. Se requiere mayores de 23 con 2 años de experiencia. Únete al equipo.",
-        "headline": "A casa cada semana."
-      }
+      "candidates": [
+        {
+          "en": {
+            "pay": "$0.71 per mile",
+            "cta": "Apply with 360",
+            "primary_text": "360 Logistics is hiring Class A regional drivers in the Midwest. You earn $0.65 to $0.71 per mile running dry van and reefer freight on regional lanes. Weekly pay, home weekly. Requirements: 23+ with 2 years of experience.",
+            "headline": "Regional Midwest dry van & reefer"
+          },
+          "es": {
+            "pay": "$0.71 por milla",
+            "cta": "Aplica con 360",
+            "primary_text": "360 Logistics busca conductores Clase A para rutas regionales en el Medio Oeste. Gana de $0.65 a $0.71 por milla en carga seca y refrigerada. Pago semanal, regreso a casa cada semana. Requisitos: mayor de 23 años con 2 años de experiencia.",
+            "headline": "Rutas regionales, carga seca y fría"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.65–$0.71/mile",
+            "cta": "Join our team",
+            "primary_text": "Home weekly and weekly pay — that is the deal at 360 Logistics for Class A drivers on Midwest regional runs. You haul dry van and reefer freight and earn $0.65 to $0.71 per mile. Must be 23+ with 2 years behind the wheel.",
+            "headline": "Home weekly. Weekly pay."
+          },
+          "es": {
+            "pay": "$0.65–$0.71/milla",
+            "cta": "Únete al equipo",
+            "primary_text": "Regreso a casa cada semana y pago semanal — así trabaja 360 Logistics. Conductores Clase A para rutas regionales en el Medio Oeste, jalando carga seca y refrigerada. Pago de $0.65 a $0.71 por milla. Mayores de 23 años con 2 años de experiencia.",
+            "headline": "A casa cada semana. Pago semanal."
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.65–$0.71/mile",
+            "cta": "Apply today",
+            "primary_text": "Dry van and reefer, Midwest regional — if that is your run, 360 Logistics has a Class A seat for you. The pay is $0.65 to $0.71 per mile, paid weekly. You get home every week. Need 2 years of experience and to be 23+.",
+            "headline": "Midwest reefer & dry van lanes"
+          },
+          "es": {
+            "pay": "$0.65–$0.71/milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Carga seca y refrigerada en rutas regionales por el Medio Oeste — si esa es tu ruta, 360 Logistics tiene un lugar para ti. Pago de $0.65 a $0.71 por milla, cobrado cada semana. Regresas a casa cada semana. Se requieren 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "Rutas Midwest: seca y refrigerada"
+          }
+        }
+      ]
     }
   }
 }

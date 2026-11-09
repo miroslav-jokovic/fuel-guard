@@ -32,25 +32,32 @@ import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOut
  * `pnpm ads:eval` asks and judges exactly as the worker does.
  */
 
-export const COPYWRITER_PROMPT_VERSION = "copywriter@2";
-const PROMPT = readFileSync(new URL("./prompt.v2.md", import.meta.url), "utf8");
+export const COPYWRITER_PROMPT_VERSION = "copywriter@3";
+const PROMPT = readFileSync(new URL("./prompt.v3.md", import.meta.url), "utf8");
 export const COPY_LANGUAGES = ["en", "es"] as const;
-const MAX_TOKENS = 1200;
+/** Five candidates of eight slots in two languages is ~5,000 tokens of text; the ceiling leaves room. */
+const MAX_TOKENS = 6000;
+/** How many copies a creative asks for when its settings say nothing (the contract's own default). */
+export const DEFAULT_CANDIDATES = 3;
 
 export type CopySlots = Record<string, string>;
 export interface AdCopy { en: CopySlots; es: CopySlots }
+/** What the tool returns (CQ4, D-AD19): `k` candidates, each a whole copy in both languages. */
+export interface CopySet { candidates: AdCopy[] }
 
 /**
- * The tool for this recipe: an object per language, one non-empty string per slot, nothing else. The
- * length is NOT in the schema: it is the copy check's (D-AD12 §1, "the length fits each placement"), so an
- * answer that runs over is recorded as the model's answer and refused as `too_long`, with the slot named.
+ * The tool for this recipe: exactly `k` candidates, each an object per language with one non-empty string per
+ * slot, nothing else. The length is NOT in the schema: it is the copy check's (D-AD12 §1, "the length fits each
+ * placement"), so an answer that runs over is recorded as the model's answer and refused as `too_long`, with the
+ * slot named. `k` is `settings.budgets.candidates_per_creative` (1–5); a planted fixture may ask for one.
  */
-export function copyTool(recipe: Pick<AdPresetRecipe, "copy_slots">): ForcedTool<AdCopy> {
+export function copyTool(recipe: Pick<AdPresetRecipe, "copy_slots">, k: number = DEFAULT_CANDIDATES): ForcedTool<CopySet> {
   const slots = z.object(Object.fromEntries(recipe.copy_slots.map((s) => [s.name, z.string().trim().min(1)]))).strict();
+  const copy = z.object({ en: slots, es: slots }).strict();
   return {
     name: "write_copy",
-    description: "Fill every copy slot of the concept in English (en) and Spanish (es), stating only the facts given.",
-    schema: z.object({ en: slots, es: slots }).strict() as unknown as z.ZodType<AdCopy>,
+    description: `Write ${k} different candidates for the advertisement's words, each filling every copy slot of the concept in English (en) and Spanish (es), stating only the facts given.`,
+    schema: z.object({ candidates: z.array(copy).length(k) }).strict() as unknown as z.ZodType<CopySet>,
   };
 }
 
@@ -72,9 +79,10 @@ export const TOLD_SHORT_SHARE = 0.7;
 export const toldLimit = (maxChars: number): number =>
   Math.floor(maxChars * (maxChars <= SHORT_SLOT_CHARS ? TOLD_SHORT_SHARE : TOLD_LIMIT_SHARE));
 
-/** What the copywriter is told about the carrier (CQ2): its name as the ad should print it, or null. */
-export interface CopyContext { company_name: string | null }
+/** What the copywriter is told about the carrier (CQ2): its name as the ad should print it, or null; and how many copies to offer (CQ4). */
+export interface CopyContext { company_name: string | null; candidates?: number }
 const NO_CONTEXT: CopyContext = { company_name: null };
+const kOf = (ctx: CopyContext): number => ctx.candidates ?? DEFAULT_CANDIDATES;
 
 /**
  * A fact written out as an ad would print it, beside its structured form: "$12,000 per week", "$0.65 per mile",
@@ -97,6 +105,7 @@ export function copyUserMessage(brief: Pick<AdBrief, "subject" | "claims" | "sub
     about_the_job: brief.subject_matter.details,
     in_our_words: brief.subject_matter.in_our_words,
     company: ctx.company_name,
+    candidates: kOf(ctx),
     concept: {
       name: recipe.name,
       hook_formula: recipe.hook_formula,
@@ -106,7 +115,7 @@ export function copyUserMessage(brief: Pick<AdBrief, "subject" | "claims" | "sub
 }
 
 export function buildCopyRequest(brief: Pick<AdBrief, "subject" | "claims" | "subject_matter">, recipe: AdPresetRecipe, ctx: CopyContext = NO_CONTEXT) {
-  return { model: AI_MODELS.deep, system: PROMPT, user: copyUserMessage(brief, recipe, ctx), tool: copyTool(recipe), maxTokens: MAX_TOKENS };
+  return { model: AI_MODELS.deep, system: PROMPT, user: copyUserMessage(brief, recipe, ctx), tool: copyTool(recipe, kOf(ctx)), maxTokens: MAX_TOKENS };
 }
 
 type Located = { language: (typeof COPY_LANGUAGES)[number]; slot: string };
@@ -114,6 +123,21 @@ export type SlotFinding =
   | (ClaimFinding & Located)
   | ({ kind: "too_long"; text: string; index: number; length: number; max_chars: number } & Located);
 export type CopyVerdict = { ok: true } | { ok: false; findings: SlotFinding[] };
+
+/** One candidate the claim and length checks let through, with its place in the model's own order. */
+export interface PassedCopy { copy: AdCopy; offered_as: number }
+/** Every candidate judged: the survivors in the model's order, and each refused one's findings by index. */
+export interface SetVerdict { passed: PassedCopy[]; refused: Array<{ offered_as: number; findings: SlotFinding[] }> }
+
+export function judgeSet(set: CopySet, brief: Pick<AdBrief, "claims" | "subject_matter">, recipe: Pick<AdPresetRecipe, "copy_slots">, ctx: CopyContext = NO_CONTEXT): SetVerdict {
+  const out: SetVerdict = { passed: [], refused: [] };
+  set.candidates.forEach((copy, offered_as) => {
+    const v = judgeCopy(copy, brief, recipe, ctx);
+    if (v.ok) out.passed.push({ copy, offered_as });
+    else out.refused.push({ offered_as, findings: v.findings });
+  });
+  return out;
+}
 
 /**
  * ── ONE FIT PASS, FOR WORDING ONLY (CQ2, measured 2026-11-09) ──────────────────────────────────────
@@ -129,13 +153,21 @@ export type CopyVerdict = { ok: true } | { ok: false; findings: SlotFinding[] };
 export const FIT_FINDINGS: ReadonlySet<SlotFinding["kind"]> = new Set(["too_long", "foreign_unit"]);
 export const canFit = (findings: readonly SlotFinding[]): boolean => findings.length > 0 && findings.every((f) => FIT_FINDINGS.has(f.kind));
 
-/** The second ask: the same data, plus the first answer and what must change in it. */
-export function buildFitRequest(brief: Pick<AdBrief, "subject" | "claims" | "subject_matter">, recipe: AdPresetRecipe, ctx: CopyContext, previous: AdCopy, findings: readonly SlotFinding[]) {
-  const must_fix = findings.map((f) => f.kind === "too_long"
-    ? { language: f.language, slot: f.slot, problem: `${f.length} characters; the most allowed is ${toldLimit(f.max_chars)} — cut words, keep the facts` }
-    : { language: f.language, slot: f.slot, problem: `"${f.text}" is not a unit a US driver uses; say it in miles or leave the distance out` });
-  const user = JSON.stringify({ ...JSON.parse(copyUserMessage(brief, recipe, ctx)), previous_answer: previous, must_fix, instruction: "Return the whole answer again with ONLY the slots in must_fix changed, each fixed as its problem says. Every other slot is returned exactly as it was." }, null, 2);
-  return { model: AI_MODELS.deep, system: PROMPT, user, tool: copyTool(recipe), maxTokens: MAX_TOKENS };
+/**
+ * The candidates whose every finding is wording — the ones a fit pass can mend. A candidate with any other finding
+ * (a figure or promise not in the brief) is left out: it is dropped from the set, never coaxed.
+ */
+export function fittable(verdict: SetVerdict): Array<{ offered_as: number; findings: SlotFinding[] }> {
+  return verdict.refused.filter((r) => canFit(r.findings));
+}
+
+/** The second ask: the same data, plus the first answer and what must change in it, candidate by candidate. */
+export function buildFitRequest(brief: Pick<AdBrief, "subject" | "claims" | "subject_matter">, recipe: AdPresetRecipe, ctx: CopyContext, previous: CopySet, toFix: ReadonlyArray<{ offered_as: number; findings: readonly SlotFinding[] }>) {
+  const must_fix = toFix.flatMap(({ offered_as, findings }) => findings.map((f) => f.kind === "too_long"
+    ? { candidate: offered_as, language: f.language, slot: f.slot, problem: `${f.length} characters; the most allowed is ${toldLimit(f.max_chars)} — cut words, keep the facts` }
+    : { candidate: offered_as, language: f.language, slot: f.slot, problem: `"${f.text}" is not a unit a US driver uses; say it in miles or leave the distance out` }));
+  const user = JSON.stringify({ ...JSON.parse(copyUserMessage(brief, recipe, ctx)), previous_answer: previous, must_fix, instruction: "Return all the candidates again, in the same order, with ONLY the slots in must_fix changed (candidate is the 0-based index), each fixed as its problem says. Every other slot of every candidate is returned exactly as it was." }, null, 2);
+  return { model: AI_MODELS.deep, system: PROMPT, user, tool: copyTool(recipe, kOf(ctx)), maxTokens: MAX_TOKENS };
 }
 
 /**
@@ -168,26 +200,42 @@ export interface WriteCopyInput {
   recipe: AdPresetRecipe;
   /** The kit's `company_name` (CQ2); null when compose has no kit name to give. */
   company_name?: string | null;
+  /** How many copies to offer (CQ4, `settings.budgets.candidates_per_creative`); absent = the default. */
+  candidates?: number;
 }
 
 export type WriteCopyOutcome =
-  | { kind: "ready"; generationId: string; copy: AdCopy; replayed: boolean }
-  | { kind: "refused"; generationId: string; findings: SlotFinding[]; replayed: boolean }
-  | Exclude<ClaudeGenerationOutcome<AdCopy>, { kind: "succeeded" }>;
+  /** At least one candidate passed every check: the survivors in the model's order, and how many were offered. */
+  | { kind: "ready"; generationId: string; passed: PassedCopy[]; offered: number; replayed: boolean }
+  /** No candidate passed: every candidate's findings, by its index. */
+  | { kind: "refused"; generationId: string; findings: SlotFinding[]; byCandidate: SetVerdict["refused"]; replayed: boolean }
+  | Exclude<ClaudeGenerationOutcome<CopySet>, { kind: "succeeded" }>;
 
+/**
+ * The Copywriter's whole turn (CQ4): `k` candidates asked once; every one judged; when some are refused for wording
+ * only, ONE fit pass over those (its own key, so a re-run replays it); the survivors returned in the model's order
+ * for the craft judge to rank. A candidate refused for an invented figure or promise is dropped, never coaxed. The
+ * fit pass is asked even when other candidates already passed: a slot that only ran long is a copy worth having.
+ */
 export async function writeCopy(deps: ClaudeGenerationDeps, input: WriteCopyInput): Promise<WriteCopyOutcome> {
-  const ctx: CopyContext = { company_name: input.company_name ?? null };
+  const ctx: CopyContext = { company_name: input.company_name ?? null, candidates: input.candidates ?? DEFAULT_CANDIDATES };
   const ids = { orgId: input.orgId, agent: "copywriter" as const, campaignId: input.campaignId, creativeId: input.creativeId, promptVersion: COPYWRITER_PROMPT_VERSION };
   const first = await generateWithClaude(deps, { ...ids, idempotencyKey: `copy:${input.creativeId}:${input.attempt}`, ...buildCopyRequest(input.brief, input.recipe, ctx) });
   if (first.kind !== "succeeded") return first;
-  const verdict = judgeCopy(first.value, input.brief, input.recipe, ctx);
-  if (verdict.ok) return { kind: "ready", generationId: first.generationId, copy: first.value, replayed: first.replayed };
-  if (!canFit(verdict.findings)) return { kind: "refused", generationId: first.generationId, findings: verdict.findings, replayed: first.replayed };
-  // The one fit pass: its own key, so a re-run replays it rather than asking a third time.
-  const fit = await generateWithClaude(deps, { ...ids, idempotencyKey: `copy:${input.creativeId}:${input.attempt}:fit`, ...buildFitRequest(input.brief, input.recipe, ctx, first.value, verdict.findings) });
-  if (fit.kind !== "succeeded") return fit;
-  const again = judgeCopy(fit.value, input.brief, input.recipe, ctx);
-  return again.ok
-    ? { kind: "ready", generationId: fit.generationId, copy: fit.value, replayed: fit.replayed }
-    : { kind: "refused", generationId: fit.generationId, findings: again.findings, replayed: fit.replayed };
+  let set = first.value;
+  let verdict = judgeSet(set, input.brief, input.recipe, ctx);
+  let generationId = first.generationId;
+  let replayed = first.replayed;
+  const toFix = fittable(verdict);
+  if (toFix.length > 0) {
+    const fit = await generateWithClaude(deps, { ...ids, idempotencyKey: `copy:${input.creativeId}:${input.attempt}:fit`, ...buildFitRequest(input.brief, input.recipe, ctx, set, toFix) });
+    if (fit.kind !== "succeeded") return fit;
+    // The fitted set is judged whole again: a "fixed" candidate that now invents a figure is refused like any other.
+    set = fit.value;
+    verdict = judgeSet(set, input.brief, input.recipe, ctx);
+    generationId = fit.generationId;
+    replayed = fit.replayed;
+  }
+  if (verdict.passed.length > 0) return { kind: "ready", generationId, passed: verdict.passed, offered: set.candidates.length, replayed };
+  return { kind: "refused", generationId, findings: verdict.refused.flatMap((r) => r.findings), byCandidate: verdict.refused, replayed };
 }

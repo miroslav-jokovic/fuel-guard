@@ -1,12 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  FORMAT_SIZE, withRegenerationClauses,
-  type AdAssetRef, type AdBrandKit, type AdBrief, type AdFormat, type AdPresetRecipe, type AdVisualCheck, type CreativeState,
+  FORMAT_SIZE, rankCandidates, withRegenerationClauses,
+  type AdAssetRef, type AdBrandKit, type AdBrief, type AdCandidates, type AdFormat, type AdPresetRecipe, type AdVisualCheck, type CreativeState,
 } from "@silvicom/shared";
 import type { ClaudeGenerationDeps } from "../generations/claudeGeneration.js";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
 import { frameStill, renderOverlay, type OverlayFinding, type OverlayLanguage } from "../creative/overlay/overlay.js";
 import { writeCopy, type AdCopy, type SlotFinding } from "../workers/copywriter/copywriter.js";
+import { CRAFT_JUDGE_PROMPT_VERSION, judgeCraft } from "../workers/craftJudge/craftJudge.js";
 import { directArt } from "../workers/artDirector/artDirector.js";
 import { checkVisual, type FractionRect, type VisualResult } from "../workers/checker/checker.js";
 
@@ -15,7 +16,8 @@ import { checkVisual, type FractionRect, type VisualResult } from "../workers/ch
  * the campaign's compose step (C5b2) as often as it takes; every run is safe to repeat, because every
  * model and vendor call below is keyed and replayed from its ledger row — a re-run asks nobody twice.
  *
- *   copy (attempt 1) → for attempt a = 1 … 1 + max_regenerations:
+ *   copy (attempt 1: k candidates, each checked; the craft judge ranks the survivors; the first becomes the copy —
+ *   CQ4, D-AD19/D-AD21; the whole ranked set is stored in `candidates`, 0579) → for attempt a = 1 … 1 + max_regenerations:
  *     art (a; from a 2nd attempt on, our fixed clause per check that failed) → render (a; still drawing =
  *     `pending`) → per format: the still framed, the overlay in English and Spanish (the render check),
  *     the visual check over the framed still with the band the overlay actually covered
@@ -59,6 +61,8 @@ export interface ComposeInput {
   recipe: AdPresetRecipe;
   kit: AdBrandKit;
   maxRegenerations: number;
+  /** `settings.budgets.candidates_per_creative` (CQ4); absent = the Copywriter's default. */
+  candidates?: number;
 }
 
 export interface CreativeAsset { format: AdFormat; language: OverlayLanguage; sha256: string; path: string; width: number; height: number }
@@ -82,10 +86,27 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
 
   if (!recipe.overlay_slots) return stop({ kind: "stop", reason: "no_overlay_slots: the preset does not say which copy slots the overlay draws" });
 
-  const copy = await writeCopy(deps, { ...ids, attempt: 1, brief, recipe, company_name: input.kit.company_name });
-  if (copy.kind === "in_flight") return { kind: "pending", why: "copy in flight" };
-  if (copy.kind === "refused") return stop({ kind: "stop", reason: `copy check: ${summarise(copy.findings)}`, checks: { copy: { ok: false, findings: copy.findings } } });
-  if (copy.kind !== "ready") return stop({ kind: "stop", reason: `copy: ${stopCode(copy)}` });
+  const written = await writeCopy(deps, { ...ids, attempt: 1, brief, recipe, company_name: input.kit.company_name, candidates: input.candidates });
+  if (written.kind === "in_flight") return { kind: "pending", why: "copy in flight" };
+  if (written.kind === "refused") return stop({ kind: "stop", reason: `copy check: ${summarise(written.findings)}`, checks: { copy: { ok: false, findings: written.findings, by_candidate: written.byCandidate } } });
+  if (written.kind !== "ready") return stop({ kind: "stop", reason: `copy: ${stopCode(written)}` });
+
+  // The craft judge ranks the survivors (D-AD21). Switched off, out of budget or failing, it ranks nothing: the order
+  // is then the Copywriter's own and the set says so (`judge: null`) — what every creative was before CQ4, recorded.
+  const judged = written.passed.length > 1
+    ? await judgeCraft(deps, { ...ids, attempt: 1, brief, recipe, candidates: written.passed.map((p) => p.copy), company_name: input.kit.company_name })
+    : null;
+  if (judged?.kind === "in_flight") return { kind: "pending", why: "craft judge in flight" };
+  const scores = judged?.kind === "ready" ? judged.scores : null;
+  const ranked = rankCandidates(written.passed.map((p, i) => ({ copy: p.copy, judged: scores ? scores[i]! : null, offered_as: p.offered_as })));
+  const candidates: AdCandidates = {
+    ranked: ranked.map((r) => ({ copy: r.copy, judged: r.judged, total: r.total, offered_as: r.offered_as })),
+    chosen: 0, judge: scores ? CRAFT_JUDGE_PROMPT_VERSION : null, offered: written.offered, passed: written.passed.length,
+  };
+  const copy = { copy: ranked[0]!.copy };
+  // The set is written as soon as it exists, so a creative that stops later (a render, a visual check) still shows
+  // what was written and how it was ranked; `finish` carries it again on the final row.
+  await keep(deps.admin, cr, { candidates });
 
   let failed: AdVisualCheck[] = [];
   const history: Array<{ attempt: number; visual: Record<string, VisualResult[]> }> = [];
@@ -96,7 +117,7 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
     history.push({ attempt, visual: r.visual });
     if (r.kind === "passed") {
       await finish(deps.admin, cr, {
-        state: "ready", copy: copy.copy, assets: r.assets, regenerations: attempt - 1, last_error: null,
+        state: "ready", copy: copy.copy, candidates, assets: r.assets, regenerations: attempt - 1, last_error: null,
         checks: { copy: { ok: true }, render: { ok: true }, visual: { ok: true, attempt, results: r.visual }, visual_attempts: history },
       });
       return { kind: "ready" };
@@ -191,6 +212,12 @@ const summarise = (fs: SlotFinding[]) => [...new Set(fs.map((f) => `${f.kind} ($
 const overlaySummary = (fs: OverlayFinding[]) => [...new Set(fs.map((f) => f.kind))].join(", ");
 function stopCode(o: { kind: string; errorCode?: string; refusal?: string }): string {
   return o.kind === "failed" ? o.errorCode ?? "failed" : o.kind === "budget_exhausted" ? `budget_exhausted (${o.refusal})` : o.kind;
+}
+
+/** A field written while the workers still hold the creative (`generating`/`checking`); a creative that left both is not touched. */
+async function keep(admin: SupabaseClient, cr: CreativeRow, patch: Record<string, unknown>): Promise<void> {
+  const { error } = await admin.from("ads_creatives").update(patch).eq("org_id", cr.org_id).eq("id", cr.id).in("state", ["generating", "checking"]);
+  if (error) throw new Error(`ads_creatives ${cr.id}: ${error.message}`);
 }
 
 /** `generating` → `checking` once the image exists. A creative that already left both states is not touched. */

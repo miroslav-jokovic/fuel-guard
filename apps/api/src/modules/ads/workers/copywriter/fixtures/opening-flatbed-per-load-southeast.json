@@ -90,6 +90,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "1:1",
         "4:5"
@@ -103,27 +104,60 @@
         "headline": "headline"
       }
     },
-    "company_name": "Dispatch Freight Lines"
+    "company_name": "Dispatch Freight Lines",
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:35:01.471Z",
+    "recorded_at": "2026-11-09T20:17:39.858Z",
     "output": {
-      "en": {
-        "pay": "$420–$680 per load",
-        "cta": "Apply today",
-        "primary_text": "Flatbed drivers running Georgia, the Carolinas, and Tennessee. Dispatch Freight Lines pays $420 to $680 per load with guaranteed pay, so you know what you're earning every week. Home weekly. Paid orientation. Class A with 2 years of experience required, age 23+.",
-        "headline": "Regional flatbed, home weekly"
-      },
-      "es": {
-        "pay": "$420–$680 por carga",
-        "cta": "Aplica hoy",
-        "primary_text": "Rutas regionales con carga de plataforma en Georgia, las Carolinas y Tennessee. Dispatch Freight Lines paga de $420 a $680 por carga con pago garantizado. Regresas a casa cada semana. Orientación pagada. Se requiere Clase A, 2 años de experiencia y mayores de 23.",
-        "headline": "Plataforma regional, casa semanal"
-      }
+      "candidates": [
+        {
+          "en": {
+            "pay": "$420–$680 per load",
+            "cta": "Apply with us",
+            "primary_text": "Dispatch Freight Lines is hiring Class A flatbed drivers for regional runs through Georgia, the Carolinas, and Tennessee. Pay is guaranteed — $420 to $680 per load. You come home weekly, orientation is paid. You need 2 years of experience and be 23+.",
+            "headline": "Flatbed, home weekly."
+          },
+          "es": {
+            "pay": "$420–$680 por carga",
+            "cta": "Aplica con nosotros",
+            "primary_text": "Dispatch Freight Lines contrata conductores Clase A para rutas de plataforma en Georgia, las Carolinas y Tennessee. Pago garantizado: $420 a $680 por carga. Casa semanalmente, orientación pagada. Se requieren 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "Plataforma, casa cada semana."
+          }
+        },
+        {
+          "en": {
+            "pay": "$420–$680 per load",
+            "cta": "Join our team",
+            "primary_text": "Home every week, running flatbed freight through Georgia, the Carolinas, and Tennessee. That's the job at Dispatch Freight Lines. Pay is guaranteed — $420 to $680 per load. Orientation is paid. You need a Class A CDL, 2 years of experience, and to be 23+. Apply today.",
+            "headline": "Home weekly. Guaranteed pay."
+          },
+          "es": {
+            "pay": "$420–$680 por carga",
+            "cta": "Únete al equipo",
+            "primary_text": "Casa cada semana, con carga de plataforma en Georgia, las Carolinas y Tennessee. Así es el trabajo en Dispatch Freight Lines. Pago garantizado de $420 a $680 por carga. La orientación es pagada. Necesitas CDL Clase A, 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "Casa semanal. Pago garantizado."
+          }
+        },
+        {
+          "en": {
+            "pay": "$420–$680 per load",
+            "cta": "Apply today",
+            "primary_text": "Running flatbed through Georgia, the Carolinas, and Tennessee — these are regional lanes with guaranteed pay from $420 to $680 per load. Dispatch Freight Lines keeps you home weekly and pays your orientation. Class A CDL required, 2 years of experience, age 23+.",
+            "headline": "Regional flatbed, SE lanes."
+          },
+          "es": {
+            "pay": "$420–$680 por carga",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas de plataforma por Georgia, las Carolinas y Tennessee — corredores regionales con pago garantizado de $420 a $680 por carga. En Dispatch Freight Lines llegas a casa semanalmente y la orientación es pagada. Se requiere CDL Clase A, 2 años de experiencia y ser mayores de 23.",
+            "headline": "Plataforma regional, sureste."
+          }
+        }
+      ]
     }
   }
 }

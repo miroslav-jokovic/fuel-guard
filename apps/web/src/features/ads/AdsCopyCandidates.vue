@@ -1,0 +1,42 @@
+<script setup lang="ts">
+import { computed } from "vue";
+import { CRAFT_CRITERIA, CRAFT_CRITERION_LABEL, CRAFT_MAX_TOTAL, type AdCandidates } from "@silvicom/shared";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { copyLines } from "./adsCampaignFlow";
+
+/**
+ * The copies the writer offered for one ad, ranked by the craft judge (CQ4; D-AD19, D-AD21): the first became the ad,
+ * the others are shown so a reviewer sees why — and can disagree, which is how the judge gets calibrated (R7). When
+ * no judge ranked them (switched off, or before it existed) the order is the writer's and the heading says so.
+ */
+const props = defineProps<{ candidates: AdCandidates; language: string }>();
+
+const ranked = computed(() => props.candidates.ranked.map((c, i) => ({ ...c, rank: i + 1, chosen: i === props.candidates.chosen })));
+const judged = computed(() => props.candidates.judge !== null);
+const dropped = computed(() => props.candidates.offered - props.candidates.passed);
+</script>
+
+<template>
+  <details class="rounded-detail bg-surface-muted p-3 text-sm" data-test="copy-candidates">
+    <summary class="cursor-pointer text-ink">
+      {{ candidates.passed }} of {{ candidates.offered }} copies offered passed the checks<template v-if="dropped > 0">; {{ dropped }} stated something the opening does not</template>.
+      <template v-if="judged">Ranked by the craft judge; the first became the ad.</template>
+      <template v-else>Not ranked — in the writer's order; the first became the ad.</template>
+    </summary>
+    <ol class="mt-3 space-y-3">
+      <li v-for="c in ranked" :key="c.offered_as" class="space-y-1" :data-test="`candidate-${c.rank}`">
+        <p class="font-semibold text-ink">
+          #{{ c.rank }}<span v-if="c.chosen" :class="[BADGE_BASE, toneClass('success'), 'ml-2']" data-test="chosen">this one</span>
+          <span v-if="c.total !== null" class="ml-2 text-xs text-ink-muted" data-test="total">{{ c.total }} of {{ CRAFT_MAX_TOTAL }}</span>
+        </p>
+        <p v-for="l in copyLines(c.copy, language)" :key="l.slot" class="text-ink"><span class="text-ink-muted">{{ l.slot }}: </span>{{ l.text }}</p>
+        <template v-if="c.judged">
+          <p class="text-xs text-ink-muted" data-test="reason">{{ c.judged.reason }}</p>
+          <ul class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
+            <li v-for="k in CRAFT_CRITERIA" :key="k" :title="CRAFT_CRITERION_LABEL[k]">{{ k.replace("_", " ") }} {{ c.judged.scores[k] }}</li>
+          </ul>
+        </template>
+      </li>
+    </ol>
+  </details>
+</template>

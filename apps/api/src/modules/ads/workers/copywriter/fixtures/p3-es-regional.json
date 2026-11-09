@@ -60,6 +60,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "layout": "bottom_plate",
       "formats": [
         "4:5",
         "9:16"
@@ -73,27 +74,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:37:32.036Z",
+    "recorded_at": "2026-11-09T20:23:43.299Z",
     "output": {
-      "en": {
-        "hook": "Home every weekend.",
-        "cta": "Apply now",
-        "primary_text": "This regional Class A run gets you home weekends, every time. You earn $0.66 per mile on routes that bring you back when it counts. If you want a driving job that works around your life, apply today.",
-        "headline": "Regional | $0.66/mile"
-      },
-      "es": {
-        "hook": "En casa cada fin de semana.",
-        "cta": "Aplica ahora",
-        "primary_text": "Esta ruta regional Clase A te regresa a casa los fines de semana. Ganas $0.66 por milla con una ruta que respeta tu tiempo. Si buscas un trabajo al volante que se ajuste a tu vida, únete al equipo.",
-        "headline": "Regional | $0.66 por milla"
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Home every weekend.",
+            "cta": "Apply today.",
+            "primary_text": "This regional run gets you home weekends, every time. You earn $0.66 per mile on a Class A route built around your schedule. Apply today and get back to what matters.",
+            "headline": "Regional. $0.66 per mile."
+          },
+          "es": {
+            "hook": "En casa cada fin de semana.",
+            "cta": "Aplica hoy.",
+            "primary_text": "Esta ruta regional te regresa a casa los fines de semana, siempre. Ganas $0.66 por milla en una ruta Clase A diseñada para que llegues a tiempo. Únete al equipo hoy mismo.",
+            "headline": "Regional. $0.66 por milla."
+          }
+        },
+        {
+          "en": {
+            "hook": "Weekends home, guaranteed.",
+            "cta": "Join our team.",
+            "primary_text": "You run regional and you're home weekends. No guessing, no waiting — the lanes bring you back. At $0.66 per mile, your pay is steady and your schedule holds. Join us.",
+            "headline": "Class A. $0.66 a mile."
+          },
+          "es": {
+            "hook": "Fines de semana en casa.",
+            "cta": "Únete al equipo.",
+            "primary_text": "Manejas rutas regionales y llegas a casa los fines de semana. Sin incertidumbre, sin esperas — las rutas te traen de regreso. A $0.66 por milla, el pago es constante y el horario se cumple.",
+            "headline": "Clase A. $0.66 por milla."
+          }
+        },
+        {
+          "en": {
+            "hook": "Back home every weekend.",
+            "cta": "Apply now.",
+            "primary_text": "Regional Class A position: home weekends, $0.66 per mile. The run is structured so you know when you're leaving and when you're back. If that's the job you're looking for, apply now.",
+            "headline": "Regional CDL-A driver."
+          },
+          "es": {
+            "hook": "De vuelta en casa, cada semana.",
+            "cta": "Aplica ahora.",
+            "primary_text": "Posición regional Clase A: en casa los fines de semana, $0.66 por milla. La ruta está organizada para que sepas cuándo sales y cuándo regresas. Si eso es lo que buscas, aplica ahora.",
+            "headline": "Conductor regional Clase A."
+          }
+        }
+      ]
     }
   }
 }

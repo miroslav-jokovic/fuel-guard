@@ -1,0 +1,199 @@
+{
+  "name": "filler-last-p3-local",
+  "about": "P3: the filler sits in the middle; it ranks last.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A local dry van driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 2800,
+          "per": "hour"
+        },
+        {
+          "kind": "money",
+          "cents": 3200,
+          "per": "hour"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "paid time off"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "local runs",
+          "Chicagoland store deliveries"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P3 Home on time",
+      "hook_formula": "Lead with being home, then the facts that make it true.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our truck pulling into a quiet {street} at dusk, a porch light on, no people, no text, no logos, no lettering",
+      "image_slots": [
+        "street"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "layout": "bottom_plate",
+      "formats": [
+        "4:5",
+        "9:16"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "360 Logistics",
+    "candidates": [
+      {
+        "en": {
+          "hook": "Home daily. Every day.",
+          "cta": "Apply with us",
+          "primary_text": "360 Logistics runs dedicated local routes — Chicagoland store deliveries, dry van freight, and you're back home every night. Pay starts at $28 per hour and goes to $32 per hour. Paid time off included. Class A required, 2 years experience, age 23+.",
+          "headline": "Local dry van, $28–$32/hr"
+        },
+        "es": {
+          "hook": "En casa cada día.",
+          "cta": "Aplica hoy",
+          "primary_text": "360 Logistics tiene rutas locales dedicadas — entregas en tiendas de Chicagoland, carga seca, y llegas a casa cada noche. El pago va de $28 por hora a $32 por hora. Tiempo libre pagado incluido. Se requiere Clase A, 2 años de experiencia, mayores de 23.",
+          "headline": "Local dry van, $28–$32/hr"
+        }
+      },
+      {
+        "en": {
+          "hook": "Great pay, great team",
+          "cta": "Apply today",
+          "primary_text": "Exciting opportunity for Class A drivers to join our dynamic team. We offer competitive pay, great freight and a family atmosphere where we truly value our drivers. Earn $28/hour. Apply today and take your career to the next level.",
+          "headline": "Great pay, great team"
+        },
+        "es": {
+          "hook": "Buen pago, gran equipo",
+          "cta": "Aplica hoy",
+          "primary_text": "Emocionante oportunidad para conductores Clase A de unirse a nuestro equipo dinámico. Ofrecemos pago competitivo, excelente carga y un ambiente familiar donde valoramos a nuestros conductores. Gana $28/hour. Aplica hoy.",
+          "headline": "Buen pago, gran equipo"
+        }
+      },
+      {
+        "en": {
+          "hook": "Home every day. $31 an hour.",
+          "cta": "Apply today.",
+          "primary_text": "This is a local Class A route — you clock out and sleep in your own bed every night. The pay is $31 per hour. If you have your Class A and want to be home daily, apply today.",
+          "headline": "Local Class A, home daily."
+        },
+        "es": {
+          "hook": "A casa cada día. $31 la hora.",
+          "cta": "Aplica hoy.",
+          "primary_text": "Esta ruta local Clase A te regresa a casa todos los días. No hay noches fuera. La paga es $31 por hora. Si tienes tu Clase A y quieres trabajar local, únete al equipo hoy.",
+          "headline": "Local Clase A, a casa diario."
+        }
+      }
+    ],
+    "seed": "filler-last-p3-local"
+  },
+  "expect": "ready",
+  "expect_rank": {
+    "candidate": 1,
+    "at": "last"
+  },
+  "recorded": {
+    "source": "model",
+    "prompt_version": "craftJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T20:32:00.172Z",
+    "output": {
+      "scores": [
+        {
+          "reason": "The hook ignores the concept entirely — it leads with 'great pay, great team' instead of home. The primary_text is built almost entirely of filler: 'exciting opportunity,' 'dynamic team,' 'competitive pay,' 'family atmosphere,' 'truly value our drivers,' 'take your career to the next level.' No route detail, no schedule specifics. Spanish mirrors the English filler word-for-word and mixes '$28/hour' in English mid-sentence.",
+          "scores": {
+            "hook": 1,
+            "specific": 1,
+            "plain": 2,
+            "spanish": 2,
+            "no_filler": 1
+          }
+        },
+        {
+          "reason": "Hook leads with home — correct concept execution — but quotes $31/hr, a figure not in the facts (facts show $28 and $32). Primary_text is clean and plain but lacks specifics: no company name, no freight type, no Chicagoland detail, no PTO, no age/experience requirement. Spanish drops 'No hay noches fuera' (natural) but ends with 'únete al equipo hoy,' which is mild filler.",
+          "scores": {
+            "hook": 4,
+            "specific": 2,
+            "plain": 4,
+            "spanish": 3,
+            "no_filler": 3
+          }
+        },
+        {
+          "reason": "Hook leads with home, as the concept demands, and delivers immediately. Primary_text names the company, the route type (Chicagoland store deliveries, dry van), the pay range ($28–$32/hr), PTO, and all three hiring requirements — the most complete and verifiable set of facts. Spanish is natural, uses 'carga seca,' 'entregas,' 'rutas locales dedicadas,' distances stay in context, and mirrors the English facts exactly with no filler.",
+          "scores": {
+            "hook": 5,
+            "specific": 5,
+            "plain": 4,
+            "spanish": 5,
+            "no_filler": 5
+          }
+        }
+      ]
+    }
+  }
+}

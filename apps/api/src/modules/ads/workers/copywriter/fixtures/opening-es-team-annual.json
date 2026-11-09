@@ -95,6 +95,7 @@
       "shows_equipment": false,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "1:1"
       ],
@@ -107,31 +108,72 @@
         "headline": "headline"
       }
     },
-    "company_name": "Silvicom Inc"
+    "company_name": "Silvicom Inc",
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:34:56.471Z",
+    "recorded_at": "2026-11-09T20:17:19.962Z",
     "output": {
-      "en": {
-        "card_get": "Earn $90,000–$105,000/year. Dedicated dry van, drop and hook.",
-        "card_need": "Class A CDL, age 23+, 2 years of experience.",
-        "card_apply": "Apply now and join Silvicom Inc.",
-        "cta": "Apply Today",
-        "primary_text": "Silvicom Inc is hiring Class A team drivers for a dedicated dry van account. Drop and hook freight, over-the-road runs. Top earners make $105,000 a year. You need 2 years of experience and a Class A CDL.",
-        "headline": "Team Drivers Wanted"
-      },
-      "es": {
-        "card_get": "Gana de $90,000 a $105,000 al año. Ruta dedicada, drop and hook.",
-        "card_need": "CDL Clase A, mayores de 23, 2 años de experiencia.",
-        "card_apply": "Aplica hoy con Silvicom Inc.",
-        "cta": "Aplica Ya",
-        "primary_text": "Silvicom Inc busca conductores de equipo Clase A para cuenta dedicada de van seca. Carga drop and hook en rutas de larga distancia. Puedes ganar hasta $105,000 al año. Se requieren 2 años de experiencia.",
-        "headline": "Se Buscan Conductores"
-      }
+      "candidates": [
+        {
+          "en": {
+            "card_get": "Earn $90,000–$105,000 per year on a dedicated dry van team.",
+            "card_need": "Class A CDL, 23+, and 2 years of experience behind the wheel.",
+            "card_apply": "Apply now and join Silvicom Inc.",
+            "cta": "Apply now",
+            "primary_text": "Silvicom Inc is hiring Class A team drivers for dedicated over-the-road runs. Drop and hook freight, so you spend time driving, not waiting. Top teams earn $105,000 per year.",
+            "headline": "Team drivers wanted"
+          },
+          "es": {
+            "card_get": "Gana de $90,000 a $105,000 al año en equipo, rutas dedicadas.",
+            "card_need": "CDL Clase A, mayores de 23, con 2 años de experiencia.",
+            "card_apply": "Aplica hoy con Silvicom Inc.",
+            "cta": "Aplica ya",
+            "primary_text": "Silvicom Inc busca conductores de equipo Clase A para rutas dedicadas. Carga seca, drop and hook — sin esperas largas. Los mejores equipos ganan $105,000 al año.",
+            "headline": "Se buscan conductores"
+          }
+        },
+        {
+          "en": {
+            "card_get": "Dedicated routes. Drop and hook. Home every other weekend.",
+            "card_need": "Class A CDL, age 23+, 2 years experience required.",
+            "card_apply": "Call or apply online at Silvicom Inc.",
+            "cta": "Apply today",
+            "primary_text": "These are dedicated over-the-road team runs — dry van, drop and hook, same lanes. Pay runs $90,000 to $105,000 per year. If you have a CDL-A and 2 years driving, talk to us.",
+            "headline": "Dedicated team runs"
+          },
+          "es": {
+            "card_get": "Rutas dedicadas, drop and hook, regreso cada dos fines de semana.",
+            "card_need": "CDL Clase A, mayor de 23 años, 2 años de experiencia.",
+            "card_apply": "Llama o aplica en línea con Silvicom Inc.",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc opera rutas dedicadas en equipo — van seco, drop and hook, mismos corredores. Sueldo entre $90,000 y $105,000 al año. Si tienes CDL-A y 2 años de manejo, contáctanos.",
+            "headline": "Equipo dedicado, OTR"
+          }
+        },
+        {
+          "en": {
+            "card_get": "Class A team drivers: $90,000–$105,000 per year, dry van OTR.",
+            "card_need": "2 years experience, CDL-A, age 23+ to qualify.",
+            "card_apply": "Apply with Silvicom Inc and start soon.",
+            "cta": "Get started",
+            "primary_text": "Dry van, over-the-road, dedicated lanes — that is the work at Silvicom Inc. Teams run drop and hook, keeping wheels turning. Pay is $90,000 to $105,000 per year depending on the team.",
+            "headline": "Silvicom Inc is hiring"
+          },
+          "es": {
+            "card_get": "Conductores de equipo Clase A: $90,000–$105,000 al año, van seco.",
+            "card_need": "2 años de experiencia, CDL Clase A, mayores de 23.",
+            "card_apply": "Aplica en Silvicom Inc y empieza pronto.",
+            "cta": "Empieza ya",
+            "primary_text": "Van seco, rutas OTR dedicadas — ese es el trabajo en Silvicom Inc. Los equipos corren drop and hook, sin tiempo perdido en patios. El pago va de $90,000 a $105,000 al año.",
+            "headline": "Silvicom Inc contrata"
+          }
+        }
+      ]
     }
   }
 }

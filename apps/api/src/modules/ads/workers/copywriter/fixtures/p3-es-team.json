@@ -60,6 +60,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "layout": "bottom_plate",
       "formats": [
         "4:5",
         "9:16"
@@ -73,27 +74,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:37:36.994Z",
+    "recorded_at": "2026-11-09T20:23:55.051Z",
     "output": {
-      "en": {
-        "hook": "Home time that shows up.",
-        "cta": "Apply today.",
-        "primary_text": "Class A team drivers earn $2,500 per week with weekly pay. You and your co-driver keep the wheels turning and the checks coming every week. Apply today and get on a team that gets you home.",
-        "headline": "Team drivers, $2,500/week."
-      },
-      "es": {
-        "hook": "Tiempo en casa, de verdad.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Conductores en equipo Clase A ganan $2,500 por semana con pago semanal. Tú y tu compañero mantienen la ruta y el cheque llega cada semana sin falta. Únete hoy.",
-        "headline": "Equipos: $2,500 por semana."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Home time that holds.",
+            "cta": "Apply now.",
+            "primary_text": "Team drivers earn $2,500 per week with weekly pay — no waiting for your check. If you have a co-driver you trust, bring the team and apply today.",
+            "headline": "$2,500 a week, team CDL-A."
+          },
+          "es": {
+            "hook": "Casa cuando toca.",
+            "cta": "Aplica hoy.",
+            "primary_text": "Los conductores en equipo ganan $2,500 por semana con pago semanal — sin esperar el cheque. Si tienes un copiloto de confianza, vengan juntos y únanse al equipo.",
+            "headline": "$2,500 por semana, equipo A."
+          }
+        },
+        {
+          "en": {
+            "hook": "$2,500 a week. Team CDL-A.",
+            "cta": "Get started.",
+            "primary_text": "Team CDL-A drivers take home $2,500 per week, paid weekly. Consistent money in your pocket, week after week. Bring your co-driver and join our team.",
+            "headline": "Weekly pay, every week."
+          },
+          "es": {
+            "hook": "$2,500 por semana. Equipo A.",
+            "cta": "Inicia hoy.",
+            "primary_text": "Conductores en equipo Clase A ganan $2,500 por semana, con pago cada semana. Dinero constante, sin sorpresas. Trae a tu compañero y únanse a la ruta.",
+            "headline": "Pago semanal, sin falta."
+          }
+        },
+        {
+          "en": {
+            "hook": "Team up. Take home more.",
+            "cta": "Join the team.",
+            "primary_text": "CDL-A team drivers earn $2,500 per week with weekly pay. Run as a team, get paid as a team — every week without delay. Apply today and put your co-driver to work too.",
+            "headline": "$2,500/week, paid weekly."
+          },
+          "es": {
+            "hook": "En equipo, ganas más.",
+            "cta": "Únete al equipo.",
+            "primary_text": "Conductores Clase A en equipo ganan $2,500 por semana con pago semanal. Corran juntos y cobren juntos, cada semana sin espera. Apliquen hoy y pongan la ruta a trabajar.",
+            "headline": "$2,500 por semana, pago fijo."
+          }
+        }
+      ]
     }
   }
 }

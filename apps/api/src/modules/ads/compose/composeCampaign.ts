@@ -81,7 +81,7 @@ export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow)
   const move = async (presetId: string) => {
     tally.moved.add(presetId);
     const creative = await creativeForStint(admin, c, presetId, kit.id, rows);
-    const out = await composeCreative(deps, { creative, brief: brief.data, recipe: recipes.get(presetId)!, kit: kit.body, maxRegenerations: settings.budgets.max_regenerations });
+    const out = await composeCreative(deps, { creative, brief: brief.data, recipe: recipes.get(presetId)!, kit: kit.body, maxRegenerations: settings.budgets.max_regenerations, candidates: settings.budgets.candidates_per_creative });
     if (out.kind === "pending") { tally.pending.push(`creative ${creative.id}: ${out.why}`); return; }
     const state = out.kind === "done" ? out.state : out.kind === "ready" ? "ready" : "check_failed";
     if (state === "ready" || state === "approved") tally.ready += 1;

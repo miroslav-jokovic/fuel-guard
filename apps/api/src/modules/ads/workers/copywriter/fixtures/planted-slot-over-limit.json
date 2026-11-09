@@ -56,25 +56,30 @@
         "1:1",
         "4:5"
       ]
-    }
+    },
+    "candidates": 1
   },
   "expect": "refused",
   "recorded": {
     "source": "planted",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "none (written by a person)",
     "recorded_at": "2026-11-03T00:00:00Z",
     "output": {
-      "en": {
-        "hook": "Earn $0.68/mile on regional lanes and be home with your family every single week of the year",
-        "body": "Home weekly.",
-        "cta": "Apply today"
-      },
-      "es": {
-        "hook": "$0.68 por milla",
-        "body": "En casa cada semana.",
-        "cta": "Aplica hoy"
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Earn $0.68/mile on regional lanes and be home with your family every single week of the year",
+            "body": "Home weekly.",
+            "cta": "Apply today"
+          },
+          "es": {
+            "hook": "$0.68 por milla",
+            "body": "En casa cada semana.",
+            "cta": "Aplica hoy"
+          }
+        }
+      ]
     }
   },
   "expect_findings": [

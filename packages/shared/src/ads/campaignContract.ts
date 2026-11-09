@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AdCandidates } from "./copyCandidates.js";
 import { recordId } from "../recordId.js";
 import type { AdBrief, CampaignState, CreativeState } from "./contracts.js";
 import { CAMPAIGN_EVENTS, type CampaignEvent } from "./campaignMachine.js";
@@ -76,6 +77,8 @@ export interface AdsCreativeView {
   assets: AdsCreativeAsset[];
   /** D-AD12's three checks (copy, visual, render), each with its verdict and reasons. */
   checks: Record<string, unknown> | null;
+  /** Every copy the Copywriter offered, ranked by the craft judge, and which became `copy` (CQ4, 0579); null before CQ4. */
+  candidates: AdCandidates | null;
   regenerations: number;
   last_error: string | null;
   created_at: string;

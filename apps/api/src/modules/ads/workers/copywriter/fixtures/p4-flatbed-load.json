@@ -60,6 +60,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "A slow orbit around the tractor",
+      "layout": "bottom_plate",
       "formats": [
         "9:16"
       ],
@@ -72,27 +73,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:38:22.726Z",
+    "recorded_at": "2026-11-09T20:25:43.592Z",
     "output": {
-      "en": {
-        "hook": "Flatbed. $450 per load.",
-        "cta": "Apply today.",
-        "primary_text": "Class A flatbed position with $450 per load and home weekends. If you want steady flatbed work and your weekends back, join our team and apply today.",
-        "headline": "Home weekends. Apply now."
-      },
-      "es": {
-        "hook": "Plataforma. $450 por carga.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Posición de tráiler con plataforma, clase A. Pago de $450 por carga y regresas a casa los fines de semana. Si buscas rutas de plataforma con tiempo para tu familia, únete al equipo.",
-        "headline": "Fines de semana en casa."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Flatbed. $450 per load.",
+            "cta": "Apply now",
+            "primary_text": "You drive flatbed and you're home weekends. Each load pays $450. No guessing what a run is worth — the rate is flat and it's yours per load. Apply today.",
+            "headline": "Home every weekend."
+          },
+          "es": {
+            "hook": "Plataforma. $450 por carga.",
+            "cta": "Aplica ahora",
+            "primary_text": "Manejas plataforma y llegas a casa los fines de semana. Cada carga paga $450. Sin adivinar cuánto vale una corrida — la tarifa es fija y es tuya por carga. Aplica hoy.",
+            "headline": "En casa cada fin de semana."
+          }
+        },
+        {
+          "en": {
+            "hook": "Flatbed. Home weekends.",
+            "cta": "Join the team",
+            "primary_text": "Weekend home time and $450 per load — that's what this flatbed seat pays. The rate doesn't change run to run. If you hold a Class A and want your weekends back, join our team.",
+            "headline": "$450 per load, flat rate."
+          },
+          "es": {
+            "hook": "Plataforma. Casa los fines.",
+            "cta": "Únete al equipo",
+            "primary_text": "Casa los fines de semana y $450 por carga — eso es lo que paga este asiento de plataforma. La tarifa no cambia de corrida en corrida. Si tienes Clase A y quieres tus fines de semana, únete.",
+            "headline": "$450 por carga, tarifa fija."
+          }
+        },
+        {
+          "en": {
+            "hook": "Class A flatbed seat.",
+            "cta": "Apply today",
+            "primary_text": "This is a Class A flatbed position. You earn $450 per load and you're home weekends. Straightforward work, a rate you can count on, and your weekends are yours. Apply today.",
+            "headline": "Weekends home, $450/load."
+          },
+          "es": {
+            "hook": "Puesto de plataforma Clase A.",
+            "cta": "Aplica hoy",
+            "primary_text": "Este es un puesto de plataforma Clase A. Ganas $450 por carga y llegas a casa los fines de semana. Trabajo directo, una tarifa confiable y tus fines de semana son tuyos. Aplica hoy.",
+            "headline": "Fines en casa, $450/carga."
+          }
+        }
+      ]
     }
   }
 }

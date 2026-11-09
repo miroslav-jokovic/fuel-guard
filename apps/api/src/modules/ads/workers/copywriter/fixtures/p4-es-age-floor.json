@@ -61,6 +61,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "A slow orbit around the tractor",
+      "layout": "bottom_plate",
       "formats": [
         "9:16"
       ],
@@ -73,27 +74,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:38:00.679Z",
+    "recorded_at": "2026-11-09T20:24:57.811Z",
     "output": {
-      "en": {
-        "hook": "Class A: $0.70 per mile.",
-        "cta": "Apply today.",
-        "primary_text": "Drive Class A OTR and earn $0.70 per mile. You must be 23+ to qualify. Join our team and put your miles to work.",
-        "headline": "Class A OTR, $0.70/mile."
-      },
-      "es": {
-        "hook": "Clase A: $0.70 por milla.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Conduce tráiler Clase A en ruta de larga distancia y gana $0.70 por milla. Debes ser mayor de 23 años. Únete al equipo y pon tus millas a trabajar.",
-        "headline": "Clase A OTR, $0.70/milla."
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Class A truck. $0.70/mile.",
+            "cta": "Apply Now",
+            "primary_text": "You will be behind the wheel of a Class A tractor-trailer, earning $0.70 per mile. You must be 23+ to qualify. If you hold a Class A CDL and want straightforward pay on every mile you turn, apply now.",
+            "headline": "Class A CDL — Apply Today"
+          },
+          "es": {
+            "hook": "Tráiler Clase A. $0.70/milla.",
+            "cta": "Aplica ya",
+            "primary_text": "Manejarás un tráiler Clase A y ganarás $0.70 por milla. Debes ser mayor de 23 años para calificar. Si tienes CDL Clase A y quieres un pago claro por cada milla recorrida, únete al equipo.",
+            "headline": "CDL Clase A — Aplica hoy"
+          }
+        },
+        {
+          "en": {
+            "hook": "Class A rig. Miles pay off.",
+            "cta": "Join the Team",
+            "primary_text": "Put a Class A tractor-trailer to work for you. At $0.70 per mile, every mile you run adds up fast. Requirements: Class A CDL and 23 years of age. Join the team and get rolling.",
+            "headline": "Earn $0.70 Per Mile Today"
+          },
+          "es": {
+            "hook": "Clase A. Cada milla cuenta.",
+            "cta": "Únete ahora",
+            "primary_text": "Pon un tráiler Clase A a trabajar para ti. A $0.70 por milla, cada kilómetro recorrido se convierte en dinero real. Requisito: CDL Clase A y mayores de 23 años. Aplica y empieza a rodar.",
+            "headline": "Gana $0.70 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Class A seat. $0.70/mile.",
+            "cta": "Get Started",
+            "primary_text": "This is a Class A long-haul seat paying $0.70 per mile. You need a Class A CDL and you must be 23+. No guessing at your rate — $0.70 on every mile. Apply today and get in the cab.",
+            "headline": "Class A Drivers — Start Now"
+          },
+          "es": {
+            "hook": "Clase A. $0.70 por milla.",
+            "cta": "Empieza hoy",
+            "primary_text": "Este puesto de larga distancia en tráiler Clase A paga $0.70 por milla. Necesitas CDL Clase A y ser mayor de 23 años. Sin sorpresas en tu tarifa: $0.70 en cada milla. Aplica hoy y sube al tráiler.",
+            "headline": "Conductores Clase A — Inicia ya"
+          }
+        }
+      ]
     }
   }
 }

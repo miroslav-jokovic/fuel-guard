@@ -1,0 +1,11 @@
+{
+  "worker": "craftJudge",
+  "prompt_version": "craftJudge@1",
+  "model": "claude-sonnet-4-6",
+  "fixtures": 8,
+  "asked": 6,
+  "agreed": 6,
+  "agreement": 1,
+  "planted_skipped": 2,
+  "recorded_at": "2026-11-09T20:32:21.451Z"
+}

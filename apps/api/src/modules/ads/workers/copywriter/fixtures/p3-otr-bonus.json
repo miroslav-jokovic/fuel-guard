@@ -65,6 +65,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "layout": "bottom_plate",
       "formats": [
         "4:5",
         "9:16"
@@ -78,27 +79,60 @@
         "headline": "headline"
       }
     },
-    "company_name": null
+    "company_name": null,
+    "candidates": 3
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@2",
+    "prompt_version": "copywriter@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:37:47.427Z",
+    "recorded_at": "2026-11-09T20:24:22.551Z",
     "output": {
-      "en": {
-        "hook": "Drive home. Drive well-paid.",
-        "cta": "Apply today",
-        "primary_text": "Class A OTR drivers earn $0.72 per mile on this run. Plus, a $5,000 sign-on bonus puts money in your pocket before you've even hit your stride. Apply today and get on the road with pay you can count on.",
-        "headline": "$0.72/mile + $5,000 bonus"
-      },
-      "es": {
-        "hook": "Vuelve a casa. Gana bien.",
-        "cta": "Aplica hoy",
-        "primary_text": "Conductores Clase A en ruta larga ganan $0.72 por milla. Además, hay un bono de contratación de $5,000 para que empieces con más en el bolsillo. Únete al equipo y maneja con un pago que vale la pena.",
-        "headline": "$0.72/milla + $5,000 de bono"
-      }
+      "candidates": [
+        {
+          "en": {
+            "hook": "Get home. Keep driving.",
+            "cta": "Apply now",
+            "primary_text": "Class A OTR drivers earn $0.72 per mile on this run. A $5,000 sign-on bonus puts money in your pocket before the miles add up. Apply today and get moving.",
+            "headline": "$0.72/mile + $5,000 bonus"
+          },
+          "es": {
+            "hook": "Regresa a casa. Sigue manejando.",
+            "cta": "Aplica ahora",
+            "primary_text": "Conductores Clase A ganan $0.72 por milla. Además, hay un bono de contratación de $5,000. Únete al equipo y empieza a sumar millas.",
+            "headline": "$0.72/milla + bono de $5,000"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home time built in.",
+            "cta": "Start today",
+            "primary_text": "This Class A OTR position pays $0.72 per mile and comes with a $5,000 sign-on bonus. Good pay, real miles, and a schedule you can plan around. Join the team.",
+            "headline": "$5,000 sign-on bonus"
+          },
+          "es": {
+            "hook": "Tiempo en casa incluido.",
+            "cta": "Comienza hoy",
+            "primary_text": "Esta posición OTR Clase A paga $0.72 por milla y ofrece un bono de $5,000 al contratar. Buen pago, millas reales y una ruta que puedes planear. Únete hoy.",
+            "headline": "Bono de $5,000 al contratar"
+          }
+        },
+        {
+          "en": {
+            "hook": "Miles that bring you home.",
+            "cta": "Apply today",
+            "primary_text": "Earn $0.72 per mile as a Class A OTR driver. Pick up a $5,000 sign-on bonus when you start. Solid pay from the first mile. Apply and get on the road.",
+            "headline": "Class A OTR — $0.72/mile"
+          },
+          "es": {
+            "hook": "Millas que te regresan a casa.",
+            "cta": "Aplica hoy",
+            "primary_text": "Gana $0.72 por milla como conductor Clase A en ruta larga. Recibe un bono de contratación de $5,000 al empezar. Buen pago desde la primera milla. Aplica ya.",
+            "headline": "Clase A OTR — $0.72/milla"
+          }
+        }
+      ]
     }
   }
 }

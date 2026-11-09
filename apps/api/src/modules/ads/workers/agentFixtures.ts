@@ -2,7 +2,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { z } from "zod";
 import { AD_PEOPLE_POLICIES, AD_VISUAL_CHECKS, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, judgeArt, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
 import type { ForcedToolRequest } from "../../../lib/anthropic.js";
-import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, buildFitRequest, canFit, judgeCopy, type AdCopy } from "./copywriter/copywriter.js";
+import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, buildFitRequest, fittable, judgeSet, type CopySet } from "./copywriter/copywriter.js";
+import { CRAFT_JUDGE_PROMPT_VERSION, buildJudgeRequest, judgeAnswer, presentationOrder, type JudgeAnswer } from "./craftJudge/craftJudge.js";
+import { rankCandidates } from "@silvicom/shared";
 import { ART_DIRECTOR_PROMPT_VERSION, buildArtRequest } from "./artDirector/artDirector.js";
 import { ANALYST_PROMPT_VERSION, briefTool, buildBriefRequest, judgeBrief, type BriefAnswer } from "./analyst/analyst.js";
 import { CHECKER_PROMPT_VERSION, applicableChecks, buildVisualRequest, judgeVisual, prepareSubject, visualTool, type VisualAnswer, type VisualSubject } from "./checker/checker.js";
@@ -35,8 +37,12 @@ export const recordingSchema = z.object({
 export const copywriterFixtureSchema = z.object({
   name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,60}$/),
   about: z.string().min(10),
-  input: z.object({ brief: adBriefSchema, recipe: adPresetRecipeSchema, company_name: z.string().trim().min(1).max(120).nullable().default(null) }),
-  /** What the worker must answer for the RECORDED output. */
+  input: z.object({
+    brief: adBriefSchema, recipe: adPresetRecipeSchema, company_name: z.string().trim().min(1).max(120).nullable().default(null),
+    /** How many copies the fixture asks for (CQ4). A planted answer may hold one. */
+    candidates: z.number().int().min(1).max(5).default(3),
+  }),
+  /** What the worker must answer for the RECORDED output: `ready` = at least one candidate passed every check. */
   expect: z.enum(["ready", "refused", "off_schema"]),
   /** For `refused`: the finding kinds, sorted, exactly. */
   expect_findings: z.array(z.string()).optional(),
@@ -70,24 +76,73 @@ export interface EvalWorker<F, T> {
   agrees?: (f: F, verdict: string, findings: string[]) => boolean;
 }
 
-export const COPYWRITER_EVAL: EvalWorker<CopywriterFixture, AdCopy> = {
+export const COPYWRITER_EVAL: EvalWorker<CopywriterFixture, CopySet> = {
   promptVersion: COPYWRITER_PROMPT_VERSION,
   dir: new URL("./copywriter/fixtures/", import.meta.url),
   parse: (raw) => copywriterFixtureSchema.parse(raw),
   name: (f) => f.name,
   source: (f) => f.recorded.source,
-  request: (f) => buildCopyRequest(f.input.brief, f.input.recipe, { company_name: f.input.company_name }),
+  request: (f) => buildCopyRequest(f.input.brief, f.input.recipe, ctxOf(f)),
+  // A set is `ready` when at least one candidate passed; `refused` names every kind found across the refused ones.
   judge: (f, output) => {
-    const parsed = buildCopyRequest(f.input.brief, f.input.recipe).tool.schema.safeParse(output);
+    const parsed = buildCopyRequest(f.input.brief, f.input.recipe, ctxOf(f)).tool.schema.safeParse(output);
     if (!parsed.success) return { verdict: "off_schema", findings: [] };
-    const v = judgeCopy(parsed.data, f.input.brief, f.input.recipe, { company_name: f.input.company_name });
-    return v.ok ? { verdict: "ready", findings: [] } : { verdict: "refused", findings: [...new Set(v.findings.map((x) => x.kind))].sort() };
+    const v = judgeSet(parsed.data, f.input.brief, f.input.recipe, ctxOf(f));
+    return v.passed.length > 0 ? { verdict: "ready", findings: [] } : { verdict: "refused", findings: [...new Set(v.refused.flatMap((r) => r.findings.map((x) => x.kind)))].sort() };
   },
   refine: (f, output) => {
-    const parsed = buildCopyRequest(f.input.brief, f.input.recipe).tool.schema.safeParse(output);
+    const parsed = buildCopyRequest(f.input.brief, f.input.recipe, ctxOf(f)).tool.schema.safeParse(output);
     if (!parsed.success) return null;
-    const v = judgeCopy(parsed.data, f.input.brief, f.input.recipe, { company_name: f.input.company_name });
-    return !v.ok && canFit(v.findings) ? buildFitRequest(f.input.brief, f.input.recipe, { company_name: f.input.company_name }, parsed.data, v.findings) : null;
+    const toFix = fittable(judgeSet(parsed.data, f.input.brief, f.input.recipe, ctxOf(f)));
+    return toFix.length > 0 ? buildFitRequest(f.input.brief, f.input.recipe, ctxOf(f), parsed.data, toFix) : null;
+  },
+  withRecording: (f, recorded) => ({ ...f, recorded }),
+};
+
+const ctxOf = (f: CopywriterFixture) => ({ company_name: f.input.company_name, candidates: f.input.candidates });
+
+/**
+ * The craft judge's fixtures (CQ4): a set of candidates that all passed the claim check, one of them PLANTED — written
+ * as any carrier's ad, or as the one that names the job — and what a right ranking does with it. `expect` is the
+ * planted candidate's index and which end it belongs at. The baseline is the share of fixtures where the live
+ * ranking puts it there; the owner's ratings (Q-AD57) are the bar this grows into.
+ */
+export const craftJudgeFixtureSchema = z.object({
+  name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,60}$/),
+  about: z.string().min(10),
+  input: z.object({
+    brief: adBriefSchema, recipe: adPresetRecipeSchema, company_name: z.string().trim().min(1).max(120).nullable().default(null),
+    candidates: z.array(z.object({ en: z.record(z.string(), z.string()), es: z.record(z.string(), z.string()) })).min(2).max(5),
+    /** A fixed seed for the presentation order, so the fixture is the same case every run. */
+    seed: z.string().min(1),
+  }),
+  expect: z.enum(["ready", "off_schema"]),
+  /** For `ready`: the planted candidate's index and where a right ranking puts it. */
+  expect_rank: z.object({ candidate: z.number().int().min(0), at: z.enum(["first", "last"]) }).optional(),
+  recorded: recordingSchema,
+}).strict();
+export type CraftJudgeFixture = z.infer<typeof craftJudgeFixtureSchema>;
+
+export const CRAFT_JUDGE_EVAL: EvalWorker<CraftJudgeFixture, JudgeAnswer> = {
+  promptVersion: CRAFT_JUDGE_PROMPT_VERSION,
+  dir: new URL("./craftJudge/fixtures/", import.meta.url),
+  parse: (raw) => craftJudgeFixtureSchema.parse(raw),
+  name: (f) => f.name,
+  source: (f) => f.recorded.source,
+  request: (f) => buildJudgeRequest(f.input.brief, f.input.recipe, f.input.candidates, { company_name: f.input.company_name }, presentationOrder(f.input.seed, f.input.candidates.length)),
+  // The verdict carries the ranking (candidate indexes, best first) as its "findings", so `agrees` can read it.
+  judge: (f, output) => {
+    const presented = presentationOrder(f.input.seed, f.input.candidates.length);
+    const parsed = buildJudgeRequest(f.input.brief, f.input.recipe, f.input.candidates, { company_name: f.input.company_name }, presented).tool.schema.safeParse(output);
+    if (!parsed.success) return { verdict: "off_schema", findings: [] };
+    const scores = judgeAnswer(parsed.data, presented);
+    const ranked = rankCandidates(f.input.candidates.map((copy, i) => ({ copy, judged: scores[i]!, offered_as: i })));
+    return { verdict: "ready", findings: ranked.map((r) => String(r.offered_as)) };
+  },
+  agrees: (f, verdict, ranking) => {
+    if (verdict !== "ready" || !f.expect_rank) return verdict === f.expect;
+    const where = f.expect_rank.at === "first" ? ranking[0] : ranking[ranking.length - 1];
+    return where === String(f.expect_rank.candidate);
   },
   withRecording: (f, recorded) => ({ ...f, recorded }),
 };
@@ -199,7 +254,7 @@ export const ANALYST_EVAL: EvalWorker<AnalystFixture, BriefAnswer> = {
   withRecording: (f, recorded) => ({ ...f, recorded }),
 };
 
-export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL, checker: CHECKER_EVAL, analyst: ANALYST_EVAL } as const;
+export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL, checker: CHECKER_EVAL, analyst: ANALYST_EVAL, craftJudge: CRAFT_JUDGE_EVAL } as const;
 
 /** Every fixture of a worker, parsed, in file-name order; a file whose `name` is not its file name throws. */
 export function loadFixtures<F, T>(w: EvalWorker<F, T>): Array<{ file: URL; fixture: F }> {

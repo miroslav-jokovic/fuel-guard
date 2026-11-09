@@ -39,7 +39,7 @@ const CONN = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
 const KIT = "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f";
 const creative = (over: Partial<AdsCreativeView> = {}): AdsCreativeView => ({
   id: "cr-1", preset_version_id: "pv", brand_kit_version_id: "kv", supersedes_id: null, state: "ready",
-  copy: { en: { headline: "Home every night", pay: 42 } }, regenerations: 0, last_error: null, checks: null, created_at: "2026-11-05T12:00:00Z",
+  copy: { en: { headline: "Home every night", pay: 42 } }, regenerations: 0, last_error: null, checks: null, candidates: null, created_at: "2026-11-05T12:00:00Z",
   assets: [{ format: "1:1", language: "en", sha256: "a".repeat(64), path: "o/a.png", width: 1080, height: 1080, url: "https://store/a" }],
   ...over,
 });
