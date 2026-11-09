@@ -136,6 +136,24 @@ describe("composeCreative — a creative from copy to ready (C5b)", () => {
     expect(dims[2]![1]).toBeLessThan(700);
   });
 
+  it("the band the visual check judges follows the preset's layout: a top_band preset sends a different band from a bottom_plate one, the same height (CQ6)", async () => {
+    const bandOf = async (layout: AdPresetRecipe["layout"]) => {
+      const h = harness();
+      await h.run({ recipe: { ...RECIPE, layout } });
+      const visualCall = h.create.mock.calls.find((c) => (c[0] as { tools: Array<{ name: string }> }).tools[0]!.name === "report_checks")!;
+      const images = ((visualCall[0] as unknown as { messages: Array<{ content: Array<{ type: string; source?: { data: string } }> }> }).messages[0]!.content).filter((b) => b.type === "image");
+      const data = images[2]!.source!.data;
+      const meta = await sharp(Buffer.from(data, "base64")).metadata();
+      return { data, height: meta.height! };
+    };
+    const top = await bandOf("top_band");
+    const bottom = await bandOf("bottom_plate");
+    // The same words make the same stack, so the bands are the same height — but compose reads the overlay's PLACED
+    // boxes, so the layout decides which pixels the checker looks at.
+    expect(top.height).toBe(bottom.height);
+    expect(top.data).not.toBe(bottom.data);
+  });
+
   it("the render starts from the kit photo the Art director chose — the same photo the visual check compares against (D-AD9)", async () => {
     const h = harness();
     await h.run();

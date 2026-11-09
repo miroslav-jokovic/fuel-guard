@@ -81,6 +81,21 @@ const overlaySchema = z.object({
  */
 export const AD_OVERLAY_START = { text_color: "#FFFFFF", plate_color: "#111111" } as const;
 
+/**
+ * How the words sit on the picture (ADS-CREATIVE-QUALITY-PLAN CQ6; G-CQ8): until 2026-11-09 every ad of every carrier
+ * was the same stack on a plate at the bottom of the zone. Three layouts now, each honest on every format and each
+ * measured by the same render check (contrast under the text, inside the zone), chosen by the PRESET — a concept's
+ * look is part of the concept, so two presets on one picture still read as two ads (R1, Andromeda):
+ *   · `bottom_plate` — the stack at the zone's bottom on a plate; logo top-left. The original.
+ *   · `top_band`     — the stack at the zone's top on a plate; logo bottom-right, so the two never meet.
+ *   · `centered`     — the stack centred in the zone, lines centre-aligned, plate behind; logo top-left. For a
+ *                      concept whose one figure IS the picture ("The number").
+ * The visual check's text band follows the layout (compose unions the placed boxes), so `safe_zone_clear` judges
+ * where the words really are.
+ */
+export const AD_OVERLAY_LAYOUTS = ["bottom_plate", "top_band", "centered"] as const;
+export type AdOverlayLayout = (typeof AD_OVERLAY_LAYOUTS)[number];
+
 export const adBrandKitSchema = z.object({
   /** Exactly as it should read in an ad. */
   company_name: z.string().trim().min(1, "the company name is what the ad prints, so it cannot be empty").max(120, "the company name is at most 120 characters"),
@@ -149,6 +164,8 @@ export const adPresetRecipeSchema = z.object({
   shows_people: z.boolean(),
   /** Null = a still-only preset (C6 owns motion). */
   motion_template: z.string().trim().min(10).max(2000).nullable(),
+  /** Where the words sit (CQ6). Defaulted, so a recipe saved before CQ6 is the layout it always had. */
+  layout: z.enum(AD_OVERLAY_LAYOUTS).default("bottom_plate"),
   formats: z.array(z.enum(AD_FORMATS)).min(1, "choose at least one format").max(AD_FORMATS.length),
   /**
    * Which copy slots the overlay draws (C5b): the headline (≤ 2 lines) and the call to action. The other

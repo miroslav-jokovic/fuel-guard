@@ -146,7 +146,7 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
     const boxes: FractionRect[] = [];
     for (const language of LANGUAGES) {
       const o = await renderOverlay({
-        format, language, base: still, brief, kit, logo,
+        format, language, base: still, brief, kit, logo, layout: recipe.layout,
         headline: copy[language][recipe.overlay_slots!.headline]!, cta: copy[language][recipe.overlay_slots!.cta]!,
       });
       if (o.kind === "refused") return { kind: "stop", reason: `render check (${format}, ${language}): ${overlaySummary(o.findings)}`, checks: { render: { ok: false, format, language, findings: o.findings } } };

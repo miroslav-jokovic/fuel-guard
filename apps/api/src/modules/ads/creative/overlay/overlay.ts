@@ -2,7 +2,7 @@ import { createCanvas, GlobalFonts, loadImage, type SKRSContext2D } from "@napi-
 import sharp from "sharp";
 import {
   checkClaims, checkRender, FORMAT_SIZE, parseHex, safeZone,
-  type AdBrandKit, type AdBrief, type AdFormat, type ClaimFinding, type PlacedText, type Rect, type RenderFinding, type Rgb,
+  type AdBrandKit, type AdBrief, type AdFormat, type AdOverlayLayout, type ClaimFinding, type PlacedText, type Rect, type RenderFinding, type Rgb,
 } from "@silvicom/shared";
 import { canDraw, pdfFontBytes } from "../../../../lib/pdfFonts.js";
 
@@ -63,6 +63,8 @@ export interface OverlayInput {
   kit: Pick<AdBrandKit, "overlays">;
   /** The kit's logo bytes, or null for Q-AD14's fallback (no logo). */
   logo: Buffer | null;
+  /** The preset's layout (CQ6); absent = `bottom_plate`, the layout every ad had before. */
+  layout?: AdOverlayLayout;
 }
 
 export type OverlayFinding =
@@ -121,6 +123,7 @@ export async function frameStill(image: Buffer, format: AdFormat): Promise<Buffe
 
 export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome> {
   const { format, language } = input;
+  const layout: AdOverlayLayout = input.layout ?? "bottom_plate";
   const overlay = input.kit.overlays[format];
   if (!overlay) return { kind: "refused", findings: [{ kind: "no_template", format }] };
   const t = TEMPLATE[format];
@@ -142,7 +145,7 @@ export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome
   }
   if (findings.length) return { kind: "refused", findings };
 
-  // 2. Lay out the stack from the bottom of the zone up, at fixed sizes.
+  // 2. Lay out the stack at fixed sizes — where it sits in the zone is the layout's (step 2b).
   const { width: W, height: H } = FORMAT_SIZE[format];
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
@@ -158,29 +161,37 @@ export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome
   if (stackHeight > zone.height) findings.push({ kind: "stack_too_tall", needed: stackHeight, zone_height: zone.height });
   if (findings.length) return { kind: "refused", findings };
 
+  // 2b. Where the stack sits (CQ6): its top edge, by layout. The stack's own height never changes.
+  const stackInner = stackHeight - 2 * t.pad;
+  const stackTop = layout === "bottom_plate" ? zone.y + zone.height - t.pad - stackInner
+    : layout === "top_band" ? zone.y + t.pad
+    : zone.y + Math.floor((zone.height - stackInner) / 2);
   const blocks: Array<PlacedText & { wrapped: string[]; style: Style }> = [];
-  let y = zone.y + zone.height - t.pad;
-  for (const l of [...laid].reverse()) {
-    y -= l.height;
-    blocks.unshift({
+  let y = stackTop;
+  for (const l of laid) {
+    blocks.push({
       label: l.label, box: { x: zone.x + t.pad, y, width: innerWidth, height: l.height }, needed_width: Math.ceil(l.needed),
       px: l.style.px, bold: l.style.bold, color: textColor, background_samples: [], wrapped: l.wrapped, style: l.style,
     });
-    y -= t.gap;
+    y += l.height + t.gap;
   }
 
-  // 3. Compose the background: the image covered to the frame, the plate behind the stack, the logo.
+  // 3. Compose the background: the image covered to the frame, the plate behind the stack, the logo where the
+  //    layout keeps it clear of the words.
   const base = await loadImage(await frameStill(input.base, format));
   ctx.drawImage(base, 0, 0, W, H);
   if (plate) {
-    const top = blocks[0]!.box.y - t.pad;
     ctx.fillStyle = overlay.plate_color!;
-    ctx.fillRect(zone.x, top, zone.width, zone.y + zone.height - top);
+    const plateTop = stackTop - t.pad;
+    const plateBottom = layout === "bottom_plate" ? zone.y + zone.height : blocks[blocks.length - 1]!.box.y + blocks[blocks.length - 1]!.box.height + t.pad;
+    ctx.fillRect(zone.x, plateTop, zone.width, plateBottom - plateTop);
   }
   if (input.logo) {
     const logo = await loadImage(input.logo);
     const scale = Math.min(t.logoHeight / logo.height, innerWidth / 2 / logo.width);
-    ctx.drawImage(logo, zone.x + t.pad, zone.y + t.pad, logo.width * scale, logo.height * scale);
+    const lw = logo.width * scale, lh = logo.height * scale;
+    if (layout === "top_band") ctx.drawImage(logo, zone.x + zone.width - t.pad - lw, zone.y + zone.height - t.pad - lh, lw, lh);
+    else ctx.drawImage(logo, zone.x + t.pad, zone.y + t.pad, lw, lh);
   }
 
   // 4. Measure what lies under each box, judge, and only then draw the words.
@@ -190,9 +201,11 @@ export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome
   if (verdict.length) return { kind: "refused", findings: verdict };
   ctx.fillStyle = overlay.text_color;
   ctx.textBaseline = "top";
+  ctx.textAlign = layout === "centered" ? "center" : "left";
+  const textX = (b: Rect) => (layout === "centered" ? b.x + b.width / 2 : b.x);
   for (const b of blocks) {
     ctx.font = fontOf(b.style);
-    b.wrapped.forEach((line, i) => ctx.fillText(line, b.box.x, b.box.y + i * b.style.px * LINE_HEIGHT));
+    b.wrapped.forEach((line, i) => ctx.fillText(line, textX(b.box), b.box.y + i * b.style.px * LINE_HEIGHT));
   }
   return { kind: "rendered", png: await canvas.encode("png"), blocks: placed };
 }

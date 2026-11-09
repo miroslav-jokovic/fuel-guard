@@ -1,4 +1,4 @@
-import { AD_FORMATS, adPresetSaveSchema, templateSlots, type AdFormat, type AdPresetRecipe, type AdPresetSave } from "@silvicom/shared";
+import { AD_FORMATS, AD_OVERLAY_LAYOUTS, adPresetSaveSchema, templateSlots, type AdFormat, type AdOverlayLayout, type AdPresetRecipe, type AdPresetSave } from "@silvicom/shared";
 
 /**
  * The preset editor's form (E2; plan D-AD11), kept apart from the screen so what a save sends can be tested.
@@ -25,6 +25,8 @@ export interface PresetForm {
   shows_equipment: boolean;
   shows_people: boolean;
   motion_template: string | null;
+  /** Where the words sit on the picture (CQ6). */
+  layout: AdOverlayLayout;
   formats: AdFormat[];
   overlay_headline: string | null;
   overlay_cta: string | null;
@@ -35,7 +37,7 @@ export interface PresetForm {
 export function blankPresetForm(): PresetForm {
   return {
     key: "", enabled: true, name: "", hook_formula: "", copy_slots: [{ name: "", max_chars: null }], image_prompt_template: "",
-    starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null, formats: [...AD_FORMATS],
+    starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null, layout: "bottom_plate", formats: [...AD_FORMATS],
     overlay_headline: null, overlay_cta: null, platform_primary_text: null, platform_headline: null,
   };
 }
@@ -45,11 +47,19 @@ export function presetFormFrom(key: string, enabled: boolean, r: AdPresetRecipe)
   return {
     key, enabled, name: r.name, hook_formula: r.hook_formula, copy_slots: r.copy_slots.map((c) => ({ ...c })),
     image_prompt_template: r.image_prompt_template, starts_from: r.starts_from, shows_equipment: r.shows_equipment,
-    shows_people: r.shows_people, motion_template: r.motion_template, formats: [...r.formats],
+    shows_people: r.shows_people, motion_template: r.motion_template, layout: r.layout, formats: [...r.formats],
     overlay_headline: r.overlay_slots?.headline ?? null, overlay_cta: r.overlay_slots?.cta ?? null,
     platform_primary_text: r.platform_slots?.primary_text ?? null, platform_headline: r.platform_slots?.headline ?? null,
   };
 }
+
+/** How each layout reads in the drawer; the list itself is the contract's (`AD_OVERLAY_LAYOUTS`). */
+export const LAYOUT_LABEL: Record<AdOverlayLayout, string> = {
+  bottom_plate: "Words at the bottom, on a plate",
+  top_band: "Words at the top, logo bottom-right",
+  centered: "Words centred over the picture",
+};
+export const layoutOptions = () => AD_OVERLAY_LAYOUTS.map((l) => ({ value: l, label: LAYOUT_LABEL[l] }));
 
 export type PresetSaveAsk = { ok: true; save: AdPresetSave } | { ok: false; message: string };
 
@@ -61,7 +71,7 @@ export function presetSaveFrom(f: PresetForm): PresetSaveAsk {
       name: f.name, hook_formula: f.hook_formula, copy_slots: f.copy_slots,
       image_prompt_template: f.image_prompt_template, image_slots: templateSlots(f.image_prompt_template),
       starts_from: f.starts_from, shows_equipment: f.shows_equipment, shows_people: f.shows_people,
-      motion_template: f.motion_template, formats: f.formats,
+      motion_template: f.motion_template, layout: f.layout, formats: f.formats,
       // Either half unchosen sends no slots at all, so the save contract's own sentence is what a person reads.
       overlay_slots: f.overlay_headline && f.overlay_cta ? { headline: f.overlay_headline, cta: f.overlay_cta } : null,
       platform_slots: f.platform_primary_text && f.platform_headline ? { primary_text: f.platform_primary_text, headline: f.platform_headline } : null,
