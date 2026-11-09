@@ -1369,3 +1369,14 @@ at submit, the review, the office drawer and the filed PDF.
   over another's"). Mutation-proved 37/37; two first survived and were the tests' fault — no case had a
   settled report with no stored response, and the applicant-switch test also changed the revision, which
   hid a cache key without the driver. Tests replay Litton's real UAT response.
+- **2026-11-09** — **Who closes an application is a carrier setting** (owner, 2026-11-09: "Safety and admin can close
+  application, and this needs to be in Settings so we can select"), no migration. A second named permission in 0564's
+  table, `recruitment.close_application` (`CLOSE_APPLICATION_PERMISSION`, `EDITABLE_PERMISSIONS`), shipped ON for the
+  safety manager and always held by the admin; Settings → Permissions → Roles' card (renamed "Other permissions") lists it
+  per role. `POST /api/recruitment/hire` is gated by `requireNamedPermission` (org module, read per request, CLOSED on a
+  failed read) instead of `roster: manage` — the section was the wrong unit both ways: shipped to the fleet manager, whom
+  the owner did not name, and the only way to let a recruiter close was every roster write. `/api/me` serves the caller's
+  named permissions (`callerPermissions`, the gate's own resolver) and the board's Hire… and the record's closed row ask
+  `session.hasPermission`. **Behaviour change:** a fleet manager no longer closes applications until an admin switches it
+  on. The six federal checks still refuse the close whoever presses it. 11/11 mutants killed (one survivor first — the gate's
+  catch when the client itself throws — got its test).

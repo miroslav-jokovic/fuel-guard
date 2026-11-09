@@ -79,7 +79,8 @@ const emit = defineEmits<{
 /**
  * D-3 (§9 P2): the qualification file is written by `roster: manage` (the compliance routes' gate), so
  * its link is offered only to a role that can act there; anybody else is told who records it.
- * The same answer gates the hire (SP5), which is why the hired row can say who hires.
+ * Closing the application is the carrier's own "Close an application" switch (2026-11-09), so the
+ * closed row's wording names that switch, not the roster.
  */
 const session = useSessionStore();
 const canWriteFile = computed(() => session.can("roster"));
@@ -314,8 +315,8 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         Closed. They are on the roster, and their McLeod driver record links to this file.
       </p>
       <p v-else class="text-xs text-ink-secondary">
-        Closing the application puts them on the roster, so it needs roster access. Ask an administrator to
-        close it, or to give your role roster access in Settings → Permissions.
+        Your role cannot close applications. Ask somebody who can to close it, or an administrator to
+        switch on "Close an application" for your role in Settings → Permissions.
       </p>
     </div>
 

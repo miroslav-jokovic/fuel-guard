@@ -4,7 +4,9 @@ import { EDITABLE_ROLES } from "./auth.js";
 import {
   CLOSED_PERMISSION_GRANTS,
   EDITABLE_PERMISSIONS,
+  CLOSE_APPLICATION_PERMISSION,
   IDENTITY_NUMBER_IMAGES_PERMISSION,
+  callerPermissions,
   effectivePermission,
   rolePermissionSetSchema,
   shippedPermission,
@@ -77,5 +79,42 @@ describe("identity papers whose image is the number (Q-WF4b)", () => {
     expect(canSeePaperImage("ssn_card", "recruiter", off)).toBe(false);
     expect(canSeePaperImage("passport", "recruiter", off)).toBe(false);
     expect(canSeePaperImage("ssn_card", null, {})).toBe(false);
+  });
+});
+
+/** Owner, 2026-11-09: "Safety and admin can close application, and this needs to be in Settings". */
+describe("closing an application is a named switch", () => {
+  it("ships on for the admin and the safety manager only", () => {
+    for (const role of USER_ROLES) {
+      expect(effectivePermission(role, CLOSE_APPLICATION_PERMISSION, {}), role).toBe(
+        role === "admin" || role === "safety_manager",
+      );
+    }
+  });
+
+  it("follows the carrier's switch both ways, and never for the driver", () => {
+    const grants = {
+      recruiter: { [CLOSE_APPLICATION_PERMISSION]: true },
+      safety_manager: { [CLOSE_APPLICATION_PERMISSION]: false },
+    };
+    expect(effectivePermission("recruiter", CLOSE_APPLICATION_PERMISSION, grants)).toBe(true);
+    expect(effectivePermission("safety_manager", CLOSE_APPLICATION_PERMISSION, grants)).toBe(false);
+    expect(effectivePermission("driver", CLOSE_APPLICATION_PERMISSION, { driver: { [CLOSE_APPLICATION_PERMISSION]: true } } as never)).toBe(false);
+  });
+
+  it("callerPermissions answers every catalogue key from the one resolver", () => {
+    const grants = { recruiter: { [IDENTITY_NUMBER_IMAGES_PERMISSION]: false } };
+    expect(callerPermissions("recruiter", grants)).toEqual({
+      [IDENTITY_NUMBER_IMAGES_PERMISSION]: false,
+      [CLOSE_APPLICATION_PERMISSION]: false,
+    });
+    expect(callerPermissions("admin", {})).toEqual({
+      [IDENTITY_NUMBER_IMAGES_PERMISSION]: true,
+      [CLOSE_APPLICATION_PERMISSION]: true,
+    });
+    expect(callerPermissions(null, {})).toEqual({
+      [IDENTITY_NUMBER_IMAGES_PERMISSION]: false,
+      [CLOSE_APPLICATION_PERMISSION]: false,
+    });
   });
 });

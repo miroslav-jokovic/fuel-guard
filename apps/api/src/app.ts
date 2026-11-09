@@ -19,7 +19,7 @@ import { applicationIntakeLimiter, isApplicationLink, packetCeremonyLimiter } fr
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
 import { drainKindNow } from "./queue/inprocessDrain.js";
-import { accessReviewRouter, invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, rolePermissionsRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
+import { accessReviewRouter, invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, callerNamedPermissions, rolePermissionsRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
 import { displayNameFor } from "./lib/memberLabels.js";
 import { membersRouter } from "./modules/org/index.js";
 import { dashboardLayoutRouter, orgSettingsRouter, pageViewsRouter, savedViewsRouter } from "./modules/org/index.js";
@@ -438,14 +438,9 @@ export function createApp(env: Env): Express {
     } catch {
       fullName = null;
     }
-    res.json({
-      userId: req.auth!.userId,
-      email: req.auth!.email,
-      fullName,
-      orgId,
-      role: req.auth!.role,
-      surfaces,
-    });
+    // Named permissions (§15.1), so a screen hides what `requireNamedPermission` refuses; never throws.
+    const permissions = await callerNamedPermissions(req, orgId ?? null, req.auth!.role as UserRole | null);
+    res.json({ userId: req.auth!.userId, email: req.auth!.email, fullName, orgId, role: req.auth!.role, surfaces, permissions });
   }));
 
   mountApiRouters(app, env);

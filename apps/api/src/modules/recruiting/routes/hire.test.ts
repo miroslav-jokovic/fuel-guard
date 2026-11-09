@@ -4,18 +4,16 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
-import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type RecorderTable, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 
 /**
- * The hire endpoint — and the boundary that makes it interesting: a RECRUITER, who owns everything
- * up to this moment, may not press it.
- *
- * `drivers.status` starts the §391.51(c) retention clock and decides driver-app access, so 0213
- * refuses a recruiter's status change in a trigger and `canWriteDriverLifecycle` refuses it in the
- * matrix. If this route admitted them, the API would authorise a call its own database then blocks.
- * They get the preview instead, which is where an undated inquiry surfaces while there is still
- * time to fix it.
+ * The hire endpoint ("Close application", §14 D-OF5) — and the boundary that makes it interesting:
+ * who may press it is the carrier's own switch, `recruitment.close_application` (owner, 2026-11-09:
+ * "Safety and admin can close application, and this needs to be in Settings so we can select").
+ * Shipped ON for the safety manager, always held by the admin, off for everybody else until the
+ * carrier switches it on. Everybody who sees the board still reads the preview, which is where an
+ * undated inquiry surfaces while there is still time to fix it.
  */
 
 const holder = vi.hoisted(() => ({ client: null as unknown }));
@@ -35,10 +33,8 @@ const CTX: Record<string, AuthContext> = {
   auditor: ctx("auditor"),
   recruiter: ctx("recruiter"),
   driver: ctx("driver"),
-  // SP5: the org's matrix, not the shipped one. A dispatcher holds `roster: view` as shipped; this
-  // org granted it manage. A fleet manager holds `roster: manage` as shipped; this org narrowed it.
-  grantedDispatcher: { ...ctx("dispatcher"), sections: { roster: "manage" } } as AuthContext,
-  narrowedFleet: { ...ctx("fleet_manager"), sections: { roster: "view" } } as AuthContext,
+  // A dispatcher this org granted roster AND recruitment manage: still not a closer — the switch decides.
+  grantedDispatcher: { ...ctx("dispatcher"), sections: { roster: "manage", recruitment: "manage" } } as AuthContext,
 };
 
 let server: Server;
@@ -63,9 +59,13 @@ const call = (path: string, init: RequestInit & { token?: string } = {}) => {
  * the application is filed. `hireApplicant.test.ts` says why the fixture is keyed on the select.
  */
 const READY = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "handbook"];
-const seed = (evidence: string[] = READY): SupabaseRecorder =>
+const seed = (
+  evidence: string[] = READY,
+  permissionRows: RecorderTable | unknown[] = [],
+): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
+      org_role_permissions: permissionRows,
       drivers: [{ id: DRIVER, full_name: "An Applicant", status: "applicant", hire_date: null }],
       application_invitations: [{ id: "inv-1", created_at: "2026-08-01T00:00:00Z", submitted_at: "2026-08-10T00:00:00Z" }],
       driver_employment_history: [
@@ -107,26 +107,65 @@ beforeAll(async () => {
 
 afterAll(async () => closeTestServer(server));
 
-describe("who may hire", () => {
-  it("lets the roles that own the employment lifecycle hire", async () => {
-    for (const token of ["admin", "fleet", "safety"]) {
+const CLOSE = "recruitment.close_application";
+/** Refused in middleware: nothing but the switch read, nothing filed, nothing audited. */
+const expectNothingDone = (r: SupabaseRecorder) => {
+  expect(r.queries.map((q) => q.table)).toEqual(["org_role_permissions"]);
+  expect(r.rpcs()).toHaveLength(0);
+};
+
+describe("who may close an application", () => {
+  it("lets the admin and the safety manager close, as shipped", async () => {
+    for (const token of ["admin", "safety"]) {
       rec = seed();
       holder.client = rec.client;
-      const res = await call("/hire", { method: "POST", token, body: HIRE });
-      expect(res.status).toBe(200);
+      expect((await call("/hire", { method: "POST", token, body: HIRE })).status).toBe(200);
     }
   });
 
-  it("refuses the recruiter, who owns every step up to this one", async () => {
-    rec = seed();
-    holder.client = rec.client;
-    const res = await call("/hire", { method: "POST", token: "recruiter", body: HIRE });
-    expect(res.status).toBe(403);
-    // Refused in middleware — nothing read, nothing filed.
-    expect(rec.queries).toHaveLength(0);
+  it("refuses the fleet manager and the recruiter until the carrier switches it on", async () => {
+    for (const token of ["fleet", "recruiter"]) {
+      rec = seed();
+      holder.client = rec.client;
+      const res = await call("/hire", { method: "POST", token, body: HIRE });
+      expect(res.status).toBe(403);
+      expectNothingDone(rec);
+    }
   });
 
-  it("still lets the recruiter see what hiring would file", async () => {
+  it("lets a recruiter close once the carrier switched it on for recruiters", async () => {
+    rec = seed(READY, [{ role: "recruiter", permission: CLOSE, allowed: true }]);
+    holder.client = rec.client;
+    expect((await call("/hire", { method: "POST", token: "recruiter", body: HIRE })).status).toBe(200);
+  });
+
+  it("refuses the safety manager once the carrier switched it off for them", async () => {
+    rec = seed(READY, [{ role: "safety_manager", permission: CLOSE, allowed: false }]);
+    holder.client = rec.client;
+    expect((await call("/hire", { method: "POST", token: "safety", body: HIRE })).status).toBe(403);
+    expectNothingDone(rec);
+  });
+
+  it("does not hand the close to a role the org gave roster manage — the switch is the gate, not the roster", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    expect((await call("/hire", { method: "POST", token: "grantedDispatcher", body: HIRE })).status).toBe(403);
+  });
+
+  it("refuses everybody but the admin when the switches cannot be read", async () => {
+    for (const [token, status] of [["safety", 403], ["admin", 200]] as const) {
+      rec = seed(READY, { data: null, error: { message: "boom" } });
+      holder.client = rec.client;
+      expect((await call("/hire", { method: "POST", token, body: HIRE })).status).toBe(status);
+    }
+  });
+
+  it("refuses the safety manager when the database client itself throws reading the switches", async () => {
+    holder.client = { from: () => { throw new Error("client down"); } };
+    expect((await call("/hire", { method: "POST", token: "safety", body: HIRE })).status).toBe(403);
+  });
+
+  it("still lets the recruiter see what closing would file", async () => {
     rec = seed();
     holder.client = rec.client;
     const res = await call(`/drivers/${DRIVER}/hire-preview`, { token: "recruiter" });
@@ -146,21 +185,7 @@ describe("who may hire", () => {
     expect((await call("/hire", { method: "POST", body: HIRE })).status).toBe(401);
   });
 
-  it("reads the org's roster grant: a role the org gave roster manage may hire", async () => {
-    rec = seed();
-    holder.client = rec.client;
-    expect((await call("/hire", { method: "POST", token: "grantedDispatcher", body: HIRE })).status).toBe(200);
-  });
-
-  it("reads the org's roster narrowing: a role the org took roster manage from may not hire", async () => {
-    rec = seed();
-    holder.client = rec.client;
-    const res = await call("/hire", { method: "POST", token: "narrowedFleet", body: HIRE });
-    expect(res.status).toBe(403);
-    expect(rec.queries).toHaveLength(0);
-  });
-
-  it("refuses a read-only auditor's hire while letting them read the preview", async () => {
+  it("refuses a read-only auditor's close while letting them read the preview", async () => {
     rec = seed();
     holder.client = rec.client;
     expect((await call("/hire", { method: "POST", token: "auditor", body: HIRE })).status).toBe(403);
@@ -172,7 +197,7 @@ describe("what the hire records", () => {
   it("audits the hire with what it filed and what it could not", async () => {
     rec = seed();
     holder.client = rec.client;
-    const res = await call("/hire", { method: "POST", token: "fleet", body: HIRE });
+    const res = await call("/hire", { method: "POST", token: "safety", body: HIRE });
     expect(res.status).toBe(200);
 
     const audit = rec.writtenRows("audit_logs")[0]!;
@@ -195,7 +220,7 @@ describe("what the hire records", () => {
       },
     });
     holder.client = rec.client;
-    const res = await call("/hire", { method: "POST", token: "fleet", body: HIRE });
+    const res = await call("/hire", { method: "POST", token: "safety", body: HIRE });
     expect(res.status).toBe(409);
     expect(rec.rpcs()).toHaveLength(0);
   });
@@ -207,7 +232,7 @@ describe("what the hire records", () => {
   it("answers 409 naming the drug test when it is not on file, and hires nobody", async () => {
     rec = seed(READY.filter((k) => k !== "drug_test"));
     holder.client = rec.client;
-    const res = await call("/hire", { method: "POST", token: "fleet", body: HIRE });
+    const res = await call("/hire", { method: "POST", token: "safety", body: HIRE });
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: { code: string }; missing: string[] };
     expect(body.error.code).toBe("not_ready_to_hire");
@@ -221,7 +246,7 @@ describe("the service role, through the route", () => {
   it("scopes every read and write of a hire to the caller's org", async () => {
     rec = seed();
     holder.client = rec.client;
-    expect((await call("/hire", { method: "POST", token: "fleet", body: HIRE })).status).toBe(200);
+    expect((await call("/hire", { method: "POST", token: "safety", body: HIRE })).status).toBe(200);
     expectOrgScoped(rec, ORG);
   });
 

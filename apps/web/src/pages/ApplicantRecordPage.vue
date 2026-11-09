@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
-import { rowOfStep, type Driver, type HiringStepKey } from "@silvicom/shared";
+import { CLOSE_APPLICATION_PERMISSION, rowOfStep, type Driver, type HiringStepKey } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { QueryState, NotFoundError, isNotFound } from "@silvicom/ui";
@@ -134,11 +134,11 @@ function openReview(invitation: string): void {
 /**
  * D-1 (HIRING-WORKFLOW-AUDIT-2026-10-31 §9 P2): the Hired row opens the hire itself — `HireDrawer`,
  * the same drawer the board opens — not a step drawer with nothing in it. Gated as the board gates it
- * (SP5: `roster: manage` from the org's matrix, the gate `POST /api/recruitment/hire` reads); anybody
+ * (the carrier's "Close an application" switch, the gate `POST /api/recruitment/hire` reads); anybody
  * else, and a hire already done, get the step drawer, which says what to do.
  */
 const session = useSessionStore();
-const canHire = computed(() => session.can("roster"));
+const canHire = computed(() => session.hasPermission(CLOSE_APPLICATION_PERMISSION));
 const hiring = ref(false);
 // §9 P4: `?step=<key>` opens that row — the hire drawer's "Open" beside a federal check lands here.
 watch(

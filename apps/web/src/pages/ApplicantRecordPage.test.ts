@@ -94,9 +94,9 @@ const DrawerStub = {
 };
 
 // D-1 (§9 P2): the page asks the session whether this reader may hire (`roster: manage`, SP5).
-const access = vi.hoisted(() => ({ roster: true }));
+const access = vi.hoisted(() => ({ roster: true, close: true }));
 vi.mock("@/stores/session", () => ({
-  useSessionStore: () => ({ can: (section: string) => (section === "roster" ? access.roster : true), canReadKind: () => true }),
+  useSessionStore: () => ({ can: (section: string) => (section === "roster" ? access.roster : true), canReadKind: () => true, hasPermission: (k: string) => (k === "recruitment.close_application" ? access.close : false) }),
 }));
 
 const router = createRouter({
@@ -178,20 +178,20 @@ describe("the drawer a row opens", () => {
 
   /** D-1 (§9 P2): the Hired row opened a step drawer with nothing in it; it opens the hire. */
   it("D-1: the Hired row opens the hire for a reader who may hire, and the step drawer for anybody else", async () => {
-    access.roster = true;
+    access.close = true;
     const w = await mountPage();
     await w.findAll("button").find((b) => b.text().includes("Application closed"))!.trigger("click");
     await settle(w);
     expect(document.body.querySelector("[data-hire-drawer]")?.getAttribute("data-driver")).toBe("00000000-0000-4000-8000-0000000000d1");
     expect(document.body.querySelector("[data-drawer]")).toBeNull();
 
-    access.roster = false;
+    access.close = false;
     const other = await mountPage();
     await other.findAll("button").find((b) => b.text().includes("Application closed"))!.trigger("click");
     await settle(other);
     expect(document.body.querySelectorAll("[data-hire-drawer]")).toHaveLength(1);
     expect(document.body.querySelector("[data-drawer]")?.getAttribute("data-step")).toBe("hired");
-    access.roster = true;
+    access.close = true;
   });
 
   it("opens on the step that was clicked", async () => {
