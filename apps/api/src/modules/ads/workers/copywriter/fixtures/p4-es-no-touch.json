@@ -28,6 +28,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -71,26 +75,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:19:06.303Z",
+    "recorded_at": "2026-11-09T18:38:05.217Z",
     "output": {
       "en": {
-        "hook": "Class A dry van — $0.64/mile",
-        "cta": "Apply today",
-        "primary_text": "You will haul no-touch freight on drop-and-hook runs, so your time stays on the road. At $0.64 per mile, every mile you drive works for you. Join our team and put your Class A CDL to work.",
-        "headline": "No-touch, drop and hook runs"
+        "hook": "Dry van. $0.64 per mile.",
+        "cta": "Apply today.",
+        "primary_text": "Class A dry van position with no-touch freight and drop and hook runs. You handle the driving — no unloading, no waiting on docks. Join our team.",
+        "headline": "No-touch. Drop & hook."
       },
       "es": {
-        "hook": "Caja seca Clase A — $0.64/milla",
-        "cta": "Postúlate hoy",
-        "primary_text": "Conducirás caja seca con carga sin contacto y operaciones de drop and hook, para que pases más tiempo rodando. A $0.64 por milla, cada milla cuenta. Únete al equipo y pon tu CDL Clase A a trabajar.",
-        "headline": "Sin contacto, drop and hook"
+        "hook": "Caja seca. $0.64 por milla.",
+        "cta": "Aplica hoy.",
+        "primary_text": "Posición Clase A en caja seca con carga sin contacto y operación de drop and hook. Tú manejas — sin descarga, sin esperas en el muelle. Únete al equipo.",
+        "headline": "Sin contacto. Drop and hook."
       }
     }
   }

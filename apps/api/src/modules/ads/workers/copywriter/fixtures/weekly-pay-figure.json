@@ -28,6 +28,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -61,24 +65,25 @@
         "4:5"
       ],
       "overlay_slots": null
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:20:38.252Z",
+    "recorded_at": "2026-11-09T18:39:23.882Z",
     "output": {
       "en": {
-        "hook": "$1,500/week for Class A local drivers.",
-        "body": "This local route gets you home daily, so you keep your life while you work. Loads are drop and hook, meaning no waiting around. If you hold a Class A CDL and want steady, local work, this is the seat for you.",
-        "cta": "Apply with us today."
+        "hook": "$1,500 per week — local Class A drivers.",
+        "body": "Home daily, drop and hook freight. You are not sitting at a dock waiting — you drop, hook, and move. Apply now and get behind the wheel of a local run that pays.",
+        "cta": "Apply today."
       },
       "es": {
-        "hook": "$1,500 por semana para conductores locales Clase A.",
-        "body": "Esta ruta local le permite regresar a casa todos los días. Las cargas son drop and hook, sin esperas. Si tiene una CDL Clase A y busca trabajo local y estable, esta posición es para usted.",
-        "cta": "Postúlese hoy mismo."
+        "hook": "$1,500 por semana — conductores Clase A locales.",
+        "body": "Llegas a casa cada día. Carga drop and hook: bajas el remolque, enganchas otro y sigues. Una ruta local que paga bien y te deja dormir en tu cama.",
+        "cta": "Aplica hoy mismo."
       }
     }
   }

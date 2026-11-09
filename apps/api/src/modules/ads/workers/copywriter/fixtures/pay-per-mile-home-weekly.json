@@ -24,6 +24,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -57,24 +61,25 @@
         "4:5"
       ],
       "overlay_slots": null
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:20:14.650Z",
+    "recorded_at": "2026-11-09T18:39:02.305Z",
     "output": {
       "en": {
         "hook": "$0.68/mile for Class A regional drivers.",
-        "body": "Drive regional routes and earn $0.68 per mile. You get to come home weekly, keeping you close to what matters. If you hold a Class A CDL and are ready to get to work, we want to hear from you.",
+        "body": "Regional lanes, home weekly. If you hold a Class A CDL and want consistent miles with regular home time, this run is built for you. Apply and get back to what matters.",
         "cta": "Apply today."
       },
       "es": {
-        "hook": "$0.68 por milla para conductores regionales Clase A.",
-        "body": "Gana $0.68 por milla en rutas regionales con regreso a casa cada semana. Si tienes licencia Clase A y estás listo para trabajar, queremos conocerte.",
-        "cta": "Postúlate hoy."
+        "hook": "$0.68 por milla para conductores Clase A.",
+        "body": "Rutas regionales con regreso a casa cada semana. Si tienes CDL Clase A y buscas millas constantes con tiempo en casa, esta ruta es para ti. Únete al equipo.",
+        "cta": "Aplica hoy."
       }
     }
   }

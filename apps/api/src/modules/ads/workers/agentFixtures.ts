@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { z } from "zod";
 import { AD_PEOPLE_POLICIES, AD_VISUAL_CHECKS, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, judgeArt, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
 import type { ForcedToolRequest } from "../../../lib/anthropic.js";
-import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, judgeCopy, type AdCopy } from "./copywriter/copywriter.js";
+import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, buildFitRequest, canFit, judgeCopy, type AdCopy } from "./copywriter/copywriter.js";
 import { ART_DIRECTOR_PROMPT_VERSION, buildArtRequest } from "./artDirector/artDirector.js";
 import { ANALYST_PROMPT_VERSION, briefTool, buildBriefRequest, judgeBrief, type BriefAnswer } from "./analyst/analyst.js";
 import { CHECKER_PROMPT_VERSION, applicableChecks, buildVisualRequest, judgeVisual, prepareSubject, visualTool, type VisualAnswer, type VisualSubject } from "./checker/checker.js";
@@ -35,7 +35,7 @@ export const recordingSchema = z.object({
 export const copywriterFixtureSchema = z.object({
   name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,60}$/),
   about: z.string().min(10),
-  input: z.object({ brief: adBriefSchema, recipe: adPresetRecipeSchema }),
+  input: z.object({ brief: adBriefSchema, recipe: adPresetRecipeSchema, company_name: z.string().trim().min(1).max(120).nullable().default(null) }),
   /** What the worker must answer for the RECORDED output. */
   expect: z.enum(["ready", "refused", "off_schema"]),
   /** For `refused`: the finding kinds, sorted, exactly. */
@@ -55,6 +55,12 @@ export interface EvalWorker<F, T> {
   request: (f: F) => ForcedToolRequest<T> | Promise<ForcedToolRequest<T>>;
   /** The verdict the worker would reach on `output`, in the fixture's `expect` vocabulary. */
   judge: (f: F, output: unknown) => { verdict: string; findings: string[] };
+  /**
+   * The worker's one second ask after a refusal of `output`, or null when the worker would stop (the Copywriter's
+   * fit pass, CQ2). `ads:eval` asks it too, so the baseline measures the worker's whole behaviour, and records the
+   * FINAL answer.
+   */
+  refine?: (f: F, output: unknown) => ForcedToolRequest<T> | null;
   withRecording: (f: F, recording: z.infer<typeof recordingSchema>) => F;
   /**
    * Whether a live verdict is the RIGHT one. Absent = it must be `ready` (a generator: every brief
@@ -70,12 +76,18 @@ export const COPYWRITER_EVAL: EvalWorker<CopywriterFixture, AdCopy> = {
   parse: (raw) => copywriterFixtureSchema.parse(raw),
   name: (f) => f.name,
   source: (f) => f.recorded.source,
-  request: (f) => buildCopyRequest(f.input.brief, f.input.recipe),
+  request: (f) => buildCopyRequest(f.input.brief, f.input.recipe, { company_name: f.input.company_name }),
   judge: (f, output) => {
     const parsed = buildCopyRequest(f.input.brief, f.input.recipe).tool.schema.safeParse(output);
     if (!parsed.success) return { verdict: "off_schema", findings: [] };
-    const v = judgeCopy(parsed.data, f.input.brief, f.input.recipe);
+    const v = judgeCopy(parsed.data, f.input.brief, f.input.recipe, { company_name: f.input.company_name });
     return v.ok ? { verdict: "ready", findings: [] } : { verdict: "refused", findings: [...new Set(v.findings.map((x) => x.kind))].sort() };
+  },
+  refine: (f, output) => {
+    const parsed = buildCopyRequest(f.input.brief, f.input.recipe).tool.schema.safeParse(output);
+    if (!parsed.success) return null;
+    const v = judgeCopy(parsed.data, f.input.brief, f.input.recipe, { company_name: f.input.company_name });
+    return !v.ok && canFit(v.findings) ? buildFitRequest(f.input.brief, f.input.recipe, { company_name: f.input.company_name }, parsed.data, v.findings) : null;
   },
   withRecording: (f, recorded) => ({ ...f, recorded }),
 };
@@ -83,7 +95,7 @@ export const COPYWRITER_EVAL: EvalWorker<CopywriterFixture, AdCopy> = {
 export const artDirectorFixtureSchema = z.object({
   name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,60}$/),
   about: z.string().min(10),
-  input: z.object({ recipe: adPresetRecipeSchema, kit: adBrandKitSchema }),
+  input: z.object({ recipe: adPresetRecipeSchema, kit: adBrandKitSchema, context: z.array(z.string().min(2).max(120)).max(12).default([]) }),
   expect: z.enum(["ready", "refused", "off_schema"]),
   expect_findings: z.array(z.string()).optional(),
   recorded: recordingSchema,
@@ -96,7 +108,7 @@ export const ART_DIRECTOR_EVAL: EvalWorker<ArtDirectorFixture, ArtAnswer> = {
   parse: (raw) => artDirectorFixtureSchema.parse(raw),
   name: (f) => f.name,
   source: (f) => f.recorded.source,
-  request: (f) => buildArtRequest(f.input.recipe, f.input.kit),
+  request: (f) => buildArtRequest(f.input.recipe, f.input.kit, f.input.context),
   judge: (f, output) => {
     const parsed = buildArtRequest(f.input.recipe, f.input.kit).tool.schema.safeParse(output);
     if (!parsed.success) return { verdict: "off_schema", findings: [] };

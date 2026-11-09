@@ -24,6 +24,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -69,26 +73,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:16:37.685Z",
+    "recorded_at": "2026-11-09T18:36:39.598Z",
     "output": {
       "en": {
-        "hook": "You roll at dawn, earning $2,500.",
-        "cta": "Apply now",
-        "primary_text": "You and your co-driver hit the road together and bring home $2,500 every week. Pay comes weekly, so you always know what is in your account. Join our team and apply today.",
-        "headline": "Team CDL-A: $2,500/week"
+        "hook": "Dawn is yours. $2,500 a week.",
+        "cta": "Apply now.",
+        "primary_text": "You and your co-driver hit the road at sunrise and bring home $2,500 per week, paid every week. Class A team position, weekly pay. Join our team.",
+        "headline": "Team drivers, apply today."
       },
       "es": {
-        "hook": "Manejas al alba y ganas $2,500.",
-        "cta": "Postúlate ya",
-        "primary_text": "Tú y tu copiloto conducen juntos y reciben $2,500 cada semana. El pago es semanal, así que siempre sabes con cuánto cuentas. Únete al equipo y postúlate hoy.",
-        "headline": "Equipo Clase A: $2,500/semana"
+        "hook": "El amanecer es tuyo. $2,500 a la semana.",
+        "cta": "Aplica ahora.",
+        "primary_text": "Tú y tu compañero salen al amanecer y ganan $2,500 por semana, con pago semanal. Posición Clase A en equipo. Aplica hoy.",
+        "headline": "Conductores en equipo, únete."
       }
     }
   }

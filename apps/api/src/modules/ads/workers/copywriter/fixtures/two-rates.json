@@ -29,6 +29,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -62,24 +66,25 @@
         "4:5"
       ],
       "overlay_slots": null
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:20:28.300Z",
+    "recorded_at": "2026-11-09T18:39:13.319Z",
     "output": {
       "en": {
-        "hook": "$0.60–$0.72/mile for Class A regional drivers.",
-        "body": "Earn between $0.60 and $0.72 per mile on a regional route. Weekly pay keeps your earnings consistent and your finances on track. If you hold a Class A CDL and are ready to work, we want to hear from you.",
-        "cta": "Apply with us today."
+        "hook": "Up to $0.72/mile for Class A regional drivers.",
+        "body": "Start at $0.60 per mile and earn up to $0.72 per mile as a regional Class A driver. Pay lands in your account every week, so you always know where you stand.",
+        "cta": "Apply today."
       },
       "es": {
-        "hook": "$0.60–$0.72 por milla para conductores regionales Clase A.",
-        "body": "Gana entre $0.60 y $0.72 por milla en una ruta regional. El pago semanal mantiene tus ingresos estables. Si tienes licencia Clase A y estás listo para trabajar, queremos conocerte.",
-        "cta": "Postúlate hoy mismo."
+        "hook": "Hasta $0.72 por milla para conductores Clase A.",
+        "body": "Comienza en $0.60 por milla y llega hasta $0.72 por milla manejando ruta regional con licencia Clase A. El pago es semanal, directo a tu cuenta.",
+        "cta": "Aplica hoy mismo."
       }
     }
   }

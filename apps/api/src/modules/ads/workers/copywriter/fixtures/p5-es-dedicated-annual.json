@@ -28,6 +28,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -79,30 +83,31 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:19:35.344Z",
+    "recorded_at": "2026-11-09T18:38:29.130Z",
     "output": {
       "en": {
-        "card_get": "Get: $90,000/year, dedicated route, and health insurance.",
-        "card_need": "Need: A valid Class A CDL and a clean driving record.",
-        "card_apply": "Apply: Submit your application today.",
-        "cta": "Apply Now",
-        "primary_text": "A dedicated Class A driving position with $90,000 per year and health insurance. Consistent work, honest pay. If you hold a Class A CDL, we want to hear from you. Apply today and join our team.",
-        "headline": "Class A Driver — $90K/yr"
+        "card_get": "Get: $90,000 per year, dedicated account, health insurance.",
+        "card_need": "Need: Class A CDL and a solid driving record.",
+        "card_apply": "Apply: Send us your info today.",
+        "cta": "Apply now",
+        "primary_text": "Dedicated account. $90,000 per year. Health insurance included. If you hold a Class A CDL and want a consistent run, this seat is worth a look. Join our team and apply today.",
+        "headline": "Class A: $90,000/year"
       },
       "es": {
-        "card_get": "Obtienes: $90,000/año, ruta dedicada y seguro médico.",
-        "card_need": "Necesitas: Licencia Clase A vigente y buen historial de manejo.",
-        "card_apply": "Aplica: Envía tu solicitud hoy mismo.",
+        "card_get": "Obtienes: $90,000 al año, ruta dedicada, seguro médico.",
+        "card_need": "Necesitas: CDL Clase A y récord de manejo limpio.",
+        "card_apply": "Aplica: Envíanos tus datos hoy.",
         "cta": "Aplica ya",
-        "primary_text": "Posición dedicada para conductor Clase A con $90,000 al año y seguro médico incluido. Trabajo constante y pago justo. Si tienes licencia Clase A, queremos conocerte. Únete a nuestro equipo.",
-        "headline": "Conductor Clase A — $90K/año"
+        "primary_text": "Ruta dedicada con pago de $90,000 al año y seguro médico. Si tienes CDL Clase A y buscas una ruta constante, esta posición es para ti. Únete al equipo y aplica hoy.",
+        "headline": "Clase A: $90,000 al año"
       }
     }
   }

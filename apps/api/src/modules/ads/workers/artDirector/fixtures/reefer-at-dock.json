@@ -22,7 +22,8 @@
       "motion_template": null,
       "formats": [
         "4:5"
-      ]
+      ],
+      "overlay_slots": null
     },
     "kit": {
       "company_name": "Fixture Carrier",
@@ -74,18 +75,23 @@
       "forbidden_marks": [
         "Other Freight Co"
       ]
-    }
+    },
+    "context": [
+      "reefer freight",
+      "local runs",
+      "lanes: Chicagoland store deliveries"
+    ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@1",
+    "prompt_version": "artDirector@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T05:15:30.602Z",
+    "recorded_at": "2026-11-09T18:39:41.707Z",
     "output": {
       "slots": {
-        "time_of_day": "early morning, soft overcast light",
-        "setting": "concrete loading dock with dock levelers and warehouse wall in background"
+        "time_of_day": "early morning, dim pre-dawn light",
+        "setting": "a busy urban grocery distribution dock, concrete platform, overhead dock lights on, overcast winter sky"
       },
       "reference_photo": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     }

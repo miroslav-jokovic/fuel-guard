@@ -24,6 +24,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -68,26 +72,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:18:10.339Z",
+    "recorded_at": "2026-11-09T18:37:22.230Z",
     "output": {
       "en": {
-        "pay": "$450.00 per load.",
-        "cta": "Apply today.",
-        "primary_text": "Class A flatbed drivers, this is your next move. Earn $450.00 per load and get home weekends. Join our team and start putting those miles to work for you.",
-        "headline": "Flatbed drivers, let's talk."
+        "pay": "$450 per load",
+        "cta": "Apply today",
+        "primary_text": "Class A flatbed drivers: $450 per load, home weekends. If you run flatbed and want your weekends back, this run is worth a look. Join our team.",
+        "headline": "Flatbed, home weekends"
       },
       "es": {
-        "pay": "$450.00 por carga.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Conductores de plataforma con licencia clase A: gana $450.00 por carga y regresa a casa los fines de semana. Únete a nuestro equipo y aprovecha esta oportunidad.",
-        "headline": "Conductores de plataforma."
+        "pay": "$450 por carga",
+        "cta": "Aplica hoy",
+        "primary_text": "Conductores clase A con experiencia en plataforma: $450 por carga y en casa los fines de semana. Si manejas plataforma y quieres tus fines de semana libres, esta ruta es para ti.",
+        "headline": "Plataforma, fines en casa"
       }
     }
   }

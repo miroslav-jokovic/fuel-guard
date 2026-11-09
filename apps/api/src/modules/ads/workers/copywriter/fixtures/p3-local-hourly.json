@@ -24,6 +24,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -68,26 +72,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:18:36.397Z",
+    "recorded_at": "2026-11-09T18:37:41.952Z",
     "output": {
       "en": {
-        "hook": "Home every day, guaranteed.",
+        "hook": "Home every day. $31 an hour.",
         "cta": "Apply today.",
-        "primary_text": "This is a local Class A driving role built around your life at home. You return home daily, and you earn $31.00 per hour while doing it. If you hold a Class A CDL and want to stay close to home, we want to hear from you.",
-        "headline": "Local Class A, $31/hr."
+        "primary_text": "This is a local Class A route — you clock out and sleep in your own bed every night. The pay is $31 per hour. If you have your Class A and want to be home daily, apply today.",
+        "headline": "Local Class A, home daily."
       },
       "es": {
-        "hook": "A casa cada día, de verdad.",
-        "cta": "Postúlese hoy.",
-        "primary_text": "Este puesto de conductor Clase A local le permite regresar a casa a diario. Además, gana $31.00 por hora. Si tiene su CDL Clase A y desea trabajar cerca de casa, únase a nuestro equipo.",
-        "headline": "Clase A local, $31/hora."
+        "hook": "A casa cada día. $31 la hora.",
+        "cta": "Aplica hoy.",
+        "primary_text": "Esta ruta local Clase A te regresa a casa todos los días. No hay noches fuera. La paga es $31 por hora. Si tienes tu Clase A y quieres trabajar local, únete al equipo hoy.",
+        "headline": "Local Clase A, a casa diario."
       }
     }
   }

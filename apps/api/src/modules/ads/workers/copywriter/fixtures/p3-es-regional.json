@@ -24,6 +24,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -68,26 +72,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:18:25.098Z",
+    "recorded_at": "2026-11-09T18:37:32.036Z",
     "output": {
       "en": {
         "hook": "Home every weekend.",
-        "cta": "Apply today.",
-        "primary_text": "This regional Class A route is built around your weekends. You earn $0.66 per mile while making it home when it matters. If you are ready to drive for a carrier that values your time at home, join our team and apply now.",
-        "headline": "Drive regional. Be home."
+        "cta": "Apply now",
+        "primary_text": "This regional Class A run gets you home weekends, every time. You earn $0.66 per mile on routes that bring you back when it counts. If you want a driving job that works around your life, apply today.",
+        "headline": "Regional | $0.66/mile"
       },
       "es": {
         "hook": "En casa cada fin de semana.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Esta ruta regional Clase A te lleva a casa cada fin de semana. Gana $0.66 por milla mientras mantienes tu vida personal. Si buscas una empresa que respete tu tiempo en casa, únete a nuestro equipo.",
-        "headline": "Ruta regional, $0.66/milla."
+        "cta": "Aplica ahora",
+        "primary_text": "Esta ruta regional Clase A te regresa a casa los fines de semana. Ganas $0.66 por milla con una ruta que respeta tu tiempo. Si buscas un trabajo al volante que se ajuste a tu vida, únete al equipo.",
+        "headline": "Regional | $0.66 por milla"
       }
     }
   }

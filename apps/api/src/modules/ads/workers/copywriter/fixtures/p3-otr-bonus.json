@@ -29,6 +29,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -73,26 +77,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:18:42.711Z",
+    "recorded_at": "2026-11-09T18:37:47.427Z",
     "output": {
       "en": {
-        "hook": "Get home. Drive with us.",
-        "cta": "Apply now",
-        "primary_text": "Class A over-the-road drivers: earn $0.72 per mile and pick up a $5,000 sign-on bonus when you join our team. Apply today and start a driving career that works for you.",
-        "headline": "Earn $0.72 per mile today"
+        "hook": "Drive home. Drive well-paid.",
+        "cta": "Apply today",
+        "primary_text": "Class A OTR drivers earn $0.72 per mile on this run. Plus, a $5,000 sign-on bonus puts money in your pocket before you've even hit your stride. Apply today and get on the road with pay you can count on.",
+        "headline": "$0.72/mile + $5,000 bonus"
       },
       "es": {
-        "hook": "Tu hogar te espera.",
-        "cta": "Postúlese ya",
-        "primary_text": "Conductores clase A: gane $0.72 por milla y reciba un bono de contratación de $5,000 al unirse a nuestro equipo. Postúlese hoy y maneje con quienes lo valoran.",
-        "headline": "$0.72 por milla desde el día uno"
+        "hook": "Vuelve a casa. Gana bien.",
+        "cta": "Aplica hoy",
+        "primary_text": "Conductores Clase A en ruta larga ganan $0.72 por milla. Además, hay un bono de contratación de $5,000 para que empieces con más en el bolsillo. Únete al equipo y maneja con un pago que vale la pena.",
+        "headline": "$0.72/milla + $5,000 de bono"
       }
     }
   }

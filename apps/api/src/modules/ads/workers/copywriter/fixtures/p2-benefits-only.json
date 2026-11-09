@@ -27,6 +27,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -71,26 +75,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:17:03.373Z",
+    "recorded_at": "2026-11-09T18:36:58.129Z",
     "output": {
       "en": {
-        "pay": "Pay for dedicated",
+        "pay": "Dedicated driving",
         "cta": "Apply today",
-        "primary_text": "This dedicated route is built for Class A drivers who want consistency. You get a 401k and dental and vision coverage. Join our team and find out what a dedicated position can do for your career.",
-        "headline": "A dedicated Class A role for you"
+        "primary_text": "This is a dedicated Class A position with a consistent lane and regular runs. Benefits include 401k, dental, and vision. Join our team and get to work.",
+        "headline": "Class A dedicated drivers"
       },
       "es": {
-        "pay": "Pago en ruta dedicada",
+        "pay": "Ruta dedicada",
         "cta": "Aplica hoy",
-        "primary_text": "Esta ruta dedicada es para conductores Clase A que buscan estabilidad. Contamos con plan 401k y cobertura dental y de visión. Únete a nuestro equipo y descubre lo que una posición dedicada puede hacer por ti.",
-        "headline": "Ruta dedicada para Clase A"
+        "primary_text": "Posición dedicada para conductores Clase A. Ruta fija y salidas regulares. Beneficios incluyen 401k, dental y visión. Únete al equipo.",
+        "headline": "Conductores Clase A dedicado"
       }
     }
   }

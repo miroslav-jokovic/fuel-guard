@@ -25,6 +25,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -69,26 +73,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:17:51.614Z",
+    "recorded_at": "2026-11-09T18:37:18.088Z",
     "output": {
       "en": {
-        "pay": "$0.75/mile for CDL-A",
+        "pay": "$0.75 per mile",
         "cta": "Apply today.",
-        "primary_text": "We are hiring Class A tanker drivers with at least 2 years of experience. At $0.75 per mile, your miles add up fast. If you hold a valid Class A CDL and have 2 years behind the wheel, we want to hear from you. Join our team and put your skills to work.",
-        "headline": "Class A Tanker Opportunity"
+        "primary_text": "Class A tanker drivers with 2 years of experience, this run is built for you. You earn $0.75 per mile from the first mile. Join our team and put your tanker experience to work.",
+        "headline": "Tanker drivers, join us."
       },
       "es": {
-        "pay": "$0.75/milla CDL-A",
+        "pay": "$0.75 por milla",
         "cta": "Aplica hoy.",
-        "primary_text": "Buscamos conductores con CDL-A para tanquero con 2 años de experiencia. Pagamos $0.75 por milla. Si tienes tu licencia Clase A vigente y 2 años de manejo, queremos conocerte. Únete a nuestro equipo.",
-        "headline": "Conductor de Tanquero CDL-A"
+        "primary_text": "Conductores clase A con experiencia en tanque, si tienes 2 años al volante, esta posición es para ti. Ganas $0.75 por milla desde el primer tramo. Únete al equipo y pon tu experiencia a trabajar.",
+        "headline": "Conductores de tanque."
       }
     }
   }

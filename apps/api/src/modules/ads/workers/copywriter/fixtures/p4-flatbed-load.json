@@ -24,6 +24,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -67,26 +71,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:19:28.779Z",
+    "recorded_at": "2026-11-09T18:38:22.726Z",
     "output": {
       "en": {
-        "hook": "Flatbed. $450.00 per load.",
-        "cta": "Apply now.",
-        "primary_text": "You will haul on a flatbed and earn $450.00 per load. Home weekends means you are back with your family when it counts. If you hold a Class A and want steady work on a flatbed, apply today.",
-        "headline": "Home every weekend."
+        "hook": "Flatbed. $450 per load.",
+        "cta": "Apply today.",
+        "primary_text": "Class A flatbed position with $450 per load and home weekends. If you want steady flatbed work and your weekends back, join our team and apply today.",
+        "headline": "Home weekends. Apply now."
       },
       "es": {
-        "hook": "Plataforma. $450.00 por carga.",
+        "hook": "Plataforma. $450 por carga.",
         "cta": "Aplica hoy.",
-        "primary_text": "Conducirás una plataforma y ganarás $450.00 por carga. Regresas a casa los fines de semana. Si tienes Clase A y buscas trabajo estable en plataforma, únete a nuestro equipo.",
-        "headline": "En casa cada fin de semana."
+        "primary_text": "Posición de tráiler con plataforma, clase A. Pago de $450 por carga y regresas a casa los fines de semana. Si buscas rutas de plataforma con tiempo para tu familia, únete al equipo.",
+        "headline": "Fines de semana en casa."
       }
     }
   }

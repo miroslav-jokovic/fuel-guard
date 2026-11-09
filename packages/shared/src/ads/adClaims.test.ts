@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkClaims } from "./adClaims.js";
+import { checkClaims, quantitiesIn } from "./adClaims.js";
 import type { AdClaim } from "./contracts.js";
 
 // The opening: $0.68/mile, $1,500/week minimum, $5,000 sign-on, home every 14 days for 2 days, 23+.
@@ -109,5 +109,65 @@ describe("checkClaims — reporting", () => {
     const r = checkClaims("Earn $0.99/mile, home every 9 days.", brief);
     expect(r.ok).toBe(false);
     expect(r.findings.map((f) => [f.index, f.text])).toEqual([[5, "$0.99"], [28, "9 days"]]);
+  });
+});
+
+describe("checkClaims — units the trade does not use, and the carrier's own name (CQ2)", () => {
+  const brief = { claims: [{ kind: "money" as const, cents: 72, per: "mile" as const }] };
+
+  it('"kilómetro" beside a per-mile rate is refused, in either language, however the brief reads', () => {
+    expect(checkClaims("$0.72 por milla, cada kilómetro recorrido.", brief).findings.map((f) => [f.kind, f.text])).toEqual([["foreign_unit", "kilómetro"]]);
+    expect(checkClaims("Paid for every kilometer you drive.", brief).findings.map((f) => f.kind)).toEqual(["foreign_unit"]);
+    expect(checkClaims("Paid for every mile you drive.", brief).findings).toEqual([]);
+  });
+
+  it("a phrase the brief vouches for as written — the company's own name with a digit in it — is not a figure", () => {
+    const copy = "Drive for 360 Logistics at $0.72/mile.";
+    expect(checkClaims(copy, brief).findings.map((f) => f.kind)).toEqual(["unrecognised_number"]);
+    expect(checkClaims(copy, { ...brief, exempt_phrases: ["360 Logistics"] }).findings).toEqual([]);
+  });
+
+  it("an exempt phrase that is a bare number, or part of a longer word, exempts nothing", () => {
+    expect(checkClaims("Earn 360 a day.", { ...brief, exempt_phrases: ["360"] }).ok).toBe(false);
+    expect(checkClaims("Drive for 3600 Logistics.", { ...brief, exempt_phrases: ["360 Logistics"] }).ok).toBe(false);
+  });
+
+  it("a promise term inside an exempt company name is not read as a promise", () => {
+    expect(checkClaims("Join Dedicated Freight Co today.", { ...brief, exempt_phrases: ["Dedicated Freight Co"] }).findings).toEqual([]);
+    expect(checkClaims("Join Dedicated Freight Co today.", brief).findings.map((f) => f.kind)).toEqual(["term_not_in_brief"]);
+  });
+});
+
+describe("checkClaims — what the first CQ2 live run taught it (2026-11-09)", () => {
+  const brief = { claims: [{ kind: "quantity" as const, value: 23, unit: "age" as const }] };
+
+  it('"23 and up" is an age floor, like "23 or older"', () => {
+    expect(checkClaims("For drivers 23 and up.", brief).findings).toEqual([]);
+    expect(checkClaims("For drivers 25 and up.", brief).findings.map((f) => f.kind)).toEqual(["age_not_in_brief"]);
+  });
+
+  it("a road's designation is a name, not a figure; a bare number is still a figure", () => {
+    expect(checkClaims("Running the I-80 corridor and US-30.", brief).findings).toEqual([]);
+    expect(checkClaims("Running Highway 20 and Ruta 66.", brief).findings).toEqual([]);
+    expect(checkClaims("Running the 80 corridor.", brief).findings.map((f) => f.kind)).toEqual(["unrecognised_number"]);
+  });
+
+  it("quantitiesIn reads the figures a person typed, with their units, in digits or words, and nothing without a unit", () => {
+    expect(quantitiesIn("Out 2 weeks, home 4 days")).toEqual([{ value: 2, unit: "week" }, { value: 4, unit: "day" }]);
+    expect(quantitiesIn("Within 500 miles of Joliet")).toEqual([{ value: 500, unit: "mile" }]);
+    expect(quantitiesIn("home every two weeks")).toEqual([{ value: 2, unit: "week" }]);
+    expect(quantitiesIn("I-80 to Des Moines")).toEqual([]);
+    expect(quantitiesIn("Out 10 to 12 days, home 3")).toEqual([{ value: 10, unit: "day" }, { value: 12, unit: "day" }]);
+    expect(quantitiesIn("10-14 dias fuera")).toEqual([{ value: 10, unit: "day" }, { value: 14, unit: "day" }]);
+  });
+});
+
+describe("checkClaims — a range holds both numbers to its unit (CQ2)", () => {
+  const brief = { claims: [{ kind: "quantity" as const, value: 10, unit: "day" as const }, { kind: "quantity" as const, value: 12, unit: "day" as const }] };
+  it("'10 to 12 days' passes when both are claims; '10 to 14 days' names the 14", () => {
+    expect(checkClaims("Out 10 to 12 days.", brief).findings).toEqual([]);
+    expect(checkClaims("Fuera 10-12 dias.", brief).findings).toEqual([]);
+    expect(checkClaims("Out 10 to 14 days.", brief).findings.map((f) => [f.kind, f.text])).toEqual([["quantity_not_in_brief", "14"]]);
+    expect(checkClaims("Out 9 to 12 days.", brief).findings.map((f) => [f.kind, f.text])).toEqual([["quantity_not_in_brief", "9"]]);
   });
 });

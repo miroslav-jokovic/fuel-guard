@@ -28,6 +28,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -71,26 +75,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:19:17.904Z",
+    "recorded_at": "2026-11-09T18:38:11.516Z",
     "output": {
       "en": {
-        "hook": "Your truck. Up to $12,000/week.",
-        "cta": "Apply today.",
-        "primary_text": "New Class A CDL? We want you on the road. Earn up to $12,000 per week with weekly pay so your money arrives fast. Paid orientation gets you started on the right foot. Join our team and apply today.",
-        "headline": "Weekly pay. Paid orientation."
+        "hook": "Class A truck, $12,000/wk",
+        "cta": "Apply today",
+        "primary_text": "New Class A license? We have a spot for you. Earn $12,000 per week with weekly pay so you always know when your money arrives. Orientation is paid, so you start earning from day one. Join our team.",
+        "headline": "Weekly pay, paid orientation"
       },
       "es": {
-        "hook": "Tu camión. Hasta $12,000/semana.",
-        "cta": "Aplica hoy.",
-        "primary_text": "¿Tienes tu CDL Clase A recién obtenida? Gana hasta $12,000 por semana con pago semanal directo. La orientación es pagada para que comiences sin contratiempos. Únete a nuestro equipo y aplica hoy.",
-        "headline": "Pago semanal. Orientación pagada."
+        "hook": "Clase A: $12,000 por semana",
+        "cta": "Aplica hoy",
+        "primary_text": "¿Recién licenciado Clase A? Hay un lugar para ti. Gana $12,000 por semana con pago semanal, para que siempre sepas cuándo llega tu dinero. La orientación es pagada desde el primer día. Únete al equipo.",
+        "headline": "Pago semanal, orientación pagada"
       }
     }
   }

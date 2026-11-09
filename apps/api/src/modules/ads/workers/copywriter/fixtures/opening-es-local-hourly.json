@@ -1,0 +1,124 @@
+{
+  "name": "opening-es-local-hourly",
+  "about": "P2 The number: Spanish-first subject: local dry van by the hour, home daily.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor local Clase A, caja seca",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 2700,
+          "per": "hour"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "term",
+          "term": "paid time off"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "local runs",
+          "Entregas locales en Chicago"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P2 The number",
+      "hook_formula": "Open with the pay figure alone, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A late-model tractor on a dark {background} background, studio light, no text, no logos, no lettering",
+      "image_slots": [
+        "background"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "360 Logistics"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T18:34:32.871Z",
+    "output": {
+      "en": {
+        "pay": "$27 per hour",
+        "cta": "Apply today",
+        "primary_text": "360 Logistics is hiring Class A local drivers for dry van freight in the Chicago area. Home daily, $27 an hour, plus health insurance and paid time off. CDL-A required, age 23+, and 2 years of experience.",
+        "headline": "Local CDL-A, home daily"
+      },
+      "es": {
+        "pay": "$27 por hora",
+        "cta": "Aplica hoy",
+        "primary_text": "360 Logistics busca conductores locales Clase A para carga seca en Chicago. Regresas a casa cada día, ganas $27 por hora y cuentas con seguro médico y tiempo libre pagado. Se requiere licencia CDL-A, mayores de 23 y 2 años de experiencia.",
+        "headline": "Local CDL-A, casa cada día"
+      }
+    }
+  }
+}

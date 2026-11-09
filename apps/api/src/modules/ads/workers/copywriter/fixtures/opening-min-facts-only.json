@@ -1,0 +1,115 @@
+{
+  "name": "opening-min-facts-only",
+  "about": "P1 Windshield sunrise: The thinnest opening the editor allows: pay and home time, nothing ticked, no line.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 60,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P1 Windshield sunrise",
+      "hook_formula": "Second person, present tense: put the reader in the driver's seat at dawn, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield at {time_of_day} on an open {road} highway, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day",
+        "road"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": "Slow push-in down the highway as the light rises",
+      "formats": [
+        "9:16",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": null
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T18:35:43.677Z",
+    "output": {
+      "en": {
+        "hook": "You're rolling at dawn: $0.60/mile.",
+        "cta": "Apply now.",
+        "primary_text": "Class A drivers earn $0.60 per mile hauling dry van freight and get home weekly. You need 2 years of experience and must be 23+. Apply today.",
+        "headline": "Dry van, home weekly."
+      },
+      "es": {
+        "hook": "Al amanecer, tú manejas: $0.60/milla.",
+        "cta": "Aplica ahora.",
+        "primary_text": "Conductores Clase A ganan $0.60 por milla en rutas de carga seca y regresan a casa cada semana. Se requieren 2 años de experiencia y ser mayor de 23 años. Únete al equipo.",
+        "headline": "Carga seca, casa cada semana."
+      }
+    }
+  }
+}

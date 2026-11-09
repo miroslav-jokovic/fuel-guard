@@ -9,8 +9,8 @@ const brief = {
 };
 
 describe("ads contracts", () => {
-  it("a brief with claims, an area and form questions parses", () => {
-    expect(adBriefSchema.parse(brief)).toEqual(brief);
+  it("a brief with claims, an area and form questions parses, and one frozen before CQ2 gains empty subject matter", () => {
+    expect(adBriefSchema.parse(brief)).toEqual({ ...brief, subject_matter: { details: [], in_our_words: null } });
   });
   it("an area under Meta's 15-mile employment floor is refused, and 15 itself is allowed", () => {
     expect(adAreaSchema.safeParse({ ...area, radius_miles: 14 }).success).toBe(false);

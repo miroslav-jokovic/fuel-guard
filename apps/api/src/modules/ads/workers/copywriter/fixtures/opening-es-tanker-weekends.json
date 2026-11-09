@@ -1,0 +1,124 @@
+{
+  "name": "opening-es-tanker-weekends",
+  "about": "P4 Walk-around: Spanish-first subject: tanker regional, home weekends, pets.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor de tanque Clase A, regional",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 76,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 80,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekends"
+        },
+        {
+          "kind": "term",
+          "term": "pet policy"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "tanker freight",
+          "regional runs",
+          "Illinois e Indiana"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P4 Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our tractor parked in a {setting}, three-quarter view, no text, no logos, no lettering",
+      "image_slots": [
+        "setting"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": "A slow orbit around the tractor",
+      "formats": [
+        "9:16"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "Dispatch Freight Lines"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T18:34:49.500Z",
+    "output": {
+      "en": {
+        "hook": "Tanker CDL-A, $0.80/mile",
+        "cta": "Apply today",
+        "primary_text": "Regional tanker runs in Illinois and Indiana. Start at $0.76 per mile and earn up to $0.80 per mile. Home weekends. Pet policy available. Must be 23+ with 2 years experience. Join Dispatch Freight Lines.",
+        "headline": "Home weekends. Up to $0.80/mi."
+      },
+      "es": {
+        "hook": "Tanque CDL-A, $0.80/milla",
+        "cta": "Aplica hoy",
+        "primary_text": "Rutas regionales de tanque en Illinois e Indiana. Comienza en $0.76 por milla y llega hasta $0.80 por milla. Fines de semana en casa. Política para mascotas. Mayor de 23 años y 2 años de experiencia requeridos.",
+        "headline": "Fines de semana en casa."
+      }
+    }
+  }
+}

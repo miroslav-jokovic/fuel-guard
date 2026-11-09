@@ -24,6 +24,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -75,30 +79,31 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:19:41.600Z",
+    "recorded_at": "2026-11-09T18:38:34.560Z",
     "output": {
       "en": {
-        "card_get": "Get $0.66/mile and home weekends.",
-        "card_need": "We need a Class A CDL driver for a regional route.",
-        "card_apply": "Send in your application to join our team.",
-        "cta": "Apply now",
-        "primary_text": "Straight talk: you earn $0.66 per mile and get home weekends. We need a Class A CDL driver on a regional route. If that fits you, apply today and let's get started.",
-        "headline": "Class A Regional Driver"
+        "card_get": "You get: $0.66 per mile and home weekends.",
+        "card_need": "We need: a Class A CDL and a clean driving record.",
+        "card_apply": "Apply now and join our regional team.",
+        "cta": "Apply today",
+        "primary_text": "Regional CDL-A drivers earn $0.66 per mile and get home weekends. Clean record required. Apply now.",
+        "headline": "Regional CDL-A Driver"
       },
       "es": {
-        "card_get": "Gana $0.66 por milla y regresa a casa los fines de semana.",
-        "card_need": "Necesitamos conductor con CDL Clase A para ruta regional.",
-        "card_apply": "Envía tu solicitud y únete al equipo.",
-        "cta": "Aplica ya",
-        "primary_text": "Sin rodeos: ganas $0.66 por milla y llegas a casa los fines de semana. Buscamos conductor con CDL Clase A en ruta regional. Si encaja contigo, aplica hoy.",
-        "headline": "Conductor Clase A Regional"
+        "card_get": "Tú obtienes: $0.66 por milla y fines de semana en casa.",
+        "card_need": "Necesitamos: CDL-A y récord de manejo limpio.",
+        "card_apply": "Aplica hoy y únete a nuestra ruta regional.",
+        "cta": "Aplica hoy",
+        "primary_text": "Conductores regionales CDL-A ganan $0.66 por milla y regresan a casa los fines de semana. Se requiere récord limpio. Aplica ahora.",
+        "headline": "Conductor CDL-A Regional"
       }
     }
   }

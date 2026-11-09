@@ -23,7 +23,7 @@ describe("openingSaveFrom", () => {
       ok: true,
       save: {
         opening_id: null, profile_version_id: PV, title: "Class A regional", headcount: null,
-        facts: { pay: { per: "mile", min_cents: 62, max_cents: null }, home_time: "Home weekly", equipment: ["dry_van"], lanes: null, start_date: null },
+        facts: { pay: { per: "mile", min_cents: 62, max_cents: null }, home_time: "Home weekly", equipment: ["dry_van"], lanes: null, start_date: null, benefits: [], bonus: null, schedule: null, in_our_words: null },
         area: { label: "Joliet, IL", latitude: 41.525, longitude: -88.0817, radius_miles: 50, reason: "Home weekly from the Joliet yard" },
       },
     });
@@ -39,7 +39,7 @@ describe("openingSaveFrom", () => {
     expect(openingSaveFrom(filled({ pay_min: "0.70", pay_max: "0.62" }), null)).toEqual({ ok: false, message: "Pay up to: The top of the pay range is below its bottom." });
   });
   it("a saved opening's newest version comes back as the same save, for its next version", () => {
-    const first = openingSaveFrom(filled({ lanes: "Midwest", start_date: "2026-12-01" }), OPENING);
+    const first = openingSaveFrom(filled({ lanes: "Midwest", start_date: "2026-12-01", schedule: "regional", benefits: ["401k", "no-touch freight"], bonus_kind: "sign-on bonus", bonus_amount: "3000", in_our_words: "Dispatch answers the phone." }), OPENING);
     if (!first.ok) throw new Error(first.message);
     const s = first.save;
     const view: OpeningView = {
@@ -51,6 +51,18 @@ describe("openingSaveFrom", () => {
       },
     };
     expect(openingSaveFrom(openingFormFrom(view), OPENING)).toEqual(first);
+  });
+  it("sends the job's benefits, bonus (in dollars → cents), schedule and the carrier's line (CQ2)", () => {
+    const ask = openingSaveFrom(filled({ schedule: "local", benefits: ["health insurance"], bonus_kind: "referral bonus", bonus_amount: "1500", in_our_words: "Home weekly, as it says above." }), null);
+    expect(ask.ok ? ask.save.facts : ask.message).toMatchObject({ schedule: "local", benefits: ["health insurance"], bonus: { kind: "referral bonus", cents: 150000 }, in_our_words: "Home weekly, as it says above." });
+  });
+  it("names the field when the carrier's line claims a figure the fields do not hold, in the contract's words", () => {
+    const ask = openingSaveFrom(filled({ in_our_words: "A $5,000 sign-on bonus for every hire." }), null);
+    expect(ask).toEqual({ ok: false, message: 'In our words: "$5,000" is a figure the pay and bonus fields do not hold; put it there or leave it out.' });
+  });
+  it("a bonus kind with no amount is refused on the amount, not sent as a bonus of nothing", () => {
+    const ask = openingSaveFrom(filled({ bonus_kind: "sign-on bonus", bonus_amount: "" }), null);
+    expect(ask.ok ? "" : ask.message.split(":")[0]).toBe("Bonus amount");
   });
   it("offers every status but the one an opening is in", () => {
     expect(statusMovesFrom("open")).toEqual(["paused", "filled", "closed"]);

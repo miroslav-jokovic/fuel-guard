@@ -1,0 +1,129 @@
+{
+  "name": "opening-local-dry-van-hourly",
+  "about": "P3 Home on time: Local dry van by the hour, home daily, dedicated account.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A local dry van driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 2800,
+          "per": "hour"
+        },
+        {
+          "kind": "money",
+          "cents": 3200,
+          "per": "hour"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "paid time off"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "local runs",
+          "Chicagoland store deliveries"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P3 Home on time",
+      "hook_formula": "Lead with being home, then the facts that make it true.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our truck pulling into a quiet {street} at dusk, a porch light on, no people, no text, no logos, no lettering",
+      "image_slots": [
+        "street"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "formats": [
+        "4:5",
+        "9:16"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "360 Logistics"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T18:35:38.617Z",
+    "output": {
+      "en": {
+        "hook": "Home daily. Every day.",
+        "cta": "Apply with us",
+        "primary_text": "360 Logistics runs dedicated local routes — Chicagoland store deliveries, dry van freight, and you're back home every night. Pay starts at $28 per hour and goes to $32 per hour. Paid time off included. Class A required, 2 years experience, age 23+.",
+        "headline": "Local dry van, $28–$32/hr"
+      },
+      "es": {
+        "hook": "En casa cada día.",
+        "cta": "Aplica hoy",
+        "primary_text": "360 Logistics tiene rutas locales dedicadas — entregas en tiendas de Chicagoland, carga seca, y llegas a casa cada noche. El pago va de $28 por hora a $32 por hora. Tiempo libre pagado incluido. Se requiere Clase A, 2 años de experiencia, mayores de 23.",
+        "headline": "Local dry van, $28–$32/hr"
+      }
+    }
+  }
+}

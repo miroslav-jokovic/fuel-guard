@@ -25,6 +25,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -58,24 +62,25 @@
         "4:5"
       ],
       "overlay_slots": null
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:20:33.163Z",
+    "recorded_at": "2026-11-09T18:39:18.324Z",
     "output": {
       "en": {
-        "hook": "$0.62/mile for Class A regional drivers.",
-        "body": "Earn $0.62 per mile on a regional route averaging up to 2,500 miles. If you hold a Class A CDL and want consistent regional work, this opportunity is worth a look. Join our team and put your miles to work.",
-        "cta": "Apply with us today."
+        "hook": "$0.62 per mile for Class A regional drivers.",
+        "body": "Run regional routes and earn $0.62 per mile. Expect around 2500 miles per week keeping you moving on a steady regional lane. If you hold a Class A CDL and want consistent miles close to home, this run is built for you.",
+        "cta": "Apply today."
       },
       "es": {
         "hook": "$0.62 por milla para conductores regionales Clase A.",
-        "body": "Gane $0.62 por milla en una ruta regional con un promedio de hasta 2,500 millas. Si tiene una CDL Clase A y busca trabajo regional constante, esta es su oportunidad. Únase a nuestro equipo.",
-        "cta": "Postúlese hoy mismo."
+        "body": "Gana $0.62 por milla en rutas regionales. La ruta ofrece alrededor de 2500 millas por semana en un corredor estable. Si tienes CDL Clase A y buscas millas constantes cerca de casa, esta posición es para ti.",
+        "cta": "Aplica hoy mismo."
       }
     }
   }

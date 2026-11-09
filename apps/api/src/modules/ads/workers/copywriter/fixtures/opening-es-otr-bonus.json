@@ -1,0 +1,136 @@
+{
+  "name": "opening-es-otr-bonus",
+  "about": "P3 Home on time: Spanish-first subject: OTR dry van with a sign-on bonus and 401k.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor Clase A de larga distancia",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 70,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "week"
+        },
+        {
+          "kind": "quantity",
+          "value": 3,
+          "unit": "day"
+        },
+        {
+          "kind": "money",
+          "cents": 250000,
+          "per": null
+        },
+        {
+          "kind": "term",
+          "term": "sign-on bonus"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "over-the-road runs",
+          "Costa a costa",
+          "Out 2 weeks, home 3 days"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P3 Home on time",
+      "hook_formula": "Lead with being home, then the facts that make it true.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our truck pulling into a quiet {street} at dusk, a porch light on, no people, no text, no logos, no lettering",
+      "image_slots": [
+        "street"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": "The truck rolls to a stop as the porch light comes on",
+      "formats": [
+        "4:5",
+        "9:16"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": null
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T18:34:38.695Z",
+    "output": {
+      "en": {
+        "hook": "Out 2 weeks, home 3 days.",
+        "cta": "Apply today.",
+        "primary_text": "Dry van, coast to coast. You run over-the-road and come home on a schedule you can count on. Pay is $0.70 per mile, plus a $2,500 sign-on bonus. CDL-A required, age 23+, 2 years experience. 401k available.",
+        "headline": "$0.70/mi + $2,500 bonus"
+      },
+      "es": {
+        "hook": "2 semanas fuera, 3 días en casa.",
+        "cta": "Aplica hoy.",
+        "primary_text": "Carga seca, costa a costa. Rutas de larga distancia con regreso fijo a casa. Pago de $0.70 por milla más $2,500 de bono de contratación. Se requiere CDL-A, mayores de 23 años y 2 años de experiencia. Plan 401k disponible.",
+        "headline": "$0.70/milla + $2,500 bono"
+      }
+    }
+  }
+}

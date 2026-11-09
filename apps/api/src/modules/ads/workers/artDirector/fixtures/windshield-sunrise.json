@@ -22,7 +22,8 @@
       "motion_template": null,
       "formats": [
         "4:5"
-      ]
+      ],
+      "overlay_slots": null
     },
     "kit": {
       "company_name": "Fixture Carrier",
@@ -74,18 +75,23 @@
       "forbidden_marks": [
         "Other Freight Co"
       ]
-    }
+    },
+    "context": [
+      "dry van freight",
+      "over-the-road runs",
+      "lanes: coast to coast"
+    ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@1",
+    "prompt_version": "artDirector@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T05:15:38.814Z",
+    "recorded_at": "2026-11-09T18:39:49.834Z",
     "output": {
       "slots": {
-        "time_of_day": "early morning with soft golden light on the horizon",
-        "weather": "clear sky with light scattered clouds"
+        "time_of_day": "late afternoon golden hour, long shadows stretching across a straight interstate",
+        "weather": "clear open sky fading from blue to warm amber at the horizon, no clouds"
       },
       "reference_photo": null
     }

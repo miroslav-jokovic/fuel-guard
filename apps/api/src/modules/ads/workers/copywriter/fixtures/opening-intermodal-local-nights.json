@@ -1,0 +1,133 @@
+{
+  "name": "opening-intermodal-local-nights",
+  "about": "P1 Windshield sunrise: Intermodal local, nights, automatic trucks, home daily.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A intermodal driver, nights",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 32000,
+          "per": "day"
+        },
+        {
+          "kind": "money",
+          "cents": 36000,
+          "per": "day"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "term",
+          "term": "automatic transmission"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "intermodal freight",
+          "local runs",
+          "Rail yards to Joliet warehouses"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P1 Windshield sunrise",
+      "hook_formula": "Second person, present tense: put the reader in the driver's seat at dawn, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield at {time_of_day} on an open {road} highway, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day",
+        "road"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": "Slow push-in down the highway as the light rises",
+      "formats": [
+        "9:16",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "360 Logistics"
+  },
+  "expect": "refused",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T18:35:27.407Z",
+    "output": {
+      "en": {
+        "hook": "You're rolling. $320–$360 a day.",
+        "cta": "Apply with 360",
+        "primary_text": "Night intermodal runs, rail yards to Joliet warehouses. You're home every day, paid every week. Automatic transmission, so you can focus on the run. 360 Logistics needs Class A drivers with 2 years of experience, age 23+.",
+        "headline": "Home daily. Up to $360/day."
+      },
+      "es": {
+        "hook": "Al volante. $320–$360 por día.",
+        "cta": "Aplica con 360",
+        "primary_text": "Rutas nocturnas de intermodal, de patios ferroviarios a bodegas en Joliet. Regresas a casa cada día y cobras cada semana. Transmisión automática. 360 Logistics busca conductores Clase A con 2 años de experiencia, mayores de 23 años.",
+        "headline": "A casa diario. Hasta $360/día."
+      }
+    }
+  },
+  "expect_findings": [
+    "unrecognised_number"
+  ]
+}

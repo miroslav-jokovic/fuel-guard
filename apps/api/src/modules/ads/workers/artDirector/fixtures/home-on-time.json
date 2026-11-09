@@ -22,7 +22,8 @@
       "motion_template": null,
       "formats": [
         "4:5"
-      ]
+      ],
+      "overlay_slots": null
     },
     "kit": {
       "company_name": "Fixture Carrier",
@@ -74,18 +75,23 @@
       "forbidden_marks": [
         "Other Freight Co"
       ]
-    }
+    },
+    "context": [
+      "reefer freight",
+      "local runs",
+      "home time: Home daily"
+    ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@1",
+    "prompt_version": "artDirector@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T05:15:22.050Z",
+    "recorded_at": "2026-11-09T18:39:34.029Z",
     "output": {
       "slots": {
-        "time_of_day": "early evening dusk",
-        "light": "soft fading twilight with warm glow from street lamps"
+        "time_of_day": "early evening after sunset",
+        "light": "deep blue dusk sky, streetlamps just flickering on, warm glow from a porch light"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }

@@ -24,6 +24,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -75,30 +79,31 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:19:53.676Z",
+    "recorded_at": "2026-11-09T18:38:45.943Z",
     "output": {
       "en": {
-        "card_get": "Get: $31.00/hour and home daily.",
-        "card_need": "Need: Class A CDL and a readiness to drive local routes.",
+        "card_get": "Get: $31 per hour and home daily.",
+        "card_need": "Need: Class A CDL and a clean driving record.",
         "card_apply": "Apply: Submit your application today.",
         "cta": "Apply now",
-        "primary_text": "Local Class A driving work with $31.00/hour pay and home daily. We need a Class A CDL holder ready to get to work. Apply and join our team.",
-        "headline": "Local Class A Driver Job"
+        "primary_text": "Local Class A driving means you earn $31 per hour and sleep in your own bed every night. No long hauls, no weeks away. If you hold a Class A CDL and want a steady local route, we want to hear from you.",
+        "headline": "Local CDL-A, $31/hr"
       },
       "es": {
-        "card_get": "Obtén: $31.00/hora y regresa a casa cada día.",
-        "card_need": "Necesitamos: CDL clase A y disposición para rutas locales.",
+        "card_get": "Obtienes: $31 por hora y regresas a casa todos los días.",
+        "card_need": "Necesitas: CDL Clase A y récord de manejo limpio.",
         "card_apply": "Aplica: Envía tu solicitud hoy mismo.",
         "cta": "Aplica ya",
-        "primary_text": "Trabajo local de conducción clase A con pago de $31.00/hora y regreso a casa cada día. Buscamos conductores con CDL clase A listos para trabajar. Únete a nuestro equipo.",
-        "headline": "Conductor Clase A Local"
+        "primary_text": "Ruta local con CDL Clase A: ganas $31 por hora y llegas a casa cada noche. Sin viajes largos ni semanas fuera. Si tienes CDL Clase A y quieres una ruta estable, contáctanos.",
+        "headline": "CDL-A local, $31/hora"
       }
     }
   }
