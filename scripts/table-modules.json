@@ -1410,7 +1410,18 @@
         "why": "new in 0553 (2026-11-03); one row per call/text/email a person made to a lead, a few per lead; evidence, removed only by the applicant purge."
       }
     },
-    "lead_match_verdicts": {
+    "recruiting_lead_closures": {
+    "module": "recruiting",
+    "layer": "core",
+    "lifecycle": {
+      "growth": "unmeasured",
+      "retention_days": null,
+      "partition": null,
+      "budget_rows_per_day": null,
+      "why": "new in 0578 (2026-11-09, LQ5a); one row per recruiter act on a lead (close / qualify / reopen), one to three per lead; goes with its lead (cascade), note emptied by purge_lead."
+    }
+  },
+  "lead_match_verdicts": {
       "module": "recruiting",
       "layer": "core",
       "lifecycle": {
