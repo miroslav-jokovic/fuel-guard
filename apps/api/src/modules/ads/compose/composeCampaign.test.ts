@@ -73,13 +73,13 @@ const order = drawPresets("c-1", PRESETS.map((p) => ({ version_id: p.version, ke
 beforeEach(() => { outcomes.clear(); composed.length = 0; });
 
 describe("composeCampaign — the draw and the batch (D-AD11)", () => {
-  it("draws with the campaign id as the seed, stores the draw while none is stored, and composes the first two in its order", async () => {
+  it("draws with the campaign id as the seed, stores the draw while none is stored, and composes every preset in its order when none is left drawing", async () => {
     const rec = world();
     expect(await composeCampaign(deps(rec), campaign)).toEqual({ ok: true });
     const write = rec.forTable("ads_campaigns").find(isWrite)!;
     expect((write.write!.payload as { preset_draw: { seed: string; order: string[] } }).preset_draw).toMatchObject({ seed: "c-1", order });
     expect(write.ops.some((o) => o.method === "is" && o.args[0] === "preset_draw" && o.args[1] === null)).toBe(true);
-    expect(composed.map((c) => c.preset)).toEqual(order.slice(0, BATCH));
+    expect(composed.map((c) => c.preset)).toEqual(order);
     expect(composed.every((c) => c.maxRegenerations === 1)).toBe(true);
     expectOrgScoped(rec, ORG);
   });
@@ -110,7 +110,7 @@ describe("composeCampaign — the draw and the batch (D-AD11)", () => {
     const rec = world();
     expect(await composeCampaign(deps(rec), campaign)).toEqual({ ok: true });
     const inserted = rec.forTable("ads_creatives").filter((q) => q.write?.method === "insert").map((q) => (q.write!.payload as { brand_kit_version_id: string }).brand_kit_version_id);
-    expect(inserted.length).toBe(BATCH);
+    expect(inserted.length).toBe(PRESETS.length);
     expect(new Set(inserted)).toEqual(new Set(["kv-k-1"]));
   });
 
@@ -127,21 +127,21 @@ describe("composeCampaign — a creative per preset in this stint", () => {
     const rec = world();
     await composeCampaign(deps(rec), campaign);
     const rows = rec.writtenRows("ads_creatives");
-    expect(rows.map((r) => r.id)).toEqual(order.slice(0, BATCH).map((p) => stintCreativeId("c-1", p, STINT)));
+    expect(rows.map((r) => r.id)).toEqual(order.map((p) => stintCreativeId("c-1", p, STINT)));
     expect(rows[0]).toMatchObject({ campaign_id: "c-1", state: "generating", brand_kit_version_id: "kv-k-1", supersedes_id: null });
   });
 
   it("an insert another run won (23505) reads that run's row instead of failing", async () => {
     const rec = world({ insertError: { code: "23505", message: "duplicate key" } });
     expect(await composeCampaign(deps(rec), campaign)).toEqual({ ok: true });
-    expect(composed).toHaveLength(BATCH);
+    expect(composed).toHaveLength(PRESETS.length);
   });
 
   it("this stint's own row is moved again whatever its state, never replaced", async () => {
     const mine = { id: stintCreativeId("c-1", order[0]!, STINT), org_id: ORG, campaign_id: "c-1", preset_version_id: order[0], state: "check_failed", regenerations: 1, created_at: "2026-11-04T16:59:59Z", last_error: "visual" };
     const rec = world({ creatives: [mine] });
     await composeCampaign(deps(rec), campaign);
-    expect(rec.writtenRows("ads_creatives").map((r) => r.preset_version_id)).toEqual([order[1]]);
+    expect(rec.writtenRows("ads_creatives").map((r) => r.preset_version_id)).toEqual([order[1], order[2]]);
     expect(composed[0]!.id).toBe(mine.id);
   });
 
@@ -156,7 +156,49 @@ describe("composeCampaign — a creative per preset in this stint", () => {
     const ok = { id: "ready-1", org_id: ORG, campaign_id: "c-1", preset_version_id: order[0], state: "ready", regenerations: 0, created_at: "2026-11-03T10:00:00Z", last_error: null };
     const rec = world({ creatives: [ok] });
     await composeCampaign(deps(rec), campaign);
-    expect(rec.writtenRows("ads_creatives").map((r) => r.preset_version_id)).toEqual([order[1]]);
+    expect(rec.writtenRows("ads_creatives").map((r) => r.preset_version_id)).toEqual([order[1], order[2]]);
+  });
+});
+
+describe("composeCampaign — the window: every preset enters, two at a time (D-AD18, CQ1)", () => {
+  const pending = (why: string): ComposeOutcome => ({ kind: "pending", why });
+
+  it("a third preset enters once one of the first two has finished, and waits while both are still drawing", async () => {
+    // Both of the first two drawing: the third waits for the window.
+    outcomes.set(order[0]!, pending("render 1: queued"));
+    outcomes.set(order[1]!, pending("render 1: queued"));
+    const out = await composeCampaign(deps(world()), campaign);
+    expect(out).toMatchObject({ ok: false, pending: true, why: expect.stringContaining("1 preset(s) waiting for the window") });
+    expect(composed.map((c) => c.preset)).toEqual(order.slice(0, BATCH));
+
+    // One finished: the third enters in the same run as the other keeps drawing.
+    composed.length = 0;
+    outcomes.set(order[0]!, { kind: "ready" });
+    const again = await composeCampaign(deps(world()), campaign);
+    expect(again).toMatchObject({ ok: false, pending: true });
+    expect((again as { why: string }).why).not.toContain("waiting for the window");
+    expect(composed.map((c) => c.preset)).toEqual(order);
+  });
+
+  it("started presets are moved before any new one enters, so a run never redoes or skips one", async () => {
+    const mine = { id: stintCreativeId("c-1", order[2]!, STINT), org_id: ORG, campaign_id: "c-1", preset_version_id: order[2], state: "checking", regenerations: 0, created_at: "2026-11-04T17:30:00Z", last_error: null };
+    outcomes.set(order[2]!, pending("visual 4:5 1 in flight"));
+    const rec = world({ creatives: [mine] });
+    await composeCampaign(deps(rec), campaign);
+    expect(composed.map((c) => c.preset)).toEqual([order[2], order[0], order[1]]);
+    expect(rec.writtenRows("ads_creatives").map((r) => r.preset_version_id)).toEqual([order[0], order[1]]);
+  });
+
+  it("one slow render does not idle the rest: a pending creative keeps the others moving in the same run", async () => {
+    outcomes.set(order[0]!, pending("render 2: queued"));
+    const out = await composeCampaign(deps(world()), campaign);
+    expect(out).toMatchObject({ ok: false, pending: true, why: expect.stringContaining("render 2: queued") });
+    expect(composed.map((c) => c.preset)).toEqual(order);
+  });
+
+  it("the verdict waits for the last preset: two ready and one drawing is still composing", async () => {
+    outcomes.set(order[2]!, pending("render 1: queued"));
+    expect(await composeCampaign(deps(world()), campaign)).toMatchObject({ ok: false, pending: true });
   });
 });
 
@@ -174,6 +216,7 @@ describe("composeCampaign — the campaign's verdict", () => {
   it("none ready fails the compose with every creative's reason", async () => {
     outcomes.set(order[0]!, { kind: "check_failed", reason: "render: price_unknown" });
     outcomes.set(order[1]!, { kind: "check_failed", reason: "render: no still model chosen yet (V4)" });
-    expect(await composeCampaign(deps(world()), campaign)).toEqual({ ok: false, error: "no creative passed its checks: render: price_unknown | render: no still model chosen yet (V4)" });
+    outcomes.set(order[2]!, { kind: "check_failed", reason: "copy check: too_long (es hook)" });
+    expect(await composeCampaign(deps(world()), campaign)).toEqual({ ok: false, error: "no creative passed its checks: render: price_unknown | render: no still model chosen yet (V4) | copy check: too_long (es hook)" });
   });
 });

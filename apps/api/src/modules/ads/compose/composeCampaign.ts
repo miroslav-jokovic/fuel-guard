@@ -14,16 +14,25 @@ import { composeCreative, type ComposeDeps, type CreativeRow } from "./composeCr
  *   1. THE DRAW (D-AD11). The first run draws the presets — seed = the campaign id, every enabled preset
  *      eligible except those a campaign for the same brief runs now — and stores the whole draw in
  *      `ads_campaigns.preset_draw` (written only while it is null, so a re-run keeps the first draw).
- *   2. THE BATCH. The first `BATCH` presets of the draw (plan v4: "new creatives enter two at a time").
+ *   2. THE WINDOW (D-AD18, CQ1). EVERY preset of the draw gets a creative, at most `BATCH` of them under way
+ *      at once (plan v4: "new creatives enter two at a time"). A preset already started is moved first;
+ *      then, while fewer than `BATCH` are still drawing, the next unstarted presets of the draw enter. The
+ *      campaign stays `composing` until every drawn preset has finished, then review sees the whole set.
+ *      Until 2026-11-09 the batch was asked with an empty "started" list, so only the first two presets of
+ *      the draw were ever composed and a campaign could never hold more than two concepts
+ *      (ADS-CREATIVE-QUALITY-PLAN G-CQ1); the test "a third preset enters once one of the first two has
+ *      finished, and waits while both are still drawing" pins the window.
  *   3. A CREATIVE PER PRESET IN THIS STINT. A preset's creative is its newest row. A new row's id is
  *      derived from campaign + preset + stint (`state_changed_at`), so two runs racing to insert it make
  *      one row (23505 = the other run won), and "made in this stint" is a fact about the id, not a
  *      comparison of the database's clock with ours. A newest row that ended badly (`check_failed`,
  *      `rejected`) in an EARLIER stint — a person pressed Resume or Regenerate — is superseded by this
  *      stint's row (`supersedes_id`); anything else is kept, so a re-run never redoes finished work.
- *   4. EACH CREATIVE MOVED (`composeCreative`). Any still under way → `pending`, the campaign stays.
- *   5. THE VERDICT. At least one `ready` → `creatives_ready` (review shows every creative, failed ones with
- *      their reasons). None → `compose_failed`, the reasons joined, for a person to read.
+ *   4. EACH CREATIVE MOVED (`composeCreative`). Any still under way → `pending`, the campaign stays; the
+ *      others in the window keep moving in the same run, so one slow render never idles the rest.
+ *   5. THE VERDICT, once nothing is under way and nothing is left to enter. At least one `ready` →
+ *      `creatives_ready` (review shows every creative, failed ones with their reasons). None →
+ *      `compose_failed`, the reasons joined, for a person to read.
  *
  * Stops before any creative, as `compose_failed` with the reason: the campaign names no brand kit, or one that
  * is archived or has no saved version (Q-AD28: the kit is the campaign's `brand_kit_id`, chosen at creation —
@@ -68,17 +77,39 @@ export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow)
 
   const { settings } = await settingsInForce(admin, c.org_id);
   const rows = await creatives(admin, c);
-  const reasons: string[] = [];
-  let ready = 0;
-  for (const presetId of nextPresetBatch(draw, [], BATCH)) {
+  const tally = { ready: 0, reasons: [] as string[], pending: [] as string[], moved: new Set<string>() };
+  const move = async (presetId: string) => {
+    tally.moved.add(presetId);
     const creative = await creativeForStint(admin, c, presetId, kit.id, rows);
     const out = await composeCreative(deps, { creative, brief: brief.data, recipe: recipes.get(presetId)!, kit: kit.body, maxRegenerations: settings.budgets.max_regenerations });
-    if (out.kind === "pending") return { ok: false, pending: true, why: `creative ${creative.id}: ${out.why}` };
+    if (out.kind === "pending") { tally.pending.push(`creative ${creative.id}: ${out.why}`); return; }
     const state = out.kind === "done" ? out.state : out.kind === "ready" ? "ready" : "check_failed";
-    if (state === "ready" || state === "approved") ready += 1;
-    else reasons.push(out.kind === "check_failed" ? out.reason : creative.last_error ?? state);
+    if (state === "ready" || state === "approved") tally.ready += 1;
+    else tally.reasons.push(out.kind === "check_failed" ? out.reason : creative.last_error ?? state);
+  };
+  // Started presets first: whatever is under way is moved before anything new enters.
+  const started = draw.order.filter((presetId) => isStarted(c, presetId, rows));
+  for (const presetId of started) await move(presetId);
+  // Then the window: while fewer than BATCH are drawing, the next unstarted preset of the draw enters — one at a
+  // time, so a creative that finishes at once (copy refused, everything replayed) frees its place in this run.
+  for (;;) {
+    const [next] = nextPresetBatch(draw, [...started, ...tally.moved], 1);
+    if (!next || tally.pending.length >= BATCH) break;
+    await move(next);
   }
-  return ready > 0 ? { ok: true } : { ok: false, error: `no creative passed its checks: ${reasons.join(" | ")}`.slice(0, 2000) };
+  // Nothing waits unless the window is full, so "still drawing" is the whole pending question; the count of
+  // presets not yet entered is said for the person reading the campaign's state.
+  if (tally.pending.length > 0) {
+    const waiting = draw.order.length - tally.moved.size;
+    return { ok: false, pending: true, why: [...tally.pending, ...(waiting > 0 ? [`${waiting} preset(s) waiting for the window`] : [])].join(" | ") };
+  }
+  return tally.ready > 0 ? { ok: true } : { ok: false, error: `no creative passed its checks: ${tally.reasons.join(" | ")}`.slice(0, 2000) };
+}
+
+/** Whether this preset has a creative this stint works on: its own row, or an earlier row that did not end badly. */
+function isStarted(c: CampaignRow, presetId: string, rows: CreativeRead[]): boolean {
+  const newest = rows.filter((r) => r.preset_version_id === presetId).at(-1);
+  return !!newest && (newest.id === stintCreativeId(c.id, presetId, c.state_changed_at) || !REDO.includes(newest.state));
 }
 
 /** The preset keys a campaign for the same brief runs now (launching, live) — excluded from the draw. */
