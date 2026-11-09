@@ -105,6 +105,30 @@ describe("the lead queue", () => {
     expect(text).not.toContain("deleted");
   });
 
+  it("a lead whose own answer fails a hard requirement sits in a collapsed lane under the list, still linked (LQ6)", async () => {
+    api.answer = () => ok({ leads: [
+      { ...ROW, id: "l-ok", full_name: "Ana Lopez", summary: { hardUnmet: 0, unknown: 3, met: 1 } },
+      { ...ROW, id: "l-no", full_name: "Ray Driver", summary: { hardUnmet: 1, unknown: 4, met: 0 } },
+    ], next: null });
+    const { w } = await render("/recruitment/leads");
+    const lane = w.find('[data-test="disqualified-lane"]');
+    expect(lane.exists()).toBe(true);
+    expect(lane.text()).toContain("Does not qualify by their own answer");
+    expect(lane.text()).toContain("(1 on this page)");
+    expect(lane.text()).toContain("Ray Driver");
+    const main = w.text().slice(0, w.text().indexOf("Does not qualify by their own answer"));
+    expect(main).toContain("Ana Lopez");
+    expect(main).not.toContain("Ray Driver");
+    expect(lane.find("a").attributes("href")).toContain("lead=l-no");
+  });
+
+  it("on the Closed view nothing is split: a close for a requirement is the point", async () => {
+    api.answer = () => ok({ leads: [{ ...ROW, id: "l-no", status: "not_qualified", summary: { hardUnmet: 1, unknown: 4, met: 0 } }], next: null });
+    const { w } = await render("/recruitment/leads?show=closed");
+    expect(w.find('[data-test="disqualified-lane"]').exists()).toBe(false);
+    expect(w.text()).toContain("Ray Driver");
+  });
+
   it("asks the api for the status the URL names", async () => {
     await render("/recruitment/leads?show=lost");
     expect(api.calls[0]).toBe("/api/recruitment/leads?limit=50&status=lost");

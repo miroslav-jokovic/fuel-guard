@@ -187,7 +187,7 @@ describe("the LeadSink — how the ads module hands recruiting a lead", () => {
   it("stores the projection once and writes leadMatch's verdicts against the opening's profile", async () => {
     seed();
     const r = await recruitingLeadSink(rec.client as never, CONFIGURED, () => new Date("2026-11-03T15:00:00Z")).accept(ORG, LEAD_IN);
-    expect(r).toEqual({ stored: "new", ref: LEAD });
+    expect(r).toEqual({ stored: "new", ref: LEAD, contactable: true });
     const args = rec.rpcs().find((c) => c.fn === "ingest_lead")!.args as { p_org: string; p_lead: Record<string, unknown> };
     expect([args.p_org, args.p_lead.phone_e164, args.p_lead.opening_id, args.p_lead.external_ref]).toEqual([ORG, "+17082365732", OPENING, "leadgen-1"]);
     const rows = rec.writtenRows("lead_match_verdicts") as Array<Record<string, unknown>>;

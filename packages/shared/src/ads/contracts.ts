@@ -158,6 +158,11 @@ export interface LeadStageEvent {
 }
 
 export interface LeadSink {
-  /** Idempotent by (provider, platform_lead_ref): the same lead twice is stored once. */
-  accept(orgId: string, lead: PlatformLead): Promise<{ stored: "new" | "duplicate"; ref: string }>;
+  /**
+   * Idempotent by (provider, platform_lead_ref): the same lead twice is stored once. `contactable` (LQ6, audit
+   * F-LA6) says whether the stored lead has a phone or an e-mail a person could use; a form whose phone is
+   * SMS-verified should never yield one that has not, so the intake counts the ones that do and rings once a day
+   * when the count is not 0 — a renamed Meta field or a form edited by hand in Ads Manager shows up there.
+   */
+  accept(orgId: string, lead: PlatformLead): Promise<{ stored: "new" | "duplicate"; ref: string; contactable?: boolean }>;
 }

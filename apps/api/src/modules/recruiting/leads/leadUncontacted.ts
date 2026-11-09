@@ -6,6 +6,7 @@ import { dispatchJob } from "../../../queue/dispatch.js";
 import { keysAlreadySent } from "../../messaging/index.js";
 import { suppressedPhones } from "../smsSuppressions.js";
 import { leadAlertKey, ringLead, type ConfiguredRecipients } from "./leadNotify.js";
+import { readLeadVerdicts } from "./verdicts.js";
 
 /**
  * `lead_uncontacted` (workflow D2c): a platform lead still `new`, with no contact on record, past
@@ -22,6 +23,9 @@ import { leadAlertKey, ringLead, type ConfiguredRecipients } from "./leadNotify.
  *     failed move leaves a lead `new` that somebody did call. The row is the evidence, not the status.
  *   · A number held from contact (`doNotContact.ts`): this alarm tells a person to call, and that person
  *     asked not to be called.
+ *   · A lead whose own answer fails a hard requirement (LQ6, Q-AD63 (a)): the same reading the queue sorts by
+ *     and the quality alert counts; it was never rung as `lead_new` either (`leadSink.ts`). Counted, so the
+ *     brief can say how many the form turned away.
  *
  * The clock is `received_at`, when WE stored the lead: a lead the backfill brought in hours late gets its full
  * window, because nobody could have called it before it arrived. No age ceiling: the first sweep after
@@ -31,7 +35,7 @@ import { leadAlertKey, ringLead, type ConfiguredRecipients } from "./leadNotify.
 const PAGE = 100;
 const SKIPPED_CHANNELS: readonly string[] = MANUAL_LEAD_CHANNELS;
 
-export interface UncontactedSweep { overdue: number; rung: number; contacted: number; held: number }
+export interface UncontactedSweep { overdue: number; rung: number; contacted: number; held: number; disqualified_by_answer: number }
 
 export async function sweepUncontactedLeads(
   admin: SupabaseClient,
@@ -40,7 +44,7 @@ export async function sweepUncontactedLeads(
   deps: { minutes: number; configured: ConfiguredRecipients },
 ): Promise<UncontactedSweep> {
   const cutoff = new Date(now.getTime() - deps.minutes * 60_000).toISOString();
-  const result: UncontactedSweep = { overdue: 0, rung: 0, contacted: 0, held: 0 };
+  const result: UncontactedSweep = { overdue: 0, rung: 0, contacted: 0, held: 0, disqualified_by_answer: 0 };
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await admin
       .from("recruiting_leads")
@@ -73,9 +77,11 @@ async function sweepPage(
   const contacted = new Set(((data ?? []) as Array<{ lead_id: string }>).map((c) => c.lead_id));
   const held = await suppressedPhones(admin, orgId, leads.map((l) => l.phone_e164 ?? ""));
   const sent = await keysAlreadySent(admin, orgId, leads.map((l) => leadAlertKey("lead_uncontacted", l.id)));
+  const verdicts = await readLeadVerdicts(admin, orgId, leads.map((l) => l.id));
   for (const lead of leads) {
     if (contacted.has(lead.id)) result.contacted += 1;
     else if (lead.phone_e164 !== null && held.has(lead.phone_e164)) result.held += 1;
+    else if ((verdicts.get(lead.id)?.summary.hardUnmet ?? 0) > 0) result.disqualified_by_answer += 1;
     else if (!sent.has(leadAlertKey("lead_uncontacted", lead.id))) {
       await ringLead(admin, orgId, lead.id, {
         category: "lead_uncontacted", title: "Ad lead still waiting", severity: "warning",

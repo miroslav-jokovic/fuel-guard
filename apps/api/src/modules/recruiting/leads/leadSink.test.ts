@@ -90,3 +90,72 @@ describe("text aimed at a reader, in a form answer", () => {
     expect(road.filter((f) => rail.test(readFileSync(f, "utf8")))).toEqual([]);
   });
 });
+
+describe("who the bell rings for (LQ6, Q-AD63 (a))", () => {
+  /** A seed whose verdicts table remembers what the sink writes, so the ring reads the verdicts it just stored. */
+  function seedRemembering(): SupabaseRecorder {
+    const written: Array<Record<string, unknown>> = [];
+    return createSupabaseRecorder({
+      tables: {
+        recruiting_leads: [],
+        recruiting_openings: postgrestFixture([{ org_id: ORG, id: OPENING, recruiter_id: null }]),
+        recruiting_opening_versions: postgrestFixture([{ org_id: ORG, opening_id: OPENING, version: 2, profile_version_id: PV }]),
+        hiring_profile_versions: postgrestFixture([{ org_id: ORG, id: PV, requirements: HIRING_PROFILE_V1 }]),
+        lead_match_verdicts: (q: RecordedQuery) => {
+          if (q.write?.method === "insert") {
+            written.push(...(q.write.payload as Array<Record<string, unknown>>).map((r, i) => ({ ...r, computed_at: `2026-11-04T15:00:0${i}Z` })));
+            return { data: q.write.payload };
+          }
+          return postgrestFixture(written)(q);
+        },
+        memberships: [],
+        driver_app_features: [],
+      },
+      rpc: (fn) => (fn === "ingest_lead" ? { lead_id: LEAD, stored: "new", matches: { leads: [], drivers: [] } } : "note-1"),
+    });
+  }
+  const rung = (rec: SupabaseRecorder) => rec.rpcs().filter((c) => c.fn === "emit_notification").length;
+
+  it("a lead who answered No to Class A — a hard requirement — is stored and judged, and rings nobody", async () => {
+    const rec = seedRemembering();
+    const r = await accept(rec, metaLead({ full_name: "Ray Driver", phone_number: "7082365732", class_a_held: "no" }));
+    expect(r.stored).toBe("new");
+    expect((rec.writtenRows("lead_match_verdicts") as Array<{ requirement: string; verdict: string }>).find((v) => v.requirement === "class_a")?.verdict).toBe("does_not_meet");
+    expect(rung(rec)).toBe(0);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("a lead whose answers leave every requirement unknown still rings (D-LS3: unknown is not a fail)", async () => {
+    const rec = seedRemembering();
+    await accept(rec, metaLead({ full_name: "Ana Lopez", phone_number: "7082365799", class_a_held: "yes" }));
+    expect(rung(rec)).toBe(1);
+  });
+
+  it("when the verdicts cannot be read back, the bell rings anyway: a missed bell costs more than a false one", async () => {
+    // The verdicts table takes the sink's insert and fails every read with a `.in()` — the shape only
+    // `readLeadVerdicts` uses; `recordLeadVerdicts`' existence check reads by `.limit()` and keeps working.
+    const rec = createSupabaseRecorder({
+      tables: {
+        recruiting_leads: [],
+        recruiting_openings: postgrestFixture([{ org_id: ORG, id: OPENING, recruiter_id: null }]),
+        recruiting_opening_versions: postgrestFixture([{ org_id: ORG, opening_id: OPENING, version: 2, profile_version_id: PV }]),
+        hiring_profile_versions: postgrestFixture([{ org_id: ORG, id: PV, requirements: HIRING_PROFILE_V1 }]),
+        lead_match_verdicts: (q: RecordedQuery) => {
+          if (q.write?.method === "insert") return { data: q.write.payload };
+          return q.ops.some((o) => o.method === "in") ? { data: null, error: { message: "down" } } : [];
+        },
+        memberships: [],
+        driver_app_features: [],
+      },
+      rpc: (fn) => (fn === "ingest_lead" ? { lead_id: LEAD, stored: "new", matches: { leads: [], drivers: [] } } : "note-1"),
+    });
+    await accept(rec, metaLead({ full_name: "Ray Driver", phone_number: "7082365732", class_a_held: "no" }));
+    expect(rung(rec)).toBe(1);
+  });
+
+  it("a lead missing only a preference (hazmat preferred, answered No) still rings", async () => {
+    const rec = seedRemembering();
+    await accept(rec, metaLead({ full_name: "Sam Hall", phone_number: "7082365700", class_a_held: "yes", hazmat_endorsement: "no" }));
+    expect(rung(rec)).toBe(1);
+  });
+});
