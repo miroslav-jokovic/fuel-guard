@@ -19,6 +19,21 @@ const reason = z.string().trim().min(5).max(500);
 export const HAZMAT_MODES = ["required", "preferred", "off"] as const;
 export type HazmatMode = (typeof HAZMAT_MODES)[number];
 
+/**
+ * Home time (LQ7, audit F-LA4): the carrier's Indeed screener asks "willing to stay on the road for 3 weeks?"
+ * (Joanna, 2026-11-06) — a requirement the carrier already applies that Profile v1 did not name, because the
+ * owner was asked about qualifications, not the job. Same three modes as hazmat. DEFAULT `off`: every stored
+ * version and `HIRING_PROFILE_V1` parse unchanged, and no verdict row is written until a carrier sets it.
+ */
+export const HOME_TIME_MODES = HAZMAT_MODES;
+export const homeTimeSchema = z.object({
+  mode: z.enum(HOME_TIME_MODES),
+  /** Consecutive days out the job asks for; the Indeed screener's "3 weeks" is 21. */
+  min_days_out: z.number().int().min(1).max(60),
+  reason,
+});
+export const HOME_TIME_OFF = { mode: "off", min_days_out: 21, reason: "Home time is not a requirement of this profile." } as const;
+
 export const hiringRequirementsSchema = z.object({
   /** Carrier policy; the federal interstate floor is 21 (§391.11(b)(1)), so nothing below it is offered. */
   min_age: z.object({ years: z.number().int().min(21).max(99), reason }),
@@ -27,10 +42,12 @@ export const hiringRequirementsSchema = z.object({
   /** Verifiable Class A experience. Self-reported years never MEET it (Q-RA7b); see `leadMatch`. */
   min_class_a_years: z.object({ years: z.number().int().min(0).max(40), reason }),
   hazmat: z.object({ mode: z.enum(HAZMAT_MODES), reason }),
+  home_time: homeTimeSchema.default(HOME_TIME_OFF),
   /**
    * The four hard disqualifiers (Q-RA7d). Each is judged on a document or a verified record — MVR, PSP,
-   * Clearinghouse, an employer's D&A answer — so for a lead every one is `unknown` by design: Meta's
-   * Instant Form may not ask them (ADS-AGENT-PLAN §1, "Meta employment rules").
+   * Clearinghouse, an employer's D&A answer. A Meta lead has every one `unknown` by design (its Instant Form
+   * may not ask them — ADS-AGENT-PLAN §1); a Tenstreet application carries the applicant's own yes/no answers
+   * to them (`facts/tenstreet.ts`, LQ7), judged at `self_reported` like any other form answer.
    */
   disqualifiers: z.object({
     /** DUI/DWI in a CMV ever, and in any vehicle within this many years. */
@@ -80,6 +97,7 @@ export const HIRING_PROFILE_V1: HiringRequirements = {
     reason: "Two years of Class A experience an employer or the MVR can confirm (Q-RA7b).",
   },
   hazmat: { mode: "preferred", reason: "Hazmat (H) is preferred, not required (Q-RA7c)." },
+  home_time: HOME_TIME_OFF,
   disqualifiers: {
     dui_any_vehicle_years: 5,
     preventable_accident_years: 3,

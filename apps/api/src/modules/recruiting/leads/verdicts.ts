@@ -1,17 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   hiringRequirementsSchema,
-  leadFactsFromAnswers,
   leadMatch,
   summariseLeadMatch,
+  type LeadFacts,
   type LeadMatchSummary,
   type LeadMatchVerdict,
 } from "@silvicom/shared";
 
 /**
  * `leadMatch` verdicts for one lead, written as `lead_match_verdicts` rows (0553; D-RA3, D-LS4). The rules
- * are the shared pure function; this file only finds the profile version to judge against and stores the
- * answer.
+ * are the shared pure function and the FACTS come from the channel's reader (`factsFor`, LQ7) — this file only
+ * finds the profile version to judge against and stores the answer.
  *
  * ── WHICH PROFILE ────────────────────────────────────────────────────────────────────────────────
  * The one the lead's OPENING pins (its newest version's `profile_version_id`). A lead with no opening — a
@@ -28,7 +28,7 @@ export async function recordLeadVerdicts(
   orgId: string,
   leadId: string,
   openingId: string | null,
-  answers: Record<string, string>,
+  facts: LeadFacts,
   asOf: string,
 ): Promise<number> {
   if (!openingId) return 0;
@@ -56,7 +56,7 @@ export async function recordLeadVerdicts(
   // writing verdicts against requirements we cannot read.
   if (!parsed.success) throw new Error(`Hiring profile version ${profileVersionId} does not match the contract`);
 
-  const rows = leadMatch(parsed.data, leadFactsFromAnswers(answers), asOf).map((v) => ({
+  const rows = leadMatch(parsed.data, facts, asOf).map((v) => ({
     org_id: orgId,
     lead_id: leadId,
     profile_version_id: profileVersionId,

@@ -26,7 +26,7 @@ export const LEAD_CONTACT_OUTCOME_LABELS: Record<(typeof LEAD_CONTACT_OUTCOMES)[
 
 export const LEAD_REQUIREMENT_LABELS: Record<LeadRequirement, string> = {
   age: "Minimum age", class_a: "Class A CDL", class_a_experience: "Class A experience", hazmat: "Hazmat endorsement",
-  dui: "DUI history", preventable_accident: "Preventable accidents", clearinghouse: "Clearinghouse", drug_alcohol: "Drug and alcohol history",
+  home_time: "Time on the road", dui: "DUI history", preventable_accident: "Preventable accidents", clearinghouse: "Clearinghouse", drug_alcohol: "Drug and alcohol history",
 };
 export const LEAD_VERDICT_LABELS: Record<Verdict, string> = { meets: "Meets", does_not_meet: "Does not meet", unknown: "Not known yet" };
 export const LEAD_EVIDENCE_LABELS: Record<EvidenceLevel, string> = { self_reported: "Their own answer", document: "From a document", verified: "Verified" };
@@ -60,13 +60,28 @@ export function leadVerdictWhy(v: LeadMatchVerdict): string {
       const said = `They said ${rangeText(stated)}. The requirement is ${min}`;
       return d.needs === "verification" ? `${said}, and it counts once an employer or the MVR confirms it.` : `${said}.`;
     }
-    case "dui":
-      return `Ask on the call. None in any vehicle for ${years(Number(d.any_vehicle_years))}, and never in a commercial vehicle.`;
-    case "preventable_accident":
-      return `Ask on the call. None in the last ${years(Number(d.years))}.`;
+    case "home_time": {
+      const days = Number(d.min_days_out);
+      if (v.verdict === "unknown") return `They haven't said, so ask on the call. The job asks for ${days} days out at a time.`;
+      return v.verdict === "meets" ? `They said they will do ${d.stated} days out; the job asks for ${days}.` : `They said ${d.stated} days out at most; the job asks for ${days}.`;
+    }
+    case "dui": {
+      const rule = `None in any vehicle for ${years(Number(d.any_vehicle_years))}, and never in a commercial vehicle.`;
+      if (v.verdict === "unknown") return d.stated === "undated" ? `They reported one without a date, so ask on the call. ${rule}` : `Ask on the call. ${rule}`;
+      if (v.verdict === "meets") return `They said none. ${rule}`;
+      return d.cmv === true ? `They reported one in a commercial vehicle. ${rule}` : `They reported one ${years(Number(d.years_ago))} ago. ${rule}`;
+    }
+    case "preventable_accident": {
+      const rule = `None in the last ${years(Number(d.years))}.`;
+      if (v.verdict === "unknown") return d.stated === "undated" ? `They reported one without a date, so ask on the call. ${rule}` : `Ask on the call. ${rule}`;
+      return v.verdict === "meets" ? `They said none. ${rule}` : `They reported one ${years(Number(d.years_ago))} ago. ${rule}`;
+    }
     case "clearinghouse":
+      if (v.verdict === "unknown") return NOT_ON_A_FORM;
+      return v.verdict === "meets" ? "They said they are not prohibited." : "They reported a prohibited status.";
     case "drug_alcohol":
-      return NOT_ON_A_FORM;
+      if (v.verdict === "unknown") return NOT_ON_A_FORM;
+      return v.verdict === "meets" ? "They said no positive or refused test." : "They reported a positive or refused test without return-to-duty.";
   }
 }
 

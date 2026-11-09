@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { leadFromPlatform, type LeadProjection, type LeadSink } from "@silvicom/shared";
+import { factsFor, leadFromPlatform, type LeadProjection, type LeadSink } from "@silvicom/shared";
 import { readLeadVerdicts, recordLeadVerdicts } from "./verdicts.js";
 import { ringNewLead, type ConfiguredRecipients } from "./leadNotify.js";
 import { assignFromOpening } from "./leadAssignment.js";
@@ -48,7 +48,8 @@ export async function ingestLead(
   const result = data as IngestResult;
   // Also on a duplicate: a retry after a crash between the store and the verdicts heals them, and a retry
   // after both is a no-op (`recordLeadVerdicts`).
-  await recordLeadVerdicts(admin, orgId, result.lead_id, projection.opening_id, projection.answers, isoDate(now));
+  const asOf = isoDate(now);
+  await recordLeadVerdicts(admin, orgId, result.lead_id, projection.opening_id, factsFor(projection.channel, projection.answers, asOf), asOf);
   return result;
 }
 
