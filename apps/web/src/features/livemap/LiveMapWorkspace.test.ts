@@ -109,6 +109,19 @@ vi.mock("@/composables/useDrivenPath", async () => {
   };
 });
 
+/** D-LM31: the truck-place query, faked the same way — it records the truck and answers what a test sets. */
+const placeAsked = vi.hoisted(() => ({ vehicle: null as { value: unknown } | null, place: null as { value: unknown } | null }));
+vi.mock("@/composables/useVehiclePlace", async () => {
+  const { ref } = await import("vue");
+  return {
+    useVehiclePlace: (vehicle: { value: unknown }) => {
+      placeAsked.vehicle = vehicle;
+      placeAsked.place = ref(null);
+      return placeAsked.place;
+    },
+  };
+});
+
 const stub = { template: "<div />" };
 
 /**
@@ -390,6 +403,21 @@ describe("LiveMapWorkspace (DR5)", () => {
     await wrapper.findComponent({ name: "LiveMapCanvas" }).vm.$emit("select", "veh-1");
     await wrapper.vm.$nextTick();
     expect(wrapper.find('[aria-label="Unit 47"]').exists()).toBe(true);
+  });
+
+  /**
+   * D-LM31: the workspace asks about the SELECTED truck and hands the answer to its card — the
+   * composable never sees the fleet, so opening the map costs no lookup at all.
+   */
+  it("asks which truck place the selected truck is at, and the card names it", async () => {
+    const wrapper = await mountWorkspace();
+    expect(placeAsked.vehicle?.value).toBeNull();
+    await wrapper.findComponent({ name: "LiveMapCanvas" }).vm.$emit("select", "veh-1");
+    await wrapper.vm.$nextTick();
+    expect((placeAsked.vehicle?.value as { vehicleId: string }).vehicleId).toBe("veh-1");
+    placeAsked.place!.value = { name: "Pilot", kind: "truck_stop", distanceMeters: 72 };
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[aria-label="Unit 47"]').text()).toContain("Pilot · Truck stop");
   });
   /**
    * D-TC7: the route toggle. One route at a time, asked for only when turned on, and cleared whenever

@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { loadBoardState, type LiveMapBoard, type LiveMapDrivenPath, type LiveMapLoadRoute, type LiveMapStop, type LiveMapVehicle, type LoadStatus } from "@silvicom/shared";
+import {
+  loadBoardState,
+  TRUCK_PLACE_LABEL,
+  type LiveMapBoard,
+  type LiveMapDrivenPath,
+  type LiveMapLoadRoute,
+  type LiveMapStop,
+  type LiveMapTruckPlace,
+  type LiveMapVehicle,
+  type LoadStatus,
+} from "@silvicom/shared";
 import { BADGE_BASE, toneClass, vehicleStateTone } from "@/lib/badges";
 import { STATE_LABEL } from "./liveMapLayer";
 import { engineWords, formatAge, fuelMetric, routeWords, stopAddress } from "./liveMapWords";
@@ -55,6 +65,12 @@ const props = defineProps<{
    * card has no route button — the rail's reading of the facts does not draw on a map.
    */
   route?: { shown: boolean; pending: boolean; error: string | null; data: LiveMapLoadRoute | null; driven?: LiveMapDrivenPath | null };
+  /**
+   * The truck stop, rest area or shop this truck is at (D-LM31), looked up by the workspace for a
+   * stopped or parked truck. Null or omitted, the card has no "At" row — never an em dash: "not at a
+   * truck place" and "not looked up" are both nothing to say.
+   */
+  place?: LiveMapTruckPlace | null;
 }>();
 
 const emit = defineEmits<{ toggleRoute: [] }>();
@@ -112,7 +128,13 @@ const truckFacts = computed<Fact[]>(() => [
   { label: "Fuel", value: fuel.value?.text ?? null, tone: fuel.value?.stale ? "text-ink-secondary" : undefined },
   { label: "Heading", value: heading.value },
   { label: "Engine", value: engineWords(props.vehicle.engineState) ?? null },
-  // The vendor's own reverse-geocoded place name, verbatim. No second geocoder is in the path.
+  /**
+   * D-LM31, the owner's "I don't know if that is a truck stop or what it is": HERE's name for the
+   * place and what kind it is, beside the street address it explains. Only when the API named one
+   * (`pickTruckPlace` — a measured rule, never the nearest anything).
+   */
+  ...(props.place ? [{ label: "At", value: `${props.place.name} · ${TRUCK_PLACE_LABEL[props.place.kind]}` }] : []),
+  // Samsara's own reverse-geocoded street address, verbatim — the "At" row above names the business.
   { label: "Location", value: props.vehicle.position.formattedLocation ?? null },
 ]);
 
