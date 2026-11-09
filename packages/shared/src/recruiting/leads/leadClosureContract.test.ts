@@ -34,7 +34,9 @@ describe("leadClosureContract (LQ5a)", () => {
 
   it("recognises only the list", () => {
     expect(LEAD_CLOSE_REASONS.every(isLeadCloseReason)).toBe(true);
-    expect(isLeadCloseReason("not_qualified:home_time")).toBe(false);
+    // `home_time` joined LEAD_REQUIREMENTS in LQ7, so its reason exists by derivation; a requirement that does not is refused.
+    expect(isLeadCloseReason("not_qualified:home_time")).toBe(true);
+    expect(isLeadCloseReason("not_qualified:height")).toBe(false);
     expect(isLeadCloseReason("ghosted")).toBe(false);
     expect(isLeadCloseReason(null)).toBe(false);
   });

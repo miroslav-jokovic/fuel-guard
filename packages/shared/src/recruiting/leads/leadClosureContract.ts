@@ -22,10 +22,9 @@ import type { LeadStatus } from "./leadContract.js";
  * at least `UNREACHABLE_MIN_ATTEMPTS` outbound `no_answer`/`voicemail` rows; `duplicate` needs another lead
  * of the same person (phone or e-mail, `recruiting_lead_matches`). `out_of_area` and `spam` need nothing.
  *
- * `home_time` is NOT a reason yet: it becomes a requirement in LQ7 (`HiringRequirements.home_time`), and the
- * reason list follows `LEAD_REQUIREMENTS` by derivation — when LQ7 adds it there, the list grows here and the
- * database CHECK is widened in that step's migration. The PGlite matrix `recruiting-lead-closures.test.mjs`
- * holds this list and the CHECK together.
+ * The list follows `LEAD_REQUIREMENTS` by derivation: LQ7 added `home_time` there, so `not_qualified:home_time`
+ * exists here from that merge, and the database CHECK (0578) is widened by LQ7's migration in the SAME merge —
+ * the PGlite matrix `recruiting-lead-closures.test.mjs` inserts every reason and holds the two together.
  */
 
 export const UNREACHABLE_MIN_ATTEMPTS = 3;
@@ -96,6 +95,7 @@ const REQUIREMENT_WORDS: Record<LeadRequirement, string> = {
   class_a: "No Class A CDL",
   class_a_experience: "Not enough Class A experience",
   hazmat: "No hazmat endorsement",
+  home_time: "Will not stay out long enough",
   dui: "DUI",
   preventable_accident: "Preventable accident",
   clearinghouse: "Clearinghouse prohibited",

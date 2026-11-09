@@ -95,7 +95,7 @@ const status = async (lead) => (await one(`select status from recruiting_leads w
 const closures = (lead) => db.query(`select * from recruiting_lead_closures where lead_id = $1 order by seq`, [lead]).then((r) => r.rows);
 
 // ── 1. the reason list and the CHECK are one list ────────────────────────────────────────────────
-ok("the shared list derives one not_qualified reason per LEAD_REQUIREMENTS entry, plus six lost reasons",
+ok("the shared list derives one not_qualified reason per LEAD_REQUIREMENTS entry (home_time since 0582), plus six lost reasons",
   LEAD_CLOSE_REASONS.length === LEAD_REQUIREMENTS.length + 6, String(LEAD_CLOSE_REASONS.length));
 let accepted = 0;
 for (const reason of LEAD_CLOSE_REASONS) {
@@ -105,10 +105,11 @@ for (const reason of LEAD_CLOSE_REASONS) {
   if (st === null) accepted += 1; else console.log(`    CHECK refused ${reason}: ${st}`);
 }
 ok("every shared reason passes the CHECK", accepted === LEAD_CLOSE_REASONS.length, `${accepted}/${LEAD_CLOSE_REASONS.length}`);
+ok("the list holds not_qualified:home_time (LQ7, 0582)", LEAD_CLOSE_REASONS.includes("not_qualified:home_time"));
 {
   const lead = await ingest();
   ok("a reason outside the list is refused by the CHECK (23514)",
-    (await sqlstate(`insert into recruiting_lead_closures (org_id, lead_id, kind, reason, status_after, actor, actor_name) values ($1, $2, 'closed', 'not_qualified:home_time', 'not_qualified', $3, 'Dana')`, [ORG, lead, RECRUITER])) === "23514");
+    (await sqlstate(`insert into recruiting_lead_closures (org_id, lead_id, kind, reason, status_after, actor, actor_name) values ($1, $2, 'closed', 'not_qualified:height', 'not_qualified', $3, 'Dana')`, [ORG, lead, RECRUITER])) === "23514");
   ok("a close without a reason is refused (23514)",
     (await sqlstate(`insert into recruiting_lead_closures (org_id, lead_id, kind, reason, status_after, actor, actor_name) values ($1, $2, 'closed', null, 'lost', $3, 'Dana')`, [ORG, lead, RECRUITER])) === "23514");
   ok("a qualify with a reason is refused (23514)",
@@ -132,6 +133,13 @@ ok("every shared reason passes the CHECK", accepted === LEAD_CLOSE_REASONS.lengt
   const again = await close(lead, "spam");
   ok("closing an already-closed lead changes nothing and says already", again.closed === false && again.already === true && again.status === "not_qualified");
   ok("and wrote no second row", (await closures(lead)).length === 1);
+}
+{
+  const lead = await ingest();
+  const r = await close(lead, "not_qualified:home_time");
+  ok("close_lead accepts not_qualified:home_time and writes its verified verdict (0582)",
+    r.closed === true && r.status === "not_qualified" && r.verdict_written === true
+    && (await one(`select verdict, evidence from lead_match_verdicts where lead_id = $1 and requirement = 'home_time'`, [lead]))?.verdict === "does_not_meet", JSON.stringify(r));
 }
 {
   const lead = await ingest({ opening_id: null });

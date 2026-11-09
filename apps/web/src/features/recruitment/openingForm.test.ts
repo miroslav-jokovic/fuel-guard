@@ -82,4 +82,10 @@ describe("the hiring-profile step", () => {
     const facts = requirementFacts({ ...HIRING_PROFILE_V1, min_age: { years: 25, reason: "Insurer's floor." } });
     expect(facts.find((f) => f.key === "min_age")?.value).toBe("25 · Insurer's floor.");
   });
+
+  it("shows time on the road only when the profile asks it, with its days and reason (LQ7)", () => {
+    expect(requirementFacts(HIRING_PROFILE_V1).some((f) => f.key === "home_time")).toBe(false);
+    const asked = requirementFacts({ ...HIRING_PROFILE_V1, home_time: { mode: "required", min_days_out: 21, reason: "OTR means three weeks out." } });
+    expect(asked.find((f) => f.key === "home_time")?.value).toBe("Required · 21 days out · OTR means three weeks out.");
+  });
 });

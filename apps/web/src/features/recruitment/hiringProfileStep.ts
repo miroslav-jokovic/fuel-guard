@@ -22,6 +22,8 @@ export function requirementFacts(r: HiringRequirements): Fact[] {
     { key: "class_a", label: "Class A CDL", value: `Required · ${r.class_a.reason}` },
     { key: "class_a_years", label: "Class A experience", value: `${r.min_class_a_years.years} years · ${r.min_class_a_years.reason}` },
     { key: "hazmat", label: "Hazmat endorsement", value: `${HAZMAT_LABEL[r.hazmat.mode]} · ${r.hazmat.reason}` },
+    // LQ7: home time shares hazmat's three modes; shown only when the profile asks it, so an "off" profile reads as before.
+    ...(r.home_time.mode === "off" ? [] : [{ key: "home_time", label: "Time on the road", value: `${HAZMAT_LABEL[r.home_time.mode]} · ${r.home_time.min_days_out} days out · ${r.home_time.reason}` }]),
     { key: "disqualifiers", label: "Disqualifiers", value: r.disqualifiers.reason },
   ];
 }

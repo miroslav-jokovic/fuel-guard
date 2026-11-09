@@ -110,7 +110,7 @@ describe("closing a lead", () => {
     const res = await post(`/leads/${LEAD}/close`, "recruiter", { reason: "ghosted" });
     expect(res.status).toBe(400);
     expect(rec.rpcs()).toHaveLength(0);
-    expect((await post(`/leads/${LEAD}/close`, "recruiter", { reason: "not_qualified:home_time" })).status).toBe(400);
+    expect((await post(`/leads/${LEAD}/close`, "recruiter", { reason: "not_qualified:height" })).status).toBe(400);
     expect((await post(`/leads/${LEAD}/close`, "recruiter", {})).status).toBe(400);
   });
 
