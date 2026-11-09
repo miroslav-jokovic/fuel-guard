@@ -195,6 +195,30 @@ ok("two pages of two hold every row once, in the same order as one page", JSON.s
 ok("another carrier's leads are never in the queue",
   (await db.query(`select id from public.recruiting_lead_queue($1, array['new'])`, [OTHER])).rows.every((r) => r.id !== first.lead_id));
 
+// ── 6b. "Mine" (0576, LQ2c): the rows holding one of this recruiter's open leads ────────────────
+const ME = (await one(`insert into auth.users (email) values ('me@carrier.test') returning id`)).id;
+const YOU = (await one(`insert into auth.users (email) values ('you@carrier.test') returning id`)).id;
+await db.query(`update recruiting_leads set assigned_to = $2 where id = $1`, [bob, ME]);
+await db.query(`update recruiting_leads set assigned_to = $2 where id = $1`, [ann3, ME]); // rides on ann1's row
+await db.query(`update recruiting_leads set assigned_to = $2 where id = $1`, [carlAgain, YOU]);
+await db.query(`update recruiting_leads set assigned_to = $2 where id = $1`, [lostCarl, ME]); // closed: not open
+const mine = async (who, before = null, limit = 50) => (await db.query(
+  `select id from public.recruiting_lead_queue($1, array['new','contacted','qualified'], $2, $3, $4, $5)`,
+  [Q, before?.received_at ?? null, before?.id ?? null, limit, who])).rows.map((r) => r.id);
+ok("Mine holds the row whose first lead is mine, and the row a newer lead of mine rides on (0576)",
+  JSON.stringify(await mine(ME)) === JSON.stringify([bob, ann1]), JSON.stringify(await mine(ME)));
+ok("Mine never shows another recruiter's row, nor a row whose only lead of mine is closed (0576)",
+  JSON.stringify(await mine(YOU)) === JSON.stringify([carlAgain]));
+ok("no recruiter named is every row, exactly as before 0576",
+  JSON.stringify(await mine(null)) === JSON.stringify(ids));
+const mine1 = await mine(ME, null, 1);
+ok("Mine filters before the page's limit: a page of one, then the next, hold both rows (0576)",
+  JSON.stringify([...mine1, ...(await mine(ME, { id: mine1[0], received_at: byId[mine1[0]] }, 1))]) === JSON.stringify([bob, ann1]));
+ok("the five-argument call old code makes still answers (0576 deploy window)",
+  (await db.query(`select id from public.recruiting_lead_queue(p_org => $1, p_statuses => array['new'], p_before_at => null, p_before_id => null, p_limit => 50)`, [Q])).rows.length > 0);
+ok("only one recruiting_lead_queue exists, so PostgREST never has two to choose from (0576)",
+  (await one(`select count(*)::int as n from pg_proc where proname = 'recruiting_lead_queue'`)).n === 1);
+
 // ── 7. no client may call any of them ────────────────────────────────────────────────────────────
 const callable = (await db.query(
   `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
