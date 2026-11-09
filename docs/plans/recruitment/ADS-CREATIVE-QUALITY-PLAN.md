@@ -106,7 +106,7 @@ Order follows dependency and payoff; CQ1 is small and unblocks everything the ow
 | **CQ6 · Overlay layouts** | W | 3 layouts on every format — `bottom_plate` (as today), `top_band` (logo bottom-right), `centered` — chosen by the preset's `layout`; same contrast and safe-zone checks; goldens per layout; kit keeps colours only. **Built 2026-11-09**; the side column was dropped (honest only on 1:1/4:5, which would tie layout to format). | Render goldens ×3 per format; compose test: the checker's band follows the layout; 5 mutants red. | none — **DONE** |
 | **CQ7 · Text pools on the platform (R2)** | W | Publisher sends the ranked copy candidates as Meta text variations: Dynamic Creative (`asset_feed_spec`, `is_dynamic_creative`) if Q-AD55 proves it with Instant Forms, else one ad per candidate pair (≤ 3 per concept) named `|v1..3`. | Publisher contract test on fake and sandbox. | Q-AD55 (sandbox) |
 | **CQ8 · Language split (R8)** | W | One ad set per language with `locales` if Q-AD56 proves it under EMPLOYMENT; else two ad sets differing only by the form language, budgets split by a setting. | Contract test on sandbox; monitor reads both. | Q-AD56 (sandbox) |
-| **CQ9 · Fatigue → refresh (D-AD23)** | G + W | Settings group "Creative refresh" (frequency bands, CTR drop %, CPM drift %, minimum age days, source labelled); monitor computes per ad from CQ3's table; `retire_ad` action pauses the Meta ad, marks the preset retired, enqueues compose for the next preset; alert "ad retired, next concept composing". | Monitor goldens for each signal; fake `externalStatusChange` for the pause; machine gains no new campaign state (creative-level only). | CQ1, CQ3 |
+| **CQ9 · Fatigue → refresh (D-AD23)** | G + W | **CQ9a built 2026-11-10**: migration 0581 (`retire_ad` kind, `ads_creative_retired` category), settings group `creative_refresh` (retire off by default; min_days 7, ctr_drop 25 %, min_impressions 2,000 — R6's numbers), pure `fatigueVerdict` (last week vs the ad's own first week, from CQ3's per-ad hours), `PlatformSafe.pauseAd`, the Settings card. **CQ9b next merge**: the monitor's retire step (verdict → `pauseAd` → `retire_ad` row → bell). **Entering the next concept on a live campaign = Q-AD68** (below), not assumed. CPM drift dropped: CPM moves with the auction, not the ad (R6's own caveat). | `adFatigue.test.ts` 7; adapter `pauseAd` 3; matrix +3. | CQ9b; Q-AD68 |
 
 Also in CQ4's PR, because it is the same rail: the generation rail moves off forced `tool_choice` to a strict tool
 with `auto` + a "no tool call" refusal path, so each worker's model is chosen by its fixture gate (Q-RA22), not by
@@ -161,6 +161,15 @@ earlier; all of it decides what that ad looks like.
 - **Q-AD60 · Candidates per creative (owner, cost).** k=3 copies and 2 images ≈ 3× the tokens and 2× the credits of
   today's creative. (a) 3/2 as D-AD19; (b) 2/1 (copy only); (c) 5/3 for the first campaigns, then lower. **Rec: (a)**,
   as a setting with a ceiling of 5/3.
+- **Q-AD68 · How the next concept enters a LIVE campaign (us; opened by CQ9a, 2026-11-10).** Compose runs only in
+  `composing`, and `publishCampaign` makes a whole campaign; a retired ad's replacement needs both to work beside
+  delivery. (a) A creative-level loop: the runner gains a `refresh` step for `live` campaigns that composes ONE
+  creative for the next unstarted preset of the stored draw, puts it in review, and on approval publishes ONE ad into
+  the existing ad set (`publishAds` already works per creative; the campaign's refs gain the new ad id) — no new
+  campaign state, review shows "a new concept awaits approval" on a live campaign. (b) Pause the campaign and
+  `regenerate` (today's path): the whole campaign leaves delivery for the minutes a person takes. (c) Retire only;
+  a person starts a new campaign for the opening. **Rec: (a)** — it is what D-AD23 means and what R6 describes; it is
+  2–3 PRs (runner step, incremental publish, review copy), after CQ9b.
 - **Q-AD61 · Where the craft judge's rubric lives (us).** (a) A prompt pack in `workers/craftJudge/` like the others,
   rubric criteria as data in the kit (a carrier may add "never say 'family'"); (b) rubric fixed in code. **Rec: (a)**
   for the criteria's *weights and extras*; the five base criteria stay in the prompt pack so the baseline means one

@@ -50,6 +50,8 @@ export type ApprovalKind = (typeof APPROVAL_KINDS)[number];
 export const ACTION_KINDS = [
   "transition", "create_paused", "launch", "pause", "lower_budget", "raise_budget", "change_area",
   "archive", "kill", "external_change", "rules_sync", "connection_test", "reconcile",
+  /** CQ9 (0581): one ad paused at the platform for fatigue; the campaign keeps delivering. */
+  "retire_ad",
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 

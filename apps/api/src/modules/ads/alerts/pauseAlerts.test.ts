@@ -17,7 +17,7 @@ const RECRUITER = "00000000-0000-4000-8000-0000000000d2";
 
 function pausing(w: AdsWorld, pause: () => Promise<PlatformOutcome>, platform = true): CampaignWorkers {
   const adapter = {
-    safe: { readAccountHeadroomCents: vi.fn(async () => 300_000), readSpendCents: vi.fn(async () => 0), pause: vi.fn(pause) },
+    safe: { readAccountHeadroomCents: vi.fn(async () => 300_000), readSpendCents: vi.fn(async () => 0), pause: vi.fn(pause), pauseAd: vi.fn(async () => ({ ok: true as const })) },
     spend: { launch: vi.fn(), raiseDailyBudget: vi.fn(), changeArea: vi.fn() },
   };
   return { compose: null, createPaused: null, platform: platform ? async (_o, conn) => (conn === CONN ? guardPlatform(w.admin, w.now, "meta", adapter) : null) : async () => null };

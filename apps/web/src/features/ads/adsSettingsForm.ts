@@ -48,6 +48,11 @@ export interface AdsSettingsFormValues {
   cpl_min_leads: string;
   no_lead_spend: string;
   frequency_max: string;
+  /** CQ9: retiring a tired ad, judged against its own first week. */
+  refresh_retire: boolean;
+  refresh_min_days: string;
+  refresh_ctr_drop_pct: string;
+  refresh_min_impressions: string;
   pause_at_daily_cap: boolean;
   pause_when_filled: boolean;
   second_approver_above: string;
@@ -81,6 +86,8 @@ export function toFormValues(s: AdsSettings): AdsSettingsFormValues {
     cpl_min_leads: count(s.auto_pause.cpl_min_leads),
     no_lead_spend: dollars(s.auto_pause.no_lead_spend_cents),
     frequency_max: count(s.auto_pause.frequency_max),
+    refresh_retire: s.creative_refresh.retire, refresh_min_days: String(s.creative_refresh.min_days),
+    refresh_ctr_drop_pct: String(s.creative_refresh.ctr_drop_pct), refresh_min_impressions: String(s.creative_refresh.min_impressions),
     pause_at_daily_cap: s.auto_pause.pause_at_daily_cap,
     pause_when_filled: s.auto_pause.pause_when_filled,
     second_approver_above: dollars(s.approvals.second_approver_above_cents),
@@ -154,6 +161,12 @@ export function toSettings(base: AdsSettings, v: AdsSettingsFormValues): FormRes
       pause_at_daily_cap: v.pause_at_daily_cap,
       pause_when_filled: v.pause_when_filled,
     },
+    creative_refresh: {
+      retire: v.refresh_retire,
+      min_days: num(v.refresh_min_days) ?? Number.NaN,
+      ctr_drop_pct: num(v.refresh_ctr_drop_pct) ?? Number.NaN,
+      min_impressions: num(v.refresh_min_impressions) ?? Number.NaN,
+    },
     approvals: { second_approver_above_cents: cents(v.second_approver_above) },
     budgets: {
       ...base.budgets,
@@ -199,6 +212,9 @@ const FIELD_LABELS: Record<string, string> = {
   "auto_pause.cpl_min_leads": "The number of leads must be a whole number from 1 to 1,000.",
   "auto_pause.no_lead_spend_cents": "The spend with no lead must be a dollar amount above zero.",
   "auto_pause.frequency_max": "The frequency must be a number from 1 to 50.",
+  "creative_refresh.min_days": "Days before an ad is judged: a whole number from 3 to 60.",
+  "creative_refresh.ctr_drop_pct": "The click-through drop is a whole percentage from 5 to 90.",
+  "creative_refresh.min_impressions": "Impressions per week before a rate counts: a whole number from 100 to 1,000,000.",
   "approvals.second_approver_above_cents": "The second-approver amount must be a dollar amount above zero.",
   "budgets.anthropic_tokens_monthly": "AI tokens a month must be a whole number.",
   "budgets.higgsfield_credits_monthly": "Image credits a month must be a whole number.",

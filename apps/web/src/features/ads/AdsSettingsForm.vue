@@ -117,6 +117,22 @@ async function submit(): Promise<void> {
           <BaseSwitch v-model="values[t.key]" :label="t.label" :disabled="!editable" />
         </div>
       </BaseCard>
+      <BaseCard as="div" class="space-y-3">
+        <h3 class="text-sm font-semibold text-ink">Tired ads</h3>
+        <p class="text-sm text-ink-muted">An ad is judged against its own first week: when its click-through has fallen by the share below, it is tired. Off = the report says so and nothing is retired. (Triple Whale's framework: 15–30 % over 7–10 days; our default 25 % after 7 days.)</p>
+        <div class="flex items-center justify-between gap-4"><p class="text-sm text-ink">Retire a tired ad at the platform</p><BaseSwitch v-model="values.refresh_retire" label="Retire a tired ad at the platform" :disabled="!editable" data-test="refresh-retire" /></div>
+        <div class="grid gap-3 sm:grid-cols-3">
+          <FormField v-slot="{ id }" label="Days before judging" :error="errorOn('creative_refresh.min_days')">
+            <BaseInput :id="id" v-model="values.refresh_min_days" type="number" inputmode="numeric" min="3" max="60" :disabled="!editable" />
+          </FormField>
+          <FormField v-slot="{ id }" label="Click-through drop (%)" :error="errorOn('creative_refresh.ctr_drop_pct')">
+            <BaseInput :id="id" v-model="values.refresh_ctr_drop_pct" type="number" inputmode="numeric" min="5" max="90" :disabled="!editable" />
+          </FormField>
+          <FormField v-slot="{ id }" label="Impressions per week before a rate counts" :error="errorOn('creative_refresh.min_impressions')">
+            <BaseInput :id="id" v-model="values.refresh_min_impressions" type="number" inputmode="numeric" min="100" :disabled="!editable" />
+          </FormField>
+        </div>
+      </BaseCard>
     </SettingsSection>
 
     <SettingsSection title="Approvals" description="Every launch and every raise needs an admin's yes. Above this daily amount it needs two different admins.">

@@ -149,6 +149,7 @@ export const NOTIFICATION_CATEGORIES = [
    * the first weeks). Mirrored in CHECK (0575); nothing writes it until the monitor's merge.
    */
   "ads_lead_quality",
+  "ads_creative_retired",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -199,6 +200,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   lead_uncontacted: "Ad leads waiting for contact",
   lead_intake_failing: "Ad leads not arriving",
   ads_lead_quality: "Ad leads that are unreachable or do not qualify",
+  ads_creative_retired: "An ad retired for fatigue; the next concept is due",
 };
 
 /**
