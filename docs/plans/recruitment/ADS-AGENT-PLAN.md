@@ -1268,6 +1268,17 @@ rate, and Higgsfield credits per approved creative.
   texting-consent checkbox on the form (counsel; deferred). **Ruled 2026-11-09 (owner: "proceed as recommended"):** Q-AD47
   (a), Q-AD48 (a) else (b), Q-AD49 (a), Q-AD50 (a), Q-AD51 (a). New: Q-AD53 a call button on the thank-you page (us; rec
   after L4).
+- **Q-AD54–Q-AD61 · Creative quality and variety** (opened 2026-11-09 by the creative audit of main b492e5e; findings
+  G-CQ1–15, research R1–R9, decisions D-AD18–D-AD23 and steps CQ1–CQ9 in
+  [`ADS-CREATIVE-QUALITY-PLAN.md`](ADS-CREATIVE-QUALITY-PLAN.md) — one home, not restated here). The audit found the
+  second preset batch never enters (two concepts per campaign, ever), the art director never sees the job, insights
+  are campaign-grain so no concept can be measured, and the production brief holds 3–5 facts. Q-AD54 which opening
+  fields widen the brief (owner; rec the list plus one claim-checked "why us" line) · Q-AD55 Dynamic Creative with
+  Instant Forms (us; sandbox, else one ad per candidate) · Q-AD56 `locales` under EMPLOYMENT (us; sandbox, else two ad
+  sets) · Q-AD57 craft judge agreement bar (owner; rec 0.8 on the rated 40) · Q-AD58 concept families (owner; rec the
+  proposed lists) · Q-AD59 when performance weights the draw (owner; rec 50 leads per preset, by cost per converted
+  lead) · Q-AD60 candidates per creative (owner; rec 3 copies / 2 images, ceiling 5/3) · Q-AD61 where the craft rubric
+  lives (us; rec prompt pack + kit extras).
 
 ---
 
