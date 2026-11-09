@@ -47,6 +47,14 @@ describe("RosterHeldList", () => {
     expect((await list({ ok: true, data: { at: null, drivers: [hairston] } })).find("a[href='/recruitment']").exists()).toBe(false);
   });
 
+  it("tells the office to finish a McLeod ending in McLeod, with the day, and never to set them Active (D-RL10)", async () => {
+    const satterwhite = { externalId: "KSATTERW", name: "KENNETH SATTERWHITE", hireDate: "2025-01-29", terminationDate: "2026-11-07", reason: "ended_in_mcleod", since: "2026-11-06T20:15:57Z" };
+    const row = (await list({ ok: true, data: { at: null, drivers: [satterwhite] } })).get("[data-testid=roster-held-driver]").text();
+    expect(row).toContain("KENNETH SATTERWHITE (KSATTERW, hired 01/29/2025, last day in McLeod 11/07/2026)");
+    expect(row).toContain("set them inactive in McLeod");
+    expect(row).not.toContain("set it to Active");
+  });
+
   it("says nothing when nobody is held", async () => {
     const w = await list({ ok: true, data: { at: "2026-10-30T20:31:03Z", drivers: [] } });
     expect(w.find("[data-testid=roster-held]").exists()).toBe(false);

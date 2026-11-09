@@ -19,6 +19,15 @@ const held = (over: Partial<RosterHeldDriver>): RosterHeldDriver => ({
 });
 
 describe("heldFromIngest — one reason per driver", () => {
+  it("names McLeod's own ending ahead of a rehire review, and carries its last day (D-RL10)", () => {
+    const ksatterw = { external_id: "KSATTERW", first_name: "KENNETH", last_name: "SATTERWHITE", hire_date: "2025-01-29", termination_date: "2026-11-07" };
+    const out = heldFromIngest([ksatterw, buren], { ...none, rehireReview: ["KSATTERW", "JBUREN"], endedInTms: ["KSATTERW"], retry: ["JBUREN"] }, T1);
+    expect(out.map((d) => [d.externalId, d.reason, d.terminationDate])).toEqual([
+      ["KSATTERW", "ended_in_mcleod", "2026-11-07"],
+      ["JBUREN", "rehire_review", undefined],
+    ]);
+  });
+
   it("names each bucket the ingest reported, with McLeod's name and hire date", () => {
     const out = heldFromIngest([hairston, virgin, buren], {
       ...none, applicants: ["CHAIRSTO"], unmatched: ["JBUREN"], retry: ["CHAIRSTO", "JBUREN", "SVIRGIN"],

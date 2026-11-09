@@ -169,6 +169,21 @@ dispatch truth is the load's driver and tractor, which the VM already sends ever
   `driver.archived` by a member. A termination or archive done in 360 stays a review item (D-MR7's case).
   The audit row says which rule proved it (`proof`).
 
+## 5c. Rulings (owner, 2026-11-09)
+
+- **Q-RL5 answered — option (a) did not hold.** On 11-09 McLeod still listed KSATTERW `is_active = 'Y'`
+  with termination date 11-07, two days past it; his last HOS segment was 11-06 and his last fuel 11-05.
+  He left, and the held list was telling the office to set him back to Active.
+- **D-RL9 — a row the cleanup archived without a termination date can be proven rehired.** The 09-14
+  reconcile archived 120 rows with no termination date, so rule D-MR7a had nothing to compare and such a
+  driver was a review item forever (WCHRISTO). Now the archive day stands in for the termination date:
+  McLeod's hire date strictly after it, McLeod sending no termination date, and no person here having
+  archived or terminated the row (`officeEndedEmployment`) restores it, audited `proof: hire_after_archive`.
+- **D-RL10 — McLeod listing a driver active with a last day is an ending, not a rehire.** A McLeod record
+  whose termination date is on or after its hire date is held as `ended_in_mcleod`, with the date, and the
+  list tells the office to set the driver inactive in McLeod (or clear the date there if they are staying,
+  which D-RL6 then restores). Nothing on our row moves, and no second row is created.
+
 ## 6. Progress log
 
 - 2026-10-30 — measured and written (this document). Nothing built, nothing changed on the VM or in
@@ -243,4 +258,13 @@ dispatch truth is the load's driver and tractor, which the VM already sends ever
   panel (`heldDriverMerges`, derived from the same planner). Weaver himself is unarchived by hand on
   Drivers. Mutation: with the filter removed, 4 shared tests and 1 API test fail; with the manual-link
   guard removed, 1 API test fails.
-
+- 2026-11-09 — **"2 drivers in McLeod are not on this list yet" — D-RL9 + D-RL10 built.** Measured first:
+  production already ran D-RL7 (`e0f6123`, `verify:live` green) and the pending release carried only
+  D-RL8, which changes neither driver. WCHRISTO's only row was the July Samsara row archived 09-14 with
+  no termination date — the 11-06 manual merge folded his new row into it, and the "unarchived by hand"
+  above never happened (still archived on 11-09). McLeod: active, hired 11-03, no termination; HOS and
+  fuel every day since 11-07. KSATTERW: see §5c. D-RL9 restores WCHRISTO on the first sweep that
+  carries him (every sweep: D-RL7 re-sends the held list). D-RL10 relabels KSATTERW until the office
+  sets him inactive in McLeod, after which the retire run takes him off the list. Mutations: without
+  the archive stand-in 1 test fails; without the office check in it 2; without D-RL10 4; with creation
+  no longer held back for `ended_in_mcleod` 1.

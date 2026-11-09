@@ -78,7 +78,7 @@ describe("a rehire (D-MR7a)", () => {
   it("restores a former row when McLeod's hire date is after our termination date, and audits the old date", async () => {
     const rec = seed([alam]);
     const r = await rehireFormerDrivers(rec.client, ORG, [yalam], true);
-    expect(r).toEqual({ rehired: ["YALAM"], rehireReview: [] });
+    expect(r).toEqual({ rehired: ["YALAM"], rehireReview: [], endedInTms: [] });
     expect(rec.writtenRows("drivers")[0]).toEqual({ status: "active", archived_at: null, termination_date: null });
     const audit = rec.writtenRows("audit_logs")[0]!;
     expect(audit).toMatchObject({ action: "driver.rehired_from_tms", entity_id: "5f0c2a1e-9d3b-4c6a-8e2f-1b7d4a9c3e10" });
@@ -121,7 +121,7 @@ describe("a rehire (D-MR7a)", () => {
     for (const [why, row, input] of cases) {
       const rec = seed([{ ...alam, ...row }]);
       const r = await rehireFormerDrivers(rec.client, ORG, [{ ...yalam, ...input }], true);
-      expect(r, why).toEqual({ rehired: [], rehireReview: ["YALAM"] });
+      expect(r, why).toEqual({ rehired: [], rehireReview: ["YALAM"], endedInTms: [] });
       expect(rec.writes(), why).toEqual([]);
     }
   });
@@ -129,7 +129,7 @@ describe("a rehire (D-MR7a)", () => {
   it("never reads a McLeod record that is not active as a rehire", async () => {
     const rec = seed([alam]);
     const r = await rehireFormerDrivers(rec.client, ORG, [{ ...yalam, status: "terminated" as const }], true);
-    expect(r).toEqual({ rehired: [], rehireReview: [] });
+    expect(r).toEqual({ rehired: [], rehireReview: [], endedInTms: [] });
     expect(rec.writes()).toEqual([]);
   });
 
@@ -144,7 +144,7 @@ describe("a rehire (D-MR7a)", () => {
     const byName = seed([{ ...alam, cdl_number: null }]);
     expect((await rehireFormerDrivers(byName.client, ORG, [yalam], true)).rehired).toEqual([]);
     const live = seed([alam, driver({ id: "d-live", cdl_number: "A233155598000" })]);
-    expect(await rehireFormerDrivers(live.client, ORG, [yalam], true)).toEqual({ rehired: [], rehireReview: [] });
+    expect(await rehireFormerDrivers(live.client, ORG, [yalam], true)).toEqual({ rehired: [], rehireReview: [], endedInTms: [] });
     expect(live.writes()).toEqual([]);
   });
 
@@ -152,7 +152,7 @@ describe("a rehire (D-MR7a)", () => {
     // `termination_date` absent is an agent that does not send it — not McLeod saying "no termination".
     const rec = seed([{ ...alam, archived_at: null }]);
     const r = await rehireFormerDrivers(rec.client, ORG, [{ ...yalam, hire_date: "2024-04-29" }], true);
-    expect(r).toEqual({ rehired: [], rehireReview: ["YALAM"] });
+    expect(r).toEqual({ rehired: [], rehireReview: ["YALAM"], endedInTms: [] });
   });
 });
 
@@ -167,7 +167,7 @@ describe("McLeod taking back its own termination (D-RL6)", () => {
   it("restores the row when McLeod lists them active with no termination date and nobody here ended it", async () => {
     const rec = withAudit([ninDiaz], [{ action: "driver.archived", actor_id: null, meta: {} }]);
     const r = await rehireFormerDrivers(rec.client, ORG, [amabler], true);
-    expect(r).toEqual({ rehired: ["AMABLER"], rehireReview: [] });
+    expect(r).toEqual({ rehired: ["AMABLER"], rehireReview: [], endedInTms: [] });
     expect(rec.writtenRows("drivers")[0]).toEqual({ status: "active", archived_at: null, termination_date: null });
     const audit = rec.writtenRows("audit_logs").find((a) => a.action === "driver.rehired_from_tms")!;
     expect(audit.meta).toMatchObject({ proof: "tms_termination_reversed", previousTerminationDate: "2026-10-28", tmsHireDate: "2024-04-29" });
@@ -183,7 +183,7 @@ describe("McLeod taking back its own termination (D-RL6)", () => {
     for (const [why, row] of office) {
       const rec = withAudit([ninDiaz], [row]);
       const r = await rehireFormerDrivers(rec.client, ORG, [amabler], true);
-      expect(r, why).toEqual({ rehired: [], rehireReview: ["AMABLER"] });
+      expect(r, why).toEqual({ rehired: [], rehireReview: ["AMABLER"], endedInTms: [] });
       expect(rec.writes(), why).toEqual([]);
     }
   });
@@ -195,7 +195,7 @@ describe("McLeod taking back its own termination (D-RL6)", () => {
 
   it("brings nobody back when the audit read fails", async () => {
     const rec = createSupabaseRecorder({ tables: { drivers: [ninDiaz], audit_logs: { error: { message: "boom" } } } });
-    expect(await rehireFormerDrivers(rec.client, ORG, [amabler], true)).toEqual({ rehired: [], rehireReview: ["AMABLER"] });
+    expect(await rehireFormerDrivers(rec.client, ORG, [amabler], true)).toEqual({ rehired: [], rehireReview: ["AMABLER"], endedInTms: [] });
     expect(rec.writes()).toEqual([]);
   });
 
@@ -210,6 +210,93 @@ describe("McLeod taking back its own termination (D-RL6)", () => {
 describe("a rehire never reaches an application", () => {
   it("never reaches an applicant — Tatjana's archived application carried another driver's licence", async () => {
     const rec = seed([driver({ id: "d-app", status: "applicant", archived_at: "2026-10-07T00:00:00Z", cdl_number: "T61521083", identity_source: "manual" })]);
-    expect(await rehireFormerDrivers(rec.client, ORG, [ackiss], true)).toEqual({ rehired: [], rehireReview: [] });
+    expect(await rehireFormerDrivers(rec.client, ORG, [ackiss], true)).toEqual({ rehired: [], rehireReview: [], endedInTms: [] });
+  });
+});
+
+describe("a row the 09-14 cleanup archived without a termination date (D-RL9)", () => {
+  // Production on 2026-11-09: WCHRISTO's only row is the July Samsara one the reconcile run archived on
+  // 09-14 with no termination date; McLeod rehired him 11-03 and he drives daily.
+  const weaver = driver({ id: "19ad7e75-1416-476d-9358-c0da44f80362", full_name: "CHRISTOPHER WEAVER", cdl_number: "W7654321", status: "inactive", identity_source: "samsara", mcleod_driver_id: "WCHRISTO", archived_at: "2026-09-14T19:10:53.359Z", termination_date: null });
+  const wchristo = { external_id: "WCHRISTO", company_id: "TMS", cdl_number: "W7654321", first_name: "CHRISTOPHER", last_name: "WEAVER", hire_date: "2026-11-03", termination_date: null };
+  const withAudit = (rows: Record<string, unknown>[], audit: Record<string, unknown>[]) =>
+    createSupabaseRecorder({ tables: { drivers: rows, audit_logs: (q: RecordedQuery) => (q.write ? [] : audit) } });
+
+  it("restores the row when McLeod's hire date is after the day it was archived, and audits the archive", async () => {
+    const rec = withAudit([weaver], []);
+    const r = await rehireFormerDrivers(rec.client, ORG, [wchristo], true);
+    expect(r).toEqual({ rehired: ["WCHRISTO"], rehireReview: [], endedInTms: [] });
+    expect(rec.writtenRows("drivers")[0]).toEqual({ status: "active", archived_at: null, termination_date: null });
+    const audit = rec.writtenRows("audit_logs").find((a) => a.action === "driver.rehired_from_tms")!;
+    expect(audit.meta).toMatchObject({ proof: "hire_after_archive", previousTerminationDate: null, previousArchivedAt: "2026-09-14T19:10:53.359Z", wasArchived: true });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("leaves every weaker archive for a human", async () => {
+    const cases: Array<[string, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>[]]> = [
+      ["hired the day it was archived", {}, { hire_date: "2026-09-14" }, []],
+      ["hired before it was archived", {}, { hire_date: "2026-01-01" }, []],
+      ["no hire date", {}, { hire_date: null }, []],
+      ["the agent did not say McLeod has no termination date", {}, { termination_date: undefined }, []],
+      ["a member archived the row", {}, {}, [{ action: "driver.archived", actor_id: "u-1", meta: {} }]],
+      ["somebody here set the status", {}, {}, [{ action: "driver.updated", actor_id: "u-1", meta: { fields: ["status"] } }]],
+      ["the office owns the row", { identity_source: "manual" }, {}, []],
+      ["inactive but never archived — no day to compare", { archived_at: null }, {}, []],
+    ];
+    for (const [why, row, input, audit] of cases) {
+      const rec = withAudit([{ ...weaver, ...row }], audit);
+      const r = await rehireFormerDrivers(rec.client, ORG, [{ ...wchristo, ...input }], true);
+      expect(r, why).toEqual({ rehired: [], rehireReview: ["WCHRISTO"], endedInTms: [] });
+      expect(rec.writes(), why).toEqual([]);
+    }
+  });
+
+  it("brings nobody back when the audit read fails", async () => {
+    const rec = createSupabaseRecorder({ tables: { drivers: [weaver], audit_logs: { error: { message: "boom" } } } });
+    expect((await rehireFormerDrivers(rec.client, ORG, [wchristo], true)).rehired).toEqual([]);
+    expect(rec.writes()).toEqual([]);
+  });
+});
+
+describe("McLeod lists a driver active with a last day (D-RL10)", () => {
+  // Production on 2026-11-09: KSATTERW is_active Y, terminated 11-07, hired 2025-01-29; the retire run had
+  // already terminated our row with that date. No hours or fuel after 11-06 — he left.
+  const satterwhite = driver({ id: "bb80b059-ab0e-4ee1-bf84-1d74e9e73792", full_name: "KENNETH SATTERWHITE", cdl_number: "S1234567", status: "terminated", identity_source: "mcleod", mcleod_driver_id: "KSATTERW", termination_date: "2026-11-07" });
+  const ksatterw = { external_id: "KSATTERW", company_id: "TMS", cdl_number: "S1234567", first_name: "KENNETH", last_name: "SATTERWHITE", hire_date: "2025-01-29", termination_date: "2026-11-07" };
+
+  it("is held as ended in McLeod, never as a rehire, and nothing is written", async () => {
+    const rec = seed([satterwhite]);
+    expect(await rehireFormerDrivers(rec.client, ORG, [ksatterw], true)).toEqual({ rehired: [], rehireReview: [], endedInTms: ["KSATTERW"] });
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("holds a last day still ahead the same way, and a row with no termination date too", async () => {
+    const ahead = seed([{ ...satterwhite, termination_date: null, archived_at: "2026-09-14T19:10:00Z" }]);
+    expect((await rehireFormerDrivers(ahead.client, ORG, [{ ...ksatterw, hire_date: "2026-10-01", termination_date: "2026-12-01" }], true)).endedInTms).toEqual(["KSATTERW"]);
+    expect(ahead.writes()).toEqual([]);
+  });
+
+  it("does not treat an old termination McLeod never cleared, before a later hire, as an ending", async () => {
+    const rec = seed([{ ...satterwhite, termination_date: "2026-09-14" }]);
+    const r = await rehireFormerDrivers(rec.client, ORG, [{ ...ksatterw, hire_date: "2026-11-03", termination_date: "2026-09-01" }], true);
+    expect(r).toEqual({ rehired: ["KSATTERW"], rehireReview: [], endedInTms: [] });
+  });
+
+  it("is never created a second time in create mode, and its row keeps its status", async () => {
+    // The terminated (unarchived) row is still in the matcher's pool, so the sweep refreshes its name and
+    // licence as for any linked driver; what must not happen is a new row or a status change.
+    const rec = seed([satterwhite]);
+    const r = await ingestDrivers(rec.client, ORG, [ksatterw], "create");
+    expect(r.endedInTms).toEqual(["KSATTERW"]);
+    const writes = rec.forTable("drivers").filter((q) => q.write);
+    expect(writes.filter((q) => q.write!.method !== "update")).toEqual([]);
+    expect(rec.writtenRows("drivers").filter((w) => "status" in w || "archived_at" in w || "termination_date" in w)).toEqual([]);
+  });
+
+  it("is never created beside an archived former row either (the matcher cannot see it)", async () => {
+    const rec = seed([{ ...satterwhite, archived_at: "2026-11-07T19:35:00Z" }]);
+    const r = await ingestDrivers(rec.client, ORG, [ksatterw], "create");
+    expect(r.endedInTms).toEqual(["KSATTERW"]);
+    expect(rec.writes().filter((q) => q.table === "drivers")).toEqual([]);
   });
 });

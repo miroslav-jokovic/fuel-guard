@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TmsDriverInput, TmsVehicleInput, TmsTrailerInput } from "@silvicom/shared";
 import { deriveFullName, todayInZone, DEFAULT_ORG_TIMEZONE } from "@silvicom/shared";
-import { mayClaimIdentity, rehireFormerDrivers, withRetry } from "./rosterDriverSettle.js";
+import { heldBack, mayClaimIdentity, rehireFormerDrivers, withRetry } from "./rosterDriverSettle.js";
 import { hireApplicantsFromTms } from "./rosterApplicantHire.js";
 import { driverPatch, vehiclePatch, trailerPatch } from "./rosterFields.js";
 import { recordSyncedCredentials } from "../evidence/index.js";
@@ -124,6 +124,7 @@ export interface RosterIngestResult {
   /** drivers: former rows restored because McLeod rehired them, and those left for a human (D-MR7a). */
   rehired?: string[];
   rehireReview?: string[];
+  endedInTms?: string[];
   /** drivers: applications McLeod's hire turned into drivers (D-RL5, `rosterApplicantHire`). */
   hiredFromTms?: string[];
 }
@@ -359,10 +360,9 @@ export async function ingestDrivers(
     // reviews a driver who was never created — whereas a partially-named one appears, carries its
     // licence for matching, and can be finished by an admin. Visible and imperfect beats absent and
     // tidy. (Theoretical against this carrier: all 164 active drivers have a surname.)
-    // Never beside a former row a person must review (D-MR7a): the matcher's pool leaves archived rows
-    // out, so that driver reads `unmatched` and would be created a second time (ROSTER-LIFECYCLE-PLAN RL3).
-    const insert =
-      mode === "create" && name && !out.rehireReview?.includes(r.external_id) ? { ...patch, full_name: name, status: "active" } : null;
+    // Never beside a former row a person must review (D-MR7a) or McLeod ended (D-RL10): the matcher's pool
+    // leaves archived rows out, so that driver reads `unmatched` and would be created a second time (RL3).
+    const insert = mode === "create" && name && !heldBack(out, r.external_id) ? { ...patch, full_name: name, status: "active" } : null;
     const driverId = await applyOutcome(admin, orgId, "drivers", r.external_id, r.company_id, outcome, out, patch, sourceOf, NEVER_INSPECTION_OWNED, insert, WRITES[mode]);
 
     /**

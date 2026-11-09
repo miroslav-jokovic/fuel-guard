@@ -24,7 +24,7 @@ import { deriveFullName, type RosterHeldDriver, type RosterHeldReason, type TmsD
  * `fuel_card` MUST be last. It is not a bucket the ingest fills but the remainder of `retry`, which holds
  * every other reason too, so placed any earlier it would claim drivers that belong to a named one.
  */
-const PRECEDENCE: readonly RosterHeldReason[] = ["rehire_review", "applicant", "ambiguous", "not_created", "fuel_card"];
+const PRECEDENCE: readonly RosterHeldReason[] = ["ended_in_mcleod", "rehire_review", "applicant", "ambiguous", "not_created", "fuel_card"];
 
 export interface HeldIngestResult {
   unmatched: string[];
@@ -32,11 +32,13 @@ export interface HeldIngestResult {
   applicants: string[];
   retry: string[];
   rehireReview?: string[];
+  endedInTms?: string[];
 }
 
 /** The drivers one ingest call held, each with the one reason that explains it. */
 export function heldFromIngest(rows: readonly TmsDriverInput[], result: HeldIngestResult, now: string): RosterHeldDriver[] {
   const buckets: Record<RosterHeldReason, Set<string>> = {
+    ended_in_mcleod: new Set(result.endedInTms ?? []),
     rehire_review: new Set(result.rehireReview ?? []),
     applicant: new Set(result.applicants),
     ambiguous: new Set(result.ambiguous),
@@ -55,7 +57,8 @@ export function heldFromIngest(rows: readonly TmsDriverInput[], result: HeldInge
       seen.add(id);
       const r = byId.get(id);
       const name = r ? deriveFullName({ first_name: r.first_name ?? null, middle_name: r.middle_name ?? null, last_name: r.last_name ?? null }) : "";
-      out.push({ externalId: id, name: name || null, hireDate: r?.hire_date ?? null, reason, since: now });
+      const terminationDate = reason === "ended_in_mcleod" ? { terminationDate: r?.termination_date ?? null } : {};
+      out.push({ externalId: id, name: name || null, hireDate: r?.hire_date ?? null, ...terminationDate, reason, since: now });
     }
   }
   return out;

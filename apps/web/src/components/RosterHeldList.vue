@@ -38,6 +38,10 @@ const REMEDY: Record<RosterHeldReason, string> = {
   ambiguous: "matches more than one driver here. Archive the duplicate and they are linked within 15 minutes.",
   rehire_review:
     "worked here before, and McLeod's record does not prove they came back — usually because their old record was ended here rather than in McLeod. If they are back, open that record (it may be under Show archived) and set it to Active.",
+  // D-RL10 (2026-11-09): Kenneth Satterwhite had left, and the rehire_review wording told the office to
+  // set him back to Active. McLeod ended him; only McLeod can finish or undo that, so nothing here moves.
+  ended_in_mcleod:
+    "is marked active in McLeod, but McLeod also has a last day for them. If they have left, set them inactive in McLeod. If they are staying, clear the last day in McLeod. Do not change anything here; the next sweep settles it.",
   not_created: "is not here because the McLeod connector is set to link drivers only, not to add them.",
 };
 </script>
@@ -53,7 +57,9 @@ const REMEDY: Record<RosterHeldReason, string> = {
     <ul class="mt-1 space-y-1 font-normal">
       <li v-for="d in drivers" :key="d.externalId" data-testid="roster-held-driver">
         <span class="font-medium">{{ d.name ?? d.externalId }}</span>
-        ({{ d.externalId }}<template v-if="d.hireDate">, hired {{ formatDate(d.hireDate) }}</template>)
+        ({{ d.externalId }}<template v-if="d.hireDate">, hired {{ formatDate(d.hireDate) }}</template><template
+          v-if="d.terminationDate"
+        >, last day in McLeod {{ formatDate(d.terminationDate) }}</template>)
         {{ REMEDY[d.reason] }}
         <RouterLink
           v-if="d.reason === 'applicant' && session.canView('recruitment')"
