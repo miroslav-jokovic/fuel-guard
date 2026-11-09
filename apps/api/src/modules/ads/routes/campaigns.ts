@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createCampaign, launchCampaign, listCampaigns, personMove, readCampaign, type MoveOutcome } from "../campaigns/campaignDoors.js";
 import type { Actor } from "../settings/settingsVersions.js";
 import { decideOnCreative, type DecisionOutcome } from "../campaigns/creativeDecisions.js";
+import { campaignConcepts } from "../monitor/conceptPerformance.js";
 
 /**
  * `/api/ads/campaigns` (Track S, S1b): create a campaign from a brief, list them, read one with its creatives.
@@ -87,6 +88,16 @@ export function mountCampaignRoutes(router: Router, deps: CampaignRouteDeps): vo
     const campaign = await readCampaign(admin(req), req.auth!.orgId!, id);
     if (!campaign) return void res.status(404).json(apiError("not_found", "Campaign not found"));
     res.json({ campaign });
+  }));
+
+  // CQ3's reader (D-AD22): what each concept of the campaign did, from the per-ad hours. A view-level read, like the
+  // campaign itself; a campaign of another carrier is 404, never an empty fold.
+  router.get("/campaigns/:campaignId/concepts", requireSection(deps.section, "view"), asyncHandler(async (req, res) => {
+    const id = String(req.params.campaignId);
+    if (!isRecordId(id)) return void res.status(400).json(apiError("bad_request", "Invalid campaign"));
+    const concepts = await campaignConcepts(admin(req), req.auth!.orgId!, id, new Date());
+    if (!concepts) return void res.status(404).json(apiError("not_found", "Campaign not found"));
+    res.json(concepts);
   }));
 
   router.post("/campaigns", requireSection(deps.section, "manage"), asyncHandler(async (req, res) => {

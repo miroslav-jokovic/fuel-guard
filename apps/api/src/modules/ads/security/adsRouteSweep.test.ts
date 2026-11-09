@@ -83,12 +83,24 @@ function carrier(org: string, ids: ReturnType<typeof idsOf>): Record<string, Fix
     ads_actions: [{ id: ids.action, org_id: org, campaign_id: ids.campaign, approval_id: null, kind: "connection_test", status: "succeeded", created_at: T }],
     ad_brand_kits: [{ id: ids.kit, org_id: org, name: "Our kit", archived_at: null, created_at: T }],
     ad_concept_presets: [{ id: ids.preset, org_id: org, key: "P1", enabled: true, archived_at: null, created_at: T }],
+    // The creative's `preset_version_id` names a VERSION row (0537); the concept read walks version → preset → key.
+    ad_concept_preset_versions: [{ id: ids.preset, org_id: org, preset_id: ids.preset, version: 1, enabled: true, recipe: SWEEP_RECIPE, created_at: T, created_by: "u-admin", created_by_name: "Admin" }],
     // The spend card's read (E1c) folds these. Each carrier has an hour it paid for and a finished daily
     // check, with figures of its own, so a fold or a ledger read that lost its org filter would show it.
     ads_spend_hourly: [{ org_id: org, campaign_id: ids.campaign, hour: T, spend_cents: org === ORG ? 1_234 : 8_765, impressions: 10, clicks: 1, leads: 1 }],
+    // CQ3's concept read folds these: each carrier's ad hour carries its own figure, so a fold that lost its org filter would show it.
+    ads_ad_spend_hourly: [{ org_id: org, campaign_id: ids.campaign, creative_id: ids.creative, language: "en", meta_ad_id: org === ORG ? "880000000001" : "880000000002", hour: T, spend_cents: org === ORG ? 2_468 : 9_753, impressions: 20, clicks: 2, leads: 2 }],
     jobs: [{ id: randomUUID(), org_id: org, kind: "ads_reconcile", dedup_key: `ads_reconcile:${ids.conn}`, status: "done", started_at: org === ORG ? T : "2026-11-05T13:00:00.000Z" }],
   };
 }
+
+/** A recipe the presets route can parse (the sweep calls every ads route, the presets list included). */
+const SWEEP_RECIPE = {
+  name: "Sweep preset", hook_formula: "Lead with the pay figure.", copy_slots: [{ name: "hook", max_chars: 60 }, { name: "pay", max_chars: 40 }, { name: "cta", max_chars: 30 }, { name: "title", max_chars: 40 }],
+  image_prompt_template: "An empty highway at {time_of_day}, no text, no logos, no lettering", image_slots: ["time_of_day"],
+  overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: { primary_text: "pay", headline: "title" },
+  starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null, formats: ["4:5"],
+};
 
 const sealedValues: string[] = [];
 const tables: Record<string, FixtureRow[]> = {};
@@ -160,6 +172,7 @@ const SWEEP: Array<[string, string, unknown?]> = [
   ["POST /api/ads/presets", "presets", { key: "P1", enabled: true, recipe: {} }],
   ["GET /api/ads/campaigns", "campaigns"],
   ["GET /api/ads/campaigns/:campaignId", `campaigns/${MINE.campaign}`],
+  ["GET /api/ads/campaigns/:campaignId/concepts", `campaigns/${MINE.campaign}/concepts`],
   ["POST /api/ads/campaigns", "campaigns", { id: randomUUID(), brief_source: "recruiting_opening", brief_ref: MINE.campaign, connection_id: MINE.conn, brand_kit_id: MINE.kit }],
   ["POST /api/ads/campaigns/:campaignId/launch", `campaigns/${MINE.campaign}/launch`, { daily_budget_cents: 5_000, lifetime_cap_cents: 50_000 }],
   // Launch before the archive move below: G-launch-gate's refusal is asserted on a paused campaign.
@@ -214,6 +227,11 @@ describe("Security L3 — the sweep reaches every ads route", () => {
     expect(answers.get("POST /api/ads/connections/:connectionId/test")!.status).toBe(200);
     expect(answers.get("GET /api/ads/connections")!.text).toContain(MINE.conn);
     expect(answers.get("GET /api/ads/campaigns")!.text).toContain(MINE.campaign);
+    const concepts = answers.get("GET /api/ads/campaigns/:campaignId/concepts")!;
+    expect(concepts.status).toBe(200);
+    expect(concepts.text).toContain(`"preset_key":"P1"`);
+    expect(concepts.text).toContain(`"spend_cents":2468`);
+    expect(concepts.text).not.toContain("9753");
     const spend = answers.get("GET /api/ads/spend")!;
     expect(spend.status).toBe(200);
     expect(spend.text).toContain(MINE.campaign);

@@ -34,7 +34,7 @@ export type FixtureRow = Record<string, unknown>;
  * Build a fixture over these rows.
  *
  * Applies, in PostgREST's order: the filters the query made (`eq`, `in`, `is`), then `order`, then
- * `limit`, then the `select` list as a projection.
+ * `limit` and `range`, then the `select` list as a projection.
  */
 export function postgrestFixture(rows: readonly FixtureRow[]): (q: RecordedQuery) => FixtureRow[] {
   return (q: RecordedQuery) => {
@@ -64,6 +64,10 @@ export function postgrestFixture(rows: readonly FixtureRow[]): (q: RecordedQuery
 
     const limit = q.ops.find((o) => o.method === "limit");
     if (limit) out = out.slice(0, Number(limit.args[0]));
+    // `.range(from, to)` is inclusive at both ends, applied after order like `limit` (CQ3's reader pages this way;
+    // without it a fixture answered every page with every row and a paging loop never ended).
+    const range = q.ops.find((o) => o.method === "range");
+    if (range) out = out.slice(Number(range.args[0]), Number(range.args[1]) + 1);
 
     // ⚠ The projection is the half that caught B3's missing `revokes`: a service that never selects
     // a column must not be handed it, or the test cannot tell reading from not reading.
