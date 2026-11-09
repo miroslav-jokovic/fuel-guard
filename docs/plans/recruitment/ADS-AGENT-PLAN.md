@@ -1265,7 +1265,9 @@ rate, and Higgsfield credits per approved creative.
   when Meta returns no such field (us; rec read at L4, else owner's one-time preview as manual evidence) · Q-AD49
   Meta's "close form" filtering has no documented API (us; rec do not use it) · Q-AD50 who owns a new lead (owner;
   rec the opening's recruiter) · Q-AD51 lead-quality alert thresholds (owner; rec alert-only for 4 weeks) · Q-AD52
-  texting-consent checkbox on the form (counsel; deferred).
+  texting-consent checkbox on the form (counsel; deferred). **Ruled 2026-11-09 (owner: "proceed as recommended"):** Q-AD47
+  (a), Q-AD48 (a) else (b), Q-AD49 (a), Q-AD50 (a), Q-AD51 (a). New: Q-AD53 a call button on the thank-you page (us; rec
+  after L4).
 
 ---
 

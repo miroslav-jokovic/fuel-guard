@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { parseAdName } from "@silvicom/shared";
+import { introLines, META_FORM_WORDS, parseAdName } from "@silvicom/shared";
 import { expectOrgScoped } from "../../../../testing/supabaseRecorder.js";
 import { campaign, CONN, createAdsWorld, ORG, type AdsWorld } from "../../../../testing/adsWorld.js";
 import { FakeMeta } from "../simulator/fakeMeta.js";
 import { MetaGraph, resetGraphThrottles } from "./graphClient.js";
-import { adNameFor, nameFor, publishPaused, type PublishInput } from "./publisher.js";
+import { adNameFor, formParams, nameFor, publishPaused, type PublishInput } from "./publisher.js";
 import type { PublishCreative } from "./publisherAds.js";
 
 /**
@@ -65,7 +65,7 @@ const input = (patch: Partial<PublishInput> = {}): PublishInput => ({
   brief_source: "recruiting_opening", brief_ref: "op-1@v3", created_at: "2026-11-02T15:00:00Z",
   area: { label: "Joliet yard", latitude: 41.525, longitude: -88.0817, radius_miles: 25, reason: "Drivers report to the Joliet yard daily" },
   daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, key: `${CAMPAIGN}:stint-1`,
-  form_questions: ["class_a_held", "class_a_years", "hazmat_endorsement"], creatives: [creative()], privacy_url: "https://app.silvicom360.com/privacy", ...patch,
+  claims: [{ kind: "money", cents: 62, per: "mile" }, { kind: "quantity", value: 23, unit: "age" }, { kind: "quantity", value: 2, unit: "year" }], form_questions: ["class_a_held", "class_a_years", "hazmat_endorsement"], creatives: [creative()], privacy_url: "https://app.silvicom360.com/privacy", ...patch,
 });
 
 const graph = (token = TOKEN) => new MetaGraph({ token, throttleKey: "conn-pub", baseUrl: base, timeoutMs: 300, sleep: async () => {} });
@@ -122,6 +122,12 @@ describe("Meta publisher (B2a) — what it sends", () => {
     expect(r).toEqual({ ok: false, error_code: code });
     expect(meta.requests).toHaveLength(0);
     expect(creates().map((x) => [x.status, x.error_code])).toEqual([["refused", code]]);
+  });
+
+  it("refuses before calling Meta when the form's intro would show a figure the claim checker cannot place (LQ1)", async () => {
+    const r = await publish({ claims: [{ kind: "quantity", value: 1000, unit: "age" }] });
+    expect(r).toEqual({ ok: false, error_code: "form_screens_refused" });
+    expect(meta.requests).toHaveLength(0);
   });
 
   it("FakeMeta holds Meta's employment rules: age, gender or a radius under 15 miles is a hard 2909035", async () => {
@@ -236,6 +242,20 @@ describe("Meta publisher (B2b) — the Instant Form", () => {
     expect(JSON.parse(sent.body.block_display_for_non_targeted_viewer!)).toBe(true);
   });
 
+  it("every form is higher intent with an SMS-verified phone, an intro of the job's requirements and a thank-you page (LQ1)", async () => {
+    const r = await publish();
+    if (!r.ok) throw new Error(r.error_code);
+    for (const lang of ["en", "es"] as const) {
+      const id = r.platform_refs.meta_form_ids[lang];
+      const f = meta.forms.forms.get(id)!;
+      expect(f.is_optimized_for_quality).toBe(true);
+      expect(meta.forms.smsVerified.has(id)).toBe(true);
+      expect(f.context_card).toEqual({ title: META_FORM_WORDS.intro_title[lang], style: "LIST_STYLE", content: introLines(input(), lang) });
+      expect(f.thank_you_page).toEqual({ title: META_FORM_WORDS.thank_you_title[lang], body: META_FORM_WORDS.thank_you_body[lang], button_type: "NONE" });
+    }
+    expect(meta.forms.forms.get(r.platform_refs.meta_form_ids.en)!.context_card!.content).toContain("At least 2 years of Class A driving");
+  });
+
   it("a Spanish ad gets a Spanish form with the same question keys", async () => {
     const r = await publish();
     if (!r.ok) throw new Error(r.error_code);
@@ -265,9 +285,27 @@ describe("Meta publisher (B2b) — the Instant Form", () => {
 
   it("a form with our name that asks other questions is refused, never adopted", async () => {
     const name = nameFor(input(), "form", "en");
-    meta.forms.forms.set("777", { id: "777", page_id: PAGE, name, status: "ACTIVE", locale: "EN_US", privacy_policy_url: "https://app.silvicom360.com/privacy", questions: [{ type: "EMAIL", key: "email" }] });
+    const spec = formParams(input(), name, "en");
+    meta.forms.forms.set("777", { id: "777", page_id: PAGE, name, status: "ACTIVE", locale: "EN_US", privacy_policy_url: "https://app.silvicom360.com/privacy", questions: [{ type: "EMAIL", key: "email" }],
+      is_optimized_for_quality: true, context_card: spec.context_card, thank_you_page: spec.thank_you_page });
     expect(await publish()).toMatchObject({ ok: false, error_code: "readback_mismatch", response: { id: "777", fields: ["questions"] } });
     expect(posts(/leadgen_forms$/)).toBe(0);
+  });
+
+  it("a form made before LQ1 — no review step, no intro, no thank-you page — is refused, never adopted", async () => {
+    const name = nameFor(input(), "form", "en");
+    const spec = formParams(input(), name, "en");
+    meta.forms.forms.set("778", { id: "778", page_id: PAGE, name, status: "ACTIVE", locale: "EN_US", privacy_policy_url: "https://app.silvicom360.com/privacy", questions: spec.questions, is_optimized_for_quality: false });
+    expect(await publish()).toMatchObject({ ok: false, error_code: "readback_mismatch", response: { id: "778", fields: ["is_optimized_for_quality", "context_card", "thank_you_page"] } });
+    expect(posts(/leadgen_forms$/)).toBe(0);
+  });
+
+  it("a form whose intro or thank-you words differ from ours is refused, never adopted", async () => {
+    const name = nameFor(input(), "form", "en");
+    const spec = formParams(input(), name, "en");
+    meta.forms.forms.set("779", { id: "779", page_id: PAGE, name, status: "ACTIVE", locale: "EN_US", privacy_policy_url: "https://app.silvicom360.com/privacy", questions: spec.questions,
+      is_optimized_for_quality: true, context_card: { ...spec.context_card!, content: ["Any licence"] }, thank_you_page: { ...spec.thank_you_page, body: "We may call." } });
+    expect(await publish()).toMatchObject({ ok: false, error_code: "readback_mismatch", response: { id: "779", fields: ["context_card", "thank_you_page"] } });
   });
 });
 

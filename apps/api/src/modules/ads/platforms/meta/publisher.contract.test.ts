@@ -5,7 +5,9 @@ import { campaign, CONN, createAdsWorld, LIVE_SETTINGS, ORG, type AdsWorld } fro
 import { expectOrgScoped } from "../../../../testing/supabaseRecorder.js";
 import { runCampaignStep } from "../../orchestrator/runner.js";
 import type { FakeMetaFault } from "../simulator/fakeMetaFaults.js";
+import { fieldNames } from "../simulator/fakeMetaShapes.js";
 import { openMetaTarget, SANDBOX_VARIABLES, targetName, type MetaTarget } from "./contract/metaTarget.js";
+import { compareRecorded, kindOf, type Observed } from "./contract/readings.js";
 import { MetaGraph, resetGraphThrottles } from "./graphClient.js";
 import { publishPaused, type PublishInput } from "./publisher.js";
 
@@ -69,7 +71,7 @@ const input = (key: string): PublishInput => ({
   brief_source: "recruiting_opening", brief_ref: "op-1@v3", created_at: "2026-11-05T15:00:00Z",
   area: { label: "Joliet yard", latitude: 41.525, longitude: -88.0817, radius_miles: 25, reason: "Drivers report to the Joliet yard daily" },
   daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, key: `${campaignId}:${key}`,
-  form_questions: ["class_a_held", "class_a_years"], privacy_url: "https://app.silvicom360.com/privacy",
+  claims: [{ kind: "money", cents: 62, per: "mile" }, { kind: "quantity", value: 23, unit: "age" }, { kind: "quantity", value: 2, unit: "year" }], form_questions: ["class_a_held", "class_a_years"], privacy_url: "https://app.silvicom360.com/privacy",
   creatives: [{
     id: creativeId, preset_key: "P2", platform_slots: { primary_text: "body", headline: "title" },
     copy: { en: { hook: "Home every weekend", cta: "Apply now", body: "Regional lanes out of Joliet.", title: "Class A drivers" },
@@ -182,10 +184,13 @@ describe("Meta publisher contract — a revoked token stops the step and tells a
 const READ_BACK: Array<{ step: (typeof STEPS)[number][0]; page?: true; fields: string; renamed?: Record<string, [string, (sent: Record<string, unknown>) => unknown]>; writeOnly?: Record<string, string> }> = [
   { step: "campaign", fields: "name,objective,buying_type,status,special_ad_categories,special_ad_category_country,spend_cap" },
   { step: "ad set", fields: "name,campaign_id,status,daily_budget,billing_event,bid_strategy,optimization_goal,destination_type,promoted_object,targeting" },
-  { step: "form", page: true, fields: "name,locale,questions,privacy_policy_url",
+  { step: "form", page: true, fields: "name,locale,questions,privacy_policy_url,is_optimized_for_quality,context_card{title,style,content},thank_you_page{title,body,button_type}",
     // `link_text` is the words of the privacy link; the form's read fields carry only its URL (OUR reading — L4 settles it).
     renamed: { privacy_policy: ["privacy_policy_url", (p) => p.url] },
-    writeOnly: { block_display_for_non_targeted_viewer: "a delivery switch, not among a form's read fields in our reading (fakeMetaForms.ts); L4 settles it" } },
+    writeOnly: {
+      block_display_for_non_targeted_viewer: "a delivery switch, not among a form's read fields in our reading (fakeMetaForms.ts); L4 settles it",
+      is_phone_sms_verify_enabled: "not a LeadgenForm read field (Business SDK v26 leadgenform.py); the reading form-sms-verify-read records what the target answers when asked (Q-AD48)",
+    } },
   { step: "ad creative", fields: "name,object_story_spec" },
   { step: "ad", fields: "name,adset_id,status,creative", renamed: { creative: ["creative", (c) => ({ id: c.creative_id })] } },
 ];
@@ -215,7 +220,7 @@ describe("Meta publisher contract — every object it made, read back from the t
         const id = (call.upstream!.body as { id: string }).id;
         const read = await graph(kind.page ? t.pageToken() : t.token()).get<Record<string, unknown>>(id, { fields: kind.fields });
         if (!read.ok) throw new Error(`${kind.step} ${id}: ${read.error.error_code}`);
-        const listed = new Set(kind.fields.split(","));
+        const listed = new Set(fieldNames(kind.fields));
         for (const [field, raw] of Object.entries(call.body)) {
           const sent = asSent(raw);
           const renamed = kind.renamed?.[field];
@@ -237,5 +242,17 @@ describe("Meta publisher contract — every object it made, read back from the t
     }
     expect(found).toEqual([]);
     expect(checked).toBe(1 + 1 + 2 + 2 + 2 + 2);
+  });
+
+  it("asked for SMS verification by name, the target's answer is the committed reading (Q-AD48)", async () => {
+    expect((await publish("stint-1")).ok).toBe(true);
+    const id = (t.proxy.made(EDGE.form)[0]!.upstream!.body as { id: string }).id;
+    // Our own request's answer, not the wire's first GET of this id (that is the publisher's read-back).
+    const r = await graph(t.pageToken()).get<Record<string, unknown>>(id, { fields: "id,is_phone_sms_verify_enabled" });
+    const observed: Observed = r.ok
+      ? { status: 200, is_phone_sms_verify_enabled: kindOf(r.data.is_phone_sms_verify_enabled) }
+      : { status: r.error.http, "error.code": r.error.code };
+    const differences = compareRecorded("publisher-form", { "form-sms-verify-read": { fake: "platforms/simulator/fakeMetaForms.ts", observed } }, t.name);
+    expect(differences).toEqual([]);
   });
 });

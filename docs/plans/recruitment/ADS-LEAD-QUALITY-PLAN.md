@@ -1,6 +1,6 @@
 # Ads lead quality — plan (LQ1–LQ4)
 
-**Status:** planned 2026-11-09; nothing built. Owner's ask (2026-11-09): "make sure we get leads that are not random,
+**Status:** planned 2026-11-09. **Owner ruled every recommendation the same day ("proceed as recommended"):** Q-AD47 (a), Q-AD48 (a) else (b), Q-AD49 (a), Q-AD50 (a), Q-AD51 (a). LQ1 built 2026-11-09 (see its progress entry); LQ2, LQ3 next; LQ4 waits on counsel. Owner's ask (2026-11-09): "make sure we get leads that are not random,
 that are real and reliable", and "these updates must have no assumptions, gaps or blockers".
 **Parent:** [`ADS-AGENT-PLAN.md`](ADS-AGENT-PLAN.md) (D-AD*, Q-AD*); build order and tracks per
 [`ADS-AGENT-BUILD-WORKFLOW.md`](ADS-AGENT-BUILD-WORKFLOW.md). Opens Q-AD47–Q-AD52 (§9 of the parent; detail here).
@@ -71,10 +71,12 @@ No migration. No new setting (Q-AD47 rec). Files: `packages/shared/src/ads/metaL
      ad already states pay, and no deterministic money formatter exists in shared today (pay wording is the
      Copywriter's, checked by `checkClaims`) — adding one is a separate change, not slipped in here;
    - the bullets pass `checkClaims` like any copy (a figure not in the brief cannot appear).
-4. `thank_you_page`, EN and ES, fixed sentences: "Thanks — a recruiter will call you." /
-   "Gracias — un reclutador le llamará." No promised time (the office's hours are not recorded anywhere; promising
-   "in 5 minutes" at 23:00 would be false). Button: `CALL_BUSINESS` with the campaign's brand-kit phone when
-   `normaliseUsPhone(kit.phone)` yields a number, else `NONE`. Both outcomes tested.
+4. `thank_you_page`, EN and ES, fixed sentences: "Thanks — a recruiter will call you" + "Please keep your phone
+   nearby." / "Gracias — un reclutador le llamará" + "Por favor, tenga su teléfono a la mano." No promised time (the
+   office's hours are not recorded anywhere; promising "in 5 minutes" at 23:00 would be false). Button: **`NONE`**.
+   *Changed while building (2026-11-09):* the plan said `CALL_BUSINESS` with the brand-kit phone, but Meta's
+   reference documents `business_phone_number` only as "phone number string" and `country_code` with no format at
+   all — sending either would be a guess. Q-AD53 below.
 5. Preflight refuses, before any call, a context card or thank-you text over its limit (`form_text_too_long`).
 6. FakeMeta's form endpoint accepts and echoes the new fields (except SMS verify, which it accepts but does not echo
    — mirroring the SDK), refuses `CALL_BUSINESS` without a phone, and the contract suite asserts all of it on fake
@@ -156,6 +158,12 @@ sandbox run already planned (Stage 2).
   defaults 40 % wrong numbers / 40 % hard does-not-meet after 10 attempted leads (the 40 % is a practitioner rule of
   thumb — Upgrowth — shown as such in the help text). (b) Pause at the threshold from day one. **Rec (a)**, then
   re-decide with our own four weeks of numbers (plan §8).
+- **Q-AD53 · A "Call us" button on the thank-you page** (us, found building LQ1, 2026-11-09). `CALL_BUSINESS` needs
+  `business_phone_number` ("phone number string", error 192 "Invalid phone number") and `country_code` (no
+  description) — neither format is documented, and no Meta example shows them. (a) After the L4 run, create one
+  sandbox form with `CALL_BUSINESS`, `country_code` "US" and the number as `normaliseUsPhone` gives it, read it back,
+  and record the reading; then add the button from the campaign's brand-kit phone. (b) Leave it `NONE`.
+  **Rec (a), after L4** — a small change once Meta's answer is recorded; until then `NONE` (built).
 - **Q-AD52 · A texting-consent checkbox on the form** (counsel; adds to Q-AD8). Wording and whether a form tick is
   prior express consent for an informational text. Deferred; nothing is built until answered.
 
