@@ -110,6 +110,17 @@ export const adBriefSchema = z.object({
   subject: z.string().trim().min(2).max(120),
   claims: z.array(adClaimSchema).min(1).max(40),
   area: adAreaSchema,
+  /**
+   * What the job is LIKE, in plain phrases that claim nothing (ADS-CREATIVE-QUALITY-PLAN CQ2, D-AD20): the
+   * equipment, the lanes, the schedule — "flatbed and reefer", "Midwest to the Southeast", "regional runs" — and
+   * the carrier's one line in its own words. The copywriter reads it as subject matter and the art director as
+   * scene context; neither may turn it into a figure or a promise, because `checkClaims` still holds every
+   * figure and every listed term to `claims`. Defaulted, so a brief frozen before CQ2 still parses.
+   */
+  subject_matter: z.object({
+    details: z.array(z.string().trim().min(2).max(120)).max(12),
+    in_our_words: z.string().trim().min(2).max(140).nullable(),
+  }).default({ details: [], in_our_words: null }),
   /** Keys of the form questions the platform form may ask (the lead-form builders own the wording). */
   form_questions: z.array(z.string().regex(/^[a-z][a-z0-9_]{1,40}$/)).max(10),
   /** Where "Apply" lands when the platform form is not used. */

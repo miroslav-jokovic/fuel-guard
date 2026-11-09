@@ -28,6 +28,7 @@ const connection = { id: CONN, org_id: ORG, provider: "simulator", is_sandbox: f
 const brief: AdBrief = {
   source: "recruiting_opening", ref: "op-7@v2", subject: "Class A regional driver", claims: [{ kind: "money", cents: 150_000, per: "week" }],
   area: { label: "Joliet yard", latitude: 41.525, longitude: -88.0817, radius_miles: 25, reason: "Drivers report to the Joliet yard daily" },
+  subject_matter: { details: [], in_our_words: null },
   form_questions: ["class_a_held"], landing_url: null,
 };
 const recipe: AdPresetRecipe = {

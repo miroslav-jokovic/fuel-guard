@@ -25,6 +25,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -68,26 +72,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:19:23.636Z",
+    "recorded_at": "2026-11-09T18:38:16.931Z",
     "output": {
       "en": {
-        "hook": "Tanker. $0.75/mile.",
-        "cta": "Apply Now",
-        "primary_text": "Put your Class A CDL and 2 years of experience to work in a tanker seat that pays $0.75 per mile. If you are ready to drive and want honest, straightforward pay, apply today and join our team.",
-        "headline": "Class A Tanker Driver Needed"
+        "hook": "Tanker. $0.75 per mile.",
+        "cta": "Apply today",
+        "primary_text": "You will run tanker freight at $0.75 per mile. A Class A CDL and 2 years of verifiable experience are required. If you have the miles behind you, apply today and let's talk.",
+        "headline": "Class A tanker drivers wanted"
       },
       "es": {
-        "hook": "Tanque. $0.75 por milla.",
-        "cta": "Aplica ya",
-        "primary_text": "Pon tu CDL Clase A y tus 2 años de experiencia al volante de un tanque con pago de $0.75 por milla. Si buscas un trabajo directo y bien remunerado, únete a nuestro equipo hoy mismo.",
-        "headline": "Conductor Clase A con Tanque"
+        "hook": "Tráiler tanque. $0.75/milla.",
+        "cta": "Aplica hoy",
+        "primary_text": "Manejarás tráiler tanque y ganarás $0.75 por milla. Se requiere licencia clase A CDL y 2 años de experiencia verificable. Si tienes el historial, únete al equipo hoy.",
+        "headline": "Se buscan choferes clase A"
       }
     }
   }

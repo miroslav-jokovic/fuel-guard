@@ -23,6 +23,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -56,23 +60,24 @@
         "4:5"
       ],
       "overlay_slots": null
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:16:13.153Z",
+    "recorded_at": "2026-11-09T18:34:03.830Z",
     "output": {
       "en": {
-        "hook": "Pay details inside — Class A regional drivers.",
-        "body": "Drive regional routes with no-touch freight and get home weekly. We want skilled Class A drivers who are ready to join a team that keeps you moving and brings you back.",
+        "hook": "Regional CDL-A drivers, home weekly.",
+        "body": "This regional run gets you home every week. You haul no-touch freight, so there is no unloading on your end. If you hold a Class A and want a steady regional route, this seat is worth a look.",
         "cta": "Apply today."
       },
       "es": {
-        "hook": "Detalles de pago — conductores Clase A regionales.",
-        "body": "Rutas regionales con carga sin contacto y regreso a casa cada semana. Si tienes tu Clase A y buscas un trabajo regional serio, este lugar es para ti.",
+        "hook": "Conductores CDL-A regionales, casa cada semana.",
+        "body": "Esta ruta regional te regresa a casa cada semana. La carga es no-touch, sin descargar tú mismo. Si tienes licencia Clase A y buscas una ruta regional estable, esta posición te puede convenir.",
         "cta": "Postúlate hoy."
       }
     }

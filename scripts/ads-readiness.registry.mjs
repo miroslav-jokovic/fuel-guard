@@ -844,7 +844,7 @@ export const READINESS = [
             "every leftover digit is reported, so a figure cannot hide inside an unrecognised shape",
           ] }],
         },
-        { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "40 briefs over P1–P5, 15+ in Spanish: 40 of 40 live answers pass the claim and length checks, twice (pnpm ads:eval copywriter, baseline.json, 2026-11-05); the owner rates the 40 (the rating sheet in the PR) and the rate is recorded here" },
+        { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "60 briefs over P1–P5 (20 of them made through openingBrief from fields an opening can hold, CQ2), 20 in Spanish: 58 of 60 live answers pass the claim and length checks after the one fit pass (pnpm ads:eval copywriter, baseline.json, 2026-11-09; the two refused are a 22-character CTA that cannot hold the company's whole name and an opening with every benefit ticked); the owner rates them (the rating sheet in the PR) and the rate is recorded here" },
       ],
       // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
       // evaluation set alone (ADS-AGENT-PLAN §9). The run below was written by us from the ruling and CONFIRMED BY THE OWNER 2026-11-06.
@@ -863,7 +863,7 @@ export const READINESS = [
               "has model recordings under the prompt in force and planted defects beside them",
               "planted-digit-in-slot", "planted-lettering", "planted-foreign-photo", "planted-photo-on-text-only", "planted-quote-in-slot",
               "hands on a prompt ending with the no-lettering clause and the kit photo it starts from",
-              "asks once per creative and attempt, as the art director, sending no brief and no company name",
+              "asks once per creative and attempt, as the art director, sending the job as context but no claims and no company name",
             ] },
             { file: "packages/shared/src/ads/artDirection.test.ts", titles: [
               "ends with it when the template already does, without saying it twice",
@@ -883,7 +883,7 @@ export const READINESS = [
           ] }],
         },
       ],
-      L3: [{ need: "the evaluation set at its bar: every prompt ends with the clause and starts from a reference photo when the preset shows equipment", gap: "C2 measured 10 of 10 (pnpm ads:eval artDirector, baseline.json) on fixture presets; §4R sets no set size — it is re-run on P1–P5 once the owner approves them (Q-AD12)" }],
+      L3: [{ need: "the evaluation set at its bar: every prompt ends with the clause and starts from a reference photo when the preset shows equipment", gap: "C2 measured 10 of 10; CQ2 (2026-11-09, prompt v2 with the job as context) 11 of 12, the one refused a slot of 125 characters (pnpm ads:eval artDirector, baseline.json) on fixture presets; §4R sets no set size — it is re-run on P1–P5 once the owner approves them (Q-AD12)" }],
       // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
       // evaluation set alone (ADS-AGENT-PLAN §9). The run below was written by us from the ruling and CONFIRMED BY THE OWNER 2026-11-06.
       L4: [{ need: "its live prompts rendered by the real Higgsfield API, from the kit photo where the preset shows equipment, each picture passing the no-lettering check", gap: STAGE2 }],

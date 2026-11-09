@@ -22,7 +22,8 @@
       "motion_template": null,
       "formats": [
         "4:5"
-      ]
+      ],
+      "overlay_slots": null
     },
     "kit": {
       "company_name": "Fixture Carrier",
@@ -74,18 +75,19 @@
       "forbidden_marks": [
         "Other Freight Co"
       ]
-    }
+    },
+    "context": []
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@1",
+    "prompt_version": "artDirector@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T05:15:26.069Z",
+    "recorded_at": "2026-11-09T18:39:37.530Z",
     "output": {
       "slots": {
-        "weather": "overcast sky with light rain",
-        "light": "wet pavement reflecting distant headlights and roadside lamp posts"
+        "weather": "a clear sky with scattered stars",
+        "light": "pale moonlight casting long shadows across the asphalt"
       },
       "reference_photo": null
     }

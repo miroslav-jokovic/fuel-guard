@@ -24,6 +24,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -69,26 +73,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:16:43.230Z",
+    "recorded_at": "2026-11-09T18:36:45.181Z",
     "output": {
       "en": {
-        "hook": "You roll out at dawn, $31/hr.",
-        "cta": "Apply today.",
-        "primary_text": "You start each morning behind the wheel, earning $31.00 an hour on a local route that brings you back home every day. If you hold a Class A CDL and want steady local work, come join our team.",
-        "headline": "Local Class A, home daily."
+        "hook": "You're rolling at dawn. $31/hr.",
+        "cta": "Apply today",
+        "primary_text": "This is a local Class A route. You start early, run your day, and sleep in your own bed every night. Pay is $31 per hour. Apply now and get behind the wheel.",
+        "headline": "Local. Home daily. Class A."
       },
       "es": {
-        "hook": "Al volante al alba, $31/hr.",
-        "cta": "Aplica hoy.",
-        "primary_text": "Cada mañana sales a la carretera ganando $31.00 por hora en una ruta local que te trae a casa todos los días. Si tienes CDL Clase A y buscas trabajo local estable, únete a nuestro equipo.",
-        "headline": "Clase A local, en casa diario."
+        "hook": "Al volante al amanecer. $31/hr.",
+        "cta": "Aplica hoy",
+        "primary_text": "Ruta local con Clase A. Arrancas temprano, cumples tu jornada y llegas a casa cada noche. El pago es de $31 por hora. Únete al equipo hoy.",
+        "headline": "Local. En casa cada día."
       }
     }
   }

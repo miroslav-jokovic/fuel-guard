@@ -48,12 +48,20 @@ async function run<F, T>(name: string, w: EvalWorker<F, T>, record: boolean, jso
   for (const { file, fixture } of asked) {
     const req = await w.request(fixture);
     model = req.model;
-    const out = await callForcedTool(client, req);
-    const output = out.kind === "ok" ? out.value : out.kind === "off_schema" ? out.raw : null;
+    let out = await callForcedTool(client, req);
+    let output = out.kind === "ok" ? out.value : out.kind === "off_schema" ? out.raw : null;
+    let fitted = false;
+    // The worker's one second ask, when it would make one (the Copywriter's fit pass): the recording is the final answer.
+    const again = out.kind === "ok" && w.refine ? w.refine(fixture, output) : null;
+    if (again) {
+      out = await callForcedTool(client, again);
+      output = out.kind === "ok" ? out.value : out.kind === "off_schema" ? out.raw : null;
+      fitted = true;
+    }
     const { verdict, findings } = out.kind === "no_tool_use" ? { verdict: "off_schema", findings: [] } : w.judge(fixture, output);
     const right = w.agrees ? w.agrees(fixture, verdict, findings) : verdict === "ready";
     if (right) agreed += 1;
-    if (!json) console.log(`${right ? "✓" : "✗"} ${w.name(fixture)}  ${verdict}${findings.length ? ` (${findings.join(", ")})` : ""}`);
+    if (!json) console.log(`${right ? "✓" : "✗"} ${w.name(fixture)}  ${verdict}${findings.length ? ` (${findings.join(", ")})` : ""}${fitted ? "  [after the fit pass]" : ""}`);
     if (record) {
       const next = w.withRecording(fixture, { source: "model", prompt_version: w.promptVersion, model: req.model, recorded_at: new Date().toISOString(), output });
       const withExpect = { ...(next as object), expect: verdict, ...(verdict === "refused" ? { expect_findings: findings } : { expect_findings: undefined }) };

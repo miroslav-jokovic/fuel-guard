@@ -31,7 +31,8 @@ export type ClaimFindingKind =
   | "age_not_in_brief"
   | "term_not_in_brief"
   | "unrecognised_number"
-  | "forbidden_wording";
+  | "forbidden_wording"
+  | "foreign_unit";
 
 export interface ClaimFinding {
   kind: ClaimFindingKind;
@@ -113,6 +114,31 @@ export const PROMISE_TERMS: Record<string, readonly string[]> = {
 };
 
 /**
+ * The quantities a person typed into a free-text fact ("Out 2 weeks, home 4 days" → 2 week, 4 day; "within 500
+ * miles" → 500 mile), in digits or in words, so a brief source can make them claims (CQ2): the copy may then
+ * repeat what the opening says and nothing it does not. A number with no unit word is not a quantity and is not
+ * returned — it cannot be stated either way.
+ */
+export function quantitiesIn(text: string): Array<{ value: number; unit: QuantityUnit }> {
+  const t = fold(text);
+  const out: Array<{ value: number; unit: QuantityUnit }> = [];
+  // A range shares its unit: "10 to 12 days", "10-12 days", "10 a 12 dias" make both numbers quantities.
+  for (const m of t.matchAll(RANGE)) {
+    const unit = UNIT_WORDS[m[3]!];
+    if (unit) out.push({ value: Number(m[1]!.replace(/,/g, "")), unit });
+  }
+  for (const m of t.matchAll(QUANTITY)) {
+    const unit = UNIT_WORDS[m[3]!];
+    if (unit) out.push({ value: Number(m[1]!.replace(/,/g, "") + (m[2] ? `.${m[2]}` : "")), unit });
+  }
+  for (const m of t.matchAll(SPELLED_QUANTITY)) {
+    const unit = UNIT_WORDS[m[2]!];
+    if (unit) out.push({ value: SPELLED[m[1]!]!, unit });
+  }
+  return out;
+}
+
+/**
  * The listed term a whole phrase IS ("Home weekly" → "home weekly"), or null. For a brief source turning a
  * person's free text into a `term` claim (recruiting's `openingBrief`): exact phrasings only, so text that
  * merely mentions a promise never becomes one. Whitespace is collapsed; case and accents fold as above.
@@ -124,6 +150,15 @@ export function promiseTermOf(text: string): string | null {
   }
   return null;
 }
+
+// ── units the trade does not use ────────────────────────────────────────────────────────────────
+/**
+ * A US driver is paid by the mile and drives miles; copy that says "kilómetro" or "km" beside a per-mile rate reads
+ * as written by somebody who has never been in a cab. Found 2026-11-09 in a PASSING recorded fixture
+ * (`p1-otr-bonus`: "$0.72 por milla … cada kilómetro recorrido") — the claim check saw no figure, so it saw nothing.
+ * Whole words, folded, EN + ES; `AD_QUANTITY_UNITS` holds no such unit, so no brief can allow one.
+ */
+const FOREIGN_UNITS: readonly string[] = ["kilometer", "kilometers", "kilometre", "kilometres", "kilometro", "kilometros", "km", "kms"];
 
 // ── forbidden wording ───────────────────────────────────────────────────────────────────────────
 export type ForbiddenRule = "age" | "gender" | "health" | "criminal_history" | "national_origin";
@@ -163,6 +198,8 @@ const CENTS = new RegExp(String.raw`\b(\d{1,3})\s?(?:¢|cents?\b|centavos?\b|cpm
 const PER_AFTER = /^\s*(?:\/|per\s+|a\s+|an\s+|por\s+|al\s+|a la\s+|each\s+)?([a-z]+)/;
 /** A number followed by a unit word or %. */
 const QUANTITY = new RegExp(String.raw`\b(${NUM})(?:\.(\d+))?\s?(%|[a-z]+)`, "g");
+/** The first number of a range whose unit follows the second: "10 to 12 days", "10-12 days", "10 a 12 dias". */
+const RANGE = new RegExp(String.raw`\b(${NUM})\s?(?:-|to|a)\s?(${NUM})\s?([a-z]+)`, "g");
 /**
  * A spelled number followed by a unit word — anchored on the number words themselves, so a general
  * "word word" pattern cannot consume the number together with the word before it ("get two weeks").
@@ -176,7 +213,13 @@ const SPELLED_QUANTITY = new RegExp(String.raw`\b(${Object.keys(SPELLED).join("|
  * writes it in. The live model wrote "if you are 23 or older" for an `age` claim of 23 (the 40-brief eval,
  * 2026-11-05) and the check read the 23 as a figure it could not place — a valid ad refused.
  */
-const AGE = /\b(\d{2})\s?\+|\bage\s(\d{2})\b|\b(\d{2})\s(?:years?\sold|anos\sde\sedad|(?:years?\s)?(?:or|and)\s(?:older|over)|anos\so\smas)\b|\bmayor(?:es)?\sde\s(\d{2})(?:\sanos)?\b/g;
+const AGE = /\b(\d{2})\s?\+|\bage\s(\d{2})\b|\b(\d{2})\s(?:years?\sold|anos\sde\sedad|(?:years?\s)?(?:or|and)\s(?:older|over|up|above)|anos\so\smas)\b|\bmayor(?:es)?\sde\s(\d{2})(?:\sanos)?\b/g;
+/**
+ * A road's designation is a name, not a figure: "I-80", "US-30", "SR-9", "Highway 20", "Ruta 66". A lane typed on
+ * the opening ("I-80 corridor, Joliet to Des Moines") reaches the copy as subject matter, and the copy may name the
+ * road. Only these shapes; a bare "80" is still a figure nobody can account for (CQ2, found 2026-11-09).
+ */
+const ROAD = /\b(?:i|us|sr)-\d{1,3}\b|\b(?:hwy|highway|interstate|route|ruta)\s\d{1,3}\b/g;
 
 function moneyMatches(claims: AdClaim[], cents: number, per: string | null): boolean {
   return claims.some((c) => c.kind === "money" && c.cents === cents && (per === null || c.per === per));
@@ -201,12 +244,30 @@ function wholeWordIndexes(hay: string, needle: string): number[] {
  * Check one piece of copy (a headline, a body, a card) against the brief. Run it on every string of
  * every language; a finding anywhere blocks Create (D-AD1).
  */
-export function checkClaims(copy: string, brief: Pick<AdBrief, "claims">): ClaimCheck {
+export function checkClaims(copy: string, brief: Pick<AdBrief, "claims"> & { exempt_phrases?: readonly string[] }): ClaimCheck {
   const text = fold(copy);
   const claims = brief.claims;
   const findings: ClaimFinding[] = [];
   const explained = new Array<boolean>(text.length).fill(false);
   const at = (index: number, len: number) => copy.slice(index, index + len);
+
+  // 0. phrases the brief vouches for as written — the carrier's own name ("360 Logistics"), whose digits are not a
+  //    figure (CQ2). Covered first, so no later rule reads a number out of them. Never a whole number alone.
+  for (const phrase of brief.exempt_phrases ?? []) {
+    const f = fold(phrase).trim();
+    if (f.length < 2 || /^\d+$/.test(f)) continue;
+    for (const i of wholeWordIndexes(text, f)) cover(explained, i, i + f.length);
+  }
+  // 0a. road designations are names
+  for (const m of text.matchAll(ROAD)) cover(explained, m.index!, m.index! + m[0].length);
+  // 0b. units the trade does not use, whatever the brief says
+  for (const u of FOREIGN_UNITS) {
+    for (const i of wholeWordIndexes(text, u)) {
+      if (explained[i]) continue;
+      cover(explained, i, i + u.length);
+      findings.push({ kind: "foreign_unit", text: at(i, u.length), index: i });
+    }
+  }
 
   // 1. forbidden wording, first: it is refused whatever the brief says
   const forbiddenSpans: [number, number][] = [];
@@ -227,6 +288,7 @@ export function checkClaims(copy: string, brief: Pick<AdBrief, "claims">): Claim
   for (const [term, phrasings] of Object.entries(PROMISE_TERMS)) {
     for (const p of phrasings) {
       for (const i of wholeWordIndexes(text, p)) {
+        if (explained[i]) continue;
         cover(explained, i, i + p.length);
         if (!claimedTerms.has(fold(term))) findings.push({ kind: "term_not_in_brief", text: at(i, p.length), index: i });
       }
@@ -235,6 +297,7 @@ export function checkClaims(copy: string, brief: Pick<AdBrief, "claims">): Claim
 
   // 3. money
   for (const m of text.matchAll(DOLLARS)) {
+    if (explained[m.index!]) continue;
     const whole = Number(m[1]!.replace(/,/g, ""));
     const frac = m[2] ? Number(m[2].padEnd(2, "0")) : 0;
     const cents = m[3] ? Math.round((whole + frac / 100) * 1000 * 100) : whole * 100 + frac;
@@ -260,7 +323,15 @@ export function checkClaims(copy: string, brief: Pick<AdBrief, "claims">): Claim
     if (!quantityMatches(claims, value, "age")) findings.push({ kind: "age_not_in_brief", text: at(m.index!, m[0].length), index: m.index! });
   }
 
-  // 5. numbers with units, in digits and in words
+  // 5. numbers with units, in digits and in words — a range first, so "10 to 12 days" holds both numbers to the unit
+  for (const m of text.matchAll(RANGE)) {
+    const unit = UNIT_WORDS[m[3]!];
+    if (!unit || explained[m.index!]) continue;
+    cover(explained, m.index!, m.index! + m[0].length);
+    for (const [n, off] of [[m[1]!, 0], [m[2]!, m[0].lastIndexOf(m[2]!)]] as const) {
+      if (!quantityMatches(claims, Number(n.replace(/,/g, "")), unit)) findings.push({ kind: "quantity_not_in_brief", text: at(m.index! + off, n.length), index: m.index! + off });
+    }
+  }
   for (const m of text.matchAll(QUANTITY)) {
     const unit = UNIT_WORDS[m[3]!];
     if (!unit || explained[m.index!]) continue;

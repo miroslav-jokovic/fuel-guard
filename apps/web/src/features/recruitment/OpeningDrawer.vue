@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AD_MONEY_PER, OPENING_EQUIPMENT, adAreaSchema, type OpeningView, type PlaceSuggestion } from "@silvicom/shared";
+import { AD_MONEY_PER, OPENING_BENEFIT_TERMS, OPENING_BONUS_KINDS, OPENING_EQUIPMENT, OPENING_SCHEDULES, adAreaSchema, type OpeningView, type PlaceSuggestion } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   AppCallout,
@@ -13,7 +13,7 @@ import {
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useToastStore } from "@/stores/toast";
-import { EQUIPMENT_LABEL, PAY_PER_LABEL, blankOpeningForm, openingFormFrom, openingSaveFrom, type OpeningForm } from "./openingForm";
+import { BONUS_KIND_LABEL, EQUIPMENT_LABEL, PAY_PER_LABEL, SCHEDULE_LABEL, benefitLabel, blankOpeningForm, openingFormFrom, openingSaveFrom, type OpeningForm } from "./openingForm";
 import OpeningProfileStep from "./OpeningProfileStep.vue";
 import PlaceSearchField from "./PlaceSearchField.vue";
 import { useSaveOpening } from "./useOpenings";
@@ -31,6 +31,8 @@ const FORM = "opening-form";
 const radius = adAreaSchema.shape.radius_miles;
 const RADIUS_HINT = `Between ${radius.minValue} and ${radius.maxValue} miles of the point.`;
 const payPer = AD_MONEY_PER.map((p) => ({ value: p, label: PAY_PER_LABEL[p] }));
+const schedules = [{ value: "", label: "Not said" }, ...OPENING_SCHEDULES.map((s) => ({ value: s, label: SCHEDULE_LABEL[s] }))];
+const bonusKinds = [{ value: "", label: "No bonus" }, ...OPENING_BONUS_KINDS.map((k) => ({ value: k, label: BONUS_KIND_LABEL[k] }))];
 
 const toast = useToastStore();
 const save = useSaveOpening();
@@ -52,6 +54,11 @@ function pickPlace(place: PlaceSuggestion): void {
 function toggleEquipment(e: OpeningForm["equipment"][number], on: boolean): void {
   const rest = form.value.equipment.filter((x) => x !== e);
   form.value.equipment = on ? [...rest, e] : rest;
+}
+
+function toggleBenefit(key: string, on: boolean): void {
+  const rest = form.value.benefits.filter((x) => x !== key);
+  form.value.benefits = on ? [...rest, key] : rest;
 }
 
 async function submit(): Promise<void> {
@@ -105,8 +112,32 @@ async function submit(): Promise<void> {
       <FormField v-slot="{ id }" label="Lanes" hint="Optional, e.g. Midwest to the Southeast.">
         <BaseInput :id="id" v-model="form.lanes" />
       </FormField>
+      <FormField v-slot="{ id }" label="Schedule" hint="How the work runs. The ad may describe it, not promise it.">
+        <AppSelect :id="id" v-model="form.schedule" :options="schedules" data-test="schedule" />
+      </FormField>
       <FormField v-slot="{ id }" label="Start date">
         <AppDateField :id="id" v-model="form.start_date" />
+      </FormField>
+
+      <fieldset class="space-y-2">
+        <legend class="text-sm font-semibold text-ink">Benefits and features</legend>
+        <p class="text-sm text-ink-muted">An ad may promise only what is ticked here.</p>
+        <div class="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+          <BaseCheckbox v-for="b in OPENING_BENEFIT_TERMS" :key="b" :model-value="form.benefits.includes(b)" :label="benefitLabel(b)" :data-test="`benefit-${b.replace(/\W+/g, '-')}`" @update:model-value="(on: boolean) => toggleBenefit(b, on)" />
+        </div>
+      </fieldset>
+
+      <fieldset class="space-y-2">
+        <legend class="text-sm font-semibold text-ink">Bonus</legend>
+        <p class="text-sm text-ink-muted">In dollars. The ad may state this amount and nothing else as a bonus.</p>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <FormField v-slot="{ id }" label="Kind"><AppSelect :id="id" v-model="form.bonus_kind" :options="bonusKinds" data-test="bonus-kind" /></FormField>
+          <FormField v-slot="{ id }" label="Amount"><BaseInput :id="id" v-model="form.bonus_amount" inputmode="decimal" :disabled="form.bonus_kind === ''" data-test="bonus-amount" /></FormField>
+        </div>
+      </fieldset>
+
+      <FormField v-slot="{ id }" label="In our words" hint="One line about driving here, as you would say it. Figures and promises must match the fields above.">
+        <AppTextarea :id="id" v-model="form.in_our_words" rows="2" maxlength="140" data-test="in-our-words" />
       </FormField>
 
       <fieldset class="space-y-3">

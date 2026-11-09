@@ -1,0 +1,127 @@
+{
+  "name": "opening-in-our-words-only",
+  "about": "P5 Straight talk: No benefit ticked, but a line in the carrier's words to carry the voice.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A local driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 2900,
+          "per": "hour"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "local runs",
+          "Joliet and the south suburbs"
+        ],
+        "in_our_words": "Same dispatcher every day. Trucks washed on Fridays."
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P5 Straight talk",
+      "hook_formula": "Three cards: what you get, what we need, how to apply. Plain and short.",
+      "copy_slots": [
+        {
+          "name": "card_get",
+          "max_chars": 90
+        },
+        {
+          "name": "card_need",
+          "max_chars": 90
+        },
+        {
+          "name": "card_apply",
+          "max_chars": 60
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 220
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A plain {color} card background with soft texture, no text, no logos, no lettering",
+      "image_slots": [
+        "color"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "card_get",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "360 Logistics"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T18:35:21.472Z",
+    "output": {
+      "en": {
+        "card_get": "$29/hr. Home daily. Local dry van in Joliet and the south suburbs.",
+        "card_need": "Class A CDL. 2 years of experience. Age 23+.",
+        "card_apply": "Apply now and join 360 Logistics.",
+        "cta": "Apply today",
+        "primary_text": "Local dry van runs out of Joliet. You're home every day, same dispatcher every day, and your truck is washed on Fridays. $29 per hour, Class A CDL, 2 years experience, 23+.",
+        "headline": "Local. $29/hr. Home daily."
+      },
+      "es": {
+        "card_get": "$29/hora. A casa todos los días. Carga seca local en Joliet.",
+        "card_need": "CDL clase A. 2 años de experiencia. Mayores de 23.",
+        "card_apply": "Aplica hoy con 360 Logistics.",
+        "cta": "Aplica hoy",
+        "primary_text": "Rutas locales de carga seca en Joliet y los suburbios del sur. Llegas a casa cada día, el mismo despachador siempre y el tráiler se lava los viernes. $29 por hora, CDL clase A, 2 años de experiencia, mayores de 23.",
+        "headline": "Local. $29/hora. Casa diario."
+      }
+    }
+  }
+}

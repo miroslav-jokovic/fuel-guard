@@ -1,6 +1,8 @@
 import {
   AD_MONEY_PER,
+  OPENING_BONUS_KINDS,
   OPENING_EQUIPMENT,
+  OPENING_SCHEDULES,
   OPENING_STATUSES,
   openingSaveSchema,
   type OpeningSave,
@@ -21,6 +23,8 @@ import type { BadgeTone } from "@/lib/badges";
  */
 type Equipment = (typeof OPENING_EQUIPMENT)[number];
 type PayPer = (typeof AD_MONEY_PER)[number];
+type Schedule = (typeof OPENING_SCHEDULES)[number];
+type BonusKind = (typeof OPENING_BONUS_KINDS)[number];
 
 export const EQUIPMENT_LABEL: Record<Equipment, string> = {
   dry_van: "Dry van",
@@ -37,6 +41,14 @@ export const PAY_PER_LABEL: Record<PayPer, string> = {
   day: "Per day",
   load: "Per load",
 };
+export const SCHEDULE_LABEL: Record<Schedule, string> = { otr: "Over the road", regional: "Regional", local: "Local" };
+export const BONUS_KIND_LABEL: Record<BonusKind, string> = { "sign-on bonus": "Sign-on bonus", "referral bonus": "Referral bonus" };
+/**
+ * The benefit boxes are the claim checker's own catalogue (`OPENING_BENEFIT_TERMS`, derived from `PROMISE_TERMS`),
+ * read as labels by capitalising the key: a term the checker learns is a box here with no edit. The list is in the
+ * contract; this only says how a key reads.
+ */
+export const benefitLabel = (key: string): string => key.charAt(0).toUpperCase() + key.slice(1);
 export const OPENING_STATUS_LABEL: Record<OpeningStatus, string> = { open: "Open", paused: "Paused", filled: "Filled", closed: "Closed" };
 export const OPENING_STATUS_TONE: Record<OpeningStatus, BadgeTone> = { open: "success", paused: "warning", filled: "info", closed: "neutral" };
 /** The kebab's words for moving an opening TO a status. */
@@ -55,6 +67,12 @@ export interface OpeningForm {
   equipment: Equipment[];
   lanes: string;
   start_date: string;
+  schedule: Schedule | "";
+  benefits: string[];
+  bonus_kind: BonusKind | "";
+  /** In dollars, like pay. */
+  bonus_amount: string;
+  in_our_words: string;
   area_label: string;
   /** Set only by picking a place from the search. */
   area_point: { latitude: number; longitude: number } | null;
@@ -65,7 +83,8 @@ export interface OpeningForm {
 export function blankOpeningForm(): OpeningForm {
   return {
     profile_version_id: "", title: "", headcount: "", pay_per: "mile", pay_min: "", pay_max: "", home_time: "", equipment: [],
-    lanes: "", start_date: "", area_label: "", area_point: null, radius_miles: "", area_reason: "",
+    lanes: "", start_date: "", schedule: "", benefits: [], bonus_kind: "", bonus_amount: "", in_our_words: "",
+    area_label: "", area_point: null, radius_miles: "", area_reason: "",
   };
 }
 
@@ -79,6 +98,8 @@ export function openingFormFrom(o: OpeningView): OpeningForm {
     profile_version_id: v.profile_version_id, title: v.title, headcount: v.headcount === null ? "" : String(v.headcount),
     pay_per: v.facts.pay.per, pay_min: dollars(v.facts.pay.min_cents), pay_max: dollars(v.facts.pay.max_cents),
     home_time: v.facts.home_time, equipment: [...v.facts.equipment], lanes: v.facts.lanes ?? "", start_date: v.facts.start_date ?? "",
+    schedule: v.facts.schedule ?? "", benefits: [...(v.facts.benefits ?? [])],
+    bonus_kind: v.facts.bonus?.kind ?? "", bonus_amount: dollars(v.facts.bonus?.cents ?? null), in_our_words: v.facts.in_our_words ?? "",
     area_label: v.area_label, area_point: { latitude: v.area_latitude, longitude: v.area_longitude },
     radius_miles: String(v.area_radius_miles), area_reason: v.area_reason,
   };
@@ -96,6 +117,12 @@ const FIELD_LABEL: Record<string, string> = {
   "facts.equipment": "Equipment",
   "facts.lanes": "Lanes",
   "facts.start_date": "Start date",
+  "facts.schedule": "Schedule",
+  "facts.benefits": "Benefits",
+  "facts.bonus": "Bonus",
+  "facts.bonus.kind": "Bonus",
+  "facts.bonus.cents": "Bonus amount",
+  "facts.in_our_words": "In our words",
   "area.label": "Area name",
   "area.latitude": "Area",
   "area.longitude": "Area",
@@ -123,6 +150,12 @@ export function openingSaveFrom(form: OpeningForm, openingId: string | null): Op
       equipment: form.equipment,
       lanes: orNull(form.lanes),
       start_date: orNull(form.start_date),
+      schedule: form.schedule === "" ? null : form.schedule,
+      benefits: form.benefits,
+      // A kind without an amount, or an amount without a kind, is half a bonus: sent as the contract sees it, so its
+      // sentence (not ours) says what is missing.
+      bonus: form.bonus_kind === "" && form.bonus_amount.trim() === "" ? null : { kind: form.bonus_kind, cents: cents(form.bonus_amount) },
+      in_our_words: orNull(form.in_our_words),
     },
     area: {
       label: form.area_label, latitude: form.area_point.latitude, longitude: form.area_point.longitude,

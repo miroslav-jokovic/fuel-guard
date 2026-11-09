@@ -1,0 +1,123 @@
+{
+  "name": "opening-tanker-regional-pets",
+  "about": "P4 Walk-around: Tanker regional, hazmat required, pets allowed, weekly pay.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A tanker driver, hazmat",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 75,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekends"
+        },
+        {
+          "kind": "term",
+          "term": "pet policy"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "tanker freight",
+          "regional runs",
+          "Illinois, Indiana, Wisconsin"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P4 Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our tractor parked in a {setting}, three-quarter view, no text, no logos, no lettering",
+      "image_slots": [
+        "setting"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": "A slow orbit around the tractor",
+      "formats": [
+        "9:16"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": null
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T18:36:18.761Z",
+    "output": {
+      "en": {
+        "hook": "Tanker. $0.75 per mile.",
+        "cta": "Apply today.",
+        "primary_text": "Regional tanker runs through Illinois, Indiana, and Wisconsin. You earn $0.75 per mile, get paid weekly, and are home weekends. Pet policy available. Class A, tanker and hazmat endorsements required. Age 23+, 2 years experience required.",
+        "headline": "Home weekends. Weekly pay."
+      },
+      "es": {
+        "hook": "Tráiler tanque. $0.75/milla.",
+        "cta": "Aplica hoy.",
+        "primary_text": "Rutas regionales en Illinois, Indiana y Wisconsin. Ganas $0.75 por milla, pago semanal y regresas a casa los fines de semana. Se permiten mascotas. Clase A con endoso de tanque y hazmat, mayores de 23 años, 2 años de experiencia.",
+        "headline": "Casa fines de semana. Pago semanal."
+      }
+    }
+  }
+}

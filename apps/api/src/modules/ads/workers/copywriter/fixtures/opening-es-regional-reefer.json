@@ -1,0 +1,130 @@
+{
+  "name": "opening-es-regional-reefer",
+  "about": "P1 Windshield sunrise: Spanish-first subject: reefer regional, home weekly, weekly pay.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor Clase A regional, refrigerado",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 64,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 72,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "term",
+          "term": "no-touch freight"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "reefer freight",
+          "regional runs",
+          "Chicago a Texas"
+        ],
+        "in_our_words": "Despacho habla español."
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P1 Windshield sunrise",
+      "hook_formula": "Second person, present tense: put the reader in the driver's seat at dawn, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield at {time_of_day} on an open {road} highway, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day",
+        "road"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": "Slow push-in down the highway as the light rises",
+      "formats": [
+        "9:16",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "Silvicom Inc"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T18:34:44.446Z",
+    "output": {
+      "en": {
+        "hook": "You're rolling at dawn. $0.72/mile.",
+        "cta": "Apply with us.",
+        "primary_text": "Silvicom Inc runs reefer freight on regional lanes, Chicago to Texas. You earn $0.64 to $0.72 per mile, get paid weekly, and sleep in your own bed weekly. No-touch freight. Must be 23+ with 2 years of experience. Dispatch speaks Spanish.",
+        "headline": "Home weekly. $0.72/mile."
+      },
+      "es": {
+        "hook": "Al amanecer, tú manejas. $0.72/milla.",
+        "cta": "Aplica hoy.",
+        "primary_text": "Silvicom Inc mueve carga refrigerada en rutas regionales de Chicago a Texas. Ganas entre $0.64 y $0.72 por milla, con pago semanal y regreso a casa cada semana. Carga sin toque. Se requieren 23+ años y 2 años de experiencia. El despacho habla español.",
+        "headline": "A casa semanal. $0.72/milla."
+      }
+    }
+  }
+}

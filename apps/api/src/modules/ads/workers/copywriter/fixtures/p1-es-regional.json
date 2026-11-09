@@ -24,6 +24,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -69,26 +73,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:16:30.066Z",
+    "recorded_at": "2026-11-09T18:36:35.287Z",
     "output": {
       "en": {
-        "hook": "You drive at dawn, home weekends.",
-        "cta": "Apply now",
-        "primary_text": "Picture the sun rising through your windshield as you roll out on a regional route. You earn $0.66 per mile and you are home on weekends. If you hold a Class A CDL and are ready to get moving, we want to hear from you. Apply today and join our team.",
-        "headline": "Regional CDL-A: $0.66/mile"
+        "hook": "Sun up, wheels down, $0.66/mile.",
+        "cta": "Apply now.",
+        "primary_text": "Regional Class A run. You earn $0.66 per mile and get home weekends. Apply today.",
+        "headline": "Home every weekend."
       },
       "es": {
-        "hook": "Al volante al alba, en casa fines.",
-        "cta": "Aplica ahora",
-        "primary_text": "Imagina el amanecer frente a ti mientras conduces una ruta regional. Ganas $0.66 por milla y regresas a casa los fines de semana. Si tienes licencia Clase A y estás listo para empezar, queremos saber de ti. Únete a nuestro equipo hoy.",
-        "headline": "Regional Clase A: $0.66/milla"
+        "hook": "Amanece, ruedas al piso, $0.66/milla.",
+        "cta": "Aplica ahora.",
+        "primary_text": "Ruta regional, Clase A. Ganas $0.66 por milla y llegas a casa los fines de semana. Únete hoy.",
+        "headline": "En casa los fines de semana."
       }
     }
   }

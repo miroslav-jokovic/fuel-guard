@@ -30,7 +30,7 @@ const SAVED: OpeningView = {
   id: OPENING, status: "open", created_at: "2026-11-06T00:00:00Z", recruiter_id: null,
   current: {
     id: "ov2", version: 2, profile_version_id: PV, title: "Class A regional", headcount: 3,
-    facts: { pay: { per: "mile", min_cents: 62, max_cents: 70 }, home_time: "Home weekly", equipment: ["dry_van"], lanes: null, start_date: null },
+    facts: { pay: { per: "mile", min_cents: 62, max_cents: 70 }, home_time: "Home weekly", equipment: ["dry_van"], lanes: null, start_date: null, benefits: [], bonus: null, schedule: null, in_our_words: null },
     area_label: "Joliet, IL", area_latitude: 41.525, area_longitude: -88.0817, area_radius_miles: 50, area_reason: "Home weekly from the yard",
     created_by_name: "Dana Recruiter", created_at: "2026-11-06T15:00:00Z",
   },
@@ -129,7 +129,7 @@ describe("Recruitment › Openings", () => {
     await settle(w);
     expect(posts("/api/recruitment/openings")).toEqual([{
       opening_id: null, profile_version_id: PV, title: "Class A regional", headcount: null,
-      facts: { pay: { per: "mile", min_cents: 62, max_cents: null }, home_time: "Home weekly", equipment: ["dry_van"], lanes: null, start_date: null },
+      facts: { pay: { per: "mile", min_cents: 62, max_cents: null }, home_time: "Home weekly", equipment: ["dry_van"], lanes: null, start_date: null, benefits: [], bonus: null, schedule: null, in_our_words: null },
       area: { label: "Joliet, IL, United States", latitude: 41.525, longitude: -88.0817, radius_miles: 50, reason: "Home weekly from the yard" },
     }]);
   });

@@ -97,12 +97,12 @@ describe("art director — what it refuses without asking, and what it sends", (
     expect(o.kind === "ready" && o.direction.reference?.sha256).toBe((fx.recorded.output as { reference_photo: string }).reference_photo);
   });
 
-  it("asks once per creative and attempt, as the art director, sending no brief and no company name", async () => {
+  it("asks once per creative and attempt, as the art director, sending the job as context but no claims and no company name", async () => {
     const { out, create, rec } = run(fx);
     await out;
     expect(rec.writtenRows("ad_generations")[0]).toMatchObject({ agent: "art_director", idempotency_key: "art:cr-1:1", prompt_version: ART_DIRECTOR_PROMPT_VERSION });
     const sent = (create.mock.calls[0]![0] as { messages: Array<{ content: string }> }).messages[0]!.content;
-    expect(Object.keys(JSON.parse(sent) as object).sort()).toEqual(["photos", "scene", "slots", "template"]);
+    expect(Object.keys(JSON.parse(sent) as object).sort()).toEqual(["context", "photos", "scene", "slots", "template"]);
     expect(sent).not.toContain("Fixture Carrier");
   });
 });

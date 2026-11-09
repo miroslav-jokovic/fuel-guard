@@ -25,6 +25,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -68,26 +72,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:19:00.449Z",
+    "recorded_at": "2026-11-09T18:38:00.679Z",
     "output": {
       "en": {
-        "hook": "Class A truck. $0.70/mile.",
+        "hook": "Class A: $0.70 per mile.",
         "cta": "Apply today.",
-        "primary_text": "Put a Class A rig under you and earn $0.70 for every mile you drive. You must be 23+ to qualify. Join our team and start putting those miles to work for you.",
-        "headline": "Class A — $0.70 per mile"
+        "primary_text": "Drive Class A OTR and earn $0.70 per mile. You must be 23+ to qualify. Join our team and put your miles to work.",
+        "headline": "Class A OTR, $0.70/mile."
       },
       "es": {
-        "hook": "Clase A. $0.70 por milla.",
-        "cta": "Postúlate hoy.",
-        "primary_text": "Conduce un camión Clase A y gana $0.70 por cada milla recorrida. Se requiere ser mayor de 23 años. Únete al equipo y pon cada milla a trabajar para ti.",
-        "headline": "Clase A — $0.70 por milla"
+        "hook": "Clase A: $0.70 por milla.",
+        "cta": "Aplica hoy.",
+        "primary_text": "Conduce tráiler Clase A en ruta de larga distancia y gana $0.70 por milla. Debes ser mayor de 23 años. Únete al equipo y pon tus millas a trabajar.",
+        "headline": "Clase A OTR, $0.70/milla."
       }
     }
   }

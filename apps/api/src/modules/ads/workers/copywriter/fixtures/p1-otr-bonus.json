@@ -29,6 +29,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -74,26 +78,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:16:50.534Z",
+    "recorded_at": "2026-11-09T18:36:49.759Z",
     "output": {
       "en": {
-        "hook": "You're rolling at dawn. $0.72/mile.",
-        "cta": "Apply now",
-        "primary_text": "You're behind the wheel of a Class A rig as the sun comes up — and you're earning $0.72 per mile every mile you turn. A $5,000 sign-on bonus is waiting when you join. Apply today and get moving.",
-        "headline": "Drive and earn $0.72/mile"
+        "hook": "Sun's up. You earn $0.72/mile.",
+        "cta": "Apply today.",
+        "primary_text": "Class A OTR drivers start at $0.72 per mile. Bring your CDL and pick up a $5,000 sign-on bonus. Apply today.",
+        "headline": "Plus a $5,000 sign-on bonus."
       },
       "es": {
-        "hook": "Al volante al amanecer. $0.72/milla.",
-        "cta": "Postúlate ya",
-        "primary_text": "Imagina el amanecer desde tu cabina, con $0.72 por milla acumulándose cada kilómetro recorrido. Además, recibes un bono de contratación de $5,000 al unirte. Postúlate hoy y empieza a rodar.",
-        "headline": "Maneja y gana $0.72 por milla"
+        "hook": "Amanece. Ganas $0.72 por milla.",
+        "cta": "Aplica hoy.",
+        "primary_text": "Conductores Clase A para rutas OTR: $0.72 por milla desde el primer día. Trae tu CDL y recibe un bono de $5,000 al contratarte. Únete al equipo.",
+        "headline": "Bono de $5,000 al contratar."
       }
     }
   }

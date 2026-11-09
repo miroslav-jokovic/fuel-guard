@@ -27,6 +27,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -70,26 +74,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:18:54.731Z",
+    "recorded_at": "2026-11-09T18:37:56.203Z",
     "output": {
       "en": {
-        "hook": "Class A truck, dedicated.",
+        "hook": "Class A dedicated run.",
         "cta": "Apply today.",
-        "primary_text": "Drive a dedicated route with the consistency you want. Benefits include a 401k plan plus dental and vision coverage. Join our team and build your career with us.",
-        "headline": "Dedicated Class A driving."
+        "primary_text": "This is a dedicated route — same lanes, steady work. Benefits include 401k, dental, and vision. If you hold a Class A CDL, apply today and get on a consistent run.",
+        "headline": "401k, dental and vision."
       },
       "es": {
-        "hook": "Clase A. Ruta dedicada.",
+        "hook": "Ruta dedicada, Clase A.",
         "cta": "Aplica hoy.",
-        "primary_text": "Maneja una ruta dedicada con la estabilidad que buscas. Ofrecemos plan 401k, así como cobertura dental y de visión. Únete a nuestro equipo.",
-        "headline": "Conductor Clase A dedicado."
+        "primary_text": "Ruta dedicada con trabajo constante — mismas vías, horario estable. Incluye 401k, seguro dental y de visión. Si tienes CDL Clase A, únete al equipo hoy.",
+        "headline": "401k, dental y visión."
       }
     }
   }

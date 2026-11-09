@@ -23,7 +23,8 @@
       "motion_template": null,
       "formats": [
         "4:5"
-      ]
+      ],
+      "overlay_slots": null
     },
     "kit": {
       "company_name": "Fixture Carrier",
@@ -53,19 +54,20 @@
       "forbidden_marks": [
         "Other Freight Co"
       ]
-    }
+    },
+    "context": []
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@1",
+    "prompt_version": "artDirector@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T05:15:33.042Z",
+    "recorded_at": "2026-11-09T18:39:44.037Z",
     "output": {
       "slots": {
         "time_of_day": "mid-morning",
-        "light": "clear natural daylight from a low angle ahead",
-        "viewpoint": "a low roadside angle facing the front of the tractor"
+        "light": "clear sun from the right casting short shadows across the cab",
+        "viewpoint": "low angle slightly ahead and to the driver's side, road surface visible in the foreground"
       },
       "reference_photo": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
     }

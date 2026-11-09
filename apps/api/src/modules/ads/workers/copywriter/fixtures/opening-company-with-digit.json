@@ -1,0 +1,125 @@
+{
+  "name": "opening-company-with-digit",
+  "about": "P2 The number: The carrier's name holds a digit; it is not a figure.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A regional driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 65,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 71,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van and reefer freight",
+          "regional runs",
+          "Midwest"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P2 The number",
+      "hook_formula": "Open with the pay figure alone, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A late-model tractor on a dark {background} background, studio light, no text, no logos, no lettering",
+      "image_slots": [
+        "background"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "360 Logistics"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T18:34:22.921Z",
+    "output": {
+      "en": {
+        "pay": "Up to $0.71/mile",
+        "cta": "Apply now",
+        "primary_text": "360 Logistics is hiring Class A regional drivers for dry van and reefer freight across the Midwest. Start at $0.65 per mile and earn up to $0.71 per mile. You get home weekly and paid every week. Must be 23+ with 2 years of experience. Join our team today.",
+        "headline": "Home weekly. Weekly pay."
+      },
+      "es": {
+        "pay": "Hasta $0.71/milla",
+        "cta": "Aplica ahora",
+        "primary_text": "360 Logistics busca conductores Clase A para rutas regionales en el Medio Oeste. Carga seca y refrigerada. Gana desde $0.65 hasta $0.71 por milla, pago semanal y regreso a casa cada semana. Se requiere mayores de 23 con 2 años de experiencia. Únete al equipo.",
+        "headline": "A casa cada semana."
+      }
+    }
+  }
+}

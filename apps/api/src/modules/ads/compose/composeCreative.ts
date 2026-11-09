@@ -82,7 +82,7 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
 
   if (!recipe.overlay_slots) return stop({ kind: "stop", reason: "no_overlay_slots: the preset does not say which copy slots the overlay draws" });
 
-  const copy = await writeCopy(deps, { ...ids, attempt: 1, brief, recipe });
+  const copy = await writeCopy(deps, { ...ids, attempt: 1, brief, recipe, company_name: input.kit.company_name });
   if (copy.kind === "in_flight") return { kind: "pending", why: "copy in flight" };
   if (copy.kind === "refused") return stop({ kind: "stop", reason: `copy check: ${summarise(copy.findings)}`, checks: { copy: { ok: false, findings: copy.findings } } });
   if (copy.kind !== "ready") return stop({ kind: "stop", reason: `copy: ${stopCode(copy)}` });
@@ -117,7 +117,7 @@ type AttemptResult =
 async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, attempt: number, failedBefore: AdVisualCheck[]): Promise<AttemptResult> {
   const { creative: cr, brief, recipe, kit } = input;
   const ids = { orgId: cr.org_id, campaignId: cr.campaign_id, creativeId: cr.id };
-  const art = await directArt(deps, { ...ids, attempt, recipe, kit });
+  const art = await directArt(deps, { ...ids, attempt, recipe, kit, context: brief.subject_matter.details });
   if (art.kind === "in_flight") return { kind: "pending", why: `art ${attempt} in flight` };
   if (art.kind === "not_possible") return { kind: "stop", reason: `art: ${art.reason}` };
   if (art.kind === "refused") return { kind: "stop", reason: `art check: ${art.findings.map((f) => f.kind).join(", ")}` };

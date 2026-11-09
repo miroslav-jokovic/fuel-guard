@@ -28,6 +28,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -72,26 +76,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:18:19.496Z",
+    "recorded_at": "2026-11-09T18:37:26.809Z",
     "output": {
       "en": {
         "hook": "Home on a dedicated route.",
         "cta": "Apply today.",
-        "primary_text": "A dedicated account means you run the same lanes, on a predictable schedule that keeps you close to home. Add $90,000 per year and health insurance, and this Class A position is worth a serious look. Join our team and get started.",
-        "headline": "Class A: $90,000 & benefits."
+        "primary_text": "Dedicated account means consistent runs and predictable time at home. Earn $90,000 per year and get health insurance. If you hold a Class A CDL, apply today.",
+        "headline": "Class A — $90,000/year."
       },
       "es": {
-        "hook": "Ruta dedicada, cerca de casa.",
+        "hook": "Ruta dedicada, en casa a tiempo.",
         "cta": "Aplica hoy.",
-        "primary_text": "Con una cuenta dedicada, corres las mismas rutas con regularidad, lo que te mantiene cerca de casa. El puesto ofrece $90,000 al año y seguro médico. Si tienes Clase A, este trabajo te conviene. Únete al equipo.",
-        "headline": "Clase A: $90,000 y beneficios."
+        "primary_text": "Cuenta dedicada: rutas fijas y horario predecible para que llegues a casa. Gana $90,000 al año con seguro médico incluido. Si tienes CDL Clase A, únete al equipo.",
+        "headline": "Clase A — $90,000 al año."
       }
     }
   }

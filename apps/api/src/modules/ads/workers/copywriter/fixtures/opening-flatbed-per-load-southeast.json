@@ -1,0 +1,129 @@
+{
+  "name": "opening-flatbed-per-load-southeast",
+  "about": "P2 The number: Flatbed per load, regional Southeast, guaranteed pay, orientation paid.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A flatbed driver, regional",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 42000,
+          "per": "load"
+        },
+        {
+          "kind": "money",
+          "cents": 68000,
+          "per": "load"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "guaranteed pay"
+        },
+        {
+          "kind": "term",
+          "term": "paid orientation"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "flatbed freight",
+          "regional runs",
+          "Georgia, the Carolinas, Tennessee"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P2 The number",
+      "hook_formula": "Open with the pay figure alone, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "A late-model tractor on a dark {background} background, studio light, no text, no logos, no lettering",
+      "image_slots": [
+        "background"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "formats": [
+        "1:1",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "Dispatch Freight Lines"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@2",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-09T18:35:01.471Z",
+    "output": {
+      "en": {
+        "pay": "$420–$680 per load",
+        "cta": "Apply today",
+        "primary_text": "Flatbed drivers running Georgia, the Carolinas, and Tennessee. Dispatch Freight Lines pays $420 to $680 per load with guaranteed pay, so you know what you're earning every week. Home weekly. Paid orientation. Class A with 2 years of experience required, age 23+.",
+        "headline": "Regional flatbed, home weekly"
+      },
+      "es": {
+        "pay": "$420–$680 por carga",
+        "cta": "Aplica hoy",
+        "primary_text": "Rutas regionales con carga de plataforma en Georgia, las Carolinas y Tennessee. Dispatch Freight Lines paga de $420 a $680 por carga con pago garantizado. Regresas a casa cada semana. Orientación pagada. Se requiere Clase A, 2 años de experiencia y mayores de 23.",
+        "headline": "Plataforma regional, casa semanal"
+      }
+    }
+  }
+}

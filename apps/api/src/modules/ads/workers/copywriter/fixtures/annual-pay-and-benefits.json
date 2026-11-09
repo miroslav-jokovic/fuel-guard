@@ -32,6 +32,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -65,24 +69,25 @@
         "4:5"
       ],
       "overlay_slots": null
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:15:51.367Z",
+    "recorded_at": "2026-11-09T18:33:54.611Z",
     "output": {
       "en": {
-        "hook": "$85,000/yr for Class A dedicated drivers.",
-        "body": "Run a dedicated route and take home $85,000 a year. This position includes health insurance and a 401k, so you can build a future while you work. Join a team that values your time on the road.",
+        "hook": "$85,000 a year. Class A dedicated drivers.",
+        "body": "This is a dedicated route — same lanes, consistent work, no guessing. You get health insurance and a 401k on top of the pay. If you hold a Class A and want steady miles, this is worth a look.",
         "cta": "Apply today."
       },
       "es": {
-        "hook": "$85,000 al año para conductores Clase A dedicados.",
-        "body": "Con ruta dedicada y $85,000 anuales, esta posición incluye seguro médico y plan 401k. Es una oportunidad para crecer profesional y financieramente. Únase a nuestro equipo.",
-        "cta": "Postúlese hoy."
+        "hook": "$85,000 al año. Conductores Clase A dedicados.",
+        "body": "Ruta dedicada: mismos carriles, trabajo constante, sin sorpresas. Además del sueldo, cuentas con seguro médico y plan 401k. Si tienes Clase A y buscas millas estables, esta plaza es para ti.",
+        "cta": "Aplica hoy mismo."
       }
     }
   }

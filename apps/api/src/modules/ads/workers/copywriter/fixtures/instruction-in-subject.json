@@ -20,6 +20,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -53,23 +57,24 @@
         "4:5"
       ],
       "overlay_slots": null
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:16:03.583Z",
+    "recorded_at": "2026-11-09T18:33:58.947Z",
     "output": {
       "en": {
-        "hook": "$0.68/mile for Class A drivers.",
-        "body": "Put your Class A CDL to work and earn $0.68 for every mile you drive. Join a team that values your time on the road. Apply today and see what this opportunity can do for your career.",
-        "cta": "Apply now and join us."
+        "hook": "$0.68 per mile for Class A drivers.",
+        "body": "You earn $0.68 per mile behind the wheel. One pay rate, stated plainly. If you hold a Class A CDL and want to know what a run pays before you commit, apply and find out.",
+        "cta": "Apply today."
       },
       "es": {
         "hook": "$0.68 por milla para conductores Clase A.",
-        "body": "Pon tu CDL Clase A a trabajar y gana $0.68 por cada milla recorrida. Únete a un equipo que valora tu tiempo en la carretera. Postúlate hoy y descubre lo que esta oportunidad puede hacer por tu carrera.",
+        "body": "Ganas $0.68 por milla al volante. Una tarifa clara desde el primer día. Si tienes CDL Clase A y quieres saber lo que paga una ruta antes de decidir, postúlate y entérate.",
         "cta": "Postúlate hoy."
       }
     }

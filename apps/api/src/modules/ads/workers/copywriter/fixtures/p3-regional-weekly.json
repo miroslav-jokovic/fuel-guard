@@ -24,6 +24,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -68,26 +72,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:18:50.149Z",
+    "recorded_at": "2026-11-09T18:37:51.983Z",
     "output": {
       "en": {
-        "hook": "Home weekly. Every week.",
+        "hook": "Home every week. $0.68/mile.",
         "cta": "Apply now",
-        "primary_text": "As a Class A regional driver, you get home weekly and earn $0.68 per mile. A consistent schedule and competitive pay keep you moving and back with your family on a regular basis. Apply today and join the team.",
-        "headline": "Drive regional. Be home."
+        "primary_text": "This regional run gets you home every week. You earn $0.68 per mile behind the wheel. If you hold a Class A CDL and want a driving job with consistent home time, apply today.",
+        "headline": "Regional CDL-A. Home weekly."
       },
       "es": {
-        "hook": "En casa cada semana.",
+        "hook": "A casa cada semana. $0.68/milla.",
         "cta": "Aplica ahora",
-        "primary_text": "Como conductor regional Clase A, regresas a casa cada semana y ganas $0.68 por milla. Un itinerario constante y un pago competitivo te mantienen en movimiento y con tu familia regularmente. Únete al equipo hoy.",
-        "headline": "Regional. En casa siempre."
+        "primary_text": "Esta ruta regional te lleva a casa cada semana. Ganas $0.68 por milla. Si tienes CDL-A y buscas una ruta con tiempo en casa regular, únete al equipo y aplica hoy.",
+        "headline": "Regional CDL-A. Regresas semanal."
       }
     }
   }

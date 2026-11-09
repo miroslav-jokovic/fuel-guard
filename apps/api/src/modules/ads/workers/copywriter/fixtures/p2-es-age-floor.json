@@ -25,6 +25,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -69,26 +73,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:17:14.343Z",
+    "recorded_at": "2026-11-09T18:37:03.497Z",
     "output": {
       "en": {
-        "pay": "$0.70/mile",
+        "pay": "$0.70 per mile",
         "cta": "Apply today",
-        "primary_text": "At $0.70 per mile, this long-haul Class A position is built for drivers who are ready to get on the road and earn. If you are 23+ and hold a Class A CDL, we want to hear from you. Join our team and start driving.",
-        "headline": "$0.70/mile for Class A drivers"
+        "primary_text": "Class A OTR drivers, this one is for you. You earn $0.70 per mile on long-haul runs. You must be 23+ to qualify. Join our team and put your miles to work.",
+        "headline": "OTR Class A — 23+ drivers"
       },
       "es": {
         "pay": "$0.70 por milla",
         "cta": "Aplica hoy",
-        "primary_text": "Con $0.70 por milla, esta posición de Conductor Clase A de larga distancia es para quienes están listos para manejar y ganar. Si tienes mayores de 23 años y tu CDL Clase A, únete a nuestro equipo.",
-        "headline": "$0.70/milla, Clase A larga distancia"
+        "primary_text": "Conductores Clase A de larga distancia, esta ruta es para ustedes. Ganan $0.70 por milla. Se requiere ser mayor de 23 años. Únanse al equipo y pongan sus millas a trabajar.",
+        "headline": "Clase A OTR — mayores de 23"
       }
     }
   }

@@ -24,6 +24,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -57,23 +61,24 @@
         "4:5"
       ],
       "overlay_slots": null
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:20:17.232Z",
+    "recorded_at": "2026-11-09T18:39:04.745Z",
     "output": {
       "en": {
-        "hook": "$0.68/mi, CDL-A",
-        "body": "Regional run, home weekly. Join our team.",
+        "hook": "$0.68/mile",
+        "body": "Class A regional drivers, home weekly.",
         "cta": "Apply now"
       },
       "es": {
-        "hook": "$0.68/mi, CDL-A",
-        "body": "Ruta regional, regreso a casa cada semana.",
+        "hook": "$0.68/milla",
+        "body": "Clase A regional, regresa a casa cada semana.",
         "cta": "Aplica ya"
       }
     }

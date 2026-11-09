@@ -1,6 +1,6 @@
 {
   "name": "planted-slot-over-limit",
-  "about": "A slot over its max_chars is refused as too_long, naming the slot — never trimmed.",
+  "about": "A slot over its max_chars is refused as too_long, naming the slot \u2014 never trimmed.",
   "input": {
     "brief": {
       "source": "fixture",
@@ -61,7 +61,7 @@
   "expect": "refused",
   "recorded": {
     "source": "planted",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "none (written by a person)",
     "recorded_at": "2026-11-03T00:00:00Z",
     "output": {

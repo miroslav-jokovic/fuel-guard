@@ -15,13 +15,16 @@ import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOut
  * request for lettering becomes an image prompt and the photo named is this kit's. The prompt handed on is
  * `composeImagePrompt`'s, which always ends with the no-lettering clause.
  *
- * The model sees the template, the slot names, what the scene shows and the photos' labels and hashes —
- * not the brief: the image carries no facts (D-AD9), so it has no use for them. Through the A4 rail, as the
+ * The model sees the template, the slot names, what the scene shows, the photos' labels and hashes, and — since
+ * CQ2 (D-AD20) — the brief's SUBJECT MATTER as `context`: what the job is like (flatbed freight, regional runs,
+ * Midwest lanes), so the setting and the hour it chooses fit THIS job and two campaigns on one preset no longer
+ * get the same picture (ADS-CREATIVE-QUALITY-PLAN G-CQ2). Still not the claims: the image carries no facts
+ * (D-AD9), and `judgeArt` refuses any digit in a slot whatever the context said. Through the A4 rail, as the
  * Copywriter; `buildArtRequest` is exported so `pnpm ads:eval` asks exactly as this does.
  */
 
-export const ART_DIRECTOR_PROMPT_VERSION = "artDirector@1";
-const PROMPT = readFileSync(new URL("./prompt.v1.md", import.meta.url), "utf8");
+export const ART_DIRECTOR_PROMPT_VERSION = "artDirector@2";
+const PROMPT = readFileSync(new URL("./prompt.v2.md", import.meta.url), "utf8");
 const MAX_TOKENS = 600;
 
 type Recipe = Pick<AdPresetRecipe, "image_prompt_template" | "image_slots" | "starts_from" | "shows_equipment" | "shows_people">;
@@ -39,17 +42,21 @@ export function artTool(recipe: Pick<AdPresetRecipe, "image_slots">): ForcedTool
   };
 }
 
-export function artUserMessage(recipe: Recipe, kit: Kit): string {
+/** What the job is like, as the brief's `subject_matter.details` (CQ2); empty when a fixture or a caller has none. */
+export type ArtContext = readonly string[];
+
+export function artUserMessage(recipe: Recipe, kit: Kit, context: ArtContext = []): string {
   return JSON.stringify({
     template: recipe.image_prompt_template,
     slots: recipe.image_slots,
     scene: { starts_from: recipe.starts_from, shows_equipment: recipe.shows_equipment, shows_people: recipe.shows_people },
+    context,
     photos: recipe.starts_from === "equipment_photo" ? kit.equipment_photos.map((p) => ({ label: p.label, sha256: p.asset.sha256 })) : [],
   }, null, 2);
 }
 
-export function buildArtRequest(recipe: Recipe, kit: Kit) {
-  return { model: AI_MODELS.deep, system: PROMPT, user: artUserMessage(recipe, kit), tool: artTool(recipe), maxTokens: MAX_TOKENS };
+export function buildArtRequest(recipe: Recipe, kit: Kit, context: ArtContext = []) {
+  return { model: AI_MODELS.deep, system: PROMPT, user: artUserMessage(recipe, kit, context), tool: artTool(recipe), maxTokens: MAX_TOKENS };
 }
 
 export interface DirectArtInput {
@@ -59,6 +66,8 @@ export interface DirectArtInput {
   attempt: number;
   recipe: AdPresetRecipe;
   kit: AdBrandKit;
+  /** The brief's `subject_matter.details` (CQ2). */
+  context?: ArtContext;
 }
 
 export type DirectArtOutcome =
@@ -77,7 +86,7 @@ export async function directArt(deps: ClaudeGenerationDeps, input: DirectArtInpu
     creativeId: input.creativeId,
     idempotencyKey: `art:${input.creativeId}:${input.attempt}`,
     promptVersion: ART_DIRECTOR_PROMPT_VERSION,
-    ...buildArtRequest(input.recipe, input.kit),
+    ...buildArtRequest(input.recipe, input.kit, input.context ?? []),
   });
   if (out.kind !== "succeeded") return out;
   const findings = judgeArt(out.value, input.recipe, input.kit);

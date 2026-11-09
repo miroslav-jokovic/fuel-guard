@@ -28,6 +28,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -72,26 +76,27 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:17:40.544Z",
+    "recorded_at": "2026-11-09T18:37:13.378Z",
     "output": {
       "en": {
-        "pay": "$12,000/week",
+        "pay": "$12,000 per week",
         "cta": "Apply today",
-        "primary_text": "This is a weekly pay opportunity for newly licensed Class A drivers. Orientation is paid, and you get your first check fast. Join our team and start building your driving career.",
-        "headline": "For new Class A drivers"
+        "primary_text": "New CDL-A drivers: this run pays $12,000 per week with weekly pay so you see the money fast. Orientation is paid. If you have your Class A and are ready to work, join our team.",
+        "headline": "New CDL-A drivers wanted"
       },
       "es": {
         "pay": "$12,000 por semana",
         "cta": "Aplica hoy",
-        "primary_text": "Oportunidad con pago semanal para conductores Clase A recién licenciados. La orientación es pagada y recibes tu primer cheque rápidamente. Únete a nuestro equipo y comienza tu carrera.",
-        "headline": "Para nuevos conductores Clase A"
+        "primary_text": "Conductores nuevos con CDL-A: esta ruta paga $12,000 por semana y el pago es semanal, así ves tu dinero rápido. La orientación es pagada. Si tienes tu licencia Clase A, únete a nuestro equipo.",
+        "headline": "Se buscan conductores CDL-A"
       }
     }
   }

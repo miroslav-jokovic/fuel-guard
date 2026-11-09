@@ -29,6 +29,10 @@
         "radius_miles": 75,
         "reason": "Fixture: drivers within a day's drive of the yard."
       },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
       "form_questions": [],
       "landing_url": null
     },
@@ -80,30 +84,31 @@
         "primary_text": "primary_text",
         "headline": "headline"
       }
-    }
+    },
+    "company_name": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@1",
+    "prompt_version": "copywriter@2",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-05T15:20:02.539Z",
+    "recorded_at": "2026-11-09T18:38:51.773Z",
     "output": {
       "en": {
-        "card_get": "$0.72/mile plus a $5,000 sign-on bonus.",
+        "card_get": "$0.72 per mile plus a $5,000 sign-on bonus.",
         "card_need": "Class A CDL and over-the-road experience.",
-        "card_apply": "Apply today and join our team.",
-        "cta": "Apply Now",
-        "primary_text": "We pay $0.72 per mile and offer a $5,000 sign-on bonus for Class A over-the-road drivers. If you hold a Class A CDL and have over-the-road experience, we want to hear from you.",
-        "headline": "Class A Drivers Wanted"
+        "card_apply": "Apply now and get on the road.",
+        "cta": "Apply today",
+        "primary_text": "$0.72 per mile. $5,000 sign-on bonus. If you hold a Class A CDL and are ready for over-the-road work, this seat is open. Apply today.",
+        "headline": "$0.72/mile. $5,000 bonus."
       },
       "es": {
-        "card_get": "$0.72 por milla más un bono de $5,000 por contratación.",
+        "card_get": "$0.72 por milla más un bono de contratación de $5,000.",
         "card_need": "CDL clase A y experiencia en rutas de larga distancia.",
-        "card_apply": "Aplica hoy y únete a nuestro equipo.",
+        "card_apply": "Aplica hoy y empieza a rodar.",
         "cta": "Aplica ya",
-        "primary_text": "Pagamos $0.72 por milla y ofrecemos un bono de $5,000 por contratación a conductores clase A de larga distancia. Si tienes CDL clase A y experiencia en carretera, queremos saber de ti.",
-        "headline": "Conductores clase A"
+        "primary_text": "$0.72 por milla y un bono de $5,000 al contratar. Si tienes CDL clase A y experiencia en rutas largas, este puesto es tuyo. Aplica hoy.",
+        "headline": "$0.72/milla. Bono $5,000."
       }
     }
   }
