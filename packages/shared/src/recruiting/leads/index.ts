@@ -4,5 +4,6 @@ export * from "./hiringProfile.js";
 export * from "./opening.js";
 export * from "./leadContract.js";
 export * from "./leadMatch.js";
+export * from "./leadClosureContract.js";
 export * from "./leadDisplay.js";
 export * from "./openingBrief.js";
