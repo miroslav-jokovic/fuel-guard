@@ -11,7 +11,7 @@ import { formatDateTime, formatPhone } from "@/lib/format";
 import AddLeadDrawer from "@/features/recruitment/AddLeadDrawer.vue";
 import LeadDrawer from "@/features/recruitment/LeadDrawer.vue";
 import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
-import { LEADS_EVERYONE, LEADS_MINE, LEADS_OPEN, LEADS_PAGE_SIZE, useLeadQueueQuery } from "@/features/recruitment/useLeads";
+import { LEADS_CLOSED, LEADS_EVERYONE, LEADS_MINE, LEADS_OPEN, LEADS_PAGE_SIZE, useLeadQueueQuery } from "@/features/recruitment/useLeads";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -31,6 +31,8 @@ const route = useRoute();
 const qs = useQueryState();
 const statusOptions = [
   { value: LEADS_OPEN, label: "Open" },
+  // LQ5c: both closed statuses at once, so a recruiter can review what the calls settled and reopen if need be.
+  { value: LEADS_CLOSED, label: "Closed" },
   ...LEAD_STATUSES.map((s) => ({ value: s as string, label: LEAD_STATUS_LABELS[s] })),
 ];
 const show = qs.param("show", statusOptions.map((o) => o.value), LEADS_OPEN);
@@ -68,6 +70,8 @@ const emptyText = computed(() =>
     ? "No leads of yours here. A new ad lead is yours when its opening names you as its recruiter."
     : show.value === LEADS_OPEN
     ? "No open leads. New ones appear here as they come in."
+    : show.value === LEADS_CLOSED
+    ? "No closed leads. A lead closes when a recruiter records what the call settled."
     : `No leads marked ${LEAD_STATUS_LABELS[show.value as LeadQueueRow["status"]].toLowerCase()}.`,
 );
 

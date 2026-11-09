@@ -110,6 +110,13 @@ describe("the lead queue", () => {
     expect(api.calls[0]).toBe("/api/recruitment/leads?limit=50&status=lost");
   });
 
+  it("Closed asks for both closed statuses at once, and says what closes a lead when there are none (LQ5c)", async () => {
+    api.answer = () => ok({ leads: [], next: null });
+    const { w } = await render("/recruitment/leads?show=closed");
+    expect(api.calls[0]).toBe("/api/recruitment/leads?limit=50&status=not_qualified%2Clost");
+    expect(w.text()).toContain("A lead closes when a recruiter records what the call settled.");
+  });
+
   it("asks for the signed-in recruiter's own leads when the URL says Mine, and says how a lead becomes theirs (LQ2c)", async () => {
     api.answer = () => ok({ leads: [], next: null });
     const { w } = await render("/recruitment/leads?whose=mine&show=lost");

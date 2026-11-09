@@ -1,6 +1,6 @@
 import type { Ref } from "vue";
 import { useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { LeadContactInput, ManualLead } from "@silvicom/shared";
+import type { LeadCloseReason, LeadContactInput, LeadStatus, ManualLead } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { apiRefusal } from "@/composables/useStepUpRetry";
 
@@ -16,6 +16,14 @@ export interface LeadConversion {
 export type LeadHoldAnswer =
   | { kind: "held"; newly: boolean; applicant_id: string | null }
   | { kind: "lifted"; lifted: number; stop_remains: boolean };
+/** What close, qualify and reopen answer (`routes/leads.ts`, LQ5b1): the status the lead is left in. */
+export interface LeadActAnswer {
+  kind: "done";
+  closure_id: string | null;
+  status: LeadStatus;
+  already: boolean;
+  verdict_written: boolean;
+}
 export interface LeadPurgeAnswer {
   purged: string[];
   already: string[];
@@ -73,7 +81,23 @@ export function useLeadActions(leadId: Ref<string>) {
     onSettled: () => refresh(),
   });
 
-  return { logContact, convert, setHold, purge };
+  // The recruiter's verdict (LQ5c over 0578): the database checks the evidence each reason needs and refuses in
+  // words; the drawer greys a reason out with the same words first (`closeReasonUnavailable`), and the refusal
+  // still reaches the toast when the record changed under it.
+  const actOn = (rest: "close" | "qualify" | "reopen", failed: string) =>
+    useMutation({
+      mutationFn: async (body: { reason?: LeadCloseReason; note: string | null }): Promise<LeadActAnswer> => {
+        const res = await apiFetch<LeadActAnswer>(path(rest), { method: "POST", body });
+        if (!res.ok || !res.data) throw new Error(res.error?.message ?? failed);
+        return res.data;
+      },
+      onSettled: () => refresh(),
+    });
+  const close = actOn("close", "Could not close the lead.");
+  const qualify = actOn("qualify", "Could not mark the lead qualified.");
+  const reopen = actOn("reopen", "Could not reopen the lead.");
+
+  return { logContact, convert, setHold, purge, close, qualify, reopen };
 }
 
 /** A lead typed in by hand. It rings nobody, by design (`recruitingLeadSink.accept` is the only ringer). */

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, toRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { AppButton as BaseButton, AppCallout, AppCheckbox, FactList, QueryState } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout, AppCheckbox, AppFormField as FormField, AppTextarea, FactList, QueryState } from "@silvicom/ui";
 import {
+  LEAD_CLOSURE_KIND_LABELS,
   LEAD_CONTACT_METHOD_LABELS,
   LEAD_CONTACT_OUTCOME_LABELS,
   LEAD_EVIDENCE_LABELS,
@@ -12,7 +13,11 @@ import {
   canPurgeLead,
   leadAnswerRows,
   leadChannelLabel,
+  leadCloseReasonLabel,
+  leadEvidenceFrom,
   leadVerdictWhy,
+  qualifyUnavailable,
+  type LeadCloseReason,
   type LeadContactInput,
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
@@ -23,10 +28,11 @@ import { leadStatusTone, leadVerdictTone } from "@/lib/badges.recruiting";
 import { formatDateTime, formatPhone } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import LeadCloseForm from "./LeadCloseForm.vue";
 import LeadContactForm from "./LeadContactForm.vue";
 import LeadConvertForm from "./LeadConvertForm.vue";
 import { NEW_APPLICANT, useLeadActions, type LeadHoldAnswer, type LeadPurgeAnswer } from "./useLeadActions";
-import { useLeadContactsQuery, useLeadQuery } from "./useLeads";
+import { useLeadClosuresQuery, useLeadContactsQuery, useLeadQuery } from "./useLeads";
 
 /**
  * One lead (E4b): what they told us, what that means against the opening, and who already reached them.
@@ -43,6 +49,12 @@ import { useLeadContactsQuery, useLeadQuery } from "./useLeads";
  * `useConfirm`'s dialog over this one counts as a press outside it, which closes the drawer and loses the lead.
  * Delete details is the admin's (`canPurgeLead`, derived, never a role list), and its password prompt replaces the
  * body the same way.
+ *
+ * The recruiter's verdict (LQ5c over 0578): Qualify after a reached call, Close with a reason from the fixed list,
+ * Reopen a closed lead. What each needs on record is derived from the contacts already loaded here
+ * (`leadEvidenceFrom`) with the database's own rule and words (`closeReasonUnavailable`, `qualifyUnavailable`), so
+ * a button a recruiter cannot use yet says what to log first — and the database still decides. The acts are listed
+ * under "Decisions", newest first, so the next recruiter sees why the lead sits where it does.
  */
 const props = defineProps<{ leadId: string }>();
 const emit = defineEmits<{ close: [] }>();
@@ -51,6 +63,7 @@ const route = useRoute();
 const id = toRef(props, "leadId");
 const leadQ = useLeadQuery(id);
 const contactsQ = useLeadContactsQuery(id);
+const closuresQ = useLeadClosuresQuery(id);
 const lead = computed(() => leadQ.data.value ?? null);
 
 const title = computed(() => {
@@ -67,15 +80,16 @@ const answers = computed(() => leadAnswerRows(lead.value?.answers ?? {}));
 const linkTo = (leadId: string) => ({ query: { ...route.query, lead: leadId } });
 
 const CONTACT_FORM = "lead-contact-form";
+const CLOSE_FORM = "lead-close-form";
 const router = useRouter();
 const session = useSessionStore();
 const toast = useToastStore();
-const { logContact, convert, setHold, purge } = useLeadActions(id);
+const { logContact, convert, setHold, purge, close, qualify, reopen } = useLeadActions(id);
 const { stepUpFor, holdForStepUp, confirmed, cancel: cancelStepUp } = useStepUpRetry();
 
 const canWork = computed(() => session.can("recruitment") && lead.value !== null && lead.value.purged_at === null);
 const canDelete = computed(() => canPurgeLead(session.role) && lead.value !== null && lead.value.purged_at === null);
-const working = ref<"contact" | "convert" | "hold" | "purge" | null>(null);
+const working = ref<"contact" | "convert" | "hold" | "purge" | "close" | "qualify" | "reopen" | null>(null);
 function stopWork(): void {
   working.value = null;
   cancelStepUp();
@@ -143,6 +157,39 @@ const runHold = () =>
     holdToast(answer);
   });
 
+// LQ5c: the evidence on record, counted as 0578's functions count it; the buttons and the reason list read it.
+const evidence = computed(() => leadEvidenceFrom(contactsQ.data.value ?? [], lead.value?.also.length ?? 0));
+const isClosed = computed(() => lead.value?.status === "not_qualified" || lead.value?.status === "lost");
+const canDecide = computed(() => canWork.value && lead.value?.status !== "converted");
+const qualifyWhy = computed(() => qualifyUnavailable(evidence.value));
+const closeForm = ref<InstanceType<typeof LeadCloseForm> | null>(null);
+const closeReady = computed(() => closeForm.value?.ready ?? false);
+const decisionNote = ref("");
+function startDecision(kind: "close" | "qualify" | "reopen"): void {
+  decisionNote.value = "";
+  working.value = kind;
+}
+const runClose = (input: { reason: LeadCloseReason; note: string | null }) =>
+  act("Could not close the lead", async () => {
+    const a = await close.mutateAsync(input);
+    working.value = null;
+    if (a.already) toast.info("Already closed", `This lead was already ${LEAD_STATUS_LABELS[a.status].toLowerCase()}.`);
+    else toast.success(`Closed — ${leadCloseReasonLabel(input.reason)}`, a.verdict_written ? "The requirement is recorded as not met." : undefined);
+  });
+const runQualify = () =>
+  act("Could not mark the lead qualified", async () => {
+    const a = await qualify.mutateAsync({ note: decisionNote.value.trim() || null });
+    working.value = null;
+    if (a.already) toast.info("Already qualified");
+    else toast.success("Marked qualified", "Next: make them an applicant when they are ready.");
+  });
+const runReopen = () =>
+  act("Could not reopen the lead", async () => {
+    const a = await reopen.mutateAsync({ note: decisionNote.value.trim() || null });
+    working.value = null;
+    toast.success("Reopened", `The lead is ${LEAD_STATUS_LABELS[a.status].toLowerCase()} again.`);
+  });
+
 const samePerson = ref(false);
 function startPurge(): void {
   samePerson.value = false;
@@ -183,6 +230,20 @@ const runPurge = (): Promise<void> =>
       <AppCheckbox v-if="lead.also.length > 0" v-model="samePerson" label="Also delete their other leads with this phone or email" data-test="same-person" />
     </div>
     <LeadContactForm v-else-if="working === 'contact'" :form-id="CONTACT_FORM" @save="saveContact" />
+    <LeadCloseForm v-else-if="working === 'close'" ref="closeForm" :form-id="CLOSE_FORM" :evidence="evidence" @save="runClose" />
+    <div v-else-if="working === 'qualify' || working === 'reopen'" class="space-y-4 text-sm text-ink-secondary" :data-test="`${working}-form`">
+      <template v-if="working === 'qualify'">
+        <p>This records that you spoke with them and they are worth an application.</p>
+        <p>It does not make them an applicant — that is the next step, when they are ready.</p>
+      </template>
+      <template v-else>
+        <p>This brings the lead back into the queue. Its earlier decisions stay on record.</p>
+        <p>It comes back as contacted if anybody ever reached for it, else as new.</p>
+      </template>
+      <FormField v-slot="{ id }" label="Note (optional)" hint="Stays in this drawer.">
+        <AppTextarea :id="id" v-model="decisionNote" :rows="3" :maxlength="2000" data-test="decision-note" />
+      </FormField>
+    </div>
     <LeadConvertForm
       v-else-if="working === 'convert'"
       v-model="convertChoice"
@@ -251,6 +312,21 @@ const runPurge = (): Promise<void> =>
         </div>
       </section>
 
+      <section v-if="(closuresQ.data.value?.length ?? 0) > 0" aria-labelledby="lead-decisions-heading">
+        <h3 id="lead-decisions-heading" class="text-sm font-semibold text-ink">Decisions</h3>
+        <ul class="mt-3 space-y-3">
+          <li v-for="c in closuresQ.data.value" :key="c.id" class="text-sm" data-test="decision">
+            <p class="font-medium text-ink">
+              {{ LEAD_CLOSURE_KIND_LABELS[c.kind] }}<template v-if="c.reason"> · {{ leadCloseReasonLabel(c.reason) }}</template>
+              <span class="ml-2 text-xs font-normal text-ink-muted">→ {{ LEAD_STATUS_LABELS[c.status_after] }}</span>
+            </p>
+            <p class="text-xs text-ink-muted">{{ c.actor_name }} · {{ formatDateTime(c.recorded_at) }}</p>
+            <p v-if="c.note" class="mt-1 whitespace-pre-line text-ink-secondary">{{ c.note }}</p>
+            <p v-else-if="c.note_withheld" class="mt-1 text-ink-muted" data-test="decision-note-removed">Any note here was removed with this person's details.</p>
+          </li>
+        </ul>
+      </section>
+
       <section v-if="answers.length > 0" aria-labelledby="lead-answers-heading">
         <h3 id="lead-answers-heading" class="text-sm font-semibold text-ink">What they answered</h3>
         <ul class="mt-3 space-y-3">
@@ -307,6 +383,15 @@ const runPurge = (): Promise<void> =>
         <BaseButton v-else-if="working === 'hold'" variant="primary" :disabled="busy" data-test="save-hold" @click="runHold">
           {{ busy ? "Saving…" : holding ? "Mark do not contact" : "Lift do not contact" }}
         </BaseButton>
+        <BaseButton v-else-if="working === 'close'" variant="danger" type="submit" :form="CLOSE_FORM" :disabled="busy || !closeReady" data-test="save-close">
+          {{ busy ? "Closing…" : "Close lead" }}
+        </BaseButton>
+        <BaseButton v-else-if="working === 'qualify'" variant="primary" :disabled="busy" data-test="save-qualify" @click="runQualify">
+          {{ busy ? "Saving…" : "Mark qualified" }}
+        </BaseButton>
+        <BaseButton v-else-if="working === 'reopen'" variant="primary" :disabled="busy" data-test="save-reopen" @click="runReopen">
+          {{ busy ? "Reopening…" : "Reopen lead" }}
+        </BaseButton>
         <BaseButton v-else variant="primary" :disabled="busy || convertChoice === ''" data-test="save-convert" @click="runConvert">
           {{ busy ? "Saving…" : "Confirm" }}
         </BaseButton>
@@ -315,6 +400,13 @@ const runPurge = (): Promise<void> =>
         <BaseButton v-if="canDelete" variant="danger" :disabled="busy" data-test="purge" @click="startPurge">Delete details</BaseButton>
         <template v-if="canWork">
           <BaseButton :disabled="busy" data-test="hold" @click="working = 'hold'">{{ lead?.do_not_contact ? "Lift do not contact" : "Do not contact" }}</BaseButton>
+          <template v-if="canDecide">
+            <BaseButton v-if="isClosed" :disabled="busy" data-test="reopen" @click="startDecision('reopen')">Reopen</BaseButton>
+            <template v-else>
+              <BaseButton :disabled="busy" data-test="close" @click="startDecision('close')">Close</BaseButton>
+              <BaseButton v-if="lead?.status !== 'qualified'" :disabled="busy || qualifyWhy !== null" :title="qualifyWhy ?? undefined" data-test="qualify" @click="startDecision('qualify')">Qualify</BaseButton>
+            </template>
+          </template>
           <BaseButton v-if="lead?.status !== 'converted'" :disabled="busy" data-test="convert" @click="startConvert">Make applicant</BaseButton>
           <BaseButton variant="primary" :disabled="busy" data-test="log-contact" @click="working = 'contact'">Log a contact</BaseButton>
         </template>
