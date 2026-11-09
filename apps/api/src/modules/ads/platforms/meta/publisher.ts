@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  AD_NAME_ALL_PRESETS, AD_NAME_LANGUAGES, adAreaSchema, buildAdName, DEFAULT_ORG_TIMEZONE, metaLeadFormQuestions, shortId, todayInZone,
-  type AdArea, type AdNameLanguage, type AdNameLevel, type MetaFormLocale,
+  AD_NAME_ALL_PRESETS, AD_NAME_LANGUAGES, adAreaSchema, buildAdName, DEFAULT_ORG_TIMEZONE, metaFormScreens, metaLeadFormQuestions, shortId,
+  todayInZone, type AdArea, type AdClaim, type AdNameLanguage, type AdNameLevel, type MetaFormLocale,
 } from "@silvicom/shared";
 import { completeAction, recordFinished, startAction, type ActionRow } from "../../actions/actionLedger.js";
 import type { PlatformOutcome } from "../adapter.js";
@@ -65,6 +65,8 @@ export interface PublishInput {
   lifetime_cap_cents: number | null;
   /** The brief's form question keys (`metaLeadForm.ts` catalogue), asked in every language's form. */
   form_questions: readonly string[];
+  /** The brief's claims: the only figures the form's intro may show (`metaLeadFormScreens.ts`, LQ1). */
+  claims: readonly AdClaim[];
   /** The campaign's APPROVED creatives (D-AD12: a person approved each); each becomes an ad per language. */
   creatives: readonly PublishCreative[];
   /** The production web host's `/privacy` page (V7 checks its wording for Meta's review). */
@@ -134,7 +136,7 @@ export async function publishPaused(deps: PublisherDeps, input: PublishInput): P
       create: () => deps.pageGraph.post<{ id: string }>(`${input.pageId}/leadgen_forms`, spec, { idempotent: false }),
       expect: { name: formName, status: "ACTIVE", privacy_policy_url: input.privacy_url, locale: spec.locale },
       expectCategory: false,
-      verify: (o) => (sameQuestions(o.questions, spec.questions) ? [] : ["questions"]),
+      verify: (o) => [...(sameQuestions(o.questions, spec.questions) ? [] : ["questions"]), ...screensDiffer(o, spec)],
       ref: "meta_form_id",
     });
     if (!form.ok) return form;
@@ -180,10 +182,14 @@ export function adSetParams(input: Pick<PublishInput, "area" | "daily_budget_cen
   };
 }
 
-export function formParams(input: Pick<PublishInput, "form_questions" | "privacy_url">, name: string, locale: MetaFormLocale) {
+export function formParams(input: Pick<PublishInput, "form_questions" | "claims" | "privacy_url">, name: string, locale: MetaFormLocale) {
   const built = metaLeadFormQuestions(input.form_questions, locale);
   if (!built.ok) throw new Error(`formParams: refused ${built.refused.join(", ")} — preflight should have said so`);
+  const screens = metaFormScreens({ form_questions: input.form_questions, claims: input.claims }, locale);
+  if (!screens.ok) throw new Error(`formParams: refused ${screens.refused.join(", ")} — preflight should have said so`);
   return {
+    // LQ1 (Q-AD47 (a)): higher intent, SMS-verified phone, the intro and the thank-you page.
+    ...screens.screens,
     name,
     locale: built.locale,
     questions: built.questions,
@@ -220,6 +226,7 @@ export function preflight(input: PublishInput): string | null {
   if (input.area.radius_miles < META_EMPLOYMENT_MIN_MILES || input.area.radius_miles > META_CUSTOM_LOCATION_MAX_MILES) return "area_outside_meta_limits";
   if (!input.accountId || !input.pageId) return "connection_incomplete";
   if (AD_NAME_LANGUAGES.some((l) => !metaLeadFormQuestions(input.form_questions, l).ok)) return "form_question_not_allowed";
+  if (AD_NAME_LANGUAGES.some((l) => !metaFormScreens(input, l).ok)) return "form_screens_refused";
   if (!/^https:\/\/[^/]+\/privacy$/.test(input.privacy_url)) return "privacy_url_not_https";
   // Nothing approved = nothing to launch, so nothing is made: a campaign with no ad is a false `paused`.
   if (input.creatives.length === 0) return "no_approved_creative";
@@ -235,7 +242,10 @@ export function preflight(input: PublishInput): string | null {
 export type Listing = { data: Array<Record<string, unknown> & { id: string }> };
 const CAMPAIGN_FIELDS = "id,name,status,special_ad_categories,special_ad_category_country,spend_cap";
 const ADSET_FIELDS = "id,name,status,daily_budget,campaign_id,targeting";
-const FORM_FIELDS = "id,name,status,locale,questions,privacy_policy_url";
+// The intro and thank-you page are objects: read with field expansion, or Graph answers their ids only.
+// `is_phone_sms_verify_enabled` is NOT here — it is not a LeadgenForm read field (SDK v26), and asking for a
+// field an object lacks is a Graph error that would fail every read-back (Q-AD48).
+const FORM_FIELDS = "id,name,status,locale,questions,privacy_policy_url,is_optimized_for_quality,context_card{title,style,content},thank_you_page{title,body,button_type}";
 const FORM_PAGES_MAX = 10;
 
 /** The Page's forms carrying this name, as a `Listing` — `ensure` then reads it like any level. */
@@ -260,6 +270,21 @@ function sameQuestions(got: unknown, want: Array<{ type: string; key: string; op
     const g = got[i] as { type?: unknown; key?: unknown; options?: Array<{ key?: unknown }> };
     return g.type === q.type && g.key === q.key && JSON.stringify((g.options ?? []).map((o) => o.key)) === JSON.stringify((q.options ?? []).map((o) => o.key));
   });
+}
+/**
+ * Where the form Meta holds is not the higher-intent form with the intro and thank-you page we send (LQ1).
+ * A form made before LQ1 lacks them and is refused, never adopted: archive the campaign and start anew.
+ */
+function screensDiffer(got: Record<string, unknown>, want: ReturnType<typeof formParams>): string[] {
+  const wrong: string[] = [];
+  if (got.is_optimized_for_quality !== true) wrong.push("is_optimized_for_quality");
+  const card = got.context_card as { title?: unknown; style?: unknown; content?: unknown } | undefined;
+  if (want.context_card) {
+    if (!card || card.title !== want.context_card.title || card.style !== want.context_card.style || JSON.stringify(card.content) !== JSON.stringify(want.context_card.content)) wrong.push("context_card");
+  } else if (card) wrong.push("context_card");
+  const ty = got.thank_you_page as { title?: unknown; body?: unknown; button_type?: unknown } | undefined;
+  if (!ty || ty.title !== want.thank_you_page.title || ty.body !== want.thank_you_page.body || ty.button_type !== want.thank_you_page.button_type) wrong.push("thank_you_page");
+  return wrong;
 }
 export type Found = Record<string, unknown> & { id: string };
 

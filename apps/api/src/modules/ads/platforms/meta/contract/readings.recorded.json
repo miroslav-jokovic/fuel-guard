@@ -73,6 +73,13 @@
         "created_time is +0000": true,
         "each answer is { name, values[] }": true
       }
+    },
+    "form-sms-verify-read": {
+      "fake": "platforms/simulator/fakeMetaForms.ts",
+      "observed": {
+        "status": 200,
+        "is_phone_sms_verify_enabled": "undefined"
+      }
     }
   }
 }

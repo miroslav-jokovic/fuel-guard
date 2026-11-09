@@ -57,7 +57,7 @@ const input = (key: string): PublishInput => ({
   brief_source: "recruiting_opening", brief_ref: "op-1@v3", created_at: "2026-11-09T15:00:00Z",
   area: { label: "Joliet yard", latitude: 41.525, longitude: -88.0817, radius_miles: 25, reason: "Drivers report to the Joliet yard daily" },
   daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, key,
-  form_questions: ["class_a_held", "class_a_years"], privacy_url: "https://app.silvicom360.com/privacy",
+  claims: [{ kind: "money", cents: 62, per: "mile" }, { kind: "quantity", value: 23, unit: "age" }, { kind: "quantity", value: 2, unit: "year" }], form_questions: ["class_a_held", "class_a_years"], privacy_url: "https://app.silvicom360.com/privacy",
   creatives: [{
     id: `${id}-cr`, preset_key: "P2", platform_slots: { primary_text: "body", headline: "title" },
     copy: { en: { hook: "Home every weekend", cta: "Apply now", body: "Regional lanes out of Joliet.", title: "Class A drivers" },

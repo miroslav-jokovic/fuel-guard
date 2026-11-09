@@ -12,6 +12,14 @@ import { graphError, pick } from "./fakeMetaShapes.js";
  * Made with the PAGE's token (Lead Ads "create" guide: "access_token set to your Page access token"):
  * `fakeMeta.ts` routes a Page edge only for that Page's token.
  *
+ *
+ * LQ1 (2026-11-09; Page leadgen_forms reference + Business SDK v26.0 `leadgenform.py`, `page.py`):
+ *   `is_optimized_for_quality` (bool) is created and READ back; `context_card` and `thank_you_page`
+ *   (objects; `thank_you_page` needs `title` and a `button_type` from the reference's enum, CALL_BUSINESS a
+ *   `business_phone_number`) are created and read back by field expansion; `is_phone_sms_verify_enabled`
+ *   is created but is NOT a LeadgenForm read field, so this fake keeps it apart and never answers it —
+ *   OUR reading of the SDK's field list, recorded as `form-sms-verify-read` and settled at L4 (Q-AD48).
+ *
  * ⚠ The reference marks `privacy_policy` optional, yet a lead form cannot be published without one in
  * Ads Manager. This fake REQUIRES it (https), which is our reading; L4 re-runs the suite on the
  * sandbox to settle it. The question types are the reference's enum as far as our builder can send;
@@ -28,12 +36,19 @@ export interface FakeForm {
   locale: string;
   questions: Array<{ type: string; key: string; label?: string; options?: Array<{ key: string; value: string }> }>;
   privacy_policy_url: string;
+  is_optimized_for_quality: boolean;
+  context_card?: { title: string; style: string; content: string[] };
+  thank_you_page?: { title: string; body?: string; button_type: string };
 }
+
+const BUTTON_TYPES = new Set(["VIEW_WEBSITE", "CALL_BUSINESS", "MESSAGE_BUSINESS", "DOWNLOAD", "SCHEDULE_APPOINTMENT", "VIEW_ON_FACEBOOK", "PROMO_CODE", "NONE", "WHATSAPP", "P2B_MESSENGER", "BOOK_ON_WEBSITE"]);
 
 type Answer = { status: number; body: unknown };
 
 export class FakeForms {
   readonly forms = new Map<string, FakeForm>();
+  /** Forms made with SMS verification on: kept apart because Meta's read fields do not include it. */
+  readonly smsVerified = new Set<string>();
 
   constructor(private readonly ids: () => string, private readonly trace: () => string) {}
 
@@ -42,12 +57,19 @@ export class FakeForms {
     if (!b.name) return bad("name is required");
     let questions: unknown;
     let privacy: unknown;
+    let card: Record<string, unknown> | null;
+    let thanks: Record<string, unknown> | null;
     try {
       questions = JSON.parse(b.questions ?? "null");
       privacy = JSON.parse(b.privacy_policy ?? "null");
+      card = JSON.parse(b.context_card ?? "null") as Record<string, unknown> | null;
+      thanks = JSON.parse(b.thank_you_page ?? "null") as Record<string, unknown> | null;
     } catch {
-      return bad("questions and privacy_policy must be JSON");
+      return bad("questions, privacy_policy, context_card and thank_you_page must be JSON");
     }
+    if (card && (typeof card.title !== "string" || !["LIST_STYLE", "PARAGRAPH_STYLE"].includes(String(card.style)) || !Array.isArray(card.content))) return bad("context_card needs a title, a style and content");
+    if (thanks && (typeof thanks.title !== "string" || !BUTTON_TYPES.has(String(thanks.button_type)))) return bad("thank_you_page needs a title and a button_type");
+    if (thanks?.button_type === "CALL_BUSINESS" && typeof thanks.business_phone_number !== "string") return bad("A CALL_BUSINESS thank you page needs a business_phone_number");
     if (!Array.isArray(questions) || questions.length === 0) return bad("questions is required");
     for (const q of questions as Array<Record<string, unknown>>) {
       if (!KNOWN_TYPES.has(String(q.type))) return bad(`Unknown question type ${String(q.type)}`);
@@ -60,7 +82,11 @@ export class FakeForms {
     this.forms.set(id, {
       id, page_id: pageId, name: b.name, status: "ACTIVE", locale: b.locale ?? "EN_US",
       questions: questions as FakeForm["questions"], privacy_policy_url: p.url,
+      is_optimized_for_quality: b.is_optimized_for_quality === "true",
+      ...(card ? { context_card: { title: String(card.title), style: String(card.style), content: (card.content as unknown[]).map(String) } } : {}),
+      ...(thanks ? { thank_you_page: { title: String(thanks.title), ...(typeof thanks.body === "string" ? { body: thanks.body } : {}), button_type: String(thanks.button_type) } } : {}),
     });
+    if (b.is_phone_sms_verify_enabled === "true") this.smsVerified.add(id);
     return { status: 200, body: { id } };
   }
 
