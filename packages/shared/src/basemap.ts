@@ -169,3 +169,80 @@ export function resolveBasemapStyle(raw: unknown): BasemapStyle {
 export function resolveBasemapFormat(raw: unknown): BasemapFormat {
   return typeof raw === "string" && FORMATS.includes(raw) ? (raw as BasemapFormat) : "png";
 }
+
+/**
+ * ── D-DR26: EVERY TILE IS A 512-PIXEL, PPI-200 TILE LAID OVER 256 CSS PIXELS (2026-11-09) ────────
+ * The owner, on the live map: "the map is a little blurry" and "when I zoom in I don't see place
+ * names — I can't tell whether a truck is at a truck stop". Both were one setting.
+ *
+ * **The blur.** Every map asked HERE for a 512-pixel tile and laid it over 512 CSS pixels. A Retina
+ * screen has two device pixels per CSS pixel, so the browser stretched every tile 2× — soft roads and
+ * smudged labels at every zoom. Satellite hid it because a photograph forgives a stretch; type does not.
+ *
+ * **The place names.** HERE prints a business name only from tile zoom 17. Requested over the Pilot
+ * Travel Center in Joliet with the production key: zoom 16 draws two blue "P" pins with no words,
+ * zoom 17 names them. With 512-pixel tiles maplibre asks for tile zoom = round(map zoom), so a
+ * dispatcher had to reach map zoom 16.5 — street level — before any name appeared.
+ *
+ * **The fix.** Lay each tile over 256 CSS pixels (`TILE_CSS_PX`): maplibre then asks for tile zoom
+ * round(map zoom + 1) — `coveringZoomLevel` in the installed 5.24.0 bundle,
+ * `transform.zoom + scaleZoom(512 / tileSize)`. And keep asking for a 512-pixel tile, at `ppi=200`,
+ * so the tile carries two pixels per CSS pixel and HERE draws its type at twice the pixel size — the
+ * same apparent size on screen as before, now at the zoom that names the place.
+ *
+ * ⚠ **IT IS ONE REQUEST FOR EVERY SCREEN, AND THAT WAS MEASURED, NOT ASSUMED.** The first build sent a
+ * standard screen (devicePixelRatio 1) a 256-pixel tile at ppi 100 — one tile pixel per screen pixel,
+ * which sounds like the sharp choice. In the real app over Joliet at map zoom 16 it drew the same two
+ * BARE "P" pins as before: HERE decides whether a name fits by the tile's ground resolution per
+ * pixel, and a 256 tile at zoom 17 has exactly the resolution of a 512 tile at zoom 16. Only the
+ * ppi-200 tile names the Pilot. Shown on a standard screen the 512 tile is shrunk 2×, and that is
+ * clean: maplibre binds raster textures `LINEAR_MIPMAP_NEAREST` and generates their mipmaps (the
+ * installed bundle), and the screenshot at devicePixelRatio 1 is crisp and names it. So there is no
+ * screen-density branch at all, and a standard office monitor gets the place names too.
+ *
+ * ⚠ **THE COST IS THE TILE COUNT, AND IT IS STATED RATHER THAN HIDDEN — ABOUT 2×, MEASURED.** In the
+ * real app on a 1512×900 map, opening on one truck over Joliet and pressing "Zoom in" from 9 to 21,
+ * the same walk on the code before and after: **125 → 262 tile requests at devicePixelRatio 2, 135 →
+ * 268 at 1.** Not the 4× the tile area suggests: a deeper tile zoom covers less ground, and the 10
+ * refused zoom-21 requests are gone (`HERE_MAX_TILE_ZOOM`). Each tile measured 14–15 KB as jpeg over
+ * Joliet (12–13 KB before). HERE's per-tile price was NOT read from HERE: third-party 2026 write-ups
+ * put raster tiles at 30,000 free a month then ~$0.09 per 1,000, billed per request, and this fleet's
+ * monthly tile count was never measured (Q-LM21 — HERE's own console can).
+ *
+ * ⚠ `ppi` is pinned because HERE refuses most values with `400 E62…` — measured: 100, 200 and 400
+ * answer 200; 150, 250, 300 and 500 answer 400. A wrong value would fail every tile in view at once,
+ * the same outage `resolveBasemapStyle` falls back to avoid.
+ */
+export const TILE_REQUEST = { size: 512, ppi: 200 } as const;
+
+/** The CSS-pixel size every map lays a tile over (D-DR26). */
+export const TILE_CSS_PX = 256;
+
+/**
+ * The deepest tile HERE serves. Measured on all four basemaps with the production key: zoom 20
+ * answers 200, zoom 21 answers 400 "The zoom level is not within the supported ranges".
+ *
+ * ⚠ The map has to be TOLD this. maplibre's raster source defaults to `maxzoom: 22` and asks for
+ * zoom 21 tiles nobody serves. Measured in the app on the code before D-DR26: 10 zoom-21 requests at
+ * the deepest zoom, each refused by the proxy's coordinate check (which reads this constant). maplibre
+ * falls back to the zoom-20 tile, so the picture was right and the requests were waste — and over
+ * 256 CSS pixels they would start a whole map zoom earlier. The web source's `maxzoom` reads this too.
+ */
+export const HERE_MAX_TILE_ZOOM = 20;
+
+/**
+ * Validate a tile size and ppi off the wire: `TILE_REQUEST`, or the request from before D-DR26.
+ *
+ * ⚠ The two are checked as ONE pair. `size=256&ppi=200` would put twice-size type on a half-size tile.
+ *
+ * ⚠ Anything else gets a 512 tile at ppi 100, and that is deliberate: it is exactly the request this
+ * proxy sent before D-DR26 (HERE documents its default ppi as 100, and the same Joliet tile came back
+ * at the same 13 KB with `ppi=100` and with no ppi at all). A browser still running an older bundle
+ * sends neither parameter and lays the tile over 512 CSS pixels, so it must keep receiving the tile
+ * it was built for; handing it `TILE_REQUEST` would halve every label in it until it reloaded.
+ */
+export function resolveTileRequest(rawSize: unknown, rawPpi: unknown): { size: number; ppi: number } {
+  return rawSize === String(TILE_REQUEST.size) && rawPpi === String(TILE_REQUEST.ppi)
+    ? { size: TILE_REQUEST.size, ppi: TILE_REQUEST.ppi }
+    : { size: 512, ppi: 100 };
+}

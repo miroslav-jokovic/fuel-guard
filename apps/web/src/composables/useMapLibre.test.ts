@@ -102,6 +102,8 @@ interface FakeLayer {
 function mapHarness() {
   const constructed: unknown[] = [];
   const sources: string[] = [];
+  /** What each source was built with — the `tileSize`, `maxzoom` and tile URL D-DR26 is about. */
+  const specs: Record<string, { tiles: string[]; tileSize: number; maxzoom: number }> = {};
   const layers: FakeLayer[] = [];
   const loaded = new Set<string>();
   const handlers: ((e: { sourceId: string }) => void)[] = [];
@@ -109,8 +111,9 @@ function mapHarness() {
   class FakeMap {
     constructor(opts: { style: { sources: Record<string, unknown>; layers: FakeLayer[] } }) {
       constructed.push(opts);
-      for (const id of Object.keys(opts.style.sources)) {
+      for (const [id, spec] of Object.entries(opts.style.sources)) {
         sources.push(id);
+        specs[id] = spec as (typeof specs)[string];
         loaded.add(id);
       }
       layers.push(...opts.style.layers);
@@ -136,8 +139,9 @@ function mapHarness() {
     getStyle() {
       return { layers };
     }
-    addSource(id: string) {
+    addSource(id: string, spec: (typeof specs)[string]) {
       sources.push(id);
+      specs[id] = spec;
     }
     addLayer(layer: FakeLayer, beforeId?: string) {
       const at = beforeId ? layers.findIndex((l) => l.id === beforeId) : -1;
@@ -159,7 +163,7 @@ function mapHarness() {
     for (const fn of [...handlers]) fn({ sourceId: id });
   };
 
-  return { FakeMap, constructed, sources, layers, finishLoading, visible: () => layers.filter((l) => l.type === "raster" && l.layout?.visibility !== "none").map((l) => l.id) };
+  return { FakeMap, constructed, sources, specs, layers, finishLoading, visible: () => layers.filter((l) => l.type === "raster" && l.layout?.visibility !== "none").map((l) => l.id) };
 }
 
 async function mountMap(FakeMap: unknown, tilesRef: { value: string }) {
@@ -285,6 +289,41 @@ describe("useMapLibre gives each basemap its own layer", () => {
 
     h.finishLoading("here-1");
     expect(h.visible()).toEqual(["here-1"]);
+    wrapper.unmount();
+    vi.doUnmock("maplibre-gl");
+    vi.doUnmock("@/lib/supabase");
+  });
+});
+
+/**
+ * D-DR26 — a 512 tile at ppi 200, laid over 256 CSS pixels, on every map.
+ *
+ * ⚠ What a reader sees from this cannot be asserted here: the sharpness and the earlier place names
+ * were checked in the real app with real HERE tiles over the Joliet Pilot, at devicePixelRatio 1 and
+ * 2. What CAN rot silently is the pairing — a 512 tile over 512 CSS pixels is the blur, a 512 tile
+ * with no ppi is half-size type, and a source without `maxzoom` asks HERE for tiles it refuses. So the
+ * pairing is what these pin, on the URL and on the source the map is actually built with.
+ */
+describe("useMapLibre asks for sharp tiles that name places a zoom earlier", () => {
+  it("appends the tile request to a template with or without a query string", async () => {
+    const { withTileRequest } = await import("./useMapLibre");
+    expect(withTileRequest("/t/{z}/{x}/{y}")).toBe("/t/{z}/{x}/{y}?size=512&ppi=200");
+    expect(withTileRequest(DAY)).toBe(`${DAY}&size=512&ppi=200`);
+  });
+
+  it("builds every raster source the same way: 256 CSS pixels, the 512/ppi-200 tile, HERE's max zoom", async () => {
+    vi.resetModules();
+    const h = mapHarness();
+    const { ref } = await import("vue");
+    const tiles = ref(DAY);
+    const { wrapper, nextTick } = await mountMap(h.FakeMap, tiles);
+    tiles.value = NIGHT;
+    await nextTick();
+
+    // Both the source the map is constructed with AND one added later by a switch — the two places
+    // a raster is defined, which is where a 512 used to be written twice.
+    expect(h.specs.here).toMatchObject({ tileSize: 256, maxzoom: 20, tiles: [`${DAY}&size=512&ppi=200`] });
+    expect(h.specs["here-1"]).toMatchObject({ tileSize: 256, maxzoom: 20, tiles: [`${NIGHT}&size=512&ppi=200`] });
     wrapper.unmount();
     vi.doUnmock("maplibre-gl");
     vi.doUnmock("@/lib/supabase");

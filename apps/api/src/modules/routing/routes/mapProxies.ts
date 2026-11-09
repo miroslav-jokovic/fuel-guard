@@ -2,7 +2,7 @@ import type { Router } from "express";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
-import { resolveBasemapStyle, resolveBasemapFormat } from "@silvicom/shared";
+import { HERE_MAX_TILE_ZOOM, resolveBasemapStyle, resolveBasemapFormat, resolveTileRequest } from "@silvicom/shared";
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -88,7 +88,7 @@ export function registerMapRoutes(router: Router): void {
         return;
       }
       const z = Number(req.params.z), x = Number(req.params.x), y = Number(req.params.y);
-      if (![z, x, y].every(Number.isInteger) || z < 0 || z > 20 || x < 0 || y < 0) {
+      if (![z, x, y].every(Number.isInteger) || z < 0 || z > HERE_MAX_TILE_ZOOM || x < 0 || y < 0) {
         res.status(400).json(apiError("bad_request", "invalid tile coordinate"));
         return;
       }
@@ -114,8 +114,15 @@ export function registerMapRoutes(router: Router): void {
        * part of this page, so the switcher could not have shipped without this line.
        */
       const format = resolveBasemapFormat(req.query.format);
+      /**
+       * D-DR26: the client asks for a 512 tile at `ppi=200`, which it lays over 256 CSS pixels — the
+       * sharp map that names a truck stop a zoom earlier. Validated as one pair in `@silvicom/shared`;
+       * a request with neither — a browser still on an older bundle — gets exactly the `size=512` tile
+       * this line used to hardcode, because that browser still lays it over 512.
+       */
+      const { size, ppi } = resolveTileRequest(req.query.size, req.query.ppi);
       const url =
-        `https://maps.hereapi.com/v3/base/mc/${z}/${x}/${y}/${format}?style=${style}&size=512` +
+        `https://maps.hereapi.com/v3/base/mc/${z}/${x}/${y}/${format}?style=${style}&size=${size}&ppi=${ppi}` +
         `&apiKey=${encodeURIComponent(env.HERE_API_KEY)}`;
       /**
        * ⚠ THE DEADLINE IS OWNED, NOT FIRE-AND-FORGET, AND THAT COST A PRODUCTION OUTAGE.

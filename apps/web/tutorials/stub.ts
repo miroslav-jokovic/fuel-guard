@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { BrowserContext, Route } from "@playwright/test";
-import { resolveBasemapFormat, resolveBasemapStyle } from "@silvicom/shared";
+import { resolveBasemapFormat, resolveBasemapStyle, resolveTileRequest } from "@silvicom/shared";
 import {
   allLoads, dispatchBoard, driverRows, drivenPath, liveMapPositions, loadDetail, loadRoute, trailerRows,
 } from "./fixtures/endpoints";
@@ -128,9 +128,16 @@ async function tile(route: Route, u: URL): Promise<void> {
   const [z, x, y] = u.pathname.split("/").slice(-3);
   const style = resolveBasemapStyle(u.searchParams.get("style"));
   const format = resolveBasemapFormat(u.searchParams.get("format"));
-  const file = path.join(TILE_CACHE, style, `${z}-${x}-${y}.${format}`);
+  /**
+   * D-DR26: the tile's size and ppi through the proxy's own resolver. This line used to hardcode
+   * `size=512` — a third copy of the proxy's request — so once the app laid tiles over 256 CSS pixels
+   * at `ppi=200`, a recorded tutorial would have filmed half-size type. The pair is in the cache key
+   * as well, or a cache filled before D-DR26 would keep serving the old tiles.
+   */
+  const { size, ppi } = resolveTileRequest(u.searchParams.get("size") ?? undefined, u.searchParams.get("ppi") ?? undefined);
+  const file = path.join(TILE_CACHE, style, `${size}-${ppi}`, `${z}-${x}-${y}.${format}`);
   if (!fs.existsSync(file)) {
-    const res = await fetch(`https://maps.hereapi.com/v3/base/mc/${z}/${x}/${y}/${format}?style=${style}&size=512&apiKey=${encodeURIComponent(key)}`);
+    const res = await fetch(`https://maps.hereapi.com/v3/base/mc/${z}/${x}/${y}/${format}?style=${style}&size=${size}&ppi=${ppi}&apiKey=${encodeURIComponent(key)}`);
     if (!res.ok) return route.fulfill({ status: 204 });
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));

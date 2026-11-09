@@ -58,8 +58,15 @@ import { ipKeyGenerator } from "express-rate-limit";
  * (median, worst 45) — so a busy quarter-hour on the heaviest surface in the product is ~600. 1 200
  * is twice that, which leaves the limiter doing its job against a runaway client while never
  * reaching a person doing their work.
+ *
+ * ⚠ D-DR26 (2026-11-09) DOUBLED THE TILE SIDE, so the busy seat moved and this moved with it. Tiles
+ * are now laid over 256 CSS pixels instead of 512, and the same zoom walk in the real app went from
+ * 125 to 262 tile requests (135 → 268 on a standard screen) — 2.1×. Of the ~600 above, 180 is polls
+ * and ~420 is tiles, so a busy seat is now 180 + 2 × 420 ≈ **1 020**. Left at 1 200 the headroom
+ * would have fallen from 2× to 1.2×; this keeps it at 2×. The browser caches a tile for a day
+ * (`Cache-Control` on the proxy), which only lowers the real figure — it is not counted on here.
  */
-export const API_RATE_LIMIT_PER_CALLER = 1_200;
+export const API_RATE_LIMIT_PER_CALLER = 2_100;
 
 /**
  * Coarse per-ADDRESS ceiling, per 15 minutes — the backstop that makes the per-caller key safe.
@@ -68,16 +75,21 @@ export const API_RATE_LIMIT_PER_CALLER = 1_200;
  * number of buckets. Those requests are cheap (the limiter is mounted ahead of the body parsers, and
  * a forged token is a 401 from `requireAuth`) but "cheap" is not "free".
  *
- * Sized for the office this plan exists to support — 30 seats × the ~600 a busy seat actually
+ * Sized for the office this plan exists to support — 30 seats × what a busy seat actually
  * spends — so it cannot be reached by people working, and it still holds a single flooding address
  * to ~20 requests a second. It is NOT `30 × API_RATE_LIMIT_PER_CALLER`: the ceiling is sized on
  * measured usage, the per-caller budget on headroom, and multiplying the two would compound the
  * safety margin into no ceiling at all.
  *
+ * ⚠ D-DR26 (2026-11-09) moved the busy seat from ~600 to ~1 020 (the per-caller note above has the
+ * measurement), so 30 seats are ~30 600 and the old 18 000 would have refused a full office at once —
+ * the exact outage C1 was built to end. Still sized on usage, not headroom — and the cost is
+ * stated: a single flooding address now gets ~34 requests a second (31 000 / 900 s), against ~20.
+ *
  * ⚠ This is the app layer, and app-layer flood protection is a backstop, never the main line — the
  * edge is. What this genuinely buys is that one address cannot spend everybody else's database.
  */
-export const API_RATE_LIMIT_PER_ADDRESS = 18_000;
+export const API_RATE_LIMIT_PER_ADDRESS = 31_000;
 
 /** Enough of a SHA-256 to make a collision between two live sessions not a thing that happens. */
 const DIGEST_CHARS = 32;

@@ -123,6 +123,18 @@ describe("which bucket a request counts against", () => {
     expect(pollsPerWindow).toBe(180);
     expect(API_RATE_LIMIT_PER_CALLER).toBeGreaterThan(pollsPerWindow * 3);
   });
+
+  /**
+   * ⚠ D-DR26 doubled the live map's tiles (125 → 262 on the same zoom walk, measured in the real app),
+   * which moved a busy seat from ~600 to ~1 020 a quarter-hour — 180 polls plus twice ~420 tiles. Both
+   * budgets were sized on the old seat, and at 18 000 the address ceiling refused a full 30-seat
+   * office: C1's outage again. Pinned so the tiles and the budgets cannot drift apart silently.
+   */
+  it("still clears a busy seat after D-DR26 doubled the map's tiles", () => {
+    const busySeat = 180 + 2 * 420;
+    expect(API_RATE_LIMIT_PER_CALLER).toBeGreaterThanOrEqual(2 * busySeat);
+    expect(API_RATE_LIMIT_PER_ADDRESS).toBeGreaterThanOrEqual(30 * busySeat);
+  });
 });
 
 /**

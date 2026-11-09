@@ -454,3 +454,48 @@ describe("the style parameter reaches the upstream URL", () => {
     expect(url).not.toContain("passwd");
   });
 });
+
+/**
+ * D-DR26 — the tile's pixel size and ppi reach HERE as the client asked, when it is the one pair.
+ *
+ * ⚠ The no-parameter case is the deploy window, not a nicety: a browser still running the bundle from
+ * before this change lays each tile over 512 CSS pixels and sends neither parameter, so it must keep
+ * receiving the `size=512` tile this route used to hardcode.
+ */
+describe("the tile request reaches the upstream URL (D-DR26)", () => {
+  it("asks HERE for the 512 tile at ppi 200 when the client asks for it", async () => {
+    stubUpstream();
+    await tile("?style=explore.day&format=jpeg&size=512&ppi=200");
+    expect(hereUrl()).toContain("size=512&ppi=200");
+  });
+
+  it("serves an older client the 512 tile it was built for", async () => {
+    stubUpstream();
+    await tile("?style=explore.day&format=jpeg");
+    expect(hereUrl()).toContain("size=512&ppi=100");
+  });
+
+  it("never passes HERE a ppi it rejects, which would fail every tile in view", async () => {
+    stubUpstream();
+    await tile("?style=explore.day&size=512&ppi=300");
+    const url = hereUrl();
+    expect(url).toContain("size=512&ppi=100");
+    expect(url).not.toContain("ppi=300");
+  });
+
+  /**
+   * ⚠ Measured with the production key: zoom 20 answers on every basemap, zoom 21 answers 400. The
+   * web source now stops at 20 (`maxzoom`), so a 21 reaching this route is a client bug — refused
+   * here without spending a HERE request on it.
+   */
+  it("refuses a zoom deeper than HERE serves without calling HERE", async () => {
+    stubUpstream();
+    const ok = await realFetch(`${baseUrl}/api/fueling/map-tiles/20/0/0`, { headers: { Authorization: "Bearer admin" } });
+    expect(ok.status).toBe(200);
+    upstream.length = 0;
+    upstreamInit.length = 0;
+    const res = await realFetch(`${baseUrl}/api/fueling/map-tiles/21/0/0`, { headers: { Authorization: "Bearer admin" } });
+    expect(res.status).toBe(400);
+    expect(hereUrl()).toBeUndefined();
+  });
+});
