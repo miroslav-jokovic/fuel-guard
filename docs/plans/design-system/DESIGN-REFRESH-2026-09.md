@@ -397,6 +397,20 @@ Cropping to a fixed band at build time would have to be redone at every breakpoi
   layout editor owns that decision. Revisit once DR7 has rolled the new anatomy out and the page can
   be judged on its merits.
 
+- **Q-DR4 — what do HERE vector tiles cost us, and may we cache them? (blocks D-DR27's build.)**
+  D-DR27 reads the `pois` layer of HERE's Vector Tile API. On 2026-11-09 our key answered 200 for
+  `vector.hereapi.com/v2/vectortiles/base/mc/{z}/{x}/{y}/omv` at zooms 12–17 (zoom 18 answers 400),
+  so access is not the question. Two things are still unknown:
+  - **Billing.** Is a vector tile billed like a raster tile, and is there a free tier that we would
+    exceed? One level ahead costs 5 HERE vector tiles per map tile and two levels cost 21. A
+    900×600 viewport measured 6 map tiles, so 30 vector tiles per view at one level and 126 at two.
+  - **Caching.** May the proxy keep POI tiles server-side? Place names change rarely, so a 24-hour
+    cache would make the per-view count above a first-view cost only.
+
+  Candidate answers: (a) read the contract or HERE console usage page before building; (b) build
+  behind the existing proxy with a server cache and measure a week of staging use. Recommendation:
+  (a), because it is a reading task and (b) can't undo a bill.
+
 ---
 
 ## 7. Progress log
@@ -1141,3 +1155,38 @@ conflict every time (`plan-progress-log-not-table-rows`).
   uses the proxy's resolver. Not in this step: the "At: Pilot Travel Center — truck stop" line on the
   truck card, from HERE Browse (category `700-7900-0132`, confirmed with our key) — the direct answer
   at fleet zoom.
+
+- **2026-11-09 — D-DR27 (PROPOSED, awaiting the owner): the map draws place names itself, from HERE's
+  place data.** What the owner asked for, in their words: "when we zoom … display name on map. And not
+  just truck stop, all locations we have available names for." That means names on the MAP, like
+  Google Maps: every named place, no filter, no card line. (The truck-card "At:" line, D-LM31, was
+  the wrong answer to this and is reverted in #2167.) D-DR26 already gained one zoom. What follows
+  was measured with our key over the Joliet Pilot (41.4805, −88.0792):
+  - ⚠ **One more step of the D-DR26 trick does not work.** It was the plan: lay tiles over 128 CSS
+    px at `ppi=400`. HERE was asked directly. A ppi-400 tile names exactly what the ppi-200 tile of
+    the same tile zoom names, with type only ~10–15% larger, not 2×. Laid over 128 px it would draw
+    names at ~55% of today's size, about 7 px. Raster tiles cannot name a place earlier than they do.
+  - **HERE's vector tiles carry the names, with HERE's own threshold.** Layer `pois` holds `name`,
+    `kind` and `min_zoom`, and a POI appears one tile zoom before its `min_zoom`: fuel stations
+    (min 14) are already in the zoom-13 tile, and the Pilot (min 17) is in the zoom-16 tile. Layer
+    `places` holds localities only.
+  - **The raster can drop its own pins.** `&features=pois:disabled` returns 200 and keeps streets,
+    shields and house numbers. Our layer then never doubles HERE's.
+  - ⚠ **maplibre pins a vector source at tileSize 512** and ignores the layer silently when a
+    different size is given. So "ask one zoom deeper", which D-DR26 did for rasters, is impossible
+    for vectors. The prototype instead folds the POIs of the next one or two zoom levels into each
+    tile on the server, unioned with the tile's own: HERE drops some POIs (a school, a courier)
+    from its deepest tile, so the deeper level alone LOSES names.
+  - **Result, in a browser, real HERE data, standard screen** (comparison sheet in the owner's
+    handoff). Map zoom 14: today, no business names; one level ahead, Food-N-Fuel and FedEx; two
+    levels ahead, Pilot Travel Center, Food-N-Fuel, a truck repair shop, a café, a school and about
+    ten more. Zoom 15: today, two names; one level ahead, eight. A dot and its name are ONE symbol
+    (`styleimagemissing` draws the dot), so they cannot separate. Where names collide, fuel and
+    parking win, then repair (`symbol-sort-key`). Dots always draw; a name without room is dropped.
+  - ⚠ Not solved by the prototype: our names can sit on HERE's baked-in road labels, because
+    maplibre cannot see text inside a raster. Measured: one overlap per busy intersection. Only a
+    fully vector basemap (option B in the handoff) removes it.
+  - **To build it:** glyphs. maplibre renders no text without a `glyphs` URL. The prototype
+    borrowed demotiles.maplibre.org; the build serves PBF glyphs generated from LiberationSans
+    (already in `apps/api/src/lib/fonts/`) from our own API. The same endpoint is what truck markers
+    need to carry unit numbers. Blocked on Q-DR4.
