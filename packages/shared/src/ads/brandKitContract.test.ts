@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { OVERLAY_HEADLINE_MAX_CHARS } from "./copyCandidates.js";
-import { adBrandKitSaveSchema, adBrandKitSchema, adPresetRecipeSchema, adPresetSaveSchema, kitAssets, templateSlots, type AdBrandKit, type AdPresetRecipe } from "./brandKitContract.js";
+import { adBrandKitSaveSchema, adBrandKitSchema, adPresetRecipeSchema, adPresetSaveSchema, conceptPair, conceptPairLabel, kitAssets, templateSlots, type AdBrandKit, type AdPresetRecipe } from "./brandKitContract.js";
 import { safeZone } from "./renderGeometry.js";
 
 /** Fixtures only — never a real brand value or preset (Q-AD14, Q-AD12 are the owner's). */
@@ -14,6 +14,7 @@ const RECIPE: AdPresetRecipe = {
   starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null, layout: "bottom_plate", formats: ["1:1"],
   overlay_slots: null,
   platform_slots: null,
+  hook_family: "pay_first", scene_family: "equipment_at_rest",
 };
 const ASSET = { sha256: "a".repeat(64), format: "png", source_format: "svg", width: 10, height: 10, byte_size: 99 } as const;
 
@@ -96,6 +97,26 @@ describe("preset recipe contract", () => {
     expect(noPlatform.error?.issues.map((i) => i.path.join("."))).toEqual(["recipe.platform_slots"]);
     // The recipe itself still parses without them: a body saved before B2c is history, not an error.
     expect(adPresetRecipeSchema.safeParse({ ...whole, overlay_slots: null, platform_slots: null }).success).toBe(true);
+  });
+
+  it("a new version must name its concept — both families, from the closed lists — though a stored recipe may not", () => {
+    const four = { ...RECIPE, copy_slots: [...RECIPE.copy_slots, { name: "body", max_chars: 200 }, { name: "title", max_chars: 40 }] };
+    const whole = { ...four, overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: { primary_text: "body", headline: "title" } };
+    const { hook_family: _h, scene_family: _s, ...older } = whole;
+    const refused = adPresetSaveSchema.safeParse({ key: "P1", enabled: false, recipe: older });
+    expect(refused.error?.issues.map((i) => [i.path.join("."), i.message])).toEqual([
+      ["recipe.hook_family", "Choose what the first line leads with: pay, life, equipment, straight talk or proof."],
+      ["recipe.scene_family", "Choose what the picture shows: the cab, the truck on the road, the truck at rest, a home street or a plain background."],
+    ]);
+    expect(adPresetSaveSchema.safeParse({ key: "P1", enabled: false, recipe: { ...whole, scene_family: undefined } }).error?.issues.map((i) => i.path.join("."))).toEqual(["recipe.scene_family"]);
+    // A body stored before P1-6 is history: it parses, and has no pair to compare.
+    expect(adPresetRecipeSchema.safeParse(older).success).toBe(true);
+    expect(conceptPair(adPresetRecipeSchema.parse(older))).toBeNull();
+    expect(conceptPair(whole)).toBe("pay_first+equipment_at_rest");
+    expect(conceptPairLabel(whole)).toBe("pay first, truck at rest");
+    // Closed lists: a family typed outside them is refused by the recipe itself.
+    expect(adPresetRecipeSchema.safeParse({ ...whole, hook_family: "humour" }).success).toBe(false);
+    expect(adPresetRecipeSchema.safeParse({ ...whole, scene_family: "beach" }).success).toBe(false);
   });
 
   it("a new version must hold a format an ad is shown in: 9:16 alone is refused in a sentence, 9:16 beside a feed format is kept", () => {

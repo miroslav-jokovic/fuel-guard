@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import sharp from "sharp";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { ZodType } from "zod";
-import { ADS_SETTINGS_UNSET, FRAME_CLAUSE, NO_LETTERING, QUIET_REGION, adCandidatesSchema, adCreativeChecksSchema, REGENERATION_CLAUSES, type AdAssetRef, type AdBrandKit, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
+import { ADS_SETTINGS_UNSET, FRAME_CLAUSE, STARTER_PRESETS, NO_LETTERING, QUIET_REGION, adCandidatesSchema, adCreativeChecksSchema, REGENERATION_CLAUSES, type AdAssetRef, type AdBrandKit, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
 import type { MessagesClient } from "../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
@@ -77,7 +77,7 @@ afterAll(() => {
 const pass = (checks: readonly string[]) => ({ checks: Object.fromEntries(checks.map((c) => [c, { reason: "Looks right here.", verdict: "pass" }])) });
 const failOn = (bad: string) => (checks: readonly string[]) => ({ checks: Object.fromEntries(checks.map((c) => [c, { reason: c === bad ? "Lettering on the trailer side." : "Looks right here.", verdict: c === bad ? "fail" : "pass" }])) });
 
-function harness(opts: { settings?: AdsSettings; judge?: (n: number) => unknown; visual?: Array<(checks: readonly string[]) => unknown>; copy?: unknown; render?: (i: RenderInput) => RenderOutcome } = {}) {
+function harness(opts: { settings?: AdsSettings; judge?: (n: number) => unknown; visual?: Array<(checks: readonly string[]) => unknown>; copy?: unknown; art?: unknown; render?: (i: RenderInput) => RenderOutcome } = {}) {
   const rec = createSupabaseRecorder({
     tables: {
       ads_settings_versions: [{ id: "v1", org_id: ORG, version: 1, settings: opts.settings ?? settings, kill_switch: false, kill_reason: null, created_at: NOW.toISOString(), created_by_name: "X" }],
@@ -91,7 +91,7 @@ function harness(opts: { settings?: AdsSettings; judge?: (n: number) => unknown;
     const tool = body.tools[0]!;
     const input = tool.name === "write_copy" ? opts.copy ?? copyFx.recorded.output
       : tool.name === "judge_copy" ? (opts.judge ?? ((n: number) => ({ scores: Array.from({ length: n }, () => ({ reason: "fixture", scores: { hook: 3, specific: 3, plain: 3, spanish: 3, no_filler: 3 } })) })))((tool.input_schema as unknown as { properties: { scores: { minItems: number } } }).properties.scores.minItems)
-      : tool.name === "direct_art" ? artFx.recorded.output
+      : tool.name === "direct_art" ? opts.art ?? artFx.recorded.output
       : (visual.length > 1 ? visual.shift()! : visual[0]!)(Object.keys(tool.input_schema.properties.checks!.properties));
     return { id: "msg_1", stop_reason: "tool_use", content: [{ type: "tool_use", id: "t1", name: tool.name, input }], usage: { input_tokens: 100, output_tokens: 50 } };
   });
@@ -458,4 +458,38 @@ describe("union — the band both languages' text covers", () => {
   it("is the smallest rectangle holding every box, clipped to the frame", () => {
     expect(union([{ x: 0.1, y: 0.6, width: 0.5, height: 0.1 }, { x: 0.05, y: 0.7, width: 0.9, height: 0.4 }])).toEqual({ x: 0.05, y: 0.6, width: 0.9, height: 0.4 });
   });
+});
+
+describe("composeCreative — each starter preset, as adopted, composes (Q-AD77)", () => {
+  // The copy and the art are written for each starter's own slots — the recordings answer the fixtures' slots —
+  // from the fixture's brief, so the claim check judges its real figure ($0.65 a mile). The headline is the
+  // shortest slot of the five (36), so one short line serves them all.
+  const words = { en: firstCandidate.en, es: firstCandidate.es };
+  const forSlot = (lang: "en" | "es", name: string, role: string | undefined): string =>
+    role === "pay" ? (lang === "en" ? "$0.65 per mile." : "$0.65 por milla.")
+    : role === "headline" ? (lang === "en" ? "$0.65 per mile, Class A OTR." : "$0.65 por milla. Clase A OTR.")
+    : role === "cta" ? words[lang].cta!
+    : name === "primary_text" ? words[lang].body!
+    : lang === "en" ? "Class A drivers, over the road." : "Conductores Clase A, en ruta.";
+  const kit: AdBrandKit = { ...KIT, overlays: { "4:5": KIT.overlays["4:5"]!, "1:1": KIT.overlays["4:5"]! } };
+
+  for (const starter of STARTER_PRESETS) {
+    it(`${starter.key} "${starter.recipe.name}" reaches ready in both feed formats`, async () => {
+      const r = starter.recipe;
+      const roleOf = (n: string) => (n === r.overlay_slots!.headline ? (n === "pay" ? "pay" : "headline") : n === r.overlay_slots!.cta ? "cta" : undefined);
+      const candidate = Object.fromEntries((["en", "es"] as const).map((l) => [l, Object.fromEntries(r.copy_slots.map((c) => [c.name, forSlot(l, c.name, roleOf(c.name))]))]));
+      const art = {
+        slots: Object.fromEntries(r.image_slots.map((s) => [s, "a plain choice for this slot"])),
+        reference_photo: r.starts_from === "equipment_photo" ? kit.equipment_photos[0]!.asset.sha256 : null,
+        focal_subject: r.shows_equipment ? "tractor" : r.scene_family === "cab_pov" ? "road_ahead" : "setting",
+        camera_distance: "medium",
+      };
+      const h = harness({ copy: { candidates: [candidate, candidate, candidate] }, art });
+      expect(await h.run({ recipe: r, kit })).toEqual({ kind: "ready" });
+      expect(h.tools().filter((t) => t === "direct_art")).toHaveLength(1);
+      const last = h.creativeWrites().at(-1)!.write!.payload as { state: string; assets: Array<{ format: string }> };
+      expect(last.state).toBe("ready");
+      expect([...new Set(last.assets.map((a) => a.format))].sort()).toEqual(["1:1", "4:5"]);
+    });
+  }
 });

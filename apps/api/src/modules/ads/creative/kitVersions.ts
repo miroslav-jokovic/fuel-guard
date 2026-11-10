@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { z } from "zod";
 import {
-  adBrandKitSchema, adPresetRecipeSchema, kitAssets,
+  STARTER_PRESETS, adBrandKitSchema, adPresetRecipeSchema, conceptPair, kitAssets,
   type AdBrandKitSave, type AdBrandKitView, type AdPresetSave, type AdPresetView, type AdVersionView,
 } from "@silvicom/shared";
 import type { Actor } from "../settings/settingsVersions.js";
@@ -30,7 +30,9 @@ export type SaveOutcome =
   | { kind: "conflict" }
   | { kind: "not_found" }
   | { kind: "archived" }
-  | { kind: "assets_mismatch"; sha256: string[] };
+  | { kind: "assets_mismatch"; sha256: string[] }
+  /** Q-AD77: another live preset holds this hook × scene pair. `key` is that preset's. */
+  | { kind: "concept_taken"; key: string };
 
 /**
  * What differs between the two families. Every `.from("…")` below is a literal on its own chain — the
@@ -86,6 +88,9 @@ export async function listBrandKits(admin: SupabaseClient, orgId: string): Promi
 
 export async function listPresets(admin: SupabaseClient, orgId: string): Promise<AdPresetView[]> {
   const parents = await rows(admin.from("ad_concept_presets").select("*").eq("org_id", orgId).order("created_at", { ascending: true }), "ad_concept_presets");
+  // No presets, no versions to read: return before a version query is even begun (an unfiltered `.from()` is
+  // what the org-scope assertion would rightly flag, and every first save now lists the presets).
+  if (parents.length === 0) return [];
   const current = await newestVersions(admin.from("ad_concept_preset_versions"), orgId, PRESETS, parents.map((p) => String(p.id)));
   return parents.map((p) => {
     const v = current.get(String(p.id));
@@ -138,8 +143,27 @@ export async function saveBrandKitVersion(admin: SupabaseClient, orgId: string, 
   );
 }
 
+/**
+ * Q-AD77: two LIVE presets may not hold one hook × scene pair — Meta folds them into one idea (R1). Live is what
+ * the draw reads (`presetDraw`): not archived and the newest version enabled. So the rule binds only a save that
+ * would make this preset live; a switched-off version (every adopted starter) is never refused, and switching it
+ * on later is the save that is checked. A preset stored before the families has no pair and blocks nothing.
+ *
+ * It reads the other presets and then writes, so two saves at the same moment can each pass; the pair sits in a
+ * jsonb body that no constraint can see. That window is two admins switching two presets on in one second — the
+ * cost is two similar ads until the next save, never a wrong one.
+ */
+async function liveHolderOf(admin: SupabaseClient, orgId: string, save: AdPresetSave): Promise<string | null> {
+  const pair = save.enabled ? conceptPair(save.recipe) : null;
+  if (pair === null) return null;
+  const holder = (await listPresets(admin, orgId)).find((p) => p.key !== save.key && p.archived_at === null && p.current?.enabled === true && conceptPair(p.current.body) === pair);
+  return holder?.key ?? null;
+}
+
 export async function savePresetVersion(admin: SupabaseClient, orgId: string, actor: Actor, save: AdPresetSave): Promise<SaveOutcome> {
   const recipe = adPresetRecipeSchema.parse(save.recipe);
+  const taken = await liveHolderOf(admin, orgId, save);
+  if (taken) return { kind: "concept_taken", key: taken };
   const [parent] = await rows(admin.from("ad_concept_presets").select("id, archived_at").eq("org_id", orgId).eq("key", save.key), "ad_concept_presets");
   if (parent?.archived_at) return { kind: "archived" };
   let presetId = parent ? String(parent.id) : null;
@@ -161,4 +185,26 @@ export async function savePresetVersion(admin: SupabaseClient, orgId: string, ac
     PRESETS.label, presetId,
     made ? () => admin.from("ad_concept_presets").delete().eq("org_id", orgId).eq("id", made) : null,
   );
+}
+
+export interface AdoptOutcome { adopted: string[]; skipped: string[] }
+
+/**
+ * `POST /api/ads/presets/adopt` (Q-AD77): version 1 of each starter (`STARTER_PRESETS`) whose key this carrier
+ * does not hold — archived keys included, since an archived P2 is the carrier's decision about P2 — switched OFF.
+ * Adopting twice writes the five once: the second finds every key and skips it. Two adopts at the same moment
+ * meet `unique (org_id, key)`, and the loser's `conflict` is a skip, not an error: the preset it wanted exists.
+ * Each is an ordinary save (`savePresetVersion`), so a starter goes through every rule a typed preset does.
+ */
+export async function adoptStarterPresets(admin: SupabaseClient, orgId: string, actor: Actor): Promise<AdoptOutcome> {
+  const held = new Set((await listPresets(admin, orgId)).map((p) => p.key));
+  const out: AdoptOutcome = { adopted: [], skipped: [] };
+  for (const starter of STARTER_PRESETS) {
+    if (held.has(starter.key)) { out.skipped.push(starter.key); continue; }
+    const saved = await savePresetVersion(admin, orgId, actor, starter);
+    if (saved.kind === "saved") out.adopted.push(starter.key);
+    else if (saved.kind === "conflict" || saved.kind === "archived") out.skipped.push(starter.key);
+    else throw new Error(`starter ${starter.key}: ${saved.kind}`);
+  }
+  return out;
 }
