@@ -24,7 +24,7 @@ import { formatDate } from "@/lib/format";
  * counts back from the api's `today`, never the browser's, which is the viewer's day and not the carrier's.
  * MS2c shipped only the two exception lists, so the tab
  * read as empty: one dilute from 10/05 for a month in which 65 tests came back negative (owner,
- * 2026-11-10). "Needs review" stays one choice away, and its count stays the tab's badge.
+ * 2026-11-10). "Needs review" stays one choice away, its count beside it in Show; the tab's badge counts All results.
  */
 const props = defineProps<{ today: string; all: MedstopResultRow[]; recent: MedstopResultRow[]; history: MedstopResultRow[]; canOrder?: boolean }>();
 /**

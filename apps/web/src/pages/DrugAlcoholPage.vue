@@ -58,7 +58,11 @@ const tabs = computed(() => {
     // but what it asks the DER to do is the due draws, and the tab's Show filter lists exactly those.
     ...(d.selections ? [{ value: "random", label: "Random selections", badge: d.selections.draws.filter((s) => s.state === "due").length || undefined }] : []),
     { value: "progress", label: "In progress", badge: d.inProgress.length || undefined },
-    ...(d.results ? [{ value: "results", label: "Results", badge: d.results.recent.length || undefined }] : []),
+    // The count of the list the tab opens on — All results — as In progress, Medical cards and Roster
+    // check count theirs. It counted Needs review until 2026-11-10, so after the tab began opening on
+    // All results it read "1" (the 10/05 dilute) over a list of 70 (owner). Needs review's own count is
+    // in the tab's Show choices.
+    ...(d.results ? [{ value: "results", label: "Results", badge: d.results.all.length || undefined }] : []),
     { value: "medical", label: "Medical cards", badge: d.medical.due.length || undefined },
     { value: "roster", label: "Roster check", badge: d.roster.notInPool.length + d.roster.leftButInPool.length || undefined },
   ];

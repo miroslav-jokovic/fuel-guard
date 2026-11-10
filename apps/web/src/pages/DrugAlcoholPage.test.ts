@@ -240,6 +240,8 @@ describe("DrugAlcoholPage", () => {
       history: [row("t0", "refusal", "Old Case")],
     };
     const all = await render(program({ results }), "/drug-alcohol?tab=results");
+    // The tab's number is the list it opens on, not Needs review's 1.
+    expect(tabLabels(all)).toContain("Results 3");
     expect(all.text()).toContain("Nina Negative");
     expect(all.text()).toContain("Pat Positive");
     expect(all.text()).toContain("Old Case");
