@@ -171,7 +171,7 @@ describe("requireAdminOnly: the integration acts Q-SET11 ruled the admin's alone
   });
 });
 
-describe("Ask AI: the Fuel section, and a screen that starts admin-only (Q-SET14 (b), Q-SET15)", () => {
+describe("Ask AI: a screen that starts admin-only, then the person's tools (Q-SET15; F21 R5 D-AI1)", () => {
   const ASK = "/api/ai/ask";
 
   // `/api/ai` shares `strictLimiter` — one store, 30 requests in 15 minutes — with `/api/integrations`,
@@ -194,8 +194,11 @@ describe("Ask AI: the Fuel section, and a screen that starts admin-only (Q-SET14
       tables: { org_role_surface_access: by(roleRows, "role"), user_surface_access: by(userRows, "user_id"), audit_logs: [] },
     }).client;
   }
-  /** Which gate answered: "section" (fuel), "screen" (ask-ai), or null when the request got through. */
-  async function gate(t: string): Promise<"section" | "screen" | null> {
+  /**
+   * Which gate answered: "screen" (ask-ai), "tools" (no tool the person's access allows — R5), or null
+   * when the request got through the gates (it then fails later on, which is not a refusal).
+   */
+  async function gate(t: string): Promise<"tools" | "screen" | null> {
     const res = await fetch(`${baseUrl}${ASK}`, {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${t}` },
@@ -203,30 +206,35 @@ describe("Ask AI: the Fuel section, and a screen that starts admin-only (Q-SET14
     });
     if (res.status !== 403) return null;
     const json = (await res.json()) as { error?: { code?: string; message?: string } };
-    if (json.error?.message === "Insufficient role") return "section";
+    if (json.error?.code === "ai_no_tools") return "tools";
     return json.error?.code === "surface_denied" ? "screen" : null;
   }
 
-  it("with nothing stored, only the admin gets through — every other role stops at the screen or the section", async () => {
+  it("with nothing stored, only the admin gets through — every other role stops at the screen", async () => {
     answers([]);
     expect(await gate(token("admin"))).toBe(null);
-    for (const r of ["fleet_manager", "dispatcher", "safety_manager", "auditor", "accountant"] as const) expect(await gate(token(r)), r).toBe("screen");
-    for (const r of ["recruiter", "technician"] as const) expect(await gate(token(r)), r).toBe("section");
+    for (const r of ["fleet_manager", "dispatcher", "safety_manager", "auditor", "accountant", "recruiter", "technician"] as const)
+      expect(await gate(token(r)), r).toBe("screen");
   });
 
-  it("an admin turning the screen on for a role or one person lets them through; the section still has to allow it", async () => {
+  it("an admin turning the screen on for a role or one person lets them through — if their access allows a tool", async () => {
     answers([{ role: "dispatcher", surface_key: "ask-ai", allowed: true }], [{ user_id: "u-auditor", surface_key: "ask-ai", allowed: true }]);
     expect(await gate(token("dispatcher"))).toBe(null);
     expect(await gate(token("auditor"))).toBe(null);
     expect(await gate(token("fleet_manager")), "a grant to another role reaches nobody else").toBe("screen");
-    // A screen grant cannot reach past its section (D-SURF2): the dispatcher's org took Fuel away.
-    expect(await gate(token("dispatcher", { fuel: "none" }))).toBe("section");
+    // The dispatcher's org took Fuel away: they still have roster and equipment, so the fleet-size tool.
+    expect(await gate(token("dispatcher", { fuel: "none" }))).toBe(null);
+    // …and with those gone too, nothing is left to ask.
+    expect(await gate(token("dispatcher", { fuel: "none", roster: "none", equipment: "none" }))).toBe("tools");
   });
 
-  it("follows the org's Fuel answer, and NOT its HazmatGuard one — the coincidence the old list equalled", async () => {
-    answers([{ role: "recruiter", surface_key: "ask-ai", allowed: true }]);
+  it("a recruiter or technician the screen is turned on for is refused until their areas have tools — and follows the org's answers", async () => {
+    answers([{ role: "recruiter", surface_key: "ask-ai", allowed: true }, { role: "technician", surface_key: "ask-ai", allowed: true }]);
+    expect(await gate(token("recruiter"))).toBe("tools");
+    expect(await gate(token("technician"))).toBe("tools");
+    // HazmatGuard grants no tool (the coincidence the old hand list equalled); Fuel does.
+    expect(await gate(token("recruiter", { hazmat: "manage" }))).toBe("tools");
     expect(await gate(token("recruiter", { fuel: "view" }))).toBe(null);
-    expect(await gate(token("recruiter", { hazmat: "manage" }))).toBe("section");
     expect(await gate(token("admin", { fuel: "none" }))).toBe(null);
   });
 });
