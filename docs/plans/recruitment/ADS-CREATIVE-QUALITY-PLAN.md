@@ -218,10 +218,14 @@ Decisions made while planning (D-AD24–D-AD28), each the smallest thing that ke
   `candidates` records which one and why each earlier one was passed over. A contrast refusal is the image's and
   stays where it is. Falling back *after* the render would pay for a picture to learn something already known.
 - **D-AD27 · A headline slot's ceiling is a shared figure pinned to the renderer.** The save schema lives in
-  shared and cannot measure a font; the renderer lives in the API. The capacity per format and layout is a
-  constant table in shared, and an API test measures the real overlay and fails when the table disagrees (the
-  pattern of `adsSchemaParity.test.ts`). The ceiling is the most characters that can fit two lines at the
-  narrowest plausible advance; anything under it is judged per candidate by D-AD26, not refused at save.
+  shared and cannot measure a font; the renderer lives in the API. So the ceiling is a constant in shared
+  (`OVERLAY_HEADLINE_MAX_CHARS`), and an API test re-measures it with the real overlay and fails when it is no
+  longer true. **Corrected the same day by measurement (P1-3):** this entry first defined the ceiling as two
+  lines at the mean letter advance, which gives 50 (4:5) and 52 (1:1) and is wrong — 9 of 10 recorded headlines
+  of 50–54 characters fit. Measured over the 360 headlines of the copywriter's fixtures that reach the layout
+  step: 45 or fewer always fit, nothing over 56 fits, between them it depends on the words. **The ceiling is 56**,
+  one number for every layout (the three layouts move the same stack). Under it, each candidate is judged by
+  D-AD26, not refused at save.
 - **D-AD28 · Where the picture stays quiet is derived from the layout, never asked.** The handoff's AG3 gives the
   art director an `empty_space` answer. The code already knows where the words go (`layout` and the text zone), and
   a model's answer could only agree or be wrong. So the prompt is *told* the quiet region in words, and the art
@@ -230,7 +234,8 @@ Decisions made while planning (D-AD24–D-AD28), each the smallest thing that ke
 
 ### 7.2 The steps
 
-Each line is one PR, branched from `origin/main`, with its progress file in `ads-progress/`. None needs a
+Each line is one PR (P1-1 and P1-2 went as one, #2185: both are a few lines over the same new function, and every
+code PR waits for the owner's own merge), branched from `origin/main`, with its progress file in `ads-progress/`. None needs a
 migration: the recipe and `ads_creatives.candidates` / `checks` are jsonb, and every new field is optional or
 defaulted so a body stored before it still parses.
 
@@ -238,7 +243,7 @@ defaulted so a body stored before it still parses.
 |---|---|---|---|
 | **P1-1 · AG2 + D-AD24** | S | `FEED_FORMATS` and `publishedFormats` in shared; the publisher imports them. `adPresetSaveSchema` refuses a format set with no feed format, in the sentence the editor shows. The preset form says 9:16 is kept for Stories and not made yet. | Contract tests: 9:16-only refused with its sentence, 9:16 + 4:5 accepted; the publisher's tests unchanged and green; mutants named. |
 | **P1-2 · Q-AD75 part one + D-AD25** | W | `composeCreative` frames, overlays, checks and stores `publishedFormats(recipe.formats)` only; a preset with none stops `no_feed_format` first. | Compose test: a visual failure planted on 9:16 only no longer fails the creative, and no 9:16 asset is stored; a 9:16-only stored preset stops before the copywriter is called. |
-| **P1-3 · AG1 (D-AD26, D-AD27)** | W | `overlayFit` in `overlay.ts` (the layout step of `renderOverlay`, split out, no image); compose picks the first ranked candidate that fits; `adCandidatesSchema` gains optional `passed_over: [{ index, reason }]` and `chosen` becomes the real index; review shows "the judge's first choice did not fit the image: …". The shared capacity table and its parity test; the save refuses a headline slot above it. | Compose test: ranked[0] needs three lines, ranked[1] ships, the reason is on the row, and no render was asked for ranked[0]; all refused → stops with every reason; parity test red when a template size changes. |
+| **P1-3 · AG1 (D-AD26, D-AD27)** | W | `overlayFit` in `overlay.ts` (the layout step of `renderOverlay`, split out, no image); compose picks the first ranked candidate that fits; `adCandidatesSchema` gains optional `passed_over: [{ index, reason }]` and `chosen` becomes the real index; review shows "the judge's first choice did not fit the image: …". The shared ceiling (56, measured) and the test that re-measures it; the save refuses a headline slot above it. | Compose test: ranked[0] needs three lines, ranked[1] ships, the reason is on the row, and no render was asked for ranked[0]; all refused → stops with every reason; parity test red when a template size changes. |
 | **P1-4 · AG3 (D-AD28)** | W | Art director v3: input gains layout, the quiet region in words, the published formats, the chosen headline; answer gains `focal_subject` and `camera_distance`; `composeImagePrompt` writes them and the quiet-region sentence. New `prompt.v3.md`, fixtures' versions bumped, re-recorded live until two runs agree. | Baseline recorded twice, both scores in the progress entry; a planted answer outside the vocabulary is refused. **Spends the owner's Anthropic key** — said in the PR before recording. |
 | **P1-5 · AG4, Q-AD75 part two** | W | The render asks for 4:5 (the parameter name is the model's and is read from Higgsfield's documentation when V4 chooses one; on the simulator the request carries the aspect and FakeHiggsfield honours it); `frameStill` takes an anchor and the 1:1 cut keeps the subject's side. | Golden: a subject planted off-centre survives the 1:1 cut; the centre-crop mutant loses it. |
 | **P1-6 · AG6 (Q-AD77, Q-AD58)** | S | Recipe gains optional `hook_family` and `scene_family` (closed lists); a NEW save requires them; the API save refuses a pair another live preset holds; `shared/ads/starterPresets.ts` holds five recipes (each parsed by `adPresetSaveSchema` in a test); `POST /api/ads/presets/adopt` writes version 1 of each key the carrier does not have, **disabled**; the empty Presets tab offers "Start from five ready-made presets". | Adopt twice writes five once; an adopted preset composes on the simulator; two live presets with one pair refused with both keys named. |
