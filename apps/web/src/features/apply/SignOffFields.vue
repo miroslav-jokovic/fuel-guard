@@ -5,7 +5,7 @@ import type { ApplicationCaptureView } from "@silvicom/shared";
 import ApplyField from "./ApplyField.vue";
 import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "./questionnaireCopy";
 import { buildReviewSummary } from "./reviewSummary";
-import { describeField } from "./fieldLabels";
+import { describeField, rowText } from "./fieldLabels";
 import { APPLY_COPY } from "./strings";
 import type { ApplicationDraft } from "./draft";
 import type { ApplyEdit } from "./useApplication";
@@ -49,7 +49,7 @@ const summary = computed(() =>
 const shown = (value: unknown): string => {
   if (value === null || value === undefined || value === "") return copy.blank;
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "object") return JSON.stringify(value);
+  if (typeof value === "object") return rowText(value as Record<string, unknown>);
   return String(value);
 };
 </script>

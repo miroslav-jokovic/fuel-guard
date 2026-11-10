@@ -383,7 +383,7 @@ export const applicationDraftPayloadSchema = driverApplicationObject.partial().e
    * "Something wrong? Tell us" (C3c2c2, Q-AW34): a v2 applicant's message to the office about a Part 1
    * fact they are shown read-only. The DRAFT's and never the certified document's — it is a note to the
    * office, not an answer the applicant certifies, and `driverApplicationObject` is strict, so it cannot
-   * reach a filing. Shown on the office's drawer; never offered as a correctable answer (`editableFields`).
+   * reach a filing. Shown on the office's drawer; never offered as a correctable answer (`applicantFactRows`: it is in no catalogue entry).
    */
   correction_note: z.string().max(APPLICATION_CORRECTION_NOTE_MAX).nullish(),
 });

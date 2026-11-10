@@ -234,6 +234,7 @@ A gate fails on a literal string in an `apply/` template.
 | Q-AM6 | Spelling on the driver's side | US / British | **US**. The drivers and the regulation say "license". |
 | Q-AM7 | Wizard granularity | ANSWERED 2026-11-09: one question per screen, grouped only for one fact (D-AM2/D-AM3); see APPLICATION-SCREEN-MAP.md | — |
 | Q-AM13 | Can the office edit the driver's own statements: §40.25(j) (prior positive test or refusal) and the three §382.301(b) testing-program answers? | ANSWERED 2026-11-10 (owner): **yes, every answer is editable before signing**, "because drivers make mistakes and we need control over any mistake". Built as (c). These four edits require a note and are audited as office-entered. Like every edit (D-AM7), the driver sees and accepts them on screen 3.1 before signing, so the signed document is still their statement. The donor gender and the EEO answers are **replace-only**: the office can overwrite them but never sees them, like the SSN, because they must not reach whoever decides the hire. Nothing is editable after signing (Q-AM2). | — |
+| Q-AM14 | An office correction and its `application_edits` row are two writes, not one transaction (`applicationEditLog.ts`). If the second fails, the change is made but the driver is not shown it, and a retry finds nothing to log. Close the window? | (a) write the row inside `save_application_draft` and `record_applicant_intake` (a migration on the two functions every applicant save goes through); (b) leave it, because the office is told "saved, but not recorded — tell support before they sign" | **(a), but not urgently.** The window is one insert wide and has never been seen. It belongs with F4's draft-function work, which touches the same functions. |
 
 ## 6. Size and order
 
@@ -317,4 +318,25 @@ A gate fails on a literal string in an `apply/` template.
   - **Not built:** the remembered-device token from U2. It belongs to F4.
   - **Production, read-only on 2026-11-10:** 5 invitations, all with an email, 4 with SMS consent, 0 sign-link lockouts. Email covers everyone today.
   - **Next:** F2 and F3, in parallel on F1.
-
+- 2026-11-10: F3 has started. Two merges so far.
+  - **#2195 (merged):** migration **0586** gives `application_edits` a `note` column and a `withheld` flag. A withheld row holds no values, and a CHECK enforces that. These are for the Q-AM13 doors still to come: the drug-test statements need a note, and donor gender and EEO are replace-only.
+  - **`claude/application-f3-card`:** the "Applicant facts" card on the office's review drawer.
+    - **What it is:** every application fact the catalogue gives a door, once, grouped by the section the driver met it in.
+    - **How it edits:** each answer is edited with its own control (typed date, state list, Yes/No, choice), never a stored-format box (E8).
+    - **Where a save goes:** through the writer that holds the answer. Draft answers go to the draft edit. The date of birth and current licence go to the identity correction. On a v2 link, the phone, the current street, the CDL class and expiry, and every Part 1 licence go to the Part 1 correction, one answer at a time (`partOneCorrectionWith`).
+    - **Retired:** "Correct an answer" (`ApplicationAnswerList`, `editableFields`) and the Part 1 form (`PartOneCorrection`).
+    - **The F0b notice** now points at the card.
+  - **Server, E7:**
+    - The Part 1 and identity corrections now write an `application_edits` row per changed answer, addressed where the application files it (`partOneEdits`, held to `composeFiledApplication` by test). The driver sees them on 3.1. Until now they wrote only an audit row.
+    - All three office corrections stop at the driver's first packet mark. Part 1 and identity used to stop at filing.
+    - `applicationEditLog.ts` is now the one writer of `application_edits`.
+    - The review response says `signingStarted`. The card's Part 1 and identity rows stay open before the form is sent, while the office screens, as the old Part 1 form did.
+  - **Not yet:**
+    - the jobs and gaps (still in `OfficeJobsSection`);
+    - adding and removing rows (E2);
+    - email and phone moving the invitation's contact (E3);
+    - the 13 gap facts (`applicantFacts.test.ts` snapshot unchanged);
+    - pointing the Permissions and Road-test drawers' identity copy at the card.
+  - **Found:**
+    - The SSN exists only after signing. The driver types it on the sign-off screen and it is sealed into `driver_applications`, so there is nothing for the office to replace before signing. That catalogue entry's door needs a ruling, not a build.
+    - New question: Q-AM14.
