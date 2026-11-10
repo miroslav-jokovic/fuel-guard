@@ -347,6 +347,22 @@ audit row is the endpoint's own.
     months, finance gated on fuel), each killed and restored.
   - **Next:** R6b in the handoff's order (idle trend, moving now, loads and miles per truck, IFTA by
     state, maintenance cost per unit, card holds, DQ and inspection expiries, recruiting counts).
+- 2026-11-10 — **R6b first item built: `idle_report` (safety).** Week-over-week idling (asked 07/29,
+  08/04) is the Idling page's own verdict: `idle/assistantIdleReport.ts` calls `readFleetIdleVerdict`
+  (the page's three reads, its cost basis, and `computeIdleBreakdown`) once per window. That means the
+  period, the previous period of equal length, and each Monday-to-Sunday week (at most 26) or calendar
+  month (at most 12). Nothing is summed across windows. It reports engine-on, drive and idle hours,
+  AVOIDABLE idle hours and cost (the page's headline), reducible idle, trucks judged and left out, and
+  the day the figures reach through. `idling_summary` (raw `idle_events`, every idle minute priced)
+  stays, and its description now points period and trend questions here. `assistantWeeksIn` and
+  `assistantPreviousRange` joined `assistantPeriods.ts`. Five deliberate breaks, each killed.
+  - **Found for the dispatch tools (next):** `/api/livemap/*` and the loads router also require the
+    `dispatch` MODULE (`requireModule`), and `assistantContract.ts` models sections only. So a dispatch
+    tool needs a module requirement in the contract. `assistantToolsFor` would take the org's modules,
+    the way `canReachSurface` already does, resolved on the API through `org_module_enabled` and on the
+    web through `useModulesQuery`. Gating on the section alone would answer for a carrier without
+    Dispatch, which its page refuses. Fuel, safety, idle and accounting carry no module gate, so R1–R6a
+    are unaffected.
 - 2026-11-10 — **Q-AI10 fixed, server half.** One rule, `ledgerPeriod.ts` `lastIncludedDay` /
   `wholeMonthBound`: a window is half-open, and the month-grained reads widen from its last day. It is
   used by `readLedgerForPeriod`, `fleetReport.coveredMonths`, `getMileageCoverage`, the income

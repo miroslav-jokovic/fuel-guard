@@ -16,6 +16,7 @@ vi.mock("../fuel-spend/index.js", () => ({
   REPORT_PERIODS: ["last_month"],
 }));
 vi.mock("../fuel/index.js", () => ({ FUEL_EVENT_DROP: "drop" }));
+vi.mock("../idle/index.js", () => ({ assistantIdleReport: vi.fn() }));
 vi.mock("../financial/index.js", () => ({
   assistantFinanceReport: vi.fn(),
   assistantIncomeStatement: vi.fn(),

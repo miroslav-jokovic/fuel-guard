@@ -1322,3 +1322,12 @@ conflict every time (`plan-progress-log-not-table-rows`).
   - Open: **Q-DR33** — HERE sends no caching header on glyphs, so the browser re-fetches them on
     each map load (~74 KB per character range). Fira GO is an open font (SIL OFL), so a cached build
     of our own is possible. Recommendation: only if the glyph route shows up in `[metrics]`.
+- **2026-11-10 — D-DR31 follow-up: the vector trial drew a blank map on staging, and the cause was
+  a header, not the style.** HERE gzips its vector tiles; `fetch` decodes them, but the proxy still
+  forwarded HERE's `content-length` (the ENCODED size, 72 956 bytes against 107 391 decoded), so the
+  browser read every tile short and maplibre could parse none. The unit tests passed because no
+  stub sent an encoding; the rig passed because its proxy buffered and set no length. Fixed: the
+  length is forwarded only when the bytes are HERE's own, and vector tiles (protobuf, which
+  `compression` does not list) are compressed on the way to the browser, so they do not cross at
+  full size. ⚠ Lesson: the only test that counts for a proxy is one through the real deployment;
+  the staging walk is what found this.

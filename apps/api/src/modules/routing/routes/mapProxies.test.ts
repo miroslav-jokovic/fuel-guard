@@ -593,3 +593,46 @@ describe("the vector road map's tile and glyph routes", () => {
     expect(upstream).toHaveLength(0);
   });
 });
+
+/**
+ * D-DR31, the staging blank map: HERE gzips vector tiles and `fetch` decodes them, so forwarding
+ * HERE's `content-length` told the browser the tile was 72 956 bytes when 107 391 were coming, and
+ * every vector tile arrived truncated. A stub that sent no encoding could not see it, so this one does.
+ */
+describe("the tile proxy and an encoded upstream", () => {
+  it("streams a vector tile HERE gzipped whole, without HERE's encoded length", async () => {
+    const decoded = Buffer.alloc(5_000, 7);
+    vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+      upstream.push(String(input));
+      upstreamInit.push(init);
+      // What undici hands back: the DECODED body, with HERE's headers describing the ENCODED one.
+      return new Response(decoded, {
+        status: 200,
+        headers: { "content-type": "application/x-protobuf", "content-encoding": "gzip", "content-length": "1234" },
+      });
+    });
+    // `identity`, so our own compression stays out of it: that strips the length too, and would hide
+    // the bug from this test while a browser that skipped compression still met it.
+    const res = await realFetch(`${baseUrl}/api/fueling/map-tiles/vector/14/4201/6091`, {
+      headers: { Authorization: "Bearer admin", "Accept-Encoding": "identity" },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-length")).not.toBe("1234");
+    expect(Buffer.from(await res.arrayBuffer()).equals(decoded)).toBe(true);
+  });
+
+  it("compresses a vector tile on the way to the browser, and leaves a jpeg alone", async () => {
+    vi.stubGlobal("fetch", async (input: unknown) => {
+      upstream.push(String(input));
+      const vector = String(input).includes("vector.hereapi.com");
+      return new Response(Buffer.alloc(5_000, 7), {
+        status: 200,
+        headers: { "content-type": vector ? "application/x-protobuf" : "image/jpeg" },
+      });
+    });
+    const ask = (path: string) =>
+      realFetch(`${baseUrl}/api/fueling/map-tiles/${path}`, { headers: { Authorization: "Bearer admin", "Accept-Encoding": "gzip" } });
+    expect((await ask("vector/14/4201/6091")).headers.get("content-encoding")).toBe("gzip");
+    expect((await ask("5/8/9?style=explore.day&format=jpeg")).headers.get("content-encoding")).toBeNull();
+  });
+});
