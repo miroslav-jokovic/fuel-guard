@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import maplibregl from "maplibre-gl";
 import { basemapFor, type BasemapChoice, type LiveMapVehicle } from "@silvicom/shared";
 import { useMapLibre, tokenColor } from "@/composables/useMapLibre";
+import { VECTOR_TILES_TEMPLATE, VECTOR_TRIAL_CHOICE } from "@/composables/vectorBasemap";
 import { useColorScheme } from "@/composables/useColorScheme";
 import LiveMapControls from "./LiveMapControls.vue";
 import { planCameraMove, SELECT_ZOOM } from "./liveMapCamera";
@@ -271,8 +272,10 @@ function fitToFleet(instance: maplibregl.Map): void {
  * publishes no `satellite.night` or `topo.night`, and D-DR8 already ruled that the reader is not
  * asked a question the app can answer.
  */
-const basemap = ref<BasemapChoice>("map");
+const basemap = ref<BasemapChoice | typeof VECTOR_TRIAL_CHOICE.key>("map");
 const tiles = computed(() => {
+  // D-DR31 trial: the vector road map follows the scheme by repainting, not by a different URL.
+  if (basemap.value === VECTOR_TRIAL_CHOICE.key) return VECTOR_TILES_TEMPLATE;
   const { style, format } = basemapFor(basemap.value, isDark.value);
   return `/api/fueling/map-tiles/{z}/{x}/{y}?style=${style}&format=${format}`;
 });
@@ -280,6 +283,7 @@ const tiles = computed(() => {
 const { map } = useMapLibre({
   container: mapEl,
   tiles,
+  isDark,
   // D-DR21: our own rail draws the zoom buttons, because maplibre's corner system has no free corner
   // left on this workspace and its control sat under the filters panel. See `useMapLibre`.
   navControl: false,

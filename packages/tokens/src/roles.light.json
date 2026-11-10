@@ -803,6 +803,77 @@
       "$extensions": {
         "silvicom.expose": "color"
       }
+    },
+    "map-land": {
+      "$type": "color",
+      "$value": "oklch(97.0% 0.0067 233.6)",
+      "$description": "land, the basemap background",
+      "$extensions": {
+        "silvicom.section": [
+          "── 9. Map (D-DR31: the vector basemap draws with these) ─────────────────────",
+          "sampled from HERE explore.day / explore.night tiles on 2026-11-10, so the vector map keeps today's look"
+        ]
+      }
+    },
+    "map-water": {
+      "$type": "color",
+      "$value": "oklch(85.6% 0.0840 232.5)",
+      "$description": "lakes, rivers, sea"
+    },
+    "map-park": {
+      "$type": "color",
+      "$value": "oklch(92.5% 0.0569 166.7)",
+      "$description": "parks, forests, nature reserves"
+    },
+    "map-urban": {
+      "$type": "color",
+      "$value": "oklch(94.5% 0.0118 239.9)",
+      "$description": "built-up area"
+    },
+    "map-building": {
+      "$type": "color",
+      "$value": "oklch(99.0% 0.0030 230.0)",
+      "$description": "building footprints, near-white with a casing-coloured outline as on HERE's raster map"
+    },
+    "map-road": {
+      "$type": "color",
+      "$value": "oklch(100% 0 0)",
+      "$description": "ordinary roads"
+    },
+    "map-road-casing": {
+      "$type": "color",
+      "$value": "oklch(89.8% 0.0162 239.1)",
+      "$description": "the edge line drawn under a road"
+    },
+    "map-highway": {
+      "$type": "color",
+      "$value": "oklch(88.7% 0.0374 258.4)",
+      "$description": "motorways and trunk roads"
+    },
+    "map-highway-casing": {
+      "$type": "color",
+      "$value": "oklch(83.0% 0.0431 261.7)",
+      "$description": "the edge line under a highway"
+    },
+    "map-boundary": {
+      "$type": "color",
+      "$value": "oklch(73.7% 0.0217 264.4)",
+      "$description": "state and country borders"
+    },
+    "map-label": {
+      "$type": "color",
+      "$value": "oklch(44.6% 0.0263 256.8)",
+      "$description": "place and road names"
+    },
+    "map-label-halo": {
+      "$type": "color",
+      "$value": "oklch(100% 0 0)",
+      "$description": "the outline that keeps a name readable over the map"
+    },
+    "map-water-label": {
+      "$type": "color",
+      "$value": "oklch(50.9% 0.0935 240.6)",
+      "$description": "names of water"
     }
   }
 }

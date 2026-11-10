@@ -1292,3 +1292,33 @@ conflict every time (`plan-progress-log-not-table-rows`).
   own, a gain the fade artefact cannot explain, because both arms of that comparison faded). The
   patchwork itself is a property of raster tiles. Removing it is one more reason for the vector
   basemap (D-DR31, proposed in the D-DR30 entry above).
+- **2026-11-10 — D-DR31 (BUILT AS A STAGING TRIAL, awaiting the owner): a vector road map, drawn by
+  maplibre from HERE's vector tiles.** The owner ruled "proceed as proposed": build it on staging
+  behind a switch and compare it with today's map before it replaces anything.
+  - **Why.** The raster road map's sharp tiles cost 2.7× the requests (D-DR26). That count made
+    zooming slow (D-DR28), made HERE refuse tiles when an office opens the map together (D-DR30), and
+    its baked-in labels make a zoom a patchwork (D-DR32). Measured in the rig on the same 18-zoom walk:
+    140 vector requests against 410 raster, 0 abandoned against 49, 6.2 MB against 11 MB, $0.088
+    against $0.12 per 1 000. Place names come with the data, with no overlay (D-DR27) and nothing
+    modified server-side (Q-DR4).
+  - **Built.** `GET /api/fueling/map-tiles/vector/:z/:x/:y` (HERE `vector.hereapi.com/v2/vectortiles/base`,
+    max zoom 17) and `/map-tiles/glyphs/:fontstack/:range` (HERE's two style fonts only), both through
+    the D-DR30 pacer, the tile budget and the sign-in. Our own style (`composables/vectorBasemap.ts`):
+    HERE publishes a maplibre style, "berlin", but it is a dark grey demo with no places, no road
+    numbers, every traffic light drawn as a dot, and a night variant that answers 404. Colours are 13
+    new `--map-*` tokens, sampled from HERE's explore.day and explore.night tiles so the map keeps its
+    look, with a theme switch repainting in place. Truck stops, truck repair, rest areas and fuel win
+    the room to be named first (HERE `pds_category`). Offered as "Map (vector trial)" in the basemap
+    menu only where the build names a non-production environment. That is a labelled workaround for
+    the missing per-environment feature flag.
+  - **Found on the way.** The "© HERE" credit was missing on satellite and terrain. Only the first
+    source carried it, and maplibre credits only sources a visible layer uses (it already dedupes).
+    Every source now carries it (HERE Platform Terms §13.1).
+  - **Proven so far.** maplibre's own validator passes both schemes with 0 errors. The style loads in
+    a browser against real HERE tiles. Day, night and three zooms were compared by eye with the raster
+    map. The browser caught a label-size rule maplibre refuses, which blanked the whole style; a
+    unit test now pins that rule. Not yet: the side-by-side video on staging, request counts in the
+    real app, and drawing cost on a slower office PC. Those follow this merge, on staging.
+  - Open: **Q-DR33** — HERE sends no caching header on glyphs, so the browser re-fetches them on
+    each map load (~74 KB per character range). Fira GO is an open font (SIL OFL), so a cached build
+    of our own is possible. Recommendation: only if the glyph route shows up in `[metrics]`.
