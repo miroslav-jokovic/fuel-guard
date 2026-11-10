@@ -23,6 +23,19 @@ describe("leadQualityBreaches (LQ3, Q-AD51 (a))", () => {
     expect(leadQualityBreaches([row({ leads: 20, not_qualified: 7 })], ADS_LEAD_QUALITY_DEFAULT)).toEqual([]);
   });
 
+  it("not qualified waits for enough LEADS, not enough calls: ten leads nobody called, every one below a hard requirement, rings", () => {
+    expect(leadQualityBreaches([row({ leads: 10, attempted: 0, reached: 0, not_qualified: 10, median_first_attempt_minutes: null })], ADS_LEAD_QUALITY_DEFAULT))
+      .toEqual([{ campaign_id: "c1", rule: "not_qualified", measured_pct: 100, threshold_pct: 40, part: 10, whole: 10 }]);
+  });
+
+  it("nine leads, all below a hard requirement, say nothing yet, however many were called", () => {
+    expect(leadQualityBreaches([row({ leads: 9, attempted: 9, not_qualified: 9 })], ADS_LEAD_QUALITY_DEFAULT)).toEqual([]);
+  });
+
+  it("enough leads but too few calls rings not-qualified alone: the wrong-number share still waits for its attempts", () => {
+    expect(leadQualityBreaches([row({ leads: 20, attempted: 9, wrong_number: 9, not_qualified: 8 })], ADS_LEAD_QUALITY_DEFAULT).map((b) => b.rule)).toEqual(["not_qualified"]);
+  });
+
   it("both rules can ring for one campaign; the switch off rings none", () => {
     const bad = row({ wrong_number: 5, not_qualified: 10 });
     expect(leadQualityBreaches([bad], ADS_LEAD_QUALITY_DEFAULT).map((b) => b.rule)).toEqual(["wrong_numbers", "not_qualified"]);
