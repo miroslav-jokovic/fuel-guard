@@ -8,6 +8,7 @@ import { assistantFinanceReport, assistantIncomeStatement } from "../financial/i
 import { assistantFuelReport, getFleetMpg, getFleetMpgSeries } from "../fuel-spend/index.js";
 import { assistantIdleReport } from "../idle/index.js";
 import { assistantFleetNow } from "../livemap/index.js";
+import { assistantLoadsByTruck } from "../loads/index.js";
 import { toolsFor } from "./askTools.js";
 import type { AnswerOutcome, AnswerUsage } from "./assistantUsage.js";
 
@@ -192,6 +193,7 @@ async function runTool(admin: SupabaseClient, orgId: string, name: string, input
   if (name === "income_statement") return assistantIncomeStatement(admin, orgId, input);
   if (name === "idle_report") return assistantIdleReport(admin, orgId, input);
   if (name === "fleet_now") return assistantFleetNow(admin, orgId, input);
+  if (name === "loads_by_truck") return assistantLoadsByTruck(admin, orgId, input);
   if (name === "fuel_economics" || name === "fuel_ranking" || name === "spend_trend") {
     return runFuelTool(admin, orgId, name, input, { period, since, limit });
   }

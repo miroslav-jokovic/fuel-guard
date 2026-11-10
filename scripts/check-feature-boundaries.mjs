@@ -344,6 +344,10 @@ const API_ALLOW = new Set([
   //   live map's own cached board, so "how many are moving" counts the states the map draws.
   //   livemap imports nothing of insights'.
   "insights -> livemap",
+  // · insights -> loads — Ask AI's `loads_by_truck` (F21 R6b) is loads' `assistantLoadsByTruck`, the
+  //   Loads page's own `listLoads` with the page's delivery window, so "748 delivered 14" is the
+  //   Delivered tab with truck 748 picked. loads imports nothing of insights'.
+  "insights -> loads",
   // · ads -> org — Settings › Ads control's spend card (E1c, Q-AD36, ruled 2026-11-05) says when the
   //   daily check against Meta last finished. That fact is a row in org's job ledger (`jobs`), so it
   //   is read through org's index (`lastDoneJobByKey` only), the same arrow "fuel-spend -> org" and

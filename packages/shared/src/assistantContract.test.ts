@@ -76,6 +76,14 @@ describe("assistantToolsFor — every role, every tool, from the section matrix"
     expect(assistantToolsFor("admin", null, NO_MODULES)).toEqual(ASSISTANT_TOOL_NAMES.filter((t) => !reqs(t).some((r) => "module" in r)));
   });
 
+  it("loads_by_truck is gated as the Loads page is: Dispatch bought, then dispatch view", () => {
+    expect(ASSISTANT_TOOL_ACCESS.loads_by_truck).toEqual([{ module: "dispatch" }, { section: "dispatch", level: "view" }]);
+    expect(callerMayUseTool("dispatcher", null, ALL_MODULES, "loads_by_truck")).toBe(true);
+    expect(callerMayUseTool("dispatcher", null, NO_MODULES, "loads_by_truck")).toBe(false);
+    expect(callerMayUseTool("recruiter", null, ALL_MODULES, "loads_by_truck")).toBe(false);
+    expect(callerMayUseTool("dispatcher", { dispatch: "none" }, ALL_MODULES, "loads_by_truck")).toBe(false);
+  });
+
   it("follows the org's overrides on the token: taking fuel away from a fleet manager takes the fuel tools with it", () => {
     const narrowed = assistantToolsFor("fleet_manager", { fuel: "none" }, ALL_MODULES);
     expect(narrowed.some((t) => reqs(t).some((r) => "section" in r && r.section === "fuel"))).toBe(false);

@@ -78,6 +78,10 @@ const BY_SURFACE: Record<string, Suggestion[]> = {
     ask("Which trucks earned the most revenue last month?", "finance_report"),
     ask("Income statement last month compared with the month before", "income_statement"),
   ],
+  "dispatch.loads": [
+    ask("How many loads did each truck deliver last month?", "loads_by_truck"),
+    ask("Loads delivered and miles for units 748 and 751 this month", "loads_by_truck"),
+  ],
   "fleet.vehicles": [ask("How many trucks, trailers and drivers are active right now?", "fleet_roster")],
   "fleet.drivers": [
     ask("How many drivers are active right now?", "fleet_roster"),
