@@ -62,14 +62,36 @@ export type AdCandidate = z.infer<typeof adCandidateSchema>;
 /** `ads_creatives.candidates` (0579): the ranked set, which one became `copy`, and who ranked it. */
 export const adCandidatesSchema = z.object({
   ranked: z.array(adCandidateSchema).min(1).max(5),
-  /** The index into `ranked` that became `copy`; 0 unless a person picks another (CQ4c). */
+  /**
+   * The index into `ranked` that became `copy`: the best-ranked candidate the overlay can draw (AG1, D-AD26), so 0
+   * unless an earlier one was passed over — or, later, a person picks another (CQ4c).
+   */
   chosen: z.number().int().min(0),
+  /**
+   * The better-ranked candidates that did NOT become the ad, each with why the overlay could not draw it
+   * ("4:5, en: too_long"). Absent on a set written before AG1 and when the first choice fit. Kept so a reviewer
+   * who sees #2 marked "this one" is told why, and so nobody concludes the ranking was ignored.
+   */
+  passed_over: z.array(z.object({ index: z.number().int().min(0), reason: z.string().min(1).max(300) }).strict()).max(5).optional(),
   /** The judge's prompt version, or null when no candidate was judged and the order is the Copywriter's. */
   judge: z.string().nullable(),
   /** How many the Copywriter offered and how many the claim and length checks let through. */
   offered: z.number().int().min(1).max(5),
   passed: z.number().int().min(1).max(5),
-}).strict().refine((c) => c.chosen < c.ranked.length, "chosen names a candidate that is not in the list");
+}).strict()
+  .refine((c) => c.chosen < c.ranked.length, "chosen names a candidate that is not in the list")
+  .refine((c) => (c.passed_over ?? []).every((p) => p.index < c.ranked.length), "passed_over names a candidate that is not in the list");
+
+/**
+ * The most characters a headline drawn on the image can hold (D-AD27; ADS-CREATIVE-QUALITY-PLAN §7). MEASURED,
+ * 2026-11-10, with the real overlay over every headline the copywriter's recorded fixtures hold (370, English and
+ * Spanish): on both published formats nothing longer than this fit two lines, everything of 45 or fewer did, and
+ * between the two it depends on the words. So a preset whose headline slot allows more only invites copy the
+ * overlay will refuse; the save says so. The number is the overlay's (its sizes live in the API, where the font
+ * is), restated here because the save contract cannot measure a font — and held to the renderer by the API test
+ * that re-measures it, which is what makes the copy safe.
+ */
+export const OVERLAY_HEADLINE_MAX_CHARS = 56;
 export type AdCandidates = z.infer<typeof adCandidatesSchema>;
 
 export interface Offered<C> {

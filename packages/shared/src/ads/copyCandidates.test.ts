@@ -36,4 +36,16 @@ describe("rankCandidates — the craft judge's order (CQ4, D-AD21)", () => {
     expect(adCandidatesSchema.safeParse({ ranked, chosen: 1, judge: "craftJudge@1", offered: 3, passed: 1 }).success).toBe(false);
     expect(adCandidatesSchema.safeParse({ ranked: [{ ...ranked[0], judged: score(6, 3, 3, 3, 3) }], chosen: 0, judge: null, offered: 1, passed: 1 }).success).toBe(false);
   });
+
+  it("a set may say which better-ranked copies were passed over and why; one written before AG1 says nothing and still parses", () => {
+    const one = { copy: copy("a"), judged: score(3, 3, 3, 3, 3), total: 15, offered_as: 0 };
+    const ranked = [one, { ...one, copy: copy("b"), offered_as: 1 }];
+    const base = { ranked, chosen: 1, judge: "craftJudge@1", offered: 2, passed: 2 };
+    expect(adCandidatesSchema.safeParse(base).success).toBe(true);
+    expect(adCandidatesSchema.safeParse({ ...base, passed_over: [{ index: 0, reason: "4:5, en: too_long" }] }).success).toBe(true);
+    // An index outside the list, an empty reason and an unknown key are each refused.
+    expect(adCandidatesSchema.safeParse({ ...base, passed_over: [{ index: 2, reason: "4:5, en: too_long" }] }).success).toBe(false);
+    expect(adCandidatesSchema.safeParse({ ...base, passed_over: [{ index: 0, reason: "" }] }).success).toBe(false);
+    expect(adCandidatesSchema.safeParse({ ...base, passed_over: [{ index: 0, reason: "x", by: "me" }] }).success).toBe(false);
+  });
 });

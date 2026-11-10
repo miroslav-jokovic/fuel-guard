@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { OVERLAY_HEADLINE_MAX_CHARS } from "./copyCandidates.js";
 import { adBrandKitSaveSchema, adBrandKitSchema, adPresetRecipeSchema, adPresetSaveSchema, kitAssets, templateSlots, type AdBrandKit, type AdPresetRecipe } from "./brandKitContract.js";
 import { safeZone } from "./renderGeometry.js";
 
@@ -8,7 +9,7 @@ const KIT: AdBrandKit = {
   logo: null, equipment_photos: [], overlays: {}, people_policy: "none", forbidden_marks: [],
 };
 const RECIPE: AdPresetRecipe = {
-  name: "Fixture", hook_formula: "Lead with the figure.", copy_slots: [{ name: "hook", max_chars: 60 }, { name: "cta", max_chars: 30 }],
+  name: "Fixture", hook_formula: "Lead with the figure.", copy_slots: [{ name: "hook", max_chars: 56 }, { name: "cta", max_chars: 30 }],
   image_prompt_template: "A {vehicle} at {time_of_day}, no text, no logos, no lettering", image_slots: ["vehicle", "time_of_day"],
   starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null, layout: "bottom_plate", formats: ["1:1"],
   overlay_slots: null,
@@ -109,6 +110,10 @@ describe("preset recipe contract", () => {
     }
     // A stored body is history: the recipe parses, and compose stops it by name (`no_feed_format`).
     expect(adPresetRecipeSchema.safeParse({ ...whole, formats: ["9:16"] }).success).toBe(true);
+    // The headline drawn on the image has a ceiling the overlay set (D-AD27); a slot that is not the headline does not.
+    const long = { ...whole, copy_slots: whole.copy_slots.map((c) => (c.name === "hook" ? { ...c, max_chars: OVERLAY_HEADLINE_MAX_CHARS + 1 } : c)) };
+    expect(adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: long }).error?.issues.map((i) => i.path.join("."))).toEqual(["recipe.copy_slots"]);
+    expect(adPresetRecipeSchema.safeParse(long).success).toBe(true);
     // No formats at all keeps its own sentence, and only that one.
     expect(adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: { ...whole, formats: [] } }).error?.issues.map((i) => i.message)).toEqual(["choose at least one format"]);
   });

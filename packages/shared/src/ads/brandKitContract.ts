@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { recordId } from "../recordId.js";
+import { OVERLAY_HEADLINE_MAX_CHARS } from "./copyCandidates.js";
 import { AD_FORMATS, FEED_FORMATS, parseHex, publishedFormats, safeZone, tightenZone, type AdFormat } from "./renderGeometry.js";
 
 /**
@@ -245,6 +246,10 @@ export const adPresetSaveSchema = z.object({
 }).superRefine((s, ctx) => {
   if (!s.recipe.overlay_slots) ctx.addIssue({ code: "custom", path: ["recipe", "overlay_slots"], message: "Choose which copy goes on the image: its headline and its call to action." });
   if (!s.recipe.platform_slots) ctx.addIssue({ code: "custom", path: ["recipe", "platform_slots"], message: "Choose which copy Meta shows beside the image: its primary text and its headline." });
+  const headline = s.recipe.overlay_slots ? s.recipe.copy_slots.find((c) => c.name === s.recipe.overlay_slots!.headline) : undefined;
+  if (headline && headline.max_chars > OVERLAY_HEADLINE_MAX_CHARS) {
+    ctx.addIssue({ code: "custom", path: ["recipe", "copy_slots"], message: `The headline on the image (${headline.name}) holds at most ${OVERLAY_HEADLINE_MAX_CHARS} characters: a longer one needs a third line, and the image has room for two.` });
+  }
   if (s.recipe.formats.length > 0 && publishedFormats(s.recipe.formats).length === 0) {
     ctx.addIssue({ code: "custom", path: ["recipe", "formats"], message: `Choose ${FEED_FORMATS.join(" or ")} as well: those are the formats an ad is shown in today, and ${s.recipe.formats.join(", ")} alone cannot be published.` });
   }

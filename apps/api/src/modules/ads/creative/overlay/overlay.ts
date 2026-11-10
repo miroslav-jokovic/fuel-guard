@@ -121,15 +121,24 @@ export async function frameStill(image: Buffer, format: AdFormat): Promise<Buffe
   return sharp(image).resize(width, height, { fit: "cover" }).png().toBuffer();
 }
 
-export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome> {
+/** What `layOut` needs: everything about the words and where they go, nothing about the picture. */
+export type OverlayText = Pick<OverlayInput, "format" | "language" | "headline" | "cta" | "brief" | "kit" | "layout">;
+
+const measurer = createCanvas(8, 8).getContext("2d");
+
+/**
+ * Steps 1 and 2 of the overlay, with no image: is every line from the brief and drawable, and does the stack fit
+ * the zone at its fixed sizes. Whether the words FIT is a fact about the words, the format and the layout — the
+ * picture changes none of it — so compose asks this before it pays for a picture (`overlayFit`, D-AD26), and
+ * `renderOverlay` asks the same function, so the answer before the render and the answer at it cannot differ.
+ * Measured on a canvas of its own: the font, not the canvas, decides a width.
+ */
+function layOut(input: OverlayText) {
   const { format, language } = input;
-  const layout: AdOverlayLayout = input.layout ?? "bottom_plate";
   const overlay = input.kit.overlays[format];
-  if (!overlay) return { kind: "refused", findings: [{ kind: "no_template", format }] };
+  if (!overlay) return { ok: false as const, findings: [{ kind: "no_template", format }] satisfies OverlayFinding[] };
   const t = TEMPLATE[format];
   const zone = overlay.zone ?? safeZone(format);
-  const textColor = parseHex(overlay.text_color)!;
-  const plate = overlay.plate_color ? parseHex(overlay.plate_color)! : null;
   const lines = [
     { label: "headline", text: input.headline.trim(), style: t.headline },
     { label: "cta", text: input.cta.trim(), style: t.cta },
@@ -143,23 +152,47 @@ export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome
     const bad = [...l.text].find((ch) => !/\s/.test(ch) && !canDraw(ch));
     if (bad) findings.push({ kind: "undrawable_character", label: l.label, character: bad });
   }
-  if (findings.length) return { kind: "refused", findings };
+  if (findings.length) return { ok: false as const, findings };
 
   // 2. Lay out the stack at fixed sizes — where it sits in the zone is the layout's (step 2b).
+  const innerWidth = zone.width - 2 * t.pad;
+  const laid = lines.map((l) => {
+    measurer.font = fontOf(l.style);
+    const wrapped = wrap(measurer, l.text, innerWidth);
+    const needed = Math.max(...wrapped.map((w) => measurer.measureText(w).width));
+    return { ...l, wrapped, needed, height: Math.ceil(wrapped.length * l.style.px * LINE_HEIGHT) };
+  });
+  for (const l of laid) {
+    if (l.wrapped.length > l.style.maxLines) findings.push({ kind: "too_long", label: l.label, lines: l.wrapped.length, max_lines: l.style.maxLines });
+    // One word wider than the zone stays one line (`wrap`); said here as the render check would say it.
+    if (Math.ceil(l.needed) > innerWidth) findings.push({ kind: "overflows", label: l.label, needed_width: Math.ceil(l.needed), width: innerWidth });
+  }
+  const stackHeight = laid.reduce((n, l) => n + l.height, 0) + t.gap * (laid.length - 1) + 2 * t.pad;
+  if (stackHeight > zone.height) findings.push({ kind: "stack_too_tall", needed: stackHeight, zone_height: zone.height });
+  if (findings.length) return { ok: false as const, findings };
+  return { ok: true as const, overlay, t, zone, innerWidth, laid, stackHeight };
+}
+
+/**
+ * Why these words cannot be drawn on this format in this layout, or nothing when they can (D-AD26). No image is
+ * read and none is made. Contrast is NOT answered here: it is measured under the text on the finished picture.
+ */
+export function overlayFit(input: OverlayText): OverlayFinding[] {
+  const l = layOut(input);
+  return l.ok ? [] : l.findings;
+}
+
+export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome> {
+  const { format } = input;
+  const layout: AdOverlayLayout = input.layout ?? "bottom_plate";
+  const l = layOut(input);
+  if (!l.ok) return { kind: "refused", findings: l.findings };
+  const { overlay, t, zone, innerWidth, laid, stackHeight } = l;
+  const textColor = parseHex(overlay.text_color)!;
+  const plate = overlay.plate_color ? parseHex(overlay.plate_color)! : null;
   const { width: W, height: H } = FORMAT_SIZE[format];
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
-  const innerWidth = zone.width - 2 * t.pad;
-  const laid = lines.map((l) => {
-    ctx.font = fontOf(l.style);
-    const wrapped = wrap(ctx, l.text, innerWidth);
-    const needed = Math.max(...wrapped.map((w) => ctx.measureText(w).width));
-    return { ...l, wrapped, needed, height: Math.ceil(wrapped.length * l.style.px * LINE_HEIGHT) };
-  });
-  for (const l of laid) if (l.wrapped.length > l.style.maxLines) findings.push({ kind: "too_long", label: l.label, lines: l.wrapped.length, max_lines: l.style.maxLines });
-  const stackHeight = laid.reduce((n, l) => n + l.height, 0) + t.gap * (laid.length - 1) + 2 * t.pad;
-  if (stackHeight > zone.height) findings.push({ kind: "stack_too_tall", needed: stackHeight, zone_height: zone.height });
-  if (findings.length) return { kind: "refused", findings };
 
   // 2b. Where the stack sits (CQ6): its top edge, by layout. The stack's own height never changes.
   const stackInner = stackHeight - 2 * t.pad;
