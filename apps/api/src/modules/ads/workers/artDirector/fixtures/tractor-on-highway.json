@@ -1,6 +1,6 @@
 {
   "name": "tractor-on-highway",
-  "about": "The plain equipment case: three slots and a reference photo chosen from three.",
+  "about": "The plain equipment case: three slots and a reference photo chosen from three. AG3: the headline holds a figure, which must not reach a slot.",
   "input": {
     "recipe": {
       "name": "Fixture concept",
@@ -21,6 +21,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "4:5"
       ],
@@ -81,21 +82,24 @@
       "flatbed freight",
       "regional runs",
       "lanes: Midwest to the Southeast"
-    ]
+    ],
+    "headline": "$0.68 a mile, every mile"
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@2",
+    "prompt_version": "artDirector@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:39:48.143Z",
+    "recorded_at": "2026-11-10T17:29:37.990Z",
     "output": {
       "slots": {
-        "time_of_day": "early morning",
-        "light": "low golden light from the east, long shadows across the pavement",
-        "viewpoint": "low angle from the shoulder, slightly ahead of the driver's side"
+        "time_of_day": "mid-morning",
+        "light": "clear autumn sun from the south, long shadows on asphalt",
+        "viewpoint": "low angle from the shoulder, slightly ahead of the cab"
       },
-      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "focal_subject": "tractor",
+      "camera_distance": "medium"
     }
   }
 }

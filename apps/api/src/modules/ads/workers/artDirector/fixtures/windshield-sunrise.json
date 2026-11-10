@@ -1,6 +1,6 @@
 {
   "name": "windshield-sunrise",
-  "about": "A text-only POV scene (P1's shape): no equipment, no photo, reference must be null.",
+  "about": "A text-only POV scene (P1's shape): no equipment, no photo, reference must be null. AG3: the words sit across the middle.",
   "input": {
     "recipe": {
       "name": "Fixture concept",
@@ -20,6 +20,7 @@
       "shows_equipment": false,
       "shows_people": false,
       "motion_template": null,
+      "layout": "centered",
       "formats": [
         "4:5"
       ],
@@ -80,20 +81,23 @@
       "dry van freight",
       "over-the-road runs",
       "lanes: coast to coast"
-    ]
+    ],
+    "headline": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@2",
+    "prompt_version": "artDirector@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:39:49.834Z",
+    "recorded_at": "2026-11-10T17:29:40.330Z",
     "output": {
       "slots": {
-        "time_of_day": "late afternoon golden hour, long shadows stretching across a straight interstate",
-        "weather": "clear open sky fading from blue to warm amber at the horizon, no clouds"
+        "time_of_day": "late afternoon, low golden sun ahead on the horizon",
+        "weather": "clear sky, light haze near the horizon"
       },
-      "reference_photo": null
+      "reference_photo": null,
+      "focal_subject": "road_ahead",
+      "camera_distance": "medium"
     }
   }
 }

@@ -83,7 +83,7 @@
   ],
   "recorded": {
     "source": "planted",
-    "prompt_version": "artDirector@2",
+    "prompt_version": "artDirector@3",
     "model": "none (written by a person)",
     "recorded_at": "2026-11-03T00:00:00Z",
     "output": {
@@ -92,7 +92,9 @@
         "light": "warm light with the company logo on the trailer",
         "viewpoint": "the shoulder"
       },
-      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "focal_subject": "tractor",
+      "camera_distance": "medium"
     }
   }
 }

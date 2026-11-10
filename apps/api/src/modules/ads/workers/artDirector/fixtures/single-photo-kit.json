@@ -21,6 +21,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "4:5"
       ],
@@ -55,21 +56,24 @@
         "Other Freight Co"
       ]
     },
-    "context": []
+    "context": [],
+    "headline": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@2",
+    "prompt_version": "artDirector@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:39:44.037Z",
+    "recorded_at": "2026-11-10T17:29:30.005Z",
     "output": {
       "slots": {
-        "time_of_day": "mid-morning",
-        "light": "clear sun from the right casting short shadows across the cab",
-        "viewpoint": "low angle slightly ahead and to the driver's side, road surface visible in the foreground"
+        "time_of_day": "late afternoon",
+        "light": "warm golden side-light from low sun, long shadows on pavement",
+        "viewpoint": "low angle from road level, slightly ahead and to the driver's side"
       },
-      "reference_photo": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      "reference_photo": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "focal_subject": "tractor",
+      "camera_distance": "medium"
     }
   }
 }

@@ -20,6 +20,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "4:5"
       ],
@@ -80,20 +81,23 @@
       "reefer freight",
       "local runs",
       "home time: Home daily"
-    ]
+    ],
+    "headline": "Home every weekend"
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@2",
+    "prompt_version": "artDirector@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:39:34.029Z",
+    "recorded_at": "2026-11-10T17:29:13.873Z",
     "output": {
       "slots": {
-        "time_of_day": "early evening after sunset",
-        "light": "deep blue dusk sky, streetlamps just flickering on, warm glow from a porch light"
+        "time_of_day": "dusk, just after sunset",
+        "light": "deep blue twilight, warm amber porch light glowing"
       },
-      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "focal_subject": "tractor",
+      "camera_distance": "medium"
     }
   }
 }

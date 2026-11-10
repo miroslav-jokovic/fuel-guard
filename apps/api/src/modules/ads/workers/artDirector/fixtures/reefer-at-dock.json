@@ -20,6 +20,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "4:5"
       ],
@@ -80,20 +81,23 @@
       "reefer freight",
       "local runs",
       "lanes: Chicagoland store deliveries"
-    ]
+    ],
+    "headline": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@2",
+    "prompt_version": "artDirector@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:39:41.707Z",
+    "recorded_at": "2026-11-10T17:29:27.139Z",
     "output": {
       "slots": {
-        "time_of_day": "early morning, dim pre-dawn light",
-        "setting": "a busy urban grocery distribution dock, concrete platform, overhead dock lights on, overcast winter sky"
+        "time_of_day": "early morning, grey pre-dawn light",
+        "setting": "Chicago grocery distribution dock, concrete apron dusted with light frost"
       },
-      "reference_photo": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      "reference_photo": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "focal_subject": "trailer",
+      "camera_distance": "medium"
     }
   }
 }

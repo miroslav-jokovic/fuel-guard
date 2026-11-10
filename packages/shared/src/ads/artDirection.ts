@@ -1,4 +1,5 @@
-import { AD_VISUAL_CHECKS, type AdBrandKit, type AdAssetRef, type AdPresetRecipe, type AdVisualCheck } from "./brandKitContract.js";
+import { AD_VISUAL_CHECKS, type AdBrandKit, type AdAssetRef, type AdOverlayLayout, type AdPresetRecipe, type AdVisualCheck } from "./brandKitContract.js";
+import { publishedFormats, type AdFormat } from "./renderGeometry.js";
 
 /**
  * The Art director's rules, pure (ADS-AGENT-PLAN D-AD9, D-AD11; workflow §4R's Art director row: "every
@@ -19,6 +20,19 @@ import { AD_VISUAL_CHECKS, type AdBrandKit, type AdAssetRef, type AdPresetRecipe
  * that asks for lettering (a sign, a logo, a caption); and the prompt always ENDS with `NO_LETTERING`,
  * whatever the recipe's template already says. The reference photo the model names must be one of this
  * kit's — and none at all for a text-only scene.
+ *
+ * ── COMPOSITION IS DIRECTED (AG3, 2026-11-10; audit F-AG2; D-AD28) ─────────────────────────────────
+ * Until AG3 nothing told the image model where the subject goes, how near the camera stands or which part
+ * of the frame the words will cover: the only composition instruction anywhere was a clause added AFTER a
+ * check had already failed. Now every prompt carries four fixed clauses of ours, between the template and
+ * `NO_LETTERING`:
+ *   · what the one subject is and how near it is seen — the Art director's two answers, each from a closed
+ *     list (`AD_FOCAL_SUBJECTS`, `AD_CAMERA_DISTANCES`) and written here as OUR phrase for that word, so
+ *     no model text about composition reaches the image model;
+ *   · which part of the frame stays plain — NOT asked of the model: the preset's `layout` already says
+ *     where the overlay puts the words, and an answer could only agree with it or be wrong (`QUIET_REGION`);
+ *   · the frame's shape — the first format the publisher sends (`publishedFormats`), in words, not digits.
+ * A subject the scene does not show (a person when the preset shows none) is refused like any other finding.
  */
 
 export const NO_LETTERING = "no text, no logos, no lettering";
@@ -34,22 +48,64 @@ export function artPrecheck(recipe: Pick<AdPresetRecipe, "shows_equipment" | "sh
   return null;
 }
 
+/** What the picture is OF. Closed: each word becomes a fixed phrase of ours in the prompt (`FOCAL_CLAUSE`). */
+export const AD_FOCAL_SUBJECTS = ["tractor", "tractor_and_trailer", "trailer", "person_at_work", "road_ahead", "cab_interior", "setting"] as const;
+export type AdFocalSubject = (typeof AD_FOCAL_SUBJECTS)[number];
+/** How near the camera stands. */
+export const AD_CAMERA_DISTANCES = ["wide", "medium", "close"] as const;
+export type AdCameraDistance = (typeof AD_CAMERA_DISTANCES)[number];
+
+const EQUIPMENT_SUBJECTS: ReadonlySet<AdFocalSubject> = new Set(["tractor", "tractor_and_trailer", "trailer"]);
+
+export const FOCAL_CLAUSE: Record<AdFocalSubject, string> = {
+  tractor: "the tractor is the one clear subject",
+  tractor_and_trailer: "the tractor and its trailer, seen whole, are the one clear subject",
+  trailer: "the trailer is the one clear subject",
+  person_at_work: "one person at work is the one clear subject",
+  road_ahead: "the road ahead is the subject and leads the eye into the frame",
+  cab_interior: "the inside of the cab is the subject",
+  setting: "the place itself is the subject, with nothing dominating it",
+};
+export const DISTANCE_CLAUSE: Record<AdCameraDistance, string> = {
+  wide: "seen from far off, small within a wide scene",
+  medium: "seen from a middle distance, filling about half the frame",
+  close: "seen from near, large in the frame and not cut off by its edges",
+};
+/**
+ * Where the overlay puts the words for each layout, so where the picture must stay plain (D-AD28). `where` is
+ * what the Art director is TOLD (so its slots do not put a bridge or a treeline there); `clause` is what the
+ * image model is told. Derived from the layout, never answered by a model.
+ */
+export const QUIET_REGION: Record<AdOverlayLayout, { where: string; clause: string }> = {
+  bottom_plate: { where: "the lower third of the frame", clause: "the subject kept in the upper two thirds, the lower third plain and uncluttered" },
+  top_band: { where: "the upper third of the frame", clause: "the subject kept in the lower two thirds, the upper third plain and uncluttered" },
+  centered: { where: "the middle band of the frame", clause: "nothing important across the middle of the frame, which stays plain and uncluttered" },
+};
+/** The frame's shape in words: a digit in an image prompt is an invitation to draw one. */
+export const FRAME_CLAUSE: Record<AdFormat, string> = {
+  "4:5": "composed for an upright frame a little taller than it is wide",
+  "1:1": "composed for a square frame",
+  "9:16": "composed for a tall, narrow upright frame",
+};
+
 export interface ArtAnswer {
   slots: Record<string, string>;
   /** sha256 of the kit photo the image starts from, or null for a text-only scene. */
   reference_photo: string | null;
+  focal_subject: AdFocalSubject;
+  camera_distance: AdCameraDistance;
 }
 
 export type ArtFindingKind =
   | "missing_slot" | "unknown_slot" | "slot_too_long" | "digit_in_slot" | "quote_in_slot" | "lettering_in_slot"
-  | "reference_required" | "reference_not_in_kit" | "reference_on_text_only";
+  | "reference_required" | "reference_not_in_kit" | "reference_on_text_only" | "focal_subject_not_in_scene";
 
 export interface ArtFinding { kind: ArtFindingKind; slot?: string; text?: string }
 
 /** Words that ask an image model to draw letters. Whole words, case-insensitive, English (the prompt's language). */
 const LETTERING = /\b(?:text|texts|logo|logos|lettering|letters?|words?|writing|written|caption|captions|sign|signs|signage|banner|banners|billboards?|posters?|placards?|label|labels|slogan|brand(?:ed|ing)?|decals?|numbers?|digits?|typography|font)\b/i;
 
-export function judgeArt(answer: ArtAnswer, recipe: Pick<AdPresetRecipe, "image_slots" | "starts_from">, kit: Pick<AdBrandKit, "equipment_photos">): ArtFinding[] {
+export function judgeArt(answer: ArtAnswer, recipe: Pick<AdPresetRecipe, "image_slots" | "starts_from" | "shows_equipment" | "shows_people">, kit: Pick<AdBrandKit, "equipment_photos">): ArtFinding[] {
   const out: ArtFinding[] = [];
   const declared = new Set(recipe.image_slots);
   for (const s of recipe.image_slots) if (!(s in answer.slots)) out.push({ kind: "missing_slot", slot: s });
@@ -66,14 +122,36 @@ export function judgeArt(answer: ArtAnswer, recipe: Pick<AdPresetRecipe, "image_
     if (answer.reference_photo === null) out.push({ kind: "reference_required" });
     else if (!photos.has(answer.reference_photo)) out.push({ kind: "reference_not_in_kit", text: answer.reference_photo });
   } else if (answer.reference_photo !== null) out.push({ kind: "reference_on_text_only", text: answer.reference_photo });
+  // The subject must be something the preset's scene shows: a person where no people appear would be asked of
+  // the image model by our own clause, past the people policy the precheck already applied.
+  if ((answer.focal_subject === "person_at_work" && !recipe.shows_people) || (EQUIPMENT_SUBJECTS.has(answer.focal_subject) && !recipe.shows_equipment)) {
+    out.push({ kind: "focal_subject_not_in_scene", text: answer.focal_subject });
+  }
   return out;
 }
 
-/** The recipe's template with its slots filled, ending with `NO_LETTERING` exactly once. */
-export function composeImagePrompt(template: string, slots: Record<string, string>): string {
+/** How the picture is composed: the Art director's two answers, and the two facts the preset already holds. */
+export interface ArtComposition {
+  focal_subject: AdFocalSubject;
+  camera_distance: AdCameraDistance;
+  layout: AdOverlayLayout;
+  /** The format the image is made for — the first the publisher sends; null when the preset holds none. */
+  frame: AdFormat | null;
+}
+
+/** The composition as the image model reads it: our fixed clauses, in a fixed order. */
+export function compositionClauses(c: ArtComposition): string[] {
+  return [FOCAL_CLAUSE[c.focal_subject], DISTANCE_CLAUSE[c.camera_distance], QUIET_REGION[c.layout].clause, ...(c.frame ? [FRAME_CLAUSE[c.frame]] : [])];
+}
+
+/**
+ * The recipe's template with its slots filled, then the composition clauses when a composition is given, ending
+ * with `NO_LETTERING` exactly once.
+ */
+export function composeImagePrompt(template: string, slots: Record<string, string>, composition?: ArtComposition): string {
   const filled = template.replace(/\{([a-z][a-z0-9_]{1,30})\}/g, (_m, name: string) => slots[name] ?? `{${name}}`);
   const body = filled.replace(/[\s,.;]*no text,?\s*no logos,?\s*(?:and\s+)?no lettering[\s.]*$/i, "").replace(/[\s,.;]+$/, "");
-  return `${body}, ${NO_LETTERING}`;
+  return [body, ...(composition ? compositionClauses(composition) : []), NO_LETTERING].join(", ");
 }
 
 export interface ArtDirection {
@@ -81,12 +159,15 @@ export interface ArtDirection {
   /** The kit photo the generation starts from (C3 uploads it to Higgsfield), or null. */
   reference: AdAssetRef | null;
   slots: Record<string, string>;
+  /** What the prompt's composition clauses were written from (AG4 anchors the square cut on it). */
+  composition: ArtComposition;
 }
 
 /** A judged answer → what the Higgsfield client is handed. Call only when `judgeArt` found nothing. */
-export function artDirection(answer: ArtAnswer, recipe: Pick<AdPresetRecipe, "image_prompt_template">, kit: Pick<AdBrandKit, "equipment_photos">): ArtDirection {
+export function artDirection(answer: ArtAnswer, recipe: Pick<AdPresetRecipe, "image_prompt_template" | "layout" | "formats">, kit: Pick<AdBrandKit, "equipment_photos">): ArtDirection {
   const reference = answer.reference_photo === null ? null : kit.equipment_photos.find((p) => p.asset.sha256 === answer.reference_photo)!.asset;
-  return { prompt: composeImagePrompt(recipe.image_prompt_template, answer.slots), reference, slots: answer.slots };
+  const composition: ArtComposition = { focal_subject: answer.focal_subject, camera_distance: answer.camera_distance, layout: recipe.layout, frame: publishedFormats(recipe.formats)[0] ?? null };
+  return { prompt: composeImagePrompt(recipe.image_prompt_template, answer.slots, composition), reference, slots: answer.slots, composition };
 }
 
 /**

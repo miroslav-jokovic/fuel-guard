@@ -84,7 +84,7 @@
   ],
   "recorded": {
     "source": "planted",
-    "prompt_version": "artDirector@2",
+    "prompt_version": "artDirector@3",
     "model": "none (written by a person)",
     "recorded_at": "2026-11-03T00:00:00Z",
     "output": {
@@ -93,7 +93,9 @@
         "light": "soft gold light and a billboard reading $0.68 per mile",
         "viewpoint": "a low angle"
       },
-      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "focal_subject": "tractor",
+      "camera_distance": "medium"
     }
   }
 }

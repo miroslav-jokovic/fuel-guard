@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 import {
-  AI_MODELS, artDirection, artPrecheck, judgeArt,
+  AD_CAMERA_DISTANCES, AD_FOCAL_SUBJECTS, AI_MODELS, FRAME_CLAUSE, QUIET_REGION, artDirection, artPrecheck, judgeArt, publishedFormats,
   type AdBrandKit, type AdPresetRecipe, type ArtAnswer, type ArtDirection, type ArtFinding, type ArtRefusal,
 } from "@silvicom/shared";
 import type { ForcedTool } from "../../../../lib/anthropic.js";
@@ -21,23 +21,32 @@ import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOut
  * get the same picture (ADS-CREATIVE-QUALITY-PLAN G-CQ2). Still not the claims: the image carries no facts
  * (D-AD9), and `judgeArt` refuses any digit in a slot whatever the context said. Through the A4 rail, as the
  * Copywriter; `buildArtRequest` is exported so `pnpm ads:eval` asks exactly as this does.
+ *
+ * Since AG3 (prompt v3, 2026-11-10; audit F-AG2) it also DIRECTS THE COMPOSITION. It is told what it could not
+ * know and must not decide — the frame's shape, which part of it the words will cover (`QUIET_REGION` of the
+ * preset's layout, D-AD28) and the headline that will be drawn there, so the picture suits the words — and it
+ * answers the two things only it can: what the one subject is and how near the camera stands, each from a
+ * closed list. The headline is the English one compose chose (AG1): it already passed the claim check, and it
+ * is data to this model like every other field — never text to draw.
  */
 
-export const ART_DIRECTOR_PROMPT_VERSION = "artDirector@2";
-const PROMPT = readFileSync(new URL("./prompt.v2.md", import.meta.url), "utf8");
+export const ART_DIRECTOR_PROMPT_VERSION = "artDirector@3";
+const PROMPT = readFileSync(new URL("./prompt.v3.md", import.meta.url), "utf8");
 const MAX_TOKENS = 600;
 
-type Recipe = Pick<AdPresetRecipe, "image_prompt_template" | "image_slots" | "starts_from" | "shows_equipment" | "shows_people">;
+type Recipe = Pick<AdPresetRecipe, "image_prompt_template" | "image_slots" | "starts_from" | "shows_equipment" | "shows_people" | "layout" | "formats">;
 type Kit = Pick<AdBrandKit, "equipment_photos" | "people_policy">;
 
 /** The tool for this recipe: one string per slot (lengths and content are `judgeArt`'s), and the photo. */
 export function artTool(recipe: Pick<AdPresetRecipe, "image_slots">): ForcedTool<ArtAnswer> {
   return {
     name: "direct_art",
-    description: "Fill every image slot with a short visual phrase and choose the reference photo (or null for a text-only scene).",
+    description: "Fill every image slot with a short visual phrase, choose the reference photo (or null for a text-only scene), and say what the one subject is and how near it is seen.",
     schema: z.object({
       slots: z.object(Object.fromEntries(recipe.image_slots.map((s) => [s, z.string().trim().min(1)]))),
       reference_photo: z.string().regex(/^[0-9a-f]{64}$/).nullable(),
+      focal_subject: z.enum(AD_FOCAL_SUBJECTS),
+      camera_distance: z.enum(AD_CAMERA_DISTANCES),
     }).strict() as unknown as z.ZodType<ArtAnswer>,
   };
 }
@@ -45,18 +54,21 @@ export function artTool(recipe: Pick<AdPresetRecipe, "image_slots">): ForcedTool
 /** What the job is like, as the brief's `subject_matter.details` (CQ2); empty when a fixture or a caller has none. */
 export type ArtContext = readonly string[];
 
-export function artUserMessage(recipe: Recipe, kit: Kit, context: ArtContext = []): string {
+export function artUserMessage(recipe: Recipe, kit: Kit, context: ArtContext = [], headline: string | null = null): string {
+  const frame = publishedFormats(recipe.formats)[0] ?? null;
   return JSON.stringify({
     template: recipe.image_prompt_template,
     slots: recipe.image_slots,
     scene: { starts_from: recipe.starts_from, shows_equipment: recipe.shows_equipment, shows_people: recipe.shows_people },
+    composition: { frame: frame ? FRAME_CLAUSE[frame] : null, kept_plain: QUIET_REGION[recipe.layout].where },
+    headline,
     context,
     photos: recipe.starts_from === "equipment_photo" ? kit.equipment_photos.map((p) => ({ label: p.label, sha256: p.asset.sha256 })) : [],
   }, null, 2);
 }
 
-export function buildArtRequest(recipe: Recipe, kit: Kit, context: ArtContext = []) {
-  return { model: AI_MODELS.deep, system: PROMPT, user: artUserMessage(recipe, kit, context), tool: artTool(recipe), maxTokens: MAX_TOKENS };
+export function buildArtRequest(recipe: Recipe, kit: Kit, context: ArtContext = [], headline: string | null = null) {
+  return { model: AI_MODELS.deep, system: PROMPT, user: artUserMessage(recipe, kit, context, headline), tool: artTool(recipe), maxTokens: MAX_TOKENS };
 }
 
 export interface DirectArtInput {
@@ -68,6 +80,8 @@ export interface DirectArtInput {
   kit: AdBrandKit;
   /** The brief's `subject_matter.details` (CQ2). */
   context?: ArtContext;
+  /** The English headline the overlay will draw (AG1's chosen copy); null when a caller has none. */
+  headline?: string | null;
 }
 
 export type DirectArtOutcome =
@@ -86,7 +100,7 @@ export async function directArt(deps: ClaudeGenerationDeps, input: DirectArtInpu
     creativeId: input.creativeId,
     idempotencyKey: `art:${input.creativeId}:${input.attempt}`,
     promptVersion: ART_DIRECTOR_PROMPT_VERSION,
-    ...buildArtRequest(input.recipe, input.kit, input.context ?? []),
+    ...buildArtRequest(input.recipe, input.kit, input.context ?? [], input.headline ?? null),
   });
   if (out.kind !== "succeeded") return out;
   const findings = judgeArt(out.value, input.recipe, input.kit);

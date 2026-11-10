@@ -874,28 +874,34 @@ export const READINESS = [
             { file: ART_DIRECTOR, titles: [
               "has model recordings under the prompt in force and planted defects beside them",
               "planted-digit-in-slot", "planted-lettering", "planted-foreign-photo", "planted-photo-on-text-only", "planted-quote-in-slot",
+              "planted-focal-outside-vocabulary", "planted-person-focal-no-people",
               "hands on a prompt ending with the no-lettering clause and the kit photo it starts from",
+              "the prompt handed on is composed: the model's subject and distance as our clauses, and the plain region of the layout",
+              "tells the model the frame and the part the words will cover, from the preset's layout and published formats, and the headline it was handed (AG3)",
               "asks once per creative and attempt, as the art director, sending the job as context but no claims and no company name",
             ] },
             { file: "packages/shared/src/ads/artDirection.test.ts", titles: [
               "ends with it when the template already does, without saying it twice",
               "adds it when the template does not",
               "refuses a photo that is not this kit's, none for an equipment scene, and one for a text-only scene",
+              "the prompt carries the subject, the distance, the plain region of the preset's layout and the frame's shape, in that order, before the no-lettering clause",
+              "refuses a subject the scene does not show: a person where the preset shows none, equipment where it shows none",
             ] },
           ],
         },
       ],
       L2: [
         {
-          need: "§4R's faults: a brand kit missing photos; a preset showing people while the people policy is none (and an instruction inside a photo label)",
+          need: "§4R's faults: a brand kit missing photos; a preset showing people while the people policy is none (and an instruction inside a photo label or the headline)",
           tests: [{ file: ART_DIRECTOR, titles: [
             "refuses a scene with equipment when the brand kit has no photos, asking no model",
             "refuses a preset showing people while the people policy is none, asking no model",
             "instruction-in-label",
+            "instruction-in-headline",
           ] }],
         },
       ],
-      L3: [{ need: "the evaluation set at its bar: every prompt ends with the clause and starts from a reference photo when the preset shows equipment", gap: "C2 measured 10 of 10; CQ2 (2026-11-09, prompt v2 with the job as context) 11 of 12, the one refused a slot of 125 characters (pnpm ads:eval artDirector, baseline.json) on fixture presets; §4R sets no set size — it is re-run on P1–P5 once the owner approves them (Q-AD12)" }],
+      L3: [{ need: "the evaluation set at its bar: every prompt ends with the clause and starts from a reference photo when the preset shows equipment", gap: "C2 measured 10 of 10; CQ2 (2026-11-09, prompt v2 with the job as context) 11 of 12, the one refused a slot of 125 characters; AG3 (2026-11-10, prompt v3 directing the composition) 14 of 14 on two consecutive runs, after a first wording scored 7 of 14 by restating the layout inside its slots (pnpm ads:eval artDirector, baseline.json) on fixture presets; §4R sets no set size — it is re-run on P1–P5 once the owner approves them (Q-AD12)" }],
       // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
       // evaluation set alone (ADS-AGENT-PLAN §9). The run below was written by us from the ruling and CONFIRMED BY THE OWNER 2026-11-06.
       L4: [{ need: "its live prompts rendered by the real Higgsfield API, from the kit photo where the preset shows equipment, each picture passing the no-lettering check", gap: STAGE2 }],
