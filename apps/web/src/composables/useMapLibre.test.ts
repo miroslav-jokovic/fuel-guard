@@ -337,13 +337,13 @@ describe("useMapLibre asks for sharp tiles that name places a zoom earlier", () 
 });
 
 /**
- * D-DR28: the two maplibre defaults a zoom waited on. What a dispatcher FEELS — 1.35–1.65 s down to
- * 0.69–0.98 s per zoom — was measured in a browser rig and is quoted in `useMapLibre.ts`; it cannot be
- * measured here. What can rot silently is a third raster layer written without the paint, or the
- * constructor losing the setter, and either would put the 300 ms wait back on every tile.
+ * D-DR28 / D-DR32: 32 parallel tile requests, and the 300 ms cross-fade kept on every raster layer.
+ * The fade was turned off for a day (D-DR28's first version) and the map zoomed as a patchwork of
+ * squares snapping between zoom levels. What can rot silently is a raster layer written without the
+ * paint, or someone setting the fade back to 0 for a faster-looking `idle`, so both are pinned.
  */
-describe("useMapLibre does not make a zoom wait on fades or a 16-request cap", () => {
-  it("paints every raster layer with no fade — the first one and one a basemap switch adds", async () => {
+describe("useMapLibre cross-fades every tile and fetches 32 at a time", () => {
+  it("paints every raster layer with maplibre's 300 ms fade — the first one and one a basemap switch adds", async () => {
     vi.resetModules();
     const h = mapHarness();
     const { ref } = await import("vue");
@@ -354,7 +354,7 @@ describe("useMapLibre does not make a zoom wait on fades or a 16-request cap", (
 
     const rasters = h.layers.filter((l) => l.type === "raster");
     expect(rasters.map((l) => l.id)).toEqual(["here", "here-1"]);
-    for (const l of rasters) expect(l.paint).toEqual({ "raster-fade-duration": 0 });
+    for (const l of rasters) expect(l.paint).toEqual({ "raster-fade-duration": 300 });
     wrapper.unmount();
     vi.doUnmock("maplibre-gl");
     vi.doUnmock("@/lib/supabase");

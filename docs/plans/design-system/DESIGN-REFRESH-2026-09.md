@@ -423,6 +423,19 @@ Cropping to a fixed band at build time would have to be redone at every breakpoi
   a map can never starve the board; (c) leave it. Recommendation: (a) then (b). (b) is a small change,
   but it moves a security boundary, so it should rest on a number.
 
+- **Q-DR30 — what is our HERE per-second limit, and will HERE raise it?** D-DR30 paces tiles at 80
+  a second per API replica (160 fleet-wide on production's two), under the ~200 a second where HERE
+  started refusing in the 2026-11-10 burst. HERE does not publish the number. If 40 readers open
+  the map in the same few seconds, ~2 400 tiles take ~15 s to fill at that pace. Candidates: (a) ask
+  HERE for our limit and a raise, then set `HERE_TILE_PACING` to just under it; (b) leave 160.
+  Recommendation: (a). It is one email, and the vector basemap (D-DR31 proposed, below) cuts the
+  tile count by two-thirds on top of it.
+- **Q-DR31 — separate HERE keys per environment (owner, HERE console).** Local development,
+  staging and, very likely, production share one HERE key. The 2026-11-10 burst sent straight to
+  HERE from a development machine made staging's next run fail, so it probably cost production
+  its rate limit for 10–30 seconds. Separate keys also give separate usage reports and alerts.
+  Recommendation: do it before any further load test.
+
 ---
 
 ## 7. Progress log
@@ -1233,3 +1246,49 @@ conflict every time (`plan-progress-log-not-table-rows`).
   other's complement. ⚠ Built on the measured walk, not on production 429 counts (no AWS
   credentials in the session). Reading a week of `[metrics]` 429s by route is still worth doing
   after it ships, to retune both numbers.
+- **2026-11-10 — D-DR30: tiles wait for their turn instead of coming back blank when HERE is
+  busy.** Measured that afternoon: 40 simulated dispatchers zooming at once through staging drew
+  HERE `429 "Rate limit for this service has been reached"` on 17–21% of tiles in two of three runs,
+  each one a blank 502 square. Sent straight to HERE, the same burst was refused 34% of the time at
+  ~400 a second.
+  - **Built:** a pacer in front of HERE (`modules/routing/tilePacer.ts`). A token bucket of 80 a
+    second per process with a burst of 100. Waiting tiles are queued per caller and released
+    round-robin, so one heavy zoom cannot hold 39 other people behind it. A tile the reader cancels
+    while queued is never sent, so it is never billed. A tile HERE still refuses is retried once
+    after 250–600 ms (or HERE's `Retry-After`, capped at 2 s), then answered 503 `tile_upstream_busy`.
+    Every error tile is `Cache-Control: no-store`. The per-minute `[metrics]` line gains `hereTiles`
+    (immediate, queued, longest wait, busy, abandoned, refused429, retried, retriedOk), so
+    production's real limit can be read. The tile address ceiling is sized for 40 seats (32 800 per
+    15 minutes), up from 30.
+  - **Measured on a local rig** (the real app, two replicas as production runs, a stand-in HERE
+    refusing past 200 a second with 150 ms latency, 40 readers × 60 tiles at once):
+
+        main's code   415 tiles served · 1 985 blank (83%) · HERE refused 1 985
+        this change   2 400 served · 0 blank · HERE refused 4, all retried and served
+                      median 6.4 s, slowest 8.6 s for the whole office's first view
+        one reader alone: median 163 ms (the stand-in's own 150 ms), so no added wait
+
+    ⚠ The first draft let a tile wait 6 s and 1 234 of the same 2 400 came back "busy". That is a
+    blank square by another name, so the wait is 20 s.
+  - ⚠ Not measured against HERE itself. Doing so would spend production's limit (Q-DR31). The
+    pace is a guess under the measured refusals until HERE answers Q-DR30.
+  - **Not built, on purpose:** an in-app monthly tile budget alarm. HERE's own usage alerts count
+    what HERE actually bills, across every replica and environment. A count kept here would be a
+    second, less accurate copy of the same number. The owner sets those alerts in the HERE console.
+  - **Proposed next, D-DR31:** the vector basemap. Measured in the rig on the same 18-zoom walk: 140
+    requests against 410, 0 abandoned against 49, 6.2 MB against 11 MB, at $0.088 instead of $0.12
+    per 1 000. It also brings place names with no overlay (D-DR27) and nothing modified server-side
+    (Q-DR4's terms concern).
+- **2026-11-10 — D-DR32: the tile fade is back. D-DR28's "half the wait" was mostly the metric.**
+  The owner, the same afternoon: tiles "are loaded in a weird way and look really bad and not
+  natural". A video of a zoom on the staging map shows a patchwork. A raster tile has its labels
+  baked in, so with no fade each square snaps on its own from the previous zoom's large,
+  edge-clipped labels ("Hebrc", "Woodsto", "Ri" beside "Ringwood") to the new small ones. And the
+  gain D-DR28 reported for turning the fade off was largely an artefact: the rig timed "zoom
+  finished → map `idle`", and `idle` waits for running fades to end, so a 300 ms fade adds ~300 ms
+  to that number even when every tile has arrived. ⚠ Lesson: measure when the TILES arrive, and
+  look at the motion, not only a timer. The fade is maplibre's default 300 ms again, written out
+  with this reason beside it. The 32 parallel requests stay (1.35–1.65 s → 1.22–1.31 s on their
+  own, a gain the fade artefact cannot explain, because both arms of that comparison faded). The
+  patchwork itself is a property of raster tiles. Removing it is one more reason for the vector
+  basemap (D-DR31, proposed in the D-DR30 entry above).

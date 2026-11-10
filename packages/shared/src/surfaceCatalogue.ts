@@ -69,17 +69,14 @@ export const SURFACES: readonly Surface[] = [
   // ── top (ungrouped) ───────────────────────────────────────────────────────────────────────────
   { key: "dashboard", label: "Dashboard", path: "/", group: "top", gate: ALWAYS },
   /**
-   * Ask AI is admin-only by default, and an admin can turn it on per role or per person (owner,
-   * 2026-09-30, Q-SET15): *"we will update this page completely, and it will be optimized for each
-   * role, but for now, just hide it for all roles except admin by default"*. It was `STAFF` (Q-SURF3),
-   * which showed every office role a page whose endpoint answers from fuel data and, since Q-SET14
-   * (b), refuses anyone without `fuel: view`. The gate is now the endpoint's own question,
-   * `section("fuel")`, which makes the screen a cell on the Permissions page, and `startsOnFor: []`
-   * keeps it off for every editable role until an admin says otherwise, as the Settings screens
-   * are (Q-SET2). `POST /api/ai/ask` asks `requireSurface("ask-ai")` too, so a grant or a denial
-   * reaches the endpoint and not just the link.
+   * Ask AI: admin-only by default, turned on per role or per person by an admin (Q-SET15, 2026-09-30),
+   * and a STAFF screen since F21 R5 (owner's Q-AI2 ruling 2026-11-10: "AI will be related to their
+   * features"). WHAT a person may ask is decided per tool by the section matrix (`assistantContract.ts`,
+   * D-AI1), not by this gate; someone it is on for with no tool their access allows is refused by
+   * `POST /api/ai/ask` (`ai_no_tools`) and not shown the launcher. The endpoint asks
+   * `requireSurface("ask-ai")` too, so a denial reaches it, not just the link.
    */
-  { key: "ask-ai", label: "Ask AI", path: "/ask", group: "top", gate: section("fuel"), startsOnFor: [] },
+  { key: "ask-ai", label: "Ask AI", path: "/ask", group: "top", gate: STAFF, startsOnFor: [] },
   // Office chat is everyone's, not a section's data, so STAFF (OFFICE-CHAT-PLAN D-CHAT9; D-CHAT1 for the module).
   { key: "chat", label: "Chat", path: "/chat", group: "top", gate: STAFF, module: "messages", badge: "chatUnread" },
 

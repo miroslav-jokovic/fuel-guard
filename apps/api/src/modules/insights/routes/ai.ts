@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg } from "../../../middleware/auth.js";
+import { assistantToolsFor } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -14,22 +15,26 @@ export function aiRouter(): Router {
 
   // Natural-language question over the org's data (safe tool-calling; never raw SQL).
   //
-  // Fuel `view`, by the owner's ruling Q-SET14 (b), 2026-09-30 (SETTINGS-PERMISSIONS-PLAN.md §5). The
-  // hand-written list this replaced equalled hazmat/view by coincidence (Q-SURF7), so an org granting a
-  // recruiter HazmatGuard would have handed them the assistant too. What the assistant answers with is
-  // fuel data — `askData` reads fuel transactions, anomalies, declines and fuel events for almost every
-  // answer — so an org that narrows Fuel narrows Ask AI with it. The one role this adds is the
-  // accountant, who already reads the same rows on the fuel-spend pages.
-  //
-  // And the screen's own answer (Q-SET15, owner 2026-09-30): Ask AI starts OFF for every role but the
-  // admin until the page is rebuilt per role, and an admin turns it on per role or per person. The
-  // link hides by the same answer; without this gate a hidden page's endpoint would still answer.
+  // WHO MAY ASK, in two layers (F21 R5):
+  //   · the screen — `requireSurface("ask-ai")`, a STAFF screen that starts off for every editable role
+  //     (Q-SET15) and that an admin turns on per role or per person; the link hides by the same answer;
+  //   · the DATA — each tool's own section(s) (`assistantContract.ts`, D-AI1, owner's Q-AI2/Q-AI5 rulings
+  //     2026-11-10), resolved per request from the caller's token. This replaced Q-SET14 (b)'s single
+  //     `requireSection("fuel", "view")`, which was right while every tool was a fuel tool and would have
+  //     handed a finance or recruiting tool to anyone with fuel access.
   router.post(
     "/ask",
     requireOrg,
-    requireSection("fuel", "view"),
     requireSurface("ask-ai"),
     asyncHandler(async (req, res) => {
+      // F21 R5 (D-AI1): the person's tools, from their section access as their token carries it. None
+      // means this screen was turned on for someone whose areas have no questions yet — refused here,
+      // and the launcher is hidden for them on the same answer (`useAssistantAccess`).
+      const allowed = assistantToolsFor(req.auth!.role, req.auth!.sections ?? null);
+      if (allowed.length === 0) {
+        res.status(403).json(apiError("ai_no_tools", "Ask AI has no questions for your role's areas yet."));
+        return;
+      }
       const env = getAppLocals(req).env;
       if (!env.ANTHROPIC_API_KEY) {
         res.status(503).json(apiError("ai_unavailable", "AI is not configured"));
@@ -52,7 +57,7 @@ export function aiRouter(): Router {
         return;
       }
       const started = Date.now();
-      const { answer, tools, usage, outcome } = await askData(admin, env, orgId, question, now);
+      const { answer, tools, usage, outcome } = await askData(admin, env, orgId, question, allowed, now);
       const latencyMs = Date.now() - started;
       const toolNames = tools.map((t) => t.name);
       console.log(assistantLogLine(orgId, usage, latencyMs, toolNames, outcome));

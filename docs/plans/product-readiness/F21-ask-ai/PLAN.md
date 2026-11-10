@@ -256,3 +256,31 @@ audit row is the endpoint's own.
   - **Open, not a blocker:** the $50 cap is a constant (`ASSISTANT_MONTHLY_CAP_MICRO_USD`); no screen
     lets an admin raise it. The carrier's own token limit (Thresholds) is the knob they have. A per-org
     cap setting is a later decision if a carrier needs more than $50 of Ask AI a month.
+- 2026-11-10 — **Q-AI2 and Q-AI5 ruled; R5 built (D-AI1, D-AI3, D-AI7).**
+  - **Q-AI2 (owner):** "all roles will get it eventually but AI will be related to their features and
+    they will not be able to see whatever they want." → D-AI1 as proposed: tools derived per request
+    from the section matrix. Roles are turned on as their areas get tools (Q-SET15's per-role switch
+    stays; nothing turned on by this change).
+  - **Q-AI5 (owner):** "Admin and Accounting can see financial data only, others need to see what is
+    already regulated by permissions." → no separate assistant permission list; the matrix already
+    gives `accounting`/`billing` to admin and accountant only, so a finance tool declaring
+    `accounting: view` reaches exactly them. **Plus D-AI7's narrow list** (owner: "proceed as proposed
+    and recommended"): SSN/tax id, date of birth, licence/CDL number, bank account and routing
+    numbers, full card numbers and PINs, passwords/keys/tokens — stripped from every tool result for
+    every role, admin included, because a report never needs them and tool results go to the model
+    provider. Names, statuses, counts and last-4s stay.
+  - **Built:** `packages/shared/src/assistantContract.ts` — each tool's section(s), taken from the gate
+    of the page its figure comes from (fuel tools → fuel; idling and driver scores → safety, as
+    `/api/idle` and the Driver performance page gate; fleet size → roster AND equipment);
+    `assistantToolsFor(role, sections)`; `stripNeverExposed`. The model is shown only the caller's
+    tools; the API refuses a call outside them; every result is stripped. The endpoint drops Q-SET14
+    (b)'s `requireSection("fuel")`; `ask-ai` becomes a STAFF screen that still starts off
+    (`startsOnFor: []`); someone with no tool is refused (`ai_no_tools`) and never shown the launcher;
+    suggestions name their tool and show only answerable ones. The system prompt no longer lists
+    areas the person may not have.
+  - **Today's tool reach (shipped defaults, computed from `assistantToolsFor`):** admin, fleet
+    manager, safety manager and auditor 14 of 14; dispatcher 12 (no idling, no driver scores);
+    accountant 11 (the fuel tools only); recruiter, technician and driver none yet. Org overrides move
+    these per carrier, and the screen itself is still off for every role but admin until turned on.
+  - **Next (R6):** finance first (`accounting: view` → admin + accountant), each tool calling its page's
+    own function with a test that the numbers agree, and a `source` line with freshness.
