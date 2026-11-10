@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { shiftDay, MEDSTOP_OUTCOME_LABELS, MEDSTOP_ORDER_REASONS, type MedstopOrderReason, type MedstopResultRow, type MedstopTestOutcome } from "@silvicom/shared";
+import { MEDSTOP_OUTCOME_LABELS, MEDSTOP_ORDER_REASONS, type MedstopOrderReason, type MedstopResultRow, type MedstopTestOutcome } from "@silvicom/shared";
 import { AppButton as BaseButton, DataTable, type DataTableColumn, DataWorkspace, FilterBar, TablePagination, useQueryState } from "@silvicom/ui";
+import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ListIntro from "@/features/drugAlcohol/ListIntro.vue";
 import PersonCell from "@/features/drugAlcohol/PersonCell.vue";
@@ -20,19 +21,20 @@ import { formatDate } from "@/lib/format";
  * page crashed ("Something went wrong" on `results.show=any`, owner).
  *
  * Reason and Collected came with that fix (owner: "see the latest, and see random results and the other
- * categories"). Reasons are Med-Stop's own words, offered from the rows like In progress's; Collected
- * counts back from the api's `today`, never the browser's, which is the viewer's day and not the carrier's.
+ * categories"). Reasons are Med-Stop's own words, offered from the rows like In progress's. Collected is
+ * the house `DateRangeFilter` (owner: "we don't have date range filtering"), whose presets cover what
+ * the first 7/30/90-day choice did; it compares Med-Stop's own collection day, so no clock is involved.
  * MS2c shipped only the two exception lists, so the tab
  * read as empty: one dilute from 10/05 for a month in which 65 tests came back negative (owner,
  * 2026-11-10). "Needs review" stays one choice away, its count beside it in Show; the tab's badge counts All results.
  */
-const props = defineProps<{ today: string; all: MedstopResultRow[]; recent: MedstopResultRow[]; history: MedstopResultRow[]; canOrder?: boolean }>();
+const props = defineProps<{ all: MedstopResultRow[]; recent: MedstopResultRow[]; history: MedstopResultRow[]; canOrder?: boolean }>();
 /**
  * MSO3 (D-MSO4): a negative-dilute DRUG result offers "Order a recollection" to whoever reads it AND may order.
  * It never orders anything by itself and never blocks: the office decides, and decides whether it is observed.
  * Only a reason the drawer orders is offered (an "OTHER" test has no reason to repeat it under).
  */
-const emit = defineEmits<{ recollect: [row: { testId: string; medstopId: string; name: string; reason: MedstopOrderReason; collectedOn: string | null }] }>();
+const emit = defineEmits<{ shown: [count: number | null]; recollect: [row: { testId: string; medstopId: string; name: string; reason: MedstopOrderReason; collectedOn: string | null }] }>();
 const recollectable = (r: MedstopResultRow): MedstopOrderReason | null => {
   const reason = (r.reason ?? "").toUpperCase() as MedstopOrderReason;
   return props.canOrder && r.source === "test" && r.kind === "drug" && r.outcome === "negative_dilute" && r.person.medstopId && MEDSTOP_ORDER_REASONS.includes(reason)
@@ -77,12 +79,14 @@ const reason = qs.param("reason");
 const reasonOptions = computed(() =>
   [...new Set(source.value.map((r) => r.reason).filter((r): r is string => Boolean(r)))].sort().map((r) => ({ value: r, label: r.toLowerCase() })),
 );
-/** Days back from the carrier's today, today included: "Last 7 days" on 11/10 is 11/04–11/10. */
-const WITHIN = { "7": "Last 7 days", "30": "Last 30 days", "90": "Last 90 days" } as const;
-const within = qs.param("collected", Object.keys(WITHIN));
-const withinOptions = Object.entries(WITHIN).map(([value, label]) => ({ value, label }));
-// An undated row (a refusal with no visit day) is kept by no window: it cannot be shown to be recent.
-const since = computed(() => (within.value ? shiftDay(props.today, 1 - Number(within.value)) : null));
+// A hand-edited link is a day or nothing: anything else would compare as a string and narrow at random.
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const fromParam = qs.param("from");
+const toParam = qs.param("to");
+const from = computed({ get: () => (DAY.test(fromParam.value) ? fromParam.value : ""), set: (v: string | undefined) => (fromParam.value = v ?? "") });
+const to = computed({ get: () => (DAY.test(toParam.value) ? toParam.value : ""), set: (v: string | undefined) => (toParam.value = v ?? "") });
+// An undated row (a refusal with no visit day) is inside no range: it cannot be shown to fall in one.
+const inRange = (day: string | null) => (!from.value && !to.value) || (day !== null && (!from.value || day >= from.value) && (!to.value || day <= to.value));
 // Only the results this list holds are offered: a "Negative" choice on a list of positives finds nothing.
 const outcomeOptions = computed(() =>
   OUTCOMES.filter((o) => source.value.some((r) => r.outcome === o)).map((o) => ({ value: o, label: MEDSTOP_OUTCOME_LABELS[o] })),
@@ -107,8 +111,10 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
     (!kind.value || r.kind === kind.value) &&
     (!outcome.value || r.outcome === outcome.value) &&
     (!reason.value || r.reason === reason.value) &&
-    (!since.value || (r.collectedOn !== null && r.collectedOn >= since.value)),
-  filters: () => ({ test: kind.value, reason: reason.value, result: outcome.value, collected: within.value }),
+    inRange(r.collectedOn),
+  filters: () => ({ test: kind.value, reason: reason.value, result: outcome.value, from: from.value, to: to.value }),
+  showMoved: () => show.value !== "",
+  onShown: (n) => emit("shown", n),
 });
 </script>
 
@@ -130,7 +136,7 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
           <FilterSelect v-model="show" label="Show" :options="showOptions" />
           <FilterSelect v-model="kind" label="Test" :options="[...KIND_OPTIONS]" />
           <FilterSelect v-model="reason" label="Reason" :options="reasonOptions" />
-          <FilterSelect v-model="within" label="Collected" :options="withinOptions" />
+          <DateRangeFilter v-model:from="from" v-model:to="to" label="Collected" />
         </template>
         <template #more>
           <FilterSelect v-model="outcome" label="Result" :options="outcomeOptions" block />

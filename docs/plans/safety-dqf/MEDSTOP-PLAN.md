@@ -1247,3 +1247,12 @@ SQL, counts only). Nothing was ordered.
   offered from the rows, as In progress does) and **Collected** (last 7 / 30 / 90 days). The window
   counts back from `results.today`, the carrier's day the api read the year with — not the browser's.
   An undated refused order is kept by no window. Newest first is unchanged.
+- 2026-11-10 — **Results: a date range; tab numbers follow the filters (no migration).** Owner: "we
+  don't have date range filtering" and "filters don't change the numbers on the tab". Collected is now
+  the house `DateRangeFilter` (from/to, its presets cover the 7/30/90 choice it replaces); a link's
+  `from`/`to` that is not a day narrows nothing; an undated refused order is inside no range. The
+  `results.today` field that choice needed is dropped again. Tab numbers: once the reader narrows the
+  open tab (search, any filter, or Show on another list), its number is the rows on screen; with nothing
+  narrowed each number keeps its meaning (Random's stays the draws to test, R5). Other tabs keep their
+  own counts: only the open tab is mounted, and computing a closed tab's filtered count would mean a
+  second copy of its filter rules at the page — not worth it for a number nobody is looking at.

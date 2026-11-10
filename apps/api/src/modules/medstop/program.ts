@@ -151,7 +151,7 @@ export async function readDrugAlcoholProgram(
     selections: testingRoles ? await readSelections(admin, orgId, selectionRows, pools, personOf, today) : null,
     inProgress: inProgressRows(moving.orders, moving.tests, personOf, today, testingRoles),
     // MS2c: the results themselves — testing records, so the same rule as the selections above.
-    results: testingRoles ? { today, ...(await readResultReview(admin, orgId, shiftDay(today, -RESULT_REVIEW_DAYS), personOf)) } : null,
+    results: testingRoles ? await readResultReview(admin, orgId, shiftDay(today, -RESULT_REVIEW_DAYS), personOf) : null,
     medical: medicalCards(
       drivers.map((d) => ({ id: d.id, fullName: d.fullName, working: d.status === "active" && !d.archived })),
       medical,

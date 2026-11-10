@@ -114,12 +114,6 @@ describe("GET /api/drug-alcohol/program", () => {
     expect(body.data.connected).toBe(true);
   });
 
-  it("dates the results with the carrier's today, the day their year was read back from", async () => {
-    const { body } = await read();
-    expect(body.data.results?.today).toBe(todayInZone(new Date(), "America/Chicago"));
-    expect(body.data.results).toMatchObject({ all: expect.any(Array), recent: expect.any(Array), history: expect.any(Array) });
-  });
-
   it("lists every order and test in progress for the DER, random included", async () => {
     const { body } = await read();
     expect(body.data.inProgress.map((r) => r.key).sort()).toEqual(["order:r-rand", "test:t-pre"]);

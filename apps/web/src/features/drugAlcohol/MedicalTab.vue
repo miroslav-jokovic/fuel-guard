@@ -20,6 +20,7 @@ import { formatDate } from "@/lib/format";
  * review found stacked tables confusing); Show picks WHICH list, so "Clear filters" keeps it.
  */
 const props = defineProps<{ medical: MedicalCards }>();
+const emit = defineEmits<{ shown: [count: number | null] }>();
 
 const LISTS = {
   due: {
@@ -86,6 +87,8 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
   text: (r) => [r.name],
   narrow: (r) => (!when.value || whenOf(r.daysLeft) === when.value) && (!basis.value || basisOf(r) === basis.value),
   filters: () => ({ when: when.value, from: basis.value }),
+  showMoved: () => show.value !== "",
+  onShown: (n) => emit("shown", n),
 });
 const sourceDate = (row: MedicalCardRow, s: MedicalSource) => row.sources.find((c) => c.source === s)?.expiresOn ?? null;
 </script>

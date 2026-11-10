@@ -14,6 +14,7 @@ import { useProgramList } from "@/features/drugAlcohol/useProgramList";
  * links to the driver page when we hold the driver.
  */
 const props = defineProps<{ notInPool: ProgramPerson[]; leftButInPool: ProgramPerson[] }>();
+const emit = defineEmits<{ shown: [count: number | null] }>();
 
 const LISTS = {
   missing: {
@@ -57,6 +58,8 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
   text: (r) => [r.name],
   narrow: (r) => !match.value || (match.value === "matched") === Boolean(r.driverId),
   filters: () => ({ match: match.value }),
+  showMoved: () => show.value !== "",
+  onShown: (n) => emit("shown", n),
 });
 </script>
 
