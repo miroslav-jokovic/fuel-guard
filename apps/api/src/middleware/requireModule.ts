@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { moduleUnavailableMessage, type ModuleKey } from "@silvicom/shared";
+import { moduleUnavailableMessage, type ModuleKey, type ModuleSet } from "@silvicom/shared";
 import { apiError } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
@@ -32,6 +32,16 @@ async function moduleEnabled(admin: ReturnType<typeof getSupabaseAdmin>, orgId: 
     return data === true;
   });
 }
+/**
+ * The carrier's answer for each of `keys`, as the set `assistantToolsFor` and `canReachSurface` take
+ * (F21 R6b). The same cached `org_module_enabled` read the gate below makes, so the assistant's tool
+ * list and the route a tool's page calls can never disagree about whether a module is bought.
+ */
+export async function orgModuleSet(admin: ReturnType<typeof getSupabaseAdmin>, orgId: string, keys: readonly ModuleKey[]): Promise<ModuleSet> {
+  const on = await Promise.all(keys.map((k) => moduleEnabled(admin, orgId, k)));
+  return new Set(keys.filter((_, i) => on[i]));
+}
+
 export function requireModule(key: ModuleKey) {
   const handler = (req: Request, res: Response, next: NextFunction): void => {
     const orgId = req.auth?.orgId;

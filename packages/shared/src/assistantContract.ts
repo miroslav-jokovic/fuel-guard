@@ -1,5 +1,6 @@
 import { resolveSectionAccess, type AppSection, type SectionAccess, type SectionClaim } from "./auth.js";
 import type { UserRole } from "./constants.js";
+import { moduleEnabled, type ModuleKey, type ModuleSet } from "./entitlements.js";
 
 /**
  * Which assistant tools a caller may use (F21 R5; PLAN.md D-AI1/D-AI3; owner's rulings 2026-11-10).
@@ -24,12 +25,22 @@ import type { UserRole } from "./constants.js";
  * the API checks the same list again before running any call (defence in depth).
  */
 
-export interface ToolRequirement {
-  section: AppSection;
-  level: Exclude<SectionAccess, "none">;
-}
+/**
+ * What a tool needs: a section level from the matrix, or a MODULE the carrier has bought.
+ *
+ * The module kind arrived with the first dispatch tool (F21 R6b, 2026-11-10). `/api/livemap/*` and the
+ * loads router refuse a carrier without Dispatch (`requireModule("dispatch")`, D55) BEFORE asking
+ * the section, so a dispatch tool declared on the section alone would answer, for a carrier that
+ * never bought Dispatch, a question its own page refuses. The fuel, safety, roster, equipment and
+ * accounting pages carry no module gate, so their tools declare none. A tool declares exactly the
+ * gates its page's route carries; nothing more, nothing less.
+ */
+export type ToolRequirement =
+  | { section: AppSection; level: Exclude<SectionAccess, "none"> }
+  | { module: ModuleKey };
 
 const view = (section: AppSection): ToolRequirement => ({ section, level: "view" });
+const bought = (module: ModuleKey): ToolRequirement => ({ module });
 
 /** Every assistant tool and what it needs. The API's tool definitions must match these names exactly. */
 export const ASSISTANT_TOOL_ACCESS = {
@@ -50,6 +61,9 @@ export const ASSISTANT_TOOL_ACCESS = {
   driver_performance: [view("safety")],
   idling_summary: [view("safety")],
   idle_report: [view("safety")],
+  // The live map (`/api/livemap/positions`: `requireModule("dispatch")` then
+  // `requireSection("dispatch", "view")`, the Dashboard's Dispatch tab).
+  fleet_now: [bought("dispatch"), view("dispatch")],
   // Drivers (roster) and Vehicles (equipment).
   fleet_roster: [view("roster"), view("equipment")],
   // Fleet report and its income statement (`finance.fleet-report`, gate `section("accounting")`;
@@ -65,15 +79,43 @@ export const ASSISTANT_TOOL_NAMES = Object.keys(ASSISTANT_TOOL_ACCESS) as Assist
 
 const RANK: Record<SectionAccess, number> = { none: 0, view: 1, manage: 2 };
 
-/** May this caller use this tool? Every requirement, against their resolved access. */
-export function callerMayUseTool(role: UserRole | null | undefined, claim: SectionClaim | null | undefined, tool: AssistantToolName): boolean {
-  return ASSISTANT_TOOL_ACCESS[tool].every((r) => RANK[resolveSectionAccess(role, r.section, claim)] >= RANK[r.level]);
+/**
+ * The modules any tool needs, so a caller knows which entitlements to resolve before asking
+ * `assistantToolsFor`. The API reads only these (cached, `org_module_enabled`), not the whole list.
+ */
+export const ASSISTANT_TOOL_MODULES: readonly ModuleKey[] = [
+  ...new Set(
+    Object.values(ASSISTANT_TOOL_ACCESS as Record<string, readonly ToolRequirement[]>)
+      .flat()
+      .flatMap((r) => ("module" in r ? [r.module] : [])),
+  ),
+];
+
+/**
+ * May this caller use this tool? Every requirement, against their resolved access and their
+ * carrier's modules. `modules` is REQUIRED, the way `canReachSurface` takes it: a caller that has not
+ * read the carrier's modules passes `null` and is refused every module-gated tool, rather than a
+ * forgotten argument quietly answering for a module nobody bought.
+ */
+export function callerMayUseTool(
+  role: UserRole | null | undefined,
+  claim: SectionClaim | null | undefined,
+  modules: ModuleSet | null,
+  tool: AssistantToolName,
+): boolean {
+  return (ASSISTANT_TOOL_ACCESS[tool] as readonly ToolRequirement[]).every((r) =>
+    "module" in r ? moduleEnabled(modules, r.module) : RANK[resolveSectionAccess(role, r.section, claim)] >= RANK[r.level],
+  );
 }
 
 /** The caller's tools, in catalogue order (stable, so the cached prompt prefix is stable per role). */
-export function assistantToolsFor(role: UserRole | null | undefined, claim: SectionClaim | null | undefined): AssistantToolName[] {
+export function assistantToolsFor(
+  role: UserRole | null | undefined,
+  claim: SectionClaim | null | undefined,
+  modules: ModuleSet | null,
+): AssistantToolName[] {
   if (!role || role === "driver") return [];
-  return ASSISTANT_TOOL_NAMES.filter((t) => callerMayUseTool(role, claim, t));
+  return ASSISTANT_TOOL_NAMES.filter((t) => callerMayUseTool(role, claim, modules, t));
 }
 
 // ── NEVER-SHOWN FIELDS (PLAN D-AI7, owner 2026-11-10: "proceed as proposed and recommended") ──────

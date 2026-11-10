@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { requireAuth, requireOrg } from "../../../middleware/auth.js";
-import { assistantToolsFor } from "@silvicom/shared";
+import { ASSISTANT_TOOL_MODULES, assistantToolsFor } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { requireSurface } from "../../../middleware/requireSurface.js";
+import { orgModuleSet } from "../../../middleware/requireModule.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { askData } from "../askData.js";
 import { alertAssistantBudget, assistantLogLine, readAssistantBudget, recordAssistantAnswer } from "../assistantUsage.js";
@@ -29,8 +30,14 @@ export function aiRouter(): Router {
     asyncHandler(async (req, res) => {
       // F21 R5 (D-AI1): the person's tools, from their section access as their token carries it. None
       // means this screen was turned on for someone whose areas have no questions yet — refused here,
-      // and the launcher is hidden for them on the same answer (`useAssistantAccess`).
-      const allowed = assistantToolsFor(req.auth!.role, req.auth!.sections ?? null);
+      // and the launcher is hidden for them on the same answer (`useAssistantAccess`). A dispatch tool
+      // also needs the carrier to have bought Dispatch, read the way its page's `requireModule` reads it.
+      // A failed read closes the module-gated tools only (logged), never the whole assistant.
+      const modules = await orgModuleSet(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, ASSISTANT_TOOL_MODULES).catch((e: unknown) => {
+        console.warn(`[ai] org=${req.auth!.orgId} module read failed, module tools withheld: ${e instanceof Error ? e.message : String(e)}`);
+        return new Set<never>();
+      });
+      const allowed = assistantToolsFor(req.auth!.role, req.auth!.sections ?? null, modules);
       if (allowed.length === 0) {
         res.status(403).json(apiError("ai_no_tools", "Ask AI has no questions for your role's areas yet."));
         return;

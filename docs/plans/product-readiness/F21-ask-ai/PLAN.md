@@ -381,3 +381,26 @@ audit row is the endpoint's own.
   - Six deliberate breaks, each killed by an assertion, never by a compile or reference error: web
     sends the last day, ledger widens from the bound, Samsara months from the bound, mileage months
     from the bound, the comparative's old inclusive read, and the tool sends the last day.
+- 2026-11-10 — **R6b: the module gate and `fleet_now` (dispatch).**
+  - **Contract:** a `ToolRequirement` is now a section level OR a module the carrier bought
+    (`{ module }`), and `assistantToolsFor(role, sections, modules)` takes the carrier's `ModuleSet` the
+    way `canReachSurface` does. The argument is REQUIRED, and `null` refuses every module-gated tool, so
+    a forgotten argument cannot answer for a module nobody bought. A tool declares exactly its page
+    route's gates. Today only `fleet_now` declares one (`dispatch`), because fuel, safety, roster,
+    equipment and accounting routes carry no `requireModule`.
+  - **API:** `POST /api/ai/ask` reads only `ASSISTANT_TOOL_MODULES` through `orgModuleSet`, the same
+    cached `org_module_enabled` read `requireModule` makes, so the tool list and the page's route
+    cannot disagree. A failed read withholds the module tools, logs it, and answers with the rest.
+    **Web:** `useAssistantTools` / `useAssistantAccess` pass `useModulesQuery`'s set.
+  - **`fleet_now`** (livemap): `readLiveMapBoardCached`, the Dispatch tab's own board and 5-second
+    cache, counted by the board's `state` (`deriveVehicleState`, computed once on the board), never
+    re-judged from speed. It gives moving, stopped, parked and offline counts, the same with a driver
+    assigned ("how many drivers are moving"), in shop, never positioned, and an optional list (at most
+    25: unit, driver, speed, location, load, next stop, position age) with the board's `as_of`.
+  - **Tests and breaks:** contract (with and without Dispatch, `null`, section still decides), route
+    (no Dispatch, Dispatch, failed read), tool (states that disagree with speeds), web hook. Six
+    deliberate breaks killed: tool without its module, module check always true, route passes no
+    modules, route throws on a failed read, counting by speed, and the web ignoring modules (that one
+    first SURVIVED, so it got its own test).
+  - **Next in R6b:** loads and miles per truck (`dispatch`, the same module gate), IFTA by state,
+    maintenance cost per unit, card holds, DQ and inspection expiries, recruiting counts.

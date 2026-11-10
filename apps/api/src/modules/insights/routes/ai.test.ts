@@ -48,7 +48,7 @@ afterAll(async () => {
 });
 beforeEach(() => askData.mockReset());
 
-function setup(spentMicroUsd: number, tokens = { used: 0, budget: null as number | null }) {
+function setup(spentMicroUsd: number, tokens = { used: 0, budget: null as number | null }, dispatch: boolean | "error" = false) {
   rec = createSupabaseRecorder({
     tables: {
       organizations: [{ operating_hours: { tz: "America/Chicago" } }],
@@ -56,7 +56,13 @@ function setup(spentMicroUsd: number, tokens = { used: 0, budget: null as number
       anomaly_thresholds: tokens.budget == null ? [] : [{ ai_monthly_token_budget: tokens.budget }],
       memberships: [{ user_id: "u-admin", role: "admin" }],
     },
-    rpc: (fn) => (fn === "assistant_month_spend" ? [{ cost_micro_usd: spentMicroUsd, answers: 3 }] : fn === "emit_notification" ? "n-1" : "row-id"),
+    rpc: (fn, args) => {
+      if (fn === "org_module_enabled") {
+        if (dispatch === "error") throw new Error("entitlement read failed");
+        return (args as { p_module: string }).p_module === "dispatch" ? dispatch : false;
+      }
+      return fn === "assistant_month_spend" ? [{ cost_micro_usd: spentMicroUsd, answers: 3 }] : fn === "emit_notification" ? "n-1" : "row-id";
+    },
   });
   holder.client = rec.client;
 }
@@ -116,5 +122,39 @@ describe("POST /api/ai/ask — the meter", () => {
     expect(res.status).toBe(503);
     expect(rec.rpcs().find((c) => c.fn === "record_assistant_answer")!.args).toMatchObject({ p_outcome: "error", p_rounds: 1 });
     expect(audit()?.meta).toMatchObject({ outcome: "error" });
+  });
+});
+
+/**
+ * F21 R6b: a dispatch tool reaches the model only when the carrier bought Dispatch, read through the
+ * same `org_module_enabled` its page's `requireModule` asks. A failed read withholds the module tools
+ * and nothing else.
+ */
+describe("POST /api/ai/ask — module-gated tools", () => {
+  const allowedOf = () => askData.mock.calls[0]![4] as string[];
+  const answered = () => askData.mockResolvedValueOnce({ answer: "ok", tools: [], usage: USAGE, outcome: "answered" });
+
+  it("withholds fleet_now from a carrier without Dispatch, and keeps every other tool", async () => {
+    setup(0);
+    answered();
+    expect((await post("how many are moving")).status).toBe(200);
+    expect(allowedOf()).not.toContain("fleet_now");
+    expect(allowedOf()).toContain("fuel_report");
+  });
+
+  it("gives fleet_now to a carrier that bought Dispatch", async () => {
+    setup(0, undefined, true);
+    answered();
+    expect((await post("how many are moving")).status).toBe(200);
+    expect(allowedOf()).toContain("fleet_now");
+    expect(rec.rpcs().find((c) => c.fn === "org_module_enabled")!.args).toEqual({ p_org: ORG, p_module: "dispatch" });
+  });
+
+  it("a failed entitlement read withholds only the module tools; the question is still answered", async () => {
+    setup(0, undefined, "error");
+    answered();
+    expect((await post("fuel last month")).status).toBe(200);
+    expect(allowedOf()).not.toContain("fleet_now");
+    expect(allowedOf()).toContain("fuel_report");
   });
 });
