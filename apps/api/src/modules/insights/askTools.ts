@@ -3,6 +3,7 @@ import { ASSISTANT_TOOL_NAMES, type AssistantToolName } from "@silvicom/shared";
 import { FINANCE_PERIODS, MAX_FINANCE_TRUCKS } from "../financial/index.js";
 import { MAX_REPORT_UNITS, REPORT_PERIODS } from "../fuel-spend/index.js";
 import { FLEET_NOW_STATES, MAX_FLEET_NOW_TRUCKS } from "../livemap/index.js";
+import { MAX_MAINTENANCE_UNITS } from "../fleetpal/index.js";
 import { CARD_HOLD_STATUSES } from "../efs/index.js";
 import { MAX_LOADS_TRUCKS, MAX_LOADS_UNITS } from "../loads/index.js";
 import { IFTA_QUARTER_PERIODS } from "../ifta/index.js";
@@ -184,6 +185,28 @@ export const TOOLS: Anthropic.Tool[] = [
     name: "fleet_roster",
     description: "Fleet size right now: total and active counts of vehicles, drivers, and trailers.",
     input_schema: { type: "object", properties: {} },
+  },
+  {
+    // F21 R6b: the truck page's repair bills (`fleetpal/assistantMaintenanceCost.ts`).
+    name: "maintenance_cost",
+    description:
+      "Repair bills for named trucks or trailers over a period (default: the last 12 full months, as the truck page): " +
+      "FleetPal's cost per unit with parts, labour, labour hours, services, fees and tax, repairs, days in the shop, " +
+      "miles and cost per mile. TWO SOURCES, never mixed: fleetpal_cost includes the shop's own labour, which McLeod " +
+      "books as wages; McLeod's maintenance accounts are FLEET-WIDE per month only (mcleod_by_month), with no truck on " +
+      "them, so never give a McLeod figure for one unit or divide McLeod by trucks. share_of_ledger_seen_through_fleetpal " +
+      "is a lower bound: say 'at least'. If cost_unavailable is present, there is NO figure: give the reason and the months.",
+    input_schema: {
+      type: "object",
+      properties: {
+        units: { type: "array", items: { type: "string" }, description: `Truck or trailer unit numbers exactly as written (at most ${MAX_MAINTENANCE_UNITS}).` },
+        period: { type: "string", enum: [...REPORT_PERIODS], description: "Calendar period on the carrier's clock. Leave out for the last 12 full months." },
+        days: { type: "integer", description: "Only for period=last_n_days." },
+        from: { type: "string", description: "First day, YYYY-MM-DD (with to)." },
+        to: { type: "string", description: "Last day, YYYY-MM-DD, inclusive." },
+      },
+      required: ["units"],
+    },
   },
   // ── Dispatch (F21 R6b, `livemap/assistantFleetNow.ts`; needs the Dispatch module) ──
   {

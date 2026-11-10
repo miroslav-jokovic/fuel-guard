@@ -19,6 +19,7 @@ vi.mock("../fuel/index.js", () => ({ FUEL_EVENT_DROP: "drop" }));
 vi.mock("../idle/index.js", () => ({ assistantIdleReport: vi.fn() }));
 vi.mock("../efs/index.js", () => ({ assistantCardHolds: vi.fn(), CARD_HOLD_STATUSES: ["Hold", "Fraud"] }));
 vi.mock("../ifta/index.js", () => ({ assistantIftaReport: vi.fn(), IFTA_QUARTER_PERIODS: ["this_quarter", "last_quarter"] }));
+vi.mock("../fleetpal/index.js", () => ({ assistantMaintenanceCost: vi.fn(), MAX_MAINTENANCE_UNITS: 10 }));
 vi.mock("../livemap/index.js", () => ({ assistantFleetNow: vi.fn(), FLEET_NOW_STATES: ["moving"], MAX_FLEET_NOW_TRUCKS: 25 }));
 vi.mock("../loads/index.js", () => ({ assistantLoadsByTruck: vi.fn(), MAX_LOADS_TRUCKS: 25, MAX_LOADS_UNITS: 25 }));
 vi.mock("../financial/index.js", () => ({
