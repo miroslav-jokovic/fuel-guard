@@ -141,39 +141,36 @@ export function withTileRequest(template: string): string {
 }
 
 /**
- * ── D-DR28: A ZOOM WAITS ON THE PIPELINE, NOT ON HERE — TWO maplibre DEFAULTS, MEASURED (2026-11-10) ─
+ * ── D-DR28: 32 PARALLEL TILE REQUESTS, AND THE FADE STAYS (2026-11-10, corrected by D-DR32) ─────────
  * The owner, the morning after D-DR26: "the map is slowed down when zooming in and out and tiles are
  * loading slow". D-DR26 is the cause and is NOT reverted — a Retina-sharp raster map has to lay a 2×
- * tile over 256 CSS pixels, so the tile count it brought (154 → 410 on the walk below, 2.7×) is the
- * price of the sharp map that names the Pilot. What was left to fix is how long each zoom WAITS for
- * those tiles, and that turned out to be two maplibre defaults sized for the 512-tile map.
+ * tile over 256 CSS pixels, so the tile count it brought (154 → 410 on one zoom walk, 2.7×) is the
+ * price of the sharp map that names the Pilot.
  *
- * Measured on the real staging Dispatch map (signed in, 1512×900 at devicePixelRatio 2, Chicago,
- * zoom 4 → 17 and back): 408 tile requests, 170 of them abandoned mid-zoom; our proxy answered in
- * 191 ms p50 / 262 ms p90; one long task, no dropped frames. The page is not slow to DRAW — so the
- * candidates were A/B'd in a rig: maplibre 5.24.0, HTTP/2 (as production serves), real HERE bytes
- * with the proxy's measured extra hop, a cold cache, and the same 18 one-level zooms each time,
- * timing "zoom finished → map idle". Four runs each, p50 of the 18 waits:
- *
- *   today (300 ms fade, 16 parallel)        1.35 · 1.40 · 1.61 · 1.65 s
- *   raster-fade-duration 0 + 32 parallel    0.69 · 0.71 · 0.95 · 0.98 s   ← this
- *   fade 100 ms + 32 parallel               1.08 · 1.16 · 1.23 · 1.61 s
- *   fade 0 alone                            0.93 · 0.97 s
- *   32 parallel alone                       1.22 · 1.31 s
- *
- * ⚠ **The fade is most of it, and it does not scale linearly.** maplibre keeps the PARENT tile on
- * screen until a child's fade has finished, so every one of 2.7× more tiles held the previous zoom
- * for 300 ms more; a 100 ms fade keeps most of the cost. With no fade a tile appears the frame it is
- * decoded, over the parent maplibre was already showing — there is no blank-square flash to trade.
- *
- * ⚠ **The parallel cap is the smaller half, and it is stated as such.** maplibre caps image requests
- * at 16 (`MAX_PARALLEL_IMAGE_REQUESTS`, 5.24.0), a number from the HTTP/1.1 era of six sockets per
- * host. Production serves `/api` over HTTP/2 (checked: `curl` reports `2` on the tile route), where
- * 32 requests are one connection. It is a global setter, so it is set once per map construction.
+ * **The parallel cap is raised.** maplibre caps image requests at 16 (`MAX_PARALLEL_IMAGE_REQUESTS`,
+ * 5.24.0), a number from the HTTP/1.1 era of six sockets per host. Production serves `/api` over
+ * HTTP/2 (checked: `curl` reports `2` on the tile route), where 32 requests are one connection. In a
+ * rig timing "zoom finished → map idle" over 18 one-level zooms, 32 alone moved the p50 from
+ * 1.35–1.65 s to 1.22–1.31 s. It is a global setter, so it is set once per map construction.
  * ⚠ While the camera MOVES maplibre still throttles to 8 per frame
  * (`MAX_PARALLEL_IMAGE_REQUESTS_PER_FRAME`); that one has no public setter and is left alone.
+ *
+ * ⚠⚠ **THE FADE WAS TURNED OFF FOR A DAY, AND THAT WAS A MEASUREMENT MISTAKE (D-DR32).** D-DR28
+ * first shipped `raster-fade-duration: 0`, reporting that zooms settled in 0.69–0.98 s instead of
+ * 1.35–1.65 s. Most of that gain was the metric, not the map: maplibre's `idle` waits for running
+ * fades to end, so a 300 ms fade adds ~300 ms to "zoom finished → idle" even when every tile arrived
+ * at the same moment. The reader got almost nothing faster and lost the cross-fade. The owner saw
+ * the cost the same afternoon: "tiles are loaded in a weird way and look really bad and not
+ * natural". A video of the staging map shows why. A raster tile carries its labels baked in, so
+ * with no fade each square SNAPS from the previous zoom's large, edge-clipped labels ("Hebrc",
+ * "Woodsto", "Ri" beside "Ringwood") to the new small ones on its own, and the seams show as a
+ * patchwork. maplibre's default 300 ms cross-fade blends each square in instead.
+ *
+ * So the fade is maplibre's own default, written out so the next person tuning speed sees why it is
+ * there before turning it off again. The patchwork itself belongs to raster tiles. Only a vector
+ * basemap, where maplibre draws the labels and places them across tiles, removes it (D-DR31, proposed).
  */
-const RASTER_FADE_MS = 0;
+const RASTER_FADE_MS = 300;
 const MAX_PARALLEL_TILE_REQUESTS = 32;
 
 export function useMapLibre(options: UseMapLibreOptions): {
