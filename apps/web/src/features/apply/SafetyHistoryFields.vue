@@ -186,8 +186,14 @@ const everDenied = computed<boolean | null>({
     <div v-if="askPriorTest" class="space-y-3">
       <h3 class="text-sm font-semibold text-ink">{{ copy.priorTestHeading }}</h3>
       <p class="text-sm text-ink-muted">{{ copy.priorTestIntro }}</p>
-      <BaseCheckbox v-model="draft.prior_failed_pre_employment_test" size="touch">{{ copy.priorTest }}</BaseCheckbox>
-      <p class="text-xs text-ink-muted">{{ copy.priorTestHint }}</p>
+      <!-- F1 part 2: Yes and No, nothing chosen — an unticked box was a "No" nobody gave (audit finding 13). -->
+      <YesNoField
+        :id="idFor(['prior_failed_pre_employment_test'])"
+        v-model="draft.prior_failed_pre_employment_test"
+        :legend="copy.priorTest"
+        :hint="copy.priorTestHint"
+        :error="errorFor(['prior_failed_pre_employment_test'])"
+      />
     </div>
   </section>
 </template>

@@ -141,11 +141,15 @@ describe("the hub, and one job at a time", () => {
     await w.find("#apply-employers-0-position_held").setValue("Driver");
     await w.find("#apply-employers-0-started_on").setValue("01/02/2024");
     await w.find("#apply-employers-0-started_on").trigger("keydown.enter");
+    // F1 part 2: neither question starts at Yes, so the driver answers both.
+    await w.find("fieldset#apply-employers-0-operated_cmv").findAll("input[type=radio]")[0]!.setValue(true);
+    await w.find("fieldset#apply-employers-0-dot_regulated").findAll("input[type=radio]")[0]!.setValue(true);
     await w.vm.$nextTick();
     await button(w, "Save this job")!.trigger("click");
 
     expect(d.employers).toHaveLength(1);
     expect(d.employers[0]!.employer_name).toBe("Old Carrier");
+    expect([d.employers[0]!.operated_cmv, d.employers[0]!.dot_regulated]).toEqual([true, true]);
     expect(d.employers[0]!.position_held).toBe("Driver");
   });
 

@@ -167,6 +167,8 @@ const APPLICATION = {
     accidents: [], declares_no_accidents: true,
     violations: [], declares_no_violations: true,
     licence_ever_denied: false,
+    // §40.25(j) answered: a legacy filing is refused without it since F1 part 2.
+    prior_failed_pre_employment_test: false,
     employers: [], declares_no_employment: true,
     certified: true as const, signed_name: "Susan Godfrey",
   },

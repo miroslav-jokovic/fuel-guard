@@ -181,15 +181,30 @@ describe("a v2 invitation files the composed application (D-AW3, AW1)", () => {
     expect(rec.rpcs()).toHaveLength(0);
   });
 
-  it("asks a legacy invitation nothing new and files what it certified", async () => {
+  it("asks a legacy invitation nothing new but §40.25(j), and files what it certified", async () => {
     publish();
     const rec = seed();
     const result = await submitApplication(
-      rec.client, env(), TOKEN, APPLICATION({ employers: [{ ...EMPLOYER, reason_for_leaving: null }] }), CTX, NOW,
+      rec.client, env(), TOKEN,
+      APPLICATION({ employers: [{ ...EMPLOYER, reason_for_leaving: null }], prior_failed_pre_employment_test: false }), CTX, NOW,
     );
     expect(isIntakeError(result)).toBe(false);
     const filed = filedPayload(rec)!;
     expect([filed.phone, filed.cdl_number]).toEqual(["555-0111", "TYPED1"]);
     expect(rec.forTable("application_intake_licences")).toHaveLength(0);
+  });
+
+  /**
+   * F1 part 2 (audit finding 13): a legacy link asked §40.25(j) as an unticked box, so a skipped box
+   * filed as No. It is a Yes/No now, and a filing with neither is refused in words, filing nothing.
+   * A v2 link never meets this: Part 1 refuses an intake without the answer (AI009).
+   */
+  it("refuses a legacy filing that never answered §40.25(j), and files nothing", async () => {
+    publish();
+    const rec = seed();
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION({ prior_failed_pre_employment_test: null }), CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("application_incomplete");
+    expect(isIntakeError(result) && result.message).toContain("tested positive or refused a test");
+    expect(rec.rpcs()).toHaveLength(0);
   });
 });

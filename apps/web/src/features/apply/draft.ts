@@ -369,7 +369,8 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     // A saved answer, or unanswered (C3c2c1) — never floored at a "No" the applicant did not give.
     licence_ever_denied: typeof payload.licence_ever_denied === "boolean" ? payload.licence_ever_denied : null,
     licence_denial_detail: str("licence_denial_detail"),
-    prior_failed_pre_employment_test: bool("prior_failed_pre_employment_test"),
+    // F1 part 2: a saved answer, or unanswered — never floored at a "No" the applicant did not give.
+    prior_failed_pre_employment_test: answer(payload.prior_failed_pre_employment_test),
     // AW1: an entry saved before keys existed gets one now, and keeps it from the next save on.
     employers: rows<DraftEmployer>("employers", base.employers).map((e) => ({
       ...e,
@@ -378,6 +379,10 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
       // Q-AW33 (C3c2b): a saved answer is kept, `true` or `false` alike — including the `false` a draft
       // from before C3c2b holds because the box was never ticked; it cannot be told from a real "No".
       // Anything else — absent, or not a boolean — is unanswered, never "No".
+      // F1 part 2: the same rule for the two questions that used to start at Yes. A saved Yes from before
+      // is kept — it cannot be told from a real one, and the review drawer shows it to the office.
+      operated_cmv: answer(e.operated_cmv),
+      dot_regulated: answer(e.dot_regulated),
       subject_to_fmcsr: answer(e.subject_to_fmcsr),
       safety_sensitive: answer(e.safety_sensitive),
     })),

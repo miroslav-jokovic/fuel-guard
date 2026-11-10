@@ -289,3 +289,17 @@ A gate fails on a literal string in an `apply/` template.
   - **Next:** F1 part 2 (the yes/no answers with no default, moved from F0), then F0b.
   - **New question:** Q-AM13.
 - 2026-11-10: owner answered Q-AM13: every answer is office-editable before signing. The four drug-test statements need a note, and they reach the driver for acceptance on 3.1. Donor gender and EEO are replace-only. F3's card builds these doors. The catalogue's `office` reasons now name F3 instead of an open question.
+- 2026-11-10: F1 part 2 is on `claude/application-f1-yesno`. This is the F0 row "Legacy unticked → No; defaults of Yes", which moved into F1.
+  - **No question starts answered any more:**
+    - each job's "Did you drive a truck?" (`operated_cmv`) and "Was this employer regulated by the DOT?" (`dot_regulated`). Both used to start at Yes (audit finding 15);
+    - a legacy link's §40.25(j) question. It was an unticked checkbox, so skipping it filed No (finding 13). It is now a Yes/No question.
+  - **The contract:** the two employer fields became `.nullish()`, so a draft can hold an unanswered job and the office's correction path still parses it.
+  - **Where a blank is refused:**
+    - the hand-off and the filing (`unansweredEmployerQuestions`, in `driverApplicationSchema`'s refinement);
+    - the job panel's Save, for the applicant and the office alike (`employerProblems`);
+    - the wizard's jobs screen.
+    - A legacy filing is refused without §40.25(j) (`applicationLegacyFilingIssues` in `applicationSubmit`). A v2 link already asks it in Part 1.
+  - **Kept:** the "answer Yes if unsure" asymmetry now lives in the hint, in English and Spanish. A PSP-suggested job still arrives as Yes/Yes, because PSP's own record is the evidence.
+  - **Fixed along the way:** the office record's rule that dropped a Yes on a row whose answer was never recorded. The form now shows such a row as unanswered, so a Yes there is the office's answer and is sent.
+  - **Next:** F0b (the one-time code for the DOB unlock).
+
