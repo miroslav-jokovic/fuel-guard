@@ -229,7 +229,7 @@ export function recruitmentApplicationReviewRouter(): Router {
         res.status(status(result.code)).json(apiError(result.code, result.message));
         return;
       }
-      res.json({ ok: true });
+      res.json({ ok: true, contact: result.contact });
     }),
   );
 

@@ -20,6 +20,7 @@ import { fieldId } from "./fieldLabels";
 import { APPLY_SECTION_TITLES } from "./strings";
 import { applicantFactRows, factSections, jobsMatch, matchingFacts, type FactRow } from "./applicantFactRows";
 import { correctionFor, type FactValue } from "./factCorrection";
+import { contactNotice, contactToast } from "./factContact";
 import {
   useCorrectIdentityFromReview,
   useCorrectPartOne,
@@ -198,12 +199,13 @@ async function save(row: FactRow): Promise<void> {
     return;
   }
   try {
-    if (correction.door === "draft") await draftEdit.mutateAsync(correction.edit);
+    let moved;
+    if (correction.door === "draft") moved = (await draftEdit.mutateAsync(correction.edit)).contact;
     else if (correction.door === "identity") await identityEdit.mutateAsync(correction.identity);
     else if (correction.door === "part_one_answer") await answerEdit.mutateAsync(correction.answer);
-    else await partOneEdit.mutateAsync(correction.body);
+    else moved = await partOneEdit.mutateAsync(correction.body);
     open.value = null;
-    toast.push("success", "Answer corrected", "The applicant is shown this change before they sign.");
+    toast.push("success", "Answer corrected", contactToast(moved));
   } catch (e) {
     problem.value = e instanceof Error ? e.message : "That change could not be saved.";
   }
@@ -277,6 +279,9 @@ function shown(row: FactRow): string {
               :error="problem ?? undefined"
             />
             <p v-if="row.rule !== 'replace_only'" class="text-2xs text-ink-tertiary" data-fact-on-file>On file: {{ shown(row) }}</p>
+            <p v-if="contactNotice(row, review.contact)" class="text-xs text-ink-secondary" data-fact-contact>
+              {{ contactNotice(row, review.contact) }}
+            </p>
             <p v-else class="text-2xs text-ink-tertiary" data-fact-blind>
               Not shown to you, so it does not reach whoever decides the hire. Choose the answer the applicant gives you.
             </p>

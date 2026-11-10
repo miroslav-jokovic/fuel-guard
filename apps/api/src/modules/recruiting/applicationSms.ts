@@ -173,6 +173,49 @@ export async function withdrawSmsConsent(
 }
 
 /**
+ * Stop texting ONE applicant at ONE number (APPLICATION-FIX-PLAN F3c, E3): the office corrected their
+ * phone, so the number their consent names is no longer the number they gave.
+ *
+ * ⚠ Not `revoke_sms_consent`, which is STOP's: it revokes every live consent on the number, org-wide,
+ * because a STOP says "do not text me". A correction says "this applicant's number is not that one",
+ * which is about this applicant only — another applicant who agreed on the same number (a household
+ * phone) has not changed anything. `revoked_at`/`revoked_reason` are the columns 0233's guard leaves
+ * mutable; nothing else is touched, and nothing is granted on the new number: consent attaches to a
+ * NUMBER, and nobody agreed to texts at this one.
+ */
+export async function withdrawSmsConsentOnNumber(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  phone: string,
+  reason: string,
+): Promise<number> {
+  const { data } = await admin
+    .from("sms_consents")
+    .update({ revoked_at: new Date().toISOString(), revoked_reason: reason })
+    // The service role bypasses RLS; this query carries its own tenant scope.
+    .eq("org_id", orgId)
+    .eq("driver_id", driverId)
+    .eq("phone", phone)
+    .is("revoked_at", null)
+    .select("id");
+  return Array.isArray(data) ? data.length : 0;
+}
+
+/** Whether this applicant is texted at this number now — a live consent of theirs names it. */
+export async function textedAt(admin: SupabaseClient, orgId: string, driverId: string, phone: string): Promise<boolean> {
+  const { data } = await admin
+    .from("sms_consents")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("driver_id", driverId)
+    .eq("phone", phone)
+    .is("revoked_at", null)
+    .limit(1);
+  return Array.isArray(data) && data.length > 0;
+}
+
+/**
  * Every number agreed to on this link, revoked or not — counted from the link's own creation, so a
  * driver invited again (Q-AX6) starts a fresh count while one link cannot be cycled through numbers.
  * A link whose creation cannot be read counts every number the driver ever agreed to: the stricter

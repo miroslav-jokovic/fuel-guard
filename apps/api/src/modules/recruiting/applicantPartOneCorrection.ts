@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { partOneEdits, type ApplicantIdentity, type ApplicantIntakeLicence, type PartOneCorrection } from "@silvicom/shared";
+import { stopTextsToReplacedPhone } from "./applicantContactMove.js";
+import { partOneEdits, type ApplicantIdentity, type ApplicantIntakeLicence, type ApplicationContactMove, type PartOneCorrection } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 import { partOneForFiling } from "./applicantIntake.js";
 import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
@@ -171,7 +172,7 @@ export async function correctApplicantPartOne(
   invitationId: string,
   body: PartOneCorrection,
   actorId: string,
-): Promise<{ ok: true } | PartOneCorrectionError> {
+): Promise<{ ok: true; contact: ApplicationContactMove } | PartOneCorrectionError> {
   const invitation = await invitationOf(admin, orgId, invitationId);
   if (!invitation) return NOT_FOUND;
   if (invitation.submitted_at) {
@@ -209,7 +210,9 @@ export async function correctApplicantPartOne(
     entityId: invitation.id,
     meta: { driverId: invitation.driver_id, fields: [...Object.keys(fields), "licences"] },
   });
-  return unrecorded ?? { ok: true };
+  // E3: the phone Part 1 held is the one texts went to; a new one has no consent (`applicantContactMove`).
+  const contact = await stopTextsToReplacedPhone(admin, orgId, invitation, was?.intake.phone, body.phone, actorId);
+  return unrecorded ?? { ok: true, contact };
 }
 
 /**

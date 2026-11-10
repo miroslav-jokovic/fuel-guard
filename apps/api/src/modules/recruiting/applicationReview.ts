@@ -10,6 +10,7 @@ import {
   applicationDraftPayloadSchema,
   applicationFactAt,
   carrierStampOf,
+  type ApplicationContactMove,
   type ApplicationEdit,
   type ApplicationPath,
   type ApplicationPhases,
@@ -26,6 +27,7 @@ import { partOneFactsView, partOneForFiling } from "./applicantIntake.js";
 import { listCaptures } from "./applicationCapture.js";
 import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
 import { partOneAnswersView } from "./applicantPartOneAnswer.js";
+import { invitationEmailAfter, phoneAnswerIsTexted, stopTextsToReplacedPhone } from "./applicantContactMove.js";
 
 /**
  * The office's review of an application before the driver certifies it (F4, D-AX11–13).
@@ -162,6 +164,8 @@ export interface ApplicationForReview {
    * while the office screens, before it has sent the form at all.
    */
   signingStarted: boolean;
+  /** E3: where the carrier reaches them — the invitation's email, and whether the phone on file is texted. */
+  contact: { email: string | null; phoneTexted: boolean };
   /**
    * F3: Part 1's answers the whole-set view does not carry — the §382.301(b) statements, medical card
    * pending, the endorsements, and only WHETHER a donor gender was given (Q-AM13). Null on a legacy link.
@@ -204,6 +208,8 @@ export async function applicationForReview(
     .order("edited_at", { ascending: false });
 
   const phases = phasesOf(inv);
+  const partOne = await partOneFactsView(admin, orgId, inv, new Date());
+  const payloadPhone = (draft as { payload?: { phone?: unknown } } | null)?.payload?.phone;
   return {
     invitationId: inv.id,
     driverId: inv.driver_id,
@@ -212,7 +218,11 @@ export async function applicationForReview(
     payload: ((draft as { payload?: Record<string, unknown> } | null)?.payload) ?? null,
     // §9 P5: the revision the office is looking at, sent back with every edit.
     revision: ((draft as { revision?: number | null } | null)?.revision) ?? 0,
-    partOne: await partOneFactsView(admin, orgId, inv, new Date()),
+    partOne,
+    contact: {
+      email: inv.email ?? null,
+      phoneTexted: await phoneAnswerIsTexted(admin, orgId, inv.driver_id, partOne?.intake.phone ?? (typeof payloadPhone === "string" ? payloadPhone : null)),
+    },
     carrierQuestions: carrierStampOf(inv.carrier_questions),
     captures: await listCaptures(admin, orgId, inv.id),
     unlockedByCodeAt: await latestCodeUnlock(admin, orgId, inv.id),
@@ -262,7 +272,7 @@ export async function editApplication(
   invitationId: string,
   edit: ApplicationEdit,
   ctx: EditContext,
-): Promise<{ payload: Record<string, unknown>; revision: number | null } | ReviewError> {
+): Promise<{ payload: Record<string, unknown>; revision: number | null; contact: ApplicationContactMove } | ReviewError> {
   const inv = await invitation(admin, orgId, invitationId);
   if (!inv) return NOT_FOUND;
   if (!applicationIsEditable(phasesOf(inv))) return NOT_EDITABLE;
@@ -345,7 +355,33 @@ export async function editApplication(
   });
 
   const revision = (saved as { revision?: unknown } | null)?.revision;
-  return { payload: applied.payload, revision: typeof revision === "number" ? revision : null };
+  const contact = await moveContact(admin, orgId, inv, edit, applied.before, ctx.actorId);
+  return { payload: applied.payload, revision: typeof revision === "number" ? revision : null, contact };
+}
+
+/**
+ * E3 (`applicantContactMove.ts`): a corrected email moves the invitation's; a corrected phone stops
+ * texts to the old number. Only where the DRAFT's answer is the one that files — on a v2 link the phone
+ * is Part 1's, corrected (and moved) through `correctApplicantPartOne`.
+ */
+async function moveContact(
+  admin: SupabaseClient, orgId: string, inv: InvitationRow, edit: ApplicationEdit, before: unknown, actorId: string,
+): Promise<ApplicationContactMove> {
+  if (!("path" in edit) || edit.path.length !== 1) return {};
+  if (edit.path[0] === "phone") {
+    if (await partOneForFiling(admin, orgId, inv)) return {};
+    return stopTextsToReplacedPhone(admin, orgId, inv, typeof before === "string" ? before : null, String(edit.value ?? ""), actorId);
+  }
+  if (edit.path[0] !== "email") return {};
+  const email = invitationEmailAfter(inv.email, edit.value);
+  if (!email) return {};
+  const { error } = await admin.from("application_invitations").update({ email }).eq("org_id", orgId).eq("id", inv.id);
+  if (error) return {};
+  await writeAudit(admin, {
+    orgId, actorId, action: "application_contact_moved", entity: "application_invitations", entityId: inv.id,
+    meta: { driverId: inv.driver_id, field: "email" },
+  });
+  return { emailMoved: true };
 }
 
 /**

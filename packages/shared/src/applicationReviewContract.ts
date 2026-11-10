@@ -114,6 +114,15 @@ export const applicationEditSchema = z.union([
 
 export type ApplicationEdit = z.infer<typeof applicationEditSchema>;
 
+/**
+ * What a correction did to how the carrier reaches the applicant (F3c part 2, E3) — said on the card so
+ * the office knows: the invitation's email followed the corrected answer; texts to the old number stopped.
+ */
+export interface ApplicationContactMove {
+  emailMoved?: boolean;
+  textsStopped?: boolean;
+}
+
 /** What the office reads back about one correction. */
 export interface ApplicationEditRecord {
   path: ApplicationPath;
