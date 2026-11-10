@@ -73,6 +73,11 @@ export const ASSISTANT_TOOL_ACCESS = {
   loads_by_truck: [bought("dispatch"), view("dispatch")],
   // Drivers (roster) and Vehicles (equipment).
   fleet_roster: [view("roster"), view("equipment")],
+  // Drivers page's qualification files (`fleet.drivers`; `/api/compliance/overview` asks
+  // `requireSection("roster", "view")`).
+  driver_file_expirations: [view("roster")],
+  // Shop worklist's annual group (`/api/maintenance/annual-due` asks `requireSection("maintenance", "view")`).
+  annual_inspections_due: [view("maintenance")],
   // A truck's or trailer's repair bills (`maintenance.units`; `/api/maintenance/units/:kind/:id/maintenance`
   // asks `requireSection("maintenance", "view")`, no module).
   maintenance_cost: [view("maintenance")],

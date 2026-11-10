@@ -3,6 +3,8 @@ import { ASSISTANT_TOOL_NAMES, type AssistantToolName } from "@silvicom/shared";
 import { FINANCE_PERIODS, MAX_FINANCE_TRUCKS } from "../financial/index.js";
 import { MAX_REPORT_UNITS, REPORT_PERIODS } from "../fuel-spend/index.js";
 import { FLEET_NOW_STATES, MAX_FLEET_NOW_TRUCKS } from "../livemap/index.js";
+import { DRIVER_FILE_STATES } from "../evidence/index.js";
+import { ANNUAL_DUE_KINDS } from "../maintenance/index.js";
 import { MAX_MAINTENANCE_UNITS } from "../fleetpal/index.js";
 import { CARD_HOLD_STATUSES } from "../efs/index.js";
 import { MAX_LOADS_TRUCKS, MAX_LOADS_UNITS } from "../loads/index.js";
@@ -180,6 +182,31 @@ export const TOOLS: Anthropic.Tool[] = [
     name: "import_activity",
     description: "Recent EFS/report imports in the period: source, kind, filename, status, and row counts (total/inserted/duplicate). Newest first.",
     input_schema: { type: "object", properties: { period_days: { type: "integer" }, limit: { type: "integer" } } },
+  },
+  {
+    // F21 R6b: the Drivers page's qualification files (`evidence/assistantDriverFiles.ts`).
+    name: "driver_file_expirations",
+    description:
+      "Driver qualification files (DQF) from the Drivers page: how many files are complete, incomplete or not started, " +
+      "how many drivers have each item expired, expiring or missing (CDL, medical card, MVR review, application…), and " +
+      "each driver's items, worst first, with the good-until date and days remaining. state narrows to one state; " +
+      "drivers names drivers (part of a name is enough). Give as_of_day. Statuses only: never a licence number.",
+    input_schema: {
+      type: "object",
+      properties: {
+        state: { type: "string", enum: [...DRIVER_FILE_STATES] },
+        drivers: { type: "array", items: { type: "string" }, description: "Driver names, or part of a name." },
+      },
+    },
+  },
+  {
+    // F21 R6b: the Shop worklist's annual inspection group (`maintenance/assistantAnnualDue.ts`).
+    name: "annual_inspections_due",
+    description:
+      "Trucks and trailers whose annual (§396.17) inspection is overdue or due within the warning window, from our own " +
+      "inspection records: each unit with its expiry date and days remaining, overdue first. kind narrows to trucks or " +
+      "trailers. ALWAYS say not_included: a unit with no recorded inspection is not on this list.",
+    input_schema: { type: "object", properties: { kind: { type: "string", enum: [...ANNUAL_DUE_KINDS] } } },
   },
   {
     name: "fleet_roster",

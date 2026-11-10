@@ -87,12 +87,16 @@ const BY_SURFACE: Record<string, Suggestion[]> = {
     ask("How many loads did each truck deliver last month?", "loads_by_truck"),
     ask("Loads delivered and miles for units 748 and 751 this month", "loads_by_truck"),
   ],
+  "maintenance.inspections": [ask("Which trucks and trailers are due for their annual inspection?", "annual_inspections_due")],
+  "maintenance.repair-spend": [ask("Which annual inspections are overdue or due this month?", "annual_inspections_due")],
   "maintenance.units": [
+    ask("Which trucks and trailers are due for their annual inspection?", "annual_inspections_due"),
     ask("What did trucks 748 and 751 cost in repairs over the last 12 months?", "maintenance_cost"),
     ask("Repair cost per mile for truck 748 this year", "maintenance_cost"),
   ],
   "fleet.vehicles": [ask("How many trucks, trailers and drivers are active right now?", "fleet_roster")],
   "fleet.drivers": [
+    ask("Which drivers have an expired or expiring CDL or medical card?", "driver_file_expirations"),
     ask("How many drivers are active right now?", "fleet_roster"),
     ask("Best and worst drivers by safety score this month", "driver_performance"),
   ],
