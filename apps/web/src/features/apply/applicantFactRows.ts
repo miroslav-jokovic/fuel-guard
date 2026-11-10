@@ -40,13 +40,18 @@ import { APPLY_COPY } from "./strings";
  * driver's draft copy of those is what filing throws away, and offering it would be offering a
  * correction that is undone at filing. That is one row with the right door, not two rows.
  *
+ * ── THE JOBS AND THE GAPS ARE ON THE CARD, BUT NOT AS ROWS ───────────────────────────────────
+ * They are the card's Employment group, drawn by `OfficeJobsSection` (the timeline and the one
+ * employer form) under the group's own rows — so the office finds every answer on the one card, and a
+ * job still has ONE editor (F3c part 2, owner D-AM7: "do not keep two editors of one answer").
+ * Rows would be the wrong shape for them: a job is added, removed and corrected by its KEY
+ * (`add_employer` / `remove_employer`, Q-AX7), a gap is explained against the dates the timeline
+ * measures, and the PSP record is read against the jobs as a whole — none of it a single answer with
+ * a before and after. `ELSEWHERE` keeps them out of the rows; `jobsMatch` keeps the search honest.
+ *
  * ── WHAT IS NOT HERE YET ──────────────────────────────────────────────────────────────────────
- * - The jobs and the gaps: `OfficeJobsSection` corrects them, and they move into the card with the
- *   row add/remove (E2) in F3's next merge.
- * - The 13 facts whose catalogue `office` is `{ none }`: the drug-and-alcohol statements (note
- *   required), donor gender and EEO (replace-only), endorsements, medical card pending, the two tables,
- *   the carrier's own questions and the SSN. Each needs a door the catalogue does not yet name; they
- *   follow, and `applicantFacts.test.ts`'s inline snapshot shrinks as each opens.
+ * The facts whose catalogue `office` is `{ none }` (`applicantFacts.test.ts`'s inline snapshot): the two
+ * tables, the carrier's own questions, EEO and the SSN. The last two wait on owner rulings, not a build.
  */
 
 /** Which writer corrects this row. */
@@ -92,7 +97,7 @@ const APP = "application.";
 const ANSWERS = "questionnaire_answers.";
 /** The draft keeps the carrier's answers under one key (`toDraftPayload`), not the filed `questionnaire_answers`. */
 const DRAFT_ANSWERS = "questionnaire";
-/** Corrected in `OfficeJobsSection` until the card takes rows (see the header). */
+/** The card's Employment group draws these with the jobs timeline, not as rows (see the header). */
 const ELSEWHERE = new Set(["employers", "employment_gaps"]);
 
 /** A choice's options, from the constant the contract's own enum is built from, in the driver's words. */
@@ -282,4 +287,24 @@ export function factSections(rows: readonly FactRow[]): Array<{ section: Applica
 export function matchingFacts(rows: readonly FactRow[], query: string): FactRow[] {
   const needle = query.trim().toLowerCase();
   return needle === "" ? [...rows] : rows.filter((r) => r.label.toLowerCase().includes(needle));
+}
+
+/**
+ * Whether the jobs belong in a search's results. ⚠ Without it, typing "employer" into "Find an answer"
+ * hid the very jobs it named: the timeline is not rows, so the row filter could never match it. A job
+ * matches by any of the employer form's labels, by the employer's name, or by the words a recruiter
+ * says for the whole of it ("job", "gap", "employment").
+ */
+export function jobsMatch(query: string, employers: ReadonlyArray<Record<string, unknown>>): boolean {
+  const needle = query.trim().toLowerCase();
+  if (needle === "") return true;
+  const labels = APPLICANT_FACTS
+    .filter((f) => /^application\.(employers|employment_gaps)\[\]\./.test(f.path))
+    .map((f) => {
+      const [list, column] = f.path.slice(APP.length).split("[].") as [string, string];
+      return describeField([list, 0, column]);
+    });
+  const names = employers.map((e) => (typeof e.employer_name === "string" ? e.employer_name : ""));
+  return ["job", "jobs", "gap", "employment", "employer", ...labels, ...names]
+    .some((text) => text.toLowerCase().includes(needle));
 }

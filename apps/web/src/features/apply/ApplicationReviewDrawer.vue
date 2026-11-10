@@ -19,7 +19,7 @@ import { fromDraftPayload } from "./draft";
 import { applyPartOne } from "./partOneFacts";
 import { buildReviewSummary } from "./reviewSummary";
 import { describeField, rowText } from "./fieldLabels";
-import { employerName } from "./officeJobs";
+import { draftEmployers, draftGaps, employerName } from "./officeJobs";
 import OfficeJobsSection from "./OfficeJobsSection.vue";
 import ApplicantFactsCard from "./ApplicantFactsCard.vue";
 import {
@@ -114,16 +114,9 @@ const correctionNote = computed(() => {
   return typeof note === "string" && note.trim() !== "" ? note.trim() : null;
 });
 
-/** The jobs on the draft, as rows — with their key, which every edit to one names (Q-AX7). */
-const employers = computed(() => {
-  const list = (payload.value as { employers?: unknown[] } | null)?.employers;
-  return (Array.isArray(list) ? list : []).filter(
-    (e): e is Record<string, unknown> => Boolean(e) && typeof e === "object",
-  );
-});
-const givenGaps = computed(
-  () => (payload.value as { employment_gaps?: Array<{ from: string; explanation?: string }> } | null)?.employment_gaps ?? [],
-);
+/** The jobs on the draft — "What you changed" names an employer edit by its job (Q-AX7). */
+const employers = computed(() => draftEmployers(payload.value));
+const givenGaps = computed(() => draftGaps(payload.value));
 
 /** "What you changed": an employer named by key is named by the job, which is what a recruiter reads. */
 function changeLabel(row: { path: ApplicationPath; before: unknown; after: unknown }): string {
@@ -322,7 +315,8 @@ async function approveIt(): Promise<void> {
 
         <!-- F3: every answer, once, with its own control and its own door (`applicantFactsRows`). It
              replaced "Correct an answer" and the Part 1 form, which offered the same facts twice over
-             and corrected dates and states by typing the stored format (E8). -->
+             and corrected dates and states by typing the stored format (E8). The jobs are its
+             Employment group (F3c part 2). -->
         <AppCallout v-if="editable && !canManage" tone="info" data-testid="review-read-only">
           You can read this application. Correcting or approving it needs permission to manage Recruiting.
         </AppCallout>
@@ -334,18 +328,18 @@ async function approveIt(): Promise<void> {
           :record-open="recordCorrectable"
         />
 
-        <!-- HW5b: the jobs on one timeline, and the one employer form — the applicant's own panel — for
-             adding a job (with its street, EM-3), changing or filling any answer, removing one after a
-             confirm, and explaining a gap. Read-only once the window has closed. -->
+        <!-- HW5b: the jobs on one timeline. While anything can be corrected they are the card's
+             Employment group (F3c part 2); once every door is shut the card is gone, and the timeline
+             stays here, read-only, beside the PSP record read against it (HW6b). -->
         <OfficeJobsSection
-          v-if="invitationId && (employers.length || correctable)"
+          v-else-if="invitationId && employers.length"
           :invitation-id="invitationId"
           :driver-id="review.data.value?.driverId ?? null"
           :employers="employers"
           :given-gaps="givenGaps"
           :revision="revision"
           :v2="Boolean(review.data.value?.partOne)"
-          :editable="correctable"
+          :editable="false"
         />
 
         <!-- ⚠ INSIDE the drawer's body, and that placement is the whole fix (B8, measured 2026-09-18).

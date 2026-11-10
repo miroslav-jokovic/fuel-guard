@@ -2,6 +2,7 @@
 import { computed, ref, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppFormField as FormField, AppSearchField, AppTextarea as BaseTextarea } from "@silvicom/ui";
 import {
+  APPLICATION_SECTION_ORDER,
   formatDisplayDate,
   formatDisplayMonth,
   jurisdictionName,
@@ -10,9 +11,11 @@ import {
 import { formatPhone } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
 import FactEditor from "./FactEditor.vue";
+import OfficeJobsSection from "./OfficeJobsSection.vue";
+import { draftEmployers, draftGaps } from "./officeJobs";
 import { fieldId } from "./fieldLabels";
 import { APPLY_SECTION_TITLES } from "./strings";
-import { applicantFactRows, factSections, matchingFacts, type FactRow } from "./applicantFactRows";
+import { applicantFactRows, factSections, jobsMatch, matchingFacts, type FactRow } from "./applicantFactRows";
 import { correctionFor, type FactValue } from "./factCorrection";
 import {
   useCorrectIdentityFromReview,
@@ -45,6 +48,12 @@ import {
  *   here and shown to the driver beside the change on 3.1. Save stays off until there is one.
  * - The donor gender (`rule: "replace_only"`) is never shown: the row says whether one was given, the
  *   editor opens empty, and the edit row records only that it was replaced.
+ *
+ * ── THE JOBS ARE THE EMPLOYMENT GROUP (F3c part 2) ────────────────────────────────────────────
+ * Drawn by `OfficeJobsSection` — the timeline and the one employer form — under the group's own rows,
+ * not as rows (`applicantFactRows`' header says why). Until this merge it sat under the card as a
+ * second section of the drawer, so "every answer, once, on one card" was true of every answer but the
+ * jobs. Its door is the draft's, so it opens and closes with `draftOpen`.
  */
 const props = defineProps<{
   invitationId: string;
@@ -79,7 +88,18 @@ const rows = computed(() =>
   }),
 );
 const query = ref("");
-const sections = computed(() => factSections(matchingFacts(rows.value, query.value)));
+const employers = computed(() => draftEmployers(props.review.payload));
+const gaps = computed(() => draftGaps(props.review.payload));
+/** The jobs are shown while there are any, or while the office may add the first one. */
+const showJobs = computed(() => (employers.value.length > 0 || props.draftOpen) && jobsMatch(query.value, employers.value));
+const sections = computed(() => {
+  const found = factSections(matchingFacts(rows.value, query.value));
+  // A search that matches only a job still shows the Employment group, in its place.
+  if (!showJobs.value || found.some((g) => g.section === "employment")) return found;
+  const order = (s: string) => APPLICATION_SECTION_ORDER.indexOf(s as never);
+  return [...found, { section: "employment" as const, rows: [] as FactRow[] }]
+    .sort((a, b) => order(a.section) - order(b.section));
+});
 
 const open = ref<string | null>(null);
 const typed = ref<FactValue>(null);
@@ -228,6 +248,17 @@ function shown(row: FactRow): string {
           </div>
         </li>
       </ul>
+      <OfficeJobsSection
+        v-if="group.section === 'employment' && showJobs"
+        class="pt-2"
+        :invitation-id="invitationId"
+        :driver-id="review.driverId ?? null"
+        :employers="employers"
+        :given-gaps="gaps"
+        :revision="review.revision ?? 0"
+        :v2="Boolean(review.partOne)"
+        :editable="draftOpen"
+      />
     </div>
   </section>
 </template>
