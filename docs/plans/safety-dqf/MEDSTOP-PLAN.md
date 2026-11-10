@@ -1237,3 +1237,13 @@ SQL, counts only). Nothing was ordered.
   on top forever, the exact complaint. **Still open:** nothing marks a Needs-review row as reviewed, so
   that list only ever grows within its year — a reviewed mark is an audited write (who, when, what
   they decided) and wants its own decision before it is built.
+- 2026-11-10 — **Show's ✕ crashed the page; Results gains Reason and Collected (no migration).** Owner
+  reported "Something went wrong" on `/drug-alcohol?tab=results&results.show=any` after clicking ✕ on
+  Show. Cause: Results, Medical cards and Roster check each opened on a NAMED Show value, so FilterSelect
+  drew a ✕ beside it; ✕ writes `""` (`ANY_PARAM` in the URL) and `LISTS[""]` was undefined. Pre-dates
+  the All-results change above — Medical and Roster had it since MS-UX. Fix: the list a tab opens on is
+  now Show's `""` choice (no ✕), and the list lookup can no longer miss. Owner also asked to "see the
+  latest, and random results and the other categories": Results gains **Reason** (Med-Stop's own words,
+  offered from the rows, as In progress does) and **Collected** (last 7 / 30 / 90 days). The window
+  counts back from `results.today`, the carrier's day the api read the year with — not the browser's.
+  An undated refused order is kept by no window. Newest first is unchanged.
