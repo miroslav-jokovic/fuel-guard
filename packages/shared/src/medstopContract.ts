@@ -270,11 +270,14 @@ export interface DrugAlcoholProgram {
   inProgress: InProgressRow[];
   /**
    * MS2c (F-5): results the DER must see. NULL for roles that may not read testing records.
+   * `all` — every final result of the year, negatives included, newest first: §7A.3's Results tab
+   * ("last 12 months, filter by outcome"). MS2c had shipped only the two lists below, so a fleet that
+   * tested 65 times in its first month on Med-Stop saw one dilute and nothing else (owner, 2026-11-10).
    * `recent` — positives, refusals, dilutes and unrecognised wordings since the product began
    * watching, the same set the DER was notified of. `history` — the violations the first sweep found
    * already old (D-MS5): never acted on automatically, listed so a person decides.
    */
-  results: { recent: MedstopResultRow[]; history: MedstopResultRow[] } | null;
+  results: { all: MedstopResultRow[]; recent: MedstopResultRow[]; history: MedstopResultRow[] } | null;
   medical: MedicalCards;
   roster: {
     /** Active here, absent from Med-Stop's active roster: outside the random pool (§382.305). */
