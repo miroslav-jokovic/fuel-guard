@@ -1224,3 +1224,16 @@ SQL, counts only). Nothing was ordered.
   - The schema refuses `observed: true` without `recollectionOf`: observation outside §40.67's cases is not
     the employer's to choose.
   - Nothing orders itself and nothing blocks; no carrier-wide setting is stored.
+- 2026-11-10 — **Results tab lists every result (no migration).** Owner: "Results are not populated at
+  all — one driver, an old result, never changes." Measured read-only on production: the sweep is
+  healthy (synced 15:53 UTC today, latest collection 11/09); since the first read 65 tests came back
+  NEGATIVE, 1 NEGATIVE - DILUTE (10/05), 1 CANCELED (10/06), 6 not yet final. MS2c had built the tab as
+  only the DER-alert subset (`isMedstopDerAlert`) plus D-MS5's history, so the one dilute was the whole
+  tab — §7A.3 specified "last 12 months, filter by outcome". Fix: `readResultReview` also returns `all`
+  (every final outcome, baseline or not, plus refused orders; an unverified drug result is `pending`
+  and stays In progress's), and Show opens on **All results**; Needs review and Found on the first
+  read are its other two choices, and the tab's badge is still the Needs-review count. Ordered newest
+  first, not "violations first" as §7A.3 had it: a violation-first default would pin the 10/05 dilute
+  on top forever, the exact complaint. **Still open:** nothing marks a Needs-review row as reviewed, so
+  that list only ever grows within its year — a reviewed mark is an audited write (who, when, what
+  they decided) and wants its own decision before it is built.

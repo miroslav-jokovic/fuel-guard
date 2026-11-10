@@ -14,8 +14,12 @@ import { formatDate } from "@/lib/format";
  * API sent them to (`canReadTestingRecords`). One list; "Found on the first read" (D-MS5's history) is
  * a choice of WHICH list, not a second table under the first — the owner's review found two stacked
  * tables confusing. That choice is Show, so "Clear filters" keeps it (§5.5 rule 5).
+ *
+ * Show opens on ALL results — §7A.3's list. MS2c shipped only the two exception lists, so the tab
+ * read as empty: one dilute from 10/05 for a month in which 65 tests came back negative (owner,
+ * 2026-11-10). "Needs review" stays one choice away, and its count stays the tab's badge.
  */
-const props = defineProps<{ recent: MedstopResultRow[]; history: MedstopResultRow[]; canOrder?: boolean }>();
+const props = defineProps<{ all: MedstopResultRow[]; recent: MedstopResultRow[]; history: MedstopResultRow[]; canOrder?: boolean }>();
 /**
  * MSO3 (D-MSO4): a negative-dilute DRUG result offers "Order a recollection" to whoever reads it AND may order.
  * It never orders anything by itself and never blocks: the office decides, and decides whether it is observed.
@@ -34,9 +38,14 @@ function recollect(r: MedstopResultRow): void {
 }
 
 const LISTS = {
+  all: {
+    label: "All results",
+    why: "Every result Med-Stop reported in the last year, negatives included, newest first. A positive or refusal keeps the driver off dispatch until a return-to-duty record dated on or after the test is on file.",
+    empty: "No results from Med-Stop in the last year.",
+  },
   recent: {
     label: "Needs review",
-    why: "Positive, refused, dilute or unrecognised results from Med-Stop in the last year. A positive or refusal keeps the driver off dispatch until a return-to-duty record dated on or after the test is on file.",
+    why: "Positive, refused, dilute or unrecognised results from Med-Stop in the last year — the ones the DER was told about.",
     empty: "No results need review.",
   },
   history: {
@@ -47,9 +56,10 @@ const LISTS = {
 } as const;
 
 const qs = useQueryState("results");
-const show = qs.param("show", ["recent", "history"], "recent");
+const show = qs.param("show", ["all", "recent", "history"], "all");
 const list = computed(() => LISTS[show.value as keyof typeof LISTS]);
 const showOptions = computed(() => [
+  { value: "all", label: `${LISTS.all.label} (${props.all.length})` },
   { value: "recent", label: `${LISTS.recent.label} (${props.recent.length})` },
   { value: "history", label: `${LISTS.history.label} (${props.history.length})` },
 ]);
@@ -67,7 +77,7 @@ const columns: DataTableColumn[] = [
   { key: "collectedOn", label: "Collected", sortable: true },
   { key: "outcome", label: "Result" },
 ];
-const source = computed(() => (show.value === "history" ? props.history : props.recent));
+const source = computed(() => (show.value === "history" ? props.history : show.value === "recent" ? props.recent : props.all));
 // Keyed by source too: a test and an order are numbered by Med-Stop separately and may share an id.
 const tableRows = computed(() => source.value.map((r) => ({ ...r, key: `${r.source}:${r.medstopId}`, name: r.person.name, driverId: r.person.driverId })));
 const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, pageSize } = useProgramList({

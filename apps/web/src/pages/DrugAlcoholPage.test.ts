@@ -68,7 +68,7 @@ const program = (over: Partial<DrugAlcoholProgram> = {}): DrugAlcoholProgram => 
   inProgress: [
     { key: "test:t1", person: person("d5", "Pat Pending"), kind: "drug", reason: "PRE-EMPLOYMENT", stage: "At the lab", orderedOn: null, collectedOn: "2026-10-09", expectedOn: "2026-10-13", daysWaiting: 4 },
   ],
-  results: { recent: [], history: [] },
+  results: { all: [], recent: [], history: [] },
   medical: {
     due: [medDiff],
     disagree: [medDiff, scanned],
@@ -214,7 +214,7 @@ describe("DrugAlcoholPage", () => {
 
   it("filters results by what they were, offering only results the list holds", async () => {
     const row = (id: string, outcome: "positive" | "refusal", name: string) => ({ source: "test" as const, medstopId: id, person: person(id, name), kind: "drug" as const, reason: "RANDOM", collectedOn: "2026-10-09", outcome });
-    const w = await render(program({ results: { recent: [row("t1", "positive", "Pat Positive"), row("t2", "refusal", "Rae Refused")], history: [] } }), "/drug-alcohol?tab=results&results.result=refusal");
+    const w = await render(program({ results: { all: [row("t1", "positive", "Pat Positive"), row("t2", "refusal", "Rae Refused")], recent: [row("t1", "positive", "Pat Positive"), row("t2", "refusal", "Rae Refused")], history: [] } }), "/drug-alcohol?tab=results&results.result=refusal");
     expect(w.text()).toContain("Rae Refused");
     expect(w.text()).not.toContain("Pat Positive");
     const resultSelect = w.findAllComponents(FilterSelect).find((f) => f.props("label") === "Result")!;
@@ -228,17 +228,29 @@ describe("DrugAlcoholPage", () => {
     expect(w.text()).toContain("10/13/2026");
   });
 
-  it("results show one list at a time — history from the first read is a choice, not a second table", async () => {
-    const row = (id: string, outcome: "positive" | "refusal", name: string) => ({ source: "test" as const, medstopId: id, person: person(id, name), kind: "drug" as const, reason: "RANDOM", collectedOn: "2026-10-09", outcome });
-    const w = await render(program({ results: { recent: [row("t1", "positive", "Pat Positive")], history: [row("t0", "refusal", "Old Case")] } }), "/drug-alcohol?tab=results");
-    expect(w.text()).toContain("Pat Positive");
-    expect(w.text()).not.toContain("Old Case");
-    expect(w.text()).toContain("Show");
+  it("results open on every result of the year, negatives included; needs-review and the first read are choices of Show", async () => {
+    const row = (id: string, outcome: "positive" | "refusal" | "negative", name: string) => ({ source: "test" as const, medstopId: id, person: person(id, name), kind: "drug" as const, reason: "RANDOM", collectedOn: "2026-10-09", outcome });
+    const results = {
+      all: [row("t2", "negative", "Nina Negative"), row("t1", "positive", "Pat Positive"), row("t0", "refusal", "Old Case")],
+      recent: [row("t1", "positive", "Pat Positive")],
+      history: [row("t0", "refusal", "Old Case")],
+    };
+    const all = await render(program({ results }), "/drug-alcohol?tab=results");
+    expect(all.text()).toContain("Nina Negative");
+    expect(all.text()).toContain("Pat Positive");
+    expect(all.text()).toContain("Old Case");
+    const show = all.findAllComponents(FilterSelect).find((f) => f.props("label") === "Show")!;
+    expect((show.props("options") as { label: string }[]).map((o) => o.label)).toEqual(["All results (3)", "Needs review (1)", "Found on the first read (1)"]);
+
+    const review = await render(program({ results }), "/drug-alcohol?tab=results&results.show=recent");
+    expect(review.text()).toContain("Pat Positive");
+    expect(review.text()).not.toContain("Nina Negative");
+    expect(review.text()).not.toContain("Old Case");
   });
 
   it("a refused order reads as refused before collection; a refused test does not (§7A.16)", async () => {
     const row = (source: "test" | "order", name: string) => ({ source, medstopId: name, person: person(name, name), kind: "drug" as const, reason: "RANDOM", collectedOn: "2026-10-09", outcome: "refusal" as const });
-    const w = await render(program({ results: { recent: [row("order", "Rita Refused"), row("test", "Tom Tested")], history: [] } }), "/drug-alcohol?tab=results");
+    const w = await render(program({ results: { all: [row("order", "Rita Refused"), row("test", "Tom Tested")], recent: [row("order", "Rita Refused"), row("test", "Tom Tested")], history: [] } }), "/drug-alcohol?tab=results");
     expect(w.text()).toContain("Rita Refused");
     expect(w.text()).toContain("Tom Tested");
     expect(w.text().match(/Refused before a specimen was collected/g)).toHaveLength(1);
@@ -278,7 +290,8 @@ describe("DrugAlcoholPage", () => {
   it("offers 'Order a recollection' on a negative-dilute drug result to a reader who may order, seeded with that test (MSO3)", async () => {
     const row = (id: string, outcome: "negative_dilute" | "positive", kind: "drug" | "alcohol" = "drug", reason = "POST-ACCIDENT") =>
       ({ source: "test" as const, medstopId: id, person: person(id, `Name ${id}`), kind, reason, collectedOn: "2026-10-09", outcome });
-    const results = { recent: [row("t1", "negative_dilute"), row("t2", "positive"), row("t3", "negative_dilute", "alcohol"), row("t4", "negative_dilute", "drug", "OTHER")], history: [] };
+    const flagged = [row("t1", "negative_dilute"), row("t2", "positive"), row("t3", "negative_dilute", "alcohol"), row("t4", "negative_dilute", "drug", "OTHER")];
+    const results = { all: flagged, recent: flagged, history: [] };
     state.role = "safety_manager";
     const w = await render(program({ results }), "/drug-alcohol?tab=results");
     const buttons = w.findAll("button").filter((b) => b.text() === "Order a recollection");
