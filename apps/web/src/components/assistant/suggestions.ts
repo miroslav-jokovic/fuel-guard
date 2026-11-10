@@ -94,6 +94,10 @@ const BY_SURFACE: Record<string, Suggestion[]> = {
     ask("What did trucks 748 and 751 cost in repairs over the last 12 months?", "maintenance_cost"),
     ask("Repair cost per mile for truck 748 this year", "maintenance_cost"),
   ],
+  "recruitment.applicants": [
+    ask("How many applicants are waiting on us, and who has waited longest?", "recruiting_counts"),
+    ask("How many applicants are in each stage right now?", "recruiting_counts"),
+  ],
   "fleet.vehicles": [ask("How many trucks, trailers and drivers are active right now?", "fleet_roster")],
   "fleet.drivers": [
     ask("Which drivers have an expired or expiring CDL or medical card?", "driver_file_expirations"),

@@ -511,3 +511,24 @@ audit row is the endpoint's own.
     testing records passed, a wider horizon, no worst-first sort, the state filter ignored, a named
     clean driver dropped, no partial-read note, complete miscounted; the annual reader's own clock,
     overdue including today, a failed read as empty, kind ignored, re-sorted by unit.
+- 2026-11-10 — **R6b: `recruiting_counts` (recruitment), the Applicants board's queues. The R6b list is
+  done.** The board's read was built inside `GET /api/recruitment/pipeline`'s handler. Per D-AI2 it
+  became `readApplicantPipeline` (same file, same queries, order and rows), with the handler as its
+  first caller: the 1,988 recruiting tests pass untouched, and a new `employmentPipeline.test.ts` pins
+  the archived half and the failure path. `recruiting/assistantRecruiting.ts` counts the board's own
+  fields over those rows: `checklist.waiting_on` (the "Waiting on you / them" options),
+  `checklist.ready_to_screen`, `checklist.phase` in `HIRING_PHASE_LABELS`, and decisions by outcome.
+  It lists applicants longest-waiting first, the board's default order (Q-HUI4).
+  - **Statuses only (D-AI7):** name, stage, who it waits on, the next step's words, days waiting, steps
+    done, a decision's OUTCOME. Never a decision's reason, which can rest on a consumer report (FCRA);
+    never gap days or whether a date of birth is recorded. Archived applicants are left out, as on the
+    board's first view.
+  - **Access:** `recruitment: view`. With the matrix as shipped, the recruiter now has two tools
+    (driver files, applicants); named facts and `namedGrantGates.test.ts` are updated. The phase enum
+    is read from `HIRING_PHASE_LABELS`, not restated. Boundary edge `insights -> recruiting`;
+    suggestions on `recruitment.applicants`.
+  - Nine deliberate breaks, each killed by an assertion: archived included, the reason leaked, ready
+    taken from the stage, the waiting filter ignored, oldest last, a failed read as empty, raw phase
+    keys; and in the extracted reader, a failure swallowed and `archived` ignored (both SURVIVED the
+    route tests, so the reader got its own test file).
+  - **Next:** R3a (follow-up questions), R4 (CSV/PDF and "open in page"), R7 (eval set).

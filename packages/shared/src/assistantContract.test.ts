@@ -34,11 +34,12 @@ describe("assistantToolsFor — every role, every tool, from the section matrix"
     });
   }
 
-  it("names the owner's facts: admin has every tool; a driver has none; a recruiter has the driver files; a technician the shop's two", () => {
+  it("names the owner's facts: admin has every tool; a driver has none; a recruiter has the driver files and the applicants board; a technician the shop's two", () => {
     expect(assistantToolsFor("admin", null, ALL_MODULES)).toEqual(ASSISTANT_TOOL_NAMES);
     expect(assistantToolsFor("driver", null, ALL_MODULES)).toEqual([]);
     // R6b: the matrix lets a recruiter VIEW the roster, so the Drivers page's file tool is theirs.
-    expect(assistantToolsFor("recruiter", null, ALL_MODULES)).toEqual(["driver_file_expirations"]);
+    // …and the Applicants board's queues, theirs by `recruitment`.
+    expect(assistantToolsFor("recruiter", null, ALL_MODULES)).toEqual(["driver_file_expirations", "recruiting_counts"]);
     // R6b: the technician's first tool is the truck page's repair bills, because the matrix lets them open it.
     expect(assistantToolsFor("technician", null, ALL_MODULES)).toEqual(["annual_inspections_due", "maintenance_cost"]);
     // A dispatcher sees fuel (view) and roster/equipment (view) but not safety: no idling or driver scores.
@@ -112,6 +113,13 @@ describe("assistantToolsFor — every role, every tool, from the section matrix"
     expect(callerMayUseTool("safety_manager", null, NO_MODULES, "driver_file_expirations")).toBe(true);
     expect(callerMayUseTool("safety_manager", { roster: "none" }, NO_MODULES, "driver_file_expirations")).toBe(false);
     expect(callerMayUseTool("technician", null, NO_MODULES, "annual_inspections_due")).toBe(rolesThatCanView("maintenance").includes("technician"));
+  });
+
+  it("recruiting_counts is gated as the Applicants board is: recruitment view", () => {
+    expect(ASSISTANT_TOOL_ACCESS.recruiting_counts).toEqual([{ section: "recruitment", level: "view" }]);
+    expect(callerMayUseTool("recruiter", null, NO_MODULES, "recruiting_counts")).toBe(true);
+    expect(callerMayUseTool("recruiter", { recruitment: "none" }, NO_MODULES, "recruiting_counts")).toBe(false);
+    expect(callerMayUseTool("technician", null, ALL_MODULES, "recruiting_counts")).toBe(rolesThatCanView("recruitment").includes("technician"));
   });
 
   it("follows the org's overrides on the token: taking fuel away from a fleet manager takes the fuel tools with it", () => {

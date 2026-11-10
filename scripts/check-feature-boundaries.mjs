@@ -352,6 +352,10 @@ const API_ALLOW = new Set([
   //   `assistantAnnualDue` over `readAnnualDue`, the Shop worklist's own reader.
   //   maintenance imports nothing of insights'.
   "insights -> maintenance",
+  // · insights -> recruiting — Ask AI's `recruiting_counts` (F21 R6b) is recruiting's
+  //   `assistantRecruiting` over `readApplicantPipeline`, the Applicants board's own read.
+  //   recruiting imports nothing of insights'.
+  "insights -> recruiting",
   // · insights -> fleetpal — Ask AI's `maintenance_cost` (F21 R6b) is fleetpal's
   //   `assistantMaintenanceCost`: the truck page's own `readCoverage` then `readUnitCost`, refused by
   //   the route's own D-FP4 rule. fleetpal imports nothing of insights'.

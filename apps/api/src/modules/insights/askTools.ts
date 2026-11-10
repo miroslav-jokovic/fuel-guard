@@ -1,10 +1,11 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { ASSISTANT_TOOL_NAMES, type AssistantToolName } from "@silvicom/shared";
+import { ASSISTANT_TOOL_NAMES, HIRING_PHASE_LABELS, type AssistantToolName } from "@silvicom/shared";
 import { FINANCE_PERIODS, MAX_FINANCE_TRUCKS } from "../financial/index.js";
 import { MAX_REPORT_UNITS, REPORT_PERIODS } from "../fuel-spend/index.js";
 import { FLEET_NOW_STATES, MAX_FLEET_NOW_TRUCKS } from "../livemap/index.js";
 import { DRIVER_FILE_STATES } from "../evidence/index.js";
 import { ANNUAL_DUE_KINDS } from "../maintenance/index.js";
+import { RECRUITING_WAITING } from "../recruiting/index.js";
 import { MAX_MAINTENANCE_UNITS } from "../fleetpal/index.js";
 import { CARD_HOLD_STATUSES } from "../efs/index.js";
 import { MAX_LOADS_TRUCKS, MAX_LOADS_UNITS } from "../loads/index.js";
@@ -196,6 +197,22 @@ export const TOOLS: Anthropic.Tool[] = [
       properties: {
         state: { type: "string", enum: [...DRIVER_FILE_STATES] },
         drivers: { type: "array", items: { type: "string" }, description: "Driver names, or part of a name." },
+      },
+    },
+  },
+  {
+    // F21 R6b: the Applicants board (`recruiting/assistantRecruiting.ts`).
+    name: "recruiting_counts",
+    description:
+      "The Applicants board: how many applicants are on it, waiting on us (the office) or on them (the applicant), ready to " +
+      "screen, in each stage (Application, Screening, Orientation, Office day, Hire), and how many were declined or withdrew; " +
+      "plus applicants longest-waiting first with their stage, who it waits on, the next step and days waiting. " +
+      "waiting_on and phase narrow the list. Statuses only: never give a reason for a decision, or anything from an application.",
+    input_schema: {
+      type: "object",
+      properties: {
+        waiting_on: { type: "string", enum: [...RECRUITING_WAITING], description: "us = the office, them = the applicant." },
+        phase: { type: "string", enum: Object.keys(HIRING_PHASE_LABELS) },
       },
     },
   },
