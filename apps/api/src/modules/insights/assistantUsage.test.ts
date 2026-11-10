@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { rolesThatManage } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { assistantLogLine, monthStartInstant, readAssistantBudget, recordAssistantAnswer } from "./assistantUsage.js";
+import { alertAssistantBudget, assistantLogLine, monthStartInstant, readAssistantBudget, recordAssistantAnswer } from "./assistantUsage.js";
 
 /** Ask AI's meter (F21 R2): the cap's month is the carrier's, the gate fails open, the record never throws. */
 const ORG = "org-1";
@@ -48,5 +49,48 @@ describe("recordAssistantAnswer and the log line", () => {
     expect(assistantLogLine(ORG, USAGE, 2100, ["fuel_report"], "answered")).toBe(
       "[ai] org=org-1 model=claude-haiku-5-5 outcome=answered rounds=1 in=10 cache_read=0 cache_write=0 out=5 cost_usd=0.0000 ms=2100 tools=fuel_report",
     );
+  });
+});
+
+describe("alertAssistantBudget — the 80% and 100% bells (R2b)", () => {
+  const M = 1_000_000;
+  const setup = (members = [{ user_id: "u-admin" }, { user_id: "u-admin2" }]) =>
+    createSupabaseRecorder({
+      tables: { organizations: [{ operating_hours: { tz: "America/Chicago" } }], memberships: members, driver_app_features: [] },
+      rpc: (fn) => (fn === "emit_notification" ? "n-1" : null),
+    });
+  const bells = (rec: ReturnType<typeof setup>) => rec.rpcs().filter((c) => c.fn === "emit_notification").map((c) => c.args as Record<string, unknown>);
+
+  it("tells everyone who manages the admin section once the month passes $40, keyed to the carrier's month", async () => {
+    const rec = setup();
+    // 10:00 pm Central on 10/31 is still October's spend.
+    const made = await alertAssistantBudget(rec.client, ORG, { beforeMicroUsd: 39.9 * M, costMicroUsd: 0.2 * M }, new Date("2026-11-01T03:00:00Z"));
+    expect(made).toBe(2);
+    expect(bells(rec)).toEqual([
+      expect.objectContaining({ p_user: "u-admin", p_category: "ai_assistant_budget", p_title: "Ask AI is near this month's spending cap", p_severity: "warning", p_deep_link: "/ask", p_dedupe_key: `ai_assistant_budget:warn:${ORG}:2026-10` }),
+      expect.objectContaining({ p_user: "u-admin2", p_dedupe_key: `ai_assistant_budget:warn:${ORG}:2026-10` }),
+    ]);
+    expect(String(bells(rec)[0]!.p_body)).toBe("Ask AI has used $40 of its $50 for this month. At $50 it stops answering until the 1st.");
+    const members = rec.forTable("memberships")[0]!;
+    // The roles are the section matrix's answer for "admin", never a list written here.
+    expect(members.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "role", val: [...rolesThatManage("admin")] }]));
+    expectOrgScoped(rec, ORG, { exempt: ["driver_app_features"] });
+  });
+
+  it("says the cap is reached on the answer that crosses $50, and rings nothing below a line", async () => {
+    const rec = setup([{ user_id: "u-admin" }]);
+    await alertAssistantBudget(rec.client, ORG, { beforeMicroUsd: 49.99 * M, costMicroUsd: 0.05 * M }, new Date("2026-11-10T15:00:00Z"));
+    expect(bells(rec)).toEqual([expect.objectContaining({ p_title: "Ask AI has reached this month's spending cap", p_dedupe_key: `ai_assistant_budget:reached:${ORG}:2026-11` })]);
+    const quiet = setup();
+    expect(await alertAssistantBudget(quiet.client, ORG, { beforeMicroUsd: 5 * M, costMicroUsd: 0.01 * M }, new Date())).toBe(0);
+    expect(quiet.queries).toHaveLength(0);
+  });
+
+  it("never throws when the bell cannot be rung", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const rec = createSupabaseRecorder({ tables: { organizations: [], memberships: { data: null, error: { message: "down" } } } });
+    expect(await alertAssistantBudget(rec.client, ORG, { beforeMicroUsd: 39.9 * M, costMicroUsd: 1 * M }, new Date())).toBe(0);
+    expect(err.mock.calls.map((c) => String(c[0]))).toContainEqual(expect.stringMatching(/budget alert failed: .*down/));
+    err.mockRestore();
   });
 });

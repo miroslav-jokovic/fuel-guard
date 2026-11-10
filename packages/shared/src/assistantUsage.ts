@@ -98,3 +98,17 @@ export function assistantBudgetVerdict(state: {
   }
   return { open: true, spentMicroUsd: state.spentMicroUsd, capMicroUsd: cap };
 }
+
+/**
+ * The cap lines one answer carried this month's spend across (F21 R2b): `warn` at 80% (Q-AI1's admin
+ * alert), `reached` at 100% — the answer after which Ask AI stops answering. Crossing, not "is above",
+ * so each line rings on the answer that crossed it; the sender's dedupe key, per carrier per month, is
+ * what stops two answers crossing together from ringing twice.
+ */
+export function assistantCapCrossings(beforeMicroUsd: number, afterMicroUsd: number, capMicroUsd = ASSISTANT_MONTHLY_CAP_MICRO_USD): Array<"warn" | "reached"> {
+  const out: Array<"warn" | "reached"> = [];
+  const warnAt = capMicroUsd * ASSISTANT_CAP_ALERT_SHARE;
+  if (beforeMicroUsd < warnAt && afterMicroUsd >= warnAt) out.push("warn");
+  if (beforeMicroUsd < capMicroUsd && afterMicroUsd >= capMicroUsd) out.push("reached");
+  return out;
+}

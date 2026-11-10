@@ -3,6 +3,7 @@ import {
   ASSISTANT_MODEL_PRICES,
   ASSISTANT_MONTHLY_CAP_MICRO_USD,
   assistantBudgetVerdict,
+  assistantCapCrossings,
   requestCostMicroUsd,
 } from "./assistantUsage.js";
 import { AI_MODELS } from "./ai.js";
@@ -41,5 +42,19 @@ describe("assistantBudgetVerdict", () => {
     expect(assistantBudgetVerdict({ spentMicroUsd: 0, orgTokensUsed: 999, orgTokenBudget: 1000 }).open).toBe(true);
     expect(assistantBudgetVerdict({ spentMicroUsd: 0, orgTokensUsed: 1000, orgTokenBudget: 1000 })).toMatchObject({ open: false, reason: "org_token_limit" });
     expect(assistantBudgetVerdict({ spentMicroUsd: 9e9, orgTokensUsed: 1000, orgTokenBudget: 1000 })).toMatchObject({ reason: "org_token_limit" });
+  });
+});
+
+describe("assistantCapCrossings", () => {
+  const M = 1_000_000;
+  it("rings 80% on the answer that crosses $40, and 100% on the one that crosses $50 — once each", () => {
+    expect(assistantCapCrossings(39.99 * M, 40 * M)).toEqual(["warn"]);
+    expect(assistantCapCrossings(40 * M, 41 * M)).toEqual([]);
+    expect(assistantCapCrossings(49.9 * M, 50 * M)).toEqual(["reached"]);
+    expect(assistantCapCrossings(50 * M, 51 * M)).toEqual([]);
+    expect(assistantCapCrossings(10 * M, 11 * M)).toEqual([]);
+  });
+  it("one expensive answer can cross both lines", () => {
+    expect(assistantCapCrossings(39 * M, 52 * M)).toEqual(["warn", "reached"]);
   });
 });

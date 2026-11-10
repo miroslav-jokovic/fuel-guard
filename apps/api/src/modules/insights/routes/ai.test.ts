@@ -54,8 +54,9 @@ function setup(spentMicroUsd: number, tokens = { used: 0, budget: null as number
       organizations: [{ operating_hours: { tz: "America/Chicago" } }],
       org_usage_month: tokens.used ? [{ input_tokens: tokens.used, output_tokens: 0 }] : [],
       anomaly_thresholds: tokens.budget == null ? [] : [{ ai_monthly_token_budget: tokens.budget }],
+      memberships: [{ user_id: "u-admin", role: "admin" }],
     },
-    rpc: (fn) => (fn === "assistant_month_spend" ? [{ cost_micro_usd: spentMicroUsd, answers: 3 }] : "row-id"),
+    rpc: (fn) => (fn === "assistant_month_spend" ? [{ cost_micro_usd: spentMicroUsd, answers: 3 }] : fn === "emit_notification" ? "n-1" : "row-id"),
   });
   holder.client = rec.client;
 }
@@ -78,6 +79,18 @@ describe("POST /api/ai/ask — the meter", () => {
     });
     expect(audit()?.meta).toMatchObject({ question: "mpg on 748 last month", outcome: "answered", cost_micro_usd: 320 });
     expectOrgScoped(rec, ORG);
+  });
+
+  it("rings the 80% bell on the answer that carries the month past $40, and not on one that does not (R2b)", async () => {
+    setup(39_999_900);
+    askData.mockResolvedValueOnce({ answer: "ok", tools: [], usage: USAGE, outcome: "answered" });
+    expect((await post("q")).status).toBe(200);
+    expect(rec.rpcs().filter((c) => c.fn === "emit_notification").map((c) => (c.args as { p_dedupe_key: string }).p_dedupe_key))
+      .toEqual([expect.stringMatching(new RegExp(`^ai_assistant_budget:warn:${ORG}:\\d{4}-\\d{2}$`))]);
+    setup(1_000_000);
+    askData.mockResolvedValueOnce({ answer: "ok", tools: [], usage: USAGE, outcome: "answered" });
+    await post("q");
+    expect(rec.rpcs().some((c) => c.fn === "emit_notification")).toBe(false);
   });
 
   it("refuses with 429 at the $50 cap without reaching the model, and records nothing", async () => {
