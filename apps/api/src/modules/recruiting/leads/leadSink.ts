@@ -62,6 +62,7 @@ export function recruitingLeadSink(
     async accept(orgId, lead) {
       const projection = leadFromPlatform(lead);
       const r = await ingestLead(admin, orgId, projection, clock());
+      const contactable = projection.phone_e164 !== null || projection.email_lower !== null;
       if (r.stored === "new") {
         const owner = await assignFromOpening(admin, orgId, r.lead_id, projection.opening_id).catch((err: unknown) => {
           console.error(`[lead-assign] org ${orgId}: lead ${r.lead_id} left unowned: ${err instanceof Error ? err.message : String(err)}`);
@@ -69,9 +70,12 @@ export function recruitingLeadSink(
         });
         // LQ6 (Q-AD63 (a)): a lead whose own answer fails a hard requirement is stored, owned and listed, but rings
         // nobody — the person told us, after the form's intro stated the requirement. `unknown` still rings (D-LS3).
-        if (!(await failsHardRequirement(admin, orgId, r.lead_id))) await ringNewLead(admin, orgId, r.lead_id, configured, owner);
+        // LR3 (audit F-LR9): `lead_new` tells a person to call. A lead with neither a usable phone nor an e-mail
+        // gives them nothing to call; it is stored and listed, and the road that stored it tells the admins the
+        // form may have changed (`alertNoContactDetail`) — the ads side's alert, since the fix is the form's.
+        if (contactable && !(await failsHardRequirement(admin, orgId, r.lead_id))) await ringNewLead(admin, orgId, r.lead_id, configured, owner);
       }
-      return { stored: r.stored, ref: r.lead_id, contactable: projection.phone_e164 !== null || projection.email_lower !== null };
+      return { stored: r.stored, ref: r.lead_id, contactable };
     },
   };
 }
