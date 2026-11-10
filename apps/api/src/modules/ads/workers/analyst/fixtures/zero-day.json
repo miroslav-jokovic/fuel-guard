@@ -86,18 +86,17 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@5",
+    "prompt_version": "analyst@6",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T19:41:41.929Z",
+    "recorded_at": "2026-11-10T16:14:52.371Z",
     "output": {
-      "headline": "2 campaigns ran on November 3, 2026, spending $42.10 across 2,300 impressions and 19 clicks, with no leads generated.",
+      "headline": "2 campaigns ran on November 3, 2026, spending $42.10 across 2,300 impressions and 19 clicks, but no leads came in.",
       "points": [
-        "Regional Class A — Joliet served no impressions and spent $0.00 — it did not deliver at all on November 3, 2026. Dedicated night runs carried the full day: $42.10 spent, 2,300 impressions, 19 clicks, and a 0.8% click rate, but no leads from either campaign.",
-        "No leads came in on the day, so there is no cost per lead to report.",
-        "The 2026-09-21 cohort (38 leads) has a contacted rate of 86.8%, a converted rate of 44.7%, an applied rate of 26.3%, a hired rate of 10.5%, and 8 leads lost after conversion.",
-        "The 2026-09-28 cohort (40 leads) shows a contacted rate of 90.0%, a converted rate of 50.0%, an applied rate of 30.0%, a hired rate of 12.5%, and 9 leads lost after conversion.",
-        "The 2026-10-26 cohort has 12 leads — 9 contacted, 3 converted, 1 applied, and 1 lost after conversion — but it is too young to judge by rates.",
-        "November 2026 is 28 days from close; $42.10 has been spent so far, all on Meta."
+        "Dedicated night runs took all of the day's activity: $42.10 spent, 2,300 impressions, 19 clicks, and a 0.8% click rate, with no leads. Regional Class A — Joliet had no spend, impressions, or clicks.",
+        "November 2026 has 28 days left. All spend so far this month — $42.10 — is on Meta.",
+        "The 2026-09-21 cohort (38 leads) is mature: 33 were contacted, 17 made applicants, 10 applied, 4 hired, and 8 lost after conversion.",
+        "The 2026-09-28 cohort (40 leads) is mature: 36 were contacted, 20 made applicants, 12 applied, 5 hired, and 9 lost after conversion.",
+        "The 2026-10-26 cohort has 12 leads and is too young to judge: 9 were contacted, 3 made applicants, 1 applied, and 1 lost after conversion."
       ]
     }
   }

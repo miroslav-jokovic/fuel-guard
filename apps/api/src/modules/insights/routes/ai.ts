@@ -6,7 +6,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { requireSurface } from "../../../middleware/requireSurface.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { askData } from "../askData.js";
-import { assistantLogLine, readAssistantBudget, recordAssistantAnswer } from "../assistantUsage.js";
+import { alertAssistantBudget, assistantLogLine, readAssistantBudget, recordAssistantAnswer } from "../assistantUsage.js";
 
 export function aiRouter(): Router {
   const router = Router();
@@ -57,6 +57,7 @@ export function aiRouter(): Router {
       const toolNames = tools.map((t) => t.name);
       console.log(assistantLogLine(orgId, usage, latencyMs, toolNames, outcome));
       await recordAssistantAnswer(admin, { orgId, userId, usage, latencyMs, tools: toolNames, outcome });
+      await alertAssistantBudget(admin, orgId, { beforeMicroUsd: budget.spentMicroUsd, costMicroUsd: usage.costMicroUsd }, now);
       // The answer and the tools behind it, not only the question (AUDIT P4): on 2026-11-09 the owner
       // asked for nine units' MPG and nobody could see what the assistant had said back, or which tool
       // it had tried. Capped so one long table cannot bloat the audit log; retention stays Q-AI4's.

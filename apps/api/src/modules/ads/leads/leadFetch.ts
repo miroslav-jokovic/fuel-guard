@@ -1,7 +1,7 @@
 import type { LeadSink } from "@silvicom/shared";
 import { pageGraphForConnection, type RegistryDeps } from "../platforms/registry.js";
 import { platformLeadFromMeta, type MetaLead } from "./backfill.js";
-import { alertWebhookLate, WEBHOOK_LATE_MS } from "../alerts/intakeAlerts.js";
+import { alertNoContactDetail, alertWebhookLate, WEBHOOK_LATE_MS } from "../alerts/intakeAlerts.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FORM_ID_PATHS } from "./formRefs.js";
 
@@ -25,6 +25,12 @@ import { FORM_ID_PATHS } from "./formRefs.js";
  * stats, so it is measured from the jobs ledger. It is taken here and nowhere else: this is the only place
  * that knows a lead came by webhook (a lead row does not say), and a backfilled lead is an hour late by design.
  * Meta's clock and ours are not the same clock, so a small negative reads as zero.
+ *
+ * ── A LEAD WITH NOTHING TO DIAL IS SAID HERE TOO (LR3, ADS-AGENTS-AUDIT-2026-11-10 F-LR9) ─────────
+ * `alertNoContactDetail` was the backfill's alone, counted on leads the backfill stored. With the webhook
+ * healthy THIS road stores the lead first and the backfill only ever sees a duplicate, so the alert could not
+ * ring exactly when intake worked. The road that stores the lead says it: one lead, the same daily key per
+ * connection, so the two roads cannot ring twice for one day.
  */
 
 const LEAD_FIELDS = "id,created_time,field_data,ad_id,campaign_id,form_id";
@@ -88,14 +94,16 @@ export async function fetchWebhookLead(deps: LeadFetchDeps, orgId: string, ask: 
   const lead = platformLeadFromMeta(r.data, campaign, c.provider === "simulator" ? "simulator" : "meta");
   if (!lead) throw new LeadFetchError("shape", ask.leadgenId);
   let stored: "new" | "duplicate";
+  let contactable: boolean | undefined;
   try {
-    stored = (await deps.sink.accept(orgId, lead)).stored;
+    ({ stored, contactable } = await deps.sink.accept(orgId, lead));
   } catch {
     // The sink's message may carry the person's details; the failure names the lead by id only.
     throw new LeadFetchError("sink", ask.leadgenId);
   }
   if (stored !== "new") return { outcome: "duplicate", lead_id: ask.leadgenId, campaign_id: campaign.id };
   const now = deps.now();
+  if (contactable === false) await alertNoContactDetail(deps.admin, orgId, c.id, 1, now);
   const latencyMs = Math.max(0, now.getTime() - Date.parse(lead.created_at));
   if (latencyMs > WEBHOOK_LATE_MS) await alertWebhookLate(deps.admin, orgId, c.id, latencyMs, now);
   return { outcome: "stored", lead_id: ask.leadgenId, campaign_id: campaign.id, latency_ms: latencyMs };

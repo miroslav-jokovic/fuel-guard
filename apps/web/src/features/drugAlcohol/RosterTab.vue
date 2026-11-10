@@ -29,10 +29,15 @@ const LISTS = {
 } as const;
 
 const qs = useQueryState("roster");
-const show = qs.param("show", ["missing", "left"], "missing");
-const list = computed(() => LISTS[show.value as keyof typeof LISTS]);
+/**
+ * Show is a choice of WHICH list, and the list the tab opens on is its "" choice — the one FilterSelect
+ * draws as "no filter", with no ✕. Until 2026-11-10 the opening list was a named value, so the ✕ beside
+ * it wrote "" and `LISTS[""]` was undefined: clicking ✕ on Show crashed the page (owner, Results).
+ */
+const show = qs.param("show", ["left"], "");
+const list = computed(() => (show.value === "left" ? LISTS.left : LISTS.missing));
 const showOptions = computed(() => [
-  { value: "missing", label: `${LISTS.missing.label} (${props.notInPool.length})` },
+  { value: "", label: `${LISTS.missing.label} (${props.notInPool.length})` },
   { value: "left", label: `${LISTS.left.label} (${props.leftButInPool.length})` },
 ]);
 // "A name with no link" (above) is the question this answers: is there a driver here to act on?

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { HIRING_PROFILE_V1, type PlatformLead } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { postgrestFixture } from "../../../testing/postgrestFixture.js";
-import { recruitingLeadSink } from "./leadSink.js";
+import { newLeadBell, recruitingLeadSink, type LeadMatches } from "./leadSink.js";
 
 /**
  * §4R Lead intake, L2: what a person can type into a form, through the real projection and the real sink. The
@@ -56,6 +56,19 @@ describe("a lead that arrives broken", () => {
     expect([r.stored, p.phone_e164, p.email_lower, p.full_name]).toEqual(["new", null, "ray@example.com", "Ray Driver"]);
     expect(raw.field_data.find((f) => f.name === "phone_number")?.values).toEqual(["call me after 5"]);
     expectOrgScoped(rec, ORG);
+  });
+
+  it("a lead with neither a usable phone nor an e-mail is stored, said to be uncontactable, and rings nobody (LR3)", async () => {
+    const rec = seed();
+    const r = await accept(rec, metaLead({ full_name: "Ray Driver", phone_number: "call me after 5" }));
+    expect([r.stored, r.contactable, stored(rec).phone_e164, stored(rec).email_lower]).toEqual(["new", false, null, null]);
+    expect(rec.rpcs().filter((c) => c.fn === "emit_notification")).toEqual([]);
+  });
+
+  it("the same lead with an e-mail and no phone is contactable and rings", async () => {
+    const rec = seed();
+    const r = await accept(rec, metaLead({ full_name: "Ray Driver", phone_number: "call me after 5", email: "ray@example.com" }));
+    expect([r.contactable, rec.rpcs().filter((c) => c.fn === "emit_notification").length]).toEqual([true, 1]);
   });
 });
 
@@ -157,5 +170,97 @@ describe("who the bell rings for (LQ6, Q-AD63 (a))", () => {
     const rec = seedRemembering();
     await accept(rec, metaLead({ full_name: "Sam Hall", phone_number: "7082365700", class_a_held: "yes", hazmat_endorsement: "no" }));
     expect(rung(rec)).toBe(1);
+  });
+});
+
+describe("who a new lead rings (LR2, Q-AD74 (a))", () => {
+  const PHONE = "+17082365732";
+  const NONE: LeadMatches = { leads: [], drivers: [] };
+  const EARLIER = { id: "50000000-0000-4000-8000-000000000009", channel: "meta", status: "lost", received_at: "2026-10-01T00:00:00Z" };
+  function world(over: { matches?: LeadMatches; held?: string[]; holdReadFails?: boolean } = {}): SupabaseRecorder {
+    return createSupabaseRecorder({
+      tables: {
+        recruiting_leads: [],
+        recruiting_openings: postgrestFixture([{ org_id: ORG, id: OPENING, recruiter_id: null }]),
+        recruiting_opening_versions: postgrestFixture([{ org_id: ORG, opening_id: OPENING, version: 2, profile_version_id: PV }]),
+        hiring_profile_versions: postgrestFixture([{ org_id: ORG, id: PV, requirements: HIRING_PROFILE_V1 }]),
+        lead_match_verdicts: (q: RecordedQuery) => (q.write?.method === "insert" ? { data: q.write.payload } : []),
+        memberships: [],
+        sms_suppressions: over.holdReadFails
+          ? () => ({ data: null, error: { message: "down" } })
+          : postgrestFixture((over.held ?? []).map((phone) => ({ org_id: ORG, phone, lifted_at: null }))),
+      },
+      rpc: (fn) => (fn === "ingest_lead" ? { lead_id: LEAD, stored: "new", matches: over.matches ?? NONE } : null),
+    });
+  }
+  const bells = (rec: SupabaseRecorder) => rec.rpcs().filter((c) => c.fn === "emit_notification").map((c) => (c.args as { p_title: string }).p_title);
+  const ray = () => metaLead({ full_name: "Ray Driver", phone_number: "7082365732", class_a_held: "yes" });
+
+  it("a stranger rings the usual new-lead bell", async () => {
+    const rec = world();
+    await accept(rec, ray());
+    expect(bells(rec)).toEqual(["New ad lead"]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("a number held from contact is stored and rings nobody", async () => {
+    const rec = world({ held: [PHONE] });
+    expect((await accept(rec, ray())).stored).toBe("new");
+    expect(bells(rec)).toEqual([]);
+  });
+
+  it("another carrier's hold on the same number holds nothing here", async () => {
+    const other = createSupabaseRecorder({
+      tables: {
+        recruiting_leads: [], memberships: [],
+        recruiting_openings: postgrestFixture([{ org_id: ORG, id: OPENING, recruiter_id: null }]),
+        recruiting_opening_versions: postgrestFixture([{ org_id: ORG, opening_id: OPENING, version: 2, profile_version_id: PV }]),
+        hiring_profile_versions: postgrestFixture([{ org_id: ORG, id: PV, requirements: HIRING_PROFILE_V1 }]),
+        lead_match_verdicts: (q: RecordedQuery) => (q.write?.method === "insert" ? { data: q.write.payload } : []),
+        sms_suppressions: postgrestFixture([{ org_id: "99999999-0000-4000-8000-000000000001", phone: PHONE, lifted_at: null }]),
+      },
+      rpc: (fn) => (fn === "ingest_lead" ? { lead_id: LEAD, stored: "new", matches: NONE } : null),
+    });
+    await accept(other, ray());
+    expect(bells(other)).toEqual(["New ad lead"]);
+    expectOrgScoped(other, ORG);
+  });
+
+  it("when the hold cannot be read, the bell rings anyway", async () => {
+    const rec = world({ holdReadFails: true });
+    await accept(rec, ray());
+    expect(bells(rec)).toEqual(["New ad lead"]);
+  });
+
+  it("a person who is a driver of this carrier today rings nobody", async () => {
+    const rec = world({ matches: { leads: [], drivers: [{ id: "d1", status: "active", archived: false }] } });
+    await accept(rec, ray());
+    expect(bells(rec)).toEqual([]);
+  });
+
+  it("a terminated driver, an archived one and a current applicant still ring: a rehire and a person already being worked are worth the call", async () => {
+    for (const d of [{ id: "d1", status: "terminated", archived: false }, { id: "d2", status: "active", archived: true }, { id: "d3", status: "applicant", archived: false }]) {
+      const rec = world({ matches: { leads: [], drivers: [d] } });
+      await accept(rec, ray());
+      expect(bells(rec)).toEqual(["New ad lead"]);
+    }
+  });
+
+  it("a person with an earlier lead rings once, told they answered again", async () => {
+    const rec = world({ matches: { leads: [EARLIER], drivers: [] } });
+    await accept(rec, ray());
+    expect(bells(rec)).toEqual(["A past lead answered an ad again"]);
+    expect((rec.rpcs().find((c) => c.fn === "emit_notification")!.args as { p_category: string; p_dedupe_key: string })).toMatchObject({ p_category: "lead_new", p_dedupe_key: `lead_new:${LEAD}` });
+  });
+
+  it("the order: nothing to dial, a hold, a current driver and a failed hard requirement each silence it before 'again' is read", () => {
+    const again: LeadMatches = { leads: [EARLIER], drivers: [] };
+    const base = { contactable: true, held: false, matches: again, failsHard: false };
+    expect(newLeadBell(base)).toBe("again");
+    expect(newLeadBell({ ...base, contactable: false })).toBe("none");
+    expect(newLeadBell({ ...base, held: true })).toBe("none");
+    expect(newLeadBell({ ...base, failsHard: true })).toBe("none");
+    expect(newLeadBell({ ...base, matches: { leads: [EARLIER], drivers: [{ id: "d1", status: "active", archived: false }] } })).toBe("none");
+    expect(newLeadBell({ ...base, matches: undefined })).toBe("new");
   });
 });

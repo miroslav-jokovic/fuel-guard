@@ -80,6 +80,11 @@ const session = useSessionStore();
 const canManage = computed(() => session.can("recruitment"));
 const correctable = computed(() => editable.value && canManage.value);
 const edits = computed(() => review.data.value?.edits ?? []);
+/** F0b: when they used a code — an instant, so the drawer's own date-and-time format, or null. */
+const unlockedByCode = computed(() => {
+  const at = review.data.value?.unlockedByCodeAt;
+  return at ? formatDateTime(at) : null;
+});
 const revision = computed(() => review.data.value?.revision ?? 0);
 
 const summary = computed(() => {
@@ -295,6 +300,15 @@ async function approveIt(): Promise<void> {
 
         <!-- C3c2c2: before the answers — it may say one of them is wrong. The correction it asks for sits
              right under it (Q-AW36), open while the office can still correct anything: until approval. -->
+        <!-- F0b: the date of birth on file did not match the applicant's own answer, so they opened their
+             application with a code. The date is what to check — corrected in Identity (Q-AM13). -->
+        <AppCallout v-if="unlockedByCode && state !== 'certified'" tone="caution" data-unlocked-by-code>
+          <p class="font-medium">The date of birth on file may be wrong.</p>
+          <p class="mt-1">
+            On {{ unlockedByCode }} the applicant could not open their application with the date of birth we have,
+            and used a code sent to them instead. Check the date of birth with them and correct it in Identity.
+          </p>
+        </AppCallout>
         <AppCallout v-if="correctionNote" tone="caution" data-correction-note>
           <p class="font-medium">The applicant says something from the start of their application is wrong:</p>
           <p class="mt-1 whitespace-pre-line">{{ correctionNote }}</p>

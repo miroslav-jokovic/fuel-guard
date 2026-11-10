@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { MEDSTOP_OUTCOME_LABELS, MEDSTOP_ORDER_REASONS, type MedstopOrderReason, type MedstopResultRow, type MedstopTestOutcome } from "@silvicom/shared";
+import { shiftDay, MEDSTOP_OUTCOME_LABELS, MEDSTOP_ORDER_REASONS, type MedstopOrderReason, type MedstopResultRow, type MedstopTestOutcome } from "@silvicom/shared";
 import { AppButton as BaseButton, DataTable, type DataTableColumn, DataWorkspace, FilterBar, TablePagination, useQueryState } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ListIntro from "@/features/drugAlcohol/ListIntro.vue";
@@ -15,11 +15,18 @@ import { formatDate } from "@/lib/format";
  * a choice of WHICH list, not a second table under the first — the owner's review found two stacked
  * tables confusing. That choice is Show, so "Clear filters" keeps it (§5.5 rule 5).
  *
- * Show opens on ALL results — §7A.3's list. MS2c shipped only the two exception lists, so the tab
+ * Show opens on ALL results — §7A.3's list — and that list is Show's "" choice, so FilterSelect draws no
+ * ✕ beside it. Until 2026-11-10 it was a named value, the ✕ wrote "", `LISTS[""]` was undefined and the
+ * page crashed ("Something went wrong" on `results.show=any`, owner).
+ *
+ * Reason and Collected came with that fix (owner: "see the latest, and see random results and the other
+ * categories"). Reasons are Med-Stop's own words, offered from the rows like In progress's; Collected
+ * counts back from the api's `today`, never the browser's, which is the viewer's day and not the carrier's.
+ * MS2c shipped only the two exception lists, so the tab
  * read as empty: one dilute from 10/05 for a month in which 65 tests came back negative (owner,
  * 2026-11-10). "Needs review" stays one choice away, and its count stays the tab's badge.
  */
-const props = defineProps<{ all: MedstopResultRow[]; recent: MedstopResultRow[]; history: MedstopResultRow[]; canOrder?: boolean }>();
+const props = defineProps<{ today: string; all: MedstopResultRow[]; recent: MedstopResultRow[]; history: MedstopResultRow[]; canOrder?: boolean }>();
 /**
  * MSO3 (D-MSO4): a negative-dilute DRUG result offers "Order a recollection" to whoever reads it AND may order.
  * It never orders anything by itself and never blocks: the office decides, and decides whether it is observed.
@@ -38,7 +45,7 @@ function recollect(r: MedstopResultRow): void {
 }
 
 const LISTS = {
-  all: {
+  "": {
     label: "All results",
     why: "Every result Med-Stop reported in the last year, negatives included, newest first. A positive or refusal keeps the driver off dispatch until a return-to-duty record dated on or after the test is on file.",
     empty: "No results from Med-Stop in the last year.",
@@ -56,16 +63,26 @@ const LISTS = {
 } as const;
 
 const qs = useQueryState("results");
-const show = qs.param("show", ["all", "recent", "history"], "all");
-const list = computed(() => LISTS[show.value as keyof typeof LISTS]);
+const show = qs.param("show", ["recent", "history"], "");
+const list = computed(() => (show.value === "recent" ? LISTS.recent : show.value === "history" ? LISTS.history : LISTS[""]));
 const showOptions = computed(() => [
-  { value: "all", label: `${LISTS.all.label} (${props.all.length})` },
+  { value: "", label: `${LISTS[""].label} (${props.all.length})` },
   { value: "recent", label: `${LISTS.recent.label} (${props.recent.length})` },
   { value: "history", label: `${LISTS.history.label} (${props.history.length})` },
 ]);
 const kind = qs.param("test", KINDS);
 const OUTCOMES = Object.keys(MEDSTOP_OUTCOME_LABELS) as MedstopTestOutcome[];
 const outcome = qs.param("result", OUTCOMES);
+const reason = qs.param("reason");
+const reasonOptions = computed(() =>
+  [...new Set(source.value.map((r) => r.reason).filter((r): r is string => Boolean(r)))].sort().map((r) => ({ value: r, label: r.toLowerCase() })),
+);
+/** Days back from the carrier's today, today included: "Last 7 days" on 11/10 is 11/04–11/10. */
+const WITHIN = { "7": "Last 7 days", "30": "Last 30 days", "90": "Last 90 days" } as const;
+const within = qs.param("collected", Object.keys(WITHIN));
+const withinOptions = Object.entries(WITHIN).map(([value, label]) => ({ value, label }));
+// An undated row (a refusal with no visit day) is kept by no window: it cannot be shown to be recent.
+const since = computed(() => (within.value ? shiftDay(props.today, 1 - Number(within.value)) : null));
 // Only the results this list holds are offered: a "Negative" choice on a list of positives finds nothing.
 const outcomeOptions = computed(() =>
   OUTCOMES.filter((o) => source.value.some((r) => r.outcome === o)).map((o) => ({ value: o, label: MEDSTOP_OUTCOME_LABELS[o] })),
@@ -86,8 +103,12 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
   rows: tableRows,
   columns,
   text: (r) => [r.name, r.reason],
-  narrow: (r) => (!kind.value || r.kind === kind.value) && (!outcome.value || r.outcome === outcome.value),
-  filters: () => ({ test: kind.value, result: outcome.value }),
+  narrow: (r) =>
+    (!kind.value || r.kind === kind.value) &&
+    (!outcome.value || r.outcome === outcome.value) &&
+    (!reason.value || r.reason === reason.value) &&
+    (!since.value || (r.collectedOn !== null && r.collectedOn >= since.value)),
+  filters: () => ({ test: kind.value, reason: reason.value, result: outcome.value, collected: within.value }),
 });
 </script>
 
@@ -102,12 +123,17 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
         :count="filtered.length"
         count-label="results"
         :active-count="activeCount"
+        :more-count="outcome ? 1 : 0"
         @clear-all="clearAll"
       >
         <template #filters>
           <FilterSelect v-model="show" label="Show" :options="showOptions" />
           <FilterSelect v-model="kind" label="Test" :options="[...KIND_OPTIONS]" />
-          <FilterSelect v-model="outcome" label="Result" :options="outcomeOptions" />
+          <FilterSelect v-model="reason" label="Reason" :options="reasonOptions" />
+          <FilterSelect v-model="within" label="Collected" :options="withinOptions" />
+        </template>
+        <template #more>
+          <FilterSelect v-model="outcome" label="Result" :options="outcomeOptions" block />
         </template>
       </FilterBar>
       <DataTable

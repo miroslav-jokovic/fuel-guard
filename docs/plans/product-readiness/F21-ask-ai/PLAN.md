@@ -245,3 +245,14 @@ audit row is the endpoint's own.
     and the contract entry; the code that rings it is the next merge after this one reaches
     production (lint:migration-ordering's CHECK-before-writer rule, as 0563/0575).
   - Q-AI4 (retention) is still open, so `ai_assistant_usage` declares no retention rule.
+- 2026-11-10 — **R2b built: the 80% and 100% bells.** `alertAssistantBudget` (insights) runs after
+  each recorded answer with the month's spend the gate read and the answer's cost; `assistantCapCrossings`
+  (shared) rings `warn` on the answer that carries the month past $40 and `reached` on the one past
+  $50 — crossing, not "is above", with a dedupe key per line per carrier per month on the carrier's
+  clock, so a line rings once. Recipients are `usersWhoManage(…, "admin")`, the section matrix's
+  answer, never a role list. The bell opens `/ask`. It never throws; a failure is logged.
+  - **Correction to R2's entry:** R2b did not have to wait for 0584 in production. A release applies
+    migrations BEFORE code, and staging had 0584 at R2's merge, so the CHECK always precedes its writer.
+  - **Open, not a blocker:** the $50 cap is a constant (`ASSISTANT_MONTHLY_CAP_MICRO_USD`); no screen
+    lets an admin raise it. The carrier's own token limit (Thresholds) is the knob they have. A per-org
+    cap setting is a later decision if a carrier needs more than $50 of Ask AI a month.

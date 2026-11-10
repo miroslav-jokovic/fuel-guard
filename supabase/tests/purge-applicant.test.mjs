@@ -185,6 +185,11 @@ async function seedApplicant(org, name) {
   // 0471 (UX5c): the Med-Stop create attempt leaves with the invitation (on delete cascade), so it is
   // proved by the footprint below rather than counted by the purge function.
   await db.query(`insert into medstop_applicant_creates (org_id, invitation_id, outcome) values ($1,$2,'created')`, [org, inv]);
+  // 0585 (F0b): a one-time unlock code leaves with the invitation the same way (on delete cascade) —
+  // proved by the footprint, not counted by the purge function.
+  await db.query(
+    `insert into application_unlock_codes (org_id, invitation_id, channel, code_hash, expires_at, used_at)
+     values ($1,$2,'email',repeat('a',64),now() + interval '10 minutes',now())`, [org, inv]);
   await db.query(
     `insert into application_intake_licences (org_id, invitation_id, position, state_code, licence_number) values ($1,$2,0,'IL','X123')`,
     [org, inv]);

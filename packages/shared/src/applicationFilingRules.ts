@@ -38,8 +38,9 @@ const asPeriod = (e: ApplicationEmployer, i: number): EmploymentPeriod => ({
   employerName: e.employer_name,
   startedOn: e.started_on,
   endedOn: e.ended_on ?? null,
-  dotRegulated: e.dot_regulated,
-  operatedCmv: e.operated_cmv,
+  // F1 part 2: unanswered is not Yes. The gap arithmetic runs on a draft, where a job may not be answered yet.
+  dotRegulated: e.dot_regulated === true,
+  operatedCmv: e.operated_cmv === true,
   inquiryStatus: "not_required",
 });
 
@@ -123,4 +124,23 @@ export function applicationV2FilingIssues(
     }
   }
   return issues;
+}
+
+/**
+ * What a LEGACY link (no Part 1) may not be filed without, beyond the contract (F1 part 2, 2026-11-10).
+ *
+ * §40.25(j)'s two-year question. A v2 link asks it in Part 1, which refuses to store an intake without
+ * it (AI009), so this is the legacy link's alone. Not a contract rule: the field is nullish because every
+ * application filed before P8 has no answer and must go on parsing — but a NEW filing must answer it.
+ * It was an unticked box until F1 part 2, so a driver who skipped it had said No (audit finding 13).
+ */
+export const PRIOR_TEST_UNANSWERED =
+  "Say whether, in the last two years, you tested positive or refused a test for a driving job you applied for";
+
+export function applicationLegacyFilingIssues(
+  application: Pick<DriverApplicationFields, "prior_failed_pre_employment_test">,
+): ApplicationFilingIssue[] {
+  return typeof application.prior_failed_pre_employment_test === "boolean"
+    ? []
+    : [{ path: "prior_failed_pre_employment_test", message: PRIOR_TEST_UNANSWERED }];
 }

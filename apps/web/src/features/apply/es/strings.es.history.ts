@@ -32,7 +32,7 @@ export const APPLY_HISTORY_COPY_ES = {
     droveTruck: "¿Manejó un camión en este trabajo?",
     droveTruckHint: "Cualquier vehículo comercial: un tractocamión, un camión recto, un autobús.",
     dotQuestion: "¿Este empleador estaba regulado por el DOT?",
-    dotQuestionHint: "Una empresa de transporte o cualquier negocio cuyos camiones necesitan número USDOT. Deje Sí si no está seguro.",
+    dotQuestionHint: "Una empresa de transporte o cualquier negocio cuyos camiones necesitan número USDOT. Si no está seguro, responda Sí.",
     subjectToFmcsr: "En este trabajo, ¿le aplicaban las Regulaciones Federales de Seguridad de Transportistas (FMCSR)?",
     subjectToFmcsrHint: "Las reglas federales de seguridad para las empresas de transporte y sus conductores.",
     safetySensitive: "¿Era un trabajo sensible para la seguridad que requería pruebas de drogas y alcohol del DOT?",
@@ -144,8 +144,8 @@ export const APPLY_HISTORY_COPY_ES = {
       "Todas las empresas tienen que hacer esta pregunta, y un sí no termina su solicitud. Significa que tenemos "
       + "que ver los papeles que muestren que completó el proceso de regreso al trabajo (return-to-duty) antes de que pueda manejar.",
     priorTest:
-      "En los últimos dos años, solicité un trabajo de conductor que no obtuve, y di positivo o "
-      + "me negué a una prueba como parte de esa solicitud",
+      "En los últimos dos años, ¿solicitó un trabajo de conductor que no obtuvo, y dio positivo o "
+      + "se negó a una prueba como parte de esa solicitud?",
     priorTestHint: "Esto es sobre trabajos que solicitó, no sobre trabajos que tuvo.",
     remove: "Quitar",
   },

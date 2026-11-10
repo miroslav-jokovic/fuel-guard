@@ -112,7 +112,7 @@ const stale = computed(() => {
 
         <RandomTab v-if="tab === 'random' && p.selections" :draws="p.selections.draws" :current-period="p.selections.currentPeriod" :dispatch="p.selections.dispatch" :pools="p.pools" :can-order="canOrder" @order="openOrder" />
         <InProgressTab v-else-if="tab === 'progress'" :rows="p.inProgress" />
-        <ResultsTab v-else-if="tab === 'results' && p.results" :all="p.results.all" :recent="p.results.recent" :history="p.results.history" :can-order="canOrder" @recollect="openRecollection" />
+        <ResultsTab v-else-if="tab === 'results' && p.results" :today="p.results.today" :all="p.results.all" :recent="p.results.recent" :history="p.results.history" :can-order="canOrder" @recollect="openRecollection" />
         <MedicalTab v-else-if="tab === 'medical'" :medical="p.medical" />
         <RosterTab v-else-if="tab === 'roster'" :not-in-pool="p.roster.notInPool" :left-but-in-pool="p.roster.leftButInPool" />
       </template>

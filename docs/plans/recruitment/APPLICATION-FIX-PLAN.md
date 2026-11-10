@@ -289,3 +289,32 @@ A gate fails on a literal string in an `apply/` template.
   - **Next:** F1 part 2 (the yes/no answers with no default, moved from F0), then F0b.
   - **New question:** Q-AM13.
 - 2026-11-10: owner answered Q-AM13: every answer is office-editable before signing. The four drug-test statements need a note, and they reach the driver for acceptance on 3.1. Donor gender and EEO are replace-only. F3's card builds these doors. The catalogue's `office` reasons now name F3 instead of an open question.
+- 2026-11-10: F1 part 2 is on `claude/application-f1-yesno`. This is the F0 row "Legacy unticked → No; defaults of Yes", which moved into F1.
+  - **No question starts answered any more:**
+    - each job's "Did you drive a truck?" (`operated_cmv`) and "Was this employer regulated by the DOT?" (`dot_regulated`). Both used to start at Yes (audit finding 15);
+    - a legacy link's §40.25(j) question. It was an unticked checkbox, so skipping it filed No (finding 13). It is now a Yes/No question.
+  - **The contract:** the two employer fields became `.nullish()`, so a draft can hold an unanswered job and the office's correction path still parses it.
+  - **Where a blank is refused:**
+    - the hand-off and the filing (`unansweredEmployerQuestions`, in `driverApplicationSchema`'s refinement);
+    - the job panel's Save, for the applicant and the office alike (`employerProblems`);
+    - the wizard's jobs screen.
+    - A legacy filing is refused without §40.25(j) (`applicationLegacyFilingIssues` in `applicationSubmit`). A v2 link already asks it in Part 1.
+  - **Kept:** the "answer Yes if unsure" asymmetry now lives in the hint, in English and Spanish. A PSP-suggested job still arrives as Yes/Yes, because PSP's own record is the evidence.
+  - **Fixed along the way:** the office record's rule that dropped a Yes on a row whose answer was never recorded. The form now shows such a row as unanswered, so a Yes there is the office's answer and is sent.
+  - **Next:** F0b (the one-time code for the DOB unlock).
+- 2026-11-10: F0b is on `claude/application-f0b-unlock-code`. This is the F0 row "DOB typo locks driver out".
+  - **What the driver gets:** once a date of birth has failed, the unlock screen offers "Email me a code" and "Text me a code". The code goes only where the link went:
+    - the invitation's own email;
+    - or the number they agreed to be texted on.
+    - The request names a channel, never an address.
+  - **What the code is:** six digits, 10 minutes, 5 tries. Only the newest code counts. A right code releases exactly what the date of birth would (`releasedView`, shared with `/unlock`).
+  - **What the office sees:** "The date of birth on file may be wrong", with when the code was used. The office corrects the date in Identity (Q-AM13).
+  - **Table:** migration 0585 `application_unlock_codes` (hashes only, 90-day retention; `audit_logs` keeps each send and use).
+  - **Limits:** sends are 3 per link per hour (`unlockCodeLimiter`); verifies use the unlock's own 10 per 10 minutes.
+  - **Departures from the row:**
+    - The office "reset the DOB" already exists: it is Identity correction. Nothing new was built for it.
+    - The code does not reset a sent sign link's five-try count. A link already stopped gives no code; "send it again" stays its remedy (D-AW14).
+  - **Not built:** the remembered-device token from U2. It belongs to F4.
+  - **Production, read-only on 2026-11-10:** 5 invitations, all with an email, 4 with SMS consent, 0 sign-link lockouts. Email covers everyone today.
+  - **Next:** F2 and F3, in parallel on F1.
+

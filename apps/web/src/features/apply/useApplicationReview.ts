@@ -43,6 +43,8 @@ export interface ApplicationReview {
   carrierQuestions?: CarrierQuestionStamp;
   /** What the applicant has photographed (F0). Optional: an API from before F0 sends none. */
   captures?: ApplicationCaptureView[];
+  /** F0b: when the applicant last opened it with a code because the date of birth on file did not match. */
+  unlockedByCodeAt?: string | null;
   edits: ApplicationEditRow[];
 }
 

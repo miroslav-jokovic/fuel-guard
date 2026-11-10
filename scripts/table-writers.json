@@ -67,6 +67,9 @@
     "apps/api/src/modules/recruiting/applicantIntake.ts",
     "apps/api/src/modules/recruiting/applicantSelfie.ts"
   ],
+  "application_unlock_codes": [
+    "apps/api/src/modules/recruiting/applicationUnlockCode.ts"
+  ],
   "application_invitations": [
     "apps/api/src/modules/recruiting/applicationHandoff.ts",
     "apps/api/src/modules/recruiting/applicationLink.ts",

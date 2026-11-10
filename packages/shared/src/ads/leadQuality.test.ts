@@ -3,7 +3,7 @@ import { leadQualityBreaches, medianMinutes, type LeadQualityCounts } from "./le
 import { ADS_LEAD_QUALITY_DEFAULT, ADS_SETTINGS_UNSET, adsSettingsSchema, leadQualityOf } from "./settingsContract.js";
 
 const row = (over: Partial<LeadQualityCounts>): LeadQualityCounts => ({
-  campaign_id: "c1", leads: 20, attempted: 10, wrong_number: 0, reached: 5, not_qualified: 0, median_first_attempt_minutes: 7, ...over,
+  campaign_id: "c1", leads: 20, attempted: 10, wrong_number: 0, reached: 5, not_qualified: 0, median_first_attempt_minutes: 7, closed: {}, ...over,
 });
 
 describe("leadQualityBreaches (LQ3, Q-AD51 (a))", () => {
@@ -21,6 +21,19 @@ describe("leadQualityBreaches (LQ3, Q-AD51 (a))", () => {
     expect(leadQualityBreaches([row({ leads: 20, not_qualified: 8 })], ADS_LEAD_QUALITY_DEFAULT))
       .toEqual([{ campaign_id: "c1", rule: "not_qualified", measured_pct: 40, threshold_pct: 40, part: 8, whole: 20 }]);
     expect(leadQualityBreaches([row({ leads: 20, not_qualified: 7 })], ADS_LEAD_QUALITY_DEFAULT)).toEqual([]);
+  });
+
+  it("not qualified waits for enough LEADS, not enough calls: ten leads nobody called, every one below a hard requirement, rings", () => {
+    expect(leadQualityBreaches([row({ leads: 10, attempted: 0, reached: 0, not_qualified: 10, median_first_attempt_minutes: null })], ADS_LEAD_QUALITY_DEFAULT))
+      .toEqual([{ campaign_id: "c1", rule: "not_qualified", measured_pct: 100, threshold_pct: 40, part: 10, whole: 10 }]);
+  });
+
+  it("nine leads, all below a hard requirement, say nothing yet, however many were called", () => {
+    expect(leadQualityBreaches([row({ leads: 9, attempted: 9, not_qualified: 9 })], ADS_LEAD_QUALITY_DEFAULT)).toEqual([]);
+  });
+
+  it("enough leads but too few calls rings not-qualified alone: the wrong-number share still waits for its attempts", () => {
+    expect(leadQualityBreaches([row({ leads: 20, attempted: 9, wrong_number: 9, not_qualified: 8 })], ADS_LEAD_QUALITY_DEFAULT).map((b) => b.rule)).toEqual(["not_qualified"]);
   });
 
   it("both rules can ring for one campaign; the switch off rings none", () => {
