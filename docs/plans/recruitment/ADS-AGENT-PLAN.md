@@ -1346,6 +1346,16 @@ rate, and Higgsfield credits per approved creative.
     they were shown was found on the lead row (only `packages/shared/src/recruiting/leads` and
     `apps/api/src/modules/recruiting/leads` were searched; the raw Meta payload is kept whole and may carry it).
     Whoever takes Q-AD72 to counsel reads the raw payload first and opens a question only if it is absent.
+- **Q-AD74–Q-AD77 · The agents and lead relevance, second audit** (opened 2026-11-10 by
+  [`ADS-AGENTS-AUDIT-2026-11-10.md`](ADS-AGENTS-AUDIT-2026-11-10.md) §4 — one home, not restated here; owner's ask:
+  ads "high quality, well directed and composed", leads "relevant, reliable, and not some random leads"):
+  Q-AD74 what a returning person, a current driver and a held number do to the `lead_new` bell · Q-AD75 an image
+  composed per format instead of one centre crop · Q-AD76 a judge that sees the finished ad, and whether it has a
+  floor · Q-AD77 starter presets, since a carrier begins with none and cannot compose. The findings that drive
+  them: Meta is asked for `LEAD_GENERATION` at lowest cost and nothing built can change the goal (F-LR1, waits on
+  Q-AD17); the not-qualified alert gates on attempted calls that LQ6 stopped anyone making (F-LR2); the art
+  director never sees layout, formats or copy (F-AG2); no still model is chosen, so no real image exists
+  (F-AG1, Q-AD20). The ranked build list AG1–AG9 and LR1–LR8 is that document's §3. **All open.**
 
 ---
 
