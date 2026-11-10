@@ -233,6 +233,7 @@ A gate fails on a literal string in an `apply/` template.
 | Q-AM5 | Which carrier-only requirements stay required? (email, phone, donor gender, CDL photos, medical card, selfie, 7 carrier questions, gaps over 30 days) | per item | Keep phone **or** email, CDL photo (skippable to "pending"), medical card or pending. The rest stays required but labelled as the carrier's. |
 | Q-AM6 | Spelling on the driver's side | US / British | **US**. The drivers and the regulation say "license". |
 | Q-AM7 | Wizard granularity | ANSWERED 2026-11-09: one question per screen, grouped only for one fact (D-AM2/D-AM3); see APPLICATION-SCREEN-MAP.md | — |
+| Q-AM13 | Can the office edit the driver's own statements: §40.25(j) (prior positive test or refusal) and the three §382.301(b) testing-program answers? | ANSWERED 2026-11-10 (owner): **yes, every answer is editable before signing**, "because drivers make mistakes and we need control over any mistake". Built as (c). These four edits require a note and are audited as office-entered. Like every edit (D-AM7), the driver sees and accepts them on screen 3.1 before signing, so the signed document is still their statement. The donor gender and the EEO answers are **replace-only**: the office can overwrite them but never sees them, like the SSN, because they must not reach whoever decides the hire. Nothing is editable after signing (Q-AM2). | — |
 
 ## 6. Size and order
 
@@ -266,3 +267,25 @@ A gate fails on a literal string in an `apply/` template.
     - Q-AM8–11, in `APPLICATION-SCREEN-MAP.md` §8: Q-AM8 (a), street optional on previous homes; Q-AM9 (a), one DOT question per employer; Q-AM10 (a) later, the FMCSA name search; Q-AM11 (a), employer dates as month and year.
   - **F1 needs none of these.** Q-AM8, Q-AM9 and Q-AM11 change catalogue entries, not the catalogue's shape. F1 builds the entries as the screens are today, and a ruling becomes a one-entry edit.
   - **Order from here:** F1 → F0b → F2 and F3 (in parallel, both on F1) → F4 → F5 (on Q-AM1). That is about 13 working days. F1 starts on `claude/application-f1`.
+- 2026-11-10: F1 part 1 is on `claude/application-f1`.
+  - **What it adds:** the fact catalogue `packages/shared/src/applicantFacts.ts`, with two parity tests:
+    - `applicantFacts.test.ts` walks both Zod contracts;
+    - `applicantFactsPacket.test.ts` walks what the packet fill places on a full application.
+  - **What fails CI from now on:**
+    - a contract key with no entry (or no declared reason it is not a fact);
+    - an entry for a key no contract has;
+    - a packet place that does not exist;
+    - a packet value no fact claims;
+    - an identity or Part 1 door that does not own the fact.
+  - **The office-gap list:** facts with no office editor today are pinned as an inline snapshot (13 facts). F3 shrinks it.
+  - **Departures from the plan, and why:**
+    - The schemas are *referenced* by path, not moved. Moving them would be the same Zod in a new file, and the tests derive the paths from the schemas.
+    - Labels stay in `APPLY_COPY` via `fieldLabels.ts`. Its type already forces the Spanish to cover every key.
+    - D-AM7's `lint:application-parity` is these two tests rather than a `scripts/*.mjs` gate. The facts are TypeScript, and the `lint:*` scripts are plain Node. The tests run in `test-packages` and `test-api` on every PR, so a lint wrapper would only run them a second time.
+  - **The unified rules F1 listed are behaviour changes with their own merges:**
+    - non-US ZIP and phone need a migration first, because 0376's CHECKs hold Part 1 to a 5-digit ZIP and a US mobile;
+    - CLP as a CDL class;
+    - the key renames.
+  - **Next:** F1 part 2 (the yes/no answers with no default, moved from F0), then F0b.
+  - **New question:** Q-AM13.
+- 2026-11-10: owner answered Q-AM13: every answer is office-editable before signing. The four drug-test statements need a note, and they reach the driver for acceptance on 3.1. Donor gender and EEO are replace-only. F3's card builds these doors. The catalogue's `office` reasons now name F3 instead of an open question.
