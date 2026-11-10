@@ -17,6 +17,7 @@ vi.mock("../fuel-spend/index.js", () => ({
 }));
 vi.mock("../fuel/index.js", () => ({ FUEL_EVENT_DROP: "drop" }));
 vi.mock("../idle/index.js", () => ({ assistantIdleReport: vi.fn() }));
+vi.mock("../recruiting/index.js", () => ({ assistantRecruiting: vi.fn(), RECRUITING_WAITING: ["us", "them"] }));
 vi.mock("../efs/index.js", () => ({ assistantCardHolds: vi.fn(), CARD_HOLD_STATUSES: ["Hold", "Fraud"] }));
 vi.mock("../evidence/index.js", () => ({ assistantDriverFiles: vi.fn(), DRIVER_FILE_STATES: ["expired", "expiring", "missing"] }));
 vi.mock("../maintenance/index.js", () => ({ assistantAnnualDue: vi.fn(), ANNUAL_DUE_KINDS: ["truck", "trailer"] }));

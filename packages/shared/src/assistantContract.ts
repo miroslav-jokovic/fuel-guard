@@ -78,6 +78,9 @@ export const ASSISTANT_TOOL_ACCESS = {
   driver_file_expirations: [view("roster")],
   // Shop worklist's annual group (`/api/maintenance/annual-due` asks `requireSection("maintenance", "view")`).
   annual_inspections_due: [view("maintenance")],
+  // Applicants board (`recruitment.applicants`; `/api/recruitment/pipeline` asks
+  // `requireSection("recruitment", "view")`).
+  recruiting_counts: [view("recruitment")],
   // A truck's or trailer's repair bills (`maintenance.units`; `/api/maintenance/units/:kind/:id/maintenance`
   // asks `requireSection("maintenance", "view")`, no module).
   maintenance_cost: [view("maintenance")],

@@ -233,13 +233,15 @@ describe("Ask AI: a screen that starts admin-only, then the person's tools (Q-SE
     // F21 R6b: the matrix lets a recruiter VIEW the roster, so the Drivers page's file tool is theirs;
     // with the roster taken away there is nothing left to ask.
     expect(await gate(token("recruiter"))).toBe(null);
-    expect(await gate(token("recruiter", { roster: "none" }))).toBe("tools");
+    // R6b's recruiting counts are theirs by `recruitment`; with roster and recruitment gone, nothing is left.
+    expect(await gate(token("recruiter", { roster: "none" }))).toBe(null);
+    expect(await gate(token("recruiter", { roster: "none", recruitment: "none" }))).toBe("tools");
     // The technician has the shop's two (repair bills, annual inspections due); without maintenance, none.
     expect(await gate(token("technician"))).toBe(null);
     expect(await gate(token("technician", { maintenance: "none" }))).toBe("tools");
     // HazmatGuard grants no tool (the coincidence the old hand list equalled); Fuel does.
-    expect(await gate(token("recruiter", { roster: "none", hazmat: "manage" }))).toBe("tools");
-    expect(await gate(token("recruiter", { roster: "none", fuel: "view" }))).toBe(null);
+    expect(await gate(token("recruiter", { roster: "none", recruitment: "none", hazmat: "manage" }))).toBe("tools");
+    expect(await gate(token("recruiter", { roster: "none", recruitment: "none", fuel: "view" }))).toBe(null);
     expect(await gate(token("admin", { fuel: "none" }))).toBe(null);
   });
 });

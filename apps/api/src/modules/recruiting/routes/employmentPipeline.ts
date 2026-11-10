@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   applicantProgress,
   currentDisposition,
@@ -80,14 +81,31 @@ const toPeriod = (r: HistoryRow): EmploymentPeriod => ({
  * approximation of it: a pipeline that disagrees with the file it summarises is worse than no
  * pipeline. `asOf` is the application date when we have one, which for now is the row's creation.
  */
-export const applicantPipelineHandler = asyncHandler(async (req, res) => {
-  const admin = getSupabaseAdmin(getAppLocals(req).env);
-  const orgId = req.auth!.orgId!;
+/**
+ * The board's rows, out of the handler so a second reader asks the same question (F21 R6b,
+ * 2026-11-10: Ask AI's `recruiting_counts`). Same queries, same order, same rows as the handler
+ * answered before; a failure is returned as the handler's own message, never as an empty board.
+ */
+export type ApplicantPipelineResult =
+  | { ok: true; applicants: Awaited<ReturnType<typeof pipelineRows>> }
+  | { ok: false; message: string };
 
-  // Archived applicants leave the board and nothing else (0235): their row, their draft and
-  // anything they signed are untouched and their own page still opens. `?archived=true` is the
-  // other half of the same list — the "Archived" chip — rather than a second endpoint.
-  const showArchived = String(req.query.archived ?? "") === "true";
+export async function readApplicantPipeline(
+  admin: SupabaseClient,
+  orgId: string,
+  opts: { archived?: boolean } = {},
+): Promise<ApplicantPipelineResult> {
+  try {
+    return { ok: true, applicants: await pipelineRows(admin, orgId, opts.archived === true) };
+  } catch (e) {
+    if (e instanceof PipelineReadError) return { ok: false, message: e.message };
+    throw e;
+  }
+}
+
+class PipelineReadError extends Error {}
+
+async function pipelineRows(admin: SupabaseClient, orgId: string, showArchived: boolean) {
   const { data: applicants, error: applicantsError } = await admin
     .from("drivers")
     .select("id, full_name, status, hire_date, date_of_birth, created_at, archived_at")
@@ -95,16 +113,10 @@ export const applicantPipelineHandler = asyncHandler(async (req, res) => {
     .eq("status", "applicant")
     .filter("archived_at", showArchived ? "not.is" : "is", null)
     .order("created_at", { ascending: true });
-  if (applicantsError) {
-    res.status(500).json(apiError("db_error", "Could not list applicants"));
-    return;
-  }
+  if (applicantsError) throw new PipelineReadError("Could not list applicants");
 
   const ids = (applicants ?? []).map((a) => a.id);
-  if (ids.length === 0) {
-    res.json({ applicants: [] });
-    return;
-  }
+  if (ids.length === 0) return [];
 
   const [history, auths, decisions, invitations] = await Promise.all([
     admin
@@ -142,10 +154,7 @@ export const applicantPipelineHandler = asyncHandler(async (req, res) => {
       .in("driver_id", ids)
       .order("created_at", { ascending: false }),
   ]);
-  if (history.error || auths.error || decisions.error || invitations.error) {
-    res.status(500).json(apiError("db_error", "Could not load the pipeline"));
-    return;
-  }
+  if (history.error || auths.error || decisions.error || invitations.error) throw new PipelineReadError("Could not load the pipeline");
 
   const historyBy = new Map<string, HistoryRow[]>();
   for (const row of (history.data ?? []) as HistoryRow[]) {
@@ -255,6 +264,18 @@ export const applicantPipelineHandler = asyncHandler(async (req, res) => {
       last_note: lastNotes.get(a.id) ?? null,
     };
   });
+  return rows;
+}
 
-  res.json({ applicants: rows });
+export const applicantPipelineHandler = asyncHandler(async (req, res) => {
+  // Archived applicants leave the board and nothing else (0235): their row, their draft and
+  // anything they signed are untouched and their own page still opens. `?archived=true` is the
+  // other half of the same list — the "Archived" chip — rather than a second endpoint.
+  const showArchived = String(req.query.archived ?? "") === "true";
+  const result = await readApplicantPipeline(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, { archived: showArchived });
+  if (!result.ok) {
+    res.status(500).json(apiError("db_error", result.message));
+    return;
+  }
+  res.json({ applicants: result.applicants });
 });
