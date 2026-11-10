@@ -65,7 +65,7 @@ test("the back takes itself once its barcode reads, and what it read fills Part 
   const upload = stub.callsTo("PUT", /\/capture\/[^/]+$/).at(-1)!;
   expect(upload.body).toMatchObject({ slot: "cdl_back", content_type: expect.stringMatching(/^image\/(webp|jpeg)$/) });
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.locator("#p1-dob-year")).toHaveValue("1986");
+  await expect(page.locator("#p1-dob")).toHaveValue(/\/1986$/);
 });
 
 test("a camera the phone refuses sends the driver to the camera app, and the page stops offering the scanner", async ({ page }) => {
