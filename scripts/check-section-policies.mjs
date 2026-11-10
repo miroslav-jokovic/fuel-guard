@@ -93,6 +93,10 @@ const MODULE_SECTIONS = {
   // brief's consumer (recruitment, for openings) plus the named admin capabilities `ads.connection`
   // and `ads.spend` (A5); a role-named policy on its tables would be a door around both.
   ads: null,
+  // Ask AI's meter (0584, F21 R2): deny-all to every client, written and read only by the API. The
+  // assistant's endpoint gates on fuel: view plus the `ask-ai` surface (Q-SET14/15) and will gate per
+  // tool once D-AI1 lands, so a role-named policy on its ledger would be a door around both.
+  insights: null,
 };
 
 /**

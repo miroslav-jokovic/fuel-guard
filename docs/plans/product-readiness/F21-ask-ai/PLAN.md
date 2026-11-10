@@ -223,3 +223,25 @@ audit row is the endpoint's own.
     inspection expiries, recruiting counts); R7 = the eval set from the 20 real asks (Step 1c).
   - R1 does not answer "cost per mile" in full: `fuel_cost_per_mile` is fuel only, and the tool says
     so. All-in cost per mile is the finance fleet report's (R6, behind R5, and it lags the GL close).
+- 2026-11-10 — **Q-AI1 ruled, R2 built.** The owner said "analyze and proceed with R2" on the
+  recommendation as written: **(a) Haiku 5.5, $50 per carrier per month, admin alert at 80%.**
+  - **Model and request:** `AI_MODELS.assistant = "claude-haiku-5-5"` (its own key; `fast` stays Haiku
+    4.5 for the verification layer and readers, which move on their own measurements). Effort `low`,
+    `max_tokens` 8,000 (Haiku 5.5's thinking counts toward it). Tools and the fixed system prompt are
+    cached; today's date is a second system block after the breakpoint; top-level `cache_control`
+    lets each round re-read the last. `refusal`, `max_tokens`, a six-round stop and a thrown model
+    error each end as their own outcome; a failed tool goes back with `is_error`.
+  - **Meter (0584):** `ai_assistant_usage`, one row per answer — tokens by kind, list-price cost in
+    micro-dollars (`requestCostMicroUsd`, shared), rounds, latency, tools, outcome, no text — written
+    only by `record_assistant_answer`, which adds every token to `org_usage_month` in the same call
+    (the fourth writer, after 0130/0451/0549). An `[ai]` log line per answer, counts only.
+  - **Gate:** before the model is reached, the carrier's existing "Monthly AI usage limit, in tokens"
+    (`anomaly_thresholds.ai_monthly_token_budget`, enforced by nothing until now; no carrier has set
+    one) against `org_usage_month`, then the $50 cap against this month's ledger on the carrier's
+    clock → 429 `ai_budget_exhausted` with a plain sentence. Fails open, logged, if the meter cannot
+    be read. Per-person limiter, 30 per 15 minutes keyed on the caller (`assistantLimiter`), in place
+    of the per-address `strictLimiter` the whole office shared (P1).
+  - **Not yet (R2b):** the 80% alert's SENDER. 0584 adds the bell category `ai_assistant_budget`
+    and the contract entry; the code that rings it is the next merge after this one reaches
+    production (lint:migration-ordering's CHECK-before-writer rule, as 0563/0575).
+  - Q-AI4 (retention) is still open, so `ai_assistant_usage` declares no retention rule.

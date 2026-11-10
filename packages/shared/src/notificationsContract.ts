@@ -150,6 +150,11 @@ export const NOTIFICATION_CATEGORIES = [
    */
   "ads_lead_quality",
   "ads_creative_retired",
+  /**
+   * Ask AI has spent 80% of this month's cap (F21 Q-AI1, "admin alert at 80%"), to the admins. Mirrored in
+   * the CHECK (0584); nothing writes it until the sender's merge.
+   */
+  "ai_assistant_budget",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -201,6 +206,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   lead_intake_failing: "Ad leads not arriving",
   ads_lead_quality: "Ad leads that are unreachable or do not qualify",
   ads_creative_retired: "An ad retired for fatigue; the next concept is due",
+  ai_assistant_budget: "Ask AI is near this month's spending cap",
 };
 
 /**

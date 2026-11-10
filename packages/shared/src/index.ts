@@ -57,6 +57,7 @@ export * from "./odometerHygiene.js";
 export * from "./capacityHealth.js";
 export * from "./odometer.js";
 export * from "./ai.js";
+export * from "./assistantUsage.js";
 export * from "./canonicalJson.js";
 export * from "./anomaly.js";
 export * from "./dashboard.js";
