@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppButton as BaseButton, AppInput as BaseInput, AppDateField } from "@silvicom/ui";
+import ApplyDate from "@/features/apply/ApplyDate.vue";
+import { AppButton as BaseButton, AppInput as BaseInput } from "@silvicom/ui";
 import type { PartOneFactsView } from "@silvicom/shared";
 import type { ApplicationDraft } from "@/features/apply/draft";
 import ApplyField from "@/features/apply/ApplyField.vue";
@@ -83,7 +84,7 @@ const lockedHint = APPLY_COPY.identityStep.lockedHint;
     </div>
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <ApplyField v-slot="f" :path="['date_of_birth']" :label="copy.date_of_birth" :hint="lockedBy ? lockedHint(lockedBy) : undefined">
-        <AppDateField v-bind="f" v-model="draft.date_of_birth" :disabled="Boolean(lockedBy)" />
+        <ApplyDate v-bind="f" v-model="draft.date_of_birth" kind="dob" autocomplete="bday" :disabled="Boolean(lockedBy)" />
       </ApplyField>
       <ApplyField v-slot="f" :path="['email']" :label="copy.email">
         <BaseInput v-bind="f" v-model="draft.email" type="email" autocomplete="email" />

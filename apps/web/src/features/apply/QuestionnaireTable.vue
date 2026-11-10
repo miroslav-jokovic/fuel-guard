@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import ApplyDate from "@/features/apply/ApplyDate.vue";
 import {
   AppButton as BaseButton,
   AppCheckbox as BaseCheckbox,
   AppCombobox as ComboSelect,
-  AppDateField,
   AppInput as BaseInput,
 } from "@silvicom/ui";
 import type { QuestionnaireQuestion } from "@silvicom/shared";
@@ -62,8 +62,9 @@ const options = (column: { options?: readonly string[] }) =>
           :options="options(column)"
           @update:model-value="set(index, column.id, $event)"
         />
-        <AppDateField
+        <ApplyDate
           v-else-if="column.kind === 'date'"
+          kind="past"
           :id="`q-${question.id}-${index}-${column.id}`"
           :model-value="(row[column.id] as string) ?? ''"
           @update:model-value="set(index, column.id, $event)"

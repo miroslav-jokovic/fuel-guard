@@ -4,6 +4,7 @@ import { VueDatePicker } from "@vuepic/vue-datepicker";
 import AppIcon from "./AppIcon.vue";
 import { CalendarIcon, XMarkIcon } from "../icons";
 import { useTouchTargets } from "../touchTargets";
+import { parseTypedDate } from "../typedDate";
 
 /**
  * The one date control. Not exported from the barrel — `AppDateField`, `AppDateTimeField` and
@@ -122,6 +123,23 @@ const placeholder = computed(() =>
  */
 const noun = computed(() => (props.monthOnly ? "month" : "date"));
 
+/**
+ * What the TYPED text means (D-AM6, APPLICATION-SCREEN-MAP §9): the same reading the applicant's box
+ * uses, so "1001" is October 1 of this year and "10/1/85" is October 1, 1985 here too.
+ *
+ * ⚠ Until this, `text-input` was given the display format as its parser, so only an exact `MM/dd/yyyy`
+ * was ever accepted, and anything else typed was silently dropped on blur. The date-and-time shape keeps
+ * that parser, because a typed time is not something `typedDate.ts` reads. A Date is built from local
+ * parts, never from a string, because a calendar day is not an instant.
+ */
+function readTyped(text: string): Date | null {
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const r = parseTypedDate(text, props.monthOnly ? "month" : "any", today);
+  return r.ok ? new Date(r.year, r.month - 1, r.day ?? 1) : null;
+}
+const textInput = computed(() => ({ format: props.withTime ? displayFormat.value : readTyped }));
+
 /** An empty string is not a date; VueDatePicker wants `null` for "nothing chosen". */
 const value = computed(() => props.modelValue || null);
 
@@ -152,7 +170,7 @@ const INPUT_CLASS =
     :formats="{ input: displayFormat }"
     :time-config="{ enableTimePicker: !monthOnly && withTime, is24: true }"
     :month-picker="monthOnly"
-    :text-input="{ format: displayFormat }"
+    :text-input="textInput"
     :min-date="minDate || undefined"
     :max-date="maxDate || undefined"
     :disabled="disabled"

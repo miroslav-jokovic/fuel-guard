@@ -3,10 +3,10 @@ import { computed, reactive, ref, toRef, watch } from "vue";
 import {
   AppButton as BaseButton,
   AppCombobox as ComboSelect,
-  AppDateField,
   AppFormField as FormField,
   AppInput as BaseInput,
   AppSelect,
+  AppTypedDate,
 } from "@silvicom/ui";
 import {
   CDL_CLASSES,
@@ -166,7 +166,7 @@ async function save(): Promise<void> {
               <template #default="f"><BaseInput v-bind="f" v-model="l.agency" /></template>
             </FormField>
             <FormField :id="`p1c-l${i}-expires`" label="Expiry date" :error="errors[`licences.${i}.expires_on`]">
-              <template #default="f"><AppDateField v-bind="f" v-model="l.expires_on" /></template>
+              <template #default="f"><AppTypedDate v-bind="f" v-model="l.expires_on" kind="any" /></template>
             </FormField>
           </div>
           <BaseButton v-if="i > 0" size="sm" variant="ghost" @click="form.licences.splice(i, 1)">Remove this licence</BaseButton>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import { AppCombobox, AppMemorableDate } from "@silvicom/ui";
+import { AppCombobox, AppTypedDate } from "@silvicom/ui";
 import PartOneOtherLicences from "./PartOneOtherLicences.vue";
 import { emptyPartOneAnswers, type PartOneAnswers } from "./partOneScreens";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -26,7 +26,7 @@ async function typeEntry(w: ReturnType<typeof mount>, expiry: string | null) {
   await button(w, copy.add).trigger("click");
   w.findComponent(AppCombobox).vm.$emit("update:modelValue", "OH");
   await w.find("#p1-other-number").setValue("OH-555");
-  if (expiry) await w.findComponent(AppMemorableDate).vm.$emit("update:modelValue", expiry);
+  if (expiry) await w.findComponent(AppTypedDate).vm.$emit("update:modelValue", expiry);
   await button(w, copy.save).trigger("click");
 }
 

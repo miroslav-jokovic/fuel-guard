@@ -87,7 +87,7 @@ describe("saving and cancelling", () => {
 
   it("starts a new job from a gap's dates", () => {
     const w = panel({ employer: null, prefill: { started_on: "2024-02-01", ended_on: "2024-06-01" } });
-    const dates = w.findAllComponents({ name: "AppDateField" }).map((d) => d.props("modelValue"));
+    const dates = w.findAllComponents({ name: "AppTypedDate" }).map((d) => d.props("modelValue"));
     expect(dates).toEqual(["2024-02-01", "2024-06-01"]);
     w.unmount();
   });

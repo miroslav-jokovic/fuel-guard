@@ -61,6 +61,23 @@ describe("the seam between the caller and the picker", () => {
     expect(w.find("input").attributes("aria-label")).toBe("Repair date for brake hose");
   });
 
+  /**
+   * D-AM6 (APPLICATION-SCREEN-MAP §9): the office's calendars read typing the way the applicant's box
+   * does. Before this, `text-input` parsed only an exact `MM/dd/yyyy` and dropped anything else.
+   */
+  it("⚠ takes a date typed the short way — 10/1/85, and 1001 as October 1 of this year", async () => {
+    const w = await field({ modelValue: "" });
+    await w.find("input").setValue("10/1/85");
+    await w.find("input").trigger("keydown.enter");
+    await flush();
+    expect(w.emitted("update:modelValue")?.at(-1)).toEqual(["1985-10-01"]);
+
+    await w.find("input").setValue("1001");
+    await w.find("input").trigger("keydown.enter");
+    await flush();
+    expect(w.emitted("update:modelValue")?.at(-1)).toEqual([`${new Date().getFullYear()}-10-01`]);
+  });
+
   it("takes an ISO value and shows it the way this product writes dates", async () => {
     expect(shown(await field())).toBe("06/16/2026");
   });
@@ -140,6 +157,14 @@ describe("the month shape of the same control", () => {
     await w.find("input").trigger("keydown.enter");
     await flush();
     expect(w.emitted("update:modelValue")?.at(-1)).toEqual(["2025-11"]);
+  });
+
+  it("⚠ takes a month typed the short way — 0319 is March 2019 (D-AM6)", async () => {
+    const w = await monthField();
+    await w.find("input").setValue("0319");
+    await w.find("input").trigger("keydown.enter");
+    await flush();
+    expect(w.emitted("update:modelValue")?.at(-1)).toEqual(["2019-03"]);
   });
 
   it("shows nothing for an empty value rather than this month", async () => {

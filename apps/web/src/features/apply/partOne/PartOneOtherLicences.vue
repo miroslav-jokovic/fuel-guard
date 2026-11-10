@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
+import ApplyDate from "@/features/apply/ApplyDate.vue";
 import {
   AppButton as BaseButton,
   AppCombobox as ComboSelect,
   AppFormField as FormField,
   AppInput as BaseInput,
-  AppMemorableDate,
 } from "@silvicom/ui";
 import { jurisdictionName, jurisdictionOptions } from "@silvicom/shared";
 import YesNoField from "@/features/apply/YesNoField.vue";
@@ -80,7 +80,7 @@ function cancel(): void {
           <template #default="f"><BaseInput v-bind="f" v-model="entry.licence_number" autocomplete="off" /></template>
         </FormField>
         <FormField id="p1-other-expires" :label="copy.expiresOn" :hint="copy.expiresOnHint" :error="entryErrors.expires_on">
-          <template #default="f"><AppMemorableDate v-bind="f" v-model="entry.expires_on" /></template>
+          <template #default="f"><ApplyDate v-bind="f" v-model="entry.expires_on" kind="any" /></template>
         </FormField>
         <div class="flex gap-2">
           <BaseButton variant="secondary" @click="add">{{ copy.save }}</BaseButton>

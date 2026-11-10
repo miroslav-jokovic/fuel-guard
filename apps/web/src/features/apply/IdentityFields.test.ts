@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
-import { AppCombobox, AppDateField, AppInput } from "@silvicom/ui";
+import { AppCombobox, AppTypedDate, AppInput } from "@silvicom/ui";
 import IdentityFields from "@/features/apply/IdentityFields.vue";
 
 /**
@@ -19,7 +19,7 @@ const mountIt = () =>
   mount(IdentityFields, { props: { token: TOKEN, carrier: "Silvicom Inc", captures: [] } });
 
 async function fill(w: ReturnType<typeof mountIt>, number = " PA334554 "): Promise<void> {
-  w.findComponent(AppDateField).vm.$emit("update:modelValue", "1980-04-02");
+  w.findComponent(AppTypedDate).vm.$emit("update:modelValue", "1980-04-02");
   await w.findComponent(AppInput).find("input").setValue(number);
   w.findComponent(AppCombobox).vm.$emit("update:modelValue", "PA");
   await flushPromises();

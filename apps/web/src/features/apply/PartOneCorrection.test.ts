@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { AppCombobox, AppDateField, AppSelect } from "@silvicom/ui";
+import { AppCombobox, AppTypedDate, AppSelect } from "@silvicom/ui";
 import type { PartOneFactsView } from "@silvicom/shared";
 import PartOneCorrection from "./PartOneCorrection.vue";
 
@@ -101,7 +101,7 @@ describe("the office's Part 1 correction", () => {
     expect(row.exists()).toBe(true);
     row.findComponent(AppCombobox).vm.$emit("update:modelValue", "WI");
     await input(w, "p1c-l2-number").setValue("W-1");
-    row.findComponent(AppDateField).vm.$emit("update:modelValue", "2019-05-01");
+    row.findComponent(AppTypedDate).vm.$emit("update:modelValue", "2019-05-01");
     // The current CDL has no Remove: the list always starts with one.
     expect(w.find("[data-licence-row='0']").text()).not.toContain("Remove");
     await w.findAll("button").filter((b) => b.text() === "Remove this licence")[0]!.trigger("click");
