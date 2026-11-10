@@ -182,11 +182,19 @@ export function registerMapRoutes(router: Router): void {
       res.setHeader("Cache-Control", "public, max-age=86400");
       /**
        * Passed through so the browser gets a determinate body rather than a chunked one — and so a
-       * truncated tile is a truncated tile to the browser rather than a short-but-valid one. HERE
-       * sends it; the branch is here because nothing in this handler should require that it does.
+       * truncated tile is a truncated tile to the browser rather than a short-but-valid one.
+       *
+       * ⚠⚠ ONLY WHEN THE BYTES ARE HERE'S BYTES. HERE gzips its VECTOR tiles (`content-encoding:
+       * gzip`), and `fetch` decodes them on the way in, so the body this handler streams is the
+       * DECODED tile while HERE's `content-length` is the ENCODED size: 107 391 bytes of body under
+       * a header of 72 956, measured 2026-11-10. The browser stopped reading at the header's count,
+       * maplibre got a truncated protobuf on every tile, and the vector trial drew a blank map on
+       * staging, while every unit test passed because no stub sent an encoding. Raster tiles are
+       * jpeg, which HERE does not encode, so the road map never hit it. Pinned by "streams a vector
+       * tile HERE gzipped whole, without HERE's encoded length".
        */
       const length = upstream.headers.get("content-length");
-      if (length) res.setHeader("Content-Length", length);
+      if (length && !upstream.headers.get("content-encoding")) res.setHeader("Content-Length", length);
       if (!upstream.body) {
         res.end();
         return;

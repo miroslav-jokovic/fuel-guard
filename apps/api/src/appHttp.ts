@@ -176,7 +176,17 @@ export function mountBodyParsers(app: Express): void {
  * `compression`'s `filter`), and that is a decision to record here rather than discover later.
  */
 export function mountCompression(app: Express): void {
-  app.use(compression());
+  app.use(compression({ filter: compressMapVectorTilesToo }));
+}
+
+/**
+ * The default filter, plus HERE's vector tiles (D-DR31). A vector tile is a protobuf, which
+ * `compressible` does not list, and HERE sent it gzipped (72 956 bytes) before `fetch` decoded it
+ * (107 391), so without this it would cross to the browser at full size: ~47% more bytes per tile.
+ * A raster jpeg is still left alone, for the reason above.
+ */
+export function compressMapVectorTilesToo(req: Request, res: Response): boolean {
+  return compression.filter(req, res) || /^application\/x-protobuf/.test(String(res.getHeader("Content-Type") ?? ""));
 }
 
 /**
