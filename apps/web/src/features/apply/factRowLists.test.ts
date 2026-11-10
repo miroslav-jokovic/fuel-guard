@@ -4,7 +4,7 @@ import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
 import { APPLICANT_FACTS, questionnaireForApplicant } from "@silvicom/shared";
 import { emptyAddress } from "./draftShape";
-import { blankRow, editableLists, factBlocks, rowColumns, rowRemovable } from "./factRowLists";
+import { blankRow, editableLists, factBlocks, rowChange, rowColumns, rowRemovable } from "./factRowLists";
 import { applicantFactRows } from "./applicantFactRows";
 
 const apiFetch = vi.hoisted(() => vi.fn());
@@ -40,9 +40,16 @@ describe("the lists' rows", () => {
     expect(rowRemovable("accidents", 0, [HOME])).toBe(true);
   });
 
-  it("leaves the licences to Part 1 on a v2 link", () => {
-    expect(editableLists(true)).not.toContain("additional_licences");
-    expect(editableLists(false)).toContain("additional_licences");
+  it("opens each list with its own door: a v2 link's licences with Part 1's, every other list with the draft's", () => {
+    expect(editableLists(true, { draft: false, partOne: true })).toEqual(["additional_licences"]);
+    expect(editableLists(true, { draft: true, partOne: false })).not.toContain("additional_licences");
+    expect(editableLists(false, { draft: true, partOne: false })).toContain("additional_licences");
+    expect(editableLists(false, { draft: false, partOne: true })).toEqual([]);
+  });
+
+  it("does not ask a v2 licence the kind Part 1 never holds", () => {
+    expect(rowColumns("additional_licences", 0, true).map((c) => c.column)).not.toContain("kind");
+    expect(rowColumns("additional_licences", 0, false).map((c) => c.column)).toContain("kind");
   });
 
   it("keeps each row's answers together as one block", () => {
@@ -51,6 +58,37 @@ describe("the lists' rows", () => {
     });
     const items = factBlocks(rows).filter((b) => b.kind === "item" && b.list === "addresses");
     expect(items.map((b) => (b.kind === "item" ? [b.index, b.rows.length] : null))).toEqual([[0, 7], [1, 7]]);
+  });
+});
+
+const PART_ONE = {
+  intake: { phone: "+13125550142", address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL", postal_code: "60431", prior_positive_2y: false, cdl_class: "A" },
+  licences: [
+    { position: 0, state_code: "IL", agency: null, licence_number: "IL123", expires_on: "2029-03-01" },
+    { position: 1, state_code: "IN", agency: null, licence_number: "IN-9", expires_on: "2027-01-01" },
+  ],
+  asOf: "2026-11-10",
+} as const;
+
+describe("the request a row change takes", () => {
+  const ctx = { revision: 7, partOne: PART_ONE as never, addresses: [HOME] };
+  it("sends a v2 licence through Part 1's whole set, the current CDL kept first", () => {
+    const added = rowChange("additional_licences", { add: { issuing_authority: "WI", number: "W-1", expires_at: "2028-01-01", kind: "" } }, ctx);
+    expect(added).toMatchObject({ door: "part_one" });
+    if (!("body" in added)) throw new Error("no body");
+    expect(added.body.licences.map((l) => l.licence_number)).toEqual(["IL123", "IN-9", "W-1"]);
+    const removed = rowChange("additional_licences", { remove: 0 }, ctx);
+    if (!("body" in removed)) throw new Error("no body");
+    expect(removed.body.licences.map((l) => l.licence_number)).toEqual(["IL123"]);
+  });
+
+  it("refuses a v2 licence without its expiry before anything is sent", () => {
+    expect(rowChange("additional_licences", { add: { issuing_authority: "WI", number: "W-1", expires_at: "" } }, ctx)).toHaveProperty("problem");
+  });
+
+  it("sends every other list, and a legacy link's licences, through the draft", () => {
+    expect(rowChange("addresses", { remove: 1 }, ctx)).toEqual({ door: "draft", edit: { op: "remove_row", list: "addresses", index: 1, revision: 7 } });
+    expect(rowChange("additional_licences", { remove: 0 }, { ...ctx, partOne: null })).toMatchObject({ door: "draft" });
   });
 });
 
@@ -87,9 +125,9 @@ const review = (over: Record<string, unknown> = {}) => ({
   partOne: null, edits: [], ...over,
 });
 let pinia: ReturnType<typeof createPinia>;
-const card = (r = review(), draftOpen = true) =>
+const card = (r = review(), draftOpen = true, recordOpen = true) =>
   mount(ApplicantFactsCard, {
-    props: { invitationId: "inv-1", review: r as never, draftOpen, recordOpen: draftOpen },
+    props: { invitationId: "inv-1", review: r as never, draftOpen, recordOpen },
     global: { plugins: [VueQueryPlugin, pinia], stubs: { OfficeJobsSection: true } },
   });
 const settle = async (w: ReturnType<typeof card>) => {
@@ -145,10 +183,20 @@ describe("adding and removing on the card", () => {
   });
 
   it("offers no add or remove once the draft's door is shut, and none for licences on a v2 link", async () => {
-    const shut = card(review(), false);
+    const shut = card(review(), false, false);
     expect(shut.find("[data-fact-add]").exists()).toBe(false);
     expect(shut.find("[data-fact-remove]").exists()).toBe(false);
     const legacy = card();
     expect(legacy.find("[data-fact-add='additional_licences']").exists()).toBe(true);
+  });
+
+  it("removes a v2 licence through Part 1's correction, open while the office screens", async () => {
+    const w = card(review({ partOne: PART_ONE }), false);
+    expect(w.find("[data-fact-add='addresses']").exists()).toBe(false); // the draft's door is shut
+    await w.find("[data-fact-remove='additional_licences.0'] button").trigger("click");
+    await w.find("[data-fact-remove='additional_licences.0']").findAll("button").find((b) => b.text() === "Remove")!.trigger("click");
+    await settle(w);
+    const call = apiFetch.mock.calls.find((c) => String(c[0]).endsWith("/part-one"));
+    expect((call?.[1] as { body: { licences: Array<{ licence_number: string }> } }).body.licences.map((l) => l.licence_number)).toEqual(["IL123"]);
   });
 });

@@ -14,7 +14,7 @@ import { useToastStore } from "@/stores/toast";
 import FactEditor from "./FactEditor.vue";
 import OfficeJobsSection from "./OfficeJobsSection.vue";
 import FactRowAdder from "./FactRowAdder.vue";
-import { editableLists, factBlocks, listSection, rowNoun, rowRemovable } from "./factRowLists";
+import { editableLists, factBlocks, listDoor, listSection, rowChange, rowNoun, rowRemovable } from "./factRowLists";
 import { draftEmployers, draftGaps } from "./officeJobs";
 import { fieldId } from "./fieldLabels";
 import { APPLY_SECTION_TITLES } from "./strings";
@@ -61,8 +61,8 @@ import {
  * ── ROWS ADDED AND REMOVED (F3c part 2, E2) ───────────────────────────────────────────────────
  * Each list (`APPLICATION_ROW_LISTS`) has "Add …" at the end of its section and "Remove" under each of
  * its rows, both through the draft's door — one `add_row` / `remove_row`, one line on the driver's 3.1.
- * The current home has no Remove (it is corrected, never removed), and on a v2 link the licences are
- * Part 1's, so they are not offered here (`editableLists`). Nothing is offered while a search is typed:
+ * The current home has no Remove (it is corrected, never removed). On a v2 link the other licences
+ * are Part 1's, so they go through Part 1's correction and open with its window (`rowChange`). Nothing is offered while a search is typed:
  * a row half-shown by a filter is not one to add beside or remove.
  */
 const props = defineProps<{
@@ -115,8 +115,12 @@ const open = ref<string | null>(null);
 
 // ── E2: the lists' rows ──────────────────────────────────────────────────────────────────────
 const removeEdit = useEditApplicationAnswer(id);
-const lists = computed(() => (props.draftOpen && query.value.trim() === "" ? editableLists(Boolean(props.review.partOne)) : []));
+const lists = computed(() => (query.value.trim() === ""
+  ? editableLists(Boolean(props.review.partOne), { draft: props.draftOpen, partOne: props.recordOpen })
+  : []));
 const listLength = (list: ApplicationRowList): number => {
+  // A v2 link's other licences are Part 1's: every licence after the current CDL.
+  if (listDoor(list, Boolean(props.review.partOne)) === "part_one") return Math.max(0, (props.review.partOne?.licences.length ?? 1) - 1);
   const rowsOf = (props.review.payload as Record<string, unknown> | null)?.[list];
   return Array.isArray(rowsOf) ? rowsOf.length : 0;
 };
@@ -134,7 +138,10 @@ watch(id, () => { adding.value = null; removing.value = null; });
 async function removeRow(list: ApplicationRowList, index: number): Promise<void> {
   removeProblem.value = null;
   try {
-    await removeEdit.mutateAsync({ op: "remove_row", list, index, revision: props.review.revision ?? 0 });
+    const change = rowChange(list, { remove: index }, { revision: props.review.revision ?? 0, partOne: props.review.partOne, addresses: addresses.value });
+    if ("problem" in change) { removeProblem.value = change.problem; return; }
+    if (change.door === "draft") await removeEdit.mutateAsync(change.edit);
+    else await partOneEdit.mutateAsync(change.body);
     removing.value = null;
     toast.push("success", `${rowNoun(list)} ${index + 1} removed`, "The applicant is shown the removal before they sign.");
   } catch (e) {
@@ -304,7 +311,7 @@ function shown(row: FactRow): string {
               <BaseButton
                 size="sm"
                 variant="danger"
-                :disabled="removeEdit.isPending.value"
+                :disabled="removeEdit.isPending.value || partOneEdit.isPending.value"
                 @click="removeRow(endsItem(group.rows, at)!.list, endsItem(group.rows, at)!.index)"
               >
                 Remove
@@ -321,6 +328,8 @@ function shown(row: FactRow): string {
           :list="list"
           :index="listLength(list)"
           :revision="review.revision ?? 0"
+          :part-one="review.partOne"
+          :addresses="addresses"
           @close="adding = null"
         />
         <BaseButton

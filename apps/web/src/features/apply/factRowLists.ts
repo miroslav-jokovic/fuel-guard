@@ -1,6 +1,12 @@
 import {
   APPLICANT_FACTS,
   APPLICATION_ROW_LISTS,
+  partOneCorrectionSchema,
+  partOneLicencesWith,
+  type ApplicationEdit,
+  type OtherLicenceRow,
+  type PartOneCorrection,
+  type PartOneFactsView,
   sectionOwningPath,
   type ApplicationRowList,
   type ApplicationSection,
@@ -50,11 +56,23 @@ export const blankRow = (list: ApplicationRowList): unknown => {
 /** A list of plain strings: its one "column" is the row itself. */
 export const isStringList = (list: ApplicationRowList): boolean => list === "other_names";
 
+/**
+ * Which writer holds a list's rows. On a v2 link the other licences are Part 1's whole list (filing
+ * drops the draft's copy), so they are added and removed through Part 1's correction; every other
+ * list, and every list on a legacy link, is the draft's.
+ */
+export const listDoor = (list: ApplicationRowList, v2: boolean): "draft" | "part_one" =>
+  v2 && list === "additional_licences" ? "part_one" : "draft";
+
+/** Part 1 never asks an other licence's `kind`, so a v2 licence row does not either. */
+const PART_ONE_SKIPS = new Set(["kind"]);
+
 /** The add form's questions: the catalogue's columns for the list, in its order, as the card asks them. */
-export function rowColumns(list: ApplicationRowList, index: number): RowColumn[] {
+export function rowColumns(list: ApplicationRowList, index: number, v2 = false): RowColumn[] {
   if (isStringList(list)) return [{ column: "", input: "text", label: describeField([list, index]) }];
   const prefix = `application.${list}[].`;
-  return APPLICANT_FACTS.filter((f) => f.path.startsWith(prefix)).map((f) => {
+  const partOne = listDoor(list, v2) === "part_one";
+  return APPLICANT_FACTS.filter((f) => f.path.startsWith(prefix) && !(partOne && PART_ONE_SKIPS.has(f.path.slice(prefix.length)))).map((f) => {
     const column = f.path.slice(prefix.length);
     const choices = CHOICES()[column];
     return { column, input: f.input, label: describeField([list, index, column]), ...(choices ? { choices } : {}) };
@@ -69,12 +87,52 @@ export const listSection = (list: ApplicationRowList): ApplicationSection =>
   sectionOwningPath(isStringList(list) ? [list, 0] : [list, 0, rowColumns(list, 0)[0]!.column]) ?? "review";
 
 /**
- * The lists the office may add to and remove from on this application. On a v2 link the licences are
- * Part 1's whole list and filing drops the draft's copy, so they are not the draft's to change (the
- * API refuses the same). `APPLICATION_ROW_LISTS` order.
+ * The lists the office may add to and remove from now, in `APPLICATION_ROW_LISTS` order: each list's
+ * door must be open — the draft's from the office's Send to the first packet mark, Part 1's while the
+ * office screens (`ApplicantFactsCard`'s `draftOpen` / `recordOpen`).
  */
-export const editableLists = (v2: boolean): ApplicationRowList[] =>
-  APPLICATION_ROW_LISTS.filter((l) => !(v2 && l === "additional_licences"));
+export const editableLists = (v2: boolean, open: { draft: boolean; partOne: boolean }): ApplicationRowList[] =>
+  APPLICATION_ROW_LISTS.filter((l) => (listDoor(l, v2) === "part_one" ? open.partOne : open.draft));
+
+export interface RowChangeContext {
+  revision: number;
+  partOne: PartOneFactsView | null | undefined;
+  /** The draft's addresses, for which one is the current home (Part 1's body carries its street). */
+  addresses: unknown;
+}
+
+export type RowChange =
+  | { door: "draft"; edit: ApplicationEdit }
+  | { door: "part_one"; body: PartOneCorrection }
+  | { problem: string };
+
+/**
+ * The request one add or remove takes, through the list's own door. A v2 licence is the whole Part 1
+ * set with that one licence added or taken out (`partOneLicencesWith`), parsed by the Part 1 contract
+ * here so a missing expiry or a duplicate is refused in its words before anything is sent.
+ */
+export function rowChange(
+  list: ApplicationRowList,
+  change: { add: unknown } | { remove: number },
+  ctx: RowChangeContext,
+): RowChange {
+  if (listDoor(list, Boolean(ctx.partOne)) === "draft") {
+    const edit: ApplicationEdit = "add" in change
+      ? { op: "add_row", list, row: change.add, revision: ctx.revision }
+      : { op: "remove_row", list, index: change.remove, revision: ctx.revision };
+    return { door: "draft", edit };
+  }
+  const body = partOneLicencesWith(
+    ctx.partOne!,
+    "add" in change ? { add: change.add as OtherLicenceRow } : change,
+    currentAddressIndex(ctx.addresses),
+  );
+  if (!body) return { problem: "That licence is no longer on the application. Reload it and try again." };
+  const parsed = partOneCorrectionSchema.safeParse(body);
+  return parsed.success
+    ? { door: "part_one", body: parsed.data }
+    : { problem: parsed.error.issues[0]?.message ?? "That licence could not be saved." };
+}
 
 /** The current home is never removed (`applyApplicationEdit` refuses it); every other row may be. */
 export const rowRemovable = (list: ApplicationRowList, index: number, addresses: unknown): boolean =>
