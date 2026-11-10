@@ -93,7 +93,7 @@ describe("the record on the one timeline (HW5b)", () => {
     const w = section();
     await press(w, "Add employer");
     await w.find("#record-employer-employer_name").setValue("Werner");
-    w.findAllComponents({ name: "AppDateField" }).find((d) => d.html().includes('id="record-employer-started_on"'))!
+    w.findAllComponents({ name: "AppTypedDate" }).find((d) => d.html().includes('id="record-employer-started_on"'))!
       .vm.$emit("update:modelValue", "2023-03-01");
     await w.find("#record-employer-address_line1").setValue("1 Frontier Rd");
     await flushPromises();
@@ -241,7 +241,7 @@ describe("HW6b: the PSP record's suggestions on the record", () => {
 
     await press(w, "Add employer");
     await w.find("#record-employer-employer_name").setValue("Werner");
-    w.findAllComponents({ name: "AppDateField" }).find((d) => d.html().includes('id="record-employer-started_on"'))!
+    w.findAllComponents({ name: "AppTypedDate" }).find((d) => d.html().includes('id="record-employer-started_on"'))!
       .vm.$emit("update:modelValue", "2023-03-01");
     await flushPromises();
     await press(w, "Save this job");

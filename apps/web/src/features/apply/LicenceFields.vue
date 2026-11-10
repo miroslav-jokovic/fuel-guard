@@ -3,7 +3,6 @@ import {
   AppButton as BaseButton,
   AppCombobox as ComboSelect,
   AppInput as BaseInput,
-  AppDateField,
 } from "@silvicom/ui";
 import { computed } from "vue";
 import { jurisdictionOptions, type PartOneFactsView } from "@silvicom/shared";
@@ -12,6 +11,7 @@ import { licenceRows } from "@/features/apply/partOneFacts";
 import { emptyLicence, type ApplicationDraft } from "@/features/apply/draft";
 import ApplyField from "@/features/apply/ApplyField.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
+import ApplyDate from "@/features/apply/ApplyDate.vue";
 
 /**
  * §391.21(b)(5) — "each unexpired commercial motor vehicle operator's license or permit".
@@ -75,7 +75,7 @@ const JURISDICTIONS = jurisdictionOptions();
         <BaseInput v-bind="f" v-model="draft.cdl_class" maxlength="10" />
       </ApplyField>
       <ApplyField v-slot="f" :path="['cdl_expires_at']" :label="copy.expires">
-        <AppDateField v-bind="f" v-model="draft.cdl_expires_at" />
+        <ApplyDate v-bind="f" v-model="draft.cdl_expires_at" kind="any" />
       </ApplyField>
     </div>
 
@@ -98,7 +98,7 @@ const JURISDICTIONS = jurisdictionOptions();
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <ApplyField v-slot="f" :path="['additional_licences', i, 'expires_at']" :label="copy.expires">
-            <AppDateField v-bind="f" v-model="licence.expires_at" />
+            <ApplyDate v-bind="f" v-model="licence.expires_at" kind="any" />
           </ApplyField>
           <ApplyField v-slot="f" :path="['additional_licences', i, 'kind']" :label="copy.otherKind" :hint="copy.otherKindHint">
             <BaseInput v-bind="f" v-model="licence.kind" placeholder="Optional" />

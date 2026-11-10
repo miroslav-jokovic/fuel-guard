@@ -2,10 +2,11 @@
 import { computed, ref, watch } from "vue";
 import {
   AppCombobox as ComboSelect,
-  AppDateField,
+  AppTypedDate,
   AppFormField as FormField,
   AppInput as BaseInput,
 } from "@silvicom/ui";
+import type { TypedDateProblem } from "@silvicom/ui";
 import { jurisdictionOptions } from "@silvicom/shared";
 import YesNoQuestion from "@/components/YesNoQuestion.vue";
 import { inLastThreeYears, type EmployerFields } from "./employerRow";
@@ -50,8 +51,15 @@ const props = withDefaults(
     errors?: Partial<Record<string, string>>;
     /** The applicant's link: 44 px targets (§6.8). */
     touch?: boolean;
+    /**
+     * The typed date boxes' words and sentences, in the page's language (D-AM6). This form serves the
+     * applicant's page and the office's drawers, and only the applicant's is ever Spanish, so it is
+     * handed in rather than read from `features/apply` (which a component may not import).
+     */
+    dateLanguage?: "en" | "es";
+    dateProblems?: Partial<Record<TypedDateProblem, string>>;
   }>(),
-  { errors: () => ({}), touch: false },
+  { errors: () => ({}), touch: false, dateLanguage: "en", dateProblems: () => ({}) },
 );
 const local = defineModel<EmployerFields>({ required: true });
 
@@ -102,10 +110,10 @@ const size = computed(() => (props.touch ? "touch" : "default"));
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <FormField v-slot="f" :id="id('started_on')" :label="copy.from" :error="err('started_on')">
-        <AppDateField v-bind="f" v-model="local.started_on" />
+        <AppTypedDate v-bind="f" v-model="local.started_on" kind="past" :language="dateLanguage" :problems="dateProblems" />
       </FormField>
       <FormField v-slot="f" :id="id('ended_on')" :label="copy.to" :hint="copy.toHint" :error="err('ended_on')">
-        <AppDateField v-bind="f" v-model="local.ended_on" />
+        <AppTypedDate v-bind="f" v-model="local.ended_on" kind="past" :language="dateLanguage" :problems="dateProblems" />
       </FormField>
     </div>
 

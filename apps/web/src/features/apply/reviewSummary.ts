@@ -66,7 +66,7 @@ export function showDate(iso: string | null | undefined): string {
   return m ? `${m[2]}/${m[3]}/${m[1]}` : v;
 }
 
-/** `2024-03` → `03/2024`, the way `AppMonthField` displays a month — shared's one definition since C3c1. */
+/** `2024-03` → `03/2024`, the way the typed month box writes one (`typedDateText`) — shared's one definition since C3c1. */
 export const showMonth = (value: string | null | undefined): string => formatDisplayMonth(value, "");
 
 const text = (v: string | null | undefined): string =>

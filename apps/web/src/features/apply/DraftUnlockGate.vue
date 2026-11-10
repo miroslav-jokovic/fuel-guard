@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import ApplyDate from "@/features/apply/ApplyDate.vue";
 import {
   AppButton as BaseButton,
   AppCard as BaseCard,
-  AppDateField,
   AppFormField as FormField,
 } from "@silvicom/ui";
 import { unlockApplicationDraft, type Released } from "./useApplication";
@@ -68,7 +68,7 @@ async function unlock(): Promise<void> {
     <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.unlock.body(carrier) }}</p>
     <div class="mt-4 max-w-xs">
       <FormField v-slot="{ id }" :label="APPLY_COPY.unlock.label">
-        <AppDateField :id="id" v-model="dateOfBirth" />
+        <ApplyDate :id="id" v-model="dateOfBirth" kind="dob" autocomplete="bday" />
       </FormField>
     </div>
     <p v-if="failed" class="mt-2 text-sm text-ink-secondary" role="alert">

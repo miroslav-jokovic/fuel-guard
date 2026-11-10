@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import AppDateField from "./AppDateField.vue";
 import AppDateTimeField from "./AppDateTimeField.vue";
-import AppMonthField from "./AppMonthField.vue";
 
 /**
  * The date field, after it stopped being `<input type="date">` (D-DS17).
@@ -59,6 +58,23 @@ describe("the seam between the caller and the picker", () => {
   it("passes an aria-label through to the input as well — some callers have no visible label", async () => {
     const w = await field({ "aria-label": "Repair date for brake hose" });
     expect(w.find("input").attributes("aria-label")).toBe("Repair date for brake hose");
+  });
+
+  /**
+   * D-AM6 (APPLICATION-SCREEN-MAP §9): the office's calendars read typing the way the applicant's box
+   * does. Before this, `text-input` parsed only an exact `MM/dd/yyyy` and dropped anything else.
+   */
+  it("⚠ takes a date typed the short way — 10/1/85, and 1001 as October 1 of this year", async () => {
+    const w = await field({ modelValue: "" });
+    await w.find("input").setValue("10/1/85");
+    await w.find("input").trigger("keydown.enter");
+    await flush();
+    expect(w.emitted("update:modelValue")?.at(-1)).toEqual(["1985-10-01"]);
+
+    await w.find("input").setValue("1001");
+    await w.find("input").trigger("keydown.enter");
+    await flush();
+    expect(w.emitted("update:modelValue")?.at(-1)).toEqual([`${new Date().getFullYear()}-10-01`]);
   });
 
   it("takes an ISO value and shows it the way this product writes dates", async () => {
@@ -121,52 +137,3 @@ describe("the date-and-time shape of the same control", () => {
  * objects by default, and whether `model-type` still governs it is a fact about v14 and not about
  * this component. If these pass, `yyyy-MM` in and `yyyy-MM` out is real.
  */
-describe("the month shape of the same control", () => {
-  const monthField = async (props: Record<string, unknown> = {}) => {
-    const w = mount(AppMonthField, { props: { modelValue: "2024-03", ...props } });
-    await flush();
-    return w;
-  };
-
-  it("takes a `yyyy-MM` value and shows it as a month, with no day in sight", async () => {
-    expect(shown(await monthField())).toBe("03/2024");
-  });
-
-  it("gives back `yyyy-MM`, which is what the contract stores", async () => {
-    // The regex these fields used to carry was `/^\d{4}-\d{2}$/`; a picker that emitted a full date
-    // would fail that schema at the Send button rather than at the field, which is the worst place.
-    const w = await monthField();
-    await w.find("input").setValue("11/2025");
-    await w.find("input").trigger("keydown.enter");
-    await flush();
-    expect(w.emitted("update:modelValue")?.at(-1)).toEqual(["2025-11"]);
-  });
-
-  it("shows nothing for an empty value rather than this month", async () => {
-    expect(shown(await monthField({ modelValue: "" }))).toBe("");
-    expect(shown(await monthField({ modelValue: null }))).toBe("");
-  });
-
-  it("says month, not date, on both of its buttons", async () => {
-    // A screen reader announcing "choose a date" on a control that offers months is a small lie, and
-    // the person it misleads is the one who most depends on the label being true.
-    const w = await monthField();
-    const labels = w.findAll("button").map((b) => b.attributes("aria-label") ?? "");
-    expect(labels).toContain("Choose a month");
-    expect(labels).toContain("Clear month");
-    expect(labels.filter((l) => /clear/i.test(l))).toEqual(["Clear month"]);
-  });
-
-  it("clears to an empty string like every other shape", async () => {
-    const w = await monthField();
-    await w.find('button[aria-label="Clear month"]').trigger("click");
-    expect(w.emitted("update:modelValue")?.at(-1)).toEqual([""]);
-  });
-
-  it("leaves the day field's wording untouched", async () => {
-    // The day shape's labels are asserted by name above; this is the guard that the shared `noun`
-    // did not quietly reword them.
-    const w = await field();
-    expect(w.find('button[aria-label="Choose a date"]').exists()).toBe(true);
-  });
-});

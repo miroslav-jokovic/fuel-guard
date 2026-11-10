@@ -263,7 +263,7 @@ const patches = () => apiFetch.mock.calls.filter((c) => c[1]?.method === "PATCH"
 /** Fill the one form, as the office would across the desk. */
 async function fillJob(w: ReturnType<typeof drawer>, over: { street?: boolean; tested?: boolean } = {}): Promise<void> {
   await field(w, "employer_name").setValue("Werner");
-  const dates = w.findAllComponents({ name: "AppDateField" });
+  const dates = w.findAllComponents({ name: "AppTypedDate" });
   dates.find((d) => d.html().includes('id="office-employer-started_on"'))!.vm.$emit("update:modelValue", "2025-03-01");
   if (over.street !== false) await field(w, "address_line1").setValue("1 Frontier Rd");
   await field(w, "city").setValue("Omaha");

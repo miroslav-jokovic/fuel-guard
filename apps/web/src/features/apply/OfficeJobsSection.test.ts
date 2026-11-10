@@ -121,7 +121,7 @@ describe("a gap, on the timeline", () => {
     await settle(w);
     await w.get(`[data-gap="${yearAgo}"]`).findAll("button").find((b) => b.text() === "Add a job here")!.trigger("click");
     await settle(w);
-    const from = w.findAllComponents({ name: "AppDateField" }).find((d) => d.html().includes('id="office-employer-started_on"'))!;
+    const from = w.findAllComponents({ name: "AppTypedDate" }).find((d) => d.html().includes('id="office-employer-started_on"'))!;
     expect(from.props("modelValue")).toBe(yearAgo);
   });
 });
@@ -186,7 +186,7 @@ describe("HW6b: what the applicant's PSP record suggests", () => {
     expect((w.get("#office-employer-employer_name").element as HTMLInputElement).value).toBe("ACME HAULING");
     expect((w.get("#office-employer-usdot_number").element as HTMLInputElement).value).toBe("113529");
     const date = (id: string) =>
-      w.findAllComponents({ name: "AppDateField" }).find((d) => d.html().includes(`id="office-employer-${id}"`))!.props("modelValue");
+      w.findAllComponents({ name: "AppTypedDate" }).find((d) => d.html().includes(`id="office-employer-${id}"`))!.props("modelValue");
     expect([date("started_on"), date("ended_on")]).toEqual(["2024-10-06", "2025-04-03"]);
     expect(patches()).toEqual([]);
   });

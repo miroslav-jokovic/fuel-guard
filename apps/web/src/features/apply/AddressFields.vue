@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { AppCombobox as ComboSelect, AppInput as BaseInput, AppMonthField } from "@silvicom/ui";
+import { AppCombobox as ComboSelect, AppInput as BaseInput } from "@silvicom/ui";
+import ApplyDate from "@/features/apply/ApplyDate.vue";
 import { jurisdictionOptions } from "@silvicom/shared";
 import ApplyField from "@/features/apply/ApplyField.vue";
 import type { DraftAddress } from "@/features/apply/draft";
@@ -45,10 +46,10 @@ const JURISDICTIONS = jurisdictionOptions();
     </div>
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <ApplyField v-slot="f" :path="['addresses', index, 'from']" :label="copy.from" :hint="copy.fromHint">
-        <AppMonthField v-bind="f" v-model="address.from" />
+        <ApplyDate v-bind="f" v-model="address.from" kind="month" />
       </ApplyField>
       <ApplyField v-slot="f" :path="['addresses', index, 'to']" :label="copy.to" :hint="copy.toHint">
-        <AppMonthField v-bind="f" v-model="address.to" />
+        <ApplyDate v-bind="f" v-model="address.to" kind="month" />
       </ApplyField>
     </div>
   </div>

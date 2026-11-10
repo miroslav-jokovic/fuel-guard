@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { applyLanguage } from "@/features/apply/language";
+import ApplyDate from "@/features/apply/ApplyDate.vue";
 import {
   AppButton as BaseButton,
   AppCheckbox as BaseCheckbox,
   AppCombobox as ComboSelect,
   AppInput as BaseInput,
-  AppMonthField,
   AppTextarea as BaseTextarea,
 } from "@silvicom/ui";
 import {
@@ -316,7 +317,7 @@ function removeJob(): void {
             :label="copy.equipmentFrom"
             :hint="copy.equipmentMonthHint"
           >
-            <AppMonthField v-bind="f" v-model="row.from" />
+            <ApplyDate v-bind="f" v-model="row.from" kind="month" />
           </ApplyField>
           <ApplyField
             v-slot="f"
@@ -324,7 +325,7 @@ function removeJob(): void {
             :label="copy.equipmentTo"
             :hint="copy.equipmentToHint"
           >
-            <AppMonthField v-bind="f" v-model="row.to" />
+            <ApplyDate v-bind="f" v-model="row.to" kind="month" />
           </ApplyField>
           <ApplyField
             v-slot="f"
@@ -359,6 +360,8 @@ function removeJob(): void {
       :errors="panelErrors"
       :removable="Boolean(editingRow) && !employerIsBlank(editingRow!)"
       touch
+      :date-language="applyLanguage"
+      :date-problems="APPLY_COPY.dates.problems"
       @save="saveJob"
       @remove="removeJob"
       @close="closeDrawer"

@@ -890,7 +890,7 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain(APPLY_COPY.unlock.heading);
     expect(w.text()).not.toContain("555-0142");
 
-    w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "1980-04-01");
+    w.findComponent({ name: "AppTypedDate" }).vm.$emit("update:modelValue", "1980-04-01");
     await settle(w);
     await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.trigger("click");
     await settle(w);
@@ -1389,7 +1389,7 @@ describe("the applicant's page", () => {
       expect(w.text()).not.toContain(APPLY_COPY.save.restored);
       expect(puts()).toHaveLength(0);
 
-      w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "1980-04-01");
+      w.findComponent({ name: "AppTypedDate" }).vm.$emit("update:modelValue", "1980-04-01");
       await settle(w);
       await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.trigger("click");
       await settle(w);

@@ -16,7 +16,7 @@ const { APPLY_COPY } = await import("./strings");
 const answer = async (draft: Record<string, unknown>) => {
   unlock.mockResolvedValue({ draft });
   const w = mount(DraftUnlockGate, { props: { token: "t", carrier: "Silvicom Inc" } });
-  w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "1980-04-01");
+  w.findComponent({ name: "AppTypedDate" }).vm.$emit("update:modelValue", "1980-04-01");
   await flushPromises();
   await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.trigger("click");
   await flushPromises();
@@ -24,6 +24,26 @@ const answer = async (draft: Record<string, unknown>) => {
 };
 
 describe("the unlock gate", () => {
+  /**
+   * D-AM6 (APPLICATION-SCREEN-MAP §9): the date of birth is TYPED, the way it is written on paper — the
+   * real box, real keystrokes, not a component event. Eight digits are the date; four ask for the year.
+   */
+  it("⚠ takes a date of birth typed as 04011980, says it in words, and asks for the year when given only 0401", async () => {
+    unlock.mockResolvedValue({ draft: { locked: false, payload: {}, revision: 1 } });
+    const w = mount(DraftUnlockGate, { props: { token: "t", carrier: "Silvicom Inc" } });
+    const box = w.find("input[inputmode='numeric']");
+    await box.setValue("0401");
+    expect(w.text()).toContain(APPLY_COPY.dates.problems.needsYear);
+    expect(w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.attributes("disabled")).toBeDefined();
+
+    await box.setValue("04011980");
+    expect((box.element as HTMLInputElement).value).toBe("04/01/1980");
+    expect(w.text()).toContain("April 1, 1980");
+    await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.trigger("click");
+    await flushPromises();
+    expect(unlock).toHaveBeenLastCalledWith("t", "1980-04-01");
+  });
+
   it("hands up the body and Part 1's facts together", async () => {
     const partOne = { intake: { phone: "+13125550142" }, licences: [], asOf: "2026-09-27" };
     const w = await answer({ locked: false, payload: { first_name: "Susan" }, partOne, revision: 6 });
@@ -57,19 +77,19 @@ describe("the unlock gate", () => {
   it("stops asking once the link has stopped, and says to ask for it again", async () => {
     unlock.mockRejectedValue(Object.assign(new Error("stopped"), { code: "sign_link_locked" }));
     const w = mount(DraftUnlockGate, { props: { token: "t", carrier: "Silvicom Inc" } });
-    w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "1980-04-01");
+    w.findComponent({ name: "AppTypedDate" }).vm.$emit("update:modelValue", "1980-04-01");
     await flushPromises();
     await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.trigger("click");
     await flushPromises();
     expect(w.text()).toContain(APPLY_COPY.unlock.lockedOut("Silvicom Inc"));
-    expect(w.findComponent({ name: "AppDateField" }).exists()).toBe(false);
+    expect(w.findComponent({ name: "AppTypedDate" }).exists()).toBe(false);
     expect(w.findAll("button")).toHaveLength(0);
   });
 
   it("treats any other failure as a wrong answer to try again, never as a stopped link", async () => {
     unlock.mockRejectedValue(Object.assign(new Error("dead"), { code: "invalid_link" }));
     const w = mount(DraftUnlockGate, { props: { token: "t", carrier: "Silvicom Inc" } });
-    w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "1980-04-01");
+    w.findComponent({ name: "AppTypedDate" }).vm.$emit("update:modelValue", "1980-04-01");
     await flushPromises();
     await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.trigger("click");
     await flushPromises();

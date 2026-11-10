@@ -4,13 +4,13 @@ import {
   AppCombobox as ComboSelect,
   AppFormField as FormField,
   AppInput as BaseInput,
-  AppMemorableDate,
   AppRadioGroup,
 } from "@silvicom/ui";
 import { CDL_CLASSES, DONOR_GENDERS, ENDORSEMENT_CODES, US_JURISDICTION_CODES, jurisdictionOptions } from "@silvicom/shared";
 import YesNoField from "@/features/apply/YesNoField.vue";
 import type { PartOneAnswers, PartOneScreen, ScreenErrors } from "./partOneScreens";
 import { APPLY_COPY } from "@/features/apply/strings";
+import ApplyDate from "@/features/apply/ApplyDate.vue";
 
 /**
  * The fields of Part 1's typed screens — 3 (about you), 4 (address), 5 (the CDL) and 7 (screening) —
@@ -42,7 +42,7 @@ function toggleEndorsement(code: string, on: boolean): void {
     </FormField>
     <FormField id="p1-dob" :label="copy.about.dateOfBirth" :hint="copy.about.dateOfBirthHint" :error="errors.date_of_birth">
       <template #default="f">
-        <AppMemorableDate v-bind="f" v-model="answers.date_of_birth" autocomplete="bday" :invalid="Boolean(errors.date_of_birth)" />
+        <ApplyDate v-bind="f" v-model="answers.date_of_birth" kind="dob" autocomplete="bday" :invalid="Boolean(errors.date_of_birth)" />
       </template>
     </FormField>
   </div>
@@ -86,7 +86,7 @@ function toggleEndorsement(code: string, on: boolean): void {
     </div>
     <FormField id="p1-cdl-expires" :label="copy.licence.expiresOn" :error="errors.expires_on">
       <template #default="f">
-        <AppMemorableDate v-bind="f" v-model="answers.cdl.expires_on" :invalid="Boolean(errors.expires_on)" />
+        <ApplyDate v-bind="f" v-model="answers.cdl.expires_on" kind="future" :invalid="Boolean(errors.expires_on)" />
       </template>
     </FormField>
     <fieldset>

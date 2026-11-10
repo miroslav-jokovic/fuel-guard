@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import ApplyDate from "@/features/apply/ApplyDate.vue";
 import {
   AppButton as BaseButton,
   AppCheckbox as BaseCheckbox,
   AppInput as BaseInput,
-  AppDateField,
 } from "@silvicom/ui";
 import { emptyAccident, emptyViolation, type ApplicationDraft } from "@/features/apply/draft";
 import ApplyField from "@/features/apply/ApplyField.vue";
@@ -95,7 +95,7 @@ const everDenied = computed<boolean | null>({
         >
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <ApplyField v-slot="f" :path="['accidents', i, 'occurred_on']" :label="copy.accidentDate">
-              <AppDateField v-bind="f" v-model="accident.occurred_on" />
+              <ApplyDate v-bind="f" v-model="accident.occurred_on" kind="past" />
             </ApplyField>
             <ApplyField v-slot="f" :path="['accidents', i, 'nature']" :label="copy.accidentNature">
               <BaseInput v-bind="f" v-model="accident.nature" />
@@ -136,7 +136,7 @@ const everDenied = computed<boolean | null>({
         >
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <ApplyField v-slot="f" :path="['violations', i, 'occurred_on']" :label="copy.violationDate">
-              <AppDateField v-bind="f" v-model="violation.occurred_on" />
+              <ApplyDate v-bind="f" v-model="violation.occurred_on" kind="past" />
             </ApplyField>
             <ApplyField v-slot="f" :path="['violations', i, 'offence']" :label="copy.offence">
               <BaseInput v-bind="f" v-model="violation.offence" />

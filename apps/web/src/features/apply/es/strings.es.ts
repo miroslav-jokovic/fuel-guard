@@ -249,6 +249,16 @@ export const APPLY_COPY_ES = {
     dateNote: "La fecha se registra por usted cuando firma.",
   },
 
+  dates: {
+    problems: {
+      needsYear: "Agregue el año en que nació, por ejemplo 10011985.",
+      badMonth: "Ese mes no existe. Escriba primero el mes y luego el día.",
+      badDay: "Ese mes no tiene ese día.",
+      badAge: "Escriba el año completo, por ejemplo 1985.",
+      unreadable: "Escríbala con números, por ejemplo 10011985.",
+    },
+  },
+
   fields: {
     addresses: "Dónde ha vivido",
     employers: "Dónde ha trabajado",

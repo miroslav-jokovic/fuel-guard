@@ -28,9 +28,8 @@ async function chooseState(page: Page, id: string, typed: string, option: RegExp
 /** Screens 3–6 of Part 1, typed. Nothing of them reaches the server until screen 7 (0376, AI009). */
 async function typeHeldScreens(page: Page): Promise<void> {
   await page.getByLabel("Mobile phone number").fill("3125550142");
-  await page.locator("#p1-dob").fill("03");
-  await page.locator("#p1-dob-day").fill("07");
-  await page.locator("#p1-dob-year").fill("1985");
+  // D-AM6: one box, typed the way it is written; the slashes draw themselves.
+  await page.locator("#p1-dob").fill("03071985");
   await continueButton(page).click();
   await page.locator("#p1-line1").fill("12 Depot Rd");
   await page.locator("#p1-city").fill("Joliet");
@@ -40,9 +39,8 @@ async function typeHeldScreens(page: Page): Promise<void> {
   await chooseState(page, "#p1-cdl-state", "Illin", /Illinois/);
   await page.locator("#p1-cdl-number").fill("D12345678901");
   await page.getByLabel("A", { exact: true }).check();
-  await page.locator("#p1-cdl-expires").fill("05");
-  await page.locator("#p1-cdl-expires-day").fill("01");
-  await page.locator("#p1-cdl-expires-year").fill("2029");
+  // D-AM6: one box, typed the way it is written; the slashes draw themselves.
+  await page.locator("#p1-cdl-expires").fill("05012029");
   await continueButton(page).click();
   await page.getByLabel("No", { exact: true }).check();
   await continueButton(page).click();

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import type { TypedDateProblem } from "@silvicom/ui";
 import { AppButton as BaseButton, useConfirm } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import EmployerForm from "./EmployerForm.vue";
@@ -38,10 +39,13 @@ const props = withDefaults(
     removable?: boolean;
     pending?: boolean;
     touch?: boolean;
+    /** Passed to the form's typed dates (D-AM6): the applicant's page language and sentences. */
+    dateLanguage?: "en" | "es";
+    dateProblems?: Partial<Record<TypedDateProblem, string>>;
     /** The panel's sentence under the title; the surface's own (who sees the change, and when). */
     description?: string;
   }>(),
-  { prefill: null, errors: () => ({}), removable: false, pending: false, touch: false, description: undefined },
+  { prefill: null, errors: () => ({}), removable: false, pending: false, touch: false, description: undefined, dateLanguage: "en", dateProblems: () => ({}) },
 );
 const emit = defineEmits<{ save: [EmployerFields]; remove: []; close: [EmployerFields] }>();
 const ask = useConfirm();
@@ -103,6 +107,8 @@ async function remove(): Promise<void> {
         :as-of="asOf"
         :errors="errors"
         :touch="touch"
+        :date-language="dateLanguage"
+        :date-problems="dateProblems"
       />
       <!-- The surface's own extras below the shared questions — the office record's working notes. -->
       <slot />

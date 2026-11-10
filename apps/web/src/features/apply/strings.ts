@@ -369,6 +369,20 @@ export const APPLY_COPY_EN = {
    * row is counted by, and the sentences derived from an issue's code. They lived in that file as literals
    * until the page had a second language; they are read from here at call time now, never at module load.
    */
+  /**
+   * The typed date box's sentences (D-AM6, APPLICATION-SCREEN-MAP §9), in the page's language. A
+   * half-typed date says nothing (`incomplete`, `empty`): it is not wrong yet.
+   */
+  dates: {
+    problems: {
+      needsYear: "Add the year you were born, like 10011985.",
+      badMonth: "There is no such month. Type the month first, then the day.",
+      badDay: "That month does not have that day.",
+      badAge: "Type the whole year, like 1985.",
+      unreadable: "Type it in numbers, like 10011985.",
+    },
+  },
+
   fields: {
     addresses: "Where you have lived",
     employers: "Where you have worked",

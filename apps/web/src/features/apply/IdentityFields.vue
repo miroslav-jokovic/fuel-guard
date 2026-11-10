@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
+import ApplyDate from "@/features/apply/ApplyDate.vue";
 import {
   AppButton as BaseButton,
   AppCallout,
   AppCombobox as ComboSelect,
-  AppDateField,
   AppFormField as FormField,
   AppInput as BaseInput,
 } from "@silvicom/ui";
@@ -94,7 +94,7 @@ async function send(): Promise<void> {
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <FormField id="identity-dob" :label="copy.dateOfBirth" :error="errors.date_of_birth">
         <template #default="f">
-          <AppDateField v-bind="f" v-model="form.date_of_birth" :invalid="Boolean(errors.date_of_birth)" />
+          <ApplyDate v-bind="f" v-model="form.date_of_birth" kind="dob" autocomplete="bday" :invalid="Boolean(errors.date_of_birth)" />
         </template>
       </FormField>
       <FormField id="identity-number" :label="copy.number" :error="errors.cdl_number">

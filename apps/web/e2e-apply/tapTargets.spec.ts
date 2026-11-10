@@ -174,9 +174,8 @@ for (const width of [390, 320]) {
       await step(page, 3);
       await s.check("part1.about");
       await page.getByLabel("Mobile phone number").fill("3125550142");
-      await page.locator("#p1-dob").fill("03");
-      await page.locator("#p1-dob-day").fill("07");
-      await page.locator("#p1-dob-year").fill("1985");
+      // D-AM6: one box, typed the way it is written; the slashes draw themselves.
+      await page.locator("#p1-dob").fill("03071985");
       await press(page, "Continue");
 
       await step(page, 4);
@@ -192,9 +191,8 @@ for (const width of [390, 320]) {
       await chooseState(page, "#p1-cdl-state");
       await page.locator("#p1-cdl-number").fill("D12345678901");
       await page.getByLabel("A", { exact: true }).check();
-      await page.locator("#p1-cdl-expires").fill("05");
-      await page.locator("#p1-cdl-expires-day").fill("01");
-      await page.locator("#p1-cdl-expires-year").fill("2029");
+      // D-AM6: one box, typed the way it is written; the slashes draw themselves.
+      await page.locator("#p1-cdl-expires").fill("05012029");
       await press(page, "Continue");
 
       await step(page, 6);
@@ -289,17 +287,15 @@ for (const width of [390, 320]) {
       s.expectNone();
     });
 
-    test("the unlock, and its calendar open", async ({ page }) => {
+    // D-AM6: the date of birth is typed into one box now; there is no calendar to open.
+    test("the unlock", async ({ page }) => {
       const stub = await stubApi(page, partTwoV2Link({
         draft: { locked: true, payload: null, furthestSection: "identity", updatedAt: "2026-09-28T15:00:00.000Z", revision: 1 },
       }));
       const s = sweep(page, stub);
       await page.goto(url);
-      await expect(page.getByRole("button", { name: "Choose a date" })).toBeVisible();
+      await expect(page.locator("main input[inputmode='numeric']")).toBeVisible();
       await s.check("unlock");
-      await press(page, "Choose a date");
-      await expect(page.getByRole("button", { name: "Next month" })).toBeVisible();
-      await s.check("unlock, calendar open");
       s.expectNone();
     });
 

@@ -4,10 +4,12 @@ import { VueDatePicker } from "@vuepic/vue-datepicker";
 import AppIcon from "./AppIcon.vue";
 import { CalendarIcon, XMarkIcon } from "../icons";
 import { useTouchTargets } from "../touchTargets";
+import { parseTypedDate } from "../typedDate";
 
 /**
- * The one date control. Not exported from the barrel — `AppDateField`, `AppDateTimeField` and
- * `AppMonthField` are the three shapes it comes in, and a fourth caller would be a fourth opinion
+ * The one date control. Not exported from the barrel — `AppDateField` and `AppDateTimeField` are the
+ * shapes it comes in (`AppMonthField` was retired with D-AM6: months are typed into `AppTypedDate` now),
+ * and a further caller would be a further opinion
  * about what a date looks like.
  *
  * ── WHY THIS STOPPED BEING `<input type="date">` (D-DS17) ──────────────────────────────────────
@@ -71,19 +73,6 @@ const props = withDefaults(
     disabled?: boolean;
     /** Adds the time half — `AppDateTimeField`'s only difference. */
     withTime?: boolean;
-    /**
-     * Drops the day — `AppMonthField`'s only difference (APPLY-EXPERIENCE-PLAN D-AX4).
-     *
-     * A third shape rather than a third component: §391.21(b)(3) and (b)(6) both ask for periods in
-     * months, the driver application was collecting them as text boxes validated by
-     * `/^\d{4}-\d{2}$/`, and "a month" is the same concept as "a date" with one fewer part. Giving it
-     * its own picker would be the third opinion about what a date looks like that this file's header
-     * exists to prevent.
-     *
-     * ⚠ Mutually exclusive with `withTime`, and there is no shape that wants both: a month has no
-     * clock. `monthOnly` wins if both arrive, rather than rendering a time picker under a month grid.
-     */
-    monthOnly?: boolean;
     /** `yyyy-MM-dd`, inclusive. Both are passed straight through to the calendar. */
     minDate?: string | null;
     maxDate?: string | null;
@@ -93,7 +82,6 @@ const props = withDefaults(
     invalid: false,
     disabled: false,
     withTime: false,
-    monthOnly: false,
     minDate: null,
     maxDate: null,
   },
@@ -102,16 +90,15 @@ const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 
 const DATE = "MM/dd/yyyy";
 const DATE_TIME = "MM/dd/yyyy HH:mm";
-const MONTH = "MM/yyyy";
 
 const displayFormat = computed(() =>
-  props.monthOnly ? MONTH : props.withTime ? DATE_TIME : DATE,
+  props.withTime ? DATE_TIME : DATE,
 );
 const modelFormat = computed(() =>
-  props.monthOnly ? "yyyy-MM" : props.withTime ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd",
+  props.withTime ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd",
 );
 const placeholder = computed(() =>
-  props.monthOnly ? "mm/yyyy" : props.withTime ? "mm/dd/yyyy hh:mm" : "mm/dd/yyyy",
+  props.withTime ? "mm/dd/yyyy hh:mm" : "mm/dd/yyyy",
 );
 
 /**
@@ -120,7 +107,25 @@ const placeholder = computed(() =>
  * screen reader announcing "choose a date" on a control that offers months is the kind of small lie
  * that makes a form untrustworthy to the person who most depends on the label being true.
  */
-const noun = computed(() => (props.monthOnly ? "month" : "date"));
+// D-AM6 retired the month shape, so there is one noun; kept as a name because the two labels share it.
+const noun = "date";
+
+/**
+ * What the TYPED text means (D-AM6, APPLICATION-SCREEN-MAP §9): the same reading the applicant's box
+ * uses, so "1001" is October 1 of this year and "10/1/85" is October 1, 1985 here too.
+ *
+ * ⚠ Until this, `text-input` was given the display format as its parser, so only an exact `MM/dd/yyyy`
+ * was ever accepted, and anything else typed was silently dropped on blur. The date-and-time shape keeps
+ * that parser, because a typed time is not something `typedDate.ts` reads. A Date is built from local
+ * parts, never from a string, because a calendar day is not an instant.
+ */
+function readTyped(text: string): Date | null {
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const r = parseTypedDate(text, "any", today);
+  return r.ok ? new Date(r.year, r.month - 1, r.day ?? 1) : null;
+}
+const textInput = computed(() => ({ format: props.withTime ? displayFormat.value : readTyped }));
 
 /** An empty string is not a date; VueDatePicker wants `null` for "nothing chosen". */
 const value = computed(() => props.modelValue || null);
@@ -150,9 +155,8 @@ const INPUT_CLASS =
     :model-value="value"
     :model-type="modelFormat"
     :formats="{ input: displayFormat }"
-    :time-config="{ enableTimePicker: !monthOnly && withTime, is24: true }"
-    :month-picker="monthOnly"
-    :text-input="{ format: displayFormat }"
+    :time-config="{ enableTimePicker: withTime, is24: true }"
+    :text-input="textInput"
     :min-date="minDate || undefined"
     :max-date="maxDate || undefined"
     :disabled="disabled"
