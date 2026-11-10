@@ -116,18 +116,36 @@ function trailingRow(day: string, p: FleetMpgResult): FuelReportTrailingMpg {
   return { day, mpg: p.mpg, measuredShare: p.measuredShare, reason: p.reason };
 }
 
+/**
+ * What the caller needs beyond the two windows. The page needs everything; the assistant's
+ * `fuel_report` tool (`assistantFuelReport.ts`) asks for the two windows only — the same totals, the
+ * same MPG and the same cost per mile, without a trailing-week MPG for every day of the range (92
+ * extra odometer periods for a quarter) or the station menu, neither of which it prints. Omitting
+ * them changes what is RETURNED, never how a returned figure is computed, which is the point: the
+ * assistant's number is this function's number.
+ */
+export interface FuelReportReadOptions {
+  /** Per-day trailing-week MPG (`trailingMpg`). Default true; false returns `trailingMpg: null`. */
+  trailing?: boolean;
+  /** The station menu (`sites`). Default true; false returns `sites: []`. */
+  sites?: boolean;
+}
+
 export async function readFuelReport(
   admin: SupabaseClient,
   orgId: string,
   from: string,
   to: string,
   filters: FuelReportFilterArgs,
+  options: FuelReportReadOptions = {},
 ): Promise<FuelReport> {
+  const withTrailing = options.trailing !== false;
+  const withSites = options.sites !== false;
   const brands = [...(await readFuelPolicy(admin, orgId)).preferredBrands];
   const prev = previousFuelReportRange(from, to);
   // Truck figures only for a truck question (D-FSV5): a station-side filter selects fills, not trucks.
   const truckQuestion = filters.states.length === 0 && filters.siteIds.length === 0 && filters.networks.length === 0;
-  const days = eachDay(from, to);
+  const days = withTrailing ? eachDay(from, to) : [];
   const periods = truckQuestion
     ? [{ from, to }, prev, ...days.map((d) => ({ from: addDays(d, -(TRAILING_MPG_DAYS - 1)), to: d }))]
     : [];
@@ -136,9 +154,11 @@ export async function readFuelReport(
   const [current, previous, siteRows, mpgs] = await Promise.all([
     readWindow(admin, orgId, from, to, brands, filters),
     readWindow(admin, orgId, prev.from, prev.to, brands, filters),
-    fetchAllPaged<Record<string, unknown>>((a, b) =>
-      admin.rpc("fuel_report_sites", { p_from: from, p_to: to, p_org: orgId }).range(a, b),
-    ),
+    withSites
+      ? fetchAllPaged<Record<string, unknown>>((a, b) =>
+          admin.rpc("fuel_report_sites", { p_from: from, p_to: to, p_org: orgId }).range(a, b),
+        )
+      : Promise.resolve([] as Record<string, unknown>[]),
     getFleetMpgPeriods(admin, orgId, periods, filters.vehicleIds.length > 0 ? filters.vehicleIds : null),
   ]);
   const efficiency = (w: Omit<FuelReportWindow, "efficiency">, mpg: FleetMpgResult | undefined) =>
@@ -146,7 +166,7 @@ export async function readFuelReport(
   return {
     current: { ...current, efficiency: efficiency(current, mpgs[0]) },
     previous: { ...previous, efficiency: efficiency(previous, mpgs[1]) },
-    trailingMpg: truckQuestion ? days.map((d, i) => trailingRow(d, mpgs[i + 2]!)) : null,
+    trailingMpg: truckQuestion && withTrailing ? days.map((d, i) => trailingRow(d, mpgs[i + 2]!)) : null,
     inNetworkBrands: brands,
     sites: siteRows.map((r) => ({
       stationId: str(r.station_id),

@@ -41,8 +41,14 @@ export function aiRouter(): Router {
         res.status(400).json(apiError("bad_request", "A question is required"));
         return;
       }
-      const answer = await askData(admin, env, orgId, question);
-      await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "ai.ask", meta: { question } });
+      const { answer, tools } = await askData(admin, env, orgId, question);
+      // The answer and the tools behind it, not only the question (AUDIT P4): on 2026-11-09 the owner
+      // asked for nine units' MPG and nobody could see what the assistant had said back, or which tool
+      // it had tried. Capped so one long table cannot bloat the audit log; retention stays Q-AI4's.
+      await writeAudit(admin, {
+        orgId, actorId: req.auth!.userId, action: "ai.ask",
+        meta: { question, answer: answer.slice(0, 4000), tools },
+      });
       res.json({ answer });
     }),
   );

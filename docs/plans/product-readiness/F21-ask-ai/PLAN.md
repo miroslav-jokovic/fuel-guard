@@ -200,3 +200,26 @@ audit row is the endpoint's own.
 
 - 2026-10-08 — Audit and plan written. Use measured (15 asks, 3 people, ever). Research:
   enterprise assistant patterns, browser speech support, STT and Claude pricing.
+- 2026-11-10 — **Reporting track R1–R7, R1 built.** The owner asked on 11/09 for "mpg on my units 748
+  751 762 763 784 785 786 787 788 … for a month or Q", and no tool could answer it: `fuel_ranking` takes
+  no unit list and caps at 25 rows, its MPG is each subject's fill-to-fill figure rather than D-MPG1's,
+  and every window was N days back from this instant in UTC (N2). Measured use is now 20 asks, 3 people;
+  the unanswerable ones were the nine units, "cost per mile" (09/23, 11/02), "how many drivers are
+  moving" and week-over-week idling (07/29, 08/04).
+  - **R1 (this PR):** a `fuel_report` tool owned by fuel-spend (`assistantFuelReport.ts`, D-AI2's
+    shape) that is the Fuel Costs report asked in words — up to 25 named units, calendar periods on
+    the carrier's clock (this/last month, this/last quarter, year to date, last year, last N days, or
+    from/to), one row per truck or per month, the previous period of equal length. Every figure is
+    `readFuelReport`'s, so it equals the Fuel Costs page by construction; `readFuelReport` gained
+    `{ trailing, sites }` options that skip what the tool does not print. The model is told today's
+    date in the org zone. The `ai.ask` audit row now keeps the answer (4,000 chars) and each tool
+    call with its input and any error (P3/P4). `max_tokens` 1,024 → 2,048. Tool schemas moved to
+    `askTools.ts` (file budget).
+  - **Still open, in order:** R2 = Step 1 (usage table, per-user limiter, cap, Haiku 5.5 — needs
+    Q-AI1); R3 = history (Step 2d/3b); R4 = CSV/PDF and "open in Fuel Costs" from an answer (needs a
+    URL filter contract for `/fuel-spend`, D-AI6); R5 = the role filter D-AI1–3, **a precondition for
+    any non-fuel tool**; R6 = breadth per section (finance cost per mile beyond fuel, idle trend, live
+    "moving now", loads/miles per truck, IFTA by state, maintenance cost per unit, card holds, DQ and
+    inspection expiries, recruiting counts); R7 = the eval set from the 20 real asks (Step 1c).
+  - R1 does not answer "cost per mile" in full: `fuel_cost_per_mile` is fuel only, and the tool says
+    so. All-in cost per mile is the finance fleet report's (R6, behind R5, and it lags the GL close).

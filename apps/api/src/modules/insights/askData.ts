@@ -1,107 +1,11 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AI_MODELS, CASE_RULE_ID, computeSubjectMpg, IN_SERVICE_VEHICLE_STATUSES, odometerAccuracy, type OdoRow, type SubjectFill } from "@silvicom/shared";
+import { AI_MODELS, CASE_RULE_ID, computeSubjectMpg, IN_SERVICE_VEHICLE_STATUSES, odometerAccuracy, organizationTimezone, todayInZone, type OdoRow, type SubjectFill } from "@silvicom/shared";
 import { FUEL_EVENT_DROP } from "../fuel/index.js";
 import type { Env } from "../../env.js";
 import { anthropicClient } from "../../lib/anthropic.js";
-import { getFleetMpg, getFleetMpgSeries } from "../fuel-spend/index.js";
-
-// ── Safe, org-scoped query tools. The AI can ONLY call these (never raw SQL), and every query is
-// pinned to the caller's org on the server — so it can't reach another tenant's data. Grouped:
-// theft/alerts, fuel economics, drivers & idling, and integrity/coverage/fleet. ────────────────────
-
-const TOOLS: Anthropic.Tool[] = [
-  // ── Theft / alerts ──
-  {
-    name: "fleet_summary",
-    description: "Totals for a recent period: fuel spend, gallons, high/critical theft alerts, siphoning events, and suspicious declined attempts.",
-    input_schema: { type: "object", properties: { period_days: { type: "integer", description: "Look-back window in days (default 30)" } } },
-  },
-  {
-    name: "top_risk",
-    description: "The drivers or vehicles with the most flagged fills in the period, ranked highest-first.",
-    input_schema: {
-      type: "object",
-      properties: { by: { type: "string", enum: ["driver", "vehicle"] }, period_days: { type: "integer" }, limit: { type: "integer", description: "Max rows (default 5)" } },
-      required: ["by"],
-    },
-  },
-  {
-    name: "odometer_accuracy",
-    description: "How accurately drivers (or vehicles) entered odometers vs. the Samsara reading: fills, mismatches (>5 mi), accuracy %, avg/max deviation. Worst first.",
-    input_schema: {
-      type: "object",
-      properties: { by: { type: "string", enum: ["driver", "vehicle"] }, period_days: { type: "integer" }, limit: { type: "integer" } },
-      required: ["by"],
-    },
-  },
-  {
-    name: "count_signal",
-    description: "How many open theft cases in the period contain a given signal. Signals: location_mismatch, tank_space_exceeded, exceeds_tank_capacity, tank_fill_short, cumulative_overfuel, odometer_mismatch, card_multi_vehicle, rapid_repeat_fueling, off_hours_fueling.",
-    input_schema: { type: "object", properties: { signal: { type: "string" }, period_days: { type: "integer" } }, required: ["signal"] },
-  },
-  // ── Fuel economics ──
-  {
-    name: "fuel_economics",
-    description: "Fuel economics for a period: number of fills, total gallons, total spend, average price per gallon, fleet MPG (measured odometer miles over the tractor fuel behind them, withheld with a reason when coverage is too thin), and reefer (trailer) fuel spend + gallons.",
-    input_schema: { type: "object", properties: { period_days: { type: "integer" } } },
-  },
-  {
-    name: "fuel_ranking",
-    description: "Rank drivers, vehicles, or fuel stations by a fuel metric over the period. metric=spend|gallons|mpg. order=desc (highest first, default) or asc (lowest first — e.g. worst MPG). An MPG here is that subject's own figure over its own fills, which is NOT the fleet MPG and must not be compared with it.",
-    input_schema: {
-      type: "object",
-      properties: {
-        by: { type: "string", enum: ["driver", "vehicle", "station"] },
-        metric: { type: "string", enum: ["spend", "gallons", "mpg"] },
-        order: { type: "string", enum: ["desc", "asc"] },
-        period_days: { type: "integer" },
-        limit: { type: "integer" },
-      },
-      required: ["by", "metric"],
-    },
-  },
-  {
-    name: "spend_trend",
-    description: "Fuel spend and gallons bucketed over time (bucket=day or week) for the period — for trend questions like 'is spend going up?'. Fleet MPG is included only at bucket=week: a day's fuel purchases are not that day's consumption, so there is no honest daily MPG.",
-    input_schema: { type: "object", properties: { bucket: { type: "string", enum: ["day", "week"] }, period_days: { type: "integer" } } },
-  },
-  // ── Drivers & idling ──
-  {
-    name: "driver_performance",
-    description: "Driver performance scores over the period, averaged per driver and ranked. metric=safety|efficiency. order=desc (best first, default) or asc (worst first).",
-    input_schema: {
-      type: "object",
-      properties: { metric: { type: "string", enum: ["safety", "efficiency"] }, order: { type: "string", enum: ["desc", "asc"] }, period_days: { type: "integer" }, limit: { type: "integer" } },
-    },
-  },
-  {
-    name: "idling_summary",
-    description: "Idle totals for the period: idle hours and idle cost. Optionally rank the worst idlers by driver or vehicle (set `by`).",
-    input_schema: { type: "object", properties: { by: { type: "string", enum: ["driver", "vehicle"] }, period_days: { type: "integer" }, limit: { type: "integer" } } },
-  },
-  // ── Integrity, coverage & fleet ──
-  {
-    name: "declined_summary",
-    description: "Declined card attempts in the period, total and broken down by suspicion level (e.g. alert/warn/none).",
-    input_schema: { type: "object", properties: { period_days: { type: "integer" } } },
-  },
-  {
-    name: "telematics_coverage",
-    description: "What share of fills in the period are corroborated by Samsara telematics: total fills, corroborated fills, and coverage %.",
-    input_schema: { type: "object", properties: { period_days: { type: "integer" } } },
-  },
-  {
-    name: "import_activity",
-    description: "Recent EFS/report imports in the period: source, kind, filename, status, and row counts (total/inserted/duplicate). Newest first.",
-    input_schema: { type: "object", properties: { period_days: { type: "integer" }, limit: { type: "integer" } } },
-  },
-  {
-    name: "fleet_roster",
-    description: "Fleet size right now: total and active counts of vehicles, drivers, and trailers.",
-    input_schema: { type: "object", properties: {} },
-  },
-];
+import { assistantFuelReport, getFleetMpg, getFleetMpgSeries } from "../fuel-spend/index.js";
+import { TOOLS } from "./askTools.js";
 
 const n = (v: unknown): number | null => (v == null ? null : Number(v));
 
@@ -279,6 +183,7 @@ async function runTool(admin: SupabaseClient, orgId: string, name: string, input
   const since = new Date(Date.now() - period * 86400_000).toISOString();
   const limit = Math.min(Math.max(Number(input.limit) || 5, 1), 25);
 
+  if (name === "fuel_report") return assistantFuelReport(admin, orgId, input);
   if (name === "fuel_economics" || name === "fuel_ranking" || name === "spend_trend") {
     return runFuelTool(admin, orgId, name, input, { period, since, limit });
   }
@@ -433,21 +338,35 @@ async function runTool(admin: SupabaseClient, orgId: string, name: string, input
 
 const SYSTEM = `You answer a fleet manager's questions about their fleet operations data by calling the
 provided tools (never guess numbers). The tools cover fuel-theft alerts, fuel economics (spend, gallons,
-MPG, price, rankings, trends), driver performance, idling, declined attempts, telematics coverage, import
-activity, and fleet roster. Pick the fewest tools needed, then give a short, direct plain-language answer
-with the concrete figures (use compact tables when listing rankings). If a question is outside the
-available tools, say what you can and can't answer. Keep answers concise.`;
+MPG, price, cost per mile, rankings, trends, reports for named trucks and calendar periods), driver
+performance, idling, declined attempts, telematics coverage, import activity, and fleet roster. Pick the
+fewest tools needed, then give a short, direct plain-language answer with the concrete figures (use
+compact tables when listing several trucks or periods). Show dates as MM/DD/YYYY. If a question is outside
+the available tools, say what you can and can't answer. Keep answers concise.`;
+
+/** What one answer did, for the `ai.ask` audit row (AUDIT P3/P4): which tools, with what, and whether they failed. */
+export interface AskTrace {
+  answer: string;
+  tools: Array<{ name: string; input: unknown; error?: string }>;
+}
 
 /** Answer a natural-language question over the org's data via a bounded tool-use loop. */
-export async function askData(admin: SupabaseClient, env: Env, orgId: string, question: string): Promise<string> {
+export async function askData(admin: SupabaseClient, env: Env, orgId: string, question: string, now: Date = new Date()): Promise<AskTrace> {
   const client = anthropicClient(env);
+  // "Last month" and "October" need today's date, on the carrier's clock (D-PREC6) — without it the
+  // model guesses the year from its training data.
+  const { data: org } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
+  const zone = organizationTimezone((org as { operating_hours?: object | null } | null)?.operating_hours);
+  const system = `${SYSTEM}\n\nToday is ${todayInZone(now, zone)} (YYYY-MM-DD) in the carrier's timezone, ${zone}.`;
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
+  const tools: AskTrace["tools"] = [];
 
   for (let i = 0; i < 6; i++) {
-    const resp = await client.messages.create({ model: AI_MODELS.fast, max_tokens: 1024, system: SYSTEM, tools: TOOLS, messages });
+    // 2,048, not 1,024: a 25-truck table with six columns outruns the old cap mid-row.
+    const resp = await client.messages.create({ model: AI_MODELS.fast, max_tokens: 2048, system, tools: TOOLS, messages });
     const toolUses = resp.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
     if (toolUses.length === 0) {
-      return resp.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("\n").trim();
+      return { answer: resp.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("\n").trim(), tools };
     }
     messages.push({ role: "assistant", content: resp.content });
     const results: Anthropic.ToolResultBlockParam[] = [];
@@ -455,12 +374,14 @@ export async function askData(admin: SupabaseClient, env: Env, orgId: string, qu
       let out: unknown;
       try {
         out = await runTool(admin, orgId, tu.name, (tu.input ?? {}) as Record<string, unknown>);
+        tools.push({ name: tu.name, input: tu.input });
       } catch (e) {
         out = { error: e instanceof Error ? e.message : "tool failed" };
+        tools.push({ name: tu.name, input: tu.input, error: (out as { error: string }).error });
       }
       results.push({ type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(out) });
     }
     messages.push({ role: "user", content: results });
   }
-  return "I couldn't complete that in a few steps — try asking something more specific.";
+  return { answer: "I couldn't complete that in a few steps — try asking something more specific.", tools };
 }
