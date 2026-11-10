@@ -22,6 +22,7 @@ import type { Env } from "../../env.js";
 import { notifyApplicationApproved, type ApprovalNotice } from "./applicationApprovalNotice.js";
 import { partOneFactsView } from "./applicantIntake.js";
 import { listCaptures } from "./applicationCapture.js";
+import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
 
 /**
  * The office's review of an application before the driver certifies it (F4, D-AX11–13).
@@ -210,21 +211,6 @@ export const DRAFT_CHANGED: ReviewError = {
   message: "The applicant changed this just now — reload the application and try again.",
 };
 
-const SIGNING_STARTED: ReviewError = {
-  code: "application_not_editable",
-  message: "The applicant has started signing, so what the application says is fixed now.",
-};
-
-/** Has the driver made any mark on the packet? From then on the document they are signing stays put. */
-async function signingStarted(admin: SupabaseClient, orgId: string, invitationId: string): Promise<boolean> {
-  const { count } = await admin
-    .from("application_packet_marks")
-    .select("id", { count: "exact", head: true })
-    .eq("org_id", orgId)
-    .eq("invitation_id", invitationId);
-  return (count ?? 0) > 0;
-}
-
 /**
  * Change the draft — one answer, a job removed or added, or a gap explained (§9 P5).
  *
@@ -297,15 +283,10 @@ export async function editApplication(
     return { code: "edit_failed", message: "That change could not be saved. Try again." };
   }
 
-  const { error: logError } = await admin.from("application_edits").insert({
-    org_id: orgId,
-    invitation_id: invitationId,
-    path: applied.logPath,
-    before: applied.before ?? null,
-    after: applied.after ?? null,
-    edited_by: ctx.actorId,
-  });
-  if (logError) return { code: "edit_not_recorded", message: "That change could not be recorded. Try again." };
+  const unrecorded = await recordOfficeEdits(
+    admin, orgId, invitationId, [{ path: applied.logPath, before: applied.before, after: applied.after }], ctx.actorId,
+  );
+  if (unrecorded) return unrecorded;
 
   await writeAudit(admin, {
     orgId,

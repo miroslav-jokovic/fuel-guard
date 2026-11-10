@@ -61,7 +61,7 @@
     "apps/api/src/modules/recruiting/applicantTravel.ts"
   ],
   "application_edits": [
-    "apps/api/src/modules/recruiting/applicationReview.ts"
+    "apps/api/src/modules/recruiting/applicationEditLog.ts"
   ],
   "application_intakes": [
     "apps/api/src/modules/recruiting/applicantIntake.ts",
