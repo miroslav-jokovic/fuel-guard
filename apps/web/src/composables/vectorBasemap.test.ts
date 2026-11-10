@@ -33,7 +33,10 @@ describe("the vector road map's layers", () => {
     const colours: string[] = [];
     for (const l of layers) {
       for (const [k, v] of Object.entries((l as { paint?: Record<string, unknown> }).paint ?? {})) {
-        if (k.endsWith("-color")) colours.push(String(v));
+        if (!k.endsWith("-color")) continue;
+        // A colour that changes with zoom is an interpolate whose outputs are colours.
+        if (Array.isArray(v)) for (let i = 4; i < v.length; i += 2) colours.push(String(v[i]));
+        else colours.push(String(v));
       }
     }
     expect(colours.length).toBeGreaterThan(10);
@@ -94,5 +97,18 @@ describe("the vector road map's zoom curves", () => {
       for (const [k, v] of Object.entries(props)) zoomUses(v, true, bad, `${l.id}.${k}`);
     }
     expect(bad).toEqual([]);
+  });
+});
+
+describe("the vector road map's roads", () => {
+  /** White roads on near-white land vanished at regional zoom on staging; they must start coloured. */
+  it("draws ordinary roads in a colour at regional zoom and white only once zoomed into a town", () => {
+    for (const id of ["here-4:major", "here-4:minor"]) {
+      const l = layers.find((x) => x.id === id) as { paint: { "line-color": unknown[] } };
+      const colour = l.paint["line-color"];
+      expect(Array.isArray(colour)).toBe(true);
+      expect(colour[4]).toBe(palette["highway-casing"]);
+      expect(colour.at(-1)).toBe(palette.road);
+    }
   });
 });

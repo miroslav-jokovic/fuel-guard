@@ -1331,3 +1331,17 @@ conflict every time (`plan-progress-log-not-table-rows`).
   `compression` does not list) are compressed on the way to the browser, so they do not cross at
   full size. ⚠ Lesson: the only test that counts for a proxy is one through the real deployment;
   the staging walk is what found this.
+- **2026-11-10 — D-DR31 on staging, measured.** With the length fix (#2202) live, the same
+  signed-in zoom walk on the staging Dispatch map, two alternating runs each: **today's map 97–102
+  tile requests, the vector trial 32–34** (67% fewer), with no page errors. The first staging look
+  showed country roads vanishing: they were white on near-white land at regional zoom. They now
+  start in the highway-casing blue-grey and fade to white with a casing once zoomed into a town, the
+  way HERE's raster map draws them. Ordinary roads' route numbers appear only from zoom 10, because
+  printing them from 6 was far busier than today's map.
+  - ⚠ **The cost the owner should weigh: drawing work moves to the reader's computer.** Chrome at
+    normal speed and at 4× CPU slowdown (an older office PC), the same 11-step zoom sequence, five
+    interleaved runs each, medians: today's map 0 frames over 50 ms at either speed; the vector map
+    4 at normal speed and 17–43 at 4× slower, with 0.5–2.7 s of main-thread work across the
+    sequence. It still finishes the sequence 1–2 s sooner. Hiding most labels barely changed it
+    (13–52 stutters with no labels at all), so the extra work is the vector map itself, not this
+    style. A real office PC check is still owed.
