@@ -411,6 +411,18 @@ Cropping to a fixed band at build time would have to be redone at every breakpoi
   behind the existing proxy with a server cache and measure a week of staging use. Recommendation:
   (a), because it is a reading task and (b) can't undo a bill.
 
+- **Q-DR29 — should map tiles get their own rate-limit bucket?** (Q-DR5…Q-DR28 are taken in
+  `DOCUMENT-READER-PLAN.md`, hence the jump.) Tiles share the general `/api` per-caller budget,
+  2 100 per 15 minutes (`apiRateLimit.ts`), with every poll the dispatcher's board makes. Measured
+  2026-11-10: one walk of 18 one-level zooms costs ~410 tile requests after D-DR26, so a dispatcher
+  who zooms around for a quarter-hour can spend the budget on tiles alone, and then the WHOLE app
+  answers 429, the board's polls included, until the window turns. Not observed in production: this
+  session had no AWS credentials to read the API's `[metrics]` lines for 429s on `/map-tiles/`.
+  Candidates: (a) read a week of production 429s by route first; (b) give `/map-tiles/` its own
+  per-caller bucket (sized from the walk above, e.g. 6 000/15 min) and skip it in the general one, so
+  a map can never starve the board; (c) leave it. Recommendation: (a) then (b). (b) is a small change,
+  but it moves a security boundary, so it should rest on a number.
+
 ---
 
 ## 7. Progress log
@@ -1190,3 +1202,25 @@ conflict every time (`plan-progress-log-not-table-rows`).
     borrowed demotiles.maplibre.org; the build serves PBF glyphs generated from LiberationSans
     (already in `apps/api/src/lib/fonts/`) from our own API. The same endpoint is what truck markers
     need to carry unit numbers. Blocked on Q-DR4.
+- **2026-11-10 — D-DR28: a zoom no longer waits on two maplibre defaults sized for the old 512 map.**
+  The owner, the morning after D-DR26: zooming in and out is slow and tiles load slowly. Measured on
+  the staging Dispatch map, signed in (1512×900, devicePixelRatio 2, Chicago, zoom 4 → 17 and back):
+  408 tile requests, 170 abandoned mid-zoom, the proxy answering in 191 ms p50 / 262 ms p90, one long
+  task, no dropped frames. So the map is slow to FETCH tiles, not to draw them. D-DR26's tile count
+  (154 → 410 on the same walk, 2.7×) is what any Retina-sharp raster map costs, and it is not reverted.
+  - **A/B in a rig** (maplibre 5.24.0 over HTTP/2 as production serves it, real HERE bytes plus the
+    proxy's measured extra hop, cold cache, 18 one-level zooms timed from "zoom finished" to "map
+    idle"), p50 over four runs: today 1.35–1.65 s; **no raster fade + 32 parallel requests
+    0.69–0.98 s**; a 100 ms fade keeps most of the cost (1.08–1.61 s), because maplibre holds the
+    parent tile until the child's fade ends; 32 parallel alone 1.22–1.31 s. Shipped:
+    `raster-fade-duration: 0` on every raster layer and `setMaxParallelImageRequests(32)`, both in
+    `useMapLibre.ts`, so Fuel Planning's route map gets them too.
+  - **Measured and not shipped:** a server-side tile cache cut HERE requests on a repeat walk from
+    ~440 to 8–13, but did not shorten the wait (the hop to HERE was not the bottleneck). It saves
+    billing, not time, and whether HERE lets us keep tiles is Q-DR4's question. A bigger in-memory
+    tile cache (`maxTileCacheZoomLevels`) was within noise, and at 1 MB of texture per 512 tile it
+    is not free.
+  - ⚠ **For D-DR27:** an overlay that costs 5–21 vector tiles per map tile goes through the same
+    16/32-request queue as the basemap. Its build has to be timed on this walk against these numbers,
+    not just checked for names.
+  - Open: Q-DR29 (tiles share the general rate limit with the board's polls).
