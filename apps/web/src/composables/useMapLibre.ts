@@ -140,6 +140,42 @@ export function withTileRequest(template: string): string {
   return `${template}${template.includes("?") ? "&" : "?"}size=${TILE_REQUEST.size}&ppi=${TILE_REQUEST.ppi}`;
 }
 
+/**
+ * ── D-DR28: A ZOOM WAITS ON THE PIPELINE, NOT ON HERE — TWO maplibre DEFAULTS, MEASURED (2026-11-10) ─
+ * The owner, the morning after D-DR26: "the map is slowed down when zooming in and out and tiles are
+ * loading slow". D-DR26 is the cause and is NOT reverted — a Retina-sharp raster map has to lay a 2×
+ * tile over 256 CSS pixels, so the tile count it brought (154 → 410 on the walk below, 2.7×) is the
+ * price of the sharp map that names the Pilot. What was left to fix is how long each zoom WAITS for
+ * those tiles, and that turned out to be two maplibre defaults sized for the 512-tile map.
+ *
+ * Measured on the real staging Dispatch map (signed in, 1512×900 at devicePixelRatio 2, Chicago,
+ * zoom 4 → 17 and back): 408 tile requests, 170 of them abandoned mid-zoom; our proxy answered in
+ * 191 ms p50 / 262 ms p90; one long task, no dropped frames. The page is not slow to DRAW — so the
+ * candidates were A/B'd in a rig: maplibre 5.24.0, HTTP/2 (as production serves), real HERE bytes
+ * with the proxy's measured extra hop, a cold cache, and the same 18 one-level zooms each time,
+ * timing "zoom finished → map idle". Four runs each, p50 of the 18 waits:
+ *
+ *   today (300 ms fade, 16 parallel)        1.35 · 1.40 · 1.61 · 1.65 s
+ *   raster-fade-duration 0 + 32 parallel    0.69 · 0.71 · 0.95 · 0.98 s   ← this
+ *   fade 100 ms + 32 parallel               1.08 · 1.16 · 1.23 · 1.61 s
+ *   fade 0 alone                            0.93 · 0.97 s
+ *   32 parallel alone                       1.22 · 1.31 s
+ *
+ * ⚠ **The fade is most of it, and it does not scale linearly.** maplibre keeps the PARENT tile on
+ * screen until a child's fade has finished, so every one of 2.7× more tiles held the previous zoom
+ * for 300 ms more; a 100 ms fade keeps most of the cost. With no fade a tile appears the frame it is
+ * decoded, over the parent maplibre was already showing — there is no blank-square flash to trade.
+ *
+ * ⚠ **The parallel cap is the smaller half, and it is stated as such.** maplibre caps image requests
+ * at 16 (`MAX_PARALLEL_IMAGE_REQUESTS`, 5.24.0), a number from the HTTP/1.1 era of six sockets per
+ * host. Production serves `/api` over HTTP/2 (checked: `curl` reports `2` on the tile route), where
+ * 32 requests are one connection. It is a global setter, so it is set once per map construction.
+ * ⚠ While the camera MOVES maplibre still throttles to 8 per frame
+ * (`MAX_PARALLEL_IMAGE_REQUESTS_PER_FRAME`); that one has no public setter and is left alone.
+ */
+const RASTER_FADE_MS = 0;
+const MAX_PARALLEL_TILE_REQUESTS = 32;
+
 export function useMapLibre(options: UseMapLibreOptions): {
   map: Ref<maplibregl.Map | null>;
 } {
@@ -172,6 +208,15 @@ export function useMapLibre(options: UseMapLibreOptions): {
     maxzoom: HERE_MAX_TILE_ZOOM,
   });
 
+  /** Both raster LAYERS are built here too, for the same reason as `rasterSource` (D-DR28). */
+  const rasterLayer = (id: string, layout?: { visibility: "none" }) => ({
+    id,
+    type: "raster" as const,
+    source: id,
+    paint: { "raster-fade-duration": RASTER_FADE_MS },
+    ...(layout ? { layout } : {}),
+  });
+
   function attachAuth(url: string): maplibregl.RequestParameters {
     if (accessToken && url.includes(options.authPathFragment)) {
       return { url, headers: { Authorization: `Bearer ${accessToken}` } };
@@ -190,6 +235,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
       accessToken = session?.access_token ?? null;
     }).data.subscription;
 
+    maplibregl.setMaxParallelImageRequests(MAX_PARALLEL_TILE_REQUESTS);
     const instance = new maplibregl.Map({
       container: options.container.value,
       transformRequest: attachAuth,
@@ -198,7 +244,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
         sources: {
           [TILE_SOURCE]: { ...rasterSource(tileUrl()), attribution: options.attribution },
         },
-        layers: [{ id: TILE_SOURCE, type: "raster", source: TILE_SOURCE }],
+        layers: [rasterLayer(TILE_SOURCE)],
       },
       attributionControl: { compact: true },
       dragRotate: false,
@@ -246,7 +292,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
     });
     const ours = new Set([...rasterLayers.values(), id]);
     const firstForeign = instance.getStyle().layers.find((l) => !ours.has(l.id));
-    instance.addLayer({ id, type: "raster", source: id, layout: { visibility: "none" } }, firstForeign?.id);
+    instance.addLayer(rasterLayer(id, { visibility: "none" }), firstForeign?.id);
     rasterLayers.set(tiles, id);
     return id;
   }

@@ -97,6 +97,7 @@ interface FakeLayer {
   type: string;
   source: string;
   layout?: { visibility?: string };
+  paint?: Record<string, unknown>;
 }
 
 function mapHarness() {
@@ -166,8 +167,13 @@ function mapHarness() {
   return { FakeMap, constructed, sources, specs, layers, finishLoading, visible: () => layers.filter((l) => l.type === "raster" && l.layout?.visibility !== "none").map((l) => l.id) };
 }
 
+/** Every value handed to maplibre's global image-request cap, in order (D-DR28). */
+const parallelSet: number[] = [];
+
 async function mountMap(FakeMap: unknown, tilesRef: { value: string }) {
-  vi.doMock("maplibre-gl", () => ({ default: { Map: FakeMap, NavigationControl: class {} } }));
+  vi.doMock("maplibre-gl", () => ({
+    default: { Map: FakeMap, NavigationControl: class {}, setMaxParallelImageRequests: (n: number) => parallelSet.push(n) },
+  }));
   vi.doMock("@/lib/supabase", () => ({
     supabase: {
       auth: {
@@ -324,6 +330,53 @@ describe("useMapLibre asks for sharp tiles that name places a zoom earlier", () 
     // a raster is defined, which is where a 512 used to be written twice.
     expect(h.specs.here).toMatchObject({ tileSize: 256, maxzoom: 20, tiles: [`${DAY}&size=512&ppi=200`] });
     expect(h.specs["here-1"]).toMatchObject({ tileSize: 256, maxzoom: 20, tiles: [`${NIGHT}&size=512&ppi=200`] });
+    wrapper.unmount();
+    vi.doUnmock("maplibre-gl");
+    vi.doUnmock("@/lib/supabase");
+  });
+});
+
+/**
+ * D-DR28: the two maplibre defaults a zoom waited on. What a dispatcher FEELS — 1.35–1.65 s down to
+ * 0.69–0.98 s per zoom — was measured in a browser rig and is quoted in `useMapLibre.ts`; it cannot be
+ * measured here. What can rot silently is a third raster layer written without the paint, or the
+ * constructor losing the setter, and either would put the 300 ms wait back on every tile.
+ */
+describe("useMapLibre does not make a zoom wait on fades or a 16-request cap", () => {
+  it("paints every raster layer with no fade — the first one and one a basemap switch adds", async () => {
+    vi.resetModules();
+    const h = mapHarness();
+    const { ref } = await import("vue");
+    const tiles = ref(DAY);
+    const { wrapper, nextTick } = await mountMap(h.FakeMap, tiles);
+    tiles.value = NIGHT;
+    await nextTick();
+
+    const rasters = h.layers.filter((l) => l.type === "raster");
+    expect(rasters.map((l) => l.id)).toEqual(["here", "here-1"]);
+    for (const l of rasters) expect(l.paint).toEqual({ "raster-fade-duration": 0 });
+    wrapper.unmount();
+    vi.doUnmock("maplibre-gl");
+    vi.doUnmock("@/lib/supabase");
+  });
+
+  it("raises maplibre's parallel image requests to 32 before the map asks for its first tile", async () => {
+    vi.resetModules();
+    parallelSet.length = 0;
+    const h = mapHarness();
+    // The cap is read when maplibre queues a request, and construction queues the first tiles — so
+    // the order is part of the behaviour, not a detail of it.
+    let setBeforeConstruct: number[] | null = null;
+    class Recording extends h.FakeMap {
+      constructor(opts: ConstructorParameters<typeof h.FakeMap>[0]) {
+        setBeforeConstruct = [...parallelSet];
+        super(opts);
+      }
+    }
+    const { ref } = await import("vue");
+    const { wrapper } = await mountMap(Recording, ref(DAY));
+    expect(setBeforeConstruct).toEqual([32]);
+    expect(h.constructed).toHaveLength(1);
     wrapper.unmount();
     vi.doUnmock("maplibre-gl");
     vi.doUnmock("@/lib/supabase");
