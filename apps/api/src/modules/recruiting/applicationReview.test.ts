@@ -632,3 +632,56 @@ describe("approving it", () => {
     expect(sent.fn).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * F3c part 2 (E2): a row of a positional list added or removed as ONE correction — re-parsed by the
+ * draft schema like every edit, and logged as the whole row so the driver reads it on 3.1.
+ */
+describe("adding and removing a row (E2)", () => {
+  const OLD = { line1: "9 Old Rd", line2: "", city: "Gary", state: "IN", postal_code: "46401", from: "2015-01", to: "2019-03" };
+
+  it("adds an earlier address and logs the whole row at its new position", async () => {
+    const rec = seed();
+    const result = await editApplication(rec.client, ORG, INV, { op: "add_row", list: "addresses", row: OLD, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result)).toBe(false);
+    expect(savedPayload(rec).addresses).toEqual([PAYLOAD.addresses[0], OLD]);
+    const edit = rec.writtenRows("application_edits")[0] as Record<string, unknown>;
+    expect(edit).toMatchObject({ path: ["addresses", 1], before: null, after: OLD });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("⚠ refuses a row the draft schema would refuse, and saves nothing", async () => {
+    const rec = seed();
+    const result = await editApplication(
+      rec.client, ORG, INV, { op: "add_row", list: "addresses", row: { ...OLD, city: "" }, revision: REV }, { actorId: ACTOR },
+    );
+    expect(isReviewError(result) && result.code).toBe("invalid_edit");
+    expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+  });
+
+  it("removes a row and logs the row it took", async () => {
+    const rec = seed({ payload: { ...PAYLOAD, addresses: [...PAYLOAD.addresses, OLD] } });
+    const result = await editApplication(rec.client, ORG, INV, { op: "remove_row", list: "addresses", index: 1, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result)).toBe(false);
+    expect(savedPayload(rec).addresses).toEqual(PAYLOAD.addresses);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["addresses", 1], before: OLD, after: null });
+  });
+
+  const LICENCE = { issuing_authority: "IN", number: "IN-9", expires_at: "2027-01-01", kind: null };
+  it("⚠ refuses a licence row on a v2 link, where the licences are Part 1's and filing drops the draft's", async () => {
+    const rec = seed({ v2: true });
+    const result = await editApplication(
+      rec.client, ORG, INV, { op: "add_row", list: "additional_licences", row: LICENCE, revision: REV }, { actorId: ACTOR },
+    );
+    expect(isReviewError(result) && result.message).toMatch(/licences are corrected/);
+    expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+  });
+
+  it("adds a licence row on a legacy link, where the draft is what files", async () => {
+    const rec = seed();
+    const result = await editApplication(
+      rec.client, ORG, INV, { op: "add_row", list: "additional_licences", row: LICENCE, revision: REV }, { actorId: ACTOR },
+    );
+    expect(isReviewError(result)).toBe(false);
+  });
+});

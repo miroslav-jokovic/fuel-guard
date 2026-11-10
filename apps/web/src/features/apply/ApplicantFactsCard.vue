@@ -3,6 +3,7 @@ import { computed, ref, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppFormField as FormField, AppSearchField, AppTextarea as BaseTextarea } from "@silvicom/ui";
 import {
   APPLICATION_SECTION_ORDER,
+  type ApplicationRowList,
   formatDisplayDate,
   formatDisplayMonth,
   jurisdictionName,
@@ -12,6 +13,8 @@ import { formatPhone } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
 import FactEditor from "./FactEditor.vue";
 import OfficeJobsSection from "./OfficeJobsSection.vue";
+import FactRowAdder from "./FactRowAdder.vue";
+import { editableLists, factBlocks, listSection, rowNoun, rowRemovable } from "./factRowLists";
 import { draftEmployers, draftGaps } from "./officeJobs";
 import { fieldId } from "./fieldLabels";
 import { APPLY_SECTION_TITLES } from "./strings";
@@ -54,6 +57,13 @@ import {
  * not as rows (`applicantFactRows`' header says why). Until this merge it sat under the card as a
  * second section of the drawer, so "every answer, once, on one card" was true of every answer but the
  * jobs. Its door is the draft's, so it opens and closes with `draftOpen`.
+ *
+ * ── ROWS ADDED AND REMOVED (F3c part 2, E2) ───────────────────────────────────────────────────
+ * Each list (`APPLICATION_ROW_LISTS`) has "Add …" at the end of its section and "Remove" under each of
+ * its rows, both through the draft's door — one `add_row` / `remove_row`, one line on the driver's 3.1.
+ * The current home has no Remove (it is corrected, never removed), and on a v2 link the licences are
+ * Part 1's, so they are not offered here (`editableLists`). Nothing is offered while a search is typed:
+ * a row half-shown by a filter is not one to add beside or remove.
  */
 const props = defineProps<{
   invitationId: string;
@@ -102,6 +112,35 @@ const sections = computed(() => {
 });
 
 const open = ref<string | null>(null);
+
+// ── E2: the lists' rows ──────────────────────────────────────────────────────────────────────
+const removeEdit = useEditApplicationAnswer(id);
+const lists = computed(() => (props.draftOpen && query.value.trim() === "" ? editableLists(Boolean(props.review.partOne)) : []));
+const listLength = (list: ApplicationRowList): number => {
+  const rowsOf = (props.review.payload as Record<string, unknown> | null)?.[list];
+  return Array.isArray(rowsOf) ? rowsOf.length : 0;
+};
+const addresses = computed(() => (props.review.payload as { addresses?: unknown } | null)?.addresses);
+/** The row a "Remove" belongs under: the last answer of one list row, when that row may be removed. */
+function endsItem(rowsInGroup: readonly FactRow[], at: number): { list: ApplicationRowList; index: number; key: string } | null {
+  const item = factBlocks(rowsInGroup).find((b) => b.kind === "item" && b.rows[b.rows.length - 1] === rowsInGroup[at]);
+  if (!item || item.kind !== "item" || !lists.value.includes(item.list)) return null;
+  return rowRemovable(item.list, item.index, addresses.value) ? { list: item.list, index: item.index, key: item.key } : null;
+}
+const adding = ref<ApplicationRowList | null>(null);
+const removing = ref<string | null>(null);
+const removeProblem = ref<string | null>(null);
+watch(id, () => { adding.value = null; removing.value = null; });
+async function removeRow(list: ApplicationRowList, index: number): Promise<void> {
+  removeProblem.value = null;
+  try {
+    await removeEdit.mutateAsync({ op: "remove_row", list, index, revision: props.review.revision ?? 0 });
+    removing.value = null;
+    toast.push("success", `${rowNoun(list)} ${index + 1} removed`, "The applicant is shown the removal before they sign.");
+  } catch (e) {
+    removeProblem.value = e instanceof Error ? e.message : "That could not be removed.";
+  }
+}
 const typed = ref<FactValue>(null);
 const note = ref("");
 const problem = ref<string | null>(null);
@@ -203,7 +242,8 @@ function shown(row: FactRow): string {
     <div v-for="group in sections" :key="group.section" class="space-y-1">
       <h4 class="text-xs font-semibold uppercase tracking-wider text-ink-muted">{{ APPLY_SECTION_TITLES[group.section] }}</h4>
       <ul class="divide-y divide-edge">
-        <li v-for="row in group.rows" :key="row.key" class="py-2" :data-fact="row.key">
+        <template v-for="(row, at) in group.rows" :key="row.key">
+        <li class="py-2" :data-fact="row.key">
           <div v-if="open !== row.key" class="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-3">
             <span class="min-w-0 text-sm text-ink-muted sm:w-56 sm:shrink-0">{{ row.label }}</span>
             <span
@@ -247,7 +287,54 @@ function shown(row: FactRow): string {
             </div>
           </div>
         </li>
+        <li v-if="endsItem(group.rows, at)" class="py-2" :data-fact-remove="endsItem(group.rows, at)!.key">
+          <div v-if="removing !== endsItem(group.rows, at)!.key" class="flex justify-end">
+            <BaseButton size="sm" variant="ghost" :disabled="open !== null || adding !== null" @click="removing = endsItem(group.rows, at)!.key; removeProblem = null">
+              Remove {{ rowNoun(endsItem(group.rows, at)!.list).toLowerCase() }} {{ endsItem(group.rows, at)!.index + 1 }}
+            </BaseButton>
+          </div>
+          <div v-else class="space-y-2 rounded-surface bg-surface-muted p-3">
+            <p class="text-sm text-ink">
+              Remove {{ rowNoun(endsItem(group.rows, at)!.list).toLowerCase() }} {{ endsItem(group.rows, at)!.index + 1 }} from the application?
+              The applicant is shown the removal before they sign.
+            </p>
+            <p v-if="removeProblem" class="text-sm text-danger-700" role="alert">{{ removeProblem }}</p>
+            <div class="flex justify-end gap-2">
+              <BaseButton size="sm" variant="ghost" @click="removing = null">Keep it</BaseButton>
+              <BaseButton
+                size="sm"
+                variant="danger"
+                :disabled="removeEdit.isPending.value"
+                @click="removeRow(endsItem(group.rows, at)!.list, endsItem(group.rows, at)!.index)"
+              >
+                Remove
+              </BaseButton>
+            </div>
+          </div>
+        </li>
+        </template>
       </ul>
+      <template v-for="list in lists.filter((l) => listSection(l) === group.section)" :key="list">
+        <FactRowAdder
+          v-if="adding === list"
+          :invitation-id="invitationId"
+          :list="list"
+          :index="listLength(list)"
+          :revision="review.revision ?? 0"
+          @close="adding = null"
+        />
+        <BaseButton
+          v-else
+          size="sm"
+          variant="secondary"
+          class="mr-2 mt-2"
+          :disabled="open !== null || adding !== null"
+          :data-fact-add="list"
+          @click="adding = list"
+        >
+          Add {{ rowNoun(list).toLowerCase() }}
+        </BaseButton>
+      </template>
       <OfficeJobsSection
         v-if="group.section === 'employment' && showJobs"
         class="pt-2"

@@ -47,6 +47,7 @@ export const APPLY_FLOW_COPY_ES = {
     blank: "nada",
     replaced: "Reemplazaron esta respuesta por la que usted les dio. No se muestra aquí.",
     because: "Por qué la cambiaron",
+    removedLater: "luego la quitaron",
     ssnNote:
       "Su número de Seguro Social no se guarda con el resto de sus respuestas, por eso se lo pedimos aquí: va directamente a su expediente cuando firma.",
     sign: "Firmar y enviar",
