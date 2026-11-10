@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth, requireOrg } from "../../../middleware/auth.js";
-import { ASSISTANT_TOOL_MODULES, assistantToolsFor } from "@silvicom/shared";
+import { ASSISTANT_ANSWER_MAX, ASSISTANT_QUESTION_MAX, ASSISTANT_TOOL_MODULES, assistantHistoryForRequest, assistantToolsFor } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -49,7 +49,11 @@ export function aiRouter(): Router {
       }
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
-      const question = String((req.body as { question?: string })?.question ?? "").slice(0, 500).trim();
+      const body = (req.body ?? {}) as { question?: unknown; history?: unknown };
+      const question = String(body.question ?? "").slice(0, ASSISTANT_QUESTION_MAX).trim();
+      // F21 R3a: the conversation so far, trimmed by the one shared rule. Absent from an older web:
+      // the question is then answered alone, as before.
+      const history = assistantHistoryForRequest(Array.isArray(body.history) ? body.history : undefined);
       if (!question) {
         res.status(400).json(apiError("bad_request", "A question is required"));
         return;
@@ -64,7 +68,7 @@ export function aiRouter(): Router {
         return;
       }
       const started = Date.now();
-      const { answer, tools, usage, outcome } = await askData(admin, env, orgId, question, allowed, now);
+      const { answer, tools, usage, outcome } = await askData(admin, env, orgId, question, allowed, now, history);
       const latencyMs = Date.now() - started;
       const toolNames = tools.map((t) => t.name);
       console.log(assistantLogLine(orgId, usage, latencyMs, toolNames, outcome));
@@ -75,7 +79,7 @@ export function aiRouter(): Router {
       // it had tried. Capped so one long table cannot bloat the audit log; retention stays Q-AI4's.
       await writeAudit(admin, {
         orgId, actorId: userId, action: "ai.ask",
-        meta: { question, answer: answer.slice(0, 4000), tools, outcome, cost_micro_usd: Math.round(usage.costMicroUsd) },
+        meta: { question, answer: answer.slice(0, ASSISTANT_ANSWER_MAX), tools, outcome, cost_micro_usd: Math.round(usage.costMicroUsd), history_turns: history.length },
       });
       if (outcome === "error") {
         res.status(503).json(apiError("ai_unavailable", answer));
