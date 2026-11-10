@@ -54,6 +54,8 @@ const seed = (over: {
   marks?: number;
   draft?: Record<string, unknown> | null;
   edits?: unknown;
+  /** E3: this applicant's live text consents. */
+  consents?: unknown[];
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
@@ -66,6 +68,7 @@ const seed = (over: {
       application_packet_marks: { data: [], count: over.marks ?? 0 },
       application_drafts: over.draft ? [{ invitation_id: INV, payload: over.draft, revision: 3 }] : [],
       application_edits: (over.edits ?? []) as never,
+      sms_consents: (over.consents ?? []) as never,
       audit_logs: [],
     },
     rpc: {
@@ -326,6 +329,26 @@ describe("every office correction is shown to the driver, and none lands once th
     expect(licenceRows).toEqual([
       { path: ["additional_licences", 0], before: { issuing_authority: "OH", number: "OH-1", expires_at: "2020-01-31" }, after: null },
     ]);
+  });
+
+  /** E3: texts went to the number Part 1 held; the corrected one has no consent, so the old one stops. */
+  it("stops this applicant's texts to the phone Part 1 held, and says so", async () => {
+    const rec = seed({ stored: { ...STORED, phone: "+17085550100" }, draft: DRAFT, consents: [{ id: "c-1" }] });
+    holder.client = rec.client;
+    const res = await correct();
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { contact: unknown }).contact).toEqual({ textsStopped: true });
+    const [update] = rec.writes().filter((q) => q.table === "sms_consents");
+    expect(update!.filters()).toEqual(expect.arrayContaining([
+      { col: "org_id", val: ORG }, { col: "driver_id", val: DRIVER }, { col: "phone", val: "+17085550100" },
+    ]));
+  });
+
+  it("stops nothing when the phone did not change", async () => {
+    const rec = seed({ stored: STORED, draft: DRAFT, consents: [{ id: "c-1" }] });
+    holder.client = rec.client;
+    expect(((await (await correct()).json()) as { contact: unknown }).contact).toEqual({});
+    expect(rec.writes().filter((q) => q.table === "sms_consents")).toEqual([]);
   });
 
   it("refuses a Part 1 correction once the driver has marked the packet, writing nothing", async () => {

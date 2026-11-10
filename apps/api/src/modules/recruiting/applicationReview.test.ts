@@ -125,6 +125,8 @@ const seed = (over: {
   marks?: number;
   /** What the applicant has photographed (F0). */
   captures?: Array<Record<string, unknown>>;
+  /** E3: this applicant's live text consents — what a read finds and an update returns. */
+  consents?: Array<Record<string, unknown>>;
 } = {}) =>
   createSupabaseRecorder({
     rpc: { save_application_draft: over.save ?? { draft_id: "d-1", updated_at: "2026-09-11T12:00:00Z", revision: (over.revision ?? 3) + 1 } },
@@ -143,7 +145,7 @@ const seed = (over: {
       audit_logs: [],
       // Read by the approval notice (Q-AX4): the carrier's own name, and the applicant's SMS consent.
       organizations: [{ name: "Silvicom Inc" }],
-      sms_consents: [],
+      sms_consents: over.consents ?? [],
     },
   });
 
@@ -683,5 +685,75 @@ describe("adding and removing a row (E2)", () => {
       rec.client, ORG, INV, { op: "add_row", list: "additional_licences", row: LICENCE, revision: REV }, { actorId: ACTOR },
     );
     expect(isReviewError(result)).toBe(false);
+  });
+});
+
+/**
+ * E3 (F3c part 2): a corrected email moves the invitation's — where every later message goes — and a
+ * corrected phone stops texts to the old number for THIS applicant only, granting nothing on the new.
+ */
+describe("a corrected email or phone moves how the carrier reaches them (E3)", () => {
+  const invitationWrites = (rec: ReturnType<typeof seed>) =>
+    rec.writes().filter((q) => q.table === "application_invitations");
+  const contactAudits = (rec: ReturnType<typeof seed>) =>
+    rec.writtenRows("audit_logs").filter((r) => r.action === "application_contact_moved");
+
+  it("moves the invitation's email to the corrected answer, audited by field and never by value", async () => {
+    const rec = seed();
+    const result = await editApplication(rec.client, ORG, INV, { path: ["email"], value: "susan.g@example.test", revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result) ? null : result.contact).toEqual({ emailMoved: true });
+    const [write] = invitationWrites(rec);
+    expect(write!.write!.payload).toEqual({ email: "susan.g@example.test" });
+    expect(write!.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "id", val: INV }]));
+    expect(contactAudits(rec)).toHaveLength(1);
+    expect(JSON.stringify(contactAudits(rec)[0])).not.toContain("susan.g@");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("keeps the invitation's email for the same address in other capitals", async () => {
+    for (const value of ["SUSAN@example.test"]) {
+      const rec = seed();
+      const result = await editApplication(rec.client, ORG, INV, { path: ["email"], value, revision: REV }, { actorId: ACTOR });
+      expect(isReviewError(result) ? null : result.contact, value).toEqual({});
+      expect(invitationWrites(rec), value).toEqual([]);
+    }
+  });
+
+  const OLD = "+13125550100";
+  it("⚠ stops this applicant's texts to the old number on a legacy link, and grants nothing on the new", async () => {
+    const rec = seed({ payload: { ...PAYLOAD, phone: "(312) 555-0100" }, consents: [{ id: "c-1" }] });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["phone"], value: "(312) 555-0199", revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result) ? null : result.contact).toEqual({ textsStopped: true });
+    const updates = rec.writes().filter((q) => q.table === "sms_consents");
+    expect(updates).toHaveLength(1);
+    expect(updates[0]!.write!.method).toBe("update");
+    expect(updates[0]!.write!.payload).toMatchObject({ revoked_reason: "office_corrected_phone" });
+    expect(updates[0]!.filters()).toEqual(expect.arrayContaining([
+      { col: "org_id", val: ORG }, { col: "driver_id", val: DRIVER }, { col: "phone", val: OLD },
+    ]));
+    expect(rec.rpcs().some((r) => r.fn === "revoke_sms_consent")).toBe(false); // STOP's, org-wide
+    expect(contactAudits(rec)[0]!.meta).toMatchObject({ field: "phone", textsStopped: 1 });
+  });
+
+  it("⚠ stops nothing for the draft's copy of the phone on a v2 link — Part 1's is the one that files", async () => {
+    const rec = seed({ v2: true, payload: { ...PAYLOAD, phone: "(312) 555-0100" }, consents: [{ id: "c-1" }] });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["phone"], value: "(312) 555-0199", revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result) ? null : result.contact).toEqual({});
+    expect(rec.writes().filter((q) => q.table === "sms_consents")).toEqual([]);
+  });
+
+  it("stops nothing when the applicant was not texted at the old number", async () => {
+    const rec = seed({ payload: { ...PAYLOAD, phone: "(312) 555-0100" }, consents: [] });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["phone"], value: "(312) 555-0199", revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result) ? null : result.contact).toEqual({});
+    expect(contactAudits(rec)).toEqual([]);
+  });
+
+  it("tells the office where the carrier reaches them: the invitation's email and whether the phone on file is texted", async () => {
+    const rec = seed({ v2: true, consents: [{ id: "c-1" }] });
+    const review = await applicationForReview(rec.client, ORG, INV);
+    expect(isReviewError(review) ? null : review.contact).toEqual({ email: "susan@example.test", phoneTexted: true });
+    const read = rec.forTable("sms_consents")[0]!;
+    expect(read.filters()).toEqual(expect.arrayContaining([{ col: "driver_id", val: DRIVER }, { col: "phone", val: "+13125550142" }]));
   });
 });

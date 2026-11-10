@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
+import { useToastStore } from "@/stores/toast";
 import { APPLICANT_FACTS, questionnaireForApplicant } from "@silvicom/shared";
 import { emptyAddress } from "./draftShape";
 import { blankRow, editableLists, factBlocks, rowChange, rowColumns, rowRemovable } from "./factRowLists";
@@ -198,5 +199,20 @@ describe("adding and removing on the card", () => {
     await settle(w);
     const call = apiFetch.mock.calls.find((c) => String(c[0]).endsWith("/part-one"));
     expect((call?.[1] as { body: { licences: Array<{ licence_number: string }> } }).body.licences.map((l) => l.licence_number)).toEqual(["IL123"]);
+  });
+});
+
+describe("a corrected email on the card (E3)", () => {
+  it("says before Save where emails go, and after Save that they moved", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: { ok: true, revision: 8, payload: {}, contact: { emailMoved: true } } });
+    const w = card(review({ payload: { ...review().payload, email: "old@example.test" }, contact: { email: "old@example.test", phoneTexted: false } }));
+    await w.find("[data-fact='email']").findAll("button").find((b) => b.text() === "Edit")!.trigger("click");
+    await settle(w);
+    expect(w.find("[data-fact-contact]").text()).toContain("go to old@example.test");
+    await w.find("[data-fact='email'] input").setValue("new@example.test");
+    await w.find("[data-fact='email']").findAll("button").find((b) => b.text() === "Save")!.trigger("click");
+    await settle(w);
+    const said = useToastStore().toasts.map((t) => JSON.stringify(t)).join(" ");
+    expect(said).toContain("emails now go to the new address");
   });
 });

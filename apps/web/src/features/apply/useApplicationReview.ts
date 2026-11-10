@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicantIdentity, ApplicationCaptureView, ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneAnswer, PartOneAnswersView, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
+import type { ApplicantIdentity, ApplicationCaptureView, ApplicationContactMove, ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneAnswer, PartOneAnswersView, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -53,6 +53,8 @@ export interface ApplicationReview {
   signingStarted?: boolean;
   /** F3: Part 1's other answers; the donor gender only as whether it was given (Q-AM13). Null on a legacy link. */
   partOneAnswers?: PartOneAnswersView | null;
+  /** E3: the invitation's email, and whether the phone on file is texted. Optional: an API before E3 sends none. */
+  contact?: { email: string | null; phoneTexted: boolean };
   edits: ApplicationEditRow[];
 }
 
@@ -60,6 +62,8 @@ export interface ApplicationReview {
 export interface AppliedOfficeEdit {
   revision: number | null;
   payload: Record<string, unknown> | null;
+  /** E3: what the correction moved — the invitation's email, the texts to the old number. */
+  contact: ApplicationContactMove;
 }
 
 const key = (invitationId: string) => ["recruitment", "application-review", invitationId] as const;
@@ -89,7 +93,7 @@ export function useEditApplicationAnswer(invitationId: Ref<string | null>) {
      * the first write, which the payload says. `null` revision from an API that sent none.
      */
     mutationFn: async (input: ApplicationEdit): Promise<AppliedOfficeEdit> => {
-      const res = await apiFetch<{ revision?: number | null; payload?: Record<string, unknown> }>(
+      const res = await apiFetch<{ revision?: number | null; payload?: Record<string, unknown>; contact?: ApplicationContactMove }>(
         `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/answer`,
         { method: "PATCH", body: input },
       );
@@ -97,6 +101,7 @@ export function useEditApplicationAnswer(invitationId: Ref<string | null>) {
       return {
         revision: typeof res.data?.revision === "number" ? res.data.revision : null,
         payload: res.data?.payload ?? null,
+        contact: res.data?.contact ?? {},
       };
     },
     // Settled, not only on success: a refusal for a stale revision (the applicant saved since this
@@ -142,12 +147,13 @@ export function useApproveApplication(invitationId: Ref<string | null>) {
 export function useCorrectPartOne(invitationId: Ref<string | null>) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: PartOneCorrection): Promise<void> => {
-      const res = await apiFetch(
+    mutationFn: async (input: PartOneCorrection): Promise<ApplicationContactMove> => {
+      const res = await apiFetch<{ contact?: ApplicationContactMove }>(
         `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/part-one`,
         { method: "POST", body: input },
       );
       if (!res.ok) throw new Error(res.error?.message ?? "That correction could not be saved.");
+      return res.data?.contact ?? {};
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: key(invitationId.value ?? "") }),
   });
