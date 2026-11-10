@@ -253,3 +253,16 @@ A gate fails on a literal string in an `apply/` template.
 - 2026-11-09: owner ruled one question per screen, grouped only when the fields are one fact (D-AM2/D-AM3), with simpler employers and optional employer addresses (D-AM4). The full screen list is in `APPLICATION-SCREEN-MAP.md`. Q-AM7 is answered; Q-AM8–11 are open.
 - 2026-11-09: owner asked for typed dates ("1001" → 10/01/2026, "10011985" → 10/01/1985), and ruled wizard = application = dashboard at 100%, with every fact editable. Recorded as D-AM6 (typed date, SCREEN-MAP §9; it joins F0 because it is today's worst input) and D-AM7 (parity gate `lint:application-parity` plus office edits for every answered fact, SCREEN-MAP §10). Q-AM2 was taken as answered (a), pending the owner's confirmation; Q-AM12 is open.
 - 2026-11-09: owner ruled the office edits everything before signing and nothing after (Q-AM2 → b, so no addendum), and the Spanish date order is MM/DD like English (Q-AM12 → a). The owner said "proceed as proposed", so F0 starts on `claude/application-f0`.
+- 2026-11-10: status review. Merged and in production (release v2026.11.10): F0 as #2166, and the typed dates (D-AM6) as #2169.
+  - **Two F0 rows did not ship:**
+    - "DOB typo locks driver out": the unlock still takes only the date of birth (`DraftUnlockGate.vue`, `POST /:token/unlock`), and no one-time code exists. It becomes **F0b**, its own PR right after F1, because it sends a code by SMS (Telnyx) or email (Brevo) and needs its own limiter and audit.
+    - "Legacy unticked → No; defaults of Yes": this moves into **F1**, because a tri-state yes/no with no default is an input kind of the catalogue, not a per-screen fix.
+  - **Owner questions still open, with the recommendations as written:**
+    - Q-AM1 (a): send one question back.
+    - Q-AM3 (b): print the last 4 of the SSN.
+    - Q-AM4: owner's call.
+    - Q-AM5: phone or email, the CDL photo skippable to "pending", and the medical card or pending.
+    - Q-AM6: US spelling.
+    - Q-AM8–11, in `APPLICATION-SCREEN-MAP.md` §8: Q-AM8 (a), street optional on previous homes; Q-AM9 (a), one DOT question per employer; Q-AM10 (a) later, the FMCSA name search; Q-AM11 (a), employer dates as month and year.
+  - **F1 needs none of these.** Q-AM8, Q-AM9 and Q-AM11 change catalogue entries, not the catalogue's shape. F1 builds the entries as the screens are today, and a ruling becomes a one-entry edit.
+  - **Order from here:** F1 → F0b → F2 and F3 (in parallel, both on F1) → F4 → F5 (on Q-AM1). That is about 13 working days. F1 starts on `claude/application-f1`.
