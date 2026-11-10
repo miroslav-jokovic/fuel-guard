@@ -46,9 +46,14 @@ const PART_ONE: PartOneFactsView = {
   asOf: "2026-11-10",
 };
 
-const rows = (over: { partOne?: PartOneFactsView | null; edits?: Array<{ path: Array<string | number> }> } = {}) =>
+const ANSWERS = {
+  dot_program_30d: true, dot_tested_6m: false, dot_random_12m: null, medical_card_pending: false,
+  endorsements: ["N", "H"], donorGenderGiven: true,
+};
+const rows = (over: { partOne?: PartOneFactsView | null; edits?: Array<{ path: Array<string | number> }>; answers?: typeof ANSWERS | null } = {}) =>
   applicantFactRows({
     payload: PAYLOAD, partOne: over.partOne ?? null, edits: over.edits ?? [], questionnaire: questionnaireForApplicant(),
+    partOneAnswers: over.answers === undefined ? (over.partOne ? ANSWERS : null) : over.answers,
   });
 const row = (list: FactRow[], key: string) => list.find((r) => r.key === key);
 
@@ -92,7 +97,7 @@ describe("the card is the catalogue", () => {
 
   it("offers no fact the catalogue has no door for yet, and never the jobs (they have their own form)", () => {
     const list = rows();
-    expect(row(list, "prior_failed_pre_employment_test")).toBeUndefined(); // the driver's statement (Q-AM13)
+    expect(row(list, "questionnaire.eeo")).toBeUndefined(); // never asked (the catalogue's reason)
     expect(list.some((r) => r.path[0] === "employers" || r.path[0] === "employment_gaps")).toBe(false);
   });
 
@@ -192,5 +197,53 @@ describe("the request each door takes", () => {
 
   it("refuses a blank licence number before it is sent", () => {
     expect(correctionFor(row(list, "cdl_number")!, "", ctx)).toHaveProperty("problem");
+  });
+});
+
+describe("the driver's own statements and the blind answers (Q-AM13)", () => {
+  it("offers §40.25(j) as a statement: the draft's on a legacy link, Part 1's on a v2 one", () => {
+    expect(row(rows(), "prior_failed_pre_employment_test")).toMatchObject({ door: "draft", rule: "statement", value: false });
+    expect(row(rows({ partOne: PART_ONE }), "prior_failed_pre_employment_test")).toMatchObject({ door: "part_one_answer", rule: "statement" });
+  });
+
+  it("shows Part 1's own answers on a v2 link only, beside the application's facts of the same kind", () => {
+    const list = rows({ partOne: PART_ONE });
+    expect(row(list, "dot_program_30d")).toMatchObject({ value: true, rule: "statement", section: "safety", door: "part_one_answer" });
+    expect(row(list, "endorsements")).toMatchObject({ value: ["N", "H"], section: "licence", input: "multi_choice" });
+    expect(row(list, "medical_card_pending")).toMatchObject({ value: false, section: "documents" });
+    expect(row(rows(), "dot_program_30d")).toBeUndefined();
+  });
+
+  it("⚠ never holds the donor gender — only whether one was given", () => {
+    const gender = row(rows({ partOne: PART_ONE }), "donor_gender")!;
+    expect(gender).toMatchObject({ value: null, given: true, rule: "replace_only" });
+    expect(gender.choices?.map((c) => c.value)).toEqual(["male", "female", "declined"]);
+  });
+
+  it("refuses a statement without a reason, whichever writer holds it", () => {
+    for (const partOne of [null, PART_ONE]) {
+      const list = rows({ partOne });
+      const ctx = { revision: 7, partOne, rows: list, addresses: PAYLOAD.addresses };
+      expect(correctionFor(row(list, "prior_failed_pre_employment_test")!, true, ctx, "  ")).toHaveProperty("problem");
+    }
+  });
+
+  it("sends §40.25(j) on a v2 link as Part 1's own key, with the reason", () => {
+    const list = rows({ partOne: PART_ONE });
+    const c = correctionFor(row(list, "prior_failed_pre_employment_test")!, true, { revision: 7, partOne: PART_ONE, rows: list, addresses: [] }, " Called 11/10 ");
+    expect(c).toEqual({ door: "part_one_answer", answer: { key: "prior_positive_2y", value: true, note: "Called 11/10" } });
+  });
+
+  it("sends the reason with a legacy link's draft statement", () => {
+    const list = rows();
+    const c = correctionFor(row(list, "prior_failed_pre_employment_test")!, true, { revision: 7, partOne: null, rows: list, addresses: [] }, "Called");
+    expect(c).toMatchObject({ door: "draft", edit: { path: ["prior_failed_pre_employment_test"], value: true, note: "Called" } });
+  });
+
+  it("sends endorsements as the ticked list and the donor gender with no reason", () => {
+    const list = rows({ partOne: PART_ONE });
+    const ctx = { revision: 7, partOne: PART_ONE, rows: list, addresses: [] };
+    expect(correctionFor(row(list, "endorsements")!, ["H", "T"], ctx)).toEqual({ door: "part_one_answer", answer: { key: "endorsements", value: ["H", "T"] } });
+    expect(correctionFor(row(list, "donor_gender")!, "male", ctx)).toEqual({ door: "part_one_answer", answer: { key: "donor_gender", value: "male" } });
   });
 });

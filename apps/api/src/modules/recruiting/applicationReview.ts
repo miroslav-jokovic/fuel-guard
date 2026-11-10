@@ -8,6 +8,7 @@ import {
   withEmployerKeys,
   applicationReviewState,
   applicationDraftPayloadSchema,
+  applicationFactAt,
   carrierStampOf,
   type ApplicationEdit,
   type ApplicationPath,
@@ -15,6 +16,7 @@ import {
   type ApplicationReviewState,
   type ApplicationCaptureView,
   type CarrierQuestionStamp,
+  type PartOneAnswersView,
   type PartOneFactsView,
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
@@ -23,6 +25,7 @@ import { notifyApplicationApproved, type ApprovalNotice } from "./applicationApp
 import { partOneFactsView } from "./applicantIntake.js";
 import { listCaptures } from "./applicationCapture.js";
 import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
+import { partOneAnswersView } from "./applicantPartOneAnswer.js";
 
 /**
  * The office's review of an application before the driver certifies it (F4, D-AX11–13).
@@ -159,7 +162,22 @@ export interface ApplicationForReview {
    * while the office screens, before it has sent the form at all.
    */
   signingStarted: boolean;
-  edits: Array<{ path: ApplicationPath; before: unknown; after: unknown; editedAt: string; editedBy: string | null }>;
+  /**
+   * F3: Part 1's answers the whole-set view does not carry — the §382.301(b) statements, medical card
+   * pending, the endorsements, and only WHETHER a donor gender was given (Q-AM13). Null on a legacy link.
+   */
+  partOneAnswers: PartOneAnswersView | null;
+  edits: Array<{
+    path: ApplicationPath;
+    before: unknown;
+    after: unknown;
+    /** The office's reason (0586), on a correction to the driver's own statement. */
+    note: string | null;
+    /** Recorded without its values (0586): a replace-only answer. */
+    withheld: boolean;
+    editedAt: string;
+    editedBy: string | null;
+  }>;
 }
 
 /** The application as the office reads it: the answers, where it has got to, and what was changed. */
@@ -180,7 +198,7 @@ export async function applicationForReview(
 
   const { data: edits } = await admin
     .from("application_edits")
-    .select("path, before, after, edited_at, edited_by")
+    .select("path, before, after, note, withheld, edited_at, edited_by")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .order("edited_at", { ascending: false });
@@ -199,9 +217,16 @@ export async function applicationForReview(
     captures: await listCaptures(admin, orgId, inv.id),
     unlockedByCodeAt: await latestCodeUnlock(admin, orgId, inv.id),
     signingStarted: await signingStarted(admin, orgId, inv.id),
+    partOneAnswers: await partOneAnswersView(admin, orgId, inv.id),
     edits: (edits ?? []).map((e) => {
-      const row = e as { path: ApplicationPath; before: unknown; after: unknown; edited_at: string; edited_by: string | null };
-      return { path: row.path, before: row.before, after: row.after, editedAt: row.edited_at, editedBy: row.edited_by };
+      const row = e as {
+        path: ApplicationPath; before: unknown; after: unknown; note?: string | null; withheld?: boolean;
+        edited_at: string; edited_by: string | null;
+      };
+      return {
+        path: row.path, before: row.before, after: row.after, note: row.note ?? null, withheld: row.withheld === true,
+        editedAt: row.edited_at, editedBy: row.edited_by,
+      };
     }),
   };
 }
@@ -254,6 +279,13 @@ export async function editApplication(
   const original = row?.payload ?? {};
   if ((row?.revision ?? 0) !== edit.revision) return DRAFT_CHANGED;
 
+  // F3 (Q-AM13): the driver's own statement — on a legacy link, §40.25(j) is a draft answer — changes
+  // only with the office's reason, which the driver reads beside it on 3.1. The catalogue says which.
+  const note = "note" in edit && typeof edit.note === "string" && edit.note.trim() !== "" ? edit.note.trim() : null;
+  if ("path" in edit && applicationFactAt(edit.path)?.rule === "statement" && !note) {
+    return { code: "note_required", message: "Say why you are changing the applicant's own answer — they will read this before they sign." };
+  }
+
   const applied = applyApplicationEdit(withEmployerKeys(original, randomUUID), original, edit);
   if (isEditRefusal(applied)) return applied;
 
@@ -292,7 +324,7 @@ export async function editApplication(
   }
 
   const unrecorded = await recordOfficeEdits(
-    admin, orgId, invitationId, [{ path: applied.logPath, before: applied.before, after: applied.after }], ctx.actorId,
+    admin, orgId, invitationId, [{ path: applied.logPath, before: applied.before, after: applied.after, note }], ctx.actorId,
   );
   if (unrecorded) return unrecorded;
 

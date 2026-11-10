@@ -2,9 +2,11 @@ import { Router } from "express";
 import {
   applicantIdentitySchema,
   applicationEditSchema,
+  partOneAnswerSchema,
   partOneCorrectionSchema,
   type ApplicantIdentity,
   type ApplicationEdit,
+  type PartOneAnswer,
   type PartOneCorrection,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
@@ -21,6 +23,7 @@ import { applicationPreviewPdf, isPreviewError } from "../applicationPdf/preview
 import { applicationPermissionsPdf, isPermissionsError } from "../applicationPdf/permissions.js";
 import { correctApplicantIdentity, isIdentityCorrectionError } from "../applicantIdentity.js";
 import { correctApplicantPartOne, isPartOneCorrectionError } from "../applicantPartOneCorrection.js";
+import { correctPartOneAnswer, isPartOneAnswerError } from "../applicantPartOneAnswer.js";
 import { isApplicationSendError, sendApplication } from "../applicationSend.js";
 import { isSendForSigningError, sendForSigning } from "../applicationSendForSigning.js";
 
@@ -48,7 +51,7 @@ export function recruitmentApplicationReviewRouter(): Router {
   const status = (code: string): number =>
     code === "application_not_found"
       ? 404
-      : code === "invalid_edit" || code === "invalid_request"
+      : code === "invalid_edit" || code === "invalid_request" || code === "note_required"
         ? 400
         : code === "application_not_editable" || code === "application_not_reviewable"
           || code === "already_certified" || code === "already_filed" || code === "nothing_to_preview"
@@ -223,6 +226,33 @@ export function recruitmentApplicationReviewRouter(): Router {
         req.auth!.userId,
       );
       if (isPartOneCorrectionError(result)) {
+        res.status(status(result.code)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.json({ ok: true });
+    }),
+  );
+
+  /**
+   * Correct ONE Part 1 answer the whole set does not carry (F3, Q-AM13): a drug-and-alcohol statement
+   * (with the office's reason), medical card pending, the endorsements, or the donor gender (blind,
+   * replace-only). `canManage`, like the whole-set correction above.
+   */
+  router.post(
+    "/applications/:invitationId/part-one/answer",
+    requireOrg,
+    canManage,
+    validateBody(partOneAnswerSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await correctPartOneAnswer(
+        admin,
+        req.auth!.orgId!,
+        String(req.params.invitationId ?? ""),
+        res.locals.body as PartOneAnswer,
+        req.auth!.userId,
+      );
+      if (isPartOneAnswerError(result)) {
         res.status(status(result.code)).json(apiError(result.code, result.message));
         return;
       }

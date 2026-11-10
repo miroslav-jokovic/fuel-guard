@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import {
+  AppCheckbox,
   AppCombobox as ComboSelect,
   AppInput as BaseInput,
   AppSelect,
@@ -31,14 +32,14 @@ const props = defineProps<{
   /** A date's own rule: a date of birth is "dob" (an adult's, in the past), anything else "any". */
   dateKind?: TypedDateKind;
 }>();
-const model = defineModel<string | boolean | null>({ required: true });
+const model = defineModel<string | boolean | null | readonly string[]>({ required: true });
 
 const JURISDICTIONS = jurisdictionOptions();
 const US_STATES = JURISDICTIONS.filter((j) => US_JURISDICTION_CODES.has(j.value));
 
 /** The text a box shows: the stored answer, or nothing for none. */
 const text = computed<string>({
-  get: () => (model.value === null || typeof model.value === "boolean" ? "" : String(model.value)),
+  get: () => (model.value === null || typeof model.value === "boolean" || Array.isArray(model.value) ? "" : String(model.value)),
   set: (v) => { model.value = v; },
 });
 const yesNo = computed<boolean | null>({
@@ -46,6 +47,15 @@ const yesNo = computed<boolean | null>({
   set: (v) => { model.value = v; },
 });
 const NUMERIC = new Set<FactInput>(["count", "miles", "zip", "usdot"]);
+
+/** A multi-choice answer (endorsements): the ticked codes, kept in the choices' own order, as the wizard does. */
+const ticked = computed<readonly string[]>(() => (Array.isArray(model.value) ? model.value : []));
+function tick(value: string, on: boolean): void {
+  const set = new Set(ticked.value);
+  if (on) set.add(value);
+  else set.delete(value);
+  model.value = (props.choices ?? []).map((c) => c.value).filter((v) => set.has(v));
+}
 </script>
 
 <template>
@@ -72,8 +82,18 @@ const NUMERIC = new Set<FactInput>(["count", "miles", "zip", "usdot"]);
     :options="input === 'us_state' ? US_STATES : JURISDICTIONS"
     :aria-label="label"
   />
+  <fieldset v-else-if="input === 'multi_choice' && choices" :id="id">
+    <legend class="sr-only">{{ label }}</legend>
+    <AppCheckbox
+      v-for="c in choices"
+      :key="c.value"
+      :model-value="ticked.includes(c.value)"
+      :label="c.label"
+      @update:model-value="tick(c.value, $event)"
+    />
+  </fieldset>
   <AppSelect
-    v-else-if="(input === 'choice' || input === 'multi_choice') && choices"
+    v-else-if="input === 'choice' && choices"
     :id="id"
     v-model="text"
     :options="[...choices]"

@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicantIdentity, ApplicationCaptureView, ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
+import type { ApplicantIdentity, ApplicationCaptureView, ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneAnswer, PartOneAnswersView, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -17,6 +17,10 @@ export interface ApplicationEditRow {
   path: ApplicationPath;
   before: unknown;
   after: unknown;
+  /** F3 (0586): the office's reason, on the driver's own statement. Optional: an API before F3 sends none. */
+  note?: string | null;
+  /** F3 (0586): recorded without its values — a replace-only answer. */
+  withheld?: boolean;
   editedAt: string;
   editedBy: string | null;
 }
@@ -47,6 +51,8 @@ export interface ApplicationReview {
   unlockedByCodeAt?: string | null;
   /** F3: the driver has made the first packet mark, so no correction lands. Optional: an API before F3 sends none. */
   signingStarted?: boolean;
+  /** F3: Part 1's other answers; the donor gender only as whether it was given (Q-AM13). Null on a legacy link. */
+  partOneAnswers?: PartOneAnswersView | null;
   edits: ApplicationEditRow[];
 }
 
@@ -161,6 +167,21 @@ export function useCorrectIdentityFromReview(invitationId: Ref<string | null>) {
     mutationFn: async (input: ApplicantIdentity): Promise<void> => {
       const res = await apiFetch(
         `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/identity`,
+        { method: "POST", body: input },
+      );
+      if (!res.ok) throw new Error(res.error?.message ?? "That correction could not be saved.");
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["recruitment"] }),
+  });
+}
+
+/** F3 (Q-AM13): one Part 1 answer the whole-set correction does not carry — a statement with its reason, or a blind replace. */
+export function useCorrectPartOneAnswer(invitationId: Ref<string | null>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: PartOneAnswer): Promise<void> => {
+      const res = await apiFetch(
+        `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/part-one/answer`,
         { method: "POST", body: input },
       );
       if (!res.ok) throw new Error(res.error?.message ?? "That correction could not be saved.");

@@ -137,7 +137,7 @@ describe("what the driver is shown of the office's corrections", () => {
     const rec = seed({ edits: [EDIT] });
     const shown = await applicantVisibleEdits(rec.client, ORG, INV);
     expect(shown).toEqual([
-      { path: ["employers", 0, "city"], before: "Jolliet", after: "Joliet", editedAt: "2026-09-11T09:00:00Z" },
+      { path: ["employers", 0, "city"], before: "Jolliet", after: "Joliet", note: null, withheld: false, editedAt: "2026-09-11T09:00:00Z" },
     ]);
     expect(JSON.stringify(shown)).not.toContain("cccccccc");
   });

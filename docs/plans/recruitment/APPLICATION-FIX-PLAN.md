@@ -340,3 +340,26 @@ A gate fails on a literal string in an `apply/` template.
   - **Found:**
     - The SSN exists only after signing. The driver types it on the sign-off screen and it is sealed into `driver_applications`, so there is nothing for the office to replace before signing. That catalogue entry's door needs a ruling, not a build.
     - New question: Q-AM14.
+- 2026-11-10: F3 part 1 merged (#2195 migration 0586, #2199 the card). F3c part 1 is on `claude/application-f3c-statements`: the owner's Q-AM13 exceptions.
+  - **New door, `part_one_answer`** (`partOneAnswerSchema`, `POST …/part-one/answer`). It corrects ONE Part 1 answer the whole-set correction does not carry. It goes through the same writer, `record_applicant_intake`, overwriting only that key. No migration was needed: the function writes only the keys sent, and `drivers` keeps the rest.
+  - **The driver's four drug-and-alcohol statements** (§40.25(j), the three §382.301(b) answers) have the catalogue rule `statement`.
+    - A reason is required on the card, on the route, and on a legacy link's draft §40.25(j) (`note_required`).
+    - The reason is kept on the edit row (`application_edits.note`).
+    - The driver reads it beside the change on 3.1.
+  - **Donor gender** has the rule `replace_only`.
+    - The review sends only `donorGenderGiven`, and `partOneForFiling` now names its fields instead of spreading the intake row.
+    - The editor opens empty.
+    - The edit row is withheld: no values, held by 0586's CHECK.
+    - 3.1 says "They replaced this answer…" and nothing more.
+  - **Endorsements** (checkboxes, as the wizard has) and **"I don't have a medical card yet"** are ordinary Part 1 answers now.
+  - **The office-gap snapshot went from 13 facts to 5:** education, references, EEO, carrier answers, SSN.
+  - **Two of those are not builds, and need owner rulings:**
+    - **EEO is never asked.** No screen writes the reserved `eeo` key, so there is no driver answer to correct. Replace-only applies the day a screen asks it.
+    - **The SSN exists only after signing.** The driver types it on the sign-off screen and it is sealed into `driver_applications` (D-APP3), so before signing there is nothing to replace. With Q-AM3 (last 4 on the packet), the question is whether the office may type an SSN before the driver signs.
+  - **Next (F3c part 2):**
+    - the jobs and gaps into the card;
+    - adding and removing rows (E2);
+    - email and phone moving the invitation's contact (E3);
+    - the education and references tables;
+    - the carrier's own answers;
+    - the Permissions and Road-test drawers pointing at the card.

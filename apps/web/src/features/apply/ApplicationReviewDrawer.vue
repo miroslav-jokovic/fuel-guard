@@ -373,11 +373,13 @@ async function approveIt(): Promise<void> {
               class="rounded-surface bg-surface-muted p-3 text-sm"
             >
               <p class="font-medium text-ink">{{ changeLabel(row) }}</p>
-              <p v-if="row.path.length !== 2 || row.path[0] !== 'employers'" class="break-words text-ink-muted">
+              <p v-if="row.withheld" class="break-words text-ink-muted">Replaced — not shown to the office</p>
+              <p v-else-if="row.path.length !== 2 || row.path[0] !== 'employers'" class="break-words text-ink-muted">
                 <span class="line-through">{{ shownValue(row.before) }}</span>
                 →
                 <span class="text-ink">{{ shownValue(row.after) }}</span>
               </p>
+              <p v-if="row.note" class="whitespace-pre-line break-words text-ink-muted">Your reason: {{ row.note }}</p>
               <p class="text-2xs text-ink-tertiary">{{ formatDateTime(row.editedAt) }}</p>
             </li>
           </ul>

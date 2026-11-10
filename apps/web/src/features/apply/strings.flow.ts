@@ -103,6 +103,10 @@ export const APPLY_FLOW_COPY = {
     was: "You put",
     now: "It now says",
     blank: "nothing",
+    /** F3 (Q-AM13): a replace-only answer (the drug-test gender) — said, never shown, on a screen others may see. */
+    replaced: "They replaced this answer with the one you gave them. It is not shown here.",
+    /** F3 (Q-AM13): the office's reason for changing one of your own answers. */
+    because: "Why they changed it",
     /**
      * §391.21(b)(2) lists the Social Security number, and it is asked for HERE rather than on the
      * form (D-APP3, F4). It is the one answer that never enters a saved draft — so it cannot be

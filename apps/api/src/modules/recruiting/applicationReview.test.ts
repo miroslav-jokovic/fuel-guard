@@ -232,6 +232,36 @@ const KEYED = { ...PAYLOAD, employers: PAYLOAD.employers.map((e) => ({ ...e, key
 const savedPayload = (rec: ReturnType<typeof seed>) =>
   (rec.rpcs().find((r) => r.fn === "save_application_draft")!.args as { p_payload: typeof PAYLOAD & { employment_gaps?: unknown[] } }).p_payload;
 
+describe("correcting the driver's own statement in the draft (F3, Q-AM13)", () => {
+  /** On a legacy link §40.25(j) is a draft answer; the catalogue's `statement` rule holds it to a reason. */
+  it("refuses it without the office's reason, and writes nothing", async () => {
+    const rec = seed({ payload: KEYED });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["prior_failed_pre_employment_test"], value: true, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result) && result.code).toBe("note_required");
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("keeps the reason on the edit row, for the driver to read on 3.1", async () => {
+    const rec = seed({ payload: KEYED });
+    const result = await editApplication(
+      rec.client, ORG, INV,
+      { path: ["prior_failed_pre_employment_test"], value: true, revision: REV, note: "  Driver called 11/10  " },
+      { actorId: ACTOR },
+    );
+    expect(isReviewError(result)).toBe(false);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({
+      path: ["prior_failed_pre_employment_test"], after: true, note: "Driver called 11/10", withheld: false,
+    });
+  });
+
+  it("asks no reason for an ordinary answer", async () => {
+    const rec = seed({ payload: KEYED });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["first_name"], value: "Ann", revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result)).toBe(false);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ note: null });
+  });
+});
+
 describe("correcting one answer", () => {
   it("writes the corrected draft through the revision check and records what it was", async () => {
     const rec = seed({ payload: KEYED });

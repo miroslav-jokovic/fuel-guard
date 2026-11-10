@@ -35,9 +35,17 @@ export type FieldPath = readonly (string | number)[];
  * dozen property reads per issue listed, which is nothing.
  */
 const topLabels = (): Record<string, string> => {
-  const { identity, licence, employment, safety, certify, fields } = APPLY_COPY;
+  const { identity, licence, employment, safety, certify, fields, partOne } = APPLY_COPY;
   /** Every top-level contract key, in the words the screen that owns it uses. */
   return {
+  // F3: Part 1's own answers, which an office correction now addresses by their intake key — in the
+  // words of the Part 1 screen that asked them, so 3.1 reads back the question the driver answered.
+  dot_program_30d: partOne.screening.program30d,
+  dot_tested_6m: partOne.screening.tested6m,
+  dot_random_12m: partOne.screening.random12m,
+  medical_card_pending: partOne.photo.noMedicalCard,
+  endorsements: partOne.licence.endorsements,
+  donor_gender: partOne.screening.gender,
   first_name: identity.first_name,
   middle_name: identity.middle_name,
   last_name: identity.last_name,

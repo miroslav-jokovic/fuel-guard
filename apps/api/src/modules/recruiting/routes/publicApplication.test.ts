@@ -462,7 +462,7 @@ describe("opening the link", () => {
     const body = (await res.json()) as { edits: Array<Record<string, unknown>> };
     expect(body.edits).toHaveLength(1);
     expect(body.edits[0]).toEqual({
-      path: ["employers", 0, "city"], before: "Jolliet", after: "Joliet",
+      path: ["employers", 0, "city"], before: "Jolliet", after: "Joliet", note: null, withheld: false,
       editedAt: "2026-09-11T08:00:00Z",
     });
     expect(JSON.stringify(body.edits)).not.toContain("cccccccc");

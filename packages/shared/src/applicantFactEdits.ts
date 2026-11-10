@@ -34,6 +34,10 @@ export interface FactEditRow {
   path: ApplicationPath;
   before: unknown;
   after: unknown;
+  /** The office's reason (0586): required on the driver's own statements (the catalogue's `statement`). */
+  note?: string | null;
+  /** Record only THAT it changed (0586): a `replace_only` answer. `before` and `after` are dropped. */
+  withheld?: boolean;
 }
 
 /** Blank, absent and null are one answer: none. */
