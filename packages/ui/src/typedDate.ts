@@ -70,7 +70,7 @@ interface Segments {
   year: string;
 }
 
-const SEPARATORS = /[\s/.\-]+/;
+const SEPARATORS = /[\s/.-]+/;
 const pad2 = (n: number): string => String(n).padStart(2, "0");
 
 /** Where the digits break into month, day and year, with no separators typed (see the header). */
@@ -117,7 +117,7 @@ function isOurMask(text: string, kind: TypedDateKind): boolean {
 export function parseTypedDate(text: string, kind: TypedDateKind, today: string): TypedDate {
   const raw = text.trim();
   if (raw === "") return { ok: false, problem: "empty" };
-  if (!/^[\d\s/.\-]+$/.test(raw)) return { ok: false, problem: "unreadable" };
+  if (!/^[\d\s/.-]+$/.test(raw)) return { ok: false, problem: "unreadable" };
   const monthOnly = kind === "month";
 
   let seg: Segments;
