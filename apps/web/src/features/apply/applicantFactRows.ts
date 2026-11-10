@@ -1,6 +1,9 @@
 import {
   APPLICANT_FACTS,
+  APPLICATION_SECTION_ORDER,
   CDL_CLASSES,
+  DONOR_GENDERS,
+  ENDORSEMENT_CODES,
   EQUIPMENT_CLASSES,
   composeFiledApplication,
   partOneCorrectionWith,
@@ -9,10 +12,13 @@ import {
   type ApplicationPath,
   type ApplicationSection,
   type FactInput,
+  type FactRule,
+  type PartOneAnswersView,
   type PartOneFactsView,
   type QuestionnaireDefinition,
 } from "@silvicom/shared";
 import { describeField } from "./fieldLabels";
+import { APPLY_COPY } from "./strings";
 
 /**
  * Every answer on the office's "Applicant facts" card, read from the fact catalogue
@@ -44,7 +50,7 @@ import { describeField } from "./fieldLabels";
  */
 
 /** Which writer corrects this row. */
-export type FactDoor = "draft" | "identity" | "part_one";
+export type FactDoor = "draft" | "identity" | "part_one" | "part_one_answer";
 
 export interface FactChoice {
   value: string;
@@ -65,6 +71,9 @@ export interface FactRow {
   corrected: boolean;
   section: ApplicationSection;
   choices?: readonly FactChoice[];
+  /** Q-AM13: a `statement` needs the office's reason; a `replace_only` answer is never shown (`given` says whether one exists). */
+  rule?: FactRule;
+  given?: boolean;
 }
 
 export interface FactRowsInput {
@@ -72,6 +81,8 @@ export interface FactRowsInput {
   partOne: PartOneFactsView | null | undefined;
   edits: ReadonlyArray<{ path: ApplicationPath }>;
   questionnaire: QuestionnaireDefinition;
+  /** F3: Part 1's own answers (statements, medical card pending, endorsements; the donor gender only as given). */
+  partOneAnswers?: PartOneAnswersView | null;
 }
 
 /** A path as one string, for a list key and the "corrected" mark: `["addresses",1,"city"]` → `addresses.1.city`. */
@@ -84,10 +95,26 @@ const DRAFT_ANSWERS = "questionnaire";
 /** Corrected in `OfficeJobsSection` until the card takes rows (see the header). */
 const ELSEWHERE = new Set(["employers", "employment_gaps"]);
 
-/** A choice's options, from the constant the contract's own enum is built from. */
-const CHOICES: Readonly<Record<string, readonly FactChoice[]>> = {
+/** A choice's options, from the constant the contract's own enum is built from, in the driver's words. */
+const CHOICES = (): Readonly<Record<string, readonly FactChoice[]>> => ({
   cdl_class: CDL_CLASSES.map((c) => ({ value: c, label: `Class ${c}` })),
   equipment_class: EQUIPMENT_CLASSES.map((c) => ({ value: c, label: c })),
+  donor_gender: DONOR_GENDERS.map((g) => ({ value: g, label: APPLY_COPY.partOne.screening.genderOptions[g] })),
+  endorsements: ENDORSEMENT_CODES.map((c) => ({ value: c, label: APPLY_COPY.partOne.licence.endorsementLabels[c] })),
+});
+
+/**
+ * Where a Part 1 answer that is not composed into the application sits on the card: beside the
+ * application's own facts of the same kind. Not a contract section — these keys belong to no section of
+ * the application, because the application does not carry them.
+ */
+const PART_ONE_SECTION: Readonly<Record<string, ApplicationSection>> = {
+  endorsements: "licence",
+  dot_program_30d: "safety",
+  dot_tested_6m: "safety",
+  dot_random_12m: "safety",
+  donor_gender: "identity",
+  medical_card_pending: "documents",
 };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => Boolean(v) && typeof v === "object" && !Array.isArray(v);
@@ -132,6 +159,8 @@ function documentOf(payload: Record<string, unknown>, partOne: PartOneFactsView 
 function doorOf(fact: ApplicantFact, partOne: boolean, row: number | null, current: number): FactDoor | null {
   const office = fact.office;
   if (typeof office !== "string") return null;
+  // A composed fact (§40.25(j)) is the draft's own answer on a legacy link, and Part 1's on a v2 one.
+  if (office === "part_one_answer") return partOne ? "part_one_answer" : "draft";
   if (office !== "part_one") return office;
   if (!partOne) return "draft";
   // Only the CURRENT home is Part 1's; every earlier address is the driver's draft answer.
@@ -139,7 +168,7 @@ function doorOf(fact: ApplicantFact, partOne: boolean, row: number | null, curre
   return "part_one";
 }
 
-export function applicantFactRows({ payload, partOne, edits, questionnaire }: FactRowsInput): FactRow[] {
+export function applicantFactRows({ payload, partOne, edits, questionnaire, partOneAnswers }: FactRowsInput): FactRow[] {
   const doc = documentOf(isRecord(payload) ? payload : {}, partOne);
   const current = currentAddressIndex(doc.addresses);
   // ⚠ Tolerant of a response without `edits` (an older API, or a refetch racing a write): the card
@@ -154,17 +183,33 @@ export function applicantFactRows({ payload, partOne, edits, questionnaire }: Fa
     if (door === "part_one" && partOne && partOneCorrectionWith(partOne, path, null, current) === null) return;
     const key = pathKey(path);
     const column = String(path[path.length - 1]);
-    const options = choices ?? CHOICES[column];
+    const options = choices ?? CHOICES()[column];
     out.push({
       key, path, value: value ?? null, door, input: fact.input,
       label: label ?? describeField(path),
       corrected: corrected(key),
-      section: sectionOwningPath(path[0] === DRAFT_ANSWERS ? ["questionnaire_answers", ...path.slice(1)] : path) ?? "review",
+      section: PART_ONE_SECTION[key]
+        ?? sectionOwningPath(path[0] === DRAFT_ANSWERS ? ["questionnaire_answers", ...path.slice(1)] : path) ?? "review",
       ...(options ? { choices: options } : {}),
+      ...(fact.rule ? { rule: fact.rule } : {}),
     });
   };
 
   for (const fact of APPLICANT_FACTS) {
+    // F3: a Part 1 answer the application does not carry (no `through`) is its own row on a v2 link.
+    // ⚠ The donor gender's value is never here: the API sends only whether one was given (Q-AM13).
+    if (fact.path.startsWith("intake.")) {
+      const composed = !Array.isArray(fact.packet) && "through" in fact.packet;
+      if (composed || fact.office !== "part_one_answer" || !partOne || !partOneAnswers) continue;
+      const key = fact.path.slice("intake.".length).replace(/\[\]$/, "");
+      if (fact.rule === "replace_only") {
+        push(fact, [key], null, "part_one_answer");
+        out[out.length - 1]!.given = key === "donor_gender" && partOneAnswers.donorGenderGiven;
+      } else {
+        push(fact, [key], (partOneAnswers as unknown as Record<string, unknown>)[key], "part_one_answer");
+      }
+      continue;
+    }
     if (!fact.path.startsWith(APP)) continue;
     const key = fact.path.slice(APP.length);
 
@@ -226,13 +271,11 @@ function byRow(rows: FactRow[]): FactRow[] {
 
 /** The rows grouped by the section the driver met them in, in the application's order. */
 export function factSections(rows: readonly FactRow[]): Array<{ section: ApplicationSection; rows: FactRow[] }> {
-  const out: Array<{ section: ApplicationSection; rows: FactRow[] }> = [];
-  for (const row of rows) {
-    const group = out.find((g) => g.section === row.section);
-    if (group) group.rows.push(row);
-    else out.push({ section: row.section, rows: [row] });
-  }
-  return out;
+  // In the application's own section order — not first appearance, which put Part 1's answers (first in
+  // the catalogue) ahead of "About you".
+  return APPLICATION_SECTION_ORDER
+    .map((section) => ({ section, rows: rows.filter((r) => r.section === section) }))
+    .filter((g) => g.rows.length > 0);
 }
 
 /** The office looking for one answer among sixty, by any word in its label. */

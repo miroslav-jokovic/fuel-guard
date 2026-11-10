@@ -61,8 +61,12 @@ export async function recordOfficeEdits(
       org_id: orgId,
       invitation_id: invitationId,
       path: r.path,
-      before: r.before ?? null,
-      after: r.after ?? null,
+      // ⚠ A withheld row carries no value, whatever the caller passed: 0586's CHECK would refuse one,
+      // and dropping them here means a caller's mistake costs nothing rather than the whole correction.
+      before: r.withheld ? null : (r.before ?? null),
+      after: r.withheld ? null : (r.after ?? null),
+      note: r.note ?? null,
+      withheld: r.withheld === true,
       edited_by: actorId,
     })),
   );

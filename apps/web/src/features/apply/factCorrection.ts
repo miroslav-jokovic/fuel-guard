@@ -1,9 +1,12 @@
 import {
   applicantIdentitySchema,
+  partOneAnswerSchema,
   partOneCorrectionWith,
   partOneCorrectionSchema,
+  partOneKeyThrough,
   type ApplicantIdentity,
   type ApplicationEdit,
+  type PartOneAnswer,
   type PartOneCorrection,
   type PartOneFactsView,
 } from "@silvicom/shared";
@@ -22,7 +25,11 @@ export type FactCorrection =
   | { door: "draft"; edit: ApplicationEdit }
   | { door: "identity"; identity: ApplicantIdentity }
   | { door: "part_one"; body: PartOneCorrection }
+  | { door: "part_one_answer"; answer: PartOneAnswer }
   | { problem: string };
+
+/** What a correction may carry beside the answer: endorsements are a list, and a statement carries a reason. */
+export type FactValue = string | boolean | null | readonly string[];
 
 export interface CorrectionContext {
   revision: number;
@@ -51,11 +58,27 @@ const draftStored = (value: string | boolean | null): string | boolean =>
 const firstProblem = (issues: ReadonlyArray<{ message: string }>): string =>
   issues[0]?.message ?? "That is not a valid answer for this field.";
 
-export function correctionFor(row: FactRow, value: string | boolean | null, ctx: CorrectionContext): FactCorrection {
-  if (row.door === "draft") {
-    return { door: "draft", edit: { path: row.path, value: draftStored(value), revision: ctx.revision } };
+export function correctionFor(row: FactRow, value: FactValue, ctx: CorrectionContext, note?: string): FactCorrection {
+  const reason = note?.trim() ? note.trim() : undefined;
+  // Q-AM13: the driver's own statement moves only with the office's reason, whichever writer holds it.
+  if (row.rule === "statement" && !reason) {
+    return { problem: "Say why you are changing the applicant's own answer — they will read this before they sign." };
   }
-  const next = stored(value);
+
+  if (row.door === "part_one_answer") {
+    const head = String(row.path[0]);
+    const key = partOneKeyThrough(`application.${head}`) ?? head;
+    const parsed = partOneAnswerSchema.safeParse({ key, value, ...(row.rule === "statement" ? { note: reason } : {}) });
+    return parsed.success ? { door: "part_one_answer", answer: parsed.data } : { problem: firstProblem(parsed.error.issues) };
+  }
+  if (Array.isArray(value)) return { problem: "That answer can't be corrected here." };
+  const single = value as string | boolean | null;
+
+  if (row.door === "draft") {
+    const edit = { path: row.path, value: draftStored(single), revision: ctx.revision, ...(reason ? { note: reason } : {}) };
+    return { door: "draft", edit };
+  }
+  const next = stored(single);
 
   if (row.door === "identity") {
     const now = (key: string) => {

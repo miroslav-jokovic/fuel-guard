@@ -60,6 +60,8 @@ export const applicationEditSchema = z.union([
     path: applicationPathSchema,
     value: z.unknown(),
     revision: draftRevision,
+    /** F3 (0586): the office's reason, required on the driver's own statements (the catalogue's `statement`). */
+    note: z.string().trim().max(1000).optional(),
   }),
   z.object({ op: z.literal("remove_employer"), key: z.string().min(1).max(80), revision: draftRevision }),
   z.object({
@@ -86,6 +88,8 @@ export interface ApplicationEditRecord {
   path: ApplicationPath;
   before: unknown;
   after: unknown;
+  note?: string | null;
+  withheld?: boolean;
   editedAt: string;
   /** The person, resolved to a name where we have one — never a bare uuid on a screen. */
   editedBy: string | null;

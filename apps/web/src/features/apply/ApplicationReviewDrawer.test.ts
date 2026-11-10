@@ -510,6 +510,51 @@ describe("correcting one answer", () => {
   });
 });
 
+/** F3 (Q-AM13): the driver's own statements need a reason; the donor gender is replaced blind. */
+describe("the owner's two exceptions", () => {
+  const V2 = {
+    partOne: PART_ONE,
+    partOneAnswers: { dot_program_30d: true, dot_tested_6m: false, dot_random_12m: true, medical_card_pending: false, endorsements: [], donorGenderGiven: true },
+  };
+
+  it("keeps Save off on a drug-test statement until the office gives its reason, then sends it", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review(V2) });
+    const w = drawer();
+    await settle(w);
+    await openFact(w, "dot_tested_6m");
+    await factRow(w, "dot_tested_6m").findAll("input[type=radio]")[0]!.setValue(true);
+    await settle(w);
+    expect(button(w, "Save")!.attributes("disabled")).toBeDefined();
+    await w.find("[data-fact-note]").setValue("Driver called: tested in May");
+    await settle(w);
+    apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true } });
+    await button(w, "Save")!.trigger("click");
+    await settle(w);
+    const call = apiFetch.mock.calls.find((c) => String(c[0]).endsWith("/part-one/answer"));
+    expect(call?.[1].body).toEqual({ key: "dot_tested_6m", value: true, note: "Driver called: tested in May" });
+  });
+
+  it("⚠ never shows the donor gender — says it was given, and opens the editor empty", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review(V2) });
+    const w = drawer();
+    await settle(w);
+    expect(factRow(w, "donor_gender").text()).toContain("Given — not shown to the office");
+    await openFact(w, "donor_gender");
+    expect(w.find("[data-fact-blind]").exists()).toBe(true);
+    expect(w.find("[data-fact-on-file]").exists()).toBe(false);
+  });
+
+  it("says a withheld correction was a replacement, never what to or from", async () => {
+    apiFetch.mockResolvedValue({
+      ok: true,
+      data: review({ ...V2, edits: [{ path: ["donor_gender"], before: null, after: null, withheld: true, note: null, editedAt: "2026-11-10T12:00:00Z", editedBy: null }] }),
+    });
+    const w = drawer();
+    await settle(w);
+    expect(w.text()).toContain("Replaced — not shown to the office");
+  });
+});
+
 /**
  * ⚠ The window. It would be easy to leave the controls up until the driver signs — the draft is still
  * a draft. It must not be: approval is what tells the driver *this document, now, please sign it*.

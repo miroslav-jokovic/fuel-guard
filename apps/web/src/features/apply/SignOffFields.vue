@@ -75,10 +75,16 @@ const shown = (value: unknown): string => {
             class="rounded-surface bg-surface-muted p-3 text-sm"
           >
             <p class="font-medium text-ink">{{ describeField(edit.path) }}</p>
-            <p class="mt-1 break-words text-ink-muted">
-              {{ copy.was }}: <span class="line-through">{{ shown(edit.before) }}</span>
+            <p v-if="edit.withheld" class="mt-1 break-words text-ink-muted" data-edit-withheld>{{ copy.replaced }}</p>
+            <template v-else>
+              <p class="mt-1 break-words text-ink-muted">
+                {{ copy.was }}: <span class="line-through">{{ shown(edit.before) }}</span>
+              </p>
+              <p class="break-words text-ink">{{ copy.now }}: {{ shown(edit.after) }}</p>
+            </template>
+            <p v-if="edit.note" class="mt-1 whitespace-pre-line break-words text-ink-muted" data-edit-note>
+              {{ copy.because }}: {{ edit.note }}
             </p>
-            <p class="break-words text-ink">{{ copy.now }}: {{ shown(edit.after) }}</p>
           </li>
         </ul>
       </template>

@@ -187,6 +187,7 @@ export * from "./applicationFilingRules.js";
 export * from "./applicationComposition.js";
 export * from "./applicantFacts.js";
 export * from "./applicantFactEdits.js";
+export * from "./applicantPartOneAnswerContract.js";
 export * from "./applicationUnlockCodeContract.js";
 export * from "./sevenDayStatement.js";
 export * from "./applicationCaptureContract.js";
