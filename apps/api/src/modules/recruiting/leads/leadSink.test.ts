@@ -57,6 +57,19 @@ describe("a lead that arrives broken", () => {
     expect(raw.field_data.find((f) => f.name === "phone_number")?.values).toEqual(["call me after 5"]);
     expectOrgScoped(rec, ORG);
   });
+
+  it("a lead with neither a usable phone nor an e-mail is stored, said to be uncontactable, and rings nobody (LR3)", async () => {
+    const rec = seed();
+    const r = await accept(rec, metaLead({ full_name: "Ray Driver", phone_number: "call me after 5" }));
+    expect([r.stored, r.contactable, stored(rec).phone_e164, stored(rec).email_lower]).toEqual(["new", false, null, null]);
+    expect(rec.rpcs().filter((c) => c.fn === "emit_notification")).toEqual([]);
+  });
+
+  it("the same lead with an e-mail and no phone is contactable and rings", async () => {
+    const rec = seed();
+    const r = await accept(rec, metaLead({ full_name: "Ray Driver", phone_number: "call me after 5", email: "ray@example.com" }));
+    expect([r.contactable, rec.rpcs().filter((c) => c.fn === "emit_notification").length]).toEqual([true, 1]);
+  });
 });
 
 describe("text aimed at a reader, in a form answer", () => {

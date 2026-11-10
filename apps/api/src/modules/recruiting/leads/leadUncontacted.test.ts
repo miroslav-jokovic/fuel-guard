@@ -38,7 +38,7 @@ beforeEach(() => vi.clearAllMocks());
 describe("a lead nobody has contacted", () => {
   it("rings once it is past the carrier's threshold, and not before, as a warning keyed to the lead", async () => {
     world([lead("1", { received_at: ago(16) }), lead("2", { received_at: ago(14) })]);
-    expect(await sweep()).toEqual({ overdue: 1, rung: 1, contacted: 0, held: 0, disqualified_by_answer: 0 });
+    expect(await sweep()).toEqual({ overdue: 1, rung: 1, contacted: 0, held: 0, disqualified_by_answer: 0, no_contact_detail: 0 });
     expect(rung()).toEqual([expect.objectContaining({
       p_org: ORG, p_user: "u-dana", p_category: "lead_uncontacted", p_severity: "warning", p_entity_id: "1", p_dedupe_key: "lead_uncontacted:1",
     })]);
@@ -57,13 +57,13 @@ describe("a lead nobody has contacted", () => {
 
   it("leaves out a lead somebody did call, though its status never moved", async () => {
     world([lead("1")], { contacts: [{ org_id: ORG, lead_id: "1" }] });
-    expect(await sweep()).toEqual({ overdue: 1, rung: 0, contacted: 1, held: 0, disqualified_by_answer: 0 });
+    expect(await sweep()).toEqual({ overdue: 1, rung: 0, contacted: 1, held: 0, disqualified_by_answer: 0, no_contact_detail: 0 });
     expect(rung()).toEqual([]);
   });
 
   it("never asks anybody to call a number held from contact", async () => {
     world([lead("1"), lead("2")], { held: ["+17082360001"] });
-    expect(await sweep()).toEqual({ overdue: 2, rung: 1, contacted: 0, held: 1, disqualified_by_answer: 0 });
+    expect(await sweep()).toEqual({ overdue: 2, rung: 1, contacted: 0, held: 1, disqualified_by_answer: 0, no_contact_detail: 0 });
     expect(rung().map((a) => a.p_entity_id)).toEqual(["2"]);
   });
 
@@ -75,14 +75,20 @@ describe("a lead nobody has contacted", () => {
       v("2", "class_a", "unknown"),
       v("3", "hazmat", "does_not_meet", false),
     ] });
-    expect(await sweep()).toEqual({ overdue: 3, rung: 2, contacted: 0, held: 0, disqualified_by_answer: 1 });
+    expect(await sweep()).toEqual({ overdue: 3, rung: 2, contacted: 0, held: 0, disqualified_by_answer: 1, no_contact_detail: 0 });
     expect(rung().map((a) => a.p_entity_id).sort()).toEqual(["2", "3"]);
   });
 
-  it("a lead with no phone is still rung, and a lead a person typed in or one past new is not", async () => {
-    world([lead("1", { phone_e164: null }), lead("2", { channel: "phone_call" }), lead("3", { status: "contacted" })]);
+  it("a lead with an e-mail and no phone is still rung, and a lead a person typed in or one past new is not", async () => {
+    world([lead("1", { phone_e164: null, email_lower: "ray@example.com" }), lead("2", { channel: "phone_call" }), lead("3", { status: "contacted" })]);
     expect((await sweep()).rung).toBe(1);
     expect(rung().map((a) => a.p_entity_id)).toEqual(["1"]);
+  });
+
+  it("a lead with neither a phone nor an e-mail is counted, not rung: the alarm says call, and there is nothing to call (LR3)", async () => {
+    world([lead("1", { phone_e164: null, email_lower: null }), lead("2", { email_lower: null })]);
+    expect(await sweep()).toEqual({ overdue: 2, rung: 1, contacted: 0, held: 0, disqualified_by_answer: 0, no_contact_detail: 1 });
+    expect(rung().map((a) => a.p_entity_id)).toEqual(["2"]);
   });
 
   it("every page is swept, not only the first hundred", async () => {
