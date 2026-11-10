@@ -70,6 +70,18 @@ export const TRUCK_PLACE_CATEGORIES = {
 
 const ALL_TRUCK_PLACES: string[] = Object.values(TRUCK_PLACE_CATEGORIES).flat();
 
+/**
+ * A road's fill: the highway-casing blue-grey while it is a thin line across open country, fading to
+ * white between `from` and `to` as it widens enough to carry an edge line of its own.
+ *
+ * ⚠ White from the first zoom was the first draft, and on staging every country road vanished
+ * against the near-white land (2026-11-10, the side-by-side with the raster map). HERE's own raster
+ * map draws them the same way: a coloured line at regional zoom, a white road with a casing in town.
+ */
+function roadColour(c: MapPalette, from: number, to: number): ExpressionSpecification {
+  return ["interpolate", ["linear"], ["zoom"], from, c["highway-casing"], to, c.road] as ExpressionSpecification;
+}
+
 /** A place name's size at one zoom stop: neighbourhoods small, regions and countries fixed, towns `town`. */
 function sizeByKind(town: number): ExpressionSpecification {
   return ["match", ["get", "kind"], "neighbourhood", 11, ["country", "region"], 13, town] as ExpressionSpecification;
@@ -94,7 +106,7 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
     major: ["==", ["get", "kind"], "major_road"],
     minor: ["==", ["get", "kind"], "minor_road"],
   };
-  const line = (name: string, filter: unknown, color: string, width: ExpressionSpecification, minzoom = 0): LayerSpecification =>
+  const line = (name: string, filter: unknown, color: string | ExpressionSpecification, width: ExpressionSpecification, minzoom = 0): LayerSpecification =>
     ({
       id: id(name),
       type: "line",
@@ -160,11 +172,11 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
       paint: { "line-color": c.boundary, "line-width": byZoom(3, 0.6, 10, 1.4), "line-dasharray": [3, 2] },
     },
     // Casings first, then fills, so a road's edge line never crosses the road above it.
-    line("minor-casing", roadKinds.minor, c["road-casing"], byZoom(12, 1, 16, 9, 18, 22), 12),
-    line("major-casing", roadKinds.major, c["road-casing"], byZoom(8, 1, 12, 4, 16, 14, 18, 30), 8),
+    line("minor-casing", roadKinds.minor, c["road-casing"], byZoom(13, 0, 14, 3, 16, 9, 18, 22), 13),
+    line("major-casing", roadKinds.major, c["road-casing"], byZoom(11, 0, 12, 4, 16, 14, 18, 30), 11),
     line("highway-casing", roadKinds.highway, c["highway-casing"], byZoom(5, 2, 10, 5, 14, 9, 16, 19, 18, 34), 5),
-    line("minor", roadKinds.minor, c.road, byZoom(12, 0.5, 16, 7, 18, 19), 12),
-    line("major", roadKinds.major, c.road, byZoom(8, 0.5, 12, 2.5, 16, 11, 18, 26), 8),
+    line("minor", roadKinds.minor, roadColour(c, 13, 15), byZoom(12, 0.5, 16, 7, 18, 19), 12),
+    line("major", roadKinds.major, roadColour(c, 11, 13), byZoom(6, 0.6, 9, 1.2, 12, 2.5, 16, 11, 18, 26), 6),
     line("highway", roadKinds.highway, c.highway, byZoom(5, 1.4, 10, 3.6, 14, 7, 16, 16, 18, 30), 5),
     {
       id: id("water-label"),
@@ -197,7 +209,13 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
       ...src,
       "source-layer": "road_labels",
       minzoom: 6,
-      filter: ["all", ["has", "shield_text"], ["match", ["get", "kind"], ["highway", "major_road"], true, false]],
+      // Highway numbers from zoom 6; an ordinary road's number only from 10. Both from 6 printed a
+      // number on every county road across a region, far busier than the raster map (2026-11-10).
+      filter: [
+        "all",
+        ["has", "shield_text"],
+        ["any", ["==", ["get", "kind"], "highway"], ["all", ["==", ["get", "kind"], "major_road"], [">=", ["zoom"], 10]]],
+      ],
       layout: {
         "symbol-placement": "line",
         "symbol-spacing": 320,
