@@ -26,6 +26,7 @@ vi.mock("@/features/drugAlcohol/useDrugAlcoholProgram", () => ({
 
 import DrugAlcoholPage from "./DrugAlcoholPage.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
+import { FilterBar } from "@silvicom/ui";
 
 const person = (id: string, name: string) => ({ driverId: id, medstopId: `m-${id}`, name });
 // Unscanned card, sources disagree: the file keeps the earlier (Med-Stop's). A scanned card that
@@ -68,7 +69,7 @@ const program = (over: Partial<DrugAlcoholProgram> = {}): DrugAlcoholProgram => 
   inProgress: [
     { key: "test:t1", person: person("d5", "Pat Pending"), kind: "drug", reason: "PRE-EMPLOYMENT", stage: "At the lab", orderedOn: null, collectedOn: "2026-10-09", expectedOn: "2026-10-13", daysWaiting: 4 },
   ],
-  results: { today: "2026-11-10", all: [], recent: [], history: [] },
+  results: { all: [], recent: [], history: [] },
   medical: {
     due: [medDiff],
     disagree: [medDiff, scanned],
@@ -214,7 +215,7 @@ describe("DrugAlcoholPage", () => {
 
   it("filters results by what they were, offering only results the list holds", async () => {
     const row = (id: string, outcome: "positive" | "refusal", name: string) => ({ source: "test" as const, medstopId: id, person: person(id, name), kind: "drug" as const, reason: "RANDOM", collectedOn: "2026-10-09", outcome });
-    const w = await render(program({ results: { today: "2026-11-10", all: [row("t1", "positive", "Pat Positive"), row("t2", "refusal", "Rae Refused")], recent: [row("t1", "positive", "Pat Positive"), row("t2", "refusal", "Rae Refused")], history: [] } }), "/drug-alcohol?tab=results&results.result=refusal");
+    const w = await render(program({ results: { all: [row("t1", "positive", "Pat Positive"), row("t2", "refusal", "Rae Refused")], recent: [row("t1", "positive", "Pat Positive"), row("t2", "refusal", "Rae Refused")], history: [] } }), "/drug-alcohol?tab=results&results.result=refusal");
     expect(w.text()).toContain("Rae Refused");
     expect(w.text()).not.toContain("Pat Positive");
     // Result is the fifth filter, so it sits in the bar's "Filters" popover (UI adoption: four inline).
@@ -234,7 +235,6 @@ describe("DrugAlcoholPage", () => {
   it("results open on every result of the year, negatives included; needs-review and the first read are choices of Show", async () => {
     const row = (id: string, outcome: "positive" | "refusal" | "negative", name: string) => ({ source: "test" as const, medstopId: id, person: person(id, name), kind: "drug" as const, reason: "RANDOM", collectedOn: "2026-10-09", outcome });
     const results = {
-      today: "2026-11-10",
       all: [row("t2", "negative", "Nina Negative"), row("t1", "positive", "Pat Positive"), row("t0", "refusal", "Old Case")],
       recent: [row("t1", "positive", "Pat Positive")],
       history: [row("t0", "refusal", "Old Case")],
@@ -256,7 +256,7 @@ describe("DrugAlcoholPage", () => {
 
   it("clearing Show goes back to the list the tab opens on, on Results, Medical cards and Roster check — never an error", async () => {
     const row = (id: string, outcome: "positive" | "negative", name: string) => ({ source: "test" as const, medstopId: id, person: person(id, name), kind: "drug" as const, reason: "RANDOM", collectedOn: "2026-10-09", outcome });
-    const results = { today: "2026-11-10", all: [row("t2", "negative", "Nina Negative"), row("t1", "positive", "Pat Positive")], recent: [row("t1", "positive", "Pat Positive")], history: [] };
+    const results = { all: [row("t2", "negative", "Nina Negative"), row("t1", "positive", "Pat Positive")], recent: [row("t1", "positive", "Pat Positive")], history: [] };
     for (const [url, chosen, opened] of [
       ["/drug-alcohol?tab=results&results.show=recent", "Pat Positive", "Nina Negative"],
       ["/drug-alcohol?tab=medical&medical.show=disagree", "Scan Kept", "Med Diff"],
@@ -276,7 +276,7 @@ describe("DrugAlcoholPage", () => {
     expect(stale.text()).toContain("Nina Negative");
   });
 
-  it("narrows results by reason and by how recently they were collected, counted from the carrier's today", async () => {
+  it("narrows results by reason and by a collection date range, an undated row inside no range", async () => {
     const row = (id: string, reason: string, collectedOn: string | null, name: string) => ({ source: "test" as const, medstopId: id, person: person(id, name), kind: "drug" as const, reason, collectedOn, outcome: "negative" as const });
     const all = [
       row("a", "RANDOM", "2026-11-04", "Rand Recent"),
@@ -284,7 +284,7 @@ describe("DrugAlcoholPage", () => {
       row("c", "RANDOM", "2026-11-03", "Rand Older"),
       row("d", "POST-ACCIDENT", null, "Undated Person"),
     ];
-    const results = { today: "2026-11-10", all, recent: [], history: [] };
+    const results = { all, recent: [], history: [] };
     const w = await render(program({ results }), "/drug-alcohol?tab=results&results.reason=RANDOM");
     expect(w.text()).toContain("Rand Recent");
     expect(w.text()).toContain("Rand Older");
@@ -292,16 +292,42 @@ describe("DrugAlcoholPage", () => {
     const reasons = w.findAllComponents(FilterSelect).find((f) => f.props("label") === "Reason")!;
     expect((reasons.props("options") as { value: string }[]).map((o) => o.value)).toEqual(["POST-ACCIDENT", "PRE-EMPLOYMENT", "RANDOM"]);
 
-    const week = await render(program({ results }), "/drug-alcohol?tab=results&results.collected=7");
+    const week = await render(program({ results }), "/drug-alcohol?tab=results&results.from=2026-11-04&results.to=2026-11-10");
     expect(week.text()).toContain("Rand Recent");
     expect(week.text()).toContain("Pree Recent");
     expect(week.text()).not.toContain("Rand Older");
     expect(week.text()).not.toContain("Undated Person");
+    // The open tab's number is what the range left on screen, not the year's four.
+    expect(tabLabels(week)).toContain("Results 2");
+    // A hand-edited range that is not a day narrows nothing.
+    const junk = await render(program({ results }), "/drug-alcohol?tab=results&results.from=yesterday");
+    expect(junk.text()).toContain("Rand Older");
+    expect(tabLabels(junk)).toContain("Results 4");
+  });
+
+  it("the open tab's number follows its filters; the other tabs keep their own counts", async () => {
+    const many = [person("d1", "Bob Outside"), person("d2", "Ann Other")];
+    const w = await render(program({ roster: { notInPool: many, leftButInPool: [person("x1", "Left Early")] } }), "/drug-alcohol?tab=roster");
+    expect(tabLabels(w)).toContain("Roster check 3");
+    w.findComponent(FilterBar).vm.$emit("update:search", "Bob");
+    await flushPromises();
+    expect(tabLabels(w)).toContain("Roster check 1");
+    expect(tabLabels(w)).toContain("Medical cards 1");
+    // Show on another list counts that list, though Show is not a filter.
+    const left = await render(program({ roster: { notInPool: many, leftButInPool: [person("x1", "Left Early")] } }), "/drug-alcohol?tab=roster&roster.show=left");
+    expect(tabLabels(left)).toContain("Roster check 1");
+    // Nothing narrowed: Random's number is still the draws to test, not the quarter it opens on (R5).
+    const random = await render(program());
+    expect(tabLabels(random)[0]).toBe("Random selections 2");
+    // Leaving a narrowed tab hands its number back.
+    await w.findAll('[role="tab"]').find((t) => t.text().startsWith("Medical"))!.trigger("click");
+    await flushPromises();
+    expect(tabLabels(w)).toContain("Roster check 3");
   });
 
   it("a refused order reads as refused before collection; a refused test does not (§7A.16)", async () => {
     const row = (source: "test" | "order", name: string) => ({ source, medstopId: name, person: person(name, name), kind: "drug" as const, reason: "RANDOM", collectedOn: "2026-10-09", outcome: "refusal" as const });
-    const w = await render(program({ results: { today: "2026-11-10", all: [row("order", "Rita Refused"), row("test", "Tom Tested")], recent: [row("order", "Rita Refused"), row("test", "Tom Tested")], history: [] } }), "/drug-alcohol?tab=results");
+    const w = await render(program({ results: { all: [row("order", "Rita Refused"), row("test", "Tom Tested")], recent: [row("order", "Rita Refused"), row("test", "Tom Tested")], history: [] } }), "/drug-alcohol?tab=results");
     expect(w.text()).toContain("Rita Refused");
     expect(w.text()).toContain("Tom Tested");
     expect(w.text().match(/Refused before a specimen was collected/g)).toHaveLength(1);
@@ -342,7 +368,7 @@ describe("DrugAlcoholPage", () => {
     const row = (id: string, outcome: "negative_dilute" | "positive", kind: "drug" | "alcohol" = "drug", reason = "POST-ACCIDENT") =>
       ({ source: "test" as const, medstopId: id, person: person(id, `Name ${id}`), kind, reason, collectedOn: "2026-10-09", outcome });
     const flagged = [row("t1", "negative_dilute"), row("t2", "positive"), row("t3", "negative_dilute", "alcohol"), row("t4", "negative_dilute", "drug", "OTHER")];
-    const results = { today: "2026-11-10", all: flagged, recent: flagged, history: [] };
+    const results = { all: flagged, recent: flagged, history: [] };
     state.role = "safety_manager";
     const w = await render(program({ results }), "/drug-alcohol?tab=results");
     const buttons = w.findAll("button").filter((b) => b.text() === "Order a recollection");

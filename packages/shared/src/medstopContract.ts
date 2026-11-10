@@ -278,11 +278,6 @@ export interface DrugAlcoholProgram {
    * already old (D-MS5): never acted on automatically, listed so a person decides.
    */
   results: {
-    /**
-     * The carrier's day the year is counted back from — the same day the api read the window with, so
-     * the tab's "Last 30 days" and the year it narrows can never be counted from two different days.
-     */
-    today: string;
     all: MedstopResultRow[];
     recent: MedstopResultRow[];
     history: MedstopResultRow[];
