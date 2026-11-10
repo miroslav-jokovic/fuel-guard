@@ -4,6 +4,7 @@ import { FINANCE_PERIODS, MAX_FINANCE_TRUCKS } from "../financial/index.js";
 import { MAX_REPORT_UNITS, REPORT_PERIODS } from "../fuel-spend/index.js";
 import { FLEET_NOW_STATES, MAX_FLEET_NOW_TRUCKS } from "../livemap/index.js";
 import { MAX_LOADS_TRUCKS, MAX_LOADS_UNITS } from "../loads/index.js";
+import { IFTA_QUARTER_PERIODS } from "../ifta/index.js";
 
 /**
  * The assistant's tool DEFINITIONS — what the model is shown. Their implementations are `runTool` in
@@ -93,6 +94,26 @@ export const TOOLS: Anthropic.Tool[] = [
     name: "spend_trend",
     description: "Fuel spend and gallons bucketed over time (bucket=day or week) for the period — for trend questions like 'is spend going up?'. Fleet MPG is included only at bucket=week: a day's fuel purchases are not that day's consumption, so there is no honest daily MPG.",
     input_schema: { type: "object", properties: { bucket: { type: "string", enum: ["day", "week"] }, period_days: { type: "integer" } } },
+  },
+  {
+    // F21 R6b: the IFTA ledger page's quarter (`ifta/assistantIftaReport.ts`).
+    name: "ifta_report",
+    description:
+      "IFTA for one calendar quarter, from the IFTA ledger page: per state (jurisdiction) the taxable miles, gallons " +
+      "burned (miles ÷ the fleet MPG used), gallons bought (cards plus receipts), the rate, tax owed, tax paid at the " +
+      "pump and the net; and the quarter's totals. Use for 'IFTA by state', 'what do we owe Texas', or miles per state. " +
+      "Default is last quarter. ALWAYS state completeness: months pulled from Samsara (a quarter in progress or a month " +
+      "Samsara has not finished is incomplete: give incomplete_note and never call it the return), jurisdictions not " +
+      "priced (never tax them at zero), and the fleet MPG verdict and concern (every liability rests on it).",
+    input_schema: {
+      type: "object",
+      properties: {
+        period: { type: "string", enum: [...IFTA_QUARTER_PERIODS], description: "Ignored when year and quarter are given." },
+        year: { type: "integer", description: "With quarter." },
+        quarter: { type: "integer", description: "1-4, with year." },
+        jurisdictions: { type: "array", items: { type: "string" }, description: "Two-letter state or province codes, to list only those." },
+      },
+    },
   },
   // ── Drivers & idling ──
   {

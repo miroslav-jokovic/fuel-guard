@@ -43,6 +43,10 @@ const BY_SURFACE: Record<string, Suggestion[]> = {
     ask("Which trucks spent the most on fuel last month?", "fuel_ranking"),
     ask("How much did we spend on reefer fuel this month?", "fuel_economics"),
   ],
+  "fuel.ifta": [
+    ask("IFTA by state last quarter: miles, gallons and tax owed", "ifta_report"),
+    ask("What do we owe Texas for IFTA this quarter so far?", "ifta_report"),
+  ],
   "fuel.cards": [
     ask("How many declined card attempts this month, and how many look suspicious?", "declined_summary"),
     ask("Which drivers have the most flagged fills this month?", "top_risk"),
