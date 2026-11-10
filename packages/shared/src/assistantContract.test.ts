@@ -34,12 +34,13 @@ describe("assistantToolsFor — every role, every tool, from the section matrix"
     });
   }
 
-  it("names the owner's facts: admin has every tool; a driver and a recruiter have none today; a technician has the repair bills", () => {
+  it("names the owner's facts: admin has every tool; a driver has none; a recruiter has the driver files; a technician the shop's two", () => {
     expect(assistantToolsFor("admin", null, ALL_MODULES)).toEqual(ASSISTANT_TOOL_NAMES);
     expect(assistantToolsFor("driver", null, ALL_MODULES)).toEqual([]);
-    expect(assistantToolsFor("recruiter", null, ALL_MODULES)).toEqual([]);
+    // R6b: the matrix lets a recruiter VIEW the roster, so the Drivers page's file tool is theirs.
+    expect(assistantToolsFor("recruiter", null, ALL_MODULES)).toEqual(["driver_file_expirations"]);
     // R6b: the technician's first tool is the truck page's repair bills, because the matrix lets them open it.
-    expect(assistantToolsFor("technician", null, ALL_MODULES)).toEqual(["maintenance_cost"]);
+    expect(assistantToolsFor("technician", null, ALL_MODULES)).toEqual(["annual_inspections_due", "maintenance_cost"]);
     // A dispatcher sees fuel (view) and roster/equipment (view) but not safety: no idling or driver scores.
     const dispatcher = assistantToolsFor("dispatcher", null, ALL_MODULES);
     expect(dispatcher).toContain("fuel_report");
@@ -103,6 +104,14 @@ describe("assistantToolsFor — every role, every tool, from the section matrix"
     expect(ASSISTANT_TOOL_ACCESS.card_holds).toEqual([{ section: "fuel", level: "view" }]);
     expect(callerMayUseTool("dispatcher", null, NO_MODULES, "card_holds")).toBe(rolesThatCanView("fuel").includes("dispatcher"));
     expect(callerMayUseTool("recruiter", null, ALL_MODULES, "card_holds")).toBe(false);
+  });
+
+  it("the expiry tools are gated as their pages are: the Drivers page (roster) and the Shop worklist (maintenance)", () => {
+    expect(ASSISTANT_TOOL_ACCESS.driver_file_expirations).toEqual([{ section: "roster", level: "view" }]);
+    expect(ASSISTANT_TOOL_ACCESS.annual_inspections_due).toEqual([{ section: "maintenance", level: "view" }]);
+    expect(callerMayUseTool("safety_manager", null, NO_MODULES, "driver_file_expirations")).toBe(true);
+    expect(callerMayUseTool("safety_manager", { roster: "none" }, NO_MODULES, "driver_file_expirations")).toBe(false);
+    expect(callerMayUseTool("technician", null, NO_MODULES, "annual_inspections_due")).toBe(rolesThatCanView("maintenance").includes("technician"));
   });
 
   it("follows the org's overrides on the token: taking fuel away from a fleet manager takes the fuel tools with it", () => {

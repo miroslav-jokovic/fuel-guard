@@ -344,6 +344,14 @@ const API_ALLOW = new Set([
   //   live map's own cached board, so "how many are moving" counts the states the map draws.
   //   livemap imports nothing of insights'.
   "insights -> livemap",
+  // · insights -> evidence — Ask AI's `driver_file_expirations` (F21 R6b) is evidence's
+  //   `assistantDriverFiles` over `getComplianceOverview`, the Drivers page's own file read.
+  //   evidence imports nothing of insights'.
+  "insights -> evidence",
+  // · insights -> maintenance — Ask AI's `annual_inspections_due` (F21 R6b) is maintenance's
+  //   `assistantAnnualDue` over `readAnnualDue`, the Shop worklist's own reader.
+  //   maintenance imports nothing of insights'.
+  "insights -> maintenance",
   // · insights -> fleetpal — Ask AI's `maintenance_cost` (F21 R6b) is fleetpal's
   //   `assistantMaintenanceCost`: the truck page's own `readCoverage` then `readUnitCost`, refused by
   //   the route's own D-FP4 rule. fleetpal imports nothing of insights'.

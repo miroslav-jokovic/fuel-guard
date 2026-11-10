@@ -483,3 +483,31 @@ audit row is the endpoint's own.
     the clock over every card, raw vendor words, the driver-id prompt leaked, the status filter
     ignored, a failed read as an empty list, fraud not first, the list unscoped, `eq` in place of
     `ilike`, and the total from the rows (it SURVIVED until the fixture's count differed from its rows).
+- 2026-11-10 — **R6b: DQ and inspection expirations, two tools, each gated by its own page.**
+  - **`driver_file_expirations` (roster)** is `evidence/assistantDriverFiles.ts` over
+    `getComplianceOverview`, the Drivers page's file read (`GET /api/compliance/overview`, the File
+    and expiry columns since DQ-INTO-DRIVERS). It is asked with the route's own `today` and the
+    default horizon, the module's founding invariant. It gives files complete, incomplete and not
+    started; per item, how many drivers have it expired, expiring or missing; and each driver's items
+    in the page's own rank (`compareAttention`: expired, missing, expiring). It never passes Med-Stop
+    violations or papers: a return-to-duty item exists only because of a positive result, so D-AI7
+    keeps it out for every role. That is what a reader without testing-record access sees on the page.
+  - **`annual_inspections_due` (maintenance)** is `maintenance/assistantAnnualDue.ts` over
+    `readAnnualDue`, the Shop worklist's annual group (`GET /api/maintenance/annual-due`, shared
+    `inspectionExpiry`, 30-day window). Overdue and due soon are split by the reader's own
+    `daysRemaining`, in its order. The answer always says what is NOT on the list: units with no
+    recorded inspection, and FleetPal's own dates.
+  - **The plan's premise was wrong, and the matrix decides:** the handoff called recruiting counts "the
+    first tool a recruiter can reach". But the matrix gives the recruiter `roster: view` and the
+    overview route gates on exactly that, so `driver_file_expirations` is the recruiter's first tool.
+    The technician now has two (repair bills, annual due). The named facts and
+    `namedGrantGates.test.ts` are updated; nothing is written as a role list.
+  - **Found, not fixed (the DQ page's own rule):** `/api/compliance/overview` and `readAnnualDue` cut
+    `today` as the UTC day (`new Date().toISOString().slice(0, 10)`). From about 6 pm Central, that is
+    tomorrow, so an item flips to "expired" a few hours early (D-PREC6). Both tools keep the route's
+    day so the answer equals the page. The fix belongs to those readers (carrier-zone `todayInZone`)
+    and moves page and tool together. Recommend a small PR in the evidence/maintenance area.
+  - Thirteen deliberate breaks, each killed by an assertion: carrier-zone day in place of the route's,
+    testing records passed, a wider horizon, no worst-first sort, the state filter ignored, a named
+    clean driver dropped, no partial-read note, complete miscounted; the annual reader's own clock,
+    overdue including today, a failed read as empty, kind ignored, re-sorted by unit.

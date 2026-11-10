@@ -9,6 +9,8 @@ import { assistantFuelReport, getFleetMpg, getFleetMpgSeries } from "../fuel-spe
 import { assistantIdleReport } from "../idle/index.js";
 import { assistantIftaReport } from "../ifta/index.js";
 import { assistantFleetNow } from "../livemap/index.js";
+import { assistantDriverFiles } from "../evidence/index.js";
+import { assistantAnnualDue } from "../maintenance/index.js";
 import { assistantMaintenanceCost } from "../fleetpal/index.js";
 import { assistantCardHolds } from "../efs/index.js";
 import { assistantLoadsByTruck } from "../loads/index.js";
@@ -196,6 +198,8 @@ async function runTool(admin: SupabaseClient, orgId: string, name: string, input
   if (name === "income_statement") return assistantIncomeStatement(admin, orgId, input);
   if (name === "idle_report") return assistantIdleReport(admin, orgId, input);
   if (name === "fleet_now") return assistantFleetNow(admin, orgId, input);
+  if (name === "driver_file_expirations") return assistantDriverFiles(admin, orgId, input);
+  if (name === "annual_inspections_due") return assistantAnnualDue(admin, orgId, input);
   if (name === "maintenance_cost") return assistantMaintenanceCost(admin, orgId, input);
   if (name === "card_holds") return assistantCardHolds(admin, orgId, input);
   if (name === "loads_by_truck") return assistantLoadsByTruck(admin, orgId, input);
