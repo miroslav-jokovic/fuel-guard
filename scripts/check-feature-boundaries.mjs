@@ -344,6 +344,10 @@ const API_ALLOW = new Set([
   //   live map's own cached board, so "how many are moving" counts the states the map draws.
   //   livemap imports nothing of insights'.
   "insights -> livemap",
+  // · insights -> efs — Ask AI's `card_holds` (F21 R6b) is efs's `assistantCardHolds` over
+  //   `listEfsCards`, the Fuel cards page's own list read (mirror only, masked in one place).
+  //   efs imports nothing of insights'.
+  "insights -> efs",
   // · insights -> loads — Ask AI's `loads_by_truck` (F21 R6b) is loads' `assistantLoadsByTruck`, the
   //   Loads page's own `listLoads` with the page's delivery window, so "748 delivered 14" is the
   //   Delivered tab with truck 748 picked. loads imports nothing of insights'.

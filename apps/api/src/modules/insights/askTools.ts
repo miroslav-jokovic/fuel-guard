@@ -3,6 +3,7 @@ import { ASSISTANT_TOOL_NAMES, type AssistantToolName } from "@silvicom/shared";
 import { FINANCE_PERIODS, MAX_FINANCE_TRUCKS } from "../financial/index.js";
 import { MAX_REPORT_UNITS, REPORT_PERIODS } from "../fuel-spend/index.js";
 import { FLEET_NOW_STATES, MAX_FLEET_NOW_TRUCKS } from "../livemap/index.js";
+import { CARD_HOLD_STATUSES } from "../efs/index.js";
 import { MAX_LOADS_TRUCKS, MAX_LOADS_UNITS } from "../loads/index.js";
 import { IFTA_QUARTER_PERIODS } from "../ifta/index.js";
 
@@ -158,6 +159,16 @@ export const TOOLS: Anthropic.Tool[] = [
     name: "declined_summary",
     description: "Declined card attempts in the period, total and broken down by suspicion level (e.g. alert/warn/none).",
     input_schema: { type: "object", properties: { period_days: { type: "integer" } } },
+  },
+  {
+    // F21 R6b: the Fuel cards page's statuses (`efs/assistantCardHolds.ts`).
+    name: "card_holds",
+    description:
+      "Fuel cards on hold or on a FRAUD hold right now, from the Fuel cards page: counts by status, and each held card " +
+      "by truck, driver and last four (never a full number), fraud first. Set status to list only Hold or only Fraud. " +
+      "Say cards_checked_at (when the cards were last checked with EFS). Cards in no_longer_listed_by_efs show the last " +
+      "status EFS reported before it dropped them: never call them held now.",
+    input_schema: { type: "object", properties: { status: { type: "string", enum: [...CARD_HOLD_STATUSES] } } },
   },
   {
     name: "telematics_coverage",

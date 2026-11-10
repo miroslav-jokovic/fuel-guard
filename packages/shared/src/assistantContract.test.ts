@@ -91,6 +91,12 @@ describe("assistantToolsFor — every role, every tool, from the section matrix"
     expect(callerMayUseTool("accountant", { fuel: "none" }, ALL_MODULES, "ifta_report")).toBe(false);
   });
 
+  it("card_holds is gated as the Fuel cards page is: fuel view, no module", () => {
+    expect(ASSISTANT_TOOL_ACCESS.card_holds).toEqual([{ section: "fuel", level: "view" }]);
+    expect(callerMayUseTool("dispatcher", null, NO_MODULES, "card_holds")).toBe(rolesThatCanView("fuel").includes("dispatcher"));
+    expect(callerMayUseTool("recruiter", null, ALL_MODULES, "card_holds")).toBe(false);
+  });
+
   it("follows the org's overrides on the token: taking fuel away from a fleet manager takes the fuel tools with it", () => {
     const narrowed = assistantToolsFor("fleet_manager", { fuel: "none" }, ALL_MODULES);
     expect(narrowed.some((t) => reqs(t).some((r) => "section" in r && r.section === "fuel"))).toBe(false);

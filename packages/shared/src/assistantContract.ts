@@ -56,6 +56,8 @@ export const ASSISTANT_TOOL_ACCESS = {
   // IFTA ledger (`fuel.ifta`; `/api/ifta/period` asks `requireSection("fuel", "view")`, no module).
   ifta_report: [view("fuel")],
   declined_summary: [view("fuel")],
+  // Fuel cards (`fuel.cards`; `GET /api/fuel-cards` asks `requireSection("fuel", "view")`, no module).
+  card_holds: [view("fuel")],
   telematics_coverage: [view("fuel")],
   import_activity: [view("fuel")],
   // Driver performance and Idling are safety pages (`safety.driver-performance`, `safety.idling`;
