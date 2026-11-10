@@ -90,6 +90,17 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "application_unlock_codes": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "new in 0585 (2026-11-10, F0b); one row per code SENT, bounded by unlockCodeLimiter (3 per link per hour) and only asked for after a failed date of birth; pruned at 90 days from created_at."
+      }
+    },
     "application_invitations": {
       "module": "recruiting",
       "layer": "core",

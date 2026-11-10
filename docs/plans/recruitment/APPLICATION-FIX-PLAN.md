@@ -302,4 +302,19 @@ A gate fails on a literal string in an `apply/` template.
   - **Kept:** the "answer Yes if unsure" asymmetry now lives in the hint, in English and Spanish. A PSP-suggested job still arrives as Yes/Yes, because PSP's own record is the evidence.
   - **Fixed along the way:** the office record's rule that dropped a Yes on a row whose answer was never recorded. The form now shows such a row as unanswered, so a Yes there is the office's answer and is sent.
   - **Next:** F0b (the one-time code for the DOB unlock).
+- 2026-11-10: F0b is on `claude/application-f0b-unlock-code`. This is the F0 row "DOB typo locks driver out".
+  - **What the driver gets:** once a date of birth has failed, the unlock screen offers "Email me a code" and "Text me a code". The code goes only where the link went:
+    - the invitation's own email;
+    - or the number they agreed to be texted on.
+    - The request names a channel, never an address.
+  - **What the code is:** six digits, 10 minutes, 5 tries. Only the newest code counts. A right code releases exactly what the date of birth would (`releasedView`, shared with `/unlock`).
+  - **What the office sees:** "The date of birth on file may be wrong", with when the code was used. The office corrects the date in Identity (Q-AM13).
+  - **Table:** migration 0585 `application_unlock_codes` (hashes only, 90-day retention; `audit_logs` keeps each send and use).
+  - **Limits:** sends are 3 per link per hour (`unlockCodeLimiter`); verifies use the unlock's own 10 per 10 minutes.
+  - **Departures from the row:**
+    - The office "reset the DOB" already exists: it is Identity correction. Nothing new was built for it.
+    - The code does not reset a sent sign link's five-try count. A link already stopped gives no code; "send it again" stays its remedy (D-AW14).
+  - **Not built:** the remembered-device token from U2. It belongs to F4.
+  - **Production, read-only on 2026-11-10:** 5 invitations, all with an email, 4 with SMS consent, 0 sign-link lockouts. Email covers everyone today.
+  - **Next:** F2 and F3, in parallel on F1.
 
