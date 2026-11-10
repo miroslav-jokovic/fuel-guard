@@ -22,8 +22,9 @@ import { formatDate } from "@/lib/format";
  *
  * Reason and Collected came with that fix (owner: "see the latest, and see random results and the other
  * categories"). Reasons are Med-Stop's own words, offered from the rows like In progress's. Collected is
- * the house `DateRangeFilter` (owner: "we don't have date range filtering"), whose presets cover what
- * the first 7/30/90-day choice did; it compares Med-Stop's own collection day, so no clock is involved.
+ * the house `DateRangeFilter` (owner: "we don't have date range filtering"), WITHOUT its preset list —
+ * the owner wants the range picked on the calendar, not "Last 30 days" (2026-11-10). It compares
+ * Med-Stop's own collection day, so no clock is involved.
  * MS2c shipped only the two exception lists, so the tab
  * read as empty: one dilute from 10/05 for a month in which 65 tests came back negative (owner,
  * 2026-11-10). "Needs review" stays one choice away, its count beside it in Show; the tab's badge counts All results.
@@ -136,7 +137,7 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
           <FilterSelect v-model="show" label="Show" :options="showOptions" />
           <FilterSelect v-model="kind" label="Test" :options="[...KIND_OPTIONS]" />
           <FilterSelect v-model="reason" label="Reason" :options="reasonOptions" />
-          <DateRangeFilter v-model:from="from" v-model:to="to" label="Collected" />
+          <DateRangeFilter v-model:from="from" v-model:to="to" label="Collected" :presets="false" />
         </template>
         <template #more>
           <FilterSelect v-model="outcome" label="Result" :options="outcomeOptions" block />

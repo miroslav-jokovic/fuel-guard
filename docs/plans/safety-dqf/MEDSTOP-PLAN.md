@@ -1256,3 +1256,5 @@ SQL, counts only). Nothing was ordered.
   narrowed each number keeps its meaning (Random's stays the draws to test, R5). Other tabs keep their
   own counts: only the open tab is mounted, and computing a closed tab's filtered count would mean a
   second copy of its filter rules at the page — not worth it for a number nobody is looking at.
+- 2026-11-10 — **Results' Collected range drops the preset list** (owner: no "Last 30 days"-style
+  presets, pick the range on the date picker). `DateRangeFilter :presets="false"`, as FleetPeriodRail.
