@@ -25,6 +25,7 @@ export * from "./monitorChecks.js";
 export * from "./adsReconcile.js";
 export * from "./adFatigue.js";
 export * from "./brandKitContract.js";
+export * from "./finishedAd.js";
 export * from "./artDirection.js";
 export * from "./campaignContract.js";
 export * from "./creativeChecks.js";

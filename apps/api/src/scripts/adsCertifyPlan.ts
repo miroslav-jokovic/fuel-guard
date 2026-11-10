@@ -41,6 +41,7 @@ export const WORKER_RUNS: Readonly<Record<string, WorkerRun>> = {
   "Checker": { unbuilt: "its L4 is the planted-defect corpus on real Higgsfield renders at the owner's recall threshold; its threshold is the owner's number in workers/checker/baseline.json (Q-AD45, ruled (a)), not set yet; the run is stage2-kit 2b" },
   "Analyst": { unbuilt: "its L4 is a live brief over a sandbox day's real hourly insights, read by the Monitor's sandbox pull (built, stage2-kit-2c); the run is stage2-kit 2b" },
   "Craft judge": { unbuilt: "its L4 is its ranking over the Copywriter's live candidates on a sandbox run, the chosen copy created on Meta without refusal; the run rides the Copywriter's (stage2-kit 2b), and its L3 waits on the owner's rating sheet (Q-AD57)" },
+  "Finished-ad judge": { unbuilt: "its L4 is its scores over the composed ads of a sandbox run, every creative reaching review whatever it scored; the run rides the Checker's (stage2-kit), and its L3 waits on real images (V4, Q-AD20) and the owner's approve/reject on 30 of them (Q-AD76)" },
   "Renderer / Higgsfield client": { unbuilt: "its L4 is renders on a small real Higgsfield budget, with FakeHiggsfield's OUR readings (higgsfieldClient.ts) recorded and diffed; stage2-kit 2b, and it needs the owner's Higgsfield key (Q-AD20)" },
   // Its need is "a token scrape over the sandbox run's logs": the Publisher's run, every byte it printed
   // searched for each secret it was given.

@@ -1,0 +1,55 @@
+{
+  "name": "clean-highway-pay",
+  "about": "A sound ad: a white tractor and van on a prairie highway at dusk, the pay on the kit's green plate below it. Our overlay over the checker's clean-highway photo.",
+  "input": {
+    "image": "clean-highway-pay.jpg",
+    "format": "4:5",
+    "headline": "$0.65 per mile, Class A OTR.",
+    "button": "Apply today",
+    "subject": "tractor_and_trailer",
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#0B3D2E"
+        },
+        {
+          "name": "white",
+          "hex": "#FFFFFF"
+        }
+      ]
+    }
+  },
+  "truth": {
+    "weak": null,
+    "how": "nothing planted: the subject is clear, the plate is the kit's green, the headline over the truck"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "finishedAdJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-10T20:51:36.549Z",
+    "output": {
+      "scores": {
+        "subject_legible": {
+          "reason": "A sharp, well-lit white semi-truck and trailer filling the frame against a vivid sunset sky is instantly identifiable as a tractor-trailer at a glance.",
+          "score": 5
+        },
+        "words_match_picture": {
+          "reason": "A pay-per-mile OTR headline sits over a classic OTR tractor-trailer on an open highway, telling exactly one coherent story about the job.",
+          "score": 5
+        },
+        "hierarchy_reads": {
+          "reason": "The large bold headline dominates the dark panel, the 'Apply today' button text is clearly secondary, but the button lacks a distinct button shape or border, making it read more like a subheading than a tappable CTA.",
+          "score": 3
+        },
+        "looks_like_kit": {
+          "reason": "The dark panel uses the brand's primary #0B3D2E green and white text precisely, though no logo is present and the button has no distinct styled treatment beyond the brand colours.",
+          "score": 4
+        }
+      }
+    }
+  }
+}

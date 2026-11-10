@@ -1,0 +1,55 @@
+{
+  "name": "weak-hierarchy",
+  "about": "Drawn by hand, not by our overlay (it cannot plant this): a button-sized 'APPLY' plate fills the middle over the truck's wheels, and the headline is 20-pixel type in the bottom corner.",
+  "input": {
+    "image": "weak-hierarchy.jpg",
+    "format": "4:5",
+    "headline": "$0.65 per mile, Class A OTR.",
+    "button": "Apply",
+    "subject": "tractor_and_trailer",
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#0B3D2E"
+        },
+        {
+          "name": "white",
+          "hex": "#FFFFFF"
+        }
+      ]
+    }
+  },
+  "truth": {
+    "weak": "hierarchy_reads",
+    "how": "the button is the loudest thing in the ad and the headline can hardly be read"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "finishedAdJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-10T20:51:56.844Z",
+    "output": {
+      "scores": {
+        "subject_legible": {
+          "reason": "A white semi-truck and trailer rolling down an open highway at sunset is immediately recognizable at a glance.",
+          "score": 5
+        },
+        "words_match_picture": {
+          "reason": "The pay-per-mile headline is rendered in tiny text at the bottom corner while the dominant element is the APPLY button, leaving the headline nearly invisible and disconnected from the strong truck photo.",
+          "score": 2
+        },
+        "hierarchy_reads": {
+          "reason": "The massive APPLY button dominates the entire lower half of the ad, completely overshadowing the actual headline which is relegated to tiny fine-print size in the corner.",
+          "score": 2
+        },
+        "looks_like_kit": {
+          "reason": "The dark green button (#0B3D2E range) and white text match the brand's primary and white colours exactly, giving a coherent on-brand feel despite no logo being present.",
+          "score": 4
+        }
+      }
+    }
+  }
+}

@@ -37,6 +37,7 @@ export const AD_WORKER_OFFICE_LABEL: Readonly<Record<string, string>> = {
   "Security (all)": "Keeping logins and data safe",
   "Analyst": "The morning report",
   "Craft judge": "Choosing the best of the ad texts offered",
+  "Finished-ad judge": "A second opinion on each finished ad",
   "Outcome feed": "Telling the platform which applicants were hired",
 };
 
