@@ -6,6 +6,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { requireSurface } from "../../../middleware/requireSurface.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { askData } from "../askData.js";
+import { assistantLogLine, readAssistantBudget, recordAssistantAnswer } from "../assistantUsage.js";
 
 export function aiRouter(): Router {
   const router = Router();
@@ -41,14 +42,32 @@ export function aiRouter(): Router {
         res.status(400).json(apiError("bad_request", "A question is required"));
         return;
       }
-      const { answer, tools } = await askData(admin, env, orgId, question);
+      const userId = req.auth!.userId;
+      // F21 R2: the carrier's token limit and the owner's $50 cap, checked before the model is reached.
+      const now = new Date();
+      const budget = await readAssistantBudget(admin, orgId, now);
+      if (!budget.open) {
+        console.warn(`[ai] org=${orgId} refused: ${budget.reason}`);
+        res.status(429).json(apiError("ai_budget_exhausted", budget.message));
+        return;
+      }
+      const started = Date.now();
+      const { answer, tools, usage, outcome } = await askData(admin, env, orgId, question, now);
+      const latencyMs = Date.now() - started;
+      const toolNames = tools.map((t) => t.name);
+      console.log(assistantLogLine(orgId, usage, latencyMs, toolNames, outcome));
+      await recordAssistantAnswer(admin, { orgId, userId, usage, latencyMs, tools: toolNames, outcome });
       // The answer and the tools behind it, not only the question (AUDIT P4): on 2026-11-09 the owner
       // asked for nine units' MPG and nobody could see what the assistant had said back, or which tool
       // it had tried. Capped so one long table cannot bloat the audit log; retention stays Q-AI4's.
       await writeAudit(admin, {
-        orgId, actorId: req.auth!.userId, action: "ai.ask",
-        meta: { question, answer: answer.slice(0, 4000), tools },
+        orgId, actorId: userId, action: "ai.ask",
+        meta: { question, answer: answer.slice(0, 4000), tools, outcome, cost_micro_usd: Math.round(usage.costMicroUsd) },
       });
+      if (outcome === "error") {
+        res.status(503).json(apiError("ai_unavailable", answer));
+        return;
+      }
       res.json({ answer });
     }),
   );

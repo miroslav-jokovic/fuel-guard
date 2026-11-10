@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { Request } from "express";
-import { ipKeyGenerator } from "express-rate-limit";
+import type { Request, RequestHandler } from "express";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 
 /**
  * How the general `/api` budget is divided between callers (C1,
@@ -117,4 +117,23 @@ export function apiRateLimitKey(req: Request): string {
 /** The address ceiling counts every request from an address, credentialled or not. */
 export function apiAddressKey(req: Request): string {
   return `addr:${ipKeyGenerator(req.ip ?? "")}`;
+}
+
+/**
+ * Ask AI's questions per person per 15 minutes (F21 R2, AUDIT P1). The same 30 the route had before —
+ * but per caller, not per address: `/api/ai` sat behind `strictLimiter`, keyed by IP, so one office
+ * shared 30 questions between everyone in it (the C1 outage's shape, memory api-limiter-refuses-one-office).
+ * Thirty is far above use (20 questions in four months) and still stops a stuck client from spending
+ * the month's cap in an afternoon; the cap is the money guard, this is the runaway guard.
+ */
+export const ASSISTANT_ASKS_PER_CALLER = 30;
+
+export function assistantLimiter(): RequestHandler {
+  return rateLimit({
+    windowMs: 15 * 60_000,
+    limit: ASSISTANT_ASKS_PER_CALLER,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    keyGenerator: apiRateLimitKey,
+  });
 }
