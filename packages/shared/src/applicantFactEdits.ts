@@ -1,6 +1,6 @@
 import type { ApplicantIdentity } from "./applicantIdentity.js";
 import type { PartOneCorrection } from "./applicantScreeningContract.js";
-import type { PartOneFacts, PartOneLicence } from "./applicationComposition.js";
+import type { PartOneFacts, PartOneFactsView, PartOneLicence } from "./applicationComposition.js";
 import type { ApplicationPath } from "./applicationReviewContract.js";
 
 /**
@@ -126,4 +126,60 @@ export function identityEdits(
     if (was !== now) out.push({ path: [key], before: was, after: now });
   }
   return out;
+}
+
+/**
+ * The other direction: the office changed ONE answer, addressed as the application files it, and the
+ * Part 1 correction route takes the whole set (`partOneCorrectionSchema`). This builds that set from
+ * what Part 1 holds, with the one answer changed — from the same two tables `partOneEdits` reads, so a
+ * path this accepts is one `partOneEdits` logs back at the same place ("round-trips every Part 1 path").
+ *
+ * Returns null for a path Part 1 does not hold: the caller corrects it in the draft instead.
+ * `currentAddress` is the draft index of the current home, as in `partOneEdits`. An other licence's
+ * `issuing_authority` is its state or province: the code, which composition files when no agency is named.
+ *
+ * The result is NOT parsed here: the caller runs `partOneCorrectionSchema` over it, so a blank the
+ * contract refuses is a refusal the office reads, never a silent default.
+ */
+export function partOneCorrectionWith(
+  view: Pick<PartOneFactsView, "intake" | "licences">,
+  path: ApplicationPath,
+  value: string | null,
+  currentAddress: number,
+): Record<string, unknown> | null {
+  const { intake } = view;
+  const licences = [...view.licences]
+    .sort((a, b) => a.position - b.position)
+    .map((l) => ({ state_code: l.state_code, agency: l.agency, licence_number: l.licence_number, expires_on: l.expires_on }));
+  const body: Record<string, unknown> = {
+    phone: intake.phone, address_line1: intake.address_line1, address_line2: intake.address_line2,
+    city: intake.city, state: intake.state, postal_code: intake.postal_code, cdl_class: intake.cdl_class, licences,
+  };
+  const [head, at, column] = path;
+
+  if (path.length === 1 && (head === "phone" || head === "cdl_class")) {
+    body[head] = value;
+    return body;
+  }
+  if (head === "addresses" && at === currentAddress && path.length === 3) {
+    const street = STREET.find(([, c]) => c === column);
+    if (!street) return null;
+    body[street[0]] = value;
+    return body;
+  }
+  const cdl = path.length === 1 ? CURRENT_CDL.find(([, c]) => c === head) : undefined;
+  if (cdl && licences[0]) {
+    licences[0] = { ...licences[0], [cdl[0]]: value };
+    return body;
+  }
+  if (head === "additional_licences" && typeof at === "number" && licences[at + 1]) {
+    const k = at + 1;
+    const now = licences[k]!;
+    if (column === "issuing_authority") licences[k] = { ...now, state_code: value ?? "", agency: null };
+    else if (column === "number") licences[k] = { ...now, licence_number: value ?? "" };
+    else if (column === "expires_at") licences[k] = { ...now, expires_on: value };
+    else return null;
+    return body;
+  }
+  return null;
 }

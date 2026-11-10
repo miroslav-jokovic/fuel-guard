@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { identityEdits, partOneEdits, type FactEditRow } from "./applicantFactEdits.js";
+import { identityEdits, partOneCorrectionWith, partOneEdits, type FactEditRow } from "./applicantFactEdits.js";
 import { composeFiledApplication, type PartOneFacts, type PartOneLicence } from "./applicationComposition.js";
 import type { PartOneCorrection } from "./applicantScreeningContract.js";
 
@@ -135,5 +135,44 @@ describe("identityEdits", () => {
 
   it("records nothing for the same three values", () => {
     expect(identityEdits(was, was)).toEqual([]);
+  });
+});
+
+describe("partOneCorrectionWith", () => {
+  const view = { intake: INTAKE, licences: LICENCES };
+
+  /** The ⚠ in its header: a path it accepts is one `partOneEdits` logs back at the same place. */
+  it.each<[FactEditRow["path"], string]>([
+    [["phone"], "3125550199"],
+    [["cdl_class"], "B"],
+    [["addresses", CURRENT, "line1"], "22 New Ave"],
+    [["addresses", CURRENT, "line2"], "Apt 4"],
+    [["addresses", CURRENT, "city"], "Aurora"],
+    [["addresses", CURRENT, "state"], "WI"],
+    [["addresses", CURRENT, "postal_code"], "53001"],
+    [["cdl_number"], "D7654321"],
+    [["cdl_state"], "WI"],
+    [["cdl_expires_at"], "2029-05-01"],
+  ])("round-trips every Part 1 path: %j", (path, value) => {
+    const body = partOneCorrectionWith(view, path, value, CURRENT) as PartOneCorrection | null;
+    expect(body).not.toBeNull();
+    expect(partOneEdits(before, body!, CURRENT)).toEqual([{ path, before: at(filedWith(correction()), path) ?? null, after: value }]);
+  });
+
+  it("round-trips another licence's columns as a change to that licence's row", () => {
+    const body = partOneCorrectionWith(view, ["additional_licences", 0, "number"], "IN-999", CURRENT) as PartOneCorrection;
+    const [row] = partOneEdits(before, body, CURRENT);
+    expect(row!.path).toEqual(["additional_licences", 0]);
+    expect((row!.after as { number: string }).number).toBe("IN-999");
+  });
+
+  it.each<[FactEditRow["path"]]>([
+    [["email"]],
+    [["addresses", 0, "line1"]], // a PREVIOUS home is the draft's, never Part 1's
+    [["addresses", CURRENT, "from"]], // the month they moved in is the driver's draft answer
+    [["additional_licences", 5, "number"]],
+    [["prior_failed_pre_employment_test"]], // a statement, not this door (Q-AM13)
+  ])("answers null for a path Part 1 does not hold: %j", (path) => {
+    expect(partOneCorrectionWith(view, path, "x", CURRENT)).toBeNull();
   });
 });

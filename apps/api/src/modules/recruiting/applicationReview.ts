@@ -152,6 +152,13 @@ export interface ApplicationForReview {
    * Null when they never needed one.
    */
   unlockedByCodeAt: string | null;
+  /**
+   * F3: has the driver made the first packet mark? From then on every office correction is refused
+   * (`applicationEditLog.ts`) — the draft's, Part 1's and the identity's — so the card closes all three.
+   * Separate from `editable`, which is the DRAFT's window only: Part 1 and the identity are corrected
+   * while the office screens, before it has sent the form at all.
+   */
+  signingStarted: boolean;
   edits: Array<{ path: ApplicationPath; before: unknown; after: unknown; editedAt: string; editedBy: string | null }>;
 }
 
@@ -191,6 +198,7 @@ export async function applicationForReview(
     carrierQuestions: carrierStampOf(inv.carrier_questions),
     captures: await listCaptures(admin, orgId, inv.id),
     unlockedByCodeAt: await latestCodeUnlock(admin, orgId, inv.id),
+    signingStarted: await signingStarted(admin, orgId, inv.id),
     edits: (edits ?? []).map((e) => {
       const row = e as { path: ApplicationPath; before: unknown; after: unknown; edited_at: string; edited_by: string | null };
       return { path: row.path, before: row.before, after: row.after, editedAt: row.edited_at, editedBy: row.edited_by };

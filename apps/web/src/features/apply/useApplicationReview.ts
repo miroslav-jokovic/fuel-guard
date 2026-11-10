@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicationCaptureView, ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
+import type { ApplicantIdentity, ApplicationCaptureView, ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -45,6 +45,8 @@ export interface ApplicationReview {
   captures?: ApplicationCaptureView[];
   /** F0b: when the applicant last opened it with a code because the date of birth on file did not match. */
   unlockedByCodeAt?: string | null;
+  /** F3: the driver has made the first packet mark, so no correction lands. Optional: an API before F3 sends none. */
+  signingStarted?: boolean;
   edits: ApplicationEditRow[];
 }
 
@@ -142,5 +144,27 @@ export function useCorrectPartOne(invitationId: Ref<string | null>) {
       if (!res.ok) throw new Error(res.error?.message ?? "That correction could not be saved.");
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: key(invitationId.value ?? "") }),
+  });
+}
+
+/**
+ * The office correcting the date of birth or the current licence from the "Applicant facts" card (F3).
+ * The same route the Permissions and Road-test drawers use (`useCorrectApplicantIdentity` in
+ * recruitment); here because this feature may not import recruitment's internals (`lint:boundaries`).
+ *
+ * ⚠ Invalidates every `recruitment` query, not only this review: the checklist reads the same three
+ * values (the licence state picks the MVR), and naming its key here would be a copy of recruitment's.
+ */
+export function useCorrectIdentityFromReview(invitationId: Ref<string | null>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ApplicantIdentity): Promise<void> => {
+      const res = await apiFetch(
+        `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/identity`,
+        { method: "POST", body: input },
+      );
+      if (!res.ok) throw new Error(res.error?.message ?? "That correction could not be saved.");
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["recruitment"] }),
   });
 }

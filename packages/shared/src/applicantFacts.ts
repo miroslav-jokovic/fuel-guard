@@ -7,7 +7,7 @@
  * The owner's 2026-11-09 walk found the form, the office drawer and the filed packet disagreeing,
  * and the audit found the cause: one fact (a ZIP, a phone, a CDL class) has a separate definition in
  * Part 1 (`applicantScreeningContract.ts`), in Part 2 (`applicationContract.ts`), on the packet
- * (`packetFieldValues.ts`) and in the office's correction list (`editableFields.ts`), and nothing
+ * (`packetFieldValues.ts`) and in the office's correction list (`editableFields.ts`, F3's card since), and nothing
  * made the four agree. This file is the list they are held to. It does not REPLACE them yet: each
  * entry names its contract path, and the parity tests derive the paths from the Zod schemas
  * themselves, so a key added to a contract without an entry here fails CI on the same merge — and
@@ -61,15 +61,20 @@ export type FactBasis =
 export type FactPacket = readonly string[] | { readonly through: FactPath } | { readonly notPrinted: string };
 
 /**
- * How the office corrects it today:
- * - `draft`: "Correct an answer" (`editableFields.ts` → the draft-edit route);
- * - `identity`: the identity correction beside the permissions (`applicantIdentitySchema`);
- * - `part_one`: the Part 1 correction (`partOneCorrectionSchema`);
- * - `{ none }`: no door — see this file's header.
+ * Which writer corrects it — the door the office's "Applicant facts" card uses (F3,
+ * `apps/web/src/features/apply/applicantFactRows.ts`, which reads this field and nothing else):
+ * - `draft`: the draft-edit route (`applicationEditSchema`);
+ * - `identity`: the identity correction (`applicantIdentitySchema`), the same route the Permissions
+ *   and Road-test drawers use;
+ * - `part_one`: the Part 1 correction (`partOneCorrectionSchema`), one answer at a time
+ *   (`partOneCorrectionWith`);
+ * - `{ none }`: no door yet — see this file's header.
+ *
+ * Every door writes an `application_edits` row and stops at the driver's first packet mark (F3, E7).
  *
  * ⚠ For a v2 link, which is every invitation sent since C3c2c2: the facts a v2 filing composes from
  * Part 1 (`PART_ONE_COMPOSED_KEYS`) are corrected through Part 1, and a draft edit to them would be
- * thrown away at filing, so `editableFields` hides them. A legacy link's are draft edits.
+ * thrown away at filing, so the card sends them to Part 1 instead. A legacy link's are draft edits.
  */
 export type FactOffice = "draft" | "identity" | "part_one" | { readonly none: string };
 
@@ -111,7 +116,7 @@ const APPLICANT_STATEMENT = {
     + "owner's Q-AM13 ruling, with a required note and the driver's acceptance on screen 3.1 — F3's card builds that door",
 };
 const TABLE_ANSWER = {
-  none: "a table answer is four segments deep and applicationPathSchema allows three (editableFields.ts); F3's card edits rows",
+  none: "a table answer is four segments deep and applicationPathSchema allows three; F3's card edits rows",
 };
 const NOT_OFFERED = (why: string) => ({ none: `${why}; F3's card offers it` });
 

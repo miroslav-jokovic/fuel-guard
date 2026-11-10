@@ -5,7 +5,6 @@ import {
   APPLICATION_REVIEW_STATE_LABELS,
   carrierQuestionnaire,
   formatDisplayDate,
-  IDENTITY_IS_CORRECTED_ELSEWHERE,
   questionnaireForApplicant,
   type ApplicationPath,
 } from "@silvicom/shared";
@@ -19,17 +18,14 @@ import { useSessionStore } from "@/stores/session";
 import { fromDraftPayload } from "./draft";
 import { applyPartOne } from "./partOneFacts";
 import { buildReviewSummary } from "./reviewSummary";
-import { describeField } from "./fieldLabels";
-import { editableFields, pathKey } from "./editableFields";
+import { describeField, rowText } from "./fieldLabels";
 import { employerName } from "./officeJobs";
 import OfficeJobsSection from "./OfficeJobsSection.vue";
-import PartOneCorrection from "./PartOneCorrection.vue";
-import ApplicationAnswerList from "./ApplicationAnswerList.vue";
+import ApplicantFactsCard from "./ApplicantFactsCard.vue";
 import {
   useApplicationReviewQuery,
   useApproveApplication,
   type ApprovalNotice,
-  useEditApplicationAnswer,
 } from "./useApplicationReview";
 
 /**
@@ -64,7 +60,6 @@ const emit = defineEmits<{ close: [] }>();
 const toast = useToastStore();
 const invitationId = toRef(props, "invitationId");
 const review = useApplicationReviewQuery(invitationId);
-const edit = useEditApplicationAnswer(invitationId);
 const approve = useApproveApplication(invitationId);
 
 const payload = computed(() => review.data.value?.payload ?? null);
@@ -79,6 +74,14 @@ const editable = computed(() => review.data.value?.editable === true);
 const session = useSessionStore();
 const canManage = computed(() => session.can("recruitment"));
 const correctable = computed(() => editable.value && canManage.value);
+/**
+ * F3: the first packet mark closes every door. `signingStarted` is the API's answer; an API from before
+ * F3 sends none, and "approved but not editable" is how this drawer has always read that state.
+ */
+const signingStarted = computed(() =>
+  review.data.value?.signingStarted ?? (state.value === "approved" && !editable.value));
+/** Part 1 and the identity: open while the office screens, before Send, until the first mark (F3). */
+const recordCorrectable = computed(() => canManage.value && state.value !== "certified" && !signingStarted.value);
 const edits = computed(() => review.data.value?.edits ?? []);
 /** F0b: when they used a code — an instant, so the drawer's own date-and-time format, or null. */
 const unlockedByCode = computed(() => {
@@ -105,15 +108,6 @@ const summary = computed(() => {
   });
 });
 
-// C3c2c2: on a v2 application, the answers filing takes from Part 1 are not offered — a correction
-// there would be filed over. They are corrected at their source instead: `PartOneCorrection` (Q-AW36),
-// and the date of birth beside the permissions.
-//
-// HW5b: the jobs are corrected in the one employer form below (`OfficeJobsSection`), not here — the
-// same answer offered in two places is two ways to disagree about it.
-const fields = computed(() =>
-  editableFields(payload.value, questionnaireForApplicant(), Boolean(review.data.value?.partOne))
-    .filter((f) => f.path[0] !== "employers"));
 /** "Something wrong? Tell us" (C3c2c2): the applicant's note about a Part 1 fact they could only read. */
 const correctionNote = computed(() => {
   const note = (payload.value as { correction_note?: unknown } | null)?.correction_note;
@@ -145,31 +139,13 @@ function changeLabel(row: { path: ApplicationPath; before: unknown; after: unkno
   return describeField(row.path);
 }
 const shownValue = (v: unknown): string =>
-  v === null || v === undefined ? "—" : typeof v === "object" ? employerName(v as Record<string, unknown>) : String(v);
+  v === null || v === undefined ? "—" : typeof v === "object" ? rowText(v as Record<string, unknown>) : String(v);
 
-/**
- * The paths already corrected, for the answer list's mark.
- *
- * ⚠ The mark is on the CORRECTION LIST and not on the summary above it, deliberately. The summary
- * groups several fields into one readable line — "Where" is an employer's street, city and state
- * together — so a summary row has no single path, and marking it by matching label text would mark
- * the scalar rows and silently miss every composite one. A half-working mark on a document somebody
- * is about to swear to is worse than none.
- */
-const corrected = computed(() => new Set(edits.value.map((e) => pathKey(e.path))));
 
 const tone = computed(() =>
   state.value === "awaiting_review" ? "warning" : state.value === "certified" ? "success" : "info",
 );
 
-async function save(path: ApplicationPath, value: string | boolean): Promise<void> {
-  try {
-    await edit.mutateAsync({ path, value, revision: revision.value });
-    toast.push("success", "Answer corrected");
-  } catch (e) {
-    toast.push("error", e instanceof Error ? e.message : "That change could not be saved.");
-  }
-}
 
 /**
  * The application as a printable page, at any stage before it is filed (F6).
@@ -298,26 +274,21 @@ async function approveIt(): Promise<void> {
           Signed and filed. These answers are part of the qualification file.
         </AppCallout>
 
-        <!-- C3c2c2: before the answers — it may say one of them is wrong. The correction it asks for sits
-             right under it (Q-AW36), open while the office can still correct anything: until approval. -->
+        <!-- C3c2c2: before the answers — it may say one of them is wrong. The Applicant facts card below
+             is where it is corrected (F3; it was the Part 1 form until then). -->
         <!-- F0b: the date of birth on file did not match the applicant's own answer, so they opened their
-             application with a code. The date is what to check — corrected in Identity (Q-AM13). -->
+             application with a code. The date is what to check — corrected on the Applicant facts card (F3). -->
         <AppCallout v-if="unlockedByCode && state !== 'certified'" tone="caution" data-unlocked-by-code>
           <p class="font-medium">The date of birth on file may be wrong.</p>
           <p class="mt-1">
             On {{ unlockedByCode }} the applicant could not open their application with the date of birth we have,
-            and used a code sent to them instead. Check the date of birth with them and correct it in Identity.
+            and used a code sent to them instead. Check the date of birth with them and correct it under Applicant facts below.
           </p>
         </AppCallout>
         <AppCallout v-if="correctionNote" tone="caution" data-correction-note>
           <p class="font-medium">The applicant says something from the start of their application is wrong:</p>
           <p class="mt-1 whitespace-pre-line">{{ correctionNote }}</p>
         </AppCallout>
-        <PartOneCorrection
-          v-if="invitationId && review.data.value?.partOne && state !== 'certified'"
-          :invitation-id="invitationId"
-          :facts="review.data.value.partOne"
-        />
 
         <template v-if="summary.length">
           <section v-for="group in summary" :key="group.section" class="space-y-2">
@@ -349,28 +320,19 @@ async function approveIt(): Promise<void> {
           </section>
         </template>
 
-        <!-- Correcting answers. Every field the payload carries, addressed by its contract path, which
-             is the same vocabulary the driver's errors and the edit log use. -->
+        <!-- F3: every answer, once, with its own control and its own door (`applicantFactsRows`). It
+             replaced "Correct an answer" and the Part 1 form, which offered the same facts twice over
+             and corrected dates and states by typing the stored format (E8). -->
         <AppCallout v-if="editable && !canManage" tone="info" data-testid="review-read-only">
           You can read this application. Correcting or approving it needs permission to manage Recruiting.
         </AppCallout>
-        <section v-if="correctable && fields.length" class="space-y-3">
-          <div>
-            <h3 class="text-sm font-semibold text-ink">Correct an answer</h3>
-            <p class="mt-1 text-xs text-ink-muted">
-              Each change is saved on its own, and the applicant is shown what you changed before they
-              sign.
-            </p>
-            <!-- F0 (E1): the identity is the record's, not the draft's — say where it IS corrected. -->
-            <p class="mt-1 text-xs text-ink-muted">{{ IDENTITY_IS_CORRECTED_ELSEWHERE }}</p>
-          </div>
-          <ApplicationAnswerList
-            :fields="fields"
-            :corrected="corrected"
-            :pending="edit.isPending.value"
-            @save="save"
-          />
-        </section>
+        <ApplicantFactsCard
+          v-if="(correctable || recordCorrectable) && invitationId && review.data.value"
+          :invitation-id="invitationId"
+          :review="review.data.value"
+          :draft-open="correctable && !signingStarted"
+          :record-open="recordCorrectable"
+        />
 
         <!-- HW5b: the jobs on one timeline, and the one employer form — the applicant's own panel — for
              adding a job (with its street, EM-3), changing or filling any answer, removing one after a

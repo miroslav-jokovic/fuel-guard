@@ -192,6 +192,19 @@ export const FIELD_LABEL_KEYS = {
  * returns something rather than throwing, because a validation summary that crashes is strictly
  * worse than one that is briefly ugly.
  */
+/**
+ * A whole row an edit replaced, added or removed — an other licence from the office's Part 1 correction
+ * (F3, `partOneEdits`) — as one line of its answers: "WI, W-1, 2027-01-01". Not JSON, which is what the
+ * signing screen printed for an object until F3, and not an employer's name, which is what the office's
+ * "What you changed" took any object for.
+ */
+export function rowText(value: Record<string, unknown>): string {
+  return Object.values(value)
+    .filter((v) => v !== null && v !== undefined && v !== "")
+    .map(String)
+    .join(", ");
+}
+
 export function describeField(path: FieldPath): string {
   const [head, index, column] = path;
   const key = String(head ?? "");

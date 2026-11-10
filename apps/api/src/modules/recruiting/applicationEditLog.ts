@@ -45,8 +45,8 @@ export async function signingStarted(admin: SupabaseClient, orgId: string, invit
  * log. So a failure here leaves a change made and unrecorded, and the caller reports it rather than
  * "done". A retry does not repair it: the change is already on file, so the next diff finds nothing.
  * The window is one insert wide. Closing it means writing the rows inside those two functions, which is
- * a migration on the functions every applicant save goes through. That is recorded in
- * APPLICATION-FIX-PLAN §5 rather than decided silently here.
+ * a migration on the functions every applicant save goes through. That is APPLICATION-FIX-PLAN
+ * Q-AM14, recorded rather than decided silently here.
  */
 export async function recordOfficeEdits(
   admin: SupabaseClient,
