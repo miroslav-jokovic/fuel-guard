@@ -1,6 +1,7 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { loadEnv } from "../../env.js";
+import { IDENTITY_IS_CORRECTED_ELSEWHERE } from "@silvicom/shared";
 import { applicationForReview, approveApplication, editApplication, isReviewError } from "./applicationReview.js";
 
 /**
@@ -122,6 +123,8 @@ const seed = (over: {
   save?: unknown;
   /** Marks the driver has already made on the packet. */
   marks?: number;
+  /** What the applicant has photographed (F0). */
+  captures?: Array<Record<string, unknown>>;
 } = {}) =>
   createSupabaseRecorder({
     rpc: { save_application_draft: over.save ?? { draft_id: "d-1", updated_at: "2026-09-11T12:00:00Z", revision: (over.revision ?? 3) + 1 } },
@@ -136,6 +139,7 @@ const seed = (over: {
       },
       application_drafts: over.payload === null ? [] : [{ payload: over.payload ?? PAYLOAD, revision: over.revision ?? 3 }],
       application_edits: [],
+      application_captures: over.captures ?? [],
       audit_logs: [],
       // Read by the approval notice (Q-AX4): the carrier's own name, and the applicant's SMS consent.
       organizations: [{ name: "Silvicom Inc" }],
@@ -144,6 +148,24 @@ const seed = (over: {
   });
 
 describe("reading an application for review", () => {
+  /**
+   * F0 (APPLICATION-FIX-PLAN, the 2026-11-09 audit): the drawer built "Your documents" from `[]`
+   * because this response carried no captures, so every application read "None declared".
+   */
+  it("⚠ hands the office what the applicant photographed, so documents on file are not read as none", async () => {
+    const rec = seed({
+      captures: [
+        { slot: "medical_card", ordinal: 0, content_type: "image/jpeg", bytes: 1200, captured_at: "2026-11-09T10:00:00Z" },
+        { slot: "twic", ordinal: 0, content_type: "application/pdf", bytes: 3400, captured_at: "2026-11-09T10:05:00Z" },
+      ],
+    });
+    const result = await applicationForReview(rec.client, ORG, INV);
+    if (isReviewError(result)) throw new Error(result.code);
+    expect(result.captures.map((c) => c.slot)).toEqual(["medical_card", "twic"]);
+    expect(result.captures[0]).toMatchObject({ contentType: "image/jpeg", capturedAt: "2026-11-09T10:00:00Z" });
+    expectOrgScoped(rec, ORG);
+  });
+
   it("reports where it has got to and whether it may still be changed", async () => {
     const rec = seed();
     const result = await applicationForReview(rec.client, ORG, INV);
@@ -238,10 +260,25 @@ describe("correcting one answer", () => {
     expect(edit.edited_by).toBe(ACTOR);
   });
 
+  /**
+   * F0 (APPLICATION-FIX-PLAN E1): the draft's identity is laid over by the `drivers` row on every save
+   * and at filing (`identityOnRecord`, D-AF8), so a correction here was reported done and then undone.
+   */
+  it("⚠ refuses a date of birth or licence correction on the draft, and says where it is made, writing nothing", async () => {
+    for (const path of [["date_of_birth"], ["cdl_number"], ["cdl_state"]] as const) {
+      const rec = seed({ payload: KEYED });
+      const result = await editApplication(rec.client, ORG, INV, { path: [...path], value: "1981-04-01", revision: REV }, { actorId: ACTOR });
+      expect(isReviewError(result) && result.code, String(path)).toBe("invalid_edit");
+      expect(isReviewError(result) && result.message).toBe(IDENTITY_IS_CORRECTED_ELSEWHERE);
+      expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+      expect(rec.writtenRows("application_edits")).toHaveLength(0);
+    }
+  });
+
   it("§9 P5: refuses a stale revision — the applicant changed it since the office read it — writing nothing", async () => {
     const rec = seed({ payload: KEYED });
     const result = await editApplication(
-      rec.client, ORG, INV, { path: ["cdl_number"], value: "PA1", revision: REV - 1 }, { actorId: ACTOR },
+      rec.client, ORG, INV, { path: ["middle_name"], value: "PA1", revision: REV - 1 }, { actorId: ACTOR },
     );
     expect(isReviewError(result) && result.code).toBe("draft_revision_conflict");
     expect(rec.rpcs()).toEqual([]);
@@ -251,7 +288,7 @@ describe("correcting one answer", () => {
   it("§9 P5: maps the database's own refusal (DA041) — the phone saved between the read and the write", async () => {
     const rec = seed({ payload: KEYED, save: { error: { code: "DA041", message: "draft_revision_conflict" } } });
     const result = await editApplication(
-      rec.client, ORG, INV, { path: ["cdl_number"], value: "PA1", revision: REV }, { actorId: ACTOR },
+      rec.client, ORG, INV, { path: ["middle_name"], value: "PA1", revision: REV }, { actorId: ACTOR },
     );
     expect(isReviewError(result) && result.code).toBe("draft_revision_conflict");
     expect(isReviewError(result) && result.message).toContain("reload");
@@ -324,7 +361,7 @@ describe("correcting one answer", () => {
 
   it("records the change in the audit log as well as the edit table", async () => {
     const rec = seed();
-    await editApplication(rec.client, ORG, INV, { path: ["cdl_number"], value: "PA1", revision: REV }, { actorId: ACTOR });
+    await editApplication(rec.client, ORG, INV, { path: ["middle_name"], value: "PA1", revision: REV }, { actorId: ACTOR });
     const audit = rec.writtenRows("audit_logs")[0] as Record<string, unknown>;
     expect(audit.action).toBe("application_answer_edited");
     expect(audit.entity_id).toBe(INV);
@@ -332,7 +369,7 @@ describe("correcting one answer", () => {
 
   it("scopes every read and write to the office's own org", async () => {
     const rec = seed({ payload: KEYED });
-    await editApplication(rec.client, ORG, INV, { path: ["cdl_number"], value: "PA1", revision: REV }, { actorId: ACTOR });
+    await editApplication(rec.client, ORG, INV, { path: ["middle_name"], value: "PA1", revision: REV }, { actorId: ACTOR });
     expectOrgScoped(rec, ORG);
   });
 });
@@ -411,33 +448,33 @@ describe("the jobs: add, remove, explain a gap", () => {
 describe("when an answer may be changed, and when it may not", () => {
   it("EM-1: lets the office type while the applicant is still filling it in — before they send", async () => {
     const rec = seed({ invitation: invitation({ review_requested_at: null, application_sent_at: "2026-09-09T09:00:00Z" }) });
-    const result = await editApplication(rec.client, ORG, INV, { path: ["cdl_number"], value: "X1", revision: REV }, { actorId: ACTOR });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["middle_name"], value: "X1", revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result)).toBe(false);
   });
 
   it("EM-1: makes the first draft when the applicant has typed nothing yet (revision 0)", async () => {
     const rec = seed({ payload: null, invitation: invitation({ review_requested_at: null, application_sent_at: "2026-09-09T09:00:00Z" }) });
-    const result = await editApplication(rec.client, ORG, INV, { path: ["cdl_number"], value: "X1", revision: 0 }, { actorId: ACTOR });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["middle_name"], value: "X1", revision: 0 }, { actorId: ACTOR });
     expect(isReviewError(result)).toBe(false);
     expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_expected_revision).toBe(0);
   });
 
   it("refuses before the office has sent the form at all", async () => {
     const rec = seed({ invitation: invitation({ review_requested_at: null }) });
-    const result = await editApplication(rec.client, ORG, INV, { path: ["cdl_number"], value: "X", revision: REV }, { actorId: ACTOR });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["middle_name"], value: "X", revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result) && result.code).toBe("application_not_editable");
     expect(rec.rpcs()).toEqual([]);
   });
 
   it("EM-4: lets the office correct after approval, while the driver has not signed anything", async () => {
     const rec = seed({ invitation: invitation({ approved_at: "2026-09-11T11:00:00Z" }) });
-    const result = await editApplication(rec.client, ORG, INV, { path: ["cdl_number"], value: "X", revision: REV }, { actorId: ACTOR });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["middle_name"], value: "X", revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result)).toBe(false);
   });
 
   it("refuses once the driver has made a mark on the packet", async () => {
     const rec = seed({ invitation: invitation({ approved_at: "2026-09-11T11:00:00Z", signing_opened_at: "2026-09-11T11:10:00Z" }), marks: 1 });
-    const result = await editApplication(rec.client, ORG, INV, { path: ["cdl_number"], value: "X", revision: REV }, { actorId: ACTOR });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["middle_name"], value: "X", revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result) && result.code).toBe("application_not_editable");
     expect(rec.rpcs()).toEqual([]);
   });
@@ -446,7 +483,7 @@ describe("when an answer may be changed, and when it may not", () => {
     const rec = seed({
       invitation: invitation({ approved_at: "2026-09-11T11:00:00Z", submitted_at: "2026-09-11T11:30:00Z" }),
     });
-    const result = await editApplication(rec.client, ORG, INV, { path: ["cdl_number"], value: "X", revision: REV }, { actorId: ACTOR });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["middle_name"], value: "X", revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result) && result.code).toBe("application_not_editable");
   });
 });

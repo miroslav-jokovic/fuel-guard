@@ -391,6 +391,8 @@ export const APPLY_COPY_EN = {
     certifyOverride: "Tick the box to certify that your answers are true.",
     addOne: "Add at least one.",
     needed: "This is needed.",
+    /** F0: a box that takes a count — miles, fatalities, injuries — holding something that is not one. */
+    notNumber: "Enter a number, in digits (0 if none).",
     notEmail: "This does not look like an email address.",
     fromCalendar: "Choose it from the calendar.",
     tooLong: "This is too long.",

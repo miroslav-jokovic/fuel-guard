@@ -1,4 +1,5 @@
 import {
+  APPLICANT_IDENTITY_KEYS,
   applicationEmployerSchema,
   PART_ONE_COMPOSED_KEYS,
   PART_ONE_STREET_KEYS,
@@ -150,6 +151,9 @@ export function editableFields(
   // was asked — identity, then where they lived, then the licence, then the jobs.
   for (const [key, value] of Object.entries(payload)) {
     if (NOT_AN_ANSWER.has(key)) continue;
+    // F0 (E1): the identity is the `drivers` row's, laid over the draft on every save — an edit here
+    // would be reported done and then undone. The API refuses it too (`IDENTITY_IS_CORRECTED_ELSEWHERE`).
+    if ((APPLICANT_IDENTITY_KEYS as readonly string[]).includes(key)) continue;
 
     if (key === QUESTIONNAIRE) {
       if (value && typeof value === "object" && !Array.isArray(value)) {

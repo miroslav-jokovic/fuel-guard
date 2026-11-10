@@ -16,6 +16,7 @@ import ApplyScreenMark from "@/features/apply/ApplyScreenMark.vue";
 import { provideScreenEvents } from "@/features/apply/useScreenEvents";
 import { useLinkMemo } from "@/features/apply/linkMemo";
 import type { ApplicationDraft } from "@/features/apply/draft";
+import type { SectionIssue } from "@/features/apply/useApplicationWizard";
 import type {
   ApplyEsignConsent,
   ApplyPacketStop,
@@ -95,6 +96,8 @@ const props = defineProps<{
   packetAdopted: { signature: string | null; initials: string | null } | null;
   sending: boolean;
   sendError: string | null;
+  /** The filing rules' refusals at the final send — `SignOffScreen` is the only place they can be seen. */
+  sendIssues: readonly SectionIssue[];
 }>();
 const draft = defineModel<ApplicationDraft>("draft", { required: true });
 provideScreenEvents(toRef(props, "token"));
@@ -244,6 +247,7 @@ const emit = defineEmits<{
       :adoptions="invitation.data.value?.adoptions"
       :sending="sending"
       :error="sendError"
+      :issues="sendIssues"
       @send="emit('send')"
     />
   </BaseCard>

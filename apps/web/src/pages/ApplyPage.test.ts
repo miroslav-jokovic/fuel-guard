@@ -496,6 +496,41 @@ describe("the applicant's page", () => {
   });
 
   /**
+   * F0 (APPLICATION-FIX-PLAN, 2026-11-09 audit): filing's rules refusing the document at the final
+   * button used to put their answer in the form's issue list — which this screen never renders — so
+   * "Sign and send it" did visibly nothing. The refusal has to be on THIS screen, naming the field, and
+   * saying who corrects it, because on this visit the answers are the office's to fix.
+   */
+  it("⚠ says what stops it, and who fixes it, when the final send is refused by the rules", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: {
+        consentedAt: null, releasesCompletedAt: null,
+        reviewRequestedAt: "2026-09-10T09:00:00Z", approvedAt: "2026-09-11T09:00:00Z", submittedAt: null,
+      },
+      draft: { locked: false, payload: { ...COMPLETE_DRAFT, last_name: "" }, furthestSection: null, updatedAt: null },
+      edits: [],
+    }));
+    const w = mountPage();
+    await settle(w);
+    const posts = () => fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "POST").length;
+    const before = posts();
+
+    const button = w.findAll("button").find((b) => b.text() === APPLY_COPY.signOff.sign);
+    expect(button).toBeDefined();
+    await button!.trigger("click");
+    await settle(w);
+
+    const blocked = w.find('[data-testid="signoff-blocked"]');
+    expect(blocked.exists()).toBe(true);
+    expect(blocked.text()).toContain(APPLY_COPY.signOff.blockedHeading);
+    expect(blocked.text()).toContain(APPLY_COPY.signOff.blockedIntro("Silvicom Inc"));
+    expect(blocked.text()).toContain("Last name");
+    // And nothing was sent: the rules refused it before the request, which is the point of running them.
+    expect(posts()).toBe(before);
+  });
+
+  /**
    * ⚠ AF5 (plan §3.1 row 9, D-AF3): approved is no longer "ready to sign". Until the office opens
    * signing at the desk the link says where signing happens and asks for nothing — not the packet,
    * not the Social Security number, not a signature `record_packet_mark` would refuse (DR036). Once

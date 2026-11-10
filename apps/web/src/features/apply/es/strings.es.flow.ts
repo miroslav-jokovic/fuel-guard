@@ -49,6 +49,9 @@ export const APPLY_FLOW_COPY_ES = {
       "Su número de Seguro Social no se guarda con el resto de sus respuestas, por eso se lo pedimos aquí: va directamente a su expediente cuando firma.",
     sign: "Firmar y enviar",
     signing: "Enviando…",
+    blockedHeading: "Todavía no se puede enviar",
+    blockedIntro: (carrier: string): string =>
+      `${sentenceCase(carrier)} tiene que corregir esto en su solicitud antes de que usted pueda enviarla. Llámelos y vuelva a abrir este enlace cuando lo hayan hecho.`,
   },
 
   done: {

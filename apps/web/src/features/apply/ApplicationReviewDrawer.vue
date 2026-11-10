@@ -5,6 +5,7 @@ import {
   APPLICATION_REVIEW_STATE_LABELS,
   carrierQuestionnaire,
   formatDisplayDate,
+  IDENTITY_IS_CORRECTED_ELSEWHERE,
   questionnaireForApplicant,
   type ApplicationPath,
 } from "@silvicom/shared";
@@ -14,6 +15,7 @@ import type { RenderedDocument } from "@/lib/documentDownload";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
+import { useSessionStore } from "@/stores/session";
 import { fromDraftPayload } from "./draft";
 import { applyPartOne } from "./partOneFacts";
 import { buildReviewSummary } from "./reviewSummary";
@@ -68,6 +70,15 @@ const approve = useApproveApplication(invitationId);
 const payload = computed(() => review.data.value?.payload ?? null);
 const state = computed(() => review.data.value?.state ?? "filling");
 const editable = computed(() => review.data.value?.editable === true);
+/**
+ * Whether THIS reader may change it — a second question from `editable`, which only says the
+ * application is still open (F0, APPLICATION-FIX-PLAN E10). The API holds edits and approval to the
+ * section's `manage` (`requireSection("recruitment")`); before this a `view` reader was shown working
+ * Save and Approve buttons that answered 403. The same test the route applies, so they cannot disagree.
+ */
+const session = useSessionStore();
+const canManage = computed(() => session.can("recruitment"));
+const correctable = computed(() => editable.value && canManage.value);
 const edits = computed(() => review.data.value?.edits ?? []);
 const revision = computed(() => review.data.value?.revision ?? 0);
 
@@ -84,7 +95,8 @@ const summary = computed(() => {
     questionnaire: questionnaireForApplicant(),
     // §15.3 D-CQ2: the questions THIS applicant was asked, from the invitation's stamp — never the live list.
     carrier: carrierQuestionnaire(review.data.value?.carrierQuestions ?? []),
-    captures: [],
+    // F0: the applicant's own photographs, not `[]` — which read "None declared" for every document.
+    captures: review.data.value?.captures ?? [],
   });
 });
 
@@ -325,13 +337,18 @@ async function approveIt(): Promise<void> {
 
         <!-- Correcting answers. Every field the payload carries, addressed by its contract path, which
              is the same vocabulary the driver's errors and the edit log use. -->
-        <section v-if="editable && fields.length" class="space-y-3">
+        <AppCallout v-if="editable && !canManage" tone="info" data-testid="review-read-only">
+          You can read this application. Correcting or approving it needs permission to manage Recruiting.
+        </AppCallout>
+        <section v-if="correctable && fields.length" class="space-y-3">
           <div>
             <h3 class="text-sm font-semibold text-ink">Correct an answer</h3>
             <p class="mt-1 text-xs text-ink-muted">
               Each change is saved on its own, and the applicant is shown what you changed before they
               sign.
             </p>
+            <!-- F0 (E1): the identity is the record's, not the draft's — say where it IS corrected. -->
+            <p class="mt-1 text-xs text-ink-muted">{{ IDENTITY_IS_CORRECTED_ELSEWHERE }}</p>
           </div>
           <ApplicationAnswerList
             :fields="fields"
@@ -345,14 +362,14 @@ async function approveIt(): Promise<void> {
              adding a job (with its street, EM-3), changing or filling any answer, removing one after a
              confirm, and explaining a gap. Read-only once the window has closed. -->
         <OfficeJobsSection
-          v-if="invitationId && (employers.length || editable)"
+          v-if="invitationId && (employers.length || correctable)"
           :invitation-id="invitationId"
           :driver-id="review.data.value?.driverId ?? null"
           :employers="employers"
           :given-gaps="givenGaps"
           :revision="revision"
           :v2="Boolean(review.data.value?.partOne)"
-          :editable="editable"
+          :editable="correctable"
         />
 
         <!-- ⚠ INSIDE the drawer's body, and that placement is the whole fix (B8, measured 2026-09-18).
@@ -409,7 +426,7 @@ async function approveIt(): Promise<void> {
           Open as a PDF
         </BaseButton>
         <BaseButton
-          v-if="editable && state === 'awaiting_review'"
+          v-if="correctable && state === 'awaiting_review'"
           variant="primary"
           class="w-full sm:w-auto"
           :disabled="approve.isPending.value"

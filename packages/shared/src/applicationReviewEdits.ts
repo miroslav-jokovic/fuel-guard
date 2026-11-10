@@ -1,4 +1,5 @@
 import type { ApplicationEdit, ApplicationPath } from "./applicationReviewContract.js";
+import { APPLICANT_IDENTITY_KEYS } from "./applicantIdentity.js";
 
 /**
  * How one office edit changes the applicant's draft — pure, so the API applies exactly what is tested
@@ -125,6 +126,15 @@ export function applyApplicationEdit(
     default: {
       // `set` — one value at one path. An employer path is resolved through its key.
       const path = [...edit.path];
+      /**
+       * ⚠ F0 (APPLICATION-FIX-PLAN, E1): the identity is not the draft's to hold. Every autosave and the
+       * filing lay the `drivers` row over these three keys (`identityOnRecord`, D-AF8), so a correction
+       * written here was reported done and then silently undone by the applicant's next save. They are
+       * corrected where they live — the identity correction, which writes the row.
+       */
+      if ((APPLICANT_IDENTITY_KEYS as readonly unknown[]).includes(path[0])) {
+        return refuse(IDENTITY_IS_CORRECTED_ELSEWHERE);
+      }
       if (path[0] === EMPLOYERS && path.length >= 2) {
         const at = employerIndex(employers, rowsOf(original, EMPLOYERS), path[1]!);
         if (typeof at !== "number") return at;
@@ -146,6 +156,10 @@ export function applyApplicationEdit(
     }
   }
 }
+
+/** Said by the API and shown beside the answer list, so the office is sent to the one place that sticks. */
+export const IDENTITY_IS_CORRECTED_ELSEWHERE =
+  "The date of birth and licence are corrected under \"Date of birth and licence\" in the hiring checklist's \"Permissions signed\" step — a change here would be replaced by that record.";
 
 export const isEditRefusal = (v: unknown): v is EditRefusal =>
   typeof v === "object" && v !== null && (v as { code?: unknown }).code === "invalid_edit";

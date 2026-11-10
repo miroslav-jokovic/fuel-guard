@@ -271,6 +271,7 @@ export const APPLY_COPY_ES = {
     certifyOverride: "Marque la casilla para certificar que sus respuestas son verdaderas.",
     addOne: "Agregue al menos uno.",
     needed: "Esto es necesario.",
+    notNumber: "Escriba un número, en dígitos (0 si no hay).",
     notEmail: "Esto no parece una dirección de correo electrónico.",
     fromCalendar: "Elíjalo en el calendario.",
     tooLong: "Esto es demasiado largo.",

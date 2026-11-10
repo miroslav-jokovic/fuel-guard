@@ -12,6 +12,7 @@ import {
   type ApplicationPath,
   type ApplicationPhases,
   type ApplicationReviewState,
+  type ApplicationCaptureView,
   type CarrierQuestionStamp,
   type PartOneFactsView,
 } from "@silvicom/shared";
@@ -19,6 +20,7 @@ import { writeAudit } from "../../lib/audit.js";
 import type { Env } from "../../env.js";
 import { notifyApplicationApproved, type ApprovalNotice } from "./applicationApprovalNotice.js";
 import { partOneFactsView } from "./applicantIntake.js";
+import { listCaptures } from "./applicationCapture.js";
 
 /**
  * The office's review of an application before the driver certifies it (F4, D-AX11–13).
@@ -133,6 +135,15 @@ export interface ApplicationForReview {
    * live list — so the drawer labels the draft's `carrier_answers` with the words the applicant read.
    */
   carrierQuestions: CarrierQuestionStamp;
+  /**
+   * What the applicant has photographed for this application — slots and dates, the same view their own
+   * page reads (`listCaptures`), never the pictures.
+   *
+   * ⚠ F0 (APPLICATION-FIX-PLAN, the 2026-11-09 audit): the drawer built its "Your documents" section from
+   * `captures: []` because this response carried none, so every application read "None declared" to the
+   * office — including ones with a licence, a medical card and a TWIC on file.
+   */
+  captures: ApplicationCaptureView[];
   edits: Array<{ path: ApplicationPath; before: unknown; after: unknown; editedAt: string; editedBy: string | null }>;
 }
 
@@ -170,6 +181,7 @@ export async function applicationForReview(
     revision: ((draft as { revision?: number | null } | null)?.revision) ?? 0,
     partOne: await partOneFactsView(admin, orgId, inv, new Date()),
     carrierQuestions: carrierStampOf(inv.carrier_questions),
+    captures: await listCaptures(admin, orgId, inv.id),
     edits: (edits ?? []).map((e) => {
       const row = e as { path: ApplicationPath; before: unknown; after: unknown; edited_at: string; edited_by: string | null };
       return { path: row.path, before: row.before, after: row.after, editedAt: row.edited_at, editedBy: row.edited_by };

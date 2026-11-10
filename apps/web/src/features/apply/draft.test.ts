@@ -6,8 +6,11 @@ import {
   toApplication,
   emptyEmployer,
   toDraftPayload,
+  count,
   type ApplicationDraft,
 } from "./draft";
+import { messageFor } from "./fieldLabels";
+import { APPLY_COPY } from "./strings";
 import { CARRIER_ANSWERS } from "@/testing/carrierAnswers";
 
 /**
@@ -544,3 +547,48 @@ describe("a draft saved before the state fields had a picker", () => {
 function toApplicationEmployerKeys(d: ReturnType<typeof fromDraftPayload>): unknown[] {
   return ((toApplication(d) as { employers: Array<{ key: unknown }> }).employers).map((e) => e.key);
 }
+
+/**
+ * F0 (APPLICATION-FIX-PLAN, the 2026-11-09 audit): `parseInt(v) || 0` filed "100,000" miles as 100
+ * and a cleared fatalities box as 0 — numbers the driver never gave, on a regulated document.
+ */
+describe("a count the driver typed", () => {
+  it("reads the separators a person types as separators", () => {
+    expect(count("100,000")).toBe(100_000);
+    expect(count("1,250,000")).toBe(1_250_000);
+    expect(count("100 000")).toBe(100_000);
+    expect(count("100.000")).toBe(100_000);
+    expect(count(" 42 ")).toBe(42);
+    expect(count("0")).toBe(0);
+  });
+
+  it("is not a number when it is blank or not a count, never a quiet 0", () => {
+    for (const typed of ["", "   ", "abc", "12.5", "-3", "1,2,3.4", "100k"]) expect(count(typed)).toBeNaN();
+  });
+
+  it("⚠ files 100,000 miles as 100,000, not 100", () => {
+    const d = complete();
+    d.equipment_experience = [{ ...everything().equipment_experience[0]!, approx_miles: "100,000" }];
+    const parsed = parse(d);
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.equipment_experience[0]!.approx_miles).toBe(100_000);
+  });
+
+  it("⚠ refuses a cleared fatalities box instead of filing 0, and says to enter a number", () => {
+    const d = complete();
+    d.declares_no_accidents = false;
+    d.accidents = [{ ...everything().accidents[0]!, fatalities: "" }];
+    const parsed = parse(d);
+    expect(parsed.success).toBe(false);
+    const issue = !parsed.success ? parsed.error.issues.find((i) => i.path.join(".") === "accidents.0.fatalities") : undefined;
+    expect(issue).toBeDefined();
+    expect(messageFor(issue as never, Number.NaN)).toBe(APPLY_COPY.fields.notNumber);
+  });
+
+  it("still files a blank miles box as no answer — it is optional", () => {
+    const d = complete();
+    d.equipment_experience = [{ ...everything().equipment_experience[0]!, approx_miles: "" }];
+    const parsed = parse(d);
+    expect(parsed.success && parsed.data.equipment_experience[0]!.approx_miles).toBeNull();
+  });
+});

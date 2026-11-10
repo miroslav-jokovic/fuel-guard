@@ -335,6 +335,7 @@ watch(
     :packet-adopted="packetAdopted"
     :sending="sending"
     :send-error="sendError"
+    :send-issues="wizard.issues.value"
     @begin="begun = true"
     @agree="agree"
     @part-one-done="partOneFinished"

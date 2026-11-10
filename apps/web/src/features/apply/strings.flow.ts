@@ -113,6 +113,15 @@ export const APPLY_FLOW_COPY = {
       "Your Social Security number is not saved with the rest of your answers, so we ask for it here — it goes straight into your file when you sign.",
     sign: "Sign and send it",
     signing: "Sending…",
+    /**
+     * F0 (APPLICATION-FIX-PLAN): filing's own rules run at this button, and until now their answer went
+     * into a list only the FORM renders — so on this screen the button did nothing at all. By the second
+     * visit the driver cannot change their answers (the office corrects them before signing, Q-AM2), so
+     * this says who fixes it rather than offering a link to a screen that is no longer there.
+     */
+    blockedHeading: "This can't be sent yet",
+    blockedIntro: (carrier: string): string =>
+      `${sentenceCase(carrier)} needs to correct these on your application before you can send it. Call them, and open this link again once they have.`,
   },
 
   done: {

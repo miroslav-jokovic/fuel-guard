@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
+import { APPLY_CAPTURE_TITLES, APPLY_COPY } from "./strings";
 
 /**
  * The office's review of an application (F4, D-AX11–13).
@@ -15,6 +16,14 @@ import { createPinia, setActivePinia } from "pinia";
 const apiFetch = vi.hoisted(() => vi.fn());
 const fetchObjectUrl = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ apiFetch, fetchObjectUrl }));
+// The real permission matrix over a fake who (F0, E10): the drawer asks `session.can("recruitment")`.
+const sessionHolder = vi.hoisted(() => ({ s: null as null | { role: string | null } }));
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("recruiter");
+  sessionHolder.s = s;
+  return { useSessionStore: () => s };
+});
 const openPdf = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/documentDownload", () => ({ openPdf, downloadPdf: vi.fn(), saveObjectUrl: vi.fn() }));
 
@@ -92,6 +101,7 @@ const button = (w: ReturnType<typeof drawer>, label: string) =>
   w.findAll("button").find((b) => b.text().trim().startsWith(label));
 
 beforeEach(() => {
+  sessionHolder.s!.role = "recruiter";
   pinia = createPinia();
   setActivePinia(pinia);
   apiFetch.mockReset();
@@ -104,6 +114,37 @@ beforeEach(() => {
 URL.revokeObjectURL = vi.fn();
 
 describe("what the office reads", () => {
+  /**
+   * F0 (APPLICATION-FIX-PLAN E10): `editable` says the application is still open, not that this reader
+   * may change it. A `view` reader was shown Save and Approve, which the API then refused with 403.
+   */
+  it("⚠ offers a reader who may only view no corrections and no approval, and says why", async () => {
+    sessionHolder.s!.role = "auditor";
+    const w = drawer();
+    await settle(w);
+    expect(w.find("[data-testid='review-read-only']").exists()).toBe(true);
+    expect(w.text()).not.toContain("Correct an answer");
+    expect(w.findAll("button").some((b) => b.text().startsWith("Approve"))).toBe(false);
+  });
+
+  /**
+   * F0 (APPLICATION-FIX-PLAN, the 2026-11-09 audit): the summary was built from `captures: []`, so the
+   * office read "None declared" beside a medical card the applicant had photographed.
+   */
+  it("⚠ lists the documents the applicant photographed as received, not as none declared", async () => {
+    apiFetch.mockResolvedValue({
+      ok: true,
+      data: review({ captures: [{ slot: "medical_card", ordinal: 0, contentType: "image/jpeg", bytes: 1200, capturedAt: "2026-11-09T10:00:00Z" }] }),
+    });
+    const w = drawer();
+    await settle(w);
+    const title = APPLY_CAPTURE_TITLES.medical_card;
+    const row = w.findAll("li, dl > div, tr, div").filter((n) => n.text().startsWith(title)).at(-1);
+    expect(row, `no row for ${title}`).toBeDefined();
+    expect(row!.text()).toContain(APPLY_COPY.documents.done);
+    expect(row!.text()).not.toContain(APPLY_COPY.review.none);
+  });
+
   it("shows the answers themselves, in the words the driver was asked them in", async () => {
     const w = drawer();
     await settle(w);
@@ -340,6 +381,35 @@ describe("correcting one answer", () => {
     expect(call?.[1].body.revision).toBe(7);
   });
 
+  /**
+   * F0 (APPLICATION-FIX-PLAN E9): a refused correction used to clear the box, so the recruiter lost what
+   * they had typed. It stays now, with Save still offered and the stored answer printed beneath it.
+   */
+  it("⚠ keeps what the recruiter typed when the correction is refused, beside the answer on file", async () => {
+    const w = drawer();
+    await settle(w);
+    await w.find("input#apply-first_name").setValue("Suzan");
+    await settle(w);
+    apiFetch.mockResolvedValueOnce({ ok: false, status: 409, data: null, error: { message: "The applicant saved first." } });
+    await button(w, "Save")!.trigger("click");
+    await settle(w);
+
+    expect((w.find("input#apply-first_name").element as HTMLInputElement).value).toBe("Suzan");
+    expect(button(w, "Save")).toBeDefined();
+    expect(w.find("[data-testid='answer-on-file']").text()).toContain("Susan");
+
+    await button(w, "Undo")!.trigger("click");
+    await settle(w);
+    expect((w.find("input#apply-first_name").element as HTMLInputElement).value).toBe("Susan");
+  });
+
+  it("⚠ does not offer the date of birth for correction here — it is the record's, and would be replaced", async () => {
+    const w = drawer();
+    await settle(w);
+    expect(w.find("input#apply-date_of_birth").exists()).toBe(false);
+    expect(w.text()).toContain("Date of birth and licence");
+  });
+
   it("offers nothing to save until something is actually different", async () => {
     // Sixty live Save buttons is sixty chances to record `"Joliet" → "Joliet"`, which the driver then
     // has to read past on the screen asking them what moved.
@@ -520,7 +590,9 @@ describe("when the application cannot be read (D-US5)", () => {
     await w.findAll("button").find((b) => b.text().trim() === "Retry")!.trigger("click");
     await settle(w);
 
-    expect(apiFetch).toHaveBeenCalledTimes(2);
+    // The review read twice — counted by its own path, since a reader who may see Recruiting also
+    // loads the PSP suggestions beside the jobs (HW6b), which is a different question.
+    expect(apiFetch.mock.calls.filter(([path]) => !String(path).includes("psp")).length).toBe(2);
     expect(w.text()).not.toContain("Could not load the application.");
     expect(w.text()).toContain("Correct an answer");
   });

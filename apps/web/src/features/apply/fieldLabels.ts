@@ -295,6 +295,9 @@ export function messageFor(issue: FieldIssueLike, value: unknown): string {
   const words = APPLY_COPY.fields;
   if (Array.isArray(value) && issue.code === "too_small") return words.addOne;
   if (isEmpty(value)) return words.needed;
+  // F0: `draft.ts`'s `count` hands the contract NaN for a box that is blank or not a number, because the
+  // contract's `z.coerce.number()` would otherwise read "" as 0 and file it.
+  if (typeof value === "number" && Number.isNaN(value)) return words.notNumber;
 
   switch (issue.code) {
     case "invalid_format":
