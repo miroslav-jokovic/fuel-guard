@@ -4,8 +4,9 @@ import { surfaceForPath } from "@silvicom/shared";
  * What the assistant offers to answer, chosen by the page the reader is on (F21 redesign).
  *
  * ⚠ Every question here must be one the assistant's tools CAN answer today, and those tools are
- * still fuel-shaped (`modules/insights/askData.ts`: spend, MPG, rankings, theft cases, idling,
- * driver scores, declines, telematics coverage, imports, roster counts). Offering a dispatcher
+ * still fuel-shaped (`modules/insights/askTools.ts`: spend, MPG, rankings, the Fuel Costs report for
+ * named trucks and calendar periods, theft cases, idling, driver scores, declines, telematics
+ * coverage, imports, roster counts). Offering a dispatcher
  * "which loads are late?" before a loads tool exists would be a button that produces an apology.
  * When Step 4 of the plan adds a section's tools, that section's questions are added here with them.
  *
@@ -24,10 +25,13 @@ const GENERAL = [
 const BY_SURFACE: Record<string, string[]> = {
   "fuel.log": [
     "Top 5 fuel stations by spend in the last 30 days",
+    "Fuel spend and MPG by month this year so far",
     "Is fuel spend going up week by week this quarter?",
     "What's our average price per gallon this month?",
   ],
   "fuel.spend": [
+    "Fuel cost per mile last quarter, compared with the quarter before",
+    "Fuel spend and MPG for each month of last quarter",
     "Is fuel spend going up week by week this quarter?",
     "Which trucks spent the most on fuel last month?",
     "How much did we spend on reefer fuel this month?",
