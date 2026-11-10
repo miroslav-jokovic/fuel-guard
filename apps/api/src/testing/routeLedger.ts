@@ -125,6 +125,14 @@ export const OPEN_ROUTES = new Map<string, string>([
     "GET /api/fueling/map-tiles/:z/:x/:y",
     "a raster-tile proxy that exists to keep the HERE key server-side; the bytes are public map tiles, and requireAuth is there to stop it becoming an open relay against our quota, not to protect data",
   ],
+  [
+    "GET /api/fueling/map-tiles/vector/:z/:x/:y",
+    "the vector road map's tile proxy (D-DR31), the raster one's sibling: it keeps the HERE key server-side, the bytes are public map data, and requireAuth stops it becoming an open relay against our quota",
+  ],
+  [
+    "GET /api/fueling/map-tiles/glyphs/:fontstack/:range",
+    "relays HERE's two style fonts for map labels (D-DR31); keyless, unbilled, public font data, allowlisted to those two fonts and the range shape maplibre asks for",
+  ],
 
   // ── The bootstrap identity. ────────────────────────────────────────────────────────────────────
   [
