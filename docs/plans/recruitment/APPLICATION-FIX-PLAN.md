@@ -380,3 +380,9 @@ A gate fails on a literal string in an `apply/` template.
   - **New question Q-AM15:** the driver's own deletions are not replayed.
   - **Next:** step 2b, v2 licence add/remove through Part 1's whole-set correction. Then step 3 (E3).
 
+- 2026-11-10: F3c part 2, step 2b — **a v2 link's other licences are added and removed through Part 1** (`claude/application-f3c-v2-licences`).
+  - **Why Part 1:** on a v2 link the licences are Part 1's whole list, and filing drops the draft's copy. So "Add licence" and "Remove licence N" send the whole Part 1 set with that one licence changed (`partOneLicencesWith`). It goes through the existing Part 1 correction route, with no new route and no migration. The draft route still refuses a v2 licence row (#2213).
+  - **Which window applies:** each list opens with its own door's window (`listDoor`, `editableLists`). A v2 licence follows Part 1's, which is open while the office screens. Every other list follows the draft's.
+  - **The add form:** it does not ask the licence's "kind", which Part 1 never holds. The Part 1 contract checks the new licence before anything is sent, so a missing expiry or a duplicate licence is refused in the contract's words.
+  - **One removal, one line:** `partOneEdits` now logs ONE licence taken out of the middle as one removal row `[additional_licences, k]`. Before, it logged a shift of every licence after it. The driver reads one act as one line, and `currentEditPaths` replays it like the draft's `remove_row`.
+  - **Next:** step 3 (E3), a changed email or phone moves the invitation's contact.

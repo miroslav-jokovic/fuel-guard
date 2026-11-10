@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import type { ApplicationRowList } from "@silvicom/shared";
+import type { ApplicationRowList, PartOneFactsView } from "@silvicom/shared";
 import { useToastStore } from "@/stores/toast";
 import FactEditor from "./FactEditor.vue";
 import { fieldId } from "./fieldLabels";
-import { blankRow, isStringList, rowColumns, rowNoun } from "./factRowLists";
-import { useEditApplicationAnswer } from "./useApplicationReview";
+import { blankRow, isStringList, rowChange, rowColumns, rowNoun } from "./factRowLists";
+import { useCorrectPartOne, useEditApplicationAnswer } from "./useApplicationReview";
 
 /**
  * A new row of one of the card's lists, typed whole and saved as ONE `add_row` (F3c part 2, E2) — see
@@ -20,12 +20,17 @@ const props = defineProps<{
   /** The position the row will take — the end of the list. */
   index: number;
   revision: number;
+  /** A v2 link's Part 1 — its licences are added through Part 1's correction (`rowChange`). */
+  partOne?: PartOneFactsView | null;
+  addresses?: unknown;
 }>();
 const emit = defineEmits<{ close: [] }>();
 
 const toast = useToastStore();
 const edit = useEditApplicationAnswer(toRef(props, "invitationId"));
-const columns = computed(() => rowColumns(props.list, props.index));
+const partOneEdit = useCorrectPartOne(toRef(props, "invitationId"));
+const pending = computed(() => edit.isPending.value || partOneEdit.isPending.value);
+const columns = computed(() => rowColumns(props.list, props.index, Boolean(props.partOne)));
 const noun = computed(() => rowNoun(props.list));
 
 type Cell = string | boolean | null | readonly string[];
@@ -49,8 +54,14 @@ const row = computed<unknown>(() =>
 
 async function save(): Promise<void> {
   problem.value = null;
+  const change = rowChange(props.list, { add: row.value }, { revision: props.revision, partOne: props.partOne, addresses: props.addresses });
+  if ("problem" in change) {
+    problem.value = change.problem;
+    return;
+  }
   try {
-    await edit.mutateAsync({ op: "add_row", list: props.list, row: row.value, revision: props.revision });
+    if (change.door === "draft") await edit.mutateAsync(change.edit);
+    else await partOneEdit.mutateAsync(change.body);
     toast.push("success", `${noun.value} added`, "The applicant is shown it before they sign.");
     emit("close");
   } catch (e) {
@@ -77,7 +88,7 @@ async function save(): Promise<void> {
     <p v-if="problem" class="text-sm text-danger-700" role="alert" data-fact-adder-problem>{{ problem }}</p>
     <div class="flex justify-end gap-2">
       <BaseButton size="sm" variant="ghost" @click="emit('close')">Cancel</BaseButton>
-      <BaseButton size="sm" variant="primary" :disabled="edit.isPending.value" @click="save">Add</BaseButton>
+      <BaseButton size="sm" variant="primary" :disabled="pending" @click="save">Add</BaseButton>
     </div>
   </div>
 </template>

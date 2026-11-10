@@ -309,6 +309,25 @@ describe("every office correction is shown to the driver, and none lands once th
     expectOrgScoped(rec, ORG);
   });
 
+  /** F3c part 2 (E2): one licence taken out of the middle is ONE line on 3.1, not a shift of the rest. */
+  it("logs a licence removed from the middle of Part 1's list as one removal row", async () => {
+    const three = [
+      { invitation_id: INV, position: 0, state_code: "IL", agency: null, licence_number: "D123-4567", expires_on: "2029-01-01" },
+      { invitation_id: INV, position: 1, state_code: "OH", agency: null, licence_number: "OH-1", expires_on: "2020-01-31" },
+      { invitation_id: INV, position: 2, state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30" },
+    ];
+    const rec = seed({ stored: STORED, licences: three, draft: DRAFT });
+    holder.client = rec.client;
+    expect((await correct()).status).toBe(200);
+    const licenceRows = rec.writtenRows("application_edits")
+      .map((r) => r as Record<string, unknown>)
+      .filter((row) => (row.path as unknown[])[0] === "additional_licences")
+      .map((row) => ({ path: row.path, before: row.before, after: row.after }));
+    expect(licenceRows).toEqual([
+      { path: ["additional_licences", 0], before: { issuing_authority: "OH", number: "OH-1", expires_at: "2020-01-31" }, after: null },
+    ]);
+  });
+
   it("refuses a Part 1 correction once the driver has marked the packet, writing nothing", async () => {
     const rec = seed({ stored: STORED, marks: 1 });
     holder.client = rec.client;

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { identityEdits, partOneCorrectionWith, partOneEdits, type FactEditRow } from "./applicantFactEdits.js";
+import { identityEdits, partOneCorrectionWith, partOneEdits, partOneLicencesWith, type FactEditRow } from "./applicantFactEdits.js";
+import { partOneCorrectionSchema } from "./applicantScreeningContract.js";
+import { currentEditPaths } from "./applicationEditReplay.js";
 import { composeFiledApplication, type PartOneFacts, type PartOneLicence } from "./applicationComposition.js";
 import type { PartOneCorrection } from "./applicantScreeningContract.js";
 
@@ -174,5 +176,47 @@ describe("partOneCorrectionWith", () => {
     [["prior_failed_pre_employment_test"]], // a statement, not this door (Q-AM13)
   ])("answers null for a path Part 1 does not hold: %j", (path) => {
     expect(partOneCorrectionWith(view, path, "x", CURRENT)).toBeNull();
+  });
+});
+
+/**
+ * F3c part 2 (E2): on a v2 link an other licence is added or removed through Part 1's whole-set
+ * correction — and logged as ONE row the driver reads on 3.1, which the replay treats like the draft's.
+ */
+describe("adding and removing an other licence on a v2 link", () => {
+  const THREE: PartOneLicence[] = [
+    ...LICENCES,
+    { position: 2, state_code: "WI", agency: null, licence_number: "W-1", expires_on: "2029-01-01" },
+  ];
+  // The phone as Part 1 stores it (E.164) — the contract normalises a typed one, which would be a change.
+  const STORED = { ...INTAKE, phone: "+13125550100" };
+  const view = { intake: STORED, licences: THREE };
+
+  it("adds one at the end, and the Part 1 contract takes the body", () => {
+    const body = partOneLicencesWith(view, { add: { issuing_authority: "OH", number: "OH-5", expires_at: "2030-02-01" } }, CURRENT);
+    const parsed = partOneCorrectionSchema.parse(body);
+    expect(parsed.licences.map((l) => l.licence_number)).toEqual(["D1234567", "IN-998", "W-1", "OH-5"]);
+    expect(partOneEdits({ intake: STORED, licences: THREE }, parsed, CURRENT)).toEqual([
+      { path: ["additional_licences", 2], before: null, after: { issuing_authority: "OH", number: "OH-5", expires_at: "2030-02-01" } },
+    ]);
+  });
+
+  it("⚠ logs a removal from the middle as ONE removal row, not a shift of every licence after it", () => {
+    const body = partOneCorrectionSchema.parse(partOneLicencesWith(view, { remove: 0 }, CURRENT));
+    expect(body.licences.map((l) => l.licence_number)).toEqual(["D1234567", "W-1"]);
+    const rows = partOneEdits({ intake: STORED, licences: THREE }, body, CURRENT);
+    expect(rows).toEqual([{ path: ["additional_licences", 0], before: { issuing_authority: "IN", number: "IN-998", expires_at: "2027-01-01" }, after: null }]);
+    expect(currentEditPaths(rows)[0]).toMatchObject({ gone: true, removal: true });
+  });
+
+  it("never removes the current CDL, and refuses a licence that is not there", () => {
+    expect(partOneLicencesWith(view, { remove: 5 }, CURRENT)).toBeNull();
+    const body = partOneLicencesWith(view, { remove: 1 }, CURRENT) as { licences: Array<{ licence_number: string }> };
+    expect(body.licences[0]!.licence_number).toBe("D1234567");
+  });
+
+  it("refuses, in the contract's words, a new licence without its expiry", () => {
+    const body = partOneLicencesWith(view, { add: { issuing_authority: "OH", number: "OH-5", expires_at: "" } }, CURRENT);
+    expect(partOneCorrectionSchema.safeParse(body).success).toBe(false);
   });
 });

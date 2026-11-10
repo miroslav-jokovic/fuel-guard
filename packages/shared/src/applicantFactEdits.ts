@@ -110,12 +110,53 @@ export function partOneEdits(
   for (const [from, column] of CURRENT_CDL) {
     scalar([column], wasCurrent?.[from], nowCurrent?.[from]);
   }
-  for (let k = 0; k < Math.max(wasOthers.length, nowOthers.length); k++) {
-    const was = asFiledLicence(wasOthers[k]);
-    const now = asFiledLicence(nowOthers[k]);
-    if (!same(was, now)) out.push({ path: ["additional_licences", k], before: was, after: now });
+  // F3c part 2 (E2): ONE licence taken out is one removal row, not a shift of every licence after it
+  // ("Licence 2 was X, now Y; Licence 3 was Y, now nothing") — the driver reads one act as one line,
+  // and `currentEditPaths` replays it like the draft's own `remove_row`.
+  const was = wasOthers.map(asFiledLicence);
+  const now = nowOthers.map(asFiledLicence);
+  const removed = now.length === was.length - 1
+    ? was.findIndex((_, k) => same([...was.slice(0, k), ...was.slice(k + 1)], now))
+    : -1;
+  if (removed >= 0) {
+    out.push({ path: ["additional_licences", removed], before: was[removed], after: null });
+    return out;
+  }
+  for (let k = 0; k < Math.max(was.length, now.length); k++) {
+    if (!same(was[k] ?? null, now[k] ?? null)) out.push({ path: ["additional_licences", k], before: was[k] ?? null, after: now[k] ?? null });
   }
   return out;
+}
+
+/** An other licence as the card types it: the application's `additional_licences` row. */
+export interface OtherLicenceRow {
+  issuing_authority: string;
+  number: string;
+  expires_at: string;
+}
+
+/**
+ * The Part 1 correction body with one other licence added at the end, or the one at `remove` taken out
+ * (F3c part 2, E2) — on a v2 link the licences are Part 1's whole list, so a licence row is added or
+ * removed through `partOneCorrectionSchema`, never the draft (whose copy filing drops). Position 0 is
+ * the current CDL and is never removed here; the other licences are `additional_licences[k]` = position
+ * k + 1. Not parsed: the caller runs the schema, so a blank or a duplicate is refused in its own words.
+ */
+export function partOneLicencesWith(
+  view: Pick<PartOneFactsView, "intake" | "licences">,
+  change: { add: OtherLicenceRow } | { remove: number },
+  currentAddress: number,
+): Record<string, unknown> | null {
+  const body = partOneCorrectionWith(view, ["phone"], view.intake.phone ?? null, currentAddress);
+  if (!body) return null;
+  const licences = [...(body.licences as Array<Record<string, unknown>>)];
+  if ("add" in change) {
+    licences.push({ state_code: change.add.issuing_authority, agency: null, licence_number: change.add.number, expires_on: change.add.expires_at || null });
+  } else {
+    if (!licences[change.remove + 1]) return null;
+    licences.splice(change.remove + 1, 1);
+  }
+  return { ...body, licences };
 }
 
 /** The rows for one identity correction: the date of birth and the current licence, each by its own key. */
