@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import { exclusiveEnd } from "@/lib/dateWindow";
 
 /**
  * Revenue and activity by period (W2) — what the fleet hauled and what it was priced at.
@@ -41,7 +42,7 @@ export function useBillingActivityQuery(
   return useQuery({
     queryKey: key,
     queryFn: async (): Promise<BillingActivityResponse> => {
-      const q = new URLSearchParams({ from: filter.value.from, to: filter.value.to, grain: grain.value });
+      const q = new URLSearchParams({ from: filter.value.from, to: exclusiveEnd(filter.value.to), grain: grain.value });
       const r = await apiFetch<BillingActivityResponse>(`/api/accounting/billing-activity?${q}`);
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load activity");
       return r.data;
