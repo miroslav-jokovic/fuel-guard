@@ -23,7 +23,7 @@ const COLUMN: Partial<Record<keyof EmployerFields, string>> = {
 };
 const FIELD: Record<string, string> = Object.fromEntries(Object.entries(COLUMN).map(([f, c]) => [c, f]));
 
-/** A record row in the form's shape. `operated_cmv` not stated (a pre-0214 row) shows the default. */
+/** A record row in the form's shape. `operated_cmv` not stated (a pre-0214 row) shows unanswered (F1 part 2). */
 export function historyToFields(r: EmploymentHistory): EmployerFields {
   return {
     ...blankEmployer(),
@@ -38,7 +38,7 @@ export function historyToFields(r: EmploymentHistory): EmployerFields {
     position_held: r.position_held ?? "",
     started_on: r.started_on,
     ended_on: r.ended_on ?? "",
-    operated_cmv: r.operated_cmv ?? true,
+    operated_cmv: r.operated_cmv ?? null,
     dot_regulated: r.dot_regulated,
     reason_for_leaving: r.reason_for_leaving ?? "",
     subject_to_fmcsr: r.subject_to_fmcsr,
@@ -88,7 +88,7 @@ export function historyWrite(
   const changed: Record<string, unknown> = Object.fromEntries(
     Object.entries(columns).filter(([c, v]) => JSON.stringify(before[c] ?? null) !== JSON.stringify(v ?? null)),
   );
-  // The form shows an unstated `operated_cmv` as Yes; left at Yes, nobody answered it.
-  if (existing.operated_cmv === null && changed.operated_cmv === true) delete changed.operated_cmv;
+  // F1 part 2: the form shows an unstated `operated_cmv` as unanswered, not as Yes, so a Yes here is one
+  // the office tapped and is sent. (It used to be dropped, because a Yes on such a row was the form's.)
   return { body: changed, errors: {} };
 }

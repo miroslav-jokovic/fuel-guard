@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   applicationAwaitsSignature,
+  applicationLegacyFilingIssues,
   applicationV2FilingIssues,
   applicationWordingIsDraft,
   composeFiledApplication,
@@ -303,7 +304,8 @@ export async function submitApplication(
    * D-AW3 / AW2 (C2c): a v2 invitation files the certified application with Part 1's facts laid over
    * it (`composeFiledApplication`), and must meet AW1's rules on that COMPOSED document — the one that
    * is filed, so the rules and the file cannot judge two different texts. A legacy invitation (no Part
-   * 1 row) is asked nothing new and files what it certified, as before.
+   * 1 row) is asked nothing new and files what it certified, as before — except §40.25(j), which it
+   * must now answer rather than file an unticked box as No (`applicationLegacyFilingIssues`, F1 part 2).
    */
   const { stamped, unanswered } = withInvitationStamps(body.application, invitation);
   if (unanswered.length > 0) return applicationIncomplete(unanswered);
@@ -316,6 +318,10 @@ export async function submitApplication(
     const issues = [...composed.issues, ...applicationV2FilingIssues(composed.application, asOf)];
     if (issues.length > 0) return applicationIncomplete(issues);
     certified = composed.application;
+  } else {
+    // F1 part 2: a legacy link asks §40.25(j) on its own safety screen, and a new filing must answer it.
+    const issues = applicationLegacyFilingIssues(stamped);
+    if (issues.length > 0) return applicationIncomplete(issues);
   }
 
   const application = {

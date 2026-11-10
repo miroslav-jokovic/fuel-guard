@@ -181,8 +181,9 @@ function employerBlock(doc: PDFKit.PDFDocument, e: ApplicationEmployer): void {
   field(doc, "USDOT", blank(e.usdot_number));
   field(doc, "Position", blank(e.position_held));
   field(doc, "From / to", `${date(e.started_on)} — ${e.ended_on ? date(e.ended_on) : "present"}`);
-  field(doc, "Drove a CMV", yesNo(e.operated_cmv));
-  field(doc, "DOT-regulated", yesNo(e.dot_regulated));
+  // F1 part 2: a draft's preview may hold a job not answered yet — "Not answered", as for the (iv) pair below.
+  field(doc, "Drove a CMV", e.operated_cmv == null ? "Not answered" : yesNo(e.operated_cmv));
+  field(doc, "DOT-regulated", e.dot_regulated == null ? "Not answered" : yesNo(e.dot_regulated));
   field(doc, "Reason for leaving", blank(e.reason_for_leaving));
   /**
    * (b)(10)(iv)(A) and (B) — asked of every (b)(10) employer and filed in the payload since the contract

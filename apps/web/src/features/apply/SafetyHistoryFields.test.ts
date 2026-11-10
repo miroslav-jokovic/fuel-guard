@@ -88,6 +88,22 @@ describe("the gates", () => {
     expect(w.findAll("button").some((b) => b.text() === copy.addAccident || b.text() === copy.addViolation)).toBe(false);
   });
 
+  /**
+   * F1 part 2 (audit finding 13): §40.25(j) was an unticked checkbox, so a driver who skipped it had
+   * said No to the question the carrier must ask. It is a Yes/No now, nothing chosen, and a No is
+   * recorded only when tapped.
+   */
+  it("asks §40.25(j) as a Yes/No with nothing chosen, and records No only when it is tapped", async () => {
+    const { w, draft } = mountScreen();
+    expect(draft.value.prior_failed_pre_employment_test).toBeNull();
+    expect(chosen(w, copy.priorTest)).toEqual([false, false]);
+    expect(w.findAll('input[type="checkbox"]').some((c) => c.element.closest("label")?.textContent?.includes(copy.priorTest))).toBe(false);
+    await choose(w, copy.priorTest, "no");
+    expect(draft.value.prior_failed_pre_employment_test).toBe(false);
+    await choose(w, copy.priorTest, "yes");
+    expect(draft.value.prior_failed_pre_employment_test).toBe(true);
+  });
+
   it("opens the first accident on Yes", async () => {
     const { w, draft } = mountScreen();
     await choose(w, copy.accidentsQuestion, "yes");

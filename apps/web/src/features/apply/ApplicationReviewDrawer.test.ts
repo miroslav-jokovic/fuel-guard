@@ -270,6 +270,9 @@ async function fillJob(w: ReturnType<typeof drawer>, over: { street?: boolean; t
   w.findAllComponents({ name: "AppCombobox" }).find((c) => c.props("id") === "office-employer-state")!.vm.$emit("update:modelValue", "NE");
   await field(w, "reason_for_leaving").setValue("Moved");
   await settle(w);
+  // F1 part 2: neither starts at Yes, so the office answers both before the (iv) pair.
+  await field(w, "operated_cmv").findAll("input[type=radio]")[0]!.setValue(true);
+  await field(w, "dot_regulated").findAll("input[type=radio]")[0]!.setValue(true);
   await field(w, "subject_to_fmcsr").findAll("input[type=radio]")[0]!.setValue(true);
   if (over.tested !== false) await field(w, "safety_sensitive").findAll("input[type=radio]")[1]!.setValue(true);
   await settle(w);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicationV2FilingIssues } from "./applicationFilingRules.js";
+import { applicationLegacyFilingIssues, applicationV2FilingIssues, PRIOR_TEST_UNANSWERED } from "./applicationFilingRules.js";
 import { applicationEmployerSchema, driverApplicationObject } from "./applicationContract.js";
 import type { ApplicationEmployer } from "./applicationEmployerContract.js";
 
@@ -125,5 +125,16 @@ describe("the base contract keeps parsing filings made before AW1", () => {
 
   it("refuses a key that is not a uuid", () => {
     expect(applicationEmployerSchema.safeParse(employer({ key: "employer-1" })).success).toBe(false);
+  });
+});
+
+describe("a legacy link's filing (F1 part 2)", () => {
+  it("asks for §40.25(j) when it was never answered, and takes a No as an answer", () => {
+    expect(applicationLegacyFilingIssues({ prior_failed_pre_employment_test: null })).toEqual([
+      { path: "prior_failed_pre_employment_test", message: PRIOR_TEST_UNANSWERED },
+    ]);
+    expect(applicationLegacyFilingIssues({})).toHaveLength(1);
+    expect(applicationLegacyFilingIssues({ prior_failed_pre_employment_test: false })).toEqual([]);
+    expect(applicationLegacyFilingIssues({ prior_failed_pre_employment_test: true })).toEqual([]);
   });
 });
