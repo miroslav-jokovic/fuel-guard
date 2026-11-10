@@ -69,6 +69,15 @@ describe("drawSimulatedStill — a picture the real checks can judge", () => {
     expect(drawn).toMatchObject({ format: "png", width: photo.width, height: photo.height });
   });
 
+  it("asked for a shape it answers in that shape, from the kit photo and from the road alike; asked for one it does not know it changes nothing (AG4)", async () => {
+    for (const inputs of [[PHOTO], []]) {
+      expect(await sharp(await drawSimulatedStill(inputs, { prompt: "x", aspect_ratio: "4:5" })).metadata()).toMatchObject({ format: "png", width: 1600, height: 2000 });
+      expect(await sharp(await drawSimulatedStill(inputs, { prompt: "x", aspect_ratio: "1:1" })).metadata()).toMatchObject({ format: "png", width: 1600, height: 1600 });
+    }
+    const photo = await sharp(PHOTO).metadata();
+    expect(await sharp(await drawSimulatedStill([PHOTO], { aspect_ratio: "21:9" })).metadata()).toMatchObject({ width: photo.width, height: photo.height });
+  });
+
   it("draws an empty road with no input, and it frames in every ad format", async () => {
     const road = await drawSimulatedStill([]);
     expect(await sharp(road).metadata()).toMatchObject({ format: "png", width: 1600, height: 2000 });

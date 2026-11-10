@@ -159,7 +159,7 @@ export interface ArtDirection {
   /** The kit photo the generation starts from (C3 uploads it to Higgsfield), or null. */
   reference: AdAssetRef | null;
   slots: Record<string, string>;
-  /** What the prompt's composition clauses were written from (AG4 anchors the square cut on it). */
+  /** What the prompt's composition clauses were written from; `frame` is also the shape the render asks for (AG4). */
   composition: ArtComposition;
 }
 

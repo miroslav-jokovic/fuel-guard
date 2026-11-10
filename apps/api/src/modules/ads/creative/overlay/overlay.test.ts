@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { AD_FORMATS, AD_OVERLAY_LAYOUTS, FORMAT_SIZE, safeZone, type AdBrandKit, type AdFormat, type AdClaim, type AdOverlayLayout } from "@silvicom/shared";
-import { renderOverlay, type OverlayInput } from "./overlay.js";
+import { frameStill, renderOverlay, type OverlayInput } from "./overlay.js";
 
 /**
  * The overlay renderer (C4): golden images per format, and every refusal. The goldens are committed PNGs in
@@ -39,6 +39,64 @@ async function differs(a: Buffer, b: Buffer): Promise<number> {
   }
   return bad / (x!.data.length / 3);
 }
+
+describe("frameStill — a cut keeps the edge the words sit against (AG4; Q-AD75)", () => {
+  /**
+   * A 4:5 picture as the art director composes one for `bottom_plate`: a red subject in the upper two thirds, the
+   * lower third plain grey. Rows 0–299 sky, 300–849 red, 850–1349 grey (at 1080 wide).
+   */
+  async function composed(): Promise<Buffer> {
+    const band = (height: number, background: string) => sharp({ create: { width: 1080, height, channels: 3, background } }).png().toBuffer();
+    return sharp({ create: { width: 1080, height: 1350, channels: 3, background: "#9FB8D0" } })
+      .composite([{ input: await band(550, "#C00000"), top: 300, left: 0 }, { input: await band(500, "#606060"), top: 850, left: 0 }]).png().toBuffer();
+  }
+  /** The rows of a framed still, top to bottom, as "red" | "grey" | "sky", read down its middle column. */
+  async function rows(png: Buffer): Promise<string[]> {
+    const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    return Array.from({ length: info.height }, (_, y) => {
+      const at = (y * info.width + Math.floor(info.width / 2)) * 3;
+      return data[at]! > 150 && data[at + 1]! < 80 ? "red" : data[at]! < 120 ? "grey" : "sky";
+    });
+  }
+  const count = (r: string[], what: string) => r.filter((x) => x === what).length;
+
+  it("bottom_plate: the square keeps the picture's bottom, so its words lie over the same plain part as the tall frame's, and the subject is whole", async () => {
+    const square = await rows(await frameStill(await composed(), "1:1", "bottom_plate"));
+    // The 4:5's bottom 500 plain rows are the square's bottom 500; all 550 rows of the subject survive.
+    expect(square.slice(-500).every((x) => x === "grey")).toBe(true);
+    expect(count(square, "red")).toBe(550);
+    expect(count(square, "sky")).toBe(30);
+  });
+
+  it("top_band: the square keeps the picture's top, where those words are", async () => {
+    const square = await rows(await frameStill(await composed(), "1:1", "top_band"));
+    expect(square.slice(0, 300).every((x) => x === "sky")).toBe(true);
+    expect(count(square, "grey")).toBe(230);
+  });
+
+  it("centered: the cut is the centre, as it always was, and so is a cut with no layout named", async () => {
+    const square = await rows(await frameStill(await composed(), "1:1", "centered"));
+    expect([count(square, "sky"), count(square, "red"), count(square, "grey")]).toEqual([165, 550, 365]);
+  });
+
+  it("a picture already in the frame's shape is not cut at all, whatever the layout", async () => {
+    const tall = await composed();
+    for (const layout of ["bottom_plate", "top_band", "centered"] as const) {
+      const r = await rows(await frameStill(tall, "4:5", layout));
+      expect([count(r, "sky"), count(r, "red"), count(r, "grey")]).toEqual([300, 550, 500]);
+    }
+  });
+
+  it("a picture wider than the frame loses its two sides equally: only the cropped axis follows the layout", async () => {
+    const left = await sharp({ create: { width: 400, height: 1080, channels: 3, background: "#C00000" } }).png().toBuffer();
+    const wide = await sharp({ create: { width: 1880, height: 1080, channels: 3, background: "#606060" } }).composite([{ input: left, top: 0, left: 0 }]).png().toBuffer();
+    for (const layout of ["bottom_plate", "top_band"] as const) {
+      const { data, info } = await sharp(await frameStill(wide, "1:1", layout)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      // 400 px cut from each side: the red block's 400 px are gone from the left edge exactly.
+      expect(data[0]! < 120 && info.width === 1080).toBe(true);
+    }
+  });
+});
 
 describe("overlay renderer — golden images per format", () => {
   // One literal title per format, so `lint:ads-readiness` can pin each golden (it reads titles as written).
@@ -141,7 +199,8 @@ describe("overlay renderer — it refuses rather than overflows or invents", () 
 
   it("white text with no plate over the bright sky fails on contrast, measured under the text, not the image's average", async () => {
     const top: Partial<AdBrandKit["overlays"]["1:1"] & object> = { zone: { ...safeZone("1:1"), height: 380 }, text_color: "#FFFFFF", plate_color: null };
-    const out = await renderOverlay(await input("1:1", { kit: { overlays: { "1:1": top as NonNullable<AdBrandKit["overlays"]["1:1"]> } }, logo: null }));
+    // `top_band`: the words are at the top, so the square is cut keeping the picture's top (AG4) — its sky.
+    const out = await renderOverlay(await input("1:1", { kit: { overlays: { "1:1": top as NonNullable<AdBrandKit["overlays"]["1:1"]> } }, logo: null, layout: "top_band" }));
     expect(out.kind === "refused" && out.findings.map((f) => f.kind)).toContain("low_contrast");
     // The same text and colours over the dark lower field pass: the zone decides, not the image.
     const low = await renderOverlay(await input("1:1", { kit: { overlays: { "1:1": { zone: null, text_color: "#FFFFFF", plate_color: null } } }, logo: null }));

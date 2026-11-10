@@ -104,9 +104,10 @@ export interface FakeHiggsfieldOptions {
   now?: () => Date;
   /**
    * The staging simulator's mode (`simulatedRender.ts`): every accepted request finishes at once and its file is
-   * these bytes, drawn from the request's uploaded input images. Tests leave it out and finish requests by hand.
+   * these bytes, drawn from the request's uploaded input images and its own parameters (the shape it asked for,
+   * AG4). Tests leave it out and finish requests by hand.
    */
-  draw?: (inputs: Buffer[]) => Promise<Buffer>;
+  draw?: (inputs: Buffer[], params: Record<string, unknown>) => Promise<Buffer>;
 }
 
 const RETENTION_SECONDS = 604_800;
@@ -207,7 +208,10 @@ export class FakeHiggsfield {
       if (this.fileExpired(fileMatch[1]!)) return send(res, 404, { detail: "Not Found" }, corr);
       res.statusCode = 200;
       res.setHeader("content-type", fileMatch[2] === "mp4" ? "video/mp4" : "image/png");
-      if (this.opts.draw) return void res.end(await this.opts.draw(this.inputsOf(this.mustGet(fileMatch[1]!).params)));
+      if (this.opts.draw) {
+        const params = this.mustGet(fileMatch[1]!).params;
+        return void res.end(await this.opts.draw(this.inputsOf(params), paramsOf(params)));
+      }
       return void res.end(fileMatch[2] === "png" ? pngFor(fileMatch[1]!) : Buffer.from(`fake-${fileMatch[1]}`));
     }
     const presigned = /^\/presigned\/([^/]+)$/.exec(url.pathname);
@@ -403,4 +407,14 @@ function pngFor(requestId: string): Buffer {
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk("IHDR", ihdr), chunk("IDAT", deflateSync(Buffer.concat([row, row]))), chunk("IEND", Buffer.alloc(0)),
   ]);
+}
+
+/** A stored request's parameters: `params` is the model path, a newline, then the body as it was sent. */
+function paramsOf(stored: string): Record<string, unknown> {
+  try {
+    const body: unknown = JSON.parse(stored.slice(stored.indexOf("\n") + 1));
+    return body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
 }
