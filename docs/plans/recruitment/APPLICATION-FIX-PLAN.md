@@ -363,3 +363,8 @@ A gate fails on a literal string in an `apply/` template.
     - the education and references tables;
     - the carrier's own answers;
     - the Permissions and Road-test drawers pointing at the card.
+- 2026-11-10: F3c part 2, step 1 — **the jobs and gaps are on the card** (`claude/application-f3c-jobs`).
+  - **Decision:** the jobs timeline and its one employer form (`OfficeJobsSection`) are now the card's Employment group, drawn under the group's own rows. They were a second section of the drawer under the card. Jobs are not made into rows: a job is added, removed and corrected by its key (Q-AX7), a gap is explained against the timeline's dates, and the PSP record is read against all the jobs. None of that is one answer with a before and after. So there is still ONE editor of a job, and every answer is on the one card.
+  - **The card's search finds the jobs** (`jobsMatch`): by the employer's name, by the employer form's labels, or by "job", "gap" or "employment". Before, the timeline could never match a search because it is not rows.
+  - **Once every door is shut** (a view-only reader, signing started, filed), the card is not drawn. The timeline then stays on the drawer read-only, beside the PSP record, as it did before.
+  - **Next:** step 2, adding and removing rows (E2).

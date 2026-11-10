@@ -168,6 +168,43 @@ describe("what the office reads", () => {
   });
 
   /**
+   * F3c part 2 (D-AM7): the jobs are the card's Employment group — every answer on the one card — and
+   * still have ONE editor. Before this they were a second section of the drawer under the card.
+   */
+  it("draws the jobs once, inside the Applicant facts card's Employment group", async () => {
+    const w = drawer();
+    await settle(w);
+    expect(w.findAll("[data-testid='employment-timeline']")).toHaveLength(1);
+    const card = w.find("[data-applicant-facts]");
+    expect(card.find("[data-testid='employment-timeline']").text()).toContain("Old Carrier");
+    expect(card.findAll("button").some((b) => b.text().trim() === "Add a job")).toBe(true);
+  });
+
+  it("keeps a job found by the card's search, and leaves it out of a search for something else", async () => {
+    const w = drawer();
+    await settle(w);
+    // The search field's own debounce is its business; the card's is what the query does.
+    const search = w.findComponent({ name: "AppSearchField" });
+    search.vm.$emit("update:modelValue", "old carrier");
+    await settle(w);
+    expect(w.find("[data-applicant-facts] [data-testid='employment-timeline']").exists()).toBe(true);
+    expect(w.find("[data-fact='date_of_birth']").exists()).toBe(false);
+    search.vm.$emit("update:modelValue", "date of birth");
+    await settle(w);
+    expect(w.find("[data-fact='date_of_birth']").exists()).toBe(true);
+    expect(w.find("[data-testid='employment-timeline']").exists()).toBe(false);
+  });
+
+  it("⚠ still shows a view-only reader the jobs, read-only, without the card", async () => {
+    sessionHolder.s!.role = "auditor";
+    const w = drawer();
+    await settle(w);
+    expect(w.find("[data-applicant-facts]").exists()).toBe(false);
+    expect(w.find("[data-testid='employment-timeline']").text()).toContain("Old Carrier");
+    expect(w.findAll("button").some((b) => b.text().trim() === "Add a job")).toBe(false);
+  });
+
+  /**
    * §15.3 D-CQ2: the carrier's own questions print from the invitation's STAMP, the words this applicant
    * was asked — a question the carrier retired since still prints, and the skip reads as the applicant chose it.
    */

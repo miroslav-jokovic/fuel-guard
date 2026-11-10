@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { APPLICANT_FACTS, carrierQuestionnaire, questionnaireForApplicant, type PartOneFactsView } from "@silvicom/shared";
 import { fromDraftPayload } from "./draft";
 import { buildReviewSummary } from "./reviewSummary";
-import { applicantFactRows, factSections, type FactRow } from "./applicantFactRows";
+import { applicantFactRows, factSections, jobsMatch, type FactRow } from "./applicantFactRows";
 import { correctionFor } from "./factCorrection";
 
 /**
@@ -62,7 +62,7 @@ describe("the card is the catalogue", () => {
     const list = rows();
     for (const fact of APPLICANT_FACTS) {
       if (!fact.path.startsWith("application.") || typeof fact.office !== "string") continue;
-      if (/^application\.(employers|employment_gaps)\[\]/.test(fact.path)) continue; // OfficeJobsSection's
+      if (/^application\.(employers|employment_gaps)\[\]/.test(fact.path)) continue; // the card's jobs timeline
       const id = fact.path.replace(/^application\./, "").replace(/^questionnaire_answers\./, "questionnaire.");
       const [name, column] = id.split("[].");
       const matching = list.filter((r) => {
@@ -245,5 +245,23 @@ describe("the driver's own statements and the blind answers (Q-AM13)", () => {
     const ctx = { revision: 7, partOne: PART_ONE, rows: list, addresses: [] };
     expect(correctionFor(row(list, "endorsements")!, ["H", "T"], ctx)).toEqual({ door: "part_one_answer", answer: { key: "endorsements", value: ["H", "T"] } });
     expect(correctionFor(row(list, "donor_gender")!, "male", ctx)).toEqual({ door: "part_one_answer", answer: { key: "donor_gender", value: "male" } });
+  });
+});
+
+/**
+ * F3c part 2: the jobs are the card's Employment group, drawn by the timeline, not as rows — so the
+ * row filter alone could never find them, and "employer" typed into the search hid the jobs it named.
+ */
+describe("finding the jobs with the card's search", () => {
+  const jobs = [{ employer_name: "Werner Enterprises" }];
+  it("shows them with no search, by the employer's name, or by the employer form's own labels", () => {
+    expect(jobsMatch("", jobs)).toBe(true);
+    expect(jobsMatch("  werner ", jobs)).toBe(true);
+    expect(jobsMatch("reason", jobs)).toBe(true); // the form's "reason for leaving"
+    expect(jobsMatch("gap", [])).toBe(true);
+  });
+  it("leaves them out of a search for another answer", () => {
+    expect(jobsMatch("date of birth", jobs)).toBe(false);
+    expect(jobsMatch("swift", jobs)).toBe(false);
   });
 });
