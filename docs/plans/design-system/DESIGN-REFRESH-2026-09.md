@@ -1233,3 +1233,16 @@ conflict every time (`plan-progress-log-not-table-rows`).
   other's complement. ⚠ Built on the measured walk, not on production 429 counts (no AWS
   credentials in the session). Reading a week of `[metrics]` 429s by route is still worth doing
   after it ships, to retune both numbers.
+- **2026-11-10 — D-DR32: the tile fade is back. D-DR28's "half the wait" was mostly the metric.**
+  The owner, the same afternoon: tiles "are loaded in a weird way and look really bad and not
+  natural". A video of a zoom on the staging map shows a patchwork. A raster tile has its labels
+  baked in, so with no fade each square snaps on its own from the previous zoom's large,
+  edge-clipped labels ("Hebrc", "Woodsto", "Ri" beside "Ringwood") to the new small ones. And the
+  gain D-DR28 reported for turning the fade off was largely an artefact: the rig timed "zoom
+  finished → map `idle`", and `idle` waits for running fades to end, so a 300 ms fade adds ~300 ms
+  to that number even when every tile has arrived. ⚠ Lesson: measure when the TILES arrive, and
+  look at the motion, not only a timer. The fade is maplibre's default 300 ms again, written out
+  with this reason beside it. The 32 parallel requests stay (1.35–1.65 s → 1.22–1.31 s on their
+  own, a gain the fade artefact cannot explain, because both arms of that comparison faded). The
+  patchwork itself is a property of raster tiles. Removing it is one more reason for the vector
+  basemap (D-DR31, proposed in the D-DR30 entry of PR #2189).
