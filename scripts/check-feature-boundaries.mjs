@@ -335,6 +335,11 @@ const API_ALLOW = new Set([
   //   notify() through messaging's index, recipients from org's `usersWhoManage("admin")` (the
   //   insights -> org edge above). Without it, a carrier's assistant stops at the cap with nobody told.
   "insights -> messaging",
+  // · insights -> financial — Ask AI's finance tools (F21 R6a): `finance_report` and
+  //   `income_statement` are the Fleet report's own `getFleetReport` / `getIncomeStatement`, called
+  //   through financial's index, so an answer equals the page by construction. A second aggregation
+  //   of the ledger in insights would be the copy D-AI2 forbids. financial imports nothing of insights'.
+  "insights -> financial",
   // · ads -> org — Settings › Ads control's spend card (E1c, Q-AD36, ruled 2026-11-05) says when the
   //   daily check against Meta last finished. That fact is a row in org's job ledger (`jobs`), so it
   //   is read through org's index (`lastDoneJobByKey` only), the same arrow "fuel-spend -> org" and

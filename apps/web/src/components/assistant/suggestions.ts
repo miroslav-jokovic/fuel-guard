@@ -7,7 +7,8 @@ import { surfaceForPath, type AssistantToolName } from "@silvicom/shared";
  * person's tools can answer (each names its tool; `suggestionsFor` filters). The tools are
  * still fuel-shaped (`modules/insights/askTools.ts`: spend, MPG, rankings, the Fuel Costs report for
  * named trucks and calendar periods, theft cases, idling, driver scores, declines, telematics
- * coverage, imports, roster counts). Offering a dispatcher
+ * coverage, imports, roster counts) plus, since R6a, the Fleet report and income statement for
+ * whoever can open that page. Offering a dispatcher
  * "which loads are late?" before a loads tool exists would be a button that produces an apology.
  * When Step 4 of the plan adds a section's tools, that section's questions are added here with them.
  *
@@ -65,6 +66,14 @@ const BY_SURFACE: Record<string, Suggestion[]> = {
   "fleet.odometer": [
     ask("Which drivers enter odometers least accurately?", "odometer_accuracy"),
     ask("What % of our fills are corroborated by telematics?", "telematics_coverage"),
+  ],
+  // F21 R6a: the finance tools (`accounting: view`: admin, accountant, auditor); a person without
+  // them never sees these (`suggestionsFor` filters by tool).
+  "finance.fleet-report": [
+    ask("What was our all-in cost per mile last month?", "finance_report"),
+    ask("Revenue, expenses and net last quarter, company trucks versus owner-operators", "finance_report"),
+    ask("Which trucks earned the most revenue last month?", "finance_report"),
+    ask("Income statement last month compared with the month before", "income_statement"),
   ],
   "fleet.vehicles": [ask("How many trucks, trailers and drivers are active right now?", "fleet_roster")],
   "fleet.drivers": [

@@ -10,7 +10,7 @@ import type { UserRole } from "./constants.js";
  * data belongs to, and a caller's tool list is the tools whose every requirement their access meets —
  * asked through `resolveSectionAccess`, the one function every request-time check in the product asks,
  * with the org's overrides on the caller's token. Admin gets everything because the matrix says so;
- * accounting data reaches admin and accountant only because the matrix says that too. No role list
+ * accounting data reaches admin, accountant and the read-only auditor because the matrix says that too. No role list
  * is written anywhere in this file, which is the point: a hand list beside the matrix is the
  * `session.canManage` workaround CLAUDE.md names.
  *
@@ -51,6 +51,12 @@ export const ASSISTANT_TOOL_ACCESS = {
   idling_summary: [view("safety")],
   // Drivers (roster) and Vehicles (equipment).
   fleet_roster: [view("roster"), view("equipment")],
+  // Fleet report and its income statement (`finance.fleet-report`, gate `section("accounting")`;
+  // every `/api/accounting/*` read asks `requireSection("accounting", "view")`). The matrix gives
+  // `accounting` to admin and accountant, and VIEW to the read-only auditor, who can open that page
+  // too. That is the owner's Q-AI5 ruling with no list written; the auditor is Q-AI11 (PLAN.md §5).
+  finance_report: [view("accounting")],
+  income_statement: [view("accounting")],
 } as const satisfies Record<string, readonly ToolRequirement[]>;
 
 export type AssistantToolName = keyof typeof ASSISTANT_TOOL_ACCESS;
