@@ -64,6 +64,9 @@ export const ASSISTANT_TOOL_ACCESS = {
   // The live map (`/api/livemap/positions`: `requireModule("dispatch")` then
   // `requireSection("dispatch", "view")`, the Dashboard's Dispatch tab).
   fleet_now: [bought("dispatch"), view("dispatch")],
+  // The Loads page's Delivered tab per truck (`GET /api/dispatch/loads`: the loads router's
+  // `requireModule("dispatch")`, then `requireSection("dispatch", "view")`).
+  loads_by_truck: [bought("dispatch"), view("dispatch")],
   // Drivers (roster) and Vehicles (equipment).
   fleet_roster: [view("roster"), view("equipment")],
   // Fleet report and its income statement (`finance.fleet-report`, gate `section("accounting")`;

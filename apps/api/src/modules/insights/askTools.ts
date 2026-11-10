@@ -3,6 +3,7 @@ import { ASSISTANT_TOOL_NAMES, type AssistantToolName } from "@silvicom/shared";
 import { FINANCE_PERIODS, MAX_FINANCE_TRUCKS } from "../financial/index.js";
 import { MAX_REPORT_UNITS, REPORT_PERIODS } from "../fuel-spend/index.js";
 import { FLEET_NOW_STATES, MAX_FLEET_NOW_TRUCKS } from "../livemap/index.js";
+import { MAX_LOADS_TRUCKS, MAX_LOADS_UNITS } from "../loads/index.js";
 
 /**
  * The assistant's tool DEFINITIONS — what the model is shown. Their implementations are `runTool` in
@@ -165,6 +166,28 @@ export const TOOLS: Anthropic.Tool[] = [
       properties: {
         state: { type: "string", enum: [...FLEET_NOW_STATES], description: "List the trucks in this state." },
         limit: { type: "integer", description: `How many trucks to list (at most ${MAX_FLEET_NOW_TRUCKS}).` },
+      },
+    },
+  },
+  {
+    // F21 R6b: the Loads page's Delivered tab per truck (`loads/assistantLoadsByTruck.ts`).
+    name: "loads_by_truck",
+    description:
+      "Delivered loads per truck for a calendar period, from the Loads page's Delivered tab (a load counts on the day " +
+      "the truck left its last delivery stop), with each truck's empty moves and McLeod's dispatched miles for those " +
+      "loads. Name units to get those trucks (0 is a real zero for a unit of this fleet); otherwise the trucks with the " +
+      "most deliveries. Miles here are McLeod's load miles, NOT measured miles (fuel_report) or billed miles " +
+      "(finance_report): say which. Say mcleod_synced_at, and give history_note when present: days before the history " +
+      "begins hold no loads, so never call them a zero.",
+    input_schema: {
+      type: "object",
+      properties: {
+        period: { type: "string", enum: [...REPORT_PERIODS], description: "Calendar period on the carrier's clock. Ignored when from/to are given." },
+        days: { type: "integer", description: "Only for period=last_n_days (default 30)." },
+        from: { type: "string", description: "First day, YYYY-MM-DD (with to)." },
+        to: { type: "string", description: "Last day, YYYY-MM-DD, inclusive." },
+        units: { type: "array", items: { type: "string" }, description: `Unit numbers exactly as the user wrote them (at most ${MAX_LOADS_UNITS}).` },
+        limit: { type: "integer", description: `Without units: how many trucks to list (at most ${MAX_LOADS_TRUCKS}).` },
       },
     },
   },

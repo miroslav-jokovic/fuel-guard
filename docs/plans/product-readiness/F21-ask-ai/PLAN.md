@@ -404,3 +404,23 @@ audit row is the endpoint's own.
     first SURVIVED, so it got its own test).
   - **Next in R6b:** loads and miles per truck (`dispatch`, the same module gate), IFTA by state,
     maintenance cost per unit, card holds, DQ and inspection expiries, recruiting counts.
+- 2026-11-10 — **R6b: `loads_by_truck` (dispatch), the Loads page's Delivered tab per truck.**
+  `loads/assistantLoadsByTruck.ts` calls `listLoads` (`GET /api/dispatch/loads`) with the page's own
+  delivery window: `dayRangeInstants` over the carrier's days, the end exclusive, exactly what
+  `useDeliveredWindow` sends. It keeps the rows `loadBoardState` puts in the `delivered` queue and
+  counts them per truck, so "748 delivered 14" is the Delivered tab with that truck picked. It never
+  reads `loads` itself.
+  - **Which miles:** McLeod's per-load `total_miles` (the projection's `move_distance`, the figure on
+    the load page), summed per truck. These are dispatched miles. Measured miles stay `fuel_report`'s
+    (Samsara odometer difference) and billed miles `finance_report`'s, and the answer says so. A load
+    with no miles is counted (`loads_without_miles`), never added as 0. Empty moves (`loaded = false`,
+    D-LA5) remain rows on the tab, so they stay in the count and are also counted on their own.
+  - **Freshness:** `mcleod_synced_at` (the newest `external_synced_at`, the page's "as of") and
+    `delivery_history_begins` (`loadsHistoryFrom`), with a `history_note` when the window starts
+    before it, so a March question is never answered as a zero.
+  - **Access:** `[bought("dispatch"), view("dispatch")]`, the loads router's own two gates.
+    Named units: a unit of this fleet with no delivery is a real 0; a unit that isn't this fleet's is
+    named back. Boundary edge `insights -> loads`; suggestions on `dispatch.loads`.
+  - Nine deliberate breaks, each killed by an assertion: UTC instants, every non-canceled row counted,
+    missing miles as 0, empty moves subtracted, the vehicles lookup unscoped, a stranger answered as
+    0, no history note, sync time from the first row, and the contract without the module gate.
