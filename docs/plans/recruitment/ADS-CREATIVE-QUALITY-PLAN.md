@@ -157,6 +157,7 @@ earlier; all of it decides what that ad looks like.
   plate. (a) Take these; (b) edit. **Rec: (a)**, edited in the drawer later; they are data, not code.
   **Ruled (a), 2026-11-10, by the owner's delegation (§7.1)** — as closed lists in the contract, not drawer-edited
   data: the distinct-pair rule of Q-AD77 needs two presets' families to be comparable.
+  **Built 2026-11-10 in P1-6 (#2211):** `AD_HOOK_FAMILIES`, `AD_SCENE_FAMILIES` in `brandKitContract.ts`.
 - **Q-AD59 · When performance may weight the draw (owner).** (a) After 50 leads per preset across the org; (b) after
   20; (c) recommendation only, never automatic. **Rec: (a)** — below that the noise outweighs the signal (R4's own
   caveat: cheap junk leads look like winners; use cost per *converted* lead from the outcome feed, not cost per lead).
@@ -200,7 +201,7 @@ delegation, on the date given, and the owner can overrule any of them.
 |---|---|---|
 | **Q-AD75** composed per format | Render and check only the formats the publisher sends (4:5, and 1:1 when the preset has it). 4:5 is the primary: the model is asked for that aspect. 1:1 is cut from it, anchored on the subject, not on the centre. 9:16 is neither rendered nor checked until Q-AD29 opens a placement for it. Two renders are revisited only if V4 shows the anchored crop loses the subject. | An unused 9:16 crop failing a good feed ad is a bug today. One render keeps credits flat; the feed image is what a driver sees. |
 | **Q-AD76** judge of the finished ad | Build it; show its score and its one-line reasons to the reviewer; **no floor**. A floor is added only after its scores have been compared with the owner's approve/reject on 30 real ads. | A threshold set before that comparison is a number somebody picked. |
-| **Q-AD77** starter presets | Five starter presets shipped as adoptable data; a carrier adopts them into its own versioned presets and edits them. Five distinct hook × scene pairs; a save refuses two live presets with the same pair. Nothing is auto-enabled. | An empty Campaigns tab that cannot compose is the first thing a new carrier meets, and distinct concepts are what Meta's delivery needs. |
+| **Q-AD77** starter presets | Five starter presets shipped as adoptable data; a carrier adopts them into its own versioned presets and edits them. Five distinct hook × scene pairs; a save refuses two live presets with the same pair. Nothing is auto-enabled. **Built 2026-11-10 in P1-6 (#2211); the starters are D-AD29.** | An empty Campaigns tab that cannot compose is the first thing a new carrier meets, and distinct concepts are what Meta's delivery needs. |
 | **Q-AD58** the concept families | **(a), the lists proposed in §5**: hooks pay-first, life-first, equipment-first, straight-talk, proof; scenes cab POV, equipment on road, equipment at rest, home/street, abstract plate. They are closed lists in the contract, so the distinct-pair rule compares like with like. | Q-AD77 cannot be built without them, and the proposal has stood unchallenged since 11/09. |
 
 Decisions made while planning (D-AD24–D-AD28), each the smallest thing that keeps one fact in one place:
@@ -235,6 +236,18 @@ Decisions made while planning (D-AD24–D-AD28), each the smallest thing that ke
   keeps the edge the WORDS sit against (bottom for `bottom_plate`, top for `top_band`, centre for `centered`),
   which puts the square's words over the same plain part as the tall frame's; the far edge of the subject's
   side is what is cut away.
+- **D-AD29 · The five starters are the diagonal of the two families, re-specified from §4a (PM, 2026-11-10,
+  P1-6).** Each holds a different hook family AND a different scene family, so all five can be live at once
+  under Q-AD77's distinct-pair rule and none reads as another's variant. From ADS-AGENT-PLAN §4a: every one is a
+  still in 4:5 + 1:1 (motion is C6's, 9:16 waits for Q-AD29); P1 keeps the windshield and leads with straight
+  talk (what the run is, what we need), so "life first" is P3's alone; P2 "The number" becomes a plain plate with
+  the figure as the picture — no equipment photo needed, so an empty kit still composes two of the five (P1,
+  P2); P4 is a still of the parked truck; P5's three-card carousel does not exist, so it becomes "proof", our
+  truck on the road with the brief's own figures. Each hook formula says what to lead with when the brief lacks
+  the fact it names (`no-pay-in-brief` is the case it was written for). Keys P1–P5; a carrier's own key is
+  never overwritten. Also decided in building it: the pair rule binds only a save that makes a preset LIVE (not
+  archived, newest version enabled) — a switched-off save is never refused, so adopting is never refused — and
+  a preset stored before the families has no pair and blocks nothing.
 
 ### 7.2 The steps
 
