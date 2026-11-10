@@ -445,3 +445,24 @@ audit row is the endpoint's own.
     liability, a future quarter allowed, no incomplete note, tie-out on the wrong gallons (it
     SURVIVED, so `implied_mpg` is now in the answer and pinned), states unfiltered, an unscoped
     timezone read.
+- 2026-11-10 — **R6b: `maintenance_cost` (maintenance), repair bills per truck or trailer.**
+  `fleetpal/assistantMaintenanceCost.ts` does what the truck page's repair-bills line does through
+  `GET /api/maintenance/units/:kind/:id/maintenance`: `readCoverage` first, NO cost at all when
+  `coverageIsPrintable` refuses (D-FP4, the route's 409, with the months that lack a ledger total), then
+  `readUnitCost` per unit. The default window is the page's own (the last 12 full months, half-open);
+  a named period is sent with an exclusive end, as the route takes it.
+  - **FleetPal and McLeod are two named values (D-FP18).** Per unit: FleetPal's operational cost (labour
+    included, the page's headline), its parts, labour, labour hours, services, fees and tax, repairs,
+    days in the shop, miles and cost per mile. McLeod only per month and fleet-wide (`mcleod_by_month`:
+    the GL maintenance family, FleetPal's invoicing, and the coverage share as "at least", D-FP15),
+    because `mcleod_gl_totals` has no equipment dimension. There is no McLeod figure per unit, and the
+    answer and the tool description both say so. Unmatched FleetPal units travel beside the figures
+    (D-FP14).
+  - Units are named (at most 10). A number a truck and a trailer share is both units, each read as its
+    kind. Strangers are named back. A unit with no FleetPal mapping says `not_in_fleetpal`.
+  - **Access:** `maintenance: view`, the route's only gate. The technician gets a first tool (named
+    fact updated). Boundary edge `insights -> fleetpal`; suggestions on `maintenance.units`.
+  - Ten deliberate breaks, each killed by an assertion: inclusive end, 30-day default, no D-FP4
+    refusal, labour stripped from the cost, a McLeod field per unit, a trailer read as a truck (it
+    SURVIVED, so the test now pins each unit's kind), first match only, unscoped trailers, invoicing
+    over GL in place of the lower bound, and the whole fleet when no unit is named.

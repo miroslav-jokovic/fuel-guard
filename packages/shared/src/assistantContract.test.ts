@@ -34,11 +34,12 @@ describe("assistantToolsFor — every role, every tool, from the section matrix"
     });
   }
 
-  it("names the owner's facts: admin has every tool; a driver, a recruiter and a technician have none today", () => {
+  it("names the owner's facts: admin has every tool; a driver and a recruiter have none today; a technician has the repair bills", () => {
     expect(assistantToolsFor("admin", null, ALL_MODULES)).toEqual(ASSISTANT_TOOL_NAMES);
     expect(assistantToolsFor("driver", null, ALL_MODULES)).toEqual([]);
     expect(assistantToolsFor("recruiter", null, ALL_MODULES)).toEqual([]);
-    expect(assistantToolsFor("technician", null, ALL_MODULES)).toEqual([]);
+    // R6b: the technician's first tool is the truck page's repair bills, because the matrix lets them open it.
+    expect(assistantToolsFor("technician", null, ALL_MODULES)).toEqual(["maintenance_cost"]);
     // A dispatcher sees fuel (view) and roster/equipment (view) but not safety: no idling or driver scores.
     const dispatcher = assistantToolsFor("dispatcher", null, ALL_MODULES);
     expect(dispatcher).toContain("fuel_report");
@@ -89,6 +90,13 @@ describe("assistantToolsFor — every role, every tool, from the section matrix"
     expect(callerMayUseTool("accountant", null, NO_MODULES, "ifta_report")).toBe(true);
     expect(callerMayUseTool("recruiter", null, ALL_MODULES, "ifta_report")).toBe(false);
     expect(callerMayUseTool("accountant", { fuel: "none" }, ALL_MODULES, "ifta_report")).toBe(false);
+  });
+
+  it("maintenance_cost is gated as the truck page's repair bills are: maintenance view, no module", () => {
+    expect(ASSISTANT_TOOL_ACCESS.maintenance_cost).toEqual([{ section: "maintenance", level: "view" }]);
+    expect(callerMayUseTool("technician", null, NO_MODULES, "maintenance_cost")).toBe(rolesThatCanView("maintenance").includes("technician"));
+    expect(callerMayUseTool("recruiter", null, ALL_MODULES, "maintenance_cost")).toBe(false);
+    expect(callerMayUseTool("admin", { maintenance: "none" }, ALL_MODULES, "maintenance_cost")).toBe(true);
   });
 
   it("follows the org's overrides on the token: taking fuel away from a fleet manager takes the fuel tools with it", () => {

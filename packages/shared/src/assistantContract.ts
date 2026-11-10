@@ -71,6 +71,9 @@ export const ASSISTANT_TOOL_ACCESS = {
   loads_by_truck: [bought("dispatch"), view("dispatch")],
   // Drivers (roster) and Vehicles (equipment).
   fleet_roster: [view("roster"), view("equipment")],
+  // A truck's or trailer's repair bills (`maintenance.units`; `/api/maintenance/units/:kind/:id/maintenance`
+  // asks `requireSection("maintenance", "view")`, no module).
+  maintenance_cost: [view("maintenance")],
   // Fleet report and its income statement (`finance.fleet-report`, gate `section("accounting")`;
   // every `/api/accounting/*` read asks `requireSection("accounting", "view")`). The matrix gives
   // `accounting` to admin and accountant, and VIEW to the read-only auditor, who can open that page
