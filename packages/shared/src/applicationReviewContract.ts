@@ -50,9 +50,26 @@ export type ApplicationPath = z.infer<typeof applicationPathSchema>;
 const draftRevision = z.number().int().min(0);
 
 /**
- * The four things the office does to a draft (§4.5): change one answer, remove a job, add a job, and
- * explain a gap. Employer rows are named by their `key`, never by position (Q-AX7) — see
- * `applicationReviewEdits.ts`. `op` is optional on `set` so the one-answer write keeps its shape.
+ * The lists the office adds a row to or removes one from by POSITION (F3c part 2, E2). Their rows carry
+ * no key — only the employers do (AW1, D-AW8) — so a removal shifts the rows after it, and every reader
+ * of the edit log replays the removals (`currentEditPaths`) rather than trusting a recorded index.
+ * The employers and the gaps are not here: they have their own ops, by key and by date.
+ */
+export const APPLICATION_ROW_LISTS = [
+  "addresses",
+  "other_names",
+  "additional_licences",
+  "equipment_experience",
+  "accidents",
+  "violations",
+] as const;
+export type ApplicationRowList = (typeof APPLICATION_ROW_LISTS)[number];
+
+/**
+ * What the office does to a draft (§4.5): change one answer, remove a job, add a job, explain a gap —
+ * and, since F3c part 2 (E2), add or remove a row of one of `APPLICATION_ROW_LISTS`. Employer rows are
+ * named by their `key`, never by position (Q-AX7) — see `applicationReviewEdits.ts`. `op` is optional
+ * on `set` so the one-answer write keeps its shape.
  */
 export const applicationEditSchema = z.union([
   z.object({
@@ -77,6 +94,20 @@ export const applicationEditSchema = z.union([
       to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       explanation: z.string().trim().min(1, "Say what they were doing in this time").max(500),
     }),
+    revision: draftRevision,
+  }),
+  z.object({
+    op: z.literal("add_row"),
+    list: z.enum(APPLICATION_ROW_LISTS),
+    // The WHOLE row, checked by the draft schema once it is in the list — a row added blank and then
+    // filled cell by cell would be a draft the schema refuses (a city is `min(1)`) at the first step.
+    row: z.unknown(),
+    revision: draftRevision,
+  }),
+  z.object({
+    op: z.literal("remove_row"),
+    list: z.enum(APPLICATION_ROW_LISTS),
+    index: z.number().int().min(0).max(200),
     revision: draftRevision,
   }),
 ]);

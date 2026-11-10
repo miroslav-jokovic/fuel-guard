@@ -1,4 +1,4 @@
-import type { ApplicationEdit, ApplicationPath } from "./applicationReviewContract.js";
+import type { ApplicationEdit, ApplicationPath, ApplicationRowList } from "./applicationReviewContract.js";
 import { APPLICANT_IDENTITY_KEYS } from "./applicantIdentity.js";
 
 /**
@@ -123,6 +123,24 @@ export function applyApplicationEdit(
       const list = at >= 0 ? gaps.map((g, i) => (i === at ? edit.gap : g)) : [...gaps, edit.gap];
       return { payload: { ...payload, [GAPS]: list }, logPath: [GAPS, edit.gap.from], before, after: edit.gap.explanation };
     }
+    case "add_row": {
+      const declared = DECLARES_NONE[edit.list];
+      if (declared && payload[declared] === true) return refuse(ADD_WHILE_NONE[edit.list]!);
+      const list = rowsOf(payload, edit.list);
+      const next = { ...payload, [edit.list]: [...list, edit.row] };
+      return { payload: next, logPath: [edit.list, list.length], before: null, after: edit.row };
+    }
+    case "remove_row": {
+      const list = rowsOf(payload, edit.list);
+      if (edit.index >= list.length) return refuse("That row is no longer on the application. Reload it and try again.");
+      // The current home is the one row every application must have, and on a v2 link its street is
+      // Part 1's: it is corrected, never removed.
+      if (edit.list === "addresses" && edit.index === currentAddressAt(list)) {
+        return refuse("This is where they live now. Correct its answers instead of removing it.");
+      }
+      const next = { ...payload, [edit.list]: list.filter((_, i) => i !== edit.index) };
+      return { payload: next, logPath: [edit.list, edit.index], before: list[edit.index], after: null };
+    }
     default: {
       // `set` — one value at one path. An employer path is resolved through its key.
       const path = [...edit.path];
@@ -155,6 +173,29 @@ export function applyApplicationEdit(
       };
     }
   }
+}
+
+/**
+ * A list whose emptiness is its own answer ("I have had no accidents"). Adding a row while that answer
+ * says none would leave the driver certifying both; the office changes that answer first, as its own
+ * correction the driver reads on 3.1, rather than this op flipping it silently.
+ */
+const DECLARES_NONE: Partial<Record<ApplicationRowList, string>> = {
+  accidents: "declares_no_accidents",
+  violations: "declares_no_violations",
+};
+const ADD_WHILE_NONE: Partial<Record<ApplicationRowList, string>> = {
+  accidents: "They said they have had no accidents. Change that answer to No first, then add the accident.",
+  violations: "They said they have had no convictions. Change that answer to No first, then add the conviction.",
+};
+
+/** The current home: the first address with no `to` — the row composition files Part 1's street over. */
+export function currentAddressAt(addresses: readonly unknown[]): number {
+  const at = addresses.findIndex((a) => {
+    const to = (a as { to?: unknown } | null)?.to;
+    return Boolean(a) && typeof a === "object" && (to === null || to === undefined || (typeof to === "string" && to.trim() === ""));
+  });
+  return at < 0 ? 0 : at;
 }
 
 /** Said by the API and shown beside the answer list, so the office is sent to the one place that sticks. */

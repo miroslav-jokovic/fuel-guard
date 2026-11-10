@@ -4,6 +4,7 @@ import { AppButton as BaseButton, AppCallout, QueryState } from "@silvicom/ui";
 import {
   APPLICATION_REVIEW_STATE_LABELS,
   carrierQuestionnaire,
+  currentEditPaths,
   formatDisplayDate,
   questionnaireForApplicant,
   type ApplicationPath,
@@ -83,6 +84,7 @@ const signingStarted = computed(() =>
 /** Part 1 and the identity: open while the office screens, before Send, until the first mark (F3). */
 const recordCorrectable = computed(() => canManage.value && state.value !== "certified" && !signingStarted.value);
 const edits = computed(() => review.data.value?.edits ?? []);
+const currentPaths = computed(() => currentEditPaths(edits.value));
 /** F0b: when they used a code — an instant, so the drawer's own date-and-time format, or null. */
 const unlockedByCode = computed(() => {
   const at = review.data.value?.unlockedByCodeAt;
@@ -119,7 +121,7 @@ const employers = computed(() => draftEmployers(payload.value));
 const givenGaps = computed(() => draftGaps(payload.value));
 
 /** "What you changed": an employer named by key is named by the job, which is what a recruiter reads. */
-function changeLabel(row: { path: ApplicationPath; before: unknown; after: unknown }): string {
+function changeLabel(row: { path: ApplicationPath; before: unknown; after: unknown }, at: number): string {
   const [head, ref] = row.path;
   if (head === "employers" && typeof ref === "string") {
     const index = employers.value.findIndex((e) => e.key === ref);
@@ -129,7 +131,12 @@ function changeLabel(row: { path: ApplicationPath; before: unknown; after: unkno
     return `${job} · ${describeField(["employers", 0, row.path[2]!]).split(" · ")[1] ?? String(row.path[2])}`;
   }
   if (head === "employment_gaps") return `Gap from ${formatDisplayDate(String(ref))}`;
-  return describeField(row.path);
+  // E2: named where it is NOW — a removal since moves the rows after it (`currentEditPaths`).
+  const now = currentPaths.value[at];
+  const label = describeField(now?.path ?? row.path);
+  if (now?.removal) return `${label} removed`;
+  if (row.path.length === 2 && typeof ref === "number" && row.before === null) return `${label} added`;
+  return now?.gone ? `${label} (removed later)` : label;
 }
 const shownValue = (v: unknown): string =>
   v === null || v === undefined ? "—" : typeof v === "object" ? rowText(v as Record<string, unknown>) : String(v);
@@ -366,7 +373,7 @@ async function approveIt(): Promise<void> {
               :key="i"
               class="rounded-surface bg-surface-muted p-3 text-sm"
             >
-              <p class="font-medium text-ink">{{ changeLabel(row) }}</p>
+              <p class="font-medium text-ink">{{ changeLabel(row, i) }}</p>
               <p v-if="row.withheld" class="break-words text-ink-muted">Replaced — not shown to the office</p>
               <p v-else-if="row.path.length !== 2 || row.path[0] !== 'employers'" class="break-words text-ink-muted">
                 <span class="line-through">{{ shownValue(row.before) }}</span>

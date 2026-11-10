@@ -107,6 +107,8 @@ export const APPLY_FLOW_COPY = {
     replaced: "They replaced this answer with the one you gave them. It is not shown here.",
     /** F3 (Q-AM13): the office's reason for changing one of your own answers. */
     because: "Why they changed it",
+    /** E2: a correction to a row the carrier later removed — said, so the label does not point at another row. */
+    removedLater: "they removed it later",
     /**
      * §391.21(b)(2) lists the Social Security number, and it is asked for HERE rather than on the
      * form (D-APP3, F4). It is the one answer that never enters a saved draft — so it cannot be

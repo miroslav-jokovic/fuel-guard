@@ -22,7 +22,7 @@ import {
 import { writeAudit } from "../../lib/audit.js";
 import type { Env } from "../../env.js";
 import { notifyApplicationApproved, type ApprovalNotice } from "./applicationApprovalNotice.js";
-import { partOneFactsView } from "./applicantIntake.js";
+import { partOneFactsView, partOneForFiling } from "./applicantIntake.js";
 import { listCaptures } from "./applicationCapture.js";
 import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
 import { partOneAnswersView } from "./applicantPartOneAnswer.js";
@@ -284,6 +284,13 @@ export async function editApplication(
   const note = "note" in edit && typeof edit.note === "string" && edit.note.trim() !== "" ? edit.note.trim() : null;
   if ("path" in edit && applicationFactAt(edit.path)?.rule === "statement" && !note) {
     return { code: "note_required", message: "Say why you are changing the applicant's own answer — they will read this before they sign." };
+  }
+
+  // F3c part 2 (E2): on a v2 link the licences are Part 1's whole list, and filing throws the draft's
+  // copy away — a row added here would be reported done and then never filed. Part 1's correction owns it.
+  if ((edit.op === "add_row" || edit.op === "remove_row") && edit.list === "additional_licences"
+    && await partOneForFiling(admin, orgId, inv)) {
+    return { code: "invalid_edit", message: "On this application the licences are corrected under the applicant's licence, not here." };
   }
 
   const applied = applyApplicationEdit(withEmployerKeys(original, randomUUID), original, edit);

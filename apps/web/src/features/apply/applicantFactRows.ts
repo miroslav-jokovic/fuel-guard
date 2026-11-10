@@ -6,6 +6,7 @@ import {
   ENDORSEMENT_CODES,
   EQUIPMENT_CLASSES,
   composeFiledApplication,
+  currentEditPaths,
   partOneCorrectionWith,
   sectionOwningPath,
   type ApplicantFact,
@@ -84,7 +85,8 @@ export interface FactRow {
 export interface FactRowsInput {
   payload: Record<string, unknown> | null | undefined;
   partOne: PartOneFactsView | null | undefined;
-  edits: ReadonlyArray<{ path: ApplicationPath }>;
+  /** The office's corrections; `before`/`after`/`editedAt` let a row removal be replayed (E2). */
+  edits: ReadonlyArray<{ path: ApplicationPath; before?: unknown; after?: unknown; editedAt?: string }>;
   questionnaire: QuestionnaireDefinition;
   /** F3: Part 1's own answers (statements, medical card pending, endorsements; the donor gender only as given). */
   partOneAnswers?: PartOneAnswersView | null;
@@ -101,7 +103,7 @@ const DRAFT_ANSWERS = "questionnaire";
 const ELSEWHERE = new Set(["employers", "employment_gaps"]);
 
 /** A choice's options, from the constant the contract's own enum is built from, in the driver's words. */
-const CHOICES = (): Readonly<Record<string, readonly FactChoice[]>> => ({
+export const CHOICES = (): Readonly<Record<string, readonly FactChoice[]>> => ({
   cdl_class: CDL_CLASSES.map((c) => ({ value: c, label: `Class ${c}` })),
   equipment_class: EQUIPMENT_CLASSES.map((c) => ({ value: c, label: c })),
   donor_gender: DONOR_GENDERS.map((g) => ({ value: g, label: APPLY_COPY.partOne.screening.genderOptions[g] })),
@@ -178,7 +180,11 @@ export function applicantFactRows({ payload, partOne, edits, questionnaire, part
   const current = currentAddressIndex(doc.addresses);
   // ⚠ Tolerant of a response without `edits` (an older API, or a refetch racing a write): the card
   // renders inside the drawer's body, and one missing list must not take the whole record down.
-  const editedAt = (Array.isArray(edits) ? edits : []).map((e) => pathKey(e.path));
+  // E2: where each correction points NOW — a removal since moves the rows after it up, takes its own
+  // row's corrections with it, and marks nothing itself (`currentEditPaths`).
+  const editedAt = currentEditPaths(Array.isArray(edits) ? edits : [])
+    .filter((e) => !e.gone)
+    .map((e) => pathKey(e.path));
   const corrected = (key: string) => editedAt.some((e) => key === e || key.startsWith(`${e}.`));
   const out: FactRow[] = [];
 
