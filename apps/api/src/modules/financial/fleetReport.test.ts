@@ -127,22 +127,22 @@ describe("getFleetReport", () => {
   // open; once the pointer moves to August it is final and the note goes away.
   it("names a reported month McLeod has not closed, and drops the note once it has", async () => {
     const open = (start: string) => [{ company_id: "TMS", period_start: start, prior_post_allowed: false, swept_at: "2026-08-28T21:02:56Z" }];
-    const stillOpen = await getFleetReport(recorder(GL_TOTALS, open("2026-07-01")).client, ORG, "2026-07-01", "2026-07-31");
+    const stillOpen = await getFleetReport(recorder(GL_TOTALS, open("2026-07-01")).client, ORG, "2026-07-01", "2026-08-01");
     expect(stillOpen.total.revenue).toBe(4_828_189.24);
     expect(stillOpen.monthsOpen).toEqual(["2026-07"]);
     expect(stillOpen.openNote).toContain("2026-07 is still open in McLeod");
     expect(stillOpen.closeKnown).toBe(true);
-    const closed = await getFleetReport(recorder(GL_TOTALS, open("2026-08-01")).client, ORG, "2026-07-01", "2026-07-31");
+    const closed = await getFleetReport(recorder(GL_TOTALS, open("2026-08-01")).client, ORG, "2026-07-01", "2026-08-01");
     expect(closed.monthsOpen).toEqual([]);
     expect(closed.openNote).toBeNull();
-    const unknown = await getFleetReport(recorder().client, ORG, "2026-07-01", "2026-07-31");
+    const unknown = await getFleetReport(recorder().client, ORG, "2026-07-01", "2026-08-01");
     expect(unknown.closeKnown).toBe(false);
     expect(unknown.monthsOpen).toEqual([]);
   });
 
   it("reports the ledger's totals and divides them by measured miles, org-scoped", async () => {
     const rec = recorder();
-    const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-07-31");
+    const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-08-01");
     expect(r.total.revenue).toBe(4_828_189.24);
     expect(r.total.expenses).toBe(4_058_143.38);
     expect(r.total.net).toBe(770_045.86);
@@ -154,7 +154,7 @@ describe("getFleetReport", () => {
 
   it("splits contractors out by order, leaving a mixed truck's company load on the company side", async () => {
     const rec = recorder();
-    const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-07-31");
+    const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-08-01");
     expect(r.ownerOperatorBasis.loadRevenue).toBe(203_192.01);
     expect(r.ownerOperatorBasis.pay).toBe(212_492.09);
     expect(r.company.revenue).toBe(4_590_612.95);
@@ -164,7 +164,7 @@ describe("getFleetReport", () => {
 
   it("classifies a contractor deduction by the account it posts to, not by its code", async () => {
     const rec = recorder();
-    const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-07-31");
+    const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-08-01");
     // Only the revenue-account deduction is income. The fuel advance repaid is a receivable.
     expect(r.ownerOperatorBasis.deductionIncome).toBe(34_384.28);
     expect(r.ownerOperatorBasis.unruledDeductions).toBe(500);
@@ -172,7 +172,7 @@ describe("getFleetReport", () => {
 
   it("leaves a voided settlement out of the contractor column", async () => {
     const rec = recorder();
-    const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-07-31");
+    const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-08-01");
     expect(r.ownerOperatorBasis.settlements).toBe(1);
     expect(r.ownerOperatorBasis.pay).not.toBe(312_491.09);
   });
@@ -189,7 +189,7 @@ describe("getFleetReport", () => {
     };
     // Voided in June: June's reversal, not July's, though its row is as old as s5's.
     const juneVoid: Settlement = { ...s5, id: "s7", posted_pay: "333.00", void_date: "2026-06-28T00:00:00Z" };
-    const r = await getFleetReport(recorder(GL_TOTALS, [], BILLS, [...SETTLEMENTS, s5, juneVoid]).client, ORG, "2026-07-01", "2026-07-31");
+    const r = await getFleetReport(recorder(GL_TOTALS, [], BILLS, [...SETTLEMENTS, s5, juneVoid]).client, ORG, "2026-07-01", "2026-08-01");
     expect(r.ownerOperatorBasis.pay).toBe(207_492.09);
     expect(r.ownerOperatorBasis.settlements).toBe(1);
     expect(r.ownerOperator.miles).toBe(71_920);
@@ -205,11 +205,11 @@ describe("getFleetReport", () => {
       id: "s6", payee_type: "owner_operator", tractor_unit: "601", order_external_id: "o6", total_pay: "700.00", posted_pay: "700.00",
       is_void: true, accrual_key: "A6", accrued_at: "2026-07-08T00:00:00Z", post_key: "P6", transferred_at: "2026-07-10T00:00:00Z", void_date: "2026-07-20T00:00:00Z",
     };
-    const reversed = await getFleetReport(recorder(GL_TOTALS, [], BILLS, [...SETTLEMENTS, lone]).client, ORG, "2026-07-01", "2026-07-31");
+    const reversed = await getFleetReport(recorder(GL_TOTALS, [], BILLS, [...SETTLEMENTS, lone]).client, ORG, "2026-07-01", "2026-08-01");
     expect(reversed.ownerOperatorBasis.pay).toBe(212_492.09);
 
     const untransferred = { ...lone, post_key: undefined, transferred_at: undefined };
-    const kept = await getFleetReport(recorder(GL_TOTALS, [], BILLS, [...SETTLEMENTS, untransferred]).client, ORG, "2026-07-01", "2026-07-31");
+    const kept = await getFleetReport(recorder(GL_TOTALS, [], BILLS, [...SETTLEMENTS, untransferred]).client, ORG, "2026-07-01", "2026-08-01");
     expect(kept.ownerOperatorBasis.pay).toBe(213_192.09);
   });
 
@@ -222,7 +222,7 @@ describe("getFleetReport", () => {
   it("takes a credit memo off the contractor and the truck, load included, so a re-billed load counts once", async () => {
     const credit = { id: "c1", order_external_id: "o1", tractor_unit: "601", total_charges: "203192.01", other_charge: "12345.67", post_key: "kc", post_module: "BILL", bill_date: "2026-07-22", delivery_date: "2026-07-08", distance: 71_920, canceled: false, bill_type: "C" };
     const rebill = { id: "r1", order_external_id: "o1", tractor_unit: "601", total_charges: "203000.00", other_charge: "12345.67", post_key: "kr", post_module: "BILL", bill_date: "2026-07-22", delivery_date: "2026-07-08", distance: 71_920, canceled: false, bill_type: "I" };
-    const r = await getFleetReport(recorder(GL_TOTALS, [], [...BILLS, credit, rebill]).client, ORG, "2026-07-01", "2026-07-31");
+    const r = await getFleetReport(recorder(GL_TOTALS, [], [...BILLS, credit, rebill]).client, ORG, "2026-07-01", "2026-08-01");
     expect(r.ownerOperatorBasis.loadRevenue).toBe(203_000);
     const t601 = r.trucks.find((t) => t.tractor_unit === "601")!;
     expect(t601.revenue).toBe(403_000);
@@ -231,14 +231,14 @@ describe("getFleetReport", () => {
 
   it("counts only bills the ledger booked, like every other revenue figure", async () => {
     const rec = recorder();
-    const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-07-31");
+    const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-08-01");
     // b4 is staged but unposted: including it would put contractor load revenue at 253,192.01.
     expect(r.ownerOperatorBasis.loadRevenue).toBe(203_192.01);
   });
 
   it("splits the denominator by unit once Samsara miles resolve to tractor numbers", async () => {
     const rec = recorder();
-    const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-07-31");
+    const r = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-08-01");
     expect(r.ownerOperator.miles).toBe(71_920);
     expect(r.company.miles).toBe(1_480_417);
     expect(r.company.netPerMile).toBe(0.5);
@@ -258,7 +258,7 @@ describe("getFleetReport", () => {
    * fact about August.
    */
   it("reports no money at all for a month swept before it ended, and says why", async () => {
-    const r = await getFleetReport(recorder([...GL_TOTALS, ...AUGUST_PARTIAL]).client, ORG, "2026-08-01", "2026-08-31");
+    const r = await getFleetReport(recorder([...GL_TOTALS, ...AUGUST_PARTIAL]).client, ORG, "2026-08-01", "2026-09-01");
     expect(r.total.revenue).toBe(0);
     expect(r.total.expenses).toBe(0);
     expect(r.monthsPartial.map((m) => m.month)).toEqual(["2026-08"]);
@@ -272,11 +272,42 @@ describe("getFleetReport", () => {
    * is 20.15% of revenue and 63 cents of every mile the fleet ran.
    */
   it("summarises the statement into signed families, priced against revenue and miles", async () => {
-    const r = await getFleetReport(recorder().client, ORG, "2026-07-01", "2026-07-31");
+    const r = await getFleetReport(recorder().client, ORG, "2026-07-01", "2026-08-01");
     const fuel = r.families.expense.find((f) => f.label === "Fuel and fluids")!;
     expect(fuel.amount).toBe(972_820.62);
     expect(fuel.pctOfRevenue).toBe(20.1);
     expect(fuel.perMile).toBe(0.63);
     expect(r.families.tieOut).toEqual({ revenue: 0, expenses: 0 });
+  });
+
+  // Q-AI10 (2026-11-10): the page holds July as 07-01..07-31 and sends the exclusive bound 08-01.
+  // Before, it sent 07-31, and every sub-ledger read (`.lt(to)`) lost the last day: June–September
+  // 2026 each lost 48–94 booked bills ($159k–$469k) from the Trucks tab and the contractor split.
+  it("July asked as 07-01 to 08-01 counts a load delivered on the 31st, and never reaches into August", async () => {
+    const lastDay = { id: "b5", order_external_id: "o6", tractor_unit: "601", total_charges: "1000.00", other_charge: "0", post_key: "k5", post_module: "BILL", bill_date: "2026-07-31", delivery_date: "2026-07-31", distance: 500, canceled: false };
+    const rec = recorder([...GL_TOTALS, ...AUGUST_PARTIAL], [], [...BILLS, lastDay]);
+    const withIt = await getFleetReport(rec.client, ORG, "2026-07-01", "2026-08-01");
+    const without = await getFleetReport(recorder([...GL_TOTALS, ...AUGUST_PARTIAL]).client, ORG, "2026-07-01", "2026-08-01");
+    const unit = (r: typeof withIt) => r.trucks.find((t) => t.tractor_unit === "601")!;
+    expect(unit(withIt).loads).toBe(unit(without).loads + 1);
+    expect(unit(withIt).revenue).toBe(unit(without).revenue + 1000);
+    // The month-grained reads widen from the LAST day (July), not from the bound (August).
+    expect(withIt.monthsCovered).toEqual(["2026-07"]);
+    expect(withIt.monthsPartial).toEqual([]);
+    expect(withIt.monthsMissing).toEqual([]);
+    const samsaraMonths = rec.queries
+      .filter((q) => q.table === "samsara_ifta_jurisdiction_miles")
+      .map((q) => q.filters().find((f) => f.col === "period_month")?.val);
+    expect([...new Set(samsaraMonths)]).toEqual([7]);
+  });
+
+  // The web ships a release AFTER this (the web and API are separate services, so they can land
+  // minutes apart). Until then the page still sends the last day, 07-31, and must keep getting July
+  // alone, never July plus August.
+  it("still answers July alone when asked the old way, 07-01 to 07-31", async () => {
+    const r = await getFleetReport(recorder([...GL_TOTALS, ...AUGUST_PARTIAL]).client, ORG, "2026-07-01", "2026-07-31");
+    expect(r.monthsCovered).toEqual(["2026-07"]);
+    expect(r.monthsPartial).toEqual([]);
+    expect(r.total.revenue).toBe(4_828_189.24);
   });
 });

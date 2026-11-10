@@ -70,14 +70,14 @@ export async function getFleetTrend(
   const asked = monthsBetween(from, toExclusive);
 
   // Coverage is read through its own service rather than re-derived, so a month refused a rate on
-  // the chart is refused for exactly the reason the banner above it gives. It takes the requested
-  // date, not the exclusive bound, because it already widens to the month that date falls in. The
+  // the chart is refused for exactly the reason the banner above it gives. It takes the exclusive
+  // bound, like every window on this surface (Q-AI10: it widens from the window's last day). The
   // denominator it computes for the whole span is deliberately unused — a year containing January
   // is short for the year and complete for July, and the chart's question is the month's.
   const [rows, accounts, coverage] = await Promise.all([
     readLedgerTotalsRange(admin, orgId, HISTORY_FROM, toExclusive),
     readGlAccounts(admin, orgId),
-    getMileageCoverage(admin, orgId, from, toIso),
+    getMileageCoverage(admin, orgId, from, toExclusive),
   ]);
 
   const ledgerByMonth = new Map<string, FleetTrendMonthInput["ledger"]>();

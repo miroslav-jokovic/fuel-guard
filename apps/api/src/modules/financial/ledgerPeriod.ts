@@ -64,6 +64,27 @@ export function nextMonthStart(iso: string): string {
   return month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, "0")}-01`;
 }
 
+/**
+ * The window's LAST DAY, for a window whose `toExclusive` is the day after it (Q-AI10, 2026-11-10).
+ *
+ * Every window on the accounting surface is half-open (`windowSchema`): the sub-ledgers read
+ * `.gte(from).lt(to)`, so July is `2026-07-01` to `2026-08-01`. The month-grained reads (the ledger,
+ * mileage coverage, Samsara's monthly miles) widen to the months the window touches, and they used
+ * to take the month `to` falls in. That reads `to` as a day INSIDE the last month, so July's exclusive
+ * bound would have added August whole. The page worked around it by sending the last day
+ * (`2026-07-31`), and the sub-ledgers then lost that day. Measured in production on 2026-11-10: June
+ * to September each lost 48–94 booked bills ($159k–$469k, 3.0–8.7% of the month's revenue) and
+ * 95–162 settlements from the Trucks tab, the owner-operator split and the Activity tab. The month a
+ * window ends in is the month its last day falls in, so the last day is computed here, once.
+ */
+export function lastIncludedDay(toExclusive: string): string {
+  const [y, m, d] = toExclusive.slice(0, 10).split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+}
+
+/** The first of the month after the window's last day: the whole-month bound of a half-open window. */
+export const wholeMonthBound = (toExclusive: string): string => nextMonthStart(lastIncludedDay(toExclusive));
+
 /** Every month start from `from` up to but not including `toExclusive`. */
 export function monthsBetween(from: string, toExclusive: string): string[] {
   const out: string[] = [];
@@ -161,7 +182,7 @@ export async function readLedgerForPeriod(
   toIso: string,
 ): Promise<LedgerPeriod> {
   const periodFrom = monthStart(fromIso);
-  const periodTo = nextMonthStart(toIso);
+  const periodTo = wholeMonthBound(toIso);
   // A window spanning a year boundary anchors its "year to date" on the LAST month's year, which is
   // what the phrase means on the statement being reproduced. A window that starts before that year
   // reads from where it starts, so nothing it asked for is silently dropped.

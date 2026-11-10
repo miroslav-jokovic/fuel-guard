@@ -3,6 +3,7 @@ import {
   assistantMonthsIn,
   assistantUnitKey,
   assistantWholeMonths,
+  exclusiveEndYmd,
   ledgerMonthWhy,
   organizationTimezone,
   resolveAssistantRange,
@@ -38,11 +39,10 @@ import { getIncomeStatement, type IncomeStatementResult, type StatementCompare }
  * things it decides are CALENDAR (which whole months a question is, on the carrier's clock) and
  * NAMES (unit number → the report's `tractor_unit` row).
  *
- * It asks for a period the way the page does. `FleetReportPage.vue` sends `from` = the 1st and
- * `to` = the LAST day of the period's last month (`lib/reportPeriod.ts`), so this sends exactly
- * that, and a figure here equals the figure there for the same months. (That `to` is a day INSIDE
- * the last month and not the exclusive bound `windowSchema` documents is a known defect, recorded
- * as Q-AI10 in F21-ask-ai/PLAN.md §5. It is fixed in `getFleetReport`, and then both move together.)
+ * It asks for a period the way the page does. `FleetReportPage.vue` holds the 1st and the LAST day
+ * of the period's last month (`lib/reportPeriod.ts`), and its query layer sends the day after as the
+ * exclusive `to` every accounting window takes (`exclusiveEnd`, Q-AI10). This sends exactly that
+ * (`exclusiveEndYmd`, the same function), so a figure here equals the figure there.
  *
  * ── WHAT EVERY ANSWER CARRIES ────────────────────────────────────────────────────────────────────
  * `provenance`, the facts the page's trust chip and provenance line state (`fleetProvenance.ts`):
@@ -173,7 +173,7 @@ export async function assistantFinanceReport(
   const by = input.by === "month" || input.by === "truck" || input.by === "contractor" ? input.by : "total";
   if (by === "month" && months.length > MAX_MONTHS) return { error: `by=month covers at most ${MAX_MONTHS} months; ${months.length} were asked.` };
 
-  const report = await getFleetReport(admin, orgId, period.from, period.to);
+  const report = await getFleetReport(admin, orgId, period.from, exclusiveEndYmd(period.to));
   const result: Record<string, unknown> = {
     source: FINANCE_SOURCE,
     timezone,
@@ -221,7 +221,7 @@ export async function assistantFinanceReport(
       deal_pct: o.dealPct,
     }));
   } else if (by === "month" && months.length > 1) {
-    const per = await pool(months, (m) => getFleetReport(admin, orgId, m.from, m.to));
+    const per = await pool(months, (m) => getFleetReport(admin, orgId, m.from, exclusiveEndYmd(m.to)));
     result.by_month = per.map((r) => ({ ...headline(r), months_in_figures: r.monthsCovered, months_still_open_in_mcleod: r.monthsOpen }));
   }
   return result;
@@ -241,7 +241,7 @@ export async function assistantIncomeStatement(
   const lines = input.detail === "lines";
 
   const [s, sweptAt]: [IncomeStatementResult, string | null] = await Promise.all([
-    getIncomeStatement(admin, orgId, period.from, period.to, compare),
+    getIncomeStatement(admin, orgId, period.from, exclusiveEndYmd(period.to), compare),
     readFinancialSyncedAt(admin, orgId),
   ]);
   return {
