@@ -8,7 +8,8 @@ type Out = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 /**
  * Ask AI's finance tools (F21 R6a). The header promises two things, and this file pins both:
  *  1. it asks the page's functions for exactly what the Fleet report page asks: `from` = the 1st,
- *     `to` = the last day of the last month (`lib/reportPeriod.ts` periodForMonth/periodForQuarter);
+ *     `to` = the day after the last month's last day (periodForMonth/periodForQuarter, then the
+ *     query layer's `exclusiveEnd`, Q-AI10);
  *  2. every figure it returns is that function's field, copied, never recomputed.
  * So `getFleetReport` / `getIncomeStatement` are spies that record what was asked and answer a
  * fixture whose figures are deliberately NOT derivable from each other (a recomputed rate would differ).
@@ -120,7 +121,7 @@ describe("finance_report — the Fleet report's figures, for the page's months",
     const rec = recorder();
     const out = (await assistantFinanceReport(rec.client, ORG, { period: "last_month" }, NOV_10)) as Out;
     expect(getFleetReport).toHaveBeenCalledTimes(1);
-    expect(getFleetReport.mock.calls[0]!.slice(1)).toEqual([ORG, "2026-10-01", "2026-10-31"]);
+    expect(getFleetReport.mock.calls[0]!.slice(1)).toEqual([ORG, "2026-10-01", "2026-11-01"]);
 
     const page = fleetReport("2026-10-01", "2026-10-31");
     const asPage = (c: FleetColumn) => ({
@@ -163,7 +164,7 @@ describe("finance_report — the Fleet report's figures, for the page's months",
 
   it("'last month' late on 10/31 in Chicago is September, not October", async () => {
     await assistantFinanceReport(recorder().client, ORG, { period: "last_month" }, LATE_OCT_31_CENTRAL);
-    expect(getFleetReport.mock.calls[0]!.slice(2)).toEqual(["2026-09-01", "2026-09-30"]);
+    expect(getFleetReport.mock.calls[0]!.slice(2)).toEqual(["2026-09-01", "2026-10-01"]);
   });
 
   it("by=truck: the named units' rows as written ('#748', 'Unit 751'), never a cost per truck", async () => {
@@ -194,10 +195,10 @@ describe("finance_report — the Fleet report's figures, for the page's months",
     const out = (await assistantFinanceReport(recorder().client, ORG, { period: "last_quarter", by: "month" }, NOV_10)) as Out;
     const windows = getFleetReport.mock.calls.map((c) => c.slice(2));
     expect(windows).toEqual([
-      ["2026-07-01", "2026-09-30"],
-      ["2026-07-01", "2026-07-31"],
-      ["2026-08-01", "2026-08-31"],
-      ["2026-09-01", "2026-09-30"],
+      ["2026-07-01", "2026-10-01"],
+      ["2026-07-01", "2026-08-01"],
+      ["2026-08-01", "2026-09-01"],
+      ["2026-09-01", "2026-10-01"],
     ]);
     expect(out.by_month.map((m: Out) => [m.from, m.all_in.cost_per_mile])).toEqual([
       ["2026-07-01", 1.93],
@@ -224,7 +225,7 @@ describe("income_statement — the statement tab's figures", () => {
   it("asks for the page's window with 'previous' by default, copies the totals, and states provenance", async () => {
     const rec = recorder();
     const out = (await assistantIncomeStatement(rec.client, ORG, { period: "last_month" }, NOV_10)) as Out;
-    expect(getIncomeStatement.mock.calls[0]!.slice(1)).toEqual([ORG, "2026-10-01", "2026-10-31", "previous"]);
+    expect(getIncomeStatement.mock.calls[0]!.slice(1)).toEqual([ORG, "2026-10-01", "2026-11-01", "previous"]);
     expect(readFinancialSyncedAt.mock.calls[0]!.slice(1)).toEqual([ORG]);
     expect(out).toMatchObject({ revenue: 4_828_189.24, expenses: 4_058_143.38, net: 770_045.86, comparison_net: 700_000 });
     expect(out.sections).toEqual([{ section: "Revenue", is_revenue: true, total: 4_828_189.24, comparison_total: 4_700_000, accounts: 1 }]);

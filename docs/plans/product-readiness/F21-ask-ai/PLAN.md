@@ -214,6 +214,16 @@ audit row is the endpoint's own.
   Changes published figures (contractor column, Trucks tab), so it is its own PR with before/after
   numbers for one month. The assistant's finance tools call `getFleetReport` with the page's own
   arguments, so they move with the page.
+  - **Ruled 2026-11-10 (owner: "proceed … with solutions in flow with what we are building"): (b),
+    reversing the (a) recommendation above.** Measuring the callers settled it: `windowSchema`,
+    `truckDays`, `reads.ts` (`/summary`, `/spend-by-account`, `/entries`), `/api/billing`'s dispatcher
+    earnings and every sub-ledger reader are already half-open, and so is the web's own `dateWindow`
+    rule from 0847cca (inclusive in page state, `exclusiveEnd` once at the API boundary). Only the
+    month-widening (`readLedgerForPeriod`, `coveredMonths`, mileage coverage, the statement's
+    previous-period read) and the four hooks that lost `exclusiveEnd` at 7bb6159 were off-contract.
+    (a) would have left two contracts across the finance routers. Measured in production on
+    2026-11-10, the last day carried 48/72/94/62 booked bills ($159,107 / $230,666 / $469,106 /
+    $189,110, 3.0–8.7% of revenue) and 99/135/162/95 settlements, June to September.
 - **Q-AI11. The auditor gets the finance tools.** Q-AI5 was ruled on "the matrix gives
   `accounting` to admin and accountant only". It also gives the read-only `auditor` VIEW of
   `accounting` (and of every section), so the auditor can open `/fleet-report` today and, once Ask AI
@@ -221,6 +231,7 @@ audit row is the endpoint's own.
   (no role list). If auditors should not see finance, the change is the auditor's `accounting` access
   in the matrix, which hides the page too, never an assistant exception. **Recommend: keep.** An
   auditor reads everything by design, and Ask AI is still off for that role (`startsOnFor: []`).
+  - **Ruled 2026-11-10: keep** (owner: proceed with the recommended solutions).
 
 ## 6. Log
 
@@ -352,3 +363,21 @@ audit row is the endpoint's own.
     web through `useModulesQuery`. Gating on the section alone would answer for a carrier without
     Dispatch, which its page refuses. Fuel, safety, idle and accounting carry no module gate, so R1–R6a
     are unaffected.
+- 2026-11-10 — **Q-AI10 fixed, server half.** One rule, `ledgerPeriod.ts` `lastIncludedDay` /
+  `wholeMonthBound`: a window is half-open, and the month-grained reads widen from its last day. It is
+  used by `readLedgerForPeriod`, `fleetReport.coveredMonths`, `getMileageCoverage`, the income
+  statement's comparative, and the trend's coverage call (which now passes its own exclusive bound).
+  The statement's previous-period read passes the bound (`periodFrom`), not the 1st of the last month.
+  The finance tools send `exclusiveEndYmd(to)`, the web's own `exclusiveEnd`.
+  - **Two merges, because the web and the API are separate Railway services** and land minutes
+    apart. The server merges first: the old page still sends the last day and gets exactly today's
+    figures (pinned by "still answers July alone when asked the old way, 07-01 to 07-31"). The four
+    web hooks (`useFleetReport`, `useIncomeStatement`, `useMileageCoverage`, `useBillingActivity`) go
+    back to `exclusiveEnd` in a second PR, merged only once the first is live in PRODUCTION. Shipped
+    the other way round, a new page against an old API would widen July's `08-01` to July plus August
+    for the deploy minutes.
+  - Between the two, Ask AI's Trucks/contractor figures include the last day and the page's do not.
+    That is the right direction, and it closes when the web half ships.
+  - Six deliberate breaks, each killed by an assertion, never by a compile or reference error: web
+    sends the last day, ledger widens from the bound, Samsara months from the bound, mileage months
+    from the bound, the comparative's old inclusive read, and the tool sends the last day.
