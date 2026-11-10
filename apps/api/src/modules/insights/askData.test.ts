@@ -17,6 +17,7 @@ vi.mock("../fuel-spend/index.js", () => ({
 }));
 vi.mock("../fuel/index.js", () => ({ FUEL_EVENT_DROP: "drop" }));
 vi.mock("../idle/index.js", () => ({ assistantIdleReport: vi.fn() }));
+vi.mock("../livemap/index.js", () => ({ assistantFleetNow: vi.fn(), FLEET_NOW_STATES: ["moving"], MAX_FLEET_NOW_TRUCKS: 25 }));
 vi.mock("../financial/index.js", () => ({
   assistantFinanceReport: vi.fn(),
   assistantIncomeStatement: vi.fn(),

@@ -26,6 +26,7 @@ const GENERAL: Suggestion[] = [
   ask("How many high or critical theft alerts in the last 30 days?", "fleet_summary"),
   ask("Idle hours and cost this month — who are the worst idlers?", "idling_summary"),
   ask("How many trucks, trailers and drivers are active right now?", "fleet_roster"),
+  ask("How many drivers are moving right now?", "fleet_now"),
 ];
 
 const BY_SURFACE: Record<string, Suggestion[]> = {

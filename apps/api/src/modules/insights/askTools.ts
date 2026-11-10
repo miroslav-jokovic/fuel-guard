@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { ASSISTANT_TOOL_NAMES, type AssistantToolName } from "@silvicom/shared";
 import { FINANCE_PERIODS, MAX_FINANCE_TRUCKS } from "../financial/index.js";
 import { MAX_REPORT_UNITS, REPORT_PERIODS } from "../fuel-spend/index.js";
+import { FLEET_NOW_STATES, MAX_FLEET_NOW_TRUCKS } from "../livemap/index.js";
 
 /**
  * The assistant's tool DEFINITIONS — what the model is shown. Their implementations are `runTool` in
@@ -150,6 +151,22 @@ export const TOOLS: Anthropic.Tool[] = [
     name: "fleet_roster",
     description: "Fleet size right now: total and active counts of vehicles, drivers, and trailers.",
     input_schema: { type: "object", properties: {} },
+  },
+  // ── Dispatch (F21 R6b, `livemap/assistantFleetNow.ts`; needs the Dispatch module) ──
+  {
+    name: "fleet_now",
+    description:
+      "Right now, from the live map: how many trucks are moving, stopped (engine on, not moving), parked or offline, " +
+      "how many of each have a driver assigned ('how many drivers are moving'), how many are in the shop, and how many " +
+      "trucks have never sent a position. Set state to list those trucks (unit, driver, speed, location, load, next " +
+      "stop, position age). Always say the as_of time. The states are the live map's own; never re-judge them from speed.",
+    input_schema: {
+      type: "object",
+      properties: {
+        state: { type: "string", enum: [...FLEET_NOW_STATES], description: "List the trucks in this state." },
+        limit: { type: "integer", description: `How many trucks to list (at most ${MAX_FLEET_NOW_TRUCKS}).` },
+      },
+    },
   },
   // ── Finance (F21 R6a, `financial/assistantFinanceReport.ts`; who can open the Fleet report) ──
   {

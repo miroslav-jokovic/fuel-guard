@@ -340,6 +340,10 @@ const API_ALLOW = new Set([
   //   through financial's index, so an answer equals the page by construction. A second aggregation
   //   of the ledger in insights would be the copy D-AI2 forbids. financial imports nothing of insights'.
   "insights -> financial",
+  // · insights -> livemap — Ask AI's `fleet_now` (F21 R6b) is livemap's `assistantFleetNow` over the
+  //   live map's own cached board, so "how many are moving" counts the states the map draws.
+  //   livemap imports nothing of insights'.
+  "insights -> livemap",
   // · ads -> org — Settings › Ads control's spend card (E1c, Q-AD36, ruled 2026-11-05) says when the
   //   daily check against Meta last finished. That fact is a row in org's job ledger (`jobs`), so it
   //   is read through org's index (`lastDoneJobByKey` only), the same arrow "fuel-spend -> org" and
