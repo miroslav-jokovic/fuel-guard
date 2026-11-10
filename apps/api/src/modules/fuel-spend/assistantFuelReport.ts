@@ -1,11 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  addDays,
+  ASSISTANT_REPORT_PERIODS,
+  assistantMonthsIn,
+  assistantUnitKey,
   FUEL_REPORT_TRUCK_FIGURES_NOTE,
-  isCalendarDay,
   organizationTimezone,
+  resolveAssistantRange,
   todayInZone,
-  windowDays,
+  type AssistantRange,
+  type AssistantRangeInput,
+  type AssistantReportPeriod,
   type FuelReportWindow,
 } from "@silvicom/shared";
 import { readFuelReport, type FuelReportFilterArgs } from "./fuelReport.js";
@@ -37,98 +41,27 @@ import { readFuelReport, type FuelReportFilterArgs } from "./fuelReport.js";
  * `readFuelReport` passes `p_org` to every RPC.
  */
 
-export const REPORT_PERIODS = [
-  "this_month",
-  "last_month",
-  "this_quarter",
-  "last_quarter",
-  "year_to_date",
-  "last_year",
-  "last_n_days",
-] as const;
-export type ReportPeriod = (typeof REPORT_PERIODS)[number];
+/**
+ * The calendar (which days a month or a quarter is, on the carrier's clock) lives in
+ * `@silvicom/shared` `assistantPeriods.ts` since R6a, so the finance tools resolve "last quarter"
+ * exactly as this one does. The names below are that module's, kept under R1's names.
+ */
+export const REPORT_PERIODS = ASSISTANT_REPORT_PERIODS;
+export type ReportPeriod = AssistantReportPeriod;
+export type ResolvedRange = AssistantRange;
+export const resolveReportRange = resolveAssistantRange;
+export const monthsIn = assistantMonthsIn;
+export const normalizeUnit = assistantUnitKey;
 
-/** The route's own bound (`routes/report.ts` MAX_WINDOW_DAYS): a year plus a leap day. */
-const MAX_WINDOW_DAYS = 366;
 /** Each named truck is one report read; 25 keeps a quarter for 25 trucks inside a few seconds. */
 export const MAX_REPORT_UNITS = 25;
 /** Reads in flight at once. The database is small (memory: database-is-micro-and-swapping). */
 const CONCURRENCY = 3;
 
-export interface AssistantFuelReportInput {
+export interface AssistantFuelReportInput extends AssistantRangeInput {
   units?: unknown;
-  period?: unknown;
-  days?: unknown;
-  from?: unknown;
-  to?: unknown;
   by?: unknown;
 }
-
-export type ResolvedRange = { ok: true; from: string; to: string; label: string } | { ok: false; error: string };
-
-const pad = (n: number) => String(n).padStart(2, "0");
-const monthStart = (y: number, m: number) => `${y}-${pad(m)}-01`;
-/** Last day of month `m` (1–12) of year `y`. */
-const monthEnd = (y: number, m: number) => addDays(m === 12 ? monthStart(y + 1, 1) : monthStart(y, m + 1), -1);
-
-/**
- * The window in calendar days on the carrier's clock. `today` is `todayInZone(now, orgZone)` — never
- * `new Date().toISOString()`, which is UTC and runs a Central-time evening into tomorrow (D-PREC6).
- * Explicit `from`/`to` win over a preset; with neither, the last 30 days, as every other tool.
- * A "this …" period ends today; a past one is whole.
- */
-export function resolveReportRange(input: AssistantFuelReportInput, today: string): ResolvedRange {
-  const from = typeof input.from === "string" ? input.from.trim() : "";
-  const to = typeof input.to === "string" ? input.to.trim() : "";
-  if (from || to) {
-    if (!isCalendarDay(from) || !isCalendarDay(to)) return { ok: false, error: "from and to must both be YYYY-MM-DD dates." };
-    if (to < from) return { ok: false, error: "to is before from." };
-    if (windowDays(from, to) > MAX_WINDOW_DAYS) return { ok: false, error: `Pick a range of at most ${MAX_WINDOW_DAYS} days.` };
-    return { ok: true, from, to, label: `${from} to ${to}` };
-  }
-  const [y, m] = today.split("-").map(Number) as [number, number];
-  const q = Math.floor((m - 1) / 3); // 0-based quarter
-  const period = (REPORT_PERIODS as readonly string[]).includes(String(input.period)) ? (input.period as ReportPeriod) : "last_n_days";
-  switch (period) {
-    case "this_month":
-      return { ok: true, from: monthStart(y, m), to: today, label: "this month so far" };
-    case "last_month": {
-      const [py, pm] = m === 1 ? [y - 1, 12] : [y, m - 1];
-      return { ok: true, from: monthStart(py, pm), to: monthEnd(py, pm), label: "last month" };
-    }
-    case "this_quarter":
-      return { ok: true, from: monthStart(y, q * 3 + 1), to: today, label: `Q${q + 1} ${y} so far` };
-    case "last_quarter": {
-      const [py, pq] = q === 0 ? [y - 1, 3] : [y, q - 1];
-      return { ok: true, from: monthStart(py, pq * 3 + 1), to: monthEnd(py, pq * 3 + 3), label: `Q${pq + 1} ${py}` };
-    }
-    case "year_to_date":
-      return { ok: true, from: monthStart(y, 1), to: today, label: `${y} so far` };
-    case "last_year":
-      return { ok: true, from: monthStart(y - 1, 1), to: monthEnd(y - 1, 12), label: String(y - 1) };
-    case "last_n_days": {
-      const n = Math.min(Math.max(Math.trunc(Number(input.days)) || 30, 1), MAX_WINDOW_DAYS);
-      return { ok: true, from: addDays(today, -(n - 1)), to: today, label: `last ${n} days` };
-    }
-  }
-}
-
-/** The calendar months `[from, to]` touches, each clipped to the range. */
-export function monthsIn(from: string, to: string): Array<{ from: string; to: string }> {
-  const out: Array<{ from: string; to: string }> = [];
-  let [y, m] = from.split("-").map(Number) as [number, number];
-  for (;;) {
-    const start = monthStart(y, m);
-    if (start > to) break;
-    const end = monthEnd(y, m);
-    out.push({ from: start < from ? from : start, to: end > to ? to : end });
-    [y, m] = m === 12 ? [y + 1, 1] : [y, m + 1];
-  }
-  return out;
-}
-
-/** "748", " #748 ", "Unit 748" → "748". Case and surrounding words only; never a fuzzy match. */
-export const normalizeUnit = (u: string): string => u.trim().toLowerCase().replace(/^(unit|truck)\s+/, "").replace(/^#/, "").trim();
 
 /**
  * One window's figures, as the page shows them. Copied out of `readFuelReport`'s answer — the one

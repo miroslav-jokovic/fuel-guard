@@ -16,6 +16,13 @@ describe("suggestionsFor", () => {
     expect(qs.length).toBeGreaterThan(0);
   });
 
+  it("offers the Fleet report's finance questions to an accountant, and none of them to a fleet manager (Q-AI5)", () => {
+    const accountant = suggestionsFor("/fleet-report", assistantToolsFor("accountant", null), 4);
+    expect(accountant[0]).toBe("What was our all-in cost per mile last month?");
+    const manager = suggestionsFor("/fleet-report", assistantToolsFor("fleet_manager", null), 6);
+    expect(manager.some((q) => /cost per mile last month|income statement|owner-operators|earned the most/i.test(q))).toBe(false);
+  });
+
   it("offers nothing when nothing is allowed", () => {
     expect(suggestionsFor("/", [], 4)).toEqual([]);
   });

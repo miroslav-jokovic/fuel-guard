@@ -16,6 +16,12 @@ vi.mock("../fuel-spend/index.js", () => ({
   REPORT_PERIODS: ["last_month"],
 }));
 vi.mock("../fuel/index.js", () => ({ FUEL_EVENT_DROP: "drop" }));
+vi.mock("../financial/index.js", () => ({
+  assistantFinanceReport: vi.fn(),
+  assistantIncomeStatement: vi.fn(),
+  FINANCE_PERIODS: ["last_month"],
+  MAX_FINANCE_TRUCKS: 25,
+}));
 
 const { askData } = await import("./askData.js");
 const { ASSISTANT_TOOL_NAMES } = await import("@silvicom/shared");

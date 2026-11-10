@@ -196,6 +196,32 @@ audit row is the endpoint's own.
   training on API data). Does any carrier contract require zero data retention or US-only inference
   (`inference_geo: "us"`, +10% cost)? Recommend standard global unless a contract says otherwise.
 
+- **Q-AI10. The finance routes' `to` is two things at once (found at R6a, 2026-11-10).**
+  `windowSchema` documents `to` as EXCLUSIVE, and the sub-ledger reads behind `getFleetReport`
+  (settlements, voids, bills, deductions) window on `.lt(to)`. But `readLedgerForPeriod` and
+  `coveredMonths` widen with `nextMonthStart(to)`, which treats `to` as a day INSIDE the last month,
+  and the Fleet report page sends the last day (`2026-10-31` for October). Its comment says "the query
+  layer converts the end to the API's exclusive bound", but no finance hook does since 7bb6159
+  (2026-09-04) deleted `useCpm`, the one that did. Commit 0847cca fixed this same bug once on 08-28.
+  Effect: the ledger money is right (month-grained); the contractor split, the Trucks tab's loads and
+  revenue, and the Activity tab (all from bills and settlements) lose each period's LAST DAY. The company column absorbs
+  the difference (it is the remainder), so totals still tie. Sending an exclusive `to` from the web
+  alone would be worse: the ledger would add the next whole month. Candidates: (a) the routes take an
+  inclusive `to` and `getFleetReport`/`getBillingActivity` pass `exclusiveEndYmd(to)` to the
+  sub-ledger readers; (b) the routes take exclusive `to` and the ledger side widens from `to - 1 day`,
+  with the web hooks calling `exclusiveEnd`. **Recommend (a):** every caller already sends inclusive
+  days, and it is one change in two services plus `windowSchema`'s comment and a `from === to` rule.
+  Changes published figures (contractor column, Trucks tab), so it is its own PR with before/after
+  numbers for one month. The assistant's finance tools call `getFleetReport` with the page's own
+  arguments, so they move with the page.
+- **Q-AI11. The auditor gets the finance tools.** Q-AI5 was ruled on "the matrix gives
+  `accounting` to admin and accountant only". It also gives the read-only `auditor` VIEW of
+  `accounting` (and of every section), so the auditor can open `/fleet-report` today and, once Ask AI
+  is turned on for auditors, gets `finance_report` and `income_statement`. R6a follows the matrix
+  (no role list). If auditors should not see finance, the change is the auditor's `accounting` access
+  in the matrix, which hides the page too, never an assistant exception. **Recommend: keep.** An
+  auditor reads everything by design, and Ask AI is still off for that role (`startsOnFor: []`).
+
 ## 6. Log
 
 - 2026-10-08 — Audit and plan written. Use measured (15 asks, 3 people, ever). Research:
@@ -284,3 +310,29 @@ audit row is the endpoint's own.
     these per carrier, and the screen itself is still off for every role but admin until turned on.
   - **Next (R6):** finance first (`accounting: view` → admin + accountant), each tool calling its page's
     own function with a test that the numbers agree, and a `source` line with freshness.
+- 2026-11-10 — **R6a built: finance tools (`finance_report`, `income_statement`).**
+  - **Owner module (D-AI2):** `financial/assistantFinanceReport.ts`. `finance_report` is
+    `getFleetReport`, the function behind `/api/accounting/fleet-report`. It gives the all-in revenue,
+    expense, net and per-measured-mile figures; company trucks versus owner-operators; empty miles;
+    expense and revenue families; by=truck (named units or the top by revenue: loads, miles, revenue,
+    revenue per mile, and a stated "no per-truck cost", D-FLEET1, P3 unbuilt); by=contractor; and
+    by=month (one page read per month, at most 12). `income_statement` is `getIncomeStatement`, with
+    `compare` previous (default), ytd or none, and section totals or every account line. Nothing is
+    recomputed: a mutant that divides expenses by miles is killed by the test.
+  - **Calendar:** periods are whole months on the carrier's clock, asked exactly as the page asks
+    (`from` = 1st, `to` = last day of the last month; see Q-AI10). `last_n_days` is not offered
+    because the ledger has no day grain; a custom range is widened and the label says so. R1's calendar
+    moved to `@silvicom/shared` `assistantPeriods.ts` so fuel and finance resolve "last quarter" one way.
+  - **Provenance on every answer:** months in the figures, not swept, left out (with `ledgerMonthWhy`'s
+    reason), still open in McLeod (with `openNote`), whether McLeod's close is known, and when the
+    McLeod finance sweep last landed (or that it never has). The tool description tells the model to
+    state them and never to call an open month final.
+  - **Access:** both tools declare `accounting: view`. The matrix gives that to admin, accountant and
+    the read-only auditor (Q-AI11); every other role is refused by `assistantToolsFor` and the API.
+    Suggestions on `finance.fleet-report` name their tool. New boundary edge `insights -> financial`.
+  - **Tests:** `assistantFinanceReport.test.ts` (the page's windows, figures copied, provenance, org
+    scope, late-evening clock), contract and suggestion tests by role. Six deliberate breaks
+    (exclusive `to`, recomputed cost per mile, dropped sync date, unscoped org lookup, dropped open
+    months, finance gated on fuel), each killed and restored.
+  - **Next:** R6b in the handoff's order (idle trend, moving now, loads and miles per truck, IFTA by
+    state, maintenance cost per unit, card holds, DQ and inspection expiries, recruiting counts).

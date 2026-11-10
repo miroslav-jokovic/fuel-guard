@@ -39,6 +39,21 @@ describe("assistantToolsFor — every role, every tool, from the section matrix"
     expect(dispatcher).not.toContain("driver_performance");
   });
 
+  it("finance follows `accounting` (Q-AI5): admin, accountant and the read-only auditor, nobody else", () => {
+    // Q-AI5 was ruled on "the matrix gives accounting to admin and accountant only". The matrix also
+    // gives the auditor VIEW of every section, the Fleet report page included, so the auditor's tools
+    // follow the page (correction logged in F21-ask-ai/PLAN.md §6, 2026-11-10; Q-AI11). No role list.
+    const FINANCE = ["finance_report", "income_statement"] as const;
+    const reach = USER_ROLES.filter((role) => FINANCE.every((t) => assistantToolsFor(role, null).includes(t)));
+    expect(reach).toEqual(USER_ROLES.filter((r) => rolesThatCanView("accounting").includes(r)));
+    expect([...reach].sort()).toEqual(["accountant", "admin", "auditor"]);
+    for (const role of USER_ROLES) {
+      if (!reach.includes(role)) expect(FINANCE.some((t) => assistantToolsFor(role, null).includes(t))).toBe(false);
+    }
+    // An org that takes accounting away from its accountant takes the finance tools with it.
+    expect(assistantToolsFor("accountant", { accounting: "none" })).not.toContain("finance_report");
+  });
+
   it("follows the org's overrides on the token: taking fuel away from a fleet manager takes the fuel tools with it", () => {
     const narrowed = assistantToolsFor("fleet_manager", { fuel: "none" });
     expect(narrowed.some((t) => ASSISTANT_TOOL_ACCESS[t].some((r) => r.section === "fuel"))).toBe(false);

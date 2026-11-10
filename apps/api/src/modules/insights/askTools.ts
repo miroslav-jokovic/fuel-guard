@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { ASSISTANT_TOOL_NAMES, type AssistantToolName } from "@silvicom/shared";
+import { FINANCE_PERIODS, MAX_FINANCE_TRUCKS } from "../financial/index.js";
 import { MAX_REPORT_UNITS, REPORT_PERIODS } from "../fuel-spend/index.js";
 
 /**
@@ -49,7 +50,8 @@ export const TOOLS: Anthropic.Tool[] = [
       "The Fuel Costs report for named trucks and/or calendar periods: fills, gallons, spend, price per gallon, " +
       "fleet MPG measured from odometers over exactly those trucks, miles, FUEL cost per mile (fuel only, not total " +
       "operating cost), reefer fuel, and the previous period of equal length for comparison. Use this for any question " +
-      "naming unit numbers, a calendar month/quarter/year or exact dates, cost per mile, or 'compared with before'. " +
+      "naming unit numbers, a calendar month/quarter/year or exact dates, FUEL cost per mile, or 'compared with before'. " +
+      "All-in cost per mile (every expense, not only fuel) is finance_report's, when this person has that tool. " +
       "Figures equal the Fuel Costs page. by=truck gives one row per named unit (default when units are given); " +
       "by=month splits the range by calendar month; by=total gives the combined figure only. If a unit is not found or " +
       "MPG is withheld, say so with the given reason — never estimate.",
@@ -124,6 +126,49 @@ export const TOOLS: Anthropic.Tool[] = [
     name: "fleet_roster",
     description: "Fleet size right now: total and active counts of vehicles, drivers, and trailers.",
     input_schema: { type: "object", properties: {} },
+  },
+  // ── Finance (F21 R6a, `financial/assistantFinanceReport.ts`; who can open the Fleet report) ──
+  {
+    name: "finance_report",
+    description:
+      "The Fleet report from the McLeod ledger, for whole calendar months: ALL-IN revenue, expenses and net, and each " +
+      "per measured mile (cost_per_mile here is total operating cost per mile, not fuel only), split into company trucks " +
+      "and owner-operators, plus empty miles and expense families (driver pay, fuel, leases, insurance…). Use this for " +
+      "'cost per mile', profit, margin, revenue or 'what did a mile cost us'. by=truck gives loads, miles and revenue per " +
+      "truck (name units, or get the top trucks by revenue). There is NO per-truck cost or profit: say so, never estimate one. " +
+      "by=contractor gives each owner-operator's revenue, pay and margin; by=month splits the period by month. " +
+      "ALWAYS state the provenance: which months are in the figures; any month not swept or left out, and why; any month " +
+      "still open in McLeod, which can change, so never call it final; and when McLeod was last synced. " +
+      "A null per-mile figure is withheld: give per_mile_unavailable_because. Figures equal the Fleet report page.",
+    input_schema: {
+      type: "object",
+      properties: {
+        period: { type: "string", enum: [...FINANCE_PERIODS], description: "Calendar period on the carrier's clock (default last_month). Ignored when from/to are given." },
+        from: { type: "string", description: "First day, YYYY-MM-DD (with to). Widened to whole months: the ledger is monthly." },
+        to: { type: "string", description: "Last day, YYYY-MM-DD, inclusive." },
+        by: { type: "string", enum: ["total", "truck", "contractor", "month"] },
+        units: { type: "array", items: { type: "string" }, description: "For by=truck: unit numbers exactly as the user wrote them." },
+        limit: { type: "integer", description: `For by=truck without units: how many top trucks by revenue (at most ${MAX_FINANCE_TRUCKS}).` },
+      },
+    },
+  },
+  {
+    name: "income_statement",
+    description:
+      "The income statement (P&L) from the McLeod ledger for whole calendar months, in the owner's printed statement's " +
+      "sections, with a comparison column: the previous period of equal length (default), the fiscal year to date (ytd), " +
+      "or none. detail=lines lists every GL account; the default gives section totals. Use for P&L, a line of the " +
+      "statement, or 'compared with last month/quarter'. State the provenance exactly as for finance_report.",
+    input_schema: {
+      type: "object",
+      properties: {
+        period: { type: "string", enum: [...FINANCE_PERIODS], description: "Calendar period on the carrier's clock (default last_month)." },
+        from: { type: "string", description: "First day, YYYY-MM-DD (with to). Widened to whole months." },
+        to: { type: "string", description: "Last day, YYYY-MM-DD, inclusive." },
+        compare: { type: "string", enum: ["previous", "ytd", "none"] },
+        detail: { type: "string", enum: ["sections", "lines"] },
+      },
+    },
   },
 ];
 

@@ -4,6 +4,7 @@ import { AI_MODELS, ASSISTANT_MODEL_PRICES, stripNeverExposed, type AssistantToo
 import { FUEL_EVENT_DROP } from "../fuel/index.js";
 import type { Env } from "../../env.js";
 import { anthropicClient } from "../../lib/anthropic.js";
+import { assistantFinanceReport, assistantIncomeStatement } from "../financial/index.js";
 import { assistantFuelReport, getFleetMpg, getFleetMpgSeries } from "../fuel-spend/index.js";
 import { toolsFor } from "./askTools.js";
 import type { AnswerOutcome, AnswerUsage } from "./assistantUsage.js";
@@ -185,6 +186,8 @@ async function runTool(admin: SupabaseClient, orgId: string, name: string, input
   const limit = Math.min(Math.max(Number(input.limit) || 5, 1), 25);
 
   if (name === "fuel_report") return assistantFuelReport(admin, orgId, input);
+  if (name === "finance_report") return assistantFinanceReport(admin, orgId, input);
+  if (name === "income_statement") return assistantIncomeStatement(admin, orgId, input);
   if (name === "fuel_economics" || name === "fuel_ranking" || name === "spend_trend") {
     return runFuelTool(admin, orgId, name, input, { period, since, limit });
   }
