@@ -26,7 +26,7 @@ const SWITCH = "Tell us when a campaign's leads look wrong";
         <BaseSwitch v-model="enabled" :label="SWITCH" :disabled="!editable" data-test="lead-quality-switch" />
       </div>
       <div class="grid gap-4 sm:grid-cols-3">
-        <FormField v-slot="{ id }" label="After this many leads were called" :error="errorOn('lead_quality.min_attempted')">
+        <FormField v-slot="{ id }" label="After this many leads" :error="errorOn('lead_quality.min_attempted')">
           <BaseInput :id="id" v-model="minAttempted" type="number" inputmode="numeric" step="1" min="1" :disabled="!editable" data-test="lead-quality-min" />
         </FormField>
         <FormField v-slot="{ id }" label="Wrong numbers, at least (%)" :error="errorOn('lead_quality.wrong_number_pct')">
@@ -37,8 +37,8 @@ const SWITCH = "Tell us when a campaign's leads look wrong";
         </FormField>
       </div>
       <div class="space-y-2 text-sm text-ink-muted" data-test="lead-quality-help">
-        <p>Checked each morning over the last {{ LEAD_QUALITY_WINDOW_DAYS }} days of leads. Wrong numbers are counted among the leads someone has called; "do not qualify" means the person's own answer plainly misses a hard requirement, such as no Class A. A requirement we could not ask about is never counted against them.</p>
-        <p>Each campaign is alerted once per reason. The starting values, 40 % after 10 called leads, are an industry rule of thumb, not our own numbers yet.</p>
+        <p>Checked each morning over the last {{ LEAD_QUALITY_WINDOW_DAYS }} days of leads. Wrong numbers are counted among the leads someone has called, and wait for that many called leads. "Do not qualify" is counted among all the leads that arrived, and waits for that many leads, because those leads ring nobody and may never be called. It means the person's own answer plainly misses a hard requirement, such as no Class A. A requirement we could not ask about is never counted against them.</p>
+        <p>Each campaign is alerted once per reason. The starting values, 40 % after 10 leads, are an industry rule of thumb, not our own numbers yet.</p>
       </div>
     </BaseCard>
   </SettingsSection>
