@@ -45,6 +45,20 @@ export interface RetentionRule {
 export const RETENTION_RULES: RetentionRule[] = [
   {
     /**
+     * F0b (0585): one-time codes that open a saved application when the date of birth on file will not. A
+     * code is dead ten minutes after it is sent; the row's `used_at` is the office's prompt that the date on
+     * file did not match, which matters while the application is under review — the 90-day draft prune
+     * already bounds that. Each send and each use is also in `audit_logs`, which keeps the record.
+     */
+    table: "application_unlock_codes",
+    timeColumn: "created_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "A code is dead after ten minutes; the office's notice matters only while the application is reviewed (the draft's own 90 days); audit_logs keeps each send and use.",
+  },
+  {
+    /**
      * LQ8a (0583): the phone provider's reading of a lead's number. A year-old line type says little about a
      * number (ports happen), the lead it served is itself prunable (D-LS7), and a pruned row costs one lookup
      * if the number ever turns up again. 400 = a year plus margin, the same figure `recruiting_leads` would get.

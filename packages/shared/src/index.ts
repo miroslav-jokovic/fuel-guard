@@ -184,6 +184,7 @@ export * from "./employerVerificationContract.js";
 export * from "./applicationFilingRules.js";
 export * from "./applicationComposition.js";
 export * from "./applicantFacts.js";
+export * from "./applicationUnlockCodeContract.js";
 export * from "./sevenDayStatement.js";
 export * from "./applicationCaptureContract.js";
 // §9 P9: the applicant's papers on their record, and the office's upload beside them.

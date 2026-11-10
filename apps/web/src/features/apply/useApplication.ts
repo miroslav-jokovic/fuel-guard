@@ -1,7 +1,10 @@
 import { computed, type Ref } from "vue";
 import { takeServedForm } from "./servedForm";
 import { useMutation, useQuery } from "@tanstack/vue-query";
-import type { ApplicantOwedKind, CarrierQuestionStamp } from "@silvicom/shared";
+import type {
+  ApplicantOwedKind,
+  CarrierQuestionStamp,
+} from "@silvicom/shared";
 import type {
   ApplicationCaptureContentType,
   ApplicationCaptureSlot,
@@ -386,6 +389,7 @@ export const unlockApplicationDraft = (token: string, dateOfBirth: string): Prom
     method: "POST",
     body: JSON.stringify({ date_of_birth: dateOfBirth }),
   });
+
 
 /**
  * Ask for somewhere to put one photograph (A8).

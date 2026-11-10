@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { latestCodeUnlock } from "./applicationUnlockCode.js";
 import { randomUUID } from "node:crypto";
 import {
   applyApplicationEdit,
@@ -144,6 +145,12 @@ export interface ApplicationForReview {
    * office — including ones with a licence, a medical card and a TWIC on file.
    */
   captures: ApplicationCaptureView[];
+  /**
+   * F0b: when the applicant last opened their application with a one-time code because the date of
+   * birth on file did not match their answer — the office's prompt to check that date in Identity.
+   * Null when they never needed one.
+   */
+  unlockedByCodeAt: string | null;
   edits: Array<{ path: ApplicationPath; before: unknown; after: unknown; editedAt: string; editedBy: string | null }>;
 }
 
@@ -182,6 +189,7 @@ export async function applicationForReview(
     partOne: await partOneFactsView(admin, orgId, inv, new Date()),
     carrierQuestions: carrierStampOf(inv.carrier_questions),
     captures: await listCaptures(admin, orgId, inv.id),
+    unlockedByCodeAt: await latestCodeUnlock(admin, orgId, inv.id),
     edits: (edits ?? []).map((e) => {
       const row = e as { path: ApplicationPath; before: unknown; after: unknown; edited_at: string; edited_by: string | null };
       return { path: row.path, before: row.before, after: row.after, editedAt: row.edited_at, editedBy: row.edited_by };
