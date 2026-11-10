@@ -391,6 +391,24 @@
   --identity-7-ink: light-dark(oklch(40% 0.1 285), oklch(89% 0.05 285));
   --identity-8: light-dark(oklch(92.5% 0.042 330), oklch(35% 0.055 330));
   --identity-8-ink: light-dark(oklch(40% 0.1 330), oklch(89% 0.05 330));
+
+  /* ── 9. Map (D-DR31: the vector basemap draws with these) ───────────────────── */
+
+  /* sampled from HERE explore.day / explore.night tiles on 2026-11-10, so the vector map keeps
+     today's look */
+  --map-land: light-dark(oklch(97.0% 0.0067 233.6), oklch(28.4% 0.0337 240.8)); /* land, the basemap background */
+  --map-water: light-dark(oklch(85.6% 0.0840 232.5), oklch(37.2% 0.0818 247.4)); /* lakes, rivers, sea */
+  --map-park: light-dark(oklch(92.5% 0.0569 166.7), oklch(30.7% 0.0429 214.9)); /* parks, forests, nature reserves */
+  --map-urban: light-dark(oklch(94.5% 0.0118 239.9), oklch(31.1% 0.0374 241.8)); /* built-up area */
+  --map-building: light-dark(oklch(99.0% 0.0030 230.0), oklch(34.3% 0.0477 246.2)); /* building footprints, near-white with a casing-coloured outline as on HERE's raster map */
+  --map-road: light-dark(oklch(100% 0 0), oklch(40.3% 0.0332 250.3)); /* ordinary roads */
+  --map-road-casing: light-dark(oklch(89.8% 0.0162 239.1), oklch(33.4% 0.0321 257.7)); /* the edge line drawn under a road */
+  --map-highway: light-dark(oklch(88.7% 0.0374 258.4), oklch(52.0% 0.0372 249.9)); /* motorways and trunk roads */
+  --map-highway-casing: light-dark(oklch(83.0% 0.0431 261.7), oklch(45.9% 0.0322 255.2)); /* the edge line under a highway */
+  --map-boundary: light-dark(oklch(73.7% 0.0217 264.4), oklch(51.1% 0.0307 251.9)); /* state and country borders */
+  --map-label: light-dark(oklch(44.6% 0.0263 256.8), oklch(85.4% 0.0170 250.9)); /* place and road names */
+  --map-label-halo: light-dark(oklch(100% 0 0), oklch(28.4% 0.0337 240.8)); /* the outline that keeps a name readable over the map */
+  --map-water-label: light-dark(oklch(50.9% 0.0935 240.6), oklch(74.1% 0.0751 239.8)); /* names of water */
 }
 
 @theme inline {

@@ -104,7 +104,7 @@ function mapHarness() {
   const constructed: unknown[] = [];
   const sources: string[] = [];
   /** What each source was built with — the `tileSize`, `maxzoom` and tile URL D-DR26 is about. */
-  const specs: Record<string, { tiles: string[]; tileSize: number; maxzoom: number }> = {};
+  const specs: Record<string, { type?: string; tiles: string[]; tileSize: number; maxzoom: number; attribution?: string }> = {};
   const layers: FakeLayer[] = [];
   const loaded = new Set<string>();
   const handlers: ((e: { sourceId: string }) => void)[] = [];
@@ -144,6 +144,13 @@ function mapHarness() {
       sources.push(id);
       specs[id] = spec;
     }
+    removeLayer(id: string) {
+      const at = layers.findIndex((l) => l.id === id);
+      if (at >= 0) layers.splice(at, 1);
+    }
+    getLayoutProperty(id: string) {
+      return layers.find((l) => l.id === id)?.layout?.visibility;
+    }
     addLayer(layer: FakeLayer, beforeId?: string) {
       const at = beforeId ? layers.findIndex((l) => l.id === beforeId) : -1;
       if (at >= 0) layers.splice(at, 0, layer);
@@ -170,7 +177,7 @@ function mapHarness() {
 /** Every value handed to maplibre's global image-request cap, in order (D-DR28). */
 const parallelSet: number[] = [];
 
-async function mountMap(FakeMap: unknown, tilesRef: { value: string }) {
+async function mountMap(FakeMap: unknown, tilesRef: { value: string }, isDark?: { value: boolean }) {
   vi.doMock("maplibre-gl", () => ({
     default: { Map: FakeMap, NavigationControl: class {}, setMaxParallelImageRequests: (n: number) => parallelSet.push(n) },
   }));
@@ -191,6 +198,7 @@ async function mountMap(FakeMap: unknown, tilesRef: { value: string }) {
       subject({
         container,
         tiles: tilesRef as never,
+        ...(isDark ? { isDark: isDark as never } : {}),
         authPathFragment: "/api/fueling/map-tiles/",
         attribution: "© HERE",
       });
@@ -377,6 +385,82 @@ describe("useMapLibre cross-fades every tile and fetches 32 at a time", () => {
     const { wrapper } = await mountMap(Recording, ref(DAY));
     expect(setBeforeConstruct).toEqual([32]);
     expect(h.constructed).toHaveLength(1);
+    wrapper.unmount();
+    vi.doUnmock("maplibre-gl");
+    vi.doUnmock("@/lib/supabase");
+  });
+});
+
+/**
+ * D-DR31: the vector road map is one more basemap to this composable, and a group of layers rather
+ * than one. These pin the three ways adding it could go wrong unnoticed: layers painted over the
+ * trucks, the HERE credit missing, and a theme switch refetching the tiles.
+ */
+describe("useMapLibre shows the vector road map as one more basemap", () => {
+  const VECTOR = "/api/fueling/map-tiles/vector/{z}/{x}/{y}";
+
+  it("adds one vector source and its layers under the trucks, then hides the raster once it has loaded", async () => {
+    vi.resetModules();
+    const h = mapHarness();
+    const { ref } = await import("vue");
+    const tiles = ref(DAY);
+    const { wrapper, nextTick } = await mountMap(h.FakeMap, tiles);
+    tiles.value = VECTOR;
+    await nextTick();
+
+    const vector = Object.entries(h.specs).filter(([, spec]) => spec.type === "vector");
+    expect(vector).toHaveLength(1);
+    const [id, spec] = vector[0]!;
+    expect(spec).toMatchObject({ maxzoom: 17, attribution: "© HERE" });
+    expect(spec.tiles[0]).toMatch(/^https?:\/\/[^/]+\/api\/fueling\/map-tiles\/vector\/\{z\}/);
+    const ids = h.layers.map((l) => l.id);
+    const group = ids.filter((l) => l.startsWith(`${id}:`));
+    expect(group.length).toBeGreaterThan(10);
+    // Every one of them below the markers `onLoad` added.
+    for (const l of group) expect(ids.indexOf(l)).toBeLessThan(ids.indexOf("vehicles"));
+    h.finishLoading(id);
+    expect(h.layers.find((l) => l.id === "here")!.layout?.visibility).toBe("none");
+    expect(h.layers.find((l) => l.id === group[0])!.layout?.visibility).toBe("visible");
+    wrapper.unmount();
+    vi.doUnmock("maplibre-gl");
+    vi.doUnmock("@/lib/supabase");
+  });
+
+  /** HERE's terms require the credit; maplibre shows it only for sources a VISIBLE layer uses. */
+  it("credits HERE on every source, so satellite, terrain and the vector map keep the attribution", async () => {
+    vi.resetModules();
+    const h = mapHarness();
+    const { ref } = await import("vue");
+    const tiles = ref(DAY);
+    const { wrapper, nextTick } = await mountMap(h.FakeMap, tiles);
+    tiles.value = "/api/fueling/map-tiles/{z}/{x}/{y}?style=satellite.day&format=jpeg";
+    await nextTick();
+    tiles.value = VECTOR;
+    await nextTick();
+    expect(Object.keys(h.specs)).toHaveLength(3);
+    for (const spec of Object.values(h.specs)) expect(spec.attribution).toBe("© HERE");
+    wrapper.unmount();
+    vi.doUnmock("maplibre-gl");
+    vi.doUnmock("@/lib/supabase");
+  });
+
+  it("repaints the vector map on a theme switch without adding a source or moving it above the trucks", async () => {
+    vi.resetModules();
+    const h = mapHarness();
+    const { ref } = await import("vue");
+    const tiles = ref(VECTOR);
+    const dark = ref(false);
+    const { wrapper, nextTick } = await mountMap(h.FakeMap, tiles, dark);
+    // Opened on the vector map, so its group is declared in the style the map is constructed with.
+    expect(h.specs.here).toMatchObject({ type: "vector" });
+    const sourcesBefore = h.sources.length;
+    const groupBefore = h.layers.filter((l) => l.id.includes(":")).map((l) => l.id);
+    dark.value = true;
+    await nextTick();
+    expect(h.sources.length).toBe(sourcesBefore);
+    const ids = h.layers.map((l) => l.id);
+    expect(ids.filter((l) => l.includes(":"))).toEqual(groupBefore);
+    for (const l of groupBefore) expect(ids.indexOf(l)).toBeLessThan(ids.indexOf("vehicles"));
     wrapper.unmount();
     vi.doUnmock("maplibre-gl");
     vi.doUnmock("@/lib/supabase");

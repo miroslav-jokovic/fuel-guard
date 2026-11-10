@@ -551,3 +551,45 @@ describe("the tile proxy when HERE refuses for rate", () => {
     expect(tileRetryDelayMs("soon", () => 0)).toBe(250);
   });
 });
+
+/**
+ * D-DR31: the vector road map's two routes. The tile route is the raster one's sibling (same pacer,
+ * same caching), so these pin only what is new: where it asks, how deep, and that the glyph relay
+ * is not an open door onto HERE's asset host.
+ */
+describe("the vector road map's tile and glyph routes", () => {
+  const get = (path: string) =>
+    realFetch(`${baseUrl}/api/fueling/map-tiles/${path}`, { headers: { Authorization: "Bearer admin" } });
+
+  it("asks HERE's vector host for the tile, with the key and nothing from the reader", async () => {
+    stubUpstream();
+    const res = await get("vector/14/4201/6091?apikey=reader-supplied");
+    expect(res.status).toBe(200);
+    const url = upstream.find((u) => u.startsWith("https://vector.hereapi.com/"));
+    expect(url).toBe("https://vector.hereapi.com/v2/vectortiles/base/mc/14/4201/6091/omv?apikey=test-here-key");
+  });
+
+  it("refuses zoom 18, which HERE does not serve, without asking HERE", async () => {
+    stubUpstream();
+    const res = await get("vector/18/1/1");
+    expect(res.status).toBe(400);
+    expect(upstream).toHaveLength(0);
+  });
+
+  it("relays HERE's two style fonts and nothing else", async () => {
+    stubUpstream();
+    expect((await get("glyphs/Fira%20GO%20Regular/0-255.pbf")).status).toBe(200);
+    expect(upstream.at(-1)).toBe("https://assets.vector.hereapi.com/fonts/Fira%20GO%20Regular/0-255.pbf");
+    upstream.length = 0;
+    expect((await get("glyphs/Arial/0-255.pbf")).status).toBe(400);
+    expect((await get("glyphs/Fira%20GO%20Bold/..%2F..%2Fstyles.pbf")).status).toBe(400);
+    expect(upstream).toHaveLength(0);
+  });
+
+  it("still sits behind the sign-in, like the raster tiles", async () => {
+    stubUpstream();
+    const res = await realFetch(`${baseUrl}/api/fueling/map-tiles/vector/14/4201/6091`);
+    expect(res.status).toBe(401);
+    expect(upstream).toHaveLength(0);
+  });
+});

@@ -22,7 +22,8 @@
 import { onBeforeUnmount, onMounted, shallowRef, toValue, watch, type Ref } from "vue";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { HERE_MAX_TILE_ZOOM, TILE_CSS_PX, TILE_REQUEST } from "@silvicom/shared";
+import { HERE_MAX_TILE_ZOOM, HERE_MAX_VECTOR_ZOOM, TILE_CSS_PX, TILE_REQUEST } from "@silvicom/shared";
+import { GLYPHS_PATH, MAP_PALETTE_KEYS, isVectorTemplate, vectorBasemapLayers, type MapPalette } from "./vectorBasemap";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -70,6 +71,29 @@ export function toMapColor(color: string): string {
  * a literal colour string and the design system refuses to have one written down anywhere but
  * `tokens.css`.
  */
+/**
+ * Resolve a CSS custom property (a `--map-*` token) to a concrete colour, in the scheme now on screen.
+ *
+ * Same indirection as `tokenColor`, for tokens that have no utility class: the vector basemap's
+ * palette (D-DR31) is internal to the map, so its roles are not exposed to Tailwind. The token's
+ * `light-dark()` resolves against the document's scheme, so reading it again after a theme switch
+ * gives the other half.
+ */
+export function cssVarColor(name: string): string {
+  const el = document.createElement("span");
+  el.style.color = `var(${name})`;
+  el.style.display = "none";
+  document.body.appendChild(el);
+  const raw = window.getComputedStyle(el).color;
+  el.remove();
+  return toMapColor(raw);
+}
+
+/** The vector basemap's palette, read from the `--map-*` tokens. */
+export function mapPalette(): MapPalette {
+  return Object.fromEntries(MAP_PALETTE_KEYS.map((k) => [k, cssVarColor(`--map-${k}`)])) as MapPalette;
+}
+
 export function tokenColor(cls: string): string {
   const el = document.createElement("span");
   el.className = cls;
@@ -106,6 +130,11 @@ export interface UseMapLibreOptions {
    * would ever say no.
    */
   navControl?: boolean;
+  /**
+   * The reader's colour scheme. Only the vector road map needs it: its colours are tokens, so a
+   * scheme switch repaints it, where a raster basemap changes by changing its tile URL instead.
+   */
+  isDark?: Ref<boolean>;
   /** Run once the style has loaded, with the live map. Sources and layers are added here. */
   onLoad?: (map: maplibregl.Map) => void;
   /**
@@ -137,6 +166,8 @@ const TILE_SOURCE = "here";
  * the live map and Fuel Planning would each be a copy of the rule. Pure, so a test can hold it still.
  */
 export function withTileRequest(template: string): string {
+  // A vector tile has no pixel size or density; the request is the tile and nothing else.
+  if (isVectorTemplate(template)) return template;
   return `${template}${template.includes("?") ? "&" : "?"}size=${TILE_REQUEST.size}&ppi=${TILE_REQUEST.ppi}`;
 }
 
@@ -184,10 +215,11 @@ export function useMapLibre(options: UseMapLibreOptions): {
   /**
    * Every basemap this map has shown, by its tile URL — the cache D-DR23 is about.
    *
-   * At most four entries (three choices × a night variant of one), each added the first time the
-   * reader asks for it and kept for the life of the map.
+   * At most five entries (three raster choices, the night variant of one, and the vector road map),
+   * each added the first time the reader asks for it and kept for the life of the map. A raster
+   * basemap is one layer; the vector one is a group of layers on one source, shown and hidden as one.
    */
-  const rasterLayers = new Map<string, string>();
+  const basemaps = new Map<string, { source: string; layers: string[] }>();
   const tileUrl = () => withTileRequest(toValue(options.tiles));
   /**
    * Both raster definitions in this file are built here so they cannot disagree.
@@ -203,6 +235,19 @@ export function useMapLibre(options: UseMapLibreOptions): {
     tiles: [tiles],
     tileSize: TILE_CSS_PX,
     maxzoom: HERE_MAX_TILE_ZOOM,
+  });
+
+  /**
+   * The vector road map's source (D-DR31). Its template is made absolute by joining, NOT with
+   * `new URL()`: that percent-encodes `{z}/{x}/{y}` into `%7Bz%7D`, which maplibre no longer
+   * recognises as a placeholder, so every tile would be requested with the braces in it. Caught by
+   * "adds one vector source and its layers under the trucks, then hides the raster once it has loaded".
+   */
+  const vectorSource = (tiles: string) => ({
+    type: "vector" as const,
+    tiles: [tiles.startsWith("/") ? `${window.location.origin}${tiles}` : tiles],
+    maxzoom: HERE_MAX_VECTOR_ZOOM,
+    attribution: options.attribution,
   });
 
   /** Both raster LAYERS are built here too, for the same reason as `rasterSource` (D-DR28). */
@@ -233,15 +278,25 @@ export function useMapLibre(options: UseMapLibreOptions): {
     }).data.subscription;
 
     maplibregl.setMaxParallelImageRequests(MAX_PARALLEL_TILE_REQUESTS);
+    // A map can open on either kind of basemap; the first one is declared in the style either way.
+    const first = tileUrl();
+    const firstLayers = isVectorTemplate(first)
+      ? vectorBasemapLayers(mapPalette(), TILE_SOURCE, `${TILE_SOURCE}:`)
+      : [rasterLayer(TILE_SOURCE)];
     const instance = new maplibregl.Map({
       container: options.container.value,
       transformRequest: attachAuth,
       style: {
         version: 8,
         sources: {
-          [TILE_SOURCE]: { ...rasterSource(tileUrl()), attribution: options.attribution },
+          [TILE_SOURCE]: isVectorTemplate(first)
+            ? vectorSource(first)
+            : { ...rasterSource(first), attribution: options.attribution },
         },
-        layers: [rasterLayer(TILE_SOURCE)],
+        layers: firstLayers as maplibregl.LayerSpecification[],
+        // D-DR31: maplibre draws no text without glyphs. Declared up front because a style's glyph
+        // URL cannot be added later, and the vector road map needs it the moment it is chosen.
+        glyphs: `${window.location.origin}${GLYPHS_PATH}`,
       },
       attributionControl: { compact: true },
       dragRotate: false,
@@ -249,7 +304,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
     // The style above declares the first basemap, so it is registered here rather than added again —
     // otherwise the first switch would build a second layer for a basemap already on screen, and
     // every id would be off by one.
-    rasterLayers.set(tileUrl(), TILE_SOURCE);
+    basemaps.set(first, { source: TILE_SOURCE, layers: firstLayers.map((l) => l.id) });
     /**
      * ⚠ `navControl: false` exists because maplibre only knows FOUR corners, and on the live map all
      * four are taken (D-DR21). Measured 2026-09-16: the built-in control lands at 1458,92 (39×68)
@@ -280,18 +335,59 @@ export function useMapLibre(options: UseMapLibreOptions): {
    * above the rasters we already own and below the first layer that is anybody else's.
    */
   function addBasemapLayer(instance: maplibregl.Map, tiles: string): string {
-    const id = rasterLayers.size === 0 ? TILE_SOURCE : `${TILE_SOURCE}-${rasterLayers.size}`;
-    instance.addSource(id, {
-      ...rasterSource(tiles),
-      // ⚠ Only the first source carries it: maplibre concatenates the attribution of every source
-      // with a visible layer, and four sources naming HERE would print "© HERE" four times.
-      ...(rasterLayers.size === 0 ? { attribution: options.attribution } : {}),
-    });
-    const ours = new Set([...rasterLayers.values(), id]);
-    const firstForeign = instance.getStyle().layers.find((l) => !ours.has(l.id));
-    instance.addLayer(rasterLayer(id, { visibility: "none" }), firstForeign?.id);
-    rasterLayers.set(tiles, id);
+    const id = `${TILE_SOURCE}-${basemaps.size}`;
+    /**
+     * ⚠ EVERY source carries the attribution, and the comment that stood here said the opposite.
+     * It claimed maplibre would print "© HERE" once per source; the installed 5.24.0 bundle
+     * (`_updateAttributions`) adds a source's attribution only if it is not already in the list, and
+     * only for a source a VISIBLE layer uses. So with the attribution on the first source alone, the
+     * credit vanished the moment satellite or terrain hid that layer, and HERE's terms require it
+     * (Platform Terms §13.1). Found while adding the vector map, 2026-11-10.
+     */
+    if (isVectorTemplate(tiles)) {
+      instance.addSource(id, vectorSource(tiles));
+    } else {
+      instance.addSource(id, { ...rasterSource(tiles), attribution: options.attribution });
+    }
+    const layers = isVectorTemplate(tiles) ? vectorBasemapLayers(mapPalette(), id, `${id}:`) : [rasterLayer(id)];
+    const before = firstForeignLayer(instance, layers.map((l) => l.id));
+    for (const layer of layers) {
+      instance.addLayer({ ...layer, layout: { ...(layer.layout ?? {}), visibility: "none" } } as maplibregl.LayerSpecification, before);
+    }
+    basemaps.set(tiles, { source: id, layers: layers.map((l) => l.id) });
     return id;
+  }
+
+  /** The first layer that is not one of this composable's basemaps: new basemap layers go under it. */
+  function firstForeignLayer(instance: maplibregl.Map, adding: string[]): string | undefined {
+    const ours = new Set([...[...basemaps.values()].flatMap((b) => b.layers), ...adding]);
+    return instance.getStyle().layers.find((l) => !ours.has(l.id))?.id;
+  }
+
+  /**
+   * Repaint the vector road map in the scheme now on screen (D-DR31). Its layers are rebuilt from
+   * the tokens in place, under the same layer; the source and its tiles are kept, so nothing is
+   * fetched again.
+   */
+  function repaintVector(instance: maplibregl.Map): void {
+    for (const [tiles, group] of basemaps) {
+      if (!isVectorTemplate(tiles)) continue;
+      const visible = instance.getLayoutProperty(group.layers[0]!, "visibility") !== "none";
+      const fresh = vectorBasemapLayers(mapPalette(), group.source, `${group.source}:`);
+      const before = instance.getStyle().layers.slice(
+        instance.getStyle().layers.findIndex((l) => l.id === group.layers.at(-1)) + 1,
+      )[0]?.id;
+      for (const lid of group.layers) instance.removeLayer(lid);
+      for (const layer of fresh) {
+        instance.addLayer({ ...layer, layout: { ...(layer.layout ?? {}), visibility: visible ? "visible" : "none" } } as maplibregl.LayerSpecification, before);
+      }
+    }
+  }
+
+  if (options.isDark) {
+    watch(options.isDark, () => {
+      if (map.value) repaintVector(map.value);
+    });
   }
 
   /**
@@ -331,17 +427,19 @@ export function useMapLibre(options: UseMapLibreOptions): {
     (next) => {
       const instance = map.value;
       if (!instance) return;
-      const known = rasterLayers.get(next);
+      const known = basemaps.get(next)?.source;
       const id = known ?? addBasemapLayer(instance, next);
-      const reveal = () => {
-        for (const [tiles, layerId] of rasterLayers) {
-          if (!instance.getLayer(layerId)) continue;
-          instance.setLayoutProperty(layerId, "visibility", tiles === next ? "visible" : "none");
+      const show = (tiles: string, on: boolean) => {
+        for (const layerId of basemaps.get(tiles)?.layers ?? []) {
+          if (instance.getLayer(layerId)) instance.setLayoutProperty(layerId, "visibility", on ? "visible" : "none");
         }
+      };
+      const reveal = () => {
+        for (const tiles of basemaps.keys()) show(tiles, tiles === next);
       };
       // A layer must be visible before maplibre will load its tiles, so the new one is revealed
       // first and the old ones are only hidden once the new source reports itself loaded.
-      instance.setLayoutProperty(id, "visibility", "visible");
+      show(next, true);
       if (instance.isSourceLoaded(id)) return reveal();
       const onData = (e: maplibregl.MapSourceDataEvent) => {
         if (e.sourceId !== id || !instance.isSourceLoaded(id)) return;

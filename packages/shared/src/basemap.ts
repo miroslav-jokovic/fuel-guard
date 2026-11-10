@@ -246,3 +246,16 @@ export function resolveTileRequest(rawSize: unknown, rawPpi: unknown): { size: n
     ? { size: TILE_REQUEST.size, ppi: TILE_REQUEST.ppi }
     : { size: 512, ppi: 100 };
 }
+
+/**
+ * The deepest VECTOR tile HERE serves (D-DR31). Measured with the production key on 2026-11-09: zooms
+ * 12–17 answer 200 and 18 answers 400. maplibre overzooms the zoom-17 tile beyond that, so the web
+ * source's `maxzoom` and the proxy's coordinate check both read this.
+ */
+export const HERE_MAX_VECTOR_ZOOM = 17;
+
+/**
+ * The two fonts the vector road map draws labels with, and the only ones the glyph proxy relays
+ * (D-DR31). They are HERE's own style fonts; the web style and the API allowlist read this one list.
+ */
+export const VECTOR_GLYPH_FONTS = ["Fira GO Regular", "Fira GO Bold"] as const;
