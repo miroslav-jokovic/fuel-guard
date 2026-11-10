@@ -76,17 +76,17 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@5",
+    "prompt_version": "analyst@6",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T19:41:41.869Z",
+    "recorded_at": "2026-11-10T16:13:23.217Z",
     "output": {
-      "headline": "November 3, 2026: Regional Class A — Joliet ran as the sole campaign, delivering 7 leads at $30.64 each from $214.50 spent.",
+      "headline": "Regional Class A — Joliet was the only campaign running on November 3, 2026, spending $214.50 for 7 leads at $30.64 each.",
       "points": [
-        "Regional Class A — Joliet was the only campaign running on November 3, 2026: $214.50 spent, 10,230 impressions, 152 clicks, a 1.5% click rate, and 7 leads at $30.64 cost per lead.",
-        "November 2026 is 27 days in with spend so far sitting at $214.50 on Meta.",
-        "The 2026-10-05 cohort (19 leads, mature) shows 15 contacted, 5 converted, 3 applied, and 4 lost after conversion. None were qualified, closed as not qualified, hired, or closed before applying.",
-        "The 2026-10-19 cohort has 23 leads and is too young to judge: 17 contacted, 6 converted, 2 applied, 1 lost after conversion, none closed in either direction.",
-        "The 2026-11-02 cohort has 7 leads — matching today's haul — and is too young to judge: 3 contacted, none yet converted, applied, or closed."
+        "Regional Class A — Joliet delivered 7 leads from 10,230 impressions and 152 clicks at a 1.5% click rate. It accounts for all of November 2026's spend so far: $214.50 on Meta with 27 days left in the month.",
+        "The 2026-10-05 cohort (19 leads) is mature: 15 were contacted, 5 made applicants, 3 applied, and 4 were lost after conversion. None were closed as not qualified and none were hired yet.",
+        "The 2026-10-19 cohort has 23 leads and is too young to judge rates. So far 17 were contacted, 6 were made applicants, 2 applied, and 1 was lost after conversion.",
+        "The 2026-11-02 cohort has 7 leads and is too young to judge rates. Only 3 have been contacted so far and none have moved further — worth watching to make sure outreach continues.",
+        "No lead quality data is available for the 14-day window; the campaign list is empty."
       ]
     }
   }

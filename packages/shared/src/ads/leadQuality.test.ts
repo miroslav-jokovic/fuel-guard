@@ -3,7 +3,7 @@ import { leadQualityBreaches, medianMinutes, type LeadQualityCounts } from "./le
 import { ADS_LEAD_QUALITY_DEFAULT, ADS_SETTINGS_UNSET, adsSettingsSchema, leadQualityOf } from "./settingsContract.js";
 
 const row = (over: Partial<LeadQualityCounts>): LeadQualityCounts => ({
-  campaign_id: "c1", leads: 20, attempted: 10, wrong_number: 0, reached: 5, not_qualified: 0, median_first_attempt_minutes: 7, ...over,
+  campaign_id: "c1", leads: 20, attempted: 10, wrong_number: 0, reached: 5, not_qualified: 0, median_first_attempt_minutes: 7, closed: {}, ...over,
 });
 
 describe("leadQualityBreaches (LQ3, Q-AD51 (a))", () => {

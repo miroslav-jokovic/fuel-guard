@@ -13,7 +13,10 @@ const contact = (n: number, outcome: string | null, at: string) => ({ org_id: OR
 const verdict = (n: number, requirement: string, v: string, hard: boolean, at: string) =>
   ({ org_id: ORG, lead_id: L(n), requirement, verdict: v, evidence: v === "unknown" ? null : "self_reported", detail: { hard }, computed_at: at });
 
-function seed() {
+const NO_CLOSED = { not_interested: 0, unreachable: 0, wrong_number: 0, duplicate: 0, out_of_area: 0, spam: 0 };
+const act = (n: number, seq: number, kind: string, reason: string | null = null) => ({ org_id: ORG, id: `a${n}-${seq}`, lead_id: L(n), kind, reason, seq });
+
+function seed(closures: Array<Record<string, unknown>> = []) {
   return createSupabaseRecorder({
     tables: {
       recruiting_leads: postgrestFixture([lead(1, C1), lead(2, C1), lead(3, C1), lead(4, C2)]),
@@ -29,6 +32,7 @@ function seed() {
         // Unknown is the next question, never a failure; a preference that is not met is not a HARD miss.
         verdict(3, "age", "unknown", true, "2026-11-10T15:00:01Z"), verdict(3, "hazmat", "does_not_meet", false, "2026-11-10T15:00:01Z"),
       ]),
+      recruiting_lead_closures: postgrestFixture(closures),
     },
   });
 }
@@ -38,11 +42,26 @@ describe("readLeadQuality (LQ3b)", () => {
     const rec = seed();
     const rows = await readLeadQuality(rec.client as never, ORG, "2026-11-06T00:00:00Z");
     expect(rows.find((r) => r.campaign_id === C1)).toEqual({
-      campaign_id: C1, leads: 3, attempted: 2, wrong_number: 1, reached: 1, not_qualified: 1, median_first_attempt_minutes: 7,
+      campaign_id: C1, leads: 3, attempted: 2, wrong_number: 1, reached: 1, not_qualified: 1, median_first_attempt_minutes: 7, closed: NO_CLOSED,
     });
     expect(rows.find((r) => r.campaign_id === C2)).toEqual({
-      campaign_id: C2, leads: 1, attempted: 1, wrong_number: 0, reached: 0, not_qualified: 0, median_first_attempt_minutes: 30,
+      campaign_id: C2, leads: 1, attempted: 1, wrong_number: 0, reached: 0, not_qualified: 0, median_first_attempt_minutes: 30, closed: NO_CLOSED,
     });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("closed for another reason is the lead's NEWEST act, by reason, per campaign; every reason is in the answer (LR4)", async () => {
+    // Rows handed over out of `seq` order on purpose: the reader's order is what makes "newest" true.
+    const rec = seed([
+      act(1, 12, "reopened"), act(1, 11, "closed", "out_of_area"),                   // closed, then reopened: open
+      act(2, 22, "closed", "spam"), act(2, 21, "closed", "not_interested"),          // closed twice: the later reason, once
+      act(3, 31, "closed", "not_qualified:class_a"),                                 // a requirement: that is not_qualified's
+      act(4, 41, "closed", "out_of_area"),
+      { org_id: "99999999-0000-4000-8000-000000000001", id: "other", lead_id: L(4), kind: "closed", reason: "spam", seq: 99 },
+    ]);
+    const rows = await readLeadQuality(rec.client as never, ORG, "2026-11-06T00:00:00Z");
+    expect(rows.find((r) => r.campaign_id === C1)!.closed).toEqual({ ...NO_CLOSED, spam: 1 });
+    expect(rows.find((r) => r.campaign_id === C2)!.closed).toEqual({ ...NO_CLOSED, out_of_area: 1 });
     expectOrgScoped(rec, ORG);
   });
 
