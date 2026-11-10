@@ -331,6 +331,10 @@ const API_ALLOW = new Set([
   //   no pause can use, reach a person through notify() (`modules/ads/alerts/`), not only a failed
   //   `ads_actions` row nobody reads. messaging imports nothing of ads'.
   "ads -> messaging",
+  // · insights -> messaging — Ask AI's 80% and 100% cap bells (F21 R2b, Q-AI1 "admin alert at 80%"):
+  //   notify() through messaging's index, recipients from org's `usersWhoManage("admin")` (the
+  //   insights -> org edge above). Without it, a carrier's assistant stops at the cap with nobody told.
+  "insights -> messaging",
   // · ads -> org — Settings › Ads control's spend card (E1c, Q-AD36, ruled 2026-11-05) says when the
   //   daily check against Meta last finished. That fact is a row in org's job ledger (`jobs`), so it
   //   is read through org's index (`lastDoneJobByKey` only), the same arrow "fuel-spend -> org" and

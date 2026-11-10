@@ -1,7 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assistantBudgetVerdict, dayRangeInstants, organizationTimezone, todayInZone, type AssistantBudgetVerdict } from "@silvicom/shared";
+import {
+  ASSISTANT_MONTHLY_CAP_MICRO_USD,
+  assistantBudgetVerdict,
+  assistantCapCrossings,
+  dayRangeInstants,
+  organizationTimezone,
+  todayInZone,
+  type AssistantBudgetVerdict,
+} from "@silvicom/shared";
 import { readAiTokenBudget } from "../anomalies/index.js";
-import { aiTokensUsedThisMonth } from "../org/index.js";
+import { notify } from "../messaging/index.js";
+import { aiTokensUsedThisMonth, usersWhoManage } from "../org/index.js";
 
 /**
  * Ask AI's meter (F21 R2, PLAN.md Step 1a/1b): the gate before a question and the record after it.
@@ -86,4 +95,59 @@ export function assistantLogLine(orgId: string, usage: AnswerUsage, latencyMs: n
     `cache_read=${usage.cacheReadTokens} cache_write=${usage.cacheWriteTokens} out=${usage.outputTokens} ` +
     `cost_usd=${(usage.costMicroUsd / 1_000_000).toFixed(4)} ms=${Math.round(latencyMs)} tools=${tools.join(",") || "-"}`
   );
+}
+
+const dollars = (micro: number) => `$${Math.floor(micro / 1_000_000)}`;
+
+/**
+ * The 80% and 100% bells (F21 R2b; Q-AI1: "admin alert at 80%"). Called after an answer is recorded, with
+ * the month's spend the gate read before it and what the answer cost.
+ *
+ * WHO: the people who manage the admin section (`usersWhoManage(…, "admin")`, derived from the section
+ * matrix) — the cap is the carrier's AI spend, and the admin section is where AI settings live. Never a
+ * role list written here.
+ *
+ * ONCE per line per carrier per month: the dedupe key names the carrier's month (its clock, the cap's
+ * month), so two answers crossing at once, or a retried request, ring once.
+ *
+ * Never throws: the answer has been given; a bell that fails is logged.
+ */
+export async function alertAssistantBudget(
+  admin: SupabaseClient,
+  orgId: string,
+  spend: { beforeMicroUsd: number; costMicroUsd: number },
+  now: Date,
+): Promise<number> {
+  const crossed = assistantCapCrossings(spend.beforeMicroUsd, spend.beforeMicroUsd + spend.costMicroUsd);
+  if (crossed.length === 0) return 0;
+  try {
+    const { data: org } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
+    const zone = organizationTimezone((org as { operating_hours?: object | null } | null)?.operating_hours);
+    const month = todayInZone(now, zone).slice(0, 7);
+    const users = await usersWhoManage(admin, orgId, "admin");
+    if (users.length === 0) console.error(`[ai] org ${orgId}: budget alert has nobody to tell — no one manages the admin section`);
+    const cap = dollars(ASSISTANT_MONTHLY_CAP_MICRO_USD);
+    let made = 0;
+    for (const line of crossed) {
+      const alert =
+        line === "warn"
+          ? {
+              title: "Ask AI is near this month's spending cap",
+              body: `Ask AI has used ${dollars(ASSISTANT_MONTHLY_CAP_MICRO_USD * 0.8)} of its ${cap} for this month. At ${cap} it stops answering until the 1st.`,
+            }
+          : {
+              title: "Ask AI has reached this month's spending cap",
+              body: `Ask AI has used its ${cap} for this month and stops answering until the 1st.`,
+            };
+      const ids = await Promise.all(users.map((userId) => notify(admin, {
+        orgId, userId, category: "ai_assistant_budget", severity: "warning", ...alert,
+        entityType: "organizations", entityId: orgId, dedupeKey: `ai_assistant_budget:${line}:${orgId}:${month}`,
+      })));
+      made += ids.filter(Boolean).length;
+    }
+    return made;
+  } catch (e) {
+    console.error(`[ai] org ${orgId}: budget alert failed: ${e instanceof Error ? e.message : String(e)}`);
+    return 0;
+  }
 }
