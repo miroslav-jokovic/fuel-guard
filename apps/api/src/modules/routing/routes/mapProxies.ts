@@ -1,4 +1,4 @@
-import type { Router } from "express";
+import type { Router, Response as ExpressResponse } from "express";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
@@ -11,6 +11,9 @@ import { geocodeSuggest } from "../geocode.js";
 import { fetchVehicleCurrentGps } from "../../samsara/lib/samsara.js";
 import { loadSamsaraToken } from "../../samsara/lib/samsaraToken.js";
 import { hereReverseGeocode } from "../../../lib/hereGeocode.js";
+import { apiRateLimitKey } from "../../../middleware/apiRateLimit.js";
+import { registerMetricsSection } from "../../../middleware/requestMetrics.js";
+import { HERE_TILE_PACING, TilePacer } from "../tilePacer.js";
 
 /**
  * How long this proxy waits for HERE before answering the browser itself.
@@ -64,8 +67,55 @@ const TILE_UPSTREAM_TIMEOUT_MS = 8_000;
  * leaving this process to finish downloading it into a buffer it will never send.
  */
 
+/**
+ * How long to wait before the one retry of a tile HERE refused with 429 (D-DR30).
+ *
+ * HERE's `Retry-After` wins when it sends one, capped at 2 s: a reader waits for a map, not a
+ * minute. Otherwise 250–600 ms, jittered so the tiles one burst lost do not all come back on the
+ * same millisecond and get refused together again.
+ */
+export function tileRetryDelayMs(retryAfter: string | null, random: () => number = Math.random): number {
+  const seconds = retryAfter === null ? NaN : Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(2_000, seconds * 1_000);
+  return 250 + Math.round(random() * 350);
+}
+
+/** Wait `ms`, or less if the reader leaves first. Resolves either way; the caller checks `signal`. */
+function pause(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(done, ms);
+    function done() {
+      clearTimeout(t);
+      signal.removeEventListener("abort", done);
+      resolve();
+    }
+    signal.addEventListener("abort", done, { once: true });
+  });
+}
+
+/**
+ * ⚠ An error tile must never be cached. A 502 or 503 has no `Cache-Control` of its own, and a
+ * browser or proxy that kept one would show a blank square for a place HERE serves fine a second later.
+ */
+function noStore(res: ExpressResponse): void {
+  res.setHeader("Cache-Control", "no-store");
+}
+
 /** Map + geocoding proxies: keep the HERE key / vendor rate server-side, never in the browser. */
 export function registerMapRoutes(router: Router): void {
+  /**
+   * D-DR30: one pacer per process, in front of every tile this process asks HERE for (`tilePacer.ts`
+   * has the measurement). Its counts, and what HERE refused, join the per-minute `[metrics]` line so
+   * the limit can be watched in production. Nothing per caller is recorded: the totals only.
+   */
+  const pacer = new TilePacer(HERE_TILE_PACING);
+  const refusals = { refused429: 0, retried: 0, retriedOk: 0 };
+  registerMetricsSection("hereTiles", () => {
+    const counts = { ...pacer.drainCounts(), ...refusals };
+    refusals.refused429 = refusals.retried = refusals.retriedOk = 0;
+    return counts;
+  });
+
   // Tells the client whether an interactive HERE tile map is available (key present) or it should keep the
   // dependency-free SVG route preview. Cheap, org-agnostic.
   router.get(
@@ -147,13 +197,56 @@ export function registerMapRoutes(router: Router): void {
        * response has already finished".
        */
       const deadline = new AbortController();
-      const timer = setTimeout(
-        () => deadline.abort(new DOMException("The operation was aborted due to timeout", "TimeoutError")),
-        TILE_UPSTREAM_TIMEOUT_MS,
-      );
+      /**
+       * D-DR30: armed when the tile is first SENT, not when it arrives. A tile that waited its turn
+       * in the pacer still gets HERE's full 8 s; the pacer's own `maxWaitMs` bounds the wait before.
+       */
+      let timer: NodeJS.Timeout | undefined;
+      /** Aborted when the reader goes away before the tile is served: maplibre cancelled it. */
+      const gone = new AbortController();
+      res.on("close", () => {
+        if (!res.writableFinished) gone.abort();
+      });
+      const caller = apiRateLimitKey(req);
+      /** One paced attempt: wait for this caller's turn, then ask HERE. */
+      const attempt = async (): Promise<Response | "busy" | "gone"> => {
+        const turn = await pacer.acquire(caller, gone.signal);
+        if (turn !== "go") return turn;
+        timer ??= setTimeout(
+          () => deadline.abort(new DOMException("The operation was aborted due to timeout", "TimeoutError")),
+          TILE_UPSTREAM_TIMEOUT_MS,
+        );
+        return fetch(url, { signal: deadline.signal });
+      };
       try {
-        const upstream = await fetch(url, { signal: deadline.signal });
+        let upstream = await attempt();
+        /**
+         * D-DR30: HERE refusing a tile for rate is retried ONCE, after a short jittered pause. A burst
+         * is over in about a second, so one retry turns most refusals into a tile, and two would only
+         * add to the burst that caused them. A second 429 is answered 503 with `Retry-After`, never
+         * the old 502: "HERE is busy" and "HERE is broken" are different incidents.
+         */
+        if (typeof upstream !== "string" && upstream.status === 429) {
+          refusals.refused429 += 1;
+          refusals.retried += 1;
+          const wait = tileRetryDelayMs(upstream.headers.get("retry-after"));
+          await upstream.body?.cancel().catch(() => {});
+          await pause(wait, gone.signal);
+          upstream = gone.signal.aborted ? "gone" : await attempt();
+          if (typeof upstream !== "string" && upstream.ok) refusals.retriedOk += 1;
+          if (typeof upstream !== "string" && upstream.status === 429) refusals.refused429 += 1;
+        }
+        // The reader cancelled this tile while it waited. Its socket is gone; there is no one to answer.
+        if (upstream === "gone") return;
+        if (upstream === "busy" || upstream.status === 429) {
+          if (upstream !== "busy") await upstream.body?.cancel().catch(() => {});
+          noStore(res);
+          res.setHeader("Retry-After", "1");
+          res.status(503).json(apiError("tile_upstream_busy", "HERE is refusing tiles for rate; try again shortly"));
+          return;
+        }
         if (!upstream.ok) {
+          noStore(res);
           res.status(502).json(apiError("tile_upstream_error", `HERE tile HTTP ${upstream.status}`));
           return;
         }
@@ -218,6 +311,7 @@ export function registerMapRoutes(router: Router): void {
           res.destroy(e instanceof Error ? e : undefined);
           return;
         }
+        noStore(res);
         if (aborted) {
           res
             .status(504)

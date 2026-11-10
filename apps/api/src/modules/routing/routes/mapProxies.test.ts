@@ -499,3 +499,55 @@ describe("the tile request reaches the upstream URL (D-DR26)", () => {
     expect(hereUrl()).toBeUndefined();
   });
 });
+
+/**
+ * D-DR30: HERE refusing a tile for RATE. Measured 2026-11-10: a 40-dispatcher burst drew `429 "Rate
+ * limit for this service has been reached"` on 17–21% of tiles, which this route turned into blank
+ * 502 squares. One jittered retry, then an honest 503, and never a cached error.
+ */
+describe("the tile proxy when HERE refuses for rate", () => {
+  function stubRefusals(n: number) {
+    let calls = 0;
+    vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+      upstream.push(String(input));
+      upstreamInit.push(init);
+      calls += 1;
+      if (calls <= n) return new Response("{}", { status: 429 });
+      return new Response(Buffer.from([0]), { status: 200, headers: { "content-type": "image/png" } });
+    });
+  }
+
+  it("retries a refused tile once and serves it, instead of handing the reader a blank square", async () => {
+    stubRefusals(1);
+    const res = await tile("");
+    expect(res.status).toBe(200);
+    expect(upstream.filter((u) => u.startsWith("https://maps.hereapi.com/"))).toHaveLength(2);
+  });
+
+  it("answers 503 with Retry-After after a second refusal, never retrying a third time", async () => {
+    stubRefusals(2);
+    const res = await tile("");
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe("1");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const body = (await res.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe("tile_upstream_busy");
+    expect(upstream.filter((u) => u.startsWith("https://maps.hereapi.com/"))).toHaveLength(2);
+  });
+
+  it("marks a vendor error uncacheable too, so a blank square is not kept for a day", async () => {
+    vi.stubGlobal("fetch", async () => new Response("{}", { status: 500 }));
+    const res = await tile("");
+    expect(res.status).toBe(502);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("waits what HERE asks, capped at two seconds, and otherwise 250–600 ms with jitter", async () => {
+    const { tileRetryDelayMs } = await import("./mapProxies.js");
+    expect(tileRetryDelayMs("1")).toBe(1_000);
+    expect(tileRetryDelayMs("30")).toBe(2_000);
+    expect(tileRetryDelayMs(null, () => 0)).toBe(250);
+    expect(tileRetryDelayMs(null, () => 1)).toBe(600);
+    expect(tileRetryDelayMs("soon", () => 0)).toBe(250);
+  });
+});
