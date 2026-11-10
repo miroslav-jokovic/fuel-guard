@@ -228,10 +228,13 @@ describe("Ask AI: a screen that starts admin-only, then the person's tools (Q-SE
     expect(await gate(token("dispatcher", { fuel: "none", roster: "none", equipment: "none" }))).toBe("tools");
   });
 
-  it("a recruiter or technician the screen is turned on for is refused until their areas have tools — and follows the org's answers", async () => {
+  it("a recruiter the screen is turned on for is refused until their area has tools; a technician has the repair bills — and both follow the org's answers", async () => {
     answers([{ role: "recruiter", surface_key: "ask-ai", allowed: true }, { role: "technician", surface_key: "ask-ai", allowed: true }]);
     expect(await gate(token("recruiter"))).toBe("tools");
-    expect(await gate(token("technician"))).toBe("tools");
+    // F21 R6b: `maintenance_cost` is the technician's first tool, because the matrix lets them open
+    // the truck page; with maintenance taken away there is nothing left to ask.
+    expect(await gate(token("technician"))).toBe(null);
+    expect(await gate(token("technician", { maintenance: "none" }))).toBe("tools");
     // HazmatGuard grants no tool (the coincidence the old hand list equalled); Fuel does.
     expect(await gate(token("recruiter", { hazmat: "manage" }))).toBe("tools");
     expect(await gate(token("recruiter", { fuel: "view" }))).toBe(null);
