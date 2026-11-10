@@ -411,7 +411,7 @@ Cropping to a fixed band at build time would have to be redone at every breakpoi
   behind the existing proxy with a server cache and measure a week of staging use. Recommendation:
   (a), because it is a reading task and (b) can't undo a bill.
 
-- **Q-DR29 — should map tiles get their own rate-limit bucket?** (Q-DR5…Q-DR28 are taken in
+- **Q-DR29 — ANSWERED 2026-11-10 by the owner ("proceed with next step"): (b), built as D-DR29 without (a), because this session had no AWS credentials.** *Original question:* should map tiles get their own rate-limit bucket? (Q-DR5…Q-DR28 are taken in
   `DOCUMENT-READER-PLAN.md`, hence the jump.) Tiles share the general `/api` per-caller budget,
   2 100 per 15 minutes (`apiRateLimit.ts`), with every poll the dispatcher's board makes. Measured
   2026-11-10: one walk of 18 one-level zooms costs ~410 tile requests after D-DR26, so a dispatcher
@@ -1224,3 +1224,12 @@ conflict every time (`plan-progress-log-not-table-rows`).
     16/32-request queue as the basemap. Its build has to be timed on this walk against these numbers,
     not just checked for names.
   - Open: Q-DR29 (tiles share the general rate limit with the board's polls).
+- **2026-11-10 — D-DR29: map tiles have their own rate-limit budget, so zooming can no longer stop
+  the dispatch board refreshing.** Answers Q-DR29. A tile now counts against a tile pair: per
+  caller 4 100 per 15 minutes (ten of the measured 410-tile heavy zoom walks), per address 24 600
+  (thirty seats making two such walks each). The general pair skips tiles and is otherwise
+  unchanged. Its 2 100 / 31 000 now have more room than polls need; lowering them is a separate
+  call. Both pairs read one predicate (`isMapTileRequest`, `apiRateLimit.ts`), so each is the
+  other's complement. ⚠ Built on the measured walk, not on production 429 counts (no AWS
+  credentials in the session). Reading a week of `[metrics]` 429s by route is still worth doing
+  after it ships, to retune both numbers.

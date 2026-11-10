@@ -9,6 +9,9 @@ import {
   apiAddressKey,
   API_RATE_LIMIT_PER_CALLER,
   API_RATE_LIMIT_PER_ADDRESS,
+  MAP_TILE_RATE_LIMIT_PER_CALLER,
+  MAP_TILE_RATE_LIMIT_PER_ADDRESS,
+  isMapTileRequest,
 } from "./middleware/apiRateLimit.js";
 
 /**
@@ -199,10 +202,34 @@ export function mountCompression(app: Express): void {
  * above — a named stage, called in order.
  */
 export function mountGeneralRateLimits(app: Express): void {
+  /**
+   * D-DR29: map tiles get their own pair and the general pair skips them (`apiRateLimit.ts` says
+   * why). Both pairs read ONE predicate, `isMapTileRequest`, in opposite senses, so they are each
+   * other's exact complement: no request is counted twice and none is counted by neither.
+   */
+  const notTile = (req: Request) => !isMapTileRequest(req);
+  app.use("/api", rateLimit({
+    windowMs: 15 * 60_000,
+    limit: MAP_TILE_RATE_LIMIT_PER_ADDRESS,
+    keyGenerator: apiAddressKey,
+    skip: notTile,
+    standardHeaders: false,
+    legacyHeaders: false,
+  }));
+  app.use("/api", rateLimit({
+    windowMs: 15 * 60_000,
+    limit: MAP_TILE_RATE_LIMIT_PER_CALLER,
+    keyGenerator: apiRateLimitKey,
+    skip: notTile,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+  }));
+
   const apiAddressCeiling = rateLimit({
     windowMs: 15 * 60_000,
     limit: API_RATE_LIMIT_PER_ADDRESS,
     keyGenerator: apiAddressKey,
+    skip: isMapTileRequest,
     // The per-caller limiter owns the `RateLimit` headers. Two limiters both writing draft-7 headers
     // would leave a client reading whichever ran last, which is the less informative of the two — a
     // dispatcher wants to know about THEIR budget, not their office's.
@@ -215,6 +242,7 @@ export function mountGeneralRateLimits(app: Express): void {
     windowMs: 15 * 60_000,
     limit: API_RATE_LIMIT_PER_CALLER,
     keyGenerator: apiRateLimitKey,
+    skip: isMapTileRequest,
     standardHeaders: "draft-7",
     legacyHeaders: false,
   });
