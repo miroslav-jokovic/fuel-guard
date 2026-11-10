@@ -466,3 +466,20 @@ audit row is the endpoint's own.
     refusal, labour stripped from the cost, a McLeod field per unit, a trailer read as a truck (it
     SURVIVED, so the test now pins each unit's kind), first match only, unscoped trailers, invoicing
     over GL in place of the lower bound, and the whole fleet when no unit is named.
+- 2026-11-10 — **R6b: `card_holds` (fuel), cards on hold or on a fraud hold now.** The Fuel cards
+  list was an inline query in `efs/routes/read.ts`. Per D-AI2 it became `efs/services/efsCardList.ts`
+  `listEfsCards`, with the route as its first caller (unchanged behaviour: the existing route tests
+  pass untouched), so the tool reads the same mirror rows through the same `cardRowToSummary`, the one
+  place a card is masked. The page's "checked" clock, `reachableSyncFloor` (absent cards never drag it),
+  moved from the web's `cardControlModel.ts` to `@silvicom/shared`; the web re-exports it.
+  - **The answer:** counts by status in the page's words (`EFS_CARD_STATUS_LABELS`, matched case-blind
+    with `efsStatusEquals` because the account stores `HOLD`/`FRAUD`); each held card by truck, driver
+    and `•••• last4`, fraud first; `cards_checked_at`. A card EFS no longer lists keeps its last status
+    in the mirror (••7967 has read FRAUD since 09-23), so it is listed apart and never counted as held
+    now. No full number exists in the summary, and the driver-id prompt is left out (D-AI7).
+  - **Access:** `fuel: view`, the list route's gate. It reads only our database, so it does not need
+    the EFS-whitelisted host. Boundary edge `insights -> efs`; suggestion on `fuel.cards`.
+  - Eleven deliberate breaks, each killed by an assertion: `===` status match, absent cards counted,
+    the clock over every card, raw vendor words, the driver-id prompt leaked, the status filter
+    ignored, a failed read as an empty list, fraud not first, the list unscoped, `eq` in place of
+    `ilike`, and the total from the rows (it SURVIVED until the fixture's count differed from its rows).

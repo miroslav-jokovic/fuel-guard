@@ -48,6 +48,7 @@ const BY_SURFACE: Record<string, Suggestion[]> = {
     ask("What do we owe Texas for IFTA this quarter so far?", "ifta_report"),
   ],
   "fuel.cards": [
+    ask("Which fuel cards are on hold or on a fraud hold right now?", "card_holds"),
     ask("How many declined card attempts this month, and how many look suspicious?", "declined_summary"),
     ask("Which drivers have the most flagged fills this month?", "top_risk"),
   ],
