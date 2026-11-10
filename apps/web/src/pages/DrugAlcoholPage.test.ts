@@ -26,6 +26,7 @@ vi.mock("@/features/drugAlcohol/useDrugAlcoholProgram", () => ({
 
 import DrugAlcoholPage from "./DrugAlcoholPage.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
+import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { FilterBar } from "@silvicom/ui";
 
 const person = (id: string, name: string) => ({ driverId: id, medstopId: `m-${id}`, name });
@@ -293,6 +294,8 @@ describe("DrugAlcoholPage", () => {
     expect((reasons.props("options") as { value: string }[]).map((o) => o.value)).toEqual(["POST-ACCIDENT", "PRE-EMPLOYMENT", "RANDOM"]);
 
     const week = await render(program({ results }), "/drug-alcohol?tab=results&results.from=2026-11-04&results.to=2026-11-10");
+    // A calendar range, no preset list (owner, 2026-11-10).
+    expect(week.findComponent(DateRangeFilter).props("presets")).toBe(false);
     expect(week.text()).toContain("Rand Recent");
     expect(week.text()).toContain("Pree Recent");
     expect(week.text()).not.toContain("Rand Older");
