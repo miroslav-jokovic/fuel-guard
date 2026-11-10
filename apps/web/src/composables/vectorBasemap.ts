@@ -106,7 +106,7 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
     major: ["==", ["get", "kind"], "major_road"],
     minor: ["==", ["get", "kind"], "minor_road"],
   };
-  const line = (name: string, filter: unknown, color: string, width: ExpressionSpecification, minzoom = 0): LayerSpecification =>
+  const line = (name: string, filter: unknown, color: string | ExpressionSpecification, width: ExpressionSpecification, minzoom = 0): LayerSpecification =>
     ({
       id: id(name),
       type: "line",
