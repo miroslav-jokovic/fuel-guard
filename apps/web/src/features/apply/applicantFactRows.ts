@@ -142,7 +142,9 @@ function doorOf(fact: ApplicantFact, partOne: boolean, row: number | null, curre
 export function applicantFactRows({ payload, partOne, edits, questionnaire }: FactRowsInput): FactRow[] {
   const doc = documentOf(isRecord(payload) ? payload : {}, partOne);
   const current = currentAddressIndex(doc.addresses);
-  const editedAt = edits.map((e) => pathKey(e.path));
+  // ⚠ Tolerant of a response without `edits` (an older API, or a refetch racing a write): the card
+  // renders inside the drawer's body, and one missing list must not take the whole record down.
+  const editedAt = (Array.isArray(edits) ? edits : []).map((e) => pathKey(e.path));
   const corrected = (key: string) => editedAt.some((e) => key === e || key.startsWith(`${e}.`));
   const out: FactRow[] = [];
 

@@ -79,6 +79,12 @@ describe("the card is the catalogue", () => {
     expect(addresses.indexOf("addresses.0.to")).toBeLessThan(addresses.indexOf("addresses.1.line1"));
   });
 
+  it("still lists the answers when the response carries no edits", () => {
+    const list = applicantFactRows({ payload: PAYLOAD, partOne: null, edits: undefined as never, questionnaire: questionnaireForApplicant() });
+    expect(list.length).toBeGreaterThan(0);
+    expect(list.every((r) => !r.corrected)).toBe(true);
+  });
+
   it("lists each answer once", () => {
     const keys = rows().map((r) => r.key);
     expect(new Set(keys).size).toBe(keys.length);
