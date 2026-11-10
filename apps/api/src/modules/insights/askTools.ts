@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { ASSISTANT_TOOL_NAMES, type AssistantToolName } from "@silvicom/shared";
 import { MAX_REPORT_UNITS, REPORT_PERIODS } from "../fuel-spend/index.js";
 
 /**
@@ -125,3 +126,14 @@ export const TOOLS: Anthropic.Tool[] = [
     input_schema: { type: "object", properties: {} },
   },
 ];
+
+/**
+ * The definitions this caller's model request carries (F21 R5, D-AI1): exactly `allowed`, in the
+ * contract's order so one role's tool block — the start of the cached prefix — is byte-identical from
+ * one question to the next. A name in the contract with no definition here, or the reverse, is a test
+ * failure (`askTools.test.ts`), so the two lists cannot drift.
+ */
+export function toolsFor(allowed: readonly AssistantToolName[]): Anthropic.Tool[] {
+  const byName = new Map(TOOLS.map((t) => [t.name, t]));
+  return ASSISTANT_TOOL_NAMES.filter((n) => allowed.includes(n)).map((n) => byName.get(n)!).filter(Boolean);
+}
