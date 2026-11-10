@@ -145,4 +145,20 @@ describe("AdsPresetDrawer", () => {
     await flushPromises();
     expect(state.saves[0]?.recipe.formats).toEqual(["4:5"]);
   });
+
+  it("a preset left with 9:16 alone is not sent: no ad is shown in that format yet, and the drawer says which formats are", async () => {
+    const w = drawer(VIEW);
+    for (const label of ["1:1", "4:5"]) w.findAllComponents(AppSwitch).find((s) => s.props("label") === label)!.vm.$emit("update:modelValue", false);
+    w.findAllComponents(AppSwitch).find((s) => s.props("label") === "9:16")!.vm.$emit("update:modelValue", true);
+    await w.find("[data-test=preset-form]").trigger("submit");
+    await flushPromises();
+    expect(state.saves).toEqual([]);
+    expect(w.find("[data-test=preset-refusal]").text()).toBe("Choose 4:5 or 1:1 as well: those are the formats an ad is shown in today, and 9:16 alone cannot be published.");
+  });
+
+  it("only the format no ad is shown in carries the note that it is not made yet", () => {
+    const notes = drawer(VIEW).findAll("[data-test=preset-format-not-made]");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.element.parentElement!.textContent).toContain("9:16");
+  });
 });

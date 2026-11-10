@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AD_FORMATS, type AdFormat, type AdPresetView } from "@silvicom/shared";
+import { AD_FORMATS, FEED_FORMATS, type AdFormat, type AdPresetView } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppFormField as FormField, AppInput as BaseInput, AppSelect, AppSwitch as BaseSwitch, AppTextarea } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useToastStore } from "@/stores/toast";
@@ -100,7 +100,7 @@ async function submit(): Promise<void> {
       <fieldset class="space-y-2">
         <legend class="text-sm font-semibold text-ink">Formats</legend>
         <div v-for="f in AD_FORMATS" :key="f" class="flex items-center justify-between gap-4">
-          <p class="text-sm text-ink">{{ f }}</p>
+          <p class="text-sm text-ink">{{ f }}<span v-if="!FEED_FORMATS.includes(f)" class="ml-2 text-xs text-ink-muted" data-test="preset-format-not-made">Kept for Stories. Not made until ads can be placed there.</span></p>
           <BaseSwitch :model-value="form.formats.includes(f)" :label="f" @update:model-value="(on: boolean) => setFormat(f, on)" />
         </div>
       </fieldset>

@@ -32,6 +32,24 @@ export const FORMAT_SIZE: Record<AdFormat, Size> = {
   "9:16": { width: 1080, height: 1920 },
 };
 
+/**
+ * The formats a platform is actually sent, best first (D-AD24; ADS-CREATIVE-QUALITY-PLAN §7). Meta's feed shows
+ * 4:5 tallest and 1:1 everywhere; a lead ad takes ONE image, and the publisher sends the first of these the
+ * creative holds. 9:16 is not here: nothing can place it until Q-AD29 proves placement customization with a
+ * lead form on the sandbox — and the day it does, this list is the one line that changes.
+ *
+ * One home on purpose. The preset save (which refuses a format set holding none of these), compose (which
+ * makes and checks only these — Q-AD75) and the publisher (which picks from these) each read this list; until
+ * 2026-11-10 it lived in the publisher alone, so a 9:16-only preset was saved, rendered, checked, approved
+ * and only then refused (`no_feed_image`), and a bad 9:16 crop nobody would ever see failed a good feed ad.
+ */
+export const FEED_FORMATS: readonly AdFormat[] = ["4:5", "1:1"];
+
+/** Of a preset's formats, the ones the publisher will send, best first. Empty = the preset can make no ad. */
+export function publishedFormats(formats: readonly AdFormat[]): AdFormat[] {
+  return FEED_FORMATS.filter((f) => formats.includes(f));
+}
+
 /** Fractions of the frame kept clear: top, right, bottom, left. */
 const CLEAR: Record<AdFormat, [number, number, number, number]> = {
   "1:1": [0.06, 0.06, 0.06, 0.06],

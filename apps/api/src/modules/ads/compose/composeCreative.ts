@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  FORMAT_SIZE, rankCandidates, withRegenerationClauses,
+  FORMAT_SIZE, publishedFormats, rankCandidates, withRegenerationClauses,
   type AdAssetRef, type AdBrandKit, type AdBrief, type AdCandidates, type AdFormat, type AdPresetRecipe, type AdVisualCheck, type CreativeState,
 } from "@silvicom/shared";
 import type { ClaudeGenerationDeps } from "../generations/claudeGeneration.js";
@@ -22,6 +22,15 @@ import { checkVisual, type FractionRect, type VisualResult } from "../workers/ch
  *     `pending`) → per format: the still framed, the overlay in English and Spanish (the render check),
  *     the visual check over the framed still with the band the overlay actually covered
  *   → `ready` with everything a person must see, or `check_failed` with the reason.
+ *
+ * ── ONLY THE FORMATS AN AD IS SHOWN IN (Q-AD75, ruled 2026-11-10; D-AD25) ─────────────────────────────
+ * "Per format" above means per PUBLISHED format: `publishedFormats(recipe.formats)`, the list the publisher
+ * itself picks from. Until this ruling every format of the preset was framed, overlaid and checked, and a
+ * failed check on any of them failed the creative — so a 9:16 centre crop that cut the truck in half, an
+ * image no placement can show until Q-AD29, sent a good feed ad back for a regeneration that shrank its
+ * subject (audit F-AG3). A preset with no published format stops FIRST, before the copywriter is asked:
+ * the save refuses one today (AG2), and one saved before that would otherwise be paid for and then refused
+ * at publish.
  *
  * ── WHAT IS REGENERATED, AND WHAT STOPS ────────────────────────────────────────────────────────────
  * D-AD12 regenerates on a VISUAL failure only ("A fail regenerates once with the failure added to the
@@ -85,6 +94,7 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
   const stop = (s: Stop) => finish(deps.admin, cr, { state: "check_failed", last_error: s.reason, checks: s.checks ?? null }).then(() => ({ kind: "check_failed" as const, reason: s.reason }));
 
   if (!recipe.overlay_slots) return stop({ kind: "stop", reason: "no_overlay_slots: the preset does not say which copy slots the overlay draws" });
+  if (publishedFormats(recipe.formats).length === 0) return stop({ kind: "stop", reason: `no_feed_format: the preset's formats (${recipe.formats.join(", ")}) hold none an ad is shown in` });
 
   const written = await writeCopy(deps, { ...ids, attempt: 1, brief, recipe, company_name: input.kit.company_name, candidates: input.candidates });
   if (written.kind === "in_flight") return { kind: "pending", why: "copy in flight" };
@@ -162,7 +172,7 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
   const visual: Record<string, VisualResult[]> = {};
   const failed = new Set<AdVisualCheck>();
   const rendered: Array<{ format: AdFormat; language: OverlayLanguage; png: Buffer }> = [];
-  for (const format of recipe.formats) {
+  for (const format of publishedFormats(recipe.formats)) {
     const still = await frameStill(base, format);
     const boxes: FractionRect[] = [];
     for (const language of LANGUAGES) {

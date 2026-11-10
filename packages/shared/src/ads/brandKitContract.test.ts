@@ -96,6 +96,22 @@ describe("preset recipe contract", () => {
     // The recipe itself still parses without them: a body saved before B2c is history, not an error.
     expect(adPresetRecipeSchema.safeParse({ ...whole, overlay_slots: null, platform_slots: null }).success).toBe(true);
   });
+
+  it("a new version must hold a format an ad is shown in: 9:16 alone is refused in a sentence, 9:16 beside a feed format is kept", () => {
+    const four = { ...RECIPE, copy_slots: [...RECIPE.copy_slots, { name: "body", max_chars: 200 }, { name: "title", max_chars: 40 }] };
+    const whole = { ...four, overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: { primary_text: "body", headline: "title" } };
+    const storiesOnly = adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: { ...whole, formats: ["9:16"] } });
+    expect(storiesOnly.error?.issues.map((i) => [i.path.join("."), i.message])).toEqual([
+      ["recipe.formats", "Choose 4:5 or 1:1 as well: those are the formats an ad is shown in today, and 9:16 alone cannot be published."],
+    ]);
+    for (const formats of [["9:16", "4:5"], ["1:1"], ["1:1", "4:5", "9:16"]]) {
+      expect(adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: { ...whole, formats } }).success).toBe(true);
+    }
+    // A stored body is history: the recipe parses, and compose stops it by name (`no_feed_format`).
+    expect(adPresetRecipeSchema.safeParse({ ...whole, formats: ["9:16"] }).success).toBe(true);
+    // No formats at all keeps its own sentence, and only that one.
+    expect(adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: { ...whole, formats: [] } }).error?.issues.map((i) => i.message)).toEqual(["choose at least one format"]);
+  });
 });
 
 /**

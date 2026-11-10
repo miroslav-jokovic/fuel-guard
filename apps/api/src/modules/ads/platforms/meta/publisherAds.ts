@@ -1,4 +1,4 @@
-import { AD_NAME_LANGUAGES, type AdFormat, type AdNameLanguage } from "@silvicom/shared";
+import { AD_NAME_LANGUAGES, FEED_FORMATS, type AdFormat, type AdNameLanguage } from "@silvicom/shared";
 import { adNameFor, byName, ensure, failureBody, type Found, type Listing, type PublishInput, type PublisherDeps } from "./publisher.js";
 
 /**
@@ -20,7 +20,8 @@ import { adNameFor, byName, ensure, failureBody, type Found, type Listing, type 
  * (`asset_feed_spec`), and its page (read 2026-11-04) never mentions lead ads or `lead_gen_form_id`. So
  * this publisher uses the feed image — 4:5, else 1:1 — and a creative with neither is refused
  * (`no_feed_image`). The 9:16 image waits, unused and stored, for Q-AD29: placement customization proven
- * on the sandbox (L4), then added here. Feed placements show 4:5 and 1:1 as made; Stories crop them.
+ * on the sandbox (L4), then added to `FEED_FORMATS` — shared's, because the preset save and compose read the
+ * same list (D-AD24). Feed placements show 4:5 and 1:1 as made; Stories crop them.
  *
  * ── RESUME, NEVER DUPLICATE ──────────────────────────────────────────────────────────────────────
  * The creative and the ad are levels like the campaign's (`ensure`): find by our name, adopt one, create
@@ -29,8 +30,6 @@ import { adNameFor, byName, ensure, failureBody, type Found, type Listing, type 
  * sent again (`idempotent: true`) and makes nothing twice. Its hash is on the creative's ledger row.
  */
 
-/** The feed formats, best first: Meta's feed shows 4:5 tallest, and 1:1 everywhere. */
-export const FEED_FORMATS: readonly AdFormat[] = ["4:5", "1:1"];
 const CTA = "APPLY_NOW";
 const LEAD_AD_LINK = "https://fb.me/";
 const CREATIVE_FIELDS = "id,name,status,object_story_spec";

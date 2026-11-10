@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  AD_FORMATS, FORMAT_SIZE, checkRender, contains, contrastRatio, parseHex, safeZone, tightenZone, type PlacedText,
+  AD_FORMATS, FEED_FORMATS, FORMAT_SIZE, checkRender, contains, contrastRatio, parseHex, publishedFormats, safeZone, tightenZone, type PlacedText,
 } from "./renderGeometry.js";
 
 const WHITE = [255, 255, 255] as const;
@@ -8,6 +8,20 @@ const BLACK = [0, 0, 0] as const;
 const block = (patch: Partial<PlacedText> = {}): PlacedText => ({
   label: "pay", box: { x: 200, y: 400, width: 600, height: 120 }, needed_width: 580, px: 64, bold: true,
   color: WHITE, background_samples: [BLACK], ...patch,
+});
+
+describe("the formats an ad is shown in (D-AD24)", () => {
+  it("of a preset's formats, the published ones come back best first, whatever order the preset lists them in", () => {
+    expect(publishedFormats(["9:16", "1:1", "4:5"])).toEqual(["4:5", "1:1"]);
+    expect(publishedFormats(["1:1"])).toEqual(["1:1"]);
+    expect(publishedFormats(["9:16"])).toEqual([]);
+    expect(publishedFormats([])).toEqual([]);
+  });
+
+  it("every published format is a format, and 9:16 waits for a placement (Q-AD29)", () => {
+    for (const f of FEED_FORMATS) expect(AD_FORMATS).toContain(f);
+    expect(FEED_FORMATS).not.toContain("9:16");
+  });
 });
 
 describe("safe zones", () => {
