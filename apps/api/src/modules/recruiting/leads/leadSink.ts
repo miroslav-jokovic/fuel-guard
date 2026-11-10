@@ -3,6 +3,7 @@ import { factsFor, leadFromPlatform, type LeadProjection, type LeadSink } from "
 import { readLeadVerdicts, recordLeadVerdicts } from "./verdicts.js";
 import { ringNewLead, type ConfiguredRecipients } from "./leadNotify.js";
 import { assignFromOpening } from "./leadAssignment.js";
+import { suppressedPhones } from "../smsSuppressions.js";
 
 /**
  * Recruiting's `LeadSink` (D-AD17; ADS-AGENT-BUILD-WORKFLOW.md D1): the one door every lead comes in by,
@@ -22,6 +23,21 @@ import { assignFromOpening } from "./leadAssignment.js";
  * duplicate — assigned to nobody AND rung to nobody. So a failed assignment is logged and the lead rings
  * everybody, as an unowned one does. A lead a recruiter typed in is not assigned here: the plan's rule is about
  * ad leads arriving with nobody watching, and who owns a typed-in lead was not part of the ruling.
+ *
+ * ── WHO A NEW LEAD RINGS (`newLeadBell`; LQ6, LR3, LR2 — ADS-AGENTS-AUDIT-2026-11-10 F-LR6, Q-AD74 (a)) ──
+ * `lead_new` says "call this person". In this order, the first that holds decides:
+ *   · nothing to dial (no usable phone, no e-mail)            → nobody (LR3);
+ *   · the number is held from contact (`sms_suppressions`)    → nobody: the person asked not to be called, and
+ *     the `lead_uncontacted` alarm already leaves them out for that reason (`leadUncontacted.ts`);
+ *   · the person is a driver of this carrier today            → nobody: `ingest_lead` matched an active,
+ *     un-archived driver by phone or e-mail. A terminated driver or a current applicant still rings — one is a
+ *     rehire worth a call, the other is somebody the office is already working and should hear answered again;
+ *   · their own answer fails a hard requirement               → nobody (LQ6, Q-AD63 (a));
+ *   · an earlier lead is the same person                      → the usual people, told they answered AGAIN;
+ *   · otherwise                                               → the usual `lead_new`.
+ * In every case the lead is stored, owned, judged and listed: nothing here hides a row. A read that fails rings
+ * anyway (`failsHardRequirement`'s rule, and the hold's below): a missed bell costs more than a false one, and
+ * the queue still shows the hold beside the number before anybody dials.
  */
 
 export interface LeadMatches {
@@ -70,14 +86,40 @@ export function recruitingLeadSink(
         });
         // LQ6 (Q-AD63 (a)): a lead whose own answer fails a hard requirement is stored, owned and listed, but rings
         // nobody — the person told us, after the form's intro stated the requirement. `unknown` still rings (D-LS3).
-        // LR3 (audit F-LR9): `lead_new` tells a person to call. A lead with neither a usable phone nor an e-mail
-        // gives them nothing to call; it is stored and listed, and the road that stored it tells the admins the
-        // form may have changed (`alertNoContactDetail`) — the ads side's alert, since the fix is the form's.
-        if (contactable && !(await failsHardRequirement(admin, orgId, r.lead_id))) await ringNewLead(admin, orgId, r.lead_id, configured, owner);
+        // LR3 (audit F-LR9): a lead with nothing to dial is also said by the road that stored it
+        // (`alertNoContactDetail`) — the ads side's alert, since the fix is the form's.
+        const bell = newLeadBell({
+          contactable,
+          held: contactable && (await numberIsHeld(admin, orgId, r.lead_id, projection.phone_e164)),
+          matches: r.matches,
+          failsHard: contactable && (await failsHardRequirement(admin, orgId, r.lead_id)),
+        });
+        if (bell !== "none") await ringNewLead(admin, orgId, r.lead_id, configured, owner, bell === "again");
       }
       return { stored: r.stored, ref: r.lead_id, contactable };
     },
   };
+}
+
+export type NewLeadBell = "none" | "new" | "again";
+
+/** The header's table, as a pure function of what the sink already knows. */
+export function newLeadBell(lead: { contactable: boolean; held: boolean; matches: LeadMatches | null | undefined; failsHard: boolean }): NewLeadBell {
+  if (!lead.contactable || lead.held) return "none";
+  if ((lead.matches?.drivers ?? []).some((d) => d.status === "active" && !d.archived)) return "none";
+  if (lead.failsHard) return "none";
+  return (lead.matches?.leads ?? []).length > 0 ? "again" : "new";
+}
+
+/** Whether the lead's phone is held from contact for this carrier, any reason. A read that fails says no. */
+async function numberIsHeld(admin: SupabaseClient, orgId: string, leadId: string, phone: string | null): Promise<boolean> {
+  if (phone === null) return false;
+  try {
+    return (await suppressedPhones(admin, orgId, [phone])).has(phone);
+  } catch (err) {
+    console.error(`[lead-notify] org ${orgId}: lead ${leadId} hold unreadable, ringing anyway: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
 }
 
 /**
