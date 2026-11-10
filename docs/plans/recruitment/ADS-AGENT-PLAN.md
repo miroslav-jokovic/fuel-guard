@@ -1290,6 +1290,62 @@ rate, and Higgsfield credits per approved creative.
   questions with the best possible solutions"):** Q-AD62 (a) every lead, once per number · Q-AD63 (a) · Q-AD64 (a)
   fixed reason list, recruiter sets `qualified` · Q-AD65 (a), L4 records EMPLOYMENT's acceptance · Q-AD66 (a) ·
   Q-AD67 rec (a) change the screener. Reasons and the LQ5–LQ9 build plan: [`ADS-LEAD-INTAKE-PLAN.md`](ADS-LEAD-INTAKE-PLAN.md).
+- **Q-AD69–Q-AD73 · Enterprise controls the ads and lead automation does not have** (opened 2026-11-10; owner's
+  ask: "is our ads and leads automation following all best enterprise grade practices of SAP software and
+  logics"). "SAP best practice" is not one published checklist, so the measure was the control ideas SAP is built
+  on: change documents, release strategy, segregation of duties, availability control, exactly-once posting,
+  reconciliation, period close, retention, transport path, interface monitoring. Read from main `9d16b1c`. The
+  automation meets the append-only ledgers (0537 AX010–AX012), the spend fence (AX020/AX021,
+  `guard/budgetGuard.ts`), single-use amount-covering approvals (`guard/approvals.ts`), idempotent actions and
+  store-once leads, the daily never-adopting reconcile (`monitor/reconcile.ts`), the frozen creative and brief
+  (AX030/AX031), the staging → release-train path with the L4 launch gate, and the failed-jobs and alert surface.
+  It does not meet these five. **All open; nothing built, nothing routed around.**
+  - **Q-AD69 · Maker-checker on a campaign (owner).** No rule compares the person who created a campaign
+    (`campaigns/campaignDoors.ts` writes `created_by`) with the person who approves its creative, approves its
+    spend or launches it (`routes/guard.ts`, `guard/approvals.ts` read no `created_by`). One capability,
+    `ads.spend`, covers approve, launch and clearing the kill switch. And `second_approver_above_cents` defaults
+    to `null` (`settingsContract.ts`), so until an admin sets it no launch needs two people at any amount.
+    (a) the spend approver may not be the campaign's creator, at every amount, refused in `findCoveringApproval`
+    and again in the AX020 trigger — a carrier with one admin could then not launch at all, so it needs a
+    setting to turn off, saved as a settings version; (b) keep one person below the line, but make
+    `second_approver_above_cents` a required figure at first save instead of `null`; (c) leave it, and say so in
+    the runbook. **Recommended: (b) now, (a) as an opt-in setting** — (a) as a hard rule locks out a
+    one-admin carrier, and (b) costs one validation and removes the silent "nobody is ever second-checked".
+  - **Q-AD70 · Spend is reconciled to Meta's reporting, not to money (owner, finance).** The reconcile compares
+    our rows with Meta's insights and object state. Nothing reads Meta's invoices or the card charge, and nothing
+    gives ad spend to the fleet report or the McLeod ledger; `adsPolicy.ts` lists
+    `change_billing_or_account_limit` as `never`, which is right and is not the same thing as reading a bill.
+    (a) a monthly read of Meta's billing for the ad account (the endpoint and what a system user may read are
+    not confirmed — read Meta's reference in the sandbox before designing) compared with the month's
+    `ads_spend_hourly` sum, one `external_change`-style row and a bell on a difference; (b) a monthly figure a
+    person types from the invoice, compared the same way; (c) nothing until spend is material.
+    **Recommended: (c) until the first real campaign has run a full month, then (a) if Meta's API allows it,
+    else (b).** Zero campaigns exist in production; a control with nothing to reconcile proves nothing.
+  - **Q-AD71 · No period close for spend (us, with finance).** `ads_spend_hourly` is rewritten as Meta revises
+    (the last three days every hour, the last 28 once a day — `monitor/insightsPull.ts`, `reconcile.ts`). A past month's figure in the
+    brief or on the spend card can still move, and nothing records what the month was when it was reported.
+    (a) a `ads_spend_months` row per org, connection and Central month, written once after Meta's 28-day window
+    has passed, append-only, and the month's reports read it from then on; (b) leave the table live and print
+    "may still change" beside any month younger than 28 days. **Recommended: (b) now, (a) with Q-AD70** — the
+    frozen figure is what an invoice would be compared against, so they are one piece of work.
+  - **Q-AD72 · Leads have no time-based retention (owner, counsel).** A lead's personal details go only when
+    an admin purges on request (`recruiting/leads/leadPurge.ts`, 0558). `dataRetentionPolicy.ts` gives
+    `phone_lookups` 400 days and says in its comment that is "the same figure `recruiting_leads` would get", but
+    no rule for `recruiting_leads` exists. A lead that became an applicant is the applicant's file and is not
+    this question. (a) a scheduled tombstone, through `purge_lead`'s own path, of a lead closed or untouched for
+    N days that never converted — N is counsel's (state employment-record periods apply to applicants; whether
+    a form lead is one is the question to put to them); (b) keep on-request only. **Recommended: (a), N from
+    counsel, added to the counsel package** ([`ADS-LEAD-QUALITY-PLAN.md`](ADS-LEAD-QUALITY-PLAN.md) LQ4 already
+    waits on them).
+  - **Q-AD73 · Every control above is proven against the fake platform only (us).**
+    `scripts/ads-certifications.json` is empty, so no worker has an L4 pass and every real launch is refused —
+    which is the gate working. It also means "meets" in the list above is a statement about code and FakeMeta,
+    not about Meta. Not a new decision: Stage 2 (credentials, sandbox L4, canary L5) closes it. Recorded so
+    nobody reads this audit as a production sign-off.
+  - **To confirm, not yet a question:** no stored record of the applicant's consent or of the privacy notice
+    they were shown was found on the lead row (only `packages/shared/src/recruiting/leads` and
+    `apps/api/src/modules/recruiting/leads` were searched; the raw Meta payload is kept whole and may carry it).
+    Whoever takes Q-AD72 to counsel reads the raw payload first and opens a question only if it is absent.
 
 ---
 
