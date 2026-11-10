@@ -344,6 +344,10 @@ const API_ALLOW = new Set([
   //   live map's own cached board, so "how many are moving" counts the states the map draws.
   //   livemap imports nothing of insights'.
   "insights -> livemap",
+  // · insights -> fleetpal — Ask AI's `maintenance_cost` (F21 R6b) is fleetpal's
+  //   `assistantMaintenanceCost`: the truck page's own `readCoverage` then `readUnitCost`, refused by
+  //   the route's own D-FP4 rule. fleetpal imports nothing of insights'.
+  "insights -> fleetpal",
   // · insights -> loads — Ask AI's `loads_by_truck` (F21 R6b) is loads' `assistantLoadsByTruck`, the
   //   Loads page's own `listLoads` with the page's delivery window, so "748 delivered 14" is the
   //   Delivered tab with truck 748 picked. loads imports nothing of insights'.
