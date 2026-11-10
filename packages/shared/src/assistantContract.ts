@@ -53,6 +53,8 @@ export const ASSISTANT_TOOL_ACCESS = {
   fuel_economics: [view("fuel")],
   fuel_ranking: [view("fuel")],
   spend_trend: [view("fuel")],
+  // IFTA ledger (`fuel.ifta`; `/api/ifta/period` asks `requireSection("fuel", "view")`, no module).
+  ifta_report: [view("fuel")],
   declined_summary: [view("fuel")],
   telematics_coverage: [view("fuel")],
   import_activity: [view("fuel")],

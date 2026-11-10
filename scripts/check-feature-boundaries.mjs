@@ -348,6 +348,10 @@ const API_ALLOW = new Set([
   //   Loads page's own `listLoads` with the page's delivery window, so "748 delivered 14" is the
   //   Delivered tab with truck 748 picked. loads imports nothing of insights'.
   "insights -> loads",
+  // · insights -> ifta — Ask AI's `ifta_report` (F21 R6b) is ifta's `assistantIftaReport`: the IFTA
+  //   ledger page's `readIftaPeriod` turned into figures by the page's own shared `ledgerPosition`.
+  //   ifta imports nothing of insights'.
+  "insights -> ifta",
   // · ads -> org — Settings › Ads control's spend card (E1c, Q-AD36, ruled 2026-11-05) says when the
   //   daily check against Meta last finished. That fact is a row in org's job ledger (`jobs`), so it
   //   is read through org's index (`lastDoneJobByKey` only), the same arrow "fuel-spend -> org" and

@@ -424,3 +424,24 @@ audit row is the endpoint's own.
   - Nine deliberate breaks, each killed by an assertion: UTC instants, every non-canceled row counted,
     missing miles as 0, empty moves subtracted, the vehicles lookup unscoped, a stranger answered as
     0, no history note, sync time from the first row, and the contract without the module gate.
+- 2026-11-10 — **R6b: `ifta_report` (fuel), the IFTA ledger by state.** `ifta/assistantIftaReport.ts`
+  calls `readIftaPeriod` (`GET /api/ifta/period`: the 0256 RPCs plus McLeod's hand-keyed receipts) for
+  the quarter asked and turns the rows into figures with `ledgerPosition`, the page's own shared join
+  (the one the return export also calls, IP9). The miles tie-out is the page hook's `tieOutMiles` over
+  the same three inputs. Per state, it gives taxable and total miles, gallons burned and bought (with
+  receipts on their own), rate, tax owed, tax paid and net; plus the totals and the fleet MPG every
+  liability rests on, with its verdict.
+  - **Quarter:** last quarter by default, `this_quarter`, or an explicit year and quarter, on the
+    carrier's clock. A quarter that has not started is refused without a read.
+  - **Completeness, from the page's own footnote:** months pulled from Samsara (a month in progress is
+    not served, #1333), any provisional month, vehicles Samsara reported that we could not map, the
+    share of miles the tax table can price, and the states it cannot (never taxed at zero). Under
+    three months there is an `incomplete_note`, and the tool description forbids calling the figures
+    the return.
+  - **Access:** `fuel: view`, the IFTA router's only gate (no module). Boundary edge
+    `insights -> ifta`; suggestions on `fuel.ifta`.
+  - Nine deliberate breaks, each killed by an assertion: UTC clock (a late-evening 30 September test
+    was added after this break first SURVIVED), this quarter as the default, receipts dropped, net as
+    liability, a future quarter allowed, no incomplete note, tie-out on the wrong gallons (it
+    SURVIVED, so `implied_mpg` is now in the answer and pinned), states unfiltered, an unscoped
+    timezone read.

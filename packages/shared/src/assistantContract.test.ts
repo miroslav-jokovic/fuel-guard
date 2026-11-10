@@ -84,6 +84,13 @@ describe("assistantToolsFor — every role, every tool, from the section matrix"
     expect(callerMayUseTool("dispatcher", { dispatch: "none" }, ALL_MODULES, "loads_by_truck")).toBe(false);
   });
 
+  it("ifta_report is gated as the IFTA ledger is: fuel view, no module", () => {
+    expect(ASSISTANT_TOOL_ACCESS.ifta_report).toEqual([{ section: "fuel", level: "view" }]);
+    expect(callerMayUseTool("accountant", null, NO_MODULES, "ifta_report")).toBe(true);
+    expect(callerMayUseTool("recruiter", null, ALL_MODULES, "ifta_report")).toBe(false);
+    expect(callerMayUseTool("accountant", { fuel: "none" }, ALL_MODULES, "ifta_report")).toBe(false);
+  });
+
   it("follows the org's overrides on the token: taking fuel away from a fleet manager takes the fuel tools with it", () => {
     const narrowed = assistantToolsFor("fleet_manager", { fuel: "none" }, ALL_MODULES);
     expect(narrowed.some((t) => reqs(t).some((r) => "section" in r && r.section === "fuel"))).toBe(false);
