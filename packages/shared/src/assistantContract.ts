@@ -49,6 +49,7 @@ export const ASSISTANT_TOOL_ACCESS = {
   // `/api/idle/*` asks `requireSection("safety", "view")`).
   driver_performance: [view("safety")],
   idling_summary: [view("safety")],
+  idle_report: [view("safety")],
   // Drivers (roster) and Vehicles (equipment).
   fleet_roster: [view("roster"), view("equipment")],
   // Fleet report and its income statement (`finance.fleet-report`, gate `section("accounting")`;

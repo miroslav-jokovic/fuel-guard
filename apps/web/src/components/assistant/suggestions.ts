@@ -56,6 +56,8 @@ const BY_SURFACE: Record<string, Suggestion[]> = {
     ask("How many open cases show a fill bigger than the tank?", "count_signal"),
   ],
   "safety.idling": [
+    ask("Avoidable idling week by week over the last 8 weeks", "idle_report"),
+    ask("Avoidable idle cost last month compared with the month before", "idle_report"),
     ask("Idle hours and cost this month — who are the worst idlers?", "idling_summary"),
     ask("Which trucks idled the most in the last 2 weeks?", "idling_summary"),
   ],
