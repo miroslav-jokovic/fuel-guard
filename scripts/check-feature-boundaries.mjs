@@ -399,6 +399,8 @@ const API_ALLOW = new Set([
   // Queue item 5 step 3: the dashboard endpoint prices idled hours with the SAME basis the Idling
   // page and the fuel-spend report use, read through `idle`'s index (Q9). `movingSpend` is a fuel
   // figure that depends on the idle basis, so an endpoint without this edge could not produce it.
+  // F21 R6b rides the same arrow: Ask AI's `idle_report` is idle's `assistantIdleReport`, the
+  // Idling page's own verdict (`readFleetIdleVerdict`) per week or month.
   "insights -> idle",
   // ── FleetPal's two edges (FLEETPAL-INTEGRATION-PLAN.md F5, D-FP1/D-FP2) ──────────────────────
   //   · fleetpal -> roster — the matcher needs the candidate set, and `vehicles`/`trailers` are

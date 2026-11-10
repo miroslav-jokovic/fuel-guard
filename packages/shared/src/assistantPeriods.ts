@@ -113,3 +113,25 @@ export function assistantWholeMonths(from: string, to: string): { from: string; 
 /** "748", " #748 ", "Unit 748" → "748". Case and surrounding words only; never a fuzzy match. */
 export const assistantUnitKey = (u: string): string =>
   u.trim().toLowerCase().replace(/^(unit|truck)\s+/, "").replace(/^#/, "").trim();
+
+/**
+ * The Monday-to-Sunday weeks `[from, to]` touches, each clipped to the range (F21 R6b). Monday is
+ * the week the office plans in and the one `spend_trend`'s weekly buckets start on, so "week over
+ * week" means the same seven days in every tool.
+ */
+export function assistantWeeksIn(from: string, to: string): Array<{ from: string; to: string }> {
+  const [y, m, d] = from.split("-").map(Number) as [number, number, number];
+  const weekday = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; // Monday = 0
+  const out: Array<{ from: string; to: string }> = [];
+  for (let start = addDays(from, -weekday); start <= to; start = addDays(start, 7)) {
+    const end = addDays(start, 6);
+    out.push({ from: start < from ? from : start, to: end > to ? to : end });
+  }
+  return out;
+}
+
+/** The window of equal length immediately before `[from, to]`, the "compared with before" column. */
+export function assistantPreviousRange(from: string, to: string): { from: string; to: string } {
+  const days = windowDays(from, to);
+  return { from: addDays(from, -days), to: addDays(from, -1) };
+}

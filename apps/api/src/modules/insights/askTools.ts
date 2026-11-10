@@ -103,8 +103,32 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "idling_summary",
-    description: "Idle totals for the period: idle hours and idle cost. Optionally rank the worst idlers by driver or vehicle (set `by`).",
+    description:
+      "Raw idle event totals for the last N days: idle hours and the cost of every idle minute, optionally the worst " +
+      "idlers by driver or vehicle (set `by`). For the Idling page's figures (avoidable idle, calendar periods, week " +
+      "over week, compared with before) use idle_report.",
     input_schema: { type: "object", properties: { by: { type: "string", enum: ["driver", "vehicle"] }, period_days: { type: "integer" }, limit: { type: "integer" } } },
+  },
+  {
+    // F21 R6b: the Idling page's verdict, asked in words (`idle/assistantIdleReport.ts`).
+    name: "idle_report",
+    description:
+      "The Idling page's fleet figures for a calendar period: engine-on, drive and idle hours, idle % of engine-on, " +
+      "AVOIDABLE idle hours and cost (trucks with no APU or optimized idle, judged only when observed long enough; the " +
+      "page's headline), reducible idle (every covered truck), how many trucks were judged or left out, and the day the " +
+      "figures reach through. Always includes the previous period of equal length. by=week gives Monday-to-Sunday " +
+      "weeks (week over week); by=month gives calendar months. Use for idling trends, 'this week vs last week', or any " +
+      "idle question naming a month, quarter or dates. no_idle_data means nothing was recorded: say so, never estimate.",
+    input_schema: {
+      type: "object",
+      properties: {
+        period: { type: "string", enum: [...REPORT_PERIODS], description: "Calendar period on the carrier's clock. Ignored when from/to are given." },
+        days: { type: "integer", description: "Only for period=last_n_days (default 30)." },
+        from: { type: "string", description: "First day, YYYY-MM-DD (with to)." },
+        to: { type: "string", description: "Last day, YYYY-MM-DD, inclusive." },
+        by: { type: "string", enum: ["total", "week", "month"] },
+      },
+    },
   },
   // ── Integrity, coverage & fleet ──
   {
