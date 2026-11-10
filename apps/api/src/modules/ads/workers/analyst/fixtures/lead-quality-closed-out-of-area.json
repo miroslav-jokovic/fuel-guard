@@ -1,0 +1,141 @@
+{
+  "name": "lead-quality-closed-out-of-area",
+  "about": "LR4: one campaign's leads are mostly closed as out of area — the reason a recruiter gave, per campaign, which no other part of the sheet can show. The other campaign has no such close.",
+  "input": {
+    "fold": {
+      "day": "2026-11-03",
+      "month": {
+        "month": "2026-11",
+        "days_left": 28
+      },
+      "campaigns": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "spend_cents": 18450,
+          "impressions": 9120,
+          "clicks": 141,
+          "leads": 6,
+          "cost_per_lead_cents": 3075,
+          "ctr": 0.015460526315789473
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Dedicated night runs",
+          "spend_cents": 9975,
+          "impressions": 5480,
+          "clicks": 62,
+          "leads": 1,
+          "cost_per_lead_cents": 9975,
+          "ctr": 0.011313868613138687
+        }
+      ],
+      "month_to_date": {
+        "meta": 61230
+      },
+      "cohorts": [
+        {
+          "week": "2026-09-21",
+          "leads": 38,
+          "reached": {
+            "contacted": 33,
+            "qualified": 0,
+            "not_qualified": 0,
+            "converted": 17,
+            "applied": 10,
+            "hired": 4,
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 8
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-09-28",
+          "leads": 40,
+          "reached": {
+            "contacted": 36,
+            "qualified": 0,
+            "not_qualified": 0,
+            "converted": 20,
+            "applied": 12,
+            "hired": 5,
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 9
+          },
+          "mature": true
+        },
+        {
+          "week": "2026-10-26",
+          "leads": 12,
+          "reached": {
+            "contacted": 9,
+            "qualified": 0,
+            "not_qualified": 0,
+            "converted": 3,
+            "applied": 1,
+            "hired": 0,
+            "lost_before_conversion": 0,
+            "lost_after_conversion": 1
+          },
+          "mature": false
+        }
+      ],
+      "lead_quality": [
+        {
+          "campaign_id": "c1",
+          "name": "Regional Class A — Joliet",
+          "leads": 24,
+          "attempted": 19,
+          "wrong_number": 2,
+          "reached": 14,
+          "not_qualified": 3,
+          "median_first_attempt_minutes": 11,
+          "closed": {
+            "not_interested": 2,
+            "unreachable": 1,
+            "wrong_number": 0,
+            "duplicate": 0,
+            "out_of_area": 11,
+            "spam": 0
+          }
+        },
+        {
+          "campaign_id": "c2",
+          "name": "Dedicated night runs",
+          "leads": 9,
+          "attempted": 8,
+          "wrong_number": 1,
+          "reached": 6,
+          "not_qualified": 1,
+          "median_first_attempt_minutes": 42,
+          "closed": {
+            "not_interested": 0,
+            "unreachable": 0,
+            "wrong_number": 0,
+            "duplicate": 0,
+            "out_of_area": 0,
+            "spam": 0
+          }
+        }
+      ]
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "analyst@6",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-10T16:13:46.865Z",
+    "output": {
+      "headline": "November 3, 2026: 2 campaigns spent $284.25, pulled 14,600 impressions, 203 clicks, and 7 leads at $40.61 per lead.",
+      "points": [
+        "Regional Class A — Joliet led the day: $184.50 spend, 9,120 impressions, 141 clicks at 1.5%, and 6 leads at $30.75 each. Dedicated night runs spent $99.75 for 5,480 impressions, 62 clicks at 1.1%, and 1 lead at $99.75.",
+        "Month to date in November 2026, Meta has taken $612.30 of budget with 28 days left in the month.",
+        "The 2026-10-26 cohort is too young to judge: 12 leads, 9 contacted, 3 made applicants, 1 applied, and none hired yet.",
+        "The 2026-09-28 mature cohort shows 40 leads, 36 contacted (90.0%), 20 made applicants (50.0%), 12 applied (30.0%), 5 hired (12.5%), and 9 lost after conversion (22.5%). The 2026-09-21 cohort had 38 leads, 33 contacted (86.8%), 17 made applicants (44.7%), 10 applied (26.3%), 4 hired (10.5%), and 8 lost after conversion (21.1%).",
+        "Regional Class A — Joliet had 11 leads closed as out of area over the last 14 days — a figure worth attention given 24 total leads in that window. 3 missed a hard requirement (12.5% of leads), and the wrong-number share of leads called was 10.5%.",
+        "Dedicated night runs had a median first-call time of 42 minutes over the last 14 days, notably slower than Regional Class A — Joliet's 11 minutes. 1 lead missed a hard requirement (11.1% of leads); wrong numbers were 12.5% of leads called."
+      ]
+    }
+  }
+}
