@@ -20,7 +20,7 @@
  * like a fleet that bought no fuel.
  */
 import { computed } from "vue";
-import { normalizeWindow, describeFixes, defaultWindow, todayInZone, type SpendGrain } from "@silvicom/shared";
+import { FUEL_COSTS_QUERY_KEYS as K, normalizeWindow, describeFixes, defaultWindow, todayInZone, type SpendGrain } from "@silvicom/shared";
 import { useQueryState } from "@silvicom/ui";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
@@ -58,7 +58,9 @@ export function useSpendFilters() {
    * The window, normalised. Every other consumer on this page reads THIS and never the raw query, so a
    * hand-edited link cannot reach a database query, a chart, or the PDF export.
    */
-  const normalized = computed(() => normalizeWindow(one("from"), one("to"), todayYmd()));
+  // The keys are the page's link contract's (F21 R4b, `fuelCostsLinkContract.ts`), so a link Ask AI
+  // builds for this page opens exactly the view it describes.
+  const normalized = computed(() => normalizeWindow(one(K.from), one(K.to), todayYmd()));
 
   /**
    * Move both ends at once.
@@ -69,7 +71,7 @@ export function useSpendFilters() {
    */
   function setWindow(nextFrom: string, nextTo: string): void {
     const n = normalizeWindow(nextFrom, nextTo, todayYmd());
-    set({ from: n.window.from, to: n.window.to });
+    set({ [K.from]: n.window.from, [K.to]: n.window.to });
   }
 
   const from = computed<string>({
@@ -85,8 +87,8 @@ export function useSpendFilters() {
   const windowNotice = computed(() => describeFixes(normalized.value.fixes));
 
   const vehicleIds = computed<string[]>({
-    get: () => list("trucks"),
-    set: (v) => set({ trucks: v.length ? v.join(",") : undefined }),
+    get: () => list(K.trucks),
+    set: (v) => set({ [K.trucks]: v.length ? v.join(",") : undefined }),
   });
   const grain = computed<SpendGrain>({
     get: () => {
@@ -130,7 +132,7 @@ export function useSpendFilters() {
   });
 
   function reset(): void {
-    set({ from: undefined, to: undefined, trucks: undefined, grain: undefined });
+    set({ [K.from]: undefined, [K.to]: undefined, [K.trucks]: undefined, grain: undefined });
   }
 
   return { from, to, setWindow, windowNotice, vehicleIds, grain, tab, range, active, isDefaultWindow, asQuery, reset };

@@ -91,6 +91,35 @@ describe("askData", () => {
     expect(secondRound[0]).toMatchObject({ tool_use_id: "t2", is_error: true });
   });
 
+  // F21 R4b, D-AI8: the link holds vehicle ids the model must never see. It is lifted off the result
+  // before the result is sent back, kept on the trace for the route, and a failed call gives none.
+  it("lifts each tool's page link off its result before the model sees it, and returns the links in call order (R4b)", async () => {
+    create
+      .mockResolvedValueOnce(msg([{ type: "tool_use", id: "t1", name: "fuel_report", input: { units: ["748"] } }], "tool_use"))
+      .mockResolvedValueOnce(msg([{ type: "tool_use", id: "t2", name: "fuel_report", input: { units: ["751"] } }], "tool_use"))
+      .mockResolvedValueOnce(msg([{ type: "text", text: "6.4" }]));
+    const link = { surfaceKey: "fuel.spend", query: { from: "2026-10-01", to: "2026-10-31", trucks: "v748-uuid" } };
+    assistantFuelReport.mockResolvedValueOnce({ total: { mpg: 6.4 }, link }).mockRejectedValueOnce(new Error("statement timeout"));
+
+    const out = await askData(rec().client, env, "org-1", "mpg on 748", ALL, LATE_OCT_31_CENTRAL);
+
+    expect(out.links).toEqual([link]);
+    const sent = create.mock.calls.at(-1)![0].messages.flatMap((m: { content: unknown }) => (Array.isArray(m.content) ? m.content : []));
+    const toModel = sent.find((b: { tool_use_id?: string }) => b.tool_use_id === "t1");
+    expect(JSON.parse(toModel.content)).toEqual({ total: { mpg: 6.4 } });
+    expect(JSON.stringify(create.mock.calls.map((c) => c[0].messages))).not.toContain("v748-uuid");
+  });
+
+  it("drops a link that points anywhere but the tool's own page", async () => {
+    create
+      .mockResolvedValueOnce(msg([{ type: "tool_use", id: "t1", name: "fuel_report", input: {} }], "tool_use"))
+      .mockResolvedValueOnce(msg([{ type: "text", text: "ok" }]));
+    assistantFuelReport.mockResolvedValueOnce({ total: {}, link: { surfaceKey: "admin.settings.users", query: {} } });
+    const out = await askData(rec().client, env, "org-1", "q", ALL, LATE_OCT_31_CENTRAL);
+    expect(out.links).toEqual([]);
+    expect(JSON.parse(create.mock.calls[1]![0].messages.at(-1).content[0].content)).toEqual({ total: {} });
+  });
+
   it("asks Haiku 5.5 at low effort with the tools and fixed prompt cached, and today's date after the breakpoint", async () => {
     create.mockResolvedValueOnce(msg([{ type: "text", text: "ok" }]));
     await askData(rec().client, env, "org-1", "q", ALL, LATE_OCT_31_CENTRAL);

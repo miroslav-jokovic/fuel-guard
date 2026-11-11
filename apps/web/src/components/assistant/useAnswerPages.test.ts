@@ -34,4 +34,24 @@ describe("useAnswerPages", () => {
     expect(useAnswerPages().value(["fuel.ifta"])).toEqual([]);
     session.surfaces = null;
   });
+
+  // F21 R4b: the link carries the answer's filters when the tool returned them.
+  it("points a page's link at the answer's filters, keeping the last link per page, and the bare page without one", () => {
+    session.role = "admin";
+    const first = { surfaceKey: "fuel.spend", query: { from: "2026-07-01", to: "2026-09-30" } };
+    const last = { surfaceKey: "fuel.spend", query: { from: "2026-10-01", to: "2026-10-31", trucks: "v748" } };
+    const pages = useAnswerPages().value(["fuel.spend", "fuel.ifta"], [first, last]);
+    expect(pages.map((p) => [p.key, p.to])).toEqual([
+      ["fuel.spend", { path: "/fuel-spend", query: last.query }],
+      ["fuel.ifta", "/ifta"],
+    ]);
+    // An older API sends no links: every page is its bare path, as in R4a.
+    expect(useAnswerPages().value(["fuel.spend"]).map((p) => p.to)).toEqual(["/fuel-spend"]);
+  });
+
+  it("never draws a link a person cannot open, whatever filters it carries", () => {
+    session.role = "recruiter";
+    expect(useAnswerPages().value(["fuel.spend"], [{ surfaceKey: "fuel.spend", query: { trucks: "v1" } }])).toEqual([]);
+  });
 });
+

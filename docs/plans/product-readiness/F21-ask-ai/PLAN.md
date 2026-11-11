@@ -610,3 +610,30 @@ audit row is the endpoint's own.
     cannot reach.
   - **Not yet run.** The first baseline needs the owner's go: it reads production and spends about
     $0.05. After it, `idling_summary` can be retired if no case needs it (R6b's open item).
+- 2026-11-11 — **R4b (a) built: "Open in Fuel costs" opens the answer's own days and trucks.**
+  - **One link builder, read by the page and the tool (D-AI6):** `packages/shared/src/fuelCostsLinkContract.ts`
+    has the page's six URL keys (`FUEL_COSTS_QUERY_KEYS`) and `fuelCostsToQuery`. `useSpendFilters`
+    and `useFuelCostFilters` read their keys from it. `fuel_report` returns
+    `link: { surfaceKey, query }` built by `fuelCostsToQuery` from the days and vehicle ids it read.
+  - **The link never reaches the model (D-AI8):** `splitAssistantLink` (shared) lifts `link` off a
+    tool's result in `askData` before `stripNeverExposed` and before the result is sent back. It keeps
+    the link only when it points at the tool's OWN page (`ASSISTANT_TOOL_PAGE`) and every value is a
+    string. `AskTrace.links` carries them; the audit row does not.
+  - **Response, additive:** `{ answer, pages, links }`. The store keeps `links`, and `useAnswerPages`
+    gives each page `to: { path, query }` when a link for it exists (the LAST one, since the model's
+    final call is the one its answer reports), else the bare path. An older web ignores `links`; an
+    older API sends none, and the links stay R4a's. Same reach check as before.
+  - **PDF:** the page's own button prints the figure the link opens; no assistant renderer.
+  - Tests: `fuelCostsLinkContract.test.ts`; `assistantContract.test.ts` "splitAssistantLink — the link
+    comes off before the model sees the result (F21 R4b, D-AI8)"; `assistantFuelReport.test.ts` "links
+    to Fuel costs with the answer's own days and the named trucks by vehicle id, built by the page's
+    contract" (last quarter → 07/01–09/30 inclusive, units → ids, fleet → no `trucks`); `askData.test.ts`
+    "lifts each tool's page link off its result before the model sees it, and returns the links in call
+    order (R4b)" (no id anywhere in what the model was sent) and a link to another page dropped;
+    `ai.test.ts` (response carries `links`, the audit row no id); `FuelCostsPage.test.ts` "opens on
+    exactly the filters a link built by its contract carries"; `useAnswerPages.test.ts` and
+    `assistant.test.ts`.
+  - Deliberate breaks, each killed by an assertion: the page reading a literal key, the link carrying
+    unit numbers, `askData` leaving the link in the model's result, the first link kept instead of
+    the last, and `splitAssistantLink` skipping its own-page check.
+  - Next: (b) IFTA `q=`.

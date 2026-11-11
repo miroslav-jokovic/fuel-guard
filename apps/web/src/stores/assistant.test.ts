@@ -33,7 +33,7 @@ describe("assistant store", () => {
     await pending;
     expect(status.value).toBe("done");
     expect(apiFetch).toHaveBeenCalledWith("/api/ai/ask", { method: "POST", body: { question: "How much did we spend?" } });
-    expect(s.turns).toEqual([{ id: 1, question: "How much did we spend?", status: "done", answer: "Spend was $41,200.", pages: [] }]);
+    expect(s.turns).toEqual([{ id: 1, question: "How much did we spend?", status: "done", answer: "Spend was $41,200.", pages: [], links: [] }]);
   });
 
   it("refuses a blank question and a second question while one is pending", async () => {
@@ -78,6 +78,14 @@ describe("assistant store", () => {
     expect(s.turns).toEqual([]);
   });
 
+  it("keeps the links the API sent with an answer's filters (R4b)", async () => {
+    const s = useAssistantStore();
+    const link = { surfaceKey: "fuel.spend", query: { from: "2026-10-01", to: "2026-10-31", trucks: "v748" } };
+    replies.push(async () => ({ ok: true, data: { answer: "6.4", pages: ["fuel.spend"], links: [link] } }));
+    await s.ask("mpg on 748");
+    expect(s.turns[0]!.links).toEqual([link]);
+  });
+
   it("keeps the pages the API named behind an answer, and none from an older API (R4a)", async () => {
     const s = useAssistantStore();
     replies.push(async () => ({ ok: true, data: { answer: "Net was $412,000.", pages: ["finance.fleet-report"] } }));
@@ -85,5 +93,6 @@ describe("assistant store", () => {
     replies.push(async () => ({ ok: true, data: { answer: "ok" } }));
     await s.ask("and fuel?");
     expect(s.turns.map((t) => t.pages)).toEqual([["finance.fleet-report"], []]);
+    expect(s.turns.map((t) => t.links)).toEqual([[], []]);
   });
 });

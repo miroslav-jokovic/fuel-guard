@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
+import type { AssistantAnswerLink } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -24,6 +25,8 @@ export interface AssistantTurn {
   answer: string | null;
   /** F21 R4a: the pages behind the answer, as surface keys (`assistantAnswerPages`). Absent from an older API. */
   pages?: string[];
+  /** F21 R4b: the same pages with the answer's filters (`splitAssistantLink`). Absent from an older API. */
+  links?: AssistantAnswerLink[];
 }
 
 /** The endpoint caps a question at 500 characters (`routes/ai.ts`); the composer stops there too. */
@@ -37,7 +40,7 @@ export const useAssistantStore = defineStore("assistant", () => {
   const busy = () => turns.value.some((t) => t.status === "pending");
 
   async function run(turn: AssistantTurn) {
-    const res = await apiFetch<{ answer: string; pages?: string[] }>("/api/ai/ask", { method: "POST", body: { question: turn.question } });
+    const res = await apiFetch<{ answer: string; pages?: string[]; links?: AssistantAnswerLink[] }>("/api/ai/ask", { method: "POST", body: { question: turn.question } });
     // Found again by id, not written through the captured object: that raw object is not the
     // reactive proxy. And an answer that lands after "New chat" finds no turn — ids never repeat —
     // so it is dropped rather than written into the new thread.
@@ -47,6 +50,7 @@ export const useAssistantStore = defineStore("assistant", () => {
       live.status = "done";
       live.answer = res.data.answer;
       live.pages = Array.isArray(res.data.pages) ? res.data.pages : [];
+      live.links = Array.isArray(res.data.links) ? res.data.links : [];
     } else {
       live.status = "error";
       live.answer = res.error?.message ?? "Could not get an answer. Try again.";

@@ -1,9 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   ASSISTANT_REPORT_PERIODS,
+  ASSISTANT_TOOL_PAGE,
   assistantMonthsIn,
   assistantUnitKey,
   FUEL_REPORT_TRUCK_FIGURES_NOTE,
+  fuelCostsToQuery,
   organizationTimezone,
   resolveAssistantRange,
   todayInZone,
@@ -165,6 +167,10 @@ export async function assistantFuelReport(
     scope: asked.length > 0 ? { units: trucks.map((t) => t.unit), not_found: notFound, other_rows_for_these_units: otherRows } : "whole fleet",
     total: figures(total.current),
     previous_period: figures(total.previous),
+    // F21 R4b: the page opened on exactly this answer — these days, these trucks, by id — so its own
+    // PDF button prints this figure. Built by the page's own contract; `askData` lifts it off before
+    // the model sees the result (D-AI8), so no id reaches model text.
+    link: { surfaceKey: ASSISTANT_TOOL_PAGE.fuel_report, query: fuelCostsToQuery({ from: range.from, to: range.to, vehicleIds: ids }) },
   };
   if (by === "truck") {
     const per = await pool(trucks, (t) => read(admin, orgId, range.from, range.to, [t.id]));
