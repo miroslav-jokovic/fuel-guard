@@ -92,6 +92,14 @@ export const adCandidatesSchema = z.object({
  * that re-measures it, which is what makes the copy safe.
  */
 export const OVERLAY_HEADLINE_MAX_CHARS = 56;
+/**
+ * The most characters the two small lines on the image may hold — the kicker above the headline and the second
+ * line under it (ADS-AD-LOOK-PLAN D-ADL4). Unlike the headline they have ONE size and never wrap, so this is a
+ * guarantee and not a corpus measurement: 28 of the widest capital the faces hold (W) fit both lines in both
+ * looks on every format, so 28 of anything do. The API test that draws exactly that holds the figure to the
+ * renderer, as the headline's test holds its ceiling.
+ */
+export const OVERLAY_SMALL_LINE_MAX_CHARS = 28;
 export type AdCandidates = z.infer<typeof adCandidatesSchema>;
 
 export interface Offered<C> {

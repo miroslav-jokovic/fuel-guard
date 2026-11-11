@@ -11,7 +11,7 @@ import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.j
 import { ART_DIRECTOR_EVAL, COPYWRITER_EVAL, loadFixtures } from "../workers/agentFixtures.js";
 import { SIMULATED_STILL_MODEL } from "../creative/higgsfield/prices.js";
 import { frameStill } from "../creative/overlay/overlay.js";
-import { composeCreative, union, type ComposeInput, type CreativeRow } from "./composeCreative.js";
+import { composeCreative, drawnCopy, union, type ComposeInput, type CreativeRow } from "./composeCreative.js";
 
 /**
  * One creative through copy → art → render → overlay → visual check (C5b), against the real workers and the
@@ -328,7 +328,10 @@ describe("composeCreative — one picture in the published frame, the shorter fr
     expect(await asked(SIMULATED_STILL_MODEL, ["1:1", "9:16", "4:5"])).toEqual(["aspect_ratio=4:5", "prompt=…"]);
     expect(await asked(SIMULATED_STILL_MODEL, ["1:1"])).toEqual(["aspect_ratio=1:1", "prompt=…"]);
     expect(await asked("fixture/model", ["4:5"])).toEqual(["prompt=…"]);
-  });
+    // Three whole composes, each drawing up to four full-size PNGs: 2.4 s on a laptop, and 5,011 ms then 5,019 ms
+    // on a loaded CI shard against vitest's 5,000 (2026-11-10, twice). The work is real, so the limit is this
+    // test's own rather than a smaller test: nothing here waits on a timer.
+  }, 20_000);
 
   it("the square is cut keeping the edge the preset's layout puts the words against: what the checker is shown is that cut, not the centre", async () => {
     const shown = async (layout: AdPresetRecipe["layout"]) => {
@@ -458,5 +461,18 @@ describe("composeCreative — what stops at once, never regenerated", () => {
 describe("union — the band both languages' text covers", () => {
   it("is the smallest rectangle holding every box, clipped to the frame", () => {
     expect(union([{ x: 0.1, y: 0.6, width: 0.5, height: 0.1 }, { x: 0.05, y: 0.7, width: 0.9, height: 0.4 }])).toEqual({ x: 0.05, y: 0.6, width: 0.9, height: 0.4 });
+  });
+});
+
+describe("drawnCopy — the words the overlay is handed (D-ADL4)", () => {
+  const copy = { hook: "Earn more", cta: "Apply", who: "Class A drivers", also: "Home weekly", body: "Long text" };
+
+  it("a preset with only a headline and a call to action hands the overlay those two, and no small line", () => {
+    expect(drawnCopy({ headline: "hook", cta: "cta" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: null, subline: null });
+  });
+
+  it("a preset that names slots for the small lines hands each its own slot's words", () => {
+    expect(drawnCopy({ headline: "hook", cta: "cta", kicker: "who", subline: "also" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: "Class A drivers", subline: "Home weekly" });
+    expect(drawnCopy({ headline: "hook", cta: "cta", kicker: null, subline: "also" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: null, subline: "Home weekly" });
   });
 });

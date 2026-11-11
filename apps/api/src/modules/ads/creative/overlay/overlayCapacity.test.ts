@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AD_LOOKS, AD_OVERLAY_LAYOUTS, FEED_FORMATS, OVERLAY_HEADLINE_MAX_CHARS, adPresetSaveSchema, type AdBrandKit, type AdLook } from "@silvicom/shared";
+import { AD_FORMATS, AD_LOOKS, AD_OVERLAY_LAYOUTS, FEED_FORMATS, OVERLAY_HEADLINE_MAX_CHARS, OVERLAY_SMALL_LINE_MAX_CHARS, adPresetSaveSchema, type AdBrandKit, type AdLook } from "@silvicom/shared";
 import { COPYWRITER_EVAL, loadFixtures } from "../../workers/agentFixtures.js";
 import { overlayFit } from "./overlay.js";
 
@@ -41,6 +41,22 @@ const tooLong = (h: (typeof recorded)[number], format: (typeof FEED_FORMATS)[num
   if (!measured.has(key)) measured.set(key, findingsOf(h, format, layout, look).some((f) => LENGTH.has(f.kind)));
   return measured.get(key)!;
 };
+
+describe("the two small lines' ceiling is the overlay's own (D-ADL4)", () => {
+  const ov = Object.fromEntries(AD_FORMATS.map((f) => [f, overlay]));
+  const fits = (role: "kicker" | "subline", text: string) => AD_LOOKS.every((look) => AD_FORMATS.every((format) =>
+    overlayFit({ format, language: "en", headline: "Apply", cta: "Apply", [role]: text, brief: { claims: [] }, kit: { overlays: ov }, look }).length === 0));
+
+  it("the limit's worth of any capital, digit or common mark fits both small lines in both looks on every format", () => {
+    for (const ch of "ABCDEFGHIJKLMNÑOPQRSTUVWXYZÁÉÍÓÚÜ·&-.,!?¡¿") {
+      for (const role of ["kicker", "subline"] as const) expect(fits(role, ch.repeat(OVERLAY_SMALL_LINE_MAX_CHARS)), `${role} ${ch}`).toBe(true);
+    }
+  });
+
+  it("the limit is the widest letter's, not a round number: one more W fits neither line everywhere", () => {
+    for (const role of ["kicker", "subline"] as const) expect(fits(role, "W".repeat(OVERLAY_SMALL_LINE_MAX_CHARS + 1)), role).toBe(false);
+  });
+});
 
 describe("the headline's ceiling is the overlay's own (D-AD27)", () => {
   it("the corpus is real and wide enough to measure with", () => {

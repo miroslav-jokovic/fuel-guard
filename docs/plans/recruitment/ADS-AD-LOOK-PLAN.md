@@ -164,3 +164,21 @@ photos.
   - Not in L1: the kicker and the second line reach the renderer only from tests — the copywriter does not write
     them yet (L3, a live re-record: Q-ADL2); the Presets card has no look field and the kit drawer still says
     "plate" (L2: Q-ADL4, Q-ADL5); no Anthropic key was used.
+- **2026-11-10, L2 built (the contract and the editor; no key).**
+  - `overlay_slots` gains two optional roles, `kicker` and `subline` (D-ADL4); a preset names a copy slot for
+    each or leaves it out. Compose hands the overlay those slots' words (`drawnCopy`), for the fit asked before
+    the picture and for the render. The copywriter already fills every slot a preset declares, so a preset that
+    adds the slots gets them written today — by the prompt as it stands, which was never told what a kicker is.
+    How good that copy is, is L3's question and its re-record (Q-ADL2).
+  - **The small lines' limit is 28 characters, measured:** 28 of the widest capital (W) fit both lines in both
+    looks on every format, and 29 do not. `OVERLAY_SMALL_LINE_MAX_CHARS`; the save refuses a slot above it by
+    name.
+  - The Presets drawer has "How the words are drawn" (Q-ADL4's field) and the two optional lines; the layouts
+    read Low / High / Middle (D-ADL8). The kit drawer says "Ground colour" and explains it, and tells the office
+    to name one colour primary and one accent (Q-ADL5 answered: label only, stored key unchanged).
+  - A browser pass on the built page with mocked API: look changed and saved, a small line set and set back to
+    "Not drawn", no page errors. 8 deliberate breaks, 8 caught.
+  - The slow compose test named in the handoff failed CI a third time (5,019 ms against 5,000) and now has its
+    own 20 s limit, with the measurement beside it.
+  - Still open: which starter preset takes which look (Q-ADL4's recommendation stands; the starters are on
+    #2211, not merged); L3–L5, each a live recording.
