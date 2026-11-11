@@ -25,6 +25,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { HERE_MAX_TILE_ZOOM, HERE_MAX_VECTOR_ZOOM, TILE_CSS_PX, TRUCK_PLACES_ZOOM, TILE_REQUEST } from "@silvicom/shared";
 import { GLYPHS_PATH, MAP_PALETTE_KEYS, TRUCK_PLACES_TILES_TEMPLATE, isVectorTemplate, truckPlacesSourceId, vectorBasemapLayers, type MapPalette } from "./vectorBasemap";
 import { installMapIcons, rasteriseMapIcons } from "./mapIcons";
+import { rasteriseShields } from "./mapShields";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -338,7 +339,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
     if (options.navControl !== false) {
       instance.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     }
-    repaintIcons = installMapIcons(instance, icons);
+    repaintIcons = installMapIcons(instance, withShields(icons));
     instance.on("load", () => options.onLoad?.(instance));
     map.value = instance;
   });
@@ -403,12 +404,14 @@ export function useMapLibre(options: UseMapLibreOptions): {
 
   /** D-DR35: the place icons in the scheme on screen, and how a scheme change reaches the map. */
   const iconsInScheme = () => rasteriseMapIcons(mapPalette().label, mapPalette()["label-halo"]);
+  /** D-DR36: the road signs are drawn synchronously and join the icons as one set of images. */
+  const withShields = (icons: Awaited<ReturnType<typeof iconsInScheme>>) => new Map([...icons, ...rasteriseShields(mapPalette())]);
   let repaintIcons: ((next: Awaited<ReturnType<typeof iconsInScheme>>) => void) | null = null;
 
   if (options.isDark) {
     watch(options.isDark, () => {
       if (map.value) repaintVector(map.value);
-      void iconsInScheme().then((next) => repaintIcons?.(next));
+      void iconsInScheme().then((next) => repaintIcons?.(withShields(next)));
     });
   }
 

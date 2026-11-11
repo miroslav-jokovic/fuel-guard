@@ -9,7 +9,7 @@ import {
   type DataTableColumn,
   StatCard,
 } from "@silvicom/ui";
-import { STATE_NAMES } from "@silvicom/shared";
+import { IFTA_QUERY_KEYS, iftaToQuery, STATE_NAMES } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -47,11 +47,12 @@ const router = useRouter();
  */
 const NOW = new Date();
 const quarters = selectableQuarters(NOW);
-const quarter = computed<IftaQuarter>(() => parseQuarterKey(route.query.q as string) ?? quarters[0]!);
+// The quarter's URL key is the IFTA link contract's (F21 R4b), so Ask AI's "Open in IFTA" lands on it.
+const quarter = computed<IftaQuarter>(() => parseQuarterKey(route.query[IFTA_QUERY_KEYS.quarter] as string) ?? quarters[0]!);
 const quarterOptions = quarters.map((q) => ({ value: quarterKey(q), label: quarterLabel(q) }));
 const selectedKey = computed<string>({
   get: () => quarterKey(quarter.value),
-  set: (v) => void router.replace({ query: { ...route.query, q: v } }),
+  set: (v) => void router.replace({ query: { ...route.query, [IFTA_QUERY_KEYS.quarter]: v } }),
 });
 
 const { data, isLoading, isError, error, isFetching, refetch } = useIftaPeriodQuery(quarter);
@@ -196,7 +197,7 @@ const barCount = computed(() => position.value?.jurisdictions.length ?? 0);
  * the jurisdiction cell is the keyboard's and the screen reader's (contract §5.7 — a row that only
  * opens on click has nothing focusable in it).
  */
-const jurisdictionLink = (code: string) => ({ path: `/ifta/${code}`, query: { q: selectedKey.value } });
+const jurisdictionLink = (code: string) => ({ path: `/ifta/${code}`, query: iftaToQuery(quarter.value) });
 const openJurisdiction = (row: Record<string, unknown>) => void router.push(jurisdictionLink(String(row.id)));
 </script>
 

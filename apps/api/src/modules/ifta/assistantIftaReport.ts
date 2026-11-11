@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ledgerPosition, milesFromMeters, organizationTimezone, tieOutMiles, todayInZone } from "@silvicom/shared";
+import { ASSISTANT_TOOL_PAGE, iftaToQuery, ledgerPosition, milesFromMeters, organizationTimezone, tieOutMiles, todayInZone } from "@silvicom/shared";
 import { readIftaPeriod } from "./periodReads.js";
 
 /**
@@ -86,6 +86,9 @@ export async function assistantIftaReport(
   const result: Record<string, unknown> = {
     source: IFTA_SOURCE,
     quarter: `Q${q.quarter} ${q.year}`,
+    // F21 R4b: the ledger opened on THIS quarter (`q=YYYY-Qn`, the page's own contract), so its return
+    // export prints these figures. `askData` lifts it off before the model sees the result (D-AI8).
+    link: { surfaceKey: ASSISTANT_TOOL_PAGE.ifta_report, query: iftaToQuery(q) },
     totals: {
       tax_owed: money(position.liability),
       tax_paid_at_the_pump: money(position.credit),

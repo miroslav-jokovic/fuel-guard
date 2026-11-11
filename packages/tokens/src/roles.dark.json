@@ -423,6 +423,26 @@
     "map-water-label": {
       "$type": "color",
       "$value": "oklch(74.1% 0.0751 239.8)"
+    },
+    "map-shield-interstate": {
+      "$type": "color",
+      "$value": "oklch(38.0% 0.1336 256.8)"
+    },
+    "map-shield-interstate-band": {
+      "$type": "color",
+      "$value": "oklch(47.0% 0.1733 20.4)"
+    },
+    "map-shield-plain": {
+      "$type": "color",
+      "$value": "oklch(100% 0 0)"
+    },
+    "map-shield-ink": {
+      "$type": "color",
+      "$value": "oklch(21.8% 0 0)"
+    },
+    "map-shield-county-ink": {
+      "$type": "color",
+      "$value": "oklch(86.7% 0.1768 90.8)"
     }
   }
 }
