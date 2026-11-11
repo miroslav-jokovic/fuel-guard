@@ -1456,3 +1456,28 @@ conflict every time (`plan-progress-log-not-table-rows`).
   nothing reactive, so it was computed once and never followed the OS. That is in production too, for
   today's map (its night tiles) and the truck markers. Fixed in `useColorScheme` with a reactive
   system preference fed by the media query's `change` event; the new test fails on the old code.
+- **2026-11-11 — #2254 accepted on staging:** with `a06e40c` live, the OS turning dark mid-session
+  (`SWITCH_TO_DARK=1`) now repaints the vector map dark with the page.
+- **2026-11-11 — Item 7, the re-measure on staging, after the font fix.** `tools/staging-map-frames.mjs`:
+  staging itself (`a06e40c` at start and end, so one build throughout), signed in as the dispatcher
+  test member with 236 live trucks, the 11-step zoom sequence of `staging-map-compare.mjs`, Chrome
+  at 4× CPU slowdown, 5 alternating runs of each. Ranges:
+
+  | | today's map | vector trial |
+  | --- | --- | --- |
+  | frames over 50 ms | 9–161 | 21–114 |
+  | longest single frame | 83–158 ms | 283–599 ms |
+  | main-thread long tasks | 0.1–8.6 s | 0.7–11.1 s |
+  | tile requests | 92–93 | 31–35 |
+  | sequence time | 12.8–13.3 s | 12.8–13.7 s |
+
+  What this does and does not say. ⚠ The run-to-run spread is wider than the gap between the maps
+  on stutter count and long-task time: today's map ran 9 and 161 in two runs a few minutes apart,
+  with 8 s of long tasks in two runs and 0.1 s in another. That load is the live app (236 trucks,
+  the positions poll), not the basemap, and the rig of D-DR31, which had no trucks, never saw it
+  (0 frames over 50 ms for raster there). So five runs cannot rank the two maps on those numbers.
+  The one measure that separates them in EVERY run is the longest frame: today's map never froze
+  past 158 ms; the vector trial froze 283–599 ms at least once in each run, a pause a reader can
+  see. Tiles are a third of today's, as measured before. The font fix did not remove the freeze.
+  Next, before the owner's office-PC check: find what that single long frame is (a performance
+  trace of one vector run), since it, not the average, is what a dispatcher would call "stutter".
