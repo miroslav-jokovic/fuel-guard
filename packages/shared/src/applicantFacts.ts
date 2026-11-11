@@ -56,7 +56,7 @@ export type FactBasis =
 /**
  * Where the carrier's packet prints it: a line id (`p01.phone`), a grid column (`p02.licences#1`),
  * `{ through }` for a Part 1 fact the filing composes into an application fact (which prints it), or
- * `{ notPrinted }` with the reason. A reason that names F2 is a gap F2 still closes (P12). `addendum.*` is
+ * `{ notPrinted }` with the reason. `addendum.*` is
  * the sheet F2 appends for what the carrier's paper has no place for (`ADDENDUM` below).
  */
 export type FactPacket = readonly string[] | { readonly through: FactPath } | { readonly notPrinted: string };
@@ -160,9 +160,7 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   intake("licences[].agency", "text", "391.21(b)(5)", { through: "application.additional_licences[].issuing_authority" }, "part_one"),
   intake("licences[].licence_number", "text", "391.21(b)(5)", { through: "application.cdl_number" }, "part_one"),
   intake("licences[].expires_on", "date", "391.21(b)(5)", { through: "application.cdl_expires_at" }, "part_one"),
-  intake("endorsements[]", "multi_choice", "screening",
-    { notPrinted: "a declaration verified on the MVR, kept on the intake row only (0376); F2 prints it on the licence line (P12)" },
-    "part_one_answer"),
+  intake("endorsements[]", "multi_choice", "screening", { through: "application.cdl_endorsements[]" }, "part_one_answer"),
   intake("prior_positive_2y", "yesno", "40.25(j)", { through: "application.prior_failed_pre_employment_test" }, STATEMENT),
   intake("dot_program_30d", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, STATEMENT),
   intake("dot_tested_6m", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, STATEMENT),
@@ -195,6 +193,8 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("cdl_number", "text", "391.21(b)(5)", ["p01.cdl", "p02.licences#1", ...both("cdl")], "identity"),
   app("cdl_state", "jurisdiction", "391.21(b)(5)", ["p01.cdl", "p02.licences#0", ...both("cdl_state")], "identity"),
   app("cdl_class", "choice", "391.21(b)(5)", ["p02.licences#2"], "part_one"),
+  // F2b (P12): printed with the class in the grid's TYPE column; corrected where Part 1 keeps it.
+  app("cdl_endorsements[]", "multi_choice", "screening", ["p02.licences#2"], "part_one_answer"),
   app("cdl_expires_at", "date", "391.21(b)(5)", ["p02.licences#3", ...both("cdl_expires")], "part_one"),
   app("additional_licences[].issuing_authority", "jurisdiction", "391.21(b)(5)", ["p02.licences#0"], "part_one"),
   app("additional_licences[].number", "text", "391.21(b)(5)", ["p02.licences#1"], "part_one"),
@@ -328,8 +328,11 @@ export function applicationFactAt(path: readonly (string | number)[]): Applicant
 
 /** The Part 1 key an application fact is composed from (`{ through }`), e.g. `prior_failed_pre_employment_test` → `prior_positive_2y`. */
 export function partOneKeyThrough(applicationPath: FactPath): string | undefined {
+  // A set answer (the endorsements) is catalogued as a list, `…[]`, and addressed as the whole set.
+  const bare = (p: string) => p.replace(/\[\]$/, "");
   const from = APPLICANT_FACTS.find(
-    (f) => f.path.startsWith("intake.") && !Array.isArray(f.packet) && "through" in f.packet && f.packet.through === applicationPath,
+    (f) => f.path.startsWith("intake.") && !Array.isArray(f.packet) && "through" in f.packet
+      && bare(f.packet.through) === bare(applicationPath),
   );
-  return from?.path.slice("intake.".length);
+  return from && bare(from.path.slice("intake.".length));
 }

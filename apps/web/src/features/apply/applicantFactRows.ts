@@ -137,7 +137,7 @@ export const CHOICES = (): Readonly<Record<string, readonly FactChoice[]>> => ({
   cdl_class: CDL_CLASSES.map((c) => ({ value: c, label: `Class ${c}` })),
   equipment_class: EQUIPMENT_CLASSES.map((c) => ({ value: c, label: c })),
   donor_gender: DONOR_GENDERS.map((g) => ({ value: g, label: APPLY_COPY.partOne.screening.genderOptions[g] })),
-  endorsements: ENDORSEMENT_CODES.map((c) => ({ value: c, label: APPLY_COPY.partOne.licence.endorsementLabels[c] })),
+  cdl_endorsements: ENDORSEMENT_CODES.map((c) => ({ value: c, label: APPLY_COPY.partOne.licence.endorsementLabels[c] })),
 });
 
 /**
@@ -146,7 +146,6 @@ export const CHOICES = (): Readonly<Record<string, readonly FactChoice[]>> => ({
  * the application, because the application does not carry them.
  */
 const PART_ONE_SECTION: Readonly<Record<string, ApplicationSection>> = {
-  endorsements: "licence",
   dot_program_30d: "safety",
   dot_tested_6m: "safety",
   dot_random_12m: "safety",
@@ -179,7 +178,7 @@ function documentOf(payload: Record<string, unknown>, partOne: PartOneFactsView 
   const { application } = composeFiledApplication(
     {
       phone: payload.phone, addresses, cdl_number: payload.cdl_number, cdl_state: payload.cdl_state,
-      cdl_class: payload.cdl_class, cdl_expires_at: payload.cdl_expires_at,
+      cdl_class: payload.cdl_class, cdl_endorsements: payload.cdl_endorsements, cdl_expires_at: payload.cdl_expires_at,
       additional_licences: payload.additional_licences ?? [],
       prior_failed_pre_employment_test: payload.prior_failed_pre_employment_test,
     } as never,
@@ -257,6 +256,9 @@ export function applicantFactRows({ payload, partOne, edits, questionnaire, part
     }
     if (!fact.path.startsWith(APP)) continue;
     const key = fact.path.slice(APP.length);
+    // F2b: the endorsements are asked only in Part 1, so a legacy link (no Part 1) has none to show or
+    // correct — a row there would be a Save with no writer, as Part 1's own answers are skipped above.
+    if (key === "cdl_endorsements[]" && !partOne) continue;
 
     if (key.startsWith(ANSWERS)) {
       const id = key.slice(ANSWERS.length).replace(/\[\]$/, "");
@@ -299,9 +301,10 @@ export function applicantFactRows({ payload, partOne, edits, questionnaire, part
     const list = name.endsWith("[]") ? name.slice(0, -2) : null;
     if (ELSEWHERE.has(column ? name : (list ?? name))) continue;
 
-    if (column === undefined && list === null) {
+    // A set (the endorsements, F2b) is one answer, ticked as a whole — not a row per item like other names.
+    if (column === undefined && (list === null || fact.input === "multi_choice")) {
       const door = doorOf(fact, Boolean(partOne), null, current);
-      if (door) push(fact, [name], doc[name], door);
+      if (door) push(fact, [list ?? name], doc[list ?? name], door);
       continue;
     }
 

@@ -48,9 +48,17 @@ const invitation = (over: Record<string, unknown> = {}) => ({
  * and does not apply it, so an array answers another carrier's query with this carrier's row — and a
  * cross-tenant test written against one proves that the fake ignores filters, nothing more.
  */
-const seed = (over: { invitation?: Record<string, unknown> | null; payload?: unknown } = {}) =>
+/** A v2 link's Part 1: the intake row, its licences, and the record's identity and class (F2b). */
+type PartOneSeed = { intake: Record<string, unknown>; licences: Record<string, unknown>[]; driver: Record<string, unknown> };
+
+const seed = (over: { invitation?: Record<string, unknown> | null; payload?: unknown; partOne?: PartOneSeed } = {}) =>
   createSupabaseRecorder({
     tables: {
+      ...(over.partOne ? {
+        application_intakes: [over.partOne.intake],
+        application_intake_licences: over.partOne.licences,
+        drivers: [over.partOne.driver],
+      } : {}),
       application_invitations: (q) => {
         if (over.invitation === null) return [];
         const row = over.invitation ?? invitation();
@@ -222,6 +230,34 @@ describe("previewing an application before it is signed", () => {
       // Every question begun on a page is answered on that page.
       expect((page.match(/Q\d\d /g) ?? []).length).toBe((page.match(/Not answered\./g) ?? []).length);
     }
+  });
+
+  /**
+   * F2b: the preview is the draft AS IT WILL BE FILED. On a v2 link the office corrects the licence and its
+   * class in Part 1 after the applicant last saved, and the endorsements live only there — the raw draft
+   * printed the applicant's stale copy and no endorsements at all, on the copy D-AM7 says must match.
+   */
+  it("prints a v2 link's licence, class and endorsements from Part 1 and the record, not the draft's copy", async () => {
+    const partOne: PartOneSeed = {
+      intake: {
+        phone: "+13125550142", address_line1: "1 Elm St", address_line2: null, city: "Joliet", state: "IL",
+        postal_code: "60431", prior_positive_2y: false, endorsements: ["T", "H"],
+      },
+      licences: [{ position: 0, state_code: "IL", agency: null, licence_number: "IL777", expires_on: "2030-01-01" }],
+      // The office corrected the licence number on the record after Part 1 (AF3): the record's stands.
+      driver: { cdl_class: "B", cdl_number: "IL778", cdl_state: "IL", date_of_birth: "1980-04-01" },
+    };
+    const preview = await applicationPreviewPdf(seed({ partOne }).client, ORG, INV);
+    if (isPreviewError(preview)) throw new Error(preview.message);
+    const page2 = (await pdfPageTexts(preview.pdf))[1]!;
+    expect(page2).toContain("IL778");
+    expect(page2).not.toContain("IL777");
+    expect(page2).toContain("B (HT)");
+    expect(page2).not.toContain("D1234");
+
+    // A legacy link (no Part 1 row) previews the draft exactly as before.
+    const legacy = (await pdfPageTexts(((await applicationPreviewPdf(seed().client, ORG, INV)) as { pdf: Buffer }).pdf))[1]!;
+    expect(legacy).toContain("D1234");
   });
 
   it("appends no sheet for an invitation sent before the carrier's questions, whatever the draft holds", async () => {

@@ -253,7 +253,7 @@ export async function partOneForFiling(
   const invitationId = invitation.id;
   const { data: row } = await admin
     .from("application_intakes")
-    .select("phone, address_line1, address_line2, city, state, postal_code, prior_positive_2y")
+    .select("phone, address_line1, address_line2, city, state, postal_code, prior_positive_2y, endorsements")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .maybeSingle();
@@ -270,6 +270,8 @@ export async function partOneForFiling(
   const data: PartOneFacts = {
     phone: r.phone, address_line1: r.address_line1, address_line2: r.address_line2, city: r.city,
     state: r.state, postal_code: r.postal_code, prior_positive_2y: r.prior_positive_2y,
+    // F2b: Part 1's endorsements, composed onto the filed application (`composeFiledApplication`).
+    endorsements: r.endorsements ?? null,
     cdl_class: (driver as { cdl_class?: string | null } | null)?.cdl_class ?? null,
   };
   const { data: licences } = await admin

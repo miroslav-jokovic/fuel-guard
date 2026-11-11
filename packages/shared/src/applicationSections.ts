@@ -179,7 +179,7 @@ export const APPLICATION_SECTION_KEYS: Record<
   // §391.21(b)(2) does not ask for it and §391.23(a)(2) is what it serves (see the contract).
   identity: ["first_name", "middle_name", "last_name", "other_names", "date_of_birth", "email", "phone"],
   addresses: ["addresses"],
-  licence: ["cdl_number", "cdl_state", "cdl_class", "cdl_expires_at", "additional_licences"],
+  licence: ["cdl_number", "cdl_state", "cdl_class", "cdl_endorsements", "cdl_expires_at", "additional_licences"],
   // Both halves of (b)(6) live here: the narrative and the equipment grid the same sentence requires.
   employment: [
     "experience", "equipment_experience", "employers", "declares_no_employment", "employment_gaps",

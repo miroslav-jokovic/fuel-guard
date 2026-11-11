@@ -85,7 +85,8 @@ export async function partOneAnswersView(
 function shownAt(key: PartOneAnswer["key"]): string {
   const fact = applicantFact(`intake.${key}`) ?? applicantFact(`intake.${key}[]`);
   const through = fact && !Array.isArray(fact.packet) && "through" in fact.packet ? fact.packet.through : null;
-  return through ? through.slice("application.".length) : key;
+  // A set answer is catalogued as a list (`cdl_endorsements[]`, F2b) and recorded as the whole set.
+  return through ? through.slice("application.".length).replace(/\[\]$/, "") : key;
 }
 
 function refusalOf(error: { code?: string; message: string }): PartOneAnswerError {

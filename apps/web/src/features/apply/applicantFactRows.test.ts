@@ -55,7 +55,7 @@ const PAYLOAD = {
 const PART_ONE: PartOneFactsView = {
   intake: {
     phone: "+13125550142", address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL",
-    postal_code: "60431", prior_positive_2y: false, cdl_class: "A",
+    postal_code: "60431", prior_positive_2y: false, cdl_class: "A", endorsements: ["N", "H"],
   },
   licences: [
     { position: 0, state_code: "IL", agency: null, licence_number: "IL123", expires_on: "2029-03-01" },
@@ -95,6 +95,8 @@ describe("the card is the catalogue", () => {
         continue;
       }
       // The carrier's own questions are one row per stamped question, each with its kind's control (step 5).
+      // F2b: the endorsements are Part 1's, so a legacy link has none (pinned in the Q-AM13 block below).
+      if (id === "cdl_endorsements[]") continue;
       if (id === "carrier_answers") {
         expect(list.filter((r) => r.path[0] === "carrier_answers").map((r) => r.input), fact.path)
           .toEqual(STAMP.map((q) => questionControl(q.kind)));
@@ -274,7 +276,10 @@ describe("the driver's own statements and the blind answers (Q-AM13)", () => {
   it("shows Part 1's own answers on a v2 link only, beside the application's facts of the same kind", () => {
     const list = rows({ partOne: PART_ONE });
     expect(row(list, "dot_program_30d")).toMatchObject({ value: true, rule: "statement", section: "safety", door: "part_one_answer" });
-    expect(row(list, "endorsements")).toMatchObject({ value: ["N", "H"], section: "licence", input: "multi_choice" });
+    // F2b: filed as `cdl_endorsements`, so the card names it there, in the roster's order, one set.
+    expect(row(list, "cdl_endorsements")).toMatchObject({ value: ["H", "N"], section: "licence", input: "multi_choice", door: "part_one_answer" });
+    expect(row(list, "endorsements")).toBeUndefined();
+    expect(row(rows(), "cdl_endorsements")).toBeUndefined();
     expect(row(list, "medical_card_pending")).toMatchObject({ value: false, section: "documents" });
     expect(row(rows(), "dot_program_30d")).toBeUndefined();
   });
@@ -308,7 +313,7 @@ describe("the driver's own statements and the blind answers (Q-AM13)", () => {
   it("sends endorsements as the ticked list and the donor gender with no reason", () => {
     const list = rows({ partOne: PART_ONE });
     const ctx = { revision: 7, partOne: PART_ONE, rows: list, addresses: [] };
-    expect(correctionFor(row(list, "endorsements")!, ["H", "T"], ctx)).toEqual({ door: "part_one_answer", answer: { key: "endorsements", value: ["H", "T"] } });
+    expect(correctionFor(row(list, "cdl_endorsements")!, ["H", "T"], ctx)).toEqual({ door: "part_one_answer", answer: { key: "endorsements", value: ["H", "T"] } });
     expect(correctionFor(row(list, "donor_gender")!, "male", ctx)).toEqual({ door: "part_one_answer", answer: { key: "donor_gender", value: "male" } });
   });
 });
