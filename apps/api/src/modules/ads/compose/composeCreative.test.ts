@@ -212,6 +212,37 @@ describe("composeCreative — a creative from copy to ready (C5b)", () => {
   });
 });
 
+describe("composeCreative — only the formats an ad is shown in (Q-AD75; D-AD25)", () => {
+  it("a 9:16 the kit cannot even overlay does not fail the ad: only the published format is framed, checked and stored", async () => {
+    // KIT has an overlay for 4:5 alone, so a 9:16 that was still framed would refuse `no_template` — the format
+    // no placement shows would stop the creative, as every unused crop could before the ruling.
+    const h = harness();
+    expect(await h.run({ recipe: { ...RECIPE, formats: ["9:16", "4:5"] } })).toEqual({ kind: "ready" });
+    const last = h.creativeWrites().at(-1)!.write!.payload as { assets: Array<{ format: string; language: string }>; checks: { visual: { results: Record<string, unknown> } } };
+    expect(last.assets.map((a) => `${a.format} ${a.language}`)).toEqual(["4:5 en", "4:5 es"]);
+    expect(Object.keys(last.checks.visual.results)).toEqual(["4:5"]);
+    expect(h.tools().filter((t) => t === "report_checks")).toHaveLength(1);
+    expect(h.stored).toHaveLength(2);
+  });
+
+  it("a preset holding 4:5 and 1:1 is made in both, best first", async () => {
+    const h = harness();
+    const kit = { ...KIT, overlays: { ...KIT.overlays, "1:1": KIT.overlays["4:5"]! } };
+    expect(await h.run({ kit, recipe: { ...RECIPE, formats: ["1:1", "9:16", "4:5"] } })).toEqual({ kind: "ready" });
+    const assets = (h.creativeWrites().at(-1)!.write!.payload as { assets: Array<{ format: string; language: string }> }).assets;
+    expect(assets.map((a) => `${a.format} ${a.language}`)).toEqual(["4:5 en", "4:5 es", "1:1 en", "1:1 es"]);
+  });
+
+  it("a stored preset of 9:16 alone stops by name before the copywriter is asked or a picture is drawn", async () => {
+    const h = harness();
+    const out = await h.run({ recipe: { ...RECIPE, formats: ["9:16"] } });
+    expect(out).toEqual({ kind: "check_failed", reason: "no_feed_format: the preset's formats (9:16) hold none an ad is shown in" });
+    expect(h.create).not.toHaveBeenCalled();
+    expect(h.render).not.toHaveBeenCalled();
+    expect(h.creativeWrites().at(-1)!.write!.payload).toMatchObject({ state: "check_failed", last_error: out.kind === "check_failed" ? out.reason : "" });
+  });
+});
+
 describe("composeCreative — candidates and the craft judge (CQ4; D-AD19, D-AD21)", () => {
   const scored = (totals: number[]) => (n: number) => ({ scores: Array.from({ length: n }, (_, pos) => ({ reason: `pos ${pos}`, scores: { hook: totals[pos]!, specific: totals[pos]!, plain: totals[pos]!, spanish: totals[pos]!, no_filler: totals[pos]! } })) });
   /** The judge answers in the SHOWN order; this gives candidate `best` (writer's index) the top score whatever position it was shown at. */

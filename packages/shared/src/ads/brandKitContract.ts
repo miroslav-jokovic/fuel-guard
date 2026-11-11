@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { recordId } from "../recordId.js";
-import { AD_FORMATS, parseHex, safeZone, tightenZone, type AdFormat } from "./renderGeometry.js";
+import { AD_FORMATS, FEED_FORMATS, parseHex, publishedFormats, safeZone, tightenZone, type AdFormat } from "./renderGeometry.js";
 
 /**
  * The brand kit and the concept presets (ADS-AGENT-PLAN D-AD10, D-AD11; workflow C1). These are the
@@ -233,6 +233,10 @@ export type AdBrandKitSave = z.infer<typeof adBrandKitSaveSchema>;
  * beside it (`platform_slots`). The recipe leaves them nullable only so bodies saved before B2c still parse; a
  * version saved today without them would pass here and then be refused at compose (`no_overlay_slots`) or at
  * publish (`no_platform_slots`), so the door refuses it now. The editor (E2) reads these sentences from here.
+ *
+ * For the same reason a new version must hold a format the publisher sends (AG2, audit F-AG13): a preset of
+ * 9:16 alone used to be saved, drawn, checked and approved, and then refused the whole publish. The stored
+ * recipe may still hold any set — compose stops such a preset by name (`no_feed_format`, D-AD25).
  */
 export const adPresetSaveSchema = z.object({
   key: z.string().regex(/^[A-Z][A-Z0-9_]{0,15}$/, "a preset's key is capitals, digits and underscores, like P2"),
@@ -241,6 +245,9 @@ export const adPresetSaveSchema = z.object({
 }).superRefine((s, ctx) => {
   if (!s.recipe.overlay_slots) ctx.addIssue({ code: "custom", path: ["recipe", "overlay_slots"], message: "Choose which copy goes on the image: its headline and its call to action." });
   if (!s.recipe.platform_slots) ctx.addIssue({ code: "custom", path: ["recipe", "platform_slots"], message: "Choose which copy Meta shows beside the image: its primary text and its headline." });
+  if (s.recipe.formats.length > 0 && publishedFormats(s.recipe.formats).length === 0) {
+    ctx.addIssue({ code: "custom", path: ["recipe", "formats"], message: `Choose ${FEED_FORMATS.join(" or ")} as well: those are the formats an ad is shown in today, and ${s.recipe.formats.join(", ")} alone cannot be published.` });
+  }
 });
 export type AdPresetSave = z.infer<typeof adPresetSaveSchema>;
 
