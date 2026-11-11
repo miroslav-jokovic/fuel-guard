@@ -652,3 +652,31 @@ audit row is the endpoint's own.
     tool's own requirement on it grants". Deliberate break: the page back at `manage("fuel")`, killed
     by its assertion (`fuel_report -> fuel.spend: expected 'view' to be 'manage'`). No test pinned the
     old gate before, which is how the two halves drifted.
+- 2026-11-11 — **Carrier-day fix built: one `orgToday`, at every UTC-day read the handoff found.**
+  - **One definition:** `org/orgToday.ts` `orgToday(admin, orgId, now?)`, exported from org's index
+    (org owns `organizations`). `inspections/read/orgToday.ts` is deleted (its two routes import org's),
+    and recruiting's `carrierToday` is now a re-export of it under the old name, so its thirty-odd
+    callers did not move.
+  - **Moved to the carrier's day:** the Drivers page's overview (`GET /api/compliance/overview`), the
+    driver pass of the DQ alert run, the binder's default "as at", the Monday digest's DQ section, the
+    Shop's annual-due and FleetPal-disagreements readers, the inspectors list's "qualified today", and
+    the dispatch board — its annual chip and its drivers' credential warnings, which now share the day
+    the board's rows were cut on. Both assistant tools follow their pages: `driver_file_expirations`
+    calls `orgToday` with its own `now`, and `annual_inspections_due` gets it through `readAnnualDue`.
+  - **The two written dates, read first as the handoff asked:** a correction's `inspected_on` (append-only
+    `vehicle_inspections`) is a day on the shop's own calendar, the same kind the inspector types on a
+    new report, so it moved — a correction started at 7 pm Central was filed as inspected tomorrow. The
+    inspectors list's day is a read (`isQualifiedOn`), never written. `listInspectors` lost its UTC
+    default; its one caller passes the day.
+  - The DQ alert dedupe keys are the expiry date and threshold, not today, so the move re-sends nothing.
+  - **Not moved:** medstop's own `orgClock` (already the carrier's day, injected), and `askData`'s fleet
+    MPG window (a fuel read, not in the handoff's list).
+  - **Tests, at 01:30 UTC on 11/11 (7:30 pm Central on 11/10):** `orgToday.test.ts`; `annualCarrierDay.test.ts`
+    (an annual good through 11/10 is due, not overdue; a one-day disagreement is shown, not lost);
+    `dqAlertScheduler.test.ts` "does not call a CDL good through 11/10 expired at 7:30 pm Central on 11/10,
+    when UTC is already 11/11" (its fixture's "today" is now the carrier's day too — the UTC one would
+    have failed every Central evening); `assistantDriverFiles.test.ts` now asks for 11/10 and is
+    org-scoped. A source check keeps the UTC cut out of the eleven sites.
+  - Deliberate breaks, each killed by an assertion: the DQ run, `readAnnualDue`,
+    `readAnnualDisagreements`, the driver-files tool and `orgToday` itself put back on the UTC cut, and the
+    correction's `inspected_on` (caught by the source check).
