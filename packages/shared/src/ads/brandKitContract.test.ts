@@ -17,6 +17,16 @@ const RECIPE: AdPresetRecipe = {
 };
 const ASSET = { sha256: "a".repeat(64), format: "png", source_format: "svg", width: 10, height: 10, byte_size: 99 } as const;
 
+describe("a preset's look (ADS-AD-LOOK-PLAN D-ADL11)", () => {
+  it("a recipe saved before the looks still parses and names none; a named look is one of the two; any other word is refused", () => {
+    const before = adPresetRecipeSchema.safeParse(RECIPE);
+    expect(before.success && before.data.look).toBe(undefined);
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, look: "ribbon" }).success).toBe(true);
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, look: "rail" }).success).toBe(true);
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, look: "poster" }).error?.issues.map((i) => i.path.join("."))).toEqual(["look"]);
+  });
+});
+
 describe("brand kit contract", () => {
   it("lets a kit tighten a format's safe zone, never widen it", () => {
     const zone = safeZone("9:16");

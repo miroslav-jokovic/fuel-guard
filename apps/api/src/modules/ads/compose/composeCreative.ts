@@ -203,12 +203,12 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
     const boxes: FractionRect[] = [];
     for (const language of LANGUAGES) {
       const o = await renderOverlay({
-        format, language, base: still, brief, kit, logo, layout: recipe.layout,
+        format, language, base: still, brief, kit, logo, layout: recipe.layout, look: recipe.look,
         headline: copy[language][recipe.overlay_slots!.headline]!, cta: copy[language][recipe.overlay_slots!.cta]!,
       });
       if (o.kind === "refused") return { kind: "stop", reason: `render check (${format}, ${language}): ${overlaySummary(o.findings)}`, checks: { render: { ok: false, format, language, findings: o.findings } } };
       rendered.push({ format, language, png: o.png });
-      boxes.push(...o.blocks.map((b) => toFraction(b.box, format)));
+      boxes.push(toFraction(o.stack, format));
     }
     const v = await checkVisual(deps, {
       ...ids, format, attempt,
@@ -238,7 +238,7 @@ function fitRefusal(input: ComposeInput, copy: AdCopy): { format: AdFormat; lang
   const { brief, recipe, kit } = input;
   for (const format of publishedFormats(recipe.formats)) {
     for (const language of LANGUAGES) {
-      const findings = overlayFit({ format, language, brief, kit, layout: recipe.layout, headline: copy[language][recipe.overlay_slots!.headline]!, cta: copy[language][recipe.overlay_slots!.cta]! });
+      const findings = overlayFit({ format, language, brief, kit, layout: recipe.layout, look: recipe.look, headline: copy[language][recipe.overlay_slots!.headline]!, cta: copy[language][recipe.overlay_slots!.cta]! });
       if (findings.length > 0) return { format, language, findings };
     }
   }

@@ -140,8 +140,9 @@ describe("composeCreative — a creative from copy to ready (C5b)", () => {
     const dims = await Promise.all(images.map(async (b) => { const m = await sharp(Buffer.from(b.source!.data, "base64")).metadata(); return [m.width, m.height]; }));
     expect(dims[0]).toEqual([1080, 1350]);
     expect(images[1]!.source!.data).toBe(jpg("reference").toString("base64"));
-    // The band is the overlay's own text stack: the zone's width less its padding (886 px of 1080), shorter than the frame.
-    expect(dims[2]![0]).toBe(886);
+    // The band is the overlay's own stack, kicker to button: the zone's width less the rail look's inset (920 px
+    // of 1080), shorter than the frame. The footer is not part of it.
+    expect(dims[2]![0]).toBe(920);
     expect(dims[2]![1]).toBeLessThan(700);
   });
 

@@ -97,6 +97,23 @@ export const AD_OVERLAY_START = { text_color: "#FFFFFF", plate_color: "#111111" 
 export const AD_OVERLAY_LAYOUTS = ["bottom_plate", "top_band", "centered"] as const;
 export type AdOverlayLayout = (typeof AD_OVERLAY_LAYOUTS)[number];
 
+/**
+ * How the words are DRAWN (ADS-AD-LOOK-PLAN D-ADL1–D-ADL7, D-ADL11; the owner, 2026-11-10: the finished ads
+ * "don't look really good, professional and enterprise grade"). `layout` above says WHERE the stack sits; the
+ * look says in which faces, with which shapes and where the kit's colours go. Both are the preset's: a concept's
+ * look is part of the concept, so when a tired ad is retired and the next concept enters (D-AD23), the design
+ * changes with it and not only the picture.
+ *   · `rail`   — left-aligned; the headline's figures in the kit's accent colour; a rail beside the stack; the
+ *                call to action a filled button; the phone and the legal line on a band in the kit's primary.
+ *   · `ribbon` — centred; a white headline in a heavier face; the second line on one ribbon in the accent
+ *                colour; a pill button; the phone and the legal line on a hairline footer.
+ * Since the look, the layout names read oddly — nothing is drawn on a plate or a band any more; the words sit on
+ * the picture, darkened under them (D-ADL1). The stored names stay (D-ADL8): they are in every saved preset, and
+ * a rename would migrate every one of them for no reader's benefit. Read them as low, high and middle.
+ */
+export const AD_LOOKS = ["rail", "ribbon"] as const;
+export type AdLook = (typeof AD_LOOKS)[number];
+
 export const adBrandKitSchema = z.object({
   /** Exactly as it should read in an ad. */
   company_name: z.string().trim().min(1, "the company name is what the ad prints, so it cannot be empty").max(120, "the company name is at most 120 characters"),
@@ -167,6 +184,11 @@ export const adPresetRecipeSchema = z.object({
   motion_template: z.string().trim().min(10).max(2000).nullable(),
   /** Where the words sit (CQ6). Defaulted, so a recipe saved before CQ6 is the layout it always had. */
   layout: z.enum(AD_OVERLAY_LAYOUTS).default("bottom_plate"),
+  /**
+   * How the words are drawn (`AD_LOOKS`). Absent = `rail`. Optional rather than defaulted, as `platform_slots`
+   * is and for its reason: a default makes the parsed type require the key in every recipe literal.
+   */
+  look: z.enum(AD_LOOKS).optional(),
   formats: z.array(z.enum(AD_FORMATS)).min(1, "choose at least one format").max(AD_FORMATS.length),
   /**
    * Which copy slots the overlay draws (C5b): the headline (≤ 2 lines) and the call to action. The other
