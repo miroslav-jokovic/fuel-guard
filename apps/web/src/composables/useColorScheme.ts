@@ -36,6 +36,21 @@ function read(): ColorScheme {
 /** Module-level so every caller shares one value — the preference is global, not per-component. */
 const scheme = ref<ColorScheme>(read());
 
+/**
+ * What the operating system prefers, kept current by the media query's `change` event.
+ *
+ * ⚠ `isDark` used to read `matchMedia(...).matches` inside its `computed`. Nothing reactive is
+ * touched there, so it computed once and never again: when the OS turned dark while the app was
+ * open (macOS "Auto" appearance at sunset), the CSS followed through `light-dark()` and every
+ * reader of `isDark` did not. The live map kept its day tiles and light markers inside a dark app.
+ * Found on staging 2026-11-11 while checking the vector map's night scheme (D-DR33 item 6).
+ */
+const systemQuery = typeof window !== "undefined" ? window.matchMedia?.("(prefers-color-scheme: dark)") : undefined;
+const systemDark = ref(systemQuery?.matches === true);
+systemQuery?.addEventListener?.("change", (e) => {
+  systemDark.value = e.matches;
+});
+
 function paint(value: ColorScheme) {
   const root = document.documentElement;
   root.style.colorScheme = value === "system" ? "light dark" : value;
@@ -54,7 +69,7 @@ export function useColorScheme() {
   const isDark = computed(() => {
     if (scheme.value === "dark") return true;
     if (scheme.value === "light") return false;
-    return typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches === true;
+    return systemDark.value;
   });
 
   function set(value: ColorScheme) {
