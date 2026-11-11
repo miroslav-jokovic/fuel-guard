@@ -21,6 +21,15 @@ import { composeCreative, drawnCopy, union, type ComposeInput, type CreativeRow 
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const NOW = new Date("2026-11-04T18:00:00Z");
+/**
+ * This file's tests run whole composes, and several run three of them: each draws up to four full-size PNGs
+ * through the real overlay. About 2.4 s for the slowest on a laptop; on a loaded CI shard, 5,011 ms, 5,019 ms and
+ * 5,016 ms against vitest's 5,000 (2026-11-10, three runs, two different tests). The work is real and nothing
+ * here waits on a timer, so the limit is the file's own — raised once, here, rather than test by test as each
+ * one's turn comes to be the slowest.
+ */
+vi.setConfig({ testTimeout: 20_000 });
+
 const IMAGES = new URL("../workers/checker/fixtures/images/", import.meta.url);
 const jpg = (n: string) => readFileSync(new URL(`${n}.jpg`, IMAGES));
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
@@ -328,10 +337,7 @@ describe("composeCreative — one picture in the published frame, the shorter fr
     expect(await asked(SIMULATED_STILL_MODEL, ["1:1", "9:16", "4:5"])).toEqual(["aspect_ratio=4:5", "prompt=…"]);
     expect(await asked(SIMULATED_STILL_MODEL, ["1:1"])).toEqual(["aspect_ratio=1:1", "prompt=…"]);
     expect(await asked("fixture/model", ["4:5"])).toEqual(["prompt=…"]);
-    // Three whole composes, each drawing up to four full-size PNGs: 2.4 s on a laptop, and 5,011 ms then 5,019 ms
-    // on a loaded CI shard against vitest's 5,000 (2026-11-10, twice). The work is real, so the limit is this
-    // test's own rather than a smaller test: nothing here waits on a timer.
-  }, 20_000);
+  });
 
   it("the square is cut keeping the edge the preset's layout puts the words against: what the checker is shown is that cut, not the centre", async () => {
     const shown = async (layout: AdPresetRecipe["layout"]) => {
