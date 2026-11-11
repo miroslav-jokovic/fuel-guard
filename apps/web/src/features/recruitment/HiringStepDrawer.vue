@@ -35,6 +35,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   review: [invitationId: string];
+  correctIdentity: [invitationId: string];
   orderTest: [order: { medstopId: string; zip: string | null }];
   closeOrder: [request: { requestId: string; status: MedstopCloseStatus }];
   recollect: [test: { testId: string; medstopId: string; collectedOn: string | null; zip: string | null }];
@@ -90,6 +91,7 @@ const wide = computed(() => props.row?.steps.some((s) => WIDE_BODIES.has(hiringD
           :invitation-id="invitationId"
           :identity="identity"
           @review="emit('review', $event)"
+          @correct-identity="emit('correctIdentity', $event)"
           @order-test="emit('orderTest', $event)"
           @close-order="emit('closeOrder', $event)"
           @recollect="emit('recollect', $event)"

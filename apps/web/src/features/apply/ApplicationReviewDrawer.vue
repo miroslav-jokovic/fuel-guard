@@ -55,7 +55,12 @@ import {
  * `editable`, and when they are gone the reason is on the page. Every write names the revision it
  * was made against, so the applicant's autosave and the office never overwrite each other (§8.1).
  */
-const props = defineProps<{ open: boolean; invitationId: string | null }>();
+const props = defineProps<{
+  open: boolean;
+  invitationId: string | null;
+  /** Step 6: an Applicant facts row to bring into view — `date_of_birth` when a hiring step sends the office here. */
+  focus?: string | null;
+}>();
 const emit = defineEmits<{ close: [] }>();
 
 const toast = useToastStore();
@@ -131,6 +136,10 @@ function changeLabel(row: { path: ApplicationPath; before: unknown; after: unkno
     return `${job} · ${describeField(["employers", 0, row.path[2]!]).split(" · ")[1] ?? String(row.path[2])}`;
   }
   if (head === "employment_gaps") return `Gap from ${formatDisplayDate(String(ref))}`;
+  // Step 5: one of the carrier's own questions, by the wording on THIS applicant's stamp — the office's
+  // page serves no applicant bundle, so `describeField` would name every one "The carrier's own questions".
+  const asked = head === "carrier_answers" ? review.data.value?.carrierQuestions?.find((q) => q.id === ref) : undefined;
+  if (asked) return asked.wording;
   // E2: named where it is NOW — a removal since moves the rows after it (`currentEditPaths`).
   const now = currentPaths.value[at];
   const label = describeField(now?.path ?? row.path);
@@ -333,6 +342,7 @@ async function approveIt(): Promise<void> {
           :review="review.data.value"
           :draft-open="correctable && !signingStarted"
           :record-open="recordCorrectable"
+          :focus="focus"
         />
 
         <!-- HW5b: the jobs on one timeline. While anything can be corrected they are the card's

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { APPLICANT_FACTS, carrierQuestionnaire, questionnaireForApplicant, type PartOneFactsView } from "@silvicom/shared";
+import {
+  APPLICANT_FACTS, RATHER_NOT_SAY, carrierQuestionnaire, questionnaireForApplicant, type CarrierQuestionStamp, type PartOneFactsView,
+} from "@silvicom/shared";
 import { fromDraftPayload } from "./draft";
 import { buildReviewSummary } from "./reviewSummary";
-import { applicantFactRows, factSections, jobsMatch, type FactRow } from "./applicantFactRows";
+import { applicantFactRows, factSections, jobsMatch, questionControl, type FactRow } from "./applicantFactRows";
 import { correctionFor } from "./factCorrection";
 
 /**
@@ -10,6 +12,18 @@ import { correctionFor } from "./factCorrection";
  * every fact with a door is a row, once, with the catalogue's input kind — and that on a v2 link each
  * row sends its correction to the writer filing will take the answer from.
  */
+
+/** Step 5: the carrier's own questions, as stamped on THIS applicant's invitation (D-CQ2). */
+const TERMINAL = "11111111-1111-4111-8111-111111111111";
+const START = "22222222-2222-4222-8222-222222222222";
+const STARTED = "33333333-3333-4333-8333-333333333333";
+const MILES = "44444444-4444-4444-8444-444444444444";
+const STAMP: CarrierQuestionStamp = [
+  { id: TERMINAL, wording: "Which terminal would you report to?", hint: null, kind: "select", choices: ["Melrose Park", "Joliet"], required: true },
+  { id: START, wording: "Can you start within two weeks?", hint: null, kind: "boolean", choices: null, required: false },
+  { id: STARTED, wording: "When did you last drive?", hint: null, kind: "date", choices: null, required: false },
+  { id: MILES, wording: "How many miles last year?", hint: null, kind: "number", choices: null, required: true },
+];
 
 const PAYLOAD = {
   first_name: "Susan", middle_name: "", last_name: "Godfrey", date_of_birth: "1980-04-01",
@@ -35,6 +49,7 @@ const PAYLOAD = {
     education: [{ school: "Joliet JC", years_completed: "2", field_of_study: "", graduated: false, graduated_when: "" }],
     references: [{ full_name: "Ann Lee", years_known: "5", phone: "3125550100" }],
   },
+  carrier_answers: { [TERMINAL]: "Joliet", [START]: RATHER_NOT_SAY.value, [STARTED]: "03/01/2026" },
 };
 
 const PART_ONE: PartOneFactsView = {
@@ -54,10 +69,13 @@ const ANSWERS = {
   dot_program_30d: true, dot_tested_6m: false, dot_random_12m: null, medical_card_pending: false,
   endorsements: ["N", "H"], donorGenderGiven: true,
 };
-const rows = (over: { partOne?: PartOneFactsView | null; edits?: Array<{ path: Array<string | number> }>; answers?: typeof ANSWERS | null } = {}) =>
+const rows = (over: {
+  partOne?: PartOneFactsView | null; edits?: Array<{ path: Array<string | number> }>; answers?: typeof ANSWERS | null; carrier?: CarrierQuestionStamp;
+} = {}) =>
   applicantFactRows({
     payload: PAYLOAD, partOne: over.partOne ?? null, edits: over.edits ?? [], questionnaire: questionnaireForApplicant(),
     partOneAnswers: over.answers === undefined ? (over.partOne ? ANSWERS : null) : over.answers,
+    carrier: over.carrier ?? STAMP,
   });
 const row = (list: FactRow[], key: string) => list.find((r) => r.key === key);
 
@@ -74,6 +92,12 @@ describe("the card is the catalogue", () => {
         const tableRows = list.filter((r) => r.path[0] === "questionnaire" && r.path[1] === q && typeof r.path[2] === "number");
         expect(tableRows.length, fact.path).toBeGreaterThan(0);
         for (const r of tableRows) expect(r.input, fact.path).toBe("table");
+        continue;
+      }
+      // The carrier's own questions are one row per stamped question, each with its kind's control (step 5).
+      if (id === "carrier_answers") {
+        expect(list.filter((r) => r.path[0] === "carrier_answers").map((r) => r.input), fact.path)
+          .toEqual(STAMP.map((q) => questionControl(q.kind)));
         continue;
       }
       const [name, column] = id.split("[].");
@@ -118,6 +142,35 @@ describe("the card is the catalogue", () => {
     expect(position.label).toBe("Position you are applying for");
     expect(position.value).toBe("Line-haul driver");
     expect(position.door).toBe("draft");
+  });
+
+  it("step 5: lays the carrier's own questions out from THIS applicant's stamp, worded and ordered as they were asked", () => {
+    const own = rows().filter((r) => r.path[0] === "carrier_answers");
+    expect(own.map((r) => [r.label, r.value, r.door, r.section])).toEqual([
+      ["Which terminal would you report to?", "Joliet", "draft", "questions"],
+      ["Can you start within two weeks?", RATHER_NOT_SAY.value, "draft", "questions"],
+      ["When did you last drive?", "03/01/2026", "draft", "questions"],
+      ["How many miles last year?", null, "draft", "questions"],
+    ]);
+    // The select offers exactly its frozen choices; only an optional question offers the skip.
+    expect(own[0]!.choices?.map((c) => c.value)).toEqual(["Melrose Park", "Joliet"]);
+    expect(own.map((r) => r.skip?.value ?? null)).toEqual([null, RATHER_NOT_SAY.value, RATHER_NOT_SAY.value, null]);
+    // An answer to a question the stamp does not hold is not a row; no stamp, no rows.
+    expect(rows({ carrier: STAMP.slice(1) }).some((r) => r.key === `carrier_answers.${TERMINAL}`)).toBe(false);
+    expect(rows({ carrier: [] }).some((r) => r.path[0] === "carrier_answers")).toBe(false);
+  });
+
+  it("step 5: corrects a date and a number in the plain box the applicant's form typed them into", () => {
+    expect(["text", "longtext", "boolean", "select", "date", "number"].map(questionControl))
+      .toEqual(["text", "longtext", "yesno", "choice", "text", "count"]);
+    const edit = correctionFor(row(rows(), `carrier_answers.${STARTED}`)!, "04/01/2026", { revision: 7, partOne: null, rows: [], addresses: [] });
+    expect(edit).toEqual({ door: "draft", edit: { path: ["carrier_answers", STARTED], value: "04/01/2026", revision: 7 } });
+  });
+
+  it("offers a built-in optional question's skip too, as the form does", () => {
+    const military = row(rows(), "questionnaire.military_service");
+    expect(military?.skip).toEqual(RATHER_NOT_SAY);
+    expect(row(rows(), "questionnaire.position")?.skip).toBeUndefined();
   });
 
   it("gives a choice its options from the contract's own constant", () => {

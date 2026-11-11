@@ -261,16 +261,36 @@ describe("recording a test", () => {
 });
 
 describe("§9 P1 — the road test defects (RT-A1…A10)", () => {
-  it("RT-A1: a pass with no licence number on file says so before the press, and opens the correction in place", async () => {
+  it("RT-A1: a pass with no licence number on file says so before the press, and still refuses the press", async () => {
     const w = mountPanel({ invitationId: "inv1", identity: { cdl_number: null } });
     await settle(w);
     await fill(w);
     expect(w.get('[data-testid="licence-missing"]').text()).toContain("Add the licence number first");
     expect(button(w).attributes("disabled")).toBeDefined();
     expect(w.get('[data-testid="still-needed"]').text()).toContain("the licence number");
-    await byText(w, "Add the licence number")!.trigger("click");
+  });
+
+  /**
+   * F3c part 2, step 6: the licence is corrected on the application's card, which the page opens in place of
+   * this drawer — so it is said at the TOP, before anything is rated: the swap would lose a rated test.
+   */
+  it("step 6: says a missing licence before anything is rated, and sends the office to the application's card", async () => {
+    const w = mountPanel({ invitationId: "inv1", identity: { cdl_number: null } });
     await settle(w);
-    expect(w.findComponent({ name: "ApplicantIdentityCorrection" }).exists()).toBe(true);
+    const early = w.get('[data-testid="licence-missing-early"]');
+    expect(early.text()).toContain("not kept");
+    expect(w.find('[data-testid="licence-missing"]').exists()).toBe(false); // nothing rated yet
+    await early.get("button").trigger("click");
+    expect(w.emitted("correctIdentity")).toEqual([["inv1"]]);
+    expect(w.find("input#correct-number").exists()).toBe(false); // no editor of its own
+    // Without an invitation there is no application to correct it in.
+    const roster = mountPanel({ invitationId: null, identity: { cdl_number: null } });
+    await settle(roster);
+    expect(roster.get('[data-testid="licence-missing-early"]').find("button").exists()).toBe(false);
+    // On file: nothing said.
+    const fine = mountPanel({ invitationId: "inv1" });
+    await settle(fine);
+    expect(fine.find('[data-testid="licence-missing-early"]').exists()).toBe(false);
   });
 
   it("RT-A1: a fail needs no licence number — it files the form only", async () => {

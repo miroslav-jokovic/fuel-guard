@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { PlatformCampaignRef, SpendCall } from "../adapter.js";
+import type { LaunchCall, PlatformCampaignRef } from "../adapter.js";
 import { FakeMeta } from "../simulator/fakeMeta.js";
 import { MetaGraph, resetGraphThrottles } from "./graphClient.js";
 import { metaAdapter } from "./metaAdapter.js";
@@ -17,7 +17,7 @@ let base: string;
 const ref = (patch: Record<string, unknown> = {}): PlatformCampaignRef => ({
   campaign_id: "c1", platform: "meta", platform_refs: { meta_campaign_id: "500", meta_adset_id: "501", meta_ad_ids: ["502"], ...patch },
 });
-const call = (patch: Partial<SpendCall> = {}): SpendCall => ({ campaign: ref(), daily_budget_cents: 7_500, lifetime_cap_cents: 60_000, idempotency_key: "launch:appr-1", ...patch });
+const call = (patch: Partial<LaunchCall> = {}): LaunchCall => ({ campaign: ref(), daily_budget_cents: 7_500, lifetime_cap_cents: 60_000, idempotency_key: "launch:appr-1", retired_ad_ids: [], ...patch });
 
 beforeEach(async () => {
   resetGraphThrottles();
@@ -86,6 +86,27 @@ describe("Meta adapter (CQ9) — retiring one ad", () => {
   });
 });
 
+describe("Meta adapter (Q-AD68) — turning on a retired ad's replacement", () => {
+  it("activateAd sets that ad alone to ACTIVE, read back from Meta, and writes nothing else: not the ad set's budget, not the campaign", async () => {
+    meta.sets.ads.set("504", { id: "504", adset_id: "501", name: "S360|ad3", status: "PAUSED" });
+    meta.campaigns.get("500")!.status = "ACTIVE";
+    const out = await adapter().safe.activateAd({ campaign: ref({ meta_ad_ids: ["502", "504"] }), ad: "504", idempotency_key: "activate_ad:c:504:0" });
+    expect(out).toMatchObject({ ok: true, response: { ad: "504", status: "ACTIVE" } });
+    expect(writes()).toEqual(["504:status=ACTIVE"]);
+    expect([meta.sets.ads.get("502")!.status, meta.sets.ads.get("504")!.status]).toEqual(["PAUSED", "ACTIVE"]);
+  });
+
+  it("an ad the campaign's refs do not hold is refused before any call: a replacement is turned on only after the refs hold it", async () => {
+    expect(await adapter().safe.activateAd({ campaign: ref(), ad: "999", idempotency_key: "k" })).toEqual({ ok: false, error_code: "ad_not_in_campaign", response: { ad: "999" } });
+    expect(writes()).toEqual([]);
+  });
+
+  it("a revoked token stops it as token_invalid, which the step records as a failed try", async () => {
+    meta.revokeToken();
+    expect(await adapter().safe.activateAd({ campaign: ref(), ad: "502", idempotency_key: "k" })).toMatchObject({ ok: false, error_code: "token_invalid" });
+  });
+});
+
 describe("Meta adapter (B3) — launch, raise, area", () => {
   it("launch sets the approved amounts, then the ad and the ad set ACTIVE, and the campaign LAST, read back ACTIVE", async () => {
     expect(await adapter().spend.launch(call())).toMatchObject({ ok: true, response: { status: "ACTIVE" } });
@@ -103,6 +124,17 @@ describe("Meta adapter (B3) — launch, raise, area", () => {
 
   it("a launch with no ad is refused before any call: an active campaign with nothing to show would only look live", async () => {
     expect(await adapter().spend.launch(call({ campaign: ref({ meta_ad_ids: [] }) }))).toEqual({ ok: false, error_code: "no_ad_on_platform" });
+    expect(meta.requests).toHaveLength(0);
+  });
+
+  it("a launch leaves a retired ad PAUSED and turns on the rest; every ad retired is refused before any call (CQ9b)", async () => {
+    meta.sets.ads.set("503", { id: "503", adset_id: "501", name: "S360|ad2", status: "PAUSED" });
+    const two = ref({ meta_ad_ids: ["502", "503"] });
+    expect((await adapter().spend.launch(call({ campaign: two, retired_ad_ids: ["502"] }))).ok).toBe(true);
+    expect(writes()).toEqual(["501:daily_budget=7500", "500:spend_cap=60000", "503:status=ACTIVE", "501:status=ACTIVE", "500:status=ACTIVE"]);
+    expect([meta.sets.ads.get("502")!.status, meta.sets.ads.get("503")!.status]).toEqual(["PAUSED", "ACTIVE"]);
+    meta.requests.length = 0;
+    expect(await adapter().spend.launch(call({ campaign: two, retired_ad_ids: ["502", "503"] }))).toMatchObject({ ok: false, error_code: "every_ad_retired" });
     expect(meta.requests).toHaveLength(0);
   });
 

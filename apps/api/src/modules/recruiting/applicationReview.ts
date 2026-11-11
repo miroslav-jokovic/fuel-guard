@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { latestCodeUnlock } from "./applicationUnlockCode.js";
+import { identityOnRecord } from "./applicantIdentity.js";
 import { randomUUID } from "node:crypto";
 import {
   applyApplicationEdit,
@@ -9,6 +10,7 @@ import {
   applicationReviewState,
   applicationDraftPayloadSchema,
   applicationFactAt,
+  carrierAnswerRefusal,
   carrierStampOf,
   type ApplicationContactMove,
   type ApplicationEdit,
@@ -16,6 +18,7 @@ import {
   type ApplicationPhases,
   type ApplicationReviewState,
   type ApplicationCaptureView,
+  type ApplicantIdentityKey,
   type CarrierQuestionStamp,
   type PartOneAnswersView,
   type PartOneFactsView,
@@ -167,6 +170,16 @@ export interface ApplicationForReview {
   /** E3: where the carrier reaches them — the invitation's email, and whether the phone on file is texted. */
   contact: { email: string | null; phoneTexted: boolean };
   /**
+   * F3c part 2, step 6: the date of birth and licence on the applicant's RECORD (`drivers`), only the ones
+   * set — the values screening runs on and filing lays over the draft last (`identityOnRecord`, D-AF8).
+   *
+   * ⚠ The draft's copy is not enough to show them by. Before the applicant's first save there is no draft
+   * at all, and a draft saved before the identity was given holds none until its next save, so the card
+   * read "Not answered" for a licence PSP had already been ordered on. That is the moment the Permissions
+   * step sends the office to the card to check it.
+   */
+  identity: Partial<Record<ApplicantIdentityKey, string>>;
+  /**
    * F3: Part 1's answers the whole-set view does not carry — the §382.301(b) statements, medical card
    * pending, the endorsements, and only WHETHER a donor gender was given (Q-AM13). Null on a legacy link.
    */
@@ -227,6 +240,7 @@ export async function applicationForReview(
     captures: await listCaptures(admin, orgId, inv.id),
     unlockedByCodeAt: await latestCodeUnlock(admin, orgId, inv.id),
     signingStarted: await signingStarted(admin, orgId, inv.id),
+    identity: await identityOnRecord(admin, orgId, inv.driver_id),
     partOneAnswers: await partOneAnswersView(admin, orgId, inv.id),
     edits: (edits ?? []).map((e) => {
       const row = e as {
@@ -302,6 +316,11 @@ export async function editApplication(
     && await partOneForFiling(admin, orgId, inv)) {
     return { code: "invalid_edit", message: "On this application the licences are corrected under the applicant's licence, not here." };
   }
+
+  // Step 5: the carrier's own answers are checked against the questions THIS applicant was asked.
+  const carrier = "path" in edit && edit.path[0] === "carrier_answers"
+    ? carrierAnswerRefusal(carrierStampOf(inv.carrier_questions), edit.path, edit.value) : null;
+  if (carrier) return { code: "invalid_edit", message: carrier };
 
   const applied = applyApplicationEdit(withEmployerKeys(original, randomUUID), original, edit);
   if (isEditRefusal(applied)) return applied;

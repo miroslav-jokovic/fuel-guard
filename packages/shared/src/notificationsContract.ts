@@ -155,6 +155,11 @@ export const NOTIFICATION_CATEGORIES = [
    * who manage the admin section. Mirrored in the CHECK (0584); sent by `insights/assistantUsage.ts` (R2b).
    */
   "ai_assistant_budget",
+  /**
+   * A retired ad's replacement awaits approval on a running campaign, or none could be made (ADS-CREATIVE-QUALITY-PLAN
+   * Q-AD68). Mirrored in the CHECK (0587); nothing writes it until the runner's `refresh` step merges.
+   */
+  "ads_creative_refresh",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -207,6 +212,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   ads_lead_quality: "Ad leads that are unreachable or do not qualify",
   ads_creative_retired: "An ad retired for fatigue; the next concept is due",
   ai_assistant_budget: "Ask AI is near or at this month's spending cap",
+  ads_creative_refresh: "A new ad awaits approval on a running campaign",
 };
 
 /**

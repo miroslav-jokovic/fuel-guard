@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adBriefSchema, drawPresets, nextPresetBatch, type AdPresetRecipe, type CreativeState, type PresetDraw } from "@silvicom/shared";
+import { adBriefSchema, drawPresets, nextPresetBatch, type AdBrandKit, type AdPresetRecipe, type CreativeState, type PresetDraw } from "@silvicom/shared";
 import { listBrandKits, listPresets } from "../creative/kitVersions.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 import { storePresetDraw, type CampaignRow } from "../orchestrator/transitions.js";
@@ -61,12 +61,9 @@ export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow)
   const brief = adBriefSchema.safeParse(campaign.brief_snapshot);
   if (!brief.success) return { ok: false, error: "the campaign's brief does not parse" };
 
-  if (!campaign.brand_kit_id) return { ok: false, error: "the campaign names no brand kit (Q-AD28)" };
-  const chosen = (await listBrandKits(admin, c.org_id)).find((k) => k.id === campaign.brand_kit_id);
-  if (!chosen) return { ok: false, error: "the campaign's brand kit no longer exists" };
-  if (chosen.archived_at) return { ok: false, error: "the campaign's brand kit is archived" };
-  if (!chosen.current) return { ok: false, error: "the campaign's brand kit has no saved version (Q-AD14)" };
-  const kit = chosen.current;
+  const kitOf = await campaignKit(admin, c.org_id, campaign.brand_kit_id);
+  if (!kitOf.ok) return { ok: false, error: kitOf.error };
+  const kit = kitOf.kit;
 
   const presets = (await listPresets(admin, c.org_id)).filter((p) => !p.archived_at && p.current);
   const draw = campaign.preset_draw ?? await storePresetDraw(admin, c, drawPresets(c.id, presets.map((p) => ({ version_id: p.current!.id, key: p.key, enabled: p.current!.enabled })), await liveKeys(admin, c, campaign.brief_ref, presets)));
@@ -106,6 +103,19 @@ export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow)
   return tally.ready > 0 ? { ok: true } : { ok: false, error: `no creative passed its checks: ${tally.reasons.join(" | ")}`.slice(0, 2000) };
 }
 
+/**
+ * The campaign's brand kit at its newest version (Q-AD28: the campaign's `brand_kit_id`, chosen at creation — never
+ * "the only one" or "the newest kit"), or why there is none. Read by compose and by the refresh step (Q-AD68).
+ */
+export async function campaignKit(admin: SupabaseClient, orgId: string, brandKitId: string | null): Promise<{ ok: true; kit: { id: string; body: AdBrandKit } } | { ok: false; error: string }> {
+  if (!brandKitId) return { ok: false, error: "the campaign names no brand kit (Q-AD28)" };
+  const chosen = (await listBrandKits(admin, orgId)).find((k) => k.id === brandKitId);
+  if (!chosen) return { ok: false, error: "the campaign's brand kit no longer exists" };
+  if (chosen.archived_at) return { ok: false, error: "the campaign's brand kit is archived" };
+  if (!chosen.current) return { ok: false, error: "the campaign's brand kit has no saved version (Q-AD14)" };
+  return { ok: true, kit: chosen.current };
+}
+
 /** Whether this preset has a creative this stint works on: its own row, or an earlier row that did not end badly. */
 function isStarted(c: CampaignRow, presetId: string, rows: CreativeRead[]): boolean {
   const newest = rows.filter((r) => r.preset_version_id === presetId).at(-1);
@@ -113,7 +123,7 @@ function isStarted(c: CampaignRow, presetId: string, rows: CreativeRead[]): bool
 }
 
 /** The preset keys a campaign for the same brief runs now (launching, live) — excluded from the draw. */
-async function liveKeys(admin: SupabaseClient, c: CampaignRow, briefRef: string, presets: Array<{ id: string; key: string }>): Promise<string[]> {
+export async function liveKeys(admin: SupabaseClient, c: CampaignRow, briefRef: string, presets: Array<{ id: string; key: string }>): Promise<string[]> {
   const { data: others, error } = await admin.from("ads_campaigns").select("id").eq("org_id", c.org_id).eq("brief_ref", briefRef).in("state", ["launching", "live"]).neq("id", c.id);
   if (error) throw new Error(`ads_campaigns: ${error.message}`);
   const ids = (others ?? []).map((o) => (o as { id: string }).id);
@@ -128,7 +138,7 @@ async function liveKeys(admin: SupabaseClient, c: CampaignRow, briefRef: string,
   return [...new Set((vs ?? []).map((v) => keyOf.get((v as { preset_id: string }).preset_id)).filter((k): k is string => !!k))];
 }
 
-async function recipeById(admin: SupabaseClient, orgId: string, id: string): Promise<AdPresetRecipe> {
+export async function recipeById(admin: SupabaseClient, orgId: string, id: string): Promise<AdPresetRecipe> {
   const { data, error } = await admin.from("ad_concept_preset_versions").select("recipe").eq("org_id", orgId).eq("id", id).single();
   if (error) throw new Error(`ad_concept_preset_versions ${id}: ${error.message}`);
   return (data as { recipe: AdPresetRecipe }).recipe;

@@ -3,6 +3,8 @@ import { TRUCK_PLACES_ZOOM, VECTOR_GLYPH_RANGE_FILE } from "@silvicom/shared";
 import {
   MAP_PALETTE_KEYS,
   FUEL_PLACE_CATEGORY,
+  LAND_DETAIL_KINDS,
+  REGIONAL_DETAIL_ZOOM,
   GLYPHS_PATH,
   TRUCK_PLACE_CATEGORIES,
   truckPlacesSourceId,
@@ -21,6 +23,53 @@ import {
 const palette = Object.fromEntries(MAP_PALETTE_KEYS.map((k, i) => [k, `rgb(${i}, ${i}, ${i})`])) as MapPalette;
 const layers = vectorBasemapLayers(palette, "here-4", "here-4:");
 
+/**
+ * The colours an expression can produce: an interpolate's stop outputs (zoom curves), a match's
+ * branch outputs and its fallback (the road signs, D-DR36), or a plain value. Any other shape
+ * fails loudly rather than being read as "no colours".
+ */
+function colourOutputs(v: unknown): string[] {
+  if (!Array.isArray(v)) return [String(v)];
+  if (v[0] === "interpolate") return v.filter((_, i) => i >= 4 && i % 2 === 0).map(String);
+  if (v[0] === "match") return [...v.filter((_, i) => i >= 3 && i % 2 === 1 && i < v.length - 1), v.at(-1)].map(String);
+  throw new Error(`unread colour expression ${String(v[0])}`);
+}
+
+/**
+ * Evaluates the filter operators these layers use (all, any, !, ==, !=, >=, >, in, match, get, has,
+ * coalesce, zoom, literal, geometry-type) on one feature. Throws on any other operator, so a filter
+ * growing a new one fails here rather than being misread.
+ */
+function matches(f: unknown, props: Record<string, unknown>, zoom: number): boolean {
+  const ev = (e: unknown): unknown => {
+    if (!Array.isArray(e)) return e;
+    const [op, ...a] = e as [string, ...unknown[]];
+    switch (op) {
+      case "all": return a.every((x) => ev(x) === true);
+      case "any": return a.some((x) => ev(x) === true);
+      case "!": return !ev(a[0]);
+      case "==": return ev(a[0]) === ev(a[1]);
+      case "!=": return ev(a[0]) !== ev(a[1]);
+      case ">=": return (ev(a[0]) as number) >= (ev(a[1]) as number);
+      case ">": return (ev(a[0]) as number) > (ev(a[1]) as number);
+      case "get": return props[a[0] as string];
+      case "has": return a[0] as string in props;
+      case "zoom": return zoom;
+      case "literal": return a[0];
+      case "geometry-type": return "LineString";
+      case "coalesce": return a.map(ev).find((x) => x !== undefined && x !== null);
+      case "in": { const hay = ev(a[1]); return Array.isArray(hay) ? hay.includes(ev(a[0])) : String(hay ?? "").includes(String(ev(a[0]))); }
+      case "match": {
+        const v = ev(a[0]);
+        for (let i = 1; i < a.length - 1; i += 2) if (Array.isArray(a[i]) ? (a[i] as unknown[]).includes(v) : a[i] === v) return ev(a[i + 1]);
+        return ev(a.at(-1));
+      }
+      default: throw new Error(`matches(): unread operator ${op}`);
+    }
+  };
+  return ev(f) === true;
+}
+
 describe("the vector road map's layers", () => {
   it("keeps every layer in one group, on its source or its truck-places source, so the basemap shows and hides as one", () => {
     expect(layers.length).toBeGreaterThan(10);
@@ -38,9 +87,7 @@ describe("the vector road map's layers", () => {
     for (const l of layers) {
       for (const [k, v] of Object.entries((l as { paint?: Record<string, unknown> }).paint ?? {})) {
         if (!k.endsWith("-color")) continue;
-        // A colour that changes with zoom is an interpolate whose outputs are colours.
-        if (Array.isArray(v)) for (let i = 4; i < v.length; i += 2) colours.push(String(v[i]));
-        else colours.push(String(v));
+        colours.push(...colourOutputs(v));
       }
     }
     expect(colours.length).toBeGreaterThan(10);
@@ -75,6 +122,51 @@ describe("the vector road map's layers", () => {
     const place = layers.find((l) => l.id === "here-4:place") as { filter: unknown; layout: { "symbol-sort-key": unknown } };
     expect(JSON.stringify(place.filter)).toMatch(/"!",\["in",\["get","pds_category"\],\["literal",\["700-7900-0132"/);
     expect(place.layout["symbol-sort-key"]).toEqual(["case", ["==", ["get", "pds_category"], FUEL_PLACE_CATEGORY], 0, 10]);
+  });
+
+  /** D-DR37: the land uses read off tiles on 2026-11-11, written out rather than derived. */
+  it("colours each measured land use its own way, over town and park and under water", () => {
+    expect([...LAND_DETAIL_KINDS].sort()).toEqual(["aerodrome", "beach", "hospital", "industrial", "military", "runway", "university"]);
+    const ids = layers.map((l) => l.id);
+    const at = (n: string) => ids.indexOf(`here-4:${n}`);
+    expect(at("landuse-detail")).toBeGreaterThan(at("park"));
+    expect(at("landuse-detail")).toBeLessThan(at("water"));
+    const detail = layers.find((l) => l.id === "here-4:landuse-detail") as { paint: { "fill-color": unknown[] }; layout: { "fill-sort-key": unknown } };
+    const fill = detail.paint["fill-color"];
+    const colourOf = (kind: string) => {
+      for (let i = 2; i < fill.length - 1; i += 2) {
+        const labels = fill[i];
+        if (labels === kind || (Array.isArray(labels) && labels.includes(kind))) return fill[i + 1];
+      }
+      return fill.at(-1);
+    };
+    for (const kind of LAND_DETAIL_KINDS) expect(colourOf(kind), kind).not.toBe(palette.urban);
+    expect(colourOf("runway")).toBe(palette.runway);
+    expect(colourOf("aerodrome")).toBe(palette.airport);
+    expect(colourOf("hospital")).toBe(palette.medical);
+    expect(detail.layout["fill-sort-key"]).toEqual(["case", ["==", ["get", "kind"], "runway"], 1, 0]);
+    const urban = JSON.stringify((layers.find((l) => l.id === "here-4:urban") as { filter: unknown }).filter);
+    expect(urban).not.toContain('"industrial"');
+  });
+
+  /**
+   * D-DR38: tertiary roads and county numbers wait for zoom 11. Evaluated on features, because the
+   * rule is a filter: a test reading its text would pass for a rule that never matches.
+   */
+  it("leaves tertiary roads and county numbers out below zoom 11, and draws them from 11", () => {
+    expect(REGIONAL_DETAIL_ZOOM).toBe(11);
+    const filterOf = (n: string) => (layers.find((l) => l.id === `here-4:${n}`) as { filter: unknown }).filter;
+    const at = (zoom: number, filter: unknown, props: Record<string, unknown>) => matches(filter, props, zoom);
+    for (const n of ["major", "major-casing"]) {
+      expect(at(10, filterOf(n), { kind: "major_road", kind_detail: "tertiary" }), n).toBe(false);
+      expect(at(11, filterOf(n), { kind: "major_road", kind_detail: "tertiary" }), n).toBe(true);
+      expect(at(10, filterOf(n), { kind: "major_road", kind_detail: "secondary" }), n).toBe(true);
+    }
+    const num = filterOf("road-number");
+    expect(at(10, num, { kind: "major_road", network: "US:IL:CR", shield_text: "6" })).toBe(false);
+    expect(at(11, num, { kind: "major_road", network: "US:IL:CR", shield_text: "6" })).toBe(true);
+    expect(at(10, num, { kind: "major_road", network: "US:IL", shield_text: "53" })).toBe(true);
+    expect(at(9, num, { kind: "highway", network: "US:I", shield_text: "80" })).toBe(true);
   });
 
   it("does not draw traffic lights and bus stops as places", () => {

@@ -23,6 +23,7 @@ import { agentHasWork, type CampaignWorkers } from "./workers.js";
  *   launching  → `GuardedPlatform.launch` (every fence of A5's guard; never an adapter) → launched | launch_failed
  *   pausing    → the platform's pause             → paused | pause_failed (stays, retried next tick)
  *   launching, live + kill switch on → kill       → pausing
+ *   live       → a retired ad's replacement (Q-AD68): made, then on approval published and turned on — no move
  *
  * ⚠ THE KILL SWITCH'S SECOND HALF. A5 stops new spending the moment it is pressed (the guard and AX021);
  * this file stops DELIVERY: the next tick moves every launching or live campaign to `pausing`, and the
@@ -68,6 +69,7 @@ export async function runCampaignStep(deps: RunnerDeps, orgId: string, campaignI
   const ask = await decide(run, campaign, kill);
   if (!ask) return { kind: "idle", state: campaign.state, reason: "no_platform" };
   if ("wait" in ask) return { kind: "idle", state: campaign.state, reason: `pending: ${ask.wait}` };
+  if ("idle" in ask) return { kind: "idle", state: campaign.state, reason: ask.idle };
   const result = await applyCampaignEvent(deps.admin, campaign, { actor: ORCHESTRATOR, ...ask }, deps.now().toISOString());
   if (ask.event === "pause_failed" && result.kind === "moved") await alertQuietly(campaign, () => afterPauseFailed(deps.admin, deps.now(), campaign, ask.error ?? "pause_failed"));
   // B2c2: a create that met a dead connection (§4R Publisher L2, "token revoked → stops + alert").
@@ -91,9 +93,11 @@ async function alertQuietly(c: CampaignRow, tell: () => Promise<unknown>): Promi
 type Ask = Omit<TransitionAsk, "actor">;
 /** A worker that is not finished: no move, no row (`WorkerResult` `pending`). */
 type Wait = { wait: string };
+/** Work done or tried that moves no state (Q-AD68's refresh on a live campaign): the reason is the step's answer. */
+type Idle = { idle: string };
 
 /** The side effect of one state, and the event it ends in. Null = nothing to do after all. */
-async function decide(deps: RunnerDeps, c: CampaignRow, killReason: string | null): Promise<Ask | Wait | null> {
+async function decide(deps: RunnerDeps, c: CampaignRow, killReason: string | null): Promise<Ask | Wait | Idle | null> {
   const key = `${c.id}:${c.state_changed_at}`;
   const { workers } = deps;
   if (killReason && (c.state === "launching" || c.state === "live")) return { event: "kill", cause: `kill switch: ${killReason}` };
@@ -116,6 +120,14 @@ async function decide(deps: RunnerDeps, c: CampaignRow, killReason: string | nul
       const platform = await workers.platform!(c.org_id, c.connection_id);
       if (!platform) return { event: "launch_failed", cause: "no usable platform connection", error: "no_platform" };
       return launchStep(deps, c, platform);
+    }
+    // Q-AD68: never a transition. The kill switch was checked above, so a pressed switch never reaches this.
+    case "live": {
+      if (!workers.refresh) return null;
+      const r = await attempt(() => workers.refresh!(c, key));
+      if (r.ok) return { idle: "refresh: nothing left to do" };
+      if ("pending" in r) return { wait: r.why };
+      return { idle: `refresh: ${r.error}` };
     }
     case "pausing": {
       const platform = await workers.platform!(c.org_id, c.connection_id);

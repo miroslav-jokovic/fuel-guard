@@ -5,19 +5,23 @@ import {
   DONOR_GENDERS,
   ENDORSEMENT_CODES,
   EQUIPMENT_CLASSES,
+  carrierQuestionnaire,
   composeFiledApplication,
   currentEditPaths,
   partOneCorrectionWith,
   sectionOwningPath,
   type ApplicantFact,
+  type ApplicantIdentityKey,
   type ApplicationPath,
   type ApplicationSection,
+  type CarrierQuestionStamp,
   type FactInput,
   type FactRule,
   type PartOneAnswersView,
   type PartOneFactsView,
   type QuestionnaireDefinition,
 } from "@silvicom/shared";
+import type { TypedDateKind } from "@silvicom/ui";
 import { describeField } from "./fieldLabels";
 import { APPLY_COPY } from "./strings";
 
@@ -50,9 +54,14 @@ import { APPLY_COPY } from "./strings";
  * measures, and the PSP record is read against the jobs as a whole — none of it a single answer with
  * a before and after. `ELSEWHERE` keeps them out of the rows; `jobsMatch` keeps the search honest.
  *
+ * ── THE CARRIER'S OWN QUESTIONS (step 5) ──────────────────────────────────────────────────────
+ * One catalogue fact, `carrier_answers`, laid out once per question on THIS applicant's stamp (the
+ * review's `carrierQuestions`, never the live list — D-CQ2), worded as stamped and corrected with the
+ * control the applicant's form answered it with (`questionControl`).
+ *
  * ── WHAT IS NOT HERE YET ──────────────────────────────────────────────────────────────────────
- * The facts whose catalogue `office` is `{ none }` (`applicantFacts.test.ts`'s inline snapshot): the two
- * tables, the carrier's own questions, EEO and the SSN. The last two wait on owner rulings, not a build.
+ * The facts whose catalogue `office` is `{ none }` (`applicantFacts.test.ts`'s inline snapshot): EEO and
+ * the SSN. Both wait on owner rulings, not a build.
  */
 
 /** Which writer corrects this row. */
@@ -82,6 +91,8 @@ export interface FactRow {
   given?: boolean;
   /** F3c part 2: a row of a carrier question answered as a table — its columns, as the editor asks them. */
   columns?: readonly TableColumn[];
+  /** An optional question's stored "I am not answering this" — offered beside the control, as the form does. */
+  skip?: FactChoice;
 }
 
 /** One column of a table answer, with the card's input kind for its question kind. */
@@ -89,6 +100,8 @@ export interface TableColumn {
   id: string;
   label: string;
   input: FactInput;
+  /** A date's own rule — a date of birth is an adult's, in the past (`identityColumns`). */
+  dateKind?: TypedDateKind;
 }
 
 export interface FactRowsInput {
@@ -99,6 +112,13 @@ export interface FactRowsInput {
   questionnaire: QuestionnaireDefinition;
   /** F3: Part 1's own answers (statements, medical card pending, endorsements; the donor gender only as given). */
   partOneAnswers?: PartOneAnswersView | null;
+  /** Step 5: the carrier's own questions THIS applicant was asked — the invitation's stamp. */
+  carrier?: CarrierQuestionStamp | null;
+  /**
+   * Step 6: the identity on the applicant's record (the review's `identity`). Laid over the draft's copy, as
+   * filing lays it (`identityOnRecord`, D-AF8) — before the first save there is no draft to show it by.
+   */
+  identity?: Partial<Record<ApplicantIdentityKey, string>> | null;
 }
 
 /** A path as one string, for a list key and the "corrected" mark: `["addresses",1,"city"]` → `addresses.1.city`. */
@@ -106,6 +126,7 @@ export const pathKey = (path: ApplicationPath): string => path.join(".");
 
 const APP = "application.";
 const ANSWERS = "questionnaire_answers.";
+const CARRIER_ANSWERS = "carrier_answers";
 /** The draft keeps the carrier's answers under one key (`toDraftPayload`), not the filed `questionnaire_answers`. */
 const DRAFT_ANSWERS = "questionnaire";
 /** The card's Employment group draws these with the jobs timeline, not as rows (see the header). */
@@ -184,8 +205,9 @@ function doorOf(fact: ApplicantFact, partOne: boolean, row: number | null, curre
   return "part_one";
 }
 
-export function applicantFactRows({ payload, partOne, edits, questionnaire, partOneAnswers }: FactRowsInput): FactRow[] {
-  const doc = documentOf(isRecord(payload) ? payload : {}, partOne);
+export function applicantFactRows({ payload, partOne, edits, questionnaire, partOneAnswers, carrier, identity }: FactRowsInput): FactRow[] {
+  // The record's identity last, as filing lays it: only the values it holds, never a blank over an answer.
+  const doc: Record<string, unknown> = { ...documentOf(isRecord(payload) ? payload : {}, partOne), ...(identity ?? {}) };
   const current = currentAddressIndex(doc.addresses);
   // ⚠ Tolerant of a response without `edits` (an older API, or a refetch racing a write): the card
   // renders inside the drawer's body, and one missing list must not take the whole record down.
@@ -197,12 +219,14 @@ export function applicantFactRows({ payload, partOne, edits, questionnaire, part
   const corrected = (key: string) => editedAt.some((e) => key === e || key.startsWith(`${e}.`));
   const out: FactRow[] = [];
 
-  const push = (fact: ApplicantFact, path: ApplicationPath, value: unknown, door: FactDoor, label?: string, choices?: readonly FactChoice[]) => {
+  /** `extra`: what a question says of itself and the catalogue cannot — its words, control, choices and skip. */
+  const push = (fact: ApplicantFact, path: ApplicationPath, value: unknown, door: FactDoor, extra: Partial<FactRow> = {}) => {
     // A Part 1 row Part 1 does not actually hold (an other licence's `kind`, which Part 1 never asks)
     // has no writer at all: shown, it would be a Save that can only fail.
     if (door === "part_one" && partOne && partOneCorrectionWith(partOne, path, null, current) === null) return;
     const key = pathKey(path);
     const column = String(path[path.length - 1]);
+    const { label, choices, ...more } = extra;
     const options = choices ?? CHOICES()[column];
     out.push({
       key, path, value: value ?? null, door, input: fact.input,
@@ -212,6 +236,7 @@ export function applicantFactRows({ payload, partOne, edits, questionnaire, part
         ?? sectionOwningPath(path[0] === DRAFT_ANSWERS ? ["questionnaire_answers", ...path.slice(1)] : path) ?? "review",
       ...(options ? { choices: options } : {}),
       ...(fact.rule ? { rule: fact.rule } : {}),
+      ...more,
     });
   };
 
@@ -244,14 +269,29 @@ export function applicantFactRows({ payload, partOne, edits, questionnaire, part
       // driver typed as one thing.
       if (question.kind === "table") {
         const given = Array.isArray(answers[id]) ? (answers[id] as unknown[]) : [];
-        given.forEach((row, i) => {
-          push(fact, [DRAFT_ANSWERS, id, i], row, door, describeField([DRAFT_ANSWERS, id, i]));
-          out[out.length - 1]!.columns = tableColumns(question);
-        });
+        given.forEach((row, i) => push(fact, [DRAFT_ANSWERS, id, i], row, door, { columns: tableColumns(question) }));
         continue;
       }
-      const choices = question.choices ?? question.options?.map((o) => ({ value: o, label: o }));
-      push(fact, [DRAFT_ANSWERS, id], answers[id], door, question.label, choices);
+      push(fact, [DRAFT_ANSWERS, id], answers[id], door, {
+        label: question.label,
+        choices: question.choices ?? question.options?.map((o) => ({ value: o, label: o })),
+        ...(question.skip ? { skip: question.skip } : {}),
+      });
+      continue;
+    }
+
+    if (key === CARRIER_ANSWERS) {
+      const door = doorOf(fact, Boolean(partOne), null, current);
+      const answers = isRecord(doc[CARRIER_ANSWERS]) ? (doc[CARRIER_ANSWERS] as Record<string, unknown>) : {};
+      if (!door || !carrier) continue;
+      for (const q of carrierQuestionnaire(carrier).questions) {
+        push(fact, [CARRIER_ANSWERS, q.id], answers[q.id], door, {
+          label: q.label,
+          input: questionControl(q.kind),
+          ...(q.choices ? { choices: q.choices } : {}),
+          ...(q.skip ? { skip: q.skip } : {}),
+        });
+      }
       continue;
     }
 
@@ -298,6 +338,17 @@ function byRow(rows: FactRow[]): FactRow[] {
       .map(({ r }) => r));
   });
   return out;
+}
+
+/**
+ * The card's control for one of the carrier's own questions: the one the applicant's form answered it
+ * with (`QuestionnaireFields`). ⚠ A date and a number are typed into a plain box there and stored as typed,
+ * so they are here too — a date picker would write a different string than the one the applicant's form
+ * reads back, and the two would stop matching (D-AM7).
+ */
+export function questionControl(kind: string): FactInput {
+  const CONTROL: Record<string, FactInput> = { boolean: "yesno", longtext: "longtext", select: "choice", number: "count" };
+  return CONTROL[kind] ?? "text";
 }
 
 /** A table question's columns, each with the card's control for its kind. */

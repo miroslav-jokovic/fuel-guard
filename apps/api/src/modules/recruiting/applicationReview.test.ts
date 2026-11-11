@@ -127,6 +127,8 @@ const seed = (over: {
   captures?: Array<Record<string, unknown>>;
   /** E3: this applicant's live text consents — what a read finds and an update returns. */
   consents?: Array<Record<string, unknown>>;
+  /** Step 6: the applicant's record — the identity screening runs on. */
+  driver?: Record<string, unknown>;
 } = {}) =>
   createSupabaseRecorder({
     rpc: { save_application_draft: over.save ?? { draft_id: "d-1", updated_at: "2026-09-11T12:00:00Z", revision: (over.revision ?? 3) + 1 } },
@@ -146,6 +148,10 @@ const seed = (over: {
       // Read by the approval notice (Q-AX4): the carrier's own name, and the applicant's SMS consent.
       organizations: [{ name: "Silvicom Inc" }],
       sms_consents: over.consents ?? [],
+      ...(over.driver ? {
+        drivers: (q: { filters: () => Array<{ col: string; val: unknown }> }) =>
+          (q.filters().find((f) => f.col === "org_id")?.val === ORG ? [over.driver!] : []),
+      } : {}),
     },
   });
 
@@ -206,6 +212,23 @@ describe("reading an application for review", () => {
     const old = await applicationForReview(seed().client, ORG, INV);
     if (isReviewError(old)) throw new Error(old.message);
     expect(old.carrierQuestions).toEqual([]);
+  });
+
+  /**
+   * F3c part 2, step 6: the identity on the RECORD, which the draft may not hold yet — so the card shows the
+   * licence screening runs on, not "Not answered", when the Permissions step sends the office there.
+   */
+  it("step 6: hands the office the identity on the applicant's record, only what is set, from its own org", async () => {
+    const rec = seed({ payload: null, driver: { date_of_birth: "1980-04-01", cdl_number: "IL123", cdl_state: " " } });
+    const read = await applicationForReview(rec.client, ORG, INV);
+    if (isReviewError(read)) throw new Error(read.message);
+    expect(read.payload).toBeNull();
+    expect(read.identity).toEqual({ date_of_birth: "1980-04-01", cdl_number: "IL123" });
+    expectOrgScoped(rec, ORG);
+
+    const none = await applicationForReview(seed().client, ORG, INV);
+    if (isReviewError(none)) throw new Error(none.message);
+    expect(none.identity).toEqual({});
   });
 
   it("scopes a v2 application's Part 1 reads to the reader's own org", async () => {
@@ -302,6 +325,34 @@ describe("correcting one answer", () => {
       const result = await editApplication(rec.client, ORG, INV, { path: [...path], value: "1981-04-01", revision: REV }, { actorId: ACTOR });
       expect(isReviewError(result) && result.code, String(path)).toBe("invalid_edit");
       expect(isReviewError(result) && result.message).toBe(IDENTITY_IS_CORRECTED_ELSEWHERE);
+      expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+      expect(rec.writtenRows("application_edits")).toHaveLength(0);
+    }
+  });
+
+  /** F3c part 2, step 5: the carrier's own answers, checked against the stamp the draft does not carry (Q-CQ7). */
+  const PET = "91000000-0000-4000-8000-000000000001";
+  const PET_STAMP = [{ id: PET, wording: "Do you own a pet?", hint: null, kind: "boolean", choices: null, required: true }];
+  it("step 5: corrects one of the carrier's own answers and logs it under its question", async () => {
+    const rec = seed({ invitation: invitation({ carrier_questions: PET_STAMP }), payload: { ...KEYED, carrier_answers: { [PET]: true } } });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["carrier_answers", PET], value: false, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result)).toBe(false);
+    expect((savedPayload(rec) as unknown as { carrier_answers: Record<string, unknown> }).carrier_answers[PET]).toBe(false);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["carrier_answers", PET], before: true, after: false });
+  });
+
+  it("⚠ step 5: refuses a carrier answer the stamp does not take — or any, on an invitation stamped none — writing nothing", async () => {
+    const cases = [
+      { inv: { carrier_questions: PET_STAMP }, path: ["carrier_answers", PET], value: "yes", says: /not an answer/ },
+      { inv: { carrier_questions: PET_STAMP }, path: ["carrier_answers", PET], value: "", says: /must be answered/ },
+      { inv: { carrier_questions: PET_STAMP }, path: ["carrier_answers", "91000000-0000-4000-8000-000000000002"], value: true, says: /not asked/ },
+      { inv: {}, path: ["carrier_answers", PET], value: true, says: /not asked/ },
+    ];
+    for (const c of cases) {
+      const rec = seed({ invitation: invitation(c.inv), payload: KEYED });
+      const result = await editApplication(rec.client, ORG, INV, { path: c.path, value: c.value, revision: REV }, { actorId: ACTOR });
+      expect(isReviewError(result) && result.code, JSON.stringify(c)).toBe("invalid_edit");
+      expect(isReviewError(result) && result.message).toMatch(c.says);
       expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
       expect(rec.writtenRows("application_edits")).toHaveLength(0);
     }

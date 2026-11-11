@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from "vue";
+import { computed, nextTick, onMounted, ref, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppFormField as FormField, AppSearchField, AppTextarea as BaseTextarea } from "@silvicom/ui";
 import {
   APPLICATION_SECTION_ORDER,
@@ -24,6 +24,7 @@ import { APPLY_SECTION_TITLES } from "./strings";
 import { applicantFactRows, factSections, jobsMatch, matchingFacts, tableColumns, type FactRow } from "./applicantFactRows";
 import { correctionFor, type FactValue } from "./factCorrection";
 import { contactNotice, contactToast } from "./factContact";
+import { identityColumns, identityFrom, identityIncomplete, identityStart } from "./identityTogether";
 import {
   useCorrectIdentityFromReview,
   useCorrectPartOne,
@@ -80,6 +81,11 @@ const props = defineProps<{
    */
   draftOpen: boolean;
   recordOpen: boolean;
+  /**
+   * Step 6: the row to bring into view on opening — the Permissions and Road-test steps send the office
+   * here to check or correct the date of birth and licence, rather than keeping an editor of their own.
+   */
+  focus?: string | null;
 }>();
 const canEdit = (row: FactRow): boolean => (row.door === "draft" ? props.draftOpen : props.recordOpen);
 
@@ -99,6 +105,8 @@ const rows = computed(() =>
     edits: props.review.edits,
     questionnaire: questionnaireForApplicant(),
     partOneAnswers: props.review.partOneAnswers,
+    carrier: props.review.carrierQuestions,
+    identity: props.review.identity,
   }),
 );
 const query = ref("");
@@ -201,6 +209,26 @@ function editText(row: FactRow): FactValue {
   return String(row.value);
 }
 
+// ── step 6: the date of birth and licence, entered together while any is missing (`identityTogether`) ──
+const identityTogether = computed(() => identityIncomplete(rows.value));
+async function saveIdentity(values: Record<string, unknown>): Promise<void> {
+  const given = identityFrom(values);
+  if ("problem" in given) { problem.value = given.problem; return; }
+  try {
+    await identityEdit.mutateAsync(given.identity);
+    open.value = null;
+    toast.push("success", "Date of birth and licence saved", contactToast(undefined));
+  } catch (e) {
+    problem.value = e instanceof Error ? e.message : "That could not be saved.";
+  }
+}
+const root = ref<HTMLElement | null>(null);
+onMounted(async () => {
+  if (!props.focus) return;
+  await nextTick();
+  root.value?.querySelector(`[data-fact="${props.focus}"]`)?.scrollIntoView?.({ block: "center" });
+});
+
 function edit(row: FactRow): void {
   open.value = row.key;
   typed.value = editText(row);
@@ -265,7 +293,7 @@ function shown(row: FactRow): string {
 </script>
 
 <template>
-  <section class="space-y-3" data-applicant-facts>
+  <section ref="root" class="space-y-3" data-applicant-facts>
     <div>
       <h3 class="text-sm font-semibold text-ink">Applicant facts</h3>
       <p class="mt-1 text-xs text-ink-muted">
@@ -298,6 +326,20 @@ function shown(row: FactRow): string {
             </BaseButton>
           </div>
 
+          <div v-else-if="row.door === 'identity' && identityTogether" class="space-y-2" data-identity-together>
+            <p class="text-sm text-ink-muted">Date of birth and licence — saved together, as screening uses them</p>
+            <TableRowEditor
+              :id-prefix="['identity']"
+              :columns="identityColumns(rows)"
+              :start="identityStart(rows)"
+              :problem="problem"
+              :pending="pending"
+              :removable="false"
+              @save="saveIdentity"
+              @cancel="open = null"
+            />
+          </div>
+
           <div v-else-if="row.columns" class="space-y-2">
             <p class="text-sm text-ink-muted">{{ row.label }}</p>
             <TableRowEditor
@@ -321,6 +363,7 @@ function shown(row: FactRow): string {
               :input="row.input"
               :label="row.label"
               :choices="row.choices"
+              :skip="row.skip"
               :date-kind="row.path[0] === 'date_of_birth' ? 'dob' : undefined"
               :error="problem ?? undefined"
             />

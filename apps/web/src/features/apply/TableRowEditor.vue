@@ -44,7 +44,7 @@ const changed = computed(() => JSON.stringify(row.value) !== JSON.stringify({ ..
   <div class="space-y-3" data-table-row-editor>
     <div v-for="c in columns" :key="c.id" class="space-y-1">
       <label v-if="c.input !== 'yesno'" :for="fieldId([...idPrefix, c.id])" class="block text-sm text-ink-muted">{{ c.label }}</label>
-      <FactEditor :id="fieldId([...idPrefix, c.id])" v-model="values[c.id]!" :input="c.input" :label="c.label" />
+      <FactEditor :id="fieldId([...idPrefix, c.id])" v-model="values[c.id]!" :input="c.input" :label="c.label" :date-kind="c.dateKind" />
     </div>
     <p v-if="problem" class="text-sm text-danger-700" role="alert" data-table-row-problem>{{ problem }}</p>
     <div class="flex items-center justify-between gap-2">

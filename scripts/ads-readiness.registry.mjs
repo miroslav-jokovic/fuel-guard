@@ -86,6 +86,31 @@ export const READINESS = [
             ] },
           ],
         },
+        {
+          // Q-AD68 (2026-11-11): the one live-campaign step that is not a pause. Pinned whole, because each title is a
+          // fence: the kill switch before it, a person's approval of THAT creative, at most two attempts, never the
+          // retired ad adopted back.
+          need: "a live campaign's retired ad is replaced: made once, decided by a person, published into the same ad set and turned on — never past the kill switch, never without that creative's approval",
+          tests: [
+            { file: RUNNER, titles: [
+              "a live step runs the refresh worker with the stint's key, moves nothing and writes no transition, whatever it answers",
+              "with the kill switch on, a live campaign is killed and the refresh is never asked: nothing new turns on while the switch is pressed",
+            ] },
+            { file: "apps/api/src/modules/ads/compose/refreshCampaign.test.ts", titles: [
+              "every preset already run: the retired ad's own preset is made again, naming the retired ad, with a derived id; a re-run moves the same row",
+              "a rejected replacement is followed by one more from the next option; after 2 nothing is made and the bell says so once",
+              "its ads join the campaign's refs, each is turned on with its own ledger row citing the person's approval, and the creative is marked active",
+              "an approval that was withdrawn is no approval: nothing is published",
+            ] },
+            { file: "apps/api/src/modules/ads/compose/decideCreative.test.ts", titles: [
+              "on a live campaign, a retired ad's replacement may be decided (Q-AD68); any other creative of a live campaign may not",
+            ] },
+            { file: "apps/api/src/modules/ads/orchestrator/createPath.test.ts", titles: [
+              "makes the replacement's two ads PAUSED in the campaign's existing ad set, new ads (never the retired ones adopted), and nothing above the ad",
+              "refuses an ad the campaign already holds: a replacement whose short id is the retired creative's would adopt the retired ads",
+            ] },
+          ],
+        },
       ],
       L2: [
         {
