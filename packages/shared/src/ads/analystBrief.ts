@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AD_PLATFORMS, type AdPlatform } from "./contracts.js";
 import { LEAD_OUTCOME_STAGES, NOT_RECORDED, UNRECORDED_LEAD_STAGES, type LeadOutcomeStage, type UnrecordedLeadStage } from "./leadOutcomes.js";
 import { cohortRates, sumCampaignTotals, type CampaignTotals, type Cohort, type MonthContext } from "./adsReport.js";
-import { LEAD_QUALITY_WINDOW_DAYS, type LeadQualityCounts } from "./leadQuality.js";
+import { closedReasonWords, LEAD_QUALITY_WINDOW_DAYS, type LeadQualityCounts } from "./leadQuality.js";
 
 /**
  * The analyst's two pure halves (ADS-AGENT-BUILD-WORKFLOW F1; plan D-AD5 "numbers come from a fold; the
@@ -44,6 +44,14 @@ import { LEAD_QUALITY_WINDOW_DAYS, type LeadQualityCounts } from "./leadQuality.
  * hard requirement", not "not qualified", so it cannot be confused with the cohort stage `not_qualified`
  * (a recruiter's close) — the two overlap but are not the same count. Shares are on the sheet, formatted once
  * here, so the narration never divides; a share with nothing to divide by is null.
+ *
+ * ── CLOSED FOR ANOTHER REASON, PER CAMPAIGN (LR4, 2026-11-10) ───────────────────────────────────────
+ * `closed_by_reason` is each campaign's leads a recruiter closed for something that is not a requirement —
+ * not interested, out of area, unreachable, wrong number, duplicate, spam — keyed by the reason in words, and
+ * ONLY the reasons with at least one lead (six zeros a campaign is noise the model then narrates). The cohorts
+ * already count these as one `lost_before_conversion` figure per WEEK; this is the same act counted per
+ * CAMPAIGN and per reason over the quality window, which is the only place "this campaign draws people from
+ * out of area" can be read. Different windows, so the two are never the same number, and rule 7 says so.
  */
 
 const fold = z.object({
@@ -80,6 +88,8 @@ export const briefFoldSchema = z.object({
     reached: z.number().int(),
     not_qualified: z.number().int(),
     median_first_attempt_minutes: z.number().int().nullable(),
+    /** LR4: closed for a reason other than a named requirement, by reason. Absent in a fold made before it = none. */
+    closed: z.record(z.string().regex(/^[a-z][a-z_]{1,40}$/), z.number().int().min(0)).default({}),
   }).strict() satisfies z.ZodType<LeadQualityCounts & { name: string }>).default([]),
 }).strict();
 export type BriefFold = z.infer<typeof briefFoldSchema>;
@@ -108,6 +118,7 @@ export interface BriefFacts {
     campaigns: Array<{
       name: string; leads: string; called: string; wrong_numbers: string; reached: string; missed_a_hard_requirement: string;
       wrong_number_share_of_called: string | null; missed_share_of_leads: string | null; median_minutes_to_first_call: string | null;
+      closed_by_reason: Record<string, string>;
     }>;
   };
 }
@@ -168,6 +179,7 @@ export function briefFacts(f: BriefFold): BriefFacts {
         wrong_number_share_of_called: q.attempted > 0 ? showShare(q.wrong_number / q.attempted) : null,
         missed_share_of_leads: q.leads > 0 ? showShare(q.not_qualified / q.leads) : null,
         median_minutes_to_first_call: q.median_first_attempt_minutes === null ? null : showCount(q.median_first_attempt_minutes),
+        closed_by_reason: Object.fromEntries(Object.entries(q.closed ?? {}).filter(([, n]) => n > 0).map(([reason, n]) => [closedReasonWords(reason), showCount(n)])),
       })),
     },
   };
@@ -191,9 +203,15 @@ export function plainBrief(f: BriefFacts): { headline: string; points: string[] 
       ...f.cohorts.map((c) => `Leads from the week of ${c.week}: ${c.leads}, ${c.reached.qualified} qualified by a recruiter, ${c.reached.not_qualified} closed as not qualified, ${c.reached.lost_before_conversion} closed for another reason, ${c.reached.converted} made applicants, ${c.reached.hired} hired${c.rates ? ` (${c.rates.hired})` : ", too young to judge"}.`),
       ...(f.cohorts.length > 0 && UNRECORDED_LEAD_STAGES.length > 0 ? [`${(UNRECORDED_LEAD_STAGES as readonly string[]).join(" and ")}: not recorded yet.`] : []),
       // LQ3c. Never "unqualified": see the header's lead-quality note.
-      ...f.lead_quality.campaigns.map((q) => `${q.name}, last ${f.lead_quality.window_days} days: ${q.leads} leads, ${q.called} called, ${q.wrong_numbers} wrong numbers, ${q.reached} reached, ${q.missed_a_hard_requirement} missed a hard requirement${q.median_minutes_to_first_call ? `, first call after ${q.median_minutes_to_first_call} minutes (median)` : ", none called yet"}.`),
+      ...f.lead_quality.campaigns.map((q) => `${q.name}, last ${f.lead_quality.window_days} days: ${q.leads} leads, ${q.called} called, ${q.wrong_numbers} wrong numbers, ${q.reached} reached, ${q.missed_a_hard_requirement} missed a hard requirement${q.median_minutes_to_first_call ? `, first call after ${q.median_minutes_to_first_call} minutes (median)` : ", none called yet"}${closedSentence(q.closed_by_reason)}.`),
     ],
   };
+}
+
+/** "; closed by a recruiter: 3 not interested, 2 out of area" — nothing when no lead was closed that way. */
+function closedSentence(closed: Record<string, string>): string {
+  const parts = Object.entries(closed).map(([reason, n]) => `${n} ${reason}`);
+  return parts.length ? `; closed by a recruiter for another reason: ${parts.join(", ")}` : "";
 }
 
 // ── the check ───────────────────────────────────────────────────────────────────────────────────

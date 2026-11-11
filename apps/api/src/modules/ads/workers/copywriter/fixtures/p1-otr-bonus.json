@@ -86,51 +86,51 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:21:57.475Z",
+    "recorded_at": "2026-11-11T04:58:27.545Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "You roll at dawn: $0.72/mile.",
-            "cta": "Apply now.",
-            "primary_text": "Class A OTR seat paying $0.72 per mile from day one. Earn a $5,000 sign-on bonus when you join. Apply today.",
-            "headline": "Plus a $5,000 sign-on bonus."
+            "hook": "You're rolling. $0.72 a mile.",
+            "cta": "Apply today",
+            "primary_text": "Class A OTR drivers earn $0.72 per mile on this run. Add a $5,000 sign-on bonus and you're ahead before the first load delivers. Join our team.",
+            "headline": "Earn $0.72 per mile OTR"
           },
           "es": {
-            "hook": "Arrancas al alba: $0.72/milla.",
-            "cta": "Aplica ahora.",
-            "primary_text": "Puesto OTR clase A a $0.72 por milla desde el primer día. Recibe un bono de entrada de $5,000 al unirte. Aplica hoy.",
-            "headline": "Más $5,000 de bono de entrada."
+            "hook": "Al volante. $0.72 por milla.",
+            "cta": "Aplica hoy",
+            "primary_text": "Conductores Clase A en rutas OTR ganan $0.72 por milla. Más un bono de contratación de $5,000 desde el primer día. Únete al equipo.",
+            "headline": "$0.72 por milla, OTR"
           }
         },
         {
           "en": {
-            "hook": "Sun's up. You're earning $0.72.",
-            "cta": "Join the team.",
-            "primary_text": "Start strong with a $5,000 sign-on bonus and $0.72 per mile on every load. Class A OTR position open now. Get in touch and let's put you to work.",
-            "headline": "$5,000 bonus to get you started."
+            "hook": "Sun's up. $5,000 to start.",
+            "cta": "Apply today",
+            "primary_text": "Class A OTR drivers get a $5,000 sign-on bonus plus $0.72 per mile. If you hold a Class A and you're ready to run, we want to hear from you.",
+            "headline": "$5,000 sign-on bonus"
           },
           "es": {
-            "hook": "Sale el sol. Ganas $0.72/milla.",
-            "cta": "Únete al equipo.",
-            "primary_text": "Comienza con fuerza: $5,000 de bono de entrada y $0.72 por milla en cada carga. Posición OTR clase A disponible. Contáctanos y ponemos a trabajar.",
-            "headline": "$5,000 de bono para comenzar."
+            "hook": "Amanece. $5,000 al firmar.",
+            "cta": "Aplica hoy",
+            "primary_text": "Conductores Clase A OTR reciben un bono de $5,000 al contratar y $0.72 por milla en ruta. Si tienes tu Clase A y estás listo, contáctanos.",
+            "headline": "Bono de $5,000 al firmar"
           }
         },
         {
           "en": {
-            "hook": "First light. Your rig. $0.72/mile.",
-            "cta": "Start driving.",
-            "primary_text": "This Class A OTR seat pays $0.72 per mile and comes with a $5,000 sign-on bonus. If you hold a Class A and want to get rolling, apply today.",
-            "headline": "$5,000 sign-on bonus available."
+            "hook": "Miles ahead: $0.72 each.",
+            "cta": "Apply today",
+            "primary_text": "OTR Class A run. You earn $0.72 per mile from the start, plus a $5,000 sign-on bonus waiting at hire. Put your miles where they pay. Apply today.",
+            "headline": "$5,000 bonus + $0.72/mi"
           },
           "es": {
-            "hook": "Amanece. Tu tráiler. $0.72/milla.",
-            "cta": "Empieza a manejar.",
-            "primary_text": "Esta ruta OTR clase A paga $0.72 por milla e incluye un bono de entrada de $5,000. Si tienes licencia clase A y quieres salir a rodar, aplica hoy.",
-            "headline": "Bono de entrada de $5,000."
+            "hook": "Cada milla vale $0.72.",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta OTR Clase A. Ganas $0.72 por milla desde el inicio, más un bono de contratación de $5,000 al ser contratado. Pon tus millas donde se pagan bien.",
+            "headline": "$5,000 bono + $0.72/milla"
           }
         }
       ]

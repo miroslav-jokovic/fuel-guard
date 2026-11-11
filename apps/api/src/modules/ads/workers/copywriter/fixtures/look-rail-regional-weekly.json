@@ -1,0 +1,157 @@
+{
+  "name": "look-rail-regional-weekly",
+  "about": "The rail look's five roles: P1 Windshield sunrise: Regional pay per mile and home weekly. A kicker and a second line are drawn with the headline.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A regional truck driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 68,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P1 Windshield sunrise",
+      "hook_formula": "Second person, present tense: put the reader in the driver's seat at dawn, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield at {time_of_day} on an open {road} highway, no text, no logos, no lettering",
+      "image_slots": [
+        "time_of_day",
+        "road"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": "Slow push-in down the highway as the light rises",
+      "layout": "bottom_plate",
+      "look": "rail",
+      "formats": [
+        "9:16",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta",
+        "kicker": "kicker",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": null,
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-11T04:50:35.135Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "$0.68 a mile, yours today.",
+            "cta": "Apply now",
+            "primary_text": "You pull out at first light and you already know what the mile pays: $0.68. Regional runs keep you close to home, and you're back every week. Class A drivers, come drive with us.",
+            "headline": "Class A, $0.68 a mile",
+            "kicker": "Class A regional",
+            "second_line": "Home weekly"
+          },
+          "es": {
+            "hook": "$0.68 la milla, desde hoy.",
+            "cta": "Aplica hoy",
+            "primary_text": "Arrancas de madrugada y ya sabes lo que paga cada milla: $0.68. Las rutas regionales te mantienen cerca de casa y regresas cada semana. Conductores Clase A, únete al equipo.",
+            "headline": "Clase A, $0.68 la milla",
+            "kicker": "Clase A regional",
+            "second_line": "Casa cada semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "You're home every week.",
+            "cta": "Apply now",
+            "primary_text": "The sun comes up and you're on a regional run — which means you're back home every week without trading away your pay. These Class A seats earn $0.68 per mile. Apply and get moving.",
+            "headline": "Home weekly, Class A",
+            "kicker": "Class A regional",
+            "second_line": "$0.68 per mile"
+          },
+          "es": {
+            "hook": "Llegas a casa cada semana.",
+            "cta": "Aplica hoy",
+            "primary_text": "Sale el sol y tú ya vas en ruta regional — eso significa que vuelves a casa cada semana sin sacrificar el sueldo. Las plazas Clase A pagan $0.68 por milla. Aplica y ponte en marcha.",
+            "headline": "Casa semanal, Clase A",
+            "kicker": "Clase A regional",
+            "second_line": "$0.68 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Dawn, open road, $0.68/mile.",
+            "cta": "Apply now",
+            "primary_text": "First light, you're rolling. Regional lanes, $0.68 per mile, and a weekly trip back home. Class A drivers who want steady pay and predictable time off — this seat is open. Apply today.",
+            "headline": "Regional, $0.68/mile",
+            "kicker": "Now hiring: Class A",
+            "second_line": "Home weekly"
+          },
+          "es": {
+            "hook": "Amanecer, ruta libre, $0.68/milla.",
+            "cta": "Aplica hoy",
+            "primary_text": "Con la primera luz ya estás rodando. Rutas regionales, $0.68 por milla y regreso a casa cada semana. Conductores Clase A que buscan pago estable y días en casa — esta plaza está abierta.",
+            "headline": "Regional, $0.68/milla",
+            "kicker": "Se busca: Clase A",
+            "second_line": "Casa cada semana"
+          }
+        }
+      ]
+    }
+  }
+}

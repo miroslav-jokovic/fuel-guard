@@ -87,63 +87,63 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:26:11.026Z",
+    "recorded_at": "2026-11-11T05:02:29.994Z",
     "output": {
       "candidates": [
         {
           "en": {
             "card_get": "$0.66 per mile. Home weekends.",
             "card_need": "Class A CDL. Regional driving experience.",
-            "card_apply": "Hit apply and get started today.",
+            "card_apply": "Apply now. It takes a few minutes.",
             "cta": "Apply now",
-            "primary_text": "Regional CDL-A run. You earn $0.66 per mile and get home weekends. If you hold a Class A CDL and want a regional seat, apply today.",
-            "headline": "Regional CDL-A. $0.66/mile."
+            "primary_text": "Regional Class A drivers: $0.66 per mile and home weekends. We need a Class A CDL and regional experience. Apply today and get straight answers.",
+            "headline": "$0.66/mile, home weekends"
           },
           "es": {
             "card_get": "$0.66 por milla. En casa los fines de semana.",
             "card_need": "CDL clase A. Experiencia en rutas regionales.",
-            "card_apply": "Aplica hoy y empieza pronto.",
-            "cta": "Aplica ya",
-            "primary_text": "Ruta regional clase A. Ganas $0.66 por milla y llegas a casa los fines de semana. Si tienes CDL clase A y buscas ruta regional, aplica hoy.",
-            "headline": "CDL-A regional. $0.66/milla."
+            "card_apply": "Aplica ahora. Solo toma unos minutos.",
+            "cta": "Aplica hoy",
+            "primary_text": "Conductores clase A para rutas regionales: $0.66 por milla y casa los fines de semana. Se requiere CDL clase A y experiencia regional. Aplica hoy.",
+            "headline": "$0.66/milla, fines en casa"
           }
         },
         {
           "en": {
-            "card_get": "Home every weekend. $0.66 per mile.",
-            "card_need": "Class A CDL and regional route experience.",
-            "card_apply": "Apply now to claim this seat.",
-            "cta": "Apply now",
-            "primary_text": "Home weekends, every week. Regional Class A seat paying $0.66 per mile. Hold a Class A CDL? Apply and join the team.",
-            "headline": "Home weekends. CDL-A run."
+            "card_get": "Home every weekend. $0.66 per mile on regional runs.",
+            "card_need": "Class A CDL and regional driving experience.",
+            "card_apply": "Hit apply. Quick and straightforward.",
+            "cta": "Apply today",
+            "primary_text": "Home weekends, $0.66 a mile. That's the deal for regional Class A drivers. Bring your CDL and regional miles. Apply today and let's talk.",
+            "headline": "Home weekends, $0.66/mile"
           },
           "es": {
-            "card_get": "En casa los fines de semana. $0.66 por milla.",
-            "card_need": "CDL clase A y experiencia en ruta regional.",
-            "card_apply": "Aplica ahora y toma este puesto.",
-            "cta": "Aplica ya",
-            "primary_text": "En casa cada fin de semana. Ruta regional clase A con pago de $0.66 por milla. ¿Tienes CDL clase A? Aplica y únete al equipo.",
-            "headline": "Casa fines de semana. CDL-A."
+            "card_get": "Casa cada fin de semana. $0.66 por milla en rutas regionales.",
+            "card_need": "CDL clase A y experiencia en rutas regionales.",
+            "card_apply": "Aplica. Es rápido y directo.",
+            "cta": "Aplica hoy",
+            "primary_text": "Casa los fines de semana y $0.66 por milla. Ese es el trato para conductores clase A en rutas regionales. Trae tu CDL y tus millas. Aplica hoy.",
+            "headline": "Casa fines, $0.66/milla"
           }
         },
         {
           "en": {
-            "card_get": "Class A regional seat. $0.66 per mile.",
-            "card_need": "Active Class A CDL. Ready to run regional.",
-            "card_apply": "Apply. We'll be in touch quickly.",
+            "card_get": "Regional routes. $0.66 per mile. Weekends at home.",
+            "card_need": "Valid Class A CDL. Experience on regional lanes.",
+            "card_apply": "Apply. Clear process, no runaround.",
             "cta": "Apply now",
-            "primary_text": "Regional Class A opening. The pay is $0.66 per mile and you're home weekends. Bring your Class A CDL and apply today.",
-            "headline": "CDL-A regional. Home weekends."
+            "primary_text": "Regional run, Class A seat: $0.66 per mile and weekends at home. You need a Class A CDL and experience on regional routes. Apply now — straight talk only.",
+            "headline": "Regional, $0.66/mile"
           },
           "es": {
-            "card_get": "Puesto regional clase A. $0.66 por milla.",
-            "card_need": "CDL clase A vigente. Listo para ruta regional.",
-            "card_apply": "Aplica. Te contactamos pronto.",
+            "card_get": "Rutas regionales. $0.66 por milla. Fines de semana en casa.",
+            "card_need": "CDL clase A vigente. Experiencia en rutas regionales.",
+            "card_apply": "Aplica. Proceso claro, sin vueltas.",
             "cta": "Aplica ya",
-            "primary_text": "Plaza regional clase A disponible. Pago de $0.66 por milla y llegas a casa los fines de semana. Trae tu CDL clase A y aplica hoy.",
-            "headline": "CDL-A regional. Casa en fin de semana."
+            "primary_text": "Ruta regional, clase A: $0.66 por milla y fines de semana en casa. Necesitas CDL clase A y experiencia en rutas regionales. Aplica ahora.",
+            "headline": "Regional, $0.66/milla"
           }
         }
       ]

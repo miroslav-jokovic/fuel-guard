@@ -11,7 +11,7 @@ import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.j
 import { ART_DIRECTOR_EVAL, COPYWRITER_EVAL, loadFixtures } from "../workers/agentFixtures.js";
 import { SIMULATED_STILL_MODEL } from "../creative/higgsfield/prices.js";
 import { frameStill } from "../creative/overlay/overlay.js";
-import { composeCreative, union, type ComposeInput, type CreativeRow } from "./composeCreative.js";
+import { composeCreative, drawnCopy, union, type ComposeInput, type CreativeRow } from "./composeCreative.js";
 
 /**
  * One creative through copy → art → render → overlay → visual check (C5b), against the real workers and the
@@ -21,6 +21,15 @@ import { composeCreative, union, type ComposeInput, type CreativeRow } from "./c
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const NOW = new Date("2026-11-04T18:00:00Z");
+/**
+ * This file's tests run whole composes, and several run three of them: each draws up to four full-size PNGs
+ * through the real overlay. About 2.4 s for the slowest on a laptop; on a loaded CI shard, 5,011 ms, 5,019 ms and
+ * 5,016 ms against vitest's 5,000 (2026-11-10, three runs, two different tests). The work is real and nothing
+ * here waits on a timer, so the limit is the file's own — raised once, here, rather than test by test as each
+ * one's turn comes to be the slowest.
+ */
+vi.setConfig({ testTimeout: 20_000 });
+
 const IMAGES = new URL("../workers/checker/fixtures/images/", import.meta.url);
 const jpg = (n: string) => readFileSync(new URL(`${n}.jpg`, IMAGES));
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
@@ -140,8 +149,9 @@ describe("composeCreative — a creative from copy to ready (C5b)", () => {
     const dims = await Promise.all(images.map(async (b) => { const m = await sharp(Buffer.from(b.source!.data, "base64")).metadata(); return [m.width, m.height]; }));
     expect(dims[0]).toEqual([1080, 1350]);
     expect(images[1]!.source!.data).toBe(jpg("reference").toString("base64"));
-    // The band is the overlay's own text stack: the zone's width less its padding (886 px of 1080), shorter than the frame.
-    expect(dims[2]![0]).toBe(886);
+    // The band is the overlay's own stack, kicker to button: the zone's width less the rail look's inset (920 px
+    // of 1080), shorter than the frame. The footer is not part of it.
+    expect(dims[2]![0]).toBe(920);
     expect(dims[2]![1]).toBeLessThan(700);
   });
 
@@ -492,4 +502,17 @@ describe("composeCreative — each starter preset, as adopted, composes (Q-AD77)
       expect([...new Set(last.assets.map((a) => a.format))].sort()).toEqual(["1:1", "4:5"]);
     });
   }
+});
+
+describe("drawnCopy — the words the overlay is handed (D-ADL4)", () => {
+  const copy = { hook: "Earn more", cta: "Apply", who: "Class A drivers", also: "Home weekly", body: "Long text" };
+
+  it("a preset with only a headline and a call to action hands the overlay those two, and no small line", () => {
+    expect(drawnCopy({ headline: "hook", cta: "cta" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: null, subline: null });
+  });
+
+  it("a preset that names slots for the small lines hands each its own slot's words", () => {
+    expect(drawnCopy({ headline: "hook", cta: "cta", kicker: "who", subline: "also" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: "Class A drivers", subline: "Home weekly" });
+    expect(drawnCopy({ headline: "hook", cta: "cta", kicker: null, subline: "also" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: null, subline: "Home weekly" });
+  });
 });

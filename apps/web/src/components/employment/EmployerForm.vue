@@ -90,14 +90,14 @@ const extrasOpen = computed(
   () => extrasHaveSomething.value || ["phone", "email", "usdot_number"].some((f) => err(f)),
 );
 
-/** `boolean` fields through the yes/no control, which speaks `boolean | null`. */
+/** The yes/no control speaks `boolean | null`, and so do these two since F1 part 2: null is unanswered. */
 const droveTruck = computed<boolean | null>({
   get: () => local.value.operated_cmv,
-  set: (v) => { local.value = { ...local.value, operated_cmv: v === true }; },
+  set: (v) => { local.value = { ...local.value, operated_cmv: v }; },
 });
 const dotRegulated = computed<boolean | null>({
   get: () => local.value.dot_regulated,
-  set: (v) => { local.value = { ...local.value, dot_regulated: v === true }; },
+  set: (v) => { local.value = { ...local.value, dot_regulated: v }; },
 });
 const size = computed(() => (props.touch ? "touch" : "default"));
 </script>

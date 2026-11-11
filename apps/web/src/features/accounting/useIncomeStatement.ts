@@ -2,6 +2,7 @@ import { computed, type Ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import type { LedgerMonth } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { exclusiveEnd } from "@/lib/dateWindow";
 
 /**
  * The income statement (G3) — the ledger in the shape the owner's own printed McLeod P&L takes.
@@ -99,7 +100,7 @@ export function useIncomeStatementQuery(filter: Ref<IncomeStatementFilter>, enab
     // reader never asked for is a wasted read at best and a withheld-month callout at worst.
     enabled: computed(() => enabled?.value ?? true),
     queryFn: async (): Promise<IncomeStatementResponse> => {
-      const q = new URLSearchParams({ from: filter.value.from, to: filter.value.to });
+      const q = new URLSearchParams({ from: filter.value.from, to: exclusiveEnd(filter.value.to) });
       if (filter.value.compare && filter.value.compare !== "ytd") q.set("compare", filter.value.compare);
       const r = await apiFetch<IncomeStatementResponse>(`/api/accounting/income-statement?${q}`);
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the income statement");

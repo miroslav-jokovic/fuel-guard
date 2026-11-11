@@ -35,6 +35,8 @@ export { syncIdleEngine } from "./idleEngineSync.js";
 export { IDLE_SOURCE_WINDOW_DAYS, idleCalendarStartIso } from "./idleWindow.js";
 export { organizationTimezone } from "./idleCapabilitySync.js";
 export { readFleetIdleVerdict } from "./fuelIdleVerdict.js";
+/** Ask AI's `idle_report` (F21 R6b): the Idling page's verdict per period, week or month. */
+export { assistantIdleReport } from "./assistantIdleReport.js";
 /**
  * Q9's one basis. Exported because three readers need the SAME answer: this module's fleet verdict,
  * the Idling endpoint below it, and the Dashboard endpoint §7.2c step 3 adds.

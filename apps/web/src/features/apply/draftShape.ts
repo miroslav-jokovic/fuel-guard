@@ -116,9 +116,12 @@ export interface ApplicationDraft {
    */
   licence_ever_denied: boolean | null;
   licence_denial_detail: string;
-  /** §40.25(j)'s two-year question (P8). Boolean in the draft — the contract's null means "the form
-   *  never asked", which is true of payloads filed before P8 and false of every draft this creates. */
-  prior_failed_pre_employment_test: boolean;
+  /**
+   * §40.25(j)'s two-year question (P8), on a legacy link — a v2 link asks it in Part 1. `null` until
+   * answered (F1 part 2): it was `false` behind an unticked box, so a driver who skipped the box had said
+   * No to a question the carrier must ask (audit finding 13). A saved `true` or `false` is kept.
+   */
+  prior_failed_pre_employment_test: boolean | null;
   employers: DraftEmployer[];
   declares_no_employment: boolean;
   employment_gaps: DraftGap[];
@@ -203,7 +206,7 @@ export const emptyDraft = (): ApplicationDraft => ({
   accidents: [], declares_no_accidents: false,
   violations: [], declares_no_violations: false,
   licence_ever_denied: null, licence_denial_detail: "",
-  prior_failed_pre_employment_test: false,
+  prior_failed_pre_employment_test: null,
   employers: [emptyEmployer()], declares_no_employment: false,
   employment_gaps: [],
   certified: false, signed_name: "",

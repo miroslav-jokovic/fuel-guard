@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { recordId } from "../recordId.js";
-import { OVERLAY_HEADLINE_MAX_CHARS } from "./copyCandidates.js";
+import { OVERLAY_HEADLINE_MAX_CHARS, OVERLAY_SMALL_LINE_MAX_CHARS } from "./copyCandidates.js";
 import { AD_FORMATS, FEED_FORMATS, parseHex, publishedFormats, safeZone, tightenZone, type AdFormat } from "./renderGeometry.js";
 
 /**
@@ -120,6 +120,23 @@ export const AD_SCENE_FAMILY_LABELS: Record<AdSceneFamily, string> = {
   cab_pov: "from the cab", equipment_on_road: "truck on the road", equipment_at_rest: "truck at rest", home_street: "home street", abstract_plate: "plain background",
 };
 
+/**
+ * How the words are DRAWN (ADS-AD-LOOK-PLAN D-ADL1–D-ADL7, D-ADL11; the owner, 2026-11-10: the finished ads
+ * "don't look really good, professional and enterprise grade"). `layout` above says WHERE the stack sits; the
+ * look says in which faces, with which shapes and where the kit's colours go. Both are the preset's: a concept's
+ * look is part of the concept, so when a tired ad is retired and the next concept enters (D-AD23), the design
+ * changes with it and not only the picture.
+ *   · `rail`   — left-aligned; the headline's figures in the kit's accent colour; a rail beside the stack; the
+ *                call to action a filled button; the phone and the legal line on a band in the kit's primary.
+ *   · `ribbon` — centred; a white headline in a heavier face; the second line on one ribbon in the accent
+ *                colour; a pill button; the phone and the legal line on a hairline footer.
+ * Since the look, the layout names read oddly — nothing is drawn on a plate or a band any more; the words sit on
+ * the picture, darkened under them (D-ADL1). The stored names stay (D-ADL8): they are in every saved preset, and
+ * a rename would migrate every one of them for no reader's benefit. Read them as low, high and middle.
+ */
+export const AD_LOOKS = ["rail", "ribbon"] as const;
+export type AdLook = (typeof AD_LOOKS)[number];
+
 export const adBrandKitSchema = z.object({
   /** Exactly as it should read in an ad. */
   company_name: z.string().trim().min(1, "the company name is what the ad prints, so it cannot be empty").max(120, "the company name is at most 120 characters"),
@@ -190,14 +207,23 @@ export const adPresetRecipeSchema = z.object({
   motion_template: z.string().trim().min(10).max(2000).nullable(),
   /** Where the words sit (CQ6). Defaulted, so a recipe saved before CQ6 is the layout it always had. */
   layout: z.enum(AD_OVERLAY_LAYOUTS).default("bottom_plate"),
+  /**
+   * How the words are drawn (`AD_LOOKS`). Absent = `rail`. Optional rather than defaulted, as `platform_slots`
+   * is and for its reason: a default makes the parsed type require the key in every recipe literal.
+   */
+  look: z.enum(AD_LOOKS).optional(),
   formats: z.array(z.enum(AD_FORMATS)).min(1, "choose at least one format").max(AD_FORMATS.length),
   /**
    * Which copy slots the overlay draws (C5b): the headline (≤ 2 lines) and the call to action. The other
    * slots are the platform's text (B2c). Null = not said, and compose refuses the preset by name
    * (`no_overlay_slots`) rather than guess from a slot's name. Nullable with a default so a preset saved
    * before C5b still parses — `newestVersions` throws on a stored body that does not.
+   *
+   * `kicker` and `subline` are the two small lines of the look (D-ADL4): who the ad is for, above the headline,
+   * and the second promise, under it. Each is optional — absent and null both mean the row is not drawn — so a
+   * preset saved before the looks, with its two slots, is still a whole overlay.
    */
-  overlay_slots: z.object({ headline: slotName, cta: slotName }).strict().nullable().default(null),
+  overlay_slots: z.object({ headline: slotName, cta: slotName, kicker: slotName.nullish(), subline: slotName.nullish() }).strict().nullable().default(null),
   /**
    * Which copy slots the platform shows as text beside the image (B2c): Meta's primary text (`message`,
    * above the image) and its headline (`name`, under it). Neither may be an overlay slot — those words
@@ -222,13 +248,14 @@ export const adPresetRecipeSchema = z.object({
   if (new Set(r.copy_slots.map((c) => c.name)).size !== r.copy_slots.length) ctx.addIssue({ code: "custom", path: ["copy_slots"], message: "a slot is listed twice" });
   const copyNames = new Set(r.copy_slots.map((c) => c.name));
   if (r.overlay_slots) {
-    for (const role of ["headline", "cta"] as const) {
-      if (!copyNames.has(r.overlay_slots[role])) ctx.addIssue({ code: "custom", path: ["overlay_slots", role], message: `${r.overlay_slots[role]} is not one of copy_slots` });
+    for (const [role, slot] of overlaySlotList(r.overlay_slots)) {
+      if (!copyNames.has(slot)) ctx.addIssue({ code: "custom", path: ["overlay_slots", role], message: `${slot} is not one of copy_slots` });
     }
     if (r.overlay_slots.headline === r.overlay_slots.cta) ctx.addIssue({ code: "custom", path: ["overlay_slots"], message: "the headline and the call to action are different slots" });
+    else if (new Set(overlaySlotList(r.overlay_slots).map(([, slot]) => slot)).size !== overlaySlotList(r.overlay_slots).length) ctx.addIssue({ code: "custom", path: ["overlay_slots"], message: "each line on the image is a different slot" });
   }
   if (r.platform_slots) {
-    const overlay = new Set(r.overlay_slots ? [r.overlay_slots.headline, r.overlay_slots.cta] : []);
+    const overlay = new Set(r.overlay_slots ? overlaySlotList(r.overlay_slots).map(([, slot]) => slot) : []);
     for (const role of ["primary_text", "headline"] as const) {
       const slot = r.platform_slots[role];
       if (!copyNames.has(slot)) ctx.addIssue({ code: "custom", path: ["platform_slots", role], message: `${slot} is not one of copy_slots` });
@@ -254,6 +281,11 @@ export function conceptPair(r: Pick<AdPresetRecipe, "hook_family" | "scene_famil
 /** The pair as the editor and a refusal say it: "pay first, plain background". */
 export function conceptPairLabel(r: Pick<AdPresetRecipe, "hook_family" | "scene_family">): string | null {
   return r.hook_family && r.scene_family ? `${AD_HOOK_FAMILY_LABELS[r.hook_family]}, ${AD_SCENE_FAMILY_LABELS[r.scene_family]}` : null;
+}
+
+/** The roles a preset's overlay draws and the slot each reads, in reading order; an unset small line is left out. */
+export function overlaySlotList(o: { headline: string; cta: string; kicker?: string | null; subline?: string | null }): Array<["kicker" | "headline" | "subline" | "cta", string]> {
+  return [...(o.kicker ? [["kicker", o.kicker] as ["kicker", string]] : []), ["headline", o.headline], ...(o.subline ? [["subline", o.subline] as ["subline", string]] : []), ["cta", o.cta]];
 }
 
 // ── the doors (C1 API; E2 draws the editors) ────────────────────────────────────────────────────
@@ -297,6 +329,13 @@ export const adPresetSaveSchema = z.object({
   const headline = s.recipe.overlay_slots ? s.recipe.copy_slots.find((c) => c.name === s.recipe.overlay_slots!.headline) : undefined;
   if (headline && headline.max_chars > OVERLAY_HEADLINE_MAX_CHARS) {
     ctx.addIssue({ code: "custom", path: ["recipe", "copy_slots"], message: `The headline on the image (${headline.name}) holds at most ${OVERLAY_HEADLINE_MAX_CHARS} characters: a longer one needs a third line, and the image has room for two.` });
+  }
+  for (const [role, label] of [["kicker", "small line above the headline"], ["subline", "second line under the headline"]] as const) {
+    const name = s.recipe.overlay_slots?.[role];
+    const slot = name ? s.recipe.copy_slots.find((c) => c.name === name) : undefined;
+    if (slot && slot.max_chars > OVERLAY_SMALL_LINE_MAX_CHARS) {
+      ctx.addIssue({ code: "custom", path: ["recipe", "copy_slots"], message: `The ${label} (${slot.name}) holds at most ${OVERLAY_SMALL_LINE_MAX_CHARS} characters: it is one line at one size.` });
+    }
   }
   if (s.recipe.formats.length > 0 && publishedFormats(s.recipe.formats).length === 0) {
     ctx.addIssue({ code: "custom", path: ["recipe", "formats"], message: `Choose ${FEED_FORMATS.join(" or ")} as well: those are the formats an ad is shown in today, and ${s.recipe.formats.join(", ")} alone cannot be published.` });

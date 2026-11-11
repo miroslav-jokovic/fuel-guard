@@ -1,5 +1,5 @@
 import { computed } from "vue";
-import { canReachSurface, surfaceAllowed, SURFACES } from "@silvicom/shared";
+import { assistantToolsFor, canReachSurface, surfaceAllowed, SURFACES } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useModulesQuery } from "@/composables/useModules";
 
@@ -22,6 +22,19 @@ export function useAssistantAccess() {
     () =>
       session.isAuthenticated &&
       canReachSurface(ASK_AI, session.role, modules.data.value ?? null, session.sections) &&
-      surfaceAllowed(ASK_AI, session.role, session.sections, session.surfaces),
+      surfaceAllowed(ASK_AI, session.role, session.sections, session.surfaces) &&
+      // F21 R5: and at least one tool their access allows — the endpoint's own `ai_no_tools` answer, so a
+      // screen turned on for a role whose areas have no questions yet is not a button that apologises.
+      assistantToolsFor(session.role, session.sections, modules.data.value ?? null).length > 0,
   );
+}
+
+/**
+ * The caller's tools (F21 R5, D-AI1) — what suggestions may offer. The same function the endpoint asks,
+ * with the carrier's modules (R6b: a dispatch question is never offered to a carrier without Dispatch).
+ */
+export function useAssistantTools() {
+  const session = useSessionStore();
+  const modules = useModulesQuery();
+  return computed(() => assistantToolsFor(session.role, session.sections, modules.data.value ?? null));
 }

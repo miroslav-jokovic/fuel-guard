@@ -86,6 +86,31 @@ export const READINESS = [
             ] },
           ],
         },
+        {
+          // Q-AD68 (2026-11-11): the one live-campaign step that is not a pause. Pinned whole, because each title is a
+          // fence: the kill switch before it, a person's approval of THAT creative, at most two attempts, never the
+          // retired ad adopted back.
+          need: "a live campaign's retired ad is replaced: made once, decided by a person, published into the same ad set and turned on — never past the kill switch, never without that creative's approval",
+          tests: [
+            { file: RUNNER, titles: [
+              "a live step runs the refresh worker with the stint's key, moves nothing and writes no transition, whatever it answers",
+              "with the kill switch on, a live campaign is killed and the refresh is never asked: nothing new turns on while the switch is pressed",
+            ] },
+            { file: "apps/api/src/modules/ads/compose/refreshCampaign.test.ts", titles: [
+              "every preset already run: the retired ad's own preset is made again, naming the retired ad, with a derived id; a re-run moves the same row",
+              "a rejected replacement is followed by one more from the next option; after 2 nothing is made and the bell says so once",
+              "its ads join the campaign's refs, each is turned on with its own ledger row citing the person's approval, and the creative is marked active",
+              "an approval that was withdrawn is no approval: nothing is published",
+            ] },
+            { file: "apps/api/src/modules/ads/compose/decideCreative.test.ts", titles: [
+              "on a live campaign, a retired ad's replacement may be decided (Q-AD68); any other creative of a live campaign may not",
+            ] },
+            { file: "apps/api/src/modules/ads/orchestrator/createPath.test.ts", titles: [
+              "makes the replacement's two ads PAUSED in the campaign's existing ad set, new ads (never the retired ones adopted), and nothing above the ad",
+              "refuses an ad the campaign already holds: a replacement whose short id is the retired creative's would adopt the retired ads",
+            ] },
+          ],
+        },
       ],
       L2: [
         {
@@ -1143,15 +1168,23 @@ export const READINESS = [
           ],
         },
         {
-          need: "the overlay renderer (stills): golden images per format, text from the brief only, a too-long line refuses",
+          // Four titles changed 2026-11-10 with the looks (ADS-AD-LOOK-PLAN): each names the same refusal as before,
+          // restated for a renderer whose headline steps down a ladder (D-ADL3), which draws five roles instead of
+          // three (D-ADL4), and which darkens the picture by measurement instead of pasting a plate (D-ADL1) — so the
+          // bright-stripe case is now "the scrim rises, and a kit with no ground still refuses". The ribbon look's
+          // goldens are pinned beside the rail look's.
+          need: "the overlay renderer (stills): golden images per format and look, text from the brief only, a too-long line refuses",
           tests: [{ file: "apps/api/src/modules/ads/creative/overlay/overlay.test.ts", titles: [
             "1:1 matches its golden image",
             "4:5 matches its golden image",
             "9:16 matches its golden image",
-            "a headline that needs a third line refuses, naming it, with no image",
-            "one word wider than the zone refuses as an overflow, never shrunk",
-            "a figure the brief does not hold is refused here too, whatever checked it before",
-            "one narrow bright stripe behind the words fails, though the rest of the zone is dark",
+            "1:1 ribbon matches its golden image",
+            "4:5 ribbon matches its golden image",
+            "9:16 ribbon matches its golden image",
+            "a headline that needs a third line at the lowest rung refuses, naming it, with no image",
+            "a line with one size refuses as an overflow, never shrunk: the call to action, the kicker and the second line",
+            "a figure the brief does not hold is refused here too, whatever checked it before — in the headline, the kicker or the second line",
+            "one narrow bright stripe behind the words raises the step for the whole stack, where a null plate would refuse",
             "a format with no overlay in the brand kit refuses — no colour is invented",
           ] }],
         },

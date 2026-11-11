@@ -103,7 +103,27 @@ describe("presetSaveFrom — what a save sends", () => {
 describe("presetFormFrom — the next version starts from the last", () => {
   it("keeps every field, the motion template it has no input for included, through a save with no edit", () => {
     const ask = presetSaveFrom(presetFormFrom("P2", false, RECIPE));
-    expect(ask.ok && ask.save).toEqual({ key: "P2", enabled: false, recipe: RECIPE });
+    // One key is added: a preset saved before the looks named none and drew the rail look; its next version says so.
+    expect(ask.ok && ask.save).toEqual({ key: "P2", enabled: false, recipe: { ...RECIPE, look: "rail" } });
+  });
+
+  it("a preset's look and its two small lines come back as they were saved, and go out again unchanged", () => {
+    const saved = adPresetRecipeSchema.parse({ ...RECIPE, look: "ribbon", copy_slots: [...RECIPE.copy_slots, { name: "who", max_chars: 28 }, { name: "also", max_chars: 28 }], overlay_slots: { headline: "headline", cta: "cta", kicker: "who", subline: "also" } });
+    const form = presetFormFrom("P2", true, saved);
+    expect([form.look, form.overlay_kicker, form.overlay_subline]).toEqual(["ribbon", "who", "also"]);
+    const ask = presetSaveFrom(form);
+    expect(ask.ok && ask.save.recipe).toEqual(saved);
+  });
+
+  it("a small line set back to not drawn is left out of the next version, and the other is kept", () => {
+    const saved = adPresetRecipeSchema.parse({ ...RECIPE, copy_slots: [...RECIPE.copy_slots, { name: "who", max_chars: 28 }, { name: "also", max_chars: 28 }], overlay_slots: { headline: "headline", cta: "cta", kicker: "who", subline: "also" } });
+    const ask = presetSaveFrom({ ...presetFormFrom("P2", true, saved), overlay_kicker: null });
+    expect(ask.ok && ask.save.recipe.overlay_slots).toEqual({ headline: "headline", cta: "cta", subline: "also" });
+  });
+
+  it("a small line allowed more than 28 characters is refused with the contract's sentence, naming the slot", () => {
+    const ask = presetSaveFrom(filled({ copy_slots: [...RECIPE.copy_slots, { name: "who", max_chars: 29 }], overlay_kicker: "who" }));
+    expect(ask).toEqual({ ok: false, message: "The small line above the headline (who) holds at most 28 characters: it is one line at one size." });
   });
 });
 

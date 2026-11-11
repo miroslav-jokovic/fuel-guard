@@ -80,7 +80,7 @@ defineExpose({ focus: () => box.value?.focus(), prefill });
       </button>
     </form>
     <p class="mt-1.5 flex justify-between gap-3 px-1 text-2xs text-ink-muted">
-      <span>Each question is answered on its own, so name the period and the driver or truck.</span>
+      <span>Follow-up questions keep the subject; "New chat" starts over.</span>
       <span v-if="nearLimit" class="shrink-0 tabular-nums">{{ text.length }}/{{ QUESTION_MAX }}</span>
     </p>
   </div>

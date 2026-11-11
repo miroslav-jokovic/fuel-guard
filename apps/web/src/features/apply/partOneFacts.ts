@@ -46,7 +46,7 @@ export function applyPartOne(draft: ApplicationDraft, facts: PartOneFactsView): 
   draft.additional_licences = application.additional_licences.map(
     (l): DraftLicence => ({ ...l, kind: l.kind ?? "" }),
   );
-  draft.prior_failed_pre_employment_test = application.prior_failed_pre_employment_test ?? false;
+  draft.prior_failed_pre_employment_test = application.prior_failed_pre_employment_test ?? null;
 }
 
 /**

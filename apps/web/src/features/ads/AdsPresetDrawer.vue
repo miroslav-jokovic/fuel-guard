@@ -4,7 +4,7 @@ import { AD_FORMATS, FEED_FORMATS, type AdFormat, type AdPresetView } from "@sil
 import { AppButton as BaseButton, AppCallout, AppFormField as FormField, AppInput as BaseInput, AppSelect, AppSwitch as BaseSwitch, AppTextarea } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useToastStore } from "@/stores/toast";
-import { blankPresetForm, hookFamilyOptions, layoutOptions, presetFormFrom, presetSaveFrom, sceneFamilyOptions, type PresetForm } from "./adsPresetForm";
+import { blankPresetForm, hookFamilyOptions, layoutOptions, lookOptions, presetFormFrom, presetSaveFrom, sceneFamilyOptions, type PresetForm } from "./adsPresetForm";
 import { useSavePreset } from "./useAdsPresets";
 
 /**
@@ -23,6 +23,8 @@ const form = ref<PresetForm>(blankPresetForm());
 const refusal = ref<string | null>(null);
 const nextVersion = computed(() => (props.preset?.current?.version ?? 0) + 1);
 const slots = computed(() => form.value.copy_slots.map((c) => c.name.trim()).filter(Boolean).map((n) => ({ value: n, label: n })));
+/** The two small lines may be left out: the first choice says so, and sends nothing. */
+const optionalSlots = computed(() => [{ value: null, label: "Not drawn" }, ...slots.value]);
 
 watch(() => props.open, (open) => {
   if (!open) return;
@@ -90,6 +92,8 @@ async function submit(): Promise<void> {
         <legend class="text-sm font-semibold text-ink">Where the copy goes</legend>
         <FormField v-slot="{ id }" label="On the image: headline" required><AppSelect :id="id" v-model="form.overlay_headline" :options="slots" placeholder="Choose…" /></FormField>
         <FormField v-slot="{ id }" label="On the image: call to action" required><AppSelect :id="id" v-model="form.overlay_cta" :options="slots" placeholder="Choose…" /></FormField>
+        <FormField v-slot="{ id }" label="On the image: line above headline" hint="Who the ad is for. Optional, at most 28 characters."><AppSelect :id="id" v-model="form.overlay_kicker" :options="optionalSlots" placeholder="" data-test="preset-kicker" /></FormField>
+        <FormField v-slot="{ id }" label="On the image: line below headline" hint="A second promise under the headline. Optional, at most 28 characters."><AppSelect :id="id" v-model="form.overlay_subline" :options="optionalSlots" placeholder="" data-test="preset-subline" /></FormField>
         <FormField v-slot="{ id }" label="Beside the image: primary text" required><AppSelect :id="id" v-model="form.platform_primary_text" :options="slots" placeholder="Choose…" /></FormField>
         <FormField v-slot="{ id }" label="Beside the image: headline" required><AppSelect :id="id" v-model="form.platform_headline" :options="slots" placeholder="Choose…" /></FormField>
       </fieldset>
@@ -101,6 +105,7 @@ async function submit(): Promise<void> {
         </FormField>
         <FormField v-slot="{ id }" label="The picture starts from" required><AppSelect :id="id" v-model="form.starts_from" :options="STARTS" /></FormField>
         <FormField v-slot="{ id }" label="Where the words sit" hint="Part of the concept: two presets on one picture still read as two ads." required><AppSelect :id="id" v-model="form.layout" :options="layoutOptions()" data-test="preset-layout" /></FormField>
+        <FormField v-slot="{ id }" label="How the words are drawn" hint="Give your presets different looks, so a refreshed ad changes its design and not only its picture." required><AppSelect :id="id" v-model="form.look" :options="lookOptions()" data-test="preset-look" /></FormField>
         <div class="flex items-center justify-between gap-4"><p class="text-sm text-ink">Shows our equipment</p><BaseSwitch v-model="form.shows_equipment" label="Shows our equipment" /></div>
         <div class="flex items-center justify-between gap-4"><p class="text-sm text-ink">Shows people</p><BaseSwitch v-model="form.shows_people" label="Shows people" /></div>
       </fieldset>

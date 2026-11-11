@@ -7,7 +7,7 @@
  * The owner's 2026-11-09 walk found the form, the office drawer and the filed packet disagreeing,
  * and the audit found the cause: one fact (a ZIP, a phone, a CDL class) has a separate definition in
  * Part 1 (`applicantScreeningContract.ts`), in Part 2 (`applicationContract.ts`), on the packet
- * (`packetFieldValues.ts`) and in the office's correction list (`editableFields.ts`), and nothing
+ * (`packetFieldValues.ts`) and in the office's correction list (`editableFields.ts`, F3's card since), and nothing
  * made the four agree. This file is the list they are held to. It does not REPLACE them yet: each
  * entry names its contract path, and the parity tests derive the paths from the Zod schemas
  * themselves, so a key added to a contract without an entry here fails CI on the same merge — and
@@ -56,22 +56,41 @@ export type FactBasis =
 /**
  * Where the carrier's packet prints it: a line id (`p01.phone`), a grid column (`p02.licences#1`),
  * `{ through }` for a Part 1 fact the filing composes into an application fact (which prints it), or
- * `{ notPrinted }` with the reason. A reason that names F2 is a gap F2 closes (P1, P6, P7, P12).
+ * `{ notPrinted }` with the reason. `addendum.*` is
+ * the sheet F2 appends for what the carrier's paper has no place for (`ADDENDUM` below).
  */
 export type FactPacket = readonly string[] | { readonly through: FactPath } | { readonly notPrinted: string };
 
 /**
- * How the office corrects it today:
- * - `draft`: "Correct an answer" (`editableFields.ts` → the draft-edit route);
- * - `identity`: the identity correction beside the permissions (`applicantIdentitySchema`);
- * - `part_one`: the Part 1 correction (`partOneCorrectionSchema`);
- * - `{ none }`: no door — see this file's header.
+ * Which writer corrects it — the door the office's "Applicant facts" card uses (F3,
+ * `apps/web/src/features/apply/applicantFactRows.ts`, which reads this field and nothing else):
+ * - `draft`: the draft-edit route (`applicationEditSchema`);
+ * - `identity`: the identity correction (`applicantIdentitySchema`), the same route the Permissions
+ *   and Road-test drawers use;
+ * - `part_one`: the Part 1 correction (`partOneCorrectionSchema`), one answer at a time
+ *   (`partOneCorrectionWith`);
+ * - `part_one_answer`: one Part 1 answer the whole-set correction does not carry — the drug-and-alcohol
+ *   statements, medical card pending, endorsements, donor gender (`partOneAnswerSchema`). Like `part_one`,
+ *   an application fact with this door is the draft's on a legacy link;
+ * - `{ none }`: no door yet — see this file's header.
+ *
+ * Every door writes an `application_edits` row and stops at the driver's first packet mark (F3, E7).
  *
  * ⚠ For a v2 link, which is every invitation sent since C3c2c2: the facts a v2 filing composes from
  * Part 1 (`PART_ONE_COMPOSED_KEYS`) are corrected through Part 1, and a draft edit to them would be
- * thrown away at filing, so `editableFields` hides them. A legacy link's are draft edits.
+ * thrown away at filing, so the card sends them to Part 1 instead. A legacy link's are draft edits.
  */
-export type FactOffice = "draft" | "identity" | "part_one" | { readonly none: string };
+export type FactOffice = "draft" | "identity" | "part_one" | "part_one_answer" | { readonly none: string };
+
+/**
+ * The owner's Q-AM13 rules for the answers that are not ordinary corrections:
+ * - `statement`: the driver's own answer to a question the regulation has the employer ASK. Editable,
+ *   but only with the office's reason (`application_edits.note`, 0586), which the driver reads on 3.1.
+ * - `replace_only`: must never reach whoever decides the hire. The office may overwrite it, never read
+ *   it: the value is not sent to the browser, and its edit row records only THAT it changed
+ *   (`application_edits.withheld`, 0586).
+ */
+export type FactRule = "statement" | "replace_only";
 
 export interface ApplicantFact {
   readonly path: FactPath;
@@ -79,6 +98,7 @@ export interface ApplicantFact {
   readonly basis: FactBasis;
   readonly packet: FactPacket;
   readonly office: FactOffice;
+  readonly rule?: FactRule;
 }
 
 // ── the packet's lines that print a person's whole name ──────────────────────
@@ -96,34 +116,33 @@ export const PACKET_FULL_NAME_LINES = [
 
 const both = (field: string): string[] => [`p18.${field}`, `p19.${field}`];
 
-// ── the packet gaps F2 closes, named once ────────────────────────────────────
+// ── the addendum F2 appends ───────────────────────────────────────────────────
 
-const ADDENDUM = (item: string) => ({
-  notPrinted: `the carrier's paper has no place for it; F2's employment addendum page 12a prints it (${item})`,
-});
+/**
+ * A place on the addendum sheet (F2: P1, P6, P7, P8) — the answers the carrier's paper has no place for,
+ * appended after the continuation sheet (`apps/api/.../packet/packetAddendum.ts`). `addendum.<fact>`, or
+ * `addendum.<rows>#<column>` for a row's answer, as the carrier's grids are named.
+ */
+const ADDENDUM = (place: string): string[] => [`addendum.${place}`];
+
 const EMPTY_GRID = { notPrinted: "the answer IS the empty grid: a declaration of none prints no rows" };
 
 // ── the office gaps F3 closes, named once ────────────────────────────────────
 
-const APPLICANT_STATEMENT = {
-  none:
-    "the applicant's own statement to a question the regulation has the employer ASK; editable before signing by the "
-    + "owner's Q-AM13 ruling, with a required note and the driver's acceptance on screen 3.1 — F3's card builds that door",
-};
-const TABLE_ANSWER = {
-  none: "a table answer is four segments deep and applicationPathSchema allows three (editableFields.ts); F3's card edits rows",
-};
-const NOT_OFFERED = (why: string) => ({ none: `${why}; F3's card offers it` });
+/** The driver's own drug-and-alcohol statements (Q-AM13): corrected one at a time, with a reason. */
+const STATEMENT = { office: "part_one_answer", rule: "statement" } as const;
 
+type Door = FactOffice | { readonly office: FactOffice; readonly rule: FactRule };
+const door = (d: Door) => (typeof d === "object" && "office" in d ? d : { office: d });
 const app = (
   key: string,
   input: FactInput,
   basis: FactBasis,
   packet: FactPacket,
-  office: FactOffice = "draft",
-): ApplicantFact => ({ path: `application.${key}`, input, basis, packet, office });
-const intake = (key: string, input: FactInput, basis: FactBasis, packet: FactPacket, office: FactOffice): ApplicantFact => ({
-  path: `intake.${key}`, input, basis, packet, office,
+  office: Door = "draft",
+): ApplicantFact => ({ path: `application.${key}`, input, basis, packet, ...door(office) });
+const intake = (key: string, input: FactInput, basis: FactBasis, packet: FactPacket, office: Door): ApplicantFact => ({
+  path: `intake.${key}`, input, basis, packet, ...door(office),
 });
 
 /** The catalogue. Order is the order the driver meets the facts. */
@@ -141,18 +160,16 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   intake("licences[].agency", "text", "391.21(b)(5)", { through: "application.additional_licences[].issuing_authority" }, "part_one"),
   intake("licences[].licence_number", "text", "391.21(b)(5)", { through: "application.cdl_number" }, "part_one"),
   intake("licences[].expires_on", "date", "391.21(b)(5)", { through: "application.cdl_expires_at" }, "part_one"),
-  intake("endorsements[]", "multi_choice", "screening",
-    { notPrinted: "a declaration verified on the MVR, kept on the intake row only (0376); F2 prints it on the licence line (P12)" },
-    NOT_OFFERED("a declaration, never filed (partOneCorrectionSchema's header)")),
-  intake("prior_positive_2y", "yesno", "40.25(j)", { through: "application.prior_failed_pre_employment_test" }, APPLICANT_STATEMENT),
-  intake("dot_program_30d", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, APPLICANT_STATEMENT),
-  intake("dot_tested_6m", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, APPLICANT_STATEMENT),
-  intake("dot_random_12m", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, APPLICANT_STATEMENT),
+  intake("endorsements[]", "multi_choice", "screening", { through: "application.cdl_endorsements[]" }, "part_one_answer"),
+  intake("prior_positive_2y", "yesno", "40.25(j)", { through: "application.prior_failed_pre_employment_test" }, STATEMENT),
+  intake("dot_program_30d", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, STATEMENT),
+  intake("dot_tested_6m", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, STATEMENT),
+  intake("dot_random_12m", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, STATEMENT),
   intake("donor_gender", "choice", "screening",
     { notPrinted: "Med-Stop's donor field; must never reach anything the person deciding the hire reads (DONOR_GENDERS)" },
-    NOT_OFFERED("stored where no browser reads it, so it is REPLACE-ONLY: overwritten, never shown (Q-AM13)")),
+    { office: "part_one_answer", rule: "replace_only" }),
   intake("medical_card_pending", "yesno", "screening", { notPrinted: "a state of the documents, shown on the office drawer" },
-    NOT_OFFERED("the driver's statement that no card exists yet")),
+    "part_one_answer"),
 
   // ── (b)(2) identity ──
   app("first_name", "text", "391.21(b)(2)", ["p01.name#1", "p12.identity#1", ...PACKET_FULL_NAME_LINES]),
@@ -160,7 +177,7 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("last_name", "text", "391.21(b)(2)", ["p01.name#0", "p12.identity#0", ...PACKET_FULL_NAME_LINES]),
   app("date_of_birth", "date", "391.21(b)(2)", ["p01.dob", "p12.identity#3", "p15.dob"], "identity"),
   app("other_names[]", "names", "391.23(a)(2)", ["p12.identity#2"]),
-  app("email", "email", "391.21(b)(2)", { notPrinted: "the carrier's paper has no e-mail line; F2's addendum prints it (P7)" }),
+  app("email", "email", "391.21(b)(2)", ADDENDUM("email")),
   app("phone", "phone", "391.21(b)(2)", ["p01.phone"], "part_one"),
 
   // ── (b)(3) residence ──
@@ -169,13 +186,15 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("addresses[].city", "text", "391.21(b)(3)", ["p01.address#1", ...both("city")], "part_one"),
   app("addresses[].state", "us_state", "391.21(b)(3)", ["p01.address#2", ...both("state")], "part_one"),
   app("addresses[].postal_code", "zip", "391.21(b)(3)", ["p01.address#3", ...both("zip")], "part_one"),
-  app("addresses[].from", "month", "391.21(b)(3)", ADDENDUM("P6")),
-  app("addresses[].to", "month", "391.21(b)(3)", ADDENDUM("P6")),
+  app("addresses[].from", "month", "391.21(b)(3)", ADDENDUM("addresses#from")),
+  app("addresses[].to", "month", "391.21(b)(3)", ADDENDUM("addresses#to")),
 
   // ── (b)(5) licences ──
   app("cdl_number", "text", "391.21(b)(5)", ["p01.cdl", "p02.licences#1", ...both("cdl")], "identity"),
   app("cdl_state", "jurisdiction", "391.21(b)(5)", ["p01.cdl", "p02.licences#0", ...both("cdl_state")], "identity"),
   app("cdl_class", "choice", "391.21(b)(5)", ["p02.licences#2"], "part_one"),
+  // F2b (P12): printed with the class in the grid's TYPE column; corrected where Part 1 keeps it.
+  app("cdl_endorsements[]", "multi_choice", "screening", ["p02.licences#2"], "part_one_answer"),
   app("cdl_expires_at", "date", "391.21(b)(5)", ["p02.licences#3", ...both("cdl_expires")], "part_one"),
   app("additional_licences[].issuing_authority", "jurisdiction", "391.21(b)(5)", ["p02.licences#0"], "part_one"),
   app("additional_licences[].number", "text", "391.21(b)(5)", ["p02.licences#1"], "part_one"),
@@ -183,7 +202,7 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("additional_licences[].expires_at", "date", "391.21(b)(5)", ["p02.licences#3"], "part_one"),
 
   // ── (b)(6) experience ──
-  app("experience", "longtext", "391.21(b)(6)", ADDENDUM("P7")),
+  app("experience", "longtext", "391.21(b)(6)", ADDENDUM("experience")),
   // The class picks the ROW: the carrier printed the four class names in column 0, which is never written.
   app("equipment_experience[].equipment_class", "choice", "391.21(b)(6)", ["p02.experience"]),
   app("equipment_experience[].equipment_type", "text", "391.21(b)(6)", ["p02.experience#1"]),
@@ -206,28 +225,28 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("licence_ever_denied", "yesno", "391.21(b)(9)",
     ["p02.denied.yes", "p02.denied.no", "p02.revoked.yes", "p02.revoked.no"]),
   app("licence_denial_detail", "longtext", "391.21(b)(9)", ["p02.denied.explain"]),
-  app("prior_failed_pre_employment_test", "yesno", "40.25(j)", ["p26.prior_test.yes", "p26.prior_test.no"], APPLICANT_STATEMENT),
+  app("prior_failed_pre_employment_test", "yesno", "40.25(j)", ["p26.prior_test.yes", "p26.prior_test.no"], STATEMENT),
 
   // ── (b)(10)/(b)(11) employers ──
   app("declares_no_employment", "yesno", "391.21(b)(10)", EMPTY_GRID),
   app("employers[].employer_name", "text", "391.21(b)(10)", ["p12.employment#1"]),
-  app("employers[].usdot_number", "usdot", "391.23(a)(2)", ADDENDUM("P1")),
+  app("employers[].usdot_number", "usdot", "391.23(a)(2)", ADDENDUM("employers#usdot_number")),
   app("employers[].address_line1", "text", "391.21(b)(10)", ["p12.employment#2"]),
   app("employers[].city", "text", "391.21(b)(10)", ["p12.employment#2"]),
   app("employers[].state", "us_state", "391.21(b)(10)", ["p12.employment#2"]),
   app("employers[].phone", "phone", "391.23(a)(2)", ["p12.employment#4"]),
-  app("employers[].email", "email", "391.23(a)(2)", ADDENDUM("P1")),
+  app("employers[].email", "email", "391.23(a)(2)", ADDENDUM("employers#email")),
   app("employers[].position_held", "text", "391.21(b)(10)", ["p12.employment#3"]),
   app("employers[].started_on", "date", "391.21(b)(10)", ["p12.employment#0"]),
   app("employers[].ended_on", "date", "391.21(b)(10)", ["p12.employment#0"]),
-  app("employers[].operated_cmv", "yesno", "391.21(b)(11)", ADDENDUM("P1")),
-  app("employers[].dot_regulated", "yesno", "391.23(a)(2)", ADDENDUM("P1")),
-  app("employers[].reason_for_leaving", "longtext", "391.21(b)(10)", ADDENDUM("P1")),
-  app("employers[].subject_to_fmcsr", "yesno", "391.21(b)(10)", ADDENDUM("P1")),
-  app("employers[].safety_sensitive", "yesno", "391.21(b)(10)", ADDENDUM("P1")),
-  app("employment_gaps[].from", "date", "391.21(b)(10)", ADDENDUM("gap explanations")),
-  app("employment_gaps[].to", "date", "391.21(b)(10)", ADDENDUM("gap explanations")),
-  app("employment_gaps[].explanation", "longtext", "391.21(b)(10)", ADDENDUM("gap explanations")),
+  app("employers[].operated_cmv", "yesno", "391.21(b)(11)", ADDENDUM("employers#operated_cmv")),
+  app("employers[].dot_regulated", "yesno", "391.23(a)(2)", ADDENDUM("employers#dot_regulated")),
+  app("employers[].reason_for_leaving", "longtext", "391.21(b)(10)", ADDENDUM("employers#reason_for_leaving")),
+  app("employers[].subject_to_fmcsr", "yesno", "391.21(b)(10)", ADDENDUM("employers#subject_to_fmcsr")),
+  app("employers[].safety_sensitive", "yesno", "391.21(b)(10)", ADDENDUM("employers#safety_sensitive")),
+  app("employment_gaps[].from", "date", "391.21(b)(10)", ADDENDUM("gaps#from")),
+  app("employment_gaps[].to", "date", "391.21(b)(10)", ADDENDUM("gaps#to")),
+  app("employment_gaps[].explanation", "longtext", "391.21(b)(10)", ADDENDUM("gaps#explanation")),
 
   // ── the carrier's questionnaire (`questionnaireContract.ts`) ──
   app("questionnaire_answers.position", "text", "carrier", ["p01.position"]),
@@ -236,17 +255,23 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("questionnaire_answers.legally_work", "yesno", "carrier", ["p01.legally_work"]),
   app("questionnaire_answers.proof_of_age", "yesno", "carrier", ["p01.proof_of_age"]),
   app("questionnaire_answers.may_contact_employers", "yesno", "391.23(a)(2)", ["p01.contact_employers"]),
-  app("questionnaire_answers.education[]", "table", "carrier", ["p16.education"], TABLE_ANSWER),
+  app("questionnaire_answers.education[]", "table", "carrier", ["p16.education"]),
   app("questionnaire_answers.military_service", "yesno", "carrier", ["p16.military"]),
   app("questionnaire_answers.military_when", "text", "carrier", ["p16.military_when"]),
   app("questionnaire_answers.other_training", "longtext", "carrier", ["p16.training.1", "p16.training.2", "p16.training.3"]),
-  app("questionnaire_answers.references", "table", "carrier", ["p16.references"], TABLE_ANSWER),
+  app("questionnaire_answers.references", "table", "carrier", ["p16.references"]),
   app("questionnaire_answers.eeo", "choice", "carrier",
     { notPrinted: "reserved: never shown to the person deciding the hire (questionnaireContract's eeo key)" },
-    NOT_OFFERED("reserved, read by no reviewer, so it is REPLACE-ONLY: overwritten, never shown (Q-AM13)")),
+    {
+      none:
+        "NEVER ASKED: no screen writes the reserved key (questionnaireAnswers' `eeo` is only a schema slot), so there is "
+        + "no answer to correct; Q-AM13's replace-only rule applies the day a screen asks it",
+    }),
+  // One fact for every question the carrier wrote: the card lays it out once per question on THIS
+  // applicant's stamp, each with its kind's control (`applicantFactRows`), and the API checks a correction
+  // against that stamp (`carrierAnswerRefusal`) — the draft does not carry it (Q-CQ7). F3c part 2, step 5.
   app("carrier_answers", "choice", "carrier",
-    { notPrinted: "printed on the application's own questions page (questionnairePage.ts), not on the carrier's paper" },
-    { none: "labelled only by the invitation's stamp, which the draft does not carry (Q-CQ7)" }),
+    { notPrinted: "printed on the application's own questions page (questionnairePage.ts), not on the carrier's paper" }),
 
   // ── the one fact on its own endpoint ──
   {
@@ -254,7 +279,11 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
     input: "text",
     basis: "391.21(b)(2)",
     packet: { notPrinted: "never drawn (D-HIRE6); printing the last four is Q-AM3" },
-    office: NOT_OFFERED("write-only on its own endpoint (D-APP3)"),
+    office: {
+      none:
+        "exists only AFTER signing: the driver types it on the sign-off screen and it is sealed into driver_applications "
+        + "(D-APP3), so before signing there is nothing to replace — the door needs an owner ruling (APPLICATION-FIX-PLAN §7)",
+    },
   },
 ];
 
@@ -282,3 +311,28 @@ export const OFF_CONTRACT_FACTS: readonly FactPath[] = ["ssn"];
 
 export const applicantFact = (path: FactPath): ApplicantFact | undefined =>
   APPLICANT_FACTS.find((f) => f.path === path);
+
+/**
+ * The catalogue entry for one application path, as the edit routes address it: `["phone"]`,
+ * `["addresses", 1, "city"]` (a row's column, by index or key), `["questionnaire", "eeo"]` (the draft's
+ * name for `questionnaire_answers`). Undefined for a path no fact claims.
+ */
+export function applicationFactAt(path: readonly (string | number)[]): ApplicantFact | undefined {
+  const [head, at, column] = path;
+  const key = head === "questionnaire" ? "questionnaire_answers" : String(head ?? "");
+  if (key === "questionnaire_answers" && typeof at === "string") return applicantFact(`application.${key}.${at}`);
+  if (at === undefined) return applicantFact(`application.${key}`);
+  if (column === undefined) return applicantFact(`application.${key}[]`);
+  return applicantFact(`application.${key}[].${String(column)}`);
+}
+
+/** The Part 1 key an application fact is composed from (`{ through }`), e.g. `prior_failed_pre_employment_test` → `prior_positive_2y`. */
+export function partOneKeyThrough(applicationPath: FactPath): string | undefined {
+  // A set answer (the endorsements) is catalogued as a list, `…[]`, and addressed as the whole set.
+  const bare = (p: string) => p.replace(/\[\]$/, "");
+  const from = APPLICANT_FACTS.find(
+    (f) => f.path.startsWith("intake.") && !Array.isArray(f.packet) && "through" in f.packet
+      && bare(f.packet.through) === bare(applicationPath),
+  );
+  return from && bare(from.path.slice("intake.".length));
+}

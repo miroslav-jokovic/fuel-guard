@@ -195,8 +195,9 @@ export function buildReviewSummary({ draft, questionnaire, carrier, captures }: 
         { label: "Where", value: text([e.address_line1.trim(), e.city.trim(), e.state.trim() ? place(e.state) : ""].filter((p) => p).join(", ")) },
         { label: c.employment.phone, value: text(e.phone) },
         { label: c.employment.reason, value: text(e.reason_for_leaving) },
-        { label: c.employment.operatedCmv, value: yesNo(e.operated_cmv) },
-        { label: c.employment.dotRegulated, value: yesNo(e.dot_regulated) },
+        // F1 part 2: unanswered until tapped, like the (iv) pair below — "Not answered", never "Yes".
+        { label: c.employment.operatedCmv, value: answered(e.operated_cmv) },
+        { label: c.employment.dotRegulated, value: answered(e.dot_regulated) },
         // (b)(10)(iv)(A)/(B) (C3c1): filed, and now printed on the PDF, so shown before it is sent too.
         // `null` is unanswered since C3c2b (Q-AW33): `copy.empty` ("Not answered", as the PDF says), never "No".
         { label: c.employment.subjectToFmcsr, value: answered(e.subject_to_fmcsr) },
@@ -273,7 +274,7 @@ export function buildReviewSummary({ draft, questionnaire, carrier, captures }: 
         // answer on the form for what the carrier has to do next.
         {
           label: c.safety.priorTestHeading,
-          value: yesNo(draft.prior_failed_pre_employment_test),
+          value: answered(draft.prior_failed_pre_employment_test),
           muted: !draft.prior_failed_pre_employment_test,
         },
       ],

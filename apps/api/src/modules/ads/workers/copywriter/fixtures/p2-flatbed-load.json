@@ -80,51 +80,51 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:23:20.227Z",
+    "recorded_at": "2026-11-11T04:59:41.829Z",
     "output": {
       "candidates": [
         {
           "en": {
             "pay": "$450 per load",
             "cta": "Apply today",
-            "primary_text": "Flatbed drivers earn $450 per load and are home weekends. If you hold a Class A CDL and want a flatbed run with steady freight and a weekend home time, this is the seat. Apply today.",
-            "headline": "Class A flatbed, home weekends"
+            "primary_text": "Class A flatbed drivers: $450 per load, home weekends. If you want to know what you earn before you roll, this is that job. Apply today.",
+            "headline": "Flatbed, home weekends"
           },
           "es": {
             "pay": "$450 por carga",
             "cta": "Aplica hoy",
-            "primary_text": "Conductores de plataforma ganan $450 por carga y regresan a casa los fines de semana. Si tienes CDL Clase A y buscas una ruta de flatbed con carga constante y tiempo en casa, este trabajo es para ti.",
-            "headline": "Flatbed Clase A, fines de semana"
+            "primary_text": "Conductores de tráiler plataforma con licencia clase A: $450 por carga y en casa los fines de semana. Sabes lo que ganas antes de salir. Aplica hoy.",
+            "headline": "Plataforma, casa fines de semana"
           }
         },
         {
           "en": {
             "pay": "$450 per load",
-            "cta": "Join our team",
-            "primary_text": "Home weekends, $450 per load — that is what this flatbed seat pays. Class A CDL drivers, the freight is there and the schedule gets you home. Come run flatbed with us.",
-            "headline": "Home weekends, flatbed seat"
+            "cta": "Join us today",
+            "primary_text": "Home weekends, $450 per load — Class A flatbed drivers, this run is built around you. Steady freight, a number you can count on. Come drive with us.",
+            "headline": "Home every weekend"
           },
           "es": {
             "pay": "$450 por carga",
-            "cta": "Únete al equipo",
-            "primary_text": "Casa los fines de semana y $450 por carga — eso es lo que paga este puesto de plataforma. Conductores con CDL Clase A, la carga está disponible y el horario te lleva a casa cada semana.",
-            "headline": "Fines de semana en casa, flatbed"
+            "cta": "Únete hoy",
+            "primary_text": "En casa los fines de semana y $450 por carga. Conductores clase A de plataforma: una ruta estable con un pago claro. Únete al equipo.",
+            "headline": "En casa cada fin de semana"
           }
         },
         {
           "en": {
             "pay": "$450 per load",
-            "cta": "Get started",
-            "primary_text": "This is a Class A flatbed run: $450 per load, home weekends. No guessing what you will make — the number is $450 every load you turn. CDL Class A required. Get started now.",
-            "headline": "Flatbed — $450 every load"
+            "cta": "Start now",
+            "primary_text": "Flatbed, Class A. You get $450 per load and you are home weekends. No guessing what the check looks like — the number is right here. Take a look and apply.",
+            "headline": "Flatbed pays $450 a load"
           },
           "es": {
             "pay": "$450 por carga",
-            "cta": "Comienza ya",
-            "primary_text": "Esta es una ruta de plataforma Clase A: $450 por carga, en casa los fines de semana. Sin adivinar cuánto ganarás — son $450 por cada carga. Se requiere CDL Clase A. Comienza ya.",
-            "headline": "$450 por carga, flatbed Clase A"
+            "cta": "Empieza hoy",
+            "primary_text": "Plataforma, clase A. Ganas $450 por carga y llegas a casa los fines de semana. El número está claro desde el principio. Revisa la oferta y aplica.",
+            "headline": "Plataforma: $450 por carga"
           }
         }
       ]

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fuelReportTotals, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelReport, type FuelReportDay } from "@silvicom/shared";
+import { fuelCostsToQuery, fuelReportTotals, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelReport, type FuelReportDay } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 
 /** The tool's answer is `unknown` to its caller (it goes to the model as JSON); tests read named fields. */
@@ -122,6 +122,23 @@ describe("assistantFuelReport", () => {
     expect(out.previous_period).toMatchObject({ mpg: null, mpg_unavailable_because: "Too few trucks measured" });
     expect(out.scope).toEqual({ units: ["748", "751"], not_found: [], other_rows_for_these_units: [{ unit: "748 - OLD", status: "retired" }] });
     expectOrgScoped(rec, ORG);
+  });
+
+  // F21 R4b: the link a hand-built URL would get wrong three ways — unit numbers where the page takes
+  // vehicle ids, "last quarter" where the page takes days, and an exclusive end where the page's `to`
+  // is the last day INCLUDED.
+  it("links to Fuel costs with the answer's own days and the named trucks by vehicle id, built by the page's contract", async () => {
+    const out = (await assistantFuelReport(recorder().client, ORG, { units: ["748", "751"], period: "last_quarter" }, NOV_10)) as Out;
+    expect(out.link).toEqual({ surfaceKey: "fuel.spend", query: { from: "2026-07-01", to: "2026-09-30", trucks: "v748,v751" } });
+    expect(out.link.query).toEqual(fuelCostsToQuery({ from: "2026-07-01", to: "2026-09-30", vehicleIds: ["v748", "v751"] }));
+    // The whole fleet carries no truck key: on this page an empty list means all, and `trucks=` would not.
+    const fleet = (await assistantFuelReport(recorder().client, ORG, { period: "last_month" }, NOV_10)) as Out;
+    expect(fleet.link).toEqual({ surfaceKey: "fuel.spend", query: { from: "2026-10-01", to: "2026-10-31" } });
+  });
+
+  it("gives no link when it gives no answer", async () => {
+    const none = (await assistantFuelReport(recorder().client, ORG, { units: ["999"] }, NOV_10)) as Out;
+    expect(none.link).toBeUndefined();
   });
 
   it("names units it cannot find, and never answers with the fleet when none are found", async () => {

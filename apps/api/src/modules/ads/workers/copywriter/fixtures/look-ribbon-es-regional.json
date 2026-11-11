@@ -1,0 +1,175 @@
+{
+  "name": "look-ribbon-es-regional",
+  "about": "The ribbon look's five roles: P5 Straight talk: A Spanish subject, pay per mile, home weekends. A kicker and a second line are drawn with the headline.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Conductor de camión Clase A, regional",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 66,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekends"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P5 Straight talk",
+      "hook_formula": "Three cards: what you get, what we need, how to apply. Plain and short.",
+      "copy_slots": [
+        {
+          "name": "card_get",
+          "max_chars": 90
+        },
+        {
+          "name": "card_need",
+          "max_chars": 90
+        },
+        {
+          "name": "card_apply",
+          "max_chars": 60
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 220
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "A plain {color} card background with soft texture, no text, no logos, no lettering",
+      "image_slots": [
+        "color"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "ribbon",
+      "formats": [
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "card_get",
+        "cta": "cta",
+        "kicker": "kicker",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": null,
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-11T04:51:05.138Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "card_get": "$0.66 per mile. Home weekends. Regional routes.",
+            "card_need": "Class A CDL and a clean record. Ready to run regional.",
+            "card_apply": "Hit apply and let's get you started.",
+            "cta": "Apply now",
+            "primary_text": "Regional Class A drivers: $0.66 per mile and home weekends. Short hauls, steady miles, and a schedule that brings you back every weekend. Apply today.",
+            "headline": "$0.66 a mile",
+            "kicker": "Class A regional",
+            "second_line": "Home weekends"
+          },
+          "es": {
+            "card_get": "$0.66 por milla. En casa los fines de semana. Rutas regionales.",
+            "card_need": "CDL clase A y récord limpio. Listo para rutas regionales.",
+            "card_apply": "Aplica y te ponemos a rodar.",
+            "cta": "Aplica hoy",
+            "primary_text": "Conductores clase A: $0.66 por milla en rutas regionales. Regresas a casa los fines de semana. Millas constantes cerca de casa. Únete al equipo hoy.",
+            "headline": "$0.66 por milla",
+            "kicker": "Clase A regional",
+            "second_line": "Casa fin de semana"
+          }
+        },
+        {
+          "en": {
+            "card_get": "Home every weekend. $0.66 per mile on regional lanes.",
+            "card_need": "Class A CDL holder ready for regional driving.",
+            "card_apply": "Apply today and get back on the road.",
+            "cta": "Apply today",
+            "primary_text": "Home weekends, every weekend. Regional Class A run at $0.66 per mile. If you have a Class A CDL and want to be home when it counts, apply now.",
+            "headline": "Home weekends",
+            "kicker": "Class A regional",
+            "second_line": "$0.66 per mile"
+          },
+          "es": {
+            "card_get": "En casa los fines de semana. $0.66 por milla, rutas regionales.",
+            "card_need": "CDL clase A. Disponible para rutas regionales.",
+            "card_apply": "Aplica hoy y vuelve a la carretera.",
+            "cta": "Aplica hoy",
+            "primary_text": "Regresas a casa cada fin de semana. Ruta regional clase A a $0.66 por milla. Si tienes CDL clase A y quieres estar en casa cuando importa, aplica ahora.",
+            "headline": "Casa los fines de semana",
+            "kicker": "Clase A regional",
+            "second_line": "$0.66 por milla"
+          }
+        },
+        {
+          "en": {
+            "card_get": "Regional Class A run: $0.66/mile, home every weekend.",
+            "card_need": "Class A CDL. Clean record. Ready to run regional lanes.",
+            "card_apply": "Three steps: apply, interview, roll out.",
+            "cta": "Start here",
+            "primary_text": "Regional driving at $0.66 per mile. You run the lanes, you're home weekends. Class A CDL required. If that fits your life, apply and let's talk.",
+            "headline": "Regional, $0.66/mile",
+            "kicker": "Now hiring: Class A",
+            "second_line": "Home weekends"
+          },
+          "es": {
+            "card_get": "Ruta regional clase A: $0.66 por milla, en casa los fines de semana.",
+            "card_need": "CDL clase A. Historial limpio. Listo para rutas regionales.",
+            "card_apply": "Aplica, entrevista y a rodar.",
+            "cta": "Empieza aquí",
+            "primary_text": "Conducción regional a $0.66 por milla. Rutas de ida y vuelta, en casa los fines de semana. Se requiere CDL clase A. Si esto encaja con tu vida, aplica hoy.",
+            "headline": "Regional, $0.66/milla",
+            "kicker": "Se busca: clase A",
+            "second_line": "Casa fin de semana"
+          }
+        }
+      ]
+    }
+  }
+}

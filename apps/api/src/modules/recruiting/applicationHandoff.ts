@@ -52,6 +52,10 @@ export interface ApplicantVisibleEdit {
   path: ApplicationPath;
   before: unknown;
   after: unknown;
+  /** F3 (0586): the office's reason for changing the driver's own statement — theirs to read before signing. */
+  note: string | null;
+  /** F3 (0586): a replace-only answer; the driver is told it was replaced, and is not shown it here. */
+  withheld: boolean;
   editedAt: string;
 }
 
@@ -63,14 +67,16 @@ export async function applicantVisibleEdits(
 ): Promise<ApplicantVisibleEdit[]> {
   const { data } = await admin
     .from("application_edits")
-    .select("path, before, after, edited_at")
+    .select("path, before, after, note, withheld, edited_at")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .order("edited_at", { ascending: true });
 
   return (data ?? []).map((row) => {
-    const e = row as { path: ApplicationPath; before: unknown; after: unknown; edited_at: string };
-    return { path: e.path, before: e.before, after: e.after, editedAt: e.edited_at };
+    const e = row as { path: ApplicationPath; before: unknown; after: unknown; note?: string | null; withheld?: boolean; edited_at: string };
+    return {
+      path: e.path, before: e.before, after: e.after, note: e.note ?? null, withheld: e.withheld === true, editedAt: e.edited_at,
+    };
   });
 }
 

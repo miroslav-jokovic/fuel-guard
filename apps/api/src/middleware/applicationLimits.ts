@@ -276,6 +276,27 @@ export function unlockLimiter(): RequestHandler {
 }
 
 /**
+ * "Send me a code", `POST /<token>/unlock-code` (F0b): three codes per link per hour.
+ *
+ * ⚠ Keyed by the LINK, for `textLinkLimiter`'s reason: what is protected is the applicant's inbox and
+ * phone. Three is a code that did not arrive, a second try, and the other channel; more inside an hour
+ * is not a driver who needs one. With five tries per code (0585) that is fifteen guesses an hour at a
+ * million six-digit values — and the guesses are counted again by `unlockLimiter`'s own bucket on verify.
+ */
+export const UNLOCK_CODE_SEND_LIMIT = 3;
+
+export function unlockCodeLimiter(): RequestHandler {
+  return rateLimit({
+    windowMs: 60 * 60_000,
+    limit: UNLOCK_CODE_SEND_LIMIT,
+    keyGenerator: applicationLinkKey,
+    standardHeaders: false,
+    legacyHeaders: false,
+    handler: refuse("unlock-code", "We have already sent a few codes. Use the newest one, or try again in an hour."),
+  });
+}
+
+/**
  * Agreeing to texts, `POST /<token>/sms-consent`: five per link per ten minutes.
  *
  * Each NEW agreement sends one confirmation text to the number given (D-SMS5), and the number is the

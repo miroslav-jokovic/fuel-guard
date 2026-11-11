@@ -150,9 +150,9 @@ describe("map tiles have a budget of their own", () => {
     expect(MAP_TILE_RATE_LIMIT_PER_CALLER).toBeGreaterThanOrEqual(10 * MEASURED_HEAVY_ZOOM_WALK_TILES);
   });
 
-  it("sizes the tile address ceiling on thirty seats' usage, not on thirty tile budgets", () => {
-    expect(MAP_TILE_RATE_LIMIT_PER_ADDRESS).toBeGreaterThanOrEqual(30 * 2 * MEASURED_HEAVY_ZOOM_WALK_TILES);
-    expect(MAP_TILE_RATE_LIMIT_PER_ADDRESS).toBeLessThan(30 * MAP_TILE_RATE_LIMIT_PER_CALLER);
+  it("sizes the tile address ceiling on forty seats' usage, not on forty tile budgets", () => {
+    expect(MAP_TILE_RATE_LIMIT_PER_ADDRESS).toBeGreaterThanOrEqual(40 * 2 * MEASURED_HEAVY_ZOOM_WALK_TILES);
+    expect(MAP_TILE_RATE_LIMIT_PER_ADDRESS).toBeLessThan(40 * MAP_TILE_RATE_LIMIT_PER_CALLER);
   });
 });
 

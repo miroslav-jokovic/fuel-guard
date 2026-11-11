@@ -226,14 +226,20 @@ A gate fails on a literal string in an `apply/` template.
 
 | ID | Question | Options | Recommendation |
 |---|---|---|---|
-| Q-AM1 | Can the office send ONE question back to the driver? | (a) yes, a per-question "ask again" that re-opens just that field; (b) no, only revoke and re-invite | **(a)**. Revoke and re-invite discards everything. |
+| Q-AM1 | Can the office send ONE question back to the driver? | ANSWERED 2026-11-11 (owner, "as proposed"): **(a)**, a per-question "ask again" (F5) | — |
 | Q-AM2 | Correct facts after filing? | ANSWERED 2026-11-09: **(b)**. Anything can be edited before signing; nothing after (owner) | — |
-| Q-AM3 | Does the SSN print on the packet (it reverses D-HIRE6)? | (a) print it; (b) print the last 4; (c) blank, as today | **(b)**. The boxes aren't blank, and the full SSN isn't on a PDF that gets emailed. |
-| Q-AM4 | Is page 21 (seven-day statement) used? | (a) yes, the driver fills it; (b) remove it from the packet | Owner's call: it depends on whether new hires drove in the last 7 days. |
-| Q-AM5 | Which carrier-only requirements stay required? (email, phone, donor gender, CDL photos, medical card, selfie, 7 carrier questions, gaps over 30 days) | per item | Keep phone **or** email, CDL photo (skippable to "pending"), medical card or pending. The rest stays required but labelled as the carrier's. |
-| Q-AM6 | Spelling on the driver's side | US / British | **US**. The drivers and the regulation say "license". |
+| Q-AM3 | Does the SSN print on the packet (it reverses D-HIRE6)? | ANSWERED 2026-11-11 (owner): **(a) print the full SSN**, reversing D-HIRE6's blank. "The application is given to nobody; only to the driver and filed with us. The driver owns the SSN." The driver enters it in the FORM (not only at sign-off) and the office reviews it like every answer. **Admin and safety see all nine digits; everyone else sees the last four and may only replace it** — a new named permission, not Q-WF4b's picture permission, which also ships to the recruiter. See Q-AM17 | — |
+| Q-AM4 | Is page 21 (seven-day statement) used? | ANSWERED 2026-11-11 (owner): **(a)**, the driver fills page 21 at signing. "Most of the time we will update it and put all zeros." It reverses the 2026-08-23 move to the hire (`sevenDayStatement.ts`, D-PKT7): the statement returns to the packet, the office corrects it before signing like any answer, and the driver page's form stays for a start date that falls too long after signing | — |
+| Q-AM5 | Which carrier-only requirements stay required? (email, phone, donor gender, CDL photos, medical card, selfie, 7 carrier questions, gaps over 30 days) | ANSWERED 2026-11-11 (owner, "as proposed"): phone **or** email; CDL photo skippable to "pending"; medical card or pending; the rest required but labelled as the carrier's. Every document photo is optional (already so: `APPLICATION_CAPTURE_REQUIRED` is empty) | — |
+| Q-AM6 | Spelling on the driver's side | ANSWERED 2026-11-11 (owner, "as proposed"): **US** | — |
 | Q-AM7 | Wizard granularity | ANSWERED 2026-11-09: one question per screen, grouped only for one fact (D-AM2/D-AM3); see APPLICATION-SCREEN-MAP.md | — |
 | Q-AM13 | Can the office edit the driver's own statements: §40.25(j) (prior positive test or refusal) and the three §382.301(b) testing-program answers? | ANSWERED 2026-11-10 (owner): **yes, every answer is editable before signing**, "because drivers make mistakes and we need control over any mistake". Built as (c). These four edits require a note and are audited as office-entered. Like every edit (D-AM7), the driver sees and accepts them on screen 3.1 before signing, so the signed document is still their statement. The donor gender and the EEO answers are **replace-only**: the office can overwrite them but never sees them, like the SSN, because they must not reach whoever decides the hire. Nothing is editable after signing (Q-AM2). | — |
+| Q-AM14 | An office correction and its `application_edits` row are two writes, not one transaction (`applicationEditLog.ts`). If the second fails, the change is made but the driver is not shown it, and a retry finds nothing to log. Close the window? | ANSWERED 2026-11-11 (owner): **(a)**, one transaction, built with F4's draft-function work | — |
+| Q-AM15 | The rows of addresses, other names, licences, equipment, accidents and convictions have no key, so an office correction records a POSITION (`["addresses", 2, "city"]`). The office's own removals are replayed by every reader (`currentEditPaths`, F3c part 2). But when the DRIVER deletes or reorders a row on their phone after an office correction, nothing is logged, so the card and 3.1 point the correction at the wrong row. Close it? | ANSWERED 2026-11-11 (owner, "as proposed"): **(a)**, a stable `key` on every row | — |
+| Q-AM16 | When the office corrects an applicant's email, the invitation's email now moves (E3), but `drivers.email` does not. No application path has ever written it: the roster owns the row, and a recruiter does not hold the roster section. So a later re-invite starts from the old address, and the Recruiting list shows it. Move it too? | ANSWERED 2026-11-11 (owner, "as proposed"): **(a)**, through a roster-owned RPC | — |
+| Q-AM17 | Who may read the full SSN once the driver types it in the form? | ANSWERED 2026-11-11 (owner): **admin and safety**; everyone else the last four, replace-only. A named switch in Settings → Permissions, shipped to the safety manager, the admin holding it always (`CLOSE_APPLICATION_PERMISSION`'s pattern) | — |
+| Q-AM18 | EEO self-identification: ask it? | ANSWERED 2026-11-11 (owner): **only if the carrier's paper asks it.** `application-11.pdf` prints the equal-opportunity STATEMENT (page 1 and "Qualifications") and no self-identification questions, so it is not asked and the reserved `eeo` key goes. The owner's rule, kept for every question: **the online form is a prefill of the carrier's paper application, and the paper decides what is asked** | — |
+| Q-AM19 | Documents | ANSWERED 2026-11-11 (owner): every document photo stays optional; **the office can send a separate documents-only link at any time**, opening just the photo list; photos are **normalised to scan quality** (cropped to the card, straightened, evened) so nobody scans them separately. Both are new builds | — |
 
 ## 6. Size and order
 
@@ -289,3 +295,163 @@ A gate fails on a literal string in an `apply/` template.
   - **Next:** F1 part 2 (the yes/no answers with no default, moved from F0), then F0b.
   - **New question:** Q-AM13.
 - 2026-11-10: owner answered Q-AM13: every answer is office-editable before signing. The four drug-test statements need a note, and they reach the driver for acceptance on 3.1. Donor gender and EEO are replace-only. F3's card builds these doors. The catalogue's `office` reasons now name F3 instead of an open question.
+- 2026-11-10: F1 part 2 is on `claude/application-f1-yesno`. This is the F0 row "Legacy unticked → No; defaults of Yes", which moved into F1.
+  - **No question starts answered any more:**
+    - each job's "Did you drive a truck?" (`operated_cmv`) and "Was this employer regulated by the DOT?" (`dot_regulated`). Both used to start at Yes (audit finding 15);
+    - a legacy link's §40.25(j) question. It was an unticked checkbox, so skipping it filed No (finding 13). It is now a Yes/No question.
+  - **The contract:** the two employer fields became `.nullish()`, so a draft can hold an unanswered job and the office's correction path still parses it.
+  - **Where a blank is refused:**
+    - the hand-off and the filing (`unansweredEmployerQuestions`, in `driverApplicationSchema`'s refinement);
+    - the job panel's Save, for the applicant and the office alike (`employerProblems`);
+    - the wizard's jobs screen.
+    - A legacy filing is refused without §40.25(j) (`applicationLegacyFilingIssues` in `applicationSubmit`). A v2 link already asks it in Part 1.
+  - **Kept:** the "answer Yes if unsure" asymmetry now lives in the hint, in English and Spanish. A PSP-suggested job still arrives as Yes/Yes, because PSP's own record is the evidence.
+  - **Fixed along the way:** the office record's rule that dropped a Yes on a row whose answer was never recorded. The form now shows such a row as unanswered, so a Yes there is the office's answer and is sent.
+  - **Next:** F0b (the one-time code for the DOB unlock).
+- 2026-11-10: F0b is on `claude/application-f0b-unlock-code`. This is the F0 row "DOB typo locks driver out".
+  - **What the driver gets:** once a date of birth has failed, the unlock screen offers "Email me a code" and "Text me a code". The code goes only where the link went:
+    - the invitation's own email;
+    - or the number they agreed to be texted on.
+    - The request names a channel, never an address.
+  - **What the code is:** six digits, 10 minutes, 5 tries. Only the newest code counts. A right code releases exactly what the date of birth would (`releasedView`, shared with `/unlock`).
+  - **What the office sees:** "The date of birth on file may be wrong", with when the code was used. The office corrects the date in Identity (Q-AM13).
+  - **Table:** migration 0585 `application_unlock_codes` (hashes only, 90-day retention; `audit_logs` keeps each send and use).
+  - **Limits:** sends are 3 per link per hour (`unlockCodeLimiter`); verifies use the unlock's own 10 per 10 minutes.
+  - **Departures from the row:**
+    - The office "reset the DOB" already exists: it is Identity correction. Nothing new was built for it.
+    - The code does not reset a sent sign link's five-try count. A link already stopped gives no code; "send it again" stays its remedy (D-AW14).
+  - **Not built:** the remembered-device token from U2. It belongs to F4.
+  - **Production, read-only on 2026-11-10:** 5 invitations, all with an email, 4 with SMS consent, 0 sign-link lockouts. Email covers everyone today.
+  - **Next:** F2 and F3, in parallel on F1.
+- 2026-11-10: F3 has started. Two merges so far.
+  - **#2195 (merged):** migration **0586** gives `application_edits` a `note` column and a `withheld` flag. A withheld row holds no values, and a CHECK enforces that. These are for the Q-AM13 doors still to come: the drug-test statements need a note, and donor gender and EEO are replace-only.
+  - **`claude/application-f3-card`:** the "Applicant facts" card on the office's review drawer.
+    - **What it is:** every application fact the catalogue gives a door, once, grouped by the section the driver met it in.
+    - **How it edits:** each answer is edited with its own control (typed date, state list, Yes/No, choice), never a stored-format box (E8).
+    - **Where a save goes:** through the writer that holds the answer. Draft answers go to the draft edit. The date of birth and current licence go to the identity correction. On a v2 link, the phone, the current street, the CDL class and expiry, and every Part 1 licence go to the Part 1 correction, one answer at a time (`partOneCorrectionWith`).
+    - **Retired:** "Correct an answer" (`ApplicationAnswerList`, `editableFields`) and the Part 1 form (`PartOneCorrection`).
+    - **The F0b notice** now points at the card.
+  - **Server, E7:**
+    - The Part 1 and identity corrections now write an `application_edits` row per changed answer, addressed where the application files it (`partOneEdits`, held to `composeFiledApplication` by test). The driver sees them on 3.1. Until now they wrote only an audit row.
+    - All three office corrections stop at the driver's first packet mark. Part 1 and identity used to stop at filing.
+    - `applicationEditLog.ts` is now the one writer of `application_edits`.
+    - The review response says `signingStarted`. The card's Part 1 and identity rows stay open before the form is sent, while the office screens, as the old Part 1 form did.
+  - **Not yet:**
+    - the jobs and gaps (still in `OfficeJobsSection`);
+    - adding and removing rows (E2);
+    - email and phone moving the invitation's contact (E3);
+    - the 13 gap facts (`applicantFacts.test.ts` snapshot unchanged);
+    - pointing the Permissions and Road-test drawers' identity copy at the card.
+  - **Found:**
+    - The SSN exists only after signing. The driver types it on the sign-off screen and it is sealed into `driver_applications`, so there is nothing for the office to replace before signing. That catalogue entry's door needs a ruling, not a build.
+    - New question: Q-AM14.
+- 2026-11-10: F3 part 1 merged (#2195 migration 0586, #2199 the card). F3c part 1 is on `claude/application-f3c-statements`: the owner's Q-AM13 exceptions.
+  - **New door, `part_one_answer`** (`partOneAnswerSchema`, `POST …/part-one/answer`). It corrects ONE Part 1 answer the whole-set correction does not carry. It goes through the same writer, `record_applicant_intake`, overwriting only that key. No migration was needed: the function writes only the keys sent, and `drivers` keeps the rest.
+  - **The driver's four drug-and-alcohol statements** (§40.25(j), the three §382.301(b) answers) have the catalogue rule `statement`.
+    - A reason is required on the card, on the route, and on a legacy link's draft §40.25(j) (`note_required`).
+    - The reason is kept on the edit row (`application_edits.note`).
+    - The driver reads it beside the change on 3.1.
+  - **Donor gender** has the rule `replace_only`.
+    - The review sends only `donorGenderGiven`, and `partOneForFiling` now names its fields instead of spreading the intake row.
+    - The editor opens empty.
+    - The edit row is withheld: no values, held by 0586's CHECK.
+    - 3.1 says "They replaced this answer…" and nothing more.
+  - **Endorsements** (checkboxes, as the wizard has) and **"I don't have a medical card yet"** are ordinary Part 1 answers now.
+  - **The office-gap snapshot went from 13 facts to 5:** education, references, EEO, carrier answers, SSN.
+  - **Two of those are not builds, and need owner rulings:**
+    - **EEO is never asked.** No screen writes the reserved `eeo` key, so there is no driver answer to correct. Replace-only applies the day a screen asks it.
+    - **The SSN exists only after signing.** The driver types it on the sign-off screen and it is sealed into `driver_applications` (D-APP3), so before signing there is nothing to replace. With Q-AM3 (last 4 on the packet), the question is whether the office may type an SSN before the driver signs.
+  - **Next (F3c part 2):**
+    - the jobs and gaps into the card;
+    - adding and removing rows (E2);
+    - email and phone moving the invitation's contact (E3);
+    - the education and references tables;
+    - the carrier's own answers;
+    - the Permissions and Road-test drawers pointing at the card.
+- 2026-11-10: F3c part 2, step 1 — **the jobs and gaps are on the card** (`claude/application-f3c-jobs`).
+  - **Decision:** the jobs timeline and its one employer form (`OfficeJobsSection`) are now the card's Employment group, drawn under the group's own rows. They were a second section of the drawer under the card. Jobs are not made into rows: a job is added, removed and corrected by its key (Q-AX7), a gap is explained against the timeline's dates, and the PSP record is read against all the jobs. None of that is one answer with a before and after. So there is still ONE editor of a job, and every answer is on the one card.
+  - **The card's search finds the jobs** (`jobsMatch`): by the employer's name, by the employer form's labels, or by "job", "gap" or "employment". Before, the timeline could never match a search because it is not rows.
+  - **Once every door is shut** (a view-only reader, signing started, filed), the card is not drawn. The timeline then stays on the drawer read-only, beside the PSP record, as it did before.
+  - **Next:** step 2, adding and removing rows (E2).
+- 2026-11-10: F3c part 2, step 2 — **adding and removing rows (E2)** (`claude/application-f3c-rows`).
+  - **Two new draft edit ops.** `add_row` and `remove_row` work on `APPLICATION_ROW_LISTS`: addresses, other names, licences, equipment, accidents and convictions. An added row is sent whole and re-parsed by the draft schema. A blank row filled in one answer at a time would be refused at the first step, because a city is `min(1)`. Each op writes ONE edit row: `[list, i]`, with nothing before an add and nothing after a removal.
+  - **What they refuse:**
+    - removing the current home, which is corrected, never removed;
+    - adding an accident or conviction while the driver's answer is still "none". The office changes that answer first, as its own correction;
+    - on a v2 link, a licence row. Those licences are Part 1's, and filing drops the draft's copy. The API refuses it too.
+  - **The card:** "Add …" sits at the end of each list's section. It opens the catalogue's questions for that list, each with the card's own control, starting from the driver's own blank row (`""`, never null). "Remove …" under each row asks for a confirm first. Neither shows while a search is typed or once the draft's door is shut.
+  - **Removals are replayed** (`currentEditPaths`, shared). The rows have no key, so a removal moves later rows up. The card's "corrected" mark, the driver's 3.1 list and the office's "What you changed" all name each change where it is NOW. A correction to a row that was removed later says so. The edit rows themselves are never rewritten.
+  - **New question Q-AM15:** the driver's own deletions are not replayed.
+  - **Next:** step 2b, v2 licence add/remove through Part 1's whole-set correction. Then step 3 (E3).
+
+- 2026-11-10: F3c part 2, step 2b — **a v2 link's other licences are added and removed through Part 1** (`claude/application-f3c-v2-licences`).
+  - **Why Part 1:** on a v2 link the licences are Part 1's whole list, and filing drops the draft's copy. So "Add licence" and "Remove licence N" send the whole Part 1 set with that one licence changed (`partOneLicencesWith`). It goes through the existing Part 1 correction route, with no new route and no migration. The draft route still refuses a v2 licence row (#2213).
+  - **Which window applies:** each list opens with its own door's window (`listDoor`, `editableLists`). A v2 licence follows Part 1's, which is open while the office screens. Every other list follows the draft's.
+  - **The add form:** it does not ask the licence's "kind", which Part 1 never holds. The Part 1 contract checks the new licence before anything is sent, so a missing expiry or a duplicate licence is refused in the contract's words.
+  - **One removal, one line:** `partOneEdits` now logs ONE licence taken out of the middle as one removal row `[additional_licences, k]`. Before, it logged a shift of every licence after it. The driver reads one act as one line, and `currentEditPaths` replays it like the draft's `remove_row`.
+  - **Next:** step 3 (E3), a changed email or phone moves the invitation's contact.
+- 2026-11-10: F3c part 2, step 3 — **a corrected email or phone moves how the carrier reaches the applicant (E3)** (`claude/application-f3c-contact`).
+  - **Email:** when the office corrects the email answer, `application_invitations.email` moves with it. Every later message (approval, unlock code, signing link, travel) goes to that address. The move is audited by field name, never by value. The same address in other capitals moves nothing. A blank email is refused by the draft schema.
+  - **Phone:** texts go to the number a consent names, and consent attaches to a NUMBER, so nothing moves to the new one. If THIS applicant was texted at the number the phone answer held, that consent is revoked (`withdrawSmsConsentOnNumber`, reason `office_corrected_phone`, audited). It is not `revoke_sms_consent`: that is STOP's, and it revokes every consent on the number org-wide. The applicant agrees again on their own link. This covers both doors: the Part 1 correction on a v2 link and the draft on a legacy one. A draft phone edit on a v2 link moves nothing, because Part 1's phone is the one that files.
+  - **The card says so before Save** ("Emails … go to X. Saving sends them to the new address instead." / "They get texts at this number. Saving stops them…"), from the review's new `contact` field. The toast after Save says what moved.
+  - **No migration.** 0233's guard leaves `revoked_at` and `revoked_reason` mutable, and both writes sit in files already listed as those tables' writers.
+  - **New question Q-AM16:** `drivers.email` does not move.
+  - **Next:** step 4, the education and references tables.
+- 2026-11-10: F3c part 2, step 4 — **education and references on the card** (`claude/application-f3c-tables`).
+  - **One row per row given.** A carrier question answered as a table is on the card as one row per row the driver gave, at `["questionnaire", question, i]`. That is three path segments, inside `applicationPathSchema`, so the schema was not widened. Each row is corrected whole, with each column's own control. A cell would be four segments deep, and a row is what the driver typed as one thing.
+  - **Adding:** a row is added by `set` at the next index, up to the question's own `maxRows` (three references).
+  - **Removing:** a new op, `remove_answer_row`. The replay (`currentEditPaths`) treats a table's rows like a list's.
+  - **Checks:** the draft schema holds the questionnaire as an open record, so the applier checks each row against the question's columns. It refuses a hole, a row past the limit, a column the question does not ask, and a blank row, which filing would drop.
+  - **The catalogue:** both facts now have the draft's door. The office-gap snapshot goes from 5 to **3**: EEO, carrier answers and SSN. The first two need owner rulings.
+  - **Fixed — corrections showed the raw key:** a correction of any carrier question was labelled "questionnaire" on the driver's 3.1 and the office's "What you changed". `describeField` did not know the draft's key. It does now, and a table row reads "Three personal references · 2".
+  - **Fixed — every editor said "Not shown to you":** #2221 (E3) put the contact notice between a `v-if` and its `v-else`. Every ordinary answer's editor then said "Not shown to you…". A regression test now pins the order.
+  - **Next:** step 5, the carrier's own answers (`carrier_answers`, labelled from the invitation's stamp).
+- 2026-11-11: F3c part 2, step 5 — **the carrier's own questions on the card** (`claude/application-f3c-carrier-answers`).
+  - **One row per stamped question.** `carrier_answers` is one catalogue fact. The card lays it out once for each question on THIS applicant's stamp, which the review response carries as `carrierQuestions` (never the live list, D-CQ2). Each row is worded as stamped and sits under "The carrier's own questions". The draft does not carry the stamp (Q-CQ7), but the review does, so no migration was needed.
+  - **The form's own control.** Each answer is corrected with the control the applicant's form answered it with (`questionControl`): yes/no, one of a list (its frozen choices only), a long answer, and a plain box for everything else. ⚠ The form asks a carrier "date" or "number" question in a plain text box and stores what was typed ("03/01/2026"). The card does the same. A date picker would write a different string than the form reads back, breaking D-AM7. Whether the form itself should ask those with the typed-date control is a form change, not a card one, and is not made here.
+  - **The skip.** An optional question offers "I'd rather not say" as the form does: a box that puts the control away and stores the skip's words. The built-in optional questions (military service, other training, …) now offer theirs too. Before, the card opened a skipped yes/no answer empty. The browser pass found that a ticked skip also hid a yes/no question's own words, which live in its legend. The editor now names the question while the control is put away.
+  - **Checked against the stamp.** The API refuses a correction (`carrierAnswerRefusal`, shared) to a question this applicant was not asked, an answer of the wrong kind or outside the choices, and a blank. A required question must be answered, and an optional one is answered or skipped, as on the form. It also refuses anything but one answer at `["carrier_answers", id]`. Before this step, a `set` there was taken for any id and any value. An invitation with no stamp takes none.
+  - **Named where it is read.** The office's "What you changed" names a correction by the stamped words. The office's page serves no applicant bundle, so `describeField` would have said "The carrier's own questions" for every one. The driver's 3.1 already names them from its own bundle.
+  - **The catalogue:** the office-gap snapshot goes from 3 to **2**: EEO and SSN, both waiting on owner rulings. (Step 4's entry said "the first two" need rulings; it is EEO and SSN, not carrier answers.)
+  - **Next:** step 6, the Permissions and Road-test drawers' identity correction points at the card.
+- 2026-11-11: F3c part 2, step 6 — **one editor of the date of birth and licence: the card** (`claude/application-f3c-identity-drawers`).
+  - **The second editor is gone.** The Permissions step's "Date of birth and licence" (`ApplicantIdentityCorrection`) and the Road-test step's "Add the licence number" were a second editor of the same three answers, though both posted to the same identity route. Now `ApplicantIdentityOnFile` shows the three read-only (PSP, the MVR and the Clearinghouse run on them) with **"Correct them in the application"**. The page swaps the step drawer for the review drawer at the date-of-birth row (no nested dialogs). Closing the review brings back the step the office came from. An ordinary review does not do this. `useApplicantIdentity.ts` is deleted.
+  - **The card had to become able to.** Pointing at the card as it stood would have been a regression in three ways:
+    - **It showed the wrong values.** The card read the identity from the DRAFT, and at the Permissions step there usually is no draft. A licence PSP had already been ordered on read "Not answered", and a draft saved before the identity was given held a stale copy. The review response now carries `identity`, the record's values (`identityOnRecord`, only those set). The card lays them over the draft's copy, as filing does.
+    - **It could not ENTER them.** The identity is written as all three at once. The card's one-row-at-a-time save sends the other two as shown, so with any missing every save was refused. While any is missing, Edit now opens all three together (`identityTogether.ts`). Once all are on file, each is corrected on its own as before.
+    - **The step came back stale.** The steps show the identity from the page's own driver read, and nothing re-read it after a card correction. The page now re-reads it when the review closes.
+  - **Road test (RT-A1, amended).** RT-A1 put the licence fix "here, in place, not in another drawer". With one editor the fix is in the application, and going there unmounts the road-test form. So a missing licence is now said at the TOP of the form, before anything is rated, with "Add it in the application". The in-form line after a pass is rated stays, without a button. It points to the note above, because a button there would throw away a rated test.
+  - **No migration**; the identity route and its window (the first packet mark) are unchanged.
+  - **F3c part 2 is complete** with this step. The office-gap snapshot holds EEO and SSN only, both waiting on owner rulings (with Q-AM14–Q-AM16).
+- 2026-11-11: **owner rulings on every open question** (§5; Q-AM8–11 in `APPLICATION-SCREEN-MAP.md` §8).
+  - **The rule that decides the rest: the online form is a prefill of the carrier's paper application** (`application-11.pdf`), and the paper decides what is asked. So EEO is not asked (Q-AM18), the street stays asked on previous homes (Q-AM8), and page 21 returns (Q-AM4).
+  - **The SSN:** entered by the driver in the form, reviewed by the office like every answer, printed in full on the packet (Q-AM3). Admin and safety read all nine digits, and everyone else only the last four (Q-AM17).
+  - **Employer dates stay the exact day** (Q-AM11 → b). Q-AM1, 5, 6, 9, 10, 14, 15 and 16 as recommended.
+  - **New:** a documents-only link the office can send at any time, and scan-quality photos (Q-AM19).
+  - **What is left, in order:**
+    1. F2: the packet prints everything asked. **F2a** (this entry) prints the addendum. **F2b** prints the endorsements on the licence line; they live on the intake row, so the filing must compose them into the payload first, or a filed packet could not be reproduced. **F2c** makes three form changes: split "denied" from "suspended or revoked" (P4), a type for each licence (P3), and the conviction's place, penalty and bond (P10).
+    2. Remove the reserved `eeo` key (Q-AM18).
+    3. The SSN in the form, printed in full, with its permission (Q-AM3, Q-AM17). Needs a migration.
+    4. Page 21 back in the packet (Q-AM4).
+    5. One transaction for a correction and its edit row (Q-AM14), then stable row keys (Q-AM15), then the roster email (Q-AM16).
+    6. F4, the driver's experience (U1–U9), with Q-AM5, Q-AM6 and Q-AM9.
+    7. The documents-only link and scan-quality photos (Q-AM19). They are independent of the rest.
+    8. F5, sending a question back (Q-AM1).
+    9. The FMCSA name search (Q-AM10), later.
+  - **P5 is already done:** `PACKET_ROW_OF` folds the six classes onto the four printed rows, and `foldedType` prints a tanker or bus by name in the type column.
+- 2026-11-11: **F2a: the addendum** (`claude/application-f2-addendum`). P1, P6, P7 and P8 now print on a sheet appended after the continuation sheet and before the carrier's questions:
+  - each employer's USDOT number, inquiry e-mail, whether the job was driving, DOT regulation, the two §391.21(b)(10)(iv) answers and the reason for leaving;
+  - each address's months;
+  - each stretch without work, with its explanation;
+  - the applicant's e-mail and experience narrative.
+  - **The layout:** the sheet shares one question-and-answer layout with the carrier's-questions sheet (`packetAnswerSheet.ts`). An employer whose answers cross a page is headed again on the next one.
+  - **The catalogue:** each of those facts now names an `addendum.*` place instead of a `notPrinted` reason.
+  - **The parity test** (`applicantFactsPacket.test.ts`) holds the sheet to the catalogue in both directions. It gains the §3 F2 check: on a full application, every place the catalogue names holds text. The exceptions are named: yes/no pairs, later lines of a wrapped answer, and printed names beside withdrawn signatures.
+  - **Every packet is one page longer** (two or three with many employers). An unanswered question prints "Not answered.", never an invented "No".
+- 2026-11-11: **F2b: the endorsements print on the licence line (P12)** (`claude/application-f2-endorsements`). F2a merged as #2255.
+  - **The fact:** Part 1's endorsements are now an application fact, `cdl_endorsements`. Filing composes them from the intake row (`composeFiledApplication`, in the roster's order; an empty list is filed as an answer). The packet prints them with the class in the licence grid's TYPE column, as `A (HNT)`.
+    - The catalogue's intake entry now says `through` it. So the card shows one row where the application files it, and the office's correction is recorded at `["cdl_endorsements"]` (`shownAt`).
+    - A legacy link has no Part 1, so it has no endorsements row.
+  - **Found and fixed:** the office's preview drew the RAW draft. On a v2 link the draft is what the applicant's tab last saved. So a licence, phone, class or §40.25(j) answer the office corrected in Part 1 afterwards never reached the preview, and neither did any endorsement. The preview now composes exactly as filing does (`applicationAsFiled.ts`, shared by both), with the record's identity laid over it. This is a D-AM7 mismatch the audit had not listed.
+  - **Not done:** an office correction to the endorsements made BEFORE this merge has its edit row at `["endorsements"]`. Driver screen 3.1 still names it (the label is kept), but the card does not mark the row corrected. This affects only applications still open across the merge.
+  - **Next:** F2c, with three form changes: P4 (denied vs suspended or revoked), P3 (a type for each licence) and P10 (each conviction's place, penalty and bond).

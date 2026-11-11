@@ -21,7 +21,7 @@ import {
   readFinancialSyncedAt,
 } from "../mcleod/index.js";
 import { readVehicleMonthlyMiles } from "../samsara/index.js";
-import { readLedgerForPeriod, monthStart, nextMonthStart, monthsBetween } from "./ledgerPeriod.js";
+import { readLedgerForPeriod, monthStart, monthsBetween, wholeMonthBound } from "./ledgerPeriod.js";
 import { getMileageCoverage } from "./mileageCoverage.js";
 
 /**
@@ -108,7 +108,7 @@ async function milesByUnit(
 
 /** The calendar months the window touches, as the Samsara reader wants them. */
 function coveredMonths(fromIso: string, toIso: string): Array<{ year: number; month: number }> {
-  return monthsBetween(monthStart(fromIso), nextMonthStart(toIso)).map((m) => ({
+  return monthsBetween(monthStart(fromIso), wholeMonthBound(toIso)).map((m) => ({
     year: Number(m.slice(0, 4)),
     month: Number(m.slice(5, 7)),
   }));

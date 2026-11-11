@@ -142,6 +142,7 @@ describe("GET /api/drug-alcohol/program", () => {
     const { status, body } = await read();
     expect(status).toBe(200);
     expect(body.data.selections).toBeNull();
+    expect(body.data.results).toBeNull();
     expect(body.data.roster.notInPool).toHaveLength(1);
   });
 

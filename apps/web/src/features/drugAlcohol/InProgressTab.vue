@@ -14,6 +14,7 @@ import { formatDate } from "@/lib/format";
  * final result has left this list. A random order is in the data only for the DER (§382.305(l)).
  */
 const props = defineProps<{ rows: InProgressRow[] }>();
+const emit = defineEmits<{ shown: [count: number | null] }>();
 
 const columns: DataTableColumn[] = [
   { key: "name", label: "Person", sortable: true, cellClass: "font-medium text-ink" },
@@ -43,6 +44,7 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
   text: (r) => [r.name, r.stage, r.reason],
   narrow: (r) => (!kind.value || r.kind === kind.value) && (!reason.value || r.reason === reason.value) && (!stage.value || r.stage === stage.value),
   filters: () => ({ test: kind.value, reason: reason.value, stage: stage.value }),
+  onShown: (n) => emit("shown", n),
 });
 </script>
 
