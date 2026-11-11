@@ -114,6 +114,29 @@ export type AdOverlayLayout = (typeof AD_OVERLAY_LAYOUTS)[number];
 export const AD_LOOKS = ["rail", "ribbon"] as const;
 export type AdLook = (typeof AD_LOOKS)[number];
 
+/**
+ * The concept families (ADS-CREATIVE-QUALITY-PLAN Q-AD58, ruled 2026-11-10; Q-AD77). What a preset's first line
+ * leads with, and what its picture shows. Meta's delivery collapses ads that read as one idea into one (R1,
+ * Andromeda), so two LIVE presets may not hold the same pair — the API save refuses it (`conceptPair`). Closed
+ * lists, not drawer-edited data: a pair is only comparable with another when both are words from one list.
+ *   hooks  · `pay_first` the figure first · `life_first` home time, the week · `equipment_first` what you drive ·
+ *            `straight_talk` what you get and what we need, plainly · `proof` the brief's figures as evidence
+ *   scenes · `cab_pov` through the windshield · `equipment_on_road` our truck moving · `equipment_at_rest` our
+ *            truck parked · `home_street` where the driver lives · `abstract_plate` no scene; the words are it
+ */
+export const AD_HOOK_FAMILIES = ["pay_first", "life_first", "equipment_first", "straight_talk", "proof"] as const;
+export type AdHookFamily = (typeof AD_HOOK_FAMILIES)[number];
+export const AD_SCENE_FAMILIES = ["cab_pov", "equipment_on_road", "equipment_at_rest", "home_street", "abstract_plate"] as const;
+export type AdSceneFamily = (typeof AD_SCENE_FAMILIES)[number];
+
+/** How the families read in a sentence the editor or an API refusal shows. */
+export const AD_HOOK_FAMILY_LABELS: Record<AdHookFamily, string> = {
+  pay_first: "pay first", life_first: "life first", equipment_first: "equipment first", straight_talk: "straight talk", proof: "proof",
+};
+export const AD_SCENE_FAMILY_LABELS: Record<AdSceneFamily, string> = {
+  cab_pov: "from the cab", equipment_on_road: "truck on the road", equipment_at_rest: "truck at rest", home_street: "home street", abstract_plate: "plain background",
+};
+
 export const adBrandKitSchema = z.object({
   /** Exactly as it should read in an ad. */
   company_name: z.string().trim().min(1, "the company name is what the ad prints, so it cannot be empty").max(120, "the company name is at most 120 characters"),
@@ -210,6 +233,12 @@ export const adPresetRecipeSchema = z.object({
    * compiles — a default makes the parsed type require the key in every literal.
    */
   platform_slots: z.object({ primary_text: slotName, headline: slotName }).strict().nullish(),
+  /**
+   * The concept (Q-AD58): what the hook leads with and what the picture shows. Optional here so a recipe saved
+   * before P1-6 still parses; a NEW version must say both (`adPresetSaveSchema`).
+   */
+  hook_family: z.enum(AD_HOOK_FAMILIES).optional(),
+  scene_family: z.enum(AD_SCENE_FAMILIES).optional(),
 }).superRefine((r, ctx) => {
   const used = templateSlots(r.image_prompt_template);
   const declared = new Set(r.image_slots);
@@ -246,6 +275,19 @@ export function overlaySlotList(o: { headline: string; cta: string; kicker?: str
   return [...(o.kicker ? [["kicker", o.kicker] as ["kicker", string]] : []), ["headline", o.headline], ...(o.subline ? [["subline", o.subline] as ["subline", string]] : []), ["cta", o.cta]];
 }
 
+/**
+ * A recipe's concept as one comparable value, or null for a recipe saved before the families existed — such a
+ * preset cannot be compared and so never blocks another (it is refused nothing it was not refused before).
+ */
+export function conceptPair(r: Pick<AdPresetRecipe, "hook_family" | "scene_family">): string | null {
+  return r.hook_family && r.scene_family ? `${r.hook_family}+${r.scene_family}` : null;
+}
+
+/** The pair as the editor and a refusal say it: "pay first, plain background". */
+export function conceptPairLabel(r: Pick<AdPresetRecipe, "hook_family" | "scene_family">): string | null {
+  return r.hook_family && r.scene_family ? `${AD_HOOK_FAMILY_LABELS[r.hook_family]}, ${AD_SCENE_FAMILY_LABELS[r.scene_family]}` : null;
+}
+
 // ── the doors (C1 API; E2 draws the editors) ────────────────────────────────────────────────────
 /**
  * A save: `kit_id` null starts a new kit (version 1) under `name`; otherwise it adds the next version
@@ -270,6 +312,10 @@ export type AdBrandKitSave = z.infer<typeof adBrandKitSaveSchema>;
  * For the same reason a new version must hold a format the publisher sends (AG2, audit F-AG13): a preset of
  * 9:16 alone used to be saved, drawn, checked and approved, and then refused the whole publish. The stored
  * recipe may still hold any set — compose stops such a preset by name (`no_feed_format`, D-AD25).
+ *
+ * And a new version must name its concept (`hook_family`, `scene_family`; Q-AD58), or the rule that two live
+ * presets differ in concept (Q-AD77) would have nothing to compare. That rule needs the OTHER presets, so it is
+ * the API save's (`savePresetVersion`), not this schema's.
  */
 export const adPresetSaveSchema = z.object({
   key: z.string().regex(/^[A-Z][A-Z0-9_]{0,15}$/, "a preset's key is capitals, digits and underscores, like P2"),
@@ -278,6 +324,8 @@ export const adPresetSaveSchema = z.object({
 }).superRefine((s, ctx) => {
   if (!s.recipe.overlay_slots) ctx.addIssue({ code: "custom", path: ["recipe", "overlay_slots"], message: "Choose which copy goes on the image: its headline and its call to action." });
   if (!s.recipe.platform_slots) ctx.addIssue({ code: "custom", path: ["recipe", "platform_slots"], message: "Choose which copy Meta shows beside the image: its primary text and its headline." });
+  if (!s.recipe.hook_family) ctx.addIssue({ code: "custom", path: ["recipe", "hook_family"], message: "Choose what the first line leads with: pay, life, equipment, straight talk or proof." });
+  if (!s.recipe.scene_family) ctx.addIssue({ code: "custom", path: ["recipe", "scene_family"], message: "Choose what the picture shows: the cab, the truck on the road, the truck at rest, a home street or a plain background." });
   const headline = s.recipe.overlay_slots ? s.recipe.copy_slots.find((c) => c.name === s.recipe.overlay_slots!.headline) : undefined;
   if (headline && headline.max_chars > OVERLAY_HEADLINE_MAX_CHARS) {
     ctx.addIssue({ code: "custom", path: ["recipe", "copy_slots"], message: `The headline on the image (${headline.name}) holds at most ${OVERLAY_HEADLINE_MAX_CHARS} characters: a longer one needs a third line, and the image has room for two.` });
