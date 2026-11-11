@@ -680,3 +680,24 @@ audit row is the endpoint's own.
   - Deliberate breaks, each killed by an assertion: the DQ run, `readAnnualDue`,
     `readAnnualDisagreements`, the driver-files tool and `orgToday` itself put back on the UTC cut, and the
     correction's `inspected_on` (caught by the source check).
+- 2026-11-11 — **R4b (e) part 1 built: the Fleet report's period is in its URL.**
+  - `packages/shared/src/fleetReportLinkContract.ts`: `?from=YYYY-MM&to=YYYY-MM&grain=…`, inclusive
+    months (`FLEET_REPORT_QUERY_KEYS`, `FLEET_REPORT_GRAINS`, `fleetReportToQuery`). The web's
+    `PeriodGrain` is the contract's `FleetReportGrain`.
+  - `grain` is in the URL because months alone are ambiguous: January–March is Q1 and the year to
+    March, which step differently. `periodFromLink` (web `reportPeriod.ts`) keeps a grain only when that
+    grain's own period covers exactly the linked months, else reads a custom range of whole months, so
+    the URL and the rail cannot disagree.
+  - The page: a linked period wins over the opening month (and its "opens on" note); with none, the page
+    opens as before and writes nothing until the rail moves, so a plain visit keeps a clean URL. The
+    rail's choice is written by the contract's writer, and the URL moves the rail back (Back/Forward,
+    another answer's link).
+  - Worth having for the page alone: a month of the Fleet report could not be sent to anybody before.
+  - Tests: `reportPeriod.test.ts` "periodFromLink — the period a Fleet report link names (F21 R4b (e))"
+    (grain kept, custom, not a month, every grain round-trips the writer); `FleetReportPage.test.ts`
+    "opens on the period a link built by its contract names, without the latest-month note" and "writes
+    the rail's choice into the URL, and a plain visit writes nothing".
+  - Deliberate breaks, each killed by an assertion: the page ignoring the link, not writing the rail's
+    choice, not following the URL, `periodFromLink` trusting the grain unchecked, and the writer
+    dropping the grain.
+  - Next: (e) part 2, the Fleet report link from `finance_report` and `income_statement`.

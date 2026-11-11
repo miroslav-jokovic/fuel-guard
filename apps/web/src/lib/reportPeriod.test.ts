@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { fleetReportToQuery } from "@silvicom/shared";
 import {
   canStepForward,
   latestReportableMonth,
@@ -7,6 +8,7 @@ import {
   periodForMonth,
   periodForQuarter,
   periodForYtd,
+  periodFromLink,
   periodLabel,
   shiftMonth,
   stepPeriod,
@@ -91,3 +93,31 @@ describe("reportPeriod", () => {
     expect(latestReportableMonth({ points: [], missing: ["2026-08"] })).toBeNull();
   });
 });
+
+describe("periodFromLink — the period a Fleet report link names (F21 R4b (e))", () => {
+  it("keeps the grain when its own period covers exactly the linked months", () => {
+    expect(periodFromLink("2026-07", "2026-07", "month")).toEqual({ grain: "month", from: "2026-07-01", to: "2026-07-31" });
+    expect(periodFromLink("2026-01", "2026-03", "quarter")).toEqual({ grain: "quarter", from: "2026-01-01", to: "2026-03-31" });
+    expect(periodFromLink("2026-01", "2026-03", "ytd")).toEqual({ grain: "ytd", from: "2026-01-01", to: "2026-03-31" });
+  });
+
+  it("reads months a grain does not cover, or no grain, as a custom range of whole months", () => {
+    expect(periodFromLink("2026-02", "2026-03", "quarter")).toEqual({ grain: "custom", from: "2026-02-01", to: "2026-03-31" });
+    expect(periodFromLink("2026-03", "2026-01", undefined)).toEqual({ grain: "custom", from: "2026-01-01", to: "2026-03-31" });
+    expect(periodFromLink("2026-07", "2026-07", "banana")).toEqual({ grain: "custom", from: "2026-07-01", to: "2026-07-31" });
+  });
+
+  it("names no period when either end is not a month", () => {
+    for (const [a, b] of [["2026-7", "2026-07"], ["2026-07-01", "2026-07"], ["2026-13", "2026-12"], [undefined, "2026-07"]]) {
+      expect(periodFromLink(a, b, "month"), `${a} ${b}`).toBeNull();
+    }
+  });
+
+  it("round-trips every grain through the contract's writer", () => {
+    for (const p of [periodForMonth("2026-02"), periodForQuarter("2026-08"), periodForYtd("2026-05"), periodForCustom("2026-03-10", "2026-06-02")]) {
+      const q = fleetReportToQuery(p);
+      expect(periodFromLink(q.from, q.to, q.grain)).toEqual(p);
+    }
+  });
+});
+

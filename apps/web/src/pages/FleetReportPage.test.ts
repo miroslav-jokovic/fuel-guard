@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { createMemoryHistory, createRouter } from "vue-router";
+import { createMemoryHistory, createRouter, type Router } from "vue-router";
+import { fleetReportToQuery } from "@silvicom/shared";
 import { ref } from "vue";
 import FleetReportPage from "./FleetReportPage.vue";
 import type { FleetReportResponse, FleetTruck } from "@/features/accounting/useFleetReport";
@@ -157,9 +158,11 @@ type W = VueWrapper<InstanceType<typeof FleetReportPage>>;
 
 // A real memory router: the per-dispatcher, per-truck and contractor tabs keep their lists in the
 // URL since D-US2, each under its own scope.
-async function mountPage(): Promise<W> {
+let lastRouter: Router | null = null;
+async function mountPage(path = "/accounting/fleet"): Promise<W> {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/accounting/fleet", component: { template: "<div />" } }] });
-  await router.push("/accounting/fleet");
+  lastRouter = router;
+  await router.push(path);
   await router.isReady();
   const w = mount(FleetReportPage, {
     global: {
@@ -262,6 +265,35 @@ describe("FleetReportPage — the shell (R1)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // F21 R4b (e): the period lives in the URL, written and read by the Fleet report link contract.
+  it("opens on the period a link built by its contract names, without the latest-month note", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-15T15:00:00Z"));
+    try {
+      const q = new URLSearchParams(fleetReportToQuery({ grain: "quarter", from: "2026-04-01", to: "2026-06-30" })).toString();
+      const w = await mountPage(`/accounting/fleet?${q}`);
+      expect(w.find('[aria-live="polite"]').text()).toBe("Q2 2026");
+      expect(w.text()).not.toContain("so the report opens on");
+      w.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("writes the rail's choice into the URL, and a plain visit writes nothing", async () => {
+    const w = await mountPage();
+    expect(lastRouter!.currentRoute.value.query).toEqual({});
+    const prev = w.findAll("button").find((b) => b.attributes("aria-label") === "Previous month")!;
+    await prev.trigger("click");
+    await flushPromises();
+    expect(lastRouter!.currentRoute.value.query).toMatchObject({ from: "2026-06", to: "2026-06", grain: "month" });
+    // And the URL drives the rail back: Back, or another answer's link to this page.
+    await lastRouter!.push({ path: "/accounting/fleet", query: fleetReportToQuery({ grain: "month", from: "2026-03-01", to: "2026-03-31" }) });
+    await flushPromises();
+    expect(w.find('[aria-live="polite"]').text()).toBe("March 2026");
+    w.unmount();
   });
 
   it("keeps one period for every tab: stepping back on the rail changes the month everywhere", async () => {
