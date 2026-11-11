@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { assistantPreviousRange, assistantWeeksIn, type FleetIdleVerdict } from "@silvicom/shared";
+import { assistantPreviousRange, assistantWeeksIn, idlingToQuery, type FleetIdleVerdict } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 
 /** The tool's answer is `unknown` to its caller (it goes to the model as JSON); tests read named fields. */
@@ -89,6 +89,12 @@ describe("idle_report — the Idling page's verdict for the days asked", () => {
       ["2026-08-01", "2026-08-31"],
       ["2026-09-01", "2026-09-30"],
     ]);
+  });
+
+  it("links the Idling page on the answer's whole period, inclusive days, built by its contract", async () => {
+    const out = (await assistantIdleReport(recorder().client, ORG, { period: "last_month", by: "week" }, NOV_10)) as Out;
+    expect(out.link).toEqual({ surfaceKey: "safety.idling", query: { from: "2026-10-01", to: "2026-10-31" } });
+    expect(out.link.query).toEqual(idlingToQuery({ from: "2026-10-01", to: "2026-10-31" }));
   });
 
   it("says there is no idle data rather than reporting zeros", async () => {
