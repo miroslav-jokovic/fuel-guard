@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import sharp from "sharp";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { ZodType } from "zod";
-import { ADS_SETTINGS_UNSET, adCreativeChecksSchema, REGENERATION_CLAUSES, type AdAssetRef, type AdBrandKit, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
+import { ADS_SETTINGS_UNSET, adCandidatesSchema, adCreativeChecksSchema, REGENERATION_CLAUSES, type AdAssetRef, type AdBrandKit, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
 import type { MessagesClient } from "../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
@@ -240,6 +240,63 @@ describe("composeCreative — only the formats an ad is shown in (Q-AD75; D-AD25
     expect(h.create).not.toHaveBeenCalled();
     expect(h.render).not.toHaveBeenCalled();
     expect(h.creativeWrites().at(-1)!.write!.payload).toMatchObject({ state: "check_failed", last_error: out.kind === "check_failed" ? out.reason : "" });
+  });
+});
+
+describe("composeCreative — the copy that ships is the best-ranked one the overlay can draw (AG1; D-AD26)", () => {
+  /** Too long for two lines at the headline's size on 4:5 (measured: nothing over 56 characters fits). */
+  const LONG = "Drive regional flatbed for a carrier that pays every mile and gets you home each weekend";
+  const withLongHook = (which: number[], language: "en" | "es" = "en") => ({
+    candidates: copySet.candidates.map((c, i) => (which.includes(i) ? { ...c, [language]: { ...c[language], hook: LONG } } : c)),
+  });
+  // A 90-character hook must pass the copywriter's own length check to reach the overlay at all.
+  const ROOMY: AdPresetRecipe = { ...RECIPE, copy_slots: RECIPE.copy_slots.map((s) => (s.name === "hook" ? { ...s, max_chars: 120 } : s)) };
+
+  it("the first-ranked copy needs a third line: the next one becomes the ad, the row says why, and no picture was drawn for the first", async () => {
+    const h = harness({ copy: withLongHook([0]) });
+    expect(await h.run({ recipe: ROOMY })).toEqual({ kind: "ready" });
+    const last = h.creativeWrites().at(-1)!.write!.payload as { copy: unknown; candidates: { chosen: number; passed_over?: Array<{ index: number; reason: string }>; ranked: Array<{ offered_as: number }> } };
+    expect(last.candidates.ranked[0]!.offered_as).toBe(0);
+    expect(last.candidates.chosen).toBe(1);
+    expect(last.candidates.passed_over).toEqual([{ index: 0, reason: "4:5, en: too_long" }]);
+    expect(last.copy).toEqual(copySet.candidates[1]);
+    // One render, and the art director was asked once: nothing was drawn to find out the first copy did not fit.
+    expect(h.render).toHaveBeenCalledTimes(1);
+    expect(h.tools().filter((t) => t === "direct_art")).toHaveLength(1);
+    expect(adCandidatesSchema.safeParse(last.candidates).error).toBeUndefined();
+  });
+
+  it("a copy that fits in English and not in Spanish is passed over too: the ad is made in both", async () => {
+    const h = harness({ copy: withLongHook([0], "es") });
+    expect(await h.run({ recipe: ROOMY })).toEqual({ kind: "ready" });
+    const last = h.creativeWrites().at(-1)!.write!.payload as { candidates: { chosen: number; passed_over?: Array<{ index: number; reason: string }> } };
+    expect(last.candidates).toMatchObject({ chosen: 1, passed_over: [{ index: 0, reason: "4:5, es: too_long" }] });
+  });
+
+  it("when the first copy fits, it is the ad and nothing is recorded as passed over", async () => {
+    const h = harness();
+    await h.run();
+    const last = h.creativeWrites().at(-1)!.write!.payload as { candidates: Record<string, unknown> };
+    expect(last.candidates.chosen).toBe(0);
+    expect(last.candidates).not.toHaveProperty("passed_over");
+  });
+
+  it("no copy fits: the creative stops with every copy's reason, keeps the ranked set, and asks for no art and no picture", async () => {
+    const h = harness({ copy: withLongHook([0, 1, 2]) });
+    const out = await h.run({ recipe: ROOMY });
+    expect(out).toEqual({ kind: "check_failed", reason: "render check: none of the 3 copies fits the image — #1 (4:5, en: too_long) · #2 (4:5, en: too_long) · #3 (4:5, en: too_long)" });
+    expect(h.render).not.toHaveBeenCalled();
+    expect(h.tools()).not.toContain("direct_art");
+    const writes = h.creativeWrites().map((w) => w.write!.payload as { candidates?: { passed_over?: unknown[] }; checks?: { render?: { ok: boolean; format: string; language: string; findings: Array<{ kind: string }> } } });
+    expect(writes[0]!.candidates!.passed_over).toHaveLength(3);
+    expect(writes.at(-1)!.checks!.render).toMatchObject({ ok: false, format: "4:5", language: "en", findings: [{ kind: "too_long", label: "headline", max_lines: 2 }] });
+  });
+
+  it("a kit with no overlay for the format is the kit's refusal: no copy is called passed over for it", async () => {
+    const h = harness();
+    await h.run({ kit: { ...KIT, overlays: {} } });
+    const kept = h.creativeWrites()[0]!.write!.payload as { candidates: Record<string, unknown> };
+    expect(kept.candidates).not.toHaveProperty("passed_over");
   });
 });
 

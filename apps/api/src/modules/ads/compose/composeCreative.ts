@@ -5,7 +5,7 @@ import {
 } from "@silvicom/shared";
 import type { ClaudeGenerationDeps } from "../generations/claudeGeneration.js";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
-import { frameStill, renderOverlay, type OverlayFinding, type OverlayLanguage } from "../creative/overlay/overlay.js";
+import { frameStill, overlayFit, renderOverlay, type OverlayFinding, type OverlayLanguage } from "../creative/overlay/overlay.js";
 import { writeCopy, type AdCopy, type SlotFinding } from "../workers/copywriter/copywriter.js";
 import { CRAFT_JUDGE_PROMPT_VERSION, judgeCraft } from "../workers/craftJudge/craftJudge.js";
 import { directArt } from "../workers/artDirector/artDirector.js";
@@ -40,6 +40,15 @@ import { checkVisual, type FractionRect, type VisualResult } from "../workers/ch
  * preset that does not say which slots the overlay draws. A stopped creative is `check_failed` with the
  * reason in `last_error`: 0537 has no other end state for "the workers stopped", and leaving it in
  * `generating` would show work under way that is not.
+ *
+ * ── THE COPY THAT SHIPS IS THE BEST-RANKED ONE THE OVERLAY CAN DRAW (AG1, D-AD26) ──────────────────────
+ * Until 2026-11-10 `ranked[0]` became the ad whatever happened next, and when the overlay then refused it (a
+ * headline needing a third line) the creative stopped with two drawable candidates unused (audit F-AG6). Whether
+ * words fit is a fact about the words, the format and the layout — no picture changes it — so it is asked
+ * BEFORE the render, of each candidate in rank order, on every published format in both languages
+ * (`overlayFit`, the overlay's own layout step). The first that fits is the copy; `candidates.chosen` names it
+ * and `passed_over` says why each better-ranked one was not used. Only when none fits does the creative stop,
+ * and it has then cost no picture. Contrast is the picture's and is still judged at the overlay.
  *
  * ── THE RENDER STARTS FROM THE PHOTO THE CHECK COMPARES AGAINST (D-AD9, 2026-11-04) ─────────────────
  * The Art director's `reference` is one kit photo; the render is image-to-image from it (`render.ts`
@@ -109,14 +118,28 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
   if (judged?.kind === "in_flight") return { kind: "pending", why: "craft judge in flight" };
   const scores = judged?.kind === "ready" ? judged.scores : null;
   const ranked = rankCandidates(written.passed.map((p, i) => ({ copy: p.copy, judged: scores ? scores[i]! : null, offered_as: p.offered_as })));
+  // The first ranked candidate the overlay can draw (D-AD26). `unfit[i]` is why candidate i cannot be.
+  const unfit = ranked.map((r) => fitRefusal(input, r.copy));
+  const fits = unfit.findIndex((u) => u === null);
+  // A kit with no overlay for the format refuses every copy alike: that is the kit's, and no candidate was "passed over".
+  const kitHasNoTemplate = unfit[0]?.findings.some((f) => f.kind === "no_template") ?? false;
+  const passedOver = kitHasNoTemplate ? [] : unfit.slice(0, fits < 0 ? unfit.length : fits).map((u, index) => ({ index, reason: `${u!.format}, ${u!.language}: ${overlaySummary(u!.findings)}`.slice(0, 300) }));
   const candidates: AdCandidates = {
     ranked: ranked.map((r) => ({ copy: r.copy, judged: r.judged, total: r.total, offered_as: r.offered_as })),
-    chosen: 0, judge: scores ? CRAFT_JUDGE_PROMPT_VERSION : null, offered: written.offered, passed: written.passed.length,
+    chosen: Math.max(fits, 0), judge: scores ? CRAFT_JUDGE_PROMPT_VERSION : null, offered: written.offered, passed: written.passed.length,
+    ...(passedOver.length > 0 ? { passed_over: passedOver } : {}),
   };
-  const copy = { copy: ranked[0]!.copy };
   // The set is written as soon as it exists, so a creative that stops later (a render, a visual check) still shows
   // what was written and how it was ranked; `finish` carries it again on the final row.
   await keep(deps.admin, cr, { candidates });
+  if (fits < 0) {
+    // What is on the row is the best-ranked candidate's refusal; the reason names every candidate's.
+    const first = unfit[0]!;
+    const reason = ranked.length === 1 || kitHasNoTemplate ? `render check (${first.format}, ${first.language}): ${overlaySummary(first.findings)}`
+      : `render check: none of the ${ranked.length} copies fits the image — ${passedOver.map((p) => `#${p.index + 1} (${p.reason})`).join(" · ")}`;
+    return stop({ kind: "stop", reason: reason.slice(0, 2000), checks: { copy: { ok: true }, render: { ok: false, format: first.format, language: first.language, findings: first.findings } } });
+  }
+  const copy = { copy: ranked[fits]!.copy };
 
   let failed: AdVisualCheck[] = [];
   const history: Array<{ attempt: number; visual: Record<string, VisualResult[]> }> = [];
@@ -202,6 +225,21 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
     assets.push({ format: r.format, language: r.language, sha256: ref.sha256, path: `${cr.org_id}/${ref.sha256}.png`, width: ref.width, height: ref.height });
   }
   return { kind: "passed", visual, assets };
+}
+
+/**
+ * Why the overlay cannot draw this copy — the first published format and language that refuses it, with the
+ * overlay's own findings — or null when it can draw it everywhere it will be asked to.
+ */
+function fitRefusal(input: ComposeInput, copy: AdCopy): { format: AdFormat; language: OverlayLanguage; findings: OverlayFinding[] } | null {
+  const { brief, recipe, kit } = input;
+  for (const format of publishedFormats(recipe.formats)) {
+    for (const language of LANGUAGES) {
+      const findings = overlayFit({ format, language, brief, kit, layout: recipe.layout, headline: copy[language][recipe.overlay_slots!.headline]!, cta: copy[language][recipe.overlay_slots!.cta]! });
+      if (findings.length > 0) return { format, language, findings };
+    }
+  }
+  return null;
 }
 
 function toFraction(box: { x: number; y: number; width: number; height: number }, format: AdFormat): FractionRect {
