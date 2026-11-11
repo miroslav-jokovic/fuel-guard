@@ -94,6 +94,13 @@ import { buildNavGroups } from "./nav";
  * renames to sentence case and plainer names (Cards → Fuel cards, Alerts → Fuel alerts, Messages →
  * Driver messages, Invoices → Customer invoices, Odometer → Odometer mismatches (its page title), and
  * seven capitalisation fixes). No gate, no key.
+ *
+ * ── AND A NINTH TIME, ON 2026-11-11: FUEL COSTS OPENS AT FUEL VIEW (F21 Q-AI12) ─────────────────
+ * The owner approved Q-AI12 (F21 PLAN.md §5): `fuel.spend` moved from `manage("fuel")` to
+ * `section("fuel")`, matching its report routes. Thirteen snapshots moved, thirteen lines, every one
+ * `Fuel costs → /fuel-spend` ADDED to the Fuel group: accountant, auditor, dispatcher and
+ * safety_manager (each `fuel: "view"`) in all three module sets, and the sections-claim case. No line
+ * removed, no other entry, group or role moved. Buy discipline moved with it but is not a nav entry.
  */
 
 /** Every module enabled, none, and the shipped default — the three that change what the nav shows. */

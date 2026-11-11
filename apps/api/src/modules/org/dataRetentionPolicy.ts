@@ -347,6 +347,20 @@ export const RETENTION_RULES: RetentionRule[] = [
     orgScoped: true,
     why: "D-SR7 (SCANNER-RELAY-PLAN): relayed scanner reads and the tab each was routed to; never delivered past 60 s, and what a scan led to lives in its own table",
   },
+  {
+    // 0584 (F21 R2), ruled Q-AI4 (a) 2026-11-11: the Ask AI cost ledger — tokens and dollars per answer,
+    // no question and no answer text. 400 days, not 365: "13 months" means a year-over-year view keeps
+    // last year's SAME month whole, and on the 31st that month began 396 days back. The question asked
+    // is kept elsewhere, by a different rule: the `ai.ask` row in `audit_logs` (RETENTION_FORBIDDEN,
+    // Q-AI4 (b)). The month meter reads only the current month (`p_since`), and `org_usage_month`
+    // carries its own rolled-up totals, so nothing the budget reads is pruned.
+    table: "ai_assistant_usage",
+    timeColumn: "asked_at",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "Q-AI4 (F21 PLAN.md §5): Ask AI's per-answer cost rows, no text; 13 months for the year-over-year cost view, and the audit row keeps who asked what",
+  },
 ];
 
 export { RETENTION_FORBIDDEN } from "./dataRetentionForbidden.js";

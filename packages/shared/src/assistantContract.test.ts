@@ -175,6 +175,19 @@ describe("ASSISTANT_TOOL_PAGE — the page an answer links to (F21 R4a)", () => 
     }
   });
 
+  // Q-AI12 (owner 2026-11-11): a page that asks MORE than its own report route hides a link to an answer
+  // the person was entitled to — Fuel costs was `manage("fuel")` over a `view` route until this ruling.
+  it("asks no more than the tool: a page's section level is one the tool's own requirement on it grants", () => {
+    for (const [tool, key] of Object.entries(ASSISTANT_TOOL_PAGE)) {
+      if (key === null) continue;
+      const gate = SURFACES.find((s) => s.key === key)!.gate;
+      if (gate.kind !== "section") continue;
+      const asks = reqs(tool as keyof typeof ASSISTANT_TOOL_ACCESS).find((r) => "section" in r && r.section === gate.section);
+      if (gate.level === "manage") expect(asks && "level" in asks ? asks.level : null, `${tool} -> ${key}`).toBe("manage");
+    }
+    expect(SURFACES.find((s) => s.key === "fuel.spend")!.gate).toEqual({ kind: "section", section: "fuel", level: "view" });
+  });
+
   it("names a page only for the tools built on a page's own read", () => {
     expect(ASSISTANT_TOOL_PAGE.fuel_report).toBe("fuel.spend");
     expect(ASSISTANT_TOOL_PAGE.finance_report).toBe("finance.fleet-report");

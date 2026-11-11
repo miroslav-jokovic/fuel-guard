@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { todayInZone, wallClockToUtc } from "@silvicom/shared";
+import { wallClockToUtc } from "@silvicom/shared";
 import { readCarrierZone } from "./applicantBoardReads.js";
 
 /**
@@ -20,13 +20,12 @@ export const carrierZone = (admin: SupabaseClient, orgId: string): Promise<strin
  * evening it is tomorrow. Eleven sites in this module read it that way until 2026-10-20, one of them
  * the `occurred_on` of the handbook's qualification record — append-only, so a handbook signed at
  * eight in the evening was filed as signed the next day and could only be put right by a new row.
- * One definition here, on the org's own zone (`calendarDay.ts`'s rule: the column decides, the
- * carrier's zone measures, never the viewer's), so the next writer of a date reads it rather than
- * the clock.
+ *
+ * Since 2026-11-11 this IS `org`'s `orgToday` under the name recruiting's thirty-odd callers know: the
+ * definition moved to the module that owns `organizations` so DQ, inspections and the assistant read
+ * the same day (F21 carrier-day fix). A second body here would be the drift that fix removed.
  */
-export async function carrierToday(admin: SupabaseClient, orgId: string, now: Date = new Date()): Promise<string> {
-  return todayInZone(now, await carrierZone(admin, orgId));
-}
+export { orgToday as carrierToday } from "../org/index.js";
 
 /** `YYYY-MM-DDTHH:MM` on the carrier's clock, as an instant. */
 export function instantOf(wall: string, zone: string): string {
