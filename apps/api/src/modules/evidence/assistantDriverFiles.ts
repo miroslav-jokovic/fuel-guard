@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { compareAttention, type DqAttentionItem, type DqItemState } from "@silvicom/shared";
+import { ASSISTANT_TOOL_PAGE, compareAttention, driversToQuery, type DqAttentionItem, type DqItemState } from "@silvicom/shared";
 import { getComplianceOverview } from "./complianceOverview.js";
 
 /**
@@ -93,6 +93,12 @@ export async function assistantDriverFiles(
   if (named.length > 0) {
     const missing = named.filter((n) => !overview.drivers.some((d) => d.driver_name.toLowerCase().includes(n)));
     if (missing.length > 0) result.not_found = missing;
+  }
+  // F21 R4b: a link with filters ONLY where the roster can show exactly these drivers — `expired`, the one
+  // item state its worst-chip File filter agrees with (`driversLinkContract.ts`, Q-AI13). Any other answer
+  // links to the roster itself. Lifted off before the model sees the result (D-AI8).
+  if (only === "expired" && named.length === 0) {
+    result.link = { surfaceKey: ASSISTANT_TOOL_PAGE.driver_file_expirations, query: driversToQuery({ file: "expired", status: null }) };
   }
   return result;
 }

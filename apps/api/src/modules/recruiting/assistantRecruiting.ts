@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { HIRING_PHASE_LABELS, type HiringPhase } from "@silvicom/shared";
+import { applicantsToQuery, ASSISTANT_TOOL_PAGE, HIRING_PHASE_LABELS, type HiringPhase } from "@silvicom/shared";
 import { readApplicantPipeline } from "./routes/employmentPipeline.js";
 
 /**
@@ -76,5 +76,8 @@ export async function assistantRecruiting(admin: SupabaseClient, orgId: string, 
       decision: a.disposition?.outcome ?? null,
     })),
     ...(rows.length > MAX_RECRUITING_ROWS ? { applicants_note: `${MAX_RECRUITING_ROWS} of ${rows.length} applicants listed, longest waiting first.` } : {}),
+    // F21 R4b: the board opened on this answer's queue and stage; "everybody" is written `any`, since the
+    // board opens on "waiting on you". Lifted off before the model sees the result (D-AI8).
+    link: { surfaceKey: ASSISTANT_TOOL_PAGE.recruiting_counts, query: applicantsToQuery({ waiting: waiting as "us" | "them" | null, phase }) },
   };
 }

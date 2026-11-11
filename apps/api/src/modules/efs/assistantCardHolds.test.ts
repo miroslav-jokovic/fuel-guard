@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fuelCardsToQuery } from "@silvicom/shared";
 import { stripNeverExposed, type EfsCardSummary } from "@silvicom/shared";
 
 /** The tool's answer is `unknown` to its caller (it goes to the model as JSON); tests read named fields. */
@@ -85,5 +86,13 @@ describe("card_holds — the Fuel Cards page's statuses", () => {
   it("a failed read is an error, never an empty fleet", async () => {
     listEfsCards.mockResolvedValue({ ok: false, error: { message: "db down" } });
     await expect(assistantCardHolds({} as never, ORG, {})).rejects.toThrow("db down");
+  });
+
+  // F21 R4b: the page's status filter takes ONE status; "Hold or Fraud" links to the page itself.
+  it("links to the page on the one status asked about, spelled as the catalogue spells it, and not for both", async () => {
+    const fraud = (await assistantCardHolds({} as never, ORG, { status: "fraud" })) as Out;
+    expect(fraud.link).toEqual({ surfaceKey: "fuel.cards", query: fuelCardsToQuery({ status: "Fraud" }) });
+    expect(fraud.link.query).toEqual({ status: "Fraud" });
+    expect(((await assistantCardHolds({} as never, ORG, {})) as Out).link).toBeUndefined();
   });
 });

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { applicantsToQuery } from "@silvicom/shared";
 
 /** The tool's answer is `unknown` to its caller (it goes to the model as JSON); tests read named fields. */
 type Out = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -71,5 +72,15 @@ describe("recruiting_counts — the Applicants board's queues", () => {
   it("a failed read is an error, never an empty board", async () => {
     readApplicantPipeline.mockResolvedValue({ ok: false, message: "Could not load the pipeline" });
     await expect(assistantRecruiting({} as never, ORG, {})).rejects.toThrow("Could not load the pipeline");
+  });
+
+  // F21 R4b. The board opens on "waiting on you": a link for everybody must SAY everybody (`any`), or the
+  // reader lands on a shorter list than the answer counted.
+  it("links to the board on the answer's queue and stage, writing everybody as `any`", async () => {
+    const all = (await assistantRecruiting({} as never, ORG, {})) as Out;
+    expect(all.link).toEqual({ surfaceKey: "recruitment.applicants", query: { waiting: "any" } });
+    const them = (await assistantRecruiting({} as never, ORG, { waiting_on: "them", phase: "screening" })) as Out;
+    expect(them.link.query).toEqual(applicantsToQuery({ waiting: "them", phase: "screening" }));
+    expect(them.link.query).toEqual({ waiting: "them", phase: "screening" });
   });
 });
