@@ -1532,7 +1532,8 @@ conflict every time (`plan-progress-log-not-table-rows`).
   maplibre 5.24's `_updatePlacement` (read in the installed copy) marks placement stale on any
   changed symbol bucket and then walks EVERY symbol layer, so the raster map pays for one layer and
   the vector map for six. The two "speed" items were one cause, and it is in production today. A
-  65 mph truck needs ~1 900 frames to move one pixel at zoom 7 and ~15 at zoom 14, so the write is
+  65 mph truck needs ~950 frames to move one pixel at zoom 7 and ~7 at zoom 14 (corrected in the M1
+  PR from ~1 900 and ~15, which used a 256-pixel world), so the write is
   wasted at every zoom a fleet is watched from. **D-DR39 (proposed): write the truck source only when
   a dot has moved a CSS pixel at the current zoom, both maps, as its own production PR**; the tweens
   stay as D-LM8a/b set them and `updateData` is not the lever (§10.2 has why). Capacity for 50 seats
@@ -1541,3 +1542,18 @@ conflict every time (`plan-progress-log-not-table-rows`).
   vector map survives a single replica inside the 20 s wait. The poll path (C1–C3) is already sized.
   Ten gaps recorded in §10.4; Q-DR35 (self-hosted OSM tiles) and Q-DR36 (the escape hatch is not
   remembered) opened in §6; Q-DR34 gains candidate (d). PR #2262 merged the same day.
+- **2026-11-11 (night) — D-DR39 BUILT: the truck source is written when a dot has moved a pixel.**
+  `redrawDue(drawn, sampled, { zoom, latitude, iconRadiusPx }, tolerancePx)` and `metresPerPixel`
+  in `liveMapMotion.ts`; `LiveMapCanvas.vue`'s `step()` still samples every tween and moves the
+  popover every frame, but writes the map only when some dot has moved more than one CSS pixel on
+  the ground or by its arrow's tip (15 px radius, so about 4°), and once more with zero tolerance as
+  the motion settles so every dot ends on its fix. Membership, selection and card changes stay
+  unconditional writes. Every write dispatches a `livemap:write` event on `window` for a measuring
+  page; `staging-map-frames.mjs` counts them over a 10 s still hold at the fitted zoom and over the
+  zoom walk. `planFleetFit` moved out of the canvas into `liveMapCamera.ts` (pure, tested) to keep
+  the file under the 500-line budget (497). Tests: 13 new in `liveMapMotion.test.ts`, 4 in
+  `liveMapCamera.test.ts`; nine mutants (gate always writes, 256-px world, heading ignored, long way
+  round the compass, size change ignored, arrow appearing ignored, default tolerance zero, bounds
+  inverted, selection ignored) each failed. Not yet measured: the staging write rate and the longest
+  frame of both maps after the gate — owed as the first entry after this serves on staging, before
+  the owner's office-PC check.

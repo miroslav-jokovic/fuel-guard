@@ -262,3 +262,93 @@ function isStill(tween: Tween): boolean {
     tween.from.heading === tween.to.heading
   );
 }
+
+/**
+ * ── D-DR39: THE SOURCE IS WRITTEN WHEN A DOT HAS MOVED A PIXEL, NOT ON EVERY FRAME ──────────────
+ *
+ * Until 2026-11-11 `LiveMapCanvas` called `setData` with the whole fleet on EVERY frame of the loop
+ * above, and because the tweens outlast the poll on purpose (D-LM8a/b) the loop never stops while
+ * one truck in 236 is moving — so the source was rewritten sixty times a second all working day.
+ * Each write hands maplibre a new symbol bucket, and maplibre 5.24's `_updatePlacement` then marks
+ * placement stale and walks EVERY symbol layer in the style (read in the installed copy). On the
+ * raster map that is one layer; on the vector road map it is six, re-placing thousands of labels
+ * for a fleet that had not visibly moved. That was the "placing labels" freeze profiled in
+ * `DESIGN-REFRESH-2026-09.md` §7 (2026-11-11), and it is in production's map too.
+ *
+ * How much of it was wasted is a matter of zoom. A truck at 65 mph covers 0.48 m a frame; one CSS
+ * pixel near Chicago is about 455 m at zoom 7, 57 m at zoom 10, 3.6 m at zoom 14 and 0.45 m at
+ * zoom 17 — so from the zoom a fleet is watched at, no dot moves a pixel for a quarter of a minute.
+ *
+ * The gate: a write is due when any dot has moved more than `tolerancePx` from where it was last
+ * DRAWN — on the ground, or by turning its arrow — in CSS pixels at the camera's current zoom. The
+ * glide is untouched: the tweens are sampled every frame as before, and the popover follows the
+ * sample; only the write to the map waits for a visible change. The two levers deliberately NOT
+ * pulled: shortening the tweens (that re-opens D-LM8a's freezes) and `GeoJSONSource.updateData`
+ * (236 features is a small payload; the frequency was the cost, and a diff write at 60 Hz triggers
+ * the same placement).
+ *
+ * ⚠ The settling frame writes with `tolerancePx = 0`, so the dot ends exactly on its fix. Without
+ * that, a dot could stop up to one pixel short at zoom 7, and a dispatcher zooming to 14 would
+ * find it 128 pixels from where the truck is.
+ */
+
+/** The equator, in metres — maplibre's world is this wide at zoom 0, over 512 CSS pixels. */
+export const EARTH_CIRCUMFERENCE_M = 40_075_016.686;
+
+/** Metres in one degree of latitude, and of longitude at the equator (a sphere; fine for a pixel test). */
+const METRES_PER_DEGREE = EARTH_CIRCUMFERENCE_M / 360;
+
+const RADIANS = Math.PI / 180;
+
+/** How many metres one CSS pixel covers at this zoom and latitude (maplibre's 512 px tiles). */
+export function metresPerPixel(zoom: number, latitude: number): number {
+  return (EARTH_CIRCUMFERENCE_M * Math.cos(latitude * RADIANS)) / (512 * 2 ** zoom);
+}
+
+/** The camera's scale and the arrow's size — everything a pixel test needs to know about the screen. */
+export interface PixelScale {
+  zoom: number;
+  /** The camera's centre latitude; the metres in a pixel depend on it. */
+  latitude: number;
+  /** Half the marker (D-LM24: 30 px, so 15). A heading change moves the arrow's tip this far per radian. */
+  iconRadiusPx: number;
+}
+
+/**
+ * Is a write to the map due? `drawn` is what the map is showing (the places at the last write);
+ * `sampled` is where the tweens put every dot this frame.
+ */
+export function redrawDue(
+  drawn: ReadonlyMap<string, RenderedPlace>,
+  sampled: ReadonlyMap<string, RenderedPlace>,
+  scale: PixelScale,
+  tolerancePx = 1,
+): boolean {
+  // A truck that appeared or left changes the picture whatever the pixels say.
+  if (drawn.size !== sampled.size) return true;
+  const metresPerPx = metresPerPixel(scale.zoom, scale.latitude);
+  for (const [id, now] of sampled) {
+    const was = drawn.get(id);
+    if (!was) return true;
+    if (pixelsApart(was, now, metresPerPx, scale.iconRadiusPx) > tolerancePx) return true;
+  }
+  return false;
+}
+
+/** The larger of the ground movement and the arrow-tip movement, in CSS pixels. */
+function pixelsApart(was: RenderedPlace, now: RenderedPlace, metresPerPx: number, iconRadiusPx: number): number {
+  const north = (now.lat - was.lat) * METRES_PER_DEGREE;
+  const east = (now.lng - was.lng) * METRES_PER_DEGREE * Math.cos(now.lat * RADIANS);
+  return Math.max(Math.hypot(north, east) / metresPerPx, headingPixels(was.heading, now.heading, iconRadiusPx));
+}
+
+/**
+ * How far the arrow's tip moved. An arrow appearing or vanishing (a heading becoming known or
+ * unknown) redraws the icon itself, so it always counts.
+ */
+function headingPixels(was: number | null, now: number | null, iconRadiusPx: number): number {
+  if (was === now) return 0;
+  if (was == null || now == null) return Number.POSITIVE_INFINITY;
+  const shortWay = Math.abs(((now - was + 540) % 360) - 180);
+  return shortWay * RADIANS * iconRadiusPx;
+}
