@@ -585,3 +585,28 @@ audit row is the endpoint's own.
     page, a legacy tool linked, the route sending no pages, no reach check, no screen-grant check,
     dollars kept in a numeric column, a text column stripped (it SURVIVED until a money-looking text
     cell was in the fixture), pages dropped by the store.
+- 2026-11-10 — **R7 built: the eval set (Step 1c), run on demand, never in CI.**
+  `insights/eval/assistantEvalSet.ts` has 23 cases:
+  - **real (11):** every distinct question in production's `ai.ask` rows, 07/02 to 11/10 (21 asks, 11
+    distinct), copied exactly, typos included;
+  - **tool (10):** one per R6 tool, worded as its page's suggestion, plus an R3a follow-up;
+  - **role (2):** a recruiter asking fuel, a dispatcher asking profit; both must be refused in words.
+  - **What is judged:** only what the model decides: the tool ("any of"), its input (units compared as
+    units), the ending, and words the answer must say. Figures are not re-checked: each tool equals
+    its page by construction and by its own spied test. `scoreCase` is pure.
+  - **How it runs:** `runAssistantEval` asks through `askData` itself, the endpoint's loop, with
+    `assistantToolsFor(case.role, …)`. It writes nothing: no usage row, no audit row, no carrier budget
+    (as `ads:eval`). Run it with `pnpm --filter @silvicom/api eval:assistant --org <uuid> [--only …]
+    [--record]`. `--record` writes `eval/baseline.json`.
+  - **Cost and data:** about $0.05 for the set at Haiku 5.5 list price, on the developer's key. It
+    READS the named carrier's data with the `.env`'s service role (`apps/api/.env` is production) and
+    sends it to the model provider exactly as Ask AI does. `--org` is required for that reason.
+  - **Honesty is pinned:** every expected tool exists and is one the case's role is actually given;
+    ids and real questions are unique; each refusal case's role has no tool that could answer it;
+    every reporting-track tool is asked at least once.
+  - Eight deliberate breaks, each killed by an assertion: outcome ignored, an errored call counted
+    (it SURVIVED until a failed call was tested alone), units compared raw, a refusal ignoring calls,
+    mentions skipped, the runner giving every tool, the runner dropping history, a case its role
+    cannot reach.
+  - **Not yet run.** The first baseline needs the owner's go: it reads production and spends about
+    $0.05. After it, `idling_summary` can be retired if no case needs it (R6b's open item).
