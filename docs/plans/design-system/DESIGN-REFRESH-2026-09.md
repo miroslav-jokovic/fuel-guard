@@ -1434,3 +1434,13 @@ conflict every time (`plan-progress-log-not-table-rows`).
   (sorted above its aerodrome) and beach six new `--map-*` tokens, each in the lightness band of
   the existing land colours in both schemes (`lint:token-gamut` passes). The style validates;
   5 of 5 mutations caught. Acceptance: staging stills over O'Hare and an industrial area.
+- **2026-11-11 — D-DR38: regional road density (polish item 5), proposed to the owner with stills.**
+  Staging stills of today's map and the vector trial at the same spots, zooms 7–10 around Joliet
+  (`tools/staging-map-views.mjs`; the raster needs `WAIT_MS=15000` to settle at regional zoom).
+  At 9 and 10 the vector map drew a dense blue-grey grid the raster map does not, and at 10 it put
+  25 county numbers on screen. Measured on the tiles behind those stills: the zoom-9 tile's 92
+  major-road lines were 71 `tertiary` (HERE starts them at 9), 17 secondary, 4 primary; the zoom-10
+  tile's 57 route numbers were 29 county, 24 state, 4 interstate. So tertiary roads and county
+  numbers now start at zoom 11 (`REGIONAL_DETAIL_ZOOM`), everything else unchanged. The rule is
+  tested by evaluating the filters on features (4 of 4 mutations caught); the style validates.
+  Acceptance is the owner looking at the before/after stills.

@@ -108,6 +108,12 @@ export function truckPlacesSourceId(basemapSourceId: string): string {
 export const LAND_DETAIL_KINDS = ["industrial", "military", "hospital", "university", "aerodrome", "runway", "beach"];
 
 /**
+ * The zoom from which the vector map draws the local road layer the raster map leaves out at regional
+ * zoom: tertiary roads and county road numbers (D-DR38, chosen by comparing staging stills at 7–10).
+ */
+export const REGIONAL_DETAIL_ZOOM = 11;
+
+/**
  * A road's fill: the highway-casing blue-grey while it is a thin line across open country, fading to
  * white between `from` and `to` as it widens enough to carry an edge line of its own.
  *
@@ -155,7 +161,10 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
   const src = { source: sourceId } as const;
   const roadKinds = {
     highway: ["==", ["get", "kind"], "highway"],
-    major: ["==", ["get", "kind"], "major_road"],
+    // D-DR38: HERE's tertiary roads (`kind_detail`) start at zoom 9 in its data, and they were 71 of
+    // the 92 major-road lines in the zoom-9 tile over Joliet (2026-11-11): the dense blue-grey grid
+    // the raster map does not draw at 9 or 10. They join from zoom 11, every other major road as before.
+    major: ["all", ["==", ["get", "kind"], "major_road"], ["any", ["!=", ["get", "kind_detail"], "tertiary"], [">=", ["zoom"], REGIONAL_DETAIL_ZOOM]]],
     minor: ["==", ["get", "kind"], "minor_road"],
   };
   const line = (name: string, filter: unknown, color: string | ExpressionSpecification, width: ExpressionSpecification, minzoom = 0): LayerSpecification =>
@@ -293,6 +302,8 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
         "all",
         ["has", "shield_text"],
         ["any", ["==", ["get", "kind"], "highway"], ["all", ["==", ["get", "kind"], "major_road"], [">=", ["zoom"], 10]]],
+        // D-DR38: county numbers (`:CR`) from zoom 11 too: 29 of the 57 numbers in the zoom-10 tile.
+        ["any", ["!", ["in", ":CR", ["coalesce", ["get", "network"], ""]]], [">=", ["zoom"], REGIONAL_DETAIL_ZOOM]],
       ],
       layout: {
         "symbol-placement": "line",
