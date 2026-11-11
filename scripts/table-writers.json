@@ -30,6 +30,7 @@
     "apps/api/src/modules/ads/compose/composeCampaign.ts",
     "apps/api/src/modules/ads/compose/composeCreative.ts",
     "apps/api/src/modules/ads/compose/decideCreative.ts",
+    "apps/api/src/modules/ads/compose/refreshCampaign.ts",
     "apps/api/src/modules/ads/monitor/retireTired.ts"
   ],
   "ads_spend_hourly": [

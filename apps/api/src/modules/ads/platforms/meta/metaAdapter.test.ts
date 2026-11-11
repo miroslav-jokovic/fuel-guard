@@ -86,6 +86,27 @@ describe("Meta adapter (CQ9) — retiring one ad", () => {
   });
 });
 
+describe("Meta adapter (Q-AD68) — turning on a retired ad's replacement", () => {
+  it("activateAd sets that ad alone to ACTIVE, read back from Meta, and writes nothing else: not the ad set's budget, not the campaign", async () => {
+    meta.sets.ads.set("504", { id: "504", adset_id: "501", name: "S360|ad3", status: "PAUSED" });
+    meta.campaigns.get("500")!.status = "ACTIVE";
+    const out = await adapter().safe.activateAd({ campaign: ref({ meta_ad_ids: ["502", "504"] }), ad: "504", idempotency_key: "activate_ad:c:504:0" });
+    expect(out).toMatchObject({ ok: true, response: { ad: "504", status: "ACTIVE" } });
+    expect(writes()).toEqual(["504:status=ACTIVE"]);
+    expect([meta.sets.ads.get("502")!.status, meta.sets.ads.get("504")!.status]).toEqual(["PAUSED", "ACTIVE"]);
+  });
+
+  it("an ad the campaign's refs do not hold is refused before any call: a replacement is turned on only after the refs hold it", async () => {
+    expect(await adapter().safe.activateAd({ campaign: ref(), ad: "999", idempotency_key: "k" })).toEqual({ ok: false, error_code: "ad_not_in_campaign", response: { ad: "999" } });
+    expect(writes()).toEqual([]);
+  });
+
+  it("a revoked token stops it as token_invalid, which the step records as a failed try", async () => {
+    meta.revokeToken();
+    expect(await adapter().safe.activateAd({ campaign: ref(), ad: "502", idempotency_key: "k" })).toMatchObject({ ok: false, error_code: "token_invalid" });
+  });
+});
+
 describe("Meta adapter (B3) — launch, raise, area", () => {
   it("launch sets the approved amounts, then the ad and the ad set ACTIVE, and the campaign LAST, read back ACTIVE", async () => {
     expect(await adapter().spend.launch(call())).toMatchObject({ ok: true, response: { status: "ACTIVE" } });

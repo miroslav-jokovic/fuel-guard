@@ -21,7 +21,7 @@ function fakes(w: AdsWorld, opts: { launch?: PlatformOutcome | Error; pause?: Pl
     return opts.launch ?? { ok: true as const, platform_refs: { meta_campaign: "m-1" } };
   });
   const adapter = {
-    safe: { readAccountHeadroomCents: vi.fn(async () => 300_000), readSpendCents: vi.fn(async () => 0), pause: vi.fn(async () => opts.pause ?? { ok: true as const }), pauseAd: vi.fn(async () => ({ ok: true as const })) },
+    safe: { readAccountHeadroomCents: vi.fn(async () => 300_000), readSpendCents: vi.fn(async () => 0), pause: vi.fn(async () => opts.pause ?? { ok: true as const }), pauseAd: vi.fn(async () => ({ ok: true as const })), activateAd: vi.fn(async () => ({ ok: true as const })) },
     spend: { launch, raiseDailyBudget: vi.fn(), changeArea: vi.fn() },
   };
   const compose = vi.fn(async (_c: CampaignRow, _key: string): Promise<WorkerResult> => ({ ok: true }));
@@ -29,6 +29,7 @@ function fakes(w: AdsWorld, opts: { launch?: PlatformOutcome | Error; pause?: Pl
   const workers: CampaignWorkers = {
     compose,
     createPaused,
+    refresh: null,
     platform: vi.fn(async (_org: string, conn: string) => (conn === CONN ? guardPlatform(w.admin, w.now, "meta", adapter) : null)),
   };
   return { workers, compose, createPaused, launch, pause: adapter.safe.pause };
@@ -177,6 +178,47 @@ describe("runCampaignStep — the kill switch, in every state", () => {
     await step(w, f.workers);
     expect(w.byId("c1").state).toBe("paused");
     expect(w.actions.filter((a) => a.kind === "pause").map((a) => a.status)).toEqual(["succeeded"]);
+  });
+});
+
+describe("runCampaignStep — a live campaign's refresh (Q-AD68)", () => {
+  const refreshing = (answer: WorkerResult | Error) => vi.fn(async (_c: CampaignRow, _key: string): Promise<WorkerResult> => {
+    if (answer instanceof Error) throw answer;
+    return answer;
+  });
+
+  it("a live step runs the refresh worker with the stint's key, moves nothing and writes no transition, whatever it answers", async () => {
+    for (const [answer, reason] of [
+      [{ ok: true }, "refresh: nothing left to do"],
+      [{ ok: false, pending: true, why: "render queued" }, "pending: render queued"],
+      [{ ok: false, error: "creative x: publish meta_100" }, "refresh: creative x: publish meta_100"],
+      [new Error("boom"), "refresh: boom"],
+    ] as const) {
+      const w = createAdsWorld({ campaigns: [campaign("c1", "live")] });
+      const refresh = refreshing(answer as WorkerResult | Error);
+      expect(await step(w, { ...fakes(w).workers, refresh })).toEqual({ kind: "idle", state: "live", reason });
+      expect(refresh).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }), `c1:${w.byId("c1").state_changed_at}`);
+      expect([w.byId("c1").state, w.transitions().length]).toEqual(["live", 0]);
+    }
+  });
+
+  it("with the kill switch on, a live campaign is killed and the refresh is never asked: nothing new turns on while the switch is pressed", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "live")], kill: true });
+    const refresh = refreshing({ ok: true });
+    await step(w, { ...fakes(w).workers, refresh });
+    expect([w.byId("c1").state, refresh.mock.calls.length]).toEqual(["pausing", 0]);
+  });
+
+  it("under the brake the refresh is never asked either", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "live")] });
+    const refresh = refreshing({ ok: true });
+    await runCampaignStep({ admin: w.admin, now: w.now, workers: { ...fakes(w).workers, refresh }, brake: "ADS_ENABLED is off" }, ORG, "c1");
+    expect([w.byId("c1").state, refresh.mock.calls.length]).toEqual(["pausing", 0]);
+  });
+
+  it("no refresh worker: a live campaign without the switch has nothing for the agent, as before Q-AD68", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "live")] });
+    expect(await step(w, fakes(w).workers)).toEqual({ kind: "idle", state: "live", reason: "no_agent_work" });
   });
 });
 

@@ -140,6 +140,8 @@ const COMPARE: Record<string, (cell: unknown, want: unknown) => boolean> = {
   // ⚠ C2e: an operator missing from this table matches EVERY row, so `ilike` read as "all applicants
   // are this person". Case-insensitive, `%`/`_` as wildcards, `\` escaping either, as Postgres does.
   ilike: (c, w) => c != null && ilikeRegex(String(w)).test(String(c)),
+  // Q-AD68: `like` too — the same wildcards, case-sensitive — so a `like` filter is never silently "every row".
+  like: (c, w) => c != null && new RegExp(ilikeRegex(String(w)).source, "s").test(String(c)),
 };
 
 /** An `ilike` pattern as an anchored, case-insensitive regex. */
