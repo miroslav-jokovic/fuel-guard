@@ -324,8 +324,13 @@ export function isVectorTemplate(template: string): boolean {
   return template.includes("/map-tiles/vector/");
 }
 
-/** Where maplibre fetches label glyphs: our API's relay of HERE's two style fonts (D-DR31). */
-export const GLYPHS_PATH = "/api/fueling/map-tiles/glyphs/{fontstack}/{range}";
+/**
+ * Where maplibre fetches label glyphs: our API's relay of HERE's two style fonts (D-DR31).
+ * ⚠ The `.pbf` is load-bearing: `{range}` becomes `0-255`, and both the relay and HERE refuse a name
+ * without it. maplibre then draws the labels with the browser's font and says so only in a console
+ * warning (`VECTOR_GLYPH_RANGE_FILE` has the incident).
+ */
+export const GLYPHS_PATH = "/api/fueling/map-tiles/glyphs/{fontstack}/{range}.pbf";
 
 /** The vector road map's tile template, served by our API (`mapProxies.ts`, D-DR31). */
 export const VECTOR_TILES_TEMPLATE = "/api/fueling/map-tiles/vector/{z}/{x}/{y}";
