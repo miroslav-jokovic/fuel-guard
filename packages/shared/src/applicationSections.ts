@@ -191,6 +191,8 @@ export const APPLICATION_SECTION_KEYS: Record<
     "declares_no_violations",
     "licence_ever_denied",
     "licence_denial_detail",
+    "licence_suspended",
+    "licence_suspension_detail",
     // ⚠ §40.25(j)'s two-year question (P8). On THIS screen rather than `employment` because it is a
     // question about the applicant's own testing history, not about a job they held — the employment
     // screen's `safety_sensitive`/`subject_to_fmcsr` are per-employer and answer something else. The

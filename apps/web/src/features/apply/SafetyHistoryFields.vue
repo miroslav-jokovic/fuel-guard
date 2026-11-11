@@ -72,6 +72,14 @@ const everDenied = computed<boolean | null>({
     if (yes === false) draft.value.licence_denial_detail = "";
   },
 });
+/** F2c (P4): the carrier's question B, asked apart from A as page 2 asks it. "No" clears its description. */
+const everSuspended = computed<boolean | null>({
+  get: () => draft.value.licence_suspended,
+  set: (yes) => {
+    draft.value.licence_suspended = yes;
+    if (yes === false) draft.value.licence_suspension_detail = "";
+  },
+});
 </script>
 
 <template>
@@ -144,10 +152,10 @@ const everDenied = computed<boolean | null>({
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <ApplyField v-slot="f" :path="['violations', i, 'state']" :label="copy.violationState" :hint="copy.violationStateHint">
-              <BaseInput v-bind="f" v-model="violation.state" placeholder="Optional" />
+              <BaseInput v-bind="f" v-model="violation.state" autocapitalize="characters" />
             </ApplyField>
             <ApplyField v-slot="f" :path="['violations', i, 'penalty']" :label="copy.penalty" :hint="copy.penaltyHint">
-              <BaseInput v-bind="f" v-model="violation.penalty" placeholder="Optional" />
+              <BaseInput v-bind="f" v-model="violation.penalty" />
             </ApplyField>
           </div>
           <div class="flex justify-end">
@@ -174,6 +182,21 @@ const everDenied = computed<boolean | null>({
         :hint="copy.denialDetailHint"
       >
         <BaseInput v-bind="f" v-model="draft.licence_denial_detail" />
+      </ApplyField>
+      <YesNoField
+        :id="idFor(['licence_suspended'])"
+        v-model="everSuspended"
+        :legend="copy.suspendedQuestion"
+        :error="errorFor(['licence_suspended'])"
+      />
+      <ApplyField
+        v-if="everSuspended"
+        v-slot="f"
+        :path="['licence_suspension_detail']"
+        :label="copy.suspensionDetail"
+        :hint="copy.suspensionDetailHint"
+      >
+        <BaseInput v-bind="f" v-model="draft.licence_suspension_detail" />
       </ApplyField>
     </div>
 

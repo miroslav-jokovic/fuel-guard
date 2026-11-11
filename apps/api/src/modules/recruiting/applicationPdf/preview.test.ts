@@ -29,7 +29,7 @@ const PAYLOAD = {
   employers: [], declares_no_employment: false,
   accidents: [], declares_no_accidents: false,
   violations: [], declares_no_violations: false,
-  licence_ever_denied: false, licence_denial_detail: "",
+  licence_ever_denied: false, licence_suspended: false, licence_denial_detail: "",
   questionnaire: { proof_of_age: true },
 };
 

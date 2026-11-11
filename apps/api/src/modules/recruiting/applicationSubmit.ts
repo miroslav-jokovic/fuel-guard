@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   applicationAwaitsSignature,
   applicationLegacyFilingIssues,
+  applicationPaperFilingIssues,
   applicationV2FilingIssues,
   applicationWordingIsDraft,
   type ApplicationFilingIssue,
@@ -310,12 +311,17 @@ export async function submitApplication(
   let certified: ApplicationSubmit["application"] = stamped;
   const composed = await applicationAsFiled(admin, invitation, stamped, now);
   if (composed.asOf) {
-    const issues = [...composed.issues, ...applicationV2FilingIssues(composed.application, composed.asOf)];
+    const issues = [
+      ...composed.issues,
+      ...applicationV2FilingIssues(composed.application, composed.asOf),
+      ...applicationPaperFilingIssues(composed.application),
+    ];
     if (issues.length > 0) return applicationIncomplete(issues);
     certified = composed.application;
   } else {
     // F1 part 2: a legacy link asks §40.25(j) on its own safety screen, and a new filing must answer it.
-    const issues = applicationLegacyFilingIssues(stamped);
+    // F2c: and what the carrier's paper asks of every filing (question B, each conviction's state and penalty).
+    const issues = [...applicationLegacyFilingIssues(stamped), ...applicationPaperFilingIssues(stamped)];
     if (issues.length > 0) return applicationIncomplete(issues);
   }
 

@@ -125,3 +125,18 @@ describe("AppButton size='media'", () => {
     expect(cls).not.toContain("px-3");
   });
 });
+
+describe("AppButton variant='link'", () => {
+  /**
+   * A link sits in running text and wraps with it. It inherited the control's `whitespace-nowrap`, so the
+   * applicant's "Before you can go on" list — links that are whole questions — ran past the card's edge on
+   * a phone (F2c browser pass, 2026-11-11). A boxed control still never wraps.
+   */
+  it("wraps like the text around it, where a control does not", () => {
+    const link = mount(AppButton, { props: { variant: "link" }, slots: { default: "A long question" } }).classes();
+    expect(link).toContain("whitespace-normal");
+    expect(link).not.toContain("whitespace-nowrap");
+    const control = mount(AppButton, { slots: { default: "Save" } }).classes();
+    expect(control).toContain("whitespace-nowrap");
+  });
+});

@@ -18,7 +18,7 @@ const DRAFT = {
   cdl_number: "PA334554", cdl_state: "PA", cdl_class: "", cdl_expires_at: "2029-01-01", additional_licences: [],
   experience: "", equipment_experience: [],
   accidents: [], declares_no_accidents: true, violations: [], declares_no_violations: true,
-  licence_ever_denied: false, licence_denial_detail: "",
+  licence_ever_denied: false, licence_suspended: false, licence_denial_detail: "",
   employers: [{
     key: "40000000-0000-4000-8000-00000000000a", employer_name: "Old Carrier", usdot_number: "", address_line1: "",
     city: "", state: "", phone: "", email: "", position_held: "Driver", started_on: "2023-01-01", ended_on: "2025-06-30",

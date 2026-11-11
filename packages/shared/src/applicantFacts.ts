@@ -222,9 +222,11 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("violations[].offence", "text", "391.21(b)(8)", ["p02.convictions#1"]),
   app("violations[].state", "jurisdiction", "391.21(b)(8)", ["p02.convictions#2"]),
   app("violations[].penalty", "text", "391.21(b)(8)", ["p02.convictions#3"]),
-  app("licence_ever_denied", "yesno", "391.21(b)(9)",
-    ["p02.denied.yes", "p02.denied.no", "p02.revoked.yes", "p02.revoked.no"]),
+  // F2c (P4): the carrier's A and B, apart. (A filing from before F2c prints its one answer on both lines.)
+  app("licence_ever_denied", "yesno", "391.21(b)(9)", ["p02.denied.yes", "p02.denied.no"]),
   app("licence_denial_detail", "longtext", "391.21(b)(9)", ["p02.denied.explain"]),
+  app("licence_suspended", "yesno", "391.21(b)(9)", ["p02.revoked.yes", "p02.revoked.no"]),
+  app("licence_suspension_detail", "longtext", "391.21(b)(9)", ["p02.revoked.explain"]),
   app("prior_failed_pre_employment_test", "yesno", "40.25(j)", ["p26.prior_test.yes", "p26.prior_test.no"], STATEMENT),
 
   // ── (b)(10)/(b)(11) employers ──

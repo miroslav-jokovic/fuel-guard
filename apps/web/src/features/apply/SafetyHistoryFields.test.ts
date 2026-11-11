@@ -41,13 +41,18 @@ describe("the three questions, against the regulation", () => {
     expect(copy.violationsQuestionHint).toContain("Parking");
   });
 
-  it("(b)(9): any licence, permit or privilege ever denied, revoked or suspended — with no time limit", () => {
+  it("(b)(9): denied, and suspended or revoked, asked apart as the carrier's page 2 asks them — with no time limit", () => {
     expect(s391_21).toContain("any denial, revocation, or suspension of any license, permit, or privilege to operate a motor vehicle");
-    for (const plain of ["licence, permit or privilege", "drive a motor vehicle", "denied, revoked or suspended", "ever"]) {
+    // F2c (P4): A is the denial and B the suspension or revocation; together they ask the paragraph's three.
+    for (const plain of ["denied", "license, permit or privilege", "operate a motor vehicle", "ever"]) {
       expect(copy.deniedQuestion).toContain(plain);
     }
-    // The paragraph has no window, so the question must not invent one.
-    expect(copy.deniedQuestion).not.toMatch(/last \d+ years/);
+    for (const plain of ["suspended or revoked", "license, permit or privilege", "ever"]) {
+      expect(copy.suspendedQuestion).toContain(plain);
+    }
+    expect(copy.deniedQuestion).not.toContain("suspended");
+    // The paragraph has no window, so neither question may invent one.
+    for (const q of [copy.deniedQuestion, copy.suspendedQuestion]) expect(q).not.toMatch(/last \d+ years/);
   });
 });
 
@@ -165,6 +170,20 @@ describe("the gates", () => {
     expect(draft.value.licence_ever_denied).toBe(false);
     expect(draft.value.licence_denial_detail).toBe("");
     expect(w.find("#apply-licence_denial_detail").exists()).toBe(false);
+  });
+
+  it("asks B — suspended or revoked — apart from A, with its own description, forgotten on No (F2c)", async () => {
+    const { w, draft } = mountScreen();
+    expect(chosen(w, copy.suspendedQuestion)).toEqual([false, false]);
+    await choose(w, copy.deniedQuestion, "no");
+    await choose(w, copy.suspendedQuestion, "yes");
+    expect(draft.value.licence_ever_denied).toBe(false);
+    expect(draft.value.licence_suspended).toBe(true);
+    await w.find("#apply-licence_suspension_detail").setValue("Suspended 2019");
+    expect(draft.value.licence_suspension_detail).toBe("Suspended 2019");
+    await choose(w, copy.suspendedQuestion, "no");
+    expect(draft.value.licence_suspension_detail).toBe("");
+    expect(w.find("#apply-licence_suspension_detail").exists()).toBe(false);
   });
 
   it("puts a refusal under the question that answers it, on the control focus moves to", () => {

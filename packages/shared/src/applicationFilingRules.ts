@@ -144,3 +144,33 @@ export function applicationLegacyFilingIssues(
     ? []
     : [{ path: "prior_failed_pre_employment_test", message: PRIOR_TEST_UNANSWERED }];
 }
+
+/**
+ * What EVERY new filing must carry because the carrier's paper asks it (F2c, owner 2026-11-11: "the paper
+ * application is our guidance and the form must match it"), on a v2 link and a legacy one alike.
+ *
+ * Not the contract, for `applicationV2FilingIssues`'s reason: each is nullish there because applications
+ * filed before F2c lack them and must go on parsing.
+ * - Page 2's question B, "Has any license, permit or privilege ever been suspended or revoked?", asked
+ *   apart from A (denied) since F2c (P4).
+ * - Page 2's conviction grid: `STATE OF VIOLATION` and `PENALTY` are columns of every row (P10). They were
+ *   optional on the form, so a conviction printed with two empty cells.
+ */
+// US spelling, as the question it answers (Q-AM6, and the carrier's own page 2).
+export const SUSPENSION_UNANSWERED = "Say whether a license, permit or privilege of yours has ever been suspended or revoked";
+
+export function applicationPaperFilingIssues(
+  application: Pick<DriverApplicationFields, "licence_suspended" | "violations" | "declares_no_violations">,
+): ApplicationFilingIssue[] {
+  const issues: ApplicationFilingIssue[] = [];
+  if (typeof application.licence_suspended !== "boolean") {
+    issues.push({ path: "licence_suspended", message: SUSPENSION_UNANSWERED });
+  }
+  if (!application.declares_no_violations) {
+    (application.violations ?? []).forEach((v, i) => {
+      if (blank(v.state)) issues.push({ path: `violations.${i}.state`, message: "Give the state where it happened" });
+      if (blank(v.penalty)) issues.push({ path: `violations.${i}.penalty`, message: "Give the penalty — a fine, points, a suspension" });
+    });
+  }
+  return issues;
+}
