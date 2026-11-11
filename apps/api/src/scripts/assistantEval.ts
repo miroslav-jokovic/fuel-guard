@@ -1,5 +1,5 @@
 /**
- * `pnpm --filter @silvicom/api eval:assistant --org <uuid> [--only id,id] [--record]` — ask Ask AI's
+ * `pnpm --filter @silvicom/api eval:assistant --org <uuid> [--only id,id] [--answers] [--record]` — ask Ask AI's
  * eval set of the REAL model, over one carrier's REAL data, and say how many it gets right (F21 R7,
  * PLAN Step 1c). Never in CI.
  *
@@ -12,6 +12,11 @@
  *
  * `--record` writes `eval/baseline.json` (model, date, score, each case's verdict) so the next run,
  * after a prompt, tool-description or model change, can be compared with it.
+ *
+ * `--answers` prints each answer's text under its line, so a failure can be read before anything is
+ * tuned: "called nothing" is a refusal, a question back, or a made-up number, and the fix differs
+ * (PLAN §6, the first baseline, 2026-11-11). The text goes to this terminal ONLY, never into
+ * `baseline.json`: that file is committed and the repository is public (`runAssistantEval`'s `onCase`).
  *
  * stdout: one line per case, then the score and the cost.
  */
@@ -29,7 +34,7 @@ const arg = (name: string): string | null => {
 
 const orgId = arg("org");
 if (!orgId || !/^[0-9a-f-]{36}$/i.test(orgId)) {
-  console.error("Usage: eval:assistant --org <org uuid> [--only id,id] [--record]");
+  console.error("Usage: eval:assistant --org <org uuid> [--only id,id] [--answers] [--record]");
   process.exit(2);
 }
 const only = arg("only")?.split(",").map((s) => s.trim()).filter(Boolean) ?? null;
@@ -45,9 +50,11 @@ if (!env.ANTHROPIC_API_KEY) {
   process.exit(2);
 }
 
-const run = await runAssistantEval(getSupabaseAdmin(env), env, orgId, cases, (v) =>
-  console.log(`${v.pass ? "✓" : "✗"} ${v.id}  [${v.tools.join(", ") || "no tool"}]${v.why.length ? `  — ${v.why.join("; ")}` : ""}`),
-);
+const showAnswers = process.argv.includes("--answers");
+const run = await runAssistantEval(getSupabaseAdmin(env), env, orgId, cases, (v, answer) => {
+  console.log(`${v.pass ? "✓" : "✗"} ${v.id}  [${v.tools.join(", ") || "no tool"}]${v.why.length ? `  — ${v.why.join("; ")}` : ""}`);
+  if (showAnswers) console.log(`${answer.replace(/^/gm, "    │ ")}\n`);
+});
 const dollars = (run.costMicroUsd / 1_000_000).toFixed(4);
 console.log(`\n${run.passed}/${run.total} passed, ${AI_MODELS.assistant}, $${dollars}`);
 

@@ -82,4 +82,16 @@ describe("runAssistantEval", () => {
     expect(askData.mock.calls[1]![6]).toEqual([]);
     expect(run).toMatchObject({ passed: 1, total: 2, costMicroUsd: 3600 });
   });
+
+  it("hands each answer's text to the caller beside its verdict, and never puts it in a verdict --record would commit", async () => {
+    askData.mockReset();
+    const answer = "Unit 748 (Jane Driver) spent $4,812.33 on fuel.";
+    askData.mockResolvedValue(trace([{ name: "fuel_report" }], answer));
+    const seen: Array<[string, string]> = [];
+    const run = await runAssistantEval({} as never, {} as never, "org-1", [byId("spend-and-mpg-last-month")], (v, a) => seen.push([v.id, a]));
+    expect(seen).toEqual([["spend-and-mpg-last-month", answer]]);
+    // What `--record` writes is `run.verdicts`; none of the answer may be in it.
+    expect(JSON.stringify(run.verdicts)).not.toContain("Jane Driver");
+    expect(JSON.stringify(run.verdicts)).not.toContain("4,812");
+  });
 });
