@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  ASSISTANT_TOOL_PAGE,
   assistantMonthsIn,
+  idlingToQuery,
   assistantPreviousRange,
   assistantWeeksIn,
   organizationTimezone,
@@ -111,6 +113,9 @@ export async function assistantIdleReport(
     source: IDLE_SOURCE,
     timezone,
     period: range.label,
+    // F21 R4b: the Idling page opened on THIS answer's days (its own contract), where its headline is
+    // `total`. `askData` lifts it off before the model sees the result (D-AI8).
+    link: { surfaceKey: ASSISTANT_TOOL_PAGE.idle_report, query: idlingToQuery(range) },
     total: figures(range.from, range.to, current),
     previous_period: figures(prev.from, prev.to, previous),
   };

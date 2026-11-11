@@ -975,3 +975,20 @@ audit row is the endpoint's own.
     the `low`-effort refusals too (the model searched once and stopped). **Not verified:** why the API
     searches undeclared, and whether a request setting can keep every tool loaded. Next: ask Anthropic
     support with this trace (no carrier data in it), rather than renaming tools to win a 5-result cut.
+- 2026-11-11 — **R4b for the four tools linked bare: what each page can hold, and the Idling link.**
+  Checked each page's URL state against what its tool answers:
+  - **Idling** (`idle_report` → `/idling`): the page already keeps `from`/`to` as calendar days, the days
+    `readFleetIdleVerdict` reads for the tool, so its headline for a linked window is the answer's
+    `total`. **Built:** `idlingLinkContract.ts` (`IDLING_QUERY_KEYS`, `idlingToQuery`); the page reads its
+    keys from it; the tool links the answer's whole period (not the previous period, not a week).
+    Tests: `assistantIdleReport.test.ts` "links the Idling page on the answer's whole period, inclusive
+    days, built by its contract"; `IdlingPage.test.ts` "opens on the days a link built by its contract
+    names (F21 R4b, Ask AI's idle_report)". Deliberate breaks, each killed: the page reading another
+    key, the tool linking the previous period.
+  - **Annual inspections due** (`annual_inspections_due` → Shop, `/shop`): right page — the list is the
+    Shop's `annual` tab (`ShopAnnualDuePanel`), which reads `kind`. Buildable: `tab=annual` plus `kind`,
+    with the tool's `truck` written as the page's `tractor`. Next PR.
+  - **Repair cost** (`maintenance_cost` → Trucks & trailers, `/shop/units`): the list shows no cost, so
+    no link can show the answer. Stays bare; the honest page is a unit's own cost view, if one is wanted.
+  - **Live fleet** (`fleet_now` → Dashboard): the Dashboard keeps no filter in its URL. Stays bare until
+    the map's state filter is URL state (map work, not Ask AI's).
