@@ -40,6 +40,16 @@ describe("composeFiledApplication", () => {
     expect(out.addresses[0]!.line1).toBe("9 Old Rd");
   });
 
+  /** P3 (F2c part 2): the paper's licence grid has a TYPE for every licence; Part 1's code is filed as held. */
+  it("files each other licence's type as Part 1 holds it, and none for a licence asked before P3", () => {
+    const { application: out } = composeFiledApplication(application(), intake(), [
+      licence(),
+      licence({ position: 1, state_code: "OH", licence_number: "OH55", expires_on: "2028-06-30", kind: "clp" }),
+      licence({ position: 2, state_code: "WI", licence_number: "W1", expires_on: "2028-06-30" }),
+    ], AS_OF);
+    expect(out.additional_licences.map((l) => l.kind)).toEqual(["clp", null]);
+  });
+
   it("files position 0 as the primary licence and only the unexpired others as (b)(5)'s list, replacing the draft's", () => {
     const { application: out } = composeFiledApplication(application(), intake(), [
       licence({ position: 2, state_code: "IN", licence_number: "IN-OLD", expires_on: "2025-01-01" }),

@@ -118,6 +118,24 @@ describe("what does not fit comes back rather than disappearing", () => {
   });
 
   /**
+   * P3 (F2c part 2): an other licence's TYPE prints the words for Part 1's code. A pre-P3 filing's own
+   * words ("B" above, a legacy draft's free text) print as filed — `driver_applications` re-renders as signed.
+   */
+  it("prints each other licence's type in words, and nothing for one never asked", () => {
+    const r = fill({
+      additional_licences: [
+        { issuing_authority: "OH", number: "OH1", kind: "cdl", expires_at: "2030-01-01" },
+        { issuing_authority: "OH", number: "OH2", kind: "clp", expires_at: "2030-01-01" },
+        { issuing_authority: "OH", number: "OH3", kind: "non_cdl", expires_at: "2030-01-01" },
+        { issuing_authority: "OH", number: "OH4", kind: "other", expires_at: "2030-01-01" },
+        { issuing_authority: "OH", number: "OH5", kind: null, expires_at: "2030-01-01" },
+      ],
+    });
+    const over = r.overflow.find((o) => o.tableId === "p02.licences")!;
+    expect(over.rows.map((cells) => cells[2])).toEqual(["CDL", "CLP", "Non-CDL", "Other", ""]);
+  });
+
+  /**
    * ⚠ The experience grid's four rows are the carrier's PRINTED classes, so a second entry for a
    * class that already has one has nowhere to go — it is overflow, not a lost answer, and column 0
    * is never written into because the carrier already wrote it.

@@ -73,14 +73,16 @@ async function hasIntakeRow(admin: SupabaseClient, orgId: string, invitationId: 
 async function storedLicences(admin: SupabaseClient, orgId: string, invitationId: string): Promise<ApplicantIntakeLicence[]> {
   const { data, error } = await admin
     .from("application_intake_licences")
-    .select("position, state_code, agency, licence_number, expires_on")
+    .select("position, state_code, agency, licence_number, expires_on, kind")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .order("position");
   if (error) throw new Error(error.message);
   return ((data ?? []) as Array<ApplicantIntakeLicence & { position: number }>)
     .sort((a, b) => a.position - b.position)
-    .map(({ state_code, agency, licence_number, expires_on }) => ({ state_code, agency, licence_number, expires_on }));
+    // P3: the type travels with the row — the identity correction posts this list back whole, and a
+    // licence re-posted without its `kind` would lose it (0588 writes an absent key as NULL).
+    .map(({ state_code, agency, licence_number, expires_on, kind }) => ({ state_code, agency, licence_number, expires_on, kind: kind ?? null }));
 }
 
 /**
@@ -135,6 +137,7 @@ const licenceRows = (licences: readonly ApplicantIntakeLicence[]) =>
     agency: l.agency ?? null,
     licence_number: l.licence_number,
     expires_on: l.expires_on ?? null,
+    kind: l.kind ?? null,
     source: "intake",
   }));
 

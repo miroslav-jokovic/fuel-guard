@@ -54,6 +54,8 @@ export interface PartOneLicence {
   agency: string | null;
   licence_number: string;
   expires_on: string | null;
+  /** P3 (0588): the licence's type, `LICENCE_KINDS`; null for the current CDL and for rows before 0588. */
+  kind?: string | null;
 }
 
 /**
@@ -145,7 +147,8 @@ export function composeFiledApplication<T extends Composable>(
         issuing_authority: l.agency ?? l.state_code,
         number: l.licence_number,
         expires_at: l.expires_on,
-        kind: null,
+        // P3: the code (`LICENCE_KINDS`), as Part 1 holds it — the packet prints its words (`licenceKindWords`).
+        kind: l.kind ?? null,
       });
     });
   }

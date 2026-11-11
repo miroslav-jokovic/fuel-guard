@@ -209,11 +209,21 @@ describe("on a v2 link, each answer is corrected where filing takes it from", ()
     expect(row(list, "addresses.1.from")).toMatchObject({ value: "2023-01", door: "draft" });
   });
 
-  it("shows every licence Part 1 holds — the expired one too — and no column Part 1 never asks", () => {
+  it("shows every licence Part 1 holds — the expired one too — and its type, which Part 1 asks since P3", () => {
     const list = v2();
     expect(row(list, "additional_licences.0.number")).toMatchObject({ value: "IN-9", door: "part_one" });
-    expect(row(list, "additional_licences.0.kind")).toBeUndefined();
+    expect(row(list, "additional_licences.0.kind")).toMatchObject({ door: "part_one", input: "choice" });
     expect(row(list, "cdl_number")).toMatchObject({ value: "IL123", door: "identity" });
+  });
+
+  /** P3 (F2c part 2): the type is corrected where Part 1 keeps it, with every other licence answer kept. */
+  it("sends a licence type correction through Part 1, on that licence only", () => {
+    const list = v2();
+    const c = correctionFor(row(list, "additional_licences.0.kind")!, "clp", { revision: 3, partOne: PART_ONE, rows: list, addresses: PAYLOAD.addresses });
+    expect(c).toMatchObject({ door: "part_one" });
+    const licences = (c as { body: { licences: Array<Record<string, unknown>> } }).body.licences;
+    expect(licences[1]).toMatchObject({ licence_number: "IN-9", kind: "clp" });
+    expect(licences[0]!.kind ?? null).toBeNull();
   });
 
   it("sends a Part 1 change as the whole set with that one answer changed", () => {
