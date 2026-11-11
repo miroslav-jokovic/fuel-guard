@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { TRUCK_PLACES_ZOOM } from "@silvicom/shared";
+import { TRUCK_PLACES_ZOOM, VECTOR_GLYPH_RANGE_FILE } from "@silvicom/shared";
 import {
   MAP_PALETTE_KEYS,
   FUEL_PLACE_CATEGORY,
+  GLYPHS_PATH,
   TRUCK_PLACE_CATEGORIES,
   truckPlacesSourceId,
   isVectorTemplate,
@@ -88,6 +89,11 @@ describe("the vector trial switch", () => {
     expect(vectorTrialOffered("staging")).toBe(true);
     expect(vectorTrialOffered("Production")).toBe(false);
     expect(vectorTrialOffered("")).toBe(false);
+  });
+
+  it("asks for glyph files by the one name the API relay and HERE accept", () => {
+    const asked = GLYPHS_PATH.replace("{fontstack}", "Fira GO Regular").replace("{range}", "0-255");
+    expect(VECTOR_GLYPH_RANGE_FILE.test(asked.split("/").at(-1)!)).toBe(true);
   });
 
   it("tells the vector template from a raster one", () => {
