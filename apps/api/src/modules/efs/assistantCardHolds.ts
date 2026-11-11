@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { canonicalEfsStatus, EFS_CARD_STATUS_LABELS, efsStatusEquals, reachableSyncFloor, type EfsCardStatus, type EfsCardSummary } from "@silvicom/shared";
+import { ASSISTANT_TOOL_PAGE, canonicalEfsStatus, EFS_CARD_STATUS_LABELS, efsStatusEquals, fuelCardsToQuery, reachableSyncFloor, type EfsCardStatus, type EfsCardSummary } from "@silvicom/shared";
 import { listEfsCards } from "./services/efsCardList.js";
 
 /**
@@ -86,5 +86,8 @@ export async function assistantCardHolds(admin: SupabaseClient, orgId: string, i
           no_longer_listed_note: "EFS stopped listing these cards; the status is the last one it reported, not a current hold.",
         }
       : {}),
+    // F21 R4b: the page filtered to the ONE status asked about; "Hold or Fraud" is not one parameter, so
+    // that answer links to the page itself. Lifted off before the model sees the result (D-AI8).
+    ...(only ? { link: { surfaceKey: ASSISTANT_TOOL_PAGE.card_holds, query: fuelCardsToQuery({ status: only as EfsCardStatus }) } } : {}),
   };
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { driversToQuery } from "@silvicom/shared";
 import { defineComponent, h } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
@@ -127,6 +128,13 @@ describe("useRosterFilters", () => {
     await settle();
     expect(f.sort.value).toEqual({ key: "full_name", dir: "desc" });
     expect(router.currentRoute.value.query.dir).toBe("desc");
+  });
+
+  // F21 R4b: Ask AI's "Open in Drivers" for expired files, built by the roster's own contract.
+  it("reads a link built by the Drivers contract: expired files, every status", async () => {
+    const { f } = await mountFilters(`/drivers?${new URLSearchParams(driversToQuery({ file: "expired", status: null })).toString()}`);
+    expect(f.file.value).toBe("expired");
+    expect(f.status.value).toBe("");
   });
 
   it("reads a link that narrows several things at once", async () => {
