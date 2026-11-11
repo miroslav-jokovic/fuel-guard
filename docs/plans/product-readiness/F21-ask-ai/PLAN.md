@@ -640,8 +640,14 @@ audit row is the endpoint's own.
     `section("fuel")`. Buy discipline was checked first: four read RPCs (`fuel_buy_fills`,
     `fuel_policy_gallons`, `fuel_contract_totals`, `fuel_spend_lines`, all security invoker) and the
     fuel policy read; its page issues no write.
-  - Who it changes, by default: accountant, auditor and dispatcher now see Fuel costs in the sidebar,
-    and Ask AI's "Open in Fuel costs" link now draws for them (R4a's reach check).
+  - Who it changes, by default: every `fuel: "view"` role — accountant, auditor, dispatcher and
+    safety_manager — now sees Fuel costs in the sidebar (13 nav snapshots, each that one line added,
+    recorded in `navEquivalence.test.ts`), and Ask AI's "Open in Fuel costs" link draws for them.
+  - Tests that pinned the old gate were rewritten to the ruling: `sectionGuard.test.ts` (auditor now
+    opens both pages, recruiter still refused), `useAnswerPages.test.ts` (accountant gets the link; a
+    recruiter does not), and `nav.test.ts`'s view/manage case, which now uses Fuel planning
+    (`manage("dispatch")`) because fuel has no `manage` screen left — killed by its assertion when
+    Fuel planning was mutated to `view`.
   - Pinned by `assistantContract.test.ts` "asks no more than the tool: a page's section level is one the
     tool's own requirement on it grants". Deliberate break: the page back at `manage("fuel")`, killed
     by its assertion (`fuel_report -> fuel.spend: expected 'view' to be 'manage'`). No test pinned the
