@@ -2690,6 +2690,13 @@ async function main() {
         `           select '${org}', d.id, md5(random()::text), now() + interval '10 days' from d returning id) ` +
         `insert into application_intake_licences (org_id, invitation_id, position, state_code, licence_number) ` +
         `select '${org}', i.id, 0, 'IL', 'D1234567' from i`,
+      // 0589: four digits, and who entered them — the checks that keep a whole SSN out of the clear.
+      application_ssns: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'RLS SSN') returning id), ` +
+        `     i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +
+        `           select '${org}', d.id, md5(random()::text), now() + interval '10 days' from d returning id) ` +
+        `insert into application_ssns (invitation_id, org_id, ssn_last4, entered_by) ` +
+        `select i.id, '${org}', '6789', 'applicant' from i`,
       application_screen_events: (org) =>
         `with d as (insert into drivers (org_id, full_name) values ('${org}', 'RLS Screen') returning id), ` +
         `     i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +
