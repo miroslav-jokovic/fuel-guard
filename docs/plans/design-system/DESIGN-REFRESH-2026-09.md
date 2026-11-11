@@ -1390,3 +1390,47 @@ conflict every time (`plan-progress-log-not-table-rows`).
   browser's font on the reader's CPU, warning only in the console. Fixed with one shared rule
   (`VECTOR_GLYPH_RANGE_FILE`). The D-DR31 slow-PC stutter figures were taken in that state, so they
   are re-measured (polish item 7) before the owner's comparison.
+- **2026-11-11 — D-DR35: place icons on the vector map, polish item 2.** Artwork: six Maki v8.0.0
+  icons and Temaki v5.13.0's truck; both repositories' LICENSE files read, CC0 1.0. Bundled from
+  `apps/web/src/assets/map-icons/` (`SOURCES.md` pins the tags), so the content security policy is
+  unchanged (`img-src` already allows `data:`). Icons go to the kinds read off real tiles, not guessed:
+  `fuel`, `parking`, `car_repair`, `hospital`, `aerodrome` (O'Hare terminals, 400-4000-4582) and
+  `station` (Joliet, 400-4100-0035); every truck place (D-DR34) carries the truck. Drawn as a disc in
+  `--map-label` with the glyph in `--map-label-halo`, so no new tokens and the night map inverts them.
+  Rasterised once per colour scheme while the session is read, handed over on maplibre's
+  `styleimagemissing`, replaced in place on a scheme change. All seven decode and draw in Chromium
+  (checked before the PR); the style passes maplibre's validator; 7 of 7 mutations caught.
+  Acceptance is on staging: icons visible, no 404, CSP or "image could not be loaded" console error.
+- **2026-11-11 — D-DR35 accepted on staging.** With #2245 live (`4aef8e1`), the Joliet Pilot at zoom
+  16 shows the truck icon beside "Pilot", the parking icon beside "Pilot Travel Center" and the fuel
+  pump beside "Food-N-Fuel"; the only console error on the page is the notifications 403 that test
+  member's role gets, unrelated to the map.
+- **2026-11-11 — D-DR36: route numbers on road signs, one shape per kind of road (polish item 3).**
+  Sampled before writing the rule, as the handoff asked: zooms 9 and 12 over Dallas, Houston,
+  Indianapolis, Gary, Columbus and Toledo gave `network` values `US:I` 243, `US` 11, a state
+  `US:<ST>` (TX 319, OH 175, IN 77, IL 61, MI 12) and a county `US:<ST>:CR` (OH 98, TX 2, IL 1),
+  nothing else. So interstate, US route, county (`:CR`) and state (everything else). Signs are our
+  own plain outlines drawn on a canvas in the FHWA sign colours, five new `--map-shield-*` tokens
+  (`lint:token-gamut` passes; the yellow's chroma came down 0.0005 to fit sRGB), sized per number
+  length (1–4 characters, widths chosen by drawing "8", "80", "35E", "1234" in Chromium). The rule
+  was evaluated with maplibre's own expression engine against every measured network, all right,
+  and the style validates; that check is out of tree (`tools/shield-rule-check.test.ts.txt`)
+  because the web app does not declare `@maplibre/maplibre-gl-style-spec`, and declaring it
+  re-resolves a lockfile that has already drifted (expo-router and TypeScript peer entries), which
+  is not this change's to carry. In-tree tests pin the rule's literals, the image ids and colours;
+  7 of 7 mutations caught. Acceptance: a zoom-9 staging still shows the right shapes.
+- **2026-11-11 — D-DR36 accepted on staging** (`baffa99`, `tools/staging-map-views.mjs`). Joliet at
+  zoom 9: interstate shields on I-80, I-55, I-355, I-57, I-88, I-94 (rendered: `US:I` ×8, nothing
+  else, because ordinary roads' numbers start at zoom 10 by design). Columbus at zoom 11: `US:I` ×9,
+  state boxes `US:OH` ×12 (33, 23, 315, 104), county pentagons `US:OH:CR` ×7 (3, 11, 258). No map
+  console errors.
+- **2026-11-11 — D-DR37: land colours for the measured land uses (polish item 4).** Sampled first:
+  zooms 11 and 14 over Joliet, O'Hare, Indianapolis, Dallas, Columbus and the Loop gave `landuse`
+  kinds park 73, urban_area 11, sports_centre 11, industrial 11, aerodrome 7, commercial 7,
+  national_park 6, forest 5, runway 4, zoo 3, university 3, hospital 3, military 2, cemetery 2,
+  beach 1. Before this, sports_centre, zoo, aerodrome, runway, university, hospital, military and
+  beach were not drawn at all, and industrial was drawn as town. Now sports_centre and zoo join park,
+  and a `landuse-detail` fill gives industrial/military, hospital, university, aerodrome, runway
+  (sorted above its aerodrome) and beach six new `--map-*` tokens, each in the lightness band of
+  the existing land colours in both schemes (`lint:token-gamut` passes). The style validates;
+  5 of 5 mutations caught. Acceptance: staging stills over O'Hare and an industrial area.
