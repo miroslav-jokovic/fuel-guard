@@ -128,7 +128,34 @@ const openCarrier = computed(
 /** One drawer at a time: opening the review closes the step it was opened from. */
 function openReview(invitation: string): void {
   openStepKey.value = null;
+  reviewFocus.value = null;
   reviewing.value = invitation;
+}
+
+/**
+ * Step 6 (APPLICATION-FIX-PLAN F3c part 2): the Permissions and Road-test steps send the office to the
+ * application's card to correct the date of birth and licence, rather than keeping an editor of their own.
+ * The review opens at those rows, and closing it brings back the step the office came from — they went
+ * to fix one answer, not to leave the step.
+ */
+const reviewFocus = ref<string | null>(null);
+const returnTo = ref<HiringStepKey | null>(null);
+function correctIdentity(invitation: string): void {
+  returnTo.value = openStepKey.value;
+  openStepKey.value = null;
+  reviewFocus.value = "date_of_birth";
+  reviewing.value = invitation;
+}
+/**
+ * ⚠ The page's own driver read is what the steps show the identity from (`:identity="driver"`), and a
+ * correction on the card changes that row: re-read it, or the step reopens with the licence as it was.
+ */
+function closeReview(): void {
+  reviewing.value = null;
+  reviewFocus.value = null;
+  void driverQ.refetch();
+  if (returnTo.value) openStepKey.value = returnTo.value;
+  returnTo.value = null;
 }
 
 /**
@@ -241,6 +268,7 @@ function openClose(request: { requestId: string; status: MedstopCloseStatus }): 
         :identity="driver ?? null"
         @close="openStepKey = null"
         @review="openReview"
+        @correct-identity="correctIdentity"
         @order-test="openOrder"
         @close-order="openClose"
         @recollect="openRecollection"
@@ -254,7 +282,8 @@ function openClose(request: { requestId: string; status: MedstopCloseStatus }): 
       <ApplicationReviewDrawer
         :open="reviewing !== null"
         :invitation-id="reviewing"
-        @close="reviewing = null"
+        :focus="reviewFocus"
+        @close="closeReview"
       />
 
       <OrderTestDrawer :open="ordering !== null" :seed="ordering" @close="ordering = null" @placed="refreshDrugTestStep(id)" />

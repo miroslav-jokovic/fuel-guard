@@ -127,6 +127,8 @@ const seed = (over: {
   captures?: Array<Record<string, unknown>>;
   /** E3: this applicant's live text consents — what a read finds and an update returns. */
   consents?: Array<Record<string, unknown>>;
+  /** Step 6: the applicant's record — the identity screening runs on. */
+  driver?: Record<string, unknown>;
 } = {}) =>
   createSupabaseRecorder({
     rpc: { save_application_draft: over.save ?? { draft_id: "d-1", updated_at: "2026-09-11T12:00:00Z", revision: (over.revision ?? 3) + 1 } },
@@ -146,6 +148,10 @@ const seed = (over: {
       // Read by the approval notice (Q-AX4): the carrier's own name, and the applicant's SMS consent.
       organizations: [{ name: "Silvicom Inc" }],
       sms_consents: over.consents ?? [],
+      ...(over.driver ? {
+        drivers: (q: { filters: () => Array<{ col: string; val: unknown }> }) =>
+          (q.filters().find((f) => f.col === "org_id")?.val === ORG ? [over.driver!] : []),
+      } : {}),
     },
   });
 
@@ -206,6 +212,23 @@ describe("reading an application for review", () => {
     const old = await applicationForReview(seed().client, ORG, INV);
     if (isReviewError(old)) throw new Error(old.message);
     expect(old.carrierQuestions).toEqual([]);
+  });
+
+  /**
+   * F3c part 2, step 6: the identity on the RECORD, which the draft may not hold yet — so the card shows the
+   * licence screening runs on, not "Not answered", when the Permissions step sends the office there.
+   */
+  it("step 6: hands the office the identity on the applicant's record, only what is set, from its own org", async () => {
+    const rec = seed({ payload: null, driver: { date_of_birth: "1980-04-01", cdl_number: "IL123", cdl_state: " " } });
+    const read = await applicationForReview(rec.client, ORG, INV);
+    if (isReviewError(read)) throw new Error(read.message);
+    expect(read.payload).toBeNull();
+    expect(read.identity).toEqual({ date_of_birth: "1980-04-01", cdl_number: "IL123" });
+    expectOrgScoped(rec, ORG);
+
+    const none = await applicationForReview(seed().client, ORG, INV);
+    if (isReviewError(none)) throw new Error(none.message);
+    expect(none.identity).toEqual({});
   });
 
   it("scopes a v2 application's Part 1 reads to the reader's own org", async () => {
