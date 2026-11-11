@@ -20,6 +20,7 @@
       "shows_equipment": false,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "4:5"
       ],
@@ -76,20 +77,23 @@
         "Other Freight Co"
       ]
     },
-    "context": []
+    "context": [],
+    "headline": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@2",
+    "prompt_version": "artDirector@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:39:37.530Z",
+    "recorded_at": "2026-11-10T17:29:21.760Z",
     "output": {
       "slots": {
-        "weather": "a clear sky with scattered stars",
-        "light": "pale moonlight casting long shadows across the asphalt"
+        "weather": "clear sky with scattered stars",
+        "light": "pale moonlight washing the asphalt, twin headlight beams stretching ahead"
       },
-      "reference_photo": null
+      "reference_photo": null,
+      "focal_subject": "road_ahead",
+      "camera_distance": "wide"
     }
   }
 }

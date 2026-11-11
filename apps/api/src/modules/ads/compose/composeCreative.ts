@@ -171,7 +171,7 @@ type AttemptResult =
 async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, attempt: number, failedBefore: AdVisualCheck[]): Promise<AttemptResult> {
   const { creative: cr, brief, recipe, kit } = input;
   const ids = { orgId: cr.org_id, campaignId: cr.campaign_id, creativeId: cr.id };
-  const art = await directArt(deps, { ...ids, attempt, recipe, kit, context: brief.subject_matter.details });
+  const art = await directArt(deps, { ...ids, attempt, recipe, kit, context: brief.subject_matter.details, headline: copy.en[recipe.overlay_slots!.headline] ?? null });
   if (art.kind === "in_flight") return { kind: "pending", why: `art ${attempt} in flight` };
   if (art.kind === "not_possible") return { kind: "stop", reason: `art: ${art.reason}` };
   if (art.kind === "refused") return { kind: "stop", reason: `art check: ${art.findings.map((f) => f.kind).join(", ")}` };

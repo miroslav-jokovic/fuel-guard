@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import sharp from "sharp";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { ZodType } from "zod";
-import { ADS_SETTINGS_UNSET, adCandidatesSchema, adCreativeChecksSchema, REGENERATION_CLAUSES, type AdAssetRef, type AdBrandKit, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
+import { ADS_SETTINGS_UNSET, FRAME_CLAUSE, NO_LETTERING, QUIET_REGION, adCandidatesSchema, adCreativeChecksSchema, REGENERATION_CLAUSES, type AdAssetRef, type AdBrandKit, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
 import type { MessagesClient } from "../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
@@ -290,6 +290,19 @@ describe("composeCreative — the copy that ships is the best-ranked one the ove
     const writes = h.creativeWrites().map((w) => w.write!.payload as { candidates?: { passed_over?: unknown[] }; checks?: { render?: { ok: boolean; format: string; language: string; findings: Array<{ kind: string }> } } });
     expect(writes[0]!.candidates!.passed_over).toHaveLength(3);
     expect(writes.at(-1)!.checks!.render).toMatchObject({ ok: false, format: "4:5", language: "en", findings: [{ kind: "too_long", label: "headline", max_lines: 2 }] });
+  });
+
+  it("the art director is handed the headline that will be drawn — the chosen copy's, not the first-ranked one's — and the render's prompt is composed (AG3)", async () => {
+    const h = harness({ copy: withLongHook([0]) });
+    await h.run({ recipe: ROOMY });
+    const artCall = h.create.mock.calls.find((c) => (c[0] as { tools: Array<{ name: string }> }).tools[0]!.name === "direct_art")!;
+    const sent = JSON.parse((artCall[0] as unknown as { messages: Array<{ content: string }> }).messages[0]!.content) as { headline: string; composition: { kept_plain: string } };
+    expect(sent.headline).toBe(copySet.candidates[1]!.en.hook);
+    expect(sent.composition.kept_plain).toBe(QUIET_REGION.bottom_plate.where);
+    const prompt = (h.render.mock.calls[0]![0] as RenderInput).params.prompt as string;
+    expect(prompt).toContain(QUIET_REGION.bottom_plate.clause);
+    expect(prompt).toContain(FRAME_CLAUSE["4:5"]);
+    expect(prompt.endsWith(NO_LETTERING)).toBe(true);
   });
 
   it("a kit with no overlay for the format is the kit's refusal: no copy is called passed over for it", async () => {

@@ -21,6 +21,7 @@
       "shows_equipment": true,
       "shows_people": false,
       "motion_template": null,
+      "layout": "bottom_plate",
       "formats": [
         "4:5"
       ],
@@ -82,24 +83,24 @@
       "over-the-road runs",
       "lanes: Texas to the Pacific Northwest",
       "home time: Out 12 days, home 3"
-    ]
+    ],
+    "headline": null
   },
-  "expect": "refused",
+  "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@2",
+    "prompt_version": "artDirector@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:39:30.803Z",
+    "recorded_at": "2026-11-10T17:29:09.411Z",
     "output": {
       "slots": {
         "time_of_day": "late afternoon",
-        "light": "low golden side-light from the west, long shadows across the pavement",
-        "viewpoint": "low roadside angle looking up at the cab as the truck passes on a straight desert highway stretching toward distant mountains"
+        "light": "low golden side-light from the southwest, long shadows across the pavement",
+        "viewpoint": "low angle from the shoulder, slightly ahead and to the side of the cab"
       },
-      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "focal_subject": "tractor",
+      "camera_distance": "medium"
     }
-  },
-  "expect_findings": [
-    "slot_too_long"
-  ]
+  }
 }

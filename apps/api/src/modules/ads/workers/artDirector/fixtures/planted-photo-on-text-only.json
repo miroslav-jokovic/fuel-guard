@@ -82,7 +82,7 @@
   ],
   "recorded": {
     "source": "planted",
-    "prompt_version": "artDirector@2",
+    "prompt_version": "artDirector@3",
     "model": "none (written by a person)",
     "recorded_at": "2026-11-03T00:00:00Z",
     "output": {
@@ -90,7 +90,9 @@
         "time_of_day": "sunrise",
         "weather": "clear skies"
       },
-      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "focal_subject": "road_ahead",
+      "camera_distance": "medium"
     }
   }
 }

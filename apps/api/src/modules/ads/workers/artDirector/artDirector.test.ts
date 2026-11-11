@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ADS_SETTINGS_UNSET, NO_LETTERING, type AdsSettings } from "@silvicom/shared";
+import { ADS_SETTINGS_UNSET, DISTANCE_CLAUSE, FOCAL_CLAUSE, FRAME_CLAUSE, NO_LETTERING, QUIET_REGION, type AdsSettings } from "@silvicom/shared";
 import type { MessagesClient } from "../../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../../testing/supabaseRecorder.js";
 import { ART_DIRECTOR_EVAL, loadFixtures } from "../agentFixtures.js";
@@ -58,7 +58,7 @@ async function replay(name: string): Promise<void> {
   expectOrgScoped(rec, ORG);
 }
 
-const PINNED = new Set(["planted-digit-in-slot", "planted-lettering", "planted-foreign-photo", "planted-photo-on-text-only", "planted-quote-in-slot", "instruction-in-label"]);
+const PINNED = new Set(["planted-focal-outside-vocabulary", "planted-person-focal-no-people", "planted-digit-in-slot", "planted-lettering", "planted-foreign-photo", "planted-photo-on-text-only", "planted-quote-in-slot", "instruction-in-label", "instruction-in-headline"]);
 
 describe("art director replay — every recorded answer reaches its fixture's verdict", () => {
   it("has model recordings under the prompt in force and planted defects beside them", () => {
@@ -66,12 +66,15 @@ describe("art director replay — every recorded answer reaches its fixture's ve
     expect(fixtures.filter((f) => f.fixture.recorded.source === "planted").length).toBeGreaterThanOrEqual(4);
     for (const { fixture } of fixtures) expect(fixture.recorded.prompt_version, fixture.name).toBe(ART_DIRECTOR_PROMPT_VERSION);
   });
+  it("planted-focal-outside-vocabulary", () => replay("planted-focal-outside-vocabulary"));
+  it("planted-person-focal-no-people", () => replay("planted-person-focal-no-people"));
   it("planted-digit-in-slot", () => replay("planted-digit-in-slot"));
   it("planted-lettering", () => replay("planted-lettering"));
   it("planted-foreign-photo", () => replay("planted-foreign-photo"));
   it("planted-photo-on-text-only", () => replay("planted-photo-on-text-only"));
   it("planted-quote-in-slot", () => replay("planted-quote-in-slot"));
   it("instruction-in-label", () => replay("instruction-in-label"));
+  it("instruction-in-headline", () => replay("instruction-in-headline"));
   it.each(fixtures.map((f) => f.fixture.name).filter((n) => !PINNED.has(n)))("%s", (name) => replay(name));
 });
 
@@ -102,7 +105,24 @@ describe("art director — what it refuses without asking, and what it sends", (
     await out;
     expect(rec.writtenRows("ad_generations")[0]).toMatchObject({ agent: "art_director", idempotency_key: "art:cr-1:1", prompt_version: ART_DIRECTOR_PROMPT_VERSION });
     const sent = (create.mock.calls[0]![0] as { messages: Array<{ content: string }> }).messages[0]!.content;
-    expect(Object.keys(JSON.parse(sent) as object).sort()).toEqual(["context", "photos", "scene", "slots", "template"]);
+    expect(Object.keys(JSON.parse(sent) as object).sort()).toEqual(["composition", "context", "headline", "photos", "scene", "slots", "template"]);
     expect(sent).not.toContain("Fixture Carrier");
+  });
+
+  it("tells the model the frame and the part the words will cover, from the preset's layout and published formats, and the headline it was handed (AG3)", async () => {
+    const sentFor = async (over: Partial<typeof fx.input>) => {
+      const { out, create } = run(fx, world(), fx.recorded.output, over);
+      await out;
+      return JSON.parse((create.mock.calls[0]![0] as { messages: Array<{ content: string }> }).messages[0]!.content) as { composition: { frame: string | null; kept_plain: string }; headline: string | null };
+    };
+    expect(await sentFor({ headline: "Home every weekend" })).toMatchObject({ composition: { frame: FRAME_CLAUSE["4:5"], kept_plain: QUIET_REGION.bottom_plate.where }, headline: "Home every weekend" });
+    expect(await sentFor({ headline: null, recipe: { ...fx.input.recipe, layout: "top_band", formats: ["9:16", "1:1"] } })).toMatchObject({ composition: { frame: FRAME_CLAUSE["1:1"], kept_plain: QUIET_REGION.top_band.where }, headline: null });
+  });
+
+  it("the prompt handed on is composed: the model's subject and distance as our clauses, and the plain region of the layout", async () => {
+    const { out } = run(fx);
+    const o = await out;
+    const answer = fx.recorded.output as { focal_subject: keyof typeof FOCAL_CLAUSE; camera_distance: keyof typeof DISTANCE_CLAUSE };
+    expect(o.kind === "ready" && o.direction.prompt).toContain(`${FOCAL_CLAUSE[answer.focal_subject]}, ${DISTANCE_CLAUSE[answer.camera_distance]}, ${QUIET_REGION.bottom_plate.clause}, ${FRAME_CLAUSE["4:5"]}, ${NO_LETTERING}`);
   });
 });

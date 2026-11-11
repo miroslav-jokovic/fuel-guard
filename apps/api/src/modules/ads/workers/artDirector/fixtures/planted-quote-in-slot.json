@@ -83,7 +83,7 @@
   ],
   "recorded": {
     "source": "planted",
-    "prompt_version": "artDirector@2",
+    "prompt_version": "artDirector@3",
     "model": "none (written by a person)",
     "recorded_at": "2026-11-03T00:00:00Z",
     "output": {
@@ -92,7 +92,9 @@
         "light": "a sky that says \"drive with us\"",
         "viewpoint": "a low angle"
       },
-      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "focal_subject": "tractor",
+      "camera_distance": "medium"
     }
   }
 }

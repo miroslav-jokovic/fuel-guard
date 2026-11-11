@@ -1,6 +1,6 @@
 {
   "name": "people-varied",
-  "about": "People allowed and varied: described only by what they do.",
+  "about": "People allowed and varied: described only by what they do. AG3: the words sit in a band at the top.",
   "input": {
     "recipe": {
       "name": "Fixture concept",
@@ -20,6 +20,7 @@
       "shows_equipment": true,
       "shows_people": true,
       "motion_template": null,
+      "layout": "top_band",
       "formats": [
         "4:5"
       ],
@@ -80,20 +81,23 @@
       "tanker freight",
       "regional runs",
       "lanes: Illinois, Indiana, Wisconsin"
-    ]
+    ],
+    "headline": "Dispatch that answers the phone"
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@2",
+    "prompt_version": "artDirector@3",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T18:39:39.624Z",
+    "recorded_at": "2026-11-10T17:29:24.189Z",
     "output": {
       "slots": {
-        "time_of_day": "early morning, overcast grey Midwest sky",
-        "activity": "driver standing beside the tractor fueling up, nozzle in hand, breath visible in cold air"
+        "time_of_day": "early morning, overcast Midwest light, low grey sky",
+        "activity": "driver standing at the fuel island, nozzle in hand, fueling up"
       },
-      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "focal_subject": "tractor",
+      "camera_distance": "medium"
     }
   }
 }

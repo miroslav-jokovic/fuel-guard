@@ -150,7 +150,11 @@ export const CRAFT_JUDGE_EVAL: EvalWorker<CraftJudgeFixture, JudgeAnswer> = {
 export const artDirectorFixtureSchema = z.object({
   name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,60}$/),
   about: z.string().min(10),
-  input: z.object({ recipe: adPresetRecipeSchema, kit: adBrandKitSchema, context: z.array(z.string().min(2).max(120)).max(12).default([]) }),
+  input: z.object({
+    recipe: adPresetRecipeSchema, kit: adBrandKitSchema, context: z.array(z.string().min(2).max(120)).max(12).default([]),
+    /** The headline the overlay will draw (AG3); null = a caller with none. */
+    headline: z.string().trim().min(1).max(120).nullable().default(null),
+  }),
   expect: z.enum(["ready", "refused", "off_schema"]),
   expect_findings: z.array(z.string()).optional(),
   recorded: recordingSchema,
@@ -163,7 +167,7 @@ export const ART_DIRECTOR_EVAL: EvalWorker<ArtDirectorFixture, ArtAnswer> = {
   parse: (raw) => artDirectorFixtureSchema.parse(raw),
   name: (f) => f.name,
   source: (f) => f.recorded.source,
-  request: (f) => buildArtRequest(f.input.recipe, f.input.kit, f.input.context),
+  request: (f) => buildArtRequest(f.input.recipe, f.input.kit, f.input.context, f.input.headline),
   judge: (f, output) => {
     const parsed = buildArtRequest(f.input.recipe, f.input.kit).tool.schema.safeParse(output);
     if (!parsed.success) return { verdict: "off_schema", findings: [] };
