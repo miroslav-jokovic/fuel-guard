@@ -80,6 +80,15 @@ export interface FactRow {
   /** Q-AM13: a `statement` needs the office's reason; a `replace_only` answer is never shown (`given` says whether one exists). */
   rule?: FactRule;
   given?: boolean;
+  /** F3c part 2: a row of a carrier question answered as a table — its columns, as the editor asks them. */
+  columns?: readonly TableColumn[];
+}
+
+/** One column of a table answer, with the card's input kind for its question kind. */
+export interface TableColumn {
+  id: string;
+  label: string;
+  input: FactInput;
 }
 
 export interface FactRowsInput {
@@ -225,11 +234,22 @@ export function applicantFactRows({ payload, partOne, edits, questionnaire, part
     const key = fact.path.slice(APP.length);
 
     if (key.startsWith(ANSWERS)) {
-      const id = key.slice(ANSWERS.length);
+      const id = key.slice(ANSWERS.length).replace(/\[\]$/, "");
       const question = questionnaire.questions.find((q) => q.id === id);
       const door = doorOf(fact, Boolean(partOne), null, current);
       if (!question || !door) continue;
       const answers = isRecord(doc[DRAFT_ANSWERS]) ? (doc[DRAFT_ANSWERS] as Record<string, unknown>) : {};
+      // F3c part 2: a table answer is one row per row the driver gave, each corrected whole — a cell
+      // would be four path segments deep (`applicationPathSchema` allows three), and a row is what the
+      // driver typed as one thing.
+      if (question.kind === "table") {
+        const given = Array.isArray(answers[id]) ? (answers[id] as unknown[]) : [];
+        given.forEach((row, i) => {
+          push(fact, [DRAFT_ANSWERS, id, i], row, door, describeField([DRAFT_ANSWERS, id, i]));
+          out[out.length - 1]!.columns = tableColumns(question);
+        });
+        continue;
+      }
       const choices = question.choices ?? question.options?.map((o) => ({ value: o, label: o }));
       push(fact, [DRAFT_ANSWERS, id], answers[id], door, question.label, choices);
       continue;
@@ -278,6 +298,12 @@ function byRow(rows: FactRow[]): FactRow[] {
       .map(({ r }) => r));
   });
   return out;
+}
+
+/** A table question's columns, each with the card's control for its kind. */
+export function tableColumns(question: QuestionnaireDefinition["questions"][number]): TableColumn[] {
+  const INPUT: Record<string, FactInput> = { boolean: "yesno", number: "count" };
+  return (question.columns ?? []).map((c) => ({ id: c.id, label: c.label, input: INPUT[c.kind] ?? "text" }));
 }
 
 /** The rows grouped by the section the driver met them in, in the application's order. */

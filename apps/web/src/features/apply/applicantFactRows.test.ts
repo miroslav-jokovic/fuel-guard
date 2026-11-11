@@ -30,7 +30,11 @@ const PAYLOAD = {
   declares_no_employment: false,
   employers: [{ key: "k1", employer_name: "Old Carrier" }],
   employment_gaps: [],
-  questionnaire: { position: "Line-haul driver", legally_work: true },
+  questionnaire: {
+    position: "Line-haul driver", legally_work: true,
+    education: [{ school: "Joliet JC", years_completed: "2", field_of_study: "", graduated: false, graduated_when: "" }],
+    references: [{ full_name: "Ann Lee", years_known: "5", phone: "3125550100" }],
+  },
 };
 
 const PART_ONE: PartOneFactsView = {
@@ -64,6 +68,14 @@ describe("the card is the catalogue", () => {
       if (!fact.path.startsWith("application.") || typeof fact.office !== "string") continue;
       if (/^application\.(employers|employment_gaps)\[\]/.test(fact.path)) continue; // the card's jobs timeline
       const id = fact.path.replace(/^application\./, "").replace(/^questionnaire_answers\./, "questionnaire.");
+      // A table answer is one row per row given, at `["questionnaire", id, i]` (F3c part 2).
+      if (fact.input === "table") {
+        const q = id.replace(/^questionnaire\./, "").replace(/\[\]$/, "");
+        const tableRows = list.filter((r) => r.path[0] === "questionnaire" && r.path[1] === q && typeof r.path[2] === "number");
+        expect(tableRows.length, fact.path).toBeGreaterThan(0);
+        for (const r of tableRows) expect(r.input, fact.path).toBe("table");
+        continue;
+      }
       const [name, column] = id.split("[].");
       const matching = list.filter((r) => {
         const [head, at, col] = r.path;
@@ -263,5 +275,18 @@ describe("finding the jobs with the card's search", () => {
   it("leaves them out of a search for another answer", () => {
     expect(jobsMatch("date of birth", jobs)).toBe(false);
     expect(jobsMatch("swift", jobs)).toBe(false);
+  });
+});
+
+/**
+ * F3c part 2, step 4: education and references — a carrier question answered as a table — are on the
+ * card as one row per row the driver gave, each corrected whole.
+ */
+describe("a table answer on the card", () => {
+  it("lists each row the driver gave, labelled by the question and its number, with its columns", () => {
+    const ref = row(rows(), "questionnaire.references.0")!;
+    expect(ref.label).toBe("Three personal references · 1");
+    expect(ref.door).toBe("draft");
+    expect(ref.columns?.map((c) => [c.id, c.input])).toEqual([["full_name", "text"], ["years_known", "count"], ["phone", "text"]]);
   });
 });

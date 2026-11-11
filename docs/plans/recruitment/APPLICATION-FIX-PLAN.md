@@ -394,3 +394,12 @@ A gate fails on a literal string in an `apply/` template.
   - **No migration.** 0233's guard leaves `revoked_at` and `revoked_reason` mutable, and both writes sit in files already listed as those tables' writers.
   - **New question Q-AM16:** `drivers.email` does not move.
   - **Next:** step 4, the education and references tables.
+- 2026-11-10: F3c part 2, step 4 — **education and references on the card** (`claude/application-f3c-tables`).
+  - **One row per row given.** A carrier question answered as a table is on the card as one row per row the driver gave, at `["questionnaire", question, i]`. That is three path segments, inside `applicationPathSchema`, so the schema was not widened. Each row is corrected whole, with each column's own control. A cell would be four segments deep, and a row is what the driver typed as one thing.
+  - **Adding:** a row is added by `set` at the next index, up to the question's own `maxRows` (three references).
+  - **Removing:** a new op, `remove_answer_row`. The replay (`currentEditPaths`) treats a table's rows like a list's.
+  - **Checks:** the draft schema holds the questionnaire as an open record, so the applier checks each row against the question's columns. It refuses a hole, a row past the limit, a column the question does not ask, and a blank row, which filing would drop.
+  - **The catalogue:** both facts now have the draft's door. The office-gap snapshot goes from 5 to **3**: EEO, carrier answers and SSN. The first two need owner rulings.
+  - **Fixed — corrections showed the raw key:** a correction of any carrier question was labelled "questionnaire" on the driver's 3.1 and the office's "What you changed". `describeField` did not know the draft's key. It does now, and a table row reads "Three personal references · 2".
+  - **Fixed — every editor said "Not shown to you":** #2221 (E3) put the contact notice between a `v-if` and its `v-else`. Every ordinary answer's editor then said "Not shown to you…". A regression test now pins the order.
+  - **Next:** step 5, the carrier's own answers (`carrier_answers`, labelled from the invitation's stamp).
