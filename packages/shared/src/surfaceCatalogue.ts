@@ -79,6 +79,9 @@ export const SURFACES: readonly Surface[] = [
   { key: "ask-ai", label: "Ask AI", path: "/ask", group: "top", gate: STAFF, startsOnFor: [] },
   // Office chat is everyone's, not a section's data, so STAFF (OFFICE-CHAT-PLAN D-CHAT9; D-CHAT1 for the module).
   { key: "chat", label: "Chat", path: "/chat", group: "top", gate: STAFF, module: "messages", badge: "chatUnread" },
+  // Unit notes are office-wide like chat, so STAFF (UNIT-NOTES-PLAN D-UN4). `startsOnFor: []` keeps it dark —
+  // admins only — while it is built (D-UN14); UN9 removes it at launch, leaving chat's exact shape.
+  { key: "notes", label: "Notes", path: "/notes", group: "top", gate: STAFF, startsOnFor: [] },
 
   // ── fuel ──────────────────────────────────────────────────────────────────────────────────────
   /**

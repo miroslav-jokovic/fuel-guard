@@ -569,6 +569,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/chat",
   },
   {
+    "name": "notes",
+    "params": {},
+    "url": "/notes",
+  },
+  {
     "name": "driver-app-settings",
     "params": {},
     "url": "/settings/driver-app",
@@ -1185,6 +1190,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "messages",
     "path": "/messages",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Notes",
+    },
+    "name": "notes",
+    "path": "/notes",
     "redirect": null,
   },
   {

@@ -101,6 +101,12 @@ import { buildNavGroups } from "./nav";
  * `Fuel costs → /fuel-spend` ADDED to the Fuel group: accountant, auditor, dispatcher and
  * safety_manager (each `fuel: "view"`) in all three module sets, and the sections-claim case. No line
  * removed, no other entry, group or role moved. Buy discipline moved with it but is not a nav entry.
+ *
+ * ── AND A TENTH TIME, ON 2026-11-11: UNIT NOTES ADDED, DARK (UNIT-NOTES-PLAN UN0, D-UN14) ──────────
+ * A new screen, `notes`, gate `STAFF` with `startsOnFor: []`, so it is on for admins alone until UN9.
+ * Five snapshots moved, five lines, every one `Notes → /notes` in the ungrouped top block: admin in
+ * all three module sets, the null-module-set case and the badge case (both admin). No line removed,
+ * no group moved, and no non-admin snapshot moved — which is the proof that the screen is dark.
  */
 
 /** Every module enabled, none, and the shipped default — the three that change what the nav shows. */
