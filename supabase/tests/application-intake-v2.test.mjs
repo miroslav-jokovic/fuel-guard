@@ -318,6 +318,30 @@ ok("a handbook filing for one invitation cannot be recorded twice (A-10)",
     (await count(`select count(*) n from pg_policies where schemaname = 'public' and tablename = 'application_intakes'`)) === 0);
 }
 
+// ── 9. Each licence's TYPE (0588, P3) ────────────────────────────────────────────────────────────
+// The paper's licence grid asks TYPE for every licence. Written per licence with the list (replaced
+// whole); a licence sent without the key holds NULL, which is what the code serving before 0588 sends.
+{
+  const DK = await driver(ORG);
+  const IK = await invite(ORG, DK);
+  const kinds = async () =>
+    (await db.query(`select position, kind from application_intake_licences where invitation_id = $1 order by position`, [IK]))
+      .rows.map((r) => `${r.position}:${r.kind ?? "null"}`).join(",");
+  await intake(ORG, IK, DK, INTAKE, LICENCES, null, false);
+  ok("a licence sent without a kind holds NULL — the code serving before 0588 sends none", (await kinds()) === "0:null,1:null");
+  await intake(ORG, IK, DK, {}, [LICENCES[0], { ...LICENCES[1], kind: "clp" }], null, false);
+  ok("each licence's kind is written with the list", (await kinds()) === "0:null,1:clp");
+  await intake(ORG, IK, DK, {}, [LICENCES[0], { ...LICENCES[1], kind: " " }], null, true);
+  ok("a blank kind is NULL, not an empty answer", (await kinds()) === "0:null,1:null");
+  for (const k of ["cdl", "non_cdl", "other"]) {
+    await intake(ORG, IK, DK, {}, [LICENCES[0], { ...LICENCES[1], kind: k }], null, true);
+    ok(`'${k}' is one of the four answers`, (await kinds()) === `0:null,1:${k}`);
+  }
+  ok("anything but the four answers is refused (23514)",
+    (await intakeCode(ORG, IK, DK, {}, [LICENCES[0], { ...LICENCES[1], kind: "CDL A" }], null, true)) === "23514");
+  ok("…and the refused call left the list as it was (one transaction)", (await kinds()) === "0:null,1:other");
+}
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exitCode = fail === 0 ? 0 : 1;
