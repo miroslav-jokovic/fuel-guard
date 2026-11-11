@@ -915,5 +915,6 @@ audit row is the endpoint's own.
   - **Built:** effort `medium` (`askData.ts`), the R2 choice of `low` reversed on this evidence.
   - **Open:** `flagged-fills-drivers`. The model refuses a tool whose description matches; the next
     step is to read its thinking for that one question, not to guess at wording.
-  - **Before merging:** the full set re-run and re-recorded at `medium` (~$0.06), so no other case
-    regressed and the baseline is the shipped setting's.
+  - **Shipped on the owner's word** ("set this on medium as default"), before the full set was re-run.
+    So `baseline.json` is still the `low` run, and whether any of its 20 passes regressed at `medium`
+    is not yet measured. Next: re-run and re-record the full set at `medium` (~$0.06, owner's go).
