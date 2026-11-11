@@ -193,7 +193,10 @@ earlier; all of it decides what that ad looks like.
      0587, one row per ad, read back). Activating an ad changes neither the ad set's daily budget nor the campaign's cap,
      which bound what Meta can spend; the person approved this exact creative (an `approve_creative` row). So it is in
      the adapter's safe half beside `pauseAd`, not behind the spend guard. Only while the campaign is `live` and the
-     kill switch is off: the runner checks the switch first, as it does for every live step.
+     kill switch is off: the runner checks the switch first, as it does for every live step. **And the database's own
+     fence holds it too** (0587 extends 0537's AX020/AX021): an `activate_ad` row must cite a standing
+     `approve_creative` of that exact creative, and is refused while the kill switch is on — a bug in a code path
+     cannot turn an ad on that no person approved.
   5. **The bell (`ads_creative_refresh`, new in 0587)** rings when a replacement awaits approval, and when none could be
      made (attempts spent, or no option left).
   Built as two merges: 0587 (the two CHECK values, nothing writes them), then the runner's `refresh` step, the

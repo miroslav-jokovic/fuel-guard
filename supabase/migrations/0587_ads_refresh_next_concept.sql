@@ -17,7 +17,15 @@
 -- `NOTIFICATION_CATEGORIES` move in the same PR; nothing WRITES either value until the next merge (the runner's
 -- `refresh` step), so the CHECKs widen before any writer exists — 0581's order.
 --
--- ⚠ DEPLOY WINDOW: widened CHECKs only. Old code never sends the new values; the first sender ships in a later merge.
+--   · the database's own fence (0537's AX020/AX021) covers `activate_ad` too. It is the one new act that STARTS
+--     delivery, so a bug in a code path must not be able to turn an ad on without a person's say-so on record, or
+--     while the kill switch is on. An `activate_ad` row must cite a standing `approve_creative` of the same org,
+--     campaign and CREATIVE (not withdrawn) — the approval of the exact ad being turned on — and is refused while
+--     the newest settings version has the kill switch on. The function is restated whole; 0537's two rules are
+--     unchanged.
+--
+-- ⚠ DEPLOY WINDOW: widened CHECKs, and a fence on a kind nothing writes yet. Old code never sends the new values;
+-- the first sender ships in a later merge, so the fence is in force before anything can meet it.
 --
 -- cross-module-waiver: restates messaging's `notification_events` category CHECK to add one ads category, as every
 -- new category has (0521, 0537, 0559, 0563, 0575, 0581, 0584); the contract moves with it.
@@ -45,3 +53,43 @@ alter table public.notification_events add constraint notification_events_catego
   'ai_assistant_budget',
   'ads_creative_refresh'
 ));
+
+-- AX020 / AX021 for `activate_ad` (Q-AD68); 0537's rules for launch, raise_budget and change_area unchanged.
+create or replace function public.guard_ads_actions_insert()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.kind in ('launch', 'raise_budget', 'change_area') and new.status <> 'refused' then
+    if new.approval_id is null or new.campaign_id is null or not exists (
+         select 1 from public.ads_approvals a
+          where a.id = new.approval_id and a.org_id = new.org_id
+            and a.campaign_id = new.campaign_id and a.kind = new.kind
+            and not exists (select 1 from public.ads_approvals w
+                             where w.org_id = a.org_id and w.withdraws_id = a.id)) then
+      raise exception 'ads_actions: % needs a standing approval of this campaign and kind', new.kind
+        using errcode = 'AX020';
+    end if;
+  end if;
+  -- A replacement ad is turned on only on the approval of THAT creative.
+  if new.kind = 'activate_ad' and new.status <> 'refused' then
+    if new.approval_id is null or new.campaign_id is null or new.creative_id is null or not exists (
+         select 1 from public.ads_approvals a
+          where a.id = new.approval_id and a.org_id = new.org_id
+            and a.campaign_id = new.campaign_id and a.creative_id = new.creative_id and a.kind = 'approve_creative'
+            and not exists (select 1 from public.ads_approvals w
+                             where w.org_id = a.org_id and w.withdraws_id = a.id)) then
+      raise exception 'ads_actions: activate_ad needs a standing approval of this creative'
+        using errcode = 'AX020';
+    end if;
+  end if;
+  -- The kill switch is the newest settings version's; nothing that spends more, or starts delivering, starts while it is on.
+  if new.kind in ('launch', 'raise_budget', 'activate_ad') and new.status <> 'refused' and coalesce((
+       select v.kill_switch from public.ads_settings_versions v
+        where v.org_id = new.org_id order by v.version desc limit 1), false) then
+    raise exception 'ads_actions: the kill switch is on — % refused', new.kind using errcode = 'AX021';
+  end if;
+  return new;
+end;
+$$;
