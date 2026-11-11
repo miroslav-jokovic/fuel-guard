@@ -199,6 +199,11 @@ const API_ALLOW = new Set([
   // evidence and medstop; every call is at request time, never at module load.
   "livemap -> evidence",
   "livemap -> medstop",
+  // The board's "today" (F21 carrier-day fix, 2026-11-11): the annual chip and the drivers' credential
+  // warnings are judged on the carrier's calendar day, `orgToday`, which org owns because it reads
+  // `organizations`. One function through org's index — the same arrow evidence, maintenance and
+  // inspections draw for it — so the board and the Shop's disagreements list cannot cut different days.
+  "livemap -> org",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of

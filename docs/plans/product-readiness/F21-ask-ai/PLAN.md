@@ -181,6 +181,15 @@ audit row is the endpoint's own.
   available, and (b) only if unit numbers are misheard in the task walk.**
 - **Q-AI4. Conversation retention and visibility.** Recommend 90 days, visible only to the author,
   with `ai_usage` (no text) kept for 13 months for cost. The `ai.ask` audit row keeps the question.
+  - **Ruled 2026-11-11 (owner approved the R4b handoff's recommendations):**
+    - (a) `ai_assistant_usage` (0584, tokens and cost, no text) gets a 13-month retention rule, which
+      covers the year-over-year cost view.
+    - (b) The `ai.ask` row in `audit_logs` stays as it is, kept forever with the rest of
+      `RETENTION_FORBIDDEN`: it is the compliance record of who asked what with which access, its
+      answer comes from data the person was entitled to with D-AI7 fields already stripped, and the
+      volume is trivial (21 rows, 2.6 KB of meta, measured 2026-11-11).
+    - (c) Conversations stay tab-local (Pinia; a reload starts empty). R3b stays unbuilt until somebody
+      asks for it; if it is built, the 90 days, author-only, RLS deny-all, API-only shape above holds.
 - **Q-AI5. Never-exposed fields (D-AI7).** Confirm the list, and confirm it applies to the admin too.
   Recommend yes: the assistant is the wrong door for those fields even for someone allowed to see
   them on the page.
@@ -243,6 +252,14 @@ audit row is the endpoint's own.
   is `section("fuel")` (view), and the route was written as a view on purpose; `manage` on the page
   looks inherited from the old Fuel Spend tabs that held writes (FS2). It changes who sees a sidebar
   entry, so it is the owner's call.
+  - **Ruled 2026-11-11: (b)** (owner approved the R4b handoff's recommendations). History confirmed the
+    premise: FUEL-SECTION-CONSOLIDATION T2 (PR #446, 2026-09-01) moved every fuel-spend READ route to
+    `view` on purpose ("an accountant … can generate the spend report"), so the route is the later,
+    explicit decision and the page the stale half. Buy discipline (`fuel.spend.buy-discipline`) opens
+    with it: it holds no write. Dispatchers get the page too, as the matrix already gives them the
+    report. Recorded, not built: had the owner not wanted dispatchers on fuel spend (D-SEP10's old
+    note), the fix would be the dispatcher's `fuel` cell in the matrix, narrowing routes, page and tool
+    together — never the page or the tool alone.
 
 - **Q-AI13. The Drivers roster cannot show "drivers with an item expiring" (found at R4b (d),
   2026-11-11).** `driver_file_expirations` filters by ITEM state (expired, expiring, missing); the
@@ -622,6 +639,80 @@ audit row is the endpoint's own.
     cannot reach.
   - **Not yet run.** The first baseline needs the owner's go: it reads production and spends about
     $0.05. After it, `idling_summary` can be retired if no case needs it (R6b's open item).
+- 2026-11-11 — **Owner approved every recommendation in `HANDOFF-2026-11-11-R4B.md`** and ordered the
+  build, one PR each: (1) Q-AI12, Fuel costs to fuel view; (2) one carrier-day `orgToday` at every
+  UTC-day read (DQ, annual inspections, digest, alerts); (3) Q-AI4, 13-month retention for
+  `ai_assistant_usage`; (4) R4b deep links carrying the answer's filters, page by page (Fuel costs,
+  IFTA, Loads, Applicants/Drivers/Fuel cards, then the Fleet report's period into its URL and its link);
+  (5) the held R3a web half (`claude/askai-follow-ups-web`) once #2223 is in production, checked before
+  every PR; (6) the first eval baseline on production after 1–4, only after a one-line go from the
+  owner right before it runs. Rulings recorded under Q-AI4 and Q-AI12 in §5.
+- 2026-11-11 — **Q-AI12 built: Fuel costs and Buy discipline open to `section("fuel")` (view).**
+  - `surfaceCatalogue.ts`: `fuel.spend` and `fuel.spend.buy-discipline` move from `manage("fuel")` to
+    `section("fuel")`. Buy discipline was checked first: four read RPCs (`fuel_buy_fills`,
+    `fuel_policy_gallons`, `fuel_contract_totals`, `fuel_spend_lines`, all security invoker) and the
+    fuel policy read; its page issues no write.
+  - Who it changes, by default: every `fuel: "view"` role — accountant, auditor, dispatcher and
+    safety_manager — now sees Fuel costs in the sidebar (13 nav snapshots, each that one line added,
+    recorded in `navEquivalence.test.ts`), and Ask AI's "Open in Fuel costs" link draws for them.
+  - Tests that pinned the old gate were rewritten to the ruling: `sectionGuard.test.ts` (auditor now
+    opens both pages, recruiter still refused), `useAnswerPages.test.ts` (accountant gets the link; a
+    recruiter does not), and `nav.test.ts`'s view/manage case, which now uses Fuel planning
+    (`manage("dispatch")`) because fuel has no `manage` screen left — killed by its assertion when
+    Fuel planning was mutated to `view`.
+  - Pinned by `assistantContract.test.ts` "asks no more than the tool: a page's section level is one the
+    tool's own requirement on it grants". Deliberate break: the page back at `manage("fuel")`, killed
+    by its assertion (`fuel_report -> fuel.spend: expected 'view' to be 'manage'`). No test pinned the
+    old gate before, which is how the two halves drifted.
+- 2026-11-11 — **Carrier-day fix built: one `orgToday`, at every UTC-day read the handoff found.**
+  - **One definition:** `org/orgToday.ts` `orgToday(admin, orgId, now?)`, exported from org's index
+    (org owns `organizations`). `inspections/read/orgToday.ts` is deleted (its two routes import org's),
+    and recruiting's `carrierToday` is now a re-export of it under the old name, so its thirty-odd
+    callers did not move.
+  - **Moved to the carrier's day:** the Drivers page's overview (`GET /api/compliance/overview`), the
+    driver pass of the DQ alert run, the binder's default "as at", the Monday digest's DQ section, the
+    Shop's annual-due and FleetPal-disagreements readers, the inspectors list's "qualified today", and
+    the dispatch board — its annual chip and its drivers' credential warnings, which now share the day
+    the board's rows were cut on. Both assistant tools follow their pages: `driver_file_expirations`
+    calls `orgToday` with its own `now`, and `annual_inspections_due` gets it through `readAnnualDue`.
+  - **The two written dates, read first as the handoff asked:** a correction's `inspected_on` (append-only
+    `vehicle_inspections`) is a day on the shop's own calendar, the same kind the inspector types on a
+    new report, so it moved — a correction started at 7 pm Central was filed as inspected tomorrow. The
+    inspectors list's day is a read (`isQualifiedOn`), never written. `listInspectors` lost its UTC
+    default; its one caller passes the day.
+  - The DQ alert dedupe keys are the expiry date and threshold, not today, so the move re-sends nothing.
+  - **Not moved:** medstop's own `orgClock` (already the carrier's day, injected), and `askData`'s fleet
+    MPG window (a fuel read, not in the handoff's list).
+  - **Tests, at 01:30 UTC on 11/11 (7:30 pm Central on 11/10):** `orgToday.test.ts`; `annualCarrierDay.test.ts`
+    (an annual good through 11/10 is due, not overdue; a one-day disagreement is shown, not lost);
+    `dqAlertScheduler.test.ts` "does not call a CDL good through 11/10 expired at 7:30 pm Central on 11/10,
+    when UTC is already 11/11" (its fixture's "today" is now the carrier's day too — the UTC one would
+    have failed every Central evening); `assistantDriverFiles.test.ts` now asks for 11/10 and is
+    org-scoped. A source check keeps the UTC cut out of the eleven sites.
+  - Deliberate breaks, each killed by an assertion: the DQ run, `readAnnualDue`,
+    `readAnnualDisagreements`, the driver-files tool and `orgToday` itself put back on the UTC cut, and the
+    correction's `inspected_on` (caught by the source check).
+- 2026-11-11 — **R4b (e) part 1 built: the Fleet report's period is in its URL.**
+  - `packages/shared/src/fleetReportLinkContract.ts`: `?from=YYYY-MM&to=YYYY-MM&grain=…`, inclusive
+    months (`FLEET_REPORT_QUERY_KEYS`, `FLEET_REPORT_GRAINS`, `fleetReportToQuery`). The web's
+    `PeriodGrain` is the contract's `FleetReportGrain`.
+  - `grain` is in the URL because months alone are ambiguous: January–March is Q1 and the year to
+    March, which step differently. `periodFromLink` (web `reportPeriod.ts`) keeps a grain only when that
+    grain's own period covers exactly the linked months, else reads a custom range of whole months, so
+    the URL and the rail cannot disagree.
+  - The page: a linked period wins over the opening month (and its "opens on" note); with none, the page
+    opens as before and writes nothing until the rail moves, so a plain visit keeps a clean URL. The
+    rail's choice is written by the contract's writer, and the URL moves the rail back (Back/Forward,
+    another answer's link).
+  - Worth having for the page alone: a month of the Fleet report could not be sent to anybody before.
+  - Tests: `reportPeriod.test.ts` "periodFromLink — the period a Fleet report link names (F21 R4b (e))"
+    (grain kept, custom, not a month, every grain round-trips the writer); `FleetReportPage.test.ts`
+    "opens on the period a link built by its contract names, without the latest-month note" and "writes
+    the rail's choice into the URL, and a plain visit writes nothing".
+  - Deliberate breaks, each killed by an assertion: the page ignoring the link, not writing the rail's
+    choice, not following the URL, `periodFromLink` trusting the grain unchecked, and the writer
+    dropping the grain.
+  - Next: (e) part 2, the Fleet report link from `finance_report` and `income_statement`.
 - 2026-11-11 — **R4b (a) built: "Open in Fuel costs" opens the answer's own days and trucks.**
   - **One link builder, read by the page and the tool (D-AI6):** `packages/shared/src/fuelCostsLinkContract.ts`
     has the page's six URL keys (`FUEL_COSTS_QUERY_KEYS`) and `fuelCostsToQuery`. `useSpendFilters`

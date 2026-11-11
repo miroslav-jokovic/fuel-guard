@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ASSISTANT_TOOL_PAGE, compareAttention, driversToQuery, type DqAttentionItem, type DqItemState } from "@silvicom/shared";
 import { getComplianceOverview } from "./complianceOverview.js";
+import { orgToday } from "../org/index.js";
 
 /**
  * The assistant's `driver_file_expirations` tool (F21 R6b, 2026-11-10): whose driver qualification
@@ -21,9 +22,9 @@ import { getComplianceOverview } from "./complianceOverview.js";
  * item exists only because of a positive result, so it would disclose one. This is exactly what the
  * page shows a reader who may not see testing records. Thumbnails are images, not report content.
  *
- * `today` is the route's: `new Date().toISOString().slice(0, 10)`, the UTC day. That is a day early
- * in a Central-time evening (D-PREC6); it is the page's rule, so the tool keeps it and the plan
- * records it as found (F21 PLAN §6, R6b expirations) rather than giving the assistant a different day.
+ * `today` is the route's: `orgToday`, the carrier's calendar day, cut from the same `now`. Until
+ * 2026-11-11 both were the UTC day, a day early on a Central evening; they moved together (F21 PLAN
+ * §6, the carrier-day entry), which is the point of the tool copying the page's day.
  *
  * Gated as its page is: `roster: view` (`assistantContract.ts`).
  *
@@ -52,7 +53,7 @@ export async function assistantDriverFiles(
   input: AssistantDriverFilesInput,
   now: Date = new Date(),
 ): Promise<unknown> {
-  const today = now.toISOString().slice(0, 10);
+  const today = await orgToday(admin, orgId, now);
   const overview = await getComplianceOverview(admin, orgId, today);
   const only = (DRIVER_FILE_STATES as readonly string[]).includes(String(input.state)) ? (input.state as DqItemState) : null;
   const named = (Array.isArray(input.drivers) ? input.drivers : []).map((d) => String(d).trim().toLowerCase()).filter(Boolean);
