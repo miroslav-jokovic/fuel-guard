@@ -10,7 +10,11 @@ import { chromium } from "playwright-core";
 const BASE = "https://staging-api.360.silvicominc.com";
 const RUNS = Number(process.env.RUNS ?? 5);
 const THROTTLE = Number(process.env.THROTTLE ?? 4);
-const browser = await chromium.launch();
+// ⚠ GPU=1 draws WebGL on this machine's graphics chip. Without it headless Chrome uses SwiftShader, a SOFTWARE
+// renderer on the CPU (measured 2026-11-11: "SwiftShader Device"), which no office PC with a GPU uses and which
+// costs a vector map far more than raster images. Neither is the office PC: SwiftShader is a floor, a
+// developer Mac's GPU a ceiling. Each run prints the renderer it actually used.
+const browser = await chromium.launch(process.env.GPU === "1" ? { args: ["--enable-gpu", "--use-angle=metal", "--ignore-gpu-blocklist"] } : {});
 const results = [];
 for (let i = 0; i < RUNS * 2; i++) {
   const mode = i % 2 === 0 ? "map" : "vector";
@@ -20,6 +24,8 @@ for (let i = 0; i < RUNS * 2; i++) {
   await Promise.all([page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30000 }), page.click("button[type=submit]")]);
   await page.goto(`${BASE}/?tab=dispatch`); await page.waitForSelector("canvas.maplibregl-canvas"); await page.waitForTimeout(4000);
   if (mode === "vector") { await page.click('[aria-label^="Basemap:"]'); await page.click('button.kebab-item:has-text("Map (vector trial)")'); await page.waitForTimeout(5000); }
+  const renderer = await page.evaluate(() => { const gl = document.createElement("canvas").getContext("webgl2"); const d = gl?.getExtension("WEBGL_debug_renderer_info"); return d ? gl.getParameter(d.UNMASKED_RENDERER_WEBGL) : "unknown"; });
+  if (i === 0) console.log("renderer:", renderer);
   let tiles = 0;
   page.on("request", (r) => { if (r.url().includes("/map-tiles/")) tiles++; });
   const cdp = await ctx.newCDPSession(page);
