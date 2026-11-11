@@ -468,3 +468,5 @@ A gate fails on a literal string in an `apply/` template.
     - **The new refusals read in English on the Spanish page,** as every existing filing rule does. That is U7's "shared code returns a message key" (F4), which fixes them all together.
     - **The new questions say "license"** (Q-AM6, US) while the rest of the screen still says "licence". F4's U9 renames the rest.
   - **Next: F2c part 2, P3, a type for each licence.** Part 1's other-licences screen asks it, and `application_intake_licences` needs a `kind` column. That is a migration, so it merges first and its reader in a second merge.
+- 2026-11-11: **Item 2: the reserved `eeo` key is gone (Q-AM18)** (`claude/application-remove-eeo`). The carrier's paper prints an equal-opportunity statement and asks no self-identification question, so the form asks none. The key, its schema slot, `readableAnswers` (which existed only to drop it), the carrier-question guard and the catalogue entry are removed. No screen ever wrote the key, so no filed payload holds it. The office-gap snapshot is `["ssn"]`.
+  - **Next:** item 3, the SSN in the form (Q-AM3, Q-AM17).

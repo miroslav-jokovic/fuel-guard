@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  EEO_ANSWER_KEY,
   QUESTION_KINDS,
   SILVICOM_DRIVER_V1,
   questionnaireByRef,
@@ -13,7 +12,6 @@ import {
 } from "./questionnaireContract.js";
 import {
   questionnaireAnswersSchema,
-  readableAnswers,
   applyingAsOf,
   choiceLabel,
   questionnaireAnswersOf,
@@ -203,7 +201,6 @@ describe("questionnaire answers are projected nowhere", () => {
     questionnaire_answers: {
       position: "UNIQUE-POSITION-STRING",
       heard_from: "UNIQUE-HEARD-STRING",
-      [EEO_ANSWER_KEY]: { race: "UNIQUE-EEO-STRING" },
     },
     certified: true, signed_name: "Susan Godfrey",
   });
@@ -214,19 +211,6 @@ describe("questionnaire answers are projected nowhere", () => {
     expect(projected).not.toContain("UNIQUE-POSITION-STRING");
     expect(projected).not.toContain("UNIQUE-HEARD-STRING");
     expect(projected).not.toContain("questionnaire");
-  });
-
-  /** Voluntary self-identification must not be visible to the person deciding the hire. */
-  it("hides the reserved EEO key from anything that reads answers", () => {
-    const readable = readableAnswers(APPLICATION.questionnaire_answers as Record<string, unknown>);
-    expect(readable.position).toBe("UNIQUE-POSITION-STRING");
-    expect(EEO_ANSWER_KEY in readable).toBe(false);
-    expect(JSON.stringify(readable)).not.toContain("UNIQUE-EEO-STRING");
-  });
-
-  it("survives an application that answered nothing at all", () => {
-    expect(readableAnswers(null)).toEqual({});
-    expect(readableAnswers(undefined)).toEqual({});
   });
 });
 

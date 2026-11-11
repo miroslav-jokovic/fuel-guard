@@ -60,8 +60,8 @@ import { APPLY_COPY } from "./strings";
  * control the applicant's form answered it with (`questionControl`).
  *
  * ── WHAT IS NOT HERE YET ──────────────────────────────────────────────────────────────────────
- * The facts whose catalogue `office` is `{ none }` (`applicantFacts.test.ts`'s inline snapshot): EEO and
- * the SSN. Both wait on owner rulings, not a build.
+ * The facts whose catalogue `office` is `{ none }` (`applicantFacts.test.ts`'s inline snapshot): the SSN,
+ * ruled on 2026-11-11 (Q-AM3, Q-AM17) and next in the plan's list.
  */
 
 /** Which writer corrects this row. */

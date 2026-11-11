@@ -164,7 +164,6 @@ describe("the applicant fact catalogue (D-AM1)", () => {
     // A snapshot of the gap, so closing one (F3) or opening one is a visible change to this test.
     expect(shut.map((f) => f.path)).toMatchInlineSnapshot(`
       [
-        "application.questionnaire_answers.eeo",
         "ssn",
       ]
     `);

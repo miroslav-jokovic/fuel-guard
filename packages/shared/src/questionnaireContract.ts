@@ -21,11 +21,11 @@ import type { ApplicationSection } from "./applicationSections.js";
  * the only place a recruiter ever sees what the driver wrote — collecting answers nobody can read
  * would be a write-only feature.
  *
- * ── THE ONE RESERVED KEY ──────────────────────────────────────────────────────────────────────
- * `eeo`. Voluntary self-identification must never be visible to the person deciding the hire, so it
- * is stored under its own key and excluded from the rendered document and from every projection.
- * Silvicom defines no EEO questions (§6: absent an instruction, none are defined) — the key is
- * reserved and the exclusion is tested, so the day one is added the exclusion already exists.
+ * ── NO RESERVED KEY (Q-AM18, owner 2026-11-11) ───────────────────────────────────────────────
+ * An `eeo` key was reserved here for voluntary self-identification, kept out of every rendering. The
+ * owner's rule is that the online form is a prefill of the carrier's paper application, and the paper
+ * decides what is asked: `application-11.pdf` prints an equal-opportunity STATEMENT and asks no
+ * self-identification question, so none is asked and the key went. No screen ever wrote it.
  */
 
 /**
@@ -160,8 +160,6 @@ export interface QuestionnaireDefinition {
   questions: readonly QuestionnaireQuestion[];
 }
 
-/** Answers under this key are never rendered and never projected. See the header. */
-export const EEO_ANSWER_KEY = "eeo";
 
 /**
  * Silvicom's questions, transcribed from `APPLICATION.xlsx` 2026-08-21 (plan §6.1, pile 2).
