@@ -157,6 +157,17 @@ export const applicantIntakeSchema = z
 export type ApplicantIntake = z.infer<typeof applicantIntakeSchema>;
 
 /**
+ * A licence's TYPE, as the carrier's paper application asks it (`application-11.pdf` page 2's licence
+ * grid: STATE | LICENSE NO. | TYPE | EXPIRATION DATE; P3, F2c part 2, migration 0588's CHECK). The
+ * paper's column is free text; these four are the plan's P3 list — a commercial licence, a commercial
+ * learner's permit (§383.25), an ordinary licence, anything else (a foreign licence, a state ID) — so
+ * every packet prints the same words whatever language the form was filled in. The current CDL
+ * (position 0) has none: its type is its class and endorsements (`licenceType`, F2b).
+ */
+export const LICENCE_KINDS = ["cdl", "clp", "non_cdl", "other"] as const;
+export type LicenceKind = (typeof LICENCE_KINDS)[number];
+
+/**
  * One licence held in the past three years. Its POSITION is its place in the list, and position 0 is
  * the current CDL — the one PSP matches and the one `record_applicant_identity` writes onto `drivers`.
  */
@@ -174,6 +185,13 @@ export const applicantIntakeLicenceSchema = z
      * not only on the page, because the page is not the only client this route will ever have.
      */
     expires_on: isoDateSchema.pipe(z.string({ error: "Give the expiry date printed on the licence" })),
+    /**
+     * P3 (0588). Nullish, and not required here, because two rows legitimately have none: the current
+     * CDL, and every licence recorded before the screen asked — the office's correction posts those
+     * back whole (`partOneCorrectionSchema`), and requiring it would refuse every correction to such an
+     * application. The other-licences screen requires it of every licence it adds.
+     */
+    kind: z.enum(LICENCE_KINDS).nullish(),
   })
   .strict();
 export type ApplicantIntakeLicence = z.infer<typeof applicantIntakeLicenceSchema>;

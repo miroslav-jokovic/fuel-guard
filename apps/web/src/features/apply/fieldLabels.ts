@@ -121,7 +121,8 @@ const rowLabels = (): Record<string, { noun: string; columns: Record<string, str
       issuing_authority: licence.issuingAuthority,
       number: licence.otherNumber,
       expires_at: licence.expires,
-      kind: licence.otherKind,
+      // P3: the question Part 1's other-licences screen asks (F2c part 2).
+      kind: APPLY_COPY.partOne.otherLicences.kind,
     },
   },
   employers: {

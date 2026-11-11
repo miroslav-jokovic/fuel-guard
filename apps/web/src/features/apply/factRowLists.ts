@@ -64,15 +64,13 @@ export const isStringList = (list: ApplicationRowList): boolean => list === "oth
 export const listDoor = (list: ApplicationRowList, v2: boolean): "draft" | "part_one" =>
   v2 && list === "additional_licences" ? "part_one" : "draft";
 
-/** Part 1 never asks an other licence's `kind`, so a v2 licence row does not either. */
-const PART_ONE_SKIPS = new Set(["kind"]);
-
 /** The add form's questions: the catalogue's columns for the list, in its order, as the card asks them. */
-export function rowColumns(list: ApplicationRowList, index: number, v2 = false): RowColumn[] {
+export function rowColumns(list: ApplicationRowList, index: number): RowColumn[] {
   if (isStringList(list)) return [{ column: "", input: "text", label: describeField([list, index]) }];
   const prefix = `application.${list}[].`;
-  const partOne = listDoor(list, v2) === "part_one";
-  return APPLICANT_FACTS.filter((f) => f.path.startsWith(prefix) && !(partOne && PART_ONE_SKIPS.has(f.path.slice(prefix.length)))).map((f) => {
+  // P3 (F2c part 2): Part 1 now asks an other licence's `kind`, so a v2 licence row asks it too — the
+  // card's columns are the catalogue's on either door.
+  return APPLICANT_FACTS.filter((f) => f.path.startsWith(prefix)).map((f) => {
     const column = f.path.slice(prefix.length);
     const choices = CHOICES()[column];
     return { column, input: f.input, label: describeField([list, index, column]), ...(choices ? { choices } : {}) };

@@ -160,6 +160,8 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   intake("licences[].agency", "text", "391.21(b)(5)", { through: "application.additional_licences[].issuing_authority" }, "part_one"),
   intake("licences[].licence_number", "text", "391.21(b)(5)", { through: "application.cdl_number" }, "part_one"),
   intake("licences[].expires_on", "date", "391.21(b)(5)", { through: "application.cdl_expires_at" }, "part_one"),
+  // P3 (0588): other licences only — the current CDL's TYPE is its class and endorsements.
+  intake("licences[].kind", "choice", "391.21(b)(5)", { through: "application.additional_licences[].kind" }, "part_one"),
   intake("endorsements[]", "multi_choice", "screening", { through: "application.cdl_endorsements[]" }, "part_one_answer"),
   intake("prior_positive_2y", "yesno", "40.25(j)", { through: "application.prior_failed_pre_employment_test" }, STATEMENT),
   intake("dot_program_30d", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, STATEMENT),
@@ -198,7 +200,8 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("cdl_expires_at", "date", "391.21(b)(5)", ["p02.licences#3", ...both("cdl_expires")], "part_one"),
   app("additional_licences[].issuing_authority", "jurisdiction", "391.21(b)(5)", ["p02.licences#0"], "part_one"),
   app("additional_licences[].number", "text", "391.21(b)(5)", ["p02.licences#1"], "part_one"),
-  app("additional_licences[].kind", "text", "391.21(b)(5)", ["p02.licences#2"], "part_one"),
+  // P3 (F2c part 2): the paper grid's TYPE, asked per licence on Part 1's other-licences screen (0588).
+  app("additional_licences[].kind", "choice", "391.21(b)(5)", ["p02.licences#2"], "part_one"),
   app("additional_licences[].expires_at", "date", "391.21(b)(5)", ["p02.licences#3"], "part_one"),
 
   // ── (b)(6) experience ──

@@ -95,12 +95,24 @@ describe("partOneEdits", () => {
     const rows = partOneEdits(before, next, CURRENT);
     expect(rows).toEqual([{
       path: ["additional_licences", 0],
-      before: { issuing_authority: "IN", number: "IN-998", expires_at: "2027-01-01" },
-      after: { issuing_authority: "IN", number: "IN-999", expires_at: "2027-01-01" },
+      before: { issuing_authority: "IN", number: "IN-998", expires_at: "2027-01-01", kind: null },
+      after: { issuing_authority: "IN", number: "IN-999", expires_at: "2027-01-01", kind: null },
     }]);
     // …and that row is exactly what composition files there.
     const filed = at(filedWith(next), ["additional_licences", 0]) as Record<string, unknown>;
-    expect({ issuing_authority: filed.issuing_authority, number: filed.number, expires_at: filed.expires_at }).toEqual(rows[0]!.after);
+    expect(filed).toEqual(rows[0]!.after);
+  });
+
+  /** P3 (F2c part 2): the type is part of the row, so changing only it is one change to that licence. */
+  it("logs a changed licence type as a change to that licence's row, as composition files it", () => {
+    const typed = correction({ licences: [correction().licences[0]!, { ...correction().licences[1]!, kind: "clp" }] });
+    const rows = partOneEdits(before, typed, CURRENT);
+    expect(rows).toEqual([{
+      path: ["additional_licences", 0],
+      before: { issuing_authority: "IN", number: "IN-998", expires_at: "2027-01-01", kind: null },
+      after: { issuing_authority: "IN", number: "IN-998", expires_at: "2027-01-01", kind: "clp" },
+    }]);
+    expect(at(filedWith(typed), ["additional_licences", 0])).toEqual(rows[0]!.after);
   });
 
   it("logs an added licence with no before, and a removed one with no after", () => {
@@ -108,11 +120,11 @@ describe("partOneEdits", () => {
       licences: [...correction().licences, { state_code: "WI", agency: null, licence_number: "W1", expires_on: "2030-01-01" }],
     });
     expect(partOneEdits(before, added, CURRENT)).toEqual([
-      { path: ["additional_licences", 1], before: null, after: { issuing_authority: "WI", number: "W1", expires_at: "2030-01-01" } },
+      { path: ["additional_licences", 1], before: null, after: { issuing_authority: "WI", number: "W1", expires_at: "2030-01-01", kind: null } },
     ]);
     const removed = correction({ licences: [correction().licences[0]!] });
     expect(partOneEdits(before, removed, CURRENT)).toEqual([
-      { path: ["additional_licences", 0], before: { issuing_authority: "IN", number: "IN-998", expires_at: "2027-01-01" }, after: null },
+      { path: ["additional_licences", 0], before: { issuing_authority: "IN", number: "IN-998", expires_at: "2027-01-01", kind: null }, after: null },
     ]);
   });
 
@@ -161,6 +173,14 @@ describe("partOneCorrectionWith", () => {
     expect(partOneEdits(before, body!, CURRENT)).toEqual([{ path, before: at(filedWith(correction()), path) ?? null, after: value }]);
   });
 
+  it("round-trips another licence's type (P3) as a change to that licence's row", () => {
+    const body = partOneCorrectionWith(view, ["additional_licences", 0, "kind"], "non_cdl", CURRENT) as PartOneCorrection;
+    expect(partOneCorrectionSchema.parse(body).licences[1]!.kind).toBe("non_cdl");
+    const [row] = partOneEdits(before, body, CURRENT);
+    expect(row!.path).toEqual(["additional_licences", 0]);
+    expect((row!.after as { kind: string }).kind).toBe("non_cdl");
+  });
+
   it("round-trips another licence's columns as a change to that licence's row", () => {
     const body = partOneCorrectionWith(view, ["additional_licences", 0, "number"], "IN-999", CURRENT) as PartOneCorrection;
     const [row] = partOneEdits(before, body, CURRENT);
@@ -193,11 +213,11 @@ describe("adding and removing an other licence on a v2 link", () => {
   const view = { intake: STORED, licences: THREE };
 
   it("adds one at the end, and the Part 1 contract takes the body", () => {
-    const body = partOneLicencesWith(view, { add: { issuing_authority: "OH", number: "OH-5", expires_at: "2030-02-01" } }, CURRENT);
+    const body = partOneLicencesWith(view, { add: { issuing_authority: "OH", number: "OH-5", expires_at: "2030-02-01", kind: "clp" } }, CURRENT);
     const parsed = partOneCorrectionSchema.parse(body);
     expect(parsed.licences.map((l) => l.licence_number)).toEqual(["D1234567", "IN-998", "W-1", "OH-5"]);
     expect(partOneEdits({ intake: STORED, licences: THREE }, parsed, CURRENT)).toEqual([
-      { path: ["additional_licences", 2], before: null, after: { issuing_authority: "OH", number: "OH-5", expires_at: "2030-02-01" } },
+      { path: ["additional_licences", 2], before: null, after: { issuing_authority: "OH", number: "OH-5", expires_at: "2030-02-01", kind: "clp" } },
     ]);
   });
 
@@ -205,7 +225,7 @@ describe("adding and removing an other licence on a v2 link", () => {
     const body = partOneCorrectionSchema.parse(partOneLicencesWith(view, { remove: 0 }, CURRENT));
     expect(body.licences.map((l) => l.licence_number)).toEqual(["D1234567", "W-1"]);
     const rows = partOneEdits({ intake: STORED, licences: THREE }, body, CURRENT);
-    expect(rows).toEqual([{ path: ["additional_licences", 0], before: { issuing_authority: "IN", number: "IN-998", expires_at: "2027-01-01" }, after: null }]);
+    expect(rows).toEqual([{ path: ["additional_licences", 0], before: { issuing_authority: "IN", number: "IN-998", expires_at: "2027-01-01", kind: null }, after: null }]);
     expect(currentEditPaths(rows)[0]).toMatchObject({ gone: true, removal: true });
   });
 

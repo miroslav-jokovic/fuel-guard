@@ -71,6 +71,15 @@ export const showMonth = (value: string | null | undefined): string => formatDis
 const text = (v: string | null | undefined): string =>
   (v ?? "").trim() === "" ? copy.empty : (v ?? "").trim();
 
+/**
+ * An other licence's type (P3): Part 1 files the code, so the driver reads the words the screen asked it
+ * with. A legacy draft's free-text answer is not a code and reads as typed.
+ */
+const licenceKindText = (v: string | null | undefined): string => {
+  const words = APPLY_COPY.partOne.otherLicences.kindOptions as Readonly<Record<string, string>>;
+  return words[(v ?? "").trim()] ?? text(v);
+};
+
 const yesNo = (v: boolean): string => (v ? "Yes" : "No");
 /** A yes/no the applicant may not have answered yet (Q-AW33). */
 const answered = (v: boolean | null): string => (v === null ? copy.empty : yesNo(v));
@@ -178,7 +187,7 @@ export function buildReviewSummary({ draft, questionnaire, carrier, captures }: 
         { label: c.licence.issuingAuthority, value: text(l.issuing_authority) },
         { label: c.licence.otherNumber, value: text(l.number) },
         { label: c.licence.expires, value: showDate(l.expires_at) || copy.empty },
-        { label: c.licence.otherKind, value: text(l.kind) },
+        { label: APPLY_COPY.partOne.otherLicences.kind, value: licenceKindText(l.kind) },
       ],
     })),
   ];

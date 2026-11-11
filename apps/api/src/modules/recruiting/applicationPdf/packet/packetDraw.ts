@@ -11,7 +11,7 @@ import {
   type Column,
 } from "../../../../lib/pdfDraw.js";
 import { CONTINUED, FOOTER } from "./packetText.js";
-import { formatDisplayDate, type EquipmentClass } from "@silvicom/shared";
+import { LICENCE_KINDS, formatDisplayDate, type EquipmentClass, type LicenceKind } from "@silvicom/shared";
 
 /** Name and legal address, from `organizations` (D-PKT8). Declared here so the drawing layer does
  *  not have to import the renderer's input type and create a cycle. */
@@ -112,6 +112,18 @@ export const licenceType = (cls: string | null | undefined, endorsements: readon
   const letters = (endorsements ?? []).join("");
   return [blank(cls), letters ? `(${letters})` : ""].filter(Boolean).join(" ");
 };
+
+/**
+ * An OTHER licence's `TYPE` cell (P3, F2c part 2): the words for Part 1's code (`LICENCE_KINDS`), short
+ * enough for the 52pt column at full size. Typed by the record, so a fifth code fails to compile here.
+ *
+ * ⚠ An application filed before P3 can hold the applicant's own words in `kind` (the pre-v2 draft's
+ * free-text field), and `driver_applications` is append-only and must re-render as signed
+ * (§390.32(d)), so a value that is not a code prints as it was filed. Blank prints blank: never asked.
+ */
+const LICENCE_KIND_WORDS: Record<LicenceKind, string> = { cdl: "CDL", clp: "CLP", non_cdl: "Non-CDL", other: "Other" };
+export const licenceKindWords = (kind: string | null | undefined): string =>
+  (LICENCE_KINDS as readonly string[]).includes(kind ?? "") ? LICENCE_KIND_WORDS[kind as LicenceKind] : blank(kind);
 
 /**
  * Six equipment classes onto the packet's four printed rows.

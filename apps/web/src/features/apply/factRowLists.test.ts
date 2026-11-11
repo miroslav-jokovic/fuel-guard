@@ -3,7 +3,7 @@ import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
 import { useToastStore } from "@/stores/toast";
-import { APPLICANT_FACTS, questionnaireForApplicant } from "@silvicom/shared";
+import { APPLICANT_FACTS, LICENCE_KINDS, questionnaireForApplicant } from "@silvicom/shared";
 import { emptyAddress } from "./draftShape";
 import { blankRow, editableLists, factBlocks, rowChange, rowColumns, rowRemovable } from "./factRowLists";
 import { applicantFactRows } from "./applicantFactRows";
@@ -48,9 +48,12 @@ describe("the lists' rows", () => {
     expect(editableLists(false, { draft: false, partOne: true })).toEqual([]);
   });
 
-  it("does not ask a v2 licence the kind Part 1 never holds", () => {
-    expect(rowColumns("additional_licences", 0, true).map((c) => c.column)).not.toContain("kind");
-    expect(rowColumns("additional_licences", 0, false).map((c) => c.column)).toContain("kind");
+  /** P3 (F2c part 2): Part 1 asks every other licence's type now, so the card's adder asks it in the same four words. */
+  it("asks an other licence's type, from the same four answers the driver's screen offers", () => {
+    const kind = rowColumns("additional_licences", 0).find((c) => c.column === "kind");
+    expect(kind?.input).toBe("choice");
+    expect(kind?.choices?.map((c) => c.value)).toEqual([...LICENCE_KINDS]);
+    expect(kind?.choices?.find((c) => c.value === "clp")?.label).toBe("Commercial learner's permit (CLP)");
   });
 
   it("keeps each row's answers together as one block", () => {

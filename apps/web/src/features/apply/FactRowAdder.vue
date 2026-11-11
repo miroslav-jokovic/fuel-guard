@@ -30,7 +30,7 @@ const toast = useToastStore();
 const edit = useEditApplicationAnswer(toRef(props, "invitationId"));
 const partOneEdit = useCorrectPartOne(toRef(props, "invitationId"));
 const pending = computed(() => edit.isPending.value || partOneEdit.isPending.value);
-const columns = computed(() => rowColumns(props.list, props.index, Boolean(props.partOne)));
+const columns = computed(() => rowColumns(props.list, props.index));
 const noun = computed(() => rowNoun(props.list));
 
 type Cell = string | boolean | null | readonly string[];

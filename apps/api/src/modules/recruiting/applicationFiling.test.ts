@@ -169,6 +169,25 @@ describe("a v2 invitation files the composed application (D-AW3, AW1)", () => {
     expectOrgScoped(rec, ORG, { exempt: ["application_invitations"] });
   });
 
+  /**
+   * P3 (F2c part 2): an other licence's type is filed as Part 1 holds it. The recorder serves whole
+   * fixture rows whatever is selected, so the read's own column list is asserted too — without `kind`
+   * there, a real database would file every type as null.
+   */
+  it("files each other licence's type from Part 1, and reads the column it files", async () => {
+    publish();
+    const rec = seed({ tables: { ...PART_ONE, application_intake_licences: [
+      ...PART_ONE.application_intake_licences,
+      { position: 1, state_code: "OH", agency: null, licence_number: "OH55", expires_on: "2029-06-30", kind: "clp" },
+    ] } });
+    expect(isIntakeError(await submitApplication(rec.client, env(), TOKEN, APPLICATION(), CTX, NOW))).toBe(false);
+    expect(filedPayload(rec)!.additional_licences).toEqual([
+      { issuing_authority: "OH", number: "OH55", expires_at: "2029-06-30", kind: "clp" },
+    ]);
+    const select = rec.forTable("application_intake_licences")[0]!.ops.find((o) => o.method === "select");
+    expect(String(select?.args[0]).split(",").map((c) => c.trim())).toContain("kind");
+  });
+
   it("refuses a v2 filing that misses AW1's rules, naming each, and files nothing", async () => {
     publish();
     const rec = seed({ tables: PART_ONE });

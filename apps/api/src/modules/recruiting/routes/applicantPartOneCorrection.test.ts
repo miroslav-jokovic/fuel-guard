@@ -33,13 +33,14 @@ const CORRECTION = {
   cdl_class: "A",
   licences: [
     { state_code: "IL", licence_number: "D123-4567", expires_on: "2029-01-01" },
-    { state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30" },
+    { state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30", kind: "clp" },
   ],
 };
 
 const STORED_LICENCES = [
   // Out of order on purpose: the list is the positions, whatever order the rows arrive in.
-  { invitation_id: INV, position: 1, state_code: "OH", agency: null, licence_number: "OH-1", expires_on: "2020-01-31" },
+  // P3: a stored type, so the identity correction is seen to post it back rather than wipe it (0588).
+  { invitation_id: INV, position: 1, state_code: "OH", agency: null, licence_number: "OH-1", expires_on: "2020-01-31", kind: "non_cdl" },
   { invitation_id: INV, position: 0, state_code: "PA", agency: null, licence_number: "PA-OLD", expires_on: "2028-05-01" },
 ];
 
@@ -129,8 +130,8 @@ describe("the office corrects Part 1", () => {
       state: "IL", postal_code: "60432", cdl_class: "A",
     });
     expect(args.p_licences).toEqual([
-      { position: 0, state_code: "IL", agency: null, licence_number: "D123-4567", expires_on: "2029-01-01", source: "intake" },
-      { position: 1, state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30", source: "intake" },
+      { position: 0, state_code: "IL", agency: null, licence_number: "D123-4567", expires_on: "2029-01-01", kind: null, source: "intake" },
+      { position: 1, state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30", kind: "clp", source: "intake" },
     ]);
     // Never the identity writer on its own: the intake writer calls it from inside, from position 0.
     expect(rec.rpcs().some((r) => r.fn === "record_applicant_identity")).toBe(false);
@@ -244,9 +245,13 @@ describe("the identity correction on a v2 link", () => {
     expect(args).toMatchObject({ p_overwrite: true, p_intake: { date_of_birth: "1980-04-01" } });
     expect(args.p_licences).toEqual([
       // Number and state corrected; its expiry is Part 1's and stays.
-      { position: 0, state_code: "PA", agency: null, licence_number: "PA334554", expires_on: "2028-05-01", source: "intake" },
-      { position: 1, state_code: "OH", agency: null, licence_number: "OH-1", expires_on: "2020-01-31", source: "intake" },
+      { position: 0, state_code: "PA", agency: null, licence_number: "PA334554", expires_on: "2028-05-01", kind: null, source: "intake" },
+      // P3: the stored type travels with the list the identity correction posts back whole.
+      { position: 1, state_code: "OH", agency: null, licence_number: "OH-1", expires_on: "2020-01-31", kind: "non_cdl", source: "intake" },
     ]);
+    // …which needs the column READ: the recorder serves whole rows whatever is selected.
+    const selects = rec.forTable("application_intake_licences").map((q) => q.ops.find((o) => o.method === "select")?.args[0]);
+    expect(selects.every((c) => String(c).split(",").map((x) => x.trim()).includes("kind"))).toBe(true);
     expect(rec.rpcs().some((r) => r.fn === "record_applicant_identity")).toBe(false);
     expect(rec.writtenRows("audit_logs")[0]).toMatchObject({ action: "application_identity_corrected", entity_id: INV });
     expectOrgScoped(rec, ORG);
@@ -303,8 +308,8 @@ describe("every office correction is shown to the driver, and none lands once th
       { path: ["cdl_expires_at"], before: "2028-05-01", after: "2029-01-01" },
       {
         path: ["additional_licences", 0],
-        before: { issuing_authority: "OH", number: "OH-1", expires_at: "2020-01-31" },
-        after: { issuing_authority: "Indiana BMV", number: "IN-555", expires_at: "2021-06-30" },
+        before: { issuing_authority: "OH", number: "OH-1", expires_at: "2020-01-31", kind: "non_cdl" },
+        after: { issuing_authority: "Indiana BMV", number: "IN-555", expires_at: "2021-06-30", kind: "clp" },
       },
     ]);
     const [row] = rec.writtenRows("application_edits") as Array<Record<string, unknown>>;
@@ -317,7 +322,7 @@ describe("every office correction is shown to the driver, and none lands once th
     const three = [
       { invitation_id: INV, position: 0, state_code: "IL", agency: null, licence_number: "D123-4567", expires_on: "2029-01-01" },
       { invitation_id: INV, position: 1, state_code: "OH", agency: null, licence_number: "OH-1", expires_on: "2020-01-31" },
-      { invitation_id: INV, position: 2, state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30" },
+      { invitation_id: INV, position: 2, state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30", kind: "clp" },
     ];
     const rec = seed({ stored: STORED, licences: three, draft: DRAFT });
     holder.client = rec.client;
@@ -327,7 +332,7 @@ describe("every office correction is shown to the driver, and none lands once th
       .filter((row) => (row.path as unknown[])[0] === "additional_licences")
       .map((row) => ({ path: row.path, before: row.before, after: row.after }));
     expect(licenceRows).toEqual([
-      { path: ["additional_licences", 0], before: { issuing_authority: "OH", number: "OH-1", expires_at: "2020-01-31" }, after: null },
+      { path: ["additional_licences", 0], before: { issuing_authority: "OH", number: "OH-1", expires_at: "2020-01-31", kind: null }, after: null },
     ]);
   });
 
