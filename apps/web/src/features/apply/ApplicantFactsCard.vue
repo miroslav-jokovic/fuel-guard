@@ -99,6 +99,7 @@ const rows = computed(() =>
     edits: props.review.edits,
     questionnaire: questionnaireForApplicant(),
     partOneAnswers: props.review.partOneAnswers,
+    carrier: props.review.carrierQuestions,
   }),
 );
 const query = ref("");
@@ -321,6 +322,7 @@ function shown(row: FactRow): string {
               :input="row.input"
               :label="row.label"
               :choices="row.choices"
+              :skip="row.skip"
               :date-kind="row.path[0] === 'date_of_birth' ? 'dob' : undefined"
               :error="problem ?? undefined"
             />

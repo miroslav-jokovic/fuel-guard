@@ -165,7 +165,6 @@ describe("the applicant fact catalogue (D-AM1)", () => {
     expect(shut.map((f) => f.path)).toMatchInlineSnapshot(`
       [
         "application.questionnaire_answers.eeo",
-        "application.carrier_answers",
         "ssn",
       ]
     `);

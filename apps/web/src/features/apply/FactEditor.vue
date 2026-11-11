@@ -31,6 +31,12 @@ const props = defineProps<{
   error?: string;
   /** A date's own rule: a date of birth is "dob" (an adult's, in the past), anything else "any". */
   dateKind?: TypedDateKind;
+  /**
+   * An optional question's stored skip ("I'd rather not say"). Ticked, the control is put away and the
+   * answer IS the skip's words — the applicant's form does exactly this (`QuestionnaireFields`), so an
+   * answer and a skip are never both on file. Unticked, the answer starts empty.
+   */
+  skip?: FactChoice;
 }>();
 const model = defineModel<string | boolean | null | readonly string[]>({ required: true });
 
@@ -46,6 +52,10 @@ const yesNo = computed<boolean | null>({
   get: () => (typeof model.value === "boolean" ? model.value : null),
   set: (v) => { model.value = v; },
 });
+const skipped = computed<boolean>({
+  get: () => props.skip !== undefined && model.value === props.skip.value,
+  set: (on) => { model.value = on && props.skip ? props.skip.value : null; },
+});
 const NUMERIC = new Set<FactInput>(["count", "miles", "zip", "usdot"]);
 
 /** A multi-choice answer (endorsements): the ticked codes, kept in the choices' own order, as the wizard does. */
@@ -59,6 +69,7 @@ function tick(value: string, on: boolean): void {
 </script>
 
 <template>
+  <template v-if="!skipped">
   <YesNoQuestion
     v-if="input === 'yesno'"
     :id="id"
@@ -109,5 +120,10 @@ function tick(value: string, on: boolean): void {
     autocomplete="off"
     :aria-label="label"
   />
-  <p v-if="error && input !== 'yesno'" class="mt-1 text-xs text-danger-700" :data-fact-problem="props.id">{{ error }}</p>
+  </template>
+  <!-- A yes/no names its question in its own legend (the card prints no label above it), so with the
+       control put away the question would go too — found in the step 5 browser pass. -->
+  <p v-else-if="input === 'yesno'" class="text-sm text-ink-muted" data-fact-skip-question>{{ label }}</p>
+  <AppCheckbox v-if="skip" v-model="skipped" :label="skip.label" data-fact-skip />
+  <p v-if="error && (input !== 'yesno' || skipped)" class="mt-1 text-xs text-danger-700" :data-fact-problem="props.id">{{ error }}</p>
 </template>

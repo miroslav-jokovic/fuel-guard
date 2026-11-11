@@ -262,9 +262,11 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
         "NEVER ASKED: no screen writes the reserved key (questionnaireAnswers' `eeo` is only a schema slot), so there is "
         + "no answer to correct; Q-AM13's replace-only rule applies the day a screen asks it",
     }),
+  // One fact for every question the carrier wrote: the card lays it out once per question on THIS
+  // applicant's stamp, each with its kind's control (`applicantFactRows`), and the API checks a correction
+  // against that stamp (`carrierAnswerRefusal`) — the draft does not carry it (Q-CQ7). F3c part 2, step 5.
   app("carrier_answers", "choice", "carrier",
-    { notPrinted: "printed on the application's own questions page (questionnairePage.ts), not on the carrier's paper" },
-    { none: "labelled only by the invitation's stamp, which the draft does not carry (Q-CQ7)" }),
+    { notPrinted: "printed on the application's own questions page (questionnairePage.ts), not on the carrier's paper" }),
 
   // ── the one fact on its own endpoint ──
   {
