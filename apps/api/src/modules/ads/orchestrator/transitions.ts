@@ -271,3 +271,29 @@ export async function storePresetDraw(admin: SupabaseClient, c: CampaignRow, dra
   if (e2) throw new Error(`ads_campaigns ${c.id}: ${e2.message}`);
   return (row as { preset_draw: PresetDraw }).preset_draw;
 }
+
+/** One ad as the publisher recorded it in `platform_refs.ads` (`publisherAds.ts` `PublishedAd`). */
+export interface CampaignAdRef { creative_id: string; language: string; image_hash: string; meta_creative_id: string; meta_ad_id: string }
+
+/**
+ * A live campaign's refs gain a retired ad's replacement (Q-AD68): its ads join `meta_ad_ids` (what the adapter
+ * may turn on or pause) and `ads` (what the monitor reads per ad). Here because this file is `ads_campaigns`' one
+ * writer; it is not a transition and moves no state. Read fresh and merged by ad id, so writing the same ads twice
+ * changes nothing; conditioned on `state = 'live'`, so a campaign that left delivery between the publish and this
+ * write is not given ads its next launch would turn on unasked. Returns the refs as stored, or null when the campaign
+ * is no longer live.
+ */
+export async function addCampaignAds(admin: SupabaseClient, c: Pick<CampaignRow, "org_id" | "id">, ads: readonly CampaignAdRef[]): Promise<Record<string, unknown> | null> {
+  const { data: row, error } = await admin.from("ads_campaigns").select("platform_refs, state").eq("org_id", c.org_id).eq("id", c.id).single();
+  if (error) throw new Error(`ads_campaigns ${c.id}: ${error.message}`);
+  const current = row as { platform_refs: Record<string, unknown> | null; state: string };
+  if (current.state !== "live") return null;
+  const refs = current.platform_refs ?? {};
+  const ids = Array.isArray(refs.meta_ad_ids) ? (refs.meta_ad_ids as unknown[]).filter((x): x is string => typeof x === "string") : [];
+  const list = Array.isArray(refs.ads) ? (refs.ads as CampaignAdRef[]) : [];
+  const known = new Set(list.map((a) => a.meta_ad_id));
+  const next = { ...refs, meta_ad_ids: [...new Set([...ids, ...ads.map((a) => a.meta_ad_id)])], ads: [...list, ...ads.filter((a) => !known.has(a.meta_ad_id))] };
+  const { data, error: e2 } = await admin.from("ads_campaigns").update({ platform_refs: next }).eq("org_id", c.org_id).eq("id", c.id).eq("state", "live").select("platform_refs");
+  if (e2) throw new Error(`ads_campaigns ${c.id}: ${e2.message}`);
+  return (data ?? []).length === 1 ? next : null;
+}

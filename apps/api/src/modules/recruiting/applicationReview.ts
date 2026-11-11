@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { latestCodeUnlock } from "./applicationUnlockCode.js";
+import { identityOnRecord } from "./applicantIdentity.js";
 import { randomUUID } from "node:crypto";
 import {
   applyApplicationEdit,
@@ -7,20 +9,28 @@ import {
   withEmployerKeys,
   applicationReviewState,
   applicationDraftPayloadSchema,
+  applicationFactAt,
+  carrierAnswerRefusal,
   carrierStampOf,
+  type ApplicationContactMove,
   type ApplicationEdit,
   type ApplicationPath,
   type ApplicationPhases,
   type ApplicationReviewState,
   type ApplicationCaptureView,
+  type ApplicantIdentityKey,
   type CarrierQuestionStamp,
+  type PartOneAnswersView,
   type PartOneFactsView,
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 import type { Env } from "../../env.js";
 import { notifyApplicationApproved, type ApprovalNotice } from "./applicationApprovalNotice.js";
-import { partOneFactsView } from "./applicantIntake.js";
+import { partOneFactsView, partOneForFiling } from "./applicantIntake.js";
 import { listCaptures } from "./applicationCapture.js";
+import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
+import { partOneAnswersView } from "./applicantPartOneAnswer.js";
+import { invitationEmailAfter, phoneAnswerIsTexted, stopTextsToReplacedPhone } from "./applicantContactMove.js";
 
 /**
  * The office's review of an application before the driver certifies it (F4, D-AX11–13).
@@ -144,7 +154,47 @@ export interface ApplicationForReview {
    * office — including ones with a licence, a medical card and a TWIC on file.
    */
   captures: ApplicationCaptureView[];
-  edits: Array<{ path: ApplicationPath; before: unknown; after: unknown; editedAt: string; editedBy: string | null }>;
+  /**
+   * F0b: when the applicant last opened their application with a one-time code because the date of
+   * birth on file did not match their answer — the office's prompt to check that date in Identity.
+   * Null when they never needed one.
+   */
+  unlockedByCodeAt: string | null;
+  /**
+   * F3: has the driver made the first packet mark? From then on every office correction is refused
+   * (`applicationEditLog.ts`) — the draft's, Part 1's and the identity's — so the card closes all three.
+   * Separate from `editable`, which is the DRAFT's window only: Part 1 and the identity are corrected
+   * while the office screens, before it has sent the form at all.
+   */
+  signingStarted: boolean;
+  /** E3: where the carrier reaches them — the invitation's email, and whether the phone on file is texted. */
+  contact: { email: string | null; phoneTexted: boolean };
+  /**
+   * F3c part 2, step 6: the date of birth and licence on the applicant's RECORD (`drivers`), only the ones
+   * set — the values screening runs on and filing lays over the draft last (`identityOnRecord`, D-AF8).
+   *
+   * ⚠ The draft's copy is not enough to show them by. Before the applicant's first save there is no draft
+   * at all, and a draft saved before the identity was given holds none until its next save, so the card
+   * read "Not answered" for a licence PSP had already been ordered on. That is the moment the Permissions
+   * step sends the office to the card to check it.
+   */
+  identity: Partial<Record<ApplicantIdentityKey, string>>;
+  /**
+   * F3: Part 1's answers the whole-set view does not carry — the §382.301(b) statements, medical card
+   * pending, the endorsements, and only WHETHER a donor gender was given (Q-AM13). Null on a legacy link.
+   */
+  partOneAnswers: PartOneAnswersView | null;
+  edits: Array<{
+    path: ApplicationPath;
+    before: unknown;
+    after: unknown;
+    /** The office's reason (0586), on a correction to the driver's own statement. */
+    note: string | null;
+    /** Recorded without its values (0586): a replace-only answer. */
+    withheld: boolean;
+    editedAt: string;
+    editedBy: string | null;
+  }>;
 }
 
 /** The application as the office reads it: the answers, where it has got to, and what was changed. */
@@ -165,12 +215,14 @@ export async function applicationForReview(
 
   const { data: edits } = await admin
     .from("application_edits")
-    .select("path, before, after, edited_at, edited_by")
+    .select("path, before, after, note, withheld, edited_at, edited_by")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .order("edited_at", { ascending: false });
 
   const phases = phasesOf(inv);
+  const partOne = await partOneFactsView(admin, orgId, inv, new Date());
+  const payloadPhone = (draft as { payload?: { phone?: unknown } } | null)?.payload?.phone;
   return {
     invitationId: inv.id,
     driverId: inv.driver_id,
@@ -179,12 +231,26 @@ export async function applicationForReview(
     payload: ((draft as { payload?: Record<string, unknown> } | null)?.payload) ?? null,
     // §9 P5: the revision the office is looking at, sent back with every edit.
     revision: ((draft as { revision?: number | null } | null)?.revision) ?? 0,
-    partOne: await partOneFactsView(admin, orgId, inv, new Date()),
+    partOne,
+    contact: {
+      email: inv.email ?? null,
+      phoneTexted: await phoneAnswerIsTexted(admin, orgId, inv.driver_id, partOne?.intake.phone ?? (typeof payloadPhone === "string" ? payloadPhone : null)),
+    },
     carrierQuestions: carrierStampOf(inv.carrier_questions),
     captures: await listCaptures(admin, orgId, inv.id),
+    unlockedByCodeAt: await latestCodeUnlock(admin, orgId, inv.id),
+    signingStarted: await signingStarted(admin, orgId, inv.id),
+    identity: await identityOnRecord(admin, orgId, inv.driver_id),
+    partOneAnswers: await partOneAnswersView(admin, orgId, inv.id),
     edits: (edits ?? []).map((e) => {
-      const row = e as { path: ApplicationPath; before: unknown; after: unknown; edited_at: string; edited_by: string | null };
-      return { path: row.path, before: row.before, after: row.after, editedAt: row.edited_at, editedBy: row.edited_by };
+      const row = e as {
+        path: ApplicationPath; before: unknown; after: unknown; note?: string | null; withheld?: boolean;
+        edited_at: string; edited_by: string | null;
+      };
+      return {
+        path: row.path, before: row.before, after: row.after, note: row.note ?? null, withheld: row.withheld === true,
+        editedAt: row.edited_at, editedBy: row.edited_by,
+      };
     }),
   };
 }
@@ -201,21 +267,6 @@ export const DRAFT_CHANGED: ReviewError = {
   code: "draft_revision_conflict",
   message: "The applicant changed this just now — reload the application and try again.",
 };
-
-const SIGNING_STARTED: ReviewError = {
-  code: "application_not_editable",
-  message: "The applicant has started signing, so what the application says is fixed now.",
-};
-
-/** Has the driver made any mark on the packet? From then on the document they are signing stays put. */
-async function signingStarted(admin: SupabaseClient, orgId: string, invitationId: string): Promise<boolean> {
-  const { count } = await admin
-    .from("application_packet_marks")
-    .select("id", { count: "exact", head: true })
-    .eq("org_id", orgId)
-    .eq("invitation_id", invitationId);
-  return (count ?? 0) > 0;
-}
 
 /**
  * Change the draft — one answer, a job removed or added, or a gap explained (§9 P5).
@@ -235,7 +286,7 @@ export async function editApplication(
   invitationId: string,
   edit: ApplicationEdit,
   ctx: EditContext,
-): Promise<{ payload: Record<string, unknown>; revision: number | null } | ReviewError> {
+): Promise<{ payload: Record<string, unknown>; revision: number | null; contact: ApplicationContactMove } | ReviewError> {
   const inv = await invitation(admin, orgId, invitationId);
   if (!inv) return NOT_FOUND;
   if (!applicationIsEditable(phasesOf(inv))) return NOT_EDITABLE;
@@ -251,6 +302,25 @@ export async function editApplication(
   // EM-1: before the applicant has typed anything there is no draft; the office's edit makes the first.
   const original = row?.payload ?? {};
   if ((row?.revision ?? 0) !== edit.revision) return DRAFT_CHANGED;
+
+  // F3 (Q-AM13): the driver's own statement — on a legacy link, §40.25(j) is a draft answer — changes
+  // only with the office's reason, which the driver reads beside it on 3.1. The catalogue says which.
+  const note = "note" in edit && typeof edit.note === "string" && edit.note.trim() !== "" ? edit.note.trim() : null;
+  if ("path" in edit && applicationFactAt(edit.path)?.rule === "statement" && !note) {
+    return { code: "note_required", message: "Say why you are changing the applicant's own answer — they will read this before they sign." };
+  }
+
+  // F3c part 2 (E2): on a v2 link the licences are Part 1's whole list, and filing throws the draft's
+  // copy away — a row added here would be reported done and then never filed. Part 1's correction owns it.
+  if ((edit.op === "add_row" || edit.op === "remove_row") && edit.list === "additional_licences"
+    && await partOneForFiling(admin, orgId, inv)) {
+    return { code: "invalid_edit", message: "On this application the licences are corrected under the applicant's licence, not here." };
+  }
+
+  // Step 5: the carrier's own answers are checked against the questions THIS applicant was asked.
+  const carrier = "path" in edit && edit.path[0] === "carrier_answers"
+    ? carrierAnswerRefusal(carrierStampOf(inv.carrier_questions), edit.path, edit.value) : null;
+  if (carrier) return { code: "invalid_edit", message: carrier };
 
   const applied = applyApplicationEdit(withEmployerKeys(original, randomUUID), original, edit);
   if (isEditRefusal(applied)) return applied;
@@ -289,15 +359,10 @@ export async function editApplication(
     return { code: "edit_failed", message: "That change could not be saved. Try again." };
   }
 
-  const { error: logError } = await admin.from("application_edits").insert({
-    org_id: orgId,
-    invitation_id: invitationId,
-    path: applied.logPath,
-    before: applied.before ?? null,
-    after: applied.after ?? null,
-    edited_by: ctx.actorId,
-  });
-  if (logError) return { code: "edit_not_recorded", message: "That change could not be recorded. Try again." };
+  const unrecorded = await recordOfficeEdits(
+    admin, orgId, invitationId, [{ path: applied.logPath, before: applied.before, after: applied.after, note }], ctx.actorId,
+  );
+  if (unrecorded) return unrecorded;
 
   await writeAudit(admin, {
     orgId,
@@ -309,7 +374,33 @@ export async function editApplication(
   });
 
   const revision = (saved as { revision?: unknown } | null)?.revision;
-  return { payload: applied.payload, revision: typeof revision === "number" ? revision : null };
+  const contact = await moveContact(admin, orgId, inv, edit, applied.before, ctx.actorId);
+  return { payload: applied.payload, revision: typeof revision === "number" ? revision : null, contact };
+}
+
+/**
+ * E3 (`applicantContactMove.ts`): a corrected email moves the invitation's; a corrected phone stops
+ * texts to the old number. Only where the DRAFT's answer is the one that files — on a v2 link the phone
+ * is Part 1's, corrected (and moved) through `correctApplicantPartOne`.
+ */
+async function moveContact(
+  admin: SupabaseClient, orgId: string, inv: InvitationRow, edit: ApplicationEdit, before: unknown, actorId: string,
+): Promise<ApplicationContactMove> {
+  if (!("path" in edit) || edit.path.length !== 1) return {};
+  if (edit.path[0] === "phone") {
+    if (await partOneForFiling(admin, orgId, inv)) return {};
+    return stopTextsToReplacedPhone(admin, orgId, inv, typeof before === "string" ? before : null, String(edit.value ?? ""), actorId);
+  }
+  if (edit.path[0] !== "email") return {};
+  const email = invitationEmailAfter(inv.email, edit.value);
+  if (!email) return {};
+  const { error } = await admin.from("application_invitations").update({ email }).eq("org_id", orgId).eq("id", inv.id);
+  if (error) return {};
+  await writeAudit(admin, {
+    orgId, actorId, action: "application_contact_moved", entity: "application_invitations", entityId: inv.id,
+    meta: { driverId: inv.driver_id, field: "email" },
+  });
+  return { emailMoved: true };
 }
 
 /**

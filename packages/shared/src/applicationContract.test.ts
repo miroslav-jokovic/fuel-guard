@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   applicationBeforeCertificationSchema,
+  applicationDraftPayloadSchema,
   driverApplicationSchema,
   employmentSegments,
   requiredEmployers,
@@ -401,5 +402,40 @@ describe("the date of birth the application requires and the roster does not", (
     expect(dateOfBirthSchema.safeParse(null).success).toBe(true);
     expect(dateOfBirthSchema.safeParse("").success).toBe(true);
     expect(dateOfBirthSchema.safeParse("not-a-date").success).toBe(false);
+  });
+});
+
+/**
+ * F1 part 2 (2026-11-10, audit finding 15): "did you drive a truck" and "was it DOT-regulated" started
+ * at Yes on the form, so an unread question was answered. They are null until tapped now — legal in a
+ * DRAFT, which the office's correction path parses whole — and the document is refused, on the job's
+ * own row, at the hand-off and at filing until each job says Yes or No.
+ */
+describe("each job's two Yes/Nos (F1 part 2)", () => {
+  const job = (over: Record<string, unknown> = {}) => ({
+    key: "40000000-0000-4000-8000-00000000000a", employer_name: "Old Carrier", started_on: "2023-01-01", ended_on: null,
+    operated_cmv: true, dot_regulated: true, ...over,
+  });
+  const withJob = (over: Record<string, unknown>) => ({ ...completeApplication(), employers: [job(over)], declares_no_employment: false });
+
+  it("files a job answered either way, and a row filed before this change still parses", () => {
+    expect(driverApplicationSchema.safeParse(withJob({})).success).toBe(true);
+    expect(driverApplicationSchema.safeParse(withJob({ operated_cmv: false, dot_regulated: false })).success).toBe(true);
+  });
+
+  it("refuses the hand-off and the filing for a job left blank, naming each question on its row", () => {
+    const blank = withJob({ operated_cmv: null, dot_regulated: undefined });
+    for (const schema of [driverApplicationSchema, applicationBeforeCertificationSchema]) {
+      const parsed = schema.safeParse(blank);
+      expect(parsed.error?.issues.map((i) => [i.path.join("."), i.message])).toEqual([
+        ["employers.0.operated_cmv", "Say whether you drove a truck in this job"],
+        ["employers.0.dot_regulated", "Say whether this employer was regulated by the DOT"],
+      ]);
+    }
+  });
+
+  it("lets a draft hold a job not answered yet, so the office can still correct the rest of it", () => {
+    const draft = { employers: [job({ operated_cmv: null, dot_regulated: null })] };
+    expect(applicationDraftPayloadSchema.safeParse(draft).success).toBe(true);
   });
 });

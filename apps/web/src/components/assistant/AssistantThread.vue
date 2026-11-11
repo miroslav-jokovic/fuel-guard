@@ -7,6 +7,7 @@ import { useToastStore } from "@/stores/toast";
 import AssistantAnswer from "./AssistantAnswer.vue";
 import AssistantComposer from "./AssistantComposer.vue";
 import AssistantMark from "./AssistantMark.vue";
+import { useAnswerPages } from "./useAnswerPages";
 
 /**
  * The conversation itself — empty state, turns, composer — shared by the floating dock and `/ask`
@@ -16,6 +17,7 @@ const props = withDefaults(defineProps<{ suggestions: string[]; size?: "dock" | 
 
 const store = useAssistantStore();
 const toast = useToastStore();
+const pagesOf = useAnswerPages();
 const scroller = ref<HTMLElement | null>(null);
 const composer = ref<InstanceType<typeof AssistantComposer> | null>(null);
 
@@ -94,6 +96,15 @@ defineExpose({ focus: () => composer.value?.focus() });
               </template>
               <template v-else-if="t.answer">
                 <AssistantAnswer :text="t.answer" />
+                <!-- F21 R4a: the pages the figures came from, from the API's structured list (D-AI8). -->
+                <!-- R4b: the link carries the answer's filters when its tool returned them (`links`). -->
+                <ul v-if="pagesOf(t.pages, t.links).length" class="mt-2 flex flex-wrap gap-x-3 gap-y-1" aria-label="Where these figures come from">
+                  <li v-for="p in pagesOf(t.pages, t.links)" :key="p.key">
+                    <RouterLink :to="p.to" class="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline">
+                      Open in {{ p.label }} <AppIcon :icon="ChevronRightIcon" class="size-3" aria-hidden="true" />
+                    </RouterLink>
+                  </li>
+                </ul>
                 <button
                   type="button"
                   class="mt-2 -ml-1.5 inline-flex items-center gap-1.5 rounded-control px-1.5 py-1 text-xs text-ink-tertiary transition-colors hover:bg-surface-muted hover:text-ink"

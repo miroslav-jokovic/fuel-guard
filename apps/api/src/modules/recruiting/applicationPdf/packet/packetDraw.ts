@@ -102,6 +102,18 @@ export const addressCells = (addr: {
 ];
 
 /**
+ * The licence grid's `TYPE` cell: the class, and the endorsements beside it (F2b, P12) — `A (HNT)`.
+ *
+ * ⚠ The letters run together, as a licence prints them, because the column is 52pt wide: `A (H, N, T)`
+ * would shrink to the floor size for an ordinary hazmat-and-tanker driver, while `A (HNT)` sits at full
+ * size. No endorsements, or none declared, prints the class alone — "none" is not a type.
+ */
+export const licenceType = (cls: string | null | undefined, endorsements: readonly string[] | null | undefined): string => {
+  const letters = (endorsements ?? []).join("");
+  return [blank(cls), letters ? `(${letters})` : ""].filter(Boolean).join(" ");
+};
+
+/**
  * Six equipment classes onto the packet's four printed rows.
  *
  * ⚠ **The fold is not information loss, which is worth stating because it looks like it.** The

@@ -2,6 +2,7 @@ import {
   applicationEmployerSchema,
   applicationV2FilingIssues,
   employmentSegments,
+  unansweredEmployerQuestions,
   recordId,
   type ApplicationEmployer,
 } from "@silvicom/shared";
@@ -38,8 +39,9 @@ export interface EmployerFields {
   position_held: string;
   started_on: string;
   ended_on: string;
-  operated_cmv: boolean;
-  dot_regulated: boolean;
+  /** `null` until the driver taps Yes or No (F1 part 2) — see `blankEmployer`. */
+  operated_cmv: boolean | null;
+  dot_regulated: boolean | null;
   reason_for_leaving: string;
   /**
    * §391.21(b)(10)(iv)(A) and (B), asked Yes/No — and `null` until answered (C3c2b, Q-AW33). They were
@@ -59,20 +61,21 @@ export const newEmployerKey = (): string => crypto.randomUUID();
 /**
  * A new job, with the applicant's defaults — for EVERY surface since HW5b (EM-5).
  *
- * `operated_cmv` and `dot_regulated` default TRUE because the person is being asked about driving
- * jobs, and the cost of the two defaults is asymmetric: a warehouse job wrongly marked DOT-regulated
- * produces an inquiry nobody owed, while a driving job wrongly marked otherwise silently drops a
- * §391.23(a)(2) obligation the carrier is required to discharge. The office's post-filing form
- * started `operated_cmv` false until §9 P5; one factory is what keeps the three from drifting again.
- *
- * ⚠ The (iv) answers are NOT defaulted (Q-AW33): they are the regulation's own "whether" questions
- * about this job, and a default is the one answer a filing rule cannot tell from the applicant's.
+ * ⚠ **Nothing is defaulted (F1 part 2, 2026-11-10).** `operated_cmv` and `dot_regulated` started TRUE,
+ * on the reasoning that the costs are asymmetric — a warehouse job wrongly marked DOT-regulated costs an
+ * inquiry nobody owed, a driving job wrongly marked otherwise drops a §391.23(a)(2) obligation. The
+ * owner's 2026-11-09 walk showed the price of that: a driver who never read the question had answered
+ * it, and nothing could tell their Yes from ours (audit finding 15). The asymmetry now lives in the
+ * hint — "if you are not sure, answer Yes" — and filing refuses a job with either question blank
+ * (`unansweredEmployerQuestions`). The (iv) answers were never defaulted, for the same reason (Q-AW33).
+ * The office's post-filing form started `operated_cmv` false until §9 P5; one factory is what keeps
+ * the three from drifting again.
  */
 export const blankEmployer = (): EmployerFields => ({
   key: newEmployerKey(),
   employer_name: "", usdot_number: "", address_line1: "", city: "", state: "", phone: "", email: "",
   position_held: "", started_on: "", ended_on: "",
-  operated_cmv: true, dot_regulated: true,
+  operated_cmv: null, dot_regulated: null,
   reason_for_leaving: "", subject_to_fmcsr: null, safety_sensitive: null,
 });
 
@@ -174,7 +177,13 @@ export function employerProblems(e: EmployerFields, v2AsOf: string | null): Empl
       code: issue.code,
     }));
   }
-  if (!v2AsOf) return [];
+  // F1 part 2: on every link and every surface — the two questions no job may be saved without, now
+  // that neither starts at Yes. The same check the filing and the hand-off run (`driverApplicationSchema`).
+  const unanswered = unansweredEmployerQuestions([parsed.data]).map((issue) => ({
+    field: String(issue.path[2]),
+    message: issue.message,
+  }));
+  if (unanswered.length > 0 || !v2AsOf) return unanswered;
   // Filed as the only employer, so its issues are `employers.0.*`; the address and gap rules about the
   // whole application are left to the screen that holds the whole application.
   return applicationV2FilingIssues({ employers: [parsed.data], employment_gaps: [], addresses: [] }, v2AsOf)

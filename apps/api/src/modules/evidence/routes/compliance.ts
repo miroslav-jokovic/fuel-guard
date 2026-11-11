@@ -23,7 +23,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { returnToDutyStanding } from "../../recruiting/index.js";
-import { loadPermissionGrants } from "../../org/index.js";
+import { loadPermissionGrants, orgToday } from "../../org/index.js";
 import {
   insertCertification,
   listCertifications,
@@ -207,8 +207,9 @@ export function complianceRouter(): Router {
     canView,
     asyncHandler(async (req: Request, res: Response) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const today = new Date().toISOString().slice(0, 10);
       const orgId = req.auth!.orgId!;
+      // The carrier's day, not the UTC one, which turns into tomorrow on a Central evening (orgToday).
+      const today = await orgToday(admin, orgId);
       // A Med-Stop violation raises the return-to-duty item for the testing-record readers only.
       const medstopViolations = await overviewViolationsFor(admin, orgId, req.auth!.role);
       // The roster's File cell (UF4b): each driver's newest papers, narrowed to what THIS reader may

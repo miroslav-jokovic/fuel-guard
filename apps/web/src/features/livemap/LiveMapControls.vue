@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { BASEMAP_CHOICES, type BasemapChoice } from "@silvicom/shared";
+import { VECTOR_TRIAL_CHOICE, vectorTrialOffered } from "@/composables/vectorBasemap";
 import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
 import { PlusIcon, MinusIcon, MapIcon } from "@silvicom/ui/icons";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -41,8 +42,11 @@ import KebabMenu from "@/components/KebabMenu.vue";
  * that answer on screen twice and let the two disagree. `BASEMAP_CHOICES` deliberately does not
  * contain `mapNight`, and this control renders that catalogue rather than a list of its own.
  */
-const props = defineProps<{ basemap: BasemapChoice }>();
-const emit = defineEmits<{ "update:basemap": [BasemapChoice]; zoom: [1 | -1] }>();
+type MapChoice = BasemapChoice | typeof VECTOR_TRIAL_CHOICE.key;
+const props = defineProps<{ basemap: MapChoice }>();
+const emit = defineEmits<{ "update:basemap": [MapChoice]; zoom: [1 | -1] }>();
+/** The catalogue, plus the vector trial where it is offered (D-DR31, `vectorBasemap.ts` says why). */
+const choices = vectorTrialOffered() ? [...BASEMAP_CHOICES, VECTOR_TRIAL_CHOICE] : BASEMAP_CHOICES;
 
 /**
  * ⚠ Read from `BASEMAP_CHOICES` rather than kept as a second label map beside it. The catalogue is
@@ -50,7 +54,7 @@ const emit = defineEmits<{ "update:basemap": [BasemapChoice]; zoom: [1 | -1] }>(
  * would go on saying "Terrain" the day the catalogue renamed it.
  */
 const activeLabel = computed(
-  () => BASEMAP_CHOICES.find((c) => c.key === props.basemap)?.label ?? BASEMAP_CHOICES[0]!.label,
+  () => choices.find((c) => c.key === props.basemap)?.label ?? choices[0]!.label,
 );
 </script>
 
@@ -121,7 +125,7 @@ const activeLabel = computed(
         in under a basemap control.
       -->
       <BaseButton
-        v-for="choice in BASEMAP_CHOICES"
+        v-for="choice in choices"
         :key="choice.key"
         class="kebab-item"
         :aria-current="basemap === choice.key ? 'true' : undefined"

@@ -8,7 +8,7 @@ import { useAssistantStore } from "@/stores/assistant";
 import AssistantMark from "./AssistantMark.vue";
 import AssistantThread from "./AssistantThread.vue";
 import { suggestionsFor } from "./suggestions";
-import { useAssistantAccess } from "./useAssistantAccess";
+import { useAssistantAccess, useAssistantTools } from "./useAssistantAccess";
 import { EDGE_MARGIN, useLauncherPosition } from "./useLauncherPosition";
 
 /**
@@ -45,7 +45,8 @@ const visible = computed(() => allowed.value && !onAskPage.value);
  * The page's own suggestions. The MATCHED pattern, not the URL: `/drivers/:id` is in the catalogue,
  * `/drivers/8f2c…` is not, and a detail page should ask about its list's subject.
  */
-const suggestions = computed(() => suggestionsFor(route.matched.at(-1)?.path ?? route.path));
+const tools = useAssistantTools();
+const suggestions = computed(() => suggestionsFor(route.matched.at(-1)?.path ?? route.path, tools.value));
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
 const shortcut = isMac ? "⌘J" : "Ctrl J";

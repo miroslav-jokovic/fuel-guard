@@ -69,17 +69,14 @@ export const SURFACES: readonly Surface[] = [
   // ── top (ungrouped) ───────────────────────────────────────────────────────────────────────────
   { key: "dashboard", label: "Dashboard", path: "/", group: "top", gate: ALWAYS },
   /**
-   * Ask AI is admin-only by default, and an admin can turn it on per role or per person (owner,
-   * 2026-09-30, Q-SET15): *"we will update this page completely, and it will be optimized for each
-   * role, but for now, just hide it for all roles except admin by default"*. It was `STAFF` (Q-SURF3),
-   * which showed every office role a page whose endpoint answers from fuel data and, since Q-SET14
-   * (b), refuses anyone without `fuel: view`. The gate is now the endpoint's own question,
-   * `section("fuel")`, which makes the screen a cell on the Permissions page, and `startsOnFor: []`
-   * keeps it off for every editable role until an admin says otherwise, as the Settings screens
-   * are (Q-SET2). `POST /api/ai/ask` asks `requireSurface("ask-ai")` too, so a grant or a denial
-   * reaches the endpoint and not just the link.
+   * Ask AI: admin-only by default, turned on per role or per person by an admin (Q-SET15, 2026-09-30),
+   * and a STAFF screen since F21 R5 (owner's Q-AI2 ruling 2026-11-10: "AI will be related to their
+   * features"). WHAT a person may ask is decided per tool by the section matrix (`assistantContract.ts`,
+   * D-AI1), not by this gate; someone it is on for with no tool their access allows is refused by
+   * `POST /api/ai/ask` (`ai_no_tools`) and not shown the launcher. The endpoint asks
+   * `requireSurface("ask-ai")` too, so a denial reaches it, not just the link.
    */
-  { key: "ask-ai", label: "Ask AI", path: "/ask", group: "top", gate: section("fuel"), startsOnFor: [] },
+  { key: "ask-ai", label: "Ask AI", path: "/ask", group: "top", gate: STAFF, startsOnFor: [] },
   // Office chat is everyone's, not a section's data, so STAFF (OFFICE-CHAT-PLAN D-CHAT9; D-CHAT1 for the module).
   { key: "chat", label: "Chat", path: "/chat", group: "top", gate: STAFF, module: "messages", badge: "chatUnread" },
 
@@ -111,7 +108,9 @@ export const SURFACES: readonly Surface[] = [
   // this entry used to carry at the route. Rows written against the retired key are inert (0296).
   // D-FX8 named it Fuel Spend; FS2 (§5, D-FSV7) renamed it Fuel Costs, one report with no tabs. The key
   // and the path stay, so every grant and every link written against them still resolves.
-  { key: "fuel.spend", label: "Fuel costs", path: "/fuel-spend", group: "fuel", gate: manage("fuel") },
+  // VIEW since Q-AI12 (owner 2026-11-11; F21 PLAN.md §5): `manage` was inherited from tabs that held
+  // writes, while the report routes have been `view` since PR #446. Narrow a role in the matrix, never here.
+  { key: "fuel.spend", label: "Fuel costs", path: "/fuel-spend", group: "fuel", gate: section("fuel") },
   // FS3, D-FSV8: the saved invoice checks, out of the spend page. A READ surface, like Findings and
   // IFTA — a controller confirming last month's bill was checked needs no permission to upload one; the
   // "Check an invoice" button carries the `manage` check, as the API's POST routes do.
@@ -291,8 +290,8 @@ export const SURFACES: readonly Surface[] = [
   { key: "fuel.invoices.detail", label: "Invoice check", path: "/fuel-invoices/:id", group: "fuel", gate: section("fuel"), parent: "fuel.invoices" },
   { key: "fuel.ifta.jurisdiction", label: "IFTA jurisdiction", path: "/ifta/:jurisdiction", group: "fuel", gate: section("fuel"), parent: "fuel.ifta" },
   // FS2, Q-FSV12: the spend page's Buy discipline tab, its own screen now that the report has no tabs.
-  // Reached from Fuel Costs and sharing its grant, so it asks the same `manage` the tab sat behind.
-  { key: "fuel.spend.buy-discipline", label: "Buy discipline", path: "/fuel-buy-discipline", group: "fuel", gate: manage("fuel"), parent: "fuel.spend" },
+  // Reached from Fuel Costs and sharing its gate (Q-AI12: it holds no write, only four read RPCs).
+  { key: "fuel.spend.buy-discipline", label: "Buy discipline", path: "/fuel-buy-discipline", group: "fuel", gate: section("fuel"), parent: "fuel.spend" },
   { key: "recruitment.applicants.detail", label: "Applicant", path: "/recruitment/:id", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   /**
    * The board's two other tabs (D-HUI8, B4). Non-nav, parented on the board, keys unchanged.

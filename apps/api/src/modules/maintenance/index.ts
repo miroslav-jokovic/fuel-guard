@@ -36,3 +36,5 @@ export { createInspector, inspectorFor, isQualifiedOn, listInspectors } from "./
 export type { InspectorDto, InspectorInput, InspectorRow } from "./inspections/inspectors.js";
 export { syncFleetpalPart } from "./inventory/partsSync.js";
 export type { FleetpalPartCandidate, PartSyncOutcome } from "./inventory/partsSync.js";
+// Ask AI's `annual_inspections_due` (F21 R6b): the Shop worklist's annual inspection group.
+export { assistantAnnualDue, ANNUAL_DUE_KINDS } from "./assistantAnnualDue.js";

@@ -8,10 +8,12 @@ import {
 } from "./applicantScreeningContract.js";
 import { APPLICANT_IDENTITY_KEYS } from "./applicantIdentity.js";
 import { PART_ONE_COMPOSED_KEYS } from "./applicationComposition.js";
+import { PART_ONE_ANSWER_KEYS, partOneAnswerSchema } from "./applicantPartOneAnswerContract.js";
 import {
   APPLICANT_FACTS,
   NOT_APPLICANT_FACTS,
   OFF_CONTRACT_FACTS,
+  partOneKeyThrough,
   type ApplicantFact,
 } from "./applicantFacts.js";
 
@@ -131,24 +133,38 @@ describe("the applicant fact catalogue (D-AM1)", () => {
     }
   });
 
+  /** F3 (Q-AM13): one Part 1 answer at a time, for what the whole-set correction does not carry. */
+  it("only sends a fact to the one-answer Part 1 correction if that correction takes it", () => {
+    for (const f of APPLICANT_FACTS.filter((x) => x.office === "part_one_answer")) {
+      const key = f.path.startsWith("intake.")
+        ? f.path.slice("intake.".length).replace(/\[\]$/, "")
+        : partOneKeyThrough(f.path);
+      expect(PART_ONE_ANSWER_KEYS as readonly string[], f.path).toContain(key);
+    }
+    // ...and every key it takes is a fact that says so, so a key cannot be writable and off the card.
+    for (const key of PART_ONE_ANSWER_KEYS) {
+      expect(APPLICANT_FACTS.find((f) => f.path.replace(/\[\]$/, "") === `intake.${key}`)?.office, key).toBe("part_one_answer");
+    }
+  });
+
+  it("requires a note on exactly the catalogue's statements, and on nothing else", () => {
+    const statements = APPLICANT_FACTS.filter((f) => f.rule === "statement" && f.path.startsWith("intake."))
+      .map((f) => f.path.slice("intake.".length)).sort();
+    const noted = partOneAnswerSchema.options.filter((o) => "note" in o.shape).map((o) => o.shape.key.value).sort();
+    expect(noted).toEqual(statements);
+    // An application fact that is a statement is one composed from a Part 1 statement.
+    for (const f of APPLICANT_FACTS.filter((x) => x.rule === "statement" && x.path.startsWith("application."))) {
+      expect(statements, f.path).toContain(partOneKeyThrough(f.path));
+    }
+  });
+
   it("names the reason for every fact the office cannot correct yet (F3's list)", () => {
     const shut = APPLICANT_FACTS.filter((f): f is ApplicantFact & { office: { none: string } } => typeof f.office === "object");
     for (const f of shut) expect(f.office.none.trim(), f.path).not.toBe("");
     // A snapshot of the gap, so closing one (F3) or opening one is a visible change to this test.
     expect(shut.map((f) => f.path)).toMatchInlineSnapshot(`
       [
-        "intake.endorsements[]",
-        "intake.prior_positive_2y",
-        "intake.dot_program_30d",
-        "intake.dot_tested_6m",
-        "intake.dot_random_12m",
-        "intake.donor_gender",
-        "intake.medical_card_pending",
-        "application.prior_failed_pre_employment_test",
-        "application.questionnaire_answers.education[]",
-        "application.questionnaire_answers.references",
         "application.questionnaire_answers.eeo",
-        "application.carrier_answers",
         "ssn",
       ]
     `);

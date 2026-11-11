@@ -13,12 +13,12 @@ import { handleMutationLog } from "./mutationLog.js";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import {
   EFS_CARD_DETAIL_COLS,
-  EFS_CARD_LIST_COLS,
   loadCardNumber,
   refreshCardDetail,
 } from "../services/efsCardMirror.js";
 import { cardRowToSummary as toSummary, type EfsCardListRow as CardRow } from "../services/efsCardSummary.js";
 import { loadCardControlAccess } from "../services/efsCardControlAccess.js";
+import { listEfsCards } from "../services/efsCardList.js";
 import { getEfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { detailStaleAfterMinutes, staleAfterMinutes } from "../services/efsCardCadence.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
@@ -167,37 +167,18 @@ export function fuelCardsRouter(): Router {
     const admin = getSupabaseAdmin(env);
     const orgId = req.auth!.orgId!;
 
-    // `count: exact` so `total` is what the company OWNS, not what this response happened to carry.
-    let query = admin
-      .from("efs_cards")
-      .select(EFS_CARD_LIST_COLS, { count: "exact" })
-      .eq("org_id", orgId);
-    // ilike, not eq: the filter's values come from the documented enum (Active/Hold/…) while a
-    // production account stores ACTIVE/HOLD. `eq` matched nothing and the page looked empty.
-    if (parsed.data.status) query = query.ilike("status", parsed.data.status);
-    if (parsed.data.search) {
-      // Last four, unit number or driver id — the three things an operator actually has to hand.
-      const term = parsed.data.search.replace(/[%,()]/g, "");
-      // driver_name included because the list now SHOWS it — a column you can read but not search for
-      // is a column people scroll past looking for the name they already know.
-      query = query.or(
-        `card_last4.ilike.%${term}%,unit_prompt.ilike.%${term}%,driver_id_prompt.ilike.%${term}%,driver_name.ilike.%${term}%`,
-      );
-    }
-    const { data, error, count } = await query
-      .order("card_last4")
-      .limit(parsed.data.limit ?? 2000);
-    if (error) {
-      dbErrorResponse(res, "fuel-cards.list", error, "Could not load the card list");
+    // The page's read, shared with Ask AI's `card_holds` (F21 R6b): one filter, one masking path.
+    const list = await listEfsCards(admin, orgId, parsed.data);
+    if (!list.ok) {
+      dbErrorResponse(res, "fuel-cards.list", list.error, "Could not load the card list");
       return;
     }
 
     const access = await loadCardControlAccess(admin, env, orgId, req.auth!.userId, req.auth!.role);
     res.json({
-      cards: (data as unknown as CardRow[]).map(toSummary),
-      // The company's real count. `cards.length` is what came back; a difference between the two is
-      // the only honest signal that a limit truncated the answer.
-      total: count ?? data?.length ?? 0,
+      cards: list.cards,
+      // The company's real count; see `listEfsCards`.
+      total: list.total,
       capabilities: access,
       staleAfterMinutes: staleAfterMinutes(env),
       // The detail pass's clock (`detail_synced_at`) — still daily; override state hangs off it.

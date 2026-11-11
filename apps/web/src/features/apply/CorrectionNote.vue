@@ -16,9 +16,9 @@ import { APPLY_COPY } from "@/features/apply/strings";
  *
  * Opens by itself when a note is already written, so a driver who comes back sees what they said.
  *
- * The office acts on it in the drawer, right under the note: `PartOneCorrection` (Q-AW36) rewrites
- * Part 1's contact, address, CDL class and licences, and the date of birth is corrected beside the
- * permissions.
+ * The office acts on it in the drawer, under the note, on the Applicant facts card (F3; Q-AW36's
+ * `PartOneCorrection` form until then): each of Part 1's answers, the date of birth included, corrected
+ * one at a time through the writer that holds it.
  */
 const draft = defineModel<ApplicationDraft>({ required: true });
 const copy = APPLY_COPY.partOneFacts;

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { loadsToQuery } from "@silvicom/shared";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
@@ -114,6 +115,12 @@ describe("the Loads page beside the dispatch board", () => {
     const w = await mountPage();
     expect(w.get("[role=tab][aria-selected=true]").text()).toContain("In transit");
     expect(refs(w)).toEqual(["L-mine-fleet", "L-i-dispatch"]);
+  });
+
+  it("opens a linked dispatcher on every load when a link built by the contract says scope=all (F21 R4b)", async () => {
+    board.value = response(true);
+    const w = await mountPage(`/loads?${new URLSearchParams(loadsToQuery({ scope: "all" })).toString()}`);
+    expect(refs(w)).toEqual(["L-mine-fleet", "L-i-dispatch", "L-not-mine"]);
   });
 
   it("opens anyone not linked on All, with every load in transit", async () => {
@@ -490,6 +497,19 @@ describe("Delivered by driver and truck, and Activity (LOADS-ACTIVITY-PLAN)", ()
       expect(w.text()).toContain("+ Marcus Houston");
       // Truck counts follow the driver chosen, as Driver's follow the truck.
       expect(options(w, "Truck")).toEqual([["Any truck", undefined], ["806", "1"]]);
+    });
+  });
+
+  // F21 R4b: the page reads its own link contract, so Ask AI's "Open in Loads" lands on the answer's
+  // tab, its inclusive days, the whole fleet even for a linked dispatcher, and its one truck by id.
+  it("opens on exactly what a link built by its contract names: Delivered, the days, every dispatcher's loads, one truck", async () => {
+    board.value = response(true);
+    await withLoads(DELIVERED, async () => {
+      const q = loadsToQuery({ queue: "delivered", deliveredFrom: "2026-10-01", deliveredTo: "2026-10-05", vehicleId: "v-801", scope: "all" });
+      const w = await mountPage(`/loads?${new URLSearchParams(q).toString()}`);
+      expect(w.get("[role=tab][aria-selected=true]").text()).toContain("Delivered");
+      expect(loadsRead.window!.value).toEqual({ from: "2026-10-01T05:00:00.000Z", before: "2026-10-06T05:00:00.000Z" });
+      expect(refs(w).sort()).toEqual(["D-ahead", "D-old"]);
     });
   });
 

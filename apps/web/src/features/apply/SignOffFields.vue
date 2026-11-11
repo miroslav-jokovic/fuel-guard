@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { AppCallout, AppInput as BaseInput } from "@silvicom/ui";
-import type { ApplicationCaptureView } from "@silvicom/shared";
+import { currentEditPaths, type ApplicationCaptureView } from "@silvicom/shared";
 import ApplyField from "./ApplyField.vue";
 import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "./questionnaireCopy";
 import { buildReviewSummary } from "./reviewSummary";
-import { describeField } from "./fieldLabels";
+import { describeField, rowText } from "./fieldLabels";
 import { APPLY_COPY } from "./strings";
 import type { ApplicationDraft } from "./draft";
 import type { ApplyEdit } from "./useApplication";
@@ -45,11 +45,24 @@ const summary = computed(() =>
   }),
 );
 
+/**
+ * E2: each change named where it is NOW. The office may have removed a row since a correction to a
+ * later one, and the recorded "Address 3 · City" would then name an address the driver no longer has
+ * (`currentEditPaths`). A correction to a row removed since says so.
+ */
+const currentPaths = computed(() => currentEditPaths(props.edits));
+function editLabel(i: number): string {
+  const now = currentPaths.value[i];
+  if (!now) return describeField(props.edits[i]!.path);
+  const label = describeField(now.path);
+  return now.gone && !now.removal ? `${label} (${copy.removedLater})` : label;
+}
+
 /** An answer as a driver reads it — a blank is a word, not an empty space in a sentence. */
 const shown = (value: unknown): string => {
   if (value === null || value === undefined || value === "") return copy.blank;
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "object") return JSON.stringify(value);
+  if (typeof value === "object") return rowText(value as Record<string, unknown>);
   return String(value);
 };
 </script>
@@ -74,11 +87,17 @@ const shown = (value: unknown): string => {
             :key="i"
             class="rounded-surface bg-surface-muted p-3 text-sm"
           >
-            <p class="font-medium text-ink">{{ describeField(edit.path) }}</p>
-            <p class="mt-1 break-words text-ink-muted">
-              {{ copy.was }}: <span class="line-through">{{ shown(edit.before) }}</span>
+            <p class="font-medium text-ink">{{ editLabel(i) }}</p>
+            <p v-if="edit.withheld" class="mt-1 break-words text-ink-muted" data-edit-withheld>{{ copy.replaced }}</p>
+            <template v-else>
+              <p class="mt-1 break-words text-ink-muted">
+                {{ copy.was }}: <span class="line-through">{{ shown(edit.before) }}</span>
+              </p>
+              <p class="break-words text-ink">{{ copy.now }}: {{ shown(edit.after) }}</p>
+            </template>
+            <p v-if="edit.note" class="mt-1 whitespace-pre-line break-words text-ink-muted" data-edit-note>
+              {{ copy.because }}: {{ edit.note }}
             </p>
-            <p class="break-words text-ink">{{ copy.now }}: {{ shown(edit.after) }}</p>
           </li>
         </ul>
       </template>
