@@ -90,6 +90,17 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "application_ssns": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "0589: at most one row per open application, deleted at filing (the number then lives on driver_applications) and with its invitation."
+      }
+    },
     "application_unlock_codes": {
       "module": "recruiting",
       "layer": "core",

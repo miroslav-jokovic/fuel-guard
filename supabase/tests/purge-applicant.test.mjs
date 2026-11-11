@@ -210,6 +210,8 @@ async function seedApplicant(org, name) {
   await db.query(`insert into sms_suppressions (org_id, driver_id, phone, reason) values ($1,$2,$3,'stop')`,
     [org, d, `+1312555${stopPhoneSeq++}`]);
   await db.query(`insert into application_edits (org_id, invitation_id, path) values ($1,$2,'["employers",0,"city"]')`, [org, inv]);
+  // 0589: the pre-signing SSN row goes with its invitation (on delete cascade), not by name.
+  await db.query(`insert into application_ssns (invitation_id, org_id, ssn_last4, entered_by) values ($1,$2,'6789','applicant')`, [inv, org]);
   await db.query(`insert into application_drafts (org_id, invitation_id, driver_id) values ($1,$2,$3)`, [org, inv, d]);
   await db.query(
     `insert into applicant_dispositions (org_id, driver_id, outcome, decided_on) values ($1,$2,'withdrawn','2026-09-01')`,
