@@ -213,6 +213,23 @@ ok("a pause while the kill switch is on is written — the safe direction is nev
 await settings(ORG, 3, false);
 ok("with the kill switch off again the approved launch is written", (await act("launch", AP_LAUNCH2, { key: "launch-2" })) === null);
 
+// ── 0587: turning a replacement ad on (Q-AD68) meets the same fence, on the approval of THAT creative ─────────
+const activate = (approval, extra = {}) => sqlstate(
+  `insert into ads_actions (org_id, campaign_id, creative_id, kind, actor_kind, actor_name, approval_id, status, finished_at)
+   values ($1, $2, $3, 'activate_ad', 'agent', 'Ads orchestrator', $4, $5, case when $5 = 'started' then null else now() end)`,
+  [ORG, CAMP, "creative" in extra ? extra.creative : CR, approval, extra.status ?? "started"]);
+ok("an activate_ad with no approval is refused (AX020, 0587)", (await activate(null)) === "AX020");
+ok("an activate_ad citing a launch approval, not the creative's, is refused (AX020, 0587)", (await activate(AP_LAUNCH2)) === "AX020");
+ok("an activate_ad that names no creative is refused even with a creative approval (AX020, 0587)", (await activate(AP_CREATIVE, { creative: null })) === "AX020");
+ok("an activate_ad citing the standing approval of this creative is written (0587)", (await activate(AP_CREATIVE)) === null);
+ok("an activate_ad the guard refused is recorded without an approval (0587)", (await activate(null, { status: "refused" })) === null);
+const AP_CREATIVE_W = await approve("approve_creative", { creative: CR });
+await approve("withdraw", { withdraws: AP_CREATIVE_W });
+ok("an activate_ad citing a withdrawn creative approval is refused (AX020, 0587)", (await activate(AP_CREATIVE_W)) === "AX020");
+await settings(ORG, 4, true);
+ok("an activate_ad while the kill switch is on is refused, approval or not (AX021, 0587)", (await activate(AP_CREATIVE)) === "AX021");
+await settings(ORG, 5, false);
+
 const ACT = (await one(`select id from ads_actions where idempotency_key = 'launch-2'`)).id;
 ok("a started action completes with its outcome",
   (await sqlstate(`update ads_actions set status = 'succeeded', response = '{"id": "1"}', finished_at = now() where id = $1`, [ACT])) === null);
@@ -273,6 +290,8 @@ for (const stage of ["lost", "disqualified"]) {
 // ── retiring one ad (0581, CQ9) ───────────────────────────────────────────────────────────────
 ok("a retire_ad action is a kind the ledger takes (0581)",
   (await sqlstate(`insert into ads_actions (org_id, campaign_id, kind, actor_kind, actor_name) values ($1, $2, 'retire_ad', 'agent', 'monitor')`, [ORG, CAMP])) === null);
+ok("a kind outside the list is still refused after 0587 (23514)",
+  (await sqlstate(`insert into ads_actions (org_id, campaign_id, kind, actor_kind, actor_name) values ($1, $2, 'activate_campaign', 'agent', 'Ads orchestrator')`, [ORG, CAMP])) === "23514");
 ok("a kind nobody listed is still refused (23514)",
   (await sqlstate(`insert into ads_actions (org_id, campaign_id, kind, actor_kind, actor_name) values ($1, $2, 'retire_campaign', 'agent', 'monitor')`, [ORG, CAMP])) === "23514");
 
@@ -305,6 +324,8 @@ ok("the category CHECK carries the eight new categories and keeps 0521's",
     .every((c) => check.includes(`'${c}'`)), check);
 ok("the category CHECK carries ads_lead_quality (0575) and ads_creative_retired (0581)",
   ["ads_lead_quality", "ads_creative_retired"].every((c) => check.includes(`'${c}'`)), check);
+ok("the category CHECK carries ads_creative_refresh (0587) and keeps ai_assistant_budget (0584)",
+  ["ads_creative_refresh", "ai_assistant_budget", "ads_creative_retired"].every((c) => check.includes(`'${c}'`)), check);
 
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

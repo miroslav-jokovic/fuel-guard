@@ -1419,3 +1419,18 @@ conflict every time (`plan-progress-log-not-table-rows`).
   re-resolves a lockfile that has already drifted (expo-router and TypeScript peer entries), which
   is not this change's to carry. In-tree tests pin the rule's literals, the image ids and colours;
   7 of 7 mutations caught. Acceptance: a zoom-9 staging still shows the right shapes.
+- **2026-11-11 — D-DR36 accepted on staging** (`baffa99`, `tools/staging-map-views.mjs`). Joliet at
+  zoom 9: interstate shields on I-80, I-55, I-355, I-57, I-88, I-94 (rendered: `US:I` ×8, nothing
+  else, because ordinary roads' numbers start at zoom 10 by design). Columbus at zoom 11: `US:I` ×9,
+  state boxes `US:OH` ×12 (33, 23, 315, 104), county pentagons `US:OH:CR` ×7 (3, 11, 258). No map
+  console errors.
+- **2026-11-11 — D-DR37: land colours for the measured land uses (polish item 4).** Sampled first:
+  zooms 11 and 14 over Joliet, O'Hare, Indianapolis, Dallas, Columbus and the Loop gave `landuse`
+  kinds park 73, urban_area 11, sports_centre 11, industrial 11, aerodrome 7, commercial 7,
+  national_park 6, forest 5, runway 4, zoo 3, university 3, hospital 3, military 2, cemetery 2,
+  beach 1. Before this, sports_centre, zoo, aerodrome, runway, university, hospital, military and
+  beach were not drawn at all, and industrial was drawn as town. Now sports_centre and zoo join park,
+  and a `landuse-detail` fill gives industrial/military, hospital, university, aerodrome, runway
+  (sorted above its aerodrome) and beach six new `--map-*` tokens, each in the lightness band of
+  the existing land colours in both schemes (`lint:token-gamut` passes). The style validates;
+  5 of 5 mutations caught. Acceptance: staging stills over O'Hare and an industrial area.
