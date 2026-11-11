@@ -42,9 +42,19 @@ const ROAD = `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="2000"
   <polygon points="794,1100 806,1100 830,2000 770,2000" fill="#c9b458"/>
 </svg>`;
 
-/** The kit photo the render started from, or the empty road. PNG either way, as the fake's file says it is. */
-export async function drawSimulatedStill(inputs: Buffer[]): Promise<Buffer> {
-  return sharp(inputs[0] ?? Buffer.from(ROAD)).png().toBuffer();
+/** The shapes the simulator can be asked for (`HIGGSFIELD_ASPECT_INPUT`), at the size of its drawn road's width. */
+const SIMULATED_SHAPE: Readonly<Record<string, { width: number; height: number }>> = { "4:5": { width: 1600, height: 2000 }, "1:1": { width: 1600, height: 1600 } };
+
+/**
+ * The kit photo the render started from, or the empty road. PNG either way, as the fake's file says it is. Asked
+ * for a shape (AG4) it answers in that shape, as a model that takes the parameter does — so a walk on staging
+ * runs the same path a real render will: one picture in the published frame, the square cut from it. Asked for
+ * none, or for one it does not know, it gives the picture back as it is.
+ */
+export async function drawSimulatedStill(inputs: Buffer[], params: Record<string, unknown> = {}): Promise<Buffer> {
+  const image = sharp(inputs[0] ?? Buffer.from(ROAD));
+  const shape = typeof params.aspect_ratio === "string" ? SIMULATED_SHAPE[params.aspect_ratio] : undefined;
+  return (shape ? image.resize(shape.width, shape.height, { fit: "cover" }) : image).png().toBuffer();
 }
 
 export interface RenderChoice {

@@ -114,12 +114,27 @@ function samplesUnder(ctx: SKRSContext2D, box: Rect): Rgb[] {
 
 /**
  * The image as it fills `format`'s frame, before any text: what the overlay draws on, and what the visual
- * check looks at (C5b) — one function, so the checker sees exactly the pixels the ad is made of.
+ * check looks at (C5b) — one function, so the checker sees exactly the pixels the ad is made of. Where the
+ * picture is larger than the frame, `layout` decides which edge is kept (`CUT_KEEPS`).
  */
-export async function frameStill(image: Buffer, format: AdFormat): Promise<Buffer> {
+export async function frameStill(image: Buffer, format: AdFormat, layout: AdOverlayLayout = "bottom_plate"): Promise<Buffer> {
   const { width, height } = FORMAT_SIZE[format];
-  return sharp(image).resize(width, height, { fit: "cover" }).png().toBuffer();
+  return sharp(image).resize(width, height, { fit: "cover", position: CUT_KEEPS[layout] }).png().toBuffer();
 }
+
+/**
+ * Which edge of the picture a cut keeps (AG4; Q-AD75, ruled 2026-11-10). One picture is made, for the first
+ * published frame (4:5), and the art director was told to keep the part under the words plain
+ * (`QUIET_REGION`, D-AD28). A shorter frame cut from it (1:1) must put ITS words over that same plain part —
+ * and the stack is the same height in pixels on both, sitting against the zone's edge the layout names. So the
+ * cut keeps the words' edge: the bottom for `bottom_plate`, the top for `top_band`. What is cut away is the
+ * far edge of the subject's side, the sky above a truck or the road below it. Until AG4 every cut was the
+ * centre, which slides the words up onto the subject by half of what was removed (135 px of a 4:5 → 1:1 cut).
+ * `centered` has its words in the middle, and the centre is the cut that keeps them there.
+ *
+ * Only the cropped axis moves: a picture wider than the frame still loses its two sides equally.
+ */
+const CUT_KEEPS: Record<AdOverlayLayout, "south" | "north" | "centre"> = { bottom_plate: "south", top_band: "north", centered: "centre" };
 
 /** What `layOut` needs: everything about the words and where they go, nothing about the picture. */
 export type OverlayText = Pick<OverlayInput, "format" | "language" | "headline" | "cta" | "brief" | "kit" | "layout">;
@@ -211,7 +226,7 @@ export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome
 
   // 3. Compose the background: the image covered to the frame, the plate behind the stack, the logo where the
   //    layout keeps it clear of the words.
-  const base = await loadImage(await frameStill(input.base, format));
+  const base = await loadImage(await frameStill(input.base, format, layout));
   ctx.drawImage(base, 0, 0, W, H);
   if (plate) {
     ctx.fillStyle = overlay.plate_color!;

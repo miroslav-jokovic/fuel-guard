@@ -4,6 +4,7 @@ import {
   type AdAssetRef, type AdBrandKit, type AdBrief, type AdCandidates, type AdFormat, type AdPresetRecipe, type AdVisualCheck, type CreativeState,
 } from "@silvicom/shared";
 import type { ClaudeGenerationDeps } from "../generations/claudeGeneration.js";
+import { stillParams } from "../creative/higgsfield/prices.js";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
 import { frameStill, overlayFit, renderOverlay, type OverlayFinding, type OverlayLanguage } from "../creative/overlay/overlay.js";
 import { writeCopy, type AdCopy, type SlotFinding } from "../workers/copywriter/copywriter.js";
@@ -30,7 +31,9 @@ import { checkVisual, type FractionRect, type VisualResult } from "../workers/ch
  * image no placement can show until Q-AD29, sent a good feed ad back for a regeneration that shrank its
  * subject (audit F-AG3). A preset with no published format stops FIRST, before the copywriter is asked:
  * the save refuses one today (AG2), and one saved before that would otherwise be paid for and then refused
- * at publish.
+ * at publish. The picture is asked for in the FIRST published frame's shape (`stillParams`, AG4) — the one
+ * the art director composed for — and a shorter frame is cut from it keeping the edge the words sit against
+ * (`frameStill`), so the words of every format lie over the part of the picture that was kept plain.
  *
  * ── WHAT IS REGENERATED, AND WHAT STOPS ────────────────────────────────────────────────────────────
  * D-AD12 regenerates on a VISUAL failure only ("A fail regenerates once with the failure added to the
@@ -180,7 +183,7 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
   if (!deps.renderModel) return { kind: "stop", reason: "render: no still model chosen yet (V4)" };
   const prompt = withRegenerationClauses(art.direction.prompt, failedBefore);
   const ref = art.direction.reference;
-  const render = await deps.render({ ...ids, attempt, model: deps.renderModel, params: { prompt }, reference: ref ? { sha256: ref.sha256, format: ref.format } : null });
+  const render = await deps.render({ ...ids, attempt, model: deps.renderModel, params: stillParams(deps.renderModel, prompt, art.direction.composition.frame), reference: ref ? { sha256: ref.sha256, format: ref.format } : null });
   if (render.kind === "pending") return { kind: "pending", why: `render ${attempt}: ${render.why}` };
   if (render.kind === "refused") return { kind: "stop", reason: `render: ${render.refusal}` };
   if (render.kind !== "stored") return { kind: "stop", reason: `render: ${render.kind === "failed" ? render.errorCode : render.refusal}` };
@@ -196,7 +199,7 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
   const failed = new Set<AdVisualCheck>();
   const rendered: Array<{ format: AdFormat; language: OverlayLanguage; png: Buffer }> = [];
   for (const format of publishedFormats(recipe.formats)) {
-    const still = await frameStill(base, format);
+    const still = await frameStill(base, format, recipe.layout);
     const boxes: FractionRect[] = [];
     for (const language of LANGUAGES) {
       const o = await renderOverlay({

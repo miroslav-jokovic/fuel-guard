@@ -1,3 +1,5 @@
+import type { AdFormat } from "@silvicom/shared";
+
 /**
  * Higgsfield credits per model path (C3; workflow V4). EMPTY ON PURPOSE: the real prices are V4's
  * measurement against the owner's key (Q-AD20, gate G2), not yet made. A model missing here is refused
@@ -47,3 +49,26 @@ export const HIGGSFIELD_IMAGE_INPUT: Readonly<Record<string, { field: string; sh
   // Ours, not a fact read from Higgsfield: the simulator takes the kit photo as the list models do.
   [SIMULATED_STILL_MODEL]: { field: "image_urls", shape: "list" },
 };
+
+/**
+ * How each still model is asked for a frame's shape (AG4; Q-AD75, ruled 2026-11-10): the request field, and the
+ * value it takes for each format we publish. Until AG4 the render sent `{ prompt }` alone, so the picture came
+ * back in whatever shape the model defaults to and every format was cut out of its centre (audit F-AG3). Now
+ * the first published format is asked for by name, and the picture is composed for the frame it is shown in.
+ *
+ * Like the image-input table above, an entry is a documented FACT about a model, read from its own page and
+ * cited here — never a guess at a parameter name. No real model is listed yet because none is chosen (V4,
+ * Q-AD20); the day `HIGGSFIELD_STILL_MODEL` is set, `prices.test.ts` fails until that model's entry is here, so
+ * its page is read in the same PR as its price. A model with no entry is sent no shape and is cut as before.
+ */
+export const HIGGSFIELD_ASPECT_INPUT: Readonly<Record<string, { field: string; value: Partial<Record<AdFormat, string>> }>> = {
+  // Ours, not a fact read from Higgsfield: the simulator draws the shape it is asked for (`drawSimulatedStill`).
+  [SIMULATED_STILL_MODEL]: { field: "aspect_ratio", value: { "4:5": "4:5", "1:1": "1:1" } },
+};
+
+/** A still's request parameters: the prompt, and the frame's shape where this model has a documented way to ask. */
+export function stillParams(model: string, prompt: string, frame: AdFormat | null): Record<string, unknown> {
+  const aspect = HIGGSFIELD_ASPECT_INPUT[model];
+  const value = frame ? aspect?.value[frame] : undefined;
+  return aspect && value ? { prompt, [aspect.field]: value } : { prompt };
+}

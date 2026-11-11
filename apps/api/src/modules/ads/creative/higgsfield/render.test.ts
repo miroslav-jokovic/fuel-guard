@@ -10,7 +10,7 @@ import { testEnv } from "../../../../testing/testEnv.js";
 import { assetKey } from "../brandAssets.js";
 import { FakeHiggsfield } from "./fakeHiggsfield.js";
 import { HiggsfieldClient } from "./higgsfieldClient.js";
-import { SIMULATED_STILL_MODEL } from "./prices.js";
+import { SIMULATED_STILL_MODEL, stillParams } from "./prices.js";
 import { renderInputFromPayload, renderKey, renderStatus, renderStep, type RenderInput } from "./render.js";
 import { renderClientFor, stopSimulatedRenderForTests } from "./simulatedRender.js";
 
@@ -120,6 +120,14 @@ describe("renderStep — the simulator is the same step", () => {
     const done = await step({ model: SIMULATED_STILL_MODEL, reference: PHOTO_REF }, { ...prices }, client);
     const photo = await sharp(PHOTO).metadata();
     expect(done).toMatchObject({ kind: "stored", assets: [{ width: photo.width, height: photo.height }] });
+  });
+
+  it("a simulated render asked for a frame's shape stores a picture of that shape, with the kit photo and without (AG4)", async () => {
+    const { client, prices } = await simulated();
+    const tall = await step({ model: SIMULATED_STILL_MODEL, reference: PHOTO_REF, params: stillParams(SIMULATED_STILL_MODEL, "a tractor", "4:5") }, { ...prices }, client);
+    expect(tall).toMatchObject({ kind: "stored", assets: [{ width: 1600, height: 2000 }] });
+    const square = await step({ model: SIMULATED_STILL_MODEL, attempt: 2, params: stillParams(SIMULATED_STILL_MODEL, "a road", "1:1") }, { ...prices }, client);
+    expect(square).toMatchObject({ kind: "stored", assets: [{ width: 1600, height: 1600 }] });
   });
 
   it("a simulated render meets the month's budget like a real one", async () => {

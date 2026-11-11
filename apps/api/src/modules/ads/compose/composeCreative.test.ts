@@ -9,6 +9,8 @@ import type { MessagesClient } from "../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
 import { ART_DIRECTOR_EVAL, COPYWRITER_EVAL, loadFixtures } from "../workers/agentFixtures.js";
+import { SIMULATED_STILL_MODEL } from "../creative/higgsfield/prices.js";
+import { frameStill } from "../creative/overlay/overlay.js";
 import { composeCreative, union, type ComposeInput, type CreativeRow } from "./composeCreative.js";
 
 /**
@@ -310,6 +312,35 @@ describe("composeCreative — the copy that ships is the best-ranked one the ove
     await h.run({ kit: { ...KIT, overlays: {} } });
     const kept = h.creativeWrites()[0]!.write!.payload as { candidates: Record<string, unknown> };
     expect(kept.candidates).not.toHaveProperty("passed_over");
+  });
+});
+
+describe("composeCreative — one picture in the published frame, the shorter frame cut from it (AG4; Q-AD75)", () => {
+  it("a model with a documented frame field is asked for the first published format's shape; one without is sent the prompt alone", async () => {
+    const asked = async (model: string, formats: AdPresetRecipe["formats"]) => {
+      const h = harness();
+      h.deps.renderModel = model;
+      const kit = { ...KIT, overlays: { ...KIT.overlays, "1:1": KIT.overlays["4:5"]! } };
+      await h.run({ kit, recipe: { ...RECIPE, formats } });
+      return Object.keys((h.render.mock.calls[0]![0] as RenderInput).params).sort().map((k) => `${k}=${k === "prompt" ? "…" : String((h.render.mock.calls[0]![0] as RenderInput).params[k])}`);
+    };
+    expect(await asked(SIMULATED_STILL_MODEL, ["1:1", "9:16", "4:5"])).toEqual(["aspect_ratio=4:5", "prompt=…"]);
+    expect(await asked(SIMULATED_STILL_MODEL, ["1:1"])).toEqual(["aspect_ratio=1:1", "prompt=…"]);
+    expect(await asked("fixture/model", ["4:5"])).toEqual(["prompt=…"]);
+  });
+
+  it("the square is cut keeping the edge the preset's layout puts the words against: what the checker is shown is that cut, not the centre", async () => {
+    const shown = async (layout: AdPresetRecipe["layout"]) => {
+      const h = harness();
+      await h.run({ kit: { ...KIT, overlays: { "1:1": KIT.overlays["4:5"]! } }, recipe: { ...RECIPE, formats: ["1:1"], layout } });
+      const visualCall = h.create.mock.calls.find((c) => (c[0] as { tools: Array<{ name: string }> }).tools[0]!.name === "report_checks")!;
+      const image = ((visualCall[0] as unknown as { messages: Array<{ content: Array<{ type: string; source?: { data: string } }> }> }).messages[0]!.content).find((b) => b.type === "image")!;
+      return image.source!.data;
+    };
+    const cut = async (layout: AdPresetRecipe["layout"]) => (await frameStill(jpg("clean-highway"), "1:1", layout)).toString("base64");
+    // The fixture picture is 4:5, so a square cut removes rows and the three layouts keep three different parts.
+    expect(new Set([await cut("bottom_plate"), await cut("top_band"), await cut("centered")]).size).toBe(3);
+    for (const layout of ["bottom_plate", "top_band", "centered"] as const) expect(await shown(layout), layout).toBe(await cut(layout));
   });
 });
 
