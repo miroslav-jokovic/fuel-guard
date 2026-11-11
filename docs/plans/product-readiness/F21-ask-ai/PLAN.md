@@ -992,3 +992,19 @@ audit row is the endpoint's own.
     no link can show the answer. Stays bare; the honest page is a unit's own cost view, if one is wanted.
   - **Live fleet** (`fleet_now` → Dashboard): the Dashboard keeps no filter in its URL. Stays bare until
     the map's state filter is URL state (map work, not Ask AI's).
+- 2026-11-11 — **R4b: "Open in Shop" for annual inspections opens the Annual due tab on the asked kind.**
+  - `shopAnnualDueLinkContract.ts`: `tab=annual` (`SHOP_QUERY_KEYS`, `SHOP_ANNUAL_DUE_TAB`) and `kind`
+    (`ANNUAL_DUE_QUERY_KEYS`, `ANNUAL_DUE_PAGE_KINDS`). Without the tab the Shop opens on the first list
+    with rows, often Roadside repairs or Defects. The tool's `truck` is the page's `tractor`;
+    `annualDuePageKind` is that mapping, once, and the tool now narrows its own answer with it too, so
+    the answer and the link cannot narrow differently.
+  - The Shop page reads its tab key and the panel its kind key and options from the contract.
+  - Tests: `assistantAnnualDue.test.ts` "links the Shop's Annual due tab on the asked kind, in the page's
+    word, built by its contract"; `ShopBacklogPanels.test.ts` "narrows to the kind a link built by its
+    contract names: Ask AI's 'truck' is the page's tractor (F21 R4b)"; `MaintenanceHomePage.test.ts`
+    "opens on Annual due when a link built by its contract names it, though another tab has rows (F21
+    R4b)".
+  - Deliberate breaks, each killed: the contract writing the tool's word, the panel reading another key,
+    the page reading another tab key.
+  - **R4b is now complete for every tool whose page can show the answer.** `maintenance_cost` and
+    `fleet_now` stay bare, for the reasons in the entry above.
