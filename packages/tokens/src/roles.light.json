@@ -875,6 +875,36 @@
       "$value": "oklch(50.9% 0.0935 240.6)",
       "$description": "names of water"
     },
+    "map-industrial": {
+      "$type": "color",
+      "$value": "oklch(93.5% 0.0120 300.0)",
+      "$description": "industrial and military land"
+    },
+    "map-medical": {
+      "$type": "color",
+      "$value": "oklch(94.0% 0.0250 15.0)",
+      "$description": "hospital grounds"
+    },
+    "map-education": {
+      "$type": "color",
+      "$value": "oklch(95.0% 0.0300 85.0)",
+      "$description": "university and college campuses"
+    },
+    "map-airport": {
+      "$type": "color",
+      "$value": "oklch(93.0% 0.0100 260.0)",
+      "$description": "airport grounds"
+    },
+    "map-runway": {
+      "$type": "color",
+      "$value": "oklch(86.0% 0.0120 260.0)",
+      "$description": "runways, drawn over the airport grounds"
+    },
+    "map-beach": {
+      "$type": "color",
+      "$value": "oklch(95.5% 0.0450 95.0)",
+      "$description": "beaches"
+    },
     "map-shield-interstate": {
       "$type": "color",
       "$value": "oklch(38.0% 0.1336 256.8)",

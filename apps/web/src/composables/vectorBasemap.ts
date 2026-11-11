@@ -48,6 +48,13 @@ export const MAP_PALETTE_KEYS = [
   "shield-plain",
   "shield-ink",
   "shield-county-ink",
+  // D-DR37: land uses measured on tiles that the town/park fills did not cover.
+  "industrial",
+  "medical",
+  "education",
+  "airport",
+  "runway",
+  "beach",
 ] as const;
 export type MapPaletteKey = (typeof MAP_PALETTE_KEYS)[number];
 export type MapPalette = Record<MapPaletteKey, string>;
@@ -96,6 +103,9 @@ const ALL_TRUCK_PLACES: string[] = Object.values(TRUCK_PLACE_CATEGORIES).flat();
 export function truckPlacesSourceId(basemapSourceId: string): string {
   return `${basemapSourceId}:truck-places`;
 }
+
+/** The land-use kinds `landuse-detail` colours (D-DR37); kept as one list so its filter and match agree. */
+export const LAND_DETAIL_KINDS = ["industrial", "military", "hospital", "university", "aerodrome", "runway", "beach"];
 
 /**
  * A road's fill: the highway-casing blue-grey while it is a thin line across open country, fading to
@@ -169,7 +179,7 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
       type: "fill",
       ...src,
       "source-layer": "landuse",
-      filter: ["match", ["get", "kind"], ["urban", "urban_area", "residential", "commercial", "industrial", "retail"], true, false],
+      filter: ["match", ["get", "kind"], ["urban", "urban_area", "residential", "commercial", "retail"], true, false],
       paint: { "fill-color": c.urban },
     },
     {
@@ -177,9 +187,35 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
       type: "fill",
       ...src,
       "source-layer": "landuse",
-      filter: ["match", ["get", "kind"], ["park", "national_park", "nature", "nature_reserve", "forest", "wood", "natural_wood", "grass", "meadow", "golf_course", "cemetery"], true, false],
+      filter: ["match", ["get", "kind"], ["park", "national_park", "nature", "nature_reserve", "forest", "wood", "natural_wood", "grass", "meadow", "golf_course", "cemetery", "sports_centre", "zoo"], true, false],
       paint: { "fill-color": c.park },
     },
+    {
+      /**
+       * D-DR37: the land uses a dispatcher places a truck by, each its own colour, from the kinds
+       * read off tiles over Joliet, O'Hare, Indianapolis, Dallas, Columbus and the Loop (2026-11-11):
+       * industrial 11, aerodrome 7, runway 4, university 3, hospital 3, military 2, beach 1.
+       * A runway lies inside its aerodrome, so it sorts above it.
+       */
+      id: id("landuse-detail"),
+      type: "fill",
+      ...src,
+      "source-layer": "landuse",
+      filter: ["match", ["get", "kind"], LAND_DETAIL_KINDS, true, false],
+      layout: { "fill-sort-key": ["case", ["==", ["get", "kind"], "runway"], 1, 0] },
+      paint: {
+        "fill-color": [
+          "match", ["get", "kind"],
+          ["industrial", "military"], c.industrial,
+          "hospital", c.medical,
+          "university", c.education,
+          "aerodrome", c.airport,
+          "runway", c.runway,
+          "beach", c.beach,
+          c.urban,
+        ],
+      },
+    } as LayerSpecification,
     {
       id: id("water"),
       type: "fill",
