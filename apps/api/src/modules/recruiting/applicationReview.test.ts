@@ -307,6 +307,34 @@ describe("correcting one answer", () => {
     }
   });
 
+  /** F3c part 2, step 5: the carrier's own answers, checked against the stamp the draft does not carry (Q-CQ7). */
+  const PET = "91000000-0000-4000-8000-000000000001";
+  const PET_STAMP = [{ id: PET, wording: "Do you own a pet?", hint: null, kind: "boolean", choices: null, required: true }];
+  it("step 5: corrects one of the carrier's own answers and logs it under its question", async () => {
+    const rec = seed({ invitation: invitation({ carrier_questions: PET_STAMP }), payload: { ...KEYED, carrier_answers: { [PET]: true } } });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["carrier_answers", PET], value: false, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result)).toBe(false);
+    expect((savedPayload(rec) as unknown as { carrier_answers: Record<string, unknown> }).carrier_answers[PET]).toBe(false);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["carrier_answers", PET], before: true, after: false });
+  });
+
+  it("⚠ step 5: refuses a carrier answer the stamp does not take — or any, on an invitation stamped none — writing nothing", async () => {
+    const cases = [
+      { inv: { carrier_questions: PET_STAMP }, path: ["carrier_answers", PET], value: "yes", says: /not an answer/ },
+      { inv: { carrier_questions: PET_STAMP }, path: ["carrier_answers", PET], value: "", says: /must be answered/ },
+      { inv: { carrier_questions: PET_STAMP }, path: ["carrier_answers", "91000000-0000-4000-8000-000000000002"], value: true, says: /not asked/ },
+      { inv: {}, path: ["carrier_answers", PET], value: true, says: /not asked/ },
+    ];
+    for (const c of cases) {
+      const rec = seed({ invitation: invitation(c.inv), payload: KEYED });
+      const result = await editApplication(rec.client, ORG, INV, { path: c.path, value: c.value, revision: REV }, { actorId: ACTOR });
+      expect(isReviewError(result) && result.code, JSON.stringify(c)).toBe("invalid_edit");
+      expect(isReviewError(result) && result.message).toMatch(c.says);
+      expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+      expect(rec.writtenRows("application_edits")).toHaveLength(0);
+    }
+  });
+
   it("§9 P5: refuses a stale revision — the applicant changed it since the office read it — writing nothing", async () => {
     const rec = seed({ payload: KEYED });
     const result = await editApplication(
