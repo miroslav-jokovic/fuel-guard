@@ -273,6 +273,10 @@ for (const stage of ["lost", "disqualified"]) {
 // ── retiring one ad (0581, CQ9) ───────────────────────────────────────────────────────────────
 ok("a retire_ad action is a kind the ledger takes (0581)",
   (await sqlstate(`insert into ads_actions (org_id, campaign_id, kind, actor_kind, actor_name) values ($1, $2, 'retire_ad', 'agent', 'monitor')`, [ORG, CAMP])) === null);
+ok("an activate_ad action is a kind the ledger takes (0587)",
+  (await sqlstate(`insert into ads_actions (org_id, campaign_id, kind, actor_kind, actor_name) values ($1, $2, 'activate_ad', 'agent', 'Ads orchestrator')`, [ORG, CAMP])) === null);
+ok("a kind outside the list is still refused after 0587 (23514)",
+  (await sqlstate(`insert into ads_actions (org_id, campaign_id, kind, actor_kind, actor_name) values ($1, $2, 'activate_campaign', 'agent', 'Ads orchestrator')`, [ORG, CAMP])) === "23514");
 ok("a kind nobody listed is still refused (23514)",
   (await sqlstate(`insert into ads_actions (org_id, campaign_id, kind, actor_kind, actor_name) values ($1, $2, 'retire_campaign', 'agent', 'monitor')`, [ORG, CAMP])) === "23514");
 
@@ -305,6 +309,8 @@ ok("the category CHECK carries the eight new categories and keeps 0521's",
     .every((c) => check.includes(`'${c}'`)), check);
 ok("the category CHECK carries ads_lead_quality (0575) and ads_creative_retired (0581)",
   ["ads_lead_quality", "ads_creative_retired"].every((c) => check.includes(`'${c}'`)), check);
+ok("the category CHECK carries ads_creative_refresh (0587) and keeps ai_assistant_budget (0584)",
+  ["ads_creative_refresh", "ai_assistant_budget", "ads_creative_retired"].every((c) => check.includes(`'${c}'`)), check);
 
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

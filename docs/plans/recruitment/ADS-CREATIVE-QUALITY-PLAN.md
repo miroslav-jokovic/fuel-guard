@@ -170,6 +170,34 @@ earlier; all of it decides what that ad looks like.
   `regenerate` (today's path): the whole campaign leaves delivery for the minutes a person takes. (c) Retire only;
   a person starts a new campaign for the opening. **Rec: (a)** — it is what D-AD23 means and what R6 describes; it is
   2–3 PRs (runner step, incremental publish, review copy), after CQ9b.
+  **RULED 2026-11-11: (a), with five sub-rulings the build found it needs** (PM, under the owner's standing
+  instruction; the owner said "Yes, build Q-AD68" the same day).
+  1. **"The next unstarted preset of the stored draw" usually does not exist.** D-AD23 predates CQ1, which composes a
+     creative for EVERY preset of the draw before review; a carrier with the five starters runs all five on one
+     campaign. So what enters, in this order: **(i)** an enabled preset whose KEY this campaign has never had approved
+     and that no other launching or live campaign for the brief runs (a preset added or enabled after the draw, or one
+     excluded from it then), the order seeded by the campaign and the attempt so it is reproducible; **(ii)** with
+     none, **a fresh execution of the retired ad's own preset** at its newest version — new copy, new picture. R6's
+     "refresh every 2–4 weeks" is exactly that, and the retired ad is paused, so Meta never sees the two side by side.
+  2. **One replacement per retired ad, and at most two attempts.** A replacement names the retired creative in
+     `supersedes_id` (the column Regenerate already uses for "this row replaces that one"), so "is one due" is a count of
+     rows, not a new column. If the first attempt fails its checks or a person rejects it, ONE more is made, from the
+     next option in (1)'s order. After that nothing more is composed for that ad — every attempt is model and render
+     money — and the bell says so. Never a loop.
+  3. **Approval on a live campaign is for a replacement only.** `decideCreative` still requires `review`, except for a
+     creative whose `supersedes_id` names a creative the monitor retired (`platform_status = retired`) on a `live`
+     campaign. Every other creative of a live campaign stays undecidable, as today.
+  4. **Publishing it is two ledgered acts, and activation is not a spend act.** On approval, the next step makes the
+     creative's ads in the campaign's existing ad set, PAUSED, exactly as `publishAds` makes every ad (`create_paused`
+     rows; resume, never duplicate), adds them to the campaign's refs, then turns each ACTIVE (`activate_ad`, new in
+     0587, one row per ad, read back). Activating an ad changes neither the ad set's daily budget nor the campaign's cap,
+     which bound what Meta can spend; the person approved this exact creative (an `approve_creative` row). So it is in
+     the adapter's safe half beside `pauseAd`, not behind the spend guard. Only while the campaign is `live` and the
+     kill switch is off: the runner checks the switch first, as it does for every live step.
+  5. **The bell (`ads_creative_refresh`, new in 0587)** rings when a replacement awaits approval, and when none could be
+     made (attempts spent, or no option left).
+  Built as two merges: 0587 (the two CHECK values, nothing writes them), then the runner's `refresh` step, the
+  decision door's exception, the incremental publish and activation, and the review screen's wording.
 - **Q-AD61 · Where the craft judge's rubric lives (us).** (a) A prompt pack in `workers/craftJudge/` like the others,
   rubric criteria as data in the kit (a carrier may add "never say 'family'"); (b) rubric fixed in code. **Rec: (a)**
   for the criteria's *weights and extras*; the five base criteria stay in the prompt pack so the baseline means one
