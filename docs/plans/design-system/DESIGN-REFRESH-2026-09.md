@@ -1381,3 +1381,12 @@ conflict every time (`plan-progress-log-not-table-rows`).
   sits above ordinary places (maplibre places symbol layers top-down, read in the installed 5.24
   bundle) and below towns. Truck repair stays open in Q-DR34. Cost of the extra source to be
   measured on staging, not estimated, before the owner's comparison.
+- **2026-11-11 — D-DR34 accepted on staging; a font bug found and fixed.** With #2231 live
+  (`f1af060`), `tools/staging-truck-places.mjs` at the Joliet Pilot: at zoom 16 maplibre rendered
+  "Pilot" (700-7900-0132) in bold; at 13 the Pilot and two "Truck & Trailer Parking" lots; at 12
+  none, as designed. Every `truck-places/` request was zoom 13 (7 on that walk) and answered 200. ⚠
+  The same run showed every glyph request refused with a 400 since D-DR31: the style asked for
+  `0-255`, the relay and HERE need `0-255.pbf`. maplibre fell back to drawing every label with the
+  browser's font on the reader's CPU, warning only in the console. Fixed with one shared rule
+  (`VECTOR_GLYPH_RANGE_FILE`). The D-DR31 slow-PC stutter figures were taken in that state, so they
+  are re-measured (polish item 7) before the owner's comparison.

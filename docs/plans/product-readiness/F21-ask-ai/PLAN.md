@@ -680,6 +680,31 @@ audit row is the endpoint's own.
   - Deliberate breaks, each killed by an assertion: the DQ run, `readAnnualDue`,
     `readAnnualDisagreements`, the driver-files tool and `orgToday` itself put back on the UTC cut, and the
     correction's `inspected_on` (caught by the source check).
+- 2026-11-11 — **Q-AI4 (a) built: `ai_assistant_usage` is pruned after 400 days.**
+  - A rule in `org/dataRetentionPolicy.ts` (`asked_at`, id strategy, org-scoped), run by the daily
+    `data_retention` job like every other. `scripts/table-modules.json` records `retention_days: 400`.
+  - **Why 400 and not 365:** "13 months" is a year-over-year view, which needs last year's SAME month
+    whole; on the 31st that month began 396 days back. 400 is also the repo's existing "rolling ~13
+    months" for raw telematics.
+  - **Nothing the budget reads is pruned:** the month meter sums only the current month (`p_since`),
+    and `org_usage_month` keeps its own rolled-up totals.
+  - (b) and (c) need no code: the `ai.ask` audit row stays in `audit_logs` (`RETENTION_FORBIDDEN`), and
+    conversations stay tab-local.
+  - Pinned by `dataRetention.test.ts` "prunes Ask AI's cost rows after 13 months, keeping last year's
+    same month whole, and never the audit row of the question". Deliberate break: `keepDays: 365`,
+    killed by its assertion.
+- 2026-11-10 — **R3a web half built, PR held until #2223 is in PRODUCTION** (branch
+  `claude/askai-follow-ups-web`). The store sends each question with the thread's earlier ANSWERED
+  turns through `assistantHistoryForRequest`, the API's own trim. A failed or pending turn is never
+  sent; a retry carries only what came before it; "New chat" starts with none. The composer's line
+  says follow-ups keep the subject. `QUESTION_MAX` now reads the contract's
+  `ASSISTANT_QUESTION_MAX`. Three deliberate breaks (history not sent, failed turns sent, later turns
+  on retry), each killed by an assertion.
+- 2026-11-11 — **R3a web half opened and merged.** Checked first, as the handoff required: #2223's
+  merge commit `038950f` is an ancestor of `origin/production`, and `pnpm verify:live` showed the
+  production API serving `e39dcd7` (release #2222). `origin/main` was merged in. The store keeps R4a's
+  `pages` beside R3a's `history`, and the store's note now says Q-AI4 is ruled (tab-local).
+
 - 2026-11-11 — **R4b (e) part 1 built: the Fleet report's period is in its URL.**
   - `packages/shared/src/fleetReportLinkContract.ts`: `?from=YYYY-MM&to=YYYY-MM&grain=…`, inclusive
     months (`FLEET_REPORT_QUERY_KEYS`, `FLEET_REPORT_GRAINS`, `fleetReportToQuery`). The web's
