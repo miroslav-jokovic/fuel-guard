@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { loadsToQuery } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 
 /** The tool's answer is `unknown` to its caller (it goes to the model as JSON); tests read named fields. */
@@ -111,6 +112,23 @@ describe("loads_by_truck — the Loads page's Delivered tab, counted per truck",
     ]);
     expect(out.not_found).toEqual(["999"]);
     expectOrgScoped(rec, ORG);
+  });
+
+  // F21 R4b. What a hand-built link would get wrong: the API's EXCLUSIVE instant end where the page
+  // takes inclusive days, a unit number where the page takes a vehicle id, and a linked dispatcher's
+  // default "mine" scope where the tool counted every dispatcher's loads.
+  it("links to the Delivered tab on the answer's inclusive days, the whole fleet's scope, and one named truck by vehicle id", async () => {
+    const one = (await assistantLoadsByTruck(recorder().client, ORG, { period: "last_month", units: ["751"] }, NOV_10)) as Out;
+    expect(one.link).toEqual({
+      surfaceKey: "dispatch.loads",
+      query: { queue: "delivered", delivered_from: "2026-10-01", delivered_to: "2026-10-31", truck: "v751", scope: "all" },
+    });
+    expect(one.link.query).toEqual(loadsToQuery({ queue: "delivered", deliveredFrom: "2026-10-01", deliveredTo: "2026-10-31", vehicleId: "v751", scope: "all" }));
+    // Two trucks: the page's Truck filter takes one id, so the link lists them all.
+    const two = (await assistantLoadsByTruck(recorder().client, ORG, { period: "last_month", units: ["751", "800"] }, NOV_10)) as Out;
+    expect(two.link.query).toEqual({ queue: "delivered", delivered_from: "2026-10-01", delivered_to: "2026-10-31", scope: "all" });
+    const fleet = (await assistantLoadsByTruck(recorder().client, ORG, { period: "last_month" }, NOV_10)) as Out;
+    expect(fleet.link.query).toEqual(two.link.query);
   });
 
   it("refuses an answer when no named unit is this fleet's, rather than answering the fleet", async () => {

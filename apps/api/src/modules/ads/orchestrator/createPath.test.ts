@@ -10,6 +10,8 @@ import type { FakeMeta } from "../platforms/simulator/fakeMeta.js";
 import { retireTiredAds } from "../monitor/retireTired.js";
 import { runCampaignStep } from "./runner.js";
 import { adsWorkers } from "./workers.js";
+import { publishReplacement } from "../platforms/meta/publishCampaign.js";
+import { readAdAsset } from "../creative/brandAssets.js";
 
 /**
  * `createPaused` over the REAL path (B2c2): the runner → `adsWorkers` → `publishCampaign` (our rows) →
@@ -157,6 +159,69 @@ describe("createPaused × the real Meta path on the simulator (B2c2)", () => {
     expect(await step(w)).toMatchObject({ kind: "stepped", event: "create_failed" });
     expect(w.byId(CAMPAIGN).last_error).toBe("no_platform");
     expect(w.bell.map((b) => b.category)).toEqual(["ads_token_expiring"]);
+    expect(fake.requests.length).toBe(before);
+  });
+});
+
+describe("publishReplacement × the real Meta path on the simulator (Q-AD68)", () => {
+  // Distinct in its first eight hex characters, as a derived id is (`stintCreativeId` hashes); the name carries those.
+  const REPLACEMENT = "d1ea0000-0000-4000-8000-0000000000f2";
+  const ALIKE = "c7ea0000-0000-4000-8000-0000000000f3";
+
+  /** The created campaign, now live, holding the retired creative and its approved replacement (same preset, made fresh). */
+  function liveWorld(refs: Record<string, unknown>, replacement: Record<string, unknown> = {}, id = REPLACEMENT): AdsWorld {
+    const base = { org_id: ORG, campaign_id: CAMPAIGN, preset_version_id: VERSION, created_at: T0,
+      copy: { en: { hook: "Home weekly", cta: "Apply now", body: "Regional lanes out of Joliet.", title: "Class A drivers" },
+              es: { hook: "En casa", cta: "Aplica", body: "Rutas regionales desde Joliet.", title: "Choferes Clase A" } },
+      assets: [{ format: "4:5", language: "en", sha256: sha(images[0]!) }, { format: "4:5", language: "es", sha256: sha(images[1]!) }] };
+    return createAdsWorld({
+      campaigns: [campaign(CAMPAIGN, "live", { brief_source: brief.source, brief_ref: brief.ref, brief_snapshot: brief, created_at: "2026-11-04T15:00:00Z", platform_refs: refs })],
+      settings: SETTINGS, connections: [connection],
+      extraTables: {
+        ads_creatives: [{ ...base, id: CREATIVE, state: "approved", platform_status: "retired" }, { ...base, id, state: "approved", supersedes_id: CREATIVE, created_at: "2026-11-11T12:00:00Z", ...replacement }],
+        ad_concept_preset_versions: [{ id: VERSION, org_id: ORG, preset_id: PRESET, recipe }],
+        ad_concept_presets: [{ id: PRESET, org_id: ORG, key: "P3" }],
+      },
+      storage: { download: (key: string) => (stored.has(key) ? { data: new Blob([new Uint8Array(stored.get(key)!)]), error: null } : { data: null, error: { message: "Object not found" } }) },
+    });
+  }
+  const deps = (w: AdsWorld) => ({ admin: w.admin, env, now: w.now, readAsset: (orgId: string, ref: { sha256: string; format: string }) => readAdAsset(w.admin, orgId, ref as never) });
+
+  it("makes the replacement's two ads PAUSED in the campaign's existing ad set, new ads (never the retired ones adopted), and nothing above the ad", async () => {
+    const created = world();
+    await step(created);
+    const refs = created.byId(CAMPAIGN).platform_refs as { meta_adset_id: string; meta_ad_ids: string[]; meta_campaign_id: string };
+    const counts = () => [fake.campaigns.size, fake.sets.adsets.size];
+    const before = counts();
+    const w = liveWorld(refs);
+    const out = await publishReplacement(deps(w), { ...w.byId(CAMPAIGN), platform_refs: refs } as never, REPLACEMENT);
+    expect(out).toMatchObject({ ok: true });
+    const ads = (out as { ads: Array<{ meta_ad_id: string; language: string; creative_id: string }> }).ads;
+    expect(ads.map((a) => [a.language, a.creative_id])).toEqual([["en", REPLACEMENT], ["es", REPLACEMENT]]);
+    expect(ads.every((a) => !refs.meta_ad_ids.includes(a.meta_ad_id))).toBe(true);
+    expect(ads.map((a) => [fake.sets.ads.get(a.meta_ad_id)!.status, fake.sets.ads.get(a.meta_ad_id)!.adset_id])).toEqual([["PAUSED", refs.meta_adset_id], ["PAUSED", refs.meta_adset_id]]);
+    expect(counts()).toEqual(before);
+    expectOrgScoped(w.rec, ORG);
+    // Asked again (a retried step), it adopts the ads it made and creates none.
+    const again = await publishReplacement(deps(w), { ...w.byId(CAMPAIGN), platform_refs: refs } as never, REPLACEMENT);
+    expect((again as { ads: Array<{ meta_ad_id: string }> }).ads.map((a) => a.meta_ad_id)).toEqual(ads.map((a) => a.meta_ad_id));
+  });
+
+  it("refuses an ad the campaign already holds: a replacement whose short id is the retired creative's would adopt the retired ads", async () => {
+    const created = world();
+    await step(created);
+    const refs = created.byId(CAMPAIGN).platform_refs as { meta_ad_ids: string[] };
+    const w = liveWorld(refs, {}, ALIKE);
+    const out = await publishReplacement(deps(w), { ...w.byId(CAMPAIGN), platform_refs: refs } as never, ALIKE);
+    expect(out).toMatchObject({ ok: false, error_code: "adopted_existing_ad" });
+    expect(refs.meta_ad_ids.map((id) => fake.sets.ads.get(id)!.status)).toEqual(["PAUSED", "PAUSED"]);
+  });
+
+  it("refuses before any call: a creative not approved, or a campaign whose refs hold no ad set or forms", async () => {
+    const before = fake.requests.length;
+    expect(await publishReplacement(deps(liveWorld({})), liveWorld({}).byId(CAMPAIGN) as never, REPLACEMENT)).toEqual({ ok: false, error_code: "not_on_platform" });
+    const notYet = liveWorld({ meta_adset_id: "1", meta_form_ids: { en: "2", es: "3" } }, { state: "ready" });
+    expect(await publishReplacement(deps(notYet), notYet.byId(CAMPAIGN) as never, REPLACEMENT)).toEqual({ ok: false, error_code: "creative_not_approved" });
     expect(fake.requests.length).toBe(before);
   });
 });

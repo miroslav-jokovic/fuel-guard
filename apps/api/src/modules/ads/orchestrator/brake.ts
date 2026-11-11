@@ -27,7 +27,7 @@ export function brakeFor(env: Pick<Env, "ADS_ENABLED">): string | null {
 
 /** Under a brake the agent only stops things: no compose, no create, the platform kept for the pause. */
 export function brakeWorkers(workers: CampaignWorkers): CampaignWorkers {
-  return { compose: null, createPaused: null, platform: workers.platform };
+  return { compose: null, createPaused: null, platform: workers.platform, refresh: null };
 }
 
 /** Why this org's delivery must stop now, or null. A brake wins; unreadable settings stop too. */

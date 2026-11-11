@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  ASSISTANT_TOOL_PAGE,
   assistantUnitKey,
   dayRangeInstants,
   loadBoardState,
@@ -8,6 +9,7 @@ import {
   todayInZone,
   type AssistantRangeInput,
   type LoadStatus,
+  loadsToQuery,
 } from "@silvicom/shared";
 import { listLoads } from "./dispatchLoads/queries.js";
 import { loadsHistoryFrom } from "./dispatchLoads/deliveredWindow.js";
@@ -143,6 +145,17 @@ export async function assistantLoadsByTruck(
     result.history_note = `The days before ${historyFrom.slice(0, 10)} hold no loads in Silvicom; counts cover only the days after it.`;
   }
 
+  /**
+   * F21 R4b: the Loads page opened on THIS answer — the Delivered tab, these inclusive carrier days, the
+   * whole fleet's scope (the tool counted every dispatcher's loads), and the truck by its vehicle id
+   * when exactly one was named; the page's Truck filter takes one id, so several named trucks leave it
+   * out and the page lists them all. Built by the page's contract; lifted off before the model (D-AI8).
+   */
+  const link = (vehicleId: string | null) => ({
+    surfaceKey: ASSISTANT_TOOL_PAGE.loads_by_truck,
+    query: loadsToQuery({ queue: "delivered", deliveredFrom: range.from, deliveredTo: range.to, vehicleId, scope: "all" }),
+  });
+
   if (asked.length > 0) {
     // Named units: a truck of this fleet with no delivery in the window is a real 0; a unit that is not
     // this fleet's is named back, never answered as 0.
@@ -159,6 +172,7 @@ export async function assistantLoadsByTruck(
       round(byTruck.get(v.id) ?? { unit: v.unit, delivered_loads: 0, empty_moves: 0, mcleod_miles: 0, loads_without_miles: 0 }),
     );
     if (notFound.length > 0) result.not_found = notFound;
+    result.link = link(found.length === 1 ? found[0]!.id : null);
     return result;
   }
 
@@ -168,5 +182,6 @@ export async function assistantLoadsByTruck(
   );
   result.trucks = ranked.slice(0, limit).map(round);
   if (ranked.length > limit) result.trucks_note = `${limit} of ${ranked.length} trucks listed, the most delivered loads first.`;
+  result.link = link(null);
   return result;
 }
