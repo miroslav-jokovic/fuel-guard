@@ -610,3 +610,16 @@ audit row is the endpoint's own.
     cannot reach.
   - **Not yet run.** The first baseline needs the owner's go: it reads production and spends about
     $0.05. After it, `idling_summary` can be retired if no case needs it (R6b's open item).
+- 2026-11-11 — **Q-AI4 (a) built: `ai_assistant_usage` is pruned after 400 days.**
+  - A rule in `org/dataRetentionPolicy.ts` (`asked_at`, id strategy, org-scoped), run by the daily
+    `data_retention` job like every other. `scripts/table-modules.json` records `retention_days: 400`.
+  - **Why 400 and not 365:** "13 months" is a year-over-year view, which needs last year's SAME month
+    whole; on the 31st that month began 396 days back. 400 is also the repo's existing "rolling ~13
+    months" for raw telematics.
+  - **Nothing the budget reads is pruned:** the month meter sums only the current month (`p_since`),
+    and `org_usage_month` keeps its own rolled-up totals.
+  - (b) and (c) need no code: the `ai.ask` audit row stays in `audit_logs` (`RETENTION_FORBIDDEN`), and
+    conversations stay tab-local.
+  - Pinned by `dataRetention.test.ts` "prunes Ask AI's cost rows after 13 months, keeping last year's
+    same month whole, and never the audit row of the question". Deliberate break: `keepDays: 365`,
+    killed by its assertion.
