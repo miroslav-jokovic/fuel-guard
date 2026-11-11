@@ -3,7 +3,6 @@ import type { ApplicationSection } from "./applicationSections.js";
 import {
   APPLYING_AS,
   APPLYING_AS_QUESTION_ID,
-  EEO_ANSWER_KEY,
   questionsForScreen,
   type ApplyingAs,
   type QuestionnaireDefinition,
@@ -56,11 +55,10 @@ function baseAnswerSchema(q: QuestionnaireQuestion): z.ZodTypeAny {
   }
 }
 
-/** The answers object for one definition — plus the reserved, never-rendered `eeo` key. */
+/** The answers object for one definition. */
 export function questionnaireAnswersSchema(def: QuestionnaireDefinition): z.ZodTypeAny {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const q of def.questions) shape[q.id] = answerSchema(q);
-  shape[EEO_ANSWER_KEY] = z.record(z.string(), z.unknown()).nullish();
   // NOT `.strict()`, unlike the regulated contract: an answer set filed against a definition that has
   // since gained a question must still parse, and the extra key is displayed beside nothing and
   // therefore harms nothing.
@@ -143,11 +141,3 @@ export function questionnaireProgress(
   return { answered: asked.filter((q) => isAnswered(answers[q.id])).length, total: asked.length };
 }
 
-/** What a reader may see: everything except the reserved EEO key. */
-export function readableAnswers(
-  answers: Record<string, unknown> | null | undefined,
-): Record<string, unknown> {
-  if (!answers) return {};
-  const { [EEO_ANSWER_KEY]: _eeo, ...rest } = answers;
-  return rest;
-}

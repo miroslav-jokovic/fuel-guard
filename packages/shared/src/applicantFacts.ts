@@ -262,13 +262,6 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("questionnaire_answers.military_when", "text", "carrier", ["p16.military_when"]),
   app("questionnaire_answers.other_training", "longtext", "carrier", ["p16.training.1", "p16.training.2", "p16.training.3"]),
   app("questionnaire_answers.references", "table", "carrier", ["p16.references"]),
-  app("questionnaire_answers.eeo", "choice", "carrier",
-    { notPrinted: "reserved: never shown to the person deciding the hire (questionnaireContract's eeo key)" },
-    {
-      none:
-        "NEVER ASKED: no screen writes the reserved key (questionnaireAnswers' `eeo` is only a schema slot), so there is "
-        + "no answer to correct; Q-AM13's replace-only rule applies the day a screen asks it",
-    }),
   // One fact for every question the carrier wrote: the card lays it out once per question on THIS
   // applicant's stamp, each with its kind's control (`applicantFactRows`), and the API checks a correction
   // against that stamp (`carrierAnswerRefusal`) — the draft does not carry it (Q-CQ7). F3c part 2, step 5.
@@ -316,7 +309,7 @@ export const applicantFact = (path: FactPath): ApplicantFact | undefined =>
 
 /**
  * The catalogue entry for one application path, as the edit routes address it: `["phone"]`,
- * `["addresses", 1, "city"]` (a row's column, by index or key), `["questionnaire", "eeo"]` (the draft's
+ * `["addresses", 1, "city"]` (a row's column, by index or key), `["questionnaire", "position"]` (the draft's
  * name for `questionnaire_answers`). Undefined for a path no fact claims.
  */
 export function applicationFactAt(path: readonly (string | number)[]): ApplicantFact | undefined {

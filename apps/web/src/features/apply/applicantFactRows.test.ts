@@ -135,7 +135,6 @@ describe("the card is the catalogue", () => {
 
   it("offers no fact the catalogue has no door for yet, and never the jobs (they have their own form)", () => {
     const list = rows();
-    expect(row(list, "questionnaire.eeo")).toBeUndefined(); // never asked (the catalogue's reason)
     expect(list.some((r) => r.path[0] === "employers" || r.path[0] === "employment_gaps")).toBe(false);
   });
 

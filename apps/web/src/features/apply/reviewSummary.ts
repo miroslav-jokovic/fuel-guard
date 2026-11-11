@@ -4,7 +4,6 @@ import {
   EQUIPMENT_CLASS_LABELS,
   choiceLabel,
   jurisdictionName,
-  readableAnswers,
   type ApplicationCaptureView,
   type ApplicationSection,
   type EquipmentClass,
@@ -135,7 +134,7 @@ export interface ReviewInput {
 
 export function buildReviewSummary({ draft, questionnaire, carrier, captures }: ReviewInput): ReviewSection[] {
   const c = APPLY_COPY;
-  const answers = readableAnswers(draft.questionnaire);
+  const answers = draft.questionnaire ?? {};
 
   const identity: ReviewGroup[] = [
     {

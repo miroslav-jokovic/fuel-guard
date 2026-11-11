@@ -110,7 +110,7 @@ const jurisdictionCodeSchema = z
  * adds the applicant in Med-Stop by hand.
  *
  * ⚠ Stored on `application_intakes`, which no browser reads, and NEVER on `drivers`: the person
- * deciding the hire must not see it (the questionnaire's reserved `eeo` key keeps the same rule).
+ * deciding the hire must not see it.
  * Nothing that renders the application or the applicant's record may select it.
  */
 export const DONOR_GENDERS = ["male", "female", "declined"] as const;
