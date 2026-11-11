@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inspectionExpiry, type AnnualDueDto } from "@silvicom/shared";
 import { listAnnualInspectionExpiries } from "../../roster/index.js";
+import { orgToday } from "../../org/index.js";
 
 /**
  * Trucks and trailers whose annual inspection is due within the warning window or overdue — the Shop
@@ -11,16 +12,17 @@ import { listAnnualInspectionExpiries } from "../../roster/index.js";
  * (`INSPECTION_EXPIRY_WARNING_DAYS`). Soonest first, overdue ahead of everything; a unit with no
  * recorded inspection is NOT here — "unknown" is a roster gap, not a shop job (see the contract).
  *
- * `today` is cut from `now` the way the sibling reader cuts it. The page shows the days left in the
- * org's zone; the server's cut decides membership only, and a unit crossing the 30-day line at
- * midnight UTC rather than midnight Central is on the list a few hours early, never late.
+ * `today` is the carrier's calendar day at `now` (`orgToday`), as the sibling reader and the dispatch
+ * board cut it. Until 2026-11-11 it was the UTC day, so a unit crossed the 30-day line (and went
+ * overdue) at midnight UTC — 18:00–19:00 Central, a few hours early every evening (F21 PLAN §6, the
+ * carrier-day entry). Ask AI's `annual_inspections_due` passes its own `now` and so moves with it.
  */
 export async function readAnnualDue(
   admin: SupabaseClient,
   orgId: string,
   now: Date = new Date(),
 ): Promise<AnnualDueDto[] | { error: { message: string } }> {
-  const today = now.toISOString().slice(0, 10);
+  const today = await orgToday(admin, orgId, now);
   const [tractors, trailers] = await Promise.all([
     listAnnualInspectionExpiries(admin, orgId, "tractor"),
     listAnnualInspectionExpiries(admin, orgId, "trailer"),

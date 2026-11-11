@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { AssistantAnswerLink } from "@silvicom/shared";
+import { ASSISTANT_QUESTION_MAX, assistantHistoryForRequest, type AssistantAnswerLink } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -10,12 +10,15 @@ import { apiFetch } from "@/lib/api";
  * floating launcher opens over any page, and `/ask`, which shows it full width. Expanding the dock
  * into the page must not lose what was asked, and it would if each host kept its own list.
  *
- * ⚠ The API still answers ONE question at a time, with no memory of the last: `POST /api/ai/ask`
- * takes `{ question }` and nothing else (AUDIT W1). The thread is a display of independent answers,
- * not a conversation the model can see — which is why the composer says so, rather than letting
- * "and last month?" quietly reach the model with no subject. Sending history is Step 2 of the plan.
+ * ── FOLLOW-UPS (F21 R3a, 2026-11-10) ──────────────────────────────────────────────────────────────
+ * Each question goes with the thread's earlier ANSWERED turns, trimmed by `assistantHistoryForRequest`,
+ * the same rule the API applies, so "and last month?" keeps its subject. Only question and answer
+ * text; the API re-reads every figure. A failed or pending turn is not sent: it has no answer, and
+ * a retried question must not see its own failure as context. Until R3a the API took `{ question }`
+ * alone (AUDIT W1) and the composer told the reader so.
  *
- * Not persisted: a reload starts empty. Retention of questions is the owner's open Q-AI4.
+ * Not persisted: a reload starts empty. Q-AI4 (ruled 2026-11-11) keeps conversations tab-local; the
+ * `ai.ask` audit row is the only record of a question.
  */
 
 export interface AssistantTurn {
@@ -29,8 +32,8 @@ export interface AssistantTurn {
   links?: AssistantAnswerLink[];
 }
 
-/** The endpoint caps a question at 500 characters (`routes/ai.ts`); the composer stops there too. */
-export const QUESTION_MAX = 500;
+/** The endpoint's cap on a question (`assistantAskContract.ts`); the composer stops there too. */
+export const QUESTION_MAX = ASSISTANT_QUESTION_MAX;
 
 export const useAssistantStore = defineStore("assistant", () => {
   const turns = ref<AssistantTurn[]>([]);
@@ -39,8 +42,17 @@ export const useAssistantStore = defineStore("assistant", () => {
 
   const busy = () => turns.value.some((t) => t.status === "pending");
 
+  /** The answered turns BEFORE this one, as the API takes them. */
+  const historyBefore = (turn: AssistantTurn) =>
+    assistantHistoryForRequest(
+      turns.value.filter((t) => t.id < turn.id && t.status === "done" && t.answer).map((t) => ({ question: t.question, answer: t.answer })),
+    );
+
   async function run(turn: AssistantTurn) {
-    const res = await apiFetch<{ answer: string; pages?: string[]; links?: AssistantAnswerLink[] }>("/api/ai/ask", { method: "POST", body: { question: turn.question } });
+    const res = await apiFetch<{ answer: string; pages?: string[]; links?: AssistantAnswerLink[] }>("/api/ai/ask", {
+      method: "POST",
+      body: { question: turn.question, history: historyBefore(turn) },
+    });
     // Found again by id, not written through the captured object: that raw object is not the
     // reactive proxy. And an answer that lands after "New chat" finds no turn — ids never repeat —
     // so it is dropped rather than written into the new thread.

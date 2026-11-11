@@ -444,6 +444,10 @@ Cropping to a fixed band at build time would have to be redone at every breakpoi
   days and only as its caching headers allow (headers not yet read); (c) see whether
   `content=advanced_pois` ($0.239/1 000) carries the truck categories, by fetching one tile.
   Recommendation: (c) first, then (a) or (b) on what it shows.
+  **(c) measured 2026-11-11 — answered for truck stops and truck parking, see D-DR34.** The
+  advanced tile carries both (17 truck stops, 19 truck parking lots, 4 rest areas in 24 zoom-13
+  tiles), so they are now drawn from it. ⚠ Still open: truck REPAIR (700-7850-0126) is in neither
+  tile (0 of 8 shops HERE's search names, none in the 24 tiles); for repair shops only (b) remains.
 
 ---
 
@@ -1363,3 +1367,26 @@ conflict every time (`plan-progress-log-not-table-rows`).
   checks are in `docs/plans/livemap/HANDOFF-2026-11-10-VECTOR-MAP.md`. ⚠ The same day showed that
   `TRUCK_PLACE_CATEGORIES` (from HERE Browse) matches nothing in the vector tiles. That is the
   polish step's first item, and Q-DR34.
+- **2026-11-11 — D-DR34: truck places come from HERE's advanced tile, fetched at zoom 13 only.**
+  Measured with our key, not inferred (Q-DR34 (c)): the default vector tile names the Joliet Pilot
+  only as an ordinary "Parking Lot" (800-8500-0178, HERE's category list), so a brand-name match on
+  it would have been a heuristic over the wrong category. The same tile with
+  `content=default,advanced_pois` adds truck stop 700-7900-0132 and truck parking 700-7900-0131 at
+  `min_zoom` 13; across 24 zoom-13 tiles (Joliet, Indianapolis, Dallas) 17 truck stops, 19 truck
+  parking lots (Pilot, Flying J, TA, ONE 9, the "Truck & Trailer Parking" lots the default tile
+  lacked) and 4 rest areas (Love's, TA). Advanced tiles bill $0.239 per 1 000 against $0.088, so
+  the vector map gains ONE second source fetched at `TRUCK_PLACES_ZOOM` = 13 alone and overzoomed
+  closer in; the proxy's `/map-tiles/truck-places/` route refuses every other zoom, and the
+  `[metrics]` line counts `advancedTiles` so the cost is visible in production. The truck layer
+  sits above ordinary places (maplibre places symbol layers top-down, read in the installed 5.24
+  bundle) and below towns. Truck repair stays open in Q-DR34. Cost of the extra source to be
+  measured on staging, not estimated, before the owner's comparison.
+- **2026-11-11 — D-DR34 accepted on staging; a font bug found and fixed.** With #2231 live
+  (`f1af060`), `tools/staging-truck-places.mjs` at the Joliet Pilot: at zoom 16 maplibre rendered
+  "Pilot" (700-7900-0132) in bold; at 13 the Pilot and two "Truck & Trailer Parking" lots; at 12
+  none, as designed. Every `truck-places/` request was zoom 13 (7 on that walk) and answered 200. ⚠
+  The same run showed every glyph request refused with a 400 since D-DR31: the style asked for
+  `0-255`, the relay and HERE need `0-255.pbf`. maplibre fell back to drawing every label with the
+  browser's font on the reader's CPU, warning only in the console. Fixed with one shared rule
+  (`VECTOR_GLYPH_RANGE_FILE`). The D-DR31 slow-PC stutter figures were taken in that state, so they
+  are re-measured (polish item 7) before the owner's comparison.

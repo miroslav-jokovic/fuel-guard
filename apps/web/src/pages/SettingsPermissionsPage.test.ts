@@ -270,8 +270,8 @@ describe("the Roles tab", () => {
   });
 
   /**
-   * D-SURF2 at the row. A technician holds `equipment: view` and no `fuel` at all, so Fuel Costs
-   * (fuel: manage) is not a screen an org can hand them here — and neither is any Fuel screen, so
+   * D-SURF2 at the row. A technician holds `equipment: view` and no `fuel` at all, so no Fuel screen
+   * is one an org can hand them here — so
    * the whole group is named as unlisted rather than drawn as four rows of refusals. A group with
    * SOME reachable screens keeps the others, each saying what it needs.
    */
@@ -282,14 +282,17 @@ describe("the Roles tab", () => {
     expect(sectionAccess(ROLE, "fuel")).toBe("none");
     expect(toggle(w, "IFTA")).toBeUndefined();
     expect(w.text()).toMatch(/Not listed: .*Fuel/);
-    // A group with SOME reachable screens keeps the rest, each saying what it needs. The dispatcher
-    // holds `dispatch: manage` and `fuel: view`, so in the Fuel group Fuel cards is a switch and Fuel
-    // Spend — `fuel: manage` — is an explanation.
+    // A group with SOME reachable screens keeps the rest, each saying what it needs. The auditor holds
+    // `dispatch: view`, so in the Dispatch group Loads is a switch and Fuel planning — `dispatch:
+    // manage` — is an explanation. (This was the dispatcher's Fuel costs until Q-AI12, 2026-11-11,
+    // opened that page at `fuel: view`; the dispatcher now gets it as a switch.)
+    await openRole(w, USER_ROLE_LABELS.auditor);
+    expect(sectionAccess("auditor", "dispatch")).toBe("view");
+    expect(toggle(w, "Loads")).toBeTruthy();
+    expect(toggle(w, "Fuel planning")).toBeUndefined();
+    expect(row(w, "Fuel planning")!.text()).toContain("Needs Dispatch · Manage");
     await openRole(w, USER_ROLE_LABELS.dispatcher);
-    expect(sectionAccess("dispatcher", "fuel")).toBe("view");
-    expect(toggle(w, "Fuel cards")).toBeTruthy();
-    expect(toggle(w, "Fuel costs")).toBeUndefined();
-    expect(row(w, "Fuel costs")!.text()).toContain("Needs Fuel · Manage");
+    expect(toggle(w, "Fuel costs")).toBeTruthy();
   });
 
   it("resets a role by writing each changed section back to its shipped default and each screen to allowed", async () => {

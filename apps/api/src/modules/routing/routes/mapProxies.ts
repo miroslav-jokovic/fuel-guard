@@ -2,7 +2,7 @@ import type { Request as ExpressRequest, Router, Response as ExpressResponse } f
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
-import { HERE_MAX_TILE_ZOOM, HERE_MAX_VECTOR_ZOOM, VECTOR_GLYPH_FONTS, resolveBasemapStyle, resolveBasemapFormat, resolveTileRequest } from "@silvicom/shared";
+import { HERE_MAX_TILE_ZOOM, HERE_MAX_VECTOR_ZOOM, TRUCK_PLACES_ZOOM, VECTOR_GLYPH_FONTS, VECTOR_GLYPH_RANGE_FILE, resolveBasemapStyle, resolveBasemapFormat, resolveTileRequest } from "@silvicom/shared";
 
 const GLYPH_FONTS = new Set<string>(VECTOR_GLYPH_FONTS);
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
@@ -112,9 +112,11 @@ export function registerMapRoutes(router: Router): void {
    */
   const pacer = new TilePacer(HERE_TILE_PACING);
   const refusals = { refused429: 0, retried: 0, retriedOk: 0 };
+  /** D-DR34: truck-place tiles asked for, the ones billed at HERE's Advanced rate, so cost is visible. */
+  const billed = { advancedTiles: 0 };
   registerMetricsSection("hereTiles", () => {
-    const counts = { ...pacer.drainCounts(), ...refusals };
-    refusals.refused429 = refusals.retried = refusals.retriedOk = 0;
+    const counts = { ...pacer.drainCounts(), ...refusals, ...billed };
+    refusals.refused429 = refusals.retried = refusals.retriedOk = billed.advancedTiles = 0;
     return counts;
   });
 
@@ -272,23 +274,32 @@ export function registerMapRoutes(router: Router): void {
    *
    * ⚠ HERE serves vector tiles to zoom 17; 18 answers 400 (measured 2026-11-09). maplibre overzooms
    * the 17 tile past that, so the source's `maxzoom` and this check read the same constant.
+   *
+   * D-DR34: the truck-places route is the same tile with HERE's `advanced_pois` content, which alone
+   * carries truck stops and truck parking (measured 2026-11-11, `TRUCK_PLACES_ZOOM`). It bills at
+   * the Advanced rate, so it answers for that ONE zoom and refuses every other without asking HERE.
+   * ⚠ HERE requires `default` first in `content` (Vector Tile API, "Content").
    */
-  router.get(
-    "/map-tiles/vector/:z/:x/:y",
-    asyncHandler(async (req, res) => {
-      const env = getAppLocals(req).env;
-      if (!env.HERE_API_KEY) {
-        res.status(404).json(apiError("tiles_unavailable", "HERE tiles are not configured"));
-        return;
-      }
-      const z = Number(req.params.z), x = Number(req.params.x), y = Number(req.params.y);
-      if (![z, x, y].every(Number.isInteger) || z < 0 || z > HERE_MAX_VECTOR_ZOOM || x < 0 || y < 0) {
-        res.status(400).json(apiError("bad_request", "invalid tile coordinate"));
-        return;
-      }
-      await proxyTile(req, res, `https://vector.hereapi.com/v2/vectortiles/base/mc/${z}/${x}/${y}/omv?apikey=${encodeURIComponent(env.HERE_API_KEY)}`);
-    }),
-  );
+  const vectorTileRoute = (path: string, zoomServed: (z: number) => boolean, content: string) =>
+    router.get(
+      path,
+      asyncHandler(async (req, res) => {
+        const env = getAppLocals(req).env;
+        if (!env.HERE_API_KEY) {
+          res.status(404).json(apiError("tiles_unavailable", "HERE tiles are not configured"));
+          return;
+        }
+        const z = Number(req.params.z), x = Number(req.params.x), y = Number(req.params.y);
+        if (![z, x, y].every(Number.isInteger) || !zoomServed(z) || x < 0 || y < 0) {
+          res.status(400).json(apiError("bad_request", "invalid tile coordinate"));
+          return;
+        }
+        if (content) billed.advancedTiles += 1;
+        await proxyTile(req, res, `https://vector.hereapi.com/v2/vectortiles/base/mc/${z}/${x}/${y}/omv?apikey=${encodeURIComponent(env.HERE_API_KEY)}${content}`);
+      }),
+    );
+  vectorTileRoute("/map-tiles/vector/:z/:x/:y", (z) => z >= 0 && z <= HERE_MAX_VECTOR_ZOOM, "");
+  vectorTileRoute("/map-tiles/truck-places/:z/:x/:y", (z) => z === TRUCK_PLACES_ZOOM, "&content=default,advanced_pois");
 
   /**
    * D-DR31: the glyphs the vector map draws its labels with. maplibre renders no text without them.
@@ -305,7 +316,7 @@ export function registerMapRoutes(router: Router): void {
     asyncHandler(async (req, res) => {
       const fontstack = String(req.params.fontstack);
       const range = String(req.params.range);
-      if (!GLYPH_FONTS.has(fontstack) || !/^\d{1,5}-\d{1,5}\.pbf$/.test(range)) {
+      if (!GLYPH_FONTS.has(fontstack) || !VECTOR_GLYPH_RANGE_FILE.test(range)) {
         res.status(400).json(apiError("bad_request", "unknown glyph range"));
         return;
       }
