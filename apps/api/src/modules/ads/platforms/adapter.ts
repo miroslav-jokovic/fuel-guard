@@ -42,8 +42,18 @@ export interface SpendCall {
   idempotency_key: string;
 }
 
+/**
+ * A launch also says which of the campaign's ads must STAY off: the ones the monitor retired (CQ9b). Required, not
+ * optional, so no caller can forget it and get the old answer — every ad in the refs turned back on (2026-11-11:
+ * a pause and a relaunch revived every tired ad). The guard reads it from the `retire_ad` ledger
+ * (`monitor/retiredAds.ts`); the adapter only subtracts.
+ */
+export interface LaunchCall extends SpendCall {
+  retired_ad_ids: readonly string[];
+}
+
 export interface PlatformSpend {
-  launch(call: SpendCall): Promise<PlatformOutcome>;
+  launch(call: LaunchCall): Promise<PlatformOutcome>;
   raiseDailyBudget(call: SpendCall): Promise<PlatformOutcome>;
   changeArea(call: { campaign: PlatformCampaignRef; area: AdArea; idempotency_key: string }): Promise<PlatformOutcome>;
 }

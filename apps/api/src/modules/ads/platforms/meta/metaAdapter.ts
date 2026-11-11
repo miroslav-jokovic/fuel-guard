@@ -1,5 +1,5 @@
 import { adAreaSchema, type AdArea } from "@silvicom/shared";
-import { NOT_ON_PLATFORM, type PlatformAdapter, type PlatformCampaignRef, type PlatformOutcome, type SpendCall } from "../adapter.js";
+import { NOT_ON_PLATFORM, type LaunchCall, type PlatformAdapter, type PlatformCampaignRef, type PlatformOutcome, type SpendCall } from "../adapter.js";
 import type { GraphFailure, MetaGraph } from "./graphClient.js";
 import { META_CUSTOM_LOCATION_MAX_MILES, META_EMPLOYMENT_MIN_MILES } from "./publisher.js";
 
@@ -23,7 +23,8 @@ import { META_CUSTOM_LOCATION_MAX_MILES, META_EMPLOYMENT_MIN_MILES } from "./pub
  *
  * `platform_refs` carry the ids the publisher recorded: `meta_campaign_id`, `meta_adset_id` (B2a),
  * `meta_ad_ids` (B2c). A launch with no ad is refused: an ACTIVE campaign with no ad spends nothing
- * and tells the owner it is running.
+ * and tells the owner it is running. A launch turns on only the ads the guard does not name as retired
+ * (`LaunchCall.retired_ad_ids`, CQ9b), so a pause and relaunch never revives a tired ad.
  */
 
 type Write = Record<string, string | number | Record<string, unknown>>;
@@ -139,13 +140,18 @@ export function metaAdapter(deps: MetaAdapterDeps): PlatformAdapter {
     },
 
     spend: {
-      async launch(call: SpendCall) {
+      async launch(call: LaunchCall) {
         const ids = refs(call.campaign, true);
         if (!isRefs(ids)) return ids;
+        // Only the ads the monitor has not retired (CQ9b): a retired ad stays PAUSED through a pause and relaunch.
+        // Every ad retired = nothing to deliver, refused before any write, as a launch with no ad is.
+        const retired = new Set(call.retired_ad_ids);
+        const live = ids.ads.filter((ad) => !retired.has(ad));
+        if (live.length === 0) return { ok: false, error_code: "every_ad_retired", response: { retired: [...retired] } };
         const failed = await steps([
           ["adset_budget", ids.adset, { daily_budget: call.daily_budget_cents }],
           ["campaign_cap", ids.campaign, { spend_cap: call.lifetime_cap_cents }],
-          ...ids.ads.map((ad): [string, string, Write] => ["ad_active", ad, { status: "ACTIVE" }]),
+          ...live.map((ad): [string, string, Write] => ["ad_active", ad, { status: "ACTIVE" }]),
           ["adset_active", ids.adset, { status: "ACTIVE" }],
           ["campaign_active", ids.campaign, { status: "ACTIVE" }],
         ]);

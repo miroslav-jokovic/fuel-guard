@@ -108,6 +108,28 @@ Order follows dependency and payoff; CQ1 is small and unblocks everything the ow
 | **CQ8 · Language split (R8)** | W | One ad set per language with `locales` if Q-AD56 proves it under EMPLOYMENT; else two ad sets differing only by the form language, budgets split by a setting. | Contract test on sandbox; monitor reads both. | Q-AD56 (sandbox) |
 | **CQ9 · Fatigue → refresh (D-AD23)** | G + W | **CQ9a built 2026-11-10**: migration 0581 (`retire_ad` kind, `ads_creative_retired` category), settings group `creative_refresh` (retire off by default; min_days 7, ctr_drop 25 %, min_impressions 2,000 — R6's numbers), pure `fatigueVerdict` (last week vs the ad's own first week, from CQ3's per-ad hours), `PlatformSafe.pauseAd`, the Settings card. **CQ9b built 2026-11-10**: the monitor's retire step inside the hourly job (verdict → `pauseAd` → `retire_ad` row → `platform_status = retired` → bell), switch-gated. **Entering the next concept on a live campaign = Q-AD68** (below), not assumed. CPM drift dropped: CPM moves with the auction, not the ad (R6's own caveat). | `adFatigue.test.ts` 7; adapter `pauseAd` 3; matrix +3; `retireTired.test.ts` 5, 4 mutants. | Q-AD68 — **retire DONE, enter-next open** |
 
+**CQ9 finding, 2026-11-11 — a relaunch revived every retired ad (fixed the same day).** Found while building Q-AD68:
+the Meta adapter's `launch` set EVERY id in `platform_refs.meta_ad_ids` to ACTIVE, and the retire step pauses one ad
+without touching the refs. So a person's pause and a new launch approval turned the tired ads back on — silently, with
+the bell still saying they were retired. **The fix:** a launch is now told which ads stay off (`LaunchCall.retired_ad_ids`,
+required so no caller can forget it); the guard reads them per launch from the `retire_ad` ledger rows (`started` or
+`succeeded`; not `failed`, whose pause the platform refused) in `monitor/retiredAds.ts`, and the adapter turns on the rest;
+every ad retired is refused before any write (`every_ad_retired`). The guard's fences are unchanged; the read runs after
+them, inside the started act. **Why the ledger and not `ads_creatives.platform_status`:** the publisher makes one ad PER
+LANGUAGE from one creative, and the monitor retires each ad on its own hours — so `platform_status = 'retired'` on the
+creative is coarser than the fact. Read at the creative, retiring the tired EN ad would also keep its fresh ES sibling off
+at the next launch. The ledger row is per ad and written by the act. Tests: `createPath.test.ts` "a pause and a relaunch
+keep the retired ad off: the monitor retires the tired EN ad, and the new launch turns on only its ES sibling" (the real
+runner, guard, monitor and adapter on the simulator); adapter +1; `retiredAds.test.ts` 2; 6 mutants red (turn on all ads;
+guard passes none; four on the ledger read).
+
+Two smaller things seen on the way, NOT fixed here: (1) `retireTired.ts`'s header says a crash between the pause and
+the row's completion "is settled by the next run asking Meta again", but on `duplicate` the code records `already` and
+moves on, so a `started` row stays `started` and nobody asks Meta. The launch fix above counts `started` as retired
+(the safe direction), so this no longer revives an ad, but the row and the creative's `platform_status` are never
+settled. (2) The idempotency key is one per ad forever, so a retire the platform refused (`failed`) is never tried
+again. Both belong to CQ9b's reconcile, not to the launch.
+
 Also in CQ4's PR, because it is the same rail: the generation rail moves off forced `tool_choice` to a strict tool
 with `auto` + a "no tool call" refusal path, so each worker's model is chosen by its fixture gate (Q-RA22), not by
 what the rail can call (G-CQ15). The three workers re-record their baselines on the chosen models in that PR.

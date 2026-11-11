@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { parseAdName, type AdBrief, type AdPresetRecipe } from "@silvicom/shared";
+import { ADS_CREATIVE_REFRESH_DEFAULT, parseAdName, type AdBrief, type AdPresetRecipe } from "@silvicom/shared";
 import { loadEnv } from "../../../env.js";
 import { campaign, CONN, createAdsWorld, LIVE_SETTINGS, ORG, T0, type AdsWorld } from "../../../testing/adsWorld.js";
 import { expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { resetGraphThrottles } from "../platforms/meta/graphClient.js";
 import { SIMULATOR_ACCOUNT_ID, SIMULATOR_PAGE_ID, simulatorFakeForTests, stopSimulatorForTests } from "../platforms/registry.js";
 import type { FakeMeta } from "../platforms/simulator/fakeMeta.js";
+import { retireTiredAds } from "../monitor/retireTired.js";
 import { runCampaignStep } from "./runner.js";
 import { adsWorkers } from "./workers.js";
 import { publishReplacement } from "../platforms/meta/publishCampaign.js";
@@ -67,6 +68,7 @@ function world(patch: { state?: "creating" | "launching"; creativeState?: string
       ads_creatives: [creative],
       ad_concept_preset_versions: [{ id: VERSION, org_id: ORG, preset_id: PRESET, recipe }],
       ad_concept_presets: [{ id: PRESET, org_id: ORG, key: "P3" }],
+      ads_ad_spend_hourly: [],
     },
     storage: { download: (key: string) => (stored.has(key) ? { data: new Blob([new Uint8Array(stored.get(key)!)]), error: null } : { data: null, error: { message: "Object not found" } }) },
   });
@@ -101,6 +103,34 @@ describe("createPaused × the real Meta path on the simulator (B2c2)", () => {
     w.byId(CAMPAIGN).state = "launching";
     expect(await step(w)).toMatchObject({ kind: "stepped", event: "launched", result: { kind: "moved", to: "live" } });
     expect([fake.campaigns.get(refs.meta_campaign_id)!.status, ...refs.meta_ad_ids.map((id) => fake.sets.ads.get(id)!.status)]).toEqual(["ACTIVE", "ACTIVE", "ACTIVE"]);
+  });
+
+  it("a pause and a relaunch keep the retired ad off: the monitor retires the tired EN ad, and the new launch turns on only its ES sibling", async () => {
+    // The 2026-11-11 finding (CQ9 in ADS-CREATIVE-QUALITY-PLAN): launch turned on every ad in `meta_ad_ids`, so the
+    // ad CQ9b retired came back on. One creative, two language ads: the retired one is an AD, not the creative.
+    const w = world();
+    await step(w);
+    const refs = w.byId(CAMPAIGN).platform_refs as { meta_campaign_id: string; meta_ad_ids: string[] };
+    const [en, es] = refs.meta_ad_ids as [string, string];
+    w.byId(CAMPAIGN).state = "launching";
+    expect(await step(w)).toMatchObject({ event: "launched", result: { to: "live" } });
+
+    // Twenty days of hours: EN's click-through halves after its first week, ES holds — the monitor's own judgement.
+    const born = Date.parse(T0) - 20 * 86_400_000;
+    const day = (ad: string, d: number, ctr: number) => ({ org_id: ORG, campaign_id: CAMPAIGN, meta_ad_id: ad, hour: new Date(born + d * 86_400_000).toISOString(), impressions: 1000, clicks: Math.round(1000 * ctr) });
+    w.extra.ads_ad_spend_hourly!.push(...Array.from({ length: 20 }, (_, d) => [day(en, d, d < 7 ? 0.02 : 0.01), day(es, d, 0.02)]).flat());
+    const retired = await retireTiredAds({ admin: w.admin, env, processEnv: { NODE_ENV: "test" }, now: w.now }, ORG, CONN, { ...ADS_CREATIVE_REFRESH_DEFAULT, retire: true });
+    expect(retired.verdicts.map((v) => [v.meta_ad_id, v.acted])).toEqual([[en, "retired"], [es, "not_tired"]]);
+
+    w.byId(CAMPAIGN).state = "pausing";
+    expect(await step(w)).toMatchObject({ event: "paused", result: { to: "paused" } });
+    w.approvals.push({ id: "appr-2", org_id: ORG, campaign_id: CAMPAIGN, kind: "launch", withdraws_id: null, approved_by: OWNER, approved_by_name: "Owner", daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, created_at: w.now().toISOString() });
+    w.byId(CAMPAIGN).state = "launching";
+    const posts = fake.requests.length;
+    expect(await step(w)).toMatchObject({ event: "launched", result: { to: "live" } });
+    expect([fake.campaigns.get(refs.meta_campaign_id)!.status, fake.sets.ads.get(en)!.status, fake.sets.ads.get(es)!.status]).toEqual(["ACTIVE", "PAUSED", "ACTIVE"]);
+    expect(fake.requests.slice(posts).filter((q) => q.method === "POST" && q.path.endsWith(en))).toEqual([]);
+    expectOrgScoped(w.rec, ORG);
   });
 
   it("a creative still waiting for a person is never published: no approved creative fails the step before Meta is asked anything", async () => {
