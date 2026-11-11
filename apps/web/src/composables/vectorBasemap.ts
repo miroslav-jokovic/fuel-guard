@@ -23,7 +23,7 @@
  * resolves the tokens and owns adding, showing and hiding the layers.
  */
 import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
-import { VECTOR_GLYPH_FONTS } from "@silvicom/shared";
+import { TRUCK_PLACES_ZOOM, VECTOR_GLYPH_FONTS } from "@silvicom/shared";
 
 /** The `--map-*` tokens, without the prefix. A key here that has no token is a type error at the caller. */
 export const MAP_PALETTE_KEYS = [
@@ -54,21 +54,40 @@ export const VECTOR_FONT_BOLD = [VECTOR_GLYPH_FONTS[1]];
 
 /**
  * HERE place categories a dispatcher reads a truck's position by, from the `pois` layer's
- * `pds_category`. The codes are HERE's, measured with our key on 2026-11-09 and 2026-11-10: a
- * truck stop / plaza (700-7900-0132), truck parking (700-7900-0131), truck repair (700-7850-0126),
- * a rest area (400-4300-0199) and a fuel station (700-7600-0116).
+ * `pds_category`, split by WHICH TILE carries them (D-DR34, measured with our key 2026-11-11).
  *
- * ⚠ Every other place still draws, as a small dot with its name when there is room. These only win
- * the room first and get a stronger colour.
+ * ⚠ The first draft put all of these on the ordinary vector tile, where the truck codes never
+ * appear: there the Joliet Pilot is an ordinary "Parking Lot" (800-8500-0178) and Love's a
+ * convenience store, so the "truck places first" rule matched nothing. The truck codes come only
+ * with HERE's `advanced_pois` content, which the truck-places source fetches at `TRUCK_PLACES_ZOOM`:
+ * truck stop / plaza (700-7900-0132), truck parking (700-7900-0131) and rest area (400-4300-0199,
+ * where Love's and TA also appear). Fuel stations (700-7600-0116, `kind=fuel`) ARE on the ordinary
+ * tile, so they keep their priority there.
+ *
+ * ⚠ Truck repair (700-7850-0126) is in NEITHER: 0 of 8 shops HERE's search names, and none in 24
+ * advanced tiles. It is left out rather than listed for a tile that does not carry it (Q-DR34).
+ *
+ * Every other place still draws, as a name when there is room. These only win the room first.
  */
 export const TRUCK_PLACE_CATEGORIES = {
-  truckStop: ["700-7900-0132", "700-7900-0131"],
-  truckRepair: ["700-7850-0126"],
+  truckStop: ["700-7900-0132"],
+  truckParking: ["700-7900-0131"],
   restArea: ["400-4300-0199"],
-  fuel: ["700-7600-0116"],
 } as const;
 
+/** The one truck category the ordinary vector tile carries (measured 2026-11-10, `kind=fuel`). */
+export const FUEL_PLACE_CATEGORY = "700-7600-0116";
+
 const ALL_TRUCK_PLACES: string[] = Object.values(TRUCK_PLACE_CATEGORIES).flat();
+
+/**
+ * The truck-places source that rides beside a vector basemap's own source (D-DR34). Derived from the
+ * basemap's source id, never chosen separately, so `useMapLibre` adds it and the layer below reads it
+ * from one rule.
+ */
+export function truckPlacesSourceId(basemapSourceId: string): string {
+  return `${basemapSourceId}:truck-places`;
+}
 
 /**
  * A road's fill: the highway-casing blue-grey while it is a thin line across open country, fading to
@@ -228,25 +247,49 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
       paint: { "text-color": c["label-halo"], "text-halo-color": c["highway-casing"], "text-halo-width": 3 },
     } as LayerSpecification,
     {
-      // Every place HERE names: a dot, and its name when there is room. Truck places win the room.
+      // Every place the ordinary tile names, with its name when there is room. Fuel stations first.
+      // ⚠ Truck categories are drawn from the truck-places source below; excluded here so a place
+      // on both tiles is never named twice.
       id: id("place"),
       type: "symbol",
       ...src,
       "source-layer": "pois",
       minzoom: 12,
-      filter: ["all", ["has", "name"], ["!", ["match", ["get", "kind"], ["traffic_signals", "bus_stop"], true, false]]],
+      filter: [
+        "all",
+        ["has", "name"],
+        ["!", ["match", ["get", "kind"], ["traffic_signals", "bus_stop"], true, false]],
+        ["!", ["in", ["get", "pds_category"], ["literal", ALL_TRUCK_PLACES]]],
+      ],
       layout: {
         "text-field": ["coalesce", ["get", "name:en"], ["get", "name"]],
-        "text-font": ["case", ["in", ["get", "pds_category"], ["literal", ALL_TRUCK_PLACES]], ["literal", VECTOR_FONT_BOLD], ["literal", VECTOR_FONT]],
+        "text-font": ["case", ["==", ["get", "pds_category"], FUEL_PLACE_CATEGORY], ["literal", VECTOR_FONT_BOLD], ["literal", VECTOR_FONT]],
         "text-size": byZoom(12, 10, 16, 12),
         "text-max-width": 9,
-        "text-optional": true,
+        "symbol-sort-key": ["case", ["==", ["get", "pds_category"], FUEL_PLACE_CATEGORY], 0, 10],
+      },
+      paint: { "text-color": c.label, ...halo },
+    } as LayerSpecification,
+    {
+      // D-DR34: truck stops, truck parking and rest areas, from HERE's advanced place content. Above
+      // `place`, so maplibre places these names first and an ordinary shop gives way to them; below
+      // `locality`, so a town's name still wins over a truck stop's.
+      id: id("truck-place"),
+      type: "symbol",
+      source: truckPlacesSourceId(sourceId),
+      "source-layer": "pois",
+      minzoom: TRUCK_PLACES_ZOOM,
+      filter: ["all", ["has", "name"], ["in", ["get", "pds_category"], ["literal", ALL_TRUCK_PLACES]]],
+      layout: {
+        "text-field": ["coalesce", ["get", "name:en"], ["get", "name"]],
+        "text-font": VECTOR_FONT_BOLD,
+        "text-size": byZoom(13, 11, 16, 13),
+        "text-max-width": 9,
         "symbol-sort-key": [
           "case",
           ["in", ["get", "pds_category"], ["literal", [...TRUCK_PLACE_CATEGORIES.truckStop]]], 0,
-          ["in", ["get", "pds_category"], ["literal", [...TRUCK_PLACE_CATEGORIES.truckRepair, ...TRUCK_PLACE_CATEGORIES.restArea]]], 1,
-          ["in", ["get", "pds_category"], ["literal", [...TRUCK_PLACE_CATEGORIES.fuel]]], 2,
-          10,
+          ["in", ["get", "pds_category"], ["literal", [...TRUCK_PLACE_CATEGORIES.restArea]]], 1,
+          2,
         ],
       },
       paint: { "text-color": c.label, ...halo },
@@ -281,11 +324,19 @@ export function isVectorTemplate(template: string): boolean {
   return template.includes("/map-tiles/vector/");
 }
 
-/** Where maplibre fetches label glyphs: our API's relay of HERE's two style fonts (D-DR31). */
-export const GLYPHS_PATH = "/api/fueling/map-tiles/glyphs/{fontstack}/{range}";
+/**
+ * Where maplibre fetches label glyphs: our API's relay of HERE's two style fonts (D-DR31).
+ * ⚠ The `.pbf` is load-bearing: `{range}` becomes `0-255`, and both the relay and HERE refuse a name
+ * without it. maplibre then draws the labels with the browser's font and says so only in a console
+ * warning (`VECTOR_GLYPH_RANGE_FILE` has the incident).
+ */
+export const GLYPHS_PATH = "/api/fueling/map-tiles/glyphs/{fontstack}/{range}.pbf";
 
 /** The vector road map's tile template, served by our API (`mapProxies.ts`, D-DR31). */
 export const VECTOR_TILES_TEMPLATE = "/api/fueling/map-tiles/vector/{z}/{x}/{y}";
+
+/** The truck places' tile template (D-DR34): zoom `TRUCK_PLACES_ZOOM` only, refused at any other. */
+export const TRUCK_PLACES_TILES_TEMPLATE = "/api/fueling/map-tiles/truck-places/{z}/{x}/{y}";
 
 /**
  * ── THE TRIAL SWITCH (D-DR31) — A WORKAROUND, LABELLED ─────────────────────────────────────────

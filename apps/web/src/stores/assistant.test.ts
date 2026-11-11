@@ -32,7 +32,7 @@ describe("assistant store", () => {
     d.resolve({ ok: true, data: { answer: "Spend was $41,200." } });
     await pending;
     expect(status.value).toBe("done");
-    expect(apiFetch).toHaveBeenCalledWith("/api/ai/ask", { method: "POST", body: { question: "How much did we spend?" } });
+    expect(apiFetch).toHaveBeenCalledWith("/api/ai/ask", { method: "POST", body: { question: "How much did we spend?", history: [] } });
     expect(s.turns).toEqual([{ id: 1, question: "How much did we spend?", status: "done", answer: "Spend was $41,200.", pages: [], links: [] }]);
   });
 
@@ -63,7 +63,7 @@ describe("assistant store", () => {
     await s.ask("q");
     expect(s.turns[0]).toMatchObject({ status: "error", answer: "AI is not configured" });
     await s.retry(1);
-    expect(apiFetch).toHaveBeenLastCalledWith("/api/ai/ask", { method: "POST", body: { question: "q" } });
+    expect(apiFetch).toHaveBeenLastCalledWith("/api/ai/ask", { method: "POST", body: { question: "q", history: [] } });
     expect(s.turns[0]).toMatchObject({ status: "done", answer: "Now it works." });
   });
 
@@ -94,5 +94,29 @@ describe("assistant store", () => {
     await s.ask("and fuel?");
     expect(s.turns.map((t) => t.pages)).toEqual([["finance.fleet-report"], []]);
     expect(s.turns.map((t) => t.links)).toEqual([[], []]);
+  });
+
+  it("sends the thread's answered turns before the question, never a failed one, and nothing after New chat (R3a)", async () => {
+    const s = useAssistantStore();
+    replies.push(async () => ({ ok: true, data: { answer: "Spend was $41,200." } }));
+    await s.ask("fuel spend last month");
+    replies.push(async () => ({ ok: false, error: { message: "AI is busy" } }));
+    await s.ask("and MPG?");
+    replies.push(async () => ({ ok: true, data: { answer: "In September, $39,900." } }));
+    await s.ask("and the month before?");
+    expect((apiFetch.mock.calls[2]![1] as { body: unknown }).body).toEqual({
+      question: "and the month before?",
+      history: [{ question: "fuel spend last month", answer: "Spend was $41,200." }],
+    });
+    // A retry carries what came before it, not what came after.
+    replies.push(async () => ({ ok: true, data: { answer: "6.4" } }));
+    await s.retry(2);
+    expect((apiFetch.mock.calls[3]![1] as { body: { history: unknown[] } }).body.history).toEqual([
+      { question: "fuel spend last month", answer: "Spend was $41,200." },
+    ]);
+    s.clear();
+    replies.push(async () => ({ ok: true, data: { answer: "ok" } }));
+    await s.ask("fuel spend this month");
+    expect((apiFetch.mock.calls[4]![1] as { body: { history: unknown[] } }).body.history).toEqual([]);
   });
 });

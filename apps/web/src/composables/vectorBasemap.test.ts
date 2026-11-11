@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { TRUCK_PLACES_ZOOM, VECTOR_GLYPH_RANGE_FILE } from "@silvicom/shared";
 import {
   MAP_PALETTE_KEYS,
+  FUEL_PLACE_CATEGORY,
+  GLYPHS_PATH,
   TRUCK_PLACE_CATEGORIES,
+  truckPlacesSourceId,
   isVectorTemplate,
   vectorBasemapLayers,
   vectorTrialOffered,
@@ -18,11 +22,11 @@ const palette = Object.fromEntries(MAP_PALETTE_KEYS.map((k, i) => [k, `rgb(${i},
 const layers = vectorBasemapLayers(palette, "here-4", "here-4:");
 
 describe("the vector road map's layers", () => {
-  it("keeps every layer in one group, on one source, so the basemap shows and hides as one", () => {
+  it("keeps every layer in one group, on its source or its truck-places source, so the basemap shows and hides as one", () => {
     expect(layers.length).toBeGreaterThan(10);
     for (const l of layers) {
       expect(l.id.startsWith("here-4:")).toBe(true);
-      if ("source" in l) expect(l.source).toBe("here-4");
+      if ("source" in l) expect(["here-4", truckPlacesSourceId("here-4")]).toContain(l.source);
     }
     expect(new Set(layers.map((l) => l.id)).size).toBe(layers.length);
   });
@@ -43,12 +47,34 @@ describe("the vector road map's layers", () => {
     for (const c of colours) expect(allowed.has(c), c).toBe(true);
   });
 
-  it("gives truck stops the room to name themselves first, then repair and rest areas, then fuel", () => {
-    const place = layers.find((l) => l.id === "here-4:place") as { layout: { "symbol-sort-key": unknown[] } };
-    const key = JSON.stringify(place.layout["symbol-sort-key"]);
+  /**
+   * D-DR34, measured 2026-11-11: the truck codes arrive ONLY on the advanced tile, so the layer that
+   * names them must read the truck-places source, and only at the zoom that source is fetched at.
+   */
+  it("names truck stops, truck parking and rest areas from the truck-places source, from its one zoom", () => {
+    const truck = layers.find((l) => l.id === "here-4:truck-place") as { source: string; minzoom: number; filter: unknown };
+    expect(truck.source).toBe(truckPlacesSourceId("here-4"));
+    expect(truck.minzoom).toBe(TRUCK_PLACES_ZOOM);
+    const filter = JSON.stringify(truck.filter);
+    for (const code of Object.values(TRUCK_PLACE_CATEGORIES).flat()) expect(filter).toContain(code);
+  });
+
+  it("places truck stops before rest areas before truck parking, and above every ordinary place but below towns", () => {
+    const ids = layers.map((l) => l.id);
+    expect(ids.indexOf("here-4:truck-place")).toBeGreaterThan(ids.indexOf("here-4:place"));
+    expect(ids.indexOf("here-4:truck-place")).toBeLessThan(ids.indexOf("here-4:locality"));
+    const truck = layers.find((l) => l.id === "here-4:truck-place") as { layout: { "symbol-sort-key": unknown[] } };
+    const key = JSON.stringify(truck.layout["symbol-sort-key"]);
     const at = (codes: readonly string[]) => key.indexOf(codes[0]!);
-    expect(at(TRUCK_PLACE_CATEGORIES.truckStop)).toBeLessThan(at(TRUCK_PLACE_CATEGORIES.truckRepair));
-    expect(at(TRUCK_PLACE_CATEGORIES.truckRepair)).toBeLessThan(at(TRUCK_PLACE_CATEGORIES.fuel));
+    expect(at(TRUCK_PLACE_CATEGORIES.truckStop)).toBeGreaterThan(-1);
+    expect(at(TRUCK_PLACE_CATEGORIES.truckStop)).toBeLessThan(at(TRUCK_PLACE_CATEGORIES.restArea));
+    expect(key.includes(TRUCK_PLACE_CATEGORIES.truckParking[0])).toBe(false); // the fallback rank
+  });
+
+  it("leaves truck places to their own layer and names fuel stations first among ordinary places", () => {
+    const place = layers.find((l) => l.id === "here-4:place") as { filter: unknown; layout: { "symbol-sort-key": unknown } };
+    expect(JSON.stringify(place.filter)).toMatch(/"!",\["in",\["get","pds_category"\],\["literal",\["700-7900-0132"/);
+    expect(place.layout["symbol-sort-key"]).toEqual(["case", ["==", ["get", "pds_category"], FUEL_PLACE_CATEGORY], 0, 10]);
   });
 
   it("does not draw traffic lights and bus stops as places", () => {
@@ -63,6 +89,11 @@ describe("the vector trial switch", () => {
     expect(vectorTrialOffered("staging")).toBe(true);
     expect(vectorTrialOffered("Production")).toBe(false);
     expect(vectorTrialOffered("")).toBe(false);
+  });
+
+  it("asks for glyph files by the one name the API relay and HERE accept", () => {
+    const asked = GLYPHS_PATH.replace("{fontstack}", "Fira GO Regular").replace("{range}", "0-255");
+    expect(VECTOR_GLYPH_RANGE_FILE.test(asked.split("/").at(-1)!)).toBe(true);
   });
 
   it("tells the vector template from a raster one", () => {
