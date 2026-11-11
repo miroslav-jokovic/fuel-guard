@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useQueryState, AppButton as BaseButton, AppCallout, AppTabs, type TabItem, QueryState } from "@silvicom/ui";
 import { computed, ref, watch } from "vue";
-import { ledgerMonthWhy } from "@silvicom/shared";
+import { FLEET_REPORT_QUERY_KEYS as PK, fleetReportToQuery, ledgerMonthWhy } from "@silvicom/shared";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ActivityTable from "@/features/accounting/ActivityTable.vue";
@@ -20,7 +20,7 @@ import { useIncomeStatementQuery, type StatementCompare } from "@/features/accou
 import { useMileageCoverageQuery } from "@/features/accounting/useMileageCoverage";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { lastFullMonth } from "@/lib/dateWindow";
-import { latestReportableMonth, monthKey, periodForMonth, periodLabel, type ReportPeriod } from "@/lib/reportPeriod";
+import { latestReportableMonth, monthKey, periodForMonth, periodFromLink, periodLabel, type ReportPeriod } from "@/lib/reportPeriod";
 
 /**
  * The fleet report (`/fleet-report`, D-FLEET1–8): what the fleet earned, spent and kept over a
@@ -46,7 +46,27 @@ const bootstrapTo = ref(lastFullMonth().to);
 const bootstrapMonths = ref(12);
 const { data: bootstrap, isError: bootstrapError } = useFleetTrendQuery(bootstrapTo, bootstrapMonths);
 
-const period = ref<ReportPeriod | null>(null);
+/**
+ * The period is in the URL since 2026-11-11 (F21 R4b (e), `fleetReportLinkContract.ts`), so a month can
+ * be sent to somebody and Ask AI's "Open in Fleet report" opens the answer's months. A linked period
+ * wins over the opening month below; with none, the page opens as it always did and writes nothing
+ * until the reader moves the rail, so a plain visit keeps a clean URL.
+ */
+const qs = useQueryState();
+const linkedPeriod = computed(() => periodFromLink(qs.one(PK.from), qs.one(PK.to), qs.one(PK.grain)));
+const period = ref<ReportPeriod | null>(linkedPeriod.value);
+// A later link to this same page (another answer's "Open in", Back/Forward) moves the rail with it.
+watch(linkedPeriod, (p) => {
+  if (p && (p.from !== period.value?.from || p.to !== period.value?.to || p.grain !== period.value?.grain)) {
+    period.value = p;
+    openedEarlierNote.value = null;
+  }
+});
+/** The rail's choice, kept in the URL by the contract's own writer. */
+function choosePeriod(p: ReportPeriod): void {
+  period.value = p;
+  qs.set(fleetReportToQuery(p));
+}
 /** Said once, above the tabs, when the page opened on an earlier month than the calendar's. */
 const openedEarlierNote = ref<string | null>(null);
 
@@ -212,7 +232,7 @@ const fleetErrorText = computed(() => (fleetError.value ? "Could not load the fl
     <!-- One clock for every tab (D-FRUI1), with the trust chip beside it (D-FRUI2). Until the
          opening month is known the rail waits with the tabs, rather than flashing the calendar's
          month and then correcting itself. -->
-    <FleetPeriodRail v-if="period" v-model="period" :cap="calendarCap">
+    <FleetPeriodRail v-if="period" :model-value="period" :cap="calendarCap" @update:model-value="choosePeriod">
       <span v-if="trust" :class="[BADGE_BASE, toneClass(trust.tone)]" :title="trust.title">{{ trust.label }}</span>
       <span v-if="fleet?.total.trucks != null && fleet?.total.miles != null" class="text-xs text-ink-tertiary">
         {{ fleet.total.trucks.toLocaleString() }} trucks · {{ Math.round(fleet.total.miles).toLocaleString() }} measured miles
