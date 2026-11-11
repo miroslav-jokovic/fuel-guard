@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AI_MODELS, ASSISTANT_MODEL_PRICES, stripNeverExposed, type AssistantHistoryTurn, type AssistantToolName, CASE_RULE_ID, computeSubjectMpg, IN_SERVICE_VEHICLE_STATUSES, odometerAccuracy, organizationTimezone, requestCostMicroUsd, todayInZone, type OdoRow, type SubjectFill } from "@silvicom/shared";
+import { AI_MODELS, ASSISTANT_MODEL_PRICES, splitAssistantLink, stripNeverExposed, type AssistantAnswerLink, type AssistantHistoryTurn, type AssistantToolName, CASE_RULE_ID, computeSubjectMpg, IN_SERVICE_VEHICLE_STATUSES, odometerAccuracy, organizationTimezone, requestCostMicroUsd, todayInZone, type OdoRow, type SubjectFill } from "@silvicom/shared";
 import { FUEL_EVENT_DROP } from "../fuel/index.js";
 import type { Env } from "../../env.js";
 import { anthropicClient } from "../../lib/anthropic.js";
@@ -374,6 +374,8 @@ export interface AskTrace {
   tools: Array<{ name: string; input: unknown; error?: string }>;
   usage: AnswerUsage;
   outcome: AnswerOutcome;
+  /** F21 R4b: each successful tool's page link with the answer's filters, in call order (D-AI6). */
+  links: AssistantAnswerLink[];
 }
 
 /** Room for Haiku 5.5's adaptive thinking AND a 25-row table: thinking counts toward this cap. */
@@ -426,7 +428,8 @@ export async function askData(
   ];
   const tools: AskTrace["tools"] = [];
   const usage: AnswerUsage = { model: AI_MODELS.assistant, rounds: 0, inputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 0, costMicroUsd: 0 };
-  const done = (answer: string, outcome: AnswerOutcome): AskTrace => ({ answer, tools, usage, outcome });
+  const links: AssistantAnswerLink[] = [];
+  const done = (answer: string, outcome: AnswerOutcome): AskTrace => ({ answer, tools, usage, outcome, links });
   const textOf = (content: Anthropic.ContentBlock[]) =>
     content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("\n").trim();
 
@@ -469,8 +472,11 @@ export async function askData(
         // D-AI1's second check: the model was shown only `allowed`, and a call outside it is refused
         // here as well, never run. D-AI7: what a tool returns loses every never-shown field.
         if (!(allowed as readonly string[]).includes(tu.name)) throw new Error("That tool is not available with this person's access.");
-        out = stripNeverExposed(await runTool(admin, orgId, tu.name, (tu.input ?? {}) as Record<string, unknown>));
+        // R4b (D-AI8): the page link is lifted off BEFORE the model sees the result — it carries ids.
+        const split = splitAssistantLink(tu.name, await runTool(admin, orgId, tu.name, (tu.input ?? {}) as Record<string, unknown>));
+        out = stripNeverExposed(split.result);
         tools.push({ name: tu.name, input: tu.input });
+        if (split.link) links.push(split.link);
       } catch (e) {
         failed = true;
         out = { error: e instanceof Error ? e.message : "tool failed" };

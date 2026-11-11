@@ -97,9 +97,10 @@ defineExpose({ focus: () => composer.value?.focus() });
               <template v-else-if="t.answer">
                 <AssistantAnswer :text="t.answer" />
                 <!-- F21 R4a: the pages the figures came from, from the API's structured list (D-AI8). -->
-                <ul v-if="pagesOf(t.pages).length" class="mt-2 flex flex-wrap gap-x-3 gap-y-1" aria-label="Where these figures come from">
-                  <li v-for="p in pagesOf(t.pages)" :key="p.key">
-                    <RouterLink :to="p.path" class="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline">
+                <!-- R4b: the link carries the answer's filters when its tool returned them (`links`). -->
+                <ul v-if="pagesOf(t.pages, t.links).length" class="mt-2 flex flex-wrap gap-x-3 gap-y-1" aria-label="Where these figures come from">
+                  <li v-for="p in pagesOf(t.pages, t.links)" :key="p.key">
+                    <RouterLink :to="p.to" class="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline">
                       Open in {{ p.label }} <AppIcon :icon="ChevronRightIcon" class="size-3" aria-hidden="true" />
                     </RouterLink>
                   </li>

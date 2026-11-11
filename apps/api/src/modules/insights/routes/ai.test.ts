@@ -100,11 +100,14 @@ describe("POST /api/ai/ask — the conversation (F21 R3a)", () => {
 describe("POST /api/ai/ask — the meter", () => {
   it("answers under the cap, records one ledger row and keeps the outcome and cost on the audit row", async () => {
     setup(1_000_000);
-    askData.mockResolvedValueOnce({ answer: "Unit 748 ran 6.4 MPG.", tools: [{ name: "fuel_report", input: {} }], usage: USAGE, outcome: "answered" });
+    const link = { surfaceKey: "fuel.spend", query: { from: "2026-10-01", to: "2026-10-31", trucks: "v748" } };
+    askData.mockResolvedValueOnce({ answer: "Unit 748 ran 6.4 MPG.", tools: [{ name: "fuel_report", input: {} }], usage: USAGE, outcome: "answered", links: [link] });
     const res = await post("mpg on 748 last month");
     expect(res.status).toBe(200);
-    // R4a: the page behind the answer travels with it, as a surface key.
-    expect(await res.json()).toEqual({ answer: "Unit 748 ran 6.4 MPG.", pages: ["fuel.spend"] });
+    // R4a: the page behind the answer travels with it, as a surface key; R4b: with the answer's filters.
+    expect(await res.json()).toEqual({ answer: "Unit 748 ran 6.4 MPG.", pages: ["fuel.spend"], links: [link] });
+    // The link's vehicle ids are for the browser, not the audit record of what was asked and said.
+    expect(JSON.stringify(audit()?.meta)).not.toContain("v748");
     const records = rec.rpcs().filter((c) => c.fn === "record_assistant_answer");
     expect(records).toHaveLength(1);
     expect(records[0]!.args).toMatchObject({

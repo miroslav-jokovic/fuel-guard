@@ -143,6 +143,37 @@ export function assistantAnswerPages(tools: readonly { name: string; error?: str
   return pages;
 }
 
+/**
+ * A link that carries an answer's FILTERS, not only its page (F21 R4b, D-AI6): "Open in Fuel costs"
+ * opens the nine trucks and the quarter that were asked. Built by the owner module's tool with its
+ * page's own link contract (e.g. `fuelCostsToQuery`), never assembled anywhere else.
+ */
+export interface AssistantAnswerLink {
+  surfaceKey: string;
+  query: Record<string, string>;
+}
+
+/**
+ * Lift a tool's `link` off its result, BEFORE anything is shown to the model (D-AI8): the link holds
+ * ids (vehicle ids for Fuel costs) that never belong in model-facing text, and the model has no use
+ * for a URL it must not write. Kept only when it points at the tool's OWN page (`ASSISTANT_TOOL_PAGE`)
+ * and every query value is a string — a tool cannot link somewhere its figure does not come from.
+ */
+export function splitAssistantLink(tool: string, result: unknown): { link: AssistantAnswerLink | null; result: unknown } {
+  if (!result || typeof result !== "object" || Array.isArray(result) || !("link" in result)) return { link: null, result };
+  const { link, ...rest } = result as { link?: unknown } & Record<string, unknown>;
+  const page = (ASSISTANT_TOOL_PAGE as Record<string, string | null>)[tool] ?? null;
+  const l = link as Partial<AssistantAnswerLink> | null | undefined;
+  const ok =
+    !!l &&
+    page !== null &&
+    l.surfaceKey === page &&
+    !!l.query &&
+    typeof l.query === "object" &&
+    Object.values(l.query).every((v) => typeof v === "string");
+  return { link: ok ? { surfaceKey: page!, query: { ...l!.query! } } : null, result: rest };
+}
+
 const RANK: Record<SectionAccess, number> = { none: 0, view: 1, manage: 2 };
 
 /**
