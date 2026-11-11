@@ -424,6 +424,30 @@
       "$type": "color",
       "$value": "oklch(74.1% 0.0751 239.8)"
     },
+    "map-industrial": {
+      "$type": "color",
+      "$value": "oklch(30.5% 0.0300 280.0)"
+    },
+    "map-medical": {
+      "$type": "color",
+      "$value": "oklch(31.0% 0.0350 10.0)"
+    },
+    "map-education": {
+      "$type": "color",
+      "$value": "oklch(31.5% 0.0300 75.0)"
+    },
+    "map-airport": {
+      "$type": "color",
+      "$value": "oklch(32.0% 0.0300 255.0)"
+    },
+    "map-runway": {
+      "$type": "color",
+      "$value": "oklch(40.0% 0.0250 255.0)"
+    },
+    "map-beach": {
+      "$type": "color",
+      "$value": "oklch(33.0% 0.0300 85.0)"
+    },
     "map-shield-interstate": {
       "$type": "color",
       "$value": "oklch(38.0% 0.1336 256.8)"

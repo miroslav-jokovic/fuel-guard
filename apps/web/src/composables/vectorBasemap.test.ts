@@ -3,6 +3,7 @@ import { TRUCK_PLACES_ZOOM, VECTOR_GLYPH_RANGE_FILE } from "@silvicom/shared";
 import {
   MAP_PALETTE_KEYS,
   FUEL_PLACE_CATEGORY,
+  LAND_DETAIL_KINDS,
   GLYPHS_PATH,
   TRUCK_PLACE_CATEGORIES,
   truckPlacesSourceId,
@@ -85,6 +86,31 @@ describe("the vector road map's layers", () => {
     const place = layers.find((l) => l.id === "here-4:place") as { filter: unknown; layout: { "symbol-sort-key": unknown } };
     expect(JSON.stringify(place.filter)).toMatch(/"!",\["in",\["get","pds_category"\],\["literal",\["700-7900-0132"/);
     expect(place.layout["symbol-sort-key"]).toEqual(["case", ["==", ["get", "pds_category"], FUEL_PLACE_CATEGORY], 0, 10]);
+  });
+
+  /** D-DR37: the land uses read off tiles on 2026-11-11, written out rather than derived. */
+  it("colours each measured land use its own way, over town and park and under water", () => {
+    expect([...LAND_DETAIL_KINDS].sort()).toEqual(["aerodrome", "beach", "hospital", "industrial", "military", "runway", "university"]);
+    const ids = layers.map((l) => l.id);
+    const at = (n: string) => ids.indexOf(`here-4:${n}`);
+    expect(at("landuse-detail")).toBeGreaterThan(at("park"));
+    expect(at("landuse-detail")).toBeLessThan(at("water"));
+    const detail = layers.find((l) => l.id === "here-4:landuse-detail") as { paint: { "fill-color": unknown[] }; layout: { "fill-sort-key": unknown } };
+    const fill = detail.paint["fill-color"];
+    const colourOf = (kind: string) => {
+      for (let i = 2; i < fill.length - 1; i += 2) {
+        const labels = fill[i];
+        if (labels === kind || (Array.isArray(labels) && labels.includes(kind))) return fill[i + 1];
+      }
+      return fill.at(-1);
+    };
+    for (const kind of LAND_DETAIL_KINDS) expect(colourOf(kind), kind).not.toBe(palette.urban);
+    expect(colourOf("runway")).toBe(palette.runway);
+    expect(colourOf("aerodrome")).toBe(palette.airport);
+    expect(colourOf("hospital")).toBe(palette.medical);
+    expect(detail.layout["fill-sort-key"]).toEqual(["case", ["==", ["get", "kind"], "runway"], 1, 0]);
+    const urban = JSON.stringify((layers.find((l) => l.id === "here-4:urban") as { filter: unknown }).filter);
+    expect(urban).not.toContain('"industrial"');
   });
 
   it("does not draw traffic lights and bus stops as places", () => {
