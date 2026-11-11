@@ -22,8 +22,8 @@
 import { onBeforeUnmount, onMounted, shallowRef, toValue, watch, type Ref } from "vue";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { HERE_MAX_TILE_ZOOM, HERE_MAX_VECTOR_ZOOM, TILE_CSS_PX, TILE_REQUEST } from "@silvicom/shared";
-import { GLYPHS_PATH, MAP_PALETTE_KEYS, isVectorTemplate, vectorBasemapLayers, type MapPalette } from "./vectorBasemap";
+import { HERE_MAX_TILE_ZOOM, HERE_MAX_VECTOR_ZOOM, TILE_CSS_PX, TRUCK_PLACES_ZOOM, TILE_REQUEST } from "@silvicom/shared";
+import { GLYPHS_PATH, MAP_PALETTE_KEYS, TRUCK_PLACES_TILES_TEMPLATE, isVectorTemplate, truckPlacesSourceId, vectorBasemapLayers, type MapPalette } from "./vectorBasemap";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -243,11 +243,27 @@ export function useMapLibre(options: UseMapLibreOptions): {
    * recognises as a placeholder, so every tile would be requested with the braces in it. Caught by
    * "adds one vector source and its layers under the trucks, then hides the raster once it has loaded".
    */
+  const absolute = (tiles: string) => (tiles.startsWith("/") ? `${window.location.origin}${tiles}` : tiles);
   const vectorSource = (tiles: string) => ({
     type: "vector" as const,
-    tiles: [tiles.startsWith("/") ? `${window.location.origin}${tiles}` : tiles],
+    tiles: [absolute(tiles)],
     maxzoom: HERE_MAX_VECTOR_ZOOM,
     attribution: options.attribution,
+  });
+  /**
+   * D-DR34: every vector basemap brings its truck-places source, keyed off its own source id. Both
+   * zoom bounds are `TRUCK_PLACES_ZOOM`, so maplibre asks for the advanced tile at that zoom alone and
+   * overzooms it beyond; the proxy refuses every other zoom, so the two cannot drift apart unseen.
+   */
+  const vectorSources = (tiles: string, id: string) => ({
+    [id]: vectorSource(tiles),
+    [truckPlacesSourceId(id)]: {
+      type: "vector" as const,
+      tiles: [absolute(TRUCK_PLACES_TILES_TEMPLATE)],
+      minzoom: TRUCK_PLACES_ZOOM,
+      maxzoom: TRUCK_PLACES_ZOOM,
+      attribution: options.attribution,
+    },
   });
 
   /** Both raster LAYERS are built here too, for the same reason as `rasterSource` (D-DR28). */
@@ -288,11 +304,9 @@ export function useMapLibre(options: UseMapLibreOptions): {
       transformRequest: attachAuth,
       style: {
         version: 8,
-        sources: {
-          [TILE_SOURCE]: isVectorTemplate(first)
-            ? vectorSource(first)
-            : { ...rasterSource(first), attribution: options.attribution },
-        },
+        sources: isVectorTemplate(first)
+          ? vectorSources(first, TILE_SOURCE)
+          : { [TILE_SOURCE]: { ...rasterSource(first), attribution: options.attribution } },
         layers: firstLayers as maplibregl.LayerSpecification[],
         // D-DR31: maplibre draws no text without glyphs. Declared up front because a style's glyph
         // URL cannot be added later, and the vector road map needs it the moment it is chosen.
@@ -345,7 +359,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
      * (Platform Terms §13.1). Found while adding the vector map, 2026-11-10.
      */
     if (isVectorTemplate(tiles)) {
-      instance.addSource(id, vectorSource(tiles));
+      for (const [sourceId, source] of Object.entries(vectorSources(tiles, id))) instance.addSource(sourceId, source);
     } else {
       instance.addSource(id, { ...rasterSource(tiles), attribution: options.attribution });
     }

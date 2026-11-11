@@ -6,6 +6,7 @@ import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { drainMetricsSections } from "../../../middleware/requestMetrics.js";
 
 /**
  * `GET /api/fueling/map-tiles/:z/:x/:y` — the basemap the proxy asks HERE for (D-DR8).
@@ -574,6 +575,30 @@ describe("the vector road map's tile and glyph routes", () => {
     const res = await get("vector/18/1/1");
     expect(res.status).toBe(400);
     expect(upstream).toHaveLength(0);
+  });
+
+  it("asks for truck places with HERE's advanced content, at the one zoom it is fetched at (D-DR34)", async () => {
+    stubUpstream();
+    const res = await get("truck-places/13/2091/3056?content=default,advanced_roads");
+    expect(res.status).toBe(200);
+    expect(upstream.at(-1)).toBe(
+      "https://vector.hereapi.com/v2/vectortiles/base/mc/13/2091/3056/omv?apikey=test-here-key&content=default,advanced_pois",
+    );
+  });
+
+  it("refuses truck places at any other zoom without asking HERE, so the dearer tile cannot multiply", async () => {
+    stubUpstream();
+    for (const z of [12, 14, 17]) expect((await get(`truck-places/${z}/1/1`)).status).toBe(400);
+    expect(upstream).toHaveLength(0);
+  });
+
+  it("counts the truck-place tiles it asks for on the metrics line, and no ordinary vector tile", async () => {
+    stubUpstream();
+    drainMetricsSections();
+    await get("truck-places/13/2091/3056");
+    await get("truck-places/13/2092/3056");
+    await get("vector/14/4201/6091");
+    expect(drainMetricsSections().hereTiles?.advancedTiles).toBe(2);
   });
 
   it("relays HERE's two style fonts and nothing else", async () => {

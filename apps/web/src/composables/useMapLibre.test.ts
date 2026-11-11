@@ -409,10 +409,14 @@ describe("useMapLibre shows the vector road map as one more basemap", () => {
     await nextTick();
 
     const vector = Object.entries(h.specs).filter(([, spec]) => spec.type === "vector");
-    expect(vector).toHaveLength(1);
-    const [id, spec] = vector[0]!;
+    // D-DR34: the road map's source, and its truck-places source beside it.
+    expect(vector).toHaveLength(2);
+    const [id, spec] = vector.find(([sid]) => !sid.endsWith(":truck-places"))!;
     expect(spec).toMatchObject({ maxzoom: 17, attribution: "© HERE" });
     expect(spec.tiles[0]).toMatch(/^https?:\/\/[^/]+\/api\/fueling\/map-tiles\/vector\/\{z\}/);
+    // Fetched at the one zoom the proxy serves it at, and only there (TRUCK_PLACES_ZOOM).
+    expect(h.specs[`${id}:truck-places`]).toMatchObject({ type: "vector", minzoom: 13, maxzoom: 13, attribution: "© HERE" });
+    expect(h.specs[`${id}:truck-places`]!.tiles[0]).toMatch(/^https?:\/\/[^/]+\/api\/fueling\/map-tiles\/truck-places\/\{z\}/);
     const ids = h.layers.map((l) => l.id);
     const group = ids.filter((l) => l.startsWith(`${id}:`));
     expect(group.length).toBeGreaterThan(10);
@@ -437,7 +441,8 @@ describe("useMapLibre shows the vector road map as one more basemap", () => {
     await nextTick();
     tiles.value = VECTOR;
     await nextTick();
-    expect(Object.keys(h.specs)).toHaveLength(3);
+    // Day, satellite, and the vector map with its truck-places source (D-DR34).
+    expect(Object.keys(h.specs)).toHaveLength(4);
     for (const spec of Object.values(h.specs)) expect(spec.attribution).toBe("© HERE");
     wrapper.unmount();
     vi.doUnmock("maplibre-gl");
