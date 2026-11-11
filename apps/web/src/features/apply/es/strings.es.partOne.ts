@@ -92,7 +92,15 @@ export const APPLY_PART_ONE_COPY_ES = {
       missingState: "Elija el estado o la provincia que la emitió.",
       missingNumber: "Escriba el número de la licencia.",
       answerFirst: "Responda Sí o No.",
-      entry: (state: string, number: string): string => `${state} · ${number}`,
+      kind: "Tipo de licencia",
+      kindOptions: {
+        cdl: "Licencia de conducir comercial (CDL)",
+        clp: "Permiso de aprendiz comercial (CLP)",
+        non_cdl: "Licencia de conducir regular (no es CDL)",
+        other: "Otra (una licencia de otro país, una identificación estatal)",
+      },
+      missingKind: "Elija el tipo de licencia.",
+      entry: (state: string, number: string, kind: string): string => [state, number, kind].filter(Boolean).join(" · "),
     },
     screening: {
       heading: "Preguntas sobre pruebas de drogas y alcohol",

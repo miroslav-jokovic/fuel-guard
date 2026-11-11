@@ -4,6 +4,7 @@ import {
   CDL_CLASSES,
   DONOR_GENDERS,
   ENDORSEMENT_CODES,
+  LICENCE_KINDS,
   EQUIPMENT_CLASSES,
   carrierQuestionnaire,
   composeFiledApplication,
@@ -138,6 +139,8 @@ export const CHOICES = (): Readonly<Record<string, readonly FactChoice[]>> => ({
   equipment_class: EQUIPMENT_CLASSES.map((c) => ({ value: c, label: c })),
   donor_gender: DONOR_GENDERS.map((g) => ({ value: g, label: APPLY_COPY.partOne.screening.genderOptions[g] })),
   cdl_endorsements: ENDORSEMENT_CODES.map((c) => ({ value: c, label: APPLY_COPY.partOne.licence.endorsementLabels[c] })),
+  // P3: an other licence's type (`additional_licences[].kind`), in the words its screen asks it with.
+  kind: LICENCE_KINDS.map((k) => ({ value: k, label: APPLY_COPY.partOne.otherLicences.kindOptions[k] })),
 });
 
 /**

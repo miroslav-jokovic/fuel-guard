@@ -66,13 +66,14 @@ const CURRENT_CDL: ReadonlyArray<readonly ["state_code" | "licence_number" | "ex
 type LicenceLike = Pick<PartOneLicence, "state_code" | "licence_number"> & {
   agency?: string | null;
   expires_on?: string | null;
+  kind?: string | null;
 };
 
 /** An other licence as the application files it — `composeFiledApplication`'s `additional_licences` row. */
 const asFiledLicence = (l: LicenceLike | undefined) =>
   l === undefined
     ? null
-    : { issuing_authority: norm(l.agency) ?? l.state_code, number: l.licence_number, expires_at: norm(l.expires_on) };
+    : { issuing_authority: norm(l.agency) ?? l.state_code, number: l.licence_number, expires_at: norm(l.expires_on), kind: norm(l.kind) };
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
@@ -133,6 +134,8 @@ export interface OtherLicenceRow {
   issuing_authority: string;
   number: string;
   expires_at: string;
+  /** P3: `LICENCE_KINDS`; the card's adder asks it as the driver's screen does. */
+  kind?: string | null;
 }
 
 /**
@@ -151,7 +154,7 @@ export function partOneLicencesWith(
   if (!body) return null;
   const licences = [...(body.licences as Array<Record<string, unknown>>)];
   if ("add" in change) {
-    licences.push({ state_code: change.add.issuing_authority, agency: null, licence_number: change.add.number, expires_on: change.add.expires_at || null });
+    licences.push({ state_code: change.add.issuing_authority, agency: null, licence_number: change.add.number, expires_on: change.add.expires_at || null, kind: change.add.kind || null });
   } else {
     if (!licences[change.remove + 1]) return null;
     licences.splice(change.remove + 1, 1);
@@ -195,7 +198,7 @@ export function partOneCorrectionWith(
   const { intake } = view;
   const licences = [...view.licences]
     .sort((a, b) => a.position - b.position)
-    .map((l) => ({ state_code: l.state_code, agency: l.agency, licence_number: l.licence_number, expires_on: l.expires_on }));
+    .map((l) => ({ state_code: l.state_code, agency: l.agency, licence_number: l.licence_number, expires_on: l.expires_on, kind: l.kind ?? null }));
   const body: Record<string, unknown> = {
     phone: intake.phone, address_line1: intake.address_line1, address_line2: intake.address_line2,
     city: intake.city, state: intake.state, postal_code: intake.postal_code, cdl_class: intake.cdl_class, licences,
@@ -223,6 +226,7 @@ export function partOneCorrectionWith(
     if (column === "issuing_authority") licences[k] = { ...now, state_code: value ?? "", agency: null };
     else if (column === "number") licences[k] = { ...now, licence_number: value ?? "" };
     else if (column === "expires_at") licences[k] = { ...now, expires_on: value };
+    else if (column === "kind") licences[k] = { ...now, kind: value };
     else return null;
     return body;
   }

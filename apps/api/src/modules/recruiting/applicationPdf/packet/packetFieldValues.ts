@@ -1,5 +1,5 @@
 import { packetPageWithdrawn, packetWithdrawal, type EquipmentClass } from "@silvicom/shared";
-import { PACKET_ROW_OF, addressCells, blank, date, foldedType, fullName, licenceType, yesNo } from "./packetDraw.js";
+import { PACKET_ROW_OF, addressCells, blank, date, foldedType, fullName, licenceKindWords, licenceType, yesNo } from "./packetDraw.js";
 import { P1, P2, P12 } from "./packetText.js";
 import { answer, bool, page16, push } from "./packetFieldQuestionnaire.js";
 import {
@@ -156,7 +156,7 @@ function page2(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
       ...(a.additional_licences ?? []).map((l) => [
         blank(l.issuing_authority),
         blank(l.number),
-        blank(l.kind),
+        licenceKindWords(l.kind),
         date(l.expires_at),
       ]),
     ],

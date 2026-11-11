@@ -154,6 +154,7 @@ export async function recordIntake(
           agency: l.agency ?? null,
           licence_number: l.licence_number,
           expires_on: l.expires_on ?? null,
+          kind: l.kind ?? null,
           source: "intake",
         }))
       : null,
@@ -276,7 +277,7 @@ export async function partOneForFiling(
   };
   const { data: licences } = await admin
     .from("application_intake_licences")
-    .select("position, state_code, agency, licence_number, expires_on")
+    .select("position, state_code, agency, licence_number, expires_on, kind")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .order("position", { ascending: true });

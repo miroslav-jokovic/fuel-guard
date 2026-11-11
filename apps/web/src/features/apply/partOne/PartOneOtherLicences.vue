@@ -6,8 +6,9 @@ import {
   AppCombobox as ComboSelect,
   AppFormField as FormField,
   AppInput as BaseInput,
+  AppRadioGroup,
 } from "@silvicom/ui";
-import { jurisdictionName, jurisdictionOptions } from "@silvicom/shared";
+import { LICENCE_KINDS, jurisdictionName, jurisdictionOptions } from "@silvicom/shared";
 import YesNoField from "@/features/apply/YesNoField.vue";
 import { validateOtherLicence, type OtherLicence, type PartOneAnswers, type ScreenErrors } from "./partOneScreens";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -20,13 +21,18 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * The entry being typed lives here until "Add this licence" checks it (state, number and expiry date
  * required — Q-AW35 (a) — a duplicate refused in words before 0376's unique index could answer 23505);
  * only then does it join the answers `usePartOne` posts.
+ *
+ * P3 (F2c part 2): each licence's TYPE, as the paper's licence grid asks it (STATE | LICENSE NO. | TYPE
+ * | EXPIRATION DATE), between the number and the date in the paper's own order. Four answers
+ * (`LICENCE_KINDS`), so every packet prints the same words whatever language this page was read in.
  */
 defineProps<{ errors: ScreenErrors }>();
 const answers = defineModel<PartOneAnswers>("answers", { required: true });
 const copy = APPLY_COPY.partOne.otherLicences;
 const JURISDICTIONS = jurisdictionOptions();
+const KIND_OPTIONS = LICENCE_KINDS.map((k) => ({ value: k, label: copy.kindOptions[k] }));
 
-const blankEntry = (): OtherLicence => ({ state_code: "", agency: "", licence_number: "", expires_on: "" });
+const blankEntry = (): OtherLicence => ({ state_code: "", agency: "", licence_number: "", expires_on: "", kind: "" });
 const entry = reactive(blankEntry());
 const adding = ref(false);
 const entryErrors = ref<ScreenErrors>({});
@@ -63,7 +69,7 @@ function cancel(): void {
             :key="`${l.state_code}-${l.licence_number}`"
             class="flex items-center justify-between gap-3 rounded-surface bg-surface-muted p-3"
           >
-            <span class="text-sm text-ink">{{ copy.entry(jurisdictionName(l.state_code) ?? l.state_code, l.licence_number) }}</span>
+            <span class="text-sm text-ink">{{ copy.entry(jurisdictionName(l.state_code) ?? l.state_code, l.licence_number, l.kind ? copy.kindOptions[l.kind] : "") }}</span>
             <BaseButton variant="ghost" @click="remove(i)">{{ copy.remove }}</BaseButton>
           </li>
         </ul>
@@ -79,6 +85,10 @@ function cancel(): void {
         <FormField id="p1-other-number" :label="copy.number" :error="entryErrors.licence_number">
           <template #default="f"><BaseInput v-bind="f" v-model="entry.licence_number" autocomplete="off" /></template>
         </FormField>
+        <div>
+          <AppRadioGroup v-model="entry.kind" :legend="copy.kind" :options="KIND_OPTIONS" />
+          <p v-if="entryErrors.kind" class="mt-1 text-sm text-danger-700" role="alert">{{ entryErrors.kind }}</p>
+        </div>
         <FormField id="p1-other-expires" :label="copy.expiresOn" :hint="copy.expiresOnHint" :error="entryErrors.expires_on">
           <template #default="f"><ApplyDate v-bind="f" v-model="entry.expires_on" kind="any" /></template>
         </FormField>

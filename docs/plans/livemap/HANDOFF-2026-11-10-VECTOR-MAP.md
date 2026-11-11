@@ -193,3 +193,180 @@ The per-person tile counts are scenarios, not measurements.
 The local h2 A/B rig (a stand-in proxy plus a bare maplibre page) lived in a session scratchpad and is
 gone. It is rebuilt from its description in D-DR28 and D-DR30 when needed, and it is a tool for choosing
 between options, never for accepting one (section 2).
+
+Added since: `staging-map-views.mjs`, `staging-truck-places.mjs`, `truck-places-advanced.mjs`,
+`staging-map-frames.mjs` (prints the WebGL renderer; run with `GPU=1`), `staging-map-freeze-profile.mjs`.
+
+## 10. Revision 2026-11-11 (evening): the remaining work re-read against the code
+
+Polish items 1–7 of section 5 are done and on staging (D-DR34–D-DR38). Before the owner's gate, the
+list of what is left was read against the code on `main` and against what 40–50 dispatchers at once
+would do to it. Three things changed: the two speed items turned out to be one bug that production has
+today; two of the proposed fixes were the wrong lever; and ten gaps had no home. This section replaces
+sections 5–8 as the working list. Nothing here is built.
+
+### 10.1 The finding: the truck layer is rewritten sixty times a second, and the vector map pays for it
+
+`LiveMapCanvas.vue`'s `step()` calls `setData` with the whole truck collection on EVERY animation
+frame while any tween is unsettled. `tweensSettled` needs every truck to have either finished its
+tween or be standing still, and tweens last 6.5–15 s (D-LM8a/b) against a 5 s poll. With 236 trucks
+some truck is always moving in working hours, so the loop never stops. That is as designed for the
+glide; what was not seen is what maplibre does with each write.
+
+Verified in maplibre-gl 5.24.0's `_updatePlacement` (the installed copy): on every render it adds
+EVERY symbol layer to the cross-tile index, and a layer whose buckets changed marks the placement
+stale, after which the placement pass walks every symbol layer in the style. The truck layer has
+`icon-ignore-placement`, so trucks never collide with anything, but a fresh truck bucket still makes
+the whole pass run again. On today's raster map there is one symbol layer and the pass is cheap. On
+the vector map there are six (places, road names, shields, POIs, truck places, cities), so each
+sixty-a-second write re-places thousands of labels. That is the "main thread placing labels" in the
+freeze profile, and it is why the vector map's extra cost looked structural: every measurement so far
+ran with this loop under it. The D-DR31 claim that "no labels at all still gave 13–52 stutters" was a
+software-rendering figure (PR #2262) and is withdrawn.
+
+How much of the redraw is wasted, by zoom. A truck at 65 mph covers 29 m a second, 0.48 m a frame:
+
+| Zoom | Metres per CSS pixel near Chicago | Frames before the truck has moved one pixel |
+|---|---|---|
+| 7 (regional) | ~920 | ~1 900 (about 32 s) |
+| 10 | ~115 | ~240 (4 s) |
+| 14 | ~7 | ~15 (0.25 s) |
+| 17 | ~0.9 | ~2 |
+
+At the zooms a dispatcher watches the fleet from, no dot moves a pixel for half a minute, and the
+source is rewritten 1 900 times in that half minute.
+
+### 10.2 The fix, and the two levers NOT to pull
+
+**M1 — redraw only when a dot has moved a pixel (proposed as D-DR39, both maps, a production PR).**
+Keep the frame loop and the glide. Each frame still samples the tweens and still moves the popover
+(that is DOM work and cheap). `setData` runs only when some truck's sampled position differs from the
+last DRAWN position by at least one CSS pixel at the current zoom, or its heading by more than a
+threshold to be chosen from the icon's size, with a ceiling of about 15 writes a second at street
+zoom. Projecting 236 points a frame is cheap; cheaper still is one metres-per-pixel number for the
+current zoom and latitude, compared against lat/lng deltas. A camera move needs no write: the
+coordinates have not changed and maplibre re-projects on its own.
+
+Expected: at zoom ≤ 10 the write count falls from 60 a second to about 0; the vector map's placement
+then runs only when tiles arrive or the camera moves, which is what it was built for. Accept: a write
+counter added to `tools/staging-map-frames.mjs` shows the writes a second at zoom 7 and 14, as ranges
+over 5 alternating runs with `GPU=1`, and the longest frame of BOTH maps is re-measured the same way.
+Pin with a unit test ("a fleet moving under a pixel at zoom 7 produces no source write in a second of
+frames"), proven by breaking the gate.
+
+- ⚠ **Do not shorten the tweens** ("let the glide end between position updates"). D-LM8a made them
+  outlast the poll on purpose; before that, the map froze four times every 30 s. The animation-off
+  run of 2026-11-11 is the CEILING of the gain, not the fix.
+- ⚠ **`updateData` is the wrong lever.** 236 features is a small payload; parsing is not the cost.
+  The cost is the frequency of the write, and a diff write at 60 Hz triggers the same placement.
+- The section 5 settings list (A3 in the chat summary) is tuning, not a plan item: fold
+  `maxTileCacheSize` and `fadeDuration` into M1's rig as parameters. `cancelPendingTileRequestsWhileZooming`
+  is already `true` by default in 5.24 (read from the installed source), so it is not a change at all.
+
+The comparison the owner judges (section 1, step 2) is made AFTER M1, on both maps. Until then the
+office PC would be judging the bug.
+
+### 10.3 Capacity for 40–50 dispatchers at once, from the numbers already measured
+
+The transport side was sized in `LIVE-MAP-CONCURRENCY-PLAN.md` and is already built: one board per
+org per 2.5 s (C3), gzip on every JSON route (C2, the Caddyfile deliberately adds none), the API's
+own rate budget per caller (C1). 50 dispatchers polling every 5 s is 10 requests a second against at
+most 0.4 database reads a second, and about 5.7 KB a poll, about 40 GB a month of egress, about $4.
+Not built: the ETag/304 (C4), which only saves bytes on a parked fleet. The poll path is not the risk.
+
+The tile path is. Production runs **two API replicas** (`infra/server/production.env`
+`API_REPLICAS=2`; staging runs one), so the pacer's 2 × 80 = 160 tiles a second fleet-wide, plus
+2 × 100 burst, holds as designed. A cold start, every dispatcher opening the map in the same second,
+against a 20 s maximum wait:
+
+| | Tiles for 50 first views | Drain at 160/s after the burst | On ONE replica (80/s) |
+|---|---|---|---|
+| Today's raster map (~60 tiles a view, from the pacer's own sizing) | ~3 000 | ~17 s — inside the 20 s wait, barely | ~35 s — roughly 2 in 5 tiles answered 503 "busy" |
+| Vector map (38% of the requests, measured on staging) | ~1 150 | ~6 s | ~12 s |
+
+So the vector map is the only one of the two that survives a 50-seat cold start with one replica
+down, without a HERE 429 and without the pacer's "busy". Server CPU is not a constraint either way:
+3 000 tiles at the measured 1.6 ms is 4.8 s of CPU on 2 vCPU. After the first view the browser holds
+tiles a day (`max-age=86400`, HERE's own header), so a dispatcher who keeps the tab open costs only
+what they pan and zoom. Steady-state tile cost is therefore behaviour, which is what the month's
+HERE count (section 8) measures and nothing else can.
+
+The bill at published prices is section 8's table: $10–127 a month for the vector map against
+$49–524 for raster, before the truck-places tiles at $0.239 per 1 000 at zoom 13 only. ⚠ Assumed,
+not read: that HERE bills `content=default,advanced_pois` as ONE advanced tile and not as a default
+tile plus an advanced one. The console count settles it.
+
+### 10.4 Gaps that had no home, now with one
+
+1. **The escape hatch resets on every page load.** The basemap choice is deliberately not remembered
+   (`LiveMapWorkspace.vue`, the D-DR6 note). A dispatcher who needs "Map (classic)" would pick it
+   every morning for two weeks, and whether anybody used it cannot be read from preferences. Q-DR36.
+   Candidate measure without new telemetry: raster against vector tile route counts in the
+   `[metrics]` line, which needs the owner's AWS access.
+2. **The office-PC check has no protocol and returns no number.** Write one page for the owner (open
+   Dispatch, the 7-in 4-out zoom sequence, a pan, a basemap switch, the night scheme) and add a
+   long-frame counter to the trial's basemap menu from a `longtask` observer, so the ruling comes
+   back as a count per map, not a feeling. Also open `chrome://gpu` on that PC: "no real PC sits at
+   the software floor" is an assumption, and a blocklisted driver puts a PC exactly there.
+3. **Glyphs are HERE's Fira GO from a keyless endpoint, with no caching header (Q-DR33) and no terms
+   read.** Follow-up C9 would set OUR unit numbers in that font. Self-hosting the glyph files of a
+   font whose licence allows it (Fira GO is believed to be under the SIL Open Font License; read the
+   licence file, not the belief) answers Q-DR33, the terms question and C9's dependency in one small
+   PR, served with our own cache headers from our origin. **M2.**
+4. **C9 re-enters collision.** Text labels DO take part in placement, so unit numbers raise the
+   cost M1 removes. C9 comes after M1 and gets its own re-measure with labels on.
+5. **No fallback when the vector style fails.** A glyph or tile 502, or a lost WebGL context, leaves
+   a dispatcher with no map and, per gap 1, no remembered way back. Falling back to the raster
+   basemap for the session on a style `error` event is cheap. Part of **M3** with gaps 1 and 2.
+6. **The shared HERE key.** The owner's staging check spends production's rate limit (Q-DR31), so the
+   separate staging key is wanted BEFORE the office-PC check, or the check runs outside the busy hours.
+7. **Truck repair shops via HERE Browse (Q-DR34 (b)) likely conflicts with Platform Terms §6.4(l)**,
+   which forbids scaling one request to many end users, so a shared server cache is out and per-user
+   caching against 5 000 free searches a month across 40 seats is thin. The carrier's own repair
+   vendors are first-party data with no HERE terms at all; that is the candidate to propose.
+8. **Section 9's tool list was stale** (four scripts listed, eight exist). Corrected above.
+9. **The cost case is scenarios until the HERE console count lands** (section 8). It shares its
+   blocker, the owner's AWS and HERE access, with the pacing retune.
+10. **The strategic alternative was never priced: self-hosted vector tiles.** Q-DR35, below. Not
+    recommended before the owner's gate, because the HERE vector map is 2–3 small PRs from decided and
+    the alternative has two unread documents in front of it.
+
+### 10.5 Q-DR35 — self-hosted OpenStreetMap tiles: the cheapest shape, and what blocks it
+
+For "cheapest to run for 50 seats with no vendor limit", the shape is a single PMTiles archive of
+OpenStreetMap (a Protomaps basemap build, or our own Planetiler run) cut to North America, served as
+a static file by Caddy or S3 with HTTP range requests, drawn by the same maplibre with the same
+`--map-*` style tokens. There is no per-tile API call, no key to protect, no pacer, no 429, and
+nothing for the Node API to do. Rough size and cost, TO BE MEASURED and not to be quoted as fact: a
+North America extract in the tens of gigabytes; S3 storage well under a dollar a month; egress at the
+measured 6–11 MB per zoom walk, about 20 GB a month for 50 seats, about $2; a monthly rebuild job.
+Call it $3–5 a month against $10–127. The client cost is the same vector map M1 fixes.
+
+Two documents stand in front of it, and both are reads, not builds:
+
+- **HERE's terms on mixing.** The route line and ETAs come from HERE Routing
+  (`TRUCK-CARD-ROUTE-PLAN.md`), and section 1 already notes HERE's terms limit HERE data on
+  others' maps. The exact clause has not been quoted. If HERE routes may not be drawn on an OSM
+  basemap, the option carries self-hosted routing with it (Valhalla with truck costing, its own
+  memory footprint, likely a second instance), and the saving shrinks to a question.
+- **OSM's truck places.** `amenity=fuel` with `brand`, `amenity=parking` with `hgv=*`,
+  `shop=truck_repair`: run the SAME 40 HERE Browse places through OSM the way
+  `vector-poi-match.mjs` ran them through HERE's tiles, and count. HERE's advanced tile named 17
+  truck stops and 19 truck parking lots in 24 zoom-13 tiles; the number to beat is that one.
+
+Recommendation: finish the HERE vector decision first (M1 → M3, then the owner's gate). Open Q-DR35
+as a measured spike only if the owner wants the per-tile bill and the vendor rate limit gone
+entirely, and only after the two reads above.
+
+### 10.6 The list, in order
+
+1. **M1** — redraw gate (10.2), production PR, both maps, with the write counter and the re-measure.
+2. **M2** — self-hosted glyphs (gap 3), licence read first.
+3. **M3** — trial hardening: remember the basemap choice for the window (Q-DR36), fall back to
+   raster on a style error, long-frame counter in the trial menu, the one-page office-PC protocol.
+4. **Owner** — separate HERE keys (Q-DR31) and usage alerts; the month's tile count; the road
+   density stills of section 5 item 5; then the office-PC check with the protocol; then the ruling
+   (default with "Map (classic)" for two weeks, or drop).
+5. **If the switch** — section 7 as written, with C9 after its own re-measure, and the pacing retune
+   from a week of `[metrics]` once AWS access is in hand. Q-DR4 and D-DR27 close.
+6. **Q-DR35** — only on the owner's ask, after its two reads.
