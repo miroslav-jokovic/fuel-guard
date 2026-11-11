@@ -7,6 +7,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
     "items": [
       "Dashboard → /",
       "Ask AI → /ask",
+      "Notes → /notes",
     ],
   },
   {
@@ -234,6 +235,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
       "Dashboard → /",
       "Ask AI → /ask",
       "Chat → /chat",
+      "Notes → /notes",
     ],
   },
   {
@@ -318,6 +320,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
     "items": [
       "Dashboard → /",
       "Ask AI → /ask",
+      "Notes → /notes",
     ],
   },
   {
@@ -399,6 +402,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
     "items": [
       "Dashboard → /",
       "Ask AI → /ask",
+      "Notes → /notes",
     ],
   },
   {
@@ -694,6 +698,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
       "Dashboard → /",
       "Ask AI → /ask",
       "Chat → /chat",
+      "Notes → /notes",
     ],
   },
   {

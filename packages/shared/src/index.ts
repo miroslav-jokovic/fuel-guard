@@ -256,6 +256,7 @@ export * from "./efsAccountContract.js";
 export * from "./returnToDuty.js";
 export * from "./applicantDisposition.js";
 export * from "./applicantNotesContract.js";
+export * from "./unitNotesContract.js";
 export * from "./employmentGapContract.js";
 export * from "./orientationVideosContract.js";
 export * from "./applicantStatusContract.js";

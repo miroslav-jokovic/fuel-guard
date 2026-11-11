@@ -1,7 +1,8 @@
 # Unit notes — notes on drivers, trucks and trailers · 2026-11-11
 
-**Status: PLANNED 2026-11-11; v2 the same day after the owner's second round of rulings (§3: no
-removal for now, no hire line, notes are office-wide and refresh by themselves). Nothing built.**
+**Status: BUILDING since 2026-11-11. v2 the same day after the owner's second round of rulings (§3: no
+removal for now, no hire line, notes are office-wide and refresh by themselves); UN0 built the same
+day (contract frozen; the `notes` surface ships dark, D-UN14). Progress: [`progress/`](progress/README.md).**
 This document is both the plan (what and why) and the build workflow (which chat builds what, in
 which files, in what order, and how each step proves it is done). It is written so that several
 chats can build at once under one orchestrator chat (§7).
@@ -143,6 +144,21 @@ It is the wall: every note of the carrier, newest first, each naming its unit, w
 and filters (unit kind, author, date range) and the same refresh. A row opens that unit's drawer in
 place. This is where billing and safety read what dispatch wrote without needing the fleet tables.
 
+
+**D-UN14: the `notes` surface ships dark and UN9 turns it on (orchestrator, 2026-11-11, at UN0).**
+Measured at UN0, §6 could not run in the order first written: `requireSurface` throws at load on a
+key the catalogue lacks (`middleware/requireSurface.ts`), so UN2's routes need the `notes` line
+before they can even be tested; and `lint:surfaces` refuses a catalogue line whose path is not a
+declared route or that has no sidebar icon (`scripts/check-surfaces.mjs`). The line, the `/notes`
+route and its icon therefore land together in UN0, before the page exists. Two choices make that
+honest rather than a dead link: the surface carries `startsOnFor: []`, so only admins see it (and
+the Notes columns, which follow the same surface) while it is built — Q-SET2's own mechanism, with
+an admin able to switch roles on for a staging walk on the Permissions page; and the route shows
+`PlaceholderPage.vue`, its comment labelled as the workaround it is, until UN8 points it at
+`NotesPage.vue`. UN9 removes `startsOnFor`, which makes the line chat's exact shape (D-UN4, M5b).
+Rejected: gating the API on a hand-written role check (a second source of truth for D-UN4), and
+merging the API and the page in one PR (breaks the tracks apart).
+
 ---
 
 ## 4. Shape
@@ -195,8 +211,12 @@ Guards and functions (error codes `UN0xx`):
 (with `subjectLabel` and `mentions`),
 `UnitNoteSummary`, `UnitNoteSearchHit` (adds `subjectLabel`, `fuzzy`), `UnitNotePerson`,
 `parseNotesParam` / `formatNotesParam` for the URL, and `orderUnitNotes` (pinned first, then newest).
-The `<@uuid>` token rule is not written twice: UN0 reads where chat keeps its parser (shared or
-`features/chat/mentionDraft.ts`) and, if it is web-only, moves the pure part into shared for both.
+The `<@uuid>` token rule is not written twice. Measured at UN0: chat's parser is already in shared
+(`chatMentionIds`, `chatBodyParts`, `chatBodyText`, `chatMentionToken` in `chatContract.ts`), so the
+contract names it and adds nothing. UN0 also froze what §4.2 had left implicit: `UNIT_NOTE_KIND_LABELS`,
+`UNIT_NOTE_MAX_SUBJECTS` (8), `UNIT_NOTE_PAGE_LIMIT` (50), `UNIT_NOTE_SUMMARY_REFRESH_MS` (60 s),
+`UNIT_NOTE_AUDIENCE_LINE` (Q-UN3's words), the keyset cursor (`<created_at>~<id>`), the response
+types, and `unitNoteSummaryQuerySchema`. Fields are camelCase; the API maps the row.
 
 ### 4.3 API — `/api/notes` (roster module)
 
@@ -228,7 +248,7 @@ from there (M10).
 
 | ID | Item | Who | Blocks | If not cleared |
 |---|---|---|---|---|
-| B1 | Another chat has unfinished work on chat's composer (`claude/chat-ch7-files`, handoff 2026-11-01). UN4 moves files that branch edits | orchestrator checks the branch state before UN4 starts | UN4 | UN4 waits for that branch to merge, or rebases it; never a copy of the mention code |
+| B1 | ~~Another chat has unfinished work on chat's composer (`claude/chat-ch7-files`, handoff 2026-11-01). UN4 moves files that branch edits~~ **Cleared 2026-11-11 at UN0:** the branch merged as #1906 on 2026-11-02 with no commit left outside `main`, and no open PR touches `features/chat/` | orchestrator | — | — |
 
 **Q-UN1.** 360 drivers have a McLeod text note within 7 days of hire; their content was not read.
 Import those as read-only "From McLeod" notes? (a) No, D-UN9 stands — **recommended**; (b) the
@@ -250,7 +270,7 @@ Each step is one PR to `main` from its own worktree and branch. "Done when" is t
 
 | Step | Track | What | Depends on | Done when |
 |---|---|---|---|---|
-| **UN0** | O | This plan; `unitNotesContract.ts` + its unit tests; the `notes` surface line; progress folder | — | Contract merged; tracks may start |
+| **UN0** | O | This plan; `unitNotesContract.ts` + its unit tests; the `notes` surface line (dark), its `/notes` route on the placeholder and its icon (D-UN14); progress folder | — | Contract merged; tracks may start |
 | **UN1** | A — database | §4.1 whole; matrix `supabase/tests/unit-notes.test.mjs`; merge list; registries | UN0 | Matrix prints `RESULT`; each guard proved by a mutation (drop the guard → red); `verify:live staging` shows the migration |
 | **UN2** | B — API | §4.3 except mentions ringing; `modules/roster/notes/` | UN0 (builds on recorder fixtures); merges after UN1 | Route tests incl. org scope and driver-role 403 by code; curl on staging answers 401 unauthenticated |
 | **UN3** | B — API | Mentions: `/people`, `notify()` with dedupe key, no self-notify | UN2 | Tests for each |
@@ -258,8 +278,8 @@ Each step is one PR to `main` from its own worktree and branch. "Done when" is t
 | **UN5** | C — web core | `components/notes/` whole against a mock API (raw JSON), incl. pin and the D-UN10 refresh; Notes column + drawer on Vehicles, Trailers, Drivers; Notes button on the three detail pages | UN0 (mock); merges after UN2 | Component tests; browser pass at 1440 and 390 with data / empty / failed fixtures |
 | **UN6** | D — dispatch | Notes column on the board; merged drawer with unit chips; summary for three kinds in one call | UN5's components merged | Board tests; browser pass |
 | **UN7** | E — mentions (web) | Composer typeahead in `NoteComposer`; name chips in `NoteRow`; bell route for `unit_note_mention` opens the drawer on the note | UN3, UN4, UN5 | Tests; staging walk: mention → bell → drawer on that note |
-| **UN8** | C — web core | The Notes page (D-UN13): route, sidebar entry, wall with search and filters, row opens the drawer | UN5 | Tests incl. route table and sidebar; staging walk as an accountant-shaped member: sees the page, reads a dispatcher's note |
-| **UN9** | O | Staging walk of the whole feature with the role-scoped test members; release note; owner approves the release | all | Walk recorded in the progress folder |
+| **UN8** | C — web core | The Notes page (D-UN13): the `/notes` route's component becomes `NotesPage.vue` (route, icon and sidebar entry already exist, D-UN14), wall with search and filters, row opens the drawer | UN5 | Tests incl. route table and sidebar; staging walk as an accountant-shaped member: sees the page, reads a dispatcher's note |
+| **UN9** | O | Remove the `notes` surface's `startsOnFor: []` (D-UN14); staging walk of the whole feature with the role-scoped test members; release note; owner approves the release | all | Walk recorded in the progress folder |
 
 Order of merges: UN0 → UN1 → UN2 → (UN3 ‖ UN5 ‖ UN4) → (UN6 ‖ UN7 ‖ UN8) → UN9.
 Tracks A, B, C and E start together the moment UN0 merges; D starts when UN5 is open for review.
@@ -305,10 +325,10 @@ keeps the order, the contract and the merges.
 
 | Track | Chat | Owns |
 |---|---|---|
-| O | orchestrator | this plan, `packages/shared/src/unitNotesContract.ts` (+ test, + its `index.ts` export line), the `notes` line in `surfaceCatalogue.ts`, `docs/plans/notes/progress/README.md` |
+| O | orchestrator | this plan, `packages/shared/src/unitNotesContract.ts` (+ test, + its `index.ts` export line), the `notes` line in `surfaceCatalogue.ts`, the `notes` icon line in `lib/navIcons.ts`, `docs/plans/notes/progress/README.md` |
 | A | database | the migration, `supabase/tests/unit-notes.test.mjs`, `schema.generated.sql`, `scripts/table-*.json`, `supabase/tests/lib/tenantIsolation.mjs`, `modules/roster/mergeDriver.ts`, the `unit_note_mention` lines of `notificationsContract.ts` |
 | B | API | `apps/api/src/modules/roster/notes/**`, roster's mount file, the boundary edge line if U3 says so |
-| C | web core | `apps/web/src/components/notes/**`, the Notes column and button lines in `VehiclesPage.vue`, `TrailersPage.vue`, `features/roster/driverRosterColumns.ts`, `DriversPage.vue`, the three detail pages, `pages/NotesPage.vue` with its route and sidebar lines |
+| C | web core | `apps/web/src/components/notes/**`, the Notes column and button lines in `VehiclesPage.vue`, `TrailersPage.vue`, `features/roster/driverRosterColumns.ts`, `DriversPage.vue`, the three detail pages, `pages/NotesPage.vue`, and the `/notes` route entry in `router/routes/core.ts` with its line in `routeTable.test.ts` and the snapshot (made by O in UN0, C's from UN0's merge). Every Notes column and button shows only when the viewer holds the `notes` surface (D-UN14) |
 | D | dispatch | `apps/web/src/features/dispatch/**` (the Notes column and its drawer wiring only) |
 | E | mentions (web) | `apps/web/src/components/mentions/**`, the import lines in `features/chat/**`, `NoteComposer.vue`'s mention wiring and `NoteRow.vue`'s chips (handed over by C once UN5 merges), `lib/notificationRoute.ts` |
 
