@@ -436,6 +436,15 @@ Cropping to a fixed band at build time would have to be redone at every breakpoi
   its rate limit for 10–30 seconds. Separate keys also give separate usage reports and alerts.
   Recommendation: do it before any further load test.
 
+- **Q-DR34 — truck places are thin in HERE's vector data. How do we name them?** Measured 2026-11-10
+  (`docs/plans/livemap/HANDOFF-2026-11-10-VECTOR-MAP.md` §4). The vector tiles never carry the
+  Browse truck codes. Pilots are `kind=parking` 800-8500-0178 from min_zoom 17, Love's is a
+  convenience store from 18, 1 of 8 truck repair shops is present, and 0 of 6 truck parking lots.
+  Candidates: (a) accept the vector data; (b) a truck-places layer from HERE Browse, kept at most 30
+  days and only as its caching headers allow (headers not yet read); (c) see whether
+  `content=advanced_pois` ($0.239/1 000) carries the truck categories, by fetching one tile.
+  Recommendation: (c) first, then (a) or (b) on what it shows.
+
 ---
 
 ## 7. Progress log
@@ -1345,3 +1354,12 @@ conflict every time (`plan-progress-log-not-table-rows`).
     sequence. It still finishes the sequence 1–2 s sooner. Hiding most labels barely changed it
     (13–52 stutters with no labels at all), so the extra work is the vector map itself, not this
     style. A real office PC check is still owed.
+- **2026-11-10 — D-DR33: the owner's ruling on the vector map. Polish it, compare it, then switch,
+  with an escape hatch. Build without assumptions.** Order: polish on staging (icons, shields per
+  network, land colours, regional road density, night check); the owner compares side by side,
+  including on the slowest office PC, and the vector map is dropped if it stutters too much there;
+  then it becomes the default with "Map (classic)" kept for two weeks. Rebuilding on Google Maps was
+  weighed and not chosen. The working rules, the measured facts and the task list with acceptance
+  checks are in `docs/plans/livemap/HANDOFF-2026-11-10-VECTOR-MAP.md`. ⚠ The same day showed that
+  `TRUCK_PLACE_CATEGORIES` (from HERE Browse) matches nothing in the vector tiles. That is the
+  polish step's first item, and Q-DR34.
