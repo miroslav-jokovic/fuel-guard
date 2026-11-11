@@ -750,3 +750,23 @@ audit row is the endpoint's own.
   - Deliberate breaks, each killed by an assertion: the ledger reading a literal key, the tool linking
     with the quarter's label, and the parser accepting a fifth quarter.
   - Next: (c) Loads.
+- 2026-11-11 — **R4b (c) built: "Open in Loads" opens the answer's deliveries.**
+  - `packages/shared/src/loadsLinkContract.ts`: `LOADS_QUERY_KEYS` (`queue`, `delivered_from`,
+    `delivered_to`, `truck`, `driver`, `scope`) and `loadsToQuery`. `useDeliveredWindow`, the Loads
+    page's tab/Driver/Truck params and `useScopeChoice` (shared with the dispatch board) read their keys
+    from it.
+  - `loads_by_truck` links to the Delivered tab, its inclusive carrier days, `scope=all`, and `truck`
+    by vehicle id when exactly ONE unit was named. The page's Truck filter takes one id, so several
+    named trucks (or the whole fleet) leave it out, and the page lists every truck the answer counted.
+  - Three traps the contract closes: the window is inclusive DAYS on the page but instants with an
+    exclusive end in the API (`delivered_before`); `truck` is an id, not a unit; and a dispatcher linked
+    to fleets opens on "mine" by default, which would show fewer loads than the answer — the tool counts
+    every dispatcher's, so the link says `scope=all`.
+  - Tests: `loadsLinkContract.test.ts`; `assistantLoadsByTruck.test.ts` "links to the Delivered tab on
+    the answer's inclusive days, the whole fleet's scope, and one named truck by vehicle id";
+    `DispatchLoadsPage.test.ts` "opens on exactly what a link built by its contract names: Delivered, the
+    days, every dispatcher's loads, one truck" and "opens a linked dispatcher on every load when a link
+    built by the contract says scope=all (F21 R4b)".
+  - Deliberate breaks, each killed by an assertion: the page's Truck param and the scope param read as
+    literals, the link without `scope`, and a truck linked when two were named.
+  - Next: (d) Applicants, Drivers, Fuel cards.
