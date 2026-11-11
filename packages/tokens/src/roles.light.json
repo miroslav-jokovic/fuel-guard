@@ -874,6 +874,31 @@
       "$type": "color",
       "$value": "oklch(50.9% 0.0935 240.6)",
       "$description": "names of water"
+    },
+    "map-shield-interstate": {
+      "$type": "color",
+      "$value": "oklch(38.0% 0.1336 256.8)",
+      "$description": "interstate and county road sign background (FHWA blue, PMS 294)"
+    },
+    "map-shield-interstate-band": {
+      "$type": "color",
+      "$value": "oklch(47.0% 0.1733 20.4)",
+      "$description": "the red band across the top of an interstate sign (FHWA red, PMS 187)"
+    },
+    "map-shield-plain": {
+      "$type": "color",
+      "$value": "oklch(100% 0 0)",
+      "$description": "US and state route sign background"
+    },
+    "map-shield-ink": {
+      "$type": "color",
+      "$value": "oklch(21.8% 0 0)",
+      "$description": "the number and outline on a US or state route sign"
+    },
+    "map-shield-county-ink": {
+      "$type": "color",
+      "$value": "oklch(86.7% 0.1768 90.8)",
+      "$description": "the number on a county road sign (FHWA yellow, PMS 116)"
     }
   }
 }

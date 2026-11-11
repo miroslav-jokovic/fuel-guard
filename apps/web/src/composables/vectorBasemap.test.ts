@@ -21,6 +21,18 @@ import {
 const palette = Object.fromEntries(MAP_PALETTE_KEYS.map((k, i) => [k, `rgb(${i}, ${i}, ${i})`])) as MapPalette;
 const layers = vectorBasemapLayers(palette, "here-4", "here-4:");
 
+/**
+ * The colours an expression can produce: an interpolate's stop outputs (zoom curves), a match's
+ * branch outputs and its fallback (the road signs, D-DR36), or a plain value. Any other shape
+ * fails loudly rather than being read as "no colours".
+ */
+function colourOutputs(v: unknown): string[] {
+  if (!Array.isArray(v)) return [String(v)];
+  if (v[0] === "interpolate") return v.filter((_, i) => i >= 4 && i % 2 === 0).map(String);
+  if (v[0] === "match") return [...v.filter((_, i) => i >= 3 && i % 2 === 1 && i < v.length - 1), v.at(-1)].map(String);
+  throw new Error(`unread colour expression ${String(v[0])}`);
+}
+
 describe("the vector road map's layers", () => {
   it("keeps every layer in one group, on its source or its truck-places source, so the basemap shows and hides as one", () => {
     expect(layers.length).toBeGreaterThan(10);
@@ -38,9 +50,7 @@ describe("the vector road map's layers", () => {
     for (const l of layers) {
       for (const [k, v] of Object.entries((l as { paint?: Record<string, unknown> }).paint ?? {})) {
         if (!k.endsWith("-color")) continue;
-        // A colour that changes with zoom is an interpolate whose outputs are colours.
-        if (Array.isArray(v)) for (let i = 4; i < v.length; i += 2) colours.push(String(v[i]));
-        else colours.push(String(v));
+        colours.push(...colourOutputs(v));
       }
     }
     expect(colours.length).toBeGreaterThan(10);
