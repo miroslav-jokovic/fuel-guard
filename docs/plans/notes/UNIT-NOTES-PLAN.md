@@ -85,7 +85,7 @@ PostgreSQL full-text search.
 guard refuses every UPDATE except pinning and the driver merge's subject move, and every DELETE.
 Text only, 1 to 4,000 characters; papers belong in Files.
 
-**D-UN4: notes are office-wide (owner, 2026-11-11, second round).** The owner: *"notes and comments
+**D-UN4: notes are office-wide (owner, 2026-11-11, second round; confirmed as Q-UN4 (a)).** The owner: *"notes and comments
 so everyone can see — if dispatch leaves a note related to billing or safety they can see it"*.
 Measured (M5), that is not what the tables' own permissions give: billing can open none of the four
 tables. So notes get their own gate: surface `notes`, gate `STAFF` — every office role reads, writes
@@ -239,13 +239,8 @@ owner reads a sample in McLeod first and decides.
 **Q-UN3.** Ruled yes 2026-11-11: the composer carries one line, "Visible to the whole office. No
 medical or test results."
 
-**Q-UN4 — the one thing to confirm before UN0.** D-UN4 makes every note readable by every office
-role, because the owner's example (billing reads a dispatcher's note) cannot work otherwise (M5).
-(a) Office-wide, as D-UN4 — **recommended**; (b) notes follow each table's permission, and billing
-is given view access to Drivers and Vehicles on the Permissions page instead (they would then see
-the whole roster, not only notes).
-
-UN0 waits for Q-UN4, because it decides every route's gate. Q-UN1 proceeds on its recommendation.
+**Q-UN4.** Ruled (a) 2026-11-11 (owner: "notes are office-wide as recommended"): D-UN4 stands.
+Nothing blocks UN0. Q-UN1 proceeds on its recommendation.
 
 ---
 
@@ -255,7 +250,7 @@ Each step is one PR to `main` from its own worktree and branch. "Done when" is t
 
 | Step | Track | What | Depends on | Done when |
 |---|---|---|---|---|
-| **UN0** | O | This plan; `unitNotesContract.ts` + its unit tests; the `notes` surface line; progress folder | Q-UN4 | Contract merged; tracks may start |
+| **UN0** | O | This plan; `unitNotesContract.ts` + its unit tests; the `notes` surface line; progress folder | — | Contract merged; tracks may start |
 | **UN1** | A — database | §4.1 whole; matrix `supabase/tests/unit-notes.test.mjs`; merge list; registries | UN0 | Matrix prints `RESULT`; each guard proved by a mutation (drop the guard → red); `verify:live staging` shows the migration |
 | **UN2** | B — API | §4.3 except mentions ringing; `modules/roster/notes/` | UN0 (builds on recorder fixtures); merges after UN1 | Route tests incl. org scope and driver-role 403 by code; curl on staging answers 401 unauthenticated |
 | **UN3** | B — API | Mentions: `/people`, `notify()` with dedupe key, no self-notify | UN2 | Tests for each |
