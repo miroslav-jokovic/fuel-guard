@@ -1,4 +1,5 @@
 import { APPLICATION_ROW_LISTS, type ApplicationPath } from "./applicationReviewContract.js";
+import { DRAFT_ANSWERS, answerTable } from "./applicationReviewEdits.js";
 
 /**
  * Where each office correction points NOW, after every row removed since (F3c part 2, E2).
@@ -36,8 +37,20 @@ export interface CurrentEditPath {
 
 const POSITIONAL = new Set<string>(APPLICATION_ROW_LISTS);
 
-const isRowEdit = (path: ApplicationPath): boolean =>
-  path.length === 2 && POSITIONAL.has(String(path[0])) && typeof path[1] === "number";
+/**
+ * The list a whole-row path names, as its path prefix: `["addresses"]` for `["addresses", 2]`, and —
+ * F3c part 2 — `["questionnaire", "education"]` for a row of a carrier question answered as a table.
+ */
+function listOf(path: ApplicationPath): ApplicationPath | null {
+  if (path.length >= 2 && POSITIONAL.has(String(path[0])) && typeof path[1] === "number") return [path[0]!];
+  if (path.length >= 3 && path[0] === DRAFT_ANSWERS && answerTable(path[1]!) && typeof path[2] === "number") return [path[0], path[1]!];
+  return null;
+}
+
+const isRowEdit = (path: ApplicationPath): boolean => {
+  const list = listOf(path);
+  return list !== null && path.length === list.length + 1;
+};
 
 /** A whole-row removal: `[list, i]`, a row before, nothing after. */
 export const isRowRemoval = (e: ReplayableEdit): boolean =>
@@ -55,13 +68,17 @@ export function currentEditPaths(edits: readonly ReplayableEdit[]): CurrentEditP
 
   order.forEach(({ e, i }, step) => {
     if (!isRowRemoval(e)) return;
-    const [list, at] = e.path as [string, number];
+    const list = listOf(e.path)!;
+    const depth = list.length;
+    const at = e.path[depth] as number;
     out[i] = { path: [...e.path] as ApplicationPath, gone: true, removal: true };
     for (const { i: j } of order.slice(0, step)) {
       const now = out[j]!;
-      if (now.gone || now.path[0] !== list || typeof now.path[1] !== "number") continue;
-      if (now.path[1] === at) out[j] = { ...now, gone: true };
-      else if (now.path[1] > at) out[j] = { ...now, path: [list, now.path[1] - 1, ...now.path.slice(2)] as ApplicationPath };
+      const mine = list.every((seg, k) => now.path[k] === seg) && typeof now.path[depth] === "number";
+      if (now.gone || !mine) continue;
+      const row = now.path[depth] as number;
+      if (row === at) out[j] = { ...now, gone: true };
+      else if (row > at) out[j] = { ...now, path: [...list, row - 1, ...now.path.slice(depth + 1)] as ApplicationPath };
     }
   });
   return out;

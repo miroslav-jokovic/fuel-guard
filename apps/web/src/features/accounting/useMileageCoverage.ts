@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import { exclusiveEnd } from "@/lib/dateWindow";
 
 /**
  * Mileage coverage (G4 + G10) — the truck count behind a period, and whether its miles are all of
@@ -42,7 +43,7 @@ export function useMileageCoverageQuery(filter: Ref<{ from: string; to: string }
     // reader never asked for is a wasted read at best and a withheld-month callout at worst.
     enabled: computed(() => enabled?.value ?? true),
     queryFn: async (): Promise<MileageCoverageResponse> => {
-      const q = new URLSearchParams({ from: filter.value.from, to: filter.value.to });
+      const q = new URLSearchParams({ from: filter.value.from, to: exclusiveEnd(filter.value.to) });
       const r = await apiFetch<MileageCoverageResponse>(`/api/accounting/mileage-coverage?${q}`);
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not read mileage coverage");
       return r.data;

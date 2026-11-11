@@ -101,3 +101,48 @@ describe("where each correction points after a removal", () => {
     expect(added).toEqual({ path: ["addresses", 3], gone: false, removal: false });
   });
 });
+
+/**
+ * F3c part 2, step 4: a row of a carrier question answered as a table (education, references) — set
+ * whole at `["questionnaire", question, i]`, removed by `remove_answer_row`, checked against the
+ * question's own columns because the draft schema holds the questionnaire as an open record.
+ */
+describe("a row of a table answer", () => {
+  const REF = { full_name: "Ann Lee", years_known: "5", phone: "3125550100" };
+  const withRefs = (n: number) => ({ questionnaire: { references: Array.from({ length: n }, (_, i) => ({ ...REF, full_name: `Ref ${i}` })) } });
+
+  it("corrects a row, and adds the next one, as the whole row", () => {
+    const corrected = apply({ path: ["questionnaire", "references", 0], value: REF, revision: 1 }, withRefs(2)) as AppliedEdit;
+    expect(corrected).toMatchObject({ logPath: ["questionnaire", "references", 0], after: REF });
+    const added = apply({ path: ["questionnaire", "references", 2], value: REF, revision: 1 }, withRefs(2)) as AppliedEdit;
+    expect((added.payload.questionnaire as { references: unknown[] }).references).toHaveLength(3);
+    expect(added.before).toBeUndefined();
+  });
+
+  it("⚠ refuses a hole, a row past the question's limit, a column it does not ask, and a blank row", () => {
+    const refused = (value: unknown, at: number, n: number) => isEditRefusal(apply({ path: ["questionnaire", "references", at], value, revision: 1 }, withRefs(n)));
+    expect(refused(REF, 3, 1)).toBe(true); // a hole
+    expect(refused(REF, 3, 3)).toBe(true); // three references asked for
+    expect(refused({ ...REF, ssn: "1" }, 0, 1)).toBe(true);
+    expect(refused({ full_name: " ", years_known: "", phone: "" }, 0, 1)).toBe(true);
+    expect(refused("Ann", 0, 1)).toBe(true);
+  });
+
+  it("removes a row and logs the row it took", () => {
+    const done = apply({ op: "remove_answer_row", question: "references", index: 1, revision: 1 }, withRefs(3)) as AppliedEdit;
+    expect((done.payload.questionnaire as { references: Array<{ full_name: string }> }).references.map((r) => r.full_name)).toEqual(["Ref 0", "Ref 2"]);
+    expect(done).toMatchObject({ logPath: ["questionnaire", "references", 1], after: null });
+    expect(isEditRefusal(apply({ op: "remove_answer_row", question: "position", index: 0, revision: 1 }, withRefs(1)))).toBe(true);
+  });
+
+  it("replays a table row's removal like a list's", () => {
+    const now = currentEditPaths([
+      { path: ["questionnaire", "references", 2], before: REF, after: { ...REF, phone: "1" }, editedAt: "2026-11-10T10:00:00Z" },
+      { path: ["questionnaire", "references", 0], before: REF, after: null, editedAt: "2026-11-10T10:01:00Z" },
+      { path: ["questionnaire", "position"], before: "a", after: "b", editedAt: "2026-11-10T09:00:00Z" },
+    ]);
+    expect(now[0]).toEqual({ path: ["questionnaire", "references", 1], gone: false, removal: false });
+    expect(now[1]).toMatchObject({ gone: true, removal: true });
+    expect(now[2]!.path).toEqual(["questionnaire", "position"]);
+  });
+});

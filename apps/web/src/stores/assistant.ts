@@ -17,7 +17,8 @@ import { apiFetch } from "@/lib/api";
  * a retried question must not see its own failure as context. Until R3a the API took `{ question }`
  * alone (AUDIT W1) and the composer told the reader so.
  *
- * Not persisted: a reload starts empty. Retention of questions is the owner's open Q-AI4.
+ * Not persisted: a reload starts empty. Q-AI4 (ruled 2026-11-11) keeps conversations tab-local; the
+ * `ai.ask` audit row is the only record of a question.
  */
 
 export interface AssistantTurn {
@@ -25,6 +26,8 @@ export interface AssistantTurn {
   question: string;
   status: "pending" | "done" | "error";
   answer: string | null;
+  /** F21 R4a: the pages behind the answer, as surface keys (`assistantAnswerPages`). Absent from an older API. */
+  pages?: string[];
 }
 
 /** The endpoint's cap on a question (`assistantAskContract.ts`); the composer stops there too. */
@@ -44,7 +47,7 @@ export const useAssistantStore = defineStore("assistant", () => {
     );
 
   async function run(turn: AssistantTurn) {
-    const res = await apiFetch<{ answer: string }>("/api/ai/ask", {
+    const res = await apiFetch<{ answer: string; pages?: string[] }>("/api/ai/ask", {
       method: "POST",
       body: { question: turn.question, history: historyBefore(turn) },
     });
@@ -56,6 +59,7 @@ export const useAssistantStore = defineStore("assistant", () => {
     if (res.ok && res.data) {
       live.status = "done";
       live.answer = res.data.answer;
+      live.pages = Array.isArray(res.data.pages) ? res.data.pages : [];
     } else {
       live.status = "error";
       live.answer = res.error?.message ?? "Could not get an answer. Try again.";

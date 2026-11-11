@@ -436,6 +436,19 @@ Cropping to a fixed band at build time would have to be redone at every breakpoi
   its rate limit for 10–30 seconds. Separate keys also give separate usage reports and alerts.
   Recommendation: do it before any further load test.
 
+- **Q-DR34 — truck places are thin in HERE's vector data. How do we name them?** Measured 2026-11-10
+  (`docs/plans/livemap/HANDOFF-2026-11-10-VECTOR-MAP.md` §4). The vector tiles never carry the
+  Browse truck codes. Pilots are `kind=parking` 800-8500-0178 from min_zoom 17, Love's is a
+  convenience store from 18, 1 of 8 truck repair shops is present, and 0 of 6 truck parking lots.
+  Candidates: (a) accept the vector data; (b) a truck-places layer from HERE Browse, kept at most 30
+  days and only as its caching headers allow (headers not yet read); (c) see whether
+  `content=advanced_pois` ($0.239/1 000) carries the truck categories, by fetching one tile.
+  Recommendation: (c) first, then (a) or (b) on what it shows.
+  **(c) measured 2026-11-11 — answered for truck stops and truck parking, see D-DR34.** The
+  advanced tile carries both (17 truck stops, 19 truck parking lots, 4 rest areas in 24 zoom-13
+  tiles), so they are now drawn from it. ⚠ Still open: truck REPAIR (700-7850-0126) is in neither
+  tile (0 of 8 shops HERE's search names, none in the 24 tiles); for repair shops only (b) remains.
+
 ---
 
 ## 7. Progress log
@@ -1345,3 +1358,26 @@ conflict every time (`plan-progress-log-not-table-rows`).
     sequence. It still finishes the sequence 1–2 s sooner. Hiding most labels barely changed it
     (13–52 stutters with no labels at all), so the extra work is the vector map itself, not this
     style. A real office PC check is still owed.
+- **2026-11-10 — D-DR33: the owner's ruling on the vector map. Polish it, compare it, then switch,
+  with an escape hatch. Build without assumptions.** Order: polish on staging (icons, shields per
+  network, land colours, regional road density, night check); the owner compares side by side,
+  including on the slowest office PC, and the vector map is dropped if it stutters too much there;
+  then it becomes the default with "Map (classic)" kept for two weeks. Rebuilding on Google Maps was
+  weighed and not chosen. The working rules, the measured facts and the task list with acceptance
+  checks are in `docs/plans/livemap/HANDOFF-2026-11-10-VECTOR-MAP.md`. ⚠ The same day showed that
+  `TRUCK_PLACE_CATEGORIES` (from HERE Browse) matches nothing in the vector tiles. That is the
+  polish step's first item, and Q-DR34.
+- **2026-11-11 — D-DR34: truck places come from HERE's advanced tile, fetched at zoom 13 only.**
+  Measured with our key, not inferred (Q-DR34 (c)): the default vector tile names the Joliet Pilot
+  only as an ordinary "Parking Lot" (800-8500-0178, HERE's category list), so a brand-name match on
+  it would have been a heuristic over the wrong category. The same tile with
+  `content=default,advanced_pois` adds truck stop 700-7900-0132 and truck parking 700-7900-0131 at
+  `min_zoom` 13; across 24 zoom-13 tiles (Joliet, Indianapolis, Dallas) 17 truck stops, 19 truck
+  parking lots (Pilot, Flying J, TA, ONE 9, the "Truck & Trailer Parking" lots the default tile
+  lacked) and 4 rest areas (Love's, TA). Advanced tiles bill $0.239 per 1 000 against $0.088, so
+  the vector map gains ONE second source fetched at `TRUCK_PLACES_ZOOM` = 13 alone and overzoomed
+  closer in; the proxy's `/map-tiles/truck-places/` route refuses every other zoom, and the
+  `[metrics]` line counts `advancedTiles` so the cost is visible in production. The truck layer
+  sits above ordinary places (maplibre places symbol layers top-down, read in the installed 5.24
+  bundle) and below towns. Truck repair stays open in Q-DR34. Cost of the extra source to be
+  measured on staging, not estimated, before the owner's comparison.

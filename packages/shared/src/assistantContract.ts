@@ -95,6 +95,54 @@ export const ASSISTANT_TOOL_ACCESS = {
 export type AssistantToolName = keyof typeof ASSISTANT_TOOL_ACCESS;
 export const ASSISTANT_TOOL_NAMES = Object.keys(ASSISTANT_TOOL_ACCESS) as AssistantToolName[];
 
+/**
+ * The page each tool's figure IS, by surface key (F21 R4a, D-AI3's `source.surfaceKey`), for the
+ * "Open in …" link under an answer. A link says "this is that page's figure", so only the tools built
+ * on a page's OWN read (R1, R6a, R6b) have one. The older tools sum raw tables themselves
+ * (`fleet_summary`, `top_risk`, `fuel_ranking`…), so their figure is not any page's, and they get
+ * `null` until they are rebuilt on one. Pinned by "every page a tool names is a real surface, gated by
+ * one of the tool's own sections". A link a person cannot open is never drawn (the web asks
+ * `canReachSurface` first).
+ */
+export const ASSISTANT_TOOL_PAGE: Record<AssistantToolName, string | null> = {
+  fleet_summary: null,
+  top_risk: null,
+  odometer_accuracy: null,
+  count_signal: null,
+  fuel_report: "fuel.spend",
+  fuel_economics: null,
+  fuel_ranking: null,
+  spend_trend: null,
+  ifta_report: "fuel.ifta",
+  declined_summary: null,
+  card_holds: "fuel.cards",
+  telematics_coverage: null,
+  import_activity: null,
+  driver_performance: null,
+  idling_summary: null,
+  idle_report: "safety.idling",
+  fleet_now: "dashboard",
+  loads_by_truck: "dispatch.loads",
+  fleet_roster: null,
+  driver_file_expirations: "fleet.drivers",
+  annual_inspections_due: "maintenance.repair-spend",
+  recruiting_counts: "recruitment.applicants",
+  maintenance_cost: "maintenance.units",
+  finance_report: "finance.fleet-report",
+  income_statement: "finance.fleet-report",
+};
+
+/** The pages behind one answer: each successful tool's page, once, in the order they were called. */
+export function assistantAnswerPages(tools: readonly { name: string; error?: string }[]): string[] {
+  const pages: string[] = [];
+  for (const t of tools) {
+    if (t.error) continue;
+    const page = (ASSISTANT_TOOL_PAGE as Record<string, string | null>)[t.name] ?? null;
+    if (page && !pages.includes(page)) pages.push(page);
+  }
+  return pages;
+}
+
 const RANK: Record<SectionAccess, number> = { none: 0, view: 1, manage: 2 };
 
 /**

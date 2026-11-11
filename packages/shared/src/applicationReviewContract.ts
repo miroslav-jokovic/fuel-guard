@@ -105,6 +105,15 @@ export const applicationEditSchema = z.union([
     revision: draftRevision,
   }),
   z.object({
+    // F3c part 2: one row of a carrier question answered as a table (education, references). Added and
+    // corrected as a whole row by `set` at `["questionnaire", question, i]` (three segments, inside
+    // `applicationPathSchema`); removed by this. Which questions are tables is the questionnaire's word.
+    op: z.literal("remove_answer_row"),
+    question: z.string().min(1).max(80),
+    index: z.number().int().min(0).max(50),
+    revision: draftRevision,
+  }),
+  z.object({
     op: z.literal("remove_row"),
     list: z.enum(APPLICATION_ROW_LISTS),
     index: z.number().int().min(0).max(200),
