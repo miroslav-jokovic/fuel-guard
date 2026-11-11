@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ledgerPosition, type IftaPeriodReceipts } from "@silvicom/shared";
+import { iftaToQuery, ledgerPosition, type IftaPeriodReceipts } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 
 /** The tool's answer is `unknown` to its caller (it goes to the model as JSON); tests read named fields. */
@@ -58,6 +58,17 @@ describe("ifta_report — the IFTA ledger page's quarter", () => {
     await assistantIftaReport(recorder().client, ORG, { year: 2025, quarter: 4 }, NOV_10);
     await assistantIftaReport(recorder().client, ORG, { period: "this_quarter" }, NOV_10);
     expect(readIftaPeriod.mock.calls.map((c) => c.slice(2))).toEqual([[2025, 4], [2026, 4]]);
+  });
+
+  // F21 R4b: the page reads `q=YYYY-Qn` and falls back to its newest quarter on anything else, so a
+  // hand-built `q=Q3 2026` (its label) or `q=3` would open on Q4 beside an answer about Q3.
+  it("links to the ledger on the asked quarter in the page's own URL form, built by its contract", async () => {
+    const out = (await assistantIftaReport(recorder().client, ORG, {}, NOV_10)) as Out;
+    expect(out.link).toEqual({ surfaceKey: "fuel.ifta", query: { q: "2026-Q3" } });
+    expect(out.link.query).toEqual(iftaToQuery({ year: 2026, quarter: 3 }));
+    // Q4 of last year, asked late on 12/31 in Chicago (already 1 January in UTC), is still last year's.
+    const nye = (await assistantIftaReport(recorder().client, ORG, { period: "this_quarter" }, new Date("2027-01-01T04:00:00Z"))) as Out;
+    expect(nye.link.query).toEqual({ q: "2026-Q4" });
   });
 
   it("refuses a quarter that has not started, without reading", async () => {
