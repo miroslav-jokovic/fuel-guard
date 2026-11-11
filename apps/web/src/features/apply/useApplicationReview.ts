@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicantIdentity, ApplicationCaptureView, ApplicationContactMove, ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneAnswer, PartOneAnswersView, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
+import type { ApplicantIdentity, ApplicantIdentityKey, ApplicationCaptureView, ApplicationContactMove, ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneAnswer, PartOneAnswersView, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -55,6 +55,11 @@ export interface ApplicationReview {
   partOneAnswers?: PartOneAnswersView | null;
   /** E3: the invitation's email, and whether the phone on file is texted. Optional: an API before E3 sends none. */
   contact?: { email: string | null; phoneTexted: boolean };
+  /**
+   * Step 6: the date of birth and licence on the applicant's RECORD, only those set — what screening runs on
+   * and filing lays over the draft. Optional: an API from before step 6 sends none, and the draft's copy shows.
+   */
+  identity?: Partial<Record<ApplicantIdentityKey, string>>;
   edits: ApplicationEditRow[];
 }
 
@@ -161,8 +166,8 @@ export function useCorrectPartOne(invitationId: Ref<string | null>) {
 
 /**
  * The office correcting the date of birth or the current licence from the "Applicant facts" card (F3).
- * The same route the Permissions and Road-test drawers use (`useCorrectApplicantIdentity` in
- * recruitment); here because this feature may not import recruitment's internals (`lint:boundaries`).
+ * Since step 6 (F3c part 2) the only editor of the three: the Permissions and Road-test drawers send the
+ * office here (`ApplicantIdentityOnFile`), and the page re-reads its driver row when the review closes.
  *
  * ⚠ Invalidates every `recruitment` query, not only this review: the checklist reads the same three
  * values (the licence state picks the MVR), and naming its key here would be a copy of recruitment's.

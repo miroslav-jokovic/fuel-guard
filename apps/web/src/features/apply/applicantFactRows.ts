@@ -11,6 +11,7 @@ import {
   partOneCorrectionWith,
   sectionOwningPath,
   type ApplicantFact,
+  type ApplicantIdentityKey,
   type ApplicationPath,
   type ApplicationSection,
   type CarrierQuestionStamp,
@@ -20,6 +21,7 @@ import {
   type PartOneFactsView,
   type QuestionnaireDefinition,
 } from "@silvicom/shared";
+import type { TypedDateKind } from "@silvicom/ui";
 import { describeField } from "./fieldLabels";
 import { APPLY_COPY } from "./strings";
 
@@ -98,6 +100,8 @@ export interface TableColumn {
   id: string;
   label: string;
   input: FactInput;
+  /** A date's own rule — a date of birth is an adult's, in the past (`identityColumns`). */
+  dateKind?: TypedDateKind;
 }
 
 export interface FactRowsInput {
@@ -110,6 +114,11 @@ export interface FactRowsInput {
   partOneAnswers?: PartOneAnswersView | null;
   /** Step 5: the carrier's own questions THIS applicant was asked — the invitation's stamp. */
   carrier?: CarrierQuestionStamp | null;
+  /**
+   * Step 6: the identity on the applicant's record (the review's `identity`). Laid over the draft's copy, as
+   * filing lays it (`identityOnRecord`, D-AF8) — before the first save there is no draft to show it by.
+   */
+  identity?: Partial<Record<ApplicantIdentityKey, string>> | null;
 }
 
 /** A path as one string, for a list key and the "corrected" mark: `["addresses",1,"city"]` → `addresses.1.city`. */
@@ -196,8 +205,9 @@ function doorOf(fact: ApplicantFact, partOne: boolean, row: number | null, curre
   return "part_one";
 }
 
-export function applicantFactRows({ payload, partOne, edits, questionnaire, partOneAnswers, carrier }: FactRowsInput): FactRow[] {
-  const doc = documentOf(isRecord(payload) ? payload : {}, partOne);
+export function applicantFactRows({ payload, partOne, edits, questionnaire, partOneAnswers, carrier, identity }: FactRowsInput): FactRow[] {
+  // The record's identity last, as filing lays it: only the values it holds, never a blank over an answer.
+  const doc: Record<string, unknown> = { ...documentOf(isRecord(payload) ? payload : {}, partOne), ...(identity ?? {}) };
   const current = currentAddressIndex(doc.addresses);
   // ⚠ Tolerant of a response without `edits` (an older API, or a refetch racing a write): the card
   // renders inside the drawer's body, and one missing list must not take the whole record down.

@@ -55,7 +55,12 @@ import {
  * `editable`, and when they are gone the reason is on the page. Every write names the revision it
  * was made against, so the applicant's autosave and the office never overwrite each other (§8.1).
  */
-const props = defineProps<{ open: boolean; invitationId: string | null }>();
+const props = defineProps<{
+  open: boolean;
+  invitationId: string | null;
+  /** Step 6: an Applicant facts row to bring into view — `date_of_birth` when a hiring step sends the office here. */
+  focus?: string | null;
+}>();
 const emit = defineEmits<{ close: [] }>();
 
 const toast = useToastStore();
@@ -337,6 +342,7 @@ async function approveIt(): Promise<void> {
           :review="review.data.value"
           :draft-open="correctable && !signingStarted"
           :record-open="recordCorrectable"
+          :focus="focus"
         />
 
         <!-- HW5b: the jobs on one timeline. While anything can be corrected they are the card's
