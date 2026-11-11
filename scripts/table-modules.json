@@ -1459,10 +1459,10 @@
       "layer": "core",
       "lifecycle": {
         "growth": "time",
-        "retention_days": null,
+        "retention_days": 400,
         "partition": null,
         "budget_rows_per_day": 500,
-        "why": "new in 0584 (2026-11-10, F21 R2): one row per Ask AI answer, counts and cost only, no text. Measured use 20 answers in four months; budgeted at PLAN.md §3's 10k answers a month. No rule yet: Q-AI4 recommends 13 months for cost history, not ruled."
+        "why": "new in 0584 (2026-11-10, F21 R2): one row per Ask AI answer, counts and cost only, no text. Measured use 20 answers in four months; budgeted at PLAN.md §3's 10k answers a month. Retention 400 days, ruled Q-AI4 (a) 2026-11-11: 13 months of cost history, the same month last year kept whole."
       }
     },
     "lead_conversions": {
