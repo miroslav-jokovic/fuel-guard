@@ -532,3 +532,23 @@ audit row is the endpoint's own.
     keys; and in the extracted reader, a failure swallowed and `archived` ignored (both SURVIVED the
     route tests, so the reader got its own test file).
   - **Next:** R3a (follow-up questions), R4 (CSV/PDF and "open in page"), R7 (eval set).
+- 2026-11-10 — **R3a server half: follow-up questions.** `POST /api/ai/ask` takes an optional `history`
+  (each earlier turn's question and answer TEXT) beside the question. `@silvicom/shared`
+  `assistantAskContract.ts` `assistantHistoryForRequest` is the one trim, for the web and the API alike.
+  It keeps well-formed turns only, the newest 6, then drops the oldest until the answers fit 12,000
+  characters (about four 25-row tables; at Haiku 5.5 prices about $0.0004 a round). An over-long answer
+  is cut to 4,000, not dropped. `askData` replays the turns as alternating user/assistant text ahead of
+  the new question.
+  - **No tool results are replayed.** The system prompt tells the model to carry the subject over but
+    call a tool again for every figure it states, so "and the month before?" re-reads rather than
+    quoting an hour-old number. History is browser-written and untrusted like the question: access
+    still comes only from `assistantToolsFor`, the per-call check and D-AI7's strip. The `ai.ask` audit
+    row records `history_turns`. No migration (R3b, persisted conversations, still waits on Q-AI4).
+  - **Two merges, as Q-AI10:** an older web sends `{ question }` alone and is answered exactly as
+    before (pinned). The web half (the store sends its done turns through the same trim, and the
+    composer's "each question is answered on its own" line goes) ships only once this is in
+    PRODUCTION. A new web against an old API would answer "and last month?" with no subject for the
+    deploy minutes.
+  - Nine deliberate breaks, each killed by an assertion: history dropped, question before history, no
+    re-read instruction, the route ignoring history, the route untrimmed, the audit without the count,
+    the oldest kept, no character budget, an over-long answer dropped.

@@ -48,6 +48,25 @@ beforeEach(() => {
 });
 
 describe("askData", () => {
+  it("replays the conversation as alternating text turns before the question, and tells the model to re-read figures (R3a)", async () => {
+    create.mockResolvedValueOnce(msg([{ type: "text", text: "In September, 6.1." }]));
+    const history = [{ question: "mpg on 748 last month", answer: "Unit 748 ran 6.4 MPG in October." }];
+    await askData(rec().client, env, "org-1", "and the month before?", ALL, LATE_OCT_31_CENTRAL, history);
+    const req = create.mock.calls[0]![0];
+    expect(req.messages).toEqual([
+      { role: "user", content: "mpg on 748 last month" },
+      { role: "assistant", content: "Unit 748 ran 6.4 MPG in October." },
+      { role: "user", content: "and the month before?" },
+    ]);
+    expect(req.system[0].text).toMatch(/call a tool\s+again for every figure you state/);
+  });
+
+  it("without a conversation the question is the only message, as before R3a", async () => {
+    create.mockResolvedValueOnce(msg([{ type: "text", text: "ok" }]));
+    await askData(rec().client, env, "org-1", "mpg on 748", ALL, LATE_OCT_31_CENTRAL);
+    expect(create.mock.calls[0]![0].messages).toEqual([{ role: "user", content: "mpg on 748" }]);
+  });
+
   it("routes fuel_report to the Fuel Costs report and records each tool, its input, its failure and what every round spent", async () => {
     create
       .mockResolvedValueOnce(msg([{ type: "thinking", thinking: "", signature: "s" }, { type: "tool_use", id: "t1", name: "fuel_report", input: { units: ["748"], period: "last_month" } }], "tool_use", usage({ cache_read_input_tokens: 0, cache_creation_input_tokens: 3000 })))

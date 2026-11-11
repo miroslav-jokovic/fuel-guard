@@ -70,6 +70,33 @@ const post = (question: string) =>
   fetch(`${baseUrl}/api/ai/ask`, { method: "POST", headers: { authorization: "Bearer t", "content-type": "application/json" }, body: JSON.stringify({ question }) });
 const audit = () => rec.writtenRows("audit_logs").find((r) => r.action === "ai.ask") as { meta: Record<string, unknown> } | undefined;
 
+describe("POST /api/ai/ask — the conversation (F21 R3a)", () => {
+  const postWith = (body: unknown) =>
+    fetch(`${baseUrl}/api/ai/ask`, { method: "POST", headers: { authorization: "Bearer t", "content-type": "application/json" }, body: JSON.stringify(body) });
+  const answered = () => askData.mockResolvedValueOnce({ answer: "ok", tools: [], usage: USAGE, outcome: "answered" });
+
+  it("hands askData the earlier turns, trimmed by the shared rule, and counts them on the audit row", async () => {
+    setup(0);
+    answered();
+    const history = [{ question: "mpg on 748 last month", answer: "6.4" }, { question: "bad" }, { question: "and 751?", answer: "6.9" }];
+    expect((await postWith({ question: "and the month before?", history })).status).toBe(200);
+    expect(askData.mock.calls[0]![6]).toEqual([
+      { question: "mpg on 748 last month", answer: "6.4" },
+      { question: "and 751?", answer: "6.9" },
+    ]);
+    expect(audit()?.meta).toMatchObject({ question: "and the month before?", history_turns: 2 });
+  });
+
+  it("an older web that sends the question alone, or a history that is not a list, asks with none", async () => {
+    setup(0);
+    answered();
+    answered();
+    await postWith({ question: "mpg on 748" });
+    await postWith({ question: "mpg on 748", history: "and 751?" });
+    expect(askData.mock.calls.map((c) => c[6])).toEqual([[], []]);
+  });
+});
+
 describe("POST /api/ai/ask — the meter", () => {
   it("answers under the cap, records one ledger row and keeps the outcome and cost on the audit row", async () => {
     setup(1_000_000);
