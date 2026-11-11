@@ -1481,3 +1481,25 @@ conflict every time (`plan-progress-log-not-table-rows`).
   see. Tiles are a third of today's, as measured before. The font fix did not remove the freeze.
   Next, before the owner's office-PC check: find what that single long frame is (a performance
   trace of one vector run), since it, not the average, is what a dispatcher would call "stutter".
+- **2026-11-11 — ⚠ Correction to every speed figure for the vector map so far, including D-DR31's
+  and the entry above: they were drawn in SOFTWARE.** Profiling the vector trial's longest freeze
+  (`tools/staging-map-freeze-profile.mjs`) found 87–92% of each 0.7–1.0 s stretch in "(program)",
+  native work, with maplibre's own JavaScript at 50–90 ms. Headless Chrome on this Mac draws WebGL
+  with SwiftShader, a CPU renderer ("SwiftShader Device"), which no office PC with a graphics chip
+  uses and which costs a vector map far more than raster images. With `GPU=1` it draws on the Mac's
+  M4 Pro instead (`staging-map-frames.mjs` prints the renderer). Same staging build (`20fe457` at
+  start and end), same sequence, 4× CPU slowdown, 5 alternating runs:
+
+  | | today's map | vector trial |
+  | --- | --- | --- |
+  | frames over 50 ms | 0–1 | 0–4 |
+  | longest single frame | 50–66 ms | 50–108 ms |
+  | main-thread long tasks | 0 s | 0–0.23 s |
+  | tile requests | 112–116 | 42–44 |
+
+  The 0.1–8.6 s of long tasks today's map showed above vanished as well, so that noise was the
+  software renderer drawing the page, not the live app. The two runs bound the office PC: software
+  rendering is a floor no real PC sits at, and an M4 Pro is a ceiling well above an office PC's
+  built-in graphics. Between them the vector trial is about as smooth as today's map with a real
+  GPU (worst frame up to 108 ms in one run of five) at 38% of the tiles. The deciding check is the
+  owner's, on the slowest office PC, now worth doing.
