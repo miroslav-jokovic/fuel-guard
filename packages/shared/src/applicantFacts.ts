@@ -126,9 +126,6 @@ const EMPTY_GRID = { notPrinted: "the answer IS the empty grid: a declaration of
 
 /** The driver's own drug-and-alcohol statements (Q-AM13): corrected one at a time, with a reason. */
 const STATEMENT = { office: "part_one_answer", rule: "statement" } as const;
-const TABLE_ANSWER = {
-  none: "a table answer is four segments deep and applicationPathSchema allows three; F3's card edits rows",
-};
 
 type Door = FactOffice | { readonly office: FactOffice; readonly rule: FactRule };
 const door = (d: Door) => (typeof d === "object" && "office" in d ? d : { office: d });
@@ -253,11 +250,11 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("questionnaire_answers.legally_work", "yesno", "carrier", ["p01.legally_work"]),
   app("questionnaire_answers.proof_of_age", "yesno", "carrier", ["p01.proof_of_age"]),
   app("questionnaire_answers.may_contact_employers", "yesno", "391.23(a)(2)", ["p01.contact_employers"]),
-  app("questionnaire_answers.education[]", "table", "carrier", ["p16.education"], TABLE_ANSWER),
+  app("questionnaire_answers.education[]", "table", "carrier", ["p16.education"]),
   app("questionnaire_answers.military_service", "yesno", "carrier", ["p16.military"]),
   app("questionnaire_answers.military_when", "text", "carrier", ["p16.military_when"]),
   app("questionnaire_answers.other_training", "longtext", "carrier", ["p16.training.1", "p16.training.2", "p16.training.3"]),
-  app("questionnaire_answers.references", "table", "carrier", ["p16.references"], TABLE_ANSWER),
+  app("questionnaire_answers.references", "table", "carrier", ["p16.references"]),
   app("questionnaire_answers.eeo", "choice", "carrier",
     { notPrinted: "reserved: never shown to the person deciding the hire (questionnaireContract's eeo key)" },
     {

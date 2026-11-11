@@ -757,3 +757,28 @@ describe("a corrected email or phone moves how the carrier reaches them (E3)", (
     expect(read.filters()).toEqual(expect.arrayContaining([{ col: "driver_id", val: DRIVER }, { col: "phone", val: "+13125550142" }]));
   });
 });
+
+/** F3c part 2, step 4: a row of a table answer, through the route's service — saved, logged, refused. */
+describe("a row of education or references (step 4)", () => {
+  const REF = { full_name: "Ann Lee", years_known: "5", phone: "3125550100" };
+  const withRefs = { ...PAYLOAD, questionnaire: { ...PAYLOAD.questionnaire, references: [REF] } };
+
+  it("adds a reference whole, logged at its place, and refuses a fourth", async () => {
+    const rec = seed({ payload: withRefs });
+    const added = await editApplication(rec.client, ORG, INV, { path: ["questionnaire", "references", 1], value: { ...REF, full_name: "Bo" }, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(added)).toBe(false);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["questionnaire", "references", 1], before: null });
+    const full = seed({ payload: { ...PAYLOAD, questionnaire: { references: [REF, REF, REF] } } });
+    const refused = await editApplication(full.client, ORG, INV, { path: ["questionnaire", "references", 3], value: REF, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(refused) && refused.code).toBe("invalid_edit");
+    expect(full.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+  });
+
+  it("removes a reference and logs the row it took", async () => {
+    const rec = seed({ payload: withRefs });
+    const result = await editApplication(rec.client, ORG, INV, { op: "remove_answer_row", question: "references", index: 0, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result)).toBe(false);
+    expect((savedPayload(rec) as unknown as { questionnaire: { references: unknown[] } }).questionnaire.references).toEqual([]);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["questionnaire", "references", 0], before: REF, after: null });
+  });
+});

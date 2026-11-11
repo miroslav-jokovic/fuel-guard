@@ -231,9 +231,13 @@ export function describeField(path: FieldPath): string {
   }
   // §9 P8: one carrier question, named by its own label in the page's language — the words printed
   // above its box — rather than "The carrier's own questions" for all eleven.
-  if (key === QUESTIONNAIRE_ANSWERS && typeof index === "string") {
+  // ⚠ Also under the DRAFT's key, `questionnaire` (`toDraftPayload`): every office correction of a carrier
+  // question is logged there, and until F3c part 2 this fell through to the raw key — the driver read
+  // "questionnaire" on 3.1 above the answer the office had changed. A row of a table answer (education,
+  // references) is the question and its row number: "Three personal references · 2".
+  if ((key === QUESTIONNAIRE_ANSWERS || key === DRAFT_QUESTIONNAIRE) && typeof index === "string") {
     const question = applicantQuestionnaire().questions.find((q) => q.id === index);
-    if (question) return question.label;
+    if (question) return typeof column === "number" ? `${question.label} · ${column + 1}` : question.label;
   }
   // §15.3: one of the carrier's OWN questions, by the wording it was stamped with.
   if (key === CARRIER_ANSWERS && typeof index === "string") {
@@ -295,6 +299,7 @@ const isEmpty = (v: unknown): boolean =>
   v === undefined || v === null || (typeof v === "string" && v.trim() === "");
 
 const QUESTIONNAIRE_ANSWERS = "questionnaire_answers";
+const DRAFT_QUESTIONNAIRE = "questionnaire";
 const CARRIER_ANSWERS = "carrier_answers";
 
 export function messageFor(issue: FieldIssueLike, value: unknown): string {

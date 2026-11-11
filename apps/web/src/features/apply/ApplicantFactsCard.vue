@@ -12,13 +12,16 @@ import {
 import { formatPhone } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
 import FactEditor from "./FactEditor.vue";
+import TableRowEditor from "./TableRowEditor.vue";
+import { emptyQuestionRow } from "./draft";
+import { addableTables, tableRowText } from "./tableAnswer";
 import OfficeJobsSection from "./OfficeJobsSection.vue";
 import FactRowAdder from "./FactRowAdder.vue";
 import { editableLists, factBlocks, listDoor, listSection, rowChange, rowNoun, rowRemovable } from "./factRowLists";
 import { draftEmployers, draftGaps } from "./officeJobs";
-import { fieldId } from "./fieldLabels";
+import { describeField, fieldId } from "./fieldLabels";
 import { APPLY_SECTION_TITLES } from "./strings";
-import { applicantFactRows, factSections, jobsMatch, matchingFacts, type FactRow } from "./applicantFactRows";
+import { applicantFactRows, factSections, jobsMatch, matchingFacts, tableColumns, type FactRow } from "./applicantFactRows";
 import { correctionFor, type FactValue } from "./factCorrection";
 import { contactNotice, contactToast } from "./factContact";
 import {
@@ -113,6 +116,33 @@ const sections = computed(() => {
 });
 
 const open = ref<string | null>(null);
+
+// ── step 4: a row of a carrier question answered as a table (education, references) ──────────
+/** Sent whole, by `set` at `["questionnaire", question, i]`: the next index adds a row (`answerRowRefusal`). */
+async function saveTableRow(path: FactRow["path"], value: Record<string, unknown>): Promise<void> {
+  problem.value = null;
+  try {
+    await draftEdit.mutateAsync({ path, value, revision: props.review.revision ?? 0 });
+    open.value = null;
+    addingTable.value = null;
+    toast.push("success", "Answer corrected", contactToast(undefined));
+  } catch (e) {
+    problem.value = e instanceof Error ? e.message : "That could not be saved.";
+  }
+}
+async function removeTableRow(path: FactRow["path"]): Promise<void> {
+  problem.value = null;
+  try {
+    await draftEdit.mutateAsync({ op: "remove_answer_row", question: String(path[1]), index: Number(path[2]), revision: props.review.revision ?? 0 });
+    open.value = null;
+    toast.push("success", "Row removed", "The applicant is shown the removal before they sign.");
+  } catch (e) {
+    problem.value = e instanceof Error ? e.message : "That could not be removed.";
+  }
+}
+const addingTable = ref<string | null>(null);
+const tablesIn = (section: string) =>
+  props.draftOpen && query.value.trim() === "" ? addableTables(props.review.payload, section) : [];
 
 // ── E2: the lists' rows ──────────────────────────────────────────────────────────────────────
 const removeEdit = useEditApplicationAnswer(id);
@@ -214,6 +244,7 @@ async function save(row: FactRow): Promise<void> {
 /** An answer as the office reads it — the way the driver gave it, never the stored format. */
 function shown(row: FactRow): string {
   if (row.rule === "replace_only") return row.given ? "Given — not shown to the office" : "Not answered";
+  if (row.columns) return tableRowText(row.columns, row.value);
   const v = row.value;
   if (Array.isArray(v)) return v.length === 0 ? "None" : v.map((c) => row.choices?.find((x) => x.value === c)?.label ?? String(c)).join(", ");
   if (v === null || v === undefined || v === "") return "Not answered";
@@ -267,6 +298,21 @@ function shown(row: FactRow): string {
             </BaseButton>
           </div>
 
+          <div v-else-if="row.columns" class="space-y-2">
+            <p class="text-sm text-ink-muted">{{ row.label }}</p>
+            <TableRowEditor
+              :id-prefix="row.path"
+              :columns="row.columns"
+              :start="(row.value as Record<string, unknown>) ?? {}"
+              :problem="problem"
+              :pending="pending"
+              :removable="true"
+              @save="saveTableRow(row.path, $event)"
+              @remove="removeTableRow(row.path)"
+              @cancel="open = null"
+            />
+          </div>
+
           <div v-else class="space-y-2">
             <label v-if="row.input !== 'yesno'" :for="fieldId(row.path)" class="block text-sm text-ink-muted">{{ row.label }}</label>
             <FactEditor
@@ -279,11 +325,13 @@ function shown(row: FactRow): string {
               :error="problem ?? undefined"
             />
             <p v-if="row.rule !== 'replace_only'" class="text-2xs text-ink-tertiary" data-fact-on-file>On file: {{ shown(row) }}</p>
-            <p v-if="contactNotice(row, review.contact)" class="text-xs text-ink-secondary" data-fact-contact>
-              {{ contactNotice(row, review.contact) }}
-            </p>
             <p v-else class="text-2xs text-ink-tertiary" data-fact-blind>
               Not shown to you, so it does not reach whoever decides the hire. Choose the answer the applicant gives you.
+            </p>
+            <!-- ⚠ After the pair above, never between them: placed between, the v-else bound to THIS line
+                 and every answer without a contact notice read "Not shown to you" (PR 2221, fixed in step 4). -->
+            <p v-if="contactNotice(row, review.contact)" class="text-xs text-ink-secondary" data-fact-contact>
+              {{ contactNotice(row, review.contact) }}
             </p>
             <FormField
               v-if="row.rule === 'statement'"
@@ -326,6 +374,32 @@ function shown(row: FactRow): string {
         </li>
         </template>
       </ul>
+      <template v-for="t in tablesIn(group.section)" :key="t.question.id">
+        <div v-if="addingTable === t.question.id" class="space-y-2 rounded-surface bg-surface-muted p-3" :data-table-adder="t.question.id">
+          <p class="text-sm font-medium text-ink">New: {{ describeField(['questionnaire', t.question.id, t.count]) }}</p>
+          <TableRowEditor
+            :id-prefix="['questionnaire', t.question.id, t.count]"
+            :columns="tableColumns(t.question)"
+            :start="emptyQuestionRow(t.question)"
+            :problem="problem"
+            :pending="pending"
+            :removable="false"
+            @save="saveTableRow(['questionnaire', t.question.id, t.count], $event)"
+            @cancel="addingTable = null"
+          />
+        </div>
+        <BaseButton
+          v-else
+          size="sm"
+          variant="secondary"
+          class="mr-2 mt-2"
+          :disabled="open !== null || adding !== null || addingTable !== null"
+          :data-table-add="t.question.id"
+          @click="addingTable = t.question.id; problem = null"
+        >
+          Add to “{{ t.question.label }}”
+        </BaseButton>
+      </template>
       <template v-for="list in lists.filter((l) => listSection(l) === group.section)" :key="list">
         <FactRowAdder
           v-if="adding === list"
