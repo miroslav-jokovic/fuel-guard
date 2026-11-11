@@ -89,11 +89,11 @@ describe("driver_file_expirations — the Drivers page's qualification files", (
   // F21 R4b, Q-AI13: the roster's File filter is the driver's WORST chip, which agrees with the tool's
   // per-item state only for `expired`; every other answer links to the roster itself.
   it("links with filters only for expired files, the one state the roster's File filter shows exactly", async () => {
-    const expired = (await assistantDriverFiles({} as never, ORG, { state: "expired" }, NOV_10_EVENING_CT)) as Out;
+    const expired = (await assistantDriverFiles(db(), ORG, { state: "expired" }, NOV_10_EVENING_CT)) as Out;
     expect(expired.link).toEqual({ surfaceKey: "fleet.drivers", query: { file: "expired", status: "any" } });
     expect(expired.link.query).toEqual(driversToQuery({ file: "expired", status: null }));
     for (const input of [{}, { state: "expiring" }, { state: "missing" }, { state: "expired", drivers: ["ben"] }]) {
-      const out = (await assistantDriverFiles({} as never, ORG, input, NOV_10_EVENING_CT)) as Out;
+      const out = (await assistantDriverFiles(db(), ORG, input, NOV_10_EVENING_CT)) as Out;
       expect(out.link, JSON.stringify(input)).toBeUndefined();
     }
   });

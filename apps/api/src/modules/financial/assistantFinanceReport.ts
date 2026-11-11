@@ -1,9 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  ASSISTANT_TOOL_PAGE,
   assistantMonthsIn,
   assistantUnitKey,
   assistantWholeMonths,
   exclusiveEndYmd,
+  fleetReportGrainOf,
+  fleetReportToQuery,
+  type FleetReportTab,
   ledgerMonthWhy,
   organizationTimezone,
   resolveAssistantRange,
@@ -100,6 +104,20 @@ export function resolveFinancePeriod(input: AssistantFinanceInput, today: string
   return { ok: true, ...whole, label: widened ? `${r.label}, widened to whole months ${whole.from} to ${whole.to}` : r.label };
 }
 
+/**
+ * F21 R4b (e): the Fleet report opened on THIS answer's whole months — INCLUSIVE, as the page's rail
+ * states them; the API's exclusive end (Q-AI10) is `exclusiveEndYmd`'s business, never the link's — on
+ * the tab that shows what was asked. Built by the page's contract; `askData` lifts it off before the
+ * model sees the result (D-AI8).
+ */
+function fleetLink(tool: "finance_report" | "income_statement", period: { from: string; to: string }, input: AssistantFinanceInput, tab: FleetReportTab) {
+  const aboutTheYear = input.period === "year_to_date" || input.period === "last_year";
+  return {
+    surfaceKey: ASSISTANT_TOOL_PAGE[tool],
+    query: fleetReportToQuery({ grain: fleetReportGrainOf(period.from, period.to, aboutTheYear), from: period.from, to: period.to, tab }),
+  };
+}
+
 /** The page's provenance facts, verbatim. `sweptAt` is the McLeod finance sweep's last landing. */
 function provenance(r: Pick<FleetReportResult, "monthsCovered" | "monthsMissing" | "monthsPartial" | "monthsOpen" | "openNote" | "closeKnown" | "ledgerReason">, sweptAt: string | null) {
   return {
@@ -178,6 +196,7 @@ export async function assistantFinanceReport(
     source: FINANCE_SOURCE,
     timezone,
     period: period.label,
+    link: fleetLink("finance_report", period, input, by === "truck" ? "trucks" : by === "contractor" ? "contractors" : "overview"),
     provenance: provenance(report, report.sweptAt),
     ...headline(report),
     expense_families: report.families.expense.map(family),
@@ -248,6 +267,7 @@ export async function assistantIncomeStatement(
     source: "Income statement (/fleet-report, Income statement tab), the same figures that tab shows for these months",
     timezone,
     period: period.label,
+    link: fleetLink("income_statement", period, input, "statement"),
     provenance: provenance(s, sweptAt),
     comparison: {
       kind: s.comparison.kind,

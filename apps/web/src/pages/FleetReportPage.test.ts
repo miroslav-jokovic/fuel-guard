@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory, createRouter, type Router } from "vue-router";
-import { fleetReportToQuery } from "@silvicom/shared";
+import { FLEET_REPORT_TABS, fleetReportToQuery } from "@silvicom/shared";
 import { ref } from "vue";
 import FleetReportPage from "./FleetReportPage.vue";
 import type { FleetReportResponse, FleetTruck } from "@/features/accounting/useFleetReport";
@@ -280,6 +280,14 @@ describe("FleetReportPage — the shell (R1)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("opens on the tab a link built by its contract names, and its tabs are the contract's", async () => {
+    const q = new URLSearchParams(fleetReportToQuery({ grain: "month", from: "2026-06-01", to: "2026-06-30", tab: "statement" })).toString();
+    const w = await mountPage(`/accounting/fleet?${q}`);
+    expect(w.find('[role="tab"][aria-selected="true"]').text()).toContain("Income statement");
+    expect(w.findAll('[role="tab"]').map((t) => t.text())).toHaveLength(FLEET_REPORT_TABS.length);
+    w.unmount();
   });
 
   it("writes the rail's choice into the URL, and a plain visit writes nothing", async () => {
