@@ -172,6 +172,9 @@ first real render is a composed one. LR5 is the single most valuable item and wa
   questions and writes them. **Recommended: (a).** An empty Campaigns tab that cannot compose is the first thing
   every new carrier meets.
 
+**Ruled 2026-11-10** by the owner's delegation — Q-AD74 (a), Q-AD75 one 4:5 render with an anchored 1:1 cut,
+Q-AD76 (b), Q-AD77 (a). The rulings and their reasons: `ADS-CREATIVE-QUALITY-PLAN.md` §7.1 and `ADS-AGENT-PLAN.md` §9.
+
 Questions this audit leans on and does not reopen: Q-AD17 (conversion leads under EMPLOYMENT), Q-AD20 (Higgsfield
 key), Q-AD51 (the quality alert pauses nothing), Q-AD57 (the rating sheet), Q-AD68 (the next concept on a live
 campaign).

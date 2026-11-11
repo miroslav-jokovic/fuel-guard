@@ -177,6 +177,9 @@ earlier; all of it decides what that ad looks like.
   Proposed hooks: pay-first, life-first (home time), equipment-first, straight-talk (what you get / what we need),
   proof (real figures, real equipment). Scenes: cab POV, equipment on road, equipment at rest, home/street, abstract
   plate. (a) Take these; (b) edit. **Rec: (a)**, edited in the drawer later; they are data, not code.
+  **Ruled (a), 2026-11-10, by the owner's delegation (§7.1)** — as closed lists in the contract, not drawer-edited
+  data: the distinct-pair rule of Q-AD77 needs two presets' families to be comparable.
+  **Built 2026-11-10 in P1-6 (#2211):** `AD_HOOK_FAMILIES`, `AD_SCENE_FAMILIES` in `brandKitContract.ts`.
 - **Q-AD59 · When performance may weight the draw (owner).** (a) After 50 leads per preset across the org; (b) after
   20; (c) recommendation only, never automatic. **Rec: (a)** — below that the noise outweighs the signal (R4's own
   caveat: cheap junk leads look like winners; use cost per *converted* lead from the outcome feed, not cost per lead).
@@ -233,6 +236,98 @@ earlier; all of it decides what that ad looks like.
 D-AD9 (no lettering from the image model; our renderer composites the figures), D-AD12 (three checks, a person
 approves every ad), D-AD13 (ledgered, budgeted, idempotent), the guard, the kill switch, the claim check. The craft
 judge is additive; candidates and pools multiply what passes those checks, they never bypass them.
+
+## 7. Phase 1 — image direction and correctness (planned 2026-11-10)
+
+**What this is.** The first phase of [`HANDOFF-2026-11-10-ADS-AGENTS-BUILD.md`](HANDOFF-2026-11-10-ADS-AGENTS-BUILD.md)
+§4: steps AG1–AG6 of [`ADS-AGENTS-AUDIT-2026-11-10.md`](ADS-AGENTS-AUDIT-2026-11-10.md) §3, in the order that makes
+the first real render a composed one. No vendor and no key is needed; everything is proven on the simulator and the
+fakes, and nothing here is called production-ready before L4 (Q-AD73).
+
+**Authority.** The owner's instruction for the handoff (2026-11-10): *"you are product manager and you should
+analyze and make decisions that will be best solutions for us."* Every ruling below marked **PM** is made on that
+delegation, on the date given, and the owner can overrule any of them.
+
+### 7.1 Rulings this phase builds on
+
+| Question | Ruling (PM, 2026-11-10) | Why |
+|---|---|---|
+| **Q-AD75** composed per format | Render and check only the formats the publisher sends (4:5, and 1:1 when the preset has it). 4:5 is the primary: the model is asked for that aspect. 1:1 is cut from it, anchored on the subject, not on the centre. 9:16 is neither rendered nor checked until Q-AD29 opens a placement for it. Two renders are revisited only if V4 shows the anchored crop loses the subject. | An unused 9:16 crop failing a good feed ad is a bug today. One render keeps credits flat; the feed image is what a driver sees. |
+| **Q-AD76** judge of the finished ad | Build it; show its score and its one-line reasons to the reviewer; **no floor**. A floor is added only after its scores have been compared with the owner's approve/reject on 30 real ads. **Built 2026-11-10 in P1-7 (#2216):** recorded live 7 of 7 on two runs over seven drawn ads; the 30-ad comparison waits for real images (V4). | A threshold set before that comparison is a number somebody picked. |
+| **Q-AD77** starter presets | Five starter presets shipped as adoptable data; a carrier adopts them into its own versioned presets and edits them. Five distinct hook × scene pairs; a save refuses two live presets with the same pair. Nothing is auto-enabled. **Built 2026-11-10 in P1-6 (#2211); the starters are D-AD29.** | An empty Campaigns tab that cannot compose is the first thing a new carrier meets, and distinct concepts are what Meta's delivery needs. |
+| **Q-AD58** the concept families | **(a), the lists proposed in §5**: hooks pay-first, life-first, equipment-first, straight-talk, proof; scenes cab POV, equipment on road, equipment at rest, home/street, abstract plate. They are closed lists in the contract, so the distinct-pair rule compares like with like. | Q-AD77 cannot be built without them, and the proposal has stood unchallenged since 11/09. |
+
+Decisions made while planning (D-AD24–D-AD28), each the smallest thing that keeps one fact in one place:
+
+- **D-AD24 · The feed formats have one home, in shared.** `FEED_FORMATS` moves from the Meta publisher to
+  `shared/ads/renderGeometry.ts` with a pure `publishedFormats(formats)` (the preset's formats the publisher will
+  send, best first). The preset save, compose and the publisher all read it. A list restated in the save schema
+  would drift the day Q-AD29 opens 9:16.
+- **D-AD25 · A stored preset with no feed format stops compose before any model is asked.** The save refuses it
+  (AG2); a preset saved before AG2 stops with `no_feed_format`, by name, before the copywriter spends a token.
+  Today it is rendered, approved, then refused at publish.
+- **D-AD26 · The copy that ships is chosen before the image is rendered.** Whether a headline fits is a fact about
+  the text, the format and the layout, not about the picture. So the fit is measured first (no image, no vendor
+  call), the first ranked candidate that fits every published format in both languages is chosen, and
+  `candidates` records which one and why each earlier one was passed over. A contrast refusal is the image's and
+  stays where it is. Falling back *after* the render would pay for a picture to learn something already known.
+- **D-AD27 · A headline slot's ceiling is a shared figure pinned to the renderer.** The save schema lives in
+  shared and cannot measure a font; the renderer lives in the API. So the ceiling is a constant in shared
+  (`OVERLAY_HEADLINE_MAX_CHARS`), and an API test re-measures it with the real overlay and fails when it is no
+  longer true. **Corrected the same day by measurement (P1-3):** this entry first defined the ceiling as two
+  lines at the mean letter advance, which gives 50 (4:5) and 52 (1:1) and is wrong — 9 of 10 recorded headlines
+  of 50–54 characters fit. Measured over the 360 headlines of the copywriter's fixtures that reach the layout
+  step: 45 or fewer always fit, nothing over 56 fits, between them it depends on the words. **The ceiling is 56**,
+  one number for every layout (the three layouts move the same stack). Under it, each candidate is judged by
+  D-AD26, not refused at save.
+- **D-AD28 · Where the picture stays quiet is derived from the layout, never asked.** The handoff's AG3 gives the
+  art director an `empty_space` answer. The code already knows where the words go (`layout` and the text zone), and
+  a model's answer could only agree or be wrong. So the prompt is *told* the quiet region in words, and the art
+  director answers only what it alone decides: `focal_subject` and `camera_distance`, fixed vocabularies.
+  **Corrected the same day (P1-5):** this entry first said the 1:1 cut keeps the subject's side of the frame.
+  The arithmetic says the opposite: the text stack is the same height in pixels on both formats, so the cut
+  keeps the edge the WORDS sit against (bottom for `bottom_plate`, top for `top_band`, centre for `centered`),
+  which puts the square's words over the same plain part as the tall frame's; the far edge of the subject's
+  side is what is cut away.
+- **D-AD29 · The five starters are the diagonal of the two families, re-specified from §4a (PM, 2026-11-10,
+  P1-6).** Each holds a different hook family AND a different scene family, so all five can be live at once
+  under Q-AD77's distinct-pair rule and none reads as another's variant. From ADS-AGENT-PLAN §4a: every one is a
+  still in 4:5 + 1:1 (motion is C6's, 9:16 waits for Q-AD29); P1 keeps the windshield and leads with straight
+  talk (what the run is, what we need), so "life first" is P3's alone; P2 "The number" becomes a plain plate with
+  the figure as the picture — no equipment photo needed, so an empty kit still composes two of the five (P1,
+  P2); P4 is a still of the parked truck; P5's three-card carousel does not exist, so it becomes "proof", our
+  truck on the road with the brief's own figures. Each hook formula says what to lead with when the brief lacks
+  the fact it names (`no-pay-in-brief` is the case it was written for). Keys P1–P5; a carrier's own key is
+  never overwritten. Also decided in building it: the pair rule binds only a save that makes a preset LIVE (not
+  archived, newest version enabled) — a switched-off save is never refused, so adopting is never refused — and
+  a preset stored before the families has no pair and blocks nothing.
+
+### 7.2 The steps
+
+Each line is one PR (P1-1 and P1-2 went as one, #2185: both are a few lines over the same new function, and every
+code PR waits for the owner's own merge), branched from `origin/main`, with its progress file in `ads-progress/`. None needs a
+migration: the recipe and `ads_creatives.candidates` / `checks` are jsonb, and every new field is optional or
+defaulted so a body stored before it still parses.
+
+| Step | Track | What is built | Done when |
+|---|---|---|---|
+| **P1-1 · AG2 + D-AD24** | S | `FEED_FORMATS` and `publishedFormats` in shared; the publisher imports them. `adPresetSaveSchema` refuses a format set with no feed format, in the sentence the editor shows. The preset form says 9:16 is kept for Stories and not made yet. | Contract tests: 9:16-only refused with its sentence, 9:16 + 4:5 accepted; the publisher's tests unchanged and green; mutants named. |
+| **P1-2 · Q-AD75 part one + D-AD25** | W | `composeCreative` frames, overlays, checks and stores `publishedFormats(recipe.formats)` only; a preset with none stops `no_feed_format` first. | Compose test: a visual failure planted on 9:16 only no longer fails the creative, and no 9:16 asset is stored; a 9:16-only stored preset stops before the copywriter is called. |
+| **P1-3 · AG1 (D-AD26, D-AD27)** | W | `overlayFit` in `overlay.ts` (the layout step of `renderOverlay`, split out, no image); compose picks the first ranked candidate that fits; `adCandidatesSchema` gains optional `passed_over: [{ index, reason }]` and `chosen` becomes the real index; review shows "the judge's first choice did not fit the image: …". The shared ceiling (56, measured) and the test that re-measures it; the save refuses a headline slot above it. | Compose test: ranked[0] needs three lines, ranked[1] ships, the reason is on the row, and no render was asked for ranked[0]; all refused → stops with every reason; parity test red when a template size changes. |
+| **P1-4 · AG3 (D-AD28)** | W | Art director v3: input gains layout, the quiet region in words, the published formats, the chosen headline; answer gains `focal_subject` and `camera_distance`; `composeImagePrompt` writes them and the quiet-region sentence. New `prompt.v3.md`, fixtures' versions bumped, re-recorded live until two runs agree. | Baseline recorded twice, both scores in the progress entry; a planted answer outside the vocabulary is refused. **Spends the owner's Anthropic key** — said in the PR before recording. |
+| **P1-5 · AG4, Q-AD75 part two** | W | The render asks for 4:5 (the parameter name is the model's and is read from Higgsfield's documentation when V4 chooses one; on the simulator the request carries the aspect and FakeHiggsfield honours it); `frameStill` takes the layout and the 1:1 cut keeps the edge the words sit against. | Golden: a subject planted off-centre survives the 1:1 cut; the centre-crop mutant loses it. |
+| **P1-6 · AG6 (Q-AD77, Q-AD58)** | S | Recipe gains optional `hook_family` and `scene_family` (closed lists); a NEW save requires them; the API save refuses a pair another live preset holds; `shared/ads/starterPresets.ts` holds five recipes (each parsed by `adPresetSaveSchema` in a test); `POST /api/ads/presets/adopt` writes version 1 of each key the carrier does not have, **disabled**; the empty Presets tab offers "Start from five ready-made presets". | Adopt twice writes five once; an adopted preset composes on the simulator; two live presets with one pair refused with both keys named. |
+| **P1-7 · AG5 (Q-AD76)** | W | Worker `finishedAdJudge`: one vision call per published format on the composed English image; four criteria (subject legible, words and picture agree, hierarchy reads, looks like the kit), each 1–5 with one line; stored under `checks.finished_ad`; shown on review as a second opinion, never a gate. Registry row, readiness pins, launch-refusal words and `adsCertifyPlan` lines in the same PR. | Fixtures recorded twice; switched off or out of budget, the creative still reaches review and says the judge did not run. |
+
+**Order and why.** P1-1 and P1-2 first: they are the bug (an image nobody uses fails an ad that is fine), small,
+and every later step reads `publishedFormats`. P1-3 before P1-4 because the art director is to see the *chosen*
+headline, and until P1-3 the chosen one may not be drawable. P1-6 is independent of the W steps and is what makes
+the simulator walk in the handoff's §6 possible, so it may be built in parallel when a W step sits in CI.
+
+**What Phase 1 does not do.** It chooses no image model (V4, Q-AD20), sets no quality floor (Q-AD76), does not let
+the reviewer pick another candidate (AG7), and does not restyle the overlay (AG8). The simulator's picture is a
+kit photo or a drawn road, so "composed" is proven as *the request carries the direction and the cut keeps the
+subject*, not as a judgement of a real model's output.
 
 ## Sources (read 2026-11-09)
 
