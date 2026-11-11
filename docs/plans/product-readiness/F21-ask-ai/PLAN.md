@@ -552,3 +552,10 @@ audit row is the endpoint's own.
   - Nine deliberate breaks, each killed by an assertion: history dropped, question before history, no
     re-read instruction, the route ignoring history, the route untrimmed, the audit without the count,
     the oldest kept, no character budget, an over-long answer dropped.
+- 2026-11-10 — **R3a web half built, PR held until #2223 is in PRODUCTION** (branch
+  `claude/askai-follow-ups-web`). The store sends each question with the thread's earlier ANSWERED
+  turns through `assistantHistoryForRequest`, the API's own trim. A failed or pending turn is never
+  sent; a retry carries only what came before it; "New chat" starts with none. The composer's line
+  says follow-ups keep the subject. `QUESTION_MAX` now reads the contract's
+  `ASSISTANT_QUESTION_MAX`. Three deliberate breaks (history not sent, failed turns sent, later turns
+  on retry), each killed by an assertion.
