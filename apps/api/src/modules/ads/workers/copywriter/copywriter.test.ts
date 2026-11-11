@@ -121,11 +121,22 @@ describe("copywriter — what it sends and under which key", () => {
 
   it("tells the model a margin under each slot's limit, and the check holds the real limit", () => {
     const sent = JSON.parse(copyUserMessage(fx.input.brief, fx.input.recipe)) as { concept: { slots: Array<{ name: string; max_chars: number }> } };
-    expect(sent.concept.slots).toEqual(fx.input.recipe.copy_slots.map((s) => ({ name: s.name, max_chars: toldLimit(s.max_chars) })));
+    expect(sent.concept.slots.map(({ name, max_chars }) => ({ name, max_chars }))).toEqual(fx.input.recipe.copy_slots.map((s) => ({ name: s.name, max_chars: toldLimit(s.max_chars) })));
   });
 
   it("tells a short slot a wider margin than a long one, never more than the real limit", () => {
     expect([toldLimit(40), toldLimit(60), toldLimit(61), toldLimit(220)]).toEqual([28, 42, 51, 187]);
+  });
+
+  it("names the role of each slot drawn on the picture — kicker, headline, second line, button — and leaves the platform's slots unmarked", () => {
+    const recipe = { ...fx.input.recipe, copy_slots: [...fx.input.recipe.copy_slots, { name: "who", max_chars: 28 }, { name: "also", max_chars: 28 }], overlay_slots: { headline: "hook", cta: "cta", kicker: "who", subline: "also" } };
+    const sent = JSON.parse(copyUserMessage(fx.input.brief, recipe)) as { concept: { slots: Array<{ name: string; on_image?: string }> } };
+    const roles = Object.fromEntries(sent.concept.slots.map((s) => [s.name, s.on_image ?? null]));
+    expect(roles).toMatchObject({ hook: "headline", cta: "button", who: "kicker", also: "second_line" });
+    expect(Object.values(roles).filter((r) => r === null).length).toBe(recipe.copy_slots.length - 4);
+    // A preset that does not say what the overlay draws marks nothing: the role is the preset's to give.
+    const unsaid = JSON.parse(copyUserMessage(fx.input.brief, { ...recipe, overlay_slots: null })) as typeof sent;
+    expect(unsaid.concept.slots.some((s) => "on_image" in s)).toBe(false);
   });
 
   it("asks no model when the copywriter is switched off", async () => {

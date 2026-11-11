@@ -85,51 +85,51 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:21:10.362Z",
+    "recorded_at": "2026-11-11T04:57:34.270Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Your route. $90,000 a year.",
-            "cta": "Apply now",
-            "primary_text": "You know your run before the sun comes up. That is what a dedicated account gives you — the same lanes, the same rhythm, every week. This seat pays $90,000 per year and comes with health insurance. Apply today.",
-            "headline": "Dedicated. Health insurance."
-          },
-          "es": {
-            "hook": "Tu ruta. $90,000 al año.",
-            "cta": "Aplica ahora",
-            "primary_text": "Conoces tu ruta antes de que salga el sol. Eso es lo que da una cuenta dedicada: las mismas rutas, el mismo ritmo, cada semana. El puesto paga $90,000 per year e incluye seguro médico. Únete hoy.",
-            "headline": "Dedicado. Seguro médico."
-          }
-        },
-        {
-          "en": {
-            "hook": "Same lanes. Same $90k every year.",
-            "cta": "Get started",
-            "primary_text": "Dedicated means you are not guessing where you go next. The sun rises and you already know the road ahead. This CDL-A position pays $90,000 per year. Health insurance is included. Join our team.",
-            "headline": "Dedicated CDL-A driver needed."
-          },
-          "es": {
-            "hook": "Mismas rutas. $90,000 al año.",
-            "cta": "Empieza hoy",
-            "primary_text": "Dedicado significa que no adivinas a dónde vas. Sale el sol y ya conoces el camino. Esta posición CDL-A paga $90,000 per year. Seguro médico incluido. Aplica y únete al equipo.",
-            "headline": "Chofer CDL-A, cuenta dedicada."
-          }
-        },
-        {
-          "en": {
-            "hook": "You are covered. $90k a year.",
+            "hook": "You're earning $90,000 a year.",
             "cta": "Apply today",
-            "primary_text": "Before dawn you are already in the seat, and this job makes sure you are taken care of. Health insurance and $90,000 per year on a dedicated account — consistent work, consistent pay. Apply today.",
-            "headline": "Health insurance. Dedicated run."
+            "primary_text": "This is a dedicated Class A position with consistent runs and health insurance included. Same lanes, same customers, steady miles. Apply and get started.",
+            "headline": "Dedicated, with benefits."
           },
           "es": {
-            "hook": "Estás cubierto. $90,000 al año.",
+            "hook": "Ganas $90,000 al año.",
             "cta": "Aplica hoy",
-            "primary_text": "Antes del amanecer ya estás al volante, y este trabajo se asegura de cuidarte. Seguro médico y $90,000 per year en una cuenta dedicada: trabajo constante, pago constante. Aplica hoy.",
-            "headline": "Seguro médico. Ruta dedicada."
+            "primary_text": "Posición Clase A dedicada con rutas fijas y seguro médico incluido. Mismas rutas, mismos clientes, millas constantes. Únete al equipo.",
+            "headline": "Dedicado, con beneficios."
+          }
+        },
+        {
+          "en": {
+            "hook": "Same route. $90,000 a year.",
+            "cta": "Apply today",
+            "primary_text": "Dedicated Class A run means you know your lanes and your schedule. Health insurance is part of the package. Predictable work, strong pay. Join our team.",
+            "headline": "Class A dedicated route."
+          },
+          "es": {
+            "hook": "Ruta fija. $90,000 al año.",
+            "cta": "Aplica hoy",
+            "primary_text": "Cuenta dedicada Clase A: conoces tus rutas y tu horario. Seguro médico incluido. Trabajo predecible, buen pago. Únete al equipo.",
+            "headline": "Ruta dedicada Clase A."
+          }
+        },
+        {
+          "en": {
+            "hook": "Health insurance, $90K/year.",
+            "cta": "Apply today",
+            "primary_text": "Dedicated Class A position. You run the same account, same lanes — no guessing what's next. Health insurance included. Strong earnings at $90,000 per year. Apply today.",
+            "headline": "Dedicated. Covered. $90K."
+          },
+          "es": {
+            "hook": "Seguro médico, $90K al año.",
+            "cta": "Aplica hoy",
+            "primary_text": "Posición Clase A en cuenta dedicada. Mismas rutas, sin sorpresas. Seguro médico incluido y $90,000 al año. Aplica hoy.",
+            "headline": "Dedicado. Cubierto. $90K."
           }
         }
       ]

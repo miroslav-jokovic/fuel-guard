@@ -1,0 +1,186 @@
+{
+  "name": "look-rail-flatbed-per-load",
+  "about": "The rail look's five roles: P2 The number: Flatbed per load, regional Southeast, guaranteed pay, orientation paid. A kicker and a second line are drawn with the headline.",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A flatbed driver, regional",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 42000,
+          "per": "load"
+        },
+        {
+          "kind": "money",
+          "cents": 68000,
+          "per": "load"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "guaranteed pay"
+        },
+        {
+          "kind": "term",
+          "term": "paid orientation"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "flatbed freight",
+          "regional runs",
+          "Georgia, the Carolinas, Tennessee"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P2 The number",
+      "hook_formula": "Open with the pay figure alone, then who the job is for.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "A late-model tractor on a dark {background} background, studio light, no text, no logos, no lettering",
+      "image_slots": [
+        "background"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "rail",
+      "formats": [
+        "1:1",
+        "4:5"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta",
+        "kicker": "kicker",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": "Dispatch Freight Lines",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-11T04:50:21.266Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "pay": "$420–$680 per load",
+            "cta": "Apply today",
+            "primary_text": "Dispatch Freight Lines pays $420 to $680 per load on flatbed, regional runs through Georgia, the Carolinas, and Tennessee. Guaranteed pay. Home weekly. Paid orientation. Class A, 2 years experience, 23+.",
+            "headline": "Flatbed, home weekly",
+            "kicker": "Class A regional",
+            "second_line": "Guaranteed pay"
+          },
+          "es": {
+            "pay": "$420–$680 por carga",
+            "cta": "Aplica hoy",
+            "primary_text": "Dispatch Freight Lines paga de $420 a $680 por carga en rutas regionales de plataforma por Georgia, las Carolinas y Tennessee. Pago garantizado. A casa cada semana. Orientación pagada. Clase A, 2 años de experiencia, mayores de 23.",
+            "headline": "Plataforma, a casa semanal",
+            "kicker": "Conductores Clase A",
+            "second_line": "Pago garantizado"
+          }
+        },
+        {
+          "en": {
+            "pay": "Home weekly",
+            "cta": "Apply today",
+            "primary_text": "Regional flatbed in the Southeast — Georgia, the Carolinas, Tennessee. Dispatch Freight Lines pays $420 to $680 per load with guaranteed pay. Paid orientation included. Class A required, 2 years experience, 23+.",
+            "headline": "$420–$680 per load",
+            "kicker": "Regional flatbed",
+            "second_line": "Guaranteed pay"
+          },
+          "es": {
+            "pay": "A casa cada semana",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales de plataforma por el sureste — Georgia, las Carolinas y Tennessee. Dispatch Freight Lines paga de $420 a $680 por carga con pago garantizado. Orientación pagada. Se requiere Clase A, 2 años de experiencia, mayores de 23.",
+            "headline": "$420–$680 por carga",
+            "kicker": "Plataforma regional",
+            "second_line": "Pago garantizado"
+          }
+        },
+        {
+          "en": {
+            "pay": "$420–$680 per load",
+            "cta": "Apply today",
+            "primary_text": "Flatbed loads through Georgia, the Carolinas, and Tennessee. You run regional, you're home weekly, and every load pays $420 to $680 — guaranteed. Paid orientation. Class A, 2 years experience, 23+. Join Dispatch Freight Lines.",
+            "headline": "Southeast flatbed runs",
+            "kicker": "Class A, 23+",
+            "second_line": "Home weekly"
+          },
+          "es": {
+            "pay": "$420–$680 por carga",
+            "cta": "Aplica hoy",
+            "primary_text": "Carga de plataforma por Georgia, las Carolinas y Tennessee. Rutas regionales, a casa cada semana y entre $420 y $680 por carga — pago garantizado. Orientación pagada. Clase A, 2 años de experiencia, mayores de 23. Únete a Dispatch Freight Lines.",
+            "headline": "Rutas en el sureste",
+            "kicker": "Clase A, mayor de 23",
+            "second_line": "A casa semanal"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -81,51 +81,51 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:23:08.826Z",
+    "recorded_at": "2026-11-11T04:59:31.117Z",
     "output": {
       "candidates": [
         {
           "en": {
             "pay": "$0.75 per mile",
             "cta": "Apply today",
-            "primary_text": "Class A tanker drivers with 2 years of experience, this run is built for you. You earn $0.75 for every mile you turn. Bring your tanker endorsement and your record, and join our team.",
-            "headline": "Tanker drivers, join us"
+            "primary_text": "Class A tanker drivers earn $0.75 per mile here. You need 2 years of experience to qualify. Join our team and put your tanker endorsement to work.",
+            "headline": "Class A tanker drivers"
           },
           "es": {
             "pay": "$0.75 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Conductores clase A con tanker endorsement y 2 años de experiencia, esta ruta es para usted. Gana $0.75 por cada milla. Trae tu historial y únete al equipo.",
-            "headline": "Conductores de tanker"
+            "primary_text": "Conductores clase A con tanker ganan $0.75 por milla. Se requieren 2 años de experiencia. Pon tu endorsement de tanker a trabajar y únete al equipo.",
+            "headline": "Conductores clase A tanker"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.75 per mile",
+            "cta": "Apply now",
+            "primary_text": "If you have 2 years behind the wheel of a tanker, this run pays $0.75 per mile. No guessing what you'll make — the rate is flat and it starts from your first loaded mile.",
+            "headline": "Tanker drivers wanted"
+          },
+          "es": {
+            "pay": "$0.75 por milla",
+            "cta": "Aplica ahora",
+            "primary_text": "Si tienes 2 años manejando tanker, esta ruta paga $0.75 por milla. Sin sorpresas en el cheque — la tarifa es fija desde tu primera milla cargada.",
+            "headline": "Se buscan choferes tanker"
           }
         },
         {
           "en": {
             "pay": "$0.75 per mile",
             "cta": "Get started",
-            "primary_text": "If you hold a Class A CDL with a tanker endorsement and have 2 years behind the wheel, you qualify. The pay is $0.75 per mile. No guessing, no tiers — just a straight rate every mile you run.",
-            "headline": "Class A tanker, $0.75/mi"
+            "primary_text": "Experienced tanker drivers: $0.75 per mile is the rate. You bring 2 years of tanker experience, we put you on a paying run. It is that straightforward — apply and let's talk.",
+            "headline": "2 years tanker exp. needed"
           },
           "es": {
             "pay": "$0.75 por milla",
-            "cta": "Comienza ya",
-            "primary_text": "Tienes CDL clase A con endoso de tanker y 2 años de experiencia, calificas. La paga es $0.75 por milla, clara y directa. Sin niveles ni sorpresas, solo tu tarifa por cada milla.",
-            "headline": "Tanker clase A, $0.75/mi"
-          }
-        },
-        {
-          "en": {
-            "pay": "$0.75 per mile",
-            "cta": "Talk to us",
-            "primary_text": "You have 2 years in a tanker and a clean record. We have a Class A seat paying $0.75 per mile. That's the job. If that number works for you, reach out and let's put you in the cab.",
-            "headline": "2 years exp? Drive tanker"
-          },
-          "es": {
-            "pay": "$0.75 por milla",
-            "cta": "Contáctanos",
-            "primary_text": "Tienes 2 años manejando tanker y un récord limpio. Tenemos un asiento clase A que paga $0.75 por milla. Así de sencillo. Si ese número te conviene, comunícate y hablamos.",
-            "headline": "¿2 años? Maneja tanker"
+            "cta": "Empieza hoy",
+            "primary_text": "Choferes de tanker con experiencia: la tarifa es $0.75 por milla. Tú traes 2 años en tanker y nosotros te ponemos en ruta. Así de sencillo — aplica y hablamos.",
+            "headline": "Se requieren 2 años en tanker"
           }
         }
       ]

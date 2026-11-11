@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  FORMAT_SIZE, publishedFormats, rankCandidates, withRegenerationClauses,
+  FORMAT_SIZE, overlaySlotList, publishedFormats, rankCandidates, withRegenerationClauses,
   type AdAssetRef, type AdBrandKit, type AdBrief, type AdCandidates, type AdFormat, type AdPresetRecipe, type AdVisualCheck, type CreativeState,
 } from "@silvicom/shared";
 import type { ClaudeGenerationDeps } from "../generations/claudeGeneration.js";
@@ -203,12 +203,12 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
     const boxes: FractionRect[] = [];
     for (const language of LANGUAGES) {
       const o = await renderOverlay({
-        format, language, base: still, brief, kit, logo, layout: recipe.layout,
-        headline: copy[language][recipe.overlay_slots!.headline]!, cta: copy[language][recipe.overlay_slots!.cta]!,
+        format, language, base: still, brief, kit, logo, layout: recipe.layout, look: recipe.look,
+        ...drawnCopy(recipe.overlay_slots!, copy[language]),
       });
       if (o.kind === "refused") return { kind: "stop", reason: `render check (${format}, ${language}): ${overlaySummary(o.findings)}`, checks: { render: { ok: false, format, language, findings: o.findings } } };
       rendered.push({ format, language, png: o.png });
-      boxes.push(...o.blocks.map((b) => toFraction(b.box, format)));
+      boxes.push(toFraction(o.stack, format));
     }
     const v = await checkVisual(deps, {
       ...ids, format, attempt,
@@ -238,11 +238,21 @@ function fitRefusal(input: ComposeInput, copy: AdCopy): { format: AdFormat; lang
   const { brief, recipe, kit } = input;
   for (const format of publishedFormats(recipe.formats)) {
     for (const language of LANGUAGES) {
-      const findings = overlayFit({ format, language, brief, kit, layout: recipe.layout, headline: copy[language][recipe.overlay_slots!.headline]!, cta: copy[language][recipe.overlay_slots!.cta]! });
+      const findings = overlayFit({ format, language, brief, kit, layout: recipe.layout, look: recipe.look, ...drawnCopy(recipe.overlay_slots!, copy[language]) });
       if (findings.length > 0) return { format, language, findings };
     }
   }
   return null;
+}
+
+/**
+ * The words the overlay draws, by role, from one language's copy: the headline and the call to action always,
+ * and the two small lines when the preset names a slot for them (D-ADL4). One function for the fit asked before
+ * the picture and the render after it, so the two are asked about the same words.
+ */
+export function drawnCopy(slots: NonNullable<AdPresetRecipe["overlay_slots"]>, copy: Record<string, string>): { headline: string; cta: string; kicker: string | null; subline: string | null } {
+  const said = Object.fromEntries(overlaySlotList(slots).map(([role, slot]) => [role, copy[slot] ?? null]));
+  return { headline: said.headline!, cta: said.cta!, kicker: said.kicker ?? null, subline: said.subline ?? null };
 }
 
 function toFraction(box: { x: number; y: number; width: number; height: number }, format: AdFormat): FractionRect {

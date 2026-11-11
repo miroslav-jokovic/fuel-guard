@@ -81,51 +81,51 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:21:20.894Z",
+    "recorded_at": "2026-11-11T04:57:45.758Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "You're rolling at dawn: $0.66/mi.",
-            "cta": "Apply now",
-            "primary_text": "Regional Class A run. You earn $0.66 per mile and you're home weekends. Apply today.",
+            "hook": "You're earning $0.66 a mile.",
+            "cta": "Apply today",
+            "primary_text": "Regional Class A driving with home weekends. You keep the miles, you keep the weekends. $0.66 per mile — no guessing what your check looks like. Join our team and apply today.",
             "headline": "Home every weekend."
           },
           "es": {
-            "hook": "Al amanecer, ganas $0.66/milla.",
+            "hook": "Ganas $0.66 por milla.",
             "cta": "Aplica hoy",
-            "primary_text": "Ruta regional, Clase A. Ganas $0.66 por milla y llegas a casa los fines de semana. Únete al equipo.",
-            "headline": "En casa cada fin de semana."
+            "primary_text": "Ruta regional, Clase A. Ganas $0.66 por milla y llegas a casa los fines de semana. Sin sorpresas en tu cheque. Únete al equipo y aplica hoy.",
+            "headline": "Casa los fines de semana."
           }
         },
         {
           "en": {
-            "hook": "Sunrise. Home by the weekend.",
-            "cta": "Join our team",
-            "primary_text": "You pull a regional route and you are home weekends. The rate is $0.66 per mile. If that fits your life, join us.",
-            "headline": "Earn $0.66 per mile."
+            "hook": "Home weekends. Every one.",
+            "cta": "Apply today",
+            "primary_text": "Regional Class A run. You're back home every weekend — and you're pulling $0.66 per mile to get there. Straightforward pay, predictable schedule. Apply today.",
+            "headline": "$0.66 a mile, Class A."
           },
           "es": {
-            "hook": "Amaneces en ruta, llegas el fin.",
-            "cta": "Aplica aquí",
-            "primary_text": "Ruta regional Clase A. Regresas a casa los fines de semana y cobras $0.66 por milla. Si eso encaja con tu vida, aplica.",
-            "headline": "$0.66 por milla, regional."
+            "hook": "Casa los fines de semana.",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta regional, Clase A. Llegas a casa cada fin de semana y ganas $0.66 por milla. Pago claro, ruta predecible. Aplica hoy.",
+            "headline": "$0.66 por milla, Clase A."
           }
         },
         {
           "en": {
-            "hook": "You hit the road at first light.",
-            "cta": "Get started",
-            "primary_text": "Class A regional seat. You run your route at $0.66 per mile and you are home weekends. No guessing, no waiting — that is the deal.",
-            "headline": "Regional. Home weekends."
+            "hook": "Sun's up. You're on a run.",
+            "cta": "Apply today",
+            "primary_text": "Class A regional. You're on the road during the week and home by the weekend. The rate is $0.66 per mile — steady miles, steady pay. Apply today.",
+            "headline": "$0.66/mile, home weekends."
           },
           "es": {
-            "hook": "Sales al amanecer, vuelves pronto.",
-            "cta": "Empieza hoy",
-            "primary_text": "Puesto regional Clase A. Corres tu ruta a $0.66 por milla y estás en casa los fines de semana. Sin sorpresas — así es el trabajo.",
-            "headline": "Regional. Casa los fines."
+            "hook": "Amanece. Estás en ruta.",
+            "cta": "Aplica hoy",
+            "primary_text": "Clase A, ruta regional. Durante la semana estás en el tráiler; los fines de semana, en casa. La tarifa es $0.66 por milla, con millas constantes. Aplica hoy.",
+            "headline": "$0.66/milla, fines en casa."
           }
         }
       ]

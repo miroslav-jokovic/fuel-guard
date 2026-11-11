@@ -80,51 +80,51 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:25:32.515Z",
+    "recorded_at": "2026-11-11T05:01:48.019Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Tanker. $0.75 per mile.",
-            "cta": "Apply today.",
-            "primary_text": "You will haul tanker freight and earn $0.75 per mile from day one. You need 2 years of verifiable Class A experience to qualify. Join our team and put your tanker endorsement to work.",
-            "headline": "Class A tanker. Apply now."
+            "hook": "Tanker. $0.75 a mile.",
+            "cta": "Apply today",
+            "primary_text": "Class A tanker drivers earn $0.75 per mile here. You need 2 years of verifiable experience to qualify. If you have the seat time in a tanker, apply now and let's get you moving.",
+            "headline": "Class A tanker drivers"
           },
           "es": {
             "hook": "Tánker. $0.75 por milla.",
-            "cta": "Aplica hoy.",
-            "primary_text": "Manejarás tráiler tánker y ganarás $0.75 por milla desde el primer día. Se requieren 2 años de experiencia verificable con licencia Clase A. Pon tu endoso de tánker a trabajar y únete al equipo.",
-            "headline": "Clase A tánker. Aplica ya."
+            "cta": "Aplica hoy",
+            "primary_text": "Conductores clase A con experiencia en tánker ganan $0.75 por milla. Se requieren 2 años de experiencia verificable. Si tienes el tiempo en el asiento, aplica ahora.",
+            "headline": "Conductores tánker clase A"
           }
         },
         {
           "en": {
-            "hook": "Tanker driver wanted.",
-            "cta": "Get started.",
-            "primary_text": "This seat is for an experienced tanker driver. Bring 2 years of Class A time and you earn $0.75 per mile. If you have the endorsement and the experience, this run is ready for you.",
-            "headline": "$0.75/mile — start hauling."
+            "hook": "Tanker CDL-A, 2 years in.",
+            "cta": "Join us now",
+            "primary_text": "Have 2 years behind the wheel of a tanker? That's what it takes. Class A drivers with tanker experience start at $0.75 per mile. Apply today and get to work.",
+            "headline": "2 years exp. $0.75/mile"
           },
           "es": {
-            "hook": "Se busca conductor tánker.",
-            "cta": "Comienza ya.",
-            "primary_text": "Este puesto es para conductores con experiencia en tánker. Trae 2 años de manejo con Clase A y ganarás $0.75 por milla. Si tienes el endoso y la experiencia, la ruta te está esperando.",
-            "headline": "$0.75 por milla — maneja ya."
+            "hook": "Tánker CDL-A, 2 años exp.",
+            "cta": "Únete hoy",
+            "primary_text": "¿Tienes 2 años de experiencia en tánker? Eso es todo lo que se necesita. Conductores clase A con esa experiencia ganan $0.75 por milla. Aplica hoy.",
+            "headline": "2 años exp. $0.75/milla"
           }
         },
         {
           "en": {
-            "hook": "Class A tanker, $0.75/mi.",
-            "cta": "Apply now.",
-            "primary_text": "You have 2 years of Class A experience — put it in a tanker and earn $0.75 per mile. The qualification is straightforward and the rate is real. Take the next step and apply today.",
-            "headline": "2 years exp. gets you here."
+            "hook": "Tanker haul, top-mile pay.",
+            "cta": "Apply now",
+            "primary_text": "$0.75 per mile for Class A tanker drivers. Bring 2 years of tanker experience and you qualify. Straightforward pay, real miles. Apply now.",
+            "headline": "Earn $0.75 per mile"
           },
           "es": {
-            "hook": "Clase A tánker, $0.75/mi.",
-            "cta": "Aplica ahora.",
-            "primary_text": "Tienes 2 años de experiencia con Clase A — ponlos a trabajar en un tánker y gana $0.75 por milla. El requisito es claro y la tarifa es real. Da el siguiente paso y aplica hoy.",
-            "headline": "2 años de exp. te califican."
+            "hook": "Tánker clase A, buen pago.",
+            "cta": "Aplica ahora",
+            "primary_text": "$0.75 por milla para conductores clase A en tánker. Con 2 años de experiencia en tánker calificas. Pago directo, millas reales. Aplica ahora.",
+            "headline": "Gana $0.75 por milla"
           }
         }
       ]

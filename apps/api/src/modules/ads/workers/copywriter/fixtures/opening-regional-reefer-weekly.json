@@ -110,51 +110,51 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:20:16.636Z",
+    "recorded_at": "2026-11-11T04:56:48.830Z",
     "output": {
       "candidates": [
         {
           "en": {
             "pay": "$0.70 per mile",
-            "cta": "Apply with us",
-            "primary_text": "Silvicom Inc is hiring Class A reefer drivers for regional runs — Chicago to Texas and back. No-touch freight, weekly pay, and home weekly. You need 2 years of experience and must be 23+.",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc is hiring Class A regional reefer drivers. Earn up to $0.70 per mile hauling reefer freight on the Chicago-to-Texas corridor. No-touch freight, weekly pay, and home weekly. Must be 23+ with 2 years of experience.",
             "headline": "Regional reefer, home weekly"
           },
           "es": {
             "pay": "$0.70 por milla",
-            "cta": "Aplica con nosotros",
-            "primary_text": "Silvicom Inc busca conductores Clase A para rutas regionales de Chicago a Texas. Carga refrigerada sin tocar, pago semanal y regreso a casa cada semana. Se requieren 2 años de experiencia y mayores de 23.",
-            "headline": "Reefer regional, casa cada semana"
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc busca conductores Clase A para rutas regionales de refrigerado. Gana hasta $0.70 por milla en la ruta Chicago-Texas. Carga sin contacto, pago semanal y regreso a casa cada semana. Se requieren 23+ años y 2 años de experiencia.",
+            "headline": "Refrigerado regional, casa semanal"
           }
         },
         {
           "en": {
             "pay": "$0.62–$0.70/mile",
-            "cta": "Join our team",
-            "primary_text": "Home weekly on a Chicago-to-Texas reefer lane — that is what this run looks like. Silvicom Inc pays weekly, the freight is no-touch, and experienced Class A drivers with 2 years and age 23 are who we want.",
-            "headline": "Home weekly, reefer lanes"
+            "cta": "Join us today",
+            "primary_text": "Home weekly on a Chicago-to-Texas reefer run. Silvicom Inc pays $0.62 to $0.70 per mile, weekly. No-touch freight means you drive — that's it. Class A, 23+, 2 years experience required.",
+            "headline": "Home weekly, reefer regional"
           },
           "es": {
             "pay": "$0.62–$0.70 por milla",
-            "cta": "Únete al equipo",
-            "primary_text": "Casa cada semana en una ruta de tráiler refrigerado entre Chicago y Texas. Silvicom Inc paga cada semana, la carga es sin tocar. Se necesita Clase A con 2 años de experiencia y mayores de 23.",
-            "headline": "Casa semanal, ruta reefer"
+            "cta": "Únete hoy",
+            "primary_text": "Regresa a casa cada semana en rutas de refrigerado Chicago-Texas. Silvicom Inc paga de $0.62 a $0.70 por milla, con pago semanal. Carga sin contacto: tú manejas y nada más. Se requiere Clase A, 23+ años y 2 años de experiencia.",
+            "headline": "Casa semanal, ruta refrigerada"
           }
         },
         {
           "en": {
             "pay": "$0.70 per mile",
-            "cta": "Apply today",
-            "primary_text": "Chicago to Texas, reefer freight, no-touch. Silvicom Inc runs Class A drivers on this regional lane with weekly pay and home weekly. Bring 2 years of verifiable experience and be 23+ and you are ready to go.",
-            "headline": "Class A reefer, weekly pay"
+            "cta": "Apply now",
+            "primary_text": "Reefer freight, Chicago to Texas and back. Silvicom Inc needs Class A drivers with 2 years behind the wheel. No-touch freight, home weekly, weekly pay. Starting at $0.62 per mile, up to $0.70. Age 23 minimum.",
+            "headline": "Reefer runs, Chicago to Texas"
           },
           "es": {
             "pay": "$0.70 por milla",
-            "cta": "Aplica hoy",
-            "primary_text": "Chicago a Texas, carga refrigerada sin tocar. Silvicom Inc opera rutas regionales Clase A con pago semanal y regreso a casa cada semana. Se requieren 2 años de experiencia comprobable y mayores de 23.",
-            "headline": "Clase A reefer, pago semanal"
+            "cta": "Aplica ahora",
+            "primary_text": "Carga refrigerada de Chicago a Texas y regreso. Silvicom Inc necesita conductores Clase A con 2 años de experiencia. Carga sin contacto, casa cada semana y pago semanal. Desde $0.62 hasta $0.70 por milla. Mayor de 23 años.",
+            "headline": "Ruta refrigerada, Chicago-Texas"
           }
         }
       ]

@@ -81,51 +81,51 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:21:33.042Z",
+    "recorded_at": "2026-11-11T04:58:02.341Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "You're rolling. $2,500 a week.",
-            "cta": "Apply now",
-            "primary_text": "You and your co-driver hit the road and earn $2,500 per week, paid every week. Class A team positions are open now. Join our team.",
-            "headline": "Team drivers, apply today."
+            "hook": "You and a partner, $2,500 a week.",
+            "cta": "Apply today",
+            "primary_text": "Team drivers earn $2,500 per week with weekly pay. You and your co-driver split the miles and keep the money coming every seven days. Class A CDL required. Join our team.",
+            "headline": "Team drivers wanted"
           },
           "es": {
-            "hook": "Al volante. $2,500 a la semana.",
-            "cta": "Aplique hoy",
-            "primary_text": "Usted y su compañero salen a la ruta y ganan $2,500 por semana, con pago semanal. Posiciones de equipo Clase A disponibles ahora. Únanse al equipo.",
-            "headline": "Conductores en equipo, únanse."
+            "hook": "Tú y tu compañero, $2,500 por semana.",
+            "cta": "Aplica hoy",
+            "primary_text": "Conductores en equipo Clase A ganan $2,500 por semana con pago semanal. Tú y tu copiloto se reparten las millas y el dinero llega cada semana. Se requiere CDL Clase A. Únete al equipo.",
+            "headline": "Conductores en equipo"
           }
         },
         {
           "en": {
-            "hook": "Sun's up. You get paid weekly.",
-            "cta": "Start driving",
-            "primary_text": "Every week a new sunrise through the windshield — and a paycheck waiting. Team Class A drivers earn $2,500 per week with weekly pay. Apply today and keep the wheels turning.",
-            "headline": "Team Class A — $2,500/week."
+            "hook": "Every week, $2,500 hits your account.",
+            "cta": "Start now",
+            "primary_text": "Weekly pay, every time. As a Class A team driver you earn $2,500 per week — no waiting, no guessing. Your partner keeps the wheels turning while you rest. Apply and get moving.",
+            "headline": "$2,500 per week, weekly"
           },
           "es": {
-            "hook": "Amanece. Pago cada semana.",
-            "cta": "Empiece ya",
-            "primary_text": "Cada semana un amanecer desde la cabina y un pago puntual. Conductores en equipo Clase A ganan $2,500 por semana con pago semanal. Aplique hoy y mantenga las ruedas girando.",
-            "headline": "Equipo Clase A — $2,500/semana."
+            "hook": "Cada semana, $2,500 en tu cuenta.",
+            "cta": "Empieza hoy",
+            "primary_text": "Pago semanal, sin esperas. Como conductor en equipo Clase A ganas $2,500 por semana. Tu compañero mantiene las ruedas rodando mientras descansas. Aplica y ponte en marcha.",
+            "headline": "$2,500 semanales, fijo"
           }
         },
         {
           "en": {
-            "hook": "Miles ahead. Weekly paycheck.",
-            "cta": "Join the team",
-            "primary_text": "You are behind the wheel at dawn, your partner is rested, and your pay — $2,500 every week — hits your account on schedule. Class A CDL required. Apply and ride with a team.",
-            "headline": "Class A teams earn $2,500/wk."
+            "hook": "Sun's up. You're rolling, earning $2,500.",
+            "cta": "Apply today",
+            "primary_text": "Class A team drivers keep miles covered around the clock. You bring a co-driver, we back you with $2,500 per week and weekly pay — straight to you, every seven days. Come drive with us.",
+            "headline": "Class A team drivers"
           },
           "es": {
-            "hook": "La ruta espera. Pago semanal.",
-            "cta": "Únase al equipo",
-            "primary_text": "Usted conduce al amanecer, su compañero descansado está listo, y su pago — $2,500 cada semana — llega puntual. Se requiere CDL Clase A. Aplique y maneje en equipo.",
-            "headline": "Equipos Clase A: $2,500/semana."
+            "hook": "Amanece. Ruedas girando, $2,500 en camino.",
+            "cta": "Aplica hoy",
+            "primary_text": "Los conductores en equipo Clase A cubren millas a toda hora. Trae un copiloto, nosotros te respaldamos con $2,500 por semana y pago semanal, directo a ti cada siete días. Ven a manejar con nosotros.",
+            "headline": "Equipo Clase A, $2,500"
           }
         }
       ]

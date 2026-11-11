@@ -70,45 +70,45 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:14:02.494Z",
+    "recorded_at": "2026-11-11T04:49:47.127Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "$0.65 per mile. Class A OTR drivers, apply.",
-            "body": "You earn $0.65 for every mile you run, over the road. You must be 23+ and hold a Class A CDL to qualify. If you are ready to run OTR, we want to hear from you.",
+            "hook": "$0.65 per mile — Class A OTR drivers.",
+            "body": "You earn $0.65 per mile on OTR runs. If you hold a Class A CDL and are 23+, this lane is open for you. Apply today and get moving.",
             "cta": "Apply today."
           },
           "es": {
-            "hook": "$0.65 por milla. Para conductores Clase A.",
-            "body": "Ganas $0.65 por cada milla recorrida en ruta OTR. Es una posición de largo recorrido. Debes ser mayor de 23 años y contar con CDL Clase A. Si estás listo para manejar, queremos saber de ti.",
+            "hook": "$0.65 por milla — conductores Clase A OTR.",
+            "body": "Ganas $0.65 por milla en rutas OTR. Si tienes licencia Clase A y eres mayor de 23 años, hay un lugar para ti. Aplica hoy.",
             "cta": "Aplica hoy."
           }
         },
         {
           "en": {
-            "hook": "$0.65/mile for Class A OTR drivers.",
-            "body": "This OTR seat pays $0.65 per mile. You are behind the wheel and on the road, running lanes across the country. Minimum age is 23+. Hold a Class A CDL and ready to run OTR? Join our team.",
-            "cta": "Join our team."
+            "hook": "$0.65 a mile for Class A OTR drivers.",
+            "body": "OTR drivers earn $0.65 for every mile they run. Class A CDL required. Must be 23+. If that's you, the seat is waiting.",
+            "cta": "Start your application."
           },
           "es": {
-            "hook": "$0.65 por milla, conductores OTR Clase A.",
-            "body": "Esta posición OTR paga $0.65 por milla. Manejas rutas de larga distancia por todo el país. Se requiere CDL Clase A y ser mayor de 23 años. Si estás listo para la carretera, únete a nosotros.",
-            "cta": "Únete hoy."
+            "hook": "$0.65 por milla para conductores OTR Clase A.",
+            "body": "Los conductores OTR ganan $0.65 por milla recorrida. Se requiere CDL Clase A y ser mayor de 23 años. Si cumples, hay trabajo para ti.",
+            "cta": "Envía tu solicitud."
           }
         },
         {
           "en": {
-            "hook": "$0.65 a mile. OTR. Class A CDL required.",
-            "body": "The rate is $0.65 per mile, over the road. You need a Class A CDL and you need to be 23+. That is what it takes to get in the seat. If that is you, reach out and let us get you moving.",
-            "cta": "Reach out now."
+            "hook": "Class A OTR: $0.65 per mile, yours to earn.",
+            "body": "Put your Class A CDL to work OTR and earn $0.65 on every mile. The only requirements: a Class A license and age 23. Join our team and hit the road.",
+            "cta": "Apply now."
           },
           "es": {
-            "hook": "$0.65 la milla. OTR. Se requiere CDL Clase A.",
-            "body": "La tarifa es $0.65 por milla en ruta OTR. Necesitas CDL Clase A y ser mayor de 23 años. Eso es todo lo que se necesita para ocupar este asiento. Si cumples, contáctanos y te ponemos en ruta.",
-            "cta": "Contáctanos ya."
+            "hook": "Clase A OTR: $0.65 por milla, tuyas para ganar.",
+            "body": "Pon tu CDL Clase A a trabajar en rutas OTR y gana $0.65 por milla. Solo se pide licencia Clase A y mayores de 23 años. Únete y sal a la carretera.",
+            "cta": "Aplica ahora."
           }
         }
       ]

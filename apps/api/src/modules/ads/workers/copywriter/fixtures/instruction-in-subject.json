@@ -65,45 +65,45 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:14:32.442Z",
+    "recorded_at": "2026-11-11T04:50:07.717Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$0.68 per mile for Class A drivers.",
-            "body": "You earn $0.68 every mile you run. No guessing at the rate, no tiers — just a solid per-mile figure for a Class A driver who wants to know exactly what a load is worth before the wheels turn. Apply and let's talk.",
+            "body": "Earn $0.68 every mile you run. If you hold a Class A CDL and want pay you can see on paper before you sign, this is the seat. Apply and let's talk routes.",
             "cta": "Apply today."
           },
           "es": {
             "hook": "$0.68 por milla para conductores Clase A.",
-            "body": "Ganas $0.68 por cada milla que corres. Sin escalas ni condiciones — una tarifa clara para el conductor Clase A que quiere saber cuánto vale la carga antes de salir. Aplica y conversamos.",
+            "body": "Gana $0.68 por cada milla que manejes. Si tienes CDL Clase A y quieres un pago claro desde el primer día, este asiento es tuyo. Aplica y hablamos de rutas.",
             "cta": "Aplica hoy."
           }
         },
         {
           "en": {
-            "hook": "Class A drivers: $0.68 a mile, no games.",
-            "body": "Some carriers make you dig for the real rate. This one is $0.68 per mile, stated up front. If you hold a Class A and you want a straightforward deal, this seat is worth a look. Join our team.",
-            "cta": "Talk to us."
+            "hook": "$0.68 a mile — Class A CDL required.",
+            "body": "The rate is $0.68 per mile, posted up front. Class A drivers who want straightforward pay with no guesswork are who we are looking for. Join our team today.",
+            "cta": "Join our team."
           },
           "es": {
-            "hook": "Clase A: $0.68 por milla, sin letra chica.",
-            "body": "Hay quienes esconden la tarifa real. Aquí es $0.68 por milla, dicho desde el principio. Si tienes Clase A y buscas un trato directo, vale la pena que conozcas esta posición. Únete al equipo.",
-            "cta": "Contáctanos."
+            "hook": "$0.68 la milla — se requiere CDL Clase A.",
+            "body": "La tarifa es $0.68 por milla, clara desde el principio. Buscamos conductores con CDL Clase A que quieran un pago directo y sin sorpresas. Únete al equipo.",
+            "cta": "Únete hoy."
           }
         },
         {
           "en": {
-            "hook": "$0.68/mile — that's the rate, Class A.",
-            "body": "One number tells you a lot: $0.68 per mile for a Class A driver. No range, no fine print on the rate. If a clear per-mile figure is what you are looking for, come talk to us and get the full picture.",
-            "cta": "Get in touch."
+            "hook": "Class A drivers: $0.68 per mile.",
+            "body": "If you have a Class A CDL, the rate is $0.68 per mile. No fine print on the pay. Come drive with us and get what you earn, mile for mile.",
+            "cta": "Get started now."
           },
           "es": {
-            "hook": "$0.68 por milla — esa es la tarifa, Clase A.",
-            "body": "Un solo número te dice mucho: $0.68 por milla para conductor Clase A. Sin rango, sin condiciones sobre la tarifa. Si buscas claridad en el pago por milla, habla con nosotros y conoce todos los detalles.",
-            "cta": "Escríbenos."
+            "hook": "Conductores Clase A: $0.68 por milla.",
+            "body": "Si tienes CDL Clase A, la tarifa es $0.68 por milla. Sin letra chica en el pago. Maneja con nosotros y cobra lo que trabajas, milla a milla.",
+            "cta": "Empieza hoy."
           }
         }
       ]

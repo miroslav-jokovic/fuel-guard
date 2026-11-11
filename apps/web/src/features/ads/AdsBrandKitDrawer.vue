@@ -76,7 +76,7 @@ async function submit(): Promise<void> {
 
       <fieldset class="space-y-2">
         <legend class="text-sm font-semibold text-ink">Colours</legend>
-        <p class="text-sm text-ink-muted">Each hex value is six digits after a #.</p>
+        <p class="text-sm text-ink-muted">Each hex value is six digits after a #. Name one colour primary and one accent: an ad uses the accent for its button and the pay figure, and the primary for its footer.</p>
         <div v-for="(c, i) in form.colors" :key="i" class="flex items-end gap-2">
           <FormField v-slot="{ id }" label="Name" class="flex-1"><BaseInput :id="id" v-model="c.name" :data-test="`color-name-${i}`" /></FormField>
           <FormField v-slot="{ id }" label="Hex" class="flex-1"><BaseInput :id="id" v-model="c.hex" :data-test="`color-hex-${i}`" /></FormField>
@@ -106,11 +106,11 @@ async function submit(): Promise<void> {
 
       <fieldset class="space-y-2">
         <legend class="text-sm font-semibold text-ink">Text on the ad</legend>
-        <p class="text-sm text-ink-muted">Leave the plate empty to put the text straight on the image.</p>
+        <p class="text-sm text-ink-muted">The picture is darkened toward the ground colour under the words, as much as each picture needs. Leave it empty to put the text straight on the image.</p>
         <div v-for="f in AD_FORMATS" :key="f" class="grid grid-cols-3 items-end gap-2">
           <p class="pb-2 text-sm text-ink">{{ f }}</p>
           <FormField v-slot="{ id }" label="Text colour"><BaseInput :id="id" v-model="form.overlays[f].text_color" /></FormField>
-          <FormField v-slot="{ id }" label="Plate colour"><BaseInput :id="id" v-model="form.overlays[f].plate_color" /></FormField>
+          <FormField v-slot="{ id }" label="Ground colour"><BaseInput :id="id" v-model="form.overlays[f].plate_color" /></FormField>
         </div>
       </fieldset>
 

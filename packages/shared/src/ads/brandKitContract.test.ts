@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { OVERLAY_HEADLINE_MAX_CHARS } from "./copyCandidates.js";
-import { adBrandKitSaveSchema, adBrandKitSchema, adPresetRecipeSchema, adPresetSaveSchema, kitAssets, templateSlots, type AdBrandKit, type AdPresetRecipe } from "./brandKitContract.js";
+import { OVERLAY_HEADLINE_MAX_CHARS, OVERLAY_SMALL_LINE_MAX_CHARS } from "./copyCandidates.js";
+import { adBrandKitSaveSchema, adBrandKitSchema, adPresetRecipeSchema, adPresetSaveSchema, kitAssets, overlaySlotList, templateSlots, type AdBrandKit, type AdPresetRecipe } from "./brandKitContract.js";
 import { safeZone } from "./renderGeometry.js";
 
 /** Fixtures only — never a real brand value or preset (Q-AD14, Q-AD12 are the owner's). */
@@ -16,6 +16,45 @@ const RECIPE: AdPresetRecipe = {
   platform_slots: null,
 };
 const ASSET = { sha256: "a".repeat(64), format: "png", source_format: "svg", width: 10, height: 10, byte_size: 99 } as const;
+
+describe("a preset's look (ADS-AD-LOOK-PLAN D-ADL11)", () => {
+  it("a recipe saved before the looks still parses and names none; a named look is one of the two; any other word is refused", () => {
+    const before = adPresetRecipeSchema.safeParse(RECIPE);
+    expect(before.success && before.data.look).toBe(undefined);
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, look: "ribbon" }).success).toBe(true);
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, look: "rail" }).success).toBe(true);
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, look: "poster" }).error?.issues.map((i) => i.path.join("."))).toEqual(["look"]);
+  });
+});
+
+describe("the two small lines on the image (ADS-AD-LOOK-PLAN D-ADL4)", () => {
+  const six = { ...RECIPE, copy_slots: [...RECIPE.copy_slots, { name: "who", max_chars: 28 }, { name: "also", max_chars: 28 }, { name: "body", max_chars: 200 }, { name: "title", max_chars: 40 }] };
+  const slots = (over: object) => ({ ...six, overlay_slots: { headline: "hook", cta: "cta", ...over }, platform_slots: { primary_text: "body", headline: "title" } });
+  const issues = (r: object) => adPresetRecipeSchema.safeParse(r).error?.issues.map((i) => [i.path.join("."), i.message]) ?? [];
+
+  it("a preset may name a slot for either, both or neither; absent and null both mean the line is not drawn", () => {
+    for (const over of [{}, { kicker: "who" }, { subline: "also" }, { kicker: "who", subline: "also" }, { kicker: null, subline: null }]) expect(issues(slots(over)), JSON.stringify(over)).toEqual([]);
+    expect(overlaySlotList({ headline: "hook", cta: "cta", kicker: "who", subline: "also" })).toEqual([["kicker", "who"], ["headline", "hook"], ["subline", "also"], ["cta", "cta"]]);
+    expect(overlaySlotList({ headline: "hook", cta: "cta", kicker: null })).toEqual([["headline", "hook"], ["cta", "cta"]]);
+  });
+
+  it("a small line must be one of the copy slots, and no two lines on the image may read the same slot", () => {
+    expect(issues(slots({ kicker: "nobody" }))).toEqual([["overlay_slots.kicker", "nobody is not one of copy_slots"]]);
+    expect(issues(slots({ kicker: "hook" }))).toEqual([["overlay_slots", "each line on the image is a different slot"]]);
+    expect(issues(slots({ kicker: "who", subline: "who" }))).toEqual([["overlay_slots", "each line on the image is a different slot"]]);
+  });
+
+  it("a slot drawn as a small line cannot also be the platform's text", () => {
+    expect(issues({ ...slots({ kicker: "who" }), platform_slots: { primary_text: "who", headline: "title" } })).toEqual([["platform_slots.primary_text", "who is drawn on the image; the platform's text is another slot"]]);
+  });
+
+  it("the save refuses a small line allowed more than its one line holds, by name, and accepts one at the limit", () => {
+    const save = (max: number, role: "kicker" | "subline") => adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: { ...slots({ [role]: "who" }), copy_slots: six.copy_slots.map((c) => (c.name === "who" ? { ...c, max_chars: max } : c)) } });
+    expect(save(OVERLAY_SMALL_LINE_MAX_CHARS, "kicker").success).toBe(true);
+    expect(save(OVERLAY_SMALL_LINE_MAX_CHARS + 1, "kicker").error?.issues.map((i) => i.message)).toEqual(["The small line above the headline (who) holds at most 28 characters: it is one line at one size."]);
+    expect(save(OVERLAY_SMALL_LINE_MAX_CHARS + 1, "subline").error?.issues.map((i) => i.message)).toEqual(["The second line under the headline (who) holds at most 28 characters: it is one line at one size."]);
+  });
+});
 
 describe("brand kit contract", () => {
   it("lets a kit tighten a format's safe zone, never widen it", () => {

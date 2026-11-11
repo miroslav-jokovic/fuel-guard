@@ -90,8 +90,20 @@ export const adCandidatesSchema = z.object({
  * overlay will refuse; the save says so. The number is the overlay's (its sizes live in the API, where the font
  * is), restated here because the save contract cannot measure a font — and held to the renderer by the API test
  * that re-measures it, which is what makes the copy safe.
+ *
+ * Re-measured the same day after the looks and the copywriter's prompt v4 (386 recorded headlines; it was 56 on
+ * the 370 before): the longest that fits is 58, in the `ribbon` look; `rail` holds 52; 45 or fewer still fits
+ * every look, format and layout.
  */
-export const OVERLAY_HEADLINE_MAX_CHARS = 56;
+export const OVERLAY_HEADLINE_MAX_CHARS = 58;
+/**
+ * The most characters the two small lines on the image may hold — the kicker above the headline and the second
+ * line under it (ADS-AD-LOOK-PLAN D-ADL4). Unlike the headline they have ONE size and never wrap, so this is a
+ * guarantee and not a corpus measurement: 28 of the widest capital the faces hold (W) fit both lines in both
+ * looks on every format, so 28 of anything do. The API test that draws exactly that holds the figure to the
+ * renderer, as the headline's test holds its ceiling.
+ */
+export const OVERLAY_SMALL_LINE_MAX_CHARS = 28;
 export type AdCandidates = z.infer<typeof adCandidatesSchema>;
 
 export interface Offered<C> {

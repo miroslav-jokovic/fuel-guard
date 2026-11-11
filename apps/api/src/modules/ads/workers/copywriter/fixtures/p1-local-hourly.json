@@ -81,51 +81,51 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:21:45.945Z",
+    "recorded_at": "2026-11-11T04:58:15.551Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "You're home every night. $31/hr.",
-            "cta": "Apply now",
-            "primary_text": "Start your day local and end it at your own table. This Class A position pays $31 per hour and brings you home daily. No overnight runs, no guessing when you'll be back. Apply today.",
-            "headline": "Local Class A. $31 per hour."
+            "hook": "You're home tonight. $31/hr.",
+            "cta": "Apply today",
+            "primary_text": "Local Class A driving means you clock out and sleep in your own bed every night. At $31 per hour, you know what your week is worth before it starts. Home daily, no guessing.",
+            "headline": "Home daily, Class A local"
           },
           "es": {
-            "hook": "En casa cada noche. $31/hora.",
-            "cta": "Aplica ahora",
-            "primary_text": "Sal en tu ruta y regresa a casa cada día. Esta posición Clase A paga $31 por hora y llegas a dormir en tu propia cama. Sin noches fuera, sin incertidumbre. Aplica hoy.",
-            "headline": "Local Clase A. $31 por hora."
+            "hook": "En casa esta noche. $31/hr.",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta local con Clase A: terminas tu turno y duermes en casa cada noche. A $31 por hora, sabes exactamente lo que ganas cada semana. A casa diario, sin sorpresas.",
+            "headline": "A casa diario, Clase A local"
           }
         },
         {
           "en": {
-            "hook": "Home daily. $31 an hour.",
-            "cta": "Join our team",
-            "primary_text": "Watch the sun come up behind the wheel, then watch it set from your driveway. This local Class A role pays $31 per hour. You're home every single day. Join our team and apply today.",
-            "headline": "Class A local — home daily."
+            "hook": "You start at $31 an hour.",
+            "cta": "Apply today",
+            "primary_text": "Class A local route. You earn $31 per hour and you are home daily — no nights on the road, no long-haul weeks away. If you hold a Class A and want to stay close to home, this run is built for you.",
+            "headline": "Class A local — $31/hr"
           },
           "es": {
-            "hook": "A casa cada día. $31/hora.",
-            "cta": "Únete al equipo",
-            "primary_text": "Amanece al volante y anochece en tu casa. Este puesto local Clase A paga $31 por hora. Llegas a casa todos los días, sin excepción. Únete al equipo y aplica hoy mismo.",
-            "headline": "Clase A local — a casa cada día."
+            "hook": "Empiezas a $31 por hora.",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta local Clase A. Ganas $31 por hora y regresas a casa a diario, sin noches en carretera ni semanas lejos de tu familia. Si tienes licencia Clase A y quieres quedarte cerca de casa, esta ruta es para ti.",
+            "headline": "Local Clase A — $31 por hora"
           }
         },
         {
           "en": {
-            "hook": "Dawn run. $31/hr. Home tonight.",
-            "cta": "See the job",
-            "primary_text": "You pull out at first light and you're back before the day is done. Class A local driving at $31 per hour, home daily. That's the whole deal. See if it fits — apply today.",
-            "headline": "Local Class A. Home every day."
+            "hook": "Local run. Home every night.",
+            "cta": "Apply today",
+            "primary_text": "This is a Class A local position: you run your route and you are home daily. Pay is $31 per hour. No hotel rooms, no waiting on loads across the country — just a solid local driving job. Join our team.",
+            "headline": "$31/hr, home daily"
           },
           "es": {
-            "hook": "Ruta al alba. $31/hora. Casa hoy.",
-            "cta": "Ver el trabajo",
-            "primary_text": "Sales con la primera luz y regresas antes de que caiga la noche. Conducción local Clase A a $31 por hora, a casa todos los días. Eso es todo lo que necesitas saber. Aplica hoy.",
-            "headline": "Clase A local. A casa cada día."
+            "hook": "Ruta local. En casa cada noche.",
+            "cta": "Aplica hoy",
+            "primary_text": "Posición local Clase A: haces tu ruta y llegas a casa a diario. El pago es de $31 por hora. Sin hoteles, sin esperas en terminales lejos de casa, solo un trabajo de chofer local bien pagado. Únete al equipo.",
+            "headline": "$31/hr, a casa diario"
           }
         }
       ]
