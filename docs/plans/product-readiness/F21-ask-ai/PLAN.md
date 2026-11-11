@@ -1,7 +1,7 @@
 # F21 plan — the Silvicom assistant (Ask AI rebuilt)
 
-**Status:** PROPOSED 2026-10-08. Nothing built. Waiting for the owner on Q-AI1..Q-AI9. Findings are
-in `AUDIT.md` (IDs U, N, W, S, A, D, P, C).
+**Status:** PROPOSED 2026-10-08; Q-AI1..Q-AI9 all ruled 2026-11-11 (§5). R1–R7 and R4b are built (§6).
+Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P, C).
 
 **Goal (owner, 2026-10-08):** one assistant across the whole product. Each person sees only what
 their role and grants allow, and the admin sees everything. It answers, filters, searches and later
@@ -171,14 +171,25 @@ audit row is the endpoint's own.
   (~15× cost); (c) Haiku 5.5, escalating one answer to Sonnet 5.5 only when the eval shows a class of
   question Haiku fails. **Recommend (a) now, (c) only on evidence.** Cap: $50 per org per month to
   start, with an admin alert at 80%.
+  - **Ruled 2026-11-11 (owner, one pass):** (a) Haiku 5.5 ("good for this"). The cap is unchanged:
+    $50 per org per month and the admin alert at 80%, as built in R2b
+    (`ASSISTANT_MONTHLY_CAP_MICRO_USD`, `ASSISTANT_CAP_ALERT_SHARE`). Sonnet only on evidence from
+    the eval, as (c) says.
 - **Q-AI2. Which roles start ON** (`startsOnFor`; admin always on). Recommend fleet_manager,
   dispatcher, safety_manager, accountant. Recruiter and technician once their sections have tools
   (Step 4). Auditor off. Driver never.
+  - **Ruled 2026-11-11 (owner, one pass):** as recommended: fleet_manager, dispatcher, safety_manager
+    and accountant start ON; recruiter and technician later; auditor off; driver never. **Not yet
+    switched:** `surfaceCatalogue.ts` still has `startsOnFor: []` (admin only), and switching it puts
+    Ask AI in front of four roles on the next release. Q-AI8 puts the live test at "100% complete",
+    so the switch waits for the owner to say when (recommend: at that live test).
 - **Q-AI3. Voice engine.** (a) Browser speech recognition: free and instant, but audio goes to
   Google (Chrome/Edge) or Apple (Safari), Firefox is off by default, and there is no custom vocabulary;
   (b) server speech-to-text (Deepgram or AssemblyAI, ~$0.003–0.008/min): every browser, keyterms for
   unit numbers, but a new vendor and DPA. **Recommend (a) first, with Chrome's on-device mode where
   available, and (b) only if unit numbers are misheard in the task walk.**
+  - **Ruled 2026-11-11 (owner, one pass):** no voice for now. Step 3c is not built; (a) stays the
+    recommendation if it is ever asked for.
 - **Q-AI4. Conversation retention and visibility.** Recommend 90 days, visible only to the author,
   with `ai_usage` (no text) kept for 13 months for cost. The `ai.ask` audit row keeps the question.
   - **Ruled 2026-11-11 (owner approved the R4b handoff's recommendations):**
@@ -193,18 +204,31 @@ audit row is the endpoint's own.
 - **Q-AI5. Never-exposed fields (D-AI7).** Confirm the list, and confirm it applies to the admin too.
   Recommend yes: the assistant is the wrong door for those fields even for someone allowed to see
   them on the page.
+  - **Ruled 2026-11-11 (owner, one pass):** confirmed, and it applies to the admin too (as built).
 - **Q-AI6. First write actions.** Candidates: assign a finding, close/dismiss with reason, message
   a driver, add a card override, create a saved view. Recommend assign + saved view first
   (reversible, low stakes); card overrides last.
+  - **Ruled 2026-11-11 (owner, one pass):** **no write actions.** Ask AI reports, in the chat, and
+    the report can be downloaded; it changes nothing on the rest of the product or in the database.
+    Step 6 is dropped. Download today: every answer table has "Download CSV" (R4a), and "Open in …"
+    opens the page whose own exports (the statement PDF) print the same figure.
 - **Q-AI7. The dock.** Accept a non-modal docked panel as a new pattern in
   `DESIGN-SYSTEM-CONTRACT.md` §6? Recommend yes. A SlideOver's scrim blocks the page the assistant
   filters.
+  - **Ruled 2026-11-11 (owner, one pass):** yes. Step 3a (the non-modal dock, its design-contract
+    entry) is the next build.
 - **Q-AI8. Named first users.** One person per role for the Step 3/4 task walks (Q-PR3). Q-PR2 hid
   Ask AI until it has one.
+  - **Ruled 2026-11-11 (owner, one pass):** no named per-role first users now. The owner tests it
+    live once the feature is 100% complete and production-ready, so the Step 3/4 task walks become
+    that one live test, and every remaining step must arrive finished, not as a draft for a walk.
 - **Q-AI9. Data handling.** Questions and tool results go to Anthropic (commercial API terms; no
   training on API data). Does any carrier contract require zero data retention or US-only inference
   (`inference_geo: "us"`, +10% cost)? Recommend standard global unless a contract says otherwise.
 
+  - **Ruled 2026-11-11 (owner, one pass):** standard (global) processing. The owner: every figure in
+    an answer is pulled from the collectors (the carrier's own operating data: telematics, fuel
+    cards, TMS), and no carrier contract requires zero data retention or US-only inference.
 - **Q-AI10. The finance routes' `to` is two things at once (found at R6a, 2026-11-10).**
   `windowSchema` documents `to` as EXCLUSIVE, and the sub-ledger reads behind `getFleetReport`
   (settlements, voids, bills, deductions) window on `.lt(to)`. But `readLedgerForPeriod` and
@@ -898,6 +922,23 @@ audit row is the endpoint's own.
     `worst-idlers-month` ("who are the worst idlers?") passed by calling it, and `idle_report` cannot
     answer that question: its `by` is `total | week | month`, with no driver or vehicle ranking. It is
     retired only when `idle_report` (the page's avoidable-idle verdict) ranks trucks and drivers.
+- 2026-11-11 — **Q-AI1..Q-AI9 ruled in one pass; what is left, revised.** The rulings are under each
+  question in §5. Their effect on "What is left after R4b" above:
+  - **Dropped:** Step 6, the write actions (Q-AI6: Ask AI reports and downloads, and changes nothing);
+    Step 3c, voice (Q-AI3); the per-role task walks (Q-AI8: one live test by the owner once the
+    feature is complete). R3b saved conversations stays unbuilt (Q-AI4 (c)).
+  - **Left, in order:**
+    1. The three baseline failures, read before tuned: `eval:assistant --only flagged-fills-drivers,top-stations,ifta-by-state --answers`
+       (needs the owner's go; ~$0.002), then the fix that the answers point to.
+    2. R4b links for the four tools still linked bare, one PR per page where the page can show exactly
+       the answer.
+    3. Answer time measured from `ai_assistant_usage`; streaming (Step 2d) only if the median is over ~5 s.
+    4. The dock (Step 3a, Q-AI7 yes), then `open_view` navigation (Step 5) on the R4b contracts.
+    5. Breadth (Step 4), one section per PR with eval cases, guided by the baseline.
+    6. Q-AI2's switch (four roles start ON): a one-line `startsOnFor` change, made when the owner says
+       the feature is ready for the live test (Q-AI8), not before.
+  - **Asked, not ruled:** whether "download the report" means more than the CSV per table, e.g. a PDF
+    of the answer itself (not built; nothing in the plan proposes it yet).
 - 2026-11-11 — **The baseline's three failures, read and measured: effort `low` refuses tools it has.**
   With `--answers` (#2261), on the owner's go, production data, nothing written:
   - **What the failures were:** all three were honest refusals ("none of my tools break down … by
