@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import LiveMapControls from "./LiveMapControls.vue";
 
@@ -28,8 +28,17 @@ const render = (basemap: "map" | "satellite" | "terrain" = "map") =>
 const entries = () =>
   [...document.querySelectorAll<HTMLElement>("button.kebab-item")].map((el) => el.textContent!.trim());
 
+/**
+ * Production's build names no environment, so these run as production does: no vector trial entry.
+ * Pinned because a developer's own `.env` may name one (D-DR31's trial switch reads it).
+ */
+beforeEach(() => {
+  vi.stubEnv("VITE_APP_ENVIRONMENT", "");
+});
+
 afterEach(() => {
   document.body.innerHTML = "";
+  vi.unstubAllEnvs();
 });
 
 describe("the live map's control rail", () => {
@@ -103,5 +112,22 @@ describe("the live map's control rail", () => {
     await w.find('[aria-label="Zoom in"]').trigger("click");
     await w.find('[aria-label="Zoom out"]').trigger("click");
     expect(w.emitted("zoom")).toEqual([[1], [-1]]);
+  });
+
+  /**
+   * D-DR31: the vector road map is offered beside today's map on staging only, so the owner can
+   * compare the two before it replaces anything. A dispatcher on production never sees the entry.
+   */
+  it("offers the vector trial only where the build names a non-production environment", async () => {
+    vi.stubEnv("VITE_APP_ENVIRONMENT", "UAT");
+    const w = render();
+    await w.get('[aria-label="Basemap: Map"]').trigger("click");
+    expect(entries()).toEqual(["Map", "Satellite", "Terrain", "Map (vector trial)"]);
+    w.unmount();
+    document.body.innerHTML = "";
+    vi.stubEnv("VITE_APP_ENVIRONMENT", "production");
+    const p = render();
+    await p.get('[aria-label="Basemap: Map"]').trigger("click");
+    expect(entries()).toEqual(["Map", "Satellite", "Terrain"]);
   });
 });

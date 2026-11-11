@@ -38,7 +38,7 @@ const ID = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const CONN = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
 const KIT = "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f";
 const creative = (over: Partial<AdsCreativeView> = {}): AdsCreativeView => ({
-  id: "cr-1", preset_version_id: "pv", brand_kit_version_id: "kv", supersedes_id: null, state: "ready",
+  id: "cr-1", preset_version_id: "pv", brand_kit_version_id: "kv", supersedes_id: null, state: "ready", platform_status: null,
   copy: { en: { headline: "Home every night", pay: 42 } }, regenerations: 0, last_error: null, checks: null, candidates: null, created_at: "2026-11-05T12:00:00Z",
   assets: [{ format: "1:1", language: "en", sha256: "a".repeat(64), path: "o/a.png", width: 1080, height: 1080, url: "https://store/a" }],
   ...over,
@@ -231,6 +231,22 @@ describe("AdsCampaignDrawer", () => {
   it("an ad outside review cannot be decided", () => {
     state.campaign = campaign("paused");
     expect(drawer().find("[data-test=approve]").exists()).toBe(false);
+  });
+
+  it("on a running campaign, a retired ad's replacement can be decided and says so; the campaign's other ads cannot (Q-AD68)", async () => {
+    const retired = creative({ id: "cr-old", state: "approved", platform_status: "retired" });
+    const replacement = creative({ id: "cr-new", supersedes_id: "cr-old" });
+    const ordinary = creative({ id: "cr-other" });
+    state.campaign = campaign("live", [retired, replacement, ordinary]);
+    const w = drawer();
+    const cards = w.findAll("[data-test=creative]");
+    expect(cards.map((c) => [c.find("[data-test=approve]").exists(), c.find("[data-test=creative-replacement]").exists(), c.find("[data-test=creative-retired]").exists()])).toEqual([
+      [false, false, true], [true, true, false], [false, false, false],
+    ]);
+    expect(cards[1]!.find("[data-test=replacement-note]").text()).toContain("same campaign, with the same budget");
+    await cards[1]!.find("[data-test=approve]").trigger("click");
+    await flushPromises();
+    expect(api.calls).toEqual([{ path: `/api/ads/campaigns/${ID}/creatives/cr-new/decision`, body: { decision: "approve" } }]);
   });
 
   it("shows why a campaign stopped", () => {

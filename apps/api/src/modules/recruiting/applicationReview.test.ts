@@ -125,6 +125,10 @@ const seed = (over: {
   marks?: number;
   /** What the applicant has photographed (F0). */
   captures?: Array<Record<string, unknown>>;
+  /** E3: this applicant's live text consents — what a read finds and an update returns. */
+  consents?: Array<Record<string, unknown>>;
+  /** Step 6: the applicant's record — the identity screening runs on. */
+  driver?: Record<string, unknown>;
 } = {}) =>
   createSupabaseRecorder({
     rpc: { save_application_draft: over.save ?? { draft_id: "d-1", updated_at: "2026-09-11T12:00:00Z", revision: (over.revision ?? 3) + 1 } },
@@ -143,7 +147,11 @@ const seed = (over: {
       audit_logs: [],
       // Read by the approval notice (Q-AX4): the carrier's own name, and the applicant's SMS consent.
       organizations: [{ name: "Silvicom Inc" }],
-      sms_consents: [],
+      sms_consents: over.consents ?? [],
+      ...(over.driver ? {
+        drivers: (q: { filters: () => Array<{ col: string; val: unknown }> }) =>
+          (q.filters().find((f) => f.col === "org_id")?.val === ORG ? [over.driver!] : []),
+      } : {}),
     },
   });
 
@@ -206,6 +214,23 @@ describe("reading an application for review", () => {
     expect(old.carrierQuestions).toEqual([]);
   });
 
+  /**
+   * F3c part 2, step 6: the identity on the RECORD, which the draft may not hold yet — so the card shows the
+   * licence screening runs on, not "Not answered", when the Permissions step sends the office there.
+   */
+  it("step 6: hands the office the identity on the applicant's record, only what is set, from its own org", async () => {
+    const rec = seed({ payload: null, driver: { date_of_birth: "1980-04-01", cdl_number: "IL123", cdl_state: " " } });
+    const read = await applicationForReview(rec.client, ORG, INV);
+    if (isReviewError(read)) throw new Error(read.message);
+    expect(read.payload).toBeNull();
+    expect(read.identity).toEqual({ date_of_birth: "1980-04-01", cdl_number: "IL123" });
+    expectOrgScoped(rec, ORG);
+
+    const none = await applicationForReview(seed().client, ORG, INV);
+    if (isReviewError(none)) throw new Error(none.message);
+    expect(none.identity).toEqual({});
+  });
+
   it("scopes a v2 application's Part 1 reads to the reader's own org", async () => {
     const rec = seed({ v2: true });
     await applicationForReview(rec.client, ORG, INV);
@@ -231,6 +256,36 @@ const KEY = "11111111-2222-4333-8444-555555555555";
 const KEYED = { ...PAYLOAD, employers: PAYLOAD.employers.map((e) => ({ ...e, key: KEY })) };
 const savedPayload = (rec: ReturnType<typeof seed>) =>
   (rec.rpcs().find((r) => r.fn === "save_application_draft")!.args as { p_payload: typeof PAYLOAD & { employment_gaps?: unknown[] } }).p_payload;
+
+describe("correcting the driver's own statement in the draft (F3, Q-AM13)", () => {
+  /** On a legacy link §40.25(j) is a draft answer; the catalogue's `statement` rule holds it to a reason. */
+  it("refuses it without the office's reason, and writes nothing", async () => {
+    const rec = seed({ payload: KEYED });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["prior_failed_pre_employment_test"], value: true, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result) && result.code).toBe("note_required");
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("keeps the reason on the edit row, for the driver to read on 3.1", async () => {
+    const rec = seed({ payload: KEYED });
+    const result = await editApplication(
+      rec.client, ORG, INV,
+      { path: ["prior_failed_pre_employment_test"], value: true, revision: REV, note: "  Driver called 11/10  " },
+      { actorId: ACTOR },
+    );
+    expect(isReviewError(result)).toBe(false);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({
+      path: ["prior_failed_pre_employment_test"], after: true, note: "Driver called 11/10", withheld: false,
+    });
+  });
+
+  it("asks no reason for an ordinary answer", async () => {
+    const rec = seed({ payload: KEYED });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["first_name"], value: "Ann", revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result)).toBe(false);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ note: null });
+  });
+});
 
 describe("correcting one answer", () => {
   it("writes the corrected draft through the revision check and records what it was", async () => {
@@ -270,6 +325,34 @@ describe("correcting one answer", () => {
       const result = await editApplication(rec.client, ORG, INV, { path: [...path], value: "1981-04-01", revision: REV }, { actorId: ACTOR });
       expect(isReviewError(result) && result.code, String(path)).toBe("invalid_edit");
       expect(isReviewError(result) && result.message).toBe(IDENTITY_IS_CORRECTED_ELSEWHERE);
+      expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+      expect(rec.writtenRows("application_edits")).toHaveLength(0);
+    }
+  });
+
+  /** F3c part 2, step 5: the carrier's own answers, checked against the stamp the draft does not carry (Q-CQ7). */
+  const PET = "91000000-0000-4000-8000-000000000001";
+  const PET_STAMP = [{ id: PET, wording: "Do you own a pet?", hint: null, kind: "boolean", choices: null, required: true }];
+  it("step 5: corrects one of the carrier's own answers and logs it under its question", async () => {
+    const rec = seed({ invitation: invitation({ carrier_questions: PET_STAMP }), payload: { ...KEYED, carrier_answers: { [PET]: true } } });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["carrier_answers", PET], value: false, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result)).toBe(false);
+    expect((savedPayload(rec) as unknown as { carrier_answers: Record<string, unknown> }).carrier_answers[PET]).toBe(false);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["carrier_answers", PET], before: true, after: false });
+  });
+
+  it("⚠ step 5: refuses a carrier answer the stamp does not take — or any, on an invitation stamped none — writing nothing", async () => {
+    const cases = [
+      { inv: { carrier_questions: PET_STAMP }, path: ["carrier_answers", PET], value: "yes", says: /not an answer/ },
+      { inv: { carrier_questions: PET_STAMP }, path: ["carrier_answers", PET], value: "", says: /must be answered/ },
+      { inv: { carrier_questions: PET_STAMP }, path: ["carrier_answers", "91000000-0000-4000-8000-000000000002"], value: true, says: /not asked/ },
+      { inv: {}, path: ["carrier_answers", PET], value: true, says: /not asked/ },
+    ];
+    for (const c of cases) {
+      const rec = seed({ invitation: invitation(c.inv), payload: KEYED });
+      const result = await editApplication(rec.client, ORG, INV, { path: c.path, value: c.value, revision: REV }, { actorId: ACTOR });
+      expect(isReviewError(result) && result.code, JSON.stringify(c)).toBe("invalid_edit");
+      expect(isReviewError(result) && result.message).toMatch(c.says);
       expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
       expect(rec.writtenRows("application_edits")).toHaveLength(0);
     }
@@ -600,5 +683,153 @@ describe("approving it", () => {
     if (isReviewError(result)) return;
     expect(result.notice).toMatchObject({ sent: false, reason: "no_address" });
     expect(sent.fn).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * F3c part 2 (E2): a row of a positional list added or removed as ONE correction — re-parsed by the
+ * draft schema like every edit, and logged as the whole row so the driver reads it on 3.1.
+ */
+describe("adding and removing a row (E2)", () => {
+  const OLD = { line1: "9 Old Rd", line2: "", city: "Gary", state: "IN", postal_code: "46401", from: "2015-01", to: "2019-03" };
+
+  it("adds an earlier address and logs the whole row at its new position", async () => {
+    const rec = seed();
+    const result = await editApplication(rec.client, ORG, INV, { op: "add_row", list: "addresses", row: OLD, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result)).toBe(false);
+    expect(savedPayload(rec).addresses).toEqual([PAYLOAD.addresses[0], OLD]);
+    const edit = rec.writtenRows("application_edits")[0] as Record<string, unknown>;
+    expect(edit).toMatchObject({ path: ["addresses", 1], before: null, after: OLD });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("⚠ refuses a row the draft schema would refuse, and saves nothing", async () => {
+    const rec = seed();
+    const result = await editApplication(
+      rec.client, ORG, INV, { op: "add_row", list: "addresses", row: { ...OLD, city: "" }, revision: REV }, { actorId: ACTOR },
+    );
+    expect(isReviewError(result) && result.code).toBe("invalid_edit");
+    expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+  });
+
+  it("removes a row and logs the row it took", async () => {
+    const rec = seed({ payload: { ...PAYLOAD, addresses: [...PAYLOAD.addresses, OLD] } });
+    const result = await editApplication(rec.client, ORG, INV, { op: "remove_row", list: "addresses", index: 1, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result)).toBe(false);
+    expect(savedPayload(rec).addresses).toEqual(PAYLOAD.addresses);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["addresses", 1], before: OLD, after: null });
+  });
+
+  const LICENCE = { issuing_authority: "IN", number: "IN-9", expires_at: "2027-01-01", kind: null };
+  it("⚠ refuses a licence row on a v2 link, where the licences are Part 1's and filing drops the draft's", async () => {
+    const rec = seed({ v2: true });
+    const result = await editApplication(
+      rec.client, ORG, INV, { op: "add_row", list: "additional_licences", row: LICENCE, revision: REV }, { actorId: ACTOR },
+    );
+    expect(isReviewError(result) && result.message).toMatch(/licences are corrected/);
+    expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+  });
+
+  it("adds a licence row on a legacy link, where the draft is what files", async () => {
+    const rec = seed();
+    const result = await editApplication(
+      rec.client, ORG, INV, { op: "add_row", list: "additional_licences", row: LICENCE, revision: REV }, { actorId: ACTOR },
+    );
+    expect(isReviewError(result)).toBe(false);
+  });
+});
+
+/**
+ * E3 (F3c part 2): a corrected email moves the invitation's — where every later message goes — and a
+ * corrected phone stops texts to the old number for THIS applicant only, granting nothing on the new.
+ */
+describe("a corrected email or phone moves how the carrier reaches them (E3)", () => {
+  const invitationWrites = (rec: ReturnType<typeof seed>) =>
+    rec.writes().filter((q) => q.table === "application_invitations");
+  const contactAudits = (rec: ReturnType<typeof seed>) =>
+    rec.writtenRows("audit_logs").filter((r) => r.action === "application_contact_moved");
+
+  it("moves the invitation's email to the corrected answer, audited by field and never by value", async () => {
+    const rec = seed();
+    const result = await editApplication(rec.client, ORG, INV, { path: ["email"], value: "susan.g@example.test", revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result) ? null : result.contact).toEqual({ emailMoved: true });
+    const [write] = invitationWrites(rec);
+    expect(write!.write!.payload).toEqual({ email: "susan.g@example.test" });
+    expect(write!.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "id", val: INV }]));
+    expect(contactAudits(rec)).toHaveLength(1);
+    expect(JSON.stringify(contactAudits(rec)[0])).not.toContain("susan.g@");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("keeps the invitation's email for the same address in other capitals", async () => {
+    for (const value of ["SUSAN@example.test"]) {
+      const rec = seed();
+      const result = await editApplication(rec.client, ORG, INV, { path: ["email"], value, revision: REV }, { actorId: ACTOR });
+      expect(isReviewError(result) ? null : result.contact, value).toEqual({});
+      expect(invitationWrites(rec), value).toEqual([]);
+    }
+  });
+
+  const OLD = "+13125550100";
+  it("⚠ stops this applicant's texts to the old number on a legacy link, and grants nothing on the new", async () => {
+    const rec = seed({ payload: { ...PAYLOAD, phone: "(312) 555-0100" }, consents: [{ id: "c-1" }] });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["phone"], value: "(312) 555-0199", revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result) ? null : result.contact).toEqual({ textsStopped: true });
+    const updates = rec.writes().filter((q) => q.table === "sms_consents");
+    expect(updates).toHaveLength(1);
+    expect(updates[0]!.write!.method).toBe("update");
+    expect(updates[0]!.write!.payload).toMatchObject({ revoked_reason: "office_corrected_phone" });
+    expect(updates[0]!.filters()).toEqual(expect.arrayContaining([
+      { col: "org_id", val: ORG }, { col: "driver_id", val: DRIVER }, { col: "phone", val: OLD },
+    ]));
+    expect(rec.rpcs().some((r) => r.fn === "revoke_sms_consent")).toBe(false); // STOP's, org-wide
+    expect(contactAudits(rec)[0]!.meta).toMatchObject({ field: "phone", textsStopped: 1 });
+  });
+
+  it("⚠ stops nothing for the draft's copy of the phone on a v2 link — Part 1's is the one that files", async () => {
+    const rec = seed({ v2: true, payload: { ...PAYLOAD, phone: "(312) 555-0100" }, consents: [{ id: "c-1" }] });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["phone"], value: "(312) 555-0199", revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result) ? null : result.contact).toEqual({});
+    expect(rec.writes().filter((q) => q.table === "sms_consents")).toEqual([]);
+  });
+
+  it("stops nothing when the applicant was not texted at the old number", async () => {
+    const rec = seed({ payload: { ...PAYLOAD, phone: "(312) 555-0100" }, consents: [] });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["phone"], value: "(312) 555-0199", revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result) ? null : result.contact).toEqual({});
+    expect(contactAudits(rec)).toEqual([]);
+  });
+
+  it("tells the office where the carrier reaches them: the invitation's email and whether the phone on file is texted", async () => {
+    const rec = seed({ v2: true, consents: [{ id: "c-1" }] });
+    const review = await applicationForReview(rec.client, ORG, INV);
+    expect(isReviewError(review) ? null : review.contact).toEqual({ email: "susan@example.test", phoneTexted: true });
+    const read = rec.forTable("sms_consents")[0]!;
+    expect(read.filters()).toEqual(expect.arrayContaining([{ col: "driver_id", val: DRIVER }, { col: "phone", val: "+13125550142" }]));
+  });
+});
+
+/** F3c part 2, step 4: a row of a table answer, through the route's service — saved, logged, refused. */
+describe("a row of education or references (step 4)", () => {
+  const REF = { full_name: "Ann Lee", years_known: "5", phone: "3125550100" };
+  const withRefs = { ...PAYLOAD, questionnaire: { ...PAYLOAD.questionnaire, references: [REF] } };
+
+  it("adds a reference whole, logged at its place, and refuses a fourth", async () => {
+    const rec = seed({ payload: withRefs });
+    const added = await editApplication(rec.client, ORG, INV, { path: ["questionnaire", "references", 1], value: { ...REF, full_name: "Bo" }, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(added)).toBe(false);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["questionnaire", "references", 1], before: null });
+    const full = seed({ payload: { ...PAYLOAD, questionnaire: { references: [REF, REF, REF] } } });
+    const refused = await editApplication(full.client, ORG, INV, { path: ["questionnaire", "references", 3], value: REF, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(refused) && refused.code).toBe("invalid_edit");
+    expect(full.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+  });
+
+  it("removes a reference and logs the row it took", async () => {
+    const rec = seed({ payload: withRefs });
+    const result = await editApplication(rec.client, ORG, INV, { op: "remove_answer_row", question: "references", index: 0, revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result)).toBe(false);
+    expect((savedPayload(rec) as unknown as { questionnaire: { references: unknown[] } }).questionnaire.references).toEqual([]);
+    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["questionnaire", "references", 0], before: REF, after: null });
   });
 });

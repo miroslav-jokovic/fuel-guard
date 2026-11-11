@@ -1224,3 +1224,37 @@ SQL, counts only). Nothing was ordered.
   - The schema refuses `observed: true` without `recollectionOf`: observation outside §40.67's cases is not
     the employer's to choose.
   - Nothing orders itself and nothing blocks; no carrier-wide setting is stored.
+- 2026-11-10 — **Results tab lists every result (no migration).** Owner: "Results are not populated at
+  all — one driver, an old result, never changes." Measured read-only on production: the sweep is
+  healthy (synced 15:53 UTC today, latest collection 11/09); since the first read 65 tests came back
+  NEGATIVE, 1 NEGATIVE - DILUTE (10/05), 1 CANCELED (10/06), 6 not yet final. MS2c had built the tab as
+  only the DER-alert subset (`isMedstopDerAlert`) plus D-MS5's history, so the one dilute was the whole
+  tab — §7A.3 specified "last 12 months, filter by outcome". Fix: `readResultReview` also returns `all`
+  (every final outcome, baseline or not, plus refused orders; an unverified drug result is `pending`
+  and stays In progress's), and Show opens on **All results**; Needs review and Found on the first
+  read are its other two choices, and the tab's badge is still the Needs-review count. Ordered newest
+  first, not "violations first" as §7A.3 had it: a violation-first default would pin the 10/05 dilute
+  on top forever, the exact complaint. **Still open:** nothing marks a Needs-review row as reviewed, so
+  that list only ever grows within its year — a reviewed mark is an audited write (who, when, what
+  they decided) and wants its own decision before it is built.
+- 2026-11-10 — **Show's ✕ crashed the page; Results gains Reason and Collected (no migration).** Owner
+  reported "Something went wrong" on `/drug-alcohol?tab=results&results.show=any` after clicking ✕ on
+  Show. Cause: Results, Medical cards and Roster check each opened on a NAMED Show value, so FilterSelect
+  drew a ✕ beside it; ✕ writes `""` (`ANY_PARAM` in the URL) and `LISTS[""]` was undefined. Pre-dates
+  the All-results change above — Medical and Roster had it since MS-UX. Fix: the list a tab opens on is
+  now Show's `""` choice (no ✕), and the list lookup can no longer miss. Owner also asked to "see the
+  latest, and random results and the other categories": Results gains **Reason** (Med-Stop's own words,
+  offered from the rows, as In progress does) and **Collected** (last 7 / 30 / 90 days). The window
+  counts back from `results.today`, the carrier's day the api read the year with — not the browser's.
+  An undated refused order is kept by no window. Newest first is unchanged.
+- 2026-11-10 — **Results: a date range; tab numbers follow the filters (no migration).** Owner: "we
+  don't have date range filtering" and "filters don't change the numbers on the tab". Collected is now
+  the house `DateRangeFilter` (from/to, its presets cover the 7/30/90 choice it replaces); a link's
+  `from`/`to` that is not a day narrows nothing; an undated refused order is inside no range. The
+  `results.today` field that choice needed is dropped again. Tab numbers: once the reader narrows the
+  open tab (search, any filter, or Show on another list), its number is the rows on screen; with nothing
+  narrowed each number keeps its meaning (Random's stays the draws to test, R5). Other tabs keep their
+  own counts: only the open tab is mounted, and computing a closed tab's filtered count would mean a
+  second copy of its filter rules at the page — not worth it for a number nobody is looking at.
+- 2026-11-10 — **Results' Collected range drops the preset list** (owner: no "Last 30 days"-style
+  presets, pick the range on the date picker). `DateRangeFilter :presets="false"`, as FleetPeriodRail.

@@ -118,7 +118,8 @@ describe("what the form sends", () => {
    */
   it("keeps a job with something in it but no name, and the contract refuses it on that row", () => {
     const draft = complete();
-    draft.employers.push({ ...emptyEmployer(), started_on: "2021-01-01" });
+    // Its two Yes/Nos answered, so the refusal below is the name's alone (they start unanswered, F1 part 2).
+    draft.employers.push({ ...emptyEmployer(), started_on: "2021-01-01", operated_cmv: true, dot_regulated: true });
     const sent = toApplication(draft) as { employers: unknown[] };
     expect(sent.employers).toHaveLength(2);
     const parsed = driverApplicationSchema.safeParse(sent);
@@ -152,14 +153,33 @@ describe("what the form sends", () => {
   });
 
   /**
-   * A new employer row defaults to DOT-regulated and CMV-driving. The two defaults are not symmetric:
-   * a warehouse job wrongly marked regulated produces an inquiry nobody owed, while a driving job
-   * wrongly marked otherwise drops a §391.23(a)(2) obligation silently.
+   * F1 part 2 (2026-11-10): a new job used to default to DOT-regulated and CMV-driving, so a driver who
+   * never read either question had answered both (audit finding 15). It starts unanswered now, and the
+   * certified document is refused until each job says Yes or No, on the job's own row.
    */
-  it("defaults a new employer to the answer whose error is visible", () => {
+  it("starts a new employer with neither question answered, and will not file a job until both are", () => {
     const fresh = emptyDraft().employers[0]!;
-    expect(fresh.dot_regulated).toBe(true);
-    expect(fresh.operated_cmv).toBe(true);
+    expect(fresh.dot_regulated).toBeNull();
+    expect(fresh.operated_cmv).toBeNull();
+
+    const draft = complete();
+    draft.employers[0] = { ...draft.employers[0]!, operated_cmv: null, dot_regulated: null };
+    const parsed = parse(draft);
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.map((i) => [i.path.join("."), i.message])).toEqual([
+      ["employers.0.operated_cmv", "Say whether you drove a truck in this job"],
+      ["employers.0.dot_regulated", "Say whether this employer was regulated by the DOT"],
+    ]);
+    // A real No is an answer.
+    draft.employers[0] = { ...draft.employers[0]!, operated_cmv: false, dot_regulated: false };
+    expect(parse(draft).success).toBe(true);
+  });
+
+  it("starts §40.25(j) unanswered and keeps a saved answer, never flooring a blank at No (F1 part 2)", () => {
+    expect(emptyDraft().prior_failed_pre_employment_test).toBeNull();
+    expect(fromDraftPayload({ prior_failed_pre_employment_test: true }).prior_failed_pre_employment_test).toBe(true);
+    expect(fromDraftPayload({ prior_failed_pre_employment_test: false }).prior_failed_pre_employment_test).toBe(false);
+    expect(fromDraftPayload({}).prior_failed_pre_employment_test).toBeNull();
   });
 });
 

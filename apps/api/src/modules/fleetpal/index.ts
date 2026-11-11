@@ -115,3 +115,5 @@ export {
   RATE_LIMIT_FALLBACK_SEC,
   type FleetpalErrorKind,
 } from "./errors.js";
+// Ask AI's `maintenance_cost` (F21 R6b): the truck page's repair bills, refused like its route (D-FP4).
+export { assistantMaintenanceCost, MAX_MAINTENANCE_UNITS } from "./assistantMaintenanceCost.js";

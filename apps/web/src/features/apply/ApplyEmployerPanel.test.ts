@@ -32,6 +32,8 @@ const recent = (over: Partial<DraftEmployer> = {}): DraftEmployer => ({
   ...emptyEmployer(),
   employer_name: "Old Carrier", started_on: "2024-01-01", ended_on: "",
   address_line1: "12 Depot Rd", city: "Joliet", state: "IL", reason_for_leaving: "Better route",
+  // Answered: both start unanswered since F1 part 2, and every job must say Yes or No to each.
+  operated_cmv: true, dot_regulated: true,
   subject_to_fmcsr: true, safety_sensitive: false,
   ...over,
 });
@@ -116,6 +118,17 @@ describe("a legacy link's Save", () => {
     await press(copy.drawerSave);
     expect([draft.value.employers[0]!.subject_to_fmcsr, draft.value.employers[0]!.safety_sensitive]).toEqual([null, null]);
     expect(document.body.textContent).not.toContain(copy.drawerSave);
+  });
+
+  // F1 part 2: the (iv) pair may be left on a legacy link; these two may not, on any link.
+  it("will not save a job until it says whether they drove a truck and whether the DOT regulated it", async () => {
+    const { draft, w, press } = screen([recent({ operated_cmv: null, dot_regulated: null })], null);
+    await press(copy.editJob);
+    await press(copy.drawerSave);
+    expect(document.body.textContent).toContain(copy.drawerSave);
+    expect(w.text()).toContain("Say whether you drove a truck in this job");
+    expect(w.text()).toContain("Say whether this employer was regulated by the DOT");
+    expect([draft.value.employers[0]!.operated_cmv, draft.value.employers[0]!.dot_regulated]).toEqual([null, null]);
   });
 });
 

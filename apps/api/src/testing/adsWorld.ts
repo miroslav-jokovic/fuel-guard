@@ -80,6 +80,7 @@ export function createAdsWorld(opts: {
   const spend: FixtureRow[] = (opts.spend ?? []).map((r) => ({ ...r }));
   const connections: FixtureRow[] = (opts.connections ?? [{ id: CONN, org_id: ORG, provider: "meta" }]).map((c) => ({ ...c }));
   const members: FixtureRow[] = (opts.members ?? [{ org_id: ORG, user_id: ADMIN_USER, role: "admin", suspended_at: null }]).map((m) => ({ ...m }));
+  const extra: Record<string, FixtureRow[]> = Object.fromEntries(Object.entries(opts.extraTables ?? {}).map(([t, rows]) => [t, rows.map((r) => ({ ...r }))]));
   // The bell as `emit_notification` keeps it: one row per (user, dedupe key), a repeat returns no id.
   const bell: Array<{ user: string; category: string; title: string; severity: string; dedupe: string | null }> = [];
   const crashes = new Map<string, number[]>();
@@ -163,7 +164,7 @@ export function createAdsWorld(opts: {
         }
         return postgrestFixture(spend)(q);
       },
-      ...Object.fromEntries(Object.entries(opts.extraTables ?? {}).map(([t, rows]) => [t, postgrestFixture(rows.map((r) => ({ ...r })))])),
+      ...Object.fromEntries(Object.entries(extra).map(([t, rows]) => [t, postgrestFixture(rows)])),
     },
     ...(opts.storage ? { storage: opts.storage as Record<string, (...args: unknown[]) => unknown> } : {}),
     rpc: (fn, args) => {
@@ -185,6 +186,11 @@ export function createAdsWorld(opts: {
     approvals,
     spend,
     connections,
+    /**
+     * The `extraTables` rows, by table — read-only to the code under test, but a scenario may add rows mid-run: the
+     * relaunch test seeds per-ad hours for the ad ids the publisher only now made (CQ9b).
+     */
+    extra,
     /** What reached the bell (after `emit_notification`'s dedupe). */
     bell,
     /** A new settings version in force from the next read (the owner saved). */

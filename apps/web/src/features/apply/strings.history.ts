@@ -123,8 +123,8 @@ export const APPLY_HISTORY_COPY = {
       "Every carrier has to ask this one, and a yes does not end your application. It means we have "
       + "to see the paperwork showing you finished the return-to-duty process before you can drive.",
     priorTest:
-      "In the last two years, I applied for a driving job I did not get, and I tested positive or "
-      + "refused a test as part of that application",
+      "In the last two years, did you apply for a driving job you did not get, and test positive or "
+      + "refuse a test as part of that application?",
     priorTestHint: "This is about jobs you applied for, not jobs you had.",
     remove: "Remove",
   },

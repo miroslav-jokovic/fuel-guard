@@ -423,6 +423,32 @@ Cropping to a fixed band at build time would have to be redone at every breakpoi
   a map can never starve the board; (c) leave it. Recommendation: (a) then (b). (b) is a small change,
   but it moves a security boundary, so it should rest on a number.
 
+- **Q-DR30 — what is our HERE per-second limit, and will HERE raise it?** D-DR30 paces tiles at 80
+  a second per API replica (160 fleet-wide on production's two), under the ~200 a second where HERE
+  started refusing in the 2026-11-10 burst. HERE does not publish the number. If 40 readers open
+  the map in the same few seconds, ~2 400 tiles take ~15 s to fill at that pace. Candidates: (a) ask
+  HERE for our limit and a raise, then set `HERE_TILE_PACING` to just under it; (b) leave 160.
+  Recommendation: (a). It is one email, and the vector basemap (D-DR31 proposed, below) cuts the
+  tile count by two-thirds on top of it.
+- **Q-DR31 — separate HERE keys per environment (owner, HERE console).** Local development,
+  staging and, very likely, production share one HERE key. The 2026-11-10 burst sent straight to
+  HERE from a development machine made staging's next run fail, so it probably cost production
+  its rate limit for 10–30 seconds. Separate keys also give separate usage reports and alerts.
+  Recommendation: do it before any further load test.
+
+- **Q-DR34 — truck places are thin in HERE's vector data. How do we name them?** Measured 2026-11-10
+  (`docs/plans/livemap/HANDOFF-2026-11-10-VECTOR-MAP.md` §4). The vector tiles never carry the
+  Browse truck codes. Pilots are `kind=parking` 800-8500-0178 from min_zoom 17, Love's is a
+  convenience store from 18, 1 of 8 truck repair shops is present, and 0 of 6 truck parking lots.
+  Candidates: (a) accept the vector data; (b) a truck-places layer from HERE Browse, kept at most 30
+  days and only as its caching headers allow (headers not yet read); (c) see whether
+  `content=advanced_pois` ($0.239/1 000) carries the truck categories, by fetching one tile.
+  Recommendation: (c) first, then (a) or (b) on what it shows.
+  **(c) measured 2026-11-11 — answered for truck stops and truck parking, see D-DR34.** The
+  advanced tile carries both (17 truck stops, 19 truck parking lots, 4 rest areas in 24 zoom-13
+  tiles), so they are now drawn from it. ⚠ Still open: truck REPAIR (700-7850-0126) is in neither
+  tile (0 of 8 shops HERE's search names, none in the 24 tiles); for repair shops only (b) remains.
+
 ---
 
 ## 7. Progress log
@@ -1233,3 +1259,200 @@ conflict every time (`plan-progress-log-not-table-rows`).
   other's complement. ⚠ Built on the measured walk, not on production 429 counts (no AWS
   credentials in the session). Reading a week of `[metrics]` 429s by route is still worth doing
   after it ships, to retune both numbers.
+- **2026-11-10 — D-DR30: tiles wait for their turn instead of coming back blank when HERE is
+  busy.** Measured that afternoon: 40 simulated dispatchers zooming at once through staging drew
+  HERE `429 "Rate limit for this service has been reached"` on 17–21% of tiles in two of three runs,
+  each one a blank 502 square. Sent straight to HERE, the same burst was refused 34% of the time at
+  ~400 a second.
+  - **Built:** a pacer in front of HERE (`modules/routing/tilePacer.ts`). A token bucket of 80 a
+    second per process with a burst of 100. Waiting tiles are queued per caller and released
+    round-robin, so one heavy zoom cannot hold 39 other people behind it. A tile the reader cancels
+    while queued is never sent, so it is never billed. A tile HERE still refuses is retried once
+    after 250–600 ms (or HERE's `Retry-After`, capped at 2 s), then answered 503 `tile_upstream_busy`.
+    Every error tile is `Cache-Control: no-store`. The per-minute `[metrics]` line gains `hereTiles`
+    (immediate, queued, longest wait, busy, abandoned, refused429, retried, retriedOk), so
+    production's real limit can be read. The tile address ceiling is sized for 40 seats (32 800 per
+    15 minutes), up from 30.
+  - **Measured on a local rig** (the real app, two replicas as production runs, a stand-in HERE
+    refusing past 200 a second with 150 ms latency, 40 readers × 60 tiles at once):
+
+        main's code   415 tiles served · 1 985 blank (83%) · HERE refused 1 985
+        this change   2 400 served · 0 blank · HERE refused 4, all retried and served
+                      median 6.4 s, slowest 8.6 s for the whole office's first view
+        one reader alone: median 163 ms (the stand-in's own 150 ms), so no added wait
+
+    ⚠ The first draft let a tile wait 6 s and 1 234 of the same 2 400 came back "busy". That is a
+    blank square by another name, so the wait is 20 s.
+  - ⚠ Not measured against HERE itself. Doing so would spend production's limit (Q-DR31). The
+    pace is a guess under the measured refusals until HERE answers Q-DR30.
+  - **Not built, on purpose:** an in-app monthly tile budget alarm. HERE's own usage alerts count
+    what HERE actually bills, across every replica and environment. A count kept here would be a
+    second, less accurate copy of the same number. The owner sets those alerts in the HERE console.
+  - **Proposed next, D-DR31:** the vector basemap. Measured in the rig on the same 18-zoom walk: 140
+    requests against 410, 0 abandoned against 49, 6.2 MB against 11 MB, at $0.088 instead of $0.12
+    per 1 000. It also brings place names with no overlay (D-DR27) and nothing modified server-side
+    (Q-DR4's terms concern).
+- **2026-11-10 — D-DR32: the tile fade is back. D-DR28's "half the wait" was mostly the metric.**
+  The owner, the same afternoon: tiles "are loaded in a weird way and look really bad and not
+  natural". A video of a zoom on the staging map shows a patchwork. A raster tile has its labels
+  baked in, so with no fade each square snaps on its own from the previous zoom's large,
+  edge-clipped labels ("Hebrc", "Woodsto", "Ri" beside "Ringwood") to the new small ones. And the
+  gain D-DR28 reported for turning the fade off was largely an artefact: the rig timed "zoom
+  finished → map `idle`", and `idle` waits for running fades to end, so a 300 ms fade adds ~300 ms
+  to that number even when every tile has arrived. ⚠ Lesson: measure when the TILES arrive, and
+  look at the motion, not only a timer. The fade is maplibre's default 300 ms again, written out
+  with this reason beside it. The 32 parallel requests stay (1.35–1.65 s → 1.22–1.31 s on their
+  own, a gain the fade artefact cannot explain, because both arms of that comparison faded). The
+  patchwork itself is a property of raster tiles. Removing it is one more reason for the vector
+  basemap (D-DR31, proposed in the D-DR30 entry above).
+- **2026-11-10 — D-DR31 (BUILT AS A STAGING TRIAL, awaiting the owner): a vector road map, drawn by
+  maplibre from HERE's vector tiles.** The owner ruled "proceed as proposed": build it on staging
+  behind a switch and compare it with today's map before it replaces anything.
+  - **Why.** The raster road map's sharp tiles cost 2.7× the requests (D-DR26). That count made
+    zooming slow (D-DR28), made HERE refuse tiles when an office opens the map together (D-DR30), and
+    its baked-in labels make a zoom a patchwork (D-DR32). Measured in the rig on the same 18-zoom walk:
+    140 vector requests against 410 raster, 0 abandoned against 49, 6.2 MB against 11 MB, $0.088
+    against $0.12 per 1 000. Place names come with the data, with no overlay (D-DR27) and nothing
+    modified server-side (Q-DR4).
+  - **Built.** `GET /api/fueling/map-tiles/vector/:z/:x/:y` (HERE `vector.hereapi.com/v2/vectortiles/base`,
+    max zoom 17) and `/map-tiles/glyphs/:fontstack/:range` (HERE's two style fonts only), both through
+    the D-DR30 pacer, the tile budget and the sign-in. Our own style (`composables/vectorBasemap.ts`):
+    HERE publishes a maplibre style, "berlin", but it is a dark grey demo with no places, no road
+    numbers, every traffic light drawn as a dot, and a night variant that answers 404. Colours are 13
+    new `--map-*` tokens, sampled from HERE's explore.day and explore.night tiles so the map keeps its
+    look, with a theme switch repainting in place. Truck stops, truck repair, rest areas and fuel win
+    the room to be named first (HERE `pds_category`). Offered as "Map (vector trial)" in the basemap
+    menu only where the build names a non-production environment. That is a labelled workaround for
+    the missing per-environment feature flag.
+  - **Found on the way.** The "© HERE" credit was missing on satellite and terrain. Only the first
+    source carried it, and maplibre credits only sources a visible layer uses (it already dedupes).
+    Every source now carries it (HERE Platform Terms §13.1).
+  - **Proven so far.** maplibre's own validator passes both schemes with 0 errors. The style loads in
+    a browser against real HERE tiles. Day, night and three zooms were compared by eye with the raster
+    map. The browser caught a label-size rule maplibre refuses, which blanked the whole style; a
+    unit test now pins that rule. Not yet: the side-by-side video on staging, request counts in the
+    real app, and drawing cost on a slower office PC. Those follow this merge, on staging.
+  - Open: **Q-DR33** — HERE sends no caching header on glyphs, so the browser re-fetches them on
+    each map load (~74 KB per character range). Fira GO is an open font (SIL OFL), so a cached build
+    of our own is possible. Recommendation: only if the glyph route shows up in `[metrics]`.
+- **2026-11-10 — D-DR31 follow-up: the vector trial drew a blank map on staging, and the cause was
+  a header, not the style.** HERE gzips its vector tiles; `fetch` decodes them, but the proxy still
+  forwarded HERE's `content-length` (the ENCODED size, 72 956 bytes against 107 391 decoded), so the
+  browser read every tile short and maplibre could parse none. The unit tests passed because no
+  stub sent an encoding; the rig passed because its proxy buffered and set no length. Fixed: the
+  length is forwarded only when the bytes are HERE's own, and vector tiles (protobuf, which
+  `compression` does not list) are compressed on the way to the browser, so they do not cross at
+  full size. ⚠ Lesson: the only test that counts for a proxy is one through the real deployment;
+  the staging walk is what found this.
+- **2026-11-10 — D-DR31 on staging, measured.** With the length fix (#2202) live, the same
+  signed-in zoom walk on the staging Dispatch map, two alternating runs each: **today's map 97–102
+  tile requests, the vector trial 32–34** (67% fewer), with no page errors. The first staging look
+  showed country roads vanishing: they were white on near-white land at regional zoom. They now
+  start in the highway-casing blue-grey and fade to white with a casing once zoomed into a town, the
+  way HERE's raster map draws them. Ordinary roads' route numbers appear only from zoom 10, because
+  printing them from 6 was far busier than today's map.
+  - ⚠ **The cost the owner should weigh: drawing work moves to the reader's computer.** Chrome at
+    normal speed and at 4× CPU slowdown (an older office PC), the same 11-step zoom sequence, five
+    interleaved runs each, medians: today's map 0 frames over 50 ms at either speed; the vector map
+    4 at normal speed and 17–43 at 4× slower, with 0.5–2.7 s of main-thread work across the
+    sequence. It still finishes the sequence 1–2 s sooner. Hiding most labels barely changed it
+    (13–52 stutters with no labels at all), so the extra work is the vector map itself, not this
+    style. A real office PC check is still owed.
+- **2026-11-10 — D-DR33: the owner's ruling on the vector map. Polish it, compare it, then switch,
+  with an escape hatch. Build without assumptions.** Order: polish on staging (icons, shields per
+  network, land colours, regional road density, night check); the owner compares side by side,
+  including on the slowest office PC, and the vector map is dropped if it stutters too much there;
+  then it becomes the default with "Map (classic)" kept for two weeks. Rebuilding on Google Maps was
+  weighed and not chosen. The working rules, the measured facts and the task list with acceptance
+  checks are in `docs/plans/livemap/HANDOFF-2026-11-10-VECTOR-MAP.md`. ⚠ The same day showed that
+  `TRUCK_PLACE_CATEGORIES` (from HERE Browse) matches nothing in the vector tiles. That is the
+  polish step's first item, and Q-DR34.
+- **2026-11-11 — D-DR34: truck places come from HERE's advanced tile, fetched at zoom 13 only.**
+  Measured with our key, not inferred (Q-DR34 (c)): the default vector tile names the Joliet Pilot
+  only as an ordinary "Parking Lot" (800-8500-0178, HERE's category list), so a brand-name match on
+  it would have been a heuristic over the wrong category. The same tile with
+  `content=default,advanced_pois` adds truck stop 700-7900-0132 and truck parking 700-7900-0131 at
+  `min_zoom` 13; across 24 zoom-13 tiles (Joliet, Indianapolis, Dallas) 17 truck stops, 19 truck
+  parking lots (Pilot, Flying J, TA, ONE 9, the "Truck & Trailer Parking" lots the default tile
+  lacked) and 4 rest areas (Love's, TA). Advanced tiles bill $0.239 per 1 000 against $0.088, so
+  the vector map gains ONE second source fetched at `TRUCK_PLACES_ZOOM` = 13 alone and overzoomed
+  closer in; the proxy's `/map-tiles/truck-places/` route refuses every other zoom, and the
+  `[metrics]` line counts `advancedTiles` so the cost is visible in production. The truck layer
+  sits above ordinary places (maplibre places symbol layers top-down, read in the installed 5.24
+  bundle) and below towns. Truck repair stays open in Q-DR34. Cost of the extra source to be
+  measured on staging, not estimated, before the owner's comparison.
+- **2026-11-11 — D-DR34 accepted on staging; a font bug found and fixed.** With #2231 live
+  (`f1af060`), `tools/staging-truck-places.mjs` at the Joliet Pilot: at zoom 16 maplibre rendered
+  "Pilot" (700-7900-0132) in bold; at 13 the Pilot and two "Truck & Trailer Parking" lots; at 12
+  none, as designed. Every `truck-places/` request was zoom 13 (7 on that walk) and answered 200. ⚠
+  The same run showed every glyph request refused with a 400 since D-DR31: the style asked for
+  `0-255`, the relay and HERE need `0-255.pbf`. maplibre fell back to drawing every label with the
+  browser's font on the reader's CPU, warning only in the console. Fixed with one shared rule
+  (`VECTOR_GLYPH_RANGE_FILE`). The D-DR31 slow-PC stutter figures were taken in that state, so they
+  are re-measured (polish item 7) before the owner's comparison.
+- **2026-11-11 — D-DR35: place icons on the vector map, polish item 2.** Artwork: six Maki v8.0.0
+  icons and Temaki v5.13.0's truck; both repositories' LICENSE files read, CC0 1.0. Bundled from
+  `apps/web/src/assets/map-icons/` (`SOURCES.md` pins the tags), so the content security policy is
+  unchanged (`img-src` already allows `data:`). Icons go to the kinds read off real tiles, not guessed:
+  `fuel`, `parking`, `car_repair`, `hospital`, `aerodrome` (O'Hare terminals, 400-4000-4582) and
+  `station` (Joliet, 400-4100-0035); every truck place (D-DR34) carries the truck. Drawn as a disc in
+  `--map-label` with the glyph in `--map-label-halo`, so no new tokens and the night map inverts them.
+  Rasterised once per colour scheme while the session is read, handed over on maplibre's
+  `styleimagemissing`, replaced in place on a scheme change. All seven decode and draw in Chromium
+  (checked before the PR); the style passes maplibre's validator; 7 of 7 mutations caught.
+  Acceptance is on staging: icons visible, no 404, CSP or "image could not be loaded" console error.
+- **2026-11-11 — D-DR35 accepted on staging.** With #2245 live (`4aef8e1`), the Joliet Pilot at zoom
+  16 shows the truck icon beside "Pilot", the parking icon beside "Pilot Travel Center" and the fuel
+  pump beside "Food-N-Fuel"; the only console error on the page is the notifications 403 that test
+  member's role gets, unrelated to the map.
+- **2026-11-11 — D-DR36: route numbers on road signs, one shape per kind of road (polish item 3).**
+  Sampled before writing the rule, as the handoff asked: zooms 9 and 12 over Dallas, Houston,
+  Indianapolis, Gary, Columbus and Toledo gave `network` values `US:I` 243, `US` 11, a state
+  `US:<ST>` (TX 319, OH 175, IN 77, IL 61, MI 12) and a county `US:<ST>:CR` (OH 98, TX 2, IL 1),
+  nothing else. So interstate, US route, county (`:CR`) and state (everything else). Signs are our
+  own plain outlines drawn on a canvas in the FHWA sign colours, five new `--map-shield-*` tokens
+  (`lint:token-gamut` passes; the yellow's chroma came down 0.0005 to fit sRGB), sized per number
+  length (1–4 characters, widths chosen by drawing "8", "80", "35E", "1234" in Chromium). The rule
+  was evaluated with maplibre's own expression engine against every measured network, all right,
+  and the style validates; that check is out of tree (`tools/shield-rule-check.test.ts.txt`)
+  because the web app does not declare `@maplibre/maplibre-gl-style-spec`, and declaring it
+  re-resolves a lockfile that has already drifted (expo-router and TypeScript peer entries), which
+  is not this change's to carry. In-tree tests pin the rule's literals, the image ids and colours;
+  7 of 7 mutations caught. Acceptance: a zoom-9 staging still shows the right shapes.
+- **2026-11-11 — D-DR36 accepted on staging** (`baffa99`, `tools/staging-map-views.mjs`). Joliet at
+  zoom 9: interstate shields on I-80, I-55, I-355, I-57, I-88, I-94 (rendered: `US:I` ×8, nothing
+  else, because ordinary roads' numbers start at zoom 10 by design). Columbus at zoom 11: `US:I` ×9,
+  state boxes `US:OH` ×12 (33, 23, 315, 104), county pentagons `US:OH:CR` ×7 (3, 11, 258). No map
+  console errors.
+- **2026-11-11 — D-DR37: land colours for the measured land uses (polish item 4).** Sampled first:
+  zooms 11 and 14 over Joliet, O'Hare, Indianapolis, Dallas, Columbus and the Loop gave `landuse`
+  kinds park 73, urban_area 11, sports_centre 11, industrial 11, aerodrome 7, commercial 7,
+  national_park 6, forest 5, runway 4, zoo 3, university 3, hospital 3, military 2, cemetery 2,
+  beach 1. Before this, sports_centre, zoo, aerodrome, runway, university, hospital, military and
+  beach were not drawn at all, and industrial was drawn as town. Now sports_centre and zoo join park,
+  and a `landuse-detail` fill gives industrial/military, hospital, university, aerodrome, runway
+  (sorted above its aerodrome) and beach six new `--map-*` tokens, each in the lightness band of
+  the existing land colours in both schemes (`lint:token-gamut` passes). The style validates;
+  5 of 5 mutations caught. Acceptance: staging stills over O'Hare and an industrial area.
+- **2026-11-11 — D-DR38: regional road density (polish item 5), proposed to the owner with stills.**
+  Staging stills of today's map and the vector trial at the same spots, zooms 7–10 around Joliet
+  (`tools/staging-map-views.mjs`; the raster needs `WAIT_MS=15000` to settle at regional zoom).
+  At 9 and 10 the vector map drew a dense blue-grey grid the raster map does not, and at 10 it put
+  25 county numbers on screen. Measured on the tiles behind those stills: the zoom-9 tile's 92
+  major-road lines were 71 `tertiary` (HERE starts them at 9), 17 secondary, 4 primary; the zoom-10
+  tile's 57 route numbers were 29 county, 24 state, 4 interstate. So tertiary roads and county
+  numbers now start at zoom 11 (`REGIONAL_DETAIL_ZOOM`), everything else unchanged. The rule is
+  tested by evaluating the filters on features (4 of 4 mutations caught); the style validates.
+  Acceptance is the owner looking at the before/after stills.
+- **2026-11-11 — D-DR38 after, and the night map checked on staging (polish item 6).** With #2250
+  live (`da690d8`), Joliet at zoom 10 shows 18 state and 7 interstate numbers and no county ones, and
+  the tertiary grid is gone; county numbers and local roads arrive at 11 (18 county numbers there).
+  Night scheme, `tools/staging-map-views.mjs` with `COLOR_SCHEME=dark`: Joliet at 16, O'Hare at 13
+  and Columbus at 11 draw dark land and roads, light labels, inverted place icons, airport grounds
+  and runways in their night colours, and the road signs in their fixed sign colours. Choosing Dark
+  in the account menu repaints the map in place (`SWITCH_VIA_MENU=1`). ⚠ **The OS turning dark while
+  the app is open did not** (`SWITCH_TO_DARK=1`): the app went dark and the map stayed light.
+  `useColorScheme`'s `isDark` read `matchMedia(...).matches` inside a `computed`, which touches
+  nothing reactive, so it was computed once and never followed the OS. That is in production too, for
+  today's map (its night tiles) and the truck markers. Fixed in `useColorScheme` with a reactive
+  system preference fed by the media query's `change` event; the new test fails on the old code.

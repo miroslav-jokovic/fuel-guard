@@ -91,6 +91,26 @@ describe("decideCreative — a person's recorded decision moves one creative", (
     expect(w.mine().state).toBe("ready");
   });
 
+  it("on a live campaign, a retired ad's replacement may be decided (Q-AD68); any other creative of a live campaign may not", async () => {
+    const replacement = world({ campaign: "live" });
+    replacement.creatives.push({ id: "c7000000-0000-4000-8000-0000000000aa", org_id: ORG, campaign_id: CAMP, state: "approved", platform_status: "retired", supersedes_id: null });
+    Object.assign(replacement.mine(), { supersedes_id: "c7000000-0000-4000-8000-0000000000aa", platform_status: null });
+    expect(await decideCreative(replacement.rec.client, ORG, ask())).toEqual({ ok: true, state: "approved", moved: true });
+    expectOrgScoped(replacement.rec, ORG);
+
+    const ordinary = world({ campaign: "live" });
+    Object.assign(ordinary.mine(), { supersedes_id: null, platform_status: null });
+    expect(await decideCreative(ordinary.rec.client, ORG, ask())).toEqual({ ok: false, refusal: "campaign_not_in_review" });
+    expect(ordinary.mine().state).toBe("ready");
+  });
+
+  it("a Regenerate's successor on a live campaign is not a replacement: it names a rejected creative, not a retired one", async () => {
+    const w = world({ campaign: "live" });
+    w.creatives.push({ id: "c7000000-0000-4000-8000-0000000000bb", org_id: ORG, campaign_id: CAMP, state: "rejected", platform_status: null, supersedes_id: null });
+    Object.assign(w.mine(), { supersedes_id: "c7000000-0000-4000-8000-0000000000bb", platform_status: null });
+    expect(await decideCreative(w.rec.client, ORG, ask())).toEqual({ ok: false, refusal: "campaign_not_in_review" });
+  });
+
   it("the same decision twice is already done, not an error", async () => {
     const w = world();
     await decideCreative(w.rec.client, ORG, ask());

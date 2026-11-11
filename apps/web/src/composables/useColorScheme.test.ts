@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initColorScheme, useColorScheme } from "@/composables/useColorScheme";
 
 /**
@@ -105,5 +105,55 @@ describe("useColorScheme", () => {
     expect(scheme.value).toBe("dark");
     expect(document.documentElement.style.colorScheme).toBe("dark");
     installStorage();
+  });
+});
+
+/**
+ * The OS changing its mind while the app is open (2026-11-11): `isDark` must follow it when the
+ * reader follows the system, and must not when they pinned a scheme. A fresh module per test,
+ * because the media query is read once, at import, the way the app reads it.
+ */
+describe("useColorScheme and the operating system", () => {
+  function fakeSystem(dark: boolean) {
+    const listeners: ((e: { matches: boolean }) => void)[] = [];
+    const query = {
+      matches: dark,
+      addEventListener: (_t: string, l: (e: { matches: boolean }) => void) => listeners.push(l),
+    };
+    vi.stubGlobal("matchMedia", () => query);
+    return (next: boolean) => {
+      query.matches = next;
+      for (const l of listeners) l({ matches: next });
+    };
+  }
+
+  it("turns dark when the operating system does, while the reader follows the system", async () => {
+    installStorage();
+    const flip = fakeSystem(false);
+    vi.resetModules();
+    const { useColorScheme: fresh } = await import("@/composables/useColorScheme");
+    const { isDark, set } = fresh();
+    set("system");
+    expect(isDark.value).toBe(false);
+    flip(true);
+    expect(isDark.value).toBe(true);
+    flip(false);
+    expect(isDark.value).toBe(false);
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps a pinned scheme whatever the operating system does", async () => {
+    installStorage();
+    const flip = fakeSystem(false);
+    vi.resetModules();
+    const { useColorScheme: fresh } = await import("@/composables/useColorScheme");
+    const { isDark, set } = fresh();
+    set("light");
+    flip(true);
+    expect(isDark.value).toBe(false);
+    set("dark");
+    flip(false);
+    expect(isDark.value).toBe(true);
+    vi.unstubAllGlobals();
   });
 });

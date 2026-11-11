@@ -30,6 +30,7 @@
     "apps/api/src/modules/ads/compose/composeCampaign.ts",
     "apps/api/src/modules/ads/compose/composeCreative.ts",
     "apps/api/src/modules/ads/compose/decideCreative.ts",
+    "apps/api/src/modules/ads/compose/refreshCampaign.ts",
     "apps/api/src/modules/ads/monitor/retireTired.ts"
   ],
   "ads_spend_hourly": [
@@ -61,11 +62,14 @@
     "apps/api/src/modules/recruiting/applicantTravel.ts"
   ],
   "application_edits": [
-    "apps/api/src/modules/recruiting/applicationReview.ts"
+    "apps/api/src/modules/recruiting/applicationEditLog.ts"
   ],
   "application_intakes": [
     "apps/api/src/modules/recruiting/applicantIntake.ts",
     "apps/api/src/modules/recruiting/applicantSelfie.ts"
+  ],
+  "application_unlock_codes": [
+    "apps/api/src/modules/recruiting/applicationUnlockCode.ts"
   ],
   "application_invitations": [
     "apps/api/src/modules/recruiting/applicationHandoff.ts",

@@ -31,7 +31,7 @@ import { allowedInfoIdsFrom } from "@/features/fuelCards/promptDrafts";
 import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 import ExportButton from "@/components/ExportButton.vue";
 import { exportHref } from "@/lib/exportTarget";
-import { EFS_CARD_STATUSES, matchesCardFilters, type EfsCardFilters } from "@silvicom/shared";
+import { EFS_CARD_STATUSES, FUEL_CARDS_QUERY_KEYS, matchesCardFilters, type EfsCardFilters } from "@silvicom/shared";
 import { formatDateTime } from "@/lib/format";
 
 const PAGE_SIZE = 20;
@@ -48,7 +48,8 @@ const router = useRouter();
 const { param } = useQueryState();
 
 const search = param("search");
-const status = param("status", EFS_CARD_STATUSES);
+// The Fuel cards link contract's key (F21 R4b): Ask AI's "Open in Fuel cards" sets it.
+const status = param(FUEL_CARDS_QUERY_KEYS.status, EFS_CARD_STATUSES);
 /**
  * The secondary facets. Applied CLIENT-side, deliberately: the route returns the whole inventory in
  * one response and this page already paginates in the browser, so filtering here is instant and adds

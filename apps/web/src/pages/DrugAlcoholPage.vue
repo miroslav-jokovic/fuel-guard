@@ -50,19 +50,35 @@ function openRecollection(r: { testId: string; medstopId: string; name: string; 
   ordering.value = true;
 }
 
+/**
+ * The open tab's number, once the reader has narrowed its list (owner, 2026-11-10). Only the open tab is
+ * mounted, and it reports the moment it mounts — null when nothing is narrowed — so this is always the
+ * open tab's. Other tabs keep their own counts: their filters are in the URL, but their lists are not
+ * on screen, and a number for a list nobody is looking at would have to be worked out a second time.
+ */
+const shown = ref<number | null>(null);
+
 const tabs = computed(() => {
   const d = p.value;
   if (!d) return [];
-  return [
+  return withShown([
     // The badge is the "To test" list's length (R5): the tab opens on the current quarter (D-MSUX19),
     // but what it asks the DER to do is the due draws, and the tab's Show filter lists exactly those.
     ...(d.selections ? [{ value: "random", label: "Random selections", badge: d.selections.draws.filter((s) => s.state === "due").length || undefined }] : []),
     { value: "progress", label: "In progress", badge: d.inProgress.length || undefined },
-    ...(d.results ? [{ value: "results", label: "Results", badge: d.results.recent.length || undefined }] : []),
+    // The count of the list the tab opens on — All results — as In progress, Medical cards and Roster
+    // check count theirs. It counted Needs review until 2026-11-10, so after the tab began opening on
+    // All results it read "1" (the 10/05 dilute) over a list of 70 (owner). Needs review's own count is
+    // in the tab's Show choices.
+    ...(d.results ? [{ value: "results", label: "Results", badge: d.results.all.length || undefined }] : []),
     { value: "medical", label: "Medical cards", badge: d.medical.due.length || undefined },
     { value: "roster", label: "Roster check", badge: d.roster.notInPool.length + d.roster.leftButInPool.length || undefined },
-  ];
+  ]);
 });
+function withShown<T extends { value: string; badge?: number }>(list: T[]): T[] {
+  const n = shown.value;
+  return n === null ? list : list.map((t) => (t.value === tab.value ? { ...t, badge: n || undefined } : t));
+}
 const tab = computed({
   get: () => {
     const asked = qs.one("tab");
@@ -110,11 +126,11 @@ const stale = computed(() => {
 
         <AppTabs v-model="tab" :tabs="tabs" label="Drug and alcohol" />
 
-        <RandomTab v-if="tab === 'random' && p.selections" :draws="p.selections.draws" :current-period="p.selections.currentPeriod" :dispatch="p.selections.dispatch" :pools="p.pools" :can-order="canOrder" @order="openOrder" />
-        <InProgressTab v-else-if="tab === 'progress'" :rows="p.inProgress" />
-        <ResultsTab v-else-if="tab === 'results' && p.results" :recent="p.results.recent" :history="p.results.history" :can-order="canOrder" @recollect="openRecollection" />
-        <MedicalTab v-else-if="tab === 'medical'" :medical="p.medical" />
-        <RosterTab v-else-if="tab === 'roster'" :not-in-pool="p.roster.notInPool" :left-but-in-pool="p.roster.leftButInPool" />
+        <RandomTab v-if="tab === 'random' && p.selections" @shown="shown = $event" :draws="p.selections.draws" :current-period="p.selections.currentPeriod" :dispatch="p.selections.dispatch" :pools="p.pools" :can-order="canOrder" @order="openOrder" />
+        <InProgressTab v-else-if="tab === 'progress'" @shown="shown = $event" :rows="p.inProgress" />
+        <ResultsTab v-else-if="tab === 'results' && p.results" @shown="shown = $event" :all="p.results.all" :recent="p.results.recent" :history="p.results.history" :can-order="canOrder" @recollect="openRecollection" />
+        <MedicalTab v-else-if="tab === 'medical'" @shown="shown = $event" :medical="p.medical" />
+        <RosterTab v-else-if="tab === 'roster'" @shown="shown = $event" :not-in-pool="p.roster.notInPool" :left-but-in-pool="p.roster.leftButInPool" />
       </template>
     </QueryState>
 

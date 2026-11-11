@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   answersToStamp,
+  carrierAnswerRefusal,
   carrierAnswerIssues,
   carrierQuestionCreateSchema,
   carrierQuestionnaire,
@@ -110,5 +111,41 @@ describe("checking the answers against the stamp", () => {
   it("files only answers to the stamp's own questions", () => {
     expect(answersToStamp(STAMP, { [ID1]: "Joliet", stranger: "x", [ID3]: "" })).toEqual({ [ID1]: "Joliet" });
     expect(answersToStamp(STAMP, {})).toBeNull();
+  });
+});
+
+/**
+ * APPLICATION-FIX-PLAN F3c part 2, step 5: the office corrects one of the carrier's own answers, and
+ * the API checks it against the invitation's stamp — the draft carries none (Q-CQ7).
+ */
+describe("an office correction of one of the carrier's own answers", () => {
+  const refusal = (path: (string | number)[], value: unknown) => carrierAnswerRefusal(STAMP, path, value);
+
+  it("takes an answer of the question's own kind, and an optional question's skip", () => {
+    expect(refusal(["carrier_answers", ID1], "Joliet")).toBeNull();
+    expect(refusal(["carrier_answers", ID2], false)).toBeNull();
+    expect(refusal(["carrier_answers", ID3], "52000")).toBeNull(); // typed, as the form stores it
+    expect(refusal(["carrier_answers", ID2], RATHER_NOT_SAY.value)).toBeNull();
+  });
+
+  it("⚠ refuses an answer the question does not take — a choice it never offered, a word for a number", () => {
+    expect(refusal(["carrier_answers", ID1], "Gary")).toMatch(/not an answer to "Which terminal/);
+    expect(refusal(["carrier_answers", ID2], "maybe")).toMatch(/not an answer/);
+    expect(refusal(["carrier_answers", ID3], "lots")).toMatch(/not an answer/);
+    // A required question has no skip.
+    expect(refusal(["carrier_answers", ID1], RATHER_NOT_SAY.value)).toMatch(/not an answer/);
+  });
+
+  it("⚠ refuses a blank: a required question must be answered, an optional one answered or skipped", () => {
+    expect(refusal(["carrier_answers", ID1], "")).toMatch(/must be answered/);
+    expect(refusal(["carrier_answers", ID2], null)).toMatch(/or choose "I'd rather not say"/);
+    expect(refusal(["carrier_answers", ID3], "  ")).toMatch(/or choose/);
+  });
+
+  it("⚠ refuses a question this applicant was not asked, and anything but one answer", () => {
+    expect(refusal(["carrier_answers", "44444444-4444-4444-8444-444444444444"], "x")).toMatch(/not asked/);
+    expect(carrierAnswerRefusal([], ["carrier_answers", ID1], "Joliet")).toMatch(/not asked/);
+    expect(refusal(["carrier_answers"], { [ID1]: "Joliet" })).toMatch(/one answer at a time/);
+    expect(refusal(["carrier_answers", ID1, 0], "Joliet")).toMatch(/one answer at a time/);
   });
 });
