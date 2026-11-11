@@ -56,7 +56,8 @@ export type FactBasis =
 /**
  * Where the carrier's packet prints it: a line id (`p01.phone`), a grid column (`p02.licences#1`),
  * `{ through }` for a Part 1 fact the filing composes into an application fact (which prints it), or
- * `{ notPrinted }` with the reason. A reason that names F2 is a gap F2 closes (P1, P6, P7, P12).
+ * `{ notPrinted }` with the reason. A reason that names F2 is a gap F2 still closes (P12). `addendum.*` is
+ * the sheet F2 appends for what the carrier's paper has no place for (`ADDENDUM` below).
  */
 export type FactPacket = readonly string[] | { readonly through: FactPath } | { readonly notPrinted: string };
 
@@ -115,11 +116,15 @@ export const PACKET_FULL_NAME_LINES = [
 
 const both = (field: string): string[] => [`p18.${field}`, `p19.${field}`];
 
-// ── the packet gaps F2 closes, named once ────────────────────────────────────
+// ── the addendum F2 appends ───────────────────────────────────────────────────
 
-const ADDENDUM = (item: string) => ({
-  notPrinted: `the carrier's paper has no place for it; F2's employment addendum page 12a prints it (${item})`,
-});
+/**
+ * A place on the addendum sheet (F2: P1, P6, P7, P8) — the answers the carrier's paper has no place for,
+ * appended after the continuation sheet (`apps/api/.../packet/packetAddendum.ts`). `addendum.<fact>`, or
+ * `addendum.<rows>#<column>` for a row's answer, as the carrier's grids are named.
+ */
+const ADDENDUM = (place: string): string[] => [`addendum.${place}`];
+
 const EMPTY_GRID = { notPrinted: "the answer IS the empty grid: a declaration of none prints no rows" };
 
 // ── the office gaps F3 closes, named once ────────────────────────────────────
@@ -174,7 +179,7 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("last_name", "text", "391.21(b)(2)", ["p01.name#0", "p12.identity#0", ...PACKET_FULL_NAME_LINES]),
   app("date_of_birth", "date", "391.21(b)(2)", ["p01.dob", "p12.identity#3", "p15.dob"], "identity"),
   app("other_names[]", "names", "391.23(a)(2)", ["p12.identity#2"]),
-  app("email", "email", "391.21(b)(2)", { notPrinted: "the carrier's paper has no e-mail line; F2's addendum prints it (P7)" }),
+  app("email", "email", "391.21(b)(2)", ADDENDUM("email")),
   app("phone", "phone", "391.21(b)(2)", ["p01.phone"], "part_one"),
 
   // ── (b)(3) residence ──
@@ -183,8 +188,8 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("addresses[].city", "text", "391.21(b)(3)", ["p01.address#1", ...both("city")], "part_one"),
   app("addresses[].state", "us_state", "391.21(b)(3)", ["p01.address#2", ...both("state")], "part_one"),
   app("addresses[].postal_code", "zip", "391.21(b)(3)", ["p01.address#3", ...both("zip")], "part_one"),
-  app("addresses[].from", "month", "391.21(b)(3)", ADDENDUM("P6")),
-  app("addresses[].to", "month", "391.21(b)(3)", ADDENDUM("P6")),
+  app("addresses[].from", "month", "391.21(b)(3)", ADDENDUM("addresses#from")),
+  app("addresses[].to", "month", "391.21(b)(3)", ADDENDUM("addresses#to")),
 
   // ── (b)(5) licences ──
   app("cdl_number", "text", "391.21(b)(5)", ["p01.cdl", "p02.licences#1", ...both("cdl")], "identity"),
@@ -197,7 +202,7 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("additional_licences[].expires_at", "date", "391.21(b)(5)", ["p02.licences#3"], "part_one"),
 
   // ── (b)(6) experience ──
-  app("experience", "longtext", "391.21(b)(6)", ADDENDUM("P7")),
+  app("experience", "longtext", "391.21(b)(6)", ADDENDUM("experience")),
   // The class picks the ROW: the carrier printed the four class names in column 0, which is never written.
   app("equipment_experience[].equipment_class", "choice", "391.21(b)(6)", ["p02.experience"]),
   app("equipment_experience[].equipment_type", "text", "391.21(b)(6)", ["p02.experience#1"]),
@@ -225,23 +230,23 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   // ── (b)(10)/(b)(11) employers ──
   app("declares_no_employment", "yesno", "391.21(b)(10)", EMPTY_GRID),
   app("employers[].employer_name", "text", "391.21(b)(10)", ["p12.employment#1"]),
-  app("employers[].usdot_number", "usdot", "391.23(a)(2)", ADDENDUM("P1")),
+  app("employers[].usdot_number", "usdot", "391.23(a)(2)", ADDENDUM("employers#usdot_number")),
   app("employers[].address_line1", "text", "391.21(b)(10)", ["p12.employment#2"]),
   app("employers[].city", "text", "391.21(b)(10)", ["p12.employment#2"]),
   app("employers[].state", "us_state", "391.21(b)(10)", ["p12.employment#2"]),
   app("employers[].phone", "phone", "391.23(a)(2)", ["p12.employment#4"]),
-  app("employers[].email", "email", "391.23(a)(2)", ADDENDUM("P1")),
+  app("employers[].email", "email", "391.23(a)(2)", ADDENDUM("employers#email")),
   app("employers[].position_held", "text", "391.21(b)(10)", ["p12.employment#3"]),
   app("employers[].started_on", "date", "391.21(b)(10)", ["p12.employment#0"]),
   app("employers[].ended_on", "date", "391.21(b)(10)", ["p12.employment#0"]),
-  app("employers[].operated_cmv", "yesno", "391.21(b)(11)", ADDENDUM("P1")),
-  app("employers[].dot_regulated", "yesno", "391.23(a)(2)", ADDENDUM("P1")),
-  app("employers[].reason_for_leaving", "longtext", "391.21(b)(10)", ADDENDUM("P1")),
-  app("employers[].subject_to_fmcsr", "yesno", "391.21(b)(10)", ADDENDUM("P1")),
-  app("employers[].safety_sensitive", "yesno", "391.21(b)(10)", ADDENDUM("P1")),
-  app("employment_gaps[].from", "date", "391.21(b)(10)", ADDENDUM("gap explanations")),
-  app("employment_gaps[].to", "date", "391.21(b)(10)", ADDENDUM("gap explanations")),
-  app("employment_gaps[].explanation", "longtext", "391.21(b)(10)", ADDENDUM("gap explanations")),
+  app("employers[].operated_cmv", "yesno", "391.21(b)(11)", ADDENDUM("employers#operated_cmv")),
+  app("employers[].dot_regulated", "yesno", "391.23(a)(2)", ADDENDUM("employers#dot_regulated")),
+  app("employers[].reason_for_leaving", "longtext", "391.21(b)(10)", ADDENDUM("employers#reason_for_leaving")),
+  app("employers[].subject_to_fmcsr", "yesno", "391.21(b)(10)", ADDENDUM("employers#subject_to_fmcsr")),
+  app("employers[].safety_sensitive", "yesno", "391.21(b)(10)", ADDENDUM("employers#safety_sensitive")),
+  app("employment_gaps[].from", "date", "391.21(b)(10)", ADDENDUM("gaps#from")),
+  app("employment_gaps[].to", "date", "391.21(b)(10)", ADDENDUM("gaps#to")),
+  app("employment_gaps[].explanation", "longtext", "391.21(b)(10)", ADDENDUM("gaps#explanation")),
 
   // ── the carrier's questionnaire (`questionnaireContract.ts`) ──
   app("questionnaire_answers.position", "text", "carrier", ["p01.position"]),
