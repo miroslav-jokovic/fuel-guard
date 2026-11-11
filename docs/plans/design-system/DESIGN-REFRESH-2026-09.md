@@ -1444,3 +1444,15 @@ conflict every time (`plan-progress-log-not-table-rows`).
   numbers now start at zoom 11 (`REGIONAL_DETAIL_ZOOM`), everything else unchanged. The rule is
   tested by evaluating the filters on features (4 of 4 mutations caught); the style validates.
   Acceptance is the owner looking at the before/after stills.
+- **2026-11-11 — D-DR38 after, and the night map checked on staging (polish item 6).** With #2250
+  live (`da690d8`), Joliet at zoom 10 shows 18 state and 7 interstate numbers and no county ones, and
+  the tertiary grid is gone; county numbers and local roads arrive at 11 (18 county numbers there).
+  Night scheme, `tools/staging-map-views.mjs` with `COLOR_SCHEME=dark`: Joliet at 16, O'Hare at 13
+  and Columbus at 11 draw dark land and roads, light labels, inverted place icons, airport grounds
+  and runways in their night colours, and the road signs in their fixed sign colours. Choosing Dark
+  in the account menu repaints the map in place (`SWITCH_VIA_MENU=1`). ⚠ **The OS turning dark while
+  the app is open did not** (`SWITCH_TO_DARK=1`): the app went dark and the map stayed light.
+  `useColorScheme`'s `isDark` read `matchMedia(...).matches` inside a `computed`, which touches
+  nothing reactive, so it was computed once and never followed the OS. That is in production too, for
+  today's map (its night tiles) and the truck markers. Fixed in `useColorScheme` with a reactive
+  system preference fed by the media query's `change` event; the new test fails on the old code.
