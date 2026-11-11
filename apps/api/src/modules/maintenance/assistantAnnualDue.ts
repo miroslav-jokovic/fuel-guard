@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { INSPECTION_EXPIRY_WARNING_DAYS } from "@silvicom/shared";
+import { annualDuePageKind, ASSISTANT_TOOL_PAGE, INSPECTION_EXPIRY_WARNING_DAYS, shopAnnualDueToQuery } from "@silvicom/shared";
 import { readAnnualDue } from "./inspections/annualDue.js";
 
 /**
@@ -34,7 +34,8 @@ export interface AssistantAnnualDueInput {
 export async function assistantAnnualDue(admin: SupabaseClient, orgId: string, input: AssistantAnnualDueInput, now: Date = new Date()): Promise<unknown> {
   const rows = await readAnnualDue(admin, orgId, now);
   if ("error" in rows) throw new Error(rows.error.message);
-  const kind = input.kind === "truck" ? "tractor" : input.kind === "trailer" ? "trailer" : null;
+  // The page's kind for the asked one, by the link contract's mapping, so the answer and the link narrow alike.
+  const kind = annualDuePageKind(input.kind);
   const units = rows
     .filter((r) => !kind || r.subjectType === kind)
     .map((r) => ({ unit: r.unitNumber, kind: r.subjectType === "tractor" ? "truck" : "trailer", expires_on: r.expiresOn, days_remaining: r.daysRemaining }));
@@ -42,6 +43,9 @@ export async function assistantAnnualDue(admin: SupabaseClient, orgId: string, i
   const dueSoon = units.filter((u) => u.days_remaining >= 0);
   return {
     source: ANNUAL_DUE_SOURCE,
+    // F21 R4b: the Shop page opened on its Annual due tab, narrowed to the asked kind (its own contract).
+    // `askData` lifts it off before the model sees the result (D-AI8).
+    link: { surfaceKey: ASSISTANT_TOOL_PAGE.annual_inspections_due, query: shopAnnualDueToQuery({ kind: input.kind }) },
     warning_window_days: INSPECTION_EXPIRY_WARNING_DAYS,
     overdue_count: overdue.length,
     due_soon_count: dueSoon.length,

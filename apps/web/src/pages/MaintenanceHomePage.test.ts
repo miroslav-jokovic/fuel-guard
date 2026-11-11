@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { reactive, ref } from "vue";
-import type { AnnualDueDto, RoadsideRepairDueDto, ShopDefectDto, ShopWorkOrderDto } from "@silvicom/shared";
+import { shopAnnualDueToQuery, type AnnualDueDto, type RoadsideRepairDueDto, type ShopDefectDto, type ShopWorkOrderDto } from "@silvicom/shared";
 
 /**
  * The Shop page as one list a tab (MAINTENANCE-SECTION-REDESIGN-PROPOSAL §7a.3, M6). Each tab's list is
@@ -95,6 +95,12 @@ describe("which tab the Shop page opens on", () => {
     defects.value = [defect];
     route.query = { tab: "bills" };
     expect(panel(page())).toBe("ShopRepairBillsPanel");
+  });
+
+  it("opens on Annual due when a link built by its contract names it, though another tab has rows (F21 R4b)", () => {
+    defects.value = [defect];
+    route.query = shopAnnualDueToQuery({ kind: "trailer" });
+    expect(panel(page())).toBe("ShopAnnualDuePanel");
   });
 
   it("ignores a tab the reader cannot open, even when the URL names it", () => {
