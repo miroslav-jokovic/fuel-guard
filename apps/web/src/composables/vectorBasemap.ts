@@ -24,6 +24,8 @@
  */
 import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
 import { TRUCK_PLACES_ZOOM, VECTOR_GLYPH_FONTS } from "@silvicom/shared";
+import { MAP_ICON_BY_KIND, TRUCK_ICON, mapIconId } from "./mapIcons";
+import { shieldImageExpression, shieldKindExpression, shieldTextColour } from "./mapShields";
 
 /** The `--map-*` tokens, without the prefix. A key here that has no token is a type error at the caller. */
 export const MAP_PALETTE_KEYS = [
@@ -40,6 +42,12 @@ export const MAP_PALETTE_KEYS = [
   "label",
   "label-halo",
   "water-label",
+  // D-DR36: route-number signs, in the US federal sign colours (mapShields.ts).
+  "shield-interstate",
+  "shield-interstate-band",
+  "shield-plain",
+  "shield-ink",
+  "shield-county-ink",
 ] as const;
 export type MapPaletteKey = (typeof MAP_PALETTE_KEYS)[number];
 export type MapPalette = Record<MapPaletteKey, string>;
@@ -104,6 +112,21 @@ function roadColour(c: MapPalette, from: number, to: number): ExpressionSpecific
 /** A place name's size at one zoom stop: neighbourhoods small, regions and countries fixed, towns `town`. */
 function sizeByKind(town: number): ExpressionSpecification {
   return ["match", ["get", "kind"], "neighbourhood", 11, ["country", "region"], 13, town] as ExpressionSpecification;
+}
+
+/**
+ * A place's icon with its name to the right, Google-style (D-DR35). `icon` is an image id or an
+ * expression giving one; `""` means no icon, and then the name sits centred where the dot was.
+ * ⚠ `text-optional`: when the name does not fit, the icon still shows alone, rather than both going.
+ */
+function iconBesideName(icon: string | ExpressionSpecification) {
+  const has: ExpressionSpecification = typeof icon === "string" ? ["literal", true] : ["!=", icon, ""];
+  return {
+    "icon-image": icon,
+    "text-anchor": ["case", has, "left", "center"],
+    "text-offset": ["case", has, ["literal", [0.95, 0]], ["literal", [0, 0]]],
+    "text-optional": true,
+  } as Record<string, unknown>;
 }
 
 /** Zoom → value, interpolated linearly; the only curve shape these layers use. */
@@ -222,7 +245,7 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
       paint: { "text-color": c.label, ...halo },
     } as LayerSpecification,
     {
-      // The interstate / US / state number, the first thing a dispatcher reads a position by.
+      // The interstate / US / state / county number, the first thing a dispatcher reads a position by.
       id: id("road-number"),
       type: "symbol",
       ...src,
@@ -243,8 +266,12 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
         "text-size": 11,
         "text-rotation-alignment": "viewport",
         "text-keep-upright": true,
+        // D-DR36: the number sits on its road's sign; an interstate's below the red band.
+        "icon-image": shieldImageExpression,
+        "icon-rotation-alignment": "viewport",
+        "text-offset": ["case", ["==", shieldKindExpression, "interstate"], ["literal", [0, 0.12]], ["literal", [0, 0]]],
       },
-      paint: { "text-color": c["label-halo"], "text-halo-color": c["highway-casing"], "text-halo-width": 3 },
+      paint: { "text-color": shieldTextColour(c) },
     } as LayerSpecification,
     {
       // Every place the ordinary tile names, with its name when there is room. Fuel stations first.
@@ -267,6 +294,8 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
         "text-size": byZoom(12, 10, 16, 12),
         "text-max-width": 9,
         "symbol-sort-key": ["case", ["==", ["get", "pds_category"], FUEL_PLACE_CATEGORY], 0, 10],
+        // D-DR35: an icon for the measured kinds, the name beside it; every other place is a name alone.
+        ...iconBesideName(["match", ["get", "kind"], ...Object.entries(MAP_ICON_BY_KIND).flatMap(([k, n]) => [k, mapIconId(n)]), ""] as unknown as ExpressionSpecification),
       },
       paint: { "text-color": c.label, ...halo },
     } as LayerSpecification,
@@ -291,6 +320,7 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
           ["in", ["get", "pds_category"], ["literal", [...TRUCK_PLACE_CATEGORIES.restArea]]], 1,
           2,
         ],
+        ...iconBesideName(mapIconId(TRUCK_ICON)),
       },
       paint: { "text-color": c.label, ...halo },
     } as LayerSpecification,
