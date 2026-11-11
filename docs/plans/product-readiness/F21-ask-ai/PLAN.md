@@ -693,6 +693,18 @@ audit row is the endpoint's own.
   - Pinned by `dataRetention.test.ts` "prunes Ask AI's cost rows after 13 months, keeping last year's
     same month whole, and never the audit row of the question". Deliberate break: `keepDays: 365`,
     killed by its assertion.
+- 2026-11-10 — **R3a web half built, PR held until #2223 is in PRODUCTION** (branch
+  `claude/askai-follow-ups-web`). The store sends each question with the thread's earlier ANSWERED
+  turns through `assistantHistoryForRequest`, the API's own trim. A failed or pending turn is never
+  sent; a retry carries only what came before it; "New chat" starts with none. The composer's line
+  says follow-ups keep the subject. `QUESTION_MAX` now reads the contract's
+  `ASSISTANT_QUESTION_MAX`. Three deliberate breaks (history not sent, failed turns sent, later turns
+  on retry), each killed by an assertion.
+- 2026-11-11 — **R3a web half opened and merged.** Checked first, as the handoff required: #2223's
+  merge commit `038950f` is an ancestor of `origin/production`, and `pnpm verify:live` showed the
+  production API serving `e39dcd7` (release #2222). `origin/main` was merged in. The store keeps R4a's
+  `pages` beside R3a's `history`, and the store's note now says Q-AI4 is ruled (tab-local).
+
 - 2026-11-11 — **R4b (a) built: "Open in Fuel costs" opens the answer's own days and trucks.**
   - **One link builder, read by the page and the tool (D-AI6):** `packages/shared/src/fuelCostsLinkContract.ts`
     has the page's six URL keys (`FUEL_COSTS_QUERY_KEYS`) and `fuelCostsToQuery`. `useSpendFilters`

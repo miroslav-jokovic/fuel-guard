@@ -276,3 +276,15 @@ export const TRUCK_PLACES_ZOOM = 13;
  * (D-DR31). They are HERE's own style fonts; the web style and the API allowlist read this one list.
  */
 export const VECTOR_GLYPH_FONTS = ["Fira GO Regular", "Fira GO Bold"] as const;
+
+/**
+ * The ONE shape of a glyph range file both sides agree on (D-DR31): `0-255.pbf`. The web style's glyph
+ * URL must fill `{range}` into a name that matches this, and the API's glyph relay refuses anything
+ * else; HERE's font host answers 404 without the `.pbf` (measured 2026-11-11).
+ *
+ * ⚠ Until 2026-11-11 the style asked for `{range}` with no `.pbf`, the relay refused every range with
+ * a 400, and maplibre fell back to drawing every label with the browser's own font (its
+ * "Rendering codepoint … locally instead" path), so HERE's font was never on screen and every label
+ * was drawn on the reader's CPU. Nothing failed visibly, which is why one definition now serves both.
+ */
+export const VECTOR_GLYPH_RANGE_FILE = /^\d{1,5}-\d{1,5}\.pbf$/;
