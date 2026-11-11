@@ -103,7 +103,8 @@ describe("POST /api/ai/ask — the meter", () => {
     askData.mockResolvedValueOnce({ answer: "Unit 748 ran 6.4 MPG.", tools: [{ name: "fuel_report", input: {} }], usage: USAGE, outcome: "answered" });
     const res = await post("mpg on 748 last month");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ answer: "Unit 748 ran 6.4 MPG." });
+    // R4a: the page behind the answer travels with it, as a surface key.
+    expect(await res.json()).toEqual({ answer: "Unit 748 ran 6.4 MPG.", pages: ["fuel.spend"] });
     const records = rec.rpcs().filter((c) => c.fn === "record_assistant_answer");
     expect(records).toHaveLength(1);
     expect(records[0]!.args).toMatchObject({

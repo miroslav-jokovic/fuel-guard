@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth, requireOrg } from "../../../middleware/auth.js";
-import { ASSISTANT_ANSWER_MAX, ASSISTANT_QUESTION_MAX, ASSISTANT_TOOL_MODULES, assistantHistoryForRequest, assistantToolsFor } from "@silvicom/shared";
+import { ASSISTANT_ANSWER_MAX, ASSISTANT_QUESTION_MAX, ASSISTANT_TOOL_MODULES, assistantAnswerPages, assistantHistoryForRequest, assistantToolsFor } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -85,7 +85,9 @@ export function aiRouter(): Router {
         res.status(503).json(apiError("ai_unavailable", answer));
         return;
       }
-      res.json({ answer });
+      // F21 R4a: the pages behind the answer, as surface keys, for its "Open in …" links. Structured,
+      // never parsed out of the model's text (D-AI8). Additive: an older web ignores it.
+      res.json({ answer, pages: assistantAnswerPages(tools) });
     }),
   );
 

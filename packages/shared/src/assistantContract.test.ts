@@ -4,6 +4,8 @@ import { resolveSectionAccess, rolesThatCanView } from "./auth.js";
 import { MODULE_KEYS, type ModuleSet } from "./entitlements.js";
 import {
   ASSISTANT_TOOL_ACCESS,
+  ASSISTANT_TOOL_PAGE,
+  assistantAnswerPages,
   ASSISTANT_TOOL_MODULES,
   ASSISTANT_TOOL_NAMES,
   assistantToolsFor,
@@ -12,6 +14,7 @@ import {
   stripNeverExposed,
   type ToolRequirement,
 } from "./assistantContract.js";
+import { SURFACES } from "./surfaceCatalogue.js";
 
 /** A carrier that bought everything, and one that bought nothing. */
 const ALL_MODULES: ModuleSet = new Set(MODULE_KEYS);
@@ -154,5 +157,40 @@ describe("stripNeverExposed (D-AI7)", () => {
 
   it("lists only lowercase keys, so the case-insensitive match can find each of them", () => {
     for (const f of NEVER_EXPOSED_FIELDS) expect(f).toBe(f.toLowerCase());
+  });
+});
+
+describe("ASSISTANT_TOOL_PAGE — the page an answer links to (F21 R4a)", () => {
+  it("every page a tool names is a real surface, gated by one of the tool's own sections", () => {
+    for (const [tool, key] of Object.entries(ASSISTANT_TOOL_PAGE)) {
+      if (key === null) continue;
+      const surface = SURFACES.find((s) => s.key === key);
+      expect(surface, `${tool} names ${key}`).toBeDefined();
+      const sections = reqs(tool as keyof typeof ASSISTANT_TOOL_ACCESS).flatMap((r) => ("section" in r ? [r.section] : []));
+      // The Dashboard (the live map's home) is open to everyone; every other page is a section's.
+      if (surface!.gate.kind === "always") continue;
+      expect(surface!.gate.kind, `${tool} -> ${key}`).toBe("section");
+      expect(sections, `${tool} -> ${key}`).toContain((surface!.gate as { section: string }).section);
+    }
+  });
+
+  it("names a page only for the tools built on a page's own read", () => {
+    expect(ASSISTANT_TOOL_PAGE.fuel_report).toBe("fuel.spend");
+    expect(ASSISTANT_TOOL_PAGE.finance_report).toBe("finance.fleet-report");
+    expect(ASSISTANT_TOOL_PAGE.fleet_summary).toBeNull();
+    expect(ASSISTANT_TOOL_PAGE.fuel_ranking).toBeNull();
+  });
+
+  it("an answer's pages: each successful tool's, once, in call order", () => {
+    expect(
+      assistantAnswerPages([
+        { name: "finance_report" },
+        { name: "fuel_ranking" },
+        { name: "idle_report", error: "timeout" },
+        { name: "income_statement" },
+        { name: "fuel_report" },
+        { name: "not_a_tool" },
+      ]),
+    ).toEqual(["finance.fleet-report", "fuel.spend"]);
   });
 });

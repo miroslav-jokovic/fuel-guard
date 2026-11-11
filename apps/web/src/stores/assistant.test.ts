@@ -33,7 +33,7 @@ describe("assistant store", () => {
     await pending;
     expect(status.value).toBe("done");
     expect(apiFetch).toHaveBeenCalledWith("/api/ai/ask", { method: "POST", body: { question: "How much did we spend?" } });
-    expect(s.turns).toEqual([{ id: 1, question: "How much did we spend?", status: "done", answer: "Spend was $41,200." }]);
+    expect(s.turns).toEqual([{ id: 1, question: "How much did we spend?", status: "done", answer: "Spend was $41,200.", pages: [] }]);
   });
 
   it("refuses a blank question and a second question while one is pending", async () => {
@@ -76,5 +76,14 @@ describe("assistant store", () => {
     d.resolve({ ok: true, data: { answer: "late" } });
     await pending;
     expect(s.turns).toEqual([]);
+  });
+
+  it("keeps the pages the API named behind an answer, and none from an older API (R4a)", async () => {
+    const s = useAssistantStore();
+    replies.push(async () => ({ ok: true, data: { answer: "Net was $412,000.", pages: ["finance.fleet-report"] } }));
+    await s.ask("net last month");
+    replies.push(async () => ({ ok: true, data: { answer: "ok" } }));
+    await s.ask("and fuel?");
+    expect(s.turns.map((t) => t.pages)).toEqual([["finance.fleet-report"], []]);
   });
 });

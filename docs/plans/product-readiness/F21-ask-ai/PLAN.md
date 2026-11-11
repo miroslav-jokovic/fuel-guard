@@ -232,6 +232,17 @@ audit row is the endpoint's own.
   in the matrix, which hides the page too, never an assistant exception. **Recommend: keep.** An
   auditor reads everything by design, and Ask AI is still off for that role (`startsOnFor: []`).
   - **Ruled 2026-11-10: keep** (owner: proceed with the recommended solutions).
+- **Q-AI12. Fuel costs is gated `manage("fuel")`, but its report route answers `view` (found at R4a,
+  2026-11-10).** The surface `fuel.spend` (`/fuel-spend`) asks `manage("fuel")`, while
+  `GET /api/fuel-spend/report` asks `requireSection("fuel", "view")`. `fuel_report` follows the route
+  (D-AI1: a tool declares its route's gates), so a fuel VIEWER (dispatcher, accountant by default) gets
+  Fuel costs figures from Ask AI on a page they cannot open. R4a draws no link for them
+  (`canReachSurface`), but the figure is still theirs. Candidates: (a) the route asks `manage`,
+  matching the page, so the tool follows; (b) the page opens to `view`, matching the route; (c) keep
+  both as they are and write down why. **Recommend (b):** the report is a read, every other fuel page
+  is `section("fuel")` (view), and the route was written as a view on purpose; `manage` on the page
+  looks inherited from the old Fuel Spend tabs that held writes (FS2). It changes who sees a sidebar
+  entry, so it is the owner's call.
 
 ## 6. Log
 
@@ -552,3 +563,25 @@ audit row is the endpoint's own.
   - Nine deliberate breaks, each killed by an assertion: history dropped, question before history, no
     re-read instruction, the route ignoring history, the route untrimmed, the audit without the count,
     the oldest kept, no character budget, an over-long answer dropped.
+- 2026-11-10 — **R4a: "Open in …" links and CSV for each answer table.** `assistantContract.ts`
+  `ASSISTANT_TOOL_PAGE` names the page each tool's figure IS (D-AI3's `source.surfaceKey`), and only
+  for the tools built on a page's own read (R1, R6a, R6b). The older tools that sum raw tables get
+  `null`: a link would claim their number is that page's. It is pinned by "every page a tool names is a
+  real surface, gated by one of the tool's own sections". `POST /api/ai/ask` now answers
+  `{ answer, pages }` (`assistantAnswerPages`: each successful tool's page, once, in call order). The
+  field is additive, so an older web ignores it and the new web tolerates its absence. One merge.
+  - **Web:** under an answer, "Open in Fleet report →" links from that structured list, never parsed
+    from the model's text (D-AI8). A link is drawn only when the person can open the page
+    (`useAnswerPages`: `canReachSurface` then `surfaceAllowed`, the sidebar's own two questions), which
+    is how Q-AI12 surfaced. Each answer table has "Download CSV" (`tableCsv` + `downloadCsv`: the words
+    on screen; in a numeric column `$` and thousands separators are dropped so it sums; `csvCell`'s
+    formula guard).
+  - **Not built (R4b):** PDF, and "open in page" WITH the answer's filters (units, period). Both need
+    D-AI6's page filter contracts in `packages/shared` (Step 5), page by page, starting with Fuel costs
+    and the Fleet report. Recommend R4b as the first D-AI6 slice: `fuelSpendFilterContract` read by
+    `/fuel-spend`'s `useQueryState` and by `fuel_report`. The page's own export then serves as the
+    PDF/CSV of the full figure.
+  - Ten deliberate breaks, each killed by an assertion: a failed tool linked, duplicates kept, a wrong
+    page, a legacy tool linked, the route sending no pages, no reach check, no screen-grant check,
+    dollars kept in a numeric column, a text column stripped (it SURVIVED until a money-looking text
+    cell was in the fixture), pages dropped by the store.
