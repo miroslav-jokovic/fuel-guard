@@ -826,3 +826,52 @@ audit row is the endpoint's own.
     choice, not following the URL, `periodFromLink` trusting the grain unchecked, and the writer
     dropping the grain.
   - Next: (e) part 2, the Fleet report link from `finance_report` and `income_statement`.
+- 2026-11-11 — **R4b (e) part 2 built: "Open in Fleet report" opens the answer's months and tab.**
+  - The Fleet report contract gains `tab` (`FLEET_REPORT_TABS`, the page's six, `overview` left out of a
+    link; the page's `TABS` are typed by it and its tab param reads the key) and `fleetReportGrainOf`:
+    one month is `month`, a calendar quarter `quarter`, January onward `ytd`, else `custom`; January to
+    March is a quarter unless the question was about the year.
+  - `finance_report` links its whole months — INCLUSIVE, as the rail states them; the API's exclusive
+    end (Q-AI10) stays `exclusiveEndYmd`'s — on the tab that shows what was asked (`by=truck` →
+    Per truck, `by=contractor` → Contractors, else the overview). `income_statement` links the same
+    months on the Income statement tab. Both name `finance.fleet-report`; the web keeps the last.
+  - PDF: the page's own statement export prints the figure the link opens.
+  - Tests: `fleetReportLinkContract.test.ts`; `assistantFinanceReport.test.ts` "finance_report links the
+    answer's inclusive months, their grain and the tab that shows what was asked" and "income_statement
+    links the same months on the Income statement tab"; `FleetReportPage.test.ts` "opens on the tab a
+    link built by its contract names, and its tabs are the contract's".
+  - Deliberate breaks, each killed by an assertion: the link carrying the exclusive end, `by=truck`
+    linked to the overview, any three months called a quarter, and the page's tab read as a literal.
+  - **R4b's approved list is complete** (Fuel costs, IFTA, Loads, Applicants, Drivers, Fuel cards, Fleet
+    report), apart from Q-AI13's Drivers states. Four tools with a page were not on that list and still
+    link to it bare, as in R4a: `idle_report` (/idling), `fleet_now` (Dashboard), `annual_inspections_due`
+    and `maintenance_cost`. Whether their pages can hold the answer's filters in the URL is not yet
+    checked; that is the next slice if wanted.
+- 2026-11-11 — **What is left after R4b, with recommendations** (owner asked for the list; recorded here
+  so it is found with the plan, not in a chat):
+  1. **First eval baseline on production** (R7): `pnpm --filter @silvicom/api eval:assistant --org
+     86d6b3ea-4361-4f71-877f-e8373615769b --record`, ~$0.05, reads production and sends it to the model
+     provider, writes nothing. Needs the owner's one-line go right before it runs. Then retire
+     `idling_summary` if no case needs it. **Recommend: next.**
+  2. **Q-AI13** (Drivers per-item states): **recommend (b)**, a roster item-state filter, when an
+     office asks; until then the bare link.
+  3. **The four page tools still linked bare** (`idle_report`, `fleet_now`, `annual_inspections_due`,
+     `maintenance_cost`): check each page's URL state; give a link contract only where the page can
+     show exactly the answer. **Recommend: after the baseline, one PR per page, as R4b.**
+  4. **Streaming (Step 2d)**: nothing streams today. **Recommend: measure first** — the answer time
+     per round is in `ai_assistant_usage`; build SSE only if the median answer is over ~5 s.
+  5. **The dock (Q-AI7, Step 3a)**: launcher, thread and `/ask` exist; the non-modal dock, its
+     design-contract entry, a11y states and a stubbed browser spec do not. **Recommend: rule Q-AI7 yes,
+     then build it.**
+  6. **R3b saved conversations**: stays unbuilt (Q-AI4 (c)).
+  7. **Voice (Q-AI3, Step 3c)**: **recommend (a)** browser speech, hidden where unsupported, after the dock.
+  8. **Breadth (Step 4)**: hazmat has no tool; dispatch assignments/HOS, safety scores, findings,
+     parts and invoices are partial. Needs Q-AI8's named first users. **Recommend: one section per PR,
+     each with eval cases, after the baseline shows where answers fail.**
+  9. **Navigate (Step 5)**: `open_view` + current-page context, on the R4b contracts, plus contracts
+     for Findings, Fuel log, Alerts and Vehicles. **Recommend: after the dock.**
+  10. **Writes (Step 6, Q-AI6)**: **recommend assign a finding + create a saved view first**, each one
+      existing endpoint, the user's own 403.
+  11. **Unmarked rulings**: Q-AI1, Q-AI2, Q-AI3, Q-AI5, Q-AI6, Q-AI7, Q-AI8, Q-AI9 have no "Ruled" line,
+      though Q-AI1/Q-AI2/Q-AI5 already behave as recommended in code. **Recommend: the owner rules them
+      in one pass, and the next PR records each.**

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useQueryState, AppButton as BaseButton, AppCallout, AppTabs, type TabItem, QueryState } from "@silvicom/ui";
 import { computed, ref, watch } from "vue";
-import { FLEET_REPORT_QUERY_KEYS as PK, fleetReportToQuery, ledgerMonthWhy } from "@silvicom/shared";
+import { FLEET_REPORT_QUERY_KEYS as PK, fleetReportToQuery, ledgerMonthWhy, type FleetReportTab } from "@silvicom/shared";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ActivityTable from "@/features/accounting/ActivityTable.vue";
@@ -103,7 +103,8 @@ const to = computed(() => filter.value.to);
  * period, and where did it go — and the per-truck table answers a follow-up.
  */
 type FleetTab = "overview" | "activity" | "dispatchers" | "trucks" | "contractors" | "statement";
-const TABS: TabItem[] = [
+/** The tab values are the Fleet report link contract's (`FLEET_REPORT_TABS`), which Ask AI's link names. */
+const TABS: (TabItem & { value: FleetReportTab })[] = [
   { value: "overview", label: "Overview" },
   // Week by week (W2). It sits second because it answers the question asked BETWEEN closes, where
   // the tabs after it answer the ones asked at one.
@@ -117,7 +118,7 @@ const TABS: TabItem[] = [
 ];
 // The view is in the URL with each tab's own scoped list (D-US2), so a link to "Per truck, sorted by
 // miles" opens on Per truck rather than on Overview with the sort waiting behind it.
-const tabParam = useQueryState().param("tab", TABS.map((t) => t.value), "overview");
+const tabParam = useQueryState().param(PK.tab, TABS.map((t) => t.value), "overview");
 const tab = computed({ get: () => tabParam.value as FleetTab, set: (v: FleetTab) => (tabParam.value = v) });
 
 /**

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fleetReportToQuery } from "@silvicom/shared";
 import { ledgerMonthWhy, type FleetColumn, type LedgerMonth } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 
@@ -222,6 +223,12 @@ describe("income_statement — the statement tab's figures", () => {
   };
   beforeEach(() => getIncomeStatement.mockResolvedValue(statement));
 
+  // F21 R4b (e): the Fleet report link, on the tab this tool reads.
+  it("income_statement links the same months on the Income statement tab", async () => {
+    const out = (await assistantIncomeStatement(recorder().client, ORG, { period: "last_month" }, NOV_10)) as Out;
+    expect(out.link).toEqual({ surfaceKey: "finance.fleet-report", query: { from: "2026-10", to: "2026-10", grain: "month", tab: "statement" } });
+  });
+
   it("asks for the page's window with 'previous' by default, copies the totals, and states provenance", async () => {
     const rec = recorder();
     const out = (await assistantIncomeStatement(rec.client, ORG, { period: "last_month" }, NOV_10)) as Out;
@@ -242,3 +249,20 @@ describe("income_statement — the statement tab's figures", () => {
     ]);
   });
 });
+
+// F21 R4b (e). What a hand-built link would get wrong: the API's EXCLUSIVE end (October asked as
+// `to=2026-11-01`) where the page's rail takes INCLUSIVE months, a quarter opened as a custom range the
+// rail cannot step, and the tab — "per truck" answered on the overview.
+describe("the Fleet report link (F21 R4b (e))", () => {
+  it("finance_report links the answer's inclusive months, their grain and the tab that shows what was asked", async () => {
+    const month = (await assistantFinanceReport(recorder().client, ORG, { period: "last_month" }, NOV_10)) as Out;
+    expect(month.link).toEqual({ surfaceKey: "finance.fleet-report", query: { from: "2026-10", to: "2026-10", grain: "month" } });
+    const quarter = (await assistantFinanceReport(recorder().client, ORG, { period: "last_quarter", by: "truck" }, NOV_10)) as Out;
+    expect(quarter.link.query).toEqual(fleetReportToQuery({ grain: "quarter", from: "2026-07-01", to: "2026-09-30", tab: "trucks" }));
+    expect(quarter.link.query).toEqual({ from: "2026-07", to: "2026-09", grain: "quarter", tab: "trucks" });
+    const ytd = (await assistantFinanceReport(recorder().client, ORG, { period: "year_to_date" }, NOV_10)) as Out;
+    expect(ytd.link.query).toMatchObject({ from: "2026-01", to: "2026-11", grain: "ytd" });
+  });
+
+});
+
