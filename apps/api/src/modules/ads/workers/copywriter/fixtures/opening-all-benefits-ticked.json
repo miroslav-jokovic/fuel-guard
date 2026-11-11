@@ -154,57 +154,54 @@
     "company_name": "Silvicom Inc",
     "candidates": 3
   },
-  "expect": "refused",
-  "expect_findings": [
-    "too_long"
-  ],
+  "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:15:12.869Z",
+    "recorded_at": "2026-11-11T04:51:43.097Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Late-model auto. $0.70/mile.",
-            "cta": "Apply today.",
-            "primary_text": "Silvicom Inc is hiring Class A regional drivers for Midwest dry van. Pay: $0.70 to $0.76 per mile, weekly and guaranteed. Drop and hook, no-touch freight. Home weekly. Health, dental, vision, 401k, paid time off. Pet and rider policy. 23+, 2 years experience.",
-            "headline": "Home weekly. Guaranteed pay."
+            "hook": "Late-model autos, $0.70/mile",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc: dedicated Midwest dry van. Drop and hook, no-touch freight, automatic. Home weekly, guaranteed weekly pay. Health, dental, vision, 401k, paid time off. Pet and rider policy. Age 23+, 2 years exp.",
+            "headline": "Home weekly. $0.70/mile."
           },
           "es": {
-            "hook": "Equipo nuevo. $0.70 por milla.",
-            "cta": "Aplica hoy.",
-            "primary_text": "Silvicom Inc busca conductores Clase A para van seco en el Medio Oeste. Pago de $0.70 a $0.76 por milla, semanal y garantizado. Drop and hook, carga sin contacto. A casa cada semana. Médico, dental, visión, 401k. Mayores de 23, 2 años de experiencia.",
-            "headline": "A casa cada semana. Pago garantizado."
+            "hook": "Autos nuevos, $0.70 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc: van seca dedicada en el Medio Oeste. Drop and hook, sin tocar la carga, automática. Casa cada semana, pago garantizado y semanal. Médico, dental, visión, 401k. Mascotas y acompañante. Mayores de 23, 2 años.",
+            "headline": "Casa cada semana. $0.70/mi."
           }
         },
         {
           "en": {
-            "hook": "Home weekly. Midwest dry van.",
-            "cta": "Join our team.",
-            "primary_text": "Regional Midwest dry van with Silvicom Inc. Home weekly on a dedicated lane. No-touch freight, drop and hook. Pay: $0.70 to $0.76 per mile, weekly and guaranteed. Late-model automatics. Health, dental, vision, 401k, paid time off. 23+, 2 years experience.",
-            "headline": "Up to $0.76/mile. Auto trans."
+            "hook": "Home weekly, up to $0.76/mile",
+            "cta": "Join us now",
+            "primary_text": "Midwest regional dry van with Silvicom Inc. Home weekly, guaranteed pay, up to $0.76/mile. Drop and hook, no-touch, automatic transmission, late-model equipment. Health, dental, vision, 401k, paid time off. Age 23+, 2 years exp.",
+            "headline": "Up to $0.76/mile, home weekly"
           },
           "es": {
-            "hook": "A casa cada semana. Medio Oeste.",
-            "cta": "Únete al equipo.",
-            "primary_text": "Rutas regionales de van seco en el Medio Oeste con Silvicom Inc. A casa cada semana, ruta dedicada, drop and hook, carga sin contacto. Pago de $0.70 a $0.76 por milla, garantizado. Tráileres automáticos nuevos. Médico, dental, visión, 401k. Mayores de 23.",
-            "headline": "Hasta $0.76 por milla. Automático."
+            "hook": "Casa semanal, hasta $0.76/milla",
+            "cta": "Únete hoy",
+            "primary_text": "Van seca regional en el Medio Oeste con Silvicom Inc. Casa cada semana, pago garantizado, hasta $0.76 por milla. Drop and hook, sin tocar la carga, automática, equipo moderno. Médico, dental, visión, 401k. Mayores de 23, 2 años de exp.",
+            "headline": "Hasta $0.76/mi, casa semanal"
           }
         },
         {
           "en": {
-            "hook": "Drop-and-hook. $0.76/mile.",
-            "cta": "Apply now.",
-            "primary_text": "Late-model automatics, dedicated Midwest dry van runs for Silvicom Inc. Drop and hook, no-touch freight. Pay: $0.70 to $0.76 per mile, weekly and guaranteed. Home weekly. Health, dental, vision, 401k, paid time off. Rider and pet policy. 23+, 2 years experience.",
-            "headline": "Dedicated lane. Home weekly."
+            "hook": "Drop-and-hook dry van, $0.70+/mile",
+            "cta": "Apply now",
+            "primary_text": "Silvicom Inc. Dedicated Midwest dry van. Drop and hook, no-touch, late-model automatics. $0.70 to $0.76/mile, weekly guaranteed pay. Health, dental, vision, 401k, paid orientation. Rider and pet policy. Age 23+, 2 years.",
+            "headline": "Dedicated dry van, $0.70/mile"
           },
           "es": {
-            "hook": "Drop and hook. $0.76 por milla.",
-            "cta": "Aplica ahora.",
-            "primary_text": "Tráileres automáticos en rutas dedicadas de van seco en el Medio Oeste con Silvicom Inc. Drop and hook, carga sin contacto. Pago de $0.70 a $0.76 por milla, semanal y garantizado. A casa cada semana. Médico, dental, visión, 401k. Mayores de 23, 2 años de exp.",
-            "headline": "Ruta dedicada. A casa cada semana."
+            "hook": "Drop-and-hook van seca, $0.70+/mi",
+            "cta": "Aplica ahora",
+            "primary_text": "Silvicom Inc. Van seca dedicada, Medio Oeste. Drop and hook, sin tocar la carga, automática moderna. De $0.70 a $0.76 por milla, pago semanal garantizado. Médico, dental, visión, 401k. Mascotas y acompañante. Mayores de 23, 2 años.",
+            "headline": "Van seca dedicada, $0.70/milla"
           }
         }
       ]

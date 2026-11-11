@@ -13,7 +13,7 @@ import { overlayFit } from "./overlay.js";
  *
  * Re-measured 2026-11-10 for the looks (ADS-AD-LOOK-PLAN D-ADL3): the headline is now capitals in a display face
  * that steps down a ladder, and each look has its own face. `ribbon` (Anton) holds what the old overlay held —
- * the longest recorded headline that fits is still the ceiling — and `rail` (Barlow Condensed ExtraBold, wider,
+ * the longest recorded headline that fits is the ceiling (56 on the v3 copy, 58 on v4's) — and `rail` (Barlow Condensed ExtraBold, wider,
  * and set in from its rail) holds a little less: 52. So the ceiling is the widest look's, a headline between the
  * two is the copy ranking's to place (compose asks `overlayFit` per candidate), and what the save promises is
  * unchanged: nothing above the ceiling can be drawn by any look, and 45 or fewer is drawn by every one.
@@ -102,7 +102,7 @@ describe("the headline's ceiling is the overlay's own (D-AD27)", () => {
     });
     expect(adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: recipe(OVERLAY_HEADLINE_MAX_CHARS) }).success).toBe(true);
     expect(adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: recipe(OVERLAY_HEADLINE_MAX_CHARS + 1) }).error?.issues.map((i) => [i.path.join("."), i.message])).toEqual([
-      ["recipe.copy_slots", "The headline on the image (hook) holds at most 56 characters: a longer one needs a third line, and the image has room for two."],
+      ["recipe.copy_slots", `The headline on the image (hook) holds at most ${OVERLAY_HEADLINE_MAX_CHARS} characters: a longer one needs a third line, and the image has room for two.`],
     ]);
   });
 });

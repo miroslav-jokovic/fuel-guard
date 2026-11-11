@@ -92,63 +92,63 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:26:55.943Z",
+    "recorded_at": "2026-11-11T05:03:13.042Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "card_get": "Get: $0.72 per mile and a $5,000 sign-on bonus.",
-            "card_need": "Need: Class A CDL and OTR experience.",
-            "card_apply": "Apply: Submit your info to get started.",
-            "cta": "Apply Now",
-            "primary_text": "Class A OTR drivers earn $0.72 per mile and a $5,000 sign-on bonus. If you hold a Class A CDL and want to put miles on, apply now.",
+            "card_get": "$0.72 per mile plus a $5,000 sign-on bonus.",
+            "card_need": "Class A CDL and a willingness to run over-the-road.",
+            "card_apply": "Apply today and get started.",
+            "cta": "Apply today",
+            "primary_text": "$0.72 per mile. $5,000 sign-on bonus. Class A OTR position open now. If you have your Class A CDL and are ready to run, we want to hear from you. Apply today.",
             "headline": "$0.72/mile + $5,000 bonus"
           },
           "es": {
-            "card_get": "Obtienes: $0.72 por milla y bono de $5,000 al contratar.",
-            "card_need": "Necesitas: CDL clase A y experiencia en ruta larga.",
-            "card_apply": "Aplica: Envía tu información hoy.",
-            "cta": "Aplica Ya",
-            "primary_text": "Conductores clase A ganan $0.72 por milla y un bono de contratación de $5,000. Si tienes CDL clase A y quieres rodar, aplica hoy.",
-            "headline": "$0.72/milla + bono $5,000"
+            "card_get": "$0.72 por milla más un bono de $5,000 por contratación.",
+            "card_need": "Licencia CDL clase A y disponibilidad para rutas de larga distancia.",
+            "card_apply": "Aplica hoy y empieza pronto.",
+            "cta": "Aplica hoy",
+            "primary_text": "$0.72 por milla. Bono de $5,000 al contratarte. Posición OTR clase A disponible ahora. Si tienes tu CDL clase A y estás listo para manejar, contáctanos hoy.",
+            "headline": "$0.72/milla + $5,000 bono"
           }
         },
         {
           "en": {
-            "card_get": "Get: $5,000 sign-on bonus plus $0.72 per mile.",
-            "card_need": "Need: Valid Class A CDL to qualify.",
-            "card_apply": "Apply: Ready to start? Apply today.",
-            "cta": "Start Today",
-            "primary_text": "Here is what this OTR Class A seat pays: $0.72 per mile from day one and a $5,000 sign-on bonus when you start. Class A CDL required. Join our team.",
-            "headline": "$5,000 to sign. $0.72/mile."
+            "card_get": "$5,000 sign-on bonus waiting for you when you join.",
+            "card_need": "Class A CDL required. Over-the-road position.",
+            "card_apply": "Hit apply and we'll be in touch.",
+            "cta": "Apply now",
+            "primary_text": "Start with $5,000 in your pocket. This OTR Class A seat pays $0.72 per mile on top of that. Bring your Class A CDL and we'll get you rolling. Apply now.",
+            "headline": "$5,000 sign-on bonus"
           },
           "es": {
-            "card_get": "Recibes: bono de $5,000 y $0.72 por milla.",
-            "card_need": "Necesitas: CDL clase A vigente.",
-            "card_apply": "Aplica: ¿Listo? Envía tu solicitud.",
-            "cta": "Empieza Hoy",
-            "primary_text": "Esta posición OTR clase A paga $0.72 por milla desde el primer día y un bono de $5,000 al contratar. Se requiere CDL clase A. Únete al equipo.",
-            "headline": "$5,000 al firmar. $0.72/milla."
+            "card_get": "Bono de $5,000 al firmar, más $0.72 por milla.",
+            "card_need": "Se requiere CDL clase A. Ruta de larga distancia.",
+            "card_apply": "Aplica y te contactamos pronto.",
+            "cta": "Aplica ahora",
+            "primary_text": "Comienza con $5,000 de bono al firmar. Además, esta posición OTR clase A paga $0.72 por milla. Trae tu CDL clase A y te ponemos a rodar. Aplica ahora.",
+            "headline": "Bono de $5,000 al firmar"
           }
         },
         {
           "en": {
-            "card_get": "Get: $0.72 per mile on every mile you run.",
-            "card_need": "Need: Class A CDL and OTR miles behind you.",
-            "card_apply": "Apply: Reach out and apply right now.",
-            "cta": "Apply Today",
-            "primary_text": "This is a Class A over-the-road seat. The pay is $0.72 per mile. There is also a $5,000 sign-on bonus. Have a Class A CDL? Apply and get moving.",
-            "headline": "Class A OTR — $0.72/mile"
+            "card_get": "Class A OTR seat — $0.72 per mile from day one.",
+            "card_need": "Class A CDL. Ready to run over-the-road.",
+            "card_apply": "Apply today. Simple and fast.",
+            "cta": "Start here",
+            "primary_text": "OTR Class A opening. $0.72 per mile, plus a $5,000 sign-on bonus when you come on board. Have your Class A CDL? Apply today and let's talk.",
+            "headline": "$0.72 per mile, OTR"
           },
           "es": {
-            "card_get": "Recibes: $0.72 por milla en cada milla que manejes.",
-            "card_need": "Necesitas: CDL clase A y experiencia en ruta larga.",
-            "card_apply": "Aplica: Contáctanos y aplica ahora.",
-            "cta": "Aplica Hoy",
-            "primary_text": "Esta posición es OTR clase A. La paga es $0.72 por milla. Hay además un bono de contratación de $5,000. ¿Tienes CDL clase A? Aplica y ponte en ruta.",
-            "headline": "Clase A OTR — $0.72/milla"
+            "card_get": "Puesto OTR clase A — $0.72 por milla desde el primer día.",
+            "card_need": "CDL clase A. Disponible para rutas largas.",
+            "card_apply": "Aplica hoy. Rápido y sencillo.",
+            "cta": "Empieza aquí",
+            "primary_text": "Posición OTR clase A disponible. $0.72 por milla, más $5,000 de bono al unirte. ¿Tienes tu CDL clase A? Aplica hoy y hablamos.",
+            "headline": "$0.72 por milla, OTR"
           }
         }
       ]

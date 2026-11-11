@@ -69,44 +69,44 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:27:26.495Z",
+    "recorded_at": "2026-11-11T05:03:44.154Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "$0.68 — Class A",
+            "hook": "$0.68/mi, CDL-A",
             "body": "Home weekly. Regional runs for Class A drivers.",
             "cta": "Apply now"
           },
           "es": {
-            "hook": "$0.68 — Clase A",
-            "body": "A casa cada semana. Rutas regionales, Clase A.",
+            "hook": "$0.68/mi, CDL-A",
+            "body": "Regresa a casa cada semana. Rutas regionales.",
             "cta": "Aplica ya"
           }
         },
         {
           "en": {
-            "hook": "Home weekly.",
+            "hook": "Home weekly, CDL-A",
             "body": "$0.68 per mile. Regional Class A driving position.",
-            "cta": "Join us"
+            "cta": "Apply now"
           },
           "es": {
-            "hook": "Casa semanal.",
-            "body": "$0.68 por milla. Posición regional, Clase A.",
-            "cta": "Únete"
+            "hook": "Casa semanal, CDL-A",
+            "body": "$0.68 por milla. Posición regional para CDL-A.",
+            "cta": "Aplica ya"
           }
         },
         {
           "en": {
-            "hook": "$0.68/mi, Class A",
-            "body": "Regional driver seat. You get home every week.",
+            "hook": "$0.68/mi, home weekly",
+            "body": "Class A regional driver position. Apply today.",
             "cta": "Apply now"
           },
           "es": {
-            "hook": "$0.68/mi, Clase A",
-            "body": "Puesto regional. Regresas a casa cada semana.",
+            "hook": "$0.68/mi, casa semanal",
+            "body": "Conductor regional CDL-A. Únete al equipo hoy.",
             "cta": "Aplica ya"
           }
         }

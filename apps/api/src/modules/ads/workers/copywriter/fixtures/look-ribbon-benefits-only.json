@@ -1,0 +1,158 @@
+{
+  "name": "look-ribbon-benefits-only",
+  "about": "The ribbon look's five roles: P4 Walk-around: No pay figure, only benefits. A kicker and a second line are drawn with the headline.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A dedicated driver",
+      "claims": [
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "term",
+          "term": "dental and vision"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 75,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "P4 Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive, then the strongest fact.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "Our tractor parked in a {setting}, three-quarter view, no text, no logos, no lettering",
+      "image_slots": [
+        "setting"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": "A slow orbit around the tractor",
+      "layout": "bottom_plate",
+      "look": "ribbon",
+      "formats": [
+        "9:16"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta",
+        "kicker": "kicker",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      }
+    },
+    "company_name": null,
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-11T04:50:48.087Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Dedicated route. 401k.",
+            "cta": "Apply today",
+            "primary_text": "This is a dedicated run — same route, same rhythm, every week. You get a 401k, plus dental and vision coverage. Consistent work, steady miles. Apply today and get on a route that works for you.",
+            "headline": "Dedicated, with benefits",
+            "kicker": "Class A dedicated",
+            "second_line": "Dental and vision"
+          },
+          "es": {
+            "hook": "Ruta fija. 401k.",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta dedicada — mismo recorrido, misma rutina cada semana. Incluye 401k, dental y visión. Trabajo constante, millas seguras. Aplica hoy.",
+            "headline": "Dedicado, con beneficios",
+            "kicker": "Clase A dedicado",
+            "second_line": "Dental y visión"
+          }
+        },
+        {
+          "en": {
+            "hook": "Class A truck. 401k plan.",
+            "cta": "Join our team",
+            "primary_text": "Drive a dedicated route with the same consistent schedule week after week. Your benefits package includes a 401k, dental, and vision. Dedicated driving means you know the road before you leave. Join our team.",
+            "headline": "Steady route, full benefits",
+            "kicker": "Now hiring: Class A",
+            "second_line": "401k included"
+          },
+          "es": {
+            "hook": "Clase A. Plan 401k.",
+            "cta": "Únete hoy",
+            "primary_text": "Ruta dedicada con horario fijo cada semana. El paquete incluye 401k, dental y visión. Sabes el camino antes de salir. Únete al equipo.",
+            "headline": "Ruta fija, beneficios completos",
+            "kicker": "Se busca: Clase A",
+            "second_line": "401k incluido"
+          }
+        },
+        {
+          "en": {
+            "hook": "Your truck. Your route.",
+            "cta": "Apply now",
+            "primary_text": "A dedicated position means one route — yours. Dental and vision coverage are included, along with a 401k. No guessing where you are headed. This is a Class A seat with benefits. Apply now.",
+            "headline": "One route, real benefits",
+            "kicker": "Dedicated Class A run",
+            "second_line": "Dental and vision"
+          },
+          "es": {
+            "hook": "Tu tráiler. Tu ruta.",
+            "cta": "Aplica ahora",
+            "primary_text": "Posición dedicada: una sola ruta, siempre la tuya. Incluye dental, visión y 401k. Clase A con beneficios reales. Aplica ahora.",
+            "headline": "Una ruta, beneficios reales",
+            "kicker": "Ruta dedicada Clase A",
+            "second_line": "Dental y visión"
+          }
+        }
+      ]
+    }
+  }
+}

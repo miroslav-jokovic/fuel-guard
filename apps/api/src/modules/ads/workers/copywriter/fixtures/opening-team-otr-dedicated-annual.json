@@ -127,63 +127,63 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:20:58.383Z",
+    "recorded_at": "2026-11-11T04:57:24.569Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "card_get": "Earn $95,000–$110,000 per year. Drop and hook. Late-model equipment.",
-            "card_need": "Class A CDL. 23+. 2 years experience. A co-driver ready to roll.",
+            "card_get": "$95,000–$110,000 per year. Drop and hook. Late-model equipment.",
+            "card_need": "Class A CDL. 2 years experience. Age 23+. A co-driver ready to run.",
+            "card_apply": "Apply at Silvicom Inc and get rolling.",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc runs dedicated, coast-to-coast dry van lanes. Teams earn $95,000–$110,000 per year with drop and hook freight and late-model trucks. Refer a driver and earn $1,500.",
+            "headline": "$95K–$110K per year"
+          },
+          "es": {
+            "card_get": "$95,000–$110,000 al año. Drop and hook. Equipo moderno.",
+            "card_need": "CDL clase A. 2 años de experiencia. Mayor de 23 años. Con copiloto.",
+            "card_apply": "Aplica en Silvicom Inc y empieza ya.",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc opera rutas dedicadas de costa a costa con carga seca. Los equipos ganan $95,000–$110,000 al año. Carga drop and hook, tráilers modernos. Refieres un conductor y ganas $1,500.",
+            "headline": "$95K–$110K al año"
+          }
+        },
+        {
+          "en": {
+            "card_get": "Home every other weekend. Dedicated lanes. Drop and hook freight.",
+            "card_need": "Class A CDL. 2 years behind the wheel. Age 23+. Need a co-driver.",
+            "card_apply": "Join Silvicom Inc — apply now.",
+            "cta": "Apply now",
+            "primary_text": "Dedicated OTR team runs, coast to coast, dry van, drop and hook. Teams bring home $95,000–$110,000 per year in late-model equipment. $1,500 referral bonus when you bring a partner.",
+            "headline": "Home every other weekend"
+          },
+          "es": {
+            "card_get": "Casa cada dos fines de semana. Rutas dedicadas. Drop and hook.",
+            "card_need": "CDL clase A. 2 años de experiencia. Mayores de 23 años. Con pareja.",
+            "card_apply": "Únete a Silvicom Inc — aplica ahora.",
+            "cta": "Aplica ahora",
+            "primary_text": "Rutas OTR dedicadas de costa a costa, carga seca, drop and hook. Los equipos ganan $95,000–$110,000 al año en tráilers modernos. Bono de $1,500 por referir a otro conductor.",
+            "headline": "Casa cada dos fines"
+          }
+        },
+        {
+          "en": {
+            "card_get": "Late-model trucks. Coast-to-coast dry van. Drop and hook every load.",
+            "card_need": "Class A CDL, 2 years experience, age 23+, running as a team.",
             "card_apply": "Apply with Silvicom Inc today.",
-            "cta": "Apply Now",
-            "primary_text": "Silvicom Inc runs coast-to-coast dry van on a dedicated account. Drop and hook keeps you moving. Teams earn $95,000–$110,000 per year. Know a driver? A $1,500 referral bonus is waiting.",
-            "headline": "Team Drivers Earn More"
+            "cta": "Start here",
+            "primary_text": "Silvicom Inc keeps teams together on dedicated, coast-to-coast dry van runs. Late-model equipment, drop and hook freight, and $95,000–$110,000 per year. Refer a driver: $1,500 bonus.",
+            "headline": "Late-model, coast to coast"
           },
           "es": {
-            "card_get": "De $95,000 a $110,000 al año. Drop and hook. Equipo reciente.",
-            "card_need": "CDL clase A. Mayores de 23. 2 años de experiencia. Con coductor listo.",
-            "card_apply": "Aplica con Silvicom Inc hoy.",
-            "cta": "Aplica Ya",
-            "primary_text": "Silvicom Inc opera ruta dedicada costa a costa con carga seca. Drop and hook, sin esperas. Los equipos ganan entre $95,000 y $110,000 al año. Refiere a un conductor y recibe $1,500.",
-            "headline": "Equipos Ganan Más"
-          }
-        },
-        {
-          "en": {
-            "card_get": "Dedicated OTR. Coast to coast. Teams stay together — always.",
-            "card_need": "Class A CDL. Age 23+. 2 years behind the wheel. One co-driver.",
-            "card_apply": "Join Silvicom Inc. Apply today.",
-            "cta": "Apply Now",
-            "primary_text": "Coast-to-coast dry van, dedicated lanes, drop and hook. At Silvicom Inc, teams stay together — we do not split a good pair. Earn $95,000 to $110,000 per year in late-model equipment.",
-            "headline": "Dedicated Team Runs OTR"
-          },
-          "es": {
-            "card_get": "OTR dedicado. Costa a costa. Tu equipo permanece unido.",
-            "card_need": "CDL clase A. Mayor de 23 años. 2 años de experiencia. Un coductor.",
-            "card_apply": "Únete a Silvicom Inc. Aplica hoy.",
-            "cta": "Aplica Ya",
-            "primary_text": "Ruta dedicada de costa a costa, carga seca, drop and hook. En Silvicom Inc los equipos no se separan. Gana de $95,000 a $110,000 al año manejando equipo de último modelo.",
-            "headline": "Equipos Dedicados OTR"
-          }
-        },
-        {
-          "en": {
-            "card_get": "Late-model equipment. Drop and hook. $95,000–$110,000 per year.",
-            "card_need": "Class A CDL. 2 years driving. Age 23+. Partner up and apply.",
-            "card_apply": "Apply at Silvicom Inc now.",
-            "cta": "Apply Now",
-            "primary_text": "Silvicom Inc puts teams in late-model trucks on a dedicated dry van account. Drop and hook, coast to coast. $1,500 referral bonus available. Need a Class A CDL and 2 years experience.",
-            "headline": "Late-Model Trucks, Big Pay"
-          },
-          "es": {
-            "card_get": "Equipo reciente. Drop and hook. De $95,000 a $110,000 al año.",
-            "card_need": "CDL clase A. 2 años de manejo. Mayor de 23 años. Con coductor.",
-            "card_apply": "Aplica en Silvicom Inc ahora.",
-            "cta": "Aplica Ya",
-            "primary_text": "Silvicom Inc pone a los equipos en tráileres recientes en una cuenta dedicada de carga seca. Drop and hook, de costa a costa. Bono de referido de $1,500 disponible. Requiere CDL clase A y 2 años de experiencia.",
-            "headline": "Equipo Nuevo, Gran Pago"
+            "card_get": "Tráilers modernos. Costa a costa, carga seca. Drop and hook.",
+            "card_need": "CDL clase A, 2 años de experiencia, mayores de 23 años, en equipo.",
+            "card_apply": "Aplica con Silvicom Inc hoy mismo.",
+            "cta": "Empieza aquí",
+            "primary_text": "Silvicom Inc mantiene a los equipos juntos en rutas dedicadas de costa a costa con carga seca. Tráilers modernos, drop and hook y $95,000–$110,000 al año. Refiere un conductor: $1,500.",
+            "headline": "Moderno, costa a costa"
           }
         }
       ]

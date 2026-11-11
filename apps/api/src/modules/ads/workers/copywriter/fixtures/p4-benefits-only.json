@@ -82,51 +82,51 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:24:45.074Z",
+    "recorded_at": "2026-11-11T05:00:59.205Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Class A. Dedicated run.",
-            "cta": "Apply today.",
-            "primary_text": "This is a dedicated Class A position. You run the same account, same lanes, same schedule. Benefits include 401k, dental, and vision. Apply and join our team.",
-            "headline": "401k, dental and vision."
+            "hook": "Class A dedicated run",
+            "cta": "Apply today",
+            "primary_text": "Dedicated route means the same lanes, the same freight, every week. Benefits include 401k, dental and vision. Join our team.",
+            "headline": "Dedicated Class A driver"
           },
           "es": {
-            "hook": "Clase A. Ruta dedicada.",
-            "cta": "Aplica hoy.",
-            "primary_text": "Posición dedicada para conductor Clase A. Misma cuenta, mismas rutas, mismo horario. Beneficios incluyen 401k, dental y visión. Únete al equipo.",
-            "headline": "401k, dental y visión."
+            "hook": "Ruta dedicada Clase A",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta dedicada: mismos carriles, misma carga cada semana. Beneficios incluyen 401k, dental y visión. Únete al equipo.",
+            "headline": "Conductor Clase A dedicado"
           }
         },
         {
           "en": {
-            "hook": "Dedicated Class A seat.",
-            "cta": "Join our team.",
-            "primary_text": "A dedicated Class A role means you know your account and your lanes. No surprises. You get 401k, dental, and vision coverage. Come drive with us.",
-            "headline": "Benefits: 401k, dental, vision."
+            "hook": "Class A, 401k included",
+            "cta": "Apply today",
+            "primary_text": "This dedicated Class A position comes with dental and vision coverage and a 401k. Consistent work, consistent lanes. Apply and get started.",
+            "headline": "401k, dental and vision"
           },
           "es": {
-            "hook": "Clase A, ruta fija.",
-            "cta": "Únete hoy.",
-            "primary_text": "Ruta dedicada para conductor Clase A. Mismas rutas, misma cuenta. Cobertura de 401k, dental y visión. Aplica y forma parte del equipo.",
-            "headline": "401k, dental y visión incluidos."
+            "hook": "Clase A, con 401k",
+            "cta": "Aplica hoy",
+            "primary_text": "Posición dedicada Clase A con cobertura dental, visión y 401k. Trabajo constante, rutas fijas. Aplica hoy y comienza.",
+            "headline": "401k, dental y visión"
           }
         },
         {
           "en": {
-            "hook": "Class A, dedicated lanes.",
-            "cta": "Get started.",
-            "primary_text": "Class A dedicated driver needed. You stay on a set account with consistent lanes. Benefits on the table: 401k, dental, and vision. Reach out and get started.",
-            "headline": "401k plus dental and vision."
+            "hook": "Class A, benefits day one",
+            "cta": "Apply now",
+            "primary_text": "Dedicated Class A seat with dental, vision and 401k. Dedicated means you know your route and your freight. Come drive with us.",
+            "headline": "Dental, vision and 401k"
           },
           "es": {
-            "hook": "Clase A, rutas dedicadas.",
-            "cta": "Contáctanos.",
-            "primary_text": "Se necesita conductor Clase A para posición dedicada. Rutas fijas, misma cuenta cada semana. Beneficios: 401k, dental y visión. Contáctanos para empezar.",
-            "headline": "401k, dental y visión."
+            "hook": "Clase A, beneficios listos",
+            "cta": "Aplica ahora",
+            "primary_text": "Puesto dedicado Clase A con dental, visión y 401k. Ruta fija, carga conocida. Ven a manejar con nosotros.",
+            "headline": "Dental, visión y 401k"
           }
         }
       ]

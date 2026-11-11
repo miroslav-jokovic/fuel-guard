@@ -69,45 +69,45 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:27:20.712Z",
+    "recorded_at": "2026-11-11T05:03:37.906Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "$0.68/mile. Regional Class A drivers.",
-            "body": "You earn $0.68 per mile on a regional route and get home weekly. If you hold a Class A CDL and want a consistent run close to home, this is the job.",
+            "hook": "$0.68 per mile for Class A regional drivers.",
+            "body": "You earn $0.68 per mile on regional runs and get home weekly. Regional means shorter hauls, familiar roads, and a schedule that brings you back to your family every week. Apply and get moving.",
             "cta": "Apply today."
           },
           "es": {
-            "hook": "$0.68 por milla. Conductores Clase A.",
-            "body": "Ganarás $0.68 por milla en una ruta regional y regresarás a casa semanalmente. Si tienes CDL Clase A y quieres una ruta constante cerca de casa, este trabajo es para ti.",
-            "cta": "Postúlate hoy."
+            "hook": "$0.68 por milla para conductores Clase A regionales.",
+            "body": "Ganas $0.68 por milla en rutas regionales y regresas a casa cada semana. Rutas más cortas, caminos conocidos y un horario que te permite estar con tu familia semana a semana. Aplica ahora.",
+            "cta": "Aplica hoy."
           }
         },
         {
           "en": {
-            "hook": "Home weekly. $0.68/mile. Class A regional.",
-            "body": "A regional run that pays $0.68 per mile and puts you home weekly. You get a predictable schedule and real pay. Class A CDL required. Join our team.",
-            "cta": "Talk to us now."
+            "hook": "$0.68 a mile — Class A regional, home weekly.",
+            "body": "Home weekly is the schedule. $0.68 per mile is the pay. Regional Class A driving means you are not gone for weeks at a time. If you hold a Class A and want to be home every week, this run is worth a look.",
+            "cta": "Join our team."
           },
           "es": {
-            "hook": "Casa cada semana. $0.68 por milla.",
-            "body": "Ruta regional con pago de $0.68 por milla y regreso a casa cada semana. Un horario predecible y un pago real. Se requiere CDL Clase A. Únete al equipo.",
-            "cta": "Contáctanos hoy."
+            "hook": "$0.68 por milla — Clase A regional, casa cada semana.",
+            "body": "Casa cada semana es el horario. $0.68 por milla es el pago. Las rutas regionales Clase A significan que no estarás fuera semanas enteras. Si tienes Clase A y quieres llegar a casa cada semana, este trabajo vale la pena.",
+            "cta": "Únete al equipo."
           }
         },
         {
           "en": {
-            "hook": "$0.68/mile for Class A regional drivers.",
-            "body": "This regional seat pays $0.68 per mile. You come home weekly — no long stretches away. Hold a Class A CDL? Come drive with us.",
-            "cta": "Get started today."
+            "hook": "Class A regional driver wanted — $0.68 per mile.",
+            "body": "Regional Class A position. You run regional routes, get home weekly, and earn $0.68 per mile. No long stretches away from home. If you have a Class A and want steady regional work, come drive with us.",
+            "cta": "Start your app."
           },
           "es": {
-            "hook": "$0.68 por milla para conductores Clase A.",
-            "body": "Esta ruta regional paga $0.68 por milla. Regresas a casa semanalmente, sin semanas largas fuera. ¿Tienes CDL Clase A? Maneja con nosotros.",
-            "cta": "Empieza hoy mismo."
+            "hook": "Se busca conductor Clase A regional — $0.68 por milla.",
+            "body": "Puesto Clase A regional. Haces rutas regionales, llegas a casa cada semana y ganas $0.68 por milla. Sin largas ausencias del hogar. Si tienes Clase A y buscas trabajo regional estable, maneja con nosotros.",
+            "cta": "Aplica ahora."
           }
         }
       ]

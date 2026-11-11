@@ -182,3 +182,25 @@ photos.
     own 20 s limit, with the measurement beside it.
   - Still open: which starter preset takes which look (Q-ADL4's recommendation stands; the starters are on
     #2211, not merged); L3–L5, each a live recording.
+- **2026-11-10, L3 recorded (the copywriter, prompt v4; the owner's OK for the key the same day: "Yes, record
+  it").** `prompt.v4.md` is v3 plus one section, "Words drawn on the picture"; the user message marks each slot
+  the overlay draws with `on_image` (`kicker`, `headline`, `second_line`, `button`), derived from the preset's
+  `overlay_slots`. Four fixtures added that use all five roles (two per look). One live run, 64 calls,
+  `claude-sonnet-4-6`:
+  - **Agreement 63 of 64 (0.984); v3's baseline was 58 of 60 (0.967).** The one refusal:
+    `opening-otr-flatbed-midwest-southeast` (`too_long`, `unrecognised_number`), recorded as refused.
+  - **Headlines on the 65 fixtures both versions share (370 each):** median 29 → 27 characters; 30 or fewer
+    57.3 % → 60.5 %; 45 or fewer 87.3 % → 83.2 %; longest 92 both times. A small move toward shorter, and more
+    long ones too — the model was told to aim for 30 and did so where the hook formula let it.
+  - **The small lines, 24 written (4 fixtures × 3 candidates × 2 languages):** none over 21 characters; the
+    kicker reads as a label ("Class A regional", "Se busca: Clase A"), the second line as one fact ("Home
+    weekly", "Dental y visión").
+  - **Two things it does not yet do well.** (1) "No fact twice": 3 of the 12 English/Spanish pairs repeat a word
+    or fact between rows ("Class A dedicated" over "Dedicated route. 401k."; "401k plan" over "401k included").
+    (2) On the P5 carousel preset the slot drawn as the headline is a card (`card_get`), and the model wrote it
+    as a card: three sentences, 47–68 characters, repeating the second line. That is the preset's shape, not the
+    prompt's: P5 needs its own short headline slot before it uses the small lines.
+  - **Headline ceiling re-measured on the new corpus (386):** `ribbon` now holds 58 (a 58-character headline of
+    narrow letters), `rail` 52, 45 or fewer still fits everywhere. `OVERLAY_HEADLINE_MAX_CHARS` 56 → 58.
+  - Not done: the owner's rating of the copy (#2054, Q-AD57) is still the only ground truth for quality and is
+    still unrecorded; the numbers above are lengths and verdicts, not a quality score.

@@ -84,51 +84,51 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:22:56.488Z",
+    "recorded_at": "2026-11-11T04:59:19.998Z",
     "output": {
       "candidates": [
         {
           "en": {
             "pay": "$12,000 per week",
-            "cta": "Apply now",
-            "primary_text": "$12,000 per week for new Class A drivers. Paid orientation gets you started right. Weekly pay keeps your cash moving. If you hold a Class A CDL, this run is built for you. Join our team today.",
-            "headline": "New CDL-A drivers wanted"
+            "cta": "Apply today",
+            "primary_text": "New Class A CDL? This is your start. Weekly pay at $12,000 per week, plus paid orientation so your first week is covered. If you have your license and are ready to work, join our team.",
+            "headline": "New Class A drivers"
           },
           "es": {
             "pay": "$12,000 por semana",
             "cta": "Aplica hoy",
-            "primary_text": "$12,000 por semana para conductores Clase A recién licenciados. La orientación es pagada. Cobras cada semana sin esperar. Si tienes tu CDL-A, esta posición es para ti. Únete al equipo.",
-            "headline": "Conductores CDL-A nuevos"
+            "primary_text": "¿Tienes tu licencia Clase A recién obtenida? Pago semanal de $12,000 por semana y orientación pagada desde el primer día. Si estás listo para manejar, únete al equipo.",
+            "headline": "Conductores Clase A nuevos"
           }
         },
         {
           "en": {
             "pay": "$12,000 per week",
-            "cta": "Get started",
-            "primary_text": "New Class A CDL? Weekly pay starts at $12,000 per week. Orientation is paid — you earn from day one. No experience hauling for years required. If you have your Class A license, apply and get moving.",
-            "headline": "Weekly pay, new CDL-A"
+            "cta": "Start now",
+            "primary_text": "Newly licensed Class A drivers: weekly pay of $12,000 per week is what this seat pays. Orientation is paid, so you earn from day one. Apply and get moving.",
+            "headline": "Newly licensed? Start here"
           },
           "es": {
             "pay": "$12,000 por semana",
-            "cta": "Empieza ya",
-            "primary_text": "¿Tienes tu CDL Clase A recién obtenido? Pago semanal de $12,000 por semana. La orientación es pagada desde el primer día. No necesitas años de experiencia. Si tienes tu licencia Clase A, aplica ahora.",
-            "headline": "Pago semanal, CDL-A nuevo"
+            "cta": "Empieza hoy",
+            "primary_text": "Conductores Clase A recién licenciados: este puesto paga $12,000 por semana con pago semanal. La orientación es pagada; ganas desde el primer día. Aplica ya.",
+            "headline": "Recién licenciado, bienvenido"
           }
         },
         {
           "en": {
             "pay": "$12,000 per week",
             "cta": "Join our team",
-            "primary_text": "Paid orientation. Weekly pay. $12,000 per week for new Class A drivers. You earned your CDL-A — now put it to work. We pay you every week and cover your orientation. Apply today and start earning.",
-            "headline": "Paid orientation, CDL-A"
+            "primary_text": "Paid orientation. Weekly pay. $12,000 per week for new Class A CDL holders. You earned your license — put it to work. Apply today and get your first week paid through orientation.",
+            "headline": "Class A, new CDL welcome"
           },
           "es": {
             "pay": "$12,000 por semana",
             "cta": "Únete al equipo",
-            "primary_text": "Orientación pagada. Pago semanal. $12,000 por semana para conductores Clase A nuevos. Ya tienes tu CDL-A — ponlo a trabajar. Te pagamos cada semana y tu orientación está cubierta. Aplica hoy.",
-            "headline": "Orientación pagada, CDL-A"
+            "primary_text": "Orientación pagada. Pago cada semana. $12,000 por semana para conductores Clase A recién licenciados. Ya tienes tu licencia — úsala. Aplica hoy.",
+            "headline": "CDL Clase A nuevos, aplica"
           }
         }
       ]
