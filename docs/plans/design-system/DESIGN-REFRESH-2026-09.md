@@ -448,6 +448,28 @@ Cropping to a fixed band at build time would have to be redone at every breakpoi
   advanced tile carries both (17 truck stops, 19 truck parking lots, 4 rest areas in 24 zoom-13
   tiles), so they are now drawn from it. ⚠ Still open: truck REPAIR (700-7850-0126) is in neither
   tile (0 of 8 shops HERE's search names, none in the 24 tiles); for repair shops only (b) remains.
+  **(b) re-read 2026-11-11:** a shared server cache of Browse results is what Platform Terms §6.4(l)
+  forbids (scaling one request to many end users), and per-user caching against 5 000 free searches
+  a month across 40 seats is thin. New candidate (d): the carrier's own repair vendors, first-party
+  data with no HERE terms. Recommendation: (d).
+
+- **Q-DR35 — self-hosted OpenStreetMap vector tiles instead of HERE's: the cheapest shape for 50
+  seats, blocked by two reads.** One PMTiles archive of North America served as a static file with
+  range requests, no per-tile API call, no key, no pacer, no vendor rate limit; rough cost $3–5 a
+  month against the vector map's $10–127 (`HANDOFF-2026-11-10-VECTOR-MAP.md` §10.5, sizes and
+  prices TO BE MEASURED). Blocked by (1) HERE's clause on drawing HERE routes over a non-HERE map,
+  not yet quoted, which if it forbids it drags self-hosted truck routing along and shrinks the saving
+  to a question; (2) OSM's coverage of truck stops, truck parking and repair shops, to be counted
+  against the same 40 Browse places HERE's tiles were. Recommendation: finish the HERE vector
+  decision first; open this as a measured spike only on the owner's ask, after both reads.
+
+- **Q-DR36 — how does a dispatcher keep "Map (classic)" for the two weeks, and how do we know who
+  used it?** The basemap choice is deliberately not remembered (D-DR6's note in
+  `LiveMapWorkspace.vue`), so the escape hatch resets on every page load and its use leaves no trace
+  in preferences. Candidates: (a) remember the choice in `localStorage` for the window and reset it
+  when "Map (classic)" is removed; (b) leave it unremembered and read raster against vector tile
+  route counts from the `[metrics]` line, which needs AWS access. Recommendation: (a) for the
+  dispatcher plus (b) for the count; neither alone answers "does anybody need it".
 
 ---
 
@@ -1503,3 +1525,19 @@ conflict every time (`plan-progress-log-not-table-rows`).
   built-in graphics. Between them the vector trial is about as smooth as today's map with a real
   GPU (worst frame up to 108 ms in one run of five) at 38% of the tiles. The deciding check is the
   owner's, on the slowest office PC, now worth doing.
+- **2026-11-11 (evening) — the remaining vector-map work re-read against the code; D-DR39 proposed.**
+  `HANDOFF-2026-11-10-VECTOR-MAP.md` §10 is the working list from here. The finding: the truck
+  source is rewritten with `setData` on every animation frame while any tween runs, and tweens
+  outlast the poll by design (D-LM8a/b), so over 236 trucks the loop never stops in working hours.
+  maplibre 5.24's `_updatePlacement` (read in the installed copy) marks placement stale on any
+  changed symbol bucket and then walks EVERY symbol layer, so the raster map pays for one layer and
+  the vector map for six. The two "speed" items were one cause, and it is in production today. A
+  65 mph truck needs ~1 900 frames to move one pixel at zoom 7 and ~15 at zoom 14, so the write is
+  wasted at every zoom a fleet is watched from. **D-DR39 (proposed): write the truck source only when
+  a dot has moved a CSS pixel at the current zoom, both maps, as its own production PR**; the tweens
+  stay as D-LM8a/b set them and `updateData` is not the lever (§10.2 has why). Capacity for 50 seats
+  from the measured numbers (§10.3): production runs two API replicas, so the pacer's 160 tiles a
+  second holds; a 50-seat cold start drains in ~17 s on raster and ~6 s on vector, and only the
+  vector map survives a single replica inside the 20 s wait. The poll path (C1–C3) is already sized.
+  Ten gaps recorded in §10.4; Q-DR35 (self-hosted OSM tiles) and Q-DR36 (the escape hatch is not
+  remembered) opened in §6; Q-DR34 gains candidate (d). PR #2262 merged the same day.
