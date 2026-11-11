@@ -637,3 +637,21 @@ audit row is the endpoint's own.
     unit numbers, `askData` leaving the link in the model's result, the first link kept instead of
     the last, and `splitAssistantLink` skipping its own-page check.
   - Next: (b) IFTA `q=`.
+- 2026-11-11 — **R4b (b) built: "Open in IFTA" opens the answer's quarter.**
+  - `packages/shared/src/iftaLinkContract.ts`: the ledger's one URL fact, `q=YYYY-Qn`
+    (`IFTA_QUERY_KEYS`, `iftaQuarterKey`, `parseIftaQuarterKey`, `iftaToQuery`). The web's
+    `quarterKey` / `parseQuarterKey` are now these functions under their old names, and both IFTA
+    pages read the key from the contract; the ledger's per-state links use `iftaToQuery`.
+  - `ifta_report` returns `link: { surfaceKey: "fuel.ifta", query: iftaToQuery(quarter) }`, lifted
+    off before the model sees it by (a)'s `splitAssistantLink`. The page's return export then prints
+    that quarter.
+  - Why it needed a contract: the ledger falls back to its NEWEST quarter on any `q` it cannot parse,
+    without a word, so a hand-built `q=Q3 2026` (its own label) or `q=3` would show Q4's tax beside
+    an answer about Q3.
+  - Tests: `iftaLinkContract.test.ts`; `assistantIftaReport.test.ts` "links to the ledger on the asked
+    quarter in the page's own URL form, built by its contract" (including 12/31 late in Chicago, already
+    January in UTC, still Q4); `IftaLedgerPage.test.ts` "opens on the quarter a link built by the
+    contract names, and links each state on the same quarter".
+  - Deliberate breaks, each killed by an assertion: the ledger reading a literal key, the tool linking
+    with the quarter's label, and the parser accepting a fifth quarter.
+  - Next: (c) Loads.
