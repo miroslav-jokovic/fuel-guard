@@ -1,0 +1,55 @@
+{
+  "name": "rail-road-regional",
+  "about": "A sound text-only ad: an empty road through wheat at sunrise, the words at the top. Redrawn for L5 (ADS-AD-LOOK-PLAN) in the new renderer's `rail` look (left rule, Barlow Condensed headline, drawn button, the kit's band at the foot): the same photo, words and kit as `clean-road-regional`, which is the same ad in the old overlay.",
+  "input": {
+    "image": "rail-road-regional.jpg",
+    "format": "4:5",
+    "headline": "Regional runs through farm country.",
+    "button": "Apply today",
+    "subject": "road_ahead",
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#1F3A5F"
+        },
+        {
+          "name": "white",
+          "hex": "#FFFFFF"
+        }
+      ]
+    }
+  },
+  "truth": {
+    "weak": null,
+    "how": "nothing planted: the headline is about the road and the picture is the road"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "finishedAdJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-11T14:32:51.395Z",
+    "output": {
+      "scores": {
+        "subject_legible": {
+          "reason": "A straight road through open wheat fields at sunset is instantly recognizable as a road-ahead scene at any phone size.",
+          "score": 5
+        },
+        "words_match_picture": {
+          "reason": "The headline 'Regional runs through farm country' is literally illustrated by the road cutting through golden farmland, making a tight, single story.",
+          "score": 5
+        },
+        "hierarchy_reads": {
+          "reason": "The large bold headline sits on a solid dark-blue panel at the top, the outlined button sits clearly below it, and the photo occupies the lower half without competing with the text.",
+          "score": 5
+        },
+        "looks_like_kit": {
+          "reason": "The deep navy (#1F3A5F) dominates the top panel and footer, white type and button border are on-brand, but no company logo appears anywhere in the ad.",
+          "score": 3
+        }
+      }
+    }
+  }
+}

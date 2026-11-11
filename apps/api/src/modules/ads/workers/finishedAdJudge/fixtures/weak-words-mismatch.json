@@ -1,0 +1,55 @@
+{
+  "name": "weak-words-mismatch",
+  "about": "An empty road with no vehicle under the headline 'Drive a brand-new truck.': the words promise what the picture does not show.",
+  "input": {
+    "image": "weak-words-mismatch.jpg",
+    "format": "4:5",
+    "headline": "Drive a brand-new truck.",
+    "button": "Apply today",
+    "subject": "road_ahead",
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#0B3D2E"
+        },
+        {
+          "name": "white",
+          "hex": "#FFFFFF"
+        }
+      ]
+    }
+  },
+  "truth": {
+    "weak": "words_match_picture",
+    "how": "a new truck is promised over a picture with no truck in it"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "finishedAdJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-11T14:34:05.402Z",
+    "output": {
+      "scores": {
+        "subject_legible": {
+          "reason": "The open road stretching to the horizon under a vivid sunset is instantly recognisable at a glance.",
+          "score": 5
+        },
+        "words_match_picture": {
+          "reason": "The headline promises a brand-new truck but the picture shows only an empty road with no truck in sight, creating a disconnect.",
+          "score": 2
+        },
+        "hierarchy_reads": {
+          "reason": "The dark green panel anchors the headline in large bold white text, with the button label clearly beneath it, giving a clean read order on a phone.",
+          "score": 4
+        },
+        "looks_like_kit": {
+          "reason": "The dark green panel matches the primary brand colour (#0B3D2E) exactly and white text aligns with the second brand colour, though no logo is present.",
+          "score": 4
+        }
+      }
+    }
+  }
+}

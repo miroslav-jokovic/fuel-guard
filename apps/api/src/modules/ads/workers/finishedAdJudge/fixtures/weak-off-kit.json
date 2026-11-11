@@ -1,0 +1,55 @@
+{
+  "name": "weak-off-kit",
+  "about": "The clean-highway ad with the plate drawn hot pink (#D6007E) for a carrier whose colours are dark green and white.",
+  "input": {
+    "image": "weak-off-kit.jpg",
+    "format": "4:5",
+    "headline": "$0.65 per mile, Class A OTR.",
+    "button": "Apply today",
+    "subject": "tractor_and_trailer",
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#0B3D2E"
+        },
+        {
+          "name": "white",
+          "hex": "#FFFFFF"
+        }
+      ]
+    }
+  },
+  "truth": {
+    "weak": "looks_like_kit",
+    "how": "the plate is a colour far from both of the carrier's colours"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "finishedAdJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-11T14:33:51.793Z",
+    "output": {
+      "scores": {
+        "subject_legible": {
+          "reason": "A white semi-truck and trailer rolling on an open road at sunset is instantly recognizable at a glance.",
+          "score": 5
+        },
+        "words_match_picture": {
+          "reason": "The OTR headline pairs naturally with an open-road trucking photo, telling one clear story about long-haul driving.",
+          "score": 5
+        },
+        "hierarchy_reads": {
+          "reason": "The large magenta panel anchors the headline boldly, the button text is clear, and the photo above does not compete with the text.",
+          "score": 4
+        },
+        "looks_like_kit": {
+          "reason": "The dominant magenta/hot-pink color is far from the brand's given primary (#0B3D2E dark green) and no logo appears, so the ad feels off-brand.",
+          "score": 1
+        }
+      }
+    }
+  }
+}

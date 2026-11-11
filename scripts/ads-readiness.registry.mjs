@@ -950,6 +950,46 @@ export const READINESS = [
     },
   },
   {
+    worker: "Finished-ad judge",
+    levels: {
+      L1: [
+        {
+          need: "the worker through the A4 rail under its own agent and key, once per published format; the ad, the logo and the words it is shown; a planted off-scale or incomplete answer refused",
+          tests: [
+            { file: "apps/api/src/modules/ads/workers/finishedAdJudge/finishedAdJudge.test.ts", titles: [
+              "asks once per published format, as the finished-ad judge, under its own key and prompt version",
+              "the ad, then the logo as its own image when there is one, then the words drawn, the subject and the kit as data",
+              "has model recordings under the prompt in force and planted defects beside them",
+              "planted-score-out-of-range",
+              "planted-missing-criterion",
+            ] },
+          ],
+        },
+      ],
+      L2: [
+        {
+          need: "Q-AD76's faults: switched off or unreadable, the creative still reaches review saying the judge did not run; a score of 1 everywhere never stops an ad; a stopped creative is not judged",
+          tests: [
+            { file: "apps/api/src/modules/ads/workers/finishedAdJudge/finishedAdJudge.test.ts", titles: [
+              "asks no model when switched off, and says so instead of stopping",
+              "an answer off the 1–5 scale is recorded as not run, never stored as scores",
+            ] },
+            { file: "apps/api/src/modules/ads/compose/composeCreative.test.ts", titles: [
+              "switched on, it is asked once per published format, on the English ad as composed, and its scores are stored beside the checks",
+              "is never a gate: an ad scored 1 on everything still reaches review, with the scores on it",
+              "switched off, nothing is asked and the creative reaches review saying the judge did not run",
+              "an answer it cannot read is recorded as not run, and the creative still reaches review",
+              "is asked only of a creative that passed the visual check: a stopped one has no opinion",
+            ] },
+          ],
+        },
+      ],
+      L3: [{ need: "its scores compared with the owner's approve/reject on 30 real ads (Q-AD76), before any floor", gap: "P1-7 (2026-11-10) agreed 7 of 7 on two consecutive runs over seven drawn ads, three sound and four each planted with one weakness; L5 (2026-11-11) added nine ads in the new look on the same photos and words and agreed 16 of 16 (pnpm ads:eval finishedAdJudge, baseline.json; ADS-AD-LOOK-PLAN progress log); no real image exists until V4 (Q-AD20), so the 30-ad comparison cannot start" }],
+      L4: [{ need: "its scores over the composed ads of a sandbox run, every creative reaching review whatever it scored", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
+  {
     worker: "Checker",
     levels: {
       L1: [
@@ -1313,6 +1353,8 @@ export const CAMPAIGN_WORKERS = {
     { worker: "Analyst" },
     // CQ4 (2026-11-09): the judge ranks every creative's copy, so a campaign on Meta uses it; Launch needs its L4 too.
     { worker: "Craft judge" },
+    // P1-7 (2026-11-10): every creative that passes the visual check is scored, so a Meta campaign uses it too.
+    { worker: "Finished-ad judge" },
     { worker: "Security (all)" },
   ],
 };

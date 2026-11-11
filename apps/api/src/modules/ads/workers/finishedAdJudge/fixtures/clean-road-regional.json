@@ -1,0 +1,55 @@
+{
+  "name": "clean-road-regional",
+  "about": "A sound text-only ad: an empty road through wheat at sunrise, the words at the top on the kit's navy plate. Our overlay (top_band) over the checker's clean-empty-road photo.",
+  "input": {
+    "image": "clean-road-regional.jpg",
+    "format": "4:5",
+    "headline": "Regional runs through farm country.",
+    "button": "Apply today",
+    "subject": "road_ahead",
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#1F3A5F"
+        },
+        {
+          "name": "white",
+          "hex": "#FFFFFF"
+        }
+      ]
+    }
+  },
+  "truth": {
+    "weak": null,
+    "how": "nothing planted: the headline is about the road and the picture is the road"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "finishedAdJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-11T14:32:30.422Z",
+    "output": {
+      "scores": {
+        "subject_legible": {
+          "reason": "A straight road through open farmland at sunset is immediately clear at a glance — strong perspective line and golden fields make it unmistakable.",
+          "score": 5
+        },
+        "words_match_picture": {
+          "reason": "The headline 'Regional runs through farm country' is perfectly echoed by a road cutting through flat agricultural fields, telling one unified story.",
+          "score": 5
+        },
+        "hierarchy_reads": {
+          "reason": "The dark navy panel behind the headline gives it strong contrast and clear priority, but 'Apply today' sits in the same panel as plain bold text with no button shape or visual distinction to make it read as a clickable button.",
+          "score": 3
+        },
+        "looks_like_kit": {
+          "reason": "The navy panel (#1F3A5F) matches the primary brand colour and white text matches the secondary colour, but there is no logo present and no visible button element using brand colours.",
+          "score": 3
+        }
+      }
+    }
+  }
+}

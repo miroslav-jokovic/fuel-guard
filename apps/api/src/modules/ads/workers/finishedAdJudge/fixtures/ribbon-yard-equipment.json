@@ -1,0 +1,55 @@
+{
+  "name": "ribbon-yard-equipment",
+  "about": "A sound square ad: a white tractor at a fuel island at night. Redrawn for L5 (ADS-AD-LOOK-PLAN) in the new renderer's `ribbon` look (centred Anton headline, pill button, a hairline over the legal line): the same photo, words and kit as `clean-yard-equipment`, which is the same ad in the old overlay.",
+  "input": {
+    "image": "ribbon-yard-equipment.jpg",
+    "format": "1:1",
+    "headline": "Class A OTR drivers, apply.",
+    "button": "Apply now",
+    "subject": "tractor",
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#0B3D2E"
+        },
+        {
+          "name": "white",
+          "hex": "#FFFFFF"
+        }
+      ]
+    }
+  },
+  "truth": {
+    "weak": null,
+    "how": "nothing planted: a night scene, the truck legible, the kit's colours"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "finishedAdJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-11T14:33:38.406Z",
+    "output": {
+      "scores": {
+        "subject_legible": {
+          "reason": "A white semi-truck cab is clearly visible at a fuel stop, instantly readable as a tractor at a glance.",
+          "score": 5
+        },
+        "words_match_picture": {
+          "reason": "The headline calls for OTR drivers and the picture shows a semi-truck at a fuel stop — a quintessential OTR scene that reinforces the message well.",
+          "score": 5
+        },
+        "hierarchy_reads": {
+          "reason": "The bold white headline dominates immediately, the pill-shaped 'Apply Now' button reads clearly beneath it, and the green overlay keeps the truck from competing with the text.",
+          "score": 5
+        },
+        "looks_like_kit": {
+          "reason": "The deep green overlay and white text match the two stated brand colours exactly, though no logo is present to reinforce the carrier identity further.",
+          "score": 4
+        }
+      }
+    }
+  }
+}
