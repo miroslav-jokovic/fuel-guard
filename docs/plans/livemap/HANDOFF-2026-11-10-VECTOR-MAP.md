@@ -228,13 +228,17 @@ How much of the redraw is wasted, by zoom. A truck at 65 mph covers 29 m a secon
 
 | Zoom | Metres per CSS pixel near Chicago | Frames before the truck has moved one pixel |
 |---|---|---|
-| 7 (regional) | ~920 | ~1 900 (about 32 s) |
-| 10 | ~115 | ~240 (4 s) |
-| 14 | ~7 | ~15 (0.25 s) |
-| 17 | ~0.9 | ~2 |
+| 7 (regional) | ~455 | ~950 (about 16 s) |
+| 10 | ~57 | ~120 (2 s) |
+| 14 | ~3.6 | ~7 (0.12 s) |
+| 17 | ~0.45 | ~1 |
 
-At the zooms a dispatcher watches the fleet from, no dot moves a pixel for half a minute, and the
-source is rewritten 1 900 times in that half minute.
+⚠ Corrected the same evening, in the M1 PR: the first version of this table used a 256-pixel world
+and doubled every figure. maplibre's world is 512 CSS pixels wide at zoom 0, so a pixel at zoom 7 near
+Chicago is ~455 m (`metresPerPixel` in `liveMapMotion.ts`, pinned by the test "shrinks with latitude
+by the cosine, so a Chicago pixel is three quarters of an equator pixel"). The conclusion stands at
+half the size: at the zooms a dispatcher watches the fleet from, no dot moves a pixel for a quarter
+of a minute, and the source was rewritten ~950 times in that quarter minute.
 
 ### 10.2 The fix, and the two levers NOT to pull
 
@@ -361,6 +365,13 @@ entirely, and only after the two reads above.
 ### 10.6 The list, in order
 
 1. **M1** — redraw gate (10.2), production PR, both maps, with the write counter and the re-measure.
+   **Built 2026-11-11 (D-DR39):** `redrawDue` + `metresPerPixel` in `liveMapMotion.ts`, the gate in
+   `LiveMapCanvas.vue`'s `step()`, zero tolerance on the settling frame, `livemap:write` announced per
+   write, `planFleetFit` moved to `liveMapCamera.ts` to keep the canvas inside the 500-line budget.
+   Nine mutants of the gate and the fit each failed their tests. `staging-map-frames.mjs` now prints
+   writes a second over a 10 s still hold at the fitted zoom and writes per walk. Owed once staging
+   serves it: that measurement, both maps, 5 alternating runs with `GPU=1`, recorded in §7 of the
+   design plan as ranges — then the office-PC check (gap 2) is worth doing.
 2. **M2** — self-hosted glyphs (gap 3), licence read first.
 3. **M3** — trial hardening: remember the basemap choice for the window (Q-DR36), fall back to
    raster on a style error, long-frame counter in the trial menu, the one-page office-PC protocol.
