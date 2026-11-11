@@ -65,6 +65,7 @@ import { readUnitMaintenance } from "../fleetpal/index.js";
 import { readTruckLoadPlans } from "../loads/index.js";
 import { readDispatchLinks } from "../mcleod/index.js";
 import { getComplianceOverview } from "../evidence/index.js";
+import { orgToday } from "../org/index.js";
 import { readDriversDueForRandomTest } from "../medstop/index.js";
 import { createCoalescingCache } from "../../lib/coalescingCache.js";
 
@@ -110,7 +111,7 @@ export async function readDispatchBoard(
   ]);
   return {
     generatedAt: board.builtAt.toISOString(),
-    rows: await withDriverWarnings(admin, orgId, board.rows, links.scope, reader, board.builtAt),
+    rows: await withDriverWarnings(admin, orgId, board.rows, links.scope, reader, board.today),
     scope: links.scope,
     fleets: links.fleets,
     dispatchers: links.dispatchers.map(({ id, name, isSystem }) => ({ id, name, isSystem })),
@@ -134,16 +135,18 @@ export async function readBoardRows(
   admin: SupabaseClient,
   orgId: string,
   now: Date,
-): Promise<{ rows: DispatchBoardRow[]; uncoveredCount: number; hosAsOf: string | null }> {
+): Promise<{ rows: DispatchBoardRow[]; uncoveredCount: number; hosAsOf: string | null; today: string }> {
   // Two waves, not ~28 reads in a row (D-RLY4). These used to be awaited one by one "on purpose, as
   // on the live map", which cost the median 2.1 s; the four owners' reads do not depend on each other,
   // and the second wave needs only the first's odometers and trailers. The pool is undici's per-origin
   // one, which holds far more than four concurrent requests.
-  const [identities, positions, clocks, plans] = await Promise.all([
+  const [identities, positions, clocks, plans, today] = await Promise.all([
     readFleetIdentities(admin, orgId),
     readVehiclePositions(admin, orgId),
     readHosClocks(admin, orgId),
     readTruckLoadPlans(admin, orgId),
+    // The carrier's calendar day at `now`, read in the first wave so it costs no extra round trip.
+    orgToday(admin, orgId, now),
   ]);
   // What is due on each truck and its trailer (D-DBV5): FleetPal's 6-month, oil and repair orders,
   // judged on the roster's odometer; the annuals from our own record (Q-DBV2).
@@ -153,9 +156,10 @@ export async function readBoardRows(
     readUnitMaintenance(admin, orgId, odometers, now),
     readTrailerAnnualInspections(admin, orgId, trailerIds),
   ]);
-  // The record's dates are calendar days; the board's clock's UTC day is within a few hours of the
-  // carrier's, and a 30-day warning window does not turn on those hours.
-  const today = now.toISOString().slice(0, 10);
+  // The record's dates are calendar days, judged on the carrier's (`orgToday`). This was the UTC day
+  // until 2026-11-11, on the argument that a 30-day window does not turn on a few hours — but the
+  // OVERDUE line does, and the Shop page's disagreements list must judge on this same day (F21 PLAN
+  // §6, the carrier-day entry).
 
   const positionOf = new Map(positions.rows.map((p) => [p.vehicle_id, p]));
   const rows: DispatchBoardRow[] = [];
@@ -217,7 +221,7 @@ export async function readBoardRows(
   // A stable order for a first paint; the page sorts as the dispatcher asks.
   rows.sort((a, b) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true }));
 
-  return { rows, uncoveredCount: plans.uncoveredCount, hosAsOf: clocks.newestAt };
+  return { rows, uncoveredCount: plans.uncoveredCount, hosAsOf: clocks.newestAt, today };
 }
 
 /**
@@ -230,9 +234,10 @@ async function withDriverWarnings(
   rows: DispatchBoardRow[],
   scope: DispatchScope,
   reader: BoardReader,
-  now: Date,
+  // The rows' own carrier day (`readBoardRows`), so a driver's credential warning and the truck's
+  // annual chip are judged on one day.
+  today: string,
 ): Promise<DispatchBoardRow[]> {
-  const today = now.toISOString().slice(0, 10);
   // Both inputs are org-wide facts (the gate is WHETHER this reader gets them, decided here per
   // reader); cached per org and day, and read in parallel. Keyed `${orgId}:${today}` — the org first,
   // as everywhere a service-role read is cached.

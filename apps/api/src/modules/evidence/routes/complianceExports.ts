@@ -25,6 +25,7 @@ import {
   signExport,
 } from "../dqExports.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
+import { orgToday } from "../../org/index.js";
 
 /**
  * DQ exports — the /api/compliance/exports/* surface (DQ-BINDER-PLAN), split out of
@@ -49,7 +50,9 @@ export function complianceExportsRouter(): Router {
    * moving with it (D-PERM3, S7).
    */
   const canSeeExports = requireSection("safety", "view");
-  const today = (): string => new Date().toISOString().slice(0, 10);
+  // A binder's default "as at" is the office's today, on the carrier's calendar (`orgToday`): the UTC
+  // day is tomorrow on a Central evening, and the export row records the date it was cut on.
+  const today = (admin: Parameters<typeof orgToday>[0], orgId: string): Promise<string> => orgToday(admin, orgId);
 
   // ── exports (DQ-BINDER-PLAN) ───────────────────────────────────────────────────────
   //
@@ -66,7 +69,7 @@ export function complianceExportsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
       const body = res.locals.body as BinderRequest;
-      const asAt = body.asAt ?? today();
+      const asAt = body.asAt ?? (await today(admin, orgId));
       // Phase G (D-DQ15): the default binder carries no restricted pages; including them is an
       // explicit, privileged, ledgered ask.
       // BOTH halves of the split (auth.ts): `dq_exports.include_restricted` is one boolean on a
@@ -129,7 +132,7 @@ export function complianceExportsRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const body = res.locals.body as DocumentExportRequest;
-      const asAt = body.asAt ?? today();
+      const asAt = body.asAt ?? (await today(admin, orgId));
       // Phase G (D-DQ15): releasing the evidence behind a restricted requirement is a privileged act.
       const spec = DQ_ITEMS.find((i) => i.key === body.requirementKey);
       // Per KIND here, unlike the binder above: this releases ONE requirement's evidence, so the

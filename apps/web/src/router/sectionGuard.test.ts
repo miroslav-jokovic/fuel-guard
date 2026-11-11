@@ -102,14 +102,15 @@ describe("the section gates on the navigation guard", () => {
     expect(await landsOn("admin", "/settings/data")).toBe("data-sync");
   });
 
-  it("keeps the fuel manage gates intact — the auditor reads fuel but may not manage it", async () => {
-    // `auditor` holds `fuel: "view"`, so this is the same shape as /settings and must NOT follow it.
-    // Was `/import` until FUEL-C4 retired that page; Fuel Spend is the section's other `manage` screen
-    // and asks the guard the same question. ⚠ The capability `/import` carried did not become
-    // ungated when it became a drawer — `FuelLogPage` checks `can("fuel")` before offering it, which
-    // is a COMPONENT check and therefore not this file's to make. `fuelLogBackfillGate.test.ts` has it.
-    expect(await landsOn("auditor", "/fuel-spend")).toBe("dashboard");
-    expect(await landsOn("fleet_manager", "/fuel-spend")).toBe("fuel-spend");
+  it("opens Fuel costs and Buy discipline at fuel VIEW (Q-AI12), and still refuses a role with no fuel", async () => {
+    // These were the section's last `manage` screens until the owner's Q-AI12 ruling (2026-11-11, F21
+    // PLAN.md §5): the report routes behind them have answered `view` since PR #446, so the auditor —
+    // `fuel: "view"` — opens them now. That `view` is still not `manage` at this guard is pinned by
+    // `/settings/data` above. A recruiter holds `fuel: "none"` and is still turned away.
+    expect(await landsOn("auditor", "/fuel-spend")).toBe("fuel-spend");
+    expect(await landsOn("auditor", "/fuel-buy-discipline")).toBe("fuel-buy-discipline");
+    expect(await landsOn("recruiter", "/fuel-spend")).toBe("dashboard");
+    expect(await landsOn("recruiter", "/fuel-buy-discipline")).toBe("dashboard");
   });
 
   // ── The other gates the guard runs, unchanged by this addition ──────────────
