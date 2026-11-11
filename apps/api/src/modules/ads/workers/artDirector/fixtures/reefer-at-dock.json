@@ -87,13 +87,13 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@3",
+    "prompt_version": "artDirector@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T17:29:27.139Z",
+    "recorded_at": "2026-11-11T15:03:46.784Z",
     "output": {
       "slots": {
-        "time_of_day": "early morning, grey pre-dawn light",
-        "setting": "Chicago grocery distribution dock, concrete apron dusted with light frost"
+        "time_of_day": "pre-dawn, dock lights glowing amber against a deep blue sky",
+        "setting": "urban Chicago grocery warehouse dock, concrete apron wet from overnight rain"
       },
       "reference_photo": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "focal_subject": "trailer",

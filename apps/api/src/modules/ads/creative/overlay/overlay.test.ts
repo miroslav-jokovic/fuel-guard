@@ -58,8 +58,9 @@ async function differs(a: Buffer, b: Buffer): Promise<number> {
 
 describe("frameStill — a cut keeps the edge the words sit against (AG4; Q-AD75)", () => {
   /**
-   * A 4:5 picture as the art director composes one for `bottom_plate`: a red subject in the upper two thirds, the
-   * lower third plain grey. Rows 0–299 sky, 300–849 red, 850–1349 grey (at 1080 wide).
+   * A 4:5 picture with its subject high and its lower part plain, as the art director composes one for
+   * `bottom_plate` (thirds when this was written; half since D-ADL14 — the cut under test does not depend on
+   * which). Rows 0–299 sky, 300–849 red, 850–1349 grey (at 1080 wide).
    */
   async function composed(): Promise<Buffer> {
     const band = (height: number, background: string) => sharp({ create: { width: 1080, height, channels: 3, background } }).png().toBuffer();

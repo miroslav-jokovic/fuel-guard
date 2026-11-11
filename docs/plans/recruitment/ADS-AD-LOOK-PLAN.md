@@ -115,6 +115,29 @@ headline, a headline in 20-pixel type — is ruled out by construction: every si
 button has one size, and the headline's ladder has a floor below which it refuses (D-ADL3). The hand-drawn
 old-look fixture stays as the judge's calibration for that criterion.
 
+**D-ADL14 — The plain part of the picture is a half, read from where the words go; the stack budget is not
+changed (2026-11-11).** The handoff asked to reconcile `QUIET_REGION` ("the lower third", what the art director
+and the image model are told) with the renderer's `QUIET_SHARE = 0.4`. They are not the same quantity:
+`QUIET_SHARE` caps the stack alone, while the picture loses everything from the stack's top to the frame's edge,
+the footer included. Measured over every recorded headline (332–343 per look) with the looks' own layout:
+a `bottom_plate` 4:5 ad's words reach 42 % of the frame at the median, 45 % at most with a headline and a button,
+50 % (`ribbon`) and 54 % (`rail`) with all four lines; `top_band` 31–36 % at the median, 45 % at most. **Every
+`bottom_plate` ad passes a third.** So the image model was told to keep plain less than the words cover, in every
+ad. Two ways out:
+- **Shrink the words to a third.** Rejected: a third minus the footer leaves no room for a two-line headline and a
+  button, so the ladder would refuse or shrink most headlines. It would also undo what L5 just measured as the
+  redesign's gain.
+- **Tell the picture the truth (chosen).** `QUIET_REGION` says half for `bottom_plate` and `top_band`, and
+  carries the figure (`share: 0.5`). `overlayCapacity.test.ts` holds the renderer to it: on the 4:5 frame the
+  picture is made for, and on the 1:1 cut from it, no recorded headline with its button reaches past half. Put
+  the third back and the test fails (rail 4:5 reaches 45 %).
+- **Not held by that test, and why:** an ad with all four lines in `rail` (54 %), and a preset that publishes 1:1
+  alone, whose picture is made square (`rail` 55 %). The visual check judges the stack on every ad
+  (`safe_zone_clear`) and regenerates with the subject smaller; a fixed half is the right instruction for the
+  common case, not a promise for every case.
+- **Cost:** the subject gets the upper half instead of two thirds. The best-scoring L5 ads already had the truck in
+  the upper 42–45 %, because those checker photos were composed that way.
+
 ## 3. The candidate looks (rendered 2026-11-10, fixture kit, fixture photos)
 
 Four looks, each drawn at 4:5 in English, 1:1 with a two-line headline, and 9:16 in Spanish.
@@ -272,3 +295,34 @@ photos.
   - Not measured: the kicker, the second line, the phone and the logo (D-ADL12); a real carrier's kit (Q-ADL3);
     real pictures (V4, Q-AD20). The six ads are three photos drawn twice, which is a small sample. It answers
     "is the new look better than the old on the same inputs", not "is it good enough to launch".
+- **2026-11-11, L4 recorded (the art director, prompt v4; the owner's OK for the key the same day: "Yes, record
+  L4").** Two changes, one recording:
+  - **The plain part is a half (D-ADL14).** `QUIET_REGION` was "the lower third" while the words of every
+    `bottom_plate` ad reach past a third (median 42 % on 4:5). It now says half, carries `share: 0.5`, and
+    `overlayCapacity.test.ts` holds the renderer to it (putting the third back fails the test: rail 4:5 reaches 45 %).
+    The renderer's stack budget (`QUIET_SHARE = 0.4`) is unchanged: it caps the stack alone, a different quantity.
+  - **Drama (D-ADL10).** Measured first, on v3's 14 recorded answers. **The art director was already mostly
+    dramatic:** 11 of 14 chose low sun, dusk, dawn or night, 7 of the 7 equipment answers with a viewpoint slot
+    chose a low angle, and 13 of 14 chose `medium`. The three flat answers ("mid-morning, clear autumn sun",
+    "overcast Midwest light, low grey sky", "grey pre-dawn") traced to two examples in v3's own text ("a Midwest
+    regional lane is cornfields and overcast"; nothing preferring low sun). v4 replaces that example, adds one
+    paragraph asking for a commercial photograph over a snapshot — low sun or night under the place's own lights,
+    a camera low and looking up at the equipment — unless the context makes the weather the story, and says
+    `wide` is for a road or a setting, never for equipment.
+  - **One live run, 14 calls, `claude-sonnet-4-6`: agreement 14 of 14** (v3: 14 of 14); every answer passes
+    `judgeArt` (no digit, quote or lettering in a slot; subject in the scene).
+
+  | v3 → v4, 14 answers | v3 | v4 |
+  |---|---|---|
+  | low sun, dusk, dawn or night under lights | 11 | 13 (the 14th: a night road under stars and headlights) |
+  | flat midday or overcast | 3 | **0** |
+  | low angle, of the 7 with a viewpoint slot | 7 | 7, and **7 of 7 now "looking up at the cab"** (v3: 0) |
+  | distance wide · medium · close | 1 · 13 · 0 | 2 · 12 · 0 (the extra `wide` is a road, as v4 asks) |
+
+  - Context still steers the picture: the Chicago reefer dock is still a city dock (now pre-dawn under dock
+    lights, wet from rain), and the people fixture's truck stop is now pre-dawn under the island's lamps instead of
+    grey overcast.
+  - **Not measured, and it cannot be yet:** whether the pictures are better. These are words for an image model;
+    no image model is chosen (Q-AD20, V4), and the checker's photos are not drawn from these prompts. The real
+    proof is the finished-ad judge over real V4 images, the L5 comparison repeated with pictures this prompt
+    asked for. Q-ADL2's three recordings (L3, L4, L5) are all spent.

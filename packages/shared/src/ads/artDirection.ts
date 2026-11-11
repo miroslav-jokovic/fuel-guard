@@ -75,11 +75,19 @@ export const DISTANCE_CLAUSE: Record<AdCameraDistance, string> = {
  * Where the overlay puts the words for each layout, so where the picture must stay plain (D-AD28). `where` is
  * what the Art director is TOLD (so its slots do not put a bridge or a treeline there); `clause` is what the
  * image model is told. Derived from the layout, never answered by a model.
+ *
+ * HALF, not a third (ADS-AD-LOOK-PLAN D-ADL14, 2026-11-11). Until L4 this said "the lower third", written before
+ * the looks, when the words sat on a short plate. Measured over every recorded headline with the looks' own
+ * layout, the words of a `bottom_plate` ad on the 4:5 frame the picture is made for reach 42 % of the frame's
+ * height at the median and 45 % at most with a headline and a button (54 % with all four lines in `rail`), and
+ * EVERY one passes a third: the image model was told to keep plain less than the words cover. `share` is the
+ * figure the words say, and `overlayCapacity.test.ts` holds the renderer to it. `centered` has no share: its band
+ * is the middle, not an edge, and the visual check judges it.
  */
-export const QUIET_REGION: Record<AdOverlayLayout, { where: string; clause: string }> = {
-  bottom_plate: { where: "the lower third of the frame", clause: "the subject kept in the upper two thirds, the lower third plain and uncluttered" },
-  top_band: { where: "the upper third of the frame", clause: "the subject kept in the lower two thirds, the upper third plain and uncluttered" },
-  centered: { where: "the middle band of the frame", clause: "nothing important across the middle of the frame, which stays plain and uncluttered" },
+export const QUIET_REGION: Record<AdOverlayLayout, { where: string; clause: string; share: number | null }> = {
+  bottom_plate: { where: "the lower half of the frame", clause: "the subject kept in the upper half, the lower half plain and uncluttered", share: 0.5 },
+  top_band: { where: "the upper half of the frame", clause: "the subject kept in the lower half, the upper half plain and uncluttered", share: 0.5 },
+  centered: { where: "the middle band of the frame", clause: "nothing important across the middle of the frame, which stays plain and uncluttered", share: null },
 };
 /** The frame's shape in words: a digit in an image prompt is an invitation to draw one. */
 export const FRAME_CLAUSE: Record<AdFormat, string> = {

@@ -87,13 +87,13 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@3",
+    "prompt_version": "artDirector@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T17:29:13.873Z",
+    "recorded_at": "2026-11-11T15:03:31.864Z",
     "output": {
       "slots": {
-        "time_of_day": "dusk, just after sunset",
-        "light": "deep blue twilight, warm amber porch light glowing"
+        "time_of_day": "dusk, last glow fading from the sky",
+        "light": "warm amber streetlights, one porch light glowing, long soft shadows"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "focal_subject": "tractor",

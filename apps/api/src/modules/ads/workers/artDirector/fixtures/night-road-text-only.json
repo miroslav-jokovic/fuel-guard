@@ -83,13 +83,13 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@3",
+    "prompt_version": "artDirector@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T17:29:21.760Z",
+    "recorded_at": "2026-11-11T15:03:40.407Z",
     "output": {
       "slots": {
-        "weather": "clear sky with scattered stars",
-        "light": "pale moonlight washing the asphalt, twin headlight beams stretching ahead"
+        "weather": "clear and cold, stars sharp overhead",
+        "light": "twin headlight beams cutting pale yellow across the asphalt"
       },
       "reference_photo": null,
       "focal_subject": "road_ahead",
