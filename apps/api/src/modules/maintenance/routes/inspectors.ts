@@ -3,6 +3,7 @@ import { z } from "zod";
 import { inspectorQualificationBasisSchema, recordId } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireSurface } from "../../../middleware/requireSurface.js";
+import { orgToday } from "../../org/index.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -66,7 +67,7 @@ export function inspectorsRouter(): Router {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await listInspectors(admin, req.auth!.orgId!, {
-        asOf: parsed.data.asOf ?? new Date().toISOString().slice(0, 10),
+        asOf: parsed.data.asOf ?? (await orgToday(admin, req.auth!.orgId!)),
         includeRetired: parsed.data.includeRetired,
       });
       if ("code" in result) {

@@ -39,6 +39,8 @@ export * from "./jobs.js";
 // 2026-11-03 lead-path audit H1: one keyed object's last good run (the ads leads backfill's catch-up).
 export { lastDoneJobByKey } from "./jobsByKey.js";
 export { runDataRetention } from "./dataRetention.js";
+// The carrier's calendar day — the one definition every "today" read uses (F21 carrier-day fix, 2026-11-11).
+export { orgToday } from "./orgToday.js";
 export { generateAndSendDigest } from "./digest.js";
 export { startDigestScheduler, markFuelSweepComplete } from "./digestScheduler.js";
 export { runSchemaCheck } from "./schemaCheck.js";
