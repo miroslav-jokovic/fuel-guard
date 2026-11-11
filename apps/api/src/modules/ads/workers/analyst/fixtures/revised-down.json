@@ -76,17 +76,18 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@5",
+    "prompt_version": "analyst@6",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T19:41:41.920Z",
+    "recorded_at": "2026-11-10T16:14:41.637Z",
     "output": {
-      "headline": "November 2, 2026: Regional Class A — Joliet ran alone, spending $110.90 for 2 leads at $55.45 each from 6,015 impressions at a 1.2% click rate.",
+      "headline": "Regional Class A — Joliet was the only campaign running on November 2, 2026, spending $110.90 for 2 leads at $55.45 each.",
       "points": [
-        "Regional Class A — Joliet was the only campaign running on November 2, 2026, with $110.90 spent, 6,015 impressions, 70 clicks, and 2 leads at a cost per lead of $55.45.",
-        "November 2026 has 29 days left; $198.00 has been spent on Meta so far this month.",
-        "The 2026-09-21 cohort (38 leads) is mature: 33 were contacted, 17 converted, 10 applied, 4 hired, and 8 lost after conversion. None were closed as not qualified and none were closed before applying.",
-        "The 2026-09-28 cohort (40 leads) is mature: 36 were contacted, 20 converted, 12 applied, 5 hired, and 9 lost after conversion. None were closed as not qualified and none were closed before applying.",
-        "The 2026-10-26 cohort (12 leads) is too young to judge: 9 were contacted, 3 converted, 1 applied, and 1 lost after conversion."
+        "Regional Class A — Joliet delivered 6,015 impressions, 70 clicks at a 1.2% click rate, and 2 leads on $110.90 in spend — all figures match day totals since it was the only campaign running.",
+        "November 2026 has 29 days left; Meta spend so far this month is $198.00.",
+        "The 2026-09-21 cohort (38 leads) is mature: 33 contacted, 17 converted, 10 applied, 4 hired, and 8 lost after conversion.",
+        "The 2026-09-28 cohort (40 leads) is mature: 36 contacted, 20 converted, 12 applied, 5 hired, and 9 lost after conversion.",
+        "The 2026-10-26 cohort has 12 leads, with 9 contacted, 3 converted, 1 applied, and 1 lost after conversion — it is too young to judge rates.",
+        "No lead quality data was available for the 14-day window; nothing to flag on wrong numbers or missed hard requirements."
       ]
     }
   }

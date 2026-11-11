@@ -65,8 +65,9 @@ const asPeriod = (e: DraftEmployer, i: number): EmploymentPeriod => ({
   employerName: e.employer_name.trim(),
   startedOn: e.started_on,
   endedOn: e.ended_on.trim() === "" ? null : e.ended_on,
-  dotRegulated: e.dot_regulated,
-  operatedCmv: e.operated_cmv,
+  // F1 part 2: an unanswered job is not counted as DOT-regulated or as driving on the coverage meter.
+  dotRegulated: e.dot_regulated === true,
+  operatedCmv: e.operated_cmv === true,
   inquiryStatus: "not_required",
 });
 

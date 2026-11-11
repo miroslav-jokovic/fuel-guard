@@ -33,7 +33,6 @@ import {
   AppTextarea,
 } from "@silvicom/ui";
 import RoadTestNoExaminer from "@/features/recruitment/RoadTestNoExaminer.vue";
-import ApplicantIdentityCorrection from "@/features/recruitment/ApplicantIdentityCorrection.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { QueryState } from "@silvicom/ui";
@@ -245,7 +244,12 @@ const willPass = computed(() =>
 );
 /** RT-A1: the certificate prints the licence number, so a pass waits on it; a fail does not. */
 const licenceMissing = computed(() => props.identity != null && !props.identity.cdl_number?.trim());
-const fixingLicence = ref(false);
+/**
+ * Step 6 (APPLICATION-FIX-PLAN F3c part 2): the licence is corrected on the application's card, which the
+ * page opens in place of this drawer. ⚠ That swap unmounts this form, so the missing licence is said at the
+ * TOP, before anything is rated — not only once a pass is rated, when going to fix it would lose the test.
+ */
+const emit = defineEmits<{ correctIdentity: [invitationId: string] }>();
 
 /** RT-A8: which inputs are still empty, in the office's words, so a disabled button says why. */
 const stillNeeded = computed(() => {
@@ -287,7 +291,6 @@ async function save(): Promise<void> {
 watch(() => props.driverId, () => {
   resetForm();
   adding.value = false;
-  fixingLicence.value = false;
 });
 
 /** RT-A2: a second pass is refused (one per application), so "Record another" is offered only when the
@@ -367,6 +370,13 @@ const showForm = computed(() => !props.done || adding.value);
 
     <template v-if="showForm">
       <!-- RT-A10 (Q-WF2 (a), assumed in §8.3): advised, not refused — the form below still records. -->
+      <AppCallout v-if="licenceMissing" tone="caution" data-testid="licence-missing-early">
+        <p>No licence number is on file, and the certificate prints it. Add it before you rate the test: what you type here is not kept while you are in the application.</p>
+        <BaseButton v-if="invitationId" class="mt-2" size="sm" variant="secondary" @click="emit('correctIdentity', invitationId)">
+          Add it in the application
+        </BaseButton>
+        <p v-else class="mt-1">Add it on the driver's page, then record the test.</p>
+      </AppCallout>
       <AppCallout v-if="advisedFirst" tone="caution" data-testid="advised-first">
         The {{ advisedFirst.toLowerCase() }} result is not in yet. You can still give the road test now if the
         driver is here.
@@ -443,20 +453,10 @@ const showForm = computed(() => !props.done || adding.value);
           <BaseInput :id="id" v-model="form.qualifiedFor" />
         </FormField>
 
-        <!-- RT-A1: the certificate prints the licence number — fixed here, in place, not in another drawer. -->
+        <!-- RT-A1: a pass waits on the licence number, which the certificate prints; the way to add it is at the top. -->
         <AppCallout v-if="willPass === true && licenceMissing" tone="caution" data-testid="licence-missing">
-          <p>Add the licence number first. The road-test certificate prints it.</p>
-          <BaseButton v-if="!fixingLicence && invitationId" class="mt-2" size="sm" variant="secondary" @click="fixingLicence = true">
-            Add the licence number
-          </BaseButton>
-          <p v-else-if="!invitationId" class="mt-1">Add it on the driver's page, then record the test.</p>
+          <p>Add the licence number first. The road-test certificate prints it — see the note above the form.</p>
         </AppCallout>
-        <ApplicantIdentityCorrection
-          v-if="fixingLicence && invitationId && licenceMissing"
-          :invitation-id="invitationId"
-          :driver-id="driverId"
-          :identity="identity ?? null"
-        />
 
         <p v-if="willPass === true && !licenceMissing" class="text-xs text-ink-secondary">
           Recording files the road-test form and the certificate.

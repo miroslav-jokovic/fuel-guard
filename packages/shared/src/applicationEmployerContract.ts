@@ -52,10 +52,21 @@ export const applicationEmployerSchema = z
     position_held: z.string().max(120).nullish(),
     started_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),
     ended_on: isoDateSchema,
-    /** §391.21(b)(11) — did the applicant operate a commercial motor vehicle in this job? */
-    operated_cmv: z.boolean(),
-    /** §391.23(a)(2): only a DOT-regulated employer owes a safety-performance inquiry. */
-    dot_regulated: z.boolean(),
+    /**
+     * §391.21(b)(11) — did the applicant operate a commercial motor vehicle in this job?
+     *
+     * ⚠ **Nullish since F1 part 2 (APPLICATION-FIX-PLAN, 2026-11-10), and required where it counts.**
+     * The form defaulted it to Yes, so a driver who never read the question had answered it — the
+     * owner's walk found it, the audit's finding 15. A draft now holds `null` until the driver taps
+     * Yes or No, and the office's correction path parses the saved draft with this schema, so a
+     * required boolean would refuse every correction while one job is unanswered (`employment_gaps`'
+     * lesson, C3c1). The ANSWER is required by `driverApplicationSchema` and the hand-off schema
+     * (`unansweredEmployerQuestions`), so nothing is filed or handed over without it. Every row filed
+     * before this had a boolean, so re-reading history is unchanged.
+     */
+    operated_cmv: z.boolean().nullish(),
+    /** §391.23(a)(2): only a DOT-regulated employer owes a safety-performance inquiry. Nullish for `operated_cmv`'s reason. */
+    dot_regulated: z.boolean().nullish(),
     /** §391.21(b)(10) asks for it in as many words. */
     reason_for_leaving: z.string().max(500).nullish(),
     /**
@@ -76,6 +87,28 @@ export const applicationEmployerSchema = z
     path: ["ended_on"],
   });
 export type ApplicationEmployer = z.infer<typeof applicationEmployerSchema>;
+
+/**
+ * The two per-job questions a document may not be handed over or filed without (F1 part 2): every
+ * job's `operated_cmv` and `dot_regulated`, each a Yes or a No the driver gave. Returned as issues on
+ * the job's own row, so the message lands under the Yes/No that is still empty.
+ */
+export const UNANSWERED_EMPLOYER_MESSAGES = {
+  operated_cmv: "Say whether you drove a truck in this job",
+  dot_regulated: "Say whether this employer was regulated by the DOT",
+} as const;
+
+export function unansweredEmployerQuestions(
+  employers: readonly Pick<ApplicationEmployer, "operated_cmv" | "dot_regulated">[] | null | undefined,
+): { path: (string | number)[]; message: string }[] {
+  const out: { path: (string | number)[]; message: string }[] = [];
+  (employers ?? []).forEach((e, i) => {
+    for (const field of ["operated_cmv", "dot_regulated"] as const) {
+      if (typeof e[field] !== "boolean") out.push({ path: ["employers", i, field], message: UNANSWERED_EMPLOYER_MESSAGES[field] });
+    }
+  });
+  return out;
+}
 
 // ── a gap in the (b)(10) years, explained ─────────────────────────────────────
 

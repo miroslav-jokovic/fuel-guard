@@ -43,3 +43,10 @@ export { getFleetReport, type FleetReportResult } from "./fleetReport.js";
 export { getFleetTrend, type FleetTrendResult } from "./fleetTrend.js";
 export { getBillingActivity, type BillingActivityResult } from "./billingActivity.js";
 export { earningsByDispatcher, dispatcherNamesForEntries, type DispatcherEarnings } from "./dispatcherEarnings.js";
+/** Ask AI's finance tools (F21 R6a): the Fleet report and income statement, asked in words. */
+export {
+  assistantFinanceReport,
+  assistantIncomeStatement,
+  FINANCE_PERIODS,
+  MAX_FINANCE_TRUCKS,
+} from "./assistantFinanceReport.js";

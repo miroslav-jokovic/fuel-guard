@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from "vue";
-import type { AdsCampaignMove } from "@silvicom/shared";
+import { isReplacement, type AdsCampaignMove } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, QueryState } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -64,7 +64,8 @@ const reject = (creativeId: string, reason: string) => act(() => decide.mutateAs
         <AdsCampaignConcepts :campaign-id="campaignId" :state="view.state" />
         <p v-if="view.creatives.length === 0" class="text-sm text-ink-muted" data-test="no-ads">No ads yet.</p>
         <AdsCreativeReview
-          v-for="c in view.creatives" :key="c.id" :creative="c" :can-decide="canManage && view.state === 'review'" :busy="busy"
+          v-for="c in view.creatives" :key="c.id" :creative="c" :can-decide="canManage && (view.state === 'review' || (view.state === 'live' && isReplacement(c, view.creatives)))"
+          :replaces="isReplacement(c, view.creatives)" :busy="busy"
           @approve="approve(c.id)" @reject="(why) => reject(c.id, why)"
         />
       </div>

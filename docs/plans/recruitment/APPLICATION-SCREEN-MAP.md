@@ -215,10 +215,10 @@ Stored drafts keep loading through the F1 adapter.
 
 | ID | Question | Options | Recommendation |
 |---|---|---|---|
-| Q-AM8 | Previous **home** addresses: is the street optional too? | (a) city, state and dates required, street optional (office completes); (b) the full address is required from the driver | **(a)**. Same reasoning as D-AM4, and the office completes it before signing. |
-| Q-AM9 | Merge the three employer DOT questions into one (2.12)? | (a) one question, the office splits when needed; (b) keep two (FMCSR, safety-sensitive) | **(a)**. For CDL driving jobs the answers coincide. "Not sure" goes to the office. |
-| Q-AM10 | Company-name search against FMCSA (fills the address and USDOT automatically) | (a) build it: a new integration with FMCSA's free QCMobile API and a web key, about 1 day; (b) office types them in | **(a), later.** It removes most of the office's typing. Nothing in the repo does this today. |
-| Q-AM11 | Employer dates by month instead of exact day | (a) month and year; (b) exact day | **(a)**. Drivers don't remember the day, and the inquiry doesn't need it. |
+| Q-AM8 | Previous **home** addresses: is the street optional too? | ANSWERED 2026-11-11 (owner): **(a)**. The carrier's paper has Street, City, State and Zip on each residency line, so the street is still ASKED; the driver may leave it, and the office completes it before signing | — |
+| Q-AM9 | Merge the three employer DOT questions into one (2.12)? | ANSWERED 2026-11-11 (owner, "as proposed"): **(a)**, one question with "Not sure" for the office | — |
+| Q-AM10 | Company-name search against FMCSA (fills the address and USDOT automatically) | ANSWERED 2026-11-11 (owner, "as proposed"): **(a), later** | — |
+| Q-AM11 | Employer dates by month instead of exact day | ANSWERED 2026-11-11 (owner): **(b) the exact day, MM/DD/YYYY**. "Dates are important and crossmatched." The form already asks the full date (`started_on`/`ended_on`); nothing changes | — |
 
 ## 9. Typing a date (D-AM6, owner 2026-11-09)
 

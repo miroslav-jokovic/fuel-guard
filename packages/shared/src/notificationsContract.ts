@@ -150,6 +150,16 @@ export const NOTIFICATION_CATEGORIES = [
    */
   "ads_lead_quality",
   "ads_creative_retired",
+  /**
+   * Ask AI has spent 80% of this month's cap, or all of it (F21 Q-AI1, "admin alert at 80%"), to the people
+   * who manage the admin section. Mirrored in the CHECK (0584); sent by `insights/assistantUsage.ts` (R2b).
+   */
+  "ai_assistant_budget",
+  /**
+   * A retired ad's replacement awaits approval on a running campaign, or none could be made (ADS-CREATIVE-QUALITY-PLAN
+   * Q-AD68). Mirrored in the CHECK (0587); nothing writes it until the runner's `refresh` step merges.
+   */
+  "ads_creative_refresh",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -201,6 +211,8 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   lead_intake_failing: "Ad leads not arriving",
   ads_lead_quality: "Ad leads that are unreachable or do not qualify",
   ads_creative_retired: "An ad retired for fatigue; the next concept is due",
+  ai_assistant_budget: "Ask AI is near or at this month's spending cap",
+  ads_creative_refresh: "A new ad awaits approval on a running campaign",
 };
 
 /**
@@ -303,6 +315,8 @@ export function deepLinkFor(
     case "lead_new":
     case "lead_uncontacted":
       return entityId ? `/recruitment/leads?lead=${entityId}` : "/recruitment/leads";
+    case "ai_assistant_budget":
+      return "/ask";
     default:
       return null;
   }

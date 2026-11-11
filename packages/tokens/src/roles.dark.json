@@ -371,6 +371,102 @@
       "$extensions": {
         "silvicom.expose": "color"
       }
+    },
+    "map-land": {
+      "$type": "color",
+      "$value": "oklch(28.4% 0.0337 240.8)"
+    },
+    "map-water": {
+      "$type": "color",
+      "$value": "oklch(37.2% 0.0818 247.4)"
+    },
+    "map-park": {
+      "$type": "color",
+      "$value": "oklch(30.7% 0.0429 214.9)"
+    },
+    "map-urban": {
+      "$type": "color",
+      "$value": "oklch(31.1% 0.0374 241.8)"
+    },
+    "map-building": {
+      "$type": "color",
+      "$value": "oklch(34.3% 0.0477 246.2)"
+    },
+    "map-road": {
+      "$type": "color",
+      "$value": "oklch(40.3% 0.0332 250.3)"
+    },
+    "map-road-casing": {
+      "$type": "color",
+      "$value": "oklch(33.4% 0.0321 257.7)"
+    },
+    "map-highway": {
+      "$type": "color",
+      "$value": "oklch(52.0% 0.0372 249.9)"
+    },
+    "map-highway-casing": {
+      "$type": "color",
+      "$value": "oklch(45.9% 0.0322 255.2)"
+    },
+    "map-boundary": {
+      "$type": "color",
+      "$value": "oklch(51.1% 0.0307 251.9)"
+    },
+    "map-label": {
+      "$type": "color",
+      "$value": "oklch(85.4% 0.0170 250.9)"
+    },
+    "map-label-halo": {
+      "$type": "color",
+      "$value": "oklch(28.4% 0.0337 240.8)"
+    },
+    "map-water-label": {
+      "$type": "color",
+      "$value": "oklch(74.1% 0.0751 239.8)"
+    },
+    "map-industrial": {
+      "$type": "color",
+      "$value": "oklch(30.5% 0.0300 280.0)"
+    },
+    "map-medical": {
+      "$type": "color",
+      "$value": "oklch(31.0% 0.0350 10.0)"
+    },
+    "map-education": {
+      "$type": "color",
+      "$value": "oklch(31.5% 0.0300 75.0)"
+    },
+    "map-airport": {
+      "$type": "color",
+      "$value": "oklch(32.0% 0.0300 255.0)"
+    },
+    "map-runway": {
+      "$type": "color",
+      "$value": "oklch(40.0% 0.0250 255.0)"
+    },
+    "map-beach": {
+      "$type": "color",
+      "$value": "oklch(33.0% 0.0300 85.0)"
+    },
+    "map-shield-interstate": {
+      "$type": "color",
+      "$value": "oklch(38.0% 0.1336 256.8)"
+    },
+    "map-shield-interstate-band": {
+      "$type": "color",
+      "$value": "oklch(47.0% 0.1733 20.4)"
+    },
+    "map-shield-plain": {
+      "$type": "color",
+      "$value": "oklch(100% 0 0)"
+    },
+    "map-shield-ink": {
+      "$type": "color",
+      "$value": "oklch(21.8% 0 0)"
+    },
+    "map-shield-county-ink": {
+      "$type": "color",
+      "$value": "oklch(86.7% 0.1768 90.8)"
     }
   }
 }

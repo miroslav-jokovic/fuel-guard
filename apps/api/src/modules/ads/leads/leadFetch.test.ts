@@ -105,6 +105,22 @@ describe("fetchWebhookLead — the lead a webhook named", () => {
     expect(rung()).toEqual([expect.objectContaining({ p_user: "u-admin", p_category: "lead_intake_failing", p_dedupe_key: `lead_intake_failing:webhook:${CONN}:2026-11-03` })]);
   });
 
+  it("a new lead the sink says nobody can contact rings the no-phone-or-email alert from the webhook road, once a day per connection (LR3)", async () => {
+    const uncontactable: LeadSink = { accept: async (_o, l) => ({ stored: "new", ref: l.platform_lead_ref, contactable: false }) };
+    const a = fake.leads.submit(form, { full_name: "Ray Driver" }, new Date(NOW.getTime() - 60_000));
+    seed();
+    expect(await fetchWebhookLead(deps(uncontactable), ORG, { leadgenId: a.id, formId: form })).toMatchObject({ outcome: "stored" });
+    expect(rung()).toEqual([expect.objectContaining({ p_user: "u-admin", p_category: "lead_intake_failing", p_dedupe_key: `lead_intake_failing:no_contact:${CONN}:2026-11-03` })]);
+  });
+
+  it("a duplicate nobody can contact rings nothing: the road that stored it already said so", async () => {
+    const dup: LeadSink = { accept: async (_o, l) => ({ stored: "duplicate", ref: l.platform_lead_ref, contactable: false }) };
+    const a = fake.leads.submit(form, { full_name: "Ray Driver" }, new Date(NOW.getTime() - 60_000));
+    seed();
+    expect(await fetchWebhookLead(deps(dup), ORG, { leadgenId: a.id, formId: form })).toMatchObject({ outcome: "duplicate" });
+    expect(rung()).toEqual([]);
+  });
+
   it("at five minutes, and for a lead already stored, nothing rings; a lead dated ahead of our clock reads as zero", async () => {
     const onTime = fake.leads.submit(form, { full_name: "Ray Driver" }, new Date(NOW.getTime() - 5 * 60_000));
     seed();

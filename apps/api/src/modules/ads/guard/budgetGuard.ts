@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AD_PLATFORMS, checkSpend, monthContext, monthToDateByPlatform, type AdArea, type AdPlatform, type SpendHourRow } from "@silvicom/shared";
 import { completeAction, recordFinished, startAction, type ActionRow } from "../actions/actionLedger.js";
 import type { PlatformCampaignRef, PlatformOutcome, PlatformSafe, PlatformSpend } from "../platforms/adapter.js";
+import { retiredAdIds } from "../monitor/retiredAds.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 import { findCoveringApproval } from "./approvals.js";
 
@@ -110,7 +111,11 @@ export async function guardedSpend(deps: GuardDeps, ask: SpendAsk): Promise<Guar
 
   const ref: PlatformCampaignRef = { campaign_id: campaign.id, platform, platform_refs: campaign.platform_refs };
   const call = { campaign: ref, daily_budget_cents: ask.daily_cents, lifetime_cap_cents: ask.lifetime_cents, idempotency_key: `${ask.act}:${approval.approval_id}` };
-  const outcome = await callPlatform(() => (ask.act === "launch" ? deps.spend.launch(call) : deps.spend.raiseDailyBudget(call)));
+  // Not a fence: every refusal above is unchanged. It says which ads the launch must leave off — the ones the monitor
+  // retired (CQ9b) — read inside callPlatform so a failed read is a failed act on the row already started.
+  const outcome = await callPlatform(async () => (ask.act === "launch"
+    ? deps.spend.launch({ ...call, retired_ad_ids: await retiredAdIds(admin, ask.orgId, campaign.id) })
+    : deps.spend.raiseDailyBudget(call)));
   return finish(deps, ask.orgId, started.id, outcome);
 }
 

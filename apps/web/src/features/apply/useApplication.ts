@@ -1,7 +1,10 @@
 import { computed, type Ref } from "vue";
 import { takeServedForm } from "./servedForm";
 import { useMutation, useQuery } from "@tanstack/vue-query";
-import type { ApplicantOwedKind, CarrierQuestionStamp } from "@silvicom/shared";
+import type {
+  ApplicantOwedKind,
+  CarrierQuestionStamp,
+} from "@silvicom/shared";
 import type {
   ApplicationCaptureContentType,
   ApplicationCaptureSlot,
@@ -83,6 +86,10 @@ export interface ApplyEdit {
   path: (string | number)[];
   before: unknown;
   after: unknown;
+  /** F3 (0586): the office's reason for changing the driver's own statement. Optional: an API before F3 sends none. */
+  note?: string | null;
+  /** F3 (0586): a replace-only answer — the driver is told it was replaced, not shown it. */
+  withheld?: boolean;
   editedAt: string;
 }
 
@@ -386,6 +393,7 @@ export const unlockApplicationDraft = (token: string, dateOfBirth: string): Prom
     method: "POST",
     body: JSON.stringify({ date_of_birth: dateOfBirth }),
   });
+
 
 /**
  * Ask for somewhere to put one photograph (A8).

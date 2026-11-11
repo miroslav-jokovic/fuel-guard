@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { parseAnswer } from "./answerBlocks";
+import { AppIcon } from "@silvicom/ui";
+import { ArrowDownTrayIcon } from "@silvicom/ui/icons";
+import { downloadCsv } from "@/lib/csv";
+import { parseAnswer, tableCsv, type AnswerBlock } from "./answerBlocks";
 import AssistantInlines from "./AssistantInlines.vue";
 
 /**
@@ -14,6 +17,12 @@ import AssistantInlines from "./AssistantInlines.vue";
  */
 const props = defineProps<{ text: string }>();
 const blocks = computed(() => parseAnswer(props.text));
+
+/** F21 R4a: a table goes to a spreadsheet as the words on screen (`tableCsv`). */
+function download(b: Extract<AnswerBlock, { type: "table" }>, n: number) {
+  const { headers, rows } = tableCsv(b);
+  downloadCsv(`ask-ai-table-${n + 1}`, headers, rows);
+}
 </script>
 
 <template>
@@ -28,7 +37,8 @@ const blocks = computed(() => parseAnswer(props.text));
       >
         <li v-for="(item, j) in b.items" :key="j" class="pl-1"><AssistantInlines :inlines="item" /></li>
       </component>
-      <div v-else-if="b.type === 'table'" class="overflow-x-auto rounded-control ring-1 ring-edge-subtle">
+      <div v-else-if="b.type === 'table'" class="space-y-1">
+      <div class="overflow-x-auto rounded-control ring-1 ring-edge-subtle">
         <table class="min-w-full text-xs">
           <thead class="bg-surface-subtle">
             <tr>
@@ -54,6 +64,14 @@ const blocks = computed(() => parseAnswer(props.text));
             </tr>
           </tbody>
         </table>
+      </div>
+        <button
+          type="button"
+          class="-ml-1.5 inline-flex items-center gap-1.5 rounded-control px-1.5 py-1 text-xs text-ink-tertiary transition-colors hover:bg-surface-muted hover:text-ink"
+          @click="download(b, i)"
+        >
+          <AppIcon :icon="ArrowDownTrayIcon" class="size-3.5" aria-hidden="true" /> Download CSV
+        </button>
       </div>
     </template>
   </div>

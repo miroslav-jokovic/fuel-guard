@@ -116,10 +116,11 @@ export type AdsOutcomeFeed = z.infer<typeof adsOutcomeFeedSchema>;
 export const ADS_OUTCOME_FEED_OFF: AdsOutcomeFeed = { enabled: false, dataset_id: null };
 
 /**
- * The lead-quality alert (ADS-LEAD-QUALITY-PLAN LQ3; Q-AD51 ruled (a) 2026-11-09): once at least `min_attempted`
- * of a campaign's recent leads have had a call attempt, the alert rings when the wrong-number share of those
- * attempts, or the share of its leads that plainly do not meet a hard requirement, passes its threshold. An
- * ALERT, never a pause, for the first weeks — the ruling.
+ * The lead-quality alert (ADS-LEAD-QUALITY-PLAN LQ3; Q-AD51 ruled (a) 2026-11-09): `min_attempted` is the sample each rule
+ * waits for, counted on that rule's own whole (LR1): the wrong-number share rings once that many of a campaign's
+ * recent leads have had a call attempt; the share that plainly does not meet a hard requirement rings once that
+ * many leads have ARRIVED, because those leads ring nobody (LQ6) and may never be called. An ALERT, never a
+ * pause, for the first weeks — the ruling.
  *
  * ── ABSENT = THE RULED DEFAULTS, ON ──────────────────────────────────────────────────────────────
  * Unlike the outcome feed (which sends data to Meta and so stays off until somebody turns it on), this only

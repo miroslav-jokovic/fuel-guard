@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { fuelCardsToQuery } from "@silvicom/shared";
 import { mount, flushPromises } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
@@ -86,6 +87,12 @@ const rowCount = (w: Mounted) => w.findAll("tbody tr").length;
 const settle = () => flushPromises();
 
 describe("the fuel cards page's filters round-trip through the query string", () => {
+  // F21 R4b: Ask AI's "Open in Fuel cards" for fraud holds, built by the page's own contract.
+  it("sends the status a link built by its contract names to the route", async () => {
+    await mountAt(`/fuel-cards?${new URLSearchParams(fuelCardsToQuery({ status: "Fraud" })).toString()}`);
+    expect(seenQuery.at(-1)!.status).toBe("Fraud");
+  });
+
   it("puts a server-side facet in the URL and sends it to the route", async () => {
     const { w, query } = await mountAt("/fuel-cards");
     await pick(w, "Status", "Hold");

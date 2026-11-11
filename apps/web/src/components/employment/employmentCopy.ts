@@ -41,19 +41,20 @@ export const EMPLOYMENT_FORM_COPY = {
   reason: "Reason for leaving",
   reasonHint: "Why you moved on.",
   /**
-   * Asked, with "yes" chosen (HW5b, EM-5/EM-10): it decides whether a job from years four to ten
-   * belongs on the list at all, and it was a pre-ticked box on one form and an unticked one on another.
+   * Asked, with nothing chosen since F1 part 2 (HW5b, EM-5/EM-10, 2026-11-10): it decides whether a
+   * job from years four to ten belongs on the list at all. It was a pre-ticked box on one form and an
+   * unticked one on another, then a Yes chosen for the driver; now the driver chooses.
    */
   droveTruck: "Did you drive a truck in this job?",
   droveTruckHint: "Any commercial vehicle — a tractor-trailer, a straight truck, a bus.",
   /**
    * EM-10: this decides whether the carrier owes the employer a safety-history inquiry, and it was
    * behind "More about this job (optional)" — the one answer on the panel with a legal consequence,
-   * hidden as optional. Asked in the main run now, defaulting to "yes" for the reason `blankEmployer`
-   * gives.
+   * hidden as optional. Asked in the main run now, with nothing chosen (F1 part 2): the hint says
+   * "if you are not sure, answer Yes", the asymmetry `blankEmployer` used to default on.
    */
   dotQuestion: "Was this employer regulated by the DOT?",
-  dotQuestionHint: "A trucking company or any business whose trucks need a USDOT number. Leave Yes if you are not sure.",
+  dotQuestionHint: "A trucking company or any business whose trucks need a USDOT number. If you are not sure, answer Yes.",
   subjectToFmcsr: "In this job, did the Federal Motor Carrier Safety Regulations apply to you?",
   subjectToFmcsrHint: "The federal safety rules for trucking companies and their drivers.",
   safetySensitive: "Was this a safety-sensitive job that required DOT drug and alcohol testing?",

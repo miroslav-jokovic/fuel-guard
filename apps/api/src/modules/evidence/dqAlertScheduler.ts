@@ -18,7 +18,7 @@ import { getComplianceOverview } from "./complianceOverview.js";
 import { getUnitFiles } from "./unitFiles.js";
 import { keysAlreadySent, notify } from "../messaging/index.js";
 import { runApplicationNudgesOnce } from "../recruiting/index.js";
-import { usersWhoManage } from "../org/index.js";
+import { orgToday, usersWhoManage } from "../org/index.js";
 
 /**
  * DQ expiry alerts (DQF execution plan C3) — the digestScheduler shape, applied to qualifications:
@@ -169,7 +169,7 @@ async function deliverFileAlerts(
 }
 
 export async function runDqAlertsOnce(admin: SupabaseClient, env: Env, orgId: string): Promise<number> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = await orgToday(admin, orgId);
   const overview = await getComplianceOverview(admin, orgId, today, { expiringWithinDays: 91 });
   return deliverFileAlerts(admin, env, orgId, driverAlertRows(overview.drivers), today, () => officeUserIds(admin, orgId), DRIVER_MAIL);
 }
@@ -181,9 +181,9 @@ export async function runDqAlertsOnce(admin: SupabaseClient, env: Env, orgId: st
  * nothing here draws a thumbnail. Heard by every member holding `equipment` manage, the section a
  * truck's papers belong to (D-UF5).
  *
- * The driver pass above still judges on the server's UTC day, as it has since C3. Moving it to the
- * carrier's day is right and is not UF6's change: it would move a driver's verdicts, which this step
- * promised to leave byte for byte.
+ * The driver pass above judged on the server's UTC day from C3 until 2026-11-11, when it moved to the
+ * carrier's day with the Drivers page it mirrors (`orgToday`, F21 carrier-day fix). Its dedupe keys
+ * are the expiry date and threshold, not today, so the move sends nothing twice.
  */
 export async function runUnitFileAlertsOnce(admin: SupabaseClient, env: Env, orgId: string): Promise<number> {
   const org = await readOrg(admin, orgId);

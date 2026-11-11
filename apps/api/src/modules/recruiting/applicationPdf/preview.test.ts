@@ -185,11 +185,12 @@ describe("previewing an application before it is signed", () => {
     // `No(?!t)`: "Not answered." also begins with "No" — the answer must be the word itself.
     expect(last).toMatch(/Do you own a pet\?\s*No(?!t)/);
     expect(last).toMatch(/Preferred lane\s*Not answered\./);
-    // After the continuation sheet, which follows the carrier's thirty-one pages.
-    expect(pages.at(-2)).toContain("CONTINUATION SHEET");
-    expect(pages.length).toBe(TEMPLATE_PAGES + 2);
+    // After the continuation sheet and F2's addendum, which follow the carrier's thirty-one pages.
+    expect(pages.at(-3)).toContain("CONTINUATION SHEET");
+    expect(pages.at(-2)).toContain("APPLICATION ADDENDUM");
+    expect(pages.length).toBe(TEMPLATE_PAGES + 3);
     // Its page number continues the carrier's sequence.
-    expect(last).toContain(String(TEMPLATE_PAGES + 2));
+    expect(last).toContain(String(TEMPLATE_PAGES + 3));
 
     const filed = await renderPacketDocument({
       marks: [],
@@ -215,7 +216,7 @@ describe("previewing an application before it is signed", () => {
       certifiedAt: "2026-09-12T10:00:00Z",
       signedName: ADOPTED,
     });
-    const sheet = (await pdfPageTexts(filed)).slice(TEMPLATE_PAGES);
+    const sheet = (await pdfPageTexts(filed)).slice(TEMPLATE_PAGES).filter((p) => p.includes("THE CARRIER'S OWN QUESTIONS"));
     expect(sheet.length).toBeGreaterThan(1);
     for (const page of sheet) {
       // Every question begun on a page is answered on that page.
@@ -226,7 +227,8 @@ describe("previewing an application before it is signed", () => {
   it("appends no sheet for an invitation sent before the carrier's questions, whatever the draft holds", async () => {
     const preview = await applicationPreviewPdf(seed({ payload: { ...PAYLOAD, carrier_answers: CQ_ANSWERS } }).client, ORG, INV);
     if (isPreviewError(preview)) throw new Error(preview.message);
-    expect(await pageCount(preview.pdf)).toBe(TEMPLATE_PAGES);
+    // The carrier's pages and F2's addendum, and no questions sheet.
+    expect(await pageCount(preview.pdf)).toBe(TEMPLATE_PAGES + 1);
     expect(await textOf(preview.pdf)).not.toContain("THE CARRIER'S OWN QUESTIONS");
   });
 

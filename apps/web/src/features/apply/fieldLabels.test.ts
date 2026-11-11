@@ -17,6 +17,7 @@ import {
   describeOfficeEdit,
   fieldId,
   messageFor,
+  rowText,
   valueAt,
 } from "./fieldLabels";
 import {
@@ -228,5 +229,12 @@ describe("describeOfficeEdit (§9 P10)", () => {
       .toBe(`filled in “${FIELD_LABEL_KEYS.ROWS.employers!.columns.city}” for ABC Trucking`);
     expect(describeOfficeEdit({ path: ["cdl_number"], change: "changed", employer: null })).toBe(`changed “${describeField(["cdl_number"])}”`);
     expect(describeOfficeEdit({ path: ["employers", "k1"], change: "removed", employer: "ABC Trucking" })).toBe("removed a job: ABC Trucking");
+  });
+});
+
+describe("rowText", () => {
+  it("prints a replaced row as its answers on one line, skipping blanks — never as JSON", () => {
+    expect(rowText({ issuing_authority: "WI", number: "W-1", expires_at: "2027-01-01", kind: null })).toBe("WI, W-1, 2027-01-01");
+    expect(rowText({ issuing_authority: "WI", number: "" })).toBe("WI");
   });
 });

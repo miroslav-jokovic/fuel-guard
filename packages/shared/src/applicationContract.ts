@@ -6,7 +6,11 @@ import { APPLICATION_CROSS_FIELD_RULES, ruleIssuePath } from "./applicationRules
 import { carrierAnswerIssues, carrierQuestionStampSchema } from "./carrierQuestionsContract.js";
 import { questionnaireForApplicant } from "./questionnaireContract.js";
 import { questionnaireAnswersSchema } from "./questionnaireAnswers.js";
-import { applicationEmployerSchema, applicationEmploymentGapSchema } from "./applicationEmployerContract.js";
+import {
+  applicationEmployerSchema,
+  applicationEmploymentGapSchema,
+  unansweredEmployerQuestions,
+} from "./applicationEmployerContract.js";
 import { LICENSING_AUTHORITY_MAX_LENGTH } from "./mvrJurisdictions.js";
 
 /**
@@ -379,7 +383,7 @@ export const applicationDraftPayloadSchema = driverApplicationObject.partial().e
    * "Something wrong? Tell us" (C3c2c2, Q-AW34): a v2 applicant's message to the office about a Part 1
    * fact they are shown read-only. The DRAFT's and never the certified document's — it is a note to the
    * office, not an answer the applicant certifies, and `driverApplicationObject` is strict, so it cannot
-   * reach a filing. Shown on the office's drawer; never offered as a correctable answer (`editableFields`).
+   * reach a filing. Shown on the office's drawer; never offered as a correctable answer (`applicantFactRows`: it is in no catalogue entry).
    */
   correction_note: z.string().max(APPLICATION_CORRECTION_NOTE_MAX).nullish(),
 });
@@ -395,6 +399,10 @@ const crossFieldRules = (v: object, ctx: z.RefinementCtx): void => {
   const fields = v as Partial<DriverApplicationFields>;
   for (const rule of APPLICATION_CROSS_FIELD_RULES) {
     if (!rule.check(fields)) ctx.addIssue({ code: "custom", message: rule.message, path: ruleIssuePath(rule) });
+  }
+  // F1 part 2: each job's "did you drive a truck" and "was it DOT-regulated", answered, never defaulted.
+  for (const issue of unansweredEmployerQuestions(fields.employers)) {
+    ctx.addIssue({ code: "custom", message: issue.message, path: issue.path });
   }
   // §15.3 D-CQ3: the carrier's own questions, judged against the stamp the document carries.
   for (const issue of carrierAnswerIssues(fields.carrier_questions, fields.carrier_answers)) {

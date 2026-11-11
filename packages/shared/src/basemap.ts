@@ -246,3 +246,45 @@ export function resolveTileRequest(rawSize: unknown, rawPpi: unknown): { size: n
     ? { size: TILE_REQUEST.size, ppi: TILE_REQUEST.ppi }
     : { size: 512, ppi: 100 };
 }
+
+/**
+ * The deepest VECTOR tile HERE serves (D-DR31). Measured with the production key on 2026-11-09: zooms
+ * 12–17 answer 200 and 18 answers 400. maplibre overzooms the zoom-17 tile beyond that, so the web
+ * source's `maxzoom` and the proxy's coordinate check both read this.
+ */
+export const HERE_MAX_VECTOR_ZOOM = 17;
+
+/**
+ * The ONE zoom at which the vector road map fetches its truck places (D-DR34): HERE's
+ * `content=default,advanced_pois` tile. The web source's `minzoom`/`maxzoom` and the proxy's
+ * coordinate check both read this, so the dearer tile cannot be asked for at any other zoom.
+ *
+ * ── WHY 13, MEASURED 2026-11-11 WITH OUR KEY ────────────────────────────────────────────────────
+ * HERE's default vector tiles carry NO truck categories: in them the Joliet Pilot (41.4805, −88.0792)
+ * is an ordinary "Parking Lot" (800-8500-0178, `min_zoom` 17). The same tile with `advanced_pois`
+ * adds it as a truck stop (700-7900-0132) and truck parking (700-7900-0131), both `min_zoom` 13.
+ * Across 24 zoom-13 tiles around Joliet, Indianapolis and Dallas the advanced tiles carried 17 truck
+ * stops, 19 truck parking lots and 4 rest areas, all at `min_zoom` 13 or 14.
+ * Advanced tiles bill at $0.239 per 1 000 against $0.088, so they are fetched at 13 alone and
+ * maplibre overzooms that one tile for every closer zoom: one dearer request per zoom-13 square
+ * (≈ 4.9 × 3.6 km at Chicago's latitude), not one per tile at every zoom.
+ */
+export const TRUCK_PLACES_ZOOM = 13;
+
+/**
+ * The two fonts the vector road map draws labels with, and the only ones the glyph proxy relays
+ * (D-DR31). They are HERE's own style fonts; the web style and the API allowlist read this one list.
+ */
+export const VECTOR_GLYPH_FONTS = ["Fira GO Regular", "Fira GO Bold"] as const;
+
+/**
+ * The ONE shape of a glyph range file both sides agree on (D-DR31): `0-255.pbf`. The web style's glyph
+ * URL must fill `{range}` into a name that matches this, and the API's glyph relay refuses anything
+ * else; HERE's font host answers 404 without the `.pbf` (measured 2026-11-11).
+ *
+ * ⚠ Until 2026-11-11 the style asked for `{range}` with no `.pbf`, the relay refused every range with
+ * a 400, and maplibre fell back to drawing every label with the browser's own font (its
+ * "Rendering codepoint … locally instead" path), so HERE's font was never on screen and every label
+ * was drawn on the reader's CPU. Nothing failed visibly, which is why one definition now serves both.
+ */
+export const VECTOR_GLYPH_RANGE_FILE = /^\d{1,5}-\d{1,5}\.pbf$/;

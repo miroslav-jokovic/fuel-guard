@@ -35,6 +35,13 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
   // the mount is one line again, which is what put it in front of this ledger.
   ["/api/public/application", "the applicant's own link — they have no account, so the 256-bit token in the path is the credential; it resolves to exactly one invitation's org server-side, answers every dead link with the same sentence, and is rate-limited in app.ts. There is no role to check because there is no user (2026-09-17)"],
   ["/api/webhooks", "provider-signed (Samsara HMAC, Telnyx Ed25519) — authenticated, just not by a user role"],
+  // F21 R5 (D-AI1, owner's Q-AI2/Q-AI5 rulings 2026-11-10): Ask AI's DATA is gated per TOOL, inside the
+  // handler, because one question can need any of several sections and the answer is the person's tool
+  // list, not one section. The mount keeps `requireSurface("ask-ai")`; the handler refuses a caller whose
+  // access allows no tool (`ai_no_tools`), shows the model only the allowed tools, and refuses any call
+  // outside them before it runs. A static requireSection here is what R5 removed: "fuel" handed every
+  // future tool to anyone with fuel access.
+  ["/api/ai", "gated per TOOL inside the handler from the section matrix (assistantToolsFor, D-AI1): no tool → 403 ai_no_tools; the model sees only allowed tools; a call outside them is refused. Pinned by \"a recruiter or technician the screen is turned on for is refused until their areas have tools — and follows the org's answers\" in namedGrantGates.test.ts and \"shows the model only the caller's tools, refuses a call outside them, and strips never-shown fields (R5)\" in modules/insights/askData.test.ts"],
   ["/api/tms", "the on-prem agent — authenticated by the org ingest token (hash-matched), a machine credential with no role to check"],
   ["/api/print-station", "the print station program (PRINTERS-AND-SCANNERS-PLAN.md PS3) — a machine authenticated by its bearer token, hash-matched to a live print_stations row; `/pair` takes a one-time pairing code issued behind maintenance:manage. No person, so no role to check"],
   // R3c-2. Deliberate, and the argument is that there is no capability here to gate. A saved view is
@@ -117,6 +124,19 @@ export const OPEN_ROUTES = new Map<string, string>([
   [
     "GET /api/fueling/map-tiles/:z/:x/:y",
     "a raster-tile proxy that exists to keep the HERE key server-side; the bytes are public map tiles, and requireAuth is there to stop it becoming an open relay against our quota, not to protect data",
+  ],
+  [
+    "GET /api/fueling/map-tiles/vector/:z/:x/:y",
+    "the vector road map's tile proxy (D-DR31), the raster one's sibling: it keeps the HERE key server-side, the bytes are public map data, and requireAuth stops it becoming an open relay against our quota",
+  ],
+  [
+    "GET /api/fueling/map-tiles/truck-places/:z/:x/:y",
+    "the vector road map's truck places (D-DR34): the vector tile proxy with HERE's advanced place content, at one zoom only; same reasons as its sibling, the HERE key stays server-side and requireAuth stops an open relay against our quota",
+  ],
+
+  [
+    "GET /api/fueling/map-tiles/glyphs/:fontstack/:range",
+    "relays HERE's two style fonts for map labels (D-DR31); keyless, unbilled, public font data, allowlisted to those two fonts and the range shape maplibre asks for",
   ],
 
   // ── The bootstrap identity. ────────────────────────────────────────────────────────────────────

@@ -230,13 +230,7 @@ export async function unlockDraft(
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
 
-  const row = await readDraft(admin, invitation.org_id, invitation.id);
-  // C3c2c2: a v2 link has Part 1's facts to release too, and they are gated whether or not a draft
-  // exists — so the date of birth to check is the draft's, or, with none there, the one Part 1 recorded
-  // on `drivers` (the same value: `record_applicant_identity` writes both, and every save re-lays it).
-  const partOne = await partOneFactsView(admin, invitation.org_id, invitation, now);
-  const stored = (row ? draftDateOfBirth(row.payload) : null)
-    ?? (partOne ? await driverDateOfBirth(admin, invitation.org_id, invitation.driver_id) : null);
+  const { row, partOne, stored } = await gatedRelease(admin, invitation, now);
   // Nothing recorded to check against: there is nothing gated, so unlocking is a no-op that returns
   // the same view the plain read would have — and no Part 1 facts. It must not become a way to ask
   // whether a draft exists.
@@ -251,9 +245,34 @@ export async function unlockDraft(
       ...(counted === null ? {} : { attemptsLeft: counted }),
     };
   }
+  return releasedView(row, partOne);
+}
+
+/**
+ * What a gated draft releases, and the date of birth that gates it — read once for both ways in (the
+ * date of birth above, and the one-time code, `applicationUnlockCode.ts`, F0b), so the two cannot
+ * release different things.
+ *
+ * C3c2c2: a v2 link has Part 1's facts to release too, and they are gated whether or not a draft exists
+ * — so the date of birth to check is the draft's, or, with none there, the one Part 1 recorded on
+ * `drivers` (the same value: `record_applicant_identity` writes both, and every save re-lays it).
+ */
+export async function gatedRelease(
+  admin: SupabaseClient,
+  invitation: { id: string; org_id: string; driver_id: string },
+  now: Date,
+): Promise<{ row: DraftRow | null; partOne: PartOneFactsView | null; stored: string | null }> {
+  const row = await readDraft(admin, invitation.org_id, invitation.id);
+  const partOne = await partOneFactsView(admin, invitation.org_id, invitation, now);
+  const stored = (row ? draftDateOfBirth(row.payload) : null)
+    ?? (partOne ? await driverDateOfBirth(admin, invitation.org_id, invitation.driver_id) : null);
+  return { row, partOne, stored };
+}
+
+/** The draft, released. An empty body when Part 1 was answered and nothing of Part 2 yet. */
+export function releasedView(row: DraftRow | null, partOne: PartOneFactsView | null): DraftView {
   return {
     locked: false,
-    // An empty body when Part 1 was answered and nothing of Part 2 yet: unlocked, with nothing to resume.
     payload: row?.payload ?? {},
     furthestSection: row?.furthest_section ?? null,
     updatedAt: row?.updated_at ?? null,

@@ -36,6 +36,8 @@ const complete = (): ApplicationDraft => ({
   declares_no_accidents: true, declares_no_violations: true,
   // (b)(9) answered — `emptyDraft` leaves it unanswered since C3c2c1, so a complete draft says No itself.
   licence_ever_denied: false,
+  // §40.25(j) answered — unanswered in `emptyDraft` since F1 part 2, for (b)(9)'s reason above.
+  prior_failed_pre_employment_test: false,
   certified: true, signed_name: "Susan Godfrey",
 });
 
@@ -96,6 +98,26 @@ describe("one screen at a time", () => {
     };
     const issues = validateSection("licence", draft);
     expect(issues.map((i) => i.key)).toContain("additional_licences");
+  });
+});
+
+describe("questions that start unanswered (F1 part 2)", () => {
+  it("stops the jobs screen on a job whose two Yes/Nos are blank, on their own controls", () => {
+    const draft = complete();
+    draft.employers[0] = { ...draft.employers[0]!, operated_cmv: null, dot_regulated: null };
+    expect(validateSection("employment", draft).map((i) => [i.fieldId, i.message])).toEqual([
+      ["apply-employers-0-operated_cmv", "Say whether you drove a truck in this job"],
+      ["apply-employers-0-dot_regulated", "Say whether this employer was regulated by the DOT"],
+    ]);
+    draft.employers[0] = { ...draft.employers[0]!, operated_cmv: false, dot_regulated: false };
+    expect(validateSection("employment", draft)).toEqual([]);
+  });
+
+  it("stops a legacy link's driving-record screen on an unanswered §40.25(j), and not a v2 link's", () => {
+    const draft = { ...complete(), prior_failed_pre_employment_test: null };
+    expect(validateSection("safety", draft).map((i) => i.fieldId)).toEqual(["apply-prior_failed_pre_employment_test"]);
+    // A v2 link asked it in Part 1, and its draft holds that answer — this screen does not ask again.
+    expect(validateSection("safety", draft, "2026-09-26").map((i) => i.fieldId)).not.toContain("apply-prior_failed_pre_employment_test");
   });
 });
 

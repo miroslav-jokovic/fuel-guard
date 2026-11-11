@@ -391,6 +391,35 @@
   --identity-7-ink: light-dark(oklch(40% 0.1 285), oklch(89% 0.05 285));
   --identity-8: light-dark(oklch(92.5% 0.042 330), oklch(35% 0.055 330));
   --identity-8-ink: light-dark(oklch(40% 0.1 330), oklch(89% 0.05 330));
+
+  /* ── 9. Map (D-DR31: the vector basemap draws with these) ───────────────────── */
+
+  /* sampled from HERE explore.day / explore.night tiles on 2026-11-10, so the vector map keeps
+     today's look */
+  --map-land: light-dark(oklch(97.0% 0.0067 233.6), oklch(28.4% 0.0337 240.8)); /* land, the basemap background */
+  --map-water: light-dark(oklch(85.6% 0.0840 232.5), oklch(37.2% 0.0818 247.4)); /* lakes, rivers, sea */
+  --map-park: light-dark(oklch(92.5% 0.0569 166.7), oklch(30.7% 0.0429 214.9)); /* parks, forests, nature reserves */
+  --map-urban: light-dark(oklch(94.5% 0.0118 239.9), oklch(31.1% 0.0374 241.8)); /* built-up area */
+  --map-building: light-dark(oklch(99.0% 0.0030 230.0), oklch(34.3% 0.0477 246.2)); /* building footprints, near-white with a casing-coloured outline as on HERE's raster map */
+  --map-road: light-dark(oklch(100% 0 0), oklch(40.3% 0.0332 250.3)); /* ordinary roads */
+  --map-road-casing: light-dark(oklch(89.8% 0.0162 239.1), oklch(33.4% 0.0321 257.7)); /* the edge line drawn under a road */
+  --map-highway: light-dark(oklch(88.7% 0.0374 258.4), oklch(52.0% 0.0372 249.9)); /* motorways and trunk roads */
+  --map-highway-casing: light-dark(oklch(83.0% 0.0431 261.7), oklch(45.9% 0.0322 255.2)); /* the edge line under a highway */
+  --map-boundary: light-dark(oklch(73.7% 0.0217 264.4), oklch(51.1% 0.0307 251.9)); /* state and country borders */
+  --map-label: light-dark(oklch(44.6% 0.0263 256.8), oklch(85.4% 0.0170 250.9)); /* place and road names */
+  --map-label-halo: light-dark(oklch(100% 0 0), oklch(28.4% 0.0337 240.8)); /* the outline that keeps a name readable over the map */
+  --map-water-label: light-dark(oklch(50.9% 0.0935 240.6), oklch(74.1% 0.0751 239.8)); /* names of water */
+  --map-industrial: light-dark(oklch(93.5% 0.0120 300.0), oklch(30.5% 0.0300 280.0)); /* industrial and military land */
+  --map-medical: light-dark(oklch(94.0% 0.0250 15.0), oklch(31.0% 0.0350 10.0)); /* hospital grounds */
+  --map-education: light-dark(oklch(95.0% 0.0300 85.0), oklch(31.5% 0.0300 75.0)); /* university and college campuses */
+  --map-airport: light-dark(oklch(93.0% 0.0100 260.0), oklch(32.0% 0.0300 255.0)); /* airport grounds */
+  --map-runway: light-dark(oklch(86.0% 0.0120 260.0), oklch(40.0% 0.0250 255.0)); /* runways, drawn over the airport grounds */
+  --map-beach: light-dark(oklch(95.5% 0.0450 95.0), oklch(33.0% 0.0300 85.0)); /* beaches */
+  --map-shield-interstate: oklch(38.0% 0.1336 256.8); /* interstate and county road sign background (FHWA blue, PMS 294) */
+  --map-shield-interstate-band: oklch(47.0% 0.1733 20.4); /* the red band across the top of an interstate sign (FHWA red, PMS 187) */
+  --map-shield-plain: oklch(100% 0 0); /* US and state route sign background */
+  --map-shield-ink: oklch(21.8% 0 0); /* the number and outline on a US or state route sign */
+  --map-shield-county-ink: oklch(86.7% 0.1768 90.8); /* the number on a county road sign (FHWA yellow, PMS 116) */
 }
 
 @theme inline {

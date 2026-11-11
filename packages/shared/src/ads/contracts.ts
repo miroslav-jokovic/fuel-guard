@@ -52,6 +52,8 @@ export const ACTION_KINDS = [
   "archive", "kill", "external_change", "rules_sync", "connection_test", "reconcile",
   /** CQ9 (0581): one ad paused at the platform for fatigue; the campaign keeps delivering. */
   "retire_ad",
+  /** Q-AD68 (0587): a retired ad's approved replacement turned ACTIVE on a live campaign, one row per ad. */
+  "activate_ad",
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 

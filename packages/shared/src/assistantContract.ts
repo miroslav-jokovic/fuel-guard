@@ -1,0 +1,252 @@
+import { resolveSectionAccess, type AppSection, type SectionAccess, type SectionClaim } from "./auth.js";
+import type { UserRole } from "./constants.js";
+import { moduleEnabled, type ModuleKey, type ModuleSet } from "./entitlements.js";
+
+/**
+ * Which assistant tools a caller may use (F21 R5; PLAN.md D-AI1/D-AI3; owner's rulings 2026-11-10).
+ *
+ * ── THE RULE (Q-AI2, Q-AI5 as ruled) ──────────────────────────────────────────────────────────────
+ * "AI will be related to their features and they will not be able to see whatever they want … others
+ * need to see what is already regulated by permissions." So every tool declares the section(s) its
+ * data belongs to, and a caller's tool list is the tools whose every requirement their access meets —
+ * asked through `resolveSectionAccess`, the one function every request-time check in the product asks,
+ * with the org's overrides on the caller's token. Admin gets everything because the matrix says so;
+ * accounting data reaches admin, accountant and the read-only auditor because the matrix says that too. No role list
+ * is written anywhere in this file, which is the point: a hand list beside the matrix is the
+ * `session.canManage` workaround CLAUDE.md names.
+ *
+ * ── WHERE EACH SECTION COMES FROM ────────────────────────────────────────────────────────────────
+ * Each requirement is the gate of the PAGE the tool's figure comes from (its surface in
+ * `surfaceCatalogue.ts`, and that page's API route), so the assistant can never answer what the page
+ * would refuse. `fleet_roster` counts drivers (Drivers, roster) AND trucks and trailers (Vehicles,
+ * equipment), so it needs both.
+ *
+ * The model is shown only the tools in the list (it cannot call or mention one it does not have), and
+ * the API checks the same list again before running any call (defence in depth).
+ */
+
+/**
+ * What a tool needs: a section level from the matrix, or a MODULE the carrier has bought.
+ *
+ * The module kind arrived with the first dispatch tool (F21 R6b, 2026-11-10). `/api/livemap/*` and the
+ * loads router refuse a carrier without Dispatch (`requireModule("dispatch")`, D55) BEFORE asking
+ * the section, so a dispatch tool declared on the section alone would answer, for a carrier that
+ * never bought Dispatch, a question its own page refuses. The fuel, safety, roster, equipment and
+ * accounting pages carry no module gate, so their tools declare none. A tool declares exactly the
+ * gates its page's route carries; nothing more, nothing less.
+ */
+export type ToolRequirement =
+  | { section: AppSection; level: Exclude<SectionAccess, "none"> }
+  | { module: ModuleKey };
+
+const view = (section: AppSection): ToolRequirement => ({ section, level: "view" });
+const bought = (module: ModuleKey): ToolRequirement => ({ module });
+
+/** Every assistant tool and what it needs. The API's tool definitions must match these names exactly. */
+export const ASSISTANT_TOOL_ACCESS = {
+  // Fuel pages: Fuel log, Fuel costs, Findings/Alerts, Fuel cards, Odometer mismatches — all `section("fuel")`.
+  fleet_summary: [view("fuel")],
+  top_risk: [view("fuel")],
+  odometer_accuracy: [view("fuel")],
+  count_signal: [view("fuel")],
+  fuel_report: [view("fuel")],
+  fuel_economics: [view("fuel")],
+  fuel_ranking: [view("fuel")],
+  spend_trend: [view("fuel")],
+  // IFTA ledger (`fuel.ifta`; `/api/ifta/period` asks `requireSection("fuel", "view")`, no module).
+  ifta_report: [view("fuel")],
+  declined_summary: [view("fuel")],
+  // Fuel cards (`fuel.cards`; `GET /api/fuel-cards` asks `requireSection("fuel", "view")`, no module).
+  card_holds: [view("fuel")],
+  telematics_coverage: [view("fuel")],
+  import_activity: [view("fuel")],
+  // Driver performance and Idling are safety pages (`safety.driver-performance`, `safety.idling`;
+  // `/api/idle/*` asks `requireSection("safety", "view")`).
+  driver_performance: [view("safety")],
+  idling_summary: [view("safety")],
+  idle_report: [view("safety")],
+  // The live map (`/api/livemap/positions`: `requireModule("dispatch")` then
+  // `requireSection("dispatch", "view")`, the Dashboard's Dispatch tab).
+  fleet_now: [bought("dispatch"), view("dispatch")],
+  // The Loads page's Delivered tab per truck (`GET /api/dispatch/loads`: the loads router's
+  // `requireModule("dispatch")`, then `requireSection("dispatch", "view")`).
+  loads_by_truck: [bought("dispatch"), view("dispatch")],
+  // Drivers (roster) and Vehicles (equipment).
+  fleet_roster: [view("roster"), view("equipment")],
+  // Drivers page's qualification files (`fleet.drivers`; `/api/compliance/overview` asks
+  // `requireSection("roster", "view")`).
+  driver_file_expirations: [view("roster")],
+  // Shop worklist's annual group (`/api/maintenance/annual-due` asks `requireSection("maintenance", "view")`).
+  annual_inspections_due: [view("maintenance")],
+  // Applicants board (`recruitment.applicants`; `/api/recruitment/pipeline` asks
+  // `requireSection("recruitment", "view")`).
+  recruiting_counts: [view("recruitment")],
+  // A truck's or trailer's repair bills (`maintenance.units`; `/api/maintenance/units/:kind/:id/maintenance`
+  // asks `requireSection("maintenance", "view")`, no module).
+  maintenance_cost: [view("maintenance")],
+  // Fleet report and its income statement (`finance.fleet-report`, gate `section("accounting")`;
+  // every `/api/accounting/*` read asks `requireSection("accounting", "view")`). The matrix gives
+  // `accounting` to admin and accountant, and VIEW to the read-only auditor, who can open that page
+  // too. That is the owner's Q-AI5 ruling with no list written; the auditor is Q-AI11 (PLAN.md §5).
+  finance_report: [view("accounting")],
+  income_statement: [view("accounting")],
+} as const satisfies Record<string, readonly ToolRequirement[]>;
+
+export type AssistantToolName = keyof typeof ASSISTANT_TOOL_ACCESS;
+export const ASSISTANT_TOOL_NAMES = Object.keys(ASSISTANT_TOOL_ACCESS) as AssistantToolName[];
+
+/**
+ * The page each tool's figure IS, by surface key (F21 R4a, D-AI3's `source.surfaceKey`), for the
+ * "Open in …" link under an answer. A link says "this is that page's figure", so only the tools built
+ * on a page's OWN read (R1, R6a, R6b) have one. The older tools sum raw tables themselves
+ * (`fleet_summary`, `top_risk`, `fuel_ranking`…), so their figure is not any page's, and they get
+ * `null` until they are rebuilt on one. Pinned by "every page a tool names is a real surface, gated by
+ * one of the tool's own sections". A link a person cannot open is never drawn (the web asks
+ * `canReachSurface` first).
+ */
+export const ASSISTANT_TOOL_PAGE: Record<AssistantToolName, string | null> = {
+  fleet_summary: null,
+  top_risk: null,
+  odometer_accuracy: null,
+  count_signal: null,
+  fuel_report: "fuel.spend",
+  fuel_economics: null,
+  fuel_ranking: null,
+  spend_trend: null,
+  ifta_report: "fuel.ifta",
+  declined_summary: null,
+  card_holds: "fuel.cards",
+  telematics_coverage: null,
+  import_activity: null,
+  driver_performance: null,
+  idling_summary: null,
+  idle_report: "safety.idling",
+  fleet_now: "dashboard",
+  loads_by_truck: "dispatch.loads",
+  fleet_roster: null,
+  driver_file_expirations: "fleet.drivers",
+  annual_inspections_due: "maintenance.repair-spend",
+  recruiting_counts: "recruitment.applicants",
+  maintenance_cost: "maintenance.units",
+  finance_report: "finance.fleet-report",
+  income_statement: "finance.fleet-report",
+};
+
+/** The pages behind one answer: each successful tool's page, once, in the order they were called. */
+export function assistantAnswerPages(tools: readonly { name: string; error?: string }[]): string[] {
+  const pages: string[] = [];
+  for (const t of tools) {
+    if (t.error) continue;
+    const page = (ASSISTANT_TOOL_PAGE as Record<string, string | null>)[t.name] ?? null;
+    if (page && !pages.includes(page)) pages.push(page);
+  }
+  return pages;
+}
+
+/**
+ * A link that carries an answer's FILTERS, not only its page (F21 R4b, D-AI6): "Open in Fuel costs"
+ * opens the nine trucks and the quarter that were asked. Built by the owner module's tool with its
+ * page's own link contract (e.g. `fuelCostsToQuery`), never assembled anywhere else.
+ */
+export interface AssistantAnswerLink {
+  surfaceKey: string;
+  query: Record<string, string>;
+}
+
+/**
+ * Lift a tool's `link` off its result, BEFORE anything is shown to the model (D-AI8): the link holds
+ * ids (vehicle ids for Fuel costs) that never belong in model-facing text, and the model has no use
+ * for a URL it must not write. Kept only when it points at the tool's OWN page (`ASSISTANT_TOOL_PAGE`)
+ * and every query value is a string — a tool cannot link somewhere its figure does not come from.
+ */
+export function splitAssistantLink(tool: string, result: unknown): { link: AssistantAnswerLink | null; result: unknown } {
+  if (!result || typeof result !== "object" || Array.isArray(result) || !("link" in result)) return { link: null, result };
+  const { link, ...rest } = result as { link?: unknown } & Record<string, unknown>;
+  const page = (ASSISTANT_TOOL_PAGE as Record<string, string | null>)[tool] ?? null;
+  const l = link as Partial<AssistantAnswerLink> | null | undefined;
+  const ok =
+    !!l &&
+    page !== null &&
+    l.surfaceKey === page &&
+    !!l.query &&
+    typeof l.query === "object" &&
+    Object.values(l.query).every((v) => typeof v === "string");
+  return { link: ok ? { surfaceKey: page!, query: { ...l!.query! } } : null, result: rest };
+}
+
+const RANK: Record<SectionAccess, number> = { none: 0, view: 1, manage: 2 };
+
+/**
+ * The modules any tool needs, so a caller knows which entitlements to resolve before asking
+ * `assistantToolsFor`. The API reads only these (cached, `org_module_enabled`), not the whole list.
+ */
+export const ASSISTANT_TOOL_MODULES: readonly ModuleKey[] = [
+  ...new Set(
+    Object.values(ASSISTANT_TOOL_ACCESS as Record<string, readonly ToolRequirement[]>)
+      .flat()
+      .flatMap((r) => ("module" in r ? [r.module] : [])),
+  ),
+];
+
+/**
+ * May this caller use this tool? Every requirement, against their resolved access and their
+ * carrier's modules. `modules` is REQUIRED, the way `canReachSurface` takes it: a caller that has not
+ * read the carrier's modules passes `null` and is refused every module-gated tool, rather than a
+ * forgotten argument quietly answering for a module nobody bought.
+ */
+export function callerMayUseTool(
+  role: UserRole | null | undefined,
+  claim: SectionClaim | null | undefined,
+  modules: ModuleSet | null,
+  tool: AssistantToolName,
+): boolean {
+  return (ASSISTANT_TOOL_ACCESS[tool] as readonly ToolRequirement[]).every((r) =>
+    "module" in r ? moduleEnabled(modules, r.module) : RANK[resolveSectionAccess(role, r.section, claim)] >= RANK[r.level],
+  );
+}
+
+/** The caller's tools, in catalogue order (stable, so the cached prompt prefix is stable per role). */
+export function assistantToolsFor(
+  role: UserRole | null | undefined,
+  claim: SectionClaim | null | undefined,
+  modules: ModuleSet | null,
+): AssistantToolName[] {
+  if (!role || role === "driver") return [];
+  return ASSISTANT_TOOL_NAMES.filter((t) => callerMayUseTool(role, claim, modules, t));
+}
+
+// ── NEVER-SHOWN FIELDS (PLAN D-AI7, owner 2026-11-10: "proceed as proposed and recommended") ──────
+/**
+ * Raw identifiers no report needs, removed from EVERY tool result for EVERY role, admin included.
+ * Not because the person may not see them — their pages decide that — but because whatever a tool
+ * returns is sent to the model provider, and "3 applicants are waiting on MVR" or "card ending 4417"
+ * answers the question without the value. Names, statuses, counts and last-4s stay.
+ *
+ * Matched on the KEY, case-insensitively, at any depth; a future tool that returns a record with one of
+ * these fields loses it here rather than relying on its author to remember. (`account_number` alone is
+ * deliberately absent: a general-ledger account number is a report's ordinary vocabulary.) The 2026-10-15 EFS audit
+ * (full card numbers in a public repository) is why card numbers are on the list.
+ */
+export const NEVER_EXPOSED_FIELDS = [
+  "ssn", "social_security_number", "tax_id", "ein",
+  "dob", "date_of_birth", "birth_date",
+  "license_number", "licence_number", "cdl_number", "dl_number",
+  "bank_account", "bank_account_number", "routing_number", "iban",
+  "card_number", "pan", "full_card_number", "pin", "card_pin",
+  "password", "api_key", "token", "secret",
+] as const;
+
+const NEVER = new Set<string>(NEVER_EXPOSED_FIELDS);
+
+/** A copy of `value` with every never-shown key removed, at any depth. Pure; the input is untouched. */
+export function stripNeverExposed<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((v) => stripNeverExposed(v)) as T;
+  if (value && typeof value === "object" && !(value instanceof Date)) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (!NEVER.has(k.toLowerCase())) out[k] = stripNeverExposed(v);
+    }
+    return out as T;
+  }
+  return value;
+}

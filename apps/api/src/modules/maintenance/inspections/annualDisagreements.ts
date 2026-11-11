@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { annualDisagreement, type AnnualDisagreementDto } from "@silvicom/shared";
 import { listAnnualInspectionExpiries } from "../../roster/index.js";
 import { readFleetPalAnnualDue } from "../../fleetpal/index.js";
+import { orgToday } from "../../org/index.js";
 
 /**
  * The units whose annual inspection FleetPal and our record disagree on (DISPATCH-BOARD-V2-PLAN Q-DBV2,
@@ -13,8 +14,9 @@ import { readFleetPalAnnualDue } from "../../fleetpal/index.js";
  * them so that the board's verdict would change.
  *
  * ── TODAY IS THE BOARD'S ─────────────────────────────────────────────────────────────────────────
- * The UTC day, as `readBoardRows` judges the annual chip: the point of the list is "would the board
- * say otherwise", so it must judge on the board's day. Both reads move to the carrier's day together.
+ * The carrier's calendar day (`orgToday`), as `readBoardRows` judges the annual chip: the point of the
+ * list is "would the board say otherwise", so it must judge on the board's day. Both were the UTC day
+ * until 2026-11-11 and moved to the carrier's day together, as this note asked (F21 carrier-day fix).
  *
  * Most pressing first: a unit whose verdicts differ, then the widest gap, then by unit number.
  * Errors carry the cause for the route to LOG, never to send.
@@ -24,7 +26,7 @@ export async function readAnnualDisagreements(
   orgId: string,
   now: Date = new Date(),
 ): Promise<AnnualDisagreementDto[] | { error: { message: string } }> {
-  const today = now.toISOString().slice(0, 10);
+  const today = await orgToday(admin, orgId, now);
   const [tractors, trailers] = await Promise.all([
     listAnnualInspectionExpiries(admin, orgId, "tractor"),
     listAnnualInspectionExpiries(admin, orgId, "trailer"),

@@ -58,7 +58,9 @@ export function isQualifiedOn(row: Pick<InspectorRow, "effective_from" | "effect
 export async function listInspectors(
   admin: SupabaseClient,
   orgId: string,
-  opts: { asOf: string; includeRetired?: boolean } = { asOf: new Date().toISOString().slice(0, 10) },
+  // No default: "qualified today" is the carrier's today, which the caller reads (`orgToday`); a UTC
+  // default here would be tomorrow on a Central evening.
+  opts: { asOf: string; includeRetired?: boolean },
 ): Promise<InspectorDto[] | ServiceError> {
   const { data, error } = await admin
     .from("maintenance_inspectors")

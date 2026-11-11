@@ -108,12 +108,21 @@ describe("AssistantLauncher", () => {
     w.unmount();
   });
 
-  it("never shows past a revoked Fuel section, whatever the grant says (D-SURF2)", async () => {
+  it("never shows to someone whose access allows no tool, whatever the grant says (F21 R5, D-AI1)", async () => {
+    session.role = "dispatcher";
+    session.sections = { fuel: "none", roster: "none", equipment: "none" };
+    session.surfaces = { "ask-ai": true };
+    const { w } = await mountAt("/");
+    expect(launcher()).toBeNull();
+    w.unmount();
+  });
+
+  it("still shows when the org took Fuel away but another area's tool remains (F21 R5)", async () => {
     session.role = "dispatcher";
     session.sections = { fuel: "none" };
     session.surfaces = { "ask-ai": true };
     const { w } = await mountAt("/");
-    expect(launcher()).toBeNull();
+    expect(launcher()).not.toBeNull();
     w.unmount();
   });
 
