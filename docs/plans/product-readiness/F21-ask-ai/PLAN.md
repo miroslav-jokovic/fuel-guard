@@ -875,3 +875,26 @@ audit row is the endpoint's own.
   11. **Unmarked rulings**: Q-AI1, Q-AI2, Q-AI3, Q-AI5, Q-AI6, Q-AI7, Q-AI8, Q-AI9 have no "Ruled" line,
       though Q-AI1/Q-AI2/Q-AI5 already behave as recommended in code. **Recommend: the owner rules them
       in one pass, and the next PR records each.**
+- 2026-11-11 — **R7: the first eval baseline, on production — 20 of 23.** Run on the owner's go with
+  `eval:assistant --org 86d6b3ea-… --record` from main at `fb70993`, `claude-haiku-5-5`, $0.0238 for
+  the set (the plan's ~$0.05 was double). It read Silvicom's production data with the service role and
+  wrote nothing. Recorded in `apps/api/src/modules/insights/eval/baseline.json`; the next run after a
+  prompt, tool-description or model change is compared with it.
+  - **Passed (20):** every R6b tool case (loads, repairs, card holds, DQ files, annual due, applicants,
+    income statement, idle vs before), both role refusals, the follow-up, and 9 of the 12 real
+    questions, including "cost per mile", "how many drivers is moving at moment" and the nine units' MPG.
+  - **Failed (3), all the same way — the model answered without calling a tool:**
+    `flagged-fills-drivers` ("Which drivers had the most flagged fills this month?", expected
+    `top_risk`), `top-stations` ("Top 5 fuel stations by spend in the last 30 days.", expected
+    `fuel_ranking`), `ifta-by-state` (the accountant's "IFTA by state last quarter", expected
+    `ifta_report`). An answer with no tool has no figures behind it, so each is either a refusal, a
+    clarifying question, or a number the model made up — the eval does not record the answer text, so
+    which one is not known.
+  - **Recommend:** the next eval PR records each answer's text in the verdict (it is in the trace
+    already, and the baseline is a local file), and re-runs only these three (`--only`, ~$0.002). Only
+    then change a tool description or the prompt: guessing the cause from "called nothing" would fix
+    the wrong thing as often as the right one.
+  - **`idling_summary` stays.** The handoff said to retire it if no case needs it; one does.
+    `worst-idlers-month` ("who are the worst idlers?") passed by calling it, and `idle_report` cannot
+    answer that question: its `by` is `total | week | month`, with no driver or vehicle ranking. It is
+    retired only when `idle_report` (the page's avoidable-idle verdict) ranks trucks and drivers.
