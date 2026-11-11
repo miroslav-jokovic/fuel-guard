@@ -804,6 +804,7 @@ audit row is the endpoint's own.
     the three pages reading a literal key, the Drivers link drawn for `expiring`, and the Fuel cards
     link drawn for both statuses.
   - Next: (e) the Fleet report's period into its URL, then its link.
+
 - 2026-11-11 — **R4b (e) part 1 built: the Fleet report's period is in its URL.**
   - `packages/shared/src/fleetReportLinkContract.ts`: `?from=YYYY-MM&to=YYYY-MM&grain=…`, inclusive
     months (`FLEET_REPORT_QUERY_KEYS`, `FLEET_REPORT_GRAINS`, `fleetReportToQuery`). The web's
