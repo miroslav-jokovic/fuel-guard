@@ -25,6 +25,7 @@
 import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
 import { TRUCK_PLACES_ZOOM, VECTOR_GLYPH_FONTS } from "@silvicom/shared";
 import { MAP_ICON_BY_KIND, TRUCK_ICON, mapIconId } from "./mapIcons";
+import { shieldImageExpression, shieldKindExpression, shieldTextColour } from "./mapShields";
 
 /** The `--map-*` tokens, without the prefix. A key here that has no token is a type error at the caller. */
 export const MAP_PALETTE_KEYS = [
@@ -41,6 +42,12 @@ export const MAP_PALETTE_KEYS = [
   "label",
   "label-halo",
   "water-label",
+  // D-DR36: route-number signs, in the US federal sign colours (mapShields.ts).
+  "shield-interstate",
+  "shield-interstate-band",
+  "shield-plain",
+  "shield-ink",
+  "shield-county-ink",
 ] as const;
 export type MapPaletteKey = (typeof MAP_PALETTE_KEYS)[number];
 export type MapPalette = Record<MapPaletteKey, string>;
@@ -238,7 +245,7 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
       paint: { "text-color": c.label, ...halo },
     } as LayerSpecification,
     {
-      // The interstate / US / state number, the first thing a dispatcher reads a position by.
+      // The interstate / US / state / county number, the first thing a dispatcher reads a position by.
       id: id("road-number"),
       type: "symbol",
       ...src,
@@ -259,8 +266,12 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
         "text-size": 11,
         "text-rotation-alignment": "viewport",
         "text-keep-upright": true,
+        // D-DR36: the number sits on its road's sign; an interstate's below the red band.
+        "icon-image": shieldImageExpression,
+        "icon-rotation-alignment": "viewport",
+        "text-offset": ["case", ["==", shieldKindExpression, "interstate"], ["literal", [0, 0.12]], ["literal", [0, 0]]],
       },
-      paint: { "text-color": c["label-halo"], "text-halo-color": c["highway-casing"], "text-halo-width": 3 },
+      paint: { "text-color": shieldTextColour(c) },
     } as LayerSpecification,
     {
       // Every place the ordinary tile names, with its name when there is room. Fuel stations first.

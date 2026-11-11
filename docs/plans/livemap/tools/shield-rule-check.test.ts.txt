@@ -1,0 +1,23 @@
+// D-DR36 out-of-tree check: evaluates the road-sign rule with maplibre's own expression engine (the
+// style-spec copy maplibre-gl 5.24 depends on, hoisted by node-linker=hoisted). Not run by CI: the web
+// app does not declare that package (see the plan's 2026-11-11 D-DR36 entry). To run it, copy it to
+// apps/web/src/composables/zz.test.ts, set $PWD paths to the repo root, run vitest with --silent=false, delete it.
+import { it, expect } from "vitest";
+// @ts-expect-error out-of-tree check: the copy maplibre-gl 5.24.0 itself depends on
+import { createExpression, validateStyleMin } from "<repo>/node_modules/@maplibre/maplibre-gl-style-spec/dist/index.mjs";
+import { shieldImageExpression, shieldKindExpression } from "<repo>/apps/web/src/composables/mapShields";
+import { MAP_PALETTE_KEYS, vectorBasemapLayers, truckPlacesSourceId } from "<repo>/apps/web/src/composables/vectorBasemap";
+it("evaluates", () => {
+  const kind = createExpression(shieldKindExpression).value;
+  const img = createExpression(shieldImageExpression).value;
+  const rows = [["US:I","35E"],["US","30"],["US:TX","121"],["US:OH","161"],["US:IN","912"],["US:IL","53"],["US:MI","10"],["US:OH:CR","1234"],["US:TX:CR","8"],["US:IL:CR","12345"],[undefined,"7"]];
+  for (const [network, shield_text] of rows) {
+    const f = { type: 1, properties: network ? { network, shield_text } : { shield_text } } as never;
+    console.log("EVAL", network, shield_text, "→", kind.evaluate({ zoom: 10 }, f), img.evaluate({ zoom: 10 }, f));
+  }
+  const c = Object.fromEntries(MAP_PALETTE_KEYS.map((k) => [k, "#123456"])) as never;
+  const style = { version: 8, glyphs: "https://x/{fontstack}/{range}.pbf", sources: { here: { type: "vector", tiles: ["https://x/{z}/{x}/{y}"], maxzoom: 17 }, [truckPlacesSourceId("here")]: { type: "vector", tiles: ["https://x/{z}/{x}/{y}"], minzoom: 13, maxzoom: 13 } }, layers: vectorBasemapLayers(c, "here", "here:") };
+  const errors = validateStyleMin(style);
+  console.log("STYLE errors", JSON.stringify(errors.map((e: { message: string }) => e.message)));
+  expect(errors).toHaveLength(0);
+});
