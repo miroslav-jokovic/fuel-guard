@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isoDateSchema, requiredDateOfBirthSchema } from "./rosterContract.js";
+import { ENDORSEMENT_CODES, endorsementCodeSchema, isoDateSchema, requiredDateOfBirthSchema } from "./rosterContract.js";
 // ⚠ The rules that span fields live in their own module since 2026-09-11 (the 500-line budget), and
 // they import this file's TYPE only — `import type` is erased, so there is no runtime cycle.
 import { APPLICATION_CROSS_FIELD_RULES, ruleIssuePath } from "./applicationRules.js";
@@ -245,6 +245,12 @@ export const driverApplicationObject = z
     cdl_number: z.string().min(1).max(60),
     cdl_state: z.string().min(2).max(10),
     cdl_class: z.string().max(10).nullish(),
+    /**
+     * The endorsements the applicant declared in Part 1 (F2b, P12), in the roster's letters. Filed from the
+     * intake row by `composeFiledApplication` — never typed in Part 2 — and printed with the class in the
+     * licence grid's `TYPE` column. Absent on a legacy link and on anything filed before F2b, which asked none.
+     */
+    cdl_endorsements: z.array(endorsementCodeSchema).max(ENDORSEMENT_CODES.length).nullish(),
     cdl_expires_at: isoDateSchema,
     // Defaulted rather than required: every application filed before A3 predates the field, and an
     // applicant holding only one licence — which §383.21 makes the normal case — answers this by

@@ -41,6 +41,7 @@ const FULL = {
   cdl_number: "PA334554",
   cdl_state: "PA",
   cdl_class: "A",
+  cdl_endorsements: ["H", "N"],
   cdl_expires_at: "2029-01-01",
   additional_licences: [{ issuing_authority: "ON", number: "X1", expires_at: "2027-01-01", kind: "CLP" }],
   experience: "Ten years over the road.",

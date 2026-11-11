@@ -45,6 +45,8 @@ const topLabels = (): Record<string, string> => {
   dot_random_12m: partOne.screening.random12m,
   medical_card_pending: partOne.photo.noMedicalCard,
   endorsements: partOne.licence.endorsements,
+  // F2b: the same question, where filing puts its answer (`composeFiledApplication`).
+  cdl_endorsements: partOne.licence.endorsements,
   donor_gender: partOne.screening.gender,
   first_name: identity.first_name,
   middle_name: identity.middle_name,

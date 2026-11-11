@@ -150,7 +150,8 @@ describe("the other answers", () => {
     holder.client = rec.client;
     await answer({ key: "endorsements", value: ["T", "H"] });
     expect(intakeCall(rec)).toMatchObject({ p_intake: {}, p_endorsements: ["T", "H"], p_licences: null });
-    expect(editRows(rec)[0]).toMatchObject({ path: ["endorsements"], before: ["H", "N"], after: ["H", "T"], note: null });
+    // F2b: recorded where the application files them, so 3.1 and the card name the same answer.
+    expect(editRows(rec)[0]).toMatchObject({ path: ["cdl_endorsements"], before: ["H", "N"], after: ["H", "T"], note: null });
   });
 
   it("records nothing for an answer that did not change — the driver has nothing to read", async () => {

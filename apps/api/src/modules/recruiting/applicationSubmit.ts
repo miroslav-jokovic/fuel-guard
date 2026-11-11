@@ -4,8 +4,6 @@ import {
   applicationLegacyFilingIssues,
   applicationV2FilingIssues,
   applicationWordingIsDraft,
-  composeFiledApplication,
-  todayInZone,
   type ApplicationFilingIssue,
   planApplicationIntake,
   type ApplicationSubmit,
@@ -35,8 +33,7 @@ import {
 } from "./applicationIntake.js";
 import { identityOnRecord } from "./applicantIdentity.js";
 import { uncopiedCallSummaries } from "./applicantEmployerCalls.js";
-import { partOneForFiling } from "./applicantIntake.js";
-import { carrierZone } from "./carrierClock.js";
+import { applicationAsFiled } from "./applicationAsFiled.js";
 import { packetTextVersion } from "./applicationPdf/packet/packetTextVersion.js";
 
 /**
@@ -311,11 +308,9 @@ export async function submitApplication(
   if (unanswered.length > 0) return applicationIncomplete(unanswered);
 
   let certified: ApplicationSubmit["application"] = stamped;
-  const partOne = await partOneForFiling(admin, invitation.org_id, invitation);
-  if (partOne) {
-    const asOf = todayInZone(now, await carrierZone(admin, invitation.org_id));
-    const composed = composeFiledApplication(stamped, partOne.intake, partOne.licences, asOf);
-    const issues = [...composed.issues, ...applicationV2FilingIssues(composed.application, asOf)];
+  const composed = await applicationAsFiled(admin, invitation, stamped, now);
+  if (composed.asOf) {
+    const issues = [...composed.issues, ...applicationV2FilingIssues(composed.application, composed.asOf)];
     if (issues.length > 0) return applicationIncomplete(issues);
     certified = composed.application;
   } else {

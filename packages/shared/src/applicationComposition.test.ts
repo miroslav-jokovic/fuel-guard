@@ -66,4 +66,15 @@ describe("composeFiledApplication", () => {
     const { application: out } = composeFiledApplication(application(), blank, [], AS_OF);
     expect(out).toEqual(application());
   });
+
+  it("files Part 1's endorsements in the roster's order, an empty list as an answer, and none before the screen asked (F2b)", () => {
+    const filed = (endorsements: string[] | null | undefined) =>
+      composeFiledApplication({ ...application(), cdl_endorsements: ["X"] }, intake({ endorsements }), [licence()], AS_OF)
+        .application.cdl_endorsements;
+    expect(filed(["T", "H", "N"])).toEqual(["H", "N", "T"]);
+    expect(filed([])).toEqual([]);
+    // Never answered in Part 1: what the application held stands (a legacy filing's absent key).
+    expect(filed(null)).toEqual(["X"]);
+    expect(filed(undefined)).toEqual(["X"]);
+  });
 });
