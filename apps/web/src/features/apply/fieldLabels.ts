@@ -70,6 +70,8 @@ const topLabels = (): Record<string, string> => {
   // The question since C3c2c1 — it is what the driver answers, and what a refusal names.
   licence_ever_denied: safety.deniedQuestion,
   licence_denial_detail: safety.denialDetail,
+  licence_suspended: safety.suspendedQuestion,
+  licence_suspension_detail: safety.suspensionDetail,
   prior_failed_pre_employment_test: safety.priorTestHeading,
   employers: fields.employers,
   declares_no_employment: employment.none,

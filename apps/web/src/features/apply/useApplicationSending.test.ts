@@ -36,7 +36,7 @@ const complete = (): ApplicationDraft => ({
   }],
   declares_no_accidents: true, declares_no_violations: true,
   // (b)(9) answered — `emptyDraft` leaves it unanswered since C3c2c1, so a complete draft says No itself.
-  licence_ever_denied: false,
+  licence_ever_denied: false, licence_suspended: false,
   certified: true, signed_name: "Susan Godfrey",
 });
 

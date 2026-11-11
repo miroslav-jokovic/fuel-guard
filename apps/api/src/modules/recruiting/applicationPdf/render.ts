@@ -198,6 +198,16 @@ function employerBlock(doc: PDFKit.PDFDocument, e: ApplicationEmployer): void {
   rule(doc);
 }
 
+/** (b)(9). F2c (P4): asked as two questions since; a filing from before has one combined answer. */
+function licenceHistory(doc: PDFKit.PDFDocument, a: ApplicationPdfInput["application"]): void {
+  if (typeof a.licence_suspended !== "boolean") {
+    body(doc, a.licence_ever_denied ? blank(a.licence_denial_detail) : "The applicant declared none.");
+    return;
+  }
+  field(doc, "Denied", a.licence_ever_denied ? blank(a.licence_denial_detail) || "Yes" : "No");
+  field(doc, "Suspended or revoked", a.licence_suspended ? blank(a.licence_suspension_detail) || "Yes" : "No");
+}
+
 export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<Buffer> {
   const a = input.application;
   // Buffered: the footer names the page number out of the total, which is not known until the last
@@ -319,7 +329,7 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
   }
 
   paragraph(doc, "§391.21(b)(9)", "Licence denied, revoked or suspended");
-  body(doc, a.licence_ever_denied ? blank(a.licence_denial_detail) : "The applicant declared none.");
+  licenceHistory(doc, a);
 
   paragraph(doc, "§391.21(b)(10) and (b)(11)", "Employment history");
   if ((a.employers ?? []).length === 0) {

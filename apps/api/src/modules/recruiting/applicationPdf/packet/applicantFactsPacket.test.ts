@@ -52,7 +52,7 @@ const FULL = {
   declares_no_accidents: false,
   violations: [{ occurred_on: "2023-02-01", offence: "Speeding", state: "IL", penalty: "Fine" }],
   declares_no_violations: false,
-  licence_ever_denied: true,
+  licence_ever_denied: true, licence_suspended: true, licence_suspension_detail: "Suspended 2019 for an unpaid ticket.",
   licence_denial_detail: "Suspended for unpaid ticket in 2019.",
   prior_failed_pre_employment_test: false,
   employers: [

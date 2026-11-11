@@ -155,7 +155,7 @@ describe("the answers", () => {
       experience: "Eight years, dry van and reefer.",
       accidents: [], declares_no_accidents: true,
       violations: [], declares_no_violations: true,
-      licence_ever_denied: false,
+      licence_ever_denied: false, licence_suspended: false,
       employers: [], declares_no_employment: true,
       questionnaire_version: "silvicom_driver@v2", questionnaire_answers: { position: "Driver" },
       certified: true, signed_name: "Susan Godfrey",
@@ -197,7 +197,7 @@ describe("questionnaire answers are projected nowhere", () => {
     experience: "Eight years, dry van and reefer.",
     accidents: [], declares_no_accidents: true,
     violations: [], declares_no_violations: true,
-    licence_ever_denied: false,
+    licence_ever_denied: false, licence_suspended: false,
     employers: [], declares_no_employment: true,
     questionnaire_version: "silvicom_driver@v1",
     questionnaire_answers: {

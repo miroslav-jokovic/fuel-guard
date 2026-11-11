@@ -40,7 +40,7 @@ const PAYLOAD = {
   accidents: [{ occurred_on: "2024-03-01", nature: "Rear-ended", fatalities: 0, injuries: 0, hazmat_spill: false }],
   declares_no_violations: false,
   violations: [{ occurred_on: "2023-05-01", offence: "Speeding", state: "IL", penalty: "Fine" }],
-  licence_ever_denied: false, licence_denial_detail: null, prior_failed_pre_employment_test: false,
+  licence_ever_denied: false, licence_suspended: false, licence_denial_detail: null, prior_failed_pre_employment_test: false,
   declares_no_employment: false,
   employers: [{ key: "k1", employer_name: "Old Carrier" }],
   employment_gaps: [],

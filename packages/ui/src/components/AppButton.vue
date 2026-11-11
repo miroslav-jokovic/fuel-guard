@@ -119,8 +119,14 @@ const SIZES: Record<NonNullable<typeof props.size>, string> = {
   media: "h-auto w-auto overflow-hidden p-0",
 };
 
-/** The link variant sits in running text, so it takes the surrounding size and no box at all. */
+/**
+ * The link variant sits in running text, so it takes the surrounding size and no box at all — and it
+ * WRAPS like the text around it. ⚠ It inherited the control shape's `whitespace-nowrap`, so a link
+ * longer than its line ran past the edge of its card: the applicant's "Before you can go on" list, whose
+ * links are whole questions, overflowed a 390 px phone (F2c browser pass, 2026-11-11).
+ */
 const LINK_SIZE = "h-auto gap-x-1 p-0 text-inherit";
+const LINK_SHAPE = "whitespace-normal text-left";
 
 /**
  * Inside a thumb-pressed layout (`touchTargets.ts`), each compact size becomes its 48 px counterpart:
@@ -154,7 +160,8 @@ const SHAPE = {
 
 const cls = computed(() => [
   "inline-flex items-center transition-colors",
-  props.size === "row" ? SHAPE.row : props.size === "shutter" ? SHAPE.round : SHAPE.control,
+  props.size === "row" ? SHAPE.row : props.size === "shutter" ? SHAPE.round
+    : props.variant === "link" ? `justify-center rounded-control font-semibold ${LINK_SHAPE}` : SHAPE.control,
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring",
   "disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60",
   VARIANTS[props.variant],

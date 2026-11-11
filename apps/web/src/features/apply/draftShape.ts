@@ -116,6 +116,9 @@ export interface ApplicationDraft {
    */
   licence_ever_denied: boolean | null;
   licence_denial_detail: string;
+  /** F2c (P4): the carrier's question B, `null` until answered. */
+  licence_suspended: boolean | null;
+  licence_suspension_detail: string;
   /**
    * §40.25(j)'s two-year question (P8), on a legacy link — a v2 link asks it in Part 1. `null` until
    * answered (F1 part 2): it was `false` behind an unticked box, so a driver who skipped the box had said
@@ -206,6 +209,7 @@ export const emptyDraft = (): ApplicationDraft => ({
   accidents: [], declares_no_accidents: false,
   violations: [], declares_no_violations: false,
   licence_ever_denied: null, licence_denial_detail: "",
+  licence_suspended: null, licence_suspension_detail: "",
   prior_failed_pre_employment_test: null,
   employers: [emptyEmployer()], declares_no_employment: false,
   employment_gaps: [],

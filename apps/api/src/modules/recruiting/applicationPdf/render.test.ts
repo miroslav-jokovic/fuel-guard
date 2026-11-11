@@ -24,7 +24,7 @@ const APPLICATION = {
   accidents: [], declares_no_accidents: true,
   violations: [{ occurred_on: "2025-02-01", offence: "Speeding", state: "IL", penalty: "$120" }],
   declares_no_violations: false,
-  licence_ever_denied: false, licence_denial_detail: null,
+  licence_ever_denied: false, licence_suspended: false, licence_denial_detail: null,
   employers: [{
     employer_name: "Old Carrier", usdot_number: "123456", address_line1: "12 Depot Rd", city: "Joliet",
     state: "IL", phone: "555-0100", email: null, position_held: "Driver",
@@ -326,7 +326,7 @@ describe("the draft preview", () => {
     employers: [], declares_no_employment: false,
     accidents: [], declares_no_accidents: false,
     violations: [], declares_no_violations: false,
-    licence_ever_denied: false, licence_denial_detail: "",
+    licence_ever_denied: false, licence_suspended: false, licence_denial_detail: "",
     questionnaire: { proof_of_age: true },
   } as unknown as ApplicationPdfInput["application"];
 

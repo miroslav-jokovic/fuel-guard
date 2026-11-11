@@ -270,6 +270,14 @@ export function buildReviewSummary({ draft, questionnaire, carrier, captures }: 
             : draft.licence_ever_denied ? text(draft.licence_denial_detail) : "No",
           muted: !draft.licence_ever_denied,
         },
+        {
+          // F2c (P4): the carrier's question B, apart from A.
+          label: c.safety.everSuspended,
+          value: draft.licence_suspended === null
+            ? copy.empty
+            : draft.licence_suspended ? text(draft.licence_suspension_detail) : "No",
+          muted: !draft.licence_suspended,
+        },
         // §40.25(j) (P8). It was on no summary at all, and it is the single most consequential
         // answer on the form for what the carrier has to do next.
         {

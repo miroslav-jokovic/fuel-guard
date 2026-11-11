@@ -4,6 +4,7 @@ import {
   APPLICATION_FILLING_SECTIONS,
   APPLICATION_SECTION_KEYS,
   applicationV2FilingIssues,
+  applicationPaperFilingIssues,
   carrierAnswerIssues,
   applicationLegacyFilingIssues,
   unansweredEmployerQuestions,
@@ -90,9 +91,12 @@ function toSectionIssue(
  * form's own path, so its message lands on the box that answers it.
  */
 export function v2FilingIssues(draft: ApplicationDraft, asOf: string | null): SectionIssue[] {
-  if (!asOf) return [];
-  const candidate = toApplication(draft) as Parameters<typeof applicationV2FilingIssues>[0];
-  return applicationV2FilingIssues(candidate, asOf).map((issue) => {
+  const candidate = toApplication(draft) as Parameters<typeof applicationV2FilingIssues>[0]
+    & Parameters<typeof applicationPaperFilingIssues>[0];
+  // F2c: what the carrier's paper asks of EVERY filing — question B, each conviction's state and
+  // penalty — is asked on a legacy link too; the v2 rules only on a v2 one.
+  const found = [...applicationPaperFilingIssues(candidate), ...(asOf ? applicationV2FilingIssues(candidate, asOf) : [])];
+  return found.map((issue) => {
     const path = issue.path.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : p)) as FieldPath;
     return toSectionIssue({ code: "custom", message: issue.message, path }, sectionOwningPath(path), candidate);
   });

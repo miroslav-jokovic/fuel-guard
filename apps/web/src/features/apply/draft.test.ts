@@ -175,6 +175,21 @@ describe("what the form sends", () => {
     expect(parse(draft).success).toBe(true);
   });
 
+  it("refuses a suspension or revocation with no explanation (F2c)", () => {
+    const draft = complete();
+    draft.licence_suspended = true;
+    expect(parse(draft).error?.issues.map((i) => i.path.join("."))).toEqual(["licence_suspension_detail"]);
+    draft.licence_suspension_detail = "Suspended 2019 for an unpaid ticket";
+    expect(parse(draft).success).toBe(true);
+  });
+
+  it("starts question B unanswered and keeps a saved answer, never flooring a blank at No (F2c)", () => {
+    expect(emptyDraft().licence_suspended).toBeNull();
+    expect(fromDraftPayload({ licence_suspended: true }).licence_suspended).toBe(true);
+    expect(fromDraftPayload({ licence_suspended: false }).licence_suspended).toBe(false);
+    expect(fromDraftPayload({}).licence_suspended).toBeNull();
+  });
+
   it("starts §40.25(j) unanswered and keeps a saved answer, never flooring a blank at No (F1 part 2)", () => {
     expect(emptyDraft().prior_failed_pre_employment_test).toBeNull();
     expect(fromDraftPayload({ prior_failed_pre_employment_test: true }).prior_failed_pre_employment_test).toBe(true);

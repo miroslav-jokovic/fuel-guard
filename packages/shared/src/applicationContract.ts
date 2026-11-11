@@ -269,9 +269,23 @@ export const driverApplicationObject = z
     declares_no_accidents: z.boolean(),
     violations: z.array(applicationViolationSchema),
     declares_no_violations: z.boolean(),
-    /** (b)(9) — has a licence, permit or privilege ever been denied, revoked or suspended? */
+    /**
+     * (b)(9), the carrier's question A — has a licence, permit or privilege ever been DENIED? Until F2c it
+     * asked "denied, revoked or suspended" in one, while the carrier's page 2 asks A and B apart, so a
+     * suspension printed "denied: Yes" (audit P4). The key keeps its name: it is A's answer on every
+     * application filed since, and on one filed before it is the combined answer, which the packet reads
+     * into both lines (`packetFieldValues.ts`).
+     */
     licence_ever_denied: z.boolean(),
     licence_denial_detail: z.string().max(1000).nullish(),
+    /**
+     * (b)(9), the carrier's question B — has a licence, permit or privilege ever been SUSPENDED OR REVOKED
+     * (F2c, P4)? Nullish for the reason `prior_failed_pre_employment_test` is: every application filed
+     * before F2c has no answer and must go on parsing. A new filing must answer it
+     * (`applicationPaperFilingIssues`).
+     */
+    licence_suspended: z.boolean().nullish(),
+    licence_suspension_detail: z.string().max(1000).nullish(),
     /**
      * §40.25(j) — the question the carrier is REQUIRED to put to the applicant, and the one the
      * application system shipped without (P8, found while building the packet renderer).

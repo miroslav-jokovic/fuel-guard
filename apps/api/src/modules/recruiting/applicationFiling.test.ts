@@ -67,7 +67,7 @@ const APPLICATION = (over: Record<string, unknown> = {}) => ({
     cdl_number: "TYPED1", cdl_state: "WI", cdl_expires_at: "2027-01-01",
     additional_licences: [], experience: "Eight years, dry van.",
     accidents: [], declares_no_accidents: true, violations: [], declares_no_violations: true,
-    licence_ever_denied: false, prior_failed_pre_employment_test: null,
+    licence_ever_denied: false, licence_suspended: false, prior_failed_pre_employment_test: null,
     employers: [EMPLOYER], declares_no_employment: false, employment_gaps: [],
     // §9 P8 / §11: a certified document answers the carrier's required questions (v3's seven).
     questionnaire_version: "silvicom_driver@v3",
@@ -205,6 +205,26 @@ describe("a v2 invitation files the composed application (D-AW3, AW1)", () => {
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION({ prior_failed_pre_employment_test: null }), CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("application_incomplete");
     expect(isIntakeError(result) && result.message).toContain("tested positive or refused a test");
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  /**
+   * F2c: the carrier's page 2 asks question B (suspended or revoked) apart from A, and gives every
+   * conviction a state and a penalty. A filing without them is refused in words, on either kind of link.
+   */
+  it("refuses a filing that never answered question B, or a conviction with no state or penalty, and files nothing", async () => {
+    publish();
+    const rec = seed();
+    const noB = await submitApplication(
+      rec.client, env(), TOKEN, APPLICATION({ prior_failed_pre_employment_test: false, licence_suspended: null }), CTX, NOW,
+    );
+    expect(isIntakeError(noB) && noB.code).toBe("application_incomplete");
+    expect(isIntakeError(noB) && noB.message).toContain("suspended or revoked");
+    const noPenalty = await submitApplication(rec.client, env(), TOKEN, APPLICATION({
+      prior_failed_pre_employment_test: false, declares_no_violations: false,
+      violations: [{ occurred_on: "2025-02-01", offence: "Speeding", state: "IL", penalty: null }],
+    }), CTX, NOW);
+    expect(isIntakeError(noPenalty) && noPenalty.message).toContain("penalty");
     expect(rec.rpcs()).toHaveLength(0);
   });
 });

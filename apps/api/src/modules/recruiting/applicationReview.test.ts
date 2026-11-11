@@ -78,7 +78,7 @@ const PAYLOAD = {
   declares_no_accidents: true,
   violations: [],
   declares_no_violations: true,
-  licence_ever_denied: false,
+  licence_ever_denied: false, licence_suspended: false,
   licence_denial_detail: "",
   prior_failed_pre_employment_test: false,
   additional_licences: [],

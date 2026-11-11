@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { applicationLegacyFilingIssues, applicationV2FilingIssues, PRIOR_TEST_UNANSWERED } from "./applicationFilingRules.js";
+import {
+  applicationLegacyFilingIssues,
+  applicationPaperFilingIssues,
+  applicationV2FilingIssues,
+  PRIOR_TEST_UNANSWERED,
+  SUSPENSION_UNANSWERED,
+} from "./applicationFilingRules.js";
 import { applicationEmployerSchema, driverApplicationObject } from "./applicationContract.js";
 import type { ApplicationEmployer } from "./applicationEmployerContract.js";
 
@@ -136,5 +142,31 @@ describe("a legacy link's filing (F1 part 2)", () => {
     expect(applicationLegacyFilingIssues({})).toHaveLength(1);
     expect(applicationLegacyFilingIssues({ prior_failed_pre_employment_test: false })).toEqual([]);
     expect(applicationLegacyFilingIssues({ prior_failed_pre_employment_test: true })).toEqual([]);
+  });
+});
+
+describe("what the carrier's paper asks of every new filing (F2c)", () => {
+  const conviction = { occurred_on: "2025-02-01", offence: "Speeding", state: "IL", penalty: "Fine" };
+  it("asks question B until it is answered, either way", () => {
+    expect(applicationPaperFilingIssues({ violations: [], declares_no_violations: true })).toEqual([
+      { path: "licence_suspended", message: SUSPENSION_UNANSWERED },
+    ]);
+    for (const licence_suspended of [true, false]) {
+      expect(applicationPaperFilingIssues({ licence_suspended, violations: [], declares_no_violations: true })).toEqual([]);
+    }
+  });
+
+  it("asks each conviction's state and penalty, on its own row", () => {
+    const issues = applicationPaperFilingIssues({
+      licence_suspended: false, declares_no_violations: false,
+      violations: [conviction, { ...conviction, state: " ", penalty: null }],
+    });
+    expect(issues.map((i) => i.path)).toEqual(["violations.1.state", "violations.1.penalty"]);
+  });
+
+  it("asks nothing of the rows a declared-none leaves behind", () => {
+    expect(applicationPaperFilingIssues({
+      licence_suspended: false, declares_no_violations: true, violations: [{ ...conviction, state: null, penalty: null }],
+    })).toEqual([]);
   });
 });

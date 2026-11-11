@@ -74,7 +74,7 @@ const COMPLETE_DRAFT = {
   experience: "Eight years, dry van and reefer.", equipment_experience: [],
   accidents: [], declares_no_accidents: true,
   violations: [], declares_no_violations: true,
-  licence_ever_denied: false, licence_denial_detail: "",
+  licence_ever_denied: false, licence_suspended: false, licence_denial_detail: "",
   // §40.25(j) answered: a legacy filing is refused without it since F1 part 2.
   prior_failed_pre_employment_test: false,
   employers: [{

@@ -170,20 +170,34 @@ describe("what does not fit comes back rather than disappearing", () => {
 });
 
 describe("the two licence-history questions", () => {
-  it("marks Yes on both when the licence was ever denied, and explains under A", () => {
-    const r = fill({ licence_ever_denied: true, licence_denial_detail: "Denied 2011, reinstated 2012" });
-    expect(textAt(r, "p02.denied.yes")).toBe("X");
-    expect(textAt(r, "p02.revoked.yes")).toBe("X");
-    expect(textAt(r, "p02.denied.no")).toBeUndefined();
-    expect(textAt(r, "p02.denied.explain")).toBe("Denied 2011, reinstated 2012");
-  });
-
-  it("marks No on both when it was not, and explains nothing", () => {
-    const r = fill({ licence_ever_denied: false });
+  it("answers A and B each from its own question, and explains each under its own line (F2c, P4)", () => {
+    const r = fill({
+      licence_ever_denied: false, licence_suspended: true, licence_suspension_detail: "Suspended 2019, unpaid ticket",
+    });
     expect(textAt(r, "p02.denied.no")).toBe("X");
-    expect(textAt(r, "p02.revoked.no")).toBe("X");
     expect(textAt(r, "p02.denied.yes")).toBeUndefined();
     expect(textAt(r, "p02.denied.explain")).toBeUndefined();
+    expect(textAt(r, "p02.revoked.yes")).toBe("X");
+    expect(textAt(r, "p02.revoked.no")).toBeUndefined();
+    expect(textAt(r, "p02.revoked.explain")).toBe("Suspended 2019, unpaid ticket");
+  });
+
+  it("prints a denial under A alone when nothing was suspended", () => {
+    const r = fill({ licence_ever_denied: true, licence_denial_detail: "Denied 2011", licence_suspended: false });
+    expect(textAt(r, "p02.denied.yes")).toBe("X");
+    expect(textAt(r, "p02.denied.explain")).toBe("Denied 2011");
+    expect(textAt(r, "p02.revoked.no")).toBe("X");
+    expect(textAt(r, "p02.revoked.explain")).toBeUndefined();
+  });
+
+  it("re-renders an application filed before F2c — one combined answer — on both lines, as it was signed", () => {
+    const yes = fill({ licence_ever_denied: true, licence_denial_detail: "Denied 2011, reinstated 2012" });
+    expect(textAt(yes, "p02.denied.yes")).toBe("X");
+    expect(textAt(yes, "p02.revoked.yes")).toBe("X");
+    expect(textAt(yes, "p02.denied.explain")).toBe("Denied 2011, reinstated 2012");
+    const no = fill({ licence_ever_denied: false });
+    expect(textAt(no, "p02.denied.no")).toBe("X");
+    expect(textAt(no, "p02.revoked.no")).toBe("X");
   });
 });
 

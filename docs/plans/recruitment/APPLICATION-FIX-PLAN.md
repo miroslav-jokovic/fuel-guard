@@ -455,3 +455,16 @@ A gate fails on a literal string in an `apply/` template.
   - **Found and fixed:** the office's preview drew the RAW draft. On a v2 link the draft is what the applicant's tab last saved. So a licence, phone, class or §40.25(j) answer the office corrected in Part 1 afterwards never reached the preview, and neither did any endorsement. The preview now composes exactly as filing does (`applicationAsFiled.ts`, shared by both), with the record's identity laid over it. This is a D-AM7 mismatch the audit had not listed.
   - **Not done:** an office correction to the endorsements made BEFORE this merge has its edit row at `["endorsements"]`. Driver screen 3.1 still names it (the label is kept), but the card does not mark the row corrected. This affects only applications still open across the merge.
   - **Next:** F2c, with three form changes: P4 (denied vs suspended or revoked), P3 (a type for each licence) and P10 (each conviction's place, penalty and bond).
+- 2026-11-11: **F2c part 1: the carrier's page 2 questions, as the paper asks them** (`claude/application-f2c-licence-questions`). F2b merged as #2258.
+  - **P4:** "denied" (A) and "suspended or revoked" (B) are asked apart, in the paper's own words, each with its own "If yes, explain".
+    - A keeps the key `licence_ever_denied`. B is `licence_suspended` and `licence_suspension_detail`.
+    - The packet marks each line from its own answer.
+    - **An application filed before F2c** answered ONE combined question. It still prints that answer on both lines, as it was signed: `driver_applications` is append-only and must re-render (§390.32(d)). This is a read of old records, not a workaround.
+  - **P10, ruled by the paper (owner 2026-11-11):** the conviction grid's columns are DATE CONVICTED, VIOLATION, STATE OF VIOLATION and PENALTY. So the state and the penalty are now required on every conviction.
+    - The plan's earlier "city + state" and separate "bond forfeiture" are dropped: the paper asks neither. Its heading already says "convictions and forfeitures", and the form's question says the same.
+  - **The rules:** both are `applicationPaperFilingIssues`. They run on every new filing, v2 and legacy alike, and on the driver's screen. They are not in the contract, because filed applications without them must go on parsing.
+  - **Found in the browser pass:** `AppButton`'s link variant inherited the control's `whitespace-nowrap`. So the "Before you can go on" list, whose links are whole questions, ran past the card's edge on a 390 px phone. Link buttons wrap now, in every app.
+  - **Not done, and why:**
+    - **The new refusals read in English on the Spanish page,** as every existing filing rule does. That is U7's "shared code returns a message key" (F4), which fixes them all together.
+    - **The new questions say "license"** (Q-AM6, US) while the rest of the screen still says "licence". F4's U9 renames the rest.
+  - **Next: F2c part 2, P3, a type for each licence.** Part 1's other-licences screen asks it, and `application_intake_licences` needs a `kind` column. That is a migration, so it merges first and its reader in a second merge.
