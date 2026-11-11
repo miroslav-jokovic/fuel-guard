@@ -80,7 +80,7 @@ export const AREAS = [
     api: ["recruiting", "ads", "evidence", "psp", "roster", "hazmat", "performance", "document-reading", "inspections", "medstop"],
     web: ["apply", "recruitment", "ads", "compliance", "drivers", "roster", "hazmat", "legal", "drugAlcohol", "roadside"],
     packages: ["ads-golden", "hazmat-data", "hazmat-engine", "hazmat-golden", "hazmat-placards", "sms-engine"],
-    plans: ["recruitment", "roster", "safety-dqf", "hazmat-consolidation", "document-reading"] },
+    plans: ["recruitment", "roster", "notes", "safety-dqf", "hazmat-consolidation", "document-reading"] },
   { id: "dispatch", title: "Dispatch and live map",
     api: ["loads", "livemap", "samsara", "messaging"], web: ["dispatch", "livemap", "messages", "chat"],
     // "messaging" is the office chat plan (OFFICE-CHAT-PLAN.md): it extends the `messaging` api module

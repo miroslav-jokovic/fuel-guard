@@ -387,8 +387,12 @@ const PRICE = ASSISTANT_MODEL_PRICES[AI_MODELS.assistant];
  * Answer a natural-language question over the org's data via a bounded tool-use loop.
  *
  * ── THE REQUEST (F21 R2, Q-AI1: Haiku 5.5) ──────────────────────────────────────────────────────────
- *  · effort `low`: the work is choosing a tool and reading its numbers back, not reasoning; Haiku 5.5
- *    thinks by default and its default effort is `medium`. Measured per answer in `ai_assistant_usage`.
+ *  · effort `medium` (Haiku 5.5's default). R2 chose `low` on the theory that the work is choosing a tool
+ *    and reading its numbers back. The first production eval (2026-11-11, PLAN §6) measured otherwise:
+ *    at `low`, "Top 5 fuel stations by spend" and "IFTA by state last quarter" were refused as "none of
+ *    my tools can" in 3 of 3 runs each, with `fuel_ranking` and `ifta_report` in the request; at
+ *    `medium` both called the right tool in 3 of 3. It cost about 2.7× per answer on those questions
+ *    ($0.0014 against $0.0005). Measured per answer in `ai_assistant_usage`.
  *  · CACHED PREFIX: tools, then the fixed system prompt, carry the breakpoint; today's date is a second
  *    system block AFTER it, so a new day does not rewrite the cached prefix. The top-level
  *    `cache_control` also marks the last block, so round two re-reads round one instead of paying it
@@ -439,7 +443,7 @@ export async function askData(
       resp = await client.messages.create({
         model: AI_MODELS.assistant,
         max_tokens: MAX_TOKENS,
-        output_config: { effort: "low" },
+        output_config: { effort: "medium" },
         cache_control: { type: "ephemeral" },
         system,
         tools: toolsFor(allowed),

@@ -57,8 +57,9 @@ export const TOOLS: Anthropic.Tool[] = [
     description:
       "The Fuel Costs report for named trucks and/or calendar periods: fills, gallons, spend, price per gallon, " +
       "fleet MPG measured from odometers over exactly those trucks, miles, FUEL cost per mile (fuel only, not total " +
-      "operating cost), reefer fuel, and the previous period of equal length for comparison. Use this for any question " +
-      "naming unit numbers, a calendar month/quarter/year or exact dates, FUEL cost per mile, or 'compared with before'. " +
+      "operating cost), reefer fuel, and the previous period of equal length for comparison. Use this for fuel spend, " +
+      "gallons or price per gallon (the fuel cards' own figures), and for any fuel question naming unit numbers, a " +
+      "calendar month/quarter/year or exact dates, FUEL cost per mile, or 'compared with before'. " +
       "All-in cost per mile (every expense, not only fuel) is finance_report's, when this person has that tool. " +
       "Figures equal the Fuel Costs page. by=truck gives one row per named unit (default when units are given); " +
       "by=month splits the range by calendar month; by=total gives the combined figure only. If a unit is not found or " +
@@ -297,7 +298,8 @@ export const TOOLS: Anthropic.Tool[] = [
       "The Fleet report from the McLeod ledger, for whole calendar months: ALL-IN revenue, expenses and net, and each " +
       "per measured mile (cost_per_mile here is total operating cost per mile, not fuel only), split into company trucks " +
       "and owner-operators, plus empty miles and expense families (driver pay, fuel, leases, insurance…). Use this for " +
-      "'cost per mile', profit, margin, revenue or 'what did a mile cost us'. by=truck gives loads, miles and revenue per " +
+      "'cost per mile', profit, margin, revenue or 'what did a mile cost us'; NOT for fuel spend, gallons or fuel price, " +
+      "which are fuel_report's (the ledger's fuel family is the accounting view, posted late). by=truck gives loads, miles and revenue per " +
       "truck (name units, or get the top trucks by revenue). There is NO per-truck cost or profit: say so, never estimate one. " +
       "by=contractor gives each owner-operator's revenue, pay and margin; by=month splits the period by month. " +
       "ALWAYS state the provenance: which months are in the figures; any month not swept or left out, and why; any month " +

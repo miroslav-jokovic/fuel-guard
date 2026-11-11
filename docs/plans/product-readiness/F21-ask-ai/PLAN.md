@@ -939,6 +939,42 @@ audit row is the endpoint's own.
        the feature is ready for the live test (Q-AI8), not before.
   - **Asked, not ruled:** whether "download the report" means more than the CSV per table, e.g. a PDF
     of the answer itself (not built; nothing in the plan proposes it yet).
+- 2026-11-11 — **The baseline's three failures, read and measured: effort `low` refuses tools it has.**
+  With `--answers` (#2261), on the owner's go, production data, nothing written:
+  - **What the failures were:** all three were honest refusals ("none of my tools break down … by
+    station / by jurisdiction / flagged fills by driver"), each offering what it could answer instead.
+    No made-up figures. Yet `top_risk`, `fuel_ranking` and `ifta_report` were in the request (checked:
+    25 tools for the admin, 17 for the accountant), their descriptions name the questions, and nothing
+    narrows the list.
+  - **Experiment, 3 runs each:** at `low`, 0/3 in every run. At `medium`, `top-stations` and
+    `ifta-by-state` passed 3 of 3; `flagged-fills-drivers` called `odometer_accuracy` instead, 3 of 3,
+    and said so ("the closest measure I have"). Cost on these questions: $0.0005 → $0.0014 an answer.
+  - **`top_risk`'s description sharpened** (what "flagged" means: high/critical anomaly fills, per
+    driver or vehicle): 0 of 3, the same `odometer_accuracy` answer saying it "can't see a flagged
+    fills count by driver". Reverted, because a change to what the model reads with no measured
+    effect would only blur the next baseline.
+  - **Built:** effort `medium` (`askData.ts`), the R2 choice of `low` reversed on this evidence.
+  - **Open:** `flagged-fills-drivers`. The model refuses a tool whose description matches; the next
+    step is to read its thinking for that one question, not to guess at wording.
+  - **Shipped on the owner's word** ("set this on medium as default"), before the full set was re-run.
+    So `baseline.json` is still the `low` run, and whether any of its 20 passes regressed at `medium`
+    is not yet measured. Next: re-run and re-record the full set at `medium` (~$0.06, owner's go).
+  - **Full set re-run at `medium` (owner's go, 2026-11-11): 21 of 23**, then **22 of 23** after one routing fix,
+    re-recorded in `baseline.json` ($0.029). `follow-up-month-before` ("and the month before?" after a fuel
+    spend answer) had moved to `finance_report` in 3 of 3 runs: `finance_report`'s description claimed
+    "fuel" among its families, and `fuel_report`'s did not say "fuel spend". Both descriptions now route
+    fuel spend, gallons and price to `fuel_report` (3 of 3 after; `cost-per-mile` and
+    `spend-and-mpg-last-month` still pass).
+  - **Why `flagged-fills-drivers` still fails — found, not fixed.** With the model's turn printed, the
+    response holds a `server_tool_use` of `tool_search_tool_regex` (pattern `fill|fuel|flag`) and a
+    result of 5 tools — `card_holds`, `count_signal`, `finance_report`, `fleet_summary`,
+    `fuel_economics` — without `top_risk`, then the refusal. Our request declares no tool search and no
+    `defer_loading` (checked: no mention in `apps/api/src`, `packages/shared/src`, or `lib/anthropic.ts`),
+    and the tool-search docs describe it only as opt-in; 5 is that tool's documented default result cap.
+    So the API searched our 25 tools on its own and the cap cut `top_risk` off. This likely explains
+    the `low`-effort refusals too (the model searched once and stopped). **Not verified:** why the API
+    searches undeclared, and whether a request setting can keep every tool loaded. Next: ask Anthropic
+    support with this trace (no carrier data in it), rather than renaming tools to win a 5-result cut.
 - 2026-11-11 — **R4b for the four tools linked bare: what each page can hold, and the Idling link.**
   Checked each page's URL state against what its tool answers:
   - **Idling** (`idle_report` → `/idling`): the page already keeps `from`/`to` as calendar days, the days
