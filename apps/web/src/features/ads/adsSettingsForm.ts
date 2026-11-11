@@ -221,7 +221,7 @@ const FIELD_LABELS: Record<string, string> = {
   "budgets.max_regenerations": "Tries per ad must be a whole number from 0 to 5.",
   "alerts.recipients": "One alert can go to at most 50 people.",
   "alerts.uncontacted_lead_minutes": "The minutes must be a whole number from 5 to 1,440 (a day).",
-  "lead_quality.min_attempted": "The number of called leads must be a whole number from 1 to 1,000.",
+  "lead_quality.min_attempted": "The number of leads must be a whole number from 1 to 1,000.",
   "lead_quality.wrong_number_pct": "The wrong-number share must be a whole percent from 1 to 100.",
   "lead_quality.not_qualified_pct": "The not-qualified share must be a whole percent from 1 to 100.",
 };

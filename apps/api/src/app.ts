@@ -7,6 +7,7 @@ import rateLimit from "express-rate-limit";
 import * as Sentry from "@sentry/node";
 import { APP_NAME, type UserRole, type SurfaceClaim } from "@silvicom/shared";
 import type { Env } from "./env.js";
+import { assistantLimiter } from "./middleware/apiRateLimit.js";
 import { securityMiddleware, mountBodyParsers, mountCompression, mountGeneralRateLimits, mountEfsSoapIntegrationGuard, refuseEfsRoute } from "./appHttp.js";
 import { setAppLocals } from "./lib/appLocals.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
@@ -367,7 +368,7 @@ export function createApp(env: Env): Express {
   app.use("/api/integrations", dispatchLinksRouter());
   app.use("/api/integrations", strictLimiter);
   mountFuelCardPrefix(app, env, fuelCardVendorLimiter);
-  app.use("/api/ai", strictLimiter);
+  app.use("/api/ai", assistantLimiter()); // per person, not per office (apiRateLimit.ts)
   app.use("/api/public", calcLimiter); // M7 public calculator — unauthenticated, tighter limit
 
   // Liveness for Railway AND a one-glance answer to "is this deploy whole?". Always 200 — a schema

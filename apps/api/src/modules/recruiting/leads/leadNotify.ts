@@ -52,8 +52,19 @@ export async function ringLead(admin: SupabaseClient, orgId: string, leadId: str
  * particular calls. Without one, the carrier's list or the recruitment managers, as before. The escalation
  * (`lead_uncontacted`) still goes to the whole list: it is the second chance when the owner did not call.
  */
-export const ringNewLead = (admin: SupabaseClient, orgId: string, leadId: string, configured: ConfiguredRecipients, owner: string | null = null): Promise<void> =>
-  ringLead(admin, orgId, leadId, owner
+export const ringNewLead = (admin: SupabaseClient, orgId: string, leadId: string, configured: ConfiguredRecipients, owner: string | null = null, appliedBefore = false): Promise<void> =>
+  ringLead(admin, orgId, leadId, appliedBefore ? APPLIED_AGAIN : owner
     ? { category: "lead_new", title: "New lead for your opening", severity: "info", body: "A new lead for an opening you own is waiting for your first call." }
     : { category: "lead_new", title: "New ad lead", severity: "info", body: "A new lead is in the queue, waiting for a first contact." },
   owner ? async () => [owner] : configured);
+
+/**
+ * LR2 (Q-AD74 (a)): the same person answered an ad again (`ingest_lead`'s matches — phone or e-mail, never a
+ * name). Still one `lead_new`, to the same people, because a second answer is interest worth one call; the
+ * words say it is not a stranger, so the recruiter opens the earlier lead (the queue lists it beside this one,
+ * `also`) before dialling. It names no person: the lock-screen rule above holds.
+ */
+const APPLIED_AGAIN: LeadAlert = {
+  category: "lead_new", title: "A past lead answered an ad again", severity: "info",
+  body: "Somebody who answered before has answered again. Their earlier lead is listed beside this one in the queue.",
+};

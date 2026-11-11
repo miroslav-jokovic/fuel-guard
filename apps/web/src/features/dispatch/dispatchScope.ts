@@ -1,5 +1,5 @@
 import { computed, type Ref } from "vue";
-import { dispatcherLabel, inMyScope, type DispatchBoardResponse, type DispatchScope } from "@silvicom/shared";
+import { dispatcherLabel, inMyScope, LOADS_QUERY_KEYS, type DispatchBoardResponse, type DispatchScope } from "@silvicom/shared";
 import type { UrlQueryState } from "@silvicom/ui";
 
 /**
@@ -80,12 +80,12 @@ export type ScopeChoice = "mine" | "all";
  */
 export function useScopeChoice(linked: Ref<boolean>, qs: Pick<UrlQueryState, "one" | "set">) {
   const choice = computed<ScopeChoice>(() => {
-    const v = qs.one("scope");
+    const v = qs.one(LOADS_QUERY_KEYS.scope);
     if (v === "mine" || v === "all") return v;
     return linked.value ? "mine" : "all";
   });
   function choose(v: ScopeChoice) {
-    qs.set({ scope: v });
+    qs.set({ [LOADS_QUERY_KEYS.scope]: v });
   }
   return { choice, choose };
 }

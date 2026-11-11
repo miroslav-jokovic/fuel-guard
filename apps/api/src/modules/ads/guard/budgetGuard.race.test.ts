@@ -36,7 +36,7 @@ function race(states: { c1: "launching" | "paused"; c2: "launching" | "paused" }
   const launch = vi.fn(async () => ({ ok: true as const }));
   const deps = {
     admin: w.admin, now: w.now,
-    safe: { readAccountHeadroomCents: async () => 300_000, readSpendCents: async () => 0, pause: async () => ({ ok: true as const }), pauseAd: async () => ({ ok: true as const }) },
+    safe: { readAccountHeadroomCents: async () => 300_000, readSpendCents: async () => 0, pause: async () => ({ ok: true as const }), pauseAd: async () => ({ ok: true as const }), activateAd: async () => ({ ok: true as const }) },
     spend: { launch, raiseDailyBudget: vi.fn(), changeArea: vi.fn() },
   };
   const ask = (campaignId: string) => guardedSpend(deps, { orgId: ORG, campaignId, act: "launch", daily_cents: DAILY, lifetime_cents: LIFETIME, actor: AGENT });

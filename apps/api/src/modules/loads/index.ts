@@ -10,6 +10,8 @@
  * carve-out claims it.
  */
 export { dispatchRouter } from "./routes/dispatch.js";
+// Ask AI's `loads_by_truck` (F21 R6b): the Loads page's Delivered tab, counted per truck.
+export { assistantLoadsByTruck, MAX_LOADS_TRUCKS, MAX_LOADS_UNITS } from "./assistantLoadsByTruck.js";
 // What each truck is hauling right now, for the live map (LM6). Which loads count is shared
 // `isLoadOnTruck` (D-MCC12 for McLeod); an empty answer before the first sync is correct, not broken.
 export {

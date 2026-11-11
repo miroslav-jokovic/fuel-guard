@@ -23,7 +23,7 @@ import { decideAttribution } from "../attribution/decide.js";
 import { readInspectionRepairs, readRepairCertification } from "../read/inspectionRepairs.js";
 import { readRepairsDue } from "../read/repairsDue.js";
 import { readInspectionsWork } from "../read/inspectionsWork.js";
-import { orgToday } from "../read/orgToday.js";
+import { orgToday } from "../../org/index.js";
 import { citationRoutes } from "./citations.js";
 import { decideRepair } from "../repair/decide.js";
 import { certifyRepairs } from "../repair/certify.js";

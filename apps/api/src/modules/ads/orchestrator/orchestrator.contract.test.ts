@@ -68,7 +68,7 @@ const input = (key: string): PublishInput => ({
 const graph = (token: string) => new MetaGraph({ token, throttleKey: `orchestrator:${id}`, baseUrl: t.base, timeoutMs: t.timeoutMs, sleep: async () => {} });
 const readAsset = async (_o: string, ref: { sha256: string }) => images.get(ref.sha256) ?? Promise.reject(new Error(`no asset ${ref.sha256}`));
 const createPaused = (_c: unknown, key: string) => publishPaused({ admin: w.admin, graph: graph(t.token()), pageGraph: graph(t.pageToken()), readAsset, now: w.now }, input(key));
-const deps = () => ({ admin: w.admin, now: w.now, workers: { compose: null, platform: null, createPaused } });
+const deps = () => ({ admin: w.admin, now: w.now, workers: { compose: null, platform: null, refresh: null, createPaused } });
 const made = () => STEPS.map((edge) => t.proxy.made(edge).length);
 const madeId = (edge: RegExp, i = 0) => (t.proxy.made(edge)[i]!.upstream!.body as { id: string }).id;
 

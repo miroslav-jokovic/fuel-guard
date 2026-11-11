@@ -199,6 +199,11 @@ const API_ALLOW = new Set([
   // evidence and medstop; every call is at request time, never at module load.
   "livemap -> evidence",
   "livemap -> medstop",
+  // The board's "today" (F21 carrier-day fix, 2026-11-11): the annual chip and the drivers' credential
+  // warnings are judged on the carrier's calendar day, `orgToday`, which org owns because it reads
+  // `organizations`. One function through org's index — the same arrow evidence, maintenance and
+  // inspections draw for it — so the board and the Shop's disagreements list cannot cut different days.
+  "livemap -> org",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of
@@ -331,6 +336,47 @@ const API_ALLOW = new Set([
   //   no pause can use, reach a person through notify() (`modules/ads/alerts/`), not only a failed
   //   `ads_actions` row nobody reads. messaging imports nothing of ads'.
   "ads -> messaging",
+  // · insights -> messaging — Ask AI's 80% and 100% cap bells (F21 R2b, Q-AI1 "admin alert at 80%"):
+  //   notify() through messaging's index, recipients from org's `usersWhoManage("admin")` (the
+  //   insights -> org edge above). Without it, a carrier's assistant stops at the cap with nobody told.
+  "insights -> messaging",
+  // · insights -> financial — Ask AI's finance tools (F21 R6a): `finance_report` and
+  //   `income_statement` are the Fleet report's own `getFleetReport` / `getIncomeStatement`, called
+  //   through financial's index, so an answer equals the page by construction. A second aggregation
+  //   of the ledger in insights would be the copy D-AI2 forbids. financial imports nothing of insights'.
+  "insights -> financial",
+  // · insights -> livemap — Ask AI's `fleet_now` (F21 R6b) is livemap's `assistantFleetNow` over the
+  //   live map's own cached board, so "how many are moving" counts the states the map draws.
+  //   livemap imports nothing of insights'.
+  "insights -> livemap",
+  // · insights -> evidence — Ask AI's `driver_file_expirations` (F21 R6b) is evidence's
+  //   `assistantDriverFiles` over `getComplianceOverview`, the Drivers page's own file read.
+  //   evidence imports nothing of insights'.
+  "insights -> evidence",
+  // · insights -> maintenance — Ask AI's `annual_inspections_due` (F21 R6b) is maintenance's
+  //   `assistantAnnualDue` over `readAnnualDue`, the Shop worklist's own reader.
+  //   maintenance imports nothing of insights'.
+  "insights -> maintenance",
+  // · insights -> recruiting — Ask AI's `recruiting_counts` (F21 R6b) is recruiting's
+  //   `assistantRecruiting` over `readApplicantPipeline`, the Applicants board's own read.
+  //   recruiting imports nothing of insights'.
+  "insights -> recruiting",
+  // · insights -> fleetpal — Ask AI's `maintenance_cost` (F21 R6b) is fleetpal's
+  //   `assistantMaintenanceCost`: the truck page's own `readCoverage` then `readUnitCost`, refused by
+  //   the route's own D-FP4 rule. fleetpal imports nothing of insights'.
+  "insights -> fleetpal",
+  // · insights -> efs — Ask AI's `card_holds` (F21 R6b) is efs's `assistantCardHolds` over
+  //   `listEfsCards`, the Fuel cards page's own list read (mirror only, masked in one place).
+  //   efs imports nothing of insights'.
+  "insights -> efs",
+  // · insights -> loads — Ask AI's `loads_by_truck` (F21 R6b) is loads' `assistantLoadsByTruck`, the
+  //   Loads page's own `listLoads` with the page's delivery window, so "748 delivered 14" is the
+  //   Delivered tab with truck 748 picked. loads imports nothing of insights'.
+  "insights -> loads",
+  // · insights -> ifta — Ask AI's `ifta_report` (F21 R6b) is ifta's `assistantIftaReport`: the IFTA
+  //   ledger page's `readIftaPeriod` turned into figures by the page's own shared `ledgerPosition`.
+  //   ifta imports nothing of insights'.
+  "insights -> ifta",
   // · ads -> org — Settings › Ads control's spend card (E1c, Q-AD36, ruled 2026-11-05) says when the
   //   daily check against Meta last finished. That fact is a row in org's job ledger (`jobs`), so it
   //   is read through org's index (`lastDoneJobByKey` only), the same arrow "fuel-spend -> org" and
@@ -390,6 +436,8 @@ const API_ALLOW = new Set([
   // Queue item 5 step 3: the dashboard endpoint prices idled hours with the SAME basis the Idling
   // page and the fuel-spend report use, read through `idle`'s index (Q9). `movingSpend` is a fuel
   // figure that depends on the idle basis, so an endpoint without this edge could not produce it.
+  // F21 R6b rides the same arrow: Ask AI's `idle_report` is idle's `assistantIdleReport`, the
+  // Idling page's own verdict (`readFleetIdleVerdict`) per week or month.
   "insights -> idle",
   // ── FleetPal's two edges (FLEETPAL-INTEGRATION-PLAN.md F5, D-FP1/D-FP2) ──────────────────────
   //   · fleetpal -> roster — the matcher needs the candidate set, and `vehicles`/`trailers` are

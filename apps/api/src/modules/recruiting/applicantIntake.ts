@@ -264,7 +264,14 @@ export async function partOneForFiling(
     .eq("org_id", orgId)
     .eq("id", invitation.driver_id)
     .maybeSingle();
-  const data = { ...(row as Omit<PartOneFacts, "cdl_class">), cdl_class: (driver as { cdl_class?: string | null } | null)?.cdl_class ?? null };
+  // ⚠ Named, never spread (F3): the intake row also holds the donor gender, which must not reach the
+  // office's review (Q-AM13). A spread is one widened `select` away from sending it.
+  const r = row as Omit<PartOneFacts, "cdl_class">;
+  const data: PartOneFacts = {
+    phone: r.phone, address_line1: r.address_line1, address_line2: r.address_line2, city: r.city,
+    state: r.state, postal_code: r.postal_code, prior_positive_2y: r.prior_positive_2y,
+    cdl_class: (driver as { cdl_class?: string | null } | null)?.cdl_class ?? null,
+  };
   const { data: licences } = await admin
     .from("application_intake_licences")
     .select("position, state_code, agency, licence_number, expires_on")

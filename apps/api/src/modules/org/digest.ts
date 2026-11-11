@@ -16,6 +16,7 @@ import { getComplianceOverview } from "../evidence/index.js";
 import { FUEL_EVENT_DROP } from "../fuel/index.js";
 import type { Env } from "../../env.js";
 import { callClaudeText } from "../../lib/anthropic.js";
+import { orgToday } from "./orgToday.js";
 import { makeSender } from "../../lib/mailer.js";
 
 const WINDOW_DAYS = 7;
@@ -329,7 +330,8 @@ export async function generateAndSendDigest(
   // best-effort, because a qualification hiccup must not sink the theft digest.
   let dqSection: DqDigestSection | undefined;
   try {
-    const overview = await getComplianceOverview(admin, orgId, new Date().toISOString().slice(0, 10));
+    // The carrier's day, as the Drivers page judges it (`orgToday`), not the UTC one.
+    const overview = await getComplianceOverview(admin, orgId, await orgToday(admin, orgId));
     dqSection = buildDqDigestSection(overview.drivers);
   } catch (e) {
     console.error("[digest] DQ section failed:", e instanceof Error ? e.message : e);

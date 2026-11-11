@@ -11,6 +11,9 @@ import {
   apiAddressKey,
   API_RATE_LIMIT_PER_CALLER,
   API_RATE_LIMIT_PER_ADDRESS,
+  MAP_TILE_RATE_LIMIT_PER_CALLER,
+  MAP_TILE_RATE_LIMIT_PER_ADDRESS,
+  MEASURED_HEAVY_ZOOM_WALK_TILES,
 } from "./apiRateLimit.js";
 
 /**
@@ -138,6 +141,22 @@ describe("which bucket a request counts against", () => {
 });
 
 /**
+ * D-DR29: a heavy zoom walk measured ~410 tiles after D-DR26, so tiles moved to their own budget. The
+ * numbers are pinned in units of that walk so a future change to the tile count cannot leave the
+ * budgets sized for a map that no longer exists.
+ */
+describe("map tiles have a budget of their own", () => {
+  it("lets one dispatcher make ten heavy zoom walks a quarter-hour", () => {
+    expect(MAP_TILE_RATE_LIMIT_PER_CALLER).toBeGreaterThanOrEqual(10 * MEASURED_HEAVY_ZOOM_WALK_TILES);
+  });
+
+  it("sizes the tile address ceiling on forty seats' usage, not on forty tile budgets", () => {
+    expect(MAP_TILE_RATE_LIMIT_PER_ADDRESS).toBeGreaterThanOrEqual(40 * 2 * MEASURED_HEAVY_ZOOM_WALK_TILES);
+    expect(MAP_TILE_RATE_LIMIT_PER_ADDRESS).toBeLessThan(40 * MAP_TILE_RATE_LIMIT_PER_CALLER);
+  });
+});
+
+/**
  * The limiter is WIRED to those keys, which is a separate question from the keys being right.
  *
  * ⚠ Asserted through the `draft-7` `RateLimit` header rather than by exhausting the budget. The
@@ -180,6 +199,24 @@ describe("the mounted limiter uses those buckets", () => {
     // than Ana's — he would be paying for her poll.
     expect(luis1).toBe(API_RATE_LIMIT_PER_CALLER - 1);
     expect(ana2).toBe(API_RATE_LIMIT_PER_CALLER - 2);
+  });
+
+  /**
+   * ⚠⚠ THE DEFECT D-DR29 FIXES, STATED AS ONE ASSERTION: zooming the map spent the budget the board's
+   * polls live on. A tile must count down the TILE budget and leave the general one exactly where it
+   * was — and the reverse — or a dispatcher who zooms is still a dispatcher whose board stops.
+   */
+  it("counts a map tile against the tile budget and never against the general one", async () => {
+    const base = await open();
+    const headers = { authorization: "Bearer token-ana", "x-forwarded-for": "203.0.113.7" };
+    const tile = () => fetch(`${base}/api/fueling/map-tiles/5/8/9?style=explore.day`, { headers });
+    const poll = () => fetch(`${base}/api/version`, { headers });
+
+    expect(remaining(await tile())).toBe(MAP_TILE_RATE_LIMIT_PER_CALLER - 1);
+    expect(remaining(await tile())).toBe(MAP_TILE_RATE_LIMIT_PER_CALLER - 2);
+    expect(remaining(await poll())).toBe(API_RATE_LIMIT_PER_CALLER - 1);
+    expect(remaining(await poll())).toBe(API_RATE_LIMIT_PER_CALLER - 2);
+    expect(remaining(await tile())).toBe(MAP_TILE_RATE_LIMIT_PER_CALLER - 3);
   });
 
   it("still pools unauthenticated callers on one address", async () => {

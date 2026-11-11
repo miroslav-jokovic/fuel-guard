@@ -9,7 +9,7 @@ import { adsStepDedupKey, adsStepEnqueue, orchestratorTick, startAdsOrchestrator
 vi.mock("../../../queue/dispatch.js", () => ({ dispatchJob: vi.fn(async () => ({ jobId: "job-1" })) }));
 import { adsWorkers, type CampaignWorkers } from "./workers.js";
 
-const ALL: CampaignWorkers = { compose: async () => ({ ok: true }), createPaused: async () => ({ ok: true }), platform: async () => null };
+const ALL: CampaignWorkers = { compose: async () => ({ ok: true }), createPaused: async () => ({ ok: true }), platform: async () => null, refresh: null };
 
 /**
  * The jobs ledger's rule, as 0095 states it: with a dedup_key, ONE active job per key (a global
@@ -45,12 +45,13 @@ describe("orchestratorTick — it only enqueues, one keyed step per campaign wit
     expect(await orchestratorTick(w.admin, ALL, l.enqueue)).toEqual({ campaigns: 1, queued: 0, conflicts: 1 });
   });
 
-  it("with this build's workers (compose C5b2, the platform B3), composing, launching and pausing are queued; live waits for the kill switch", async () => {
+  it("with this build's workers (compose C5b2, the platform B3, the refresh Q-AD68), live, composing, launching and pausing are queued, switch or not", async () => {
     const live = [campaign("c1", "live"), campaign("c2", "composing"), campaign("c3", "launching"), campaign("c4", "pausing")];
     const quiet = ledger();
     const w1 = createAdsWorld({ campaigns: live });
     await orchestratorTick(w1.admin, adsWorkers({ admin: w1.admin, env: loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv), now: w1.now }), quiet.enqueue);
-    expect(quiet.calls.map((c) => c.key).sort()).toEqual(["ads_step:c2:composing", "ads_step:c3:launching", "ads_step:c4:pausing"]);
+    // Since Q-AD68 a live campaign has agent work without the switch: its retired ads' replacements.
+    expect(quiet.calls.map((c) => c.key).sort()).toEqual(["ads_step:c1:live", "ads_step:c2:composing", "ads_step:c3:launching", "ads_step:c4:pausing"]);
     const pressed = ledger();
     const w2 = createAdsWorld({ campaigns: live, kill: true });
     await orchestratorTick(w2.admin, adsWorkers({ admin: w2.admin, env: loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv), now: w2.now }), pressed.enqueue);
@@ -64,8 +65,20 @@ describe("orchestratorTick — it only enqueues, one keyed step per campaign wit
     expect(states).not.toContain("archived");
     expect(states).not.toContain("review");
     const none = createAdsWorld({ campaigns: [] });
-    await orchestratorTick(none.admin, { compose: null, createPaused: null, platform: null }, ledger().enqueue);
+    await orchestratorTick(none.admin, { compose: null, createPaused: null, platform: null, refresh: null }, ledger().enqueue);
     expect(none.rec.forTable("ads_campaigns").length).toBeGreaterThan(0); // launching/live: the switch can always act
+  });
+});
+
+describe("orchestratorTick — a live campaign is stepped for its refresh (Q-AD68)", () => {
+  it("with a refresh worker every live campaign is queued each tick, the switch off; without one, live waits for the switch", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "live"), campaign("c2", "paused")] });
+    const withRefresh = ledger();
+    await orchestratorTick(w.admin, { ...ALL, refresh: async () => ({ ok: true }) }, withRefresh.enqueue);
+    expect(withRefresh.calls.map((c) => c.key)).toEqual(["ads_step:c1:live"]);
+    const without = ledger();
+    await orchestratorTick(w.admin, ALL, without.enqueue);
+    expect(without.calls).toEqual([]);
   });
 });
 

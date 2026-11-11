@@ -42,8 +42,18 @@ export interface SpendCall {
   idempotency_key: string;
 }
 
+/**
+ * A launch also says which of the campaign's ads must STAY off: the ones the monitor retired (CQ9b). Required, not
+ * optional, so no caller can forget it and get the old answer — every ad in the refs turned back on (2026-11-11:
+ * a pause and a relaunch revived every tired ad). The guard reads it from the `retire_ad` ledger
+ * (`monitor/retiredAds.ts`); the adapter only subtracts.
+ */
+export interface LaunchCall extends SpendCall {
+  retired_ad_ids: readonly string[];
+}
+
 export interface PlatformSpend {
-  launch(call: SpendCall): Promise<PlatformOutcome>;
+  launch(call: LaunchCall): Promise<PlatformOutcome>;
   raiseDailyBudget(call: SpendCall): Promise<PlatformOutcome>;
   changeArea(call: { campaign: PlatformCampaignRef; area: AdArea; idempotency_key: string }): Promise<PlatformOutcome>;
 }
@@ -80,6 +90,16 @@ export interface PlatformSafe {
    * platform's own id for the ad, as the publisher recorded it (`platform_refs.ads[].meta_ad_id`).
    */
   pauseAd(call: { campaign: PlatformCampaignRef; ad: string; idempotency_key: string }): Promise<PlatformOutcome>;
+  /**
+   * Turn ONE new ad ACTIVE inside a campaign that is already delivering (Q-AD68): a retired ad's replacement, which a
+   * person approved (`approve_creative`). Not the safe direction — it starts that ad's delivery — but spend-NEUTRAL,
+   * which is why it sits in this half and not behind the spend guard: the ad set's daily budget and the campaign's
+   * spend cap, both set by an approved launch, bound what the platform can spend, and this call changes neither.
+   * Its fences are the caller's (`compose/refreshCampaign.ts`): the campaign is `live`, the kill switch is off (the
+   * runner checks it first), and the creative is `approved`. Idempotent at the platform; an ad id the campaign's refs
+   * do not hold is refused before any call, as `pauseAd` refuses one.
+   */
+  activateAd(call: { campaign: PlatformCampaignRef; ad: string; idempotency_key: string }): Promise<PlatformOutcome>;
 }
 
 /** One connection's adapter, both halves. Built by B1's registry; the orchestrator never sees it whole. */

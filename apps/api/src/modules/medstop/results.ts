@@ -19,6 +19,11 @@ import {
  * Nothing acted on them, on purpose; this is where a person looks at each one and decides — most
  * often that the driver is gone, sometimes that a return-to-duty record belongs in the file.
  *
+ * `all` is §7A.3's list itself — every result whose outcome is final, negatives and medical exams
+ * included, baseline or not. MS2c built only the two exception lists, and the tab showed one dilute
+ * for a month while 65 tests came back (2026-11-10). A drug result the MRO has not verified is
+ * "pending" and stays out: it is In progress's row, not a result yet.
+ *
  * Results are read as Med-Stop's tests with a result, a year back from `today`; at ~450 tests a
  * year that is one page, and the verdict is the shared classifier's, never a string compare here.
  *
@@ -34,7 +39,7 @@ export async function readResultReview(
   orgId: string,
   since: string,
   personOf: (medstopId: string | null) => ProgramPerson,
-): Promise<{ recent: MedstopResultRow[]; history: MedstopResultRow[] }> {
+): Promise<{ all: MedstopResultRow[]; recent: MedstopResultRow[]; history: MedstopResultRow[] }> {
   const { data, error } = await admin
     .from("medstop_tests")
     .select("medstop_id, employee_medstop_id, service, reason, status, result, collected_local, baseline")
@@ -45,6 +50,7 @@ export async function readResultReview(
     .limit(1000);
   if (error) throw new Error(`medstop_tests read failed: ${error.message}`);
 
+  const all: MedstopResultRow[] = [];
   const recent: MedstopResultRow[] = [];
   const history: MedstopResultRow[] = [];
   for (const t of (data ?? []) as {
@@ -61,15 +67,19 @@ export async function readResultReview(
       collectedOn: t.collected_local?.slice(0, 10) ?? null,
       outcome,
     };
+    if (outcome !== "pending") all.push(row);
     if (t.baseline) {
       if (isMedstopViolation(outcome)) history.push(row);
     } else if (isMedstopDerAlert(outcome)) {
       recent.push(row);
     }
   }
-  for (const { row, alerted } of await refusedOrders(admin, orgId, since, personOf)) (alerted ? recent : history).push(row);
+  for (const { row, alerted } of await refusedOrders(admin, orgId, since, personOf)) {
+    all.push(row);
+    (alerted ? recent : history).push(row);
+  }
   const newestFirst = (a: MedstopResultRow, b: MedstopResultRow) => (b.collectedOn ?? "").localeCompare(a.collectedOn ?? "");
-  return { recent: recent.sort(newestFirst), history: history.sort(newestFirst) };
+  return { all: all.sort(newestFirst), recent: recent.sort(newestFirst), history: history.sort(newestFirst) };
 }
 
 async function refusedOrders(

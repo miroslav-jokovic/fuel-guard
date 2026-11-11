@@ -150,7 +150,10 @@ first real render is a composed one. LR5 is the single most valuable item and wa
 
 ## 4. Open questions (pointer in `ADS-AGENT-PLAN.md` §9)
 
-- **Q-AD74 · What a returning person does to the bell (owner).** (a) held number: no ring; current driver: no
+- **Q-AD74 · What a returning person does to the bell (owner). RULED (a), 2026-11-10** — the owner's "Yes, build
+  LR1–LR4", given after being told the recommendation would be taken as the ruling unless they said otherwise.
+  Built as LR2 with two differences from (a)'s wording, both recorded in its progress entry: the ring goes to the
+  NEW lead's owner (the opening's recruiter), not the earlier lead's, and the quality shares still count the lead. (a) held number: no ring; current driver: no
   ring, listed; earlier lead: one ring to that lead's owner, "applied again", not counted as a new lead in the
   quality shares; (b) ring every time, add a badge only; (c) (a), and a second submission inside N days does not
   ring at all. **Recommended: (a).** A held number must not ring (TCPA is why the hold exists); a second

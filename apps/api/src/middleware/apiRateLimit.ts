@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { Request } from "express";
-import { ipKeyGenerator } from "express-rate-limit";
+import type { Request, RequestHandler } from "express";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 
 /**
  * How the general `/api` budget is divided between callers (C1,
@@ -91,6 +91,57 @@ export const API_RATE_LIMIT_PER_CALLER = 2_100;
  */
 export const API_RATE_LIMIT_PER_ADDRESS = 31_000;
 
+/**
+ * ── D-DR29: MAP TILES HAVE THEIR OWN BUDGET (2026-11-10, answers Q-DR29) ─────────────────────────
+ * Tiles used to come out of the general per-caller budget above, beside every poll the dispatch
+ * board makes. After D-DR26 (sharp tiles over 256 CSS px) one heavy zoom walk on the staging
+ * Dispatch map — zoom 4 → 17 over Chicago and back, signed in — measured **~410 tile requests in
+ * about 25 seconds**. Five of those in a quarter-hour spent the whole 2 100, and then EVERY `/api`
+ * call from that person answered 429 until the window turned: the board stopped refreshing because
+ * the map had been zoomed. One budget for two traffic shapes let the cheap, re-issuable one starve
+ * the one the dispatcher is actually working from.
+ *
+ * ⚠ Not observed in production: the session that measured this had no AWS credentials to count 429s
+ * by route. The owner ruled to build it on the measured walk (2026-11-10).
+ *
+ * So a tile counts against the two limiters below and is skipped by the general pair; every other
+ * route is counted exactly as before. Same keys as the general pair (the credential digest, the
+ * address) — only the counters are separate. The general budgets are left where D-DR26 put them,
+ * which is now more room than polls need; lowering them is a separate call, not a side effect.
+ */
+export const MAP_TILE_PATH_PREFIX = "/api/fueling/map-tiles/";
+
+/** Tile requests in the heavy staging walk above. The two budgets below are written in units of it. */
+export const MEASURED_HEAVY_ZOOM_WALK_TILES = 410;
+
+/**
+ * Per-caller tile budget, per 15 minutes: ten heavy zoom walks. A dispatcher does not zoom from the
+ * whole country into a city and back ten times in a quarter-hour, and the browser caches every tile
+ * for a day (`Cache-Control` on the proxy), so a second look at a place costs nothing here.
+ */
+export const MAP_TILE_RATE_LIMIT_PER_CALLER = 10 * MEASURED_HEAVY_ZOOM_WALK_TILES;
+
+/** The most dispatchers one office address is sized for (D-DR30, the owner's 30–40 seats). */
+export const MAP_SEATS_PER_ADDRESS = 40;
+
+/**
+ * Per-address tile ceiling, per 15 minutes — the backstop, sized like the general one on USAGE and
+ * not on headroom: every seat making two heavy walks a quarter-hour. That is ~36 tiles a second from
+ * one address before it is refused, each of which this process forwards to HERE, billed.
+ *
+ * ⚠ D-DR30 (2026-11-10) moved it from 30 seats to 40, when the owner asked for 30–40 dispatchers on
+ * the map at once. At 30 the 31st person in one office would have been refused tiles.
+ */
+export const MAP_TILE_RATE_LIMIT_PER_ADDRESS = MAP_SEATS_PER_ADDRESS * 2 * MEASURED_HEAVY_ZOOM_WALK_TILES;
+
+/**
+ * Whether a request is a map tile. Read from `originalUrl` because the limiters are mounted at
+ * `/api`, where Express has already stripped that prefix from `req.path`.
+ */
+export function isMapTileRequest(req: Request): boolean {
+  return req.originalUrl.startsWith(MAP_TILE_PATH_PREFIX);
+}
+
 /** Enough of a SHA-256 to make a collision between two live sessions not a thing that happens. */
 const DIGEST_CHARS = 32;
 
@@ -117,4 +168,23 @@ export function apiRateLimitKey(req: Request): string {
 /** The address ceiling counts every request from an address, credentialled or not. */
 export function apiAddressKey(req: Request): string {
   return `addr:${ipKeyGenerator(req.ip ?? "")}`;
+}
+
+/**
+ * Ask AI's questions per person per 15 minutes (F21 R2, AUDIT P1). The same 30 the route had before —
+ * but per caller, not per address: `/api/ai` sat behind `strictLimiter`, keyed by IP, so one office
+ * shared 30 questions between everyone in it (the C1 outage's shape, memory api-limiter-refuses-one-office).
+ * Thirty is far above use (20 questions in four months) and still stops a stuck client from spending
+ * the month's cap in an afternoon; the cap is the money guard, this is the runaway guard.
+ */
+export const ASSISTANT_ASKS_PER_CALLER = 30;
+
+export function assistantLimiter(): RequestHandler {
+  return rateLimit({
+    windowMs: 15 * 60_000,
+    limit: ASSISTANT_ASKS_PER_CALLER,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    keyGenerator: apiRateLimitKey,
+  });
 }
