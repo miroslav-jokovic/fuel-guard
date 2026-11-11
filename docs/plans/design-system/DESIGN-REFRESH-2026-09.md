@@ -1390,3 +1390,14 @@ conflict every time (`plan-progress-log-not-table-rows`).
   browser's font on the reader's CPU, warning only in the console. Fixed with one shared rule
   (`VECTOR_GLYPH_RANGE_FILE`). The D-DR31 slow-PC stutter figures were taken in that state, so they
   are re-measured (polish item 7) before the owner's comparison.
+- **2026-11-11 — D-DR35: place icons on the vector map, polish item 2.** Artwork: six Maki v8.0.0
+  icons and Temaki v5.13.0's truck; both repositories' LICENSE files read, CC0 1.0. Bundled from
+  `apps/web/src/assets/map-icons/` (`SOURCES.md` pins the tags), so the content security policy is
+  unchanged (`img-src` already allows `data:`). Icons go to the kinds read off real tiles, not guessed:
+  `fuel`, `parking`, `car_repair`, `hospital`, `aerodrome` (O'Hare terminals, 400-4000-4582) and
+  `station` (Joliet, 400-4100-0035); every truck place (D-DR34) carries the truck. Drawn as a disc in
+  `--map-label` with the glyph in `--map-label-halo`, so no new tokens and the night map inverts them.
+  Rasterised once per colour scheme while the session is read, handed over on maplibre's
+  `styleimagemissing`, replaced in place on a scheme change. All seven decode and draw in Chromium
+  (checked before the PR); the style passes maplibre's validator; 7 of 7 mutations caught.
+  Acceptance is on staging: icons visible, no 404, CSP or "image could not be loaded" console error.

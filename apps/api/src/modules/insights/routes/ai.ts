@@ -68,7 +68,7 @@ export function aiRouter(): Router {
         return;
       }
       const started = Date.now();
-      const { answer, tools, usage, outcome } = await askData(admin, env, orgId, question, allowed, now, history);
+      const { answer, tools, usage, outcome, links } = await askData(admin, env, orgId, question, allowed, now, history);
       const latencyMs = Date.now() - started;
       const toolNames = tools.map((t) => t.name);
       console.log(assistantLogLine(orgId, usage, latencyMs, toolNames, outcome));
@@ -86,8 +86,10 @@ export function aiRouter(): Router {
         return;
       }
       // F21 R4a: the pages behind the answer, as surface keys, for its "Open in …" links. Structured,
-      // never parsed out of the model's text (D-AI8). Additive: an older web ignores it.
-      res.json({ answer, pages: assistantAnswerPages(tools) });
+      // never parsed out of the model's text (D-AI8). Additive: an older web ignores it. R4b adds
+      // `links`, the same pages with the answer's filters; an older web ignores that too, and the new
+      // web falls back to `pages` for a page with no link.
+      res.json({ answer, pages: assistantAnswerPages(tools), links });
     }),
   );
 

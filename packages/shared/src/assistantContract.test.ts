@@ -6,6 +6,7 @@ import {
   ASSISTANT_TOOL_ACCESS,
   ASSISTANT_TOOL_PAGE,
   assistantAnswerPages,
+  splitAssistantLink,
   ASSISTANT_TOOL_MODULES,
   ASSISTANT_TOOL_NAMES,
   assistantToolsFor,
@@ -205,5 +206,25 @@ describe("ASSISTANT_TOOL_PAGE — the page an answer links to (F21 R4a)", () => 
         { name: "not_a_tool" },
       ]),
     ).toEqual(["finance.fleet-report", "fuel.spend"]);
+  });
+});
+
+describe("splitAssistantLink — the link comes off before the model sees the result (F21 R4b, D-AI8)", () => {
+  const link = { surfaceKey: "fuel.spend", query: { from: "2026-10-01", to: "2026-10-31", trucks: "v1" } };
+
+  it("lifts a link to the tool's own page off its result, leaving the rest untouched", () => {
+    expect(splitAssistantLink("fuel_report", { total: { mpg: 6.4 }, link })).toEqual({ link, result: { total: { mpg: 6.4 } } });
+  });
+
+  it("removes but refuses a link to another page, a tool with no page, or a query that is not all strings", () => {
+    expect(splitAssistantLink("fuel_report", { a: 1, link: { ...link, surfaceKey: "fuel.ifta" } })).toEqual({ link: null, result: { a: 1 } });
+    expect(splitAssistantLink("fuel_ranking", { a: 1, link: { ...link, surfaceKey: "fuel.spend" } })).toEqual({ link: null, result: { a: 1 } });
+    expect(splitAssistantLink("fuel_report", { a: 1, link: { surfaceKey: "fuel.spend", query: { trucks: ["v1"] } } })).toEqual({ link: null, result: { a: 1 } });
+  });
+
+  it("passes a result with no link, an array or a scalar through as it was", () => {
+    expect(splitAssistantLink("fuel_report", { a: 1 })).toEqual({ link: null, result: { a: 1 } });
+    expect(splitAssistantLink("fuel_report", [1, 2])).toEqual({ link: null, result: [1, 2] });
+    expect(splitAssistantLink("fuel_report", null)).toEqual({ link: null, result: null });
   });
 });

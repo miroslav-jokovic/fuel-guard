@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { ASSISTANT_QUESTION_MAX, assistantHistoryForRequest } from "@silvicom/shared";
+import { ASSISTANT_QUESTION_MAX, assistantHistoryForRequest, type AssistantAnswerLink } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -28,6 +28,8 @@ export interface AssistantTurn {
   answer: string | null;
   /** F21 R4a: the pages behind the answer, as surface keys (`assistantAnswerPages`). Absent from an older API. */
   pages?: string[];
+  /** F21 R4b: the same pages with the answer's filters (`splitAssistantLink`). Absent from an older API. */
+  links?: AssistantAnswerLink[];
 }
 
 /** The endpoint's cap on a question (`assistantAskContract.ts`); the composer stops there too. */
@@ -47,7 +49,7 @@ export const useAssistantStore = defineStore("assistant", () => {
     );
 
   async function run(turn: AssistantTurn) {
-    const res = await apiFetch<{ answer: string; pages?: string[] }>("/api/ai/ask", {
+    const res = await apiFetch<{ answer: string; pages?: string[]; links?: AssistantAnswerLink[] }>("/api/ai/ask", {
       method: "POST",
       body: { question: turn.question, history: historyBefore(turn) },
     });
@@ -60,6 +62,7 @@ export const useAssistantStore = defineStore("assistant", () => {
       live.status = "done";
       live.answer = res.data.answer;
       live.pages = Array.isArray(res.data.pages) ? res.data.pages : [];
+      live.links = Array.isArray(res.data.links) ? res.data.links : [];
     } else {
       live.status = "error";
       live.answer = res.error?.message ?? "Could not get an answer. Try again.";

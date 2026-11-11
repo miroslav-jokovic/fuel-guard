@@ -60,6 +60,7 @@ export * from "./ai.js";
 export * from "./assistantUsage.js";
 export * from "./assistantContract.js";
 export * from "./assistantAskContract.js";
+export * from "./fuelCostsLinkContract.js";
 export * from "./fleetReportLinkContract.js";
 export * from "./assistantPeriods.js";
 export * from "./canonicalJson.js";
