@@ -6,9 +6,10 @@ import { useModulesQuery } from "@/composables/useModules";
 /**
  * The "Open in …" links under an answer (F21 R4a): the surfaces the API named for it, kept only when
  * THIS person can open them — the same two questions the sidebar and `useAssistantAccess` ask
- * (`canReachSurface`, then `surfaceAllowed`). A tool may answer from a route a page's own gate is
- * stricter than (Fuel costs is `manage("fuel")` and its route `view`, PLAN Q-AI12), so a link is
- * never assumed from the answer alone. An unknown key (an API newer than this web) is skipped.
+ * (`canReachSurface`, then `surfaceAllowed`). A page's gate equals its tool's since Q-AI12 (Fuel costs
+ * moved from `manage("fuel")` to `view`, 2026-11-11), but a per-user surface override or an unbought
+ * module can still close a page the section matrix opens, so a link is never assumed from the answer
+ * alone. An unknown key (an API newer than this web) is skipped.
  */
 export function useAnswerPages() {
   const session = useSessionStore();
