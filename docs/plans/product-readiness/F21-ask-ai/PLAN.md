@@ -959,3 +959,19 @@ audit row is the endpoint's own.
   - **Shipped on the owner's word** ("set this on medium as default"), before the full set was re-run.
     So `baseline.json` is still the `low` run, and whether any of its 20 passes regressed at `medium`
     is not yet measured. Next: re-run and re-record the full set at `medium` (~$0.06, owner's go).
+  - **Full set re-run at `medium` (owner's go, 2026-11-11): 21 of 23**, then **22 of 23** after one routing fix,
+    re-recorded in `baseline.json` ($0.029). `follow-up-month-before` ("and the month before?" after a fuel
+    spend answer) had moved to `finance_report` in 3 of 3 runs: `finance_report`'s description claimed
+    "fuel" among its families, and `fuel_report`'s did not say "fuel spend". Both descriptions now route
+    fuel spend, gallons and price to `fuel_report` (3 of 3 after; `cost-per-mile` and
+    `spend-and-mpg-last-month` still pass).
+  - **Why `flagged-fills-drivers` still fails — found, not fixed.** With the model's turn printed, the
+    response holds a `server_tool_use` of `tool_search_tool_regex` (pattern `fill|fuel|flag`) and a
+    result of 5 tools — `card_holds`, `count_signal`, `finance_report`, `fleet_summary`,
+    `fuel_economics` — without `top_risk`, then the refusal. Our request declares no tool search and no
+    `defer_loading` (checked: no mention in `apps/api/src`, `packages/shared/src`, or `lib/anthropic.ts`),
+    and the tool-search docs describe it only as opt-in; 5 is that tool's documented default result cap.
+    So the API searched our 25 tools on its own and the cap cut `top_risk` off. This likely explains
+    the `low`-effort refusals too (the model searched once and stopped). **Not verified:** why the API
+    searches undeclared, and whether a request setting can keep every tool loaded. Next: ask Anthropic
+    support with this trace (no carrier data in it), rather than renaming tools to win a 5-result cut.
