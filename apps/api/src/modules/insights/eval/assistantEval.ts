@@ -67,7 +67,13 @@ export async function runAssistantEval(
   env: Env,
   orgId: string,
   cases: readonly AssistantEvalCase[],
-  onCase?: (v: EvalVerdict) => void,
+  /**
+   * Called after each case with its verdict and, SEPARATELY, the answer's text. The text is never on
+   * the verdict: `--record` writes verdicts to `baseline.json`, which is committed, and this
+   * repository is public — an answer carries the carrier's figures and its drivers' names. So the
+   * text goes to the developer's terminal (`--answers`) and nowhere else.
+   */
+  onCase?: (v: EvalVerdict, answer: string) => void,
 ): Promise<EvalRun> {
   const verdicts: EvalVerdict[] = [];
   for (const c of cases) {
@@ -75,7 +81,7 @@ export async function runAssistantEval(
     const trace = await askData(admin, env, orgId, c.question, allowed, new Date(), c.history ?? []);
     const v = scoreCase(c, trace);
     verdicts.push(v);
-    onCase?.(v);
+    onCase?.(v, trace.answer);
   }
   return {
     verdicts,
