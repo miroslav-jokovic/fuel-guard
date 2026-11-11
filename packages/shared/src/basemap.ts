@@ -255,6 +255,23 @@ export function resolveTileRequest(rawSize: unknown, rawPpi: unknown): { size: n
 export const HERE_MAX_VECTOR_ZOOM = 17;
 
 /**
+ * The ONE zoom at which the vector road map fetches its truck places (D-DR34): HERE's
+ * `content=default,advanced_pois` tile. The web source's `minzoom`/`maxzoom` and the proxy's
+ * coordinate check both read this, so the dearer tile cannot be asked for at any other zoom.
+ *
+ * ── WHY 13, MEASURED 2026-11-11 WITH OUR KEY ────────────────────────────────────────────────────
+ * HERE's default vector tiles carry NO truck categories: in them the Joliet Pilot (41.4805, −88.0792)
+ * is an ordinary "Parking Lot" (800-8500-0178, `min_zoom` 17). The same tile with `advanced_pois`
+ * adds it as a truck stop (700-7900-0132) and truck parking (700-7900-0131), both `min_zoom` 13.
+ * Across 24 zoom-13 tiles around Joliet, Indianapolis and Dallas the advanced tiles carried 17 truck
+ * stops, 19 truck parking lots and 4 rest areas, all at `min_zoom` 13 or 14.
+ * Advanced tiles bill at $0.239 per 1 000 against $0.088, so they are fetched at 13 alone and
+ * maplibre overzooms that one tile for every closer zoom: one dearer request per zoom-13 square
+ * (≈ 4.9 × 3.6 km at Chicago's latitude), not one per tile at every zoom.
+ */
+export const TRUCK_PLACES_ZOOM = 13;
+
+/**
  * The two fonts the vector road map draws labels with, and the only ones the glyph proxy relays
  * (D-DR31). They are HERE's own style fonts; the web style and the API allowlist read this one list.
  */
