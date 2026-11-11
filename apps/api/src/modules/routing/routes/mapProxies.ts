@@ -2,7 +2,7 @@ import type { Request as ExpressRequest, Router, Response as ExpressResponse } f
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
-import { HERE_MAX_TILE_ZOOM, HERE_MAX_VECTOR_ZOOM, TRUCK_PLACES_ZOOM, VECTOR_GLYPH_FONTS, resolveBasemapStyle, resolveBasemapFormat, resolveTileRequest } from "@silvicom/shared";
+import { HERE_MAX_TILE_ZOOM, HERE_MAX_VECTOR_ZOOM, TRUCK_PLACES_ZOOM, VECTOR_GLYPH_FONTS, VECTOR_GLYPH_RANGE_FILE, resolveBasemapStyle, resolveBasemapFormat, resolveTileRequest } from "@silvicom/shared";
 
 const GLYPH_FONTS = new Set<string>(VECTOR_GLYPH_FONTS);
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
@@ -316,7 +316,7 @@ export function registerMapRoutes(router: Router): void {
     asyncHandler(async (req, res) => {
       const fontstack = String(req.params.fontstack);
       const range = String(req.params.range);
-      if (!GLYPH_FONTS.has(fontstack) || !/^\d{1,5}-\d{1,5}\.pbf$/.test(range)) {
+      if (!GLYPH_FONTS.has(fontstack) || !VECTOR_GLYPH_RANGE_FILE.test(range)) {
         res.status(400).json(apiError("bad_request", "unknown glyph range"));
         return;
       }
