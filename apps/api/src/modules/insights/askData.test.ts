@@ -3,7 +3,7 @@ import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
 
 /**
  * The assistant loop (F21 R1/R2): its trace for the `ai.ask` audit row and the usage ledger, the request it
- * sends (Haiku 5.5, low effort, a cached prefix that today's date sits after), and how every stop ends.
+ * sends (Haiku 5.5, medium effort, a cached prefix that today's date sits after), and how every stop ends.
  */
 const create = vi.fn();
 vi.mock("../../lib/anthropic.js", () => ({ anthropicClient: () => ({ messages: { create } }) }));
@@ -120,11 +120,11 @@ describe("askData", () => {
     expect(JSON.parse(create.mock.calls[1]![0].messages.at(-1).content[0].content)).toEqual({ total: {} });
   });
 
-  it("asks Haiku 5.5 at low effort with the tools and fixed prompt cached, and today's date after the breakpoint", async () => {
+  it("asks Haiku 5.5 at medium effort with the tools and fixed prompt cached, and today's date after the breakpoint", async () => {
     create.mockResolvedValueOnce(msg([{ type: "text", text: "ok" }]));
     await askData(rec().client, env, "org-1", "q", ALL, LATE_OCT_31_CENTRAL);
     const req = create.mock.calls[0]![0];
-    expect(req).toMatchObject({ model: "claude-haiku-5-5", max_tokens: 8000, output_config: { effort: "low" }, cache_control: { type: "ephemeral" } });
+    expect(req).toMatchObject({ model: "claude-haiku-5-5", max_tokens: 8000, output_config: { effort: "medium" }, cache_control: { type: "ephemeral" } });
     expect(req.system[0].cache_control).toEqual({ type: "ephemeral" });
     expect(req.system[0].text).not.toMatch(/Today is/);
     // 22:00 Central on 10/31 is still 10/31 for the carrier, though UTC has moved to 11/01.

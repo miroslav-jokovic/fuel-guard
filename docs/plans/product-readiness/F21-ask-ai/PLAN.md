@@ -898,3 +898,22 @@ audit row is the endpoint's own.
     `worst-idlers-month` ("who are the worst idlers?") passed by calling it, and `idle_report` cannot
     answer that question: its `by` is `total | week | month`, with no driver or vehicle ranking. It is
     retired only when `idle_report` (the page's avoidable-idle verdict) ranks trucks and drivers.
+- 2026-11-11 — **The baseline's three failures, read and measured: effort `low` refuses tools it has.**
+  With `--answers` (#2261), on the owner's go, production data, nothing written:
+  - **What the failures were:** all three were honest refusals ("none of my tools break down … by
+    station / by jurisdiction / flagged fills by driver"), each offering what it could answer instead.
+    No made-up figures. Yet `top_risk`, `fuel_ranking` and `ifta_report` were in the request (checked:
+    25 tools for the admin, 17 for the accountant), their descriptions name the questions, and nothing
+    narrows the list.
+  - **Experiment, 3 runs each:** at `low`, 0/3 in every run. At `medium`, `top-stations` and
+    `ifta-by-state` passed 3 of 3; `flagged-fills-drivers` called `odometer_accuracy` instead, 3 of 3,
+    and said so ("the closest measure I have"). Cost on these questions: $0.0005 → $0.0014 an answer.
+  - **`top_risk`'s description sharpened** (what "flagged" means: high/critical anomaly fills, per
+    driver or vehicle): 0 of 3, the same `odometer_accuracy` answer saying it "can't see a flagged
+    fills count by driver". Reverted, because a change to what the model reads with no measured
+    effect would only blur the next baseline.
+  - **Built:** effort `medium` (`askData.ts`), the R2 choice of `low` reversed on this evidence.
+  - **Open:** `flagged-fills-drivers`. The model refuses a tool whose description matches; the next
+    step is to read its thinking for that one question, not to guess at wording.
+  - **Before merging:** the full set re-run and re-recorded at `medium` (~$0.06), so no other case
+    regressed and the baseline is the shipped setting's.
