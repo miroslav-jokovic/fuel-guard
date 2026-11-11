@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import { exclusiveEnd } from "@/lib/dateWindow";
 import type { StatementSection, LedgerMonthState } from "./useIncomeStatement";
 import type { MonthMileage } from "./useMileageCoverage";
 
@@ -128,7 +129,7 @@ export function useFleetReportQuery(filter: Ref<{ from: string; to: string }>, e
     // reader never asked for is a wasted read at best and a withheld-month callout at worst.
     enabled: computed(() => enabled?.value ?? true),
     queryFn: async (): Promise<FleetReportResponse> => {
-      const q = new URLSearchParams({ from: filter.value.from, to: filter.value.to });
+      const q = new URLSearchParams({ from: filter.value.from, to: exclusiveEnd(filter.value.to) });
       const r = await apiFetch<FleetReportResponse>(`/api/accounting/fleet-report?${q}`);
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the fleet report");
       return r.data;

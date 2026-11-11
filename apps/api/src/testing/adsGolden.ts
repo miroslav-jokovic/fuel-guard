@@ -131,6 +131,7 @@ export async function runGolden(s: GoldenScenario, file = s.name): Promise<Golde
         return platformAnswer(answer.forPause(), {});
       },
       pauseAd: async () => { throw new Error("ads golden: no scenario retires an ad yet (CQ9b)"); },
+      activateAd: async () => { throw new Error("ads golden: no scenario replaces a retired ad yet (Q-AD68)"); },
     },
     spend: {
       launch: async (call) => {
@@ -143,6 +144,7 @@ export async function runGolden(s: GoldenScenario, file = s.name): Promise<Golde
   };
 
   const workers: CampaignWorkers = {
+    refresh: null,
     compose: s.vendor.compose[0] === "absent" ? null : async (_c, key) => {
       vendor.compose += 1;
       composeKeys.add(key);

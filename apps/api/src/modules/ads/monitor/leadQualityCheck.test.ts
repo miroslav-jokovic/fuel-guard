@@ -17,7 +17,7 @@ const C1 = "00000000-0000-4000-8000-00000000aa01";
 const C2 = "00000000-0000-4000-8000-00000000aa02";
 const NOW = new Date("2026-11-20T13:00:00Z");
 const row = (over: Partial<LeadQualityCounts>): LeadQualityCounts => ({
-  campaign_id: C1, leads: 20, attempted: 10, wrong_number: 0, reached: 6, not_qualified: 0, median_first_attempt_minutes: 6, ...over,
+  campaign_id: C1, leads: 20, attempted: 10, wrong_number: 0, reached: 6, not_qualified: 0, median_first_attempt_minutes: 6, closed: {}, ...over,
 });
 
 let rec: SupabaseRecorder;

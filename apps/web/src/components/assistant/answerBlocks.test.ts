@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAnswer, parseInlines } from "./answerBlocks";
+import { parseAnswer, parseInlines, tableCsv } from "./answerBlocks";
 
 const text = (b: { inlines: { text: string }[] }) => b.inlines.map((i) => i.text).join("");
 
@@ -60,5 +60,20 @@ describe("parseInlines", () => {
       { kind: "code", text: "c" },
       { kind: "text", text: " **d" },
     ]);
+  });
+});
+
+describe("tableCsv (F21 R4a)", () => {
+  it("is the words on screen, with a numeric column made summable and a text column left as written", () => {
+    const [table] = parseAnswer("| Unit | Spend | MPG | Note |\n|---|---:|---:|---|\n| **748** | $12,345.60 | 6.4 mpg | -SUM(A1) |\n| 751 | −$1,200 | 7.1 mpg | $1,000 limit |");
+    if (table?.type !== "table") throw new Error("not a table");
+    expect(tableCsv(table)).toEqual({
+      headers: ["Unit", "Spend", "MPG", "Note"],
+      rows: [
+        ["748", "12345.60", "6.4 mpg", "-SUM(A1)"],
+        // A text column keeps "$1,000" as the reader saw it: only a numeric column is made summable.
+        ["751", "-1200", "7.1 mpg", "$1,000 limit"],
+      ],
+    });
   });
 });

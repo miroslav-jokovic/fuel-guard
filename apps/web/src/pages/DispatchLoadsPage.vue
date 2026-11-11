@@ -62,6 +62,7 @@ import {
   isDispatchable,
   loadBoardState,
   loadTypeOf,
+  LOADS_QUERY_KEYS,
 } from "@silvicom/shared";
 import { AppCallout, AppSegmentedControl, AppTabs, AppButton as BaseButton, DataTable, DataWorkspace, FilterBar } from "@silvicom/ui";
 import { SORT_DIRECTIONS, TablePagination, sortRows, useQueryState, useUrlSort } from "@silvicom/ui";
@@ -122,8 +123,8 @@ const search = qs.param("search");
 // truck, and so no row of their own on a truck board (DISPATCH-BOARD-PLAN D-DB5). Unknown values fall
 // back to the first queue, which is also what an absent parameter means.
 const tab = computed<QueueTab>({
-  get: () => QUEUE_TABS.find((q) => q.value === qs.one("queue"))?.value ?? QUEUE_TABS[0]!.value,
-  set: (v) => qs.set({ queue: v === QUEUE_TABS[0]!.value ? undefined : v }),
+  get: () => QUEUE_TABS.find((q) => q.value === qs.one(LOADS_QUERY_KEYS.queue))?.value ?? QUEUE_TABS[0]!.value,
+  set: (v) => qs.set({ [LOADS_QUERY_KEYS.queue]: v === QUEUE_TABS[0]!.value ? undefined : v }),
 });
 
 // Whose loads (D-DB3): the board's scope, and the fleet of each load's truck, read off the board.
@@ -175,8 +176,9 @@ const headerText = computed(() =>
 
 const typeFilter = qs.param("type", TYPE_VALUES);
 const typed = (load: DispatchLoad) => matchesType(load, typeFilter.value);
-const driverFilter = qs.param("driver");
-const truckFilter = qs.param("truck");
+// The Loads link contract's keys (F21 R4b): Ask AI's "Open in Loads" names a truck by its vehicle id.
+const driverFilter = qs.param(LOADS_QUERY_KEYS.driver);
+const truckFilter = qs.param(LOADS_QUERY_KEYS.truck);
 const units = (load: DispatchLoad) => matchesUnits(load, driverFilter.value, truckFilter.value);
 /** Delivered and All are the tabs a delivery window bounds (D-LA6). */
 const windowed = computed(() => tab.value === "delivered" || tab.value === "all");

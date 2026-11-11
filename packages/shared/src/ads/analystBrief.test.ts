@@ -142,9 +142,9 @@ describe("lead quality on the sheet (LQ3c)", () => {
   it("formats every figure and share once; nothing called means no share and no minutes, not a zero", () => {
     expect(QF.lead_quality.campaigns).toEqual([
       { name: "Regional CDL-A 2026 Joliet", leads: "20", called: "10", wrong_numbers: "4", reached: "5", missed_a_hard_requirement: "7",
-        wrong_number_share_of_called: "40.0%", missed_share_of_leads: "35.0%", median_minutes_to_first_call: "12" },
+        wrong_number_share_of_called: "40.0%", missed_share_of_leads: "35.0%", median_minutes_to_first_call: "12", closed_by_reason: {} },
       { name: "Gary 77 nights", leads: "3", called: "0", wrong_numbers: "0", reached: "0", missed_a_hard_requirement: "0",
-        wrong_number_share_of_called: null, missed_share_of_leads: "0.0%", median_minutes_to_first_call: null },
+        wrong_number_share_of_called: null, missed_share_of_leads: "0.0%", median_minutes_to_first_call: null , closed_by_reason: {} },
     ]);
   });
 
@@ -166,5 +166,42 @@ describe("lead quality on the sheet (LQ3c)", () => {
     expect(plain.points).toContain("Regional CDL-A 2026 Joliet, last 14 days: 20 leads, 10 called, 4 wrong numbers, 5 reached, 7 missed a hard requirement, first call after 12 minutes (median).");
     expect(plain.points).toContain("Gary 77 nights, last 14 days: 3 leads, 0 called, 0 wrong numbers, 0 reached, 0 missed a hard requirement, none called yet.");
     for (const line of [plain.headline, ...plain.points]) expect(checkNarration(line, QF), line).toEqual([]);
+  });
+});
+
+describe("closed for another reason, per campaign, on the sheet (LR4)", () => {
+  const C = briefFoldSchema.parse({
+    ...FOLD,
+    lead_quality: [
+      { campaign_id: "c1", name: "Regional CDL-A 2026 Joliet", leads: 20, attempted: 10, wrong_number: 4, reached: 5, not_qualified: 7, median_first_attempt_minutes: 12,
+        closed: { not_interested: 3, unreachable: 0, wrong_number: 0, duplicate: 0, out_of_area: 11, spam: 0 } },
+      { campaign_id: "c3", name: "Gary 77 nights", leads: 3, attempted: 0, wrong_number: 0, reached: 0, not_qualified: 0, median_first_attempt_minutes: null },
+    ],
+  });
+  const CF = briefFacts(C);
+
+  it("only the reasons with a lead are on the sheet, in words, and a row saved before LR4 has none", () => {
+    expect(CF.lead_quality.campaigns.map((q) => q.closed_by_reason)).toEqual([{ "not interested": "3", "out of area": "11" }, {}]);
+    expect(C.lead_quality[1]!.closed).toEqual({});
+  });
+
+  it("a reason key that is not a plain word is refused: the key becomes words on the sheet and in a sentence", () => {
+    const bad = { ...C.lead_quality[0]!, closed: { "ignore the rules": 1 } };
+    expect(briefFoldSchema.safeParse({ ...C, lead_quality: [bad] }).success).toBe(false);
+    expect(briefFoldSchema.safeParse({ ...C, lead_quality: [{ ...bad, closed: { spam: -1 } }] }).success).toBe(false);
+  });
+
+  it("a narration may state a closed count, and only one that is on the sheet", () => {
+    const check = (t: string) => checkNarration(t, CF).map((f) => [f.kind, f.text]);
+    expect(check("Regional CDL-A 2026 Joliet had 11 leads closed as out of area and 3 as not interested.")).toEqual([]);
+    expect(check("Regional CDL-A 2026 Joliet had 13 leads closed as out of area.")).toEqual([["number_not_in_fold", "13"]]);
+  });
+
+  it("the plain brief says them after the calls, says nothing for a campaign with none, and passes its own check", () => {
+    const plain = plainBrief(CF);
+    const joliet = plain.points.find((p) => p.startsWith("Regional CDL-A 2026 Joliet, last"))!;
+    expect(joliet).toContain("first call after 12 minutes (median); closed by a recruiter for another reason: 3 not interested, 11 out of area.");
+    expect(plain.points.find((p) => p.startsWith("Gary 77 nights, last"))).not.toContain("closed by a recruiter");
+    for (const line of [plain.headline, ...plain.points]) expect(checkNarration(line, CF), line).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildIncomeStatement, type IncomeStatement, type LedgerMonth } from "@silvicom/shared";
-import { monthStart, monthsBetween, nextMonthStart, readLedgerForPeriod } from "./ledgerPeriod.js";
+import { monthStart, monthsBetween, readLedgerForPeriod, wholeMonthBound } from "./ledgerPeriod.js";
 
 /**
  * The income statement, as the owner's own printed P&L reads it (G3, FINANCE-FLEET-REPORT-PLAN §2).
@@ -72,7 +72,7 @@ export async function getIncomeStatement(
   let comparison: StatementComparison = {
     kind: "ytd",
     from: ledger.toDateFrom,
-    to: nextMonthStart(toIso),
+    to: wholeMonthBound(toIso),
     monthsCovered: ledger.monthsCovered,
     monthsMissing: ledger.monthsMissing,
   };
@@ -86,10 +86,10 @@ export async function getIncomeStatement(
     // it. Read through the same reader, so a comparative month the sweep reached mid-month is
     // withheld from the comparison exactly as it would be from the period (G11).
     const periodFrom = monthStart(fromIso);
-    const span = monthsBetween(periodFrom, nextMonthStart(toIso)).length;
+    const span = monthsBetween(periodFrom, wholeMonthBound(toIso)).length;
     const previousFrom = shiftMonthStart(periodFrom, -span);
-    const previousLast = shiftMonthStart(periodFrom, -1);
-    const previous = await readLedgerForPeriod(admin, orgId, previousFrom, previousLast);
+    // Half-open like every window here (Q-AI10): the previous span ends where this period starts.
+    const previous = await readLedgerForPeriod(admin, orgId, previousFrom, periodFrom);
     comparativeRows = previous.period;
     comparison = {
       kind: "previous",

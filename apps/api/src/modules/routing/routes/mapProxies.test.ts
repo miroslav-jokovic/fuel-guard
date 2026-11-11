@@ -6,6 +6,7 @@ import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { drainMetricsSections } from "../../../middleware/requestMetrics.js";
 
 /**
  * `GET /api/fueling/map-tiles/:z/:x/:y` — the basemap the proxy asks HERE for (D-DR8).
@@ -497,5 +498,166 @@ describe("the tile request reaches the upstream URL (D-DR26)", () => {
     const res = await realFetch(`${baseUrl}/api/fueling/map-tiles/21/0/0`, { headers: { Authorization: "Bearer admin" } });
     expect(res.status).toBe(400);
     expect(hereUrl()).toBeUndefined();
+  });
+});
+
+/**
+ * D-DR30: HERE refusing a tile for RATE. Measured 2026-11-10: a 40-dispatcher burst drew `429 "Rate
+ * limit for this service has been reached"` on 17–21% of tiles, which this route turned into blank
+ * 502 squares. One jittered retry, then an honest 503, and never a cached error.
+ */
+describe("the tile proxy when HERE refuses for rate", () => {
+  function stubRefusals(n: number) {
+    let calls = 0;
+    vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+      upstream.push(String(input));
+      upstreamInit.push(init);
+      calls += 1;
+      if (calls <= n) return new Response("{}", { status: 429 });
+      return new Response(Buffer.from([0]), { status: 200, headers: { "content-type": "image/png" } });
+    });
+  }
+
+  it("retries a refused tile once and serves it, instead of handing the reader a blank square", async () => {
+    stubRefusals(1);
+    const res = await tile("");
+    expect(res.status).toBe(200);
+    expect(upstream.filter((u) => u.startsWith("https://maps.hereapi.com/"))).toHaveLength(2);
+  });
+
+  it("answers 503 with Retry-After after a second refusal, never retrying a third time", async () => {
+    stubRefusals(2);
+    const res = await tile("");
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe("1");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const body = (await res.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe("tile_upstream_busy");
+    expect(upstream.filter((u) => u.startsWith("https://maps.hereapi.com/"))).toHaveLength(2);
+  });
+
+  it("marks a vendor error uncacheable too, so a blank square is not kept for a day", async () => {
+    vi.stubGlobal("fetch", async () => new Response("{}", { status: 500 }));
+    const res = await tile("");
+    expect(res.status).toBe(502);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("waits what HERE asks, capped at two seconds, and otherwise 250–600 ms with jitter", async () => {
+    const { tileRetryDelayMs } = await import("./mapProxies.js");
+    expect(tileRetryDelayMs("1")).toBe(1_000);
+    expect(tileRetryDelayMs("30")).toBe(2_000);
+    expect(tileRetryDelayMs(null, () => 0)).toBe(250);
+    expect(tileRetryDelayMs(null, () => 1)).toBe(600);
+    expect(tileRetryDelayMs("soon", () => 0)).toBe(250);
+  });
+});
+
+/**
+ * D-DR31: the vector road map's two routes. The tile route is the raster one's sibling (same pacer,
+ * same caching), so these pin only what is new: where it asks, how deep, and that the glyph relay
+ * is not an open door onto HERE's asset host.
+ */
+describe("the vector road map's tile and glyph routes", () => {
+  const get = (path: string) =>
+    realFetch(`${baseUrl}/api/fueling/map-tiles/${path}`, { headers: { Authorization: "Bearer admin" } });
+
+  it("asks HERE's vector host for the tile, with the key and nothing from the reader", async () => {
+    stubUpstream();
+    const res = await get("vector/14/4201/6091?apikey=reader-supplied");
+    expect(res.status).toBe(200);
+    const url = upstream.find((u) => u.startsWith("https://vector.hereapi.com/"));
+    expect(url).toBe("https://vector.hereapi.com/v2/vectortiles/base/mc/14/4201/6091/omv?apikey=test-here-key");
+  });
+
+  it("refuses zoom 18, which HERE does not serve, without asking HERE", async () => {
+    stubUpstream();
+    const res = await get("vector/18/1/1");
+    expect(res.status).toBe(400);
+    expect(upstream).toHaveLength(0);
+  });
+
+  it("asks for truck places with HERE's advanced content, at the one zoom it is fetched at (D-DR34)", async () => {
+    stubUpstream();
+    const res = await get("truck-places/13/2091/3056?content=default,advanced_roads");
+    expect(res.status).toBe(200);
+    expect(upstream.at(-1)).toBe(
+      "https://vector.hereapi.com/v2/vectortiles/base/mc/13/2091/3056/omv?apikey=test-here-key&content=default,advanced_pois",
+    );
+  });
+
+  it("refuses truck places at any other zoom without asking HERE, so the dearer tile cannot multiply", async () => {
+    stubUpstream();
+    for (const z of [12, 14, 17]) expect((await get(`truck-places/${z}/1/1`)).status).toBe(400);
+    expect(upstream).toHaveLength(0);
+  });
+
+  it("counts the truck-place tiles it asks for on the metrics line, and no ordinary vector tile", async () => {
+    stubUpstream();
+    drainMetricsSections();
+    await get("truck-places/13/2091/3056");
+    await get("truck-places/13/2092/3056");
+    await get("vector/14/4201/6091");
+    expect(drainMetricsSections().hereTiles?.advancedTiles).toBe(2);
+  });
+
+  it("relays HERE's two style fonts and nothing else", async () => {
+    stubUpstream();
+    expect((await get("glyphs/Fira%20GO%20Regular/0-255.pbf")).status).toBe(200);
+    expect(upstream.at(-1)).toBe("https://assets.vector.hereapi.com/fonts/Fira%20GO%20Regular/0-255.pbf");
+    upstream.length = 0;
+    expect((await get("glyphs/Arial/0-255.pbf")).status).toBe(400);
+    expect((await get("glyphs/Fira%20GO%20Bold/..%2F..%2Fstyles.pbf")).status).toBe(400);
+    expect(upstream).toHaveLength(0);
+  });
+
+  it("still sits behind the sign-in, like the raster tiles", async () => {
+    stubUpstream();
+    const res = await realFetch(`${baseUrl}/api/fueling/map-tiles/vector/14/4201/6091`);
+    expect(res.status).toBe(401);
+    expect(upstream).toHaveLength(0);
+  });
+});
+
+/**
+ * D-DR31, the staging blank map: HERE gzips vector tiles and `fetch` decodes them, so forwarding
+ * HERE's `content-length` told the browser the tile was 72 956 bytes when 107 391 were coming, and
+ * every vector tile arrived truncated. A stub that sent no encoding could not see it, so this one does.
+ */
+describe("the tile proxy and an encoded upstream", () => {
+  it("streams a vector tile HERE gzipped whole, without HERE's encoded length", async () => {
+    const decoded = Buffer.alloc(5_000, 7);
+    vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+      upstream.push(String(input));
+      upstreamInit.push(init);
+      // What undici hands back: the DECODED body, with HERE's headers describing the ENCODED one.
+      return new Response(decoded, {
+        status: 200,
+        headers: { "content-type": "application/x-protobuf", "content-encoding": "gzip", "content-length": "1234" },
+      });
+    });
+    // `identity`, so our own compression stays out of it: that strips the length too, and would hide
+    // the bug from this test while a browser that skipped compression still met it.
+    const res = await realFetch(`${baseUrl}/api/fueling/map-tiles/vector/14/4201/6091`, {
+      headers: { Authorization: "Bearer admin", "Accept-Encoding": "identity" },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-length")).not.toBe("1234");
+    expect(Buffer.from(await res.arrayBuffer()).equals(decoded)).toBe(true);
+  });
+
+  it("compresses a vector tile on the way to the browser, and leaves a jpeg alone", async () => {
+    vi.stubGlobal("fetch", async (input: unknown) => {
+      upstream.push(String(input));
+      const vector = String(input).includes("vector.hereapi.com");
+      return new Response(Buffer.alloc(5_000, 7), {
+        status: 200,
+        headers: { "content-type": vector ? "application/x-protobuf" : "image/jpeg" },
+      });
+    });
+    const ask = (path: string) =>
+      realFetch(`${baseUrl}/api/fueling/map-tiles/${path}`, { headers: { Authorization: "Bearer admin", "Accept-Encoding": "gzip" } });
+    expect((await ask("vector/14/4201/6091")).headers.get("content-encoding")).toBe("gzip");
+    expect((await ask("5/8/9?style=explore.day&format=jpeg")).headers.get("content-encoding")).toBeNull();
   });
 });

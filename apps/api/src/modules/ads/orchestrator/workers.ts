@@ -8,7 +8,9 @@ import type { CampaignRow } from "./transitions.js";
 import { anthropicClient } from "../../../lib/anthropic.js";
 import { composeCampaign } from "../compose/composeCampaign.js";
 import { readAdAsset, storeAdAsset } from "../creative/brandAssets.js";
-import { publishCampaign } from "../platforms/meta/publishCampaign.js";
+import { publishCampaign, publishReplacement } from "../platforms/meta/publishCampaign.js";
+import { refreshCampaign } from "../compose/refreshCampaign.js";
+import { composeCreative } from "../compose/composeCreative.js";
 import { HIGGSFIELD_CREDIT_PRICES } from "../creative/higgsfield/prices.js";
 import { renderChoiceFor } from "../creative/higgsfield/simulatedRender.js";
 import { renderStatus, type RenderInput, type RenderOutcome } from "../creative/higgsfield/render.js";
@@ -33,6 +35,11 @@ export interface CampaignWorkers {
   createPaused: ((campaign: CampaignRow, key: string) => Promise<PlatformOutcome>) | null;
   /** B1: the connection's platform, its spend half bound to the guard. Null for a connection that cannot be used. */
   platform: ((orgId: string, connectionId: string) => Promise<GuardedPlatform | null>) | null;
+  /**
+   * Q-AD68: on a LIVE campaign, a retired ad's replacement made, then (once a person approved it) published into the
+   * existing ad set and turned on (`compose/refreshCampaign.ts`). Moves no campaign state.
+   */
+  refresh: ((campaign: CampaignRow, key: string) => Promise<WorkerResult>) | null;
 }
 
 /**
@@ -85,6 +92,24 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
       const found = await adapterForConnection({ admin: deps.admin, env: deps.env, now: deps.now }, orgId, connectionId);
       return found ? guardPlatform(deps.admin, deps.now, found.platform, found.adapter) : null;
     },
+    // Q-AD68: a retired ad's replacement — made by the same workers as any creative, published by the same publisher,
+    // turned on through the adapter's `activateAd` (spend-neutral; the database fences it, 0587).
+    refresh: async (campaign) => {
+      const choice = await renderChoiceFor(deps.admin, campaign.org_id, campaign.connection_id);
+      const composeDeps = {
+        admin: deps.admin, now: deps.now, client: anthropicClient(deps.env), renderModel: choice.model,
+        render: queuedRender(deps.admin, undefined, choice.prices),
+        readAsset: (orgId: string, ref: Parameters<typeof readAdAsset>[2]) => readAdAsset(deps.admin, orgId, ref),
+        storeAsset: (orgId: string, bytes: Buffer) => storeAdAsset(deps.admin, orgId, bytes),
+      };
+      const registry = { admin: deps.admin, env: deps.env, now: deps.now };
+      return refreshCampaign({
+        admin: deps.admin, now: deps.now,
+        composeOne: (input) => composeCreative(composeDeps, input),
+        publishOne: (c, creativeId) => publishReplacement({ ...registry, readAsset: (orgId, ref) => readAdAsset(deps.admin, orgId, ref) }, c, creativeId),
+        platform: (orgId, connectionId) => adapterForConnection(registry, orgId, connectionId),
+      }, campaign);
+    },
   };
 }
 
@@ -130,8 +155,9 @@ export function agentHasWork(state: CampaignState, workers: CampaignWorkers, kil
     // The kill moves launching/live to pausing with no platform call, so it needs no adapter.
     case "launching":
       return killSwitch || workers.platform !== null;
+    // The kill first (the runner checks it before anything); else Q-AD68's refresh, which idles when nothing was retired.
     case "live":
-      return killSwitch;
+      return killSwitch || workers.refresh !== null;
     case "pausing":
       return workers.platform !== null;
     // A person's turn (review, paused, failed) or the end (archived).

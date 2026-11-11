@@ -153,7 +153,7 @@ describe("Meta publisher contract — half-created objects are resumed, never du
 
 describe("Meta publisher contract — a revoked token stops the step and tells an admin", () => {
   // The runner is real (its alert is what is under test); its createPaused is the publisher on the target.
-  const step = () => runCampaignStep({ admin: w.admin, now: w.now, workers: { compose: null, platform: null, createPaused: (_c, key) => publishPaused(deps(), input(key.replace(`${campaignId}:`, ""))) } }, ORG, campaignId);
+  const step = () => runCampaignStep({ admin: w.admin, now: w.now, workers: { compose: null, platform: null, refresh: null, createPaused: (_c, key) => publishPaused(deps(), input(key.replace(`${campaignId}:`, ""))) } }, ORG, campaignId);
   const toldOnce = () => {
     expect(w.byId(campaignId).last_error).toBe("token_invalid");
     expect(w.connections[0]).toMatchObject({ status: "failing", last_error: "create: token_invalid" });

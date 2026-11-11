@@ -104,6 +104,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Fuel log → /fuel-log",
       "Fuel cards → /fuel-cards",
+      "Fuel costs → /fuel-spend",
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
@@ -148,6 +149,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Fuel log → /fuel-log",
       "Fuel cards → /fuel-cards",
+      "Fuel costs → /fuel-spend",
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
@@ -192,6 +194,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Fuel log → /fuel-log",
       "Fuel cards → /fuel-cards",
+      "Fuel costs → /fuel-spend",
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
@@ -490,6 +493,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Fuel log → /fuel-log",
       "Fuel cards → /fuel-cards",
+      "Fuel costs → /fuel-spend",
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "Fuel alerts → /anomalies",
@@ -561,6 +565,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Fuel log → /fuel-log",
       "Fuel cards → /fuel-cards",
+      "Fuel costs → /fuel-spend",
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "Fuel alerts → /anomalies",
@@ -630,6 +635,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Fuel log → /fuel-log",
       "Fuel cards → /fuel-cards",
+      "Fuel costs → /fuel-spend",
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "Fuel alerts → /anomalies",
@@ -788,6 +794,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "items": [
       "Fuel log → /fuel-log",
       "Fuel cards → /fuel-cards",
+      "Fuel costs → /fuel-spend",
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
@@ -827,6 +834,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "items": [
       "Fuel log → /fuel-log",
       "Fuel cards → /fuel-cards",
+      "Fuel costs → /fuel-spend",
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
@@ -864,6 +872,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "items": [
       "Fuel log → /fuel-log",
       "Fuel cards → /fuel-cards",
+      "Fuel costs → /fuel-spend",
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
@@ -1213,6 +1222,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "items": [
       "Fuel log → /fuel-log",
       "Fuel cards → /fuel-cards",
+      "Fuel costs → /fuel-spend",
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "Fuel alerts → /anomalies",
@@ -1265,6 +1275,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "items": [
       "Fuel log → /fuel-log",
       "Fuel cards → /fuel-cards",
+      "Fuel costs → /fuel-spend",
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "Fuel alerts → /anomalies",
@@ -1317,6 +1328,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "items": [
       "Fuel log → /fuel-log",
       "Fuel cards → /fuel-cards",
+      "Fuel costs → /fuel-spend",
       "Pilot invoices → /fuel-invoices",
       "Fuel problems → /fuel-problems",
       "Fuel alerts → /anomalies",
@@ -1557,6 +1569,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "items": [
         "Fuel log → /fuel-log",
         "Fuel cards → /fuel-cards",
+        "Fuel costs → /fuel-spend",
         "Pilot invoices → /fuel-invoices",
         "Fuel problems → /fuel-problems",
         "IFTA → /ifta",

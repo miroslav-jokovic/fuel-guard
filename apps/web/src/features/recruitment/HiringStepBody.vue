@@ -15,7 +15,7 @@ import { hiringDrawerBody } from "@/features/recruitment/hiringStepDrawers";
 import { useSessionStore } from "@/stores/session";
 import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.vue";
 import AuthorizationsPanel from "@/features/recruitment/AuthorizationsPanel.vue";
-import ApplicantIdentityCorrection from "@/features/recruitment/ApplicantIdentityCorrection.vue";
+import ApplicantIdentityOnFile from "@/features/recruitment/ApplicantIdentityOnFile.vue";
 import SendApplicationPanel from "@/features/recruitment/SendApplicationPanel.vue";
 import SendForSigningPanel from "@/features/recruitment/SendForSigningPanel.vue";
 import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
@@ -70,6 +70,8 @@ const fullName = computed(() => props.identity?.full_name ?? null);
 // `openStep` (§9 P2, D-2): a body that cannot work yet hands the office to the row that comes first.
 const emit = defineEmits<{
   review: [invitationId: string];
+  /** Step 6: the date of birth and licence are corrected on the application's card — opened there by the page. */
+  correctIdentity: [invitationId: string];
   orderTest: [order: { medstopId: string; zip: string | null }];
   closeOrder: [request: { requestId: string; status: MedstopCloseStatus }];
   recollect: [test: { testId: string; medstopId: string; collectedOn: string | null; zip: string | null }];
@@ -185,12 +187,12 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         :retrying="authorizationsQ.isFetching.value"
         @retry="authorizationsQ.refetch()"
       />
-      <!-- AF3/D-AF8: identity is given with the permissions, and corrected here before screening. -->
-      <ApplicantIdentityCorrection
+      <!-- AF3/D-AF8: identity is given with the permissions and checked here before screening; corrected on
+           the application's card (F3c part 2, step 6), which the page opens in place of this drawer. -->
+      <ApplicantIdentityOnFile
         v-if="invitationId"
-        :invitation-id="invitationId"
-        :driver-id="driverId"
         :identity="identity ?? null"
+        @correct="emit('correctIdentity', invitationId)"
       />
     </template>
 
@@ -272,6 +274,7 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       :done="step.state === 'done'"
       :invitation-id="invitationId"
       :identity="identity ?? null"
+      @correct-identity="emit('correctIdentity', $event)"
       :advised-first="step.key === 'road_test' && step.advisedFirst === 'drug_test' ? advisedFirst : null"
     />
     <HandbookPanel v-else-if="body === 'handbook'" :driver-id="driverId" :done="step.state === 'done'" />

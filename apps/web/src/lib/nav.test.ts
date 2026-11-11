@@ -202,13 +202,13 @@ describe("buildNavGroups under an org's overrides", () => {
   });
 
   it("respects the view/manage distinction — a granted VIEW does not add the write surfaces", () => {
-    // Fuel Costs is `canManageSection("fuel")`; Cards is `canViewSection`. (The pair used to be
-    // Transactions and Import; C2 made the first a tab of the Fuel Log and C4 made the second a
-    // drawer on it, so neither is a grantable screen any more.)
-    const viewOnly = names("recruiter", { fuel: "view" });
-    expect(viewOnly).toContain("Fuel cards");
-    expect(viewOnly).not.toContain("Fuel costs");
-    expect(names("recruiter", { fuel: "manage" })).toContain("Fuel costs");
+    // Fuel planning is `manage("dispatch")`; Loads is `section("dispatch")`. (The pair was Fuel costs and
+    // Fuel cards until Q-AI12, 2026-11-11, opened Fuel costs at `view` — fuel has no `manage` screen
+    // left; before that it was Transactions and Import, until C2 and C4.)
+    const viewOnly = names("recruiter", { dispatch: "view" });
+    expect(viewOnly).toContain("Loads");
+    expect(viewOnly).not.toContain("Fuel planning");
+    expect(names("recruiter", { dispatch: "manage" })).toContain("Fuel planning");
   });
 
   it("leaves untouched sections alone, because the claim is sparse", () => {

@@ -1355,7 +1355,16 @@ rate, and Higgsfield credits per approved creative.
   them: Meta is asked for `LEAD_GENERATION` at lowest cost and nothing built can change the goal (F-LR1, waits on
   Q-AD17); the not-qualified alert gates on attempted calls that LQ6 stopped anyone making (F-LR2); the art
   director never sees layout, formats or copy (F-AG2); no still model is chosen, so no real image exists
-  (F-AG1, Q-AD20). The ranked build list AG1–AG9 and LR1–LR8 is that document's §3. **All open.**
+  (F-AG1, Q-AD20). The ranked build list AG1–AG9 and LR1–LR8 is that document's §3.
+  **Ruled 2026-11-10, by the owner's delegation** ("you are product manager and you should analyze and make
+  decisions that will be best solutions for us"; the owner can overrule any of them): Q-AD74 **(a)**, built as LR2 ·
+  Q-AD75 **one render at 4:5, the 1:1 cut anchored on the subject, only the publisher's formats rendered and
+  checked** · Q-AD76 **(b), score shown, no floor until compared with 30 of the owner's own approvals** · Q-AD77
+  **(a), five adoptable starter presets, nothing auto-enabled** · and with it Q-AD58 **(a)**, the proposed concept
+  families. The rulings in full, the decisions made while planning (D-AD24–D-AD28) and the steps are
+  [`ADS-CREATIVE-QUALITY-PLAN.md`](ADS-CREATIVE-QUALITY-PLAN.md) §7; the handoff that carries the rest of the
+  rulings (Q-AD69–Q-AD72, each recorded here when first built on) is
+  [`HANDOFF-2026-11-10-ADS-AGENTS-BUILD.md`](HANDOFF-2026-11-10-ADS-AGENTS-BUILD.md) §3.
 
 ---
 

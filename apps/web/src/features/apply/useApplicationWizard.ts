@@ -5,6 +5,8 @@ import {
   APPLICATION_SECTION_KEYS,
   applicationV2FilingIssues,
   carrierAnswerIssues,
+  applicationLegacyFilingIssues,
+  unansweredEmployerQuestions,
   driverApplicationObject,
   isApplicationSection,
   ruleIssuePath,
@@ -142,6 +144,17 @@ export function validateSection(
   // check the schema's refinement runs at filing, which a `.pick()` of the unrefined object never reaches.
   const candidateFields = candidate as Partial<DriverApplicationFields>;
   for (const issue of carrierAnswerIssues(candidateFields.carrier_questions, candidateFields.carrier_answers)) {
+    if (sectionOwningPath(issue.path) === section) {
+      issues.push(toSectionIssue({ code: "custom", message: issue.message, path: issue.path }, section, candidate));
+    }
+  }
+  // F1 part 2: each job's two questions, answered — the refinement the filing runs, which a `.pick()`
+  // never reaches. And on a legacy link, §40.25(j) (a v2 link asked it in Part 1).
+  const later = [
+    ...unansweredEmployerQuestions(candidateFields.employers),
+    ...(v2AsOf ? [] : applicationLegacyFilingIssues(candidateFields).map((i) => ({ path: [i.path], message: i.message }))),
+  ];
+  for (const issue of later) {
     if (sectionOwningPath(issue.path) === section) {
       issues.push(toSectionIssue({ code: "custom", message: issue.message, path: issue.path }, section, candidate));
     }

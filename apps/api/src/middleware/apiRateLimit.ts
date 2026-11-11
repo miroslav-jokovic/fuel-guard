@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { Request } from "express";
-import { ipKeyGenerator } from "express-rate-limit";
+import type { Request, RequestHandler } from "express";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 
 /**
  * How the general `/api` budget is divided between callers (C1,
@@ -121,12 +121,18 @@ export const MEASURED_HEAVY_ZOOM_WALK_TILES = 410;
  */
 export const MAP_TILE_RATE_LIMIT_PER_CALLER = 10 * MEASURED_HEAVY_ZOOM_WALK_TILES;
 
+/** The most dispatchers one office address is sized for (D-DR30, the owner's 30–40 seats). */
+export const MAP_SEATS_PER_ADDRESS = 40;
+
 /**
  * Per-address tile ceiling, per 15 minutes — the backstop, sized like the general one on USAGE and
- * not on headroom: thirty seats each making two heavy walks a quarter-hour. That is ~27 tiles a
- * second from one address before it is refused, each of which this process forwards to HERE, billed.
+ * not on headroom: every seat making two heavy walks a quarter-hour. That is ~36 tiles a second from
+ * one address before it is refused, each of which this process forwards to HERE, billed.
+ *
+ * ⚠ D-DR30 (2026-11-10) moved it from 30 seats to 40, when the owner asked for 30–40 dispatchers on
+ * the map at once. At 30 the 31st person in one office would have been refused tiles.
  */
-export const MAP_TILE_RATE_LIMIT_PER_ADDRESS = 30 * 2 * MEASURED_HEAVY_ZOOM_WALK_TILES;
+export const MAP_TILE_RATE_LIMIT_PER_ADDRESS = MAP_SEATS_PER_ADDRESS * 2 * MEASURED_HEAVY_ZOOM_WALK_TILES;
 
 /**
  * Whether a request is a map tile. Read from `originalUrl` because the limiters are mounted at
@@ -162,4 +168,23 @@ export function apiRateLimitKey(req: Request): string {
 /** The address ceiling counts every request from an address, credentialled or not. */
 export function apiAddressKey(req: Request): string {
   return `addr:${ipKeyGenerator(req.ip ?? "")}`;
+}
+
+/**
+ * Ask AI's questions per person per 15 minutes (F21 R2, AUDIT P1). The same 30 the route had before —
+ * but per caller, not per address: `/api/ai` sat behind `strictLimiter`, keyed by IP, so one office
+ * shared 30 questions between everyone in it (the C1 outage's shape, memory api-limiter-refuses-one-office).
+ * Thirty is far above use (20 questions in four months) and still stops a stuck client from spending
+ * the month's cap in an afternoon; the cap is the money guard, this is the runaway guard.
+ */
+export const ASSISTANT_ASKS_PER_CALLER = 30;
+
+export function assistantLimiter(): RequestHandler {
+  return rateLimit({
+    windowMs: 15 * 60_000,
+    limit: ASSISTANT_ASKS_PER_CALLER,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    keyGenerator: apiRateLimitKey,
+  });
 }
