@@ -4,6 +4,7 @@
 //   VIEWS='[{"name":"joliet-z9","lng":-88.08,"lat":41.52,"zoom":9}]' BASEMAP="Map (vector trial)" \
 //   node docs/plans/livemap/tools/staging-map-views.mjs        (from the repo root)
 // BASEMAP defaults to the vector trial; "Map" gives today's raster map at the same spot, for comparison.
+// WAIT_MS (default 7000) is how long each view settles before its still; raster needs longer at regional zoom.
 // The map handle comes from patching maplibre's _setupContainer in the served chunk: a rig, never app code.
 import { chromium } from "playwright-core";
 const BASE = "https://staging-api.360.silvicominc.com";
@@ -28,7 +29,7 @@ if (BASEMAP !== "Map") { await page.click('[aria-label^="Basemap:"]'); await pag
 if (!(await page.evaluate(() => !!window.__map))) throw new Error("no map handle: maplibre's _setupContainer changed shape");
 for (const v of VIEWS) {
   await page.evaluate((v) => window.__map.jumpTo({ center: [v.lng, v.lat], zoom: v.zoom }), v);
-  await page.waitForTimeout(7000);
+  await page.waitForTimeout(Number(process.env.WAIT_MS ?? 7000));
   await page.screenshot({ path: `${OUT}/${v.name}.png` });
   const seen = await page.evaluate(() => {
     const ids = window.__map.getStyle().layers.map((l) => l.id);

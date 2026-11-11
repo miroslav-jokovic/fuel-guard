@@ -261,6 +261,18 @@ audit row is the endpoint's own.
     note), the fix would be the dispatcher's `fuel` cell in the matrix, narrowing routes, page and tool
     together — never the page or the tool alone.
 
+- **Q-AI13. The Drivers roster cannot show "drivers with an item expiring" (found at R4b (d),
+  2026-11-11).** `driver_file_expirations` filters by ITEM state (expired, expiring, missing); the
+  roster's File filter is the driver's WORST chip (`fileChip`: expired, then missing, date only, not
+  dated, then expiring). They agree only for `expired`. A driver with one item expiring and one missing
+  is chip "missing", so `file=expiring` would leave out a driver the answer listed. R4b therefore
+  links the roster with filters only for `expired`; every other answer opens the roster as R4a did.
+  Candidates: (a) leave it — the answer lists the drivers, the roster shows them under "Needs
+  attention"; (b) a roster filter by item state (`?item=expiring`: any requirement in that state),
+  read through `driversLinkContract.ts`, which the tool's link then uses; (c) send `file=attention`, a
+  superset, and say so under the link. **Recommend (b)** when an office asks for it: it is the honest
+  page capability, and (c) shows a different list from the answer. Until then, (a).
+
 ## 6. Log
 
 - 2026-10-08 — Audit and plan written. Use measured (15 asks, 3 people, ever). Research:
@@ -770,6 +782,29 @@ audit row is the endpoint's own.
   - Deliberate breaks, each killed by an assertion: the page's Truck param and the scope param read as
     literals, the link without `scope`, and a truck linked when two were named.
   - Next: (d) Applicants, Drivers, Fuel cards.
+- 2026-11-11 — **R4b (d) built: "Open in" Applicants, Drivers and Fuel cards carry the answer's filters.**
+  One PR for the handoff's one bullet, with three contracts, each read by its page:
+  - **Applicants** (`applicantsLinkContract.ts`): `waiting`, `phase`. The board opens on "waiting on you",
+    so an answer about everybody is linked as `waiting=any`.
+  - **Drivers** (`driversLinkContract.ts`): `file`, `status`. Linked with filters only for `expired`
+    (`file=expired&status=any`: the overview holds active and on-leave drivers, and the roster opens on
+    active). Every other state links to the roster itself — Q-AI13 above.
+  - **Fuel cards** (`fuelCardsLinkContract.ts`): `status`, one catalogue status. Linked only when the
+    answer was about Hold or Fraud alone; "both" is not one parameter, so it opens the page itself.
+  - **`LINK_ANY` is a labelled restatement** of `@silvicom/ui`'s `ANY_PARAM` (`linkContract.ts`):
+    `packages/ui` takes no workspace dependency, so it cannot import shared. Pinned equal by
+    `RecruitmentPage.test.ts` "the link contracts' any is the query state's ANY_PARAM"; removed when
+    `ANY_PARAM` moves to a package both can import.
+  - Tests: `listLinkContracts.test.ts`; one link test in each tool's suite; `RecruitmentPage.test.ts`
+    "opens on everybody when a link built by its contract says so, and on a queue and stage when it
+    names them"; `useRosterFilters.test.ts` "reads a link built by the Drivers contract: expired files,
+    every status"; `fuelCardsFiltersInUrl.test.ts` "sends the status a link built by its contract names
+    to the route".
+  - Deliberate breaks, each killed by an assertion: everybody written as an empty `waiting`, each of
+    the three pages reading a literal key, the Drivers link drawn for `expiring`, and the Fuel cards
+    link drawn for both statuses.
+  - Next: (e) the Fleet report's period into its URL, then its link.
+
 - 2026-11-11 — **R4b (e) part 1 built: the Fleet report's period is in its URL.**
   - `packages/shared/src/fleetReportLinkContract.ts`: `?from=YYYY-MM&to=YYYY-MM&grain=…`, inclusive
     months (`FLEET_REPORT_QUERY_KEYS`, `FLEET_REPORT_GRAINS`, `fleetReportToQuery`). The web's

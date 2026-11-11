@@ -213,6 +213,7 @@ describe("what the office reads", () => {
       ok: true,
       data: review({
         payload: { ...PAYLOAD, carrier_answers: { "q-pet": true, "q-lane": "I'd rather not say" } },
+        edits: [{ path: ["carrier_answers", "q-lane"], before: "East", after: "I'd rather not say", editedAt: "2026-11-11T12:00:00Z", editedBy: "Dana" }],
         carrierQuestions: [
           { id: "q-pet", wording: "Do you own a pet?", hint: null, kind: "boolean", choices: null, required: true },
           { id: "q-lane", wording: "Preferred lane", hint: null, kind: "select", choices: ["East", "West"], required: false },
@@ -226,8 +227,13 @@ describe("what the office reads", () => {
     expect(text).toContain("Preferred lane");
     expect(text).toMatch(/Do you own a pet\?\s*Yes/);
     expect(text).toMatch(/Preferred lane\s*I'd rather not say/);
-    // Not offered as a correction: the draft does not carry the stamp that labels them (Q-CQ7).
-    expect(w.find("[id^='apply-carrier_answers']").exists()).toBe(false);
+    // F3c part 2, step 5: corrected on the card, one row per stamped question (until then not offered —
+    // the draft does not carry the stamp, Q-CQ7; the review response does).
+    expect(w.find("[data-fact='carrier_answers.q-pet']").text()).toContain("Do you own a pet?");
+    expect(w.find("[data-fact='carrier_answers.q-lane']").exists()).toBe(true);
+    // "What you changed" names the question by its stamped words, not "The carrier's own questions".
+    expect(text).toMatch(/Preferred lane\s*East/);
+    expect(text).not.toContain("The carrier's own questions East");
   });
 
   /**

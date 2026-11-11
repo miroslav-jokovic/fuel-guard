@@ -131,6 +131,10 @@ function changeLabel(row: { path: ApplicationPath; before: unknown; after: unkno
     return `${job} · ${describeField(["employers", 0, row.path[2]!]).split(" · ")[1] ?? String(row.path[2])}`;
   }
   if (head === "employment_gaps") return `Gap from ${formatDisplayDate(String(ref))}`;
+  // Step 5: one of the carrier's own questions, by the wording on THIS applicant's stamp — the office's
+  // page serves no applicant bundle, so `describeField` would name every one "The carrier's own questions".
+  const asked = head === "carrier_answers" ? review.data.value?.carrierQuestions?.find((q) => q.id === ref) : undefined;
+  if (asked) return asked.wording;
   // E2: named where it is NOW — a removal since moves the rows after it (`currentEditPaths`).
   const now = currentPaths.value[at];
   const label = describeField(now?.path ?? row.path);

@@ -9,6 +9,7 @@ import {
   applicationReviewState,
   applicationDraftPayloadSchema,
   applicationFactAt,
+  carrierAnswerRefusal,
   carrierStampOf,
   type ApplicationContactMove,
   type ApplicationEdit,
@@ -302,6 +303,11 @@ export async function editApplication(
     && await partOneForFiling(admin, orgId, inv)) {
     return { code: "invalid_edit", message: "On this application the licences are corrected under the applicant's licence, not here." };
   }
+
+  // Step 5: the carrier's own answers are checked against the questions THIS applicant was asked.
+  const carrier = "path" in edit && edit.path[0] === "carrier_answers"
+    ? carrierAnswerRefusal(carrierStampOf(inv.carrier_questions), edit.path, edit.value) : null;
+  if (carrier) return { code: "invalid_edit", message: carrier };
 
   const applied = applyApplicationEdit(withEmployerKeys(original, randomUUID), original, edit);
   if (isEditRefusal(applied)) return applied;

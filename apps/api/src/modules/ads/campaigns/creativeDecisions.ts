@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AdsCreativeDecision } from "@silvicom/shared";
-import { decideCreative, type DecideCreativeRefusal } from "../compose/decideCreative.js";
+import { campaignAcceptsDecision, decideCreative, type DecideCreativeRefusal } from "../compose/decideCreative.js";
 import { recordApproval } from "../guard/approvals.js";
 import type { Actor } from "../settings/settingsVersions.js";
 
@@ -33,7 +33,8 @@ export async function decideOnCreative(
   if (!campaign || !creative) return { kind: "not_found" };
   const state = (creative as { state: string }).state;
   if (state === to) return { kind: "decided", state: to, moved: false };
-  if ((campaign as { state: string }).state !== "review") return { kind: "refused", reason: "campaign_not_in_review" };
+  // `review`, or a retired ad's replacement on a live campaign (Q-AD68) — the one rule `decideCreative` also asks.
+  if (!(await campaignAcceptsDecision(admin, orgId, campaignId, creativeId, (campaign as { state: string }).state))) return { kind: "refused", reason: "campaign_not_in_review" };
   if (state !== "ready") return { kind: "refused", reason: "not_ready" };
 
   const kind = ask.decision === "approve" ? "approve_creative" : "reject_creative";
