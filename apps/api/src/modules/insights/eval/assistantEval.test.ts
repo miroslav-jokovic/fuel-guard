@@ -10,7 +10,7 @@ import { ASSISTANT_TOOL_NAMES, assistantToolsFor, MODULE_KEYS, type ModuleSet } 
 const askData = vi.fn();
 vi.mock("../askData.js", () => ({ askData: (...a: unknown[]) => askData(...a) }));
 const { ASSISTANT_EVAL_SET } = await import("./assistantEvalSet.js");
-const { scoreCase, runAssistantEval } = await import("./assistantEval.js");
+const { scoreCase, runAssistantEval, latencyPercentile } = await import("./assistantEval.js");
 
 const ALL = new Set(MODULE_KEYS) as ModuleSet;
 const usage = { model: "m", rounds: 1, inputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 0, costMicroUsd: 1800 };
@@ -93,5 +93,28 @@ describe("runAssistantEval", () => {
     // What `--record` writes is `run.verdicts`; none of the answer may be in it.
     expect(JSON.stringify(run.verdicts)).not.toContain("Jane Driver");
     expect(JSON.stringify(run.verdicts)).not.toContain("4,812");
+  });
+});
+
+describe("answer time (Step 2d's measurement)", () => {
+  it("times each whole answer around the endpoint's own loop, and reports the median and p90 by nearest rank", async () => {
+    askData.mockReset();
+    let clock = 0;
+    const now = vi.spyOn(Date, "now").mockImplementation(() => clock);
+    // Each answer takes longer than the last: 1 s, 2 s, 3 s, 4 s.
+    askData.mockImplementation(async () => {
+      clock += 1000 * askData.mock.calls.length;
+      return trace([{ name: "fuel_report" }]);
+    });
+    const cases = [byId("spend-and-mpg-last-month"), byId("top-stations"), byId("cost-per-mile"), byId("drivers-moving")];
+    const run = await runAssistantEval({} as never, {} as never, "org-1", cases);
+    now.mockRestore();
+    expect(run.verdicts.map((v) => v.latencyMs)).toEqual([1000, 2000, 3000, 4000]);
+    expect(run.latency).toEqual({ p50Ms: 2000, p90Ms: 4000, maxMs: 4000 });
+  });
+
+  it("nearest rank: no answer time is invented between two measured ones", () => {
+    expect(latencyPercentile([5000, 1000, 3000], 0.5)).toBe(3000);
+    expect(latencyPercentile([], 0.5)).toBe(0);
   });
 });

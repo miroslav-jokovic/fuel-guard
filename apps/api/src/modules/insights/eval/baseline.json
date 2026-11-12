@@ -1,9 +1,14 @@
 {
   "model": "claude-haiku-5-5",
-  "recordedAt": "2026-11-11T21:14:13.746Z",
-  "passed": 22,
+  "recordedAt": "2026-11-12T16:11:39.510Z",
+  "passed": 21,
   "total": 23,
-  "costUsd": 0.029,
+  "costUsd": 0.0281,
+  "latency": {
+    "p50Ms": 7259,
+    "p90Ms": 15853,
+    "maxMs": 20278
+  },
   "verdicts": [
     {
       "id": "theft-alerts-30d",
@@ -13,7 +18,8 @@
         "fleet_summary"
       ],
       "outcome": "answered",
-      "costMicroUsd": 278.315
+      "costMicroUsd": 404.935,
+      "latencyMs": 4360
     },
     {
       "id": "flagged-fills-drivers",
@@ -23,7 +29,8 @@
       ],
       "tools": [],
       "outcome": "answered",
-      "costMicroUsd": 599.93
+      "costMicroUsd": 533.305,
+      "latencyMs": 4898
     },
     {
       "id": "idle-2-weeks-trend",
@@ -33,7 +40,8 @@
         "idle_report"
       ],
       "outcome": "answered",
-      "costMicroUsd": 1121.2549999999999
+      "costMicroUsd": 935.915,
+      "latencyMs": 8008
     },
     {
       "id": "idle-3-weeks-by-week",
@@ -43,7 +51,8 @@
         "idle_report"
       ],
       "outcome": "answered",
-      "costMicroUsd": 1203.105
+      "costMicroUsd": 1054.895,
+      "latencyMs": 10357
     },
     {
       "id": "worst-mpg-drivers-q",
@@ -53,7 +62,8 @@
         "fuel_ranking"
       ],
       "outcome": "answered",
-      "costMicroUsd": 874.0500000000001
+      "costMicroUsd": 1000.5500000000001,
+      "latencyMs": 7259
     },
     {
       "id": "spend-and-mpg-last-month",
@@ -63,7 +73,8 @@
         "fuel_report"
       ],
       "outcome": "answered",
-      "costMicroUsd": 831.15
+      "costMicroUsd": 835.4449999999999,
+      "latencyMs": 6165
     },
     {
       "id": "top-stations",
@@ -73,7 +84,8 @@
         "fuel_ranking"
       ],
       "outcome": "answered",
-      "costMicroUsd": 814.36
+      "costMicroUsd": 807.24,
+      "latencyMs": 4393
     },
     {
       "id": "worst-idlers-month",
@@ -84,7 +96,8 @@
         "idling_summary"
       ],
       "outcome": "answered",
-      "costMicroUsd": 774.815
+      "costMicroUsd": 803.0250000000001,
+      "latencyMs": 10562
     },
     {
       "id": "cost-per-mile",
@@ -95,7 +108,8 @@
         "finance_report"
       ],
       "outcome": "answered",
-      "costMicroUsd": 3548.01
+      "costMicroUsd": 1456.48,
+      "latencyMs": 9661
     },
     {
       "id": "drivers-moving",
@@ -105,7 +119,8 @@
         "fleet_now"
       ],
       "outcome": "answered",
-      "costMicroUsd": 1346.7649999999999
+      "costMicroUsd": 1315.34,
+      "latencyMs": 4677
     },
     {
       "id": "mpg-nine-units",
@@ -113,20 +128,25 @@
       "why": [],
       "tools": [
         "fuel_report",
+        "fuel_report",
         "fuel_report"
       ],
       "outcome": "answered",
-      "costMicroUsd": 1782.37
+      "costMicroUsd": 2222.65,
+      "latencyMs": 18186
     },
     {
       "id": "loads-per-truck",
-      "pass": true,
-      "why": [],
+      "pass": false,
+      "why": [
+        "answer does not mention /McLeod|miles/i"
+      ],
       "tools": [
         "loads_by_truck"
       ],
       "outcome": "answered",
-      "costMicroUsd": 927.3299999999999
+      "costMicroUsd": 950.625,
+      "latencyMs": 15853
     },
     {
       "id": "ifta-by-state",
@@ -136,7 +156,8 @@
         "ifta_report"
       ],
       "outcome": "answered",
-      "costMicroUsd": 2371.6800000000003
+      "costMicroUsd": 3491.0550000000003,
+      "latencyMs": 20278
     },
     {
       "id": "repair-bills",
@@ -146,7 +167,8 @@
         "maintenance_cost"
       ],
       "outcome": "answered",
-      "costMicroUsd": 420.395
+      "costMicroUsd": 436.395,
+      "latencyMs": 4569
     },
     {
       "id": "card-holds",
@@ -156,7 +178,8 @@
         "card_holds"
       ],
       "outcome": "answered",
-      "costMicroUsd": 1431.735
+      "costMicroUsd": 1197.8200000000002,
+      "latencyMs": 6369
     },
     {
       "id": "dq-expiring",
@@ -167,7 +190,8 @@
         "driver_file_expirations"
       ],
       "outcome": "answered",
-      "costMicroUsd": 6344.9400000000005
+      "costMicroUsd": 6389.775,
+      "latencyMs": 10009
     },
     {
       "id": "annual-due",
@@ -177,7 +201,8 @@
         "annual_inspections_due"
       ],
       "outcome": "answered",
-      "costMicroUsd": 353.615
+      "costMicroUsd": 271.865,
+      "latencyMs": 3057
     },
     {
       "id": "applicants-waiting",
@@ -187,7 +212,8 @@
         "recruiting_counts"
       ],
       "outcome": "answered",
-      "costMicroUsd": 274.375
+      "costMicroUsd": 272.375,
+      "latencyMs": 2588
     },
     {
       "id": "income-statement",
@@ -198,7 +224,8 @@
         "income_statement"
       ],
       "outcome": "answered",
-      "costMicroUsd": 1009.7299999999999
+      "costMicroUsd": 994.01,
+      "latencyMs": 12552
     },
     {
       "id": "idle-cost-vs-before",
@@ -209,17 +236,20 @@
         "idle_report"
       ],
       "outcome": "answered",
-      "costMicroUsd": 830.55
+      "costMicroUsd": 811.0350000000001,
+      "latencyMs": 10304
     },
     {
       "id": "follow-up-month-before",
       "pass": true,
       "why": [],
       "tools": [
-        "fuel_report"
+        "fuel_economics",
+        "fuel_economics"
       ],
       "outcome": "answered",
-      "costMicroUsd": 997.55
+      "costMicroUsd": 1380.945,
+      "latencyMs": 14234
     },
     {
       "id": "recruiter-no-fuel",
@@ -227,7 +257,8 @@
       "why": [],
       "tools": [],
       "outcome": "answered",
-      "costMicroUsd": 164.355
+      "costMicroUsd": 162.355,
+      "latencyMs": 1861
     },
     {
       "id": "dispatcher-no-finance",
@@ -235,7 +266,8 @@
       "why": [],
       "tools": [],
       "outcome": "answered",
-      "costMicroUsd": 739.775
+      "costMicroUsd": 346.985,
+      "latencyMs": 3162
     }
   ]
 }
