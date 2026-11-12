@@ -297,6 +297,19 @@ audit row is the endpoint's own.
   superset, and say so under the link. **Recommend (b)** when an office asks for it: it is the honest
   page capability, and (c) shows a different list from the answer. Until then, (a).
 
+- **Q-AI14. Fuel problems has no dollar-amount filter (found at Step 5, 2026-11-12).** Step 5's acceptance
+  question is "show me open findings over $200 for unit 718". The page filters by state, kind, truck,
+  days and owner, but not by amount. So Ask AI opens nothing and says the page can't filter by amount
+  (the contract refuses the key, as the acceptance requires). Options:
+  - (a) Add a "minimum amount" filter to Fuel problems: one URL key read through
+    `fuelProblemsLinkContract.ts`, and a server-side bound on the queue read, so the export honours it too.
+    It is a page PR of its own, about a day.
+  - (b) Leave it, and Ask AI keeps saying so.
+
+  **Recommend (a):** an office sorting a queue by "is this worth chasing" needs it with or without
+  Ask AI.
+
+
 ## 6. Log
 
 - 2026-10-08 — Audit and plan written. Use measured (15 asks, 3 people, ever). Research:
@@ -1091,3 +1104,40 @@ audit row is the endpoint's own.
     designed, but no one has listened to them. That belongs in the owner's live test (Q-AI8).
   - Next: Step 5 (`open_view`, navigation). 3b is not built: Q-AI4 (c) keeps conversations tab-local
     until somebody asks for them.
+- 2026-11-12 — **Step 5, first slice: `open_view` opens Fuel problems filtered, behind the dock.**
+  - **One tool, gated per page.** A navigation reads no figures, so `open_view` is one tool over several
+    pages (`ASSISTANT_VIEWS`, `assistantViews.ts`), not a tool per page; fewer tools also matters while
+    the API's own tool search cuts at 5 (§6, 2026-11-11). Whether a caller is offered a page is that
+    page's own surface gate (`canReachSurface`), the sidebar's answer, so `open_view` declares no
+    section of its own. The tool's definition lists only the caller's pages. The web asks
+    `surfaceAllowed` as well before it moves, the same two checks as an "Open in …" link.
+  - **Filters through the page's contract (D-AI6).** `fuelProblemsLinkContract.ts` holds the page's
+    keys: `state`, `kind`, `owner=me`, and the window and trucks as Fuel costs spells them. The page reads
+    them from it. The model's filters are a STRICT schema built from the page's own lists. An unknown key
+    or a value outside the page's list fails, and the error names what the page can filter by: refused,
+    not dropped (the acceptance). Unit numbers become vehicle ids only in the link (D-AI8). A unit not in
+    the fleet opens nothing.
+  - **Navigation (D-AI5 (a)).** Only `open_view`'s link is marked `navigate`, by `splitAssistantLink`,
+    never by a tool's result. The dock (`useOpenView`) follows it once, when the newest turn lands, and
+    the dock stays open over the page. On `/ask` nothing moves; the answer's "Open in …" link is the way
+    there.
+  - **Current page.** Each question carries the surface behind the dock (`page`). The API names it to the
+    model after the cache breakpoint, so "filter this to 718" knows what "this" is. An unknown key is
+    ignored.
+  - **Not met yet:** the acceptance question's "over $200" has no filter on the page. Q-AI14 asks, with a
+    recommendation.
+  - **Tests:**
+    - `assistantViews.test.ts`: "refuses a filter the page does not have, naming what it can filter by,
+      rather than dropping it".
+    - `openAssistantView.test.ts`.
+    - `askData.test.ts`: "tells the model the page the person is on, offers open_view with their pages,
+      and marks its link to navigate, ids off the model's text (Step 5)".
+    - `useOpenView.test.ts`: "sends the page the person is on, and opens the page an answer opened, with
+      its filters, once".
+    - The eval set gains `show-open-fuel-problems`. It is not yet run (~$0.03 on the owner's go).
+  - **Deliberate breaks, each killed:**
+    - the schema passing unknown keys;
+    - every tool's link navigating;
+    - the dock moving on `/ask`.
+  - **Next, one page per PR:** Fuel log, Alerts (`/anomalies`), Fuel cards, Drivers; then Loads and
+    Vehicles, which first need their filters in the URL (S4).

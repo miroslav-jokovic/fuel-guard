@@ -1,6 +1,7 @@
 import { resolveSectionAccess, type AppSection, type SectionAccess, type SectionClaim } from "./auth.js";
 import type { UserRole } from "./constants.js";
 import { moduleEnabled, type ModuleKey, type ModuleSet } from "./entitlements.js";
+import { ASSISTANT_VIEW_SURFACES, assistantViewsFor } from "./assistantViews.js";
 
 /**
  * Which assistant tools a caller may use (F21 R5; PLAN.md D-AI1/D-AI3; owner's rulings 2026-11-10).
@@ -90,6 +91,9 @@ export const ASSISTANT_TOOL_ACCESS = {
   // too. That is the owner's Q-AI5 ruling with no list written; the auditor is Q-AI11 (PLAN.md §5).
   finance_report: [view("accounting")],
   income_statement: [view("accounting")],
+  // F21 Step 5: opens a page filtered, reading nothing. Its gate is PER PAGE, each page's own surface
+  // gate (`assistantViewsFor`), so it declares nothing here and `callerMayUseTool` asks the views.
+  open_view: [],
 } as const satisfies Record<string, readonly ToolRequirement[]>;
 
 export type AssistantToolName = keyof typeof ASSISTANT_TOOL_ACCESS;
@@ -130,16 +134,23 @@ export const ASSISTANT_TOOL_PAGE: Record<AssistantToolName, string | null> = {
   maintenance_cost: "maintenance.units",
   finance_report: "finance.fleet-report",
   income_statement: "finance.fleet-report",
+  // Its pages are `ASSISTANT_VIEWS`', one per call; its link is checked against those (`splitAssistantLink`).
+  open_view: null,
 };
 
 /** The pages behind one answer: each successful tool's page, once, in the order they were called. */
-export function assistantAnswerPages(tools: readonly { name: string; error?: string }[]): string[] {
+export function assistantAnswerPages(
+  tools: readonly { name: string; error?: string }[],
+  /** Step 5: a page `open_view` opened is listed too, from its (already checked) link. */
+  links: readonly AssistantAnswerLink[] = [],
+): string[] {
   const pages: string[] = [];
   for (const t of tools) {
     if (t.error) continue;
     const page = (ASSISTANT_TOOL_PAGE as Record<string, string | null>)[t.name] ?? null;
     if (page && !pages.includes(page)) pages.push(page);
   }
+  for (const l of links) if (l.navigate && !pages.includes(l.surfaceKey)) pages.push(l.surfaceKey);
   return pages;
 }
 
@@ -151,6 +162,11 @@ export function assistantAnswerPages(tools: readonly { name: string; error?: str
 export interface AssistantAnswerLink {
   surfaceKey: string;
   query: Record<string, string>;
+  /**
+   * F21 Step 5 (D-AI5 (a)): the person asked to SEE this page so filtered, so the dock opens it. Set
+   * only by `splitAssistantLink` for `open_view`, never taken from a tool's own result.
+   */
+  navigate?: true;
 }
 
 /**
@@ -164,14 +180,18 @@ export function splitAssistantLink(tool: string, result: unknown): { link: Assis
   const { link, ...rest } = result as { link?: unknown } & Record<string, unknown>;
   const page = (ASSISTANT_TOOL_PAGE as Record<string, string | null>)[tool] ?? null;
   const l = link as Partial<AssistantAnswerLink> | null | undefined;
+  // `open_view` links to one of its views' pages (and only it navigates); every other tool to its own page.
+  const view = tool === "open_view";
+  const target = view ? (ASSISTANT_VIEW_SURFACES.includes(String(l?.surfaceKey)) ? String(l!.surfaceKey) : null) : page;
   const ok =
     !!l &&
-    page !== null &&
-    l.surfaceKey === page &&
+    target !== null &&
+    l.surfaceKey === target &&
     !!l.query &&
     typeof l.query === "object" &&
     Object.values(l.query).every((v) => typeof v === "string");
-  return { link: ok ? { surfaceKey: page!, query: { ...l!.query! } } : null, result: rest };
+  if (!ok) return { link: null, result: rest };
+  return { link: { surfaceKey: target!, query: { ...l!.query! }, ...(view ? { navigate: true as const } : {}) }, result: rest };
 }
 
 const RANK: Record<SectionAccess, number> = { none: 0, view: 1, manage: 2 };
@@ -200,6 +220,7 @@ export function callerMayUseTool(
   modules: ModuleSet | null,
   tool: AssistantToolName,
 ): boolean {
+  if (tool === "open_view") return assistantViewsFor(role, claim, modules).length > 0;
   return (ASSISTANT_TOOL_ACCESS[tool] as readonly ToolRequirement[]).every((r) =>
     "module" in r ? moduleEnabled(modules, r.module) : RANK[resolveSectionAccess(role, r.section, claim)] >= RANK[r.level],
   );

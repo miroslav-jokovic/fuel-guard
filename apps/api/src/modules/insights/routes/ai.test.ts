@@ -265,3 +265,18 @@ describe("POST /api/ai/ask — the streamed answer (F21 Step 2d)", () => {
     expect(askData.mock.calls[0]![7]).toBeUndefined();
   });
 });
+
+describe("POST /api/ai/ask — open_view (F21 Step 5)", () => {
+  it("hands askData the caller's pages and the page they are on, and lists an opened page under the answer", async () => {
+    setup(0);
+    const link = { surfaceKey: "fuel.exceptions", query: { state: "open" }, navigate: true };
+    askData.mockResolvedValueOnce({ answer: "Opened.", tools: [{ name: "open_view", input: {} }], usage: USAGE, outcome: "answered", links: [link] });
+    const res = await fetch(`${baseUrl}/api/ai/ask`, {
+      method: "POST",
+      headers: { authorization: "Bearer t", "content-type": "application/json" },
+      body: JSON.stringify({ question: "show me the open fuel problems", page: "fuel.spend" }),
+    });
+    expect(await res.json()).toEqual({ answer: "Opened.", pages: ["fuel.exceptions"], links: [link] });
+    expect(askData.mock.calls[0]![8]).toEqual({ views: ["fuel_problems"], page: "fuel.spend" });
+  });
+});

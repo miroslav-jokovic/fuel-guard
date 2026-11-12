@@ -16,6 +16,7 @@ import {
   type ToolRequirement,
 } from "./assistantContract.js";
 import { SURFACES } from "./surfaceCatalogue.js";
+import { ASSISTANT_VIEWS } from "./assistantViews.js";
 
 /** A carrier that bought everything, and one that bought nothing. */
 const ALL_MODULES: ModuleSet = new Set(MODULE_KEYS);
@@ -31,8 +32,15 @@ const reqs = (t: keyof typeof ASSISTANT_TOOL_ACCESS) => ASSISTANT_TOOL_ACCESS[t]
 describe("assistantToolsFor — every role, every tool, from the section matrix", () => {
   for (const role of USER_ROLES) {
     it(`${role}: exactly the tools whose every section the role can view`, () => {
+      // `open_view` (Step 5) has no requirement of its own: the role gets it when the section matrix
+      // lets it view the section of at least one of its pages' surface gates.
+      const viewable = (section: Parameters<typeof rolesThatCanView>[0]) => rolesThatCanView(section).includes(role);
+      const anyView = Object.values(ASSISTANT_VIEWS).some((v) => {
+        const gate = SURFACES.find((s) => s.key === v.surfaceKey)?.gate as { section?: Parameters<typeof rolesThatCanView>[0] } | undefined;
+        return !!gate?.section && viewable(gate.section);
+      });
       const want = ASSISTANT_TOOL_NAMES.filter(
-        (t) => role !== "driver" && reqs(t).every((r) => "module" in r || rolesThatCanView(r.section).includes(role)),
+        (t) => role !== "driver" && (t === "open_view" ? anyView : reqs(t).every((r) => "module" in r || viewable(r.section))),
       );
       expect(assistantToolsFor(role, null, ALL_MODULES)).toEqual(want);
     });

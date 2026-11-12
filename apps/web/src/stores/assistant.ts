@@ -70,6 +70,8 @@ export function finalRefusal(status: number, code: string | undefined): Assistan
 export const useAssistantStore = defineStore("assistant", () => {
   const turns = ref<AssistantTurn[]>([]);
   const open = ref(false);
+  /** F21 Step 5: the surface the reader is on, set by the dock's host (`useOpenView`); none on `/ask`. */
+  const page = ref<string | undefined>(undefined);
   let seq = 0;
 
   const busy = () => turns.value.some((t) => t.status === "pending");
@@ -111,7 +113,7 @@ export const useAssistantStore = defineStore("assistant", () => {
     try {
       res = await apiFetch<AskJson>("/api/ai/ask", {
         method: "POST",
-        body: { question: turn.question, history: historyBefore(turn) },
+        body: { question: turn.question, history: historyBefore(turn), ...(page.value ? { page: page.value } : {}) },
         stream: (chunk) => {
           const read = readAssistantEvents(buffer + chunk);
           buffer = read.rest;
@@ -169,5 +171,5 @@ export const useAssistantStore = defineStore("assistant", () => {
     turns.value = [];
   }
 
-  return { turns, open, ask, retry, clear, busy };
+  return { turns, open, page, ask, retry, clear, busy };
 });

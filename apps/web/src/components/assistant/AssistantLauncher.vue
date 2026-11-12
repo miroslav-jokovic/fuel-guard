@@ -10,6 +10,7 @@ import AssistantThread from "./AssistantThread.vue";
 import { suggestionsFor } from "./suggestions";
 import { useAssistantAccess, useAssistantTools } from "./useAssistantAccess";
 import { EDGE_MARGIN, useLauncherPosition } from "./useLauncherPosition";
+import { useOpenView } from "./useOpenView";
 
 /**
  * The assistant on every page: a launcher bottom-right, opening a docked panel (F21 redesign).
@@ -40,6 +41,8 @@ const allowed = useAssistantAccess();
 
 const onAskPage = computed(() => route.name === "ask");
 const visible = computed(() => allowed.value && !onAskPage.value);
+// F21 Step 5: the page behind the dock goes with each question, and an answer that opens a page opens it.
+useOpenView(visible);
 
 /**
  * The page's own suggestions. The MATCHED pattern, not the URL: `/drivers/:id` is in the catalogue,

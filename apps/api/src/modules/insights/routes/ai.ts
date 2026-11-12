@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth, requireOrg } from "../../../middleware/auth.js";
-import { ASSISTANT_ANSWER_MAX, ASSISTANT_QUESTION_MAX, ASSISTANT_STREAM_TYPE, ASSISTANT_TOOL_MODULES, encodeAssistantEvent, type AssistantStreamEvent, assistantAnswerPages, assistantHistoryForRequest, assistantToolsFor } from "@silvicom/shared";
+import { ASSISTANT_ANSWER_MAX, ASSISTANT_QUESTION_MAX, ASSISTANT_STREAM_TYPE, ASSISTANT_TOOL_MODULES, encodeAssistantEvent, type AssistantStreamEvent, assistantAnswerPages, assistantHistoryForRequest, assistantToolsFor, assistantViewsFor } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -49,7 +49,11 @@ export function aiRouter(): Router {
       }
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
-      const body = (req.body ?? {}) as { question?: unknown; history?: unknown };
+      const body = (req.body ?? {}) as { question?: unknown; history?: unknown; page?: unknown };
+      // F21 Step 5: the pages `open_view` may open for this person (each page's own surface gate), and the
+      // page they are on, for "filter this to 718". Unknown to an older web: absent, and nothing changes.
+      const views = assistantViewsFor(req.auth!.role, req.auth!.sections ?? null, modules);
+      const page = typeof body.page === "string" ? body.page.slice(0, 100) : undefined;
       const question = String(body.question ?? "").slice(0, ASSISTANT_QUESTION_MAX).trim();
       // F21 R3a: the conversation so far, trimmed by the one shared rule. Absent from an older web:
       // the question is then answered alone, as before.
@@ -89,7 +93,7 @@ export function aiRouter(): Router {
       const started = Date.now();
       // A reader who closes the tab mid-answer does not stop it: the model's cost is already spent, and
       // the ledger and the audit row below must still count it.
-      const { answer, tools, usage, outcome, links } = await askData(admin, env, orgId, question, allowed, now, history, streaming ? send : undefined);
+      const { answer, tools, usage, outcome, links } = await askData(admin, env, orgId, question, allowed, now, history, streaming ? send : undefined, { views, page });
       const latencyMs = Date.now() - started;
       const toolNames = tools.map((t) => t.name);
       console.log(assistantLogLine(orgId, usage, latencyMs, toolNames, outcome));
@@ -103,7 +107,7 @@ export function aiRouter(): Router {
         meta: { question, answer: answer.slice(0, ASSISTANT_ANSWER_MAX), tools, outcome, cost_micro_usd: Math.round(usage.costMicroUsd), history_turns: history.length },
       });
       if (streaming) {
-        send(outcome === "error" ? { type: "error", message: answer } : { type: "done", answer, pages: assistantAnswerPages(tools), links });
+        send(outcome === "error" ? { type: "error", message: answer } : { type: "done", answer, pages: assistantAnswerPages(tools, links), links });
         res.end();
         return;
       }
@@ -115,7 +119,7 @@ export function aiRouter(): Router {
       // never parsed out of the model's text (D-AI8). Additive: an older web ignores it. R4b adds
       // `links`, the same pages with the answer's filters; an older web ignores that too, and the new
       // web falls back to `pages` for a page with no link.
-      res.json({ answer, pages: assistantAnswerPages(tools), links });
+      res.json({ answer, pages: assistantAnswerPages(tools, links), links });
     }),
   );
 

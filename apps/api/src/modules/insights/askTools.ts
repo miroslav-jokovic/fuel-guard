@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { ASSISTANT_TOOL_NAMES, HIRING_PHASE_LABELS, type AssistantToolName } from "@silvicom/shared";
+import { ASSISTANT_TOOL_NAMES, HIRING_PHASE_LABELS, type AssistantToolName, type AssistantView } from "@silvicom/shared";
+import { openViewTool } from "./openAssistantView.js";
 import { FINANCE_PERIODS, MAX_FINANCE_TRUCKS } from "../financial/index.js";
 import { MAX_REPORT_UNITS, REPORT_PERIODS } from "../fuel-spend/index.js";
 import { FLEET_NOW_STATES, MAX_FLEET_NOW_TRUCKS } from "../livemap/index.js";
@@ -343,7 +344,9 @@ export const TOOLS: Anthropic.Tool[] = [
  * one question to the next. A name in the contract with no definition here, or the reverse, is a test
  * failure (`askTools.test.ts`), so the two lists cannot drift.
  */
-export function toolsFor(allowed: readonly AssistantToolName[]): Anthropic.Tool[] {
-  const byName = new Map(TOOLS.map((t) => [t.name, t]));
+export function toolsFor(allowed: readonly AssistantToolName[], views: readonly AssistantView[] = []): Anthropic.Tool[] {
+  // `open_view`'s definition lists the caller's own pages (F21 Step 5), so it is built per caller; with
+  // no page to offer it is left out, whatever `allowed` says. Stable per role, as the cache needs.
+  const byName = new Map([...TOOLS, ...(views.length ? [openViewTool(views)] : [])].map((t) => [t.name, t]));
   return ASSISTANT_TOOL_NAMES.filter((n) => allowed.includes(n)).map((n) => byName.get(n)!).filter(Boolean);
 }

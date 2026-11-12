@@ -63,6 +63,7 @@ export const ASSISTANT_TOOL_STEP: Record<AssistantToolName, string> = {
   maintenance_cost: "Reading repair costs",
   finance_report: "Reading the fleet report",
   income_statement: "Reading the income statement",
+  open_view: "Opening the page",
 };
 
 /** The step a tool call shows; a name outside the catalogue (refused by the loop) reads generically. */
