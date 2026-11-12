@@ -1,8 +1,10 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { z } from "zod";
 import {
   ASSISTANT_VIEWS,
   assistantUnitKey,
+  fuelLogToQuery,
   fuelProblemsToQuery,
   parseAssistantViewFilters,
   SURFACES,
@@ -40,22 +42,33 @@ export function openViewTool(views: readonly AssistantView[]): Anthropic.Tool {
   };
 }
 
-/** Unit numbers to this carrier's vehicle ids, by the assistant's one unit rule (`assistantUnitKey`). */
-async function vehicleIdsFor(admin: SupabaseClient, orgId: string, units: readonly string[]) {
+/**
+ * The model's unit numbers to this carrier's trucks, by the assistant's one unit rule (`assistantUnitKey`):
+ * each as a vehicle id (Fuel problems' URL) and as the fleet spells its unit number (Fuel log's URL, whose
+ * two EFS tabs key on the unit as text). A named truck not in the fleet is reported, never dropped.
+ */
+async function trucksFor(admin: SupabaseClient, orgId: string, units: readonly string[]) {
   const { data, error } = await admin.from("vehicles").select("id, unit_number").eq("org_id", orgId);
   if (error) throw new Error(error.message);
   const byKey = new Map(
-    ((data ?? []) as Array<{ id: string; unit_number: string | null }>).filter((r) => r.unit_number).map((r) => [assistantUnitKey(r.unit_number!), r.id]),
+    ((data ?? []) as Array<{ id: string; unit_number: string | null }>)
+      .filter((r) => r.unit_number)
+      .map((r) => [assistantUnitKey(r.unit_number!), { id: r.id, unit: r.unit_number! }]),
   );
   const ids: string[] = [];
+  const unitNumbers: string[] = [];
   const notFound: string[] = [];
   for (const u of units) {
-    const id = byKey.get(assistantUnitKey(u));
-    if (id) ids.push(id);
-    else notFound.push(u);
+    const hit = byKey.get(assistantUnitKey(u));
+    if (hit) {
+      ids.push(hit.id);
+      unitNumbers.push(hit.unit);
+    } else notFound.push(u);
   }
-  return { ids: [...new Set(ids)], notFound };
+  return { ids: [...new Set(ids)], unitNumbers: [...new Set(unitNumbers)], notFound };
 }
+
+type Filters<V extends AssistantView> = z.infer<(typeof ASSISTANT_VIEWS)[V]["filters"]>;
 
 export async function openAssistantView(
   admin: SupabaseClient,
@@ -70,23 +83,38 @@ export async function openAssistantView(
   if (!parsed.ok) return { error: parsed.error };
   const page = SURFACES.find((s) => s.key === ASSISTANT_VIEWS[view].surfaceKey)!;
 
-  // One view today; each view added is one branch here, built by its page's link contract.
-  const f = parsed.filters;
-  let vehicleIds: string[] = [];
-  if (f.units?.length) {
-    const found = await vehicleIdsFor(admin, orgId, f.units);
-    // A named truck that is not in the fleet is never dropped into "every truck".
-    if (found.notFound.length) return { error: `Not in this fleet: ${found.notFound.join(", ")}. Nothing was opened.` };
-    vehicleIds = found.ids;
+  // Trucks first, for every view that has them: a unit not in the fleet opens nothing.
+  const f = parsed.filters as { units?: string[] } & Record<string, unknown>;
+  const trucks = f.units?.length ? await trucksFor(admin, orgId, f.units) : null;
+  if (trucks?.notFound.length) return { error: `Not in this fleet: ${trucks.notFound.join(", ")}. Nothing was opened.` };
+
+  // One branch per view, each built by its page's own link contract. Exhaustive: a view added to
+  // `ASSISTANT_VIEWS` without its branch here does not compile.
+  let query: Record<string, string>;
+  switch (view) {
+    case "fuel_problems": {
+      const p = parsed.filters as Filters<"fuel_problems">;
+      query = fuelProblemsToQuery({
+        from: p.from,
+        to: p.to,
+        vehicleIds: trucks?.ids ?? [],
+        states: p.states as FindingQueueState[] | undefined,
+        kinds: p.kinds as FindingKind[] | undefined,
+        mine: p.mine,
+      });
+      break;
+    }
+    case "fuel_log": {
+      const l = parsed.filters as Filters<"fuel_log">;
+      // The URL carries unit numbers as the fleet spells them ("#718" → "718"), never the model's spelling.
+      query = fuelLogToQuery({ ...l, units: trucks?.unitNumbers ?? [] });
+      break;
+    }
+    default: {
+      const unhandled: never = view;
+      return { error: `No link is built for ${String(unhandled)}.` };
+    }
   }
-  const query = fuelProblemsToQuery({
-    from: f.from,
-    to: f.to,
-    vehicleIds,
-    states: f.states as FindingQueueState[] | undefined,
-    kinds: f.kinds as FindingKind[] | undefined,
-    mine: f.mine,
-  });
   return {
     opened: page.label,
     filters: { ...f },

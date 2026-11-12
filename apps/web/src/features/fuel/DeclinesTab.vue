@@ -17,7 +17,7 @@
  */
 import { ref, computed, watch } from "vue";
 import { useDeclinedTransactions, useEfsFacets, useEfsRowCoverage, EFS_PAGE_SIZE, type EfsFilters } from "./useEfsData";
-import { plainDeclineReason, type DeclinedTransactionRow } from "@silvicom/shared";
+import { plainDeclineReason, FUEL_LOG_DECLINE_RISKS, FUEL_LOG_QUERY_KEYS, type DeclinedTransactionRow } from "@silvicom/shared";
 import { rejectDateTime, stationLocalNote, FUEL_LOG_DATES_NOTE } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -62,10 +62,10 @@ const toast = useToastStore();
  * `risk` and `error` are shorter than the field names they set, because these are the parameters a
  * reader pastes into a ticket — `?risk=alert&error=51` says what it does.
  */
-const suspicion = props.shared.facet("risk", ["alert", "review", "clear"]);
+const suspicion = props.shared.facet(FUEL_LOG_QUERY_KEYS.risk, FUEL_LOG_DECLINE_RISKS);
 const search = props.shared.facet("search");
 const errorCode = props.shared.facet("error");
-const stateF = props.shared.facet("state");
+const stateF = props.shared.facet(FUEL_LOG_QUERY_KEYS.state);
 const driver = props.shared.facet("driver");
 const policy = props.shared.facet("policy");
 

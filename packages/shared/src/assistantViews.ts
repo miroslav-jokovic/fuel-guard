@@ -6,6 +6,13 @@ import { canReachSurface } from "./surfaces.js";
 import { SURFACES } from "./surfaceCatalogue.js";
 import { FINDING_KIND_LABELS } from "./findingAssignment.js";
 import { FUEL_PROBLEMS_LINK_KINDS, FUEL_PROBLEMS_LINK_STATES } from "./fuelProblemsLinkContract.js";
+import {
+  DEFAULT_FUEL_LOG_TAB,
+  FUEL_LOG_DECLINE_RISKS,
+  FUEL_LOG_FACET_TABS,
+  FUEL_LOG_TABS,
+  FUEL_LOG_TANK_TYPES,
+} from "./fuelLogLinkContract.js";
 
 /**
  * The pages Ask AI can open filtered — `open_view` (F21 Step 5, D-AI5 (a) "navigate", D-AI6).
@@ -31,6 +38,20 @@ import { FUEL_PROBLEMS_LINK_KINDS, FUEL_PROBLEMS_LINK_STATES } from "./fuelProbl
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "a calendar day, YYYY-MM-DD");
 const units = z.array(z.string().min(1)).min(1).max(25);
 
+/**
+ * A Fuel log facet belongs to ONE tab (`FUEL_LOG_FACET_TABS`): the page clears it on any other, so a
+ * link with Fills' `tank` on the Declines tab would show a list wider than the answer says it opened.
+ * Refused, naming the tab that has it, never moved to that tab on the model's behalf.
+ */
+const fuelLogFacetsOnTheirTab = (f: { tab?: string } & Record<string, unknown>, ctx: z.RefinementCtx) => {
+  const tab = f.tab ?? DEFAULT_FUEL_LOG_TAB;
+  for (const [facet, owners] of Object.entries(FUEL_LOG_FACET_TABS) as Array<[string, readonly string[]]>) {
+    if (f[facet] !== undefined && !owners.includes(tab)) {
+      ctx.addIssue({ code: "custom", path: [facet], message: `only the ${owners.join(" or ")} tab has this filter, not ${tab}` });
+    }
+  }
+};
+
 export const ASSISTANT_VIEWS = {
   fuel_problems: {
     surfaceKey: "fuel.exceptions",
@@ -51,6 +72,27 @@ export const ASSISTANT_VIEWS = {
       "units (truck unit numbers), from/to (calendar days the problem's fill fell on; default the last 90 days), " +
       "mine (true = assigned to the person asking).",
   },
+  fuel_log: {
+    surfaceKey: "fuel.log",
+    filters: z
+      .object({
+        tab: z.enum(FUEL_LOG_TABS).optional(),
+        units: units.optional(),
+        from: day.optional(),
+        to: day.optional(),
+        tank: z.enum(FUEL_LOG_TANK_TYPES).optional(),
+        risk: z.enum(FUEL_LOG_DECLINE_RISKS).optional(),
+        state: z.string().regex(/^[A-Z]{2}$/, "a two-letter state code, e.g. TX").optional(),
+      })
+      .strict()
+      .superRefine(fuelLogFacetsOnTheirTab),
+    describe:
+      "the fuel log, one row per transaction. Filters: tab (fills = fill-ups with gallons, cost and MPG, the " +
+      "default; declines = declined card swipes, each scored for risk; source = the raw EFS statement lines), " +
+      "units (truck unit numbers), from/to (calendar days; default every day there is), tank (fills tab only: " +
+      FUEL_LOG_TANK_TYPES.join(", ") + "), risk (declines tab only, the decline's risk score from most to least suspicious: " +
+      FUEL_LOG_DECLINE_RISKS.join(", ") + "), state (declines or source tab only: the two-letter state the purchase was in).",
+  },
 } as const satisfies Record<string, { surfaceKey: string; filters: z.ZodType; describe: string }>;
 
 export type AssistantView = keyof typeof ASSISTANT_VIEWS;
@@ -58,7 +100,7 @@ export const ASSISTANT_VIEW_NAMES = Object.keys(ASSISTANT_VIEWS) as AssistantVie
 
 const surfaceOf = (view: AssistantView) => SURFACES.find((s) => s.key === ASSISTANT_VIEWS[view].surfaceKey);
 
-/** The views this caller may be offered: each page's own surface gate, in catalogue order. */
+/** The views this caller may be offered: each page's own surface gate, in `ASSISTANT_VIEWS` order (stable, so the cached tool definition is too). */
 export function assistantViewsFor(
   role: UserRole | null | undefined,
   claim: SectionClaim | null | undefined,

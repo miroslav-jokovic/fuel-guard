@@ -60,6 +60,7 @@ export const ASSISTANT_EVAL_SET: AssistantEvalCase[] = [
   { id: "card-holds", kind: "tool", role: "fleet_manager", source: "card_holds", question: "Which fuel cards are on hold or on a fraud hold right now?", expectTools: ["card_holds"] },
   // F21 Step 5: a navigation, not a figure. The model must open the page, not read and recite a list.
   { id: "show-open-fuel-problems", kind: "tool", role: "fleet_manager", source: "open_view", question: "Show me the open fuel problems for unit 718", expectTools: ["open_view"], expectInput: { view: "fuel_problems" } },
+  { id: "show-declines-fuel-log", kind: "tool", role: "dispatcher", source: "open_view", question: "Show me the declined card swipes for unit 718 in the last 7 days", expectTools: ["open_view"], expectInput: { view: "fuel_log" } },
   { id: "dq-expiring", kind: "tool", role: "safety_manager", source: "driver_file_expirations", question: "Which drivers have an expired or expiring CDL or medical card?", expectTools: ["driver_file_expirations"] },
   { id: "annual-due", kind: "tool", role: "technician", source: "annual_inspections_due", question: "Which trucks and trailers are due for their annual inspection?", expectTools: ["annual_inspections_due"] },
   { id: "applicants-waiting", kind: "tool", role: "recruiter", source: "recruiting_counts", question: "How many applicants are waiting on us, and who has waited longest?", expectTools: ["recruiting_counts"] },
