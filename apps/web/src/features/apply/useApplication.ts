@@ -118,6 +118,8 @@ export interface ApplyDraft {
    * answer on that link; absent on every other link, which keeps D-APP16's no-lockout rule.
    */
   attemptsLeft?: number;
+  /** Q-AM3 (0589): the last four of the SSN on file, on the unlock's answer only. */
+  ssnLast4?: string;
 }
 
 /**
@@ -129,6 +131,8 @@ export interface Released {
   partOne: PartOneFactsView | null;
   /** The revision the released body is at (C3d1b). */
   revision: number;
+  /** Q-AM3 (0589): the last four of the SSN already saved, or null. */
+  ssnLast4: string | null;
 }
 
 /**

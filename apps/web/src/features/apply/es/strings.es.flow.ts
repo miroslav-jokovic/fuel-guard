@@ -49,7 +49,7 @@ export const APPLY_FLOW_COPY_ES = {
     because: "Por qué la cambiaron",
     removedLater: "luego la quitaron",
     ssnNote:
-      "Su número de Seguro Social no se guarda con el resto de sus respuestas, por eso se lo pedimos aquí: va directamente a su expediente cuando firma.",
+      "Su número de Seguro Social se guarda aparte de sus otras respuestas, bajo llave. Solo se muestran sus últimos cuatro dígitos.",
     sign: "Firmar y enviar",
     signing: "Enviando…",
     blockedHeading: "Todavía no se puede enviar",

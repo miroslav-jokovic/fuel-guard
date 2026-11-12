@@ -195,6 +195,8 @@ watch(
     // What the last visit could not send (C3d1b) — before Part 1's facts, which are laid over last.
     const replayed = await autosave.replay();
     if (body?.partOne) applyPartOne(draft, body.partOne);
+    // Q-AM3 (0589): only the last four, released with the body, so the form says it is on file.
+    draft.ssn_on_file = body?.ssnLast4 ?? "";
     furthestSection.value = inv.draft?.furthestSection ?? null;
     wizard.resume();
     // Next tick, so the restore assignment above does not itself schedule a save of what we just

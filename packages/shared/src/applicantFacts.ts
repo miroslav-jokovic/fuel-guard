@@ -276,11 +276,11 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
     path: "ssn",
     input: "text",
     basis: "391.21(b)(2)",
-    packet: { notPrinted: "never drawn (D-HIRE6); printing the last four is Q-AM3" },
+    packet: { notPrinted: "never drawn (D-HIRE6) until item 3's packet step: Q-AM20 (a) prints the last four on the stored packet" },
     office: {
       none:
-        "exists only AFTER signing: the driver types it on the sign-off screen and it is sealed into driver_applications "
-        + "(D-APP3), so before signing there is nothing to replace — the door needs an owner ruling (APPLICATION-FIX-PLAN §7)",
+        "asked in the form since Q-AM3 and held sealed before signing (application_ssns, 0589); the office's replace door "
+        + "and the \"See the full SSN\" permission (Q-AM17) are item 3's next step",
     },
   },
 ];

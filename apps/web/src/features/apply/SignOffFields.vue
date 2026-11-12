@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppCallout, AppInput as BaseInput } from "@silvicom/ui";
+import { AppCallout } from "@silvicom/ui";
 import { currentEditPaths, type ApplicationCaptureView } from "@silvicom/shared";
-import ApplyField from "./ApplyField.vue";
+import SsnField from "./SsnField.vue";
 import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "./questionnaireCopy";
 import { buildReviewSummary } from "./reviewSummary";
 import { describeField, rowText } from "./fieldLabels";
@@ -29,6 +29,8 @@ import type { ApplyEdit } from "./useApplication";
  * nowhere in between.
  */
 const props = defineProps<{
+  /** The link, for the SSN's own save (Q-AM3). */
+  token: string;
   carrier: string;
   edits: readonly ApplyEdit[];
   captures: readonly ApplicationCaptureView[];
@@ -130,16 +132,10 @@ const shown = (value: unknown): string => {
       </div>
     </section>
 
-    <!-- §391.21(b)(2)'s Social Security number. Never saved, so it can only be asked for now. -->
+    <!-- §391.21(b)(2)'s Social Security number: asked in the form since Q-AM3 and saved sealed (0589);
+         shown here as on file, or asked once more for a driver who skipped it. -->
     <section class="space-y-2">
-      <ApplyField
-        v-slot="f"
-        :path="['ssn']"
-        :label="APPLY_COPY.identity.ssn"
-        :hint="APPLY_COPY.identity.ssnHint"
-      >
-        <BaseInput v-bind="f" v-model="draft.ssn" inputmode="numeric" autocomplete="off" />
-      </ApplyField>
+      <SsnField v-model="draft" :token="token" id="signoff-ssn" />
       <p class="text-xs text-ink-muted">{{ copy.ssnNote }}</p>
     </section>
 

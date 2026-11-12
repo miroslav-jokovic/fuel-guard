@@ -152,6 +152,40 @@ describe("filing refuses marks made under another text (A-5)", () => {
   });
 });
 
+/**
+ * Q-AM3 (0589): the SSN the form saved is filed from `application_ssns` — its last four and its sealed
+ * envelope, unopened — and the pre-signing copy is deleted once the filing has committed, so the number
+ * lives in one place. A number typed at sign-off (a page served before the form asked it) still wins.
+ */
+describe("the SSN the form saved is the one filed (Q-AM3)", () => {
+  const ssnArgs = (rec: ReturnType<typeof seed>) => {
+    const call = rec.rpcs().find((c) => c.fn === "submit_driver_application")?.args as Record<string, unknown>;
+    return [call.p_ssn_last4, call.p_ssn_sealed];
+  };
+  const SAVED = { ...PART_ONE, application_ssns: [{ ssn_last4: "6789", ssn_sealed: "v1.sealed-by-the-form", entered_by: "applicant" }] };
+
+  it("files the saved last four and sealed envelope as they are, then deletes the pre-signing row", async () => {
+    publish();
+    const rec = seed({ tables: SAVED });
+    expect(isIntakeError(await submitApplication(rec.client, env(), TOKEN, APPLICATION(), CTX, NOW))).toBe(false);
+    expect(ssnArgs(rec)).toEqual(["6789", "v1.sealed-by-the-form"]);
+    const deletes = rec.forTable("application_ssns").filter((q) => q.ops.some((o) => o.method === "delete"));
+    expect(deletes).toHaveLength(1);
+    expectOrgScoped(rec, ORG, { exempt: ["application_invitations"] });
+  });
+
+  it("files a number typed at sign-off over the saved one, and none when there is neither", async () => {
+    publish();
+    const typed = seed({ tables: SAVED });
+    const body = { ...APPLICATION(), ssn: "111223333" } as Parameters<typeof submitApplication>[3];
+    expect(isIntakeError(await submitApplication(typed.client, env(), TOKEN, body, CTX, NOW))).toBe(false);
+    expect(ssnArgs(typed)[0]).toBe("3333");
+    const none = seed({ tables: PART_ONE });
+    expect(isIntakeError(await submitApplication(none.client, env(), TOKEN, APPLICATION(), CTX, NOW))).toBe(false);
+    expect(ssnArgs(none)).toEqual([null, null]);
+  });
+});
+
 describe("a v2 invitation files the composed application (D-AW3, AW1)", () => {
   it("files Part 1's phone, street, licence and §40.25(j) answer, org-scoped", async () => {
     publish();

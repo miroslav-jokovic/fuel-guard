@@ -147,6 +147,7 @@ const blocked = computed(() => props.stops.length > 0 && !packetDone.value);
 
     <SignOffFields
       v-model="draft"
+      :token="token"
       :carrier="carrier"
       :edits="edits"
       :captures="captures"

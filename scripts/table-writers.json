@@ -68,6 +68,9 @@
     "apps/api/src/modules/recruiting/applicantIntake.ts",
     "apps/api/src/modules/recruiting/applicantSelfie.ts"
   ],
+  "application_ssns": [
+    "apps/api/src/modules/recruiting/applicantSsn.ts"
+  ],
   "application_unlock_codes": [
     "apps/api/src/modules/recruiting/applicationUnlockCode.ts"
   ],

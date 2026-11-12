@@ -34,6 +34,7 @@ import { recordApplicantIdentity } from "../applicantIdentity.js";
 import { publicApplicationHandbookRouter } from "./publicApplicationHandbook.js";
 import { publicApplicationVideosRouter } from "./publicApplicationVideos.js";
 import { publicApplicationIntakeRouter } from "./publicApplicationIntake.js";
+import { publicApplicationSsnRouter } from "./publicApplicationSsn.js";
 import { applicationBundleHandler } from "./publicApplicationBundle.js";
 import { unlockLimiter } from "../../../middleware/applicationLimits.js";
 
@@ -372,6 +373,9 @@ export function publicApplicationRouter(): Router {
 
   // Part 1 — "get started" (APPLICATION-FLOW-V2-PLAN §6.2, AW2), in its own module (500-line budget).
   router.use(publicApplicationIntakeRouter());
+
+  // The SSN, entered in the form and held sealed until filing (Q-AM3, 0589).
+  router.use(publicApplicationSsnRouter());
 
   // The photograph slots, in their own module (500-line budget). Mounted at this router's root, so
   // the paths are unchanged.
