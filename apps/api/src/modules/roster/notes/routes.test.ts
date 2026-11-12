@@ -56,6 +56,7 @@ const searchRow = (over: Record<string, unknown> = {}) => ({
   author_name: "Dana Dispatch",
   pinned: false,
   created_at: "2026-11-10T15:00:00.123456+00:00",
+  mentions: [MENTIONED],
   fuzzy: false,
   ...over,
 });
@@ -223,6 +224,13 @@ describe("GET / — the drawer, the search and the wall", () => {
     expectOrgScoped(rec, ORG, EXEMPT);
   });
 
+  it("takes a listed note's mentions from unit_note_mentions (the row), not from re-reading the body", async () => {
+    const OTHER = "90000000-0000-4000-8000-000000000002";
+    seed({ rpc: { unit_notes_search: [searchRow({ mentions: [OTHER] })] } });
+    const body = (await (await call(`/?subjects=vehicle:${TRUCK}`, "dispatcher")).json()) as { notes: Array<{ mentions: string[] }> };
+    expect(body.notes[0]!.mentions).toEqual([OTHER]);
+  });
+
   it("says the page is close matches when the trigram pass found it", async () => {
     seed({ rpc: { unit_notes_search: [searchRow({ fuzzy: true })] } });
     const body = (await (await call(`/?q=braks`, "dispatcher")).json()) as { fuzzy: boolean; notes: Array<{ fuzzy: boolean }> };
@@ -286,9 +294,11 @@ describe("POST / — adding a note", () => {
     expectOrgScoped(rec, ORG, EXEMPT);
   });
 
-  it("answers the database's refusals: an applicant (UN013) is 404, a non-member mention (UN015) is 422", async () => {
-    seed({ insertError: { code: "UN013", message: "applicant" } });
-    expect((await post("/", "dispatcher", { kind: "driver", subjectId: DRIVER, body: "x" })).status).toBe(404);
+  it("answers 0590's refusals: no such unit (UN012) and an applicant (UN013) are 404, a non-member mention (UN015) is 422", async () => {
+    for (const code of ["UN012", "UN013"]) {
+      seed({ insertError: { code, message: "refused" } });
+      expect((await post("/", "dispatcher", { kind: "driver", subjectId: DRIVER, body: "x" })).status, code).toBe(404);
+    }
     seed({ insertError: { code: "UN015", message: "not a member" } });
     const bad = await post("/", "dispatcher", { kind: "driver", subjectId: DRIVER, body: "x" });
     expect(bad.status).toBe(422);
@@ -318,5 +328,11 @@ describe("POST /:id/pin", () => {
     seed();
     expect((await post(`/${NOTE_THEIRS}/pin`, "dispatcher", { pinned: true })).status).toBe(404);
     expect(rpcArgs("set_unit_note_pinned")).toEqual([]);
+  });
+
+  it("answers the RPC's own not-this-carrier's (UN020) as 404, and audits nothing", async () => {
+    seed({ rpc: { set_unit_note_pinned: { error: { code: "UN020", message: "unit_note_not_found" } } } });
+    expect((await post(`/${NOTE_A}/pin`, "dispatcher", { pinned: true })).status).toBe(404);
+    expect(rec.writtenRows("audit_logs")).toEqual([]);
   });
 });

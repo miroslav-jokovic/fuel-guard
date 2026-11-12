@@ -76,14 +76,16 @@ interface SearchRow {
   author_name: string;
   pinned: boolean;
   created_at: string;
+  /** From `unit_note_mentions` (0590's search returns it; the insert's own select does not). */
+  mentions?: string[] | null;
   fuzzy?: boolean | null;
 }
 
 /**
- * The people a note mentions. Read from the body's `<@id>` tokens with chat's one parser (D-CHAT22,
- * `chatMentionIds`) rather than a second read of `unit_note_mentions`: UN1's trigger derives that
- * table from the same tokens and refuses a token naming a non-member (UN015), so for a stored note the
- * two are the same set, and this way the list costs one round trip, not two.
+ * The people a note mentions: `unit_note_mentions` as 0590's search returns it. A freshly inserted row
+ * has no such column, so for it the body's `<@id>` tokens are read with chat's one parser (D-CHAT22,
+ * `chatMentionIds`), which is exactly what 0590's insert trigger indexes. A token naming a non-member
+ * never reaches the table (UN015), so the two answers are the same set.
  */
 function toNote(row: SearchRow, labelOverride?: string): UnitNote {
   return {
@@ -96,7 +98,7 @@ function toNote(row: SearchRow, labelOverride?: string): UnitNote {
     authorName: row.author_name,
     pinned: row.pinned === true,
     createdAt: row.created_at,
-    mentions: chatMentionIds(row.body),
+    mentions: Array.isArray(row.mentions) ? row.mentions : chatMentionIds(row.body),
   };
 }
 
@@ -202,12 +204,13 @@ async function subjectLabel(admin: SupabaseClient, orgId: string, kind: UnitNote
 }
 
 /**
- * The database's refusals, as answers. UN013: the subject is not a unit this table takes (a driver
- * still an applicant — D-UN11 keeps applicant notes on the applicant record); UN015: a `<@id>` names
- * somebody who is not a member of this carrier.
+ * 0590's refusals, as answers. UN012: no such unit in this carrier (the read above already said so;
+ * this is the race where it went between the two); UN013: a driver still an applicant, whose notes
+ * stay on the applicant record (D-UN11); UN015: a `<@id>` names somebody who is not an office member
+ * of this carrier.
  */
 function refusalOf(code: string | undefined): NoteRefusal {
-  if (code === "UN013") return { code: "not_found", message: "That unit is not on the roster." };
+  if (code === "UN012" || code === "UN013") return { code: "not_found", message: "That unit is not on the roster." };
   if (code === "UN015") return { code: "invalid_mention", message: "A person mentioned in the note is not in this company." };
   return { code: "db_error", message: "Could not save the note" };
 }
@@ -265,8 +268,12 @@ export async function pinUnitNote(
     .maybeSingle();
   if (!note) return { code: "not_found", message: "Note not found" };
   const { data, error } = await admin.rpc("set_unit_note_pinned", { p_org: orgId, p_note: noteId, p_pinned: pinned });
-  if (error) return { code: "db_error", message: "Could not pin the note" };
+  if (error) {
+    // UN020: 0590's own "not this carrier's note" — the read above answers first; this is the second line.
+    return (error as { code?: string }).code === "UN020"
+      ? { code: "not_found", message: "Note not found" }
+      : { code: "db_error", message: "Could not pin the note" };
+  }
   const row = note as { subject_kind: UnitNoteKind; subject_id: string };
-  // §4.1 names the function, not its return; a boolean answer is the database's word, else the asked state.
-  return { pinned: typeof data === "boolean" ? data : pinned, kind: row.subject_kind, subjectId: row.subject_id };
+  return { pinned: data === true, kind: row.subject_kind, subjectId: row.subject_id };
 }
