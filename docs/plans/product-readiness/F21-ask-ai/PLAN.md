@@ -1177,3 +1177,36 @@ audit row is the endpoint's own.
     - the model's unit spelling written into the link;
     - the page reading its trucks from another key.
   - **Next:** Alerts (`/anomalies`, `safety.alerts`), then Fuel cards, then Drivers.
+- 2026-11-12 — **Step 5, third page: `open_view` opens Fuel alerts (`/anomalies`) filtered.**
+  - **The page's contract.** `fuelAlertsLinkContract.ts` holds the page's URL:
+    - `vehicle` (vehicle ids, singular name kept for forwarded deep links), `status`, `severity`,
+      `from`/`to` and `reefer=1`;
+    - the page's four statuses plus `all`, and `ANOMALY_SEVERITIES`.
+    - The page (`useAnomaliesPage`) reads it. So does the Fuel log's "Flagged" tile (`flaggedCasesLink`),
+      which built the same URL by hand.
+  - **"Every status" is `all`, never absence.** Without a status the page shows the open queue, or a named
+    truck's whole history. A link that means every status writes `all`, as the page's own control does
+    (FUEL-C3).
+  - **One severity, one status.** The page's controls are single-choice, so "high or critical" has no
+    address. The view's schema takes ONE severity and ONE status. A list is refused, and the model says
+    the page shows one at a time. It does not open a wider list.
+  - Trucks become vehicle ids in the link (the page filters `anomalies.vehicle_id`). The Fuel log is the
+    one view that takes unit numbers.
+  - The dock suggests "Show me the critical alerts that are still open" on Fuel alerts.
+  - **Tests:**
+    - `assistantViews.test.ts`:
+      - "Fuel alerts: one status (or `all`) and one severity, as the page's single-choice controls; two
+        severities are refused";
+      - "Fuel alerts: writes the page's own keys, trucks as vehicle ids under `vehicle`, every status as
+        `all`, never as absence".
+    - `openAssistantView.test.ts`: "opens Fuel alerts on the asked trucks as vehicle ids, the severity and
+      status as the page reads them".
+    - `anomaliesFiltersInUrl.test.ts`: "lands as the trucks, status, severity, window and reefer view it
+      names".
+    - Eval case `show-critical-alerts` (safety manager). Not yet run.
+  - **Deliberate breaks, each killed:**
+    - severity accepting a list;
+    - `all` written as absence;
+    - unit numbers where the page reads ids;
+    - the page reading the reefer view from another key.
+  - **Next:** Fuel cards, then Drivers.

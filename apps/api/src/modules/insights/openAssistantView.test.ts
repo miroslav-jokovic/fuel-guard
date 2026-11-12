@@ -57,4 +57,23 @@ describe("openAssistantView", () => {
     const missing = (await openAssistantView(r.client, ORG, { view: "fuel_log", filters: { units: ["999"] } }, ["fuel_log"])) as { error: string };
     expect(missing.error).toBe("Not in this fleet: 999. Nothing was opened.");
   });
+
+  it("opens Fuel alerts on the asked trucks as vehicle ids, the severity and status as the page reads them", async () => {
+    const r = rec();
+    const out = (await openAssistantView(
+      r.client,
+      ORG,
+      { view: "fuel_alerts", filters: { units: ["718"], severity: "critical", status: "all", reefer: true } },
+      ["fuel_alerts"],
+    )) as Record<string, unknown>;
+    expect(out).toEqual({
+      opened: "Fuel alerts",
+      filters: { units: ["718"], severity: "critical", status: "all", reefer: true },
+      link: { surfaceKey: "safety.alerts", query: { vehicle: "v718", severity: "critical", status: "all", reefer: "1" } },
+    });
+    expectOrgScoped(r, ORG);
+    const two = (await openAssistantView(r.client, ORG, { view: "fuel_alerts", filters: { severity: ["high", "critical"] } }, ["fuel_alerts"])) as { error: string; link?: unknown };
+    expect(two.error).toMatch(/severity/);
+    expect(two.link).toBeUndefined();
+  });
 });

@@ -1,4 +1,4 @@
-import { anomalyStatusesIn } from "@silvicom/shared";
+import { anomalyStatusesIn, fuelAlertsToQuery, type FuelAlertsStatus } from "@silvicom/shared";
 import type { FuelFilters } from "@/composables/useFuelLog";
 
 /**
@@ -10,8 +10,8 @@ import type { FuelFilters } from "@/composables/useFuelLog";
  * page takes ONE status; if that queue state ever spans two, no single address names the set and the
  * tile stops offering one rather than opening half of it.
  *
- * It carries the window and the trucks, which the Alerts page reads as `from`, `to` and `vehicle`
- * (`useAnomaliesPage.ts`). The days agree: the Fuel Log windows on `business_date`, EFS's Central day
+ * It carries the window and the trucks, written by the Alerts page's own link contract
+ * (`fuelAlertsLinkContract.ts`, F21 Step 5), which the page reads them through. The days agree: the Fuel Log windows on `business_date`, EFS's Central day
  * (0444), and the Alerts page windows `fueled_at` on the carrier's day, which is Central for both
  * production carriers — 0 of their canonical fills fall on a different day under the two rules
  * (measured 2026-10-09). A carrier in another zone would see the two disagree at the ends of a range.
@@ -28,9 +28,6 @@ export function flaggedCasesLink(f: Pick<FuelFilters, "from" | "to" | "vehicleId
   if (!status || more.length) return null;
   if (f.driverId || f.tankType || f.search) return null;
   if (f.vehicleIds && f.vehicleIds.length === 0) return null;
-  const q = new URLSearchParams({ status });
-  if (f.from) q.set("from", f.from);
-  if (f.to) q.set("to", f.to);
-  if (f.vehicleIds?.length) q.set("vehicle", f.vehicleIds.join(","));
+  const q = new URLSearchParams(fuelAlertsToQuery({ status: status as FuelAlertsStatus, from: f.from, to: f.to, vehicleIds: f.vehicleIds }));
   return `/anomalies?${q.toString()}`;
 }

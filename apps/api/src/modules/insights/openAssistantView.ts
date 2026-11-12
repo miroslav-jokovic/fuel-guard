@@ -4,10 +4,12 @@ import type { z } from "zod";
 import {
   ASSISTANT_VIEWS,
   assistantUnitKey,
+  fuelAlertsToQuery,
   fuelLogToQuery,
   fuelProblemsToQuery,
   parseAssistantViewFilters,
   SURFACES,
+  type AnomalySeverity,
   type AssistantView,
   type FindingKind,
   type FindingQueueState,
@@ -108,6 +110,18 @@ export async function openAssistantView(
       const l = parsed.filters as Filters<"fuel_log">;
       // The URL carries unit numbers as the fleet spells them ("#718" → "718"), never the model's spelling.
       query = fuelLogToQuery({ ...l, units: trucks?.unitNumbers ?? [] });
+      break;
+    }
+    case "fuel_alerts": {
+      const a = parsed.filters as Filters<"fuel_alerts">;
+      query = fuelAlertsToQuery({
+        status: a.status,
+        severity: a.severity as AnomalySeverity | undefined,
+        from: a.from,
+        to: a.to,
+        vehicleIds: trucks?.ids ?? [],
+        reeferOnly: a.reefer,
+      });
       break;
     }
     default: {
