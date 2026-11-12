@@ -127,6 +127,12 @@ export const dispatchBoardRowSchema = z.object({
   /** The truck's McLeod home fleet ('VINNIEV'), verbatim; null until the connector sends it. */
   fleetCode: z.string().nullable(),
   driver: z.object({ id: z.string(), name: z.string() }).nullable(),
+  /**
+   * The second seat of a team, from the same roster pairing as `driver` (`vehicles.co_driver_id`,
+   * 0475); null for a solo truck. Sent so the row's notes drawer can hold both seats' notes
+   * (UNIT-NOTES-PLAN D-UN12, Q-UN5).
+   */
+  coDriver: z.object({ id: z.string(), name: z.string() }).nullable(),
   hos: dispatchBoardHosSchema.nullable(),
   position: z
     .object({
@@ -140,6 +146,12 @@ export const dispatchBoardRowSchema = z.object({
     .nullable(),
   fuelPercent: z.number().nullable(),
   current: dispatchBoardLoadSchema.nullable(),
+  /**
+   * The current load's trailer by ID — `current.trailerUnit` is its number as text, which names it to
+   * a person but not to the notes drawer (`?notes=trailer:<id>`, UNIT-NOTES-PLAN Q-UN5). The same
+   * trailer the row's trailer warnings are judged on; null with no load or no trailer on it.
+   */
+  trailerId: z.string().nullable(),
   next: dispatchBoardLoadSchema.nullable(),
   eta: dispatchBoardEtaSchema.nullable(),
   onTime: z.enum(ON_TIME_VERDICTS),
