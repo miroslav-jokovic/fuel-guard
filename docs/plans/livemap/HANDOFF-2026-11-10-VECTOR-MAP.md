@@ -389,6 +389,10 @@ entirely, and only after the two reads above.
    §7, 2026-11-12). ⚠ Still owed: the FRAME-TIME comparison, because both sessions ran on a Mac at
    load average 19–30 and their frame figures measure that load, not the map. Run it on a quiet
    machine (the tool now prints the load; record only under ~4) — then the office-PC check (gap 2).
+   **Frame times measured 2026-11-12 at load 2.7–3.7, four complete pairs (design plan §7):** worst
+   frame 43–67 ms on today's map against 50–66 ms on the vector map, frames over 50 ms 0–2 against
+   0–1, on this Mac's GPU. After the gate the two maps are not told apart by frame time here. M1 is
+   closed; the office-PC check (gap 2) is now the owner's, with `OFFICE-PC-CHECK-2026-11-12.md`.
 2. **M2** — self-hosted glyphs (gap 3), licence read first. **Built 2026-11-12 (D-DR40)**, gap 3
    above has the shape. ⚠ `staging-map-frames.mjs` and `staging-map-compare.mjs` count requests to
    `/map-tiles/`, which included glyph fetches until this; tile counts from here on are tiles only.
