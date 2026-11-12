@@ -1,6 +1,8 @@
-import { computed, reactive } from "vue";
+import { computed, reactive, watch, type Ref } from "vue";
 import { useRoute, useRouter, type LocationQuery } from "vue-router";
-import { formatNotesParam, parseNotesParam, type UnitNoteSubject } from "@silvicom/shared";
+import { formatNotesParam, isRecordId, parseNotesParam, type UnitNoteCreateResponse, type UnitNoteSubject } from "@silvicom/shared";
+import { apiFetch } from "@/lib/api";
+import { useToastStore } from "@/stores/toast";
 
 /**
  * The notes drawer's state is the URL (D-UN12): `?notes=<kind>:<id>[,…]&note=<id>`, spelled only by
@@ -47,4 +49,59 @@ export function useNotesDrawer() {
   }
 
   return { state, open, close, labelOf };
+}
+
+/**
+ * A link that names only the note — `?note=<id>`, no `notes` — becomes the drawer's full address.
+ *
+ * B3, ruled (a) by the orchestrator 2026-11-12 (`progress/2026-11-12-1230-E-UN7.md`): a mention's
+ * bell entry carries the NOTE as its entity (UN3 rings with `entity_type: "unit_note"`, because the
+ * note id is the one id a driver merge never changes), but the drawer's address also needs the unit
+ * (`?notes=<kind>:<subjectId>&note=<noteId>`, D-UN12), and `notificationRoute` is synchronous and
+ * sees only the notification row. So the bell goes to `/notes?note=<id>`, and the page that lands
+ * there asks `GET /api/notes/:id` once and REPLACES the URL: Back then leaves the page instead of
+ * returning to an address that would resolve again. A pasted note-only link opens the same way.
+ *
+ * A note the API will not give — another carrier's, or no such note (both 404, by design: the route
+ * says neither which) — is closed quietly: `note` leaves the URL and the reader is on the wall. Any
+ * other failure closes the same way and says it could not open the note, because there a retry can
+ * help. The answer is used only if the URL still asks for that note, so a reader who moved on while
+ * it was in flight is not dragged back.
+ *
+ * `enabled` is the viewer's `notes` surface (`useNotesAccess`): somebody without it asks nothing.
+ */
+export function useNoteOnlyLink(enabled: Ref<boolean>): void {
+  const route = useRoute();
+  const router = useRouter();
+  const toast = useToastStore();
+  const pending = () => {
+    const note = first(route.query.note);
+    return note && !first(route.query.notes) ? note : null;
+  };
+
+  watch(
+    [pending, enabled],
+    async ([note, on]) => {
+      if (!note || !on) return;
+      const drop = () => {
+        const { note: _o, ...rest } = route.query;
+        void router.replace({ query: rest });
+      };
+      if (!isRecordId(note)) return drop();
+      // UN3's `GET /:id` answers `{ note }`, the shape the frozen contract names for a written note;
+      // it has no separate read type, and a copy of the shape here would be a second definition.
+      const res = await apiFetch<UnitNoteCreateResponse>(`/api/notes/${note.toLowerCase()}`);
+      if (pending() !== note) return;
+      if (res.ok && res.data?.note) {
+        const n = res.data.note;
+        labels.set(keyOf({ kind: n.kind, id: n.subjectId }), n.subjectLabel);
+        const params = formatNotesParam({ subjects: [{ kind: n.kind, id: n.subjectId }], noteId: n.id });
+        void router.replace({ query: { ...route.query, ...params } });
+        return;
+      }
+      drop();
+      if (res.status !== 404) toast.error("Could not open the note", res.error?.message);
+    },
+    { immediate: true },
+  );
 }
