@@ -9,8 +9,8 @@ import { useChatLineActs } from "./useChatLineActs";
 import { chatClock, chatStamp } from "./chatTime";
 import ChatAttachments from "./ChatAttachments.vue";
 import ChatBody from "./ChatBody.vue";
-import { useChatNames } from "./chatNames";
-import { fromDraft, toDraft } from "./mentionDraft";
+import { useMentionNames } from "@/components/mentions/mentionNames";
+import { fromDraft, toDraft } from "@/components/mentions/mentionDraft";
 
 /**
  * One line of a conversation, a channel or a thread — the same row in all three (CHAT-REDESIGN-PLAN
@@ -60,7 +60,7 @@ const root = ref<HTMLElement | null>(null);
 const editor = ref<{ $el: HTMLTextAreaElement } | null>(null);
 const editing = ref(false);
 const draft = ref("");
-const nameOf = useChatNames();
+const nameOf = useMentionNames();
 let editPicks = new Map<string, string>();
 async function startEdit() {
   const d = toDraft(props.message.body ?? "", nameOf);

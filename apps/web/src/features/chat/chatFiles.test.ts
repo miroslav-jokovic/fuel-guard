@@ -30,7 +30,7 @@ import ChatFilesDialog from "./ChatFilesDialog.vue";
 import ChatAttachmentImage from "./ChatAttachmentImage.vue";
 import FilePickButton from "@/components/ui/FilePickButton.vue";
 import { useChatSend, type PendingLine } from "./useChat";
-import { provideChatNames } from "./chatNames";
+import { provideMentionNames as provideChatNames } from "@/components/mentions/mentionNames";
 
 const ME = "11111111-1111-4111-8111-111111111111";
 const ANA = "22222222-2222-4222-8222-222222222222";

@@ -11,7 +11,7 @@ import { CHAT_KEY, conversationKey } from "./useChat";
  * ONE PROVIDER, EVERY ROW. A line is drawn by the same `ChatMessageRow` in a conversation, a channel and
  * a thread, three stages deep under the page. Threading three more events up through each stage would
  * add the same six lines of plumbing to every one of them, so the page provides the acts once
- * (`provideChatLineActs`) and the row injects them (`useChatLineActs`), as `chatNames.ts` already does
+ * (`provideChatLineActs`) and the row injects them (`useChatLineActs`), as `mentionNames.ts` already does
  * for who a mention names. A row with nothing provided — the compliance console's — draws no acts.
  *
  * FRESHNESS. A reaction or a pin moves the line's `rev` (0523), so the realtime signal and `/sync`

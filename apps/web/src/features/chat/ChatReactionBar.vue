@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { CHAT_REACTION_EMOJI, type ChatLineReaction, type ChatReaction } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import { useChatNames } from "./chatNames";
+import { useMentionNames } from "@/components/mentions/mentionNames";
 
 /**
  * A line's reactions, under its words (CH6c-2): each kind as a small pill with its count, in D-CHAT26's
@@ -12,7 +12,7 @@ import { useChatNames } from "./chatNames";
  */
 const props = defineProps<{ reactions: readonly ChatLineReaction[]; viewerId: string; disabled?: boolean }>();
 const emit = defineEmits<{ toggle: [reaction: ChatReaction, on: boolean] }>();
-const nameOf = useChatNames();
+const nameOf = useMentionNames();
 
 const pills = computed(() =>
   props.reactions.map((r) => {

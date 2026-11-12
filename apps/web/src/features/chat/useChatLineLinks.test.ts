@@ -16,7 +16,7 @@ const apiFetch = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ apiFetch }));
 import ChatBody from "./ChatBody.vue";
 import { provideChatLineLinks, useChatLineLinks, useChatLineLinksHere } from "./useChatLineLinks";
-import { provideChatNames } from "./chatNames";
+import { provideMentionNames as provideChatNames } from "@/components/mentions/mentionNames";
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const LOAD = "66666666-6666-4666-8666-000000000001";
