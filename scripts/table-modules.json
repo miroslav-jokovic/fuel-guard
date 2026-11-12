@@ -2983,6 +2983,28 @@
         "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
       }
     },
+    "unit_note_mentions": {
+      "module": "roster",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "UNIT-NOTES-PLAN D-UN8 (0590): who a unit note names, derived on insert from the body's <@id> tokens; a few rows per note at most, bounded by the unit_notes budget. Lives and dies with its note (on delete cascade)."
+      }
+    },
+    "unit_notes": {
+      "module": "roster",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "UNIT-NOTES-PLAN (0590): the office's notes on drivers, trucks and trailers, written by people one at a time; permanent (no edit, no removal, D-UN3/D-UN5) and not evidence, so no retention rule. McLeod's comments on the three measured ~3,900 rows over the fleet's whole history (M13), so 1,000 a day is far above any real office."
+      }
+    },
     "unit_tags": {
       "module": "maintenance",
       "layer": "core",

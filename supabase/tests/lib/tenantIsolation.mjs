@@ -237,6 +237,16 @@ const FORMAT_PINNED = {
   "chat_attachments.file_name": "'seed.pdf'",
 };
 
+/**
+ * Polymorphic subjects: a `<kind>` + `<id>` pair with no foreign key, whose insert guard checks the id
+ * exists in this org in the table the kind names. The seeder's random uuid is refused there, so the subject
+ * is seeded as a real parent row, the same way a foreign key's parent is. `unit_notes` (0590, UNIT-NOTES-PLAN
+ * U4) is the first; the next table of this shape is one line here, not a hand seed in each matrix.
+ */
+const POLYMORPHIC_SUBJECTS = {
+  unit_notes: { kindCol: "subject_kind", idCol: "subject_id", kind: "vehicle", parent: "vehicles" },
+};
+
 function valueFor(meta, table, c, orgId, tsIndex = 0) {
   if (c.col === "org_id") return `'${orgId}'::uuid`;
   if (c.col === "card_last4") return "'0000'";
@@ -292,6 +302,20 @@ async function seed(db, meta, table, orgId, inProgress = new Set()) {
       const isPk = c.col === pk;
       if (!required && !(isPk && !c.has_default && !c.is_identity)) continue;
       if (c.is_generated) continue;
+
+      const poly = POLYMORPHIC_SUBJECTS[table];
+      if (poly && c.col === poly.kindCol) {
+        names.push(q(c.col));
+        values.push(`'${poly.kind}'`);
+        continue;
+      }
+      if (poly && c.col === poly.idCol) {
+        const parentId = await seed(db, meta, poly.parent, orgId, inProgress);
+        if (parentId === null) return null;
+        names.push(q(c.col));
+        values.push(`'${parentId}'`);
+        continue;
+      }
 
       const fk = meta.fkOf.get(`${table}.${c.col}`);
       if (fk && c.col !== "org_id") {
