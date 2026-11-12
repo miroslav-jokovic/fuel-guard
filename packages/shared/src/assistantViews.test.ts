@@ -4,6 +4,7 @@ import { ASSISTANT_VIEWS, assistantViewsFor, parseAssistantViewFilters } from ".
 import { splitAssistantLink, assistantAnswerPages } from "./assistantContract.js";
 import { FUEL_PROBLEMS_QUERY_KEYS, fuelProblemsToQuery } from "./fuelProblemsLinkContract.js";
 import { FUEL_COSTS_QUERY_KEYS } from "./fuelCostsLinkContract.js";
+import { FUEL_ALERTS_QUERY_KEYS, fuelAlertsToQuery } from "./fuelAlertsLinkContract.js";
 import { FUEL_LOG_FACET_TABS, FUEL_LOG_QUERY_KEYS, fuelLogToQuery } from "./fuelLogLinkContract.js";
 import { SURFACES } from "./surfaceCatalogue.js";
 
@@ -21,8 +22,9 @@ describe("open_view's pages (F21 Step 5)", () => {
   });
 
   it("offers a page by its own surface gate: fuel's queue to whoever views fuel, never to a technician or a driver", () => {
-    expect(assistantViewsFor("admin", null, ALL)).toEqual(["fuel_problems", "fuel_log"]);
-    expect(assistantViewsFor("dispatcher", null, ALL)).toEqual(["fuel_problems", "fuel_log"]);
+    expect(assistantViewsFor("admin", null, ALL)).toEqual(["fuel_problems", "fuel_log", "fuel_alerts"]);
+    // Fuel alerts is `safety`'s page: a safety manager is offered it beside the fuel pages they view.
+    expect(assistantViewsFor("safety_manager", null, ALL)).toContain("fuel_alerts");
     expect(assistantViewsFor("technician", null, ALL)).toEqual([]);
     expect(assistantViewsFor("driver", null, ALL)).toEqual([]);
     // Every view names a real surface.
@@ -67,5 +69,21 @@ describe("open_view's pages (F21 Step 5)", () => {
     expect(fuelLogToQuery({ tab: "fills", tank: "reefer" })).toEqual({ tank: "reefer" });
     // Every facet a link may set is owned by at least one real tab.
     for (const owners of Object.values(FUEL_LOG_FACET_TABS)) expect(owners.length).toBeGreaterThan(0);
+  });
+
+  it("Fuel alerts: one status (or `all`) and one severity, as the page's single-choice controls; two severities are refused", () => {
+    expect(parseAssistantViewFilters("fuel_alerts", { status: "all", severity: "critical", units: ["718"], reefer: true }).ok).toBe(true);
+    const two = parseAssistantViewFilters("fuel_alerts", { severity: ["high", "critical"] });
+    expect(two.ok).toBe(false);
+    expect(parseAssistantViewFilters("fuel_alerts", { status: "superseded" }).ok).toBe(false);
+    const amount = parseAssistantViewFilters("fuel_alerts", { amount_over: 200 });
+    expect(!amount.ok && amount.error).toMatch(/cannot filter by amount_over.*It can filter by: status, severity, units, from, to, reefer/);
+  });
+
+  it("Fuel alerts: writes the page's own keys, trucks as vehicle ids under `vehicle`, every status as `all`, never as absence", () => {
+    expect(FUEL_ALERTS_QUERY_KEYS.vehicles).toBe("vehicle");
+    expect(fuelAlertsToQuery({ vehicleIds: ["v1", "v2"], status: "all", severity: "high", reeferOnly: true, from: "2026-11-01" }))
+      .toEqual({ vehicle: "v1,v2", status: "all", severity: "high", reefer: "1", from: "2026-11-01" });
+    expect(fuelAlertsToQuery({})).toEqual({});
   });
 });

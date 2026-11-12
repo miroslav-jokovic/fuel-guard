@@ -1,5 +1,13 @@
 import { ref, computed, watch } from "vue";
-import { ANOMALY_SEVERITIES, type Anomaly, type AnomalyDisposition } from "@silvicom/shared";
+import {
+  FUEL_ALERTS_QUERY_KEYS as K,
+  FUEL_ALERTS_REEFER_ON,
+  FUEL_ALERTS_SEVERITIES,
+  FUEL_ALERTS_STATUS_ALL,
+  FUEL_ALERTS_STATUSES,
+  type Anomaly,
+  type AnomalyDisposition,
+} from "@silvicom/shared";
 import {
   useQueryState,
   SORT_DIRECTIONS,
@@ -55,40 +63,40 @@ const { param, list, set } = useQueryState();
  * `useFuelLogFilters` keeps `?unit=` for the same reason and says so at more length.
  */
 const vehicleIds = computed<string[]>({
-  get: () => list("vehicle"),
-  set: (v) => set({ vehicle: v.length ? v.join(",") : undefined }),
+  get: () => list(K.vehicles),
+  set: (v) => set({ [K.vehicles]: v.length ? v.join(",") : undefined }),
 });
-const severity = param("severity", ANOMALY_SEVERITIES);
+// The keys and vocabularies are `fuelAlertsLinkContract.ts`, read by every link to this page (F21 Step 5).
+const severity = param(K.severity, FUEL_ALERTS_SEVERITIES);
 const search = param("search");
-const from = param("from");
-const to = param("to");
-const reefer = param("reefer", ["1"]);
+const from = param(K.from);
+const to = param(K.to);
+const reefer = param(K.reefer, [FUEL_ALERTS_REEFER_ON]);
 
-const STATUS_VALUES = ["open", "investigating", "resolved", "dismissed"] as const;
 /** `all` is the reader's explicit "every status"; ABSENT is the default, which depends on the link. */
-const statusParam = param("status", [...STATUS_VALUES, "all"]);
+const statusParam = param(K.status, [...FUEL_ALERTS_STATUSES, FUEL_ALERTS_STATUS_ALL]);
 const status = computed<string>({
   get: () => {
-    if (statusParam.value === "all") return "";
+    if (statusParam.value === FUEL_ALERTS_STATUS_ALL) return "";
     if (statusParam.value) return statusParam.value;
     // A link that names trucks wants their whole history, resolved cases included.
     return vehicleIds.value.length ? "" : "open";
   },
-  set: (v) => (statusParam.value = v || "all"),
+  set: (v) => (statusParam.value = v || FUEL_ALERTS_STATUS_ALL),
 });
 
 const filters = computed<AnomalyFilters>(() => ({
   status: status.value || undefined,
   severity: severity.value || undefined,
   vehicleIds: vehicleIds.value.length ? vehicleIds.value : undefined,
-  reeferOnly: reefer.value === "1" ? true : undefined,
+  reeferOnly: reefer.value === FUEL_ALERTS_REEFER_ON ? true : undefined,
   from: from.value || undefined,
   to: to.value || undefined,
 }));
 
 /** The segmented control at the top of the page. Presence in the URL, not a boolean spelled out. */
-const reeferOnly = computed(() => reefer.value === "1");
-const setReeferOnly = (on: boolean) => (reefer.value = on ? "1" : "");
+const reeferOnly = computed(() => reefer.value === FUEL_ALERTS_REEFER_ON);
+const setReeferOnly = (on: boolean) => (reefer.value = on ? FUEL_ALERTS_REEFER_ON : "");
 
 // `isPending`, not `isLoading`, is the table's loading state (F16, US6b). The read waits for the org's
 // detection epoch (`useDetectionEpoch`), and while it is disabled `isLoading` is false — so for the
@@ -111,7 +119,7 @@ const statusOptions = [
 ];
 const severityOptions = [
   { value: "", label: "All severities" },
-  ...ANOMALY_SEVERITIES.map((s) => ({ value: s, label: s })),
+  ...FUEL_ALERTS_SEVERITIES.map((s) => ({ value: s, label: s })),
 ];
 /**
  * The fleet, by unit number.

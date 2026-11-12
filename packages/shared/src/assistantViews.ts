@@ -13,6 +13,7 @@ import {
   FUEL_LOG_TABS,
   FUEL_LOG_TANK_TYPES,
 } from "./fuelLogLinkContract.js";
+import { FUEL_ALERTS_SEVERITIES, FUEL_ALERTS_STATUS_ALL, FUEL_ALERTS_STATUSES } from "./fuelAlertsLinkContract.js";
 
 /**
  * The pages Ask AI can open filtered — `open_view` (F21 Step 5, D-AI5 (a) "navigate", D-AI6).
@@ -92,6 +93,25 @@ export const ASSISTANT_VIEWS = {
       "units (truck unit numbers), from/to (calendar days; default every day there is), tank (fills tab only: " +
       FUEL_LOG_TANK_TYPES.join(", ") + "), risk (declines tab only, the decline's risk score from most to least suspicious: " +
       FUEL_LOG_DECLINE_RISKS.join(", ") + "), state (declines or source tab only: the two-letter state the purchase was in).",
+  },
+  fuel_alerts: {
+    surfaceKey: "safety.alerts",
+    filters: z
+      .object({
+        status: z.enum([...FUEL_ALERTS_STATUSES, FUEL_ALERTS_STATUS_ALL]).optional(),
+        severity: z.enum(FUEL_ALERTS_SEVERITIES as [string, ...string[]]).optional(),
+        units: units.optional(),
+        from: day.optional(),
+        to: day.optional(),
+        reefer: z.boolean().optional(),
+      })
+      .strict(),
+    describe:
+      "the fuel alerts queue (fills that look like possible theft, card misuse or data that does not add up). " +
+      "Filters: status (ONE of " + [...FUEL_ALERTS_STATUSES, FUEL_ALERTS_STATUS_ALL].join(", ") + "; without it the page " +
+      "shows open alerts, or every status when units are named), severity (ONE of " + FUEL_ALERTS_SEVERITIES.join(", ") +
+      "; the page cannot show two at once), units (truck unit numbers), from/to (calendar days of the fill), " +
+      "reefer (true = only alerts about reefer fuel going into the truck).",
   },
 } as const satisfies Record<string, { surfaceKey: string; filters: z.ZodType; describe: string }>;
 

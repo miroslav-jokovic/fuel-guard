@@ -59,6 +59,8 @@ const BY_SURFACE: Record<string, Suggestion[]> = {
     ask("How many open cases have a location mismatch?", "count_signal"),
   ],
   "safety.alerts": [
+    // F21 Step 5: filters this page behind the dock (`open_view`, view `fuel_alerts`).
+    ask("Show me the critical alerts that are still open", "open_view"),
     ask("How many high or critical theft alerts in the last 30 days?", "fleet_summary"),
     ask("Which trucks have the most flagged fills this month?", "top_risk"),
     ask("How many open cases show a fill bigger than the tank?", "count_signal"),

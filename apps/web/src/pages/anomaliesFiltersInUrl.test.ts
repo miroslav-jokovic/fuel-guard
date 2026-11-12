@@ -67,6 +67,7 @@ import AnomaliesPage from "./AnomaliesPage.vue";
 import { DataWorkspace, FilterBar } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import { fuelAlertsToQuery } from "@silvicom/shared";
 
 async function mountAt(url: string) {
   const router: Router = createRouter({
@@ -274,6 +275,17 @@ describe("the Alerts page's words and tabs (W4)", () => {
     expect(tabs.map((t) => t.text().trim())).toEqual(["All alerts", "Reefer fueling"]);
     expect(tabs.map((t) => t.attributes("aria-selected"))).toEqual(["false", "true"]);
     expect(w.text()).not.toMatch(/ULSD|ULSR/);
+  });
+});
+
+/** F21 Step 5: Ask AI and the Fuel log's "Flagged" tile write this page's URL through its link contract. */
+describe("a link built by the Fuel alerts link contract", () => {
+  it("lands as the trucks, status, severity, window and reefer view it names", async () => {
+    const q = new URLSearchParams(fuelAlertsToQuery({ vehicleIds: ["v-654"], status: "investigating", severity: "critical", from: "2026-11-01", to: "2026-11-07", reeferOnly: true }));
+    await mountAt(`/anomalies?${q.toString()}`);
+    expect(seen.filters?.value).toEqual({
+      status: "investigating", severity: "critical", vehicleIds: ["v-654"], reeferOnly: true, from: "2026-11-01", to: "2026-11-07",
+    });
   });
 });
 
