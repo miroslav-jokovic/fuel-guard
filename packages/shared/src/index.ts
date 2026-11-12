@@ -69,6 +69,7 @@ export * from "./driversLinkContract.js";
 export * from "./fuelCardsLinkContract.js";
 export * from "./fleetReportLinkContract.js";
 export * from "./idlingLinkContract.js";
+export * from "./shopAnnualDueLinkContract.js";
 export * from "./assistantPeriods.js";
 export * from "./canonicalJson.js";
 export * from "./anomaly.js";

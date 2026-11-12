@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { shopAnnualDueToQuery } from "@silvicom/shared";
 
 /** The tool's answer is `unknown` to its caller (it goes to the model as JSON); tests read named fields. */
 type Out = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -43,6 +44,14 @@ describe("annual_inspections_due — the Shop worklist's annual group", () => {
     const out = (await assistantAnnualDue({} as never, ORG, { kind: "trailer" }, NOW)) as Out;
     expect(out.units.map((u: Out) => u.unit)).toEqual(["5301"]);
     expect(out).toMatchObject({ overdue_count: 1, due_soon_count: 0 });
+  });
+
+  it("links the Shop's Annual due tab on the asked kind, in the page's word, built by its contract", async () => {
+    const trucks = (await assistantAnnualDue({} as never, ORG, { kind: "truck" }, NOW)) as Out;
+    expect(trucks.link).toEqual({ surfaceKey: "maintenance.repair-spend", query: { tab: "annual", kind: "tractor" } });
+    const all = (await assistantAnnualDue({} as never, ORG, {}, NOW)) as Out;
+    expect(all.link.query).toEqual(shopAnnualDueToQuery({}));
+    expect(all.link.query).toEqual({ tab: "annual" });
   });
 
   it("a failed read is an error, never an empty yard", async () => {
