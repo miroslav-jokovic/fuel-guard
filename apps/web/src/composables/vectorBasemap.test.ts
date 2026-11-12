@@ -1,5 +1,7 @@
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { TRUCK_PLACES_ZOOM, VECTOR_GLYPH_RANGE_FILE } from "@silvicom/shared";
+import { TRUCK_PLACES_ZOOM, VECTOR_GLYPH_FONTS, VECTOR_GLYPH_RANGE_FILE } from "@silvicom/shared";
 import {
   MAP_PALETTE_KEYS,
   FUEL_PLACE_CATEGORY,
@@ -183,9 +185,31 @@ describe("the vector trial switch", () => {
     expect(vectorTrialOffered("")).toBe(false);
   });
 
-  it("asks for glyph files by the one name the API relay and HERE accept", () => {
-    const asked = GLYPHS_PATH.replace("{fontstack}", "Fira GO Regular").replace("{range}", "0-255");
+  /**
+   * D-DR40: the glyphs are our own static files, so the style's URL, the font names and the files
+   * on disk must agree or maplibre draws every label in the browser's font and only warns. These
+   * read the public folder the build copies, not a mock of it.
+   */
+  it("asks for glyph files by the range shape the files on disk are named with", () => {
+    const asked = GLYPHS_PATH.replace("{fontstack}", VECTOR_GLYPH_FONTS[0]).replace("{range}", "0-255");
     expect(VECTOR_GLYPH_RANGE_FILE.test(asked.split("/").at(-1)!)).toBe(true);
+    expect(asked.startsWith("/api/")).toBe(false);
+  });
+
+  it("ships every one of the 256 ranges for each font it names, and the font's licence beside them", () => {
+    // ⚠ Not `import.meta.url`: under vitest's jsdom environment it is an http: URL, not a file path.
+    // The suite runs from the package root (`apps/web`), where `public/` is.
+    const publicDir = join(process.cwd(), "public");
+    expect(existsSync(join(publicDir, "fonts")), `${publicDir} is not apps/web/public`).toBe(true);
+    for (const font of VECTOR_GLYPH_FONTS) {
+      for (let start = 0; start < 65536; start += 256) {
+        const file = GLYPHS_PATH.replace("{fontstack}", font).replace("{range}", `${start}-${start + 255}`);
+        expect(existsSync(join(publicDir, file)), `${file} is missing`).toBe(true);
+      }
+    }
+    const first = join(publicDir, GLYPHS_PATH.replace("{fontstack}", VECTOR_GLYPH_FONTS[0]).replace("{range}", "0-255"));
+    expect(statSync(first).size).toBeGreaterThan(50_000);
+    expect(readFileSync(join(publicDir, "fonts/glyphs/OFL.txt"), "utf8")).toContain("SIL OPEN FONT LICENSE Version 1.1");
   });
 
   it("tells the vector template from a raster one", () => {

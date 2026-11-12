@@ -272,19 +272,28 @@ export const HERE_MAX_VECTOR_ZOOM = 17;
 export const TRUCK_PLACES_ZOOM = 13;
 
 /**
- * The two fonts the vector road map draws labels with, and the only ones the glyph proxy relays
- * (D-DR31). They are HERE's own style fonts; the web style and the API allowlist read this one list.
+ * The two fonts the vector road map draws labels with (D-DR31), by the name maplibre puts in the
+ * glyph URL. Each name is a directory of glyph files under `apps/web/public/fonts/glyphs/`, built
+ * from FiraGO's TTFs (D-DR40, the design plan §7 2026-11-12 says how), so the style and the files
+ * on disk read this one list and a test checks the directories exist.
+ *
+ * ⚠ Until 2026-11-12 these were HERE's names ("Fira GO Regular") and an API route relayed HERE's
+ * keyless font host. FiraGO is the same font under the SIL Open Font License 1.1 (the licence file
+ * sits beside the glyph files, as it requires); serving our own build ends the relay, the missing
+ * caching header (Q-DR33) and the unread terms question in one move. The names changed with it
+ * because a directory with spaces in a URL is a path nobody should have to escape.
  */
-export const VECTOR_GLYPH_FONTS = ["Fira GO Regular", "Fira GO Bold"] as const;
+export const VECTOR_GLYPH_FONTS = ["FiraGO-Regular", "FiraGO-Bold"] as const;
 
 /**
- * The ONE shape of a glyph range file both sides agree on (D-DR31): `0-255.pbf`. The web style's glyph
- * URL must fill `{range}` into a name that matches this, and the API's glyph relay refuses anything
- * else; HERE's font host answers 404 without the `.pbf` (measured 2026-11-11).
+ * The ONE shape of a glyph range file (D-DR31): `0-255.pbf`. The web style's glyph URL must fill
+ * `{range}` into a name that matches this, which is how the files on disk are named; maplibre asks
+ * for 256 codepoints at a time and every one of the 256 ranges exists for both fonts, an empty one
+ * being 31 bytes, so no label fetch can 404 and trip the style's `error` event.
  *
- * ⚠ Until 2026-11-11 the style asked for `{range}` with no `.pbf`, the relay refused every range with
- * a 400, and maplibre fell back to drawing every label with the browser's own font (its
- * "Rendering codepoint … locally instead" path), so HERE's font was never on screen and every label
- * was drawn on the reader's CPU. Nothing failed visibly, which is why one definition now serves both.
+ * ⚠ Until 2026-11-11 the style asked for `{range}` with no `.pbf`, the relay of the day refused
+ * every range with a 400, and maplibre fell back to drawing every label with the browser's own font
+ * (its "Rendering codepoint … locally instead" path), so the font was never on screen and every
+ * label was drawn on the reader's CPU. Nothing failed visibly, which is why one definition is kept.
  */
 export const VECTOR_GLYPH_RANGE_FILE = /^\d{1,5}-\d{1,5}\.pbf$/;

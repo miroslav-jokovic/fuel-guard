@@ -60,9 +60,9 @@ export type MapPaletteKey = (typeof MAP_PALETTE_KEYS)[number];
 export type MapPalette = Record<MapPaletteKey, string>;
 
 /**
- * The fonts HERE serves glyphs for. Fira GO is HERE's own style font, and the glyph endpoint is
- * keyless; it is still fetched through our API (`/api/fueling/map-glyphs/...`), so the page's
- * content security policy stays `'self'` and HERE never sees a reader's browser.
+ * The label fonts, as maplibre font stacks: FiraGO, HERE's own style font, served as our own glyph
+ * files from our origin (D-DR40, `GLYPHS_PATH`), so the page's content security policy stays
+ * `'self'` and no reader's label fetch reaches HERE at all.
  */
 export const VECTOR_FONT = [VECTOR_GLYPH_FONTS[0]];
 export const VECTOR_FONT_BOLD = [VECTOR_GLYPH_FONTS[1]];
@@ -402,12 +402,15 @@ export function isVectorTemplate(template: string): boolean {
 }
 
 /**
- * Where maplibre fetches label glyphs: our API's relay of HERE's two style fonts (D-DR31).
- * ⚠ The `.pbf` is load-bearing: `{range}` becomes `0-255`, and both the relay and HERE refuse a name
- * without it. maplibre then draws the labels with the browser's font and says so only in a console
- * warning (`VECTOR_GLYPH_RANGE_FILE` has the incident).
+ * Where maplibre fetches label glyphs: static files on our own origin (D-DR40), one directory per
+ * name in `VECTOR_GLYPH_FONTS` under `apps/web/public/fonts/glyphs/`, served by the API's static
+ * handler with a week's cache. Until 2026-11-12 this was an API relay of HERE's keyless font host
+ * (D-DR31), which sent no caching header, so every map load re-fetched ~74 KB a range (Q-DR33).
+ * ⚠ The `.pbf` is load-bearing: `{range}` becomes `0-255`, and the files on disk are named with it.
+ * Without it maplibre draws the labels with the browser's font and says so only in a console warning
+ * (`VECTOR_GLYPH_RANGE_FILE` has the incident).
  */
-export const GLYPHS_PATH = "/api/fueling/map-tiles/glyphs/{fontstack}/{range}.pbf";
+export const GLYPHS_PATH = "/fonts/glyphs/{fontstack}/{range}.pbf";
 
 /** The vector road map's tile template, served by our API (`mapProxies.ts`, D-DR31). */
 export const VECTOR_TILES_TEMPLATE = "/api/fueling/map-tiles/vector/{z}/{x}/{y}";

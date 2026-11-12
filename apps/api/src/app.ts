@@ -459,6 +459,11 @@ export function createApp(env: Env): Express {
         setHeaders: (res, filePath) => {
           if (filePath.includes(`${path.sep}assets${path.sep}`)) {
             res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          } else if (filePath.includes(`${path.sep}fonts${path.sep}glyphs${path.sep}`)) {
+            // D-DR40: the vector map's label glyphs, ~74 KB a character range, asked for on every map
+            // load; HERE's relay sent no caching header (Q-DR33). Not hashed, so a week rather than
+            // immutable: a rebuilt font reaches a reader within a week of its deploy.
+            res.setHeader("Cache-Control", "public, max-age=604800");
           }
         },
       }),
