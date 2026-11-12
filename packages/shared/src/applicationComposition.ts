@@ -1,3 +1,4 @@
+import { applicantIssue } from "./applicantIssues.js";
 import type { DriverApplicationFields } from "./applicationContract.js";
 import type { ApplicationFilingIssue } from "./applicationFilingRules.js";
 import { ENDORSEMENT_CODES } from "./rosterContract.js";
@@ -139,7 +140,7 @@ export function composeFiledApplication<T extends Composable>(
     out.additional_licences = [];
     others.forEach((l) => {
       if (!l.expires_on) {
-        issues.push({ path: "additional_licences", message: `Give the expiry date of your ${l.state_code} licence` });
+        issues.push({ path: "additional_licences", ...applicantIssue("license_expiration", { state: l.state_code }) });
         return;
       }
       if (l.expires_on < asOf) return;

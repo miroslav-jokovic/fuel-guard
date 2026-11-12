@@ -19,6 +19,7 @@ import { APPLY_PART_ONE_COPY_ES } from "./strings.es.partOne";
 import { APPLY_PERMISSIONS_COPY_ES } from "./strings.es.permissions";
 import { APPLY_SMS_COPY_ES } from "./strings.es.sms";
 import { APPLY_QUESTIONS_COPY_ES } from "./strings.es.questions";
+import { APPLY_ISSUES_COPY_ES } from "./strings.es.issues";
 
 /**
  * Every word the applicant reads, in Spanish (APPLICATION-FLOW-V2-PLAN Q-AW11 ruled EN+ES; AW13, C4).
@@ -320,4 +321,5 @@ export const APPLY_COPY_ES = {
   ...APPLY_STATUS_COPY_ES,
   ...APPLY_DOCUMENTS_COPY_ES,
   ...APPLY_QUESTIONS_COPY_ES,
+  ...APPLY_ISSUES_COPY_ES,
 } satisfies ApplyCopy;

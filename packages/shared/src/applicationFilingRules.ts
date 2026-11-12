@@ -1,3 +1,4 @@
+import { APPLICANT_ISSUE_TEXT, applicantIssue, type ApplicantIssueText } from "./applicantIssues.js";
 import type { DriverApplicationFields } from "./applicationContract.js";
 import { employmentSegments, type ApplicationEmployer } from "./applicationEmployerContract.js";
 import { addressCoverage } from "./addressCoverage.js";
@@ -24,10 +25,9 @@ import { formatDisplayDate, formatDisplayMonth } from "./displayDate.js";
  * answer.
  */
 
-export interface ApplicationFilingIssue {
+export interface ApplicationFilingIssue extends ApplicantIssueText {
   /** A dotted path — `employers.2.reason_for_leaving`, `addresses`, `employment_gaps.2023-09-26` (the gap's start). */
   path: string;
-  message: string;
 }
 
 const blank = (v: string | null | undefined): boolean => !v || v.trim() === "";
@@ -77,24 +77,24 @@ export function applicationV2FilingIssues(
   employers.forEach((e, i) => {
     const at = (field: string) => `employers.${i}.${field}`;
     // D-AW8: the phone verification is keyed on it, and a filing without it strands every call.
-    if (!e.key) issues.push({ path: at("key"), message: "Open this employer and save it again" });
+    if (!e.key) issues.push({ path: at("key"), ...applicantIssue("job_saved_again") });
     // (b)(10)(i) "name and address" and (b)(11)'s "names and addresses" — every listed employer.
     if (blank(e.address_line1) || blank(e.city) || blank(e.state)) {
-      issues.push({ path: at("address_line1"), message: "Give this employer's street, city and state" });
+      issues.push({ path: at("address_line1"), ...applicantIssue("job_address") });
     }
     // (b)(10)(iii) and (b)(11): "the reason for leaving such employment".
     if (blank(e.reason_for_leaving)) {
-      issues.push({ path: at("reason_for_leaving"), message: "Say why you left this job" });
+      issues.push({ path: at("reason_for_leaving"), ...applicantIssue("job_reason_for_leaving") });
     }
     // (b)(10)(iv)(A)/(B) are (b)(10)'s alone — the three years, not the seven before them.
     if (employmentSegments(e, asOf).includes("b10")) {
       if (e.subject_to_fmcsr == null) {
         // Plain words since C3c2b: this sentence lands under the driver's own Yes/No, and "FMCSRs" is
         // the regulation's abbreviation, not theirs.
-        issues.push({ path: at("subject_to_fmcsr"), message: "Say whether the Federal Motor Carrier Safety Regulations applied to you in this job" });
+        issues.push({ path: at("subject_to_fmcsr"), ...applicantIssue("job_fmcsr") });
       }
       if (e.safety_sensitive == null) {
-        issues.push({ path: at("safety_sensitive"), message: "Say whether this job was subject to DOT drug and alcohol testing" });
+        issues.push({ path: at("safety_sensitive"), ...applicantIssue("job_drug_testing") });
       }
     }
   });
@@ -107,9 +107,9 @@ export function applicationV2FilingIssues(
   for (const gap of addressCoverage(application.addresses ?? [], asOf).gaps) {
     issues.push({
       path: "addresses",
-      message: gap.from === gap.to
-        ? `Tell us where you lived in ${formatDisplayMonth(gap.from)}`
-        : `Tell us where you lived from ${formatDisplayMonth(gap.from)} to ${formatDisplayMonth(gap.to)}`,
+      ...(gap.from === gap.to
+        ? applicantIssue("address_gap_month", { month: formatDisplayMonth(gap.from) })
+        : applicantIssue("address_gap", { from: formatDisplayMonth(gap.from), to: formatDisplayMonth(gap.to) })),
     });
   }
 
@@ -119,7 +119,7 @@ export function applicationV2FilingIssues(
         // Keyed on the gap's own start date, not an index: the gaps are computed, not a list anybody
         // typed, and the applicant's screen keys each explanation box the same way (C3c1).
         path: `employment_gaps.${gap.from}`,
-        message: `Tell us what you were doing from ${formatDisplayDate(gap.from)} to ${formatDisplayDate(gap.to)}`,
+        ...applicantIssue("employment_gap", { from: formatDisplayDate(gap.from), to: formatDisplayDate(gap.to) }),
       });
     }
   }
@@ -134,15 +134,14 @@ export function applicationV2FilingIssues(
  * application filed before P8 has no answer and must go on parsing — but a NEW filing must answer it.
  * It was an unticked box until F1 part 2, so a driver who skipped it had said No (audit finding 13).
  */
-export const PRIOR_TEST_UNANSWERED =
-  "Say whether, in the last two years, you tested positive or refused a test for a driving job you applied for";
+export const PRIOR_TEST_UNANSWERED = APPLICANT_ISSUE_TEXT.prior_test_answered();
 
 export function applicationLegacyFilingIssues(
   application: Pick<DriverApplicationFields, "prior_failed_pre_employment_test">,
 ): ApplicationFilingIssue[] {
   return typeof application.prior_failed_pre_employment_test === "boolean"
     ? []
-    : [{ path: "prior_failed_pre_employment_test", message: PRIOR_TEST_UNANSWERED }];
+    : [{ path: "prior_failed_pre_employment_test", ...applicantIssue("prior_test_answered") }];
 }
 
 /**
@@ -157,19 +156,19 @@ export function applicationLegacyFilingIssues(
  *   optional on the form, so a conviction printed with two empty cells.
  */
 // US spelling, as the question it answers (Q-AM6, and the carrier's own page 2).
-export const SUSPENSION_UNANSWERED = "Say whether a license, permit or privilege of yours has ever been suspended or revoked";
+export const SUSPENSION_UNANSWERED = APPLICANT_ISSUE_TEXT.suspension_answered();
 
 export function applicationPaperFilingIssues(
   application: Pick<DriverApplicationFields, "licence_suspended" | "violations" | "declares_no_violations">,
 ): ApplicationFilingIssue[] {
   const issues: ApplicationFilingIssue[] = [];
   if (typeof application.licence_suspended !== "boolean") {
-    issues.push({ path: "licence_suspended", message: SUSPENSION_UNANSWERED });
+    issues.push({ path: "licence_suspended", ...applicantIssue("suspension_answered") });
   }
   if (!application.declares_no_violations) {
     (application.violations ?? []).forEach((v, i) => {
-      if (blank(v.state)) issues.push({ path: `violations.${i}.state`, message: "Give the state where it happened" });
-      if (blank(v.penalty)) issues.push({ path: `violations.${i}.penalty`, message: "Give the penalty — a fine, points, a suspension" });
+      if (blank(v.state)) issues.push({ path: `violations.${i}.state`, ...applicantIssue("violation_state") });
+      if (blank(v.penalty)) issues.push({ path: `violations.${i}.penalty`, ...applicantIssue("violation_penalty") });
     });
   }
   return issues;
@@ -186,10 +185,10 @@ export function sevenDayStatementIssues(
 ): ApplicationFilingIssue[] {
   const issues: ApplicationFilingIssue[] = [];
   if (!Array.isArray(application.seven_day_hours) || application.seven_day_hours.length !== 7) {
-    issues.push({ path: "seven_day_hours", message: "Give your hours on duty for each of the last seven days — 0 for a day you did not work" });
+    issues.push({ path: "seven_day_hours", ...applicantIssue("seven_day_hours") });
   }
   if (blank(application.last_relieved_at)) {
-    issues.push({ path: "last_relieved_at", message: "Give the date and time you were last off duty" });
+    issues.push({ path: "last_relieved_at", ...applicantIssue("last_relieved_at") });
   }
   return issues;
 }

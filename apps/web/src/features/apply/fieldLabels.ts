@@ -1,3 +1,4 @@
+import { isApplicantIssueKey, issueKeyOf } from "@silvicom/shared";
 import { APPLY_COPY } from "./strings";
 import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "./questionnaireCopy";
 
@@ -305,6 +306,9 @@ export interface FieldIssueLike {
   message: string;
   format?: string;
   path: FieldPath;
+  /** U7: a shared rule's key and params — rendered in the page's language instead of `message`. */
+  issueKey?: string;
+  params?: unknown;
 }
 
 /**
@@ -335,7 +339,13 @@ export function messageFor(issue: FieldIssueLike, value: unknown): string {
   if (issue.code === "custom" && issue.path[0] === CARRIER_ANSWERS && issue.path.length === 2) {
     return APPLY_COPY.carrierQuestions.answerNeeded;
   }
-  // Written for this reader already — the cross-field rules and the date-of-birth refinement.
+  // U7: a shared rule's sentence, in the page's language. Its key comes on the issue (a rule run on the
+  // page) or in a Zod issue's params (a refinement inside the schema) — `issueKeyOf`.
+  const keyed = isApplicantIssueKey(issue.issueKey)
+    ? { issueKey: issue.issueKey, params: issue.params as Record<string, string> | undefined }
+    : issueKeyOf(issue);
+  if (keyed) return (APPLY_COPY.ruleIssues[keyed.issueKey] as (p?: unknown) => string)(keyed.params);
+  // Written for this reader already, and unkeyed — the English the API alone composes.
   if (issue.code === "custom") return issue.message;
 
   const override = overrides()[String(issue.path[0] ?? "")];

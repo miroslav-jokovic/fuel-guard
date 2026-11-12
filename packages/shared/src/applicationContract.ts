@@ -442,7 +442,10 @@ export type ApplicationDraftPayload = z.infer<typeof applicationDraftPayloadSche
 const crossFieldRules = (v: object, ctx: z.RefinementCtx): void => {
   const fields = v as Partial<DriverApplicationFields>;
   for (const rule of APPLICATION_CROSS_FIELD_RULES) {
-    if (!rule.check(fields)) ctx.addIssue({ code: "custom", message: rule.message, path: ruleIssuePath(rule) });
+    // U7: the rule's key rides in `params`, so the applicant's page can say it in its own language.
+    if (!rule.check(fields)) {
+      ctx.addIssue({ code: "custom", message: rule.message, path: ruleIssuePath(rule), params: { issueKey: rule.issueKey, ...rule.params } });
+    }
   }
   // F1 part 2: each job's "did you drive a truck" and "was it DOT-regulated", answered, never defaulted.
   for (const issue of unansweredEmployerQuestions(fields.employers)) {

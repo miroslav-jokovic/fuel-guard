@@ -66,7 +66,7 @@ export interface SectionIssue {
 
 /** One issue, from a Zod issue or a cross-field rule, with everything the screen needs to show it. */
 function toSectionIssue(
-  raw: { code?: string; message: string; format?: string; path: FieldPath },
+  raw: { code?: string; message: string; format?: string; path: FieldPath; issueKey?: string; params?: unknown },
   section: ApplicationSection | null,
   candidate: unknown,
 ): SectionIssue {
@@ -98,7 +98,7 @@ export function v2FilingIssues(draft: ApplicationDraft, asOf: string | null): Se
   const found = [...applicationPaperFilingIssues(candidate), ...(asOf ? applicationV2FilingIssues(candidate, asOf) : [])];
   return found.map((issue) => {
     const path = issue.path.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : p)) as FieldPath;
-    return toSectionIssue({ code: "custom", message: issue.message, path }, sectionOwningPath(path), candidate);
+    return toSectionIssue({ code: "custom", message: issue.message, path, issueKey: issue.issueKey, params: issue.params }, sectionOwningPath(path), candidate);
   });
 }
 
@@ -137,7 +137,7 @@ export function validateSection(
       // and must pass through untouched, exactly like the refinements inside the schema.
       issues.push(
         toSectionIssue(
-          { code: "custom", message: rule.message, path },
+          { code: "custom", message: rule.message, path, issueKey: rule.issueKey, params: rule.params },
           section,
           candidate,
         ),
@@ -156,11 +156,11 @@ export function validateSection(
   // never reaches. And on a legacy link, §40.25(j) (a v2 link asked it in Part 1).
   const later = [
     ...unansweredEmployerQuestions(candidateFields.employers),
-    ...(v2AsOf ? [] : applicationLegacyFilingIssues(candidateFields).map((i) => ({ path: [i.path], message: i.message }))),
+    ...(v2AsOf ? [] : applicationLegacyFilingIssues(candidateFields).map((i) => ({ ...i, path: [i.path] }))),
   ];
   for (const issue of later) {
     if (sectionOwningPath(issue.path) === section) {
-      issues.push(toSectionIssue({ code: "custom", message: issue.message, path: issue.path }, section, candidate));
+      issues.push(toSectionIssue({ code: "custom", message: issue.message, path: issue.path, issueKey: issue.issueKey, params: issue.params }, section, candidate));
     }
   }
   // Only once the contract is satisfied: "Enter the city" and "Say why you left" about the same blank
@@ -178,13 +178,13 @@ export function validateSection(
  * "go back to Where you have worked".
  */
 export function issuesFromParse(
-  issues: ReadonlyArray<{ code?: string; path: PropertyKey[]; message: string; format?: string }>,
+  issues: ReadonlyArray<{ code?: string; path: PropertyKey[]; message: string; format?: string; params?: unknown }>,
   candidate?: unknown,
 ): SectionIssue[] {
   return issues.map((issue) => {
     const path = issue.path as FieldPath;
     return toSectionIssue(
-      { code: issue.code, message: issue.message, format: issue.format, path },
+      { code: issue.code, message: issue.message, format: issue.format, path, params: issue.params },
       sectionOwningPath(path),
       candidate,
     );

@@ -69,7 +69,7 @@ describe("applicationV2FilingIssues", () => {
     // Nothing between the window's start (2023-09-26) and a job starting 2024-03-01.
     const late = employer({ started_on: "2024-03-01" });
     const unexplained = applicationV2FilingIssues({ addresses: HOME, employers: [late], employment_gaps: [] }, AS_OF);
-    expect(unexplained).toEqual([
+    expect(unexplained).toMatchObject([
       { path: "employment_gaps.2023-09-26", message: "Tell us what you were doing from 09/26/2023 to 03/01/2024" },
     ]);
     const explained = applicationV2FilingIssues({
@@ -98,7 +98,7 @@ describe("applicationV2FilingIssues — the three years of addresses, (b)(3)", (
     applicationV2FilingIssues({ addresses, employers: [employer()], employment_gaps: [] }, AS_OF);
 
   it("refuses today's address alone when it began inside the three years, naming the months missing", () => {
-    expect(run([addr("2025-02", null)])).toEqual([
+    expect(run([addr("2025-02", null)])).toMatchObject([
       { path: "addresses", message: "Tell us where you lived from 09/2023 to 01/2025" },
     ]);
   });
@@ -110,13 +110,13 @@ describe("applicationV2FilingIssues — the three years of addresses, (b)(3)", (
   });
 
   it("names one whole month with no address in the middle of the history", () => {
-    expect(run([addr("2020-01", "2024-03"), addr("2024-05", null)])).toEqual([
+    expect(run([addr("2020-01", "2024-03"), addr("2024-05", null)])).toMatchObject([
       { path: "addresses", message: "Tell us where you lived in 04/2024" },
     ]);
   });
 
   it("asks for today's address when the newest one has ended", () => {
-    expect(run([addr("2020-01", "2026-06")])).toEqual([
+    expect(run([addr("2020-01", "2026-06")])).toMatchObject([
       { path: "addresses", message: "Tell us where you lived from 07/2026 to 09/2026" },
     ]);
   });
@@ -137,7 +137,7 @@ describe("the base contract keeps parsing filings made before AW1", () => {
 
 describe("a legacy link's filing (F1 part 2)", () => {
   it("asks for §40.25(j) when it was never answered, and takes a No as an answer", () => {
-    expect(applicationLegacyFilingIssues({ prior_failed_pre_employment_test: null })).toEqual([
+    expect(applicationLegacyFilingIssues({ prior_failed_pre_employment_test: null })).toMatchObject([
       { path: "prior_failed_pre_employment_test", message: PRIOR_TEST_UNANSWERED },
     ]);
     expect(applicationLegacyFilingIssues({})).toHaveLength(1);
@@ -149,7 +149,7 @@ describe("a legacy link's filing (F1 part 2)", () => {
 describe("what the carrier's paper asks of every new filing (F2c)", () => {
   const conviction = { occurred_on: "2025-02-01", offence: "Speeding", state: "IL", penalty: "Fine" };
   it("asks question B until it is answered, either way", () => {
-    expect(applicationPaperFilingIssues({ violations: [], declares_no_violations: true })).toEqual([
+    expect(applicationPaperFilingIssues({ violations: [], declares_no_violations: true })).toMatchObject([
       { path: "licence_suspended", message: SUSPENSION_UNANSWERED },
     ]);
     for (const licence_suspended of [true, false]) {

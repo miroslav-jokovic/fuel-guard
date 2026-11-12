@@ -1,3 +1,4 @@
+import { APPLICANT_ISSUE_TEXT, applicantIssue, type ApplicantIssueKey, type ApplicantIssueText } from "./applicantIssues.js";
 import { z } from "zod";
 import { recordId } from "./recordId.js";
 import { isoDateSchema } from "./rosterContract.js";
@@ -83,8 +84,9 @@ export const applicationEmployerSchema = z
   })
   .strict()
   .refine((v) => typeof v.ended_on !== "string" || v.ended_on >= v.started_on, {
-    message: "The end date cannot be before the start date",
+    message: APPLICANT_ISSUE_TEXT.job_ends_before_start(),
     path: ["ended_on"],
+    params: { issueKey: "job_ends_before_start" },
   });
 export type ApplicationEmployer = z.infer<typeof applicationEmployerSchema>;
 
@@ -93,18 +95,18 @@ export type ApplicationEmployer = z.infer<typeof applicationEmployerSchema>;
  * job's `operated_cmv` and `dot_regulated`, each a Yes or a No the driver gave. Returned as issues on
  * the job's own row, so the message lands under the Yes/No that is still empty.
  */
-export const UNANSWERED_EMPLOYER_MESSAGES = {
-  operated_cmv: "Say whether you drove a truck in this job",
-  dot_regulated: "Say whether this employer was regulated by the DOT",
-} as const;
+export const UNANSWERED_EMPLOYER_KEYS = {
+  operated_cmv: "job_drove_truck",
+  dot_regulated: "job_dot_regulated",
+} as const satisfies Record<string, ApplicantIssueKey>;
 
 export function unansweredEmployerQuestions(
   employers: readonly Pick<ApplicationEmployer, "operated_cmv" | "dot_regulated">[] | null | undefined,
-): { path: (string | number)[]; message: string }[] {
-  const out: { path: (string | number)[]; message: string }[] = [];
+): Array<{ path: (string | number)[] } & ApplicantIssueText> {
+  const out: Array<{ path: (string | number)[] } & ApplicantIssueText> = [];
   (employers ?? []).forEach((e, i) => {
     for (const field of ["operated_cmv", "dot_regulated"] as const) {
-      if (typeof e[field] !== "boolean") out.push({ path: ["employers", i, field], message: UNANSWERED_EMPLOYER_MESSAGES[field] });
+      if (typeof e[field] !== "boolean") out.push({ path: ["employers", i, field], ...applicantIssue(UNANSWERED_EMPLOYER_KEYS[field]) });
     }
   });
   return out;
@@ -129,7 +131,9 @@ export const applicationEmploymentGapSchema = z
     explanation: z.string().trim().min(1).max(500),
   })
   .strict()
-  .refine((v) => v.to >= v.from, { message: "The end date cannot be before the start date", path: ["to"] });
+  .refine((v) => v.to >= v.from, {
+    message: APPLICANT_ISSUE_TEXT.job_ends_before_start(), path: ["to"], params: { issueKey: "job_ends_before_start" },
+  });
 export type ApplicationEmploymentGap = z.infer<typeof applicationEmploymentGapSchema>;
 
 // ── which list an entry belongs to ────────────────────────────────────────────
