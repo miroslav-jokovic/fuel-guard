@@ -231,9 +231,9 @@ describe("the applicant's page", () => {
     await advance(w);
     expect(w.text()).toContain("Where you have lived");
     await advance(w);
-    expect(w.text()).toContain("Your licence");
+    expect(w.text()).toContain("Your license");
     // §391.21(b)(5)'s "each": the list the schema carried no field for until A3.
-    expect(w.text()).toContain("Other licences and permits, now or in the last 3 years");
+    expect(w.text()).toContain("Other licenses and permits, now or in the last 3 years");
     // Q-AF4: §391.23(a)(1) wants every state that licensed them in 3 years, so a licence given up on
     // moving is asked for by name — the case the old "you hold" wording could never collect.
     expect(w.text()).toContain("even if you gave it up");
@@ -255,7 +255,7 @@ describe("the applicant's page", () => {
     await advance(w);
     // A8: the photographs are taken while the driver still has the documents in their hand.
     expect(w.text()).toContain("Your documents");
-    expect(w.text()).toContain("Front of your licence");
+    expect(w.text()).toContain("Front of your license");
     await advance(w);
     // Nobody sends what they cannot see, and nobody certifies it either (§391.21(b)(12)).
     expect(w.text()).toContain("Check your answers");
@@ -670,7 +670,7 @@ describe("the applicant's page", () => {
     const w = mountPage();
     await settle(w);
 
-    expect(w.text()).toContain("Your driver's licence");
+    expect(w.text()).toContain("Your driver's license");
     expect(w.text()).not.toContain("Your signature");
     expect(w.text()).not.toContain(step(1));
   });
@@ -704,7 +704,7 @@ describe("the applicant's page", () => {
     // Step 1 is the CDL's front: its barcode (on the back) fills the typed screens after it (Q-AW31).
     expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
     expect(w.text()).toContain(APPLY_COPY.partOne.step(1, PART_ONE_SCREENS.length));
-    expect(w.text()).not.toContain("Your driver's licence");
+    expect(w.text()).not.toContain("Your driver's license");
     expect(w.text()).not.toContain("Your signature");
   });
 
@@ -915,7 +915,7 @@ describe("the applicant's page", () => {
     await settle(w);
     expect(w.text()).toContain("Your signature");
     expect(w.text()).not.toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
-    expect(w.text()).not.toContain("Your driver's licence");
+    expect(w.text()).not.toContain("Your driver's license");
   });
 
   /** §6.2 screen 20: the v2 "done" screen offers the Clearinghouse registration; a legacy one does not. */

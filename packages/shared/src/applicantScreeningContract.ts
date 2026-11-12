@@ -184,7 +184,7 @@ export const applicantIntakeLicenceSchema = z
      * supply it, so an optional date here was an application nobody could file. Refused at the door,
      * not only on the page, because the page is not the only client this route will ever have.
      */
-    expires_on: isoDateSchema.pipe(z.string({ error: "Give the expiry date printed on the licence" })),
+    expires_on: isoDateSchema.pipe(z.string({ error: "Give the expiration date printed on the license" })),
     /**
      * P3 (0588). Nullish, and not required here, because two rows legitimately have none: the current
      * CDL, and every licence recorded before the screen asked — the office's correction posts those
@@ -210,7 +210,7 @@ function refuseDuplicateLicences(v: { licences: ApplicantIntakeLicence[] }, ctx:
   v.licences.forEach((l, i) => {
     const key = `${l.state_code}|${l.licence_number.toUpperCase()}`;
     if (seen.has(key)) {
-      ctx.addIssue({ code: "custom", message: "This licence is already on the list", path: ["licences", i] });
+      ctx.addIssue({ code: "custom", message: "This license is already on the list", path: ["licences", i] });
     }
     seen.add(key);
   });

@@ -62,8 +62,8 @@ export function applicantDocumentSlot(kind: string, page: number): PromotedCaptu
  * cannot reach the record unnamed.
  */
 export const APPLICANT_DOCUMENT_OFFICE_LABELS: Record<PromotedCaptureSlot, string> = {
-  cdl_front: "Licence, front",
-  cdl_back: "Licence, back",
+  cdl_front: "License, front",
+  cdl_back: "License, back",
   medical_card: "Medical examiner's certificate",
   twic: "TWIC card",
   passport: "Passport",

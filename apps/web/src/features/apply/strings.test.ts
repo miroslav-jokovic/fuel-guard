@@ -100,6 +100,17 @@ describe("apply copy", () => {
     expect(all.some((l) => l.path.endsWith("()"))).toBe(true);
   });
 
+  /**
+   * Q-AM6 (owner 2026-11-11, "as proposed"): the driver reads US spelling — "license", "expiration" — as the
+   * carrier's own paper prints it. The screens mixed the two until F4, a word per screen, because nothing
+   * checked. Only the ENGLISH leaves: the contract's keys (`licence_suspended`) are code and stay.
+   */
+  it("spells it the American way: license, expiration", () => {
+    const english = all.filter((l) => !l.path.startsWith("APPLY_COPY_ES") && !l.path.startsWith("SERVED_ES"));
+    const offenders = english.filter((l) => /\blicen[c]es?\b|\bexpiry\b/i.test(l.text));
+    expect(offenders.map((o) => `${o.path}: ${o.text}`)).toEqual([]);
+  });
+
   it("names no regulation anywhere a driver can read it", () => {
     const offenders = all.filter((l) => FORBIDDEN.test(l.text));
     expect(offenders.map((o) => `${o.path}: ${o.text}`)).toEqual([]);

@@ -115,8 +115,8 @@ export const APPLICATION_CAPTURE_MARK_SLOT: Record<PacketMarkKind, ApplicationCa
 
 /** The machine tokens ship with their labels, as every state vocabulary in this product does. */
 export const APPLICATION_CAPTURE_SLOT_LABELS: Record<ApplicationCaptureSlot, string> = {
-  cdl_front: "Front of your licence",
-  cdl_back: "Back of your licence",
+  cdl_front: "Front of your license",
+  cdl_back: "Back of your license",
   medical_card: "Medical examiner's certificate",
   ssn_card: "Social Security card",
   signature_mark: "Your signature",

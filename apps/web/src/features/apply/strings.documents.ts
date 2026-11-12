@@ -22,7 +22,7 @@ export const APPLY_DOCUMENTS_COPY = {
     intro: "Send what you have now — you can bring the rest to the office.",
     optional: "Each one can be a photo or a PDF. None of them stop you sending the application.",
     /** The licence's two sides, taken in Part 1 beside the number (AF3) and never asked for again. */
-    fromLicenceStep: "Received with your licence",
+    fromLicenceStep: "Received with your license",
     upload: "Upload a file",
     uploadAgain: "Choose another file",
     addAnother: "Add another",

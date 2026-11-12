@@ -371,7 +371,9 @@ export const SILVICOM_DRIVER_V3: QuestionnaireDefinition = {
     {
       ...v2("proof_of_age"),
       required: true,
-      hint: "Silvicom hires drivers who are 23 or older. A driver's licence, passport or birth certificate shows your age.",
+      // Q-AM6: US spelling, edited in place. A hint's spelling is not the question asked, which is what a
+      // new version protects; and screen map §5 drops this question with F4's wizard.
+      hint: "Silvicom hires drivers who are 23 or older. A driver's license, passport or birth certificate shows your age.",
     },
     { ...v2("may_contact_employers"), required: true },
     { ...v2("education"), required: true },

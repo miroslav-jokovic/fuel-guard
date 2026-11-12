@@ -49,7 +49,7 @@ describe("the step list, which is the part that navigates", () => {
     const w = card();
     await w.find('button[aria-controls="apply-step-list"]').trigger("click");
     expect(stepButtons(w)).toHaveLength(APPLICATION_FILLING_SECTIONS.length);
-    expect(w.text()).toContain("Your licence");
+    expect(w.text()).toContain("Your license");
     // ⚠ The list stops at "Check your answers" since F4. Signing is not a screen of this visit — it
     // happens on the second one, after the office has read what was sent — and a step in the list
     // the driver cannot reach from here would be a promise the page has no way to keep.

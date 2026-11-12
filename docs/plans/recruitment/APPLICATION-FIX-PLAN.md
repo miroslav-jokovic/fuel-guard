@@ -618,4 +618,19 @@ A gate fails on a literal string in an `apply/` template.
     - **The schema's own shape messages** ("Expected a date as YYYY-MM-DD") stay unkeyed. `messageFor` never shows them to a driver (its generic branches).
     - **U7's gate on literal strings in `apply/` templates** is not built here. It comes with the wizard engine, which replaces those templates.
   - **Next:** Q-AM6, US spelling on every driver screen (U9's spelling half). Then the F4 wizard engine.
+- 2026-11-12: **F4 PR 1 (U7) merged as #2316.**
+- 2026-11-12: **F4: US spelling on the driver's side (Q-AM6, the spelling half of U9)** (`claude/application-us-spelling`, no migration).
+  - **The gate:** `strings.test.ts` now fails on "licence" or "expiry" in any ENGLISH string the applicant can read. It walks every `APPLY_COPY` leaf, functions included, and the served questionnaire. It found 45; all now read "license" and "expiration".
+  - **The shared words the page shows:**
+    - the section title ("Your license");
+    - the two CDL photo names;
+    - the documents list;
+    - Part 1's licence-list refusals (`applicantScreeningContract`);
+    - one packet signing place.
+  - **Kept, and why:**
+    - **Contract keys and code names** (`licence_suspended`, `additional_licences`, `LicenceFields.vue`). They are code, and renaming them is a migration of every stored payload for no reader's benefit.
+    - **The office's own surfaces** (DQ catalogue, MVR, roadside, notifications). Q-AM6 rules the driver's side.
+    - **The legal instruments** (the authorization release text, the disclosures). Editing those is counsel's act, as the citation gate already says.
+    - **The questionnaire's proof-of-age hint** is fixed in v3 in place. Its spelling is not the question asked, and screen map §5 drops that question with the wizard.
+  - **Next:** the F4 wizard engine (plan §6, F4 PR 1: generated from the catalogue).
 

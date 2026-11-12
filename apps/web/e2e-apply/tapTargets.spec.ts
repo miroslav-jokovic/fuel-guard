@@ -198,7 +198,7 @@ for (const width of [390, 320]) {
       await step(page, 6);
       await s.check("part1.other_licences");
       await page.getByLabel("Yes", { exact: true }).check();
-      await press(page, "Add a licence");
+      await press(page, "Add a license");
       await s.check("part1.other_licences, one added");
       await page.getByLabel("No", { exact: true }).check();
       await press(page, "Continue");

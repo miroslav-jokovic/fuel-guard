@@ -90,7 +90,7 @@ describe("every field the contract has, named in words", () => {
   });
 
   it("names a plain field the way the screen above it does", () => {
-    expect(describeField(["cdl_number"])).toBe("Licence number");
+    expect(describeField(["cdl_number"])).toBe("License number");
     expect(describeField(["equipment_experience"])).toBe("Equipment you have driven");
   });
 

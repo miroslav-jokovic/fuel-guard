@@ -40,7 +40,7 @@ describe("the identity step", () => {
     await pressContinue(w);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(w.emitted("done")).toBeUndefined();
-    expect(w.find("#identity-number-description").text()).toBe("Enter the number on your licence.");
+    expect(w.find("#identity-number-description").text()).toBe("Enter the number on your license.");
   });
 
   it("sends the three values, trimmed, to this link, and moves on", async () => {
@@ -73,8 +73,8 @@ describe("the identity step", () => {
 
   it("asks for both sides of the licence and no other document", () => {
     const text = mountIt().text();
-    expect(text).toContain("Front of your licence");
-    expect(text).toContain("Back of your licence");
+    expect(text).toContain("Front of your license");
+    expect(text).toContain("Back of your license");
     expect(text).not.toMatch(/medical/i);
     expect(text).not.toMatch(/social security/i);
   });
