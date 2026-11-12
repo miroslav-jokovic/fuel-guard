@@ -35,6 +35,8 @@ import {
 } from "./driverSections";
 import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import NotesButton from "@/components/notes/NotesButton.vue";
+import NotesDrawer from "@/components/notes/NotesDrawer.vue";
 import ExportButton from "@/components/ExportButton.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
@@ -326,6 +328,8 @@ const fillColumns: DataTableColumn[] = [
       description="Profile, qualification file and fueling history"
     >
       <template #actions>
+        <!-- The driver's notes (UNIT-NOTES-PLAN D-UN12): the drawer the roster's Notes cell opens. -->
+        <NotesButton v-if="driver" kind="driver" :id="id" :label="driver.full_name" />
         <!-- No longer gated on the qualification TAB being open: there are no tabs, and the button
              exports the §391.51 file whichever part of the page the reader has scrolled to. -->
         <ExportButton
@@ -481,5 +485,6 @@ const fillColumns: DataTableColumn[] = [
         </BaseCard>
       </div>
     </template>
+    <NotesDrawer />
   </div>
 </template>

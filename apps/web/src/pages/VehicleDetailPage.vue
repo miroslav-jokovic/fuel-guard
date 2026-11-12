@@ -30,6 +30,8 @@ import UnitFileSection from "@/components/files/UnitFileSection.vue";
 import type { UnitFileSubject } from "@/components/files/fileSubject";
 import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import NotesButton from "@/components/notes/NotesButton.vue";
+import NotesDrawer from "@/components/notes/NotesDrawer.vue";
 import { VEHICLE_SECTIONS, resolveVehicleSection, type VehicleSection } from "./vehicleSections";
 
 const route = useRoute();
@@ -185,7 +187,11 @@ const fillColumns: DataTableColumn[] = [
     <PageHeader
       :title="vehicle?.unit_number ?? 'Vehicle'"
       :description="vehicle ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') : 'Vehicle performance and fueling history'"
-    />
+    >
+      <!-- The truck's notes (UNIT-NOTES-PLAN D-UN12): the drawer the Vehicles list's Notes cell opens. -->
+      <template v-if="vehicle" #actions><NotesButton kind="vehicle" :id="id" :label="vehicle.unit_number" /></template>
+    </PageHeader>
+    <NotesDrawer />
     <QueryState
       :loading="vehicleQuery.isLoading.value"
       :error="vehicleQuery.isError.value ? vehicleQuery.error.value : null"

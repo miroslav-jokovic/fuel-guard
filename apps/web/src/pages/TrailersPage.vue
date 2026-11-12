@@ -31,6 +31,10 @@ import {
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useUnitFilesQuery } from "@/composables/useCompliance";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
+import NotesCell from "@/components/notes/NotesCell.vue";
+import NotesDrawer from "@/components/notes/NotesDrawer.vue";
+import { withNotesColumn } from "@/components/notes/notesColumn";
+import { useUnitNoteSummary } from "@/components/notes/useUnitNotes";
 import FileCell from "@/components/files/FileCell.vue";
 import FileGallery from "@/components/files/FileGallery.vue";
 import FileUploadDialog from "@/components/files/FileUploadDialog.vue";
@@ -49,7 +53,9 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
-const { data: trailers, isLoading, isError, refetch, isFetching } = useTrailersQuery();
+const { data: trailers, isLoading, isError, refetch, isFetching, dataUpdatedAt } = useTrailersQuery();
+/** The Notes column (UNIT-NOTES-PLAN D-UN12), only for a viewer holding the `notes` surface (D-UN14). */
+const notes = useUnitNoteSummary("trailer", dataUpdatedAt);
 const { data: vehicles } = useVehiclesQuery();
 const toast = useToastStore();
 const ask = useConfirm();
@@ -156,6 +162,7 @@ const columns: DataTableColumn[] = [
   { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true },
   { key: "status", label: "Status", sortable: true },
 ];
+const shownColumns = computed(() => withNotesColumn(columns, notes.on.value, "file"));
 const { sort, onSort } = useUrlSort(
   qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
   qs.param("dir", SORT_DIRECTIONS),
@@ -291,7 +298,7 @@ async function onRetire(t: Trailer) {
 
     <DataTable
       embedded
-      :columns="columns"
+      :columns="shownColumns"
       :rows="pageRows"
       row-key="id"
       :loading="isLoading"
@@ -325,6 +332,7 @@ async function onRetire(t: Trailer) {
         />
         <span v-else class="text-ink-tertiary">—</span>
       </template>
+      <template #cell-notes="{ row }"><NotesCell kind="trailer" :id="row.id" :label="row.unit_number" :summary="notes.summary.value[row.id]" /></template>
       <template #cell-trailer="{ row }">{{
         [row.year, row.make, row.model].filter(Boolean).join(" ") || "—"
       }}</template>
@@ -386,6 +394,7 @@ async function onRetire(t: Trailer) {
     </DataTable>
     </DataWorkspace>
 
+    <NotesDrawer />
     <FileGallery
       :subject="gallery?.subject ?? null"
       :subject-label="gallery?.label ?? ''"

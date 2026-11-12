@@ -16,6 +16,9 @@ import { useVehiclesQuery } from "@/composables/useVehicles";
 import KebabMenu from "@/components/KebabMenu.vue";
 import FileCell from "@/components/files/FileCell.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
+import NotesCell from "@/components/notes/NotesCell.vue";
+import { useUnitNoteSummary } from "@/components/notes/useUnitNotes";
+import { useDriversQuery } from "@/composables/useDrivers";
 import { formatPhone, formatDate } from "@/lib/format";
 import { BADGE_BASE, appAccessBadge, dqExpiryBadge, hosStatusBadge, toneClass } from "@/lib/badges";
 
@@ -136,6 +139,9 @@ const unitsByDriver = computed(() => {
 });
 const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.join(", ") || "—";
 
+/** The Notes column's counts (UNIT-NOTES-PLAN D-UN12), refreshed with the roster's own list (D-UN10). */
+const notes = useUnitNoteSummary("driver", useDriversQuery().dataUpdatedAt);
+
 </script>
 
 <template>
@@ -222,6 +228,7 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
       >{{ expiry(row.id, "endorsement_hazmat")!.label }}</RouterLink>
       <span v-else class="text-ink-tertiary">—</span>
     </template>
+    <template #cell-notes="{ row }"><NotesCell kind="driver" :id="row.id" :label="row.full_name" :summary="notes.summary.value[row.id]" /></template>
     <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
     <template #cell-status="{ row }">
       <StatusBadge :status="row.status" />

@@ -4,6 +4,9 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import DriverDetailPage from "@/pages/DriverDetailPage.vue";
+// Notes are pinned in components/notes/notesOnPages.test.ts; here the viewer holds no `notes` surface.
+vi.mock("@/components/notes/useUnitNotes", async () => (await import("@/components/notes/notesTesting")).notesOff());
+vi.mock("@/components/notes/NotesDrawer.vue", async () => (await import("@/components/notes/notesTesting")).notesStub());
 
 /**
  * The driver record page after R6b and R7.

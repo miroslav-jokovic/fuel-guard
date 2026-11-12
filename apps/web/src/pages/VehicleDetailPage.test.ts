@@ -3,6 +3,9 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import VehicleDetailPage from "@/pages/VehicleDetailPage.vue";
+// Notes are pinned in components/notes/notesOnPages.test.ts; here the viewer holds no `notes` surface.
+vi.mock("@/components/notes/useUnitNotes", async () => (await import("@/components/notes/notesTesting")).notesOff());
+vi.mock("@/components/notes/NotesDrawer.vue", async () => (await import("@/components/notes/notesTesting")).notesStub());
 
 /**
  * The truck page's summary card (D-US6). Before `FactList` it printed " gal" for a truck with no tank

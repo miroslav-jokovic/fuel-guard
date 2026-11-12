@@ -1,4 +1,5 @@
 import { type DataTableColumn } from "@silvicom/ui";
+import { NOTES_COLUMN } from "@/components/notes/notesColumn";
 
 /**
  * The roster's column catalogue.
@@ -57,6 +58,13 @@ export const DRIVER_ROSTER_COLUMNS: DataTableColumn[] = [
    */
   // Sortable since DQ-INTO-DRIVERS-PLAN DD1: worst file first, then soonest due (`sortRoster`).
   { key: "file", label: "File", width: "lg", sortable: true },
+  /**
+   * The office's notes on the driver (UNIT-NOTES-PLAN D-UN12): count and age, a click opens the drawer.
+   * Shown by default — a hidden-list (`useTableColumns`) means every reader gets it, and a saved view
+   * that names `hide=` keeps hiding only what it named. The page drops it for a reader without the
+   * `notes` surface (D-UN14), so the picker never offers a column the API would refuse.
+   */
+  NOTES_COLUMN,
   /**
    * The three §391.51 expiry columns (R4, D-ROS9).
    *
