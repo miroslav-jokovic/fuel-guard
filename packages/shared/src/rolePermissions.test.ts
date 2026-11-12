@@ -5,6 +5,7 @@ import {
   CLOSED_PERMISSION_GRANTS,
   EDITABLE_PERMISSIONS,
   CLOSE_APPLICATION_PERMISSION,
+  FULL_SSN_PERMISSION,
   IDENTITY_NUMBER_IMAGES_PERMISSION,
   callerPermissions,
   effectivePermission,
@@ -107,14 +108,29 @@ describe("closing an application is a named switch", () => {
     expect(callerPermissions("recruiter", grants)).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: false,
       [CLOSE_APPLICATION_PERMISSION]: false,
+      [FULL_SSN_PERMISSION]: false,
     });
     expect(callerPermissions("admin", {})).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: true,
       [CLOSE_APPLICATION_PERMISSION]: true,
+      [FULL_SSN_PERMISSION]: true,
     });
     expect(callerPermissions(null, {})).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: false,
       [CLOSE_APPLICATION_PERMISSION]: false,
+      [FULL_SSN_PERMISSION]: false,
     });
+  });
+});
+
+/** Q-AM17 (owner 2026-11-11): "admin and safety" read all nine digits; the recruiter does not, by default. */
+describe("reading the full SSN is a named switch", () => {
+  it("ships to the safety manager and the admin only, and the carrier may switch it either way", () => {
+    for (const role of EDITABLE_ROLES) {
+      expect(effectivePermission(role, FULL_SSN_PERMISSION, {}), role).toBe(role === "safety_manager");
+    }
+    expect(effectivePermission("admin", FULL_SSN_PERMISSION, { admin: { [FULL_SSN_PERMISSION]: false } } as never)).toBe(true);
+    expect(effectivePermission("recruiter", FULL_SSN_PERMISSION, { recruiter: { [FULL_SSN_PERMISSION]: true } })).toBe(true);
+    expect(effectivePermission("safety_manager", FULL_SSN_PERMISSION, { safety_manager: { [FULL_SSN_PERMISSION]: false } })).toBe(false);
   });
 });

@@ -30,6 +30,7 @@ import { partOneFactsView, partOneForFiling } from "./applicantIntake.js";
 import { listCaptures } from "./applicationCapture.js";
 import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
 import { partOneAnswersView } from "./applicantPartOneAnswer.js";
+import { ssnLast4View } from "./applicantSsn.js";
 import { invitationEmailAfter, phoneAnswerIsTexted, stopTextsToReplacedPhone } from "./applicantContactMove.js";
 
 /**
@@ -184,6 +185,8 @@ export interface ApplicationForReview {
    * pending, the endorsements, and only WHETHER a donor gender was given (Q-AM13). Null on a legacy link.
    */
   partOneAnswers: PartOneAnswersView | null;
+  /** Q-AM3/Q-AM17 (0589): the last four of the SSN held before signing, or null. Never more of it. */
+  ssn: { last4: string } | null;
   edits: Array<{
     path: ApplicationPath;
     before: unknown;
@@ -242,6 +245,7 @@ export async function applicationForReview(
     signingStarted: await signingStarted(admin, orgId, inv.id),
     identity: await identityOnRecord(admin, orgId, inv.driver_id),
     partOneAnswers: await partOneAnswersView(admin, orgId, inv.id),
+    ssn: await ssnLast4View(admin, orgId, inv.id),
     edits: (edits ?? []).map((e) => {
       const row = e as {
         path: ApplicationPath; before: unknown; after: unknown; note?: string | null; withheld?: boolean;

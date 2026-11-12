@@ -48,6 +48,8 @@ const topLabels = (): Record<string, string> => {
   // F2b: the same question, where filing puts its answer (`composeFiledApplication`).
   cdl_endorsements: partOne.licence.endorsements,
   donor_gender: partOne.screening.gender,
+  // Q-AM17: the office's replacement is shown on 3.1 as "replaced", never its digits (withheld, 0586).
+  ssn: identity.ssn,
   first_name: identity.first_name,
   middle_name: identity.middle_name,
   last_name: identity.last_name,

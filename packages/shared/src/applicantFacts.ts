@@ -72,6 +72,8 @@ export type FactPacket = readonly string[] | { readonly through: FactPath } | { 
  * - `part_one_answer`: one Part 1 answer the whole-set correction does not carry — the drug-and-alcohol
  *   statements, medical card pending, endorsements, donor gender (`partOneAnswerSchema`). Like `part_one`,
  *   an application fact with this door is the draft's on a legacy link;
+ * - `ssn`: the SSN's own replace route (Q-AM3/Q-AM17, 0589). Every holder of the card may replace it; only a
+ *   holder of "See the full SSN" (`FULL_SSN_PERMISSION`) may read more than the last four;
  * - `{ none }`: no door yet — see this file's header.
  *
  * Every door writes an `application_edits` row and stops at the driver's first packet mark (F3, E7).
@@ -80,7 +82,7 @@ export type FactPacket = readonly string[] | { readonly through: FactPath } | { 
  * Part 1 (`PART_ONE_COMPOSED_KEYS`) are corrected through Part 1, and a draft edit to them would be
  * thrown away at filing, so the card sends them to Part 1 instead. A legacy link's are draft edits.
  */
-export type FactOffice = "draft" | "identity" | "part_one" | "part_one_answer" | { readonly none: string };
+export type FactOffice = "draft" | "identity" | "part_one" | "part_one_answer" | "ssn" | { readonly none: string };
 
 /**
  * The owner's Q-AM13 rules for the answers that are not ordinary corrections:
@@ -277,11 +279,9 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
     input: "text",
     basis: "391.21(b)(2)",
     packet: { notPrinted: "never drawn (D-HIRE6) until item 3's packet step: Q-AM20 (a) prints the last four on the stored packet" },
-    office: {
-      none:
-        "asked in the form since Q-AM3 and held sealed before signing (application_ssns, 0589); the office's replace door "
-        + "and the \"See the full SSN\" permission (Q-AM17) are item 3's next step",
-    },
+    // Q-AM3/Q-AM17: asked in the form and held sealed before signing (application_ssns, 0589); replaced by the
+    // office, read whole only with "See the full SSN".
+    office: "ssn",
   },
 ];
 

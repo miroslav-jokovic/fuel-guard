@@ -497,3 +497,12 @@ A gate fails on a literal string in an `apply/` template.
   - **Filing:** `ssnForFiling` files the saved last four and envelope as they are, unopened. A number typed at sign-off by a page served before this change still wins. Once the filing commits, the pre-signing row is deleted, so the number lives in one place.
   - **Still optional:** Q-H2 made the number optional, and no ruling changed that.
   - **Next:** step 3, the "See the full SSN" permission and the office card's replace door.
+- 2026-11-12: **Item 3, step 3: "See the full SSN", and the office's replace door** (`claude/application-ssn-office`). Step 2 merged as #2283.
+  - **The permission:** `FULL_SSN_PERMISSION` (`recruitment.full_ssn`) follows `CLOSE_APPLICATION_PERMISSION`'s pattern. It ships to the safety manager, the admin always holds it, and a carrier switches it per role in Settings → Permissions (0564 already accepts the key, so no migration).
+  - **The card:** the identity group has its own SSN row (`ApplicantSsnRow`), not a catalogue row. Everyone sees `•••-••-1234`. A holder gets **Show**, which reads the nine digits per press with a plain request, never a cached query; **Hide** drops them. Anyone who corrects the application, recruiters included, gets **Replace**, which types a new number without seeing the old one.
+  - **The API:**
+    - `GET /applications/:id/ssn` sits behind recruitment view plus the permission. It is never cached, and every read writes an `application.ssn_viewed` audit row without the number.
+    - `POST /applications/:id/ssn` is recruitment manage. It is closed at the first packet mark, like every correction. It writes a WITHHELD edit row at `["ssn"]`, so the driver's 3.1 says it was replaced and shows no digits, plus an `application.ssn_replaced` audit row.
+    - The review carries only `ssn.last4`.
+  - **The catalogue:** the SSN's door is `office: "ssn"`. **The office-gap list is empty: every fact the driver answers can now be corrected.**
+  - **Next:** step 5, the packet (Q-AM20 (a)): the stored packet prints the last four, and holders get the full packet on demand. Step 4 (filing moves it and deletes the pre-signing copy) shipped with step 2.

@@ -197,7 +197,8 @@ function documentOf(payload: Record<string, unknown>, partOne: PartOneFactsView 
 /** The door the catalogue names, resolved for this application and this row. */
 function doorOf(fact: ApplicantFact, partOne: boolean, row: number | null, current: number): FactDoor | null {
   const office = fact.office;
-  if (typeof office !== "string") return null;
+  // The SSN's door is its own row (`ApplicantSsnRow`), never a catalogue row: it is never shown whole here.
+  if (typeof office !== "string" || office === "ssn") return null;
   // A composed fact (§40.25(j)) is the draft's own answer on a legacy link, and Part 1's on a v2 one.
   if (office === "part_one_answer") return partOne ? "part_one_answer" : "draft";
   if (office !== "part_one") return office;
