@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DOCUMENTS_BUCKET,
   documentStoragePath,
+  maskSsn,
   type DriverApplication,
 } from "@silvicom/shared";
 import { renderApplicationPdf, type ApplicationPdfInput } from "./render.js";
@@ -40,6 +41,8 @@ interface ApplicationRow {
   certified_at: string;
   applicant_ip: string | null;
   applicant_user_agent: string | null;
+  /** D-HIRE6's clear last four (0220). The stored packet prints it masked (Q-AM20 (a)); never the sealed value. */
+  ssn_last4?: string | null;
 }
 
 export interface FiledApplicationPdf {
@@ -100,6 +103,9 @@ async function renderFiledDocument(
     application: application.payload,
     certifiedAt: application.certified_at,
     signedName: application.signed_name,
+    // Q-AM20 (a): the STORED packet is opened by everyone who may open the driver's documents, so it prints
+    // the last four. A holder of "See the full SSN" asks for the whole one on demand (never stored).
+    ssn: application.ssn_last4 ? maskSsn(application.ssn_last4) : null,
     /**
      * ⚠ **Two reads, one per kind of mark** (Q-HUI14). The packet asks for a signature on nineteen
      * lines and initials on three, `renderPacketOverlay` picks between them by the placement's own
@@ -188,7 +194,7 @@ export async function ensureDriverFiledApplication(
   const { data: app } = await admin
     .from("driver_applications")
     .select(
-      "id, org_id, driver_id, invitation_id, payload, signed_name, certified_at, applicant_ip, applicant_user_agent",
+      "id, org_id, driver_id, invitation_id, payload, signed_name, certified_at, applicant_ip, applicant_user_agent, ssn_last4",
     )
     .eq("org_id", orgId)
     .eq("id", applicationId)

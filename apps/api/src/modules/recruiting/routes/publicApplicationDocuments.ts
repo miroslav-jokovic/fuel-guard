@@ -102,8 +102,9 @@ export function publicApplicationDocumentsRouter(): Router {
   router.get(
     "/:token/packet",
     asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const result = await applicantReadingCopy(admin, String(req.params.token ?? ""), new Date());
+      const { env } = getAppLocals(req);
+      const admin = getSupabaseAdmin(env);
+      const result = await applicantReadingCopy(admin, env, String(req.params.token ?? ""), new Date());
       if (isIntakeError(result)) {
         const status = result.code === "invalid_link" ? 404 : 409;
         res.status(status).json(apiError(result.code, result.message));

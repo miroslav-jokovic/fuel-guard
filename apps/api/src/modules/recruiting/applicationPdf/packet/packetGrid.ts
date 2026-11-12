@@ -113,6 +113,13 @@ export interface PacketFieldInput {
    * carrier's name lines say.
    */
   signedName: string;
+  /**
+   * The SSN as THIS rendering prints it (Q-AM3/Q-AM20 (a), owner 2026-11-11/12), or null for none: the
+   * last four masked (`•••-••-1234`) on the stored packet and for an office reader without "See the full
+   * SSN"; all nine for that permission's holder and for the driver signing their own. The caller decides
+   * which — this file only places what it is given, so no rendering can print more than its reader may see.
+   */
+  ssn?: string | null;
 }
 
 /**

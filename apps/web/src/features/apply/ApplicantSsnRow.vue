@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from "vue";
 import { AppButton as BaseButton, AppInput as BaseInput } from "@silvicom/ui";
-import { applicantSsnSchema, FULL_SSN_PERMISSION } from "@silvicom/shared";
+import { applicantSsnSchema, formatSsn, FULL_SSN_PERMISSION, maskSsn } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { revealApplicantSsn, useReplaceApplicantSsn } from "./useApplicationReview";
@@ -39,8 +39,8 @@ const editing = ref(false);
 const typed = ref("");
 const problem = ref<string | null>(null);
 
-const masked = computed(() => (props.last4 ? `•••-••-${props.last4}` : "Not given"));
-const shownWhole = computed(() => (whole.value ? `${whole.value.slice(0, 3)}-${whole.value.slice(3, 5)}-${whole.value.slice(5)}` : null));
+const masked = computed(() => (props.last4 ? maskSsn(props.last4) : "Not given"));
+const shownWhole = computed(() => (whole.value ? formatSsn(whole.value) : null));
 
 async function show(): Promise<void> {
   problem.value = null;

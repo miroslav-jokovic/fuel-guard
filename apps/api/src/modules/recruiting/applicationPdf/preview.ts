@@ -4,6 +4,14 @@ import { renderPacketDocument, type PacketMarkRow } from "./packetDocument.js";
 import { carrierToday } from "../carrierClock.js";
 import { applicationAsFiled } from "../applicationAsFiled.js";
 import { identityOnRecord } from "../applicantIdentity.js";
+import { ssnLast4View } from "../applicantSsn.js";
+import { maskSsn } from "@silvicom/shared";
+
+/** The last four on file, masked (Q-AM17), or null. What every preview prints unless told it may print more. */
+const maskedSsnOnFile = async (admin: SupabaseClient, orgId: string, invitationId: string): Promise<string | null> => {
+  const held = await ssnLast4View(admin, orgId, invitationId);
+  return held ? maskSsn(held.last4) : null;
+};
 
 /**
  * ⚠ The words `render.ts` stamps on a preview, repeated here rather than imported, and the choice is
@@ -121,6 +129,12 @@ export interface PreviewAudience {
    * questions is helped by being told the answer is provisional.
    */
   band?: string | null;
+  /**
+   * The SSN as this preview prints it (Q-AM20 (a)): the caller's, when it may print more than the last
+   * four (`ssnForPacket`) — the driver's reading copy, an office holder of "See the full SSN". Absent:
+   * the last four masked, which is what everybody else may read.
+   */
+  ssn?: string | null;
   /**
    * The driver's adopted SIGNATURE picture, when they made one (D-PKT13). Decoration; the typed name
    * is the record (D-APP8). ⚠ The office's preview has no marks to draw it on, so it passes none.
@@ -251,6 +265,8 @@ export async function applicationPreviewPdf(
     // preview even though the paper underneath it changed. ⚠ `null` is a DELIBERATE value here, not
     // a missing one (D-HUI10) — see `PreviewAudience.band`.
     band: audience.band === undefined ? PREVIEW_BAND : audience.band,
+    // Q-AM20 (a): the caller's SSN when it may print more; else the last four, which anyone may read.
+    ssn: audience.ssn !== undefined ? audience.ssn : await maskedSsnOnFile(admin, orgId, invitationId),
   });
 
   return { pdf, filename: `application-${invitation.id}-preview.pdf` };

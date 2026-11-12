@@ -107,6 +107,18 @@ describe("what does not fit comes back rather than disappearing", () => {
     expect(over!.label).toMatch(/accident/i);
   });
 
+  /**
+   * Q-AM3/Q-AM20 (a): the SSN prints in all four of the paper's places, and only what the caller hands
+   * in — the stored packet and a reader without "See the full SSN" are given the last four. Given none,
+   * nothing is placed, so no rendering can print more than its reader may see.
+   */
+  it("prints the SSN it is given in the paper's four places, and nothing when given none", () => {
+    const masked = fill({}, { ssn: "•••-••-6789" });
+    for (const id of ["p01.ssn", "p04.ssn", "p15.ssn", "p12.identity.r0.c4"]) expect(textAt(masked, id), id).toBe("•••-••-6789");
+    const none = fill();
+    for (const id of ["p01.ssn", "p04.ssn", "p15.ssn", "p12.identity.r0.c4"]) expect(textAt(none, id) ?? "", id).toBe("");
+  });
+
   /** ⚠ The carrier's licence grid has ONE row, which is the tightest ceiling in the packet. */
   it("returns a second licence rather than drawing over the first", () => {
     const r = fill({

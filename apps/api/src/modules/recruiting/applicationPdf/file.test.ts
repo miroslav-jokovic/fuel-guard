@@ -492,6 +492,21 @@ describe("which document an application files", () => {
     expect(await packetTextOf(pdf)).not.toContain("DRAFT");
   });
 
+  /**
+   * Q-AM20 (a): the stored packet is opened by everyone who may open the driver's documents, recruiters
+   * included, so it prints the SSN's last four — from the clear column, never the sealed one, which this
+   * path does not even read.
+   */
+  it("files the packet with the SSN's last four, never all nine", async () => {
+    const rec = seed({ marks: signedPacket(), application: { ...APPLICATION_ROW, ssn_last4: "6789", ssn_sealed: "v1.never-read" } });
+    const text = await packetTextOf(await bytesOf(rec));
+    expect(text).toContain("6789");
+    expect(text).not.toContain("v1.never-read");
+    const read = rec.forTable("driver_applications")[0]!.ops.find((o) => o.method === "select")!.args[0] as string;
+    expect(read).toContain("ssn_last4");
+    expect(read).not.toContain("ssn_sealed");
+  });
+
   /** ⚠ Org-scoped like every other read here: the service role bypasses RLS. */
   it("scopes the packet-mark read to the org and the invitation", async () => {
     const rec = seed({ marks: signedPacket() });
