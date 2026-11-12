@@ -41,7 +41,7 @@ the step that verifies it before anything depends on it (§1.2).
 | M12 | PostgREST caps every response at 1,000 rows; a long `.in()` list overflows Node 22 headers | memory, measured 2026 | List summaries come back as **one jsonb value** from an RPC, never as rows and never by id list |
 | M13 | McLeod `dbo.comments`, text-only rows: drivers 1,551 on 980; trucks 1,453 on 639; trailers 860 on 345. No comment type means "hiring"; the driver types are receipts (recruiting hotel/flight, travel expense, Uber). Only 360 of 1,510 drivers have any text note within 7 days of their hire date. `driver.hire_date` is filled for 1,445 of 1,510 and for all 170 active drivers | sandbox `lme_analytics`, restore 2026-10-09 | There is no identifiable hiring note to pull (D-UN9) |
 | M14 | `drivers.hire_date` exists in 360 and the McLeod roster sweep carries `hire_date` | schema snapshot; `modules/mcleod/rosterApplicantHire.ts:86,102` | Not used: the owner ruled the hire date unimportant for notes (D-UN9) |
-| M15 | Hot files near their budget: `surfaceCatalogue.ts` is 495 of 500 lines (measured 2026-11-11), `app.ts` 499 | `git show origin/main:…` | The `notes` surface is ONE line in the catalogue; the router mounts inside roster's existing mount so `app.ts` is untouched |
+| M15 | Hot files near their budget: `surfaceCatalogue.ts` is 495 of 500 lines (measured 2026-11-11; 498 after UN0), `app.ts` 499 (**corrected 2026-11-12: 484**, and roster has no mount file of its own — its routers mount in `app.ts` directly) | `git show origin/main:…` | The `notes` surface is ONE line in the catalogue; the router mounts inside roster's existing mount so `app.ts` is untouched |
 
 ### 1.2 Unverified — each is checked by the named step before anything depends on it
 
@@ -259,6 +259,16 @@ owner reads a sample in McLeod first and decides.
 **Q-UN3.** Ruled yes 2026-11-11: the composer carries one line, "Visible to the whole office. No
 medical or test results."
 
+**Q-UN5.** Ruled (a) 2026-11-12 by the orchestrator (raised by track D, `progress/2026-11-11-1600-D-UN6.md`):
+the board row could name neither the trailer (it sent `trailerUnit` as text) nor a team's second seat,
+so the merged drawer could not be built. Before UN6, step **UN6a** (track D) adds
+`trailerId` (from `plan.currentTrailerId`, which the board already holds) and `coDriver` (from the
+roster pairing, `vehicles.co_driver_id`, the source `driver` already comes from) to
+`dispatchBoardRowSchema`. API and contract only, no migration. Roster's pairing over the load's
+`co_driver_id` so the board, the map and the drawer name the same two people; a slip-seat day where
+the two differ is left to the board's own pairing rules. (b) resolving the unit number to an id in
+the browser was rejected as a second copy of what the API knows.
+
 **Q-UN4.** Ruled (a) 2026-11-11 (owner: "notes are office-wide as recommended"): D-UN4 stands.
 Nothing blocks UN0. Q-UN1 proceeds on its recommendation.
 
@@ -276,12 +286,14 @@ Each step is one PR to `main` from its own worktree and branch. "Done when" is t
 | **UN3** | B — API | Mentions: `/people`, `notify()` with dedupe key, no self-notify | UN2 | Tests for each |
 | **UN4** | E — mentions (web) | Promote mention primitives to `components/mentions/`; chat imports from there; no behaviour change | UN0; B1 cleared | Chat's own tests green unchanged; `lint:boundaries` green |
 | **UN5** | C — web core | `components/notes/` whole against a mock API (raw JSON), incl. pin and the D-UN10 refresh; Notes column + drawer on Vehicles, Trailers, Drivers; Notes button on the three detail pages | UN0 (mock); merges after UN2 | Component tests; browser pass at 1440 and 390 with data / empty / failed fixtures |
-| **UN6** | D — dispatch | Notes column on the board; merged drawer with unit chips; summary for three kinds in one call | UN5's components merged | Board tests; browser pass |
+| **UN6a** | D — dispatch | Q-UN5: `trailerId` and `coDriver` on the board row (contract + API, no migration) | UN0 | Contract and board API tests; each new field proved by a mutation |
+| **UN6** | D — dispatch | Notes column on the board; merged drawer with unit chips; summary for three kinds in one call | UN5's components merged; UN6a | Board tests; browser pass |
 | **UN7** | E — mentions (web) | Composer typeahead in `NoteComposer`; name chips in `NoteRow`; bell route for `unit_note_mention` opens the drawer on the note | UN3, UN4, UN5 | Tests; staging walk: mention → bell → drawer on that note |
 | **UN8** | C — web core | The Notes page (D-UN13): the `/notes` route's component becomes `NotesPage.vue` (route, icon and sidebar entry already exist, D-UN14), wall with search and filters, row opens the drawer | UN5 | Tests incl. route table and sidebar; staging walk as an accountant-shaped member: sees the page, reads a dispatcher's note |
 | **UN9** | O | Remove the `notes` surface's `startsOnFor: []` (D-UN14); staging walk of the whole feature with the role-scoped test members; release note; owner approves the release | all | Walk recorded in the progress folder |
 
-Order of merges: UN0 → UN1 → UN2 → (UN3 ‖ UN5 ‖ UN4) → (UN6 ‖ UN7 ‖ UN8) → UN9.
+Order of merges: UN0 → UN1 → UN2 → (UN3 ‖ UN5 ‖ UN4 ‖ UN6a) → (UN6 ‖ UN7 ‖ UN8) → UN9. UN6a touches
+no notes file and may merge any time after UN0.
 Tracks A, B, C and E start together the moment UN0 merges; D starts when UN5 is open for review.
 
 A production release that lands mid-build ships only inert parts (a table, routes nothing calls),
@@ -329,7 +341,7 @@ keeps the order, the contract and the merges.
 | A | database | the migration, `supabase/tests/unit-notes.test.mjs`, `schema.generated.sql`, `scripts/table-*.json`, `supabase/tests/lib/tenantIsolation.mjs`, `modules/roster/mergeDriver.ts`, the `unit_note_mention` lines of `notificationsContract.ts` |
 | B | API | `apps/api/src/modules/roster/notes/**`, roster's mount file, the boundary edge line if U3 says so |
 | C | web core | `apps/web/src/components/notes/**`, the Notes column and button lines in `VehiclesPage.vue`, `TrailersPage.vue`, `features/roster/driverRosterColumns.ts`, `DriversPage.vue`, the three detail pages, `pages/NotesPage.vue`, and the `/notes` route entry in `router/routes/core.ts` with its line in `routeTable.test.ts` and the snapshot (made by O in UN0, C's from UN0's merge). Every Notes column and button shows only when the viewer holds the `notes` surface (D-UN14) |
-| D | dispatch | `apps/web/src/features/dispatch/**` (the Notes column and its drawer wiring only) |
+| D | dispatch | `apps/web/src/features/dispatch/**` (the Notes column and its drawer wiring only); for UN6a, the `trailerId`/`coDriver` lines of `packages/shared/src/dispatchBoardContract.ts`, `apps/api/src/modules/livemap/dispatchBoard.ts` and `apps/api/src/modules/roster/fleetIdentityReads.ts` with their tests; the `NotesDrawer` mount in `apps/web/src/pages/AssignmentsPage.vue` (the board page, which is not under `features/dispatch/`) |
 | E | mentions (web) | `apps/web/src/components/mentions/**`, the import lines in `features/chat/**`, `NoteComposer.vue`'s mention wiring and `NoteRow.vue`'s chips (handed over by C once UN5 merges), `lib/notificationRoute.ts` |
 
 ### 7.4 Prompts that start each builder chat
