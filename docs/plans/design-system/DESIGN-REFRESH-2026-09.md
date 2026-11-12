@@ -1557,3 +1557,30 @@ conflict every time (`plan-progress-log-not-table-rows`).
   inverted, selection ignored) each failed. Not yet measured: the staging write rate and the longest
   frame of both maps after the gate — owed as the first entry after this serves on staging, before
   the owner's office-PC check.
+- **2026-11-12 — D-DR39 measured on staging (PR #2273 merged 2026-11-11 22:51 UTC, staging serving
+  it from 23:53).** `tools/staging-map-frames.mjs` with `GPU=1`, 4× CPU slowdown, the dispatcher
+  test member, two sessions of 5 alternating runs each (the second ended at run 4 of 5 on a login
+  timeout). Truck-source writes, which are counts and so survive a busy machine:
+
+  | | today's map | vector trial |
+  | --- | --- | --- |
+  | writes a second, 10 s still at the fitted zoom (≤ 9), session 1 | 0.7–3.6 | 0.4–2.7 |
+  | same, session 2 (08:30 CST, the fleet in motion) | 3.5–4.6 | 4.6–5.6 |
+  | writes over the 13 s zoom walk, session 1 | 33–82 | 37–78 |
+  | same, session 2 | 70–124 | 96–123 |
+
+  Before the gate every frame was a write: ~60 a second still and ~780 over the walk, on both maps.
+  So the gate removes 90–99% of the writes, and the vector map's placement pass now runs a few
+  times a second at most instead of sixty. The writes that remain at the fitted zoom are the
+  fleet's own: at zoom 9 a pixel is ~114 m, a board arrives every 5 s, and any of 220 trucks turning
+  its arrow four degrees is a write — a 220-truck fleet in the morning rush does that a few times a
+  second, which is the figure to expect.
+
+  ⚠ **The frame times from both sessions are NOT a measurement of the map and are not recorded as
+  one.** Session 1's zoom walks took 913–1 999 s of wall time for a 13 s sequence in six of ten runs
+  (the browser was stalled, not slow); session 2 ran at a machine load average of 19–30, from the
+  other sessions' builds and tests on this Mac, and gave worst frames of 141–1 142 ms on BOTH maps
+  against 50–108 ms the day before on the same tool and build. A frame figure taken under that load
+  says nothing about either map. The tool now prints the load average with the renderer, and a
+  run is only recorded when it is under about 4. Owed: the frame-time comparison on a quiet
+  machine, five alternating runs — then the owner's office-PC check (HANDOFF §10.4 gap 2).
