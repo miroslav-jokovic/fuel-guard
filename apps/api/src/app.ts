@@ -67,6 +67,7 @@ import { complianceRouter } from "./modules/evidence/index.js";
 import { driverAppSettingsRouter, meRouter } from "./modules/driver-app/index.js";
 import { chatRouters, notificationsRouter, messagesRouter } from "./modules/messaging/index.js";
 import { rosterArchiveRouter, rosterCredentialsRouter, rosterDriversRouter, rosterSevenDayRouter } from "./modules/roster/index.js";
+import { unitNotesRouter } from "./modules/roster/notes/routes.js";
 import { authRouter } from "./routes/auth.js";
 import { authStepUpRouter } from "./routes/authStepUp.js";
 import { versionRouter } from "./routes/version.js";
@@ -232,6 +233,7 @@ function mountApiRouters(app: Express, env: Env): void {
   // Mounted above credentials for the same reason archive is — see the note there.
   app.use("/api/roster/drivers", rosterSevenDayRouter()); // §395.8(j)(2) statements (0236)
   app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
+  app.use("/api/notes", unitNotesRouter()); // notes on drivers, trucks, trailers — office-wide (UNIT-NOTES D-UN4)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/card-fraud-incidents", cardFraudIncidentsRouter());
