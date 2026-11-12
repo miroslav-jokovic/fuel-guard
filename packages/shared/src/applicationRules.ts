@@ -101,8 +101,14 @@ export const APPLICATION_CROSS_FIELD_RULES: readonly ApplicationCrossFieldRule[]
   },
   {
     path: "licence_denial_detail",
-    message: "Describe the denial, revocation or suspension",
+    message: "Describe the denial",
     check: (v) => v.licence_ever_denied !== true || Boolean(v.licence_denial_detail?.trim()),
+  },
+  {
+    // F2c (P4): the carrier's question B has its own "If yes, explain".
+    path: "licence_suspension_detail",
+    message: "Describe the suspension or revocation",
+    check: (v) => v.licence_suspended !== true || Boolean(v.licence_suspension_detail?.trim()),
   },
   // §11: one rule per question a carrier MAY require (D-RS2), each deciding from the stamp whether it
   // applies — so the set lives on the invitation, and this list never changes with a carrier's setting.

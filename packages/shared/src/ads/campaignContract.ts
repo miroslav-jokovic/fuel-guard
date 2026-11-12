@@ -72,6 +72,11 @@ export interface AdsCreativeView {
   brand_kit_version_id: string | null;
   supersedes_id: string | null;
   state: CreativeState;
+  /**
+   * What the platform does with it, apart from review: `retired` (CQ9b, tired and paused), `active` (a replacement
+   * turned on, Q-AD68), `activate_failed`; null when nothing was said. `isReplacement` reads it.
+   */
+  platform_status: string | null;
   /** The copy per language and slot, as the copywriter wrote it and the checks read it. */
   copy: Record<string, unknown> | null;
   assets: AdsCreativeAsset[];

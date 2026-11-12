@@ -98,23 +98,6 @@ export const AD_OVERLAY_LAYOUTS = ["bottom_plate", "top_band", "centered"] as co
 export type AdOverlayLayout = (typeof AD_OVERLAY_LAYOUTS)[number];
 
 /**
- * How the words are DRAWN (ADS-AD-LOOK-PLAN D-ADL1–D-ADL7, D-ADL11; the owner, 2026-11-10: the finished ads
- * "don't look really good, professional and enterprise grade"). `layout` above says WHERE the stack sits; the
- * look says in which faces, with which shapes and where the kit's colours go. Both are the preset's: a concept's
- * look is part of the concept, so when a tired ad is retired and the next concept enters (D-AD23), the design
- * changes with it and not only the picture.
- *   · `rail`   — left-aligned; the headline's figures in the kit's accent colour; a rail beside the stack; the
- *                call to action a filled button; the phone and the legal line on a band in the kit's primary.
- *   · `ribbon` — centred; a white headline in a heavier face; the second line on one ribbon in the accent
- *                colour; a pill button; the phone and the legal line on a hairline footer.
- * Since the look, the layout names read oddly — nothing is drawn on a plate or a band any more; the words sit on
- * the picture, darkened under them (D-ADL1). The stored names stay (D-ADL8): they are in every saved preset, and
- * a rename would migrate every one of them for no reader's benefit. Read them as low, high and middle.
- */
-export const AD_LOOKS = ["rail", "ribbon"] as const;
-export type AdLook = (typeof AD_LOOKS)[number];
-
-/**
  * The concept families (ADS-CREATIVE-QUALITY-PLAN Q-AD58, ruled 2026-11-10; Q-AD77). What a preset's first line
  * leads with, and what its picture shows. Meta's delivery collapses ads that read as one idea into one (R1,
  * Andromeda), so two LIVE presets may not hold the same pair — the API save refuses it (`conceptPair`). Closed
@@ -136,6 +119,23 @@ export const AD_HOOK_FAMILY_LABELS: Record<AdHookFamily, string> = {
 export const AD_SCENE_FAMILY_LABELS: Record<AdSceneFamily, string> = {
   cab_pov: "from the cab", equipment_on_road: "truck on the road", equipment_at_rest: "truck at rest", home_street: "home street", abstract_plate: "plain background",
 };
+
+/**
+ * How the words are DRAWN (ADS-AD-LOOK-PLAN D-ADL1–D-ADL7, D-ADL11; the owner, 2026-11-10: the finished ads
+ * "don't look really good, professional and enterprise grade"). `layout` above says WHERE the stack sits; the
+ * look says in which faces, with which shapes and where the kit's colours go. Both are the preset's: a concept's
+ * look is part of the concept, so when a tired ad is retired and the next concept enters (D-AD23), the design
+ * changes with it and not only the picture.
+ *   · `rail`   — left-aligned; the headline's figures in the kit's accent colour; a rail beside the stack; the
+ *                call to action a filled button; the phone and the legal line on a band in the kit's primary.
+ *   · `ribbon` — centred; a white headline in a heavier face; the second line on one ribbon in the accent
+ *                colour; a pill button; the phone and the legal line on a hairline footer.
+ * Since the look, the layout names read oddly — nothing is drawn on a plate or a band any more; the words sit on
+ * the picture, darkened under them (D-ADL1). The stored names stay (D-ADL8): they are in every saved preset, and
+ * a rename would migrate every one of them for no reader's benefit. Read them as low, high and middle.
+ */
+export const AD_LOOKS = ["rail", "ribbon"] as const;
+export type AdLook = (typeof AD_LOOKS)[number];
 
 export const adBrandKitSchema = z.object({
   /** Exactly as it should read in an ad. */
@@ -270,11 +270,6 @@ export const adPresetRecipeSchema = z.object({
 });
 export type AdPresetRecipe = z.infer<typeof adPresetRecipeSchema>;
 
-/** The roles a preset's overlay draws and the slot each reads, in reading order; an unset small line is left out. */
-export function overlaySlotList(o: { headline: string; cta: string; kicker?: string | null; subline?: string | null }): Array<["kicker" | "headline" | "subline" | "cta", string]> {
-  return [...(o.kicker ? [["kicker", o.kicker] as ["kicker", string]] : []), ["headline", o.headline], ...(o.subline ? [["subline", o.subline] as ["subline", string]] : []), ["cta", o.cta]];
-}
-
 /**
  * A recipe's concept as one comparable value, or null for a recipe saved before the families existed — such a
  * preset cannot be compared and so never blocks another (it is refused nothing it was not refused before).
@@ -286,6 +281,11 @@ export function conceptPair(r: Pick<AdPresetRecipe, "hook_family" | "scene_famil
 /** The pair as the editor and a refusal say it: "pay first, plain background". */
 export function conceptPairLabel(r: Pick<AdPresetRecipe, "hook_family" | "scene_family">): string | null {
   return r.hook_family && r.scene_family ? `${AD_HOOK_FAMILY_LABELS[r.hook_family]}, ${AD_SCENE_FAMILY_LABELS[r.scene_family]}` : null;
+}
+
+/** The roles a preset's overlay draws and the slot each reads, in reading order; an unset small line is left out. */
+export function overlaySlotList(o: { headline: string; cta: string; kicker?: string | null; subline?: string | null }): Array<["kicker" | "headline" | "subline" | "cta", string]> {
+  return [...(o.kicker ? [["kicker", o.kicker] as ["kicker", string]] : []), ["headline", o.headline], ...(o.subline ? [["subline", o.subline] as ["subline", string]] : []), ["cta", o.cta]];
 }
 
 // ── the doors (C1 API; E2 draws the editors) ────────────────────────────────────────────────────

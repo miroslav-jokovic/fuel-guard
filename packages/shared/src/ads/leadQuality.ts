@@ -14,12 +14,27 @@ import type { AdsLeadQuality } from "./settingsContract.js";
  *                     the person's own answer plainly below the opening (no Class A; "less than 1 year"
  *                     against 2). `unknown` never counts — for a Meta lead age and the disqualifiers are
  *                     unknown by design (leadMatch.ts), and unknown is the next question, not a failure;
- *   · median_first_attempt_minutes  from arrival to the first contact, over attempted leads; null if none.
+ *   · median_first_attempt_minutes  from arrival to the first contact, over attempted leads; null if none;
+ *   · closed          leads a person closed for a reason OTHER than a named requirement, by that reason, as the
+ *                     lead's newest act stands today (a lead reopened since is not closed). The keys are the
+ *                     lead owner's own vocabulary (recruiting: not interested, unreachable, wrong number,
+ *                     duplicate, out of area, spam) — this module does not name them (D-AD17), it carries what
+ *                     it is handed. A close for a named requirement is not here: it is a `not_qualified` (the
+ *                     close writes the verified verdict), and one lead is never in both. Nothing rings on these
+ *                     (LR4, ADS-AGENTS-AUDIT-2026-11-10 F-LR5): they are for the brief, so the office can see
+ *                     WHICH campaign draws people who are far away, not interested or not real.
  *
  * ── THE TWO RULES ────────────────────────────────────────────────────────────────────────────────
- * Both wait until `min_attempted` leads have been tried: before that a share is noise. Wrong numbers are a
- * share of ATTEMPTED leads (an untried number is not known to be wrong); not-qualified is a share of ALL the
- * window's leads (a verdict needs no call). Shares are compared as whole percents, at-or-above the threshold.
+ * Each waits for `min_attempted` of ITS OWN whole: before that a share is noise. Wrong numbers are a share of
+ * ATTEMPTED leads (an untried number is not known to be wrong), so that rule waits for that many attempts.
+ * Not-qualified is a share of ALL the window's leads (a verdict needs no call), so it waits for that many LEADS.
+ * Shares are compared as whole percents, at-or-above the threshold.
+ *
+ * ── WHY NOT ONE GATE ON ATTEMPTS (LR1, ADS-AGENTS-AUDIT-2026-11-10 F-LR2) ────────────────────────
+ * Until 2026-11-10 both rules waited for attempts. LQ6 then stopped ringing a lead whose own answer fails a
+ * hard requirement (`leadSink.ts`) — rightly — so nobody calls those leads, and a campaign delivering nothing
+ * else never reached ten attempts: the alert was blind to exactly the campaign it exists for. One setting still
+ * holds the sample size; what it counts follows the rule's denominator.
  */
 export interface LeadQualityCounts {
   campaign_id: string;
@@ -29,7 +44,11 @@ export interface LeadQualityCounts {
   reached: number;
   not_qualified: number;
   median_first_attempt_minutes: number | null;
+  closed: Record<string, number>;
 }
+
+/** A closed reason's key as words for a sentence: `out_of_area` → "out of area". */
+export const closedReasonWords = (key: string): string => key.replace(/_/g, " ");
 
 export interface LeadQuality {
   /** Per ads campaign, every ad lead of this org that arrived at or after `since` (an ISO instant). */
@@ -59,11 +78,10 @@ export function leadQualityBreaches(rows: readonly LeadQualityCounts[], t: AdsLe
   if (!t.enabled) return [];
   const out: LeadQualityBreach[] = [];
   for (const r of rows) {
-    if (r.attempted < t.min_attempted) continue;
     const wrong = pct(r.wrong_number, r.attempted);
-    if (wrong >= t.wrong_number_pct) out.push({ campaign_id: r.campaign_id, rule: "wrong_numbers", measured_pct: wrong, threshold_pct: t.wrong_number_pct, part: r.wrong_number, whole: r.attempted });
+    if (r.attempted >= t.min_attempted && wrong >= t.wrong_number_pct) out.push({ campaign_id: r.campaign_id, rule: "wrong_numbers", measured_pct: wrong, threshold_pct: t.wrong_number_pct, part: r.wrong_number, whole: r.attempted });
     const notQ = pct(r.not_qualified, r.leads);
-    if (notQ >= t.not_qualified_pct) out.push({ campaign_id: r.campaign_id, rule: "not_qualified", measured_pct: notQ, threshold_pct: t.not_qualified_pct, part: r.not_qualified, whole: r.leads });
+    if (r.leads >= t.min_attempted && notQ >= t.not_qualified_pct) out.push({ campaign_id: r.campaign_id, rule: "not_qualified", measured_pct: notQ, threshold_pct: t.not_qualified_pct, part: r.not_qualified, whole: r.leads });
   }
   return out;
 }

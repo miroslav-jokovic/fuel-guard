@@ -1,3 +1,4 @@
+import { isFleetReportMonth, type FleetReportGrain } from "@silvicom/shared";
 import { ymd } from "./dateWindow";
 
 /**
@@ -12,7 +13,8 @@ import { ymd } from "./dateWindow";
  *
  * Every function here is pure and takes its inputs as strings, so it can be tested without a clock.
  */
-export type PeriodGrain = "month" | "quarter" | "ytd" | "custom";
+/** The grains are the Fleet report link contract's, so the URL and the rail share one vocabulary. */
+export type PeriodGrain = FleetReportGrain;
 
 export interface ReportPeriod {
   grain: PeriodGrain;
@@ -66,6 +68,28 @@ export function periodForCustom(from: string, to: string): ReportPeriod {
   let b = monthKey(to);
   if (a > b) [a, b] = [b, a];
   return { grain: "custom", from: firstDay(a), to: lastDay(b) };
+}
+
+/**
+ * The period a link names (F21 R4b (e), `fleetReportLinkContract.ts`): two inclusive months and a grain.
+ * The grain is kept only when ITS period for the end month covers exactly these months — "2026-01 to
+ * 2026-03, quarter" is Q1, "2026-01 to 2026-03, ytd" is the year to March, "2026-02 to 2026-03,
+ * quarter" is not a quarter and reads as a custom range — so a link and the rail can never disagree
+ * about which months are on screen. Null when either month is not a month: the page then opens as if
+ * no period were linked.
+ */
+export function periodFromLink(fromKey: unknown, toKey: unknown, grain: unknown): ReportPeriod | null {
+  if (!isFleetReportMonth(fromKey) || !isFleetReportMonth(toKey)) return null;
+  const custom = periodForCustom(firstDay(fromKey), firstDay(toKey));
+  const end = monthKey(custom.to);
+  const exact: Record<Exclude<PeriodGrain, "custom">, ReportPeriod> = {
+    month: periodForMonth(end),
+    quarter: periodForQuarter(end),
+    ytd: periodForYtd(end),
+  };
+  const g = grain as keyof typeof exact;
+  const named = Object.prototype.hasOwnProperty.call(exact, g) ? exact[g] : null;
+  return named && named.from === custom.from && named.to === custom.to ? named : custom;
 }
 
 /**

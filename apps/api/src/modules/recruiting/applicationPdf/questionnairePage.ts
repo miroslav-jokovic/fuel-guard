@@ -3,7 +3,6 @@ import {
   carrierStampOf,
   choiceLabel,
   questionnaireByRef,
-  readableAnswers,
   type QuestionnaireQuestion,
 } from "@silvicom/shared";
 import { caption, field, heading, rule, section } from "../../../lib/pdfDraw.js";
@@ -66,19 +65,11 @@ const yesNo = (v: boolean): string => (v ? "Yes" : "No");
  * that is mostly optional. The ruling is that the fact is worth the line: a recruiter deciding a hire
  * needs to know the applicant would not say whether they may contact previous employers.
  *
- * ⚠ THE RESERVED `eeo` KEY NEVER APPEARS HERE. `readableAnswers` drops it, and a test pins that a
- * payload carrying one renders nothing from it: voluntary self-identification must not reach the
- * person deciding the hire, and this document is what that person reads.
- *
  * ⚠ A definition this build no longer carries renders NOTHING rather than throwing. `payload` is
  * historical jsonb. Answers without their questions are not worth printing anyway: a bare "true"
  * beside no question is not evidence of anything — and after AUD-22 it is the ONLY silence left,
  * because a version we do carry now prints its questions whether or not any of them was answered.
- * That case is reachable and is not hypothetical: `draft.ts` stamps the version only when something
- * was answered, but `cleanQuestionnaire` counts the reserved `eeo` key as something, so an applicant
- * who self-identified and answered nothing else arrives here with a version and no readable answer.
- * The page it gets says every question was unanswered, which is true, and says nothing about the key
- * that was — which is the only other thing that matters about it.
+ * A version stamped with an empty answer set prints every question as unanswered, which is true.
  */
 export function questionnaireSection(doc: PDFKit.PDFDocument, input: ApplicationPdfInput): void {
   const printed = builtInQuestions(doc, input);
@@ -89,7 +80,7 @@ export function questionnaireSection(doc: PDFKit.PDFDocument, input: Application
 function builtInQuestions(doc: PDFKit.PDFDocument, input: ApplicationPdfInput): boolean {
   const definition = questionnaireByRef(input.application.questionnaire_version);
   if (!definition) return false;
-  const answers = readableAnswers(input.application.questionnaire_answers as Record<string, unknown>);
+  const answers = (input.application.questionnaire_answers ?? {}) as Record<string, unknown>;
 
   doc.addPage();
   heading(doc, `${input.carrier.name} — the carrier's own questions`);

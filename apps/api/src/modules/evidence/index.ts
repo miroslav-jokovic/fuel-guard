@@ -56,3 +56,5 @@ export { startDqAlertScheduler } from "./dqAlertScheduler.js";
 export { startDqExportSweeper } from "./dqExportSweeper.js";
 export { complianceRouter } from "./routes/compliance.js";
 export { complianceExportsRouter } from "./routes/complianceExports.js";
+// Ask AI's `driver_file_expirations` (F21 R6b): the Drivers page's qualification files.
+export { assistantDriverFiles, DRIVER_FILE_STATES } from "./assistantDriverFiles.js";

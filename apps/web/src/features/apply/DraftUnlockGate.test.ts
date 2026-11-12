@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 
 const unlock = vi.hoisted(() => vi.fn());
+const code = vi.hoisted(() => ({ request: vi.fn(), verify: vi.fn() }));
 vi.mock("./useApplication", async (orig) => ({
   ...(await orig<typeof import("./useApplication")>()),
   unlockApplicationDraft: unlock,
 }));
+vi.mock("./unlockCode", () => ({ requestUnlockCode: code.request, unlockWithCode: code.verify }));
 const DraftUnlockGate = (await import("./DraftUnlockGate.vue")).default;
 const { APPLY_COPY } = await import("./strings");
 
@@ -97,3 +99,61 @@ describe("the unlock gate", () => {
     expect(w.text()).not.toContain(APPLY_COPY.unlock.lockedOut("Silvicom Inc"));
   });
 });
+
+/**
+ * F0b: when the date of birth ON FILE is wrong, the driver's own right answer never matches — so once
+ * one answer has failed, the screen offers a code sent where the link went, and a right code hands up
+ * the same release the date would.
+ */
+describe("a code in place of the date of birth (F0b)", () => {
+  const button = (w: ReturnType<typeof mount>, text: string) => w.findAll("button").find((b) => b.text().includes(text))!;
+  const failedOnce = async () => {
+    const w = await answer({ locked: true, payload: null, revision: 0 });
+    expect(w.text()).toContain(APPLY_COPY.unlock.failed);
+    return w;
+  };
+
+  it("is not offered before a date of birth has failed", () => {
+    const w = mount(DraftUnlockGate, { props: { token: "t", carrier: "Silvicom Inc" } });
+    expect(w.find("[data-unlock-code]").exists()).toBe(false);
+  });
+
+  it("emails a code, says where masked, and opens the application with it", async () => {
+    code.request.mockResolvedValue({ outcome: "sent", channel: "email", to: "s•••@example.test", expiresInMinutes: 10 });
+    code.verify.mockResolvedValue({ draft: { locked: false, payload: { first_name: "Susan" }, revision: 4 } });
+    const w = await failedOnce();
+    await button(w, APPLY_COPY.unlock.codeByEmail).trigger("click");
+    await flushPromises();
+    expect(code.request).toHaveBeenCalledWith("t", "email", "en");
+    expect(w.text()).toContain(APPLY_COPY.unlock.codeSent("s•••@example.test", 10));
+
+    await w.find("[data-unlock-code] input").setValue("042917");
+    await button(w, APPLY_COPY.unlock.codeAction).trigger("click");
+    await flushPromises();
+    expect(code.verify).toHaveBeenCalledWith("t", "042917");
+    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: { first_name: "Susan" }, partOne: null, revision: 4 });
+  });
+
+  it("says why a text could not go, in the driver's words, and offers no code box", async () => {
+    code.request.mockResolvedValue({ outcome: "held", channel: "sms", held: "quiet_hours" });
+    const w = await failedOnce();
+    await button(w, APPLY_COPY.unlock.codeByText).trigger("click");
+    await flushPromises();
+    expect(w.text()).toContain(APPLY_COPY.unlock.codeHeld.quiet_hours);
+    expect(w.find("[data-unlock-code] input").exists()).toBe(false);
+  });
+
+  it("says a wrong or spent code is refused, and hands up nothing", async () => {
+    code.request.mockResolvedValue({ outcome: "sent", channel: "email", to: "s•••@example.test", expiresInMinutes: 10 });
+    code.verify.mockRejectedValue(Object.assign(new Error("no"), { code: "code_not_accepted" }));
+    const w = await failedOnce();
+    await button(w, APPLY_COPY.unlock.codeByEmail).trigger("click");
+    await flushPromises();
+    await w.find("[data-unlock-code] input").setValue("000000");
+    await button(w, APPLY_COPY.unlock.codeAction).trigger("click");
+    await flushPromises();
+    expect(w.text()).toContain(APPLY_COPY.unlock.codeRefused);
+    expect(w.emitted("unlocked")).toBeUndefined();
+  });
+});
+

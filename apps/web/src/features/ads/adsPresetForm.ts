@@ -79,17 +79,16 @@ export const LAYOUT_LABEL: Record<AdOverlayLayout, string> = {
 };
 export const layoutOptions = () => AD_OVERLAY_LAYOUTS.map((l) => ({ value: l, label: LAYOUT_LABEL[l] }));
 
+/** The concept families, worded as the contract words them; the lists are the contract's (Q-AD58), never restated. */
+const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+export const hookFamilyOptions = () => AD_HOOK_FAMILIES.map((h) => ({ value: h, label: sentence(AD_HOOK_FAMILY_LABELS[h]) }));
+export const sceneFamilyOptions = () => AD_SCENE_FAMILIES.map((s) => ({ value: s, label: sentence(AD_SCENE_FAMILY_LABELS[s]) }));
 /** How each look reads in the drawer; the list is the contract's (`AD_LOOKS`). */
 export const LOOK_LABEL: Record<AdLook, string> = {
   rail: "Rail: left-aligned, figures in the accent colour, footer in the brand colour",
   ribbon: "Ribbon: centred, second line on an accent ribbon, round button",
 };
 export const lookOptions = () => AD_LOOKS.map((l) => ({ value: l, label: LOOK_LABEL[l] }));
-
-/** The concept families, worded as the contract words them; the lists are the contract's (Q-AD58), never restated. */
-const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-export const hookFamilyOptions = () => AD_HOOK_FAMILIES.map((h) => ({ value: h, label: sentence(AD_HOOK_FAMILY_LABELS[h]) }));
-export const sceneFamilyOptions = () => AD_SCENE_FAMILIES.map((s) => ({ value: s, label: sentence(AD_SCENE_FAMILY_LABELS[s]) }));
 
 export type PresetSaveAsk = { ok: true; save: AdPresetSave } | { ok: false; message: string };
 

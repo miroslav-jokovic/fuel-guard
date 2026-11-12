@@ -40,7 +40,7 @@ const BASE = {
   declares_no_accidents: true,
   violations: [],
   declares_no_violations: true,
-  licence_ever_denied: false,
+  licence_ever_denied: false, licence_suspended: false,
   employers: [],
   declares_no_employment: true,
   prior_failed_pre_employment_test: false,

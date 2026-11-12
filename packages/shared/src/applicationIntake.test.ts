@@ -47,7 +47,7 @@ const application = (over: Record<string, unknown> = {}) =>
     declares_no_accidents: true,
     violations: [],
     declares_no_violations: true,
-    licence_ever_denied: false,
+    licence_ever_denied: false, licence_suspended: false,
     employers: [employer()],
     declares_no_employment: false,
     certified: true,

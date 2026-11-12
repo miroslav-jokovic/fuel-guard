@@ -67,7 +67,7 @@ const APPLICATION = (over: Record<string, unknown> = {}) => ({
     cdl_number: "TYPED1", cdl_state: "WI", cdl_expires_at: "2027-01-01",
     additional_licences: [], experience: "Eight years, dry van.",
     accidents: [], declares_no_accidents: true, violations: [], declares_no_violations: true,
-    licence_ever_denied: false, prior_failed_pre_employment_test: null,
+    licence_ever_denied: false, licence_suspended: false, prior_failed_pre_employment_test: null,
     employers: [EMPLOYER], declares_no_employment: false, employment_gaps: [],
     // §9 P8 / §11: a certified document answers the carrier's required questions (v3's seven).
     questionnaire_version: "silvicom_driver@v3",
@@ -169,6 +169,25 @@ describe("a v2 invitation files the composed application (D-AW3, AW1)", () => {
     expectOrgScoped(rec, ORG, { exempt: ["application_invitations"] });
   });
 
+  /**
+   * P3 (F2c part 2): an other licence's type is filed as Part 1 holds it. The recorder serves whole
+   * fixture rows whatever is selected, so the read's own column list is asserted too — without `kind`
+   * there, a real database would file every type as null.
+   */
+  it("files each other licence's type from Part 1, and reads the column it files", async () => {
+    publish();
+    const rec = seed({ tables: { ...PART_ONE, application_intake_licences: [
+      ...PART_ONE.application_intake_licences,
+      { position: 1, state_code: "OH", agency: null, licence_number: "OH55", expires_on: "2029-06-30", kind: "clp" },
+    ] } });
+    expect(isIntakeError(await submitApplication(rec.client, env(), TOKEN, APPLICATION(), CTX, NOW))).toBe(false);
+    expect(filedPayload(rec)!.additional_licences).toEqual([
+      { issuing_authority: "OH", number: "OH55", expires_at: "2029-06-30", kind: "clp" },
+    ]);
+    const select = rec.forTable("application_intake_licences")[0]!.ops.find((o) => o.method === "select");
+    expect(String(select?.args[0]).split(",").map((c) => c.trim())).toContain("kind");
+  });
+
   it("refuses a v2 filing that misses AW1's rules, naming each, and files nothing", async () => {
     publish();
     const rec = seed({ tables: PART_ONE });
@@ -181,15 +200,50 @@ describe("a v2 invitation files the composed application (D-AW3, AW1)", () => {
     expect(rec.rpcs()).toHaveLength(0);
   });
 
-  it("asks a legacy invitation nothing new and files what it certified", async () => {
+  it("asks a legacy invitation nothing new but §40.25(j), and files what it certified", async () => {
     publish();
     const rec = seed();
     const result = await submitApplication(
-      rec.client, env(), TOKEN, APPLICATION({ employers: [{ ...EMPLOYER, reason_for_leaving: null }] }), CTX, NOW,
+      rec.client, env(), TOKEN,
+      APPLICATION({ employers: [{ ...EMPLOYER, reason_for_leaving: null }], prior_failed_pre_employment_test: false }), CTX, NOW,
     );
     expect(isIntakeError(result)).toBe(false);
     const filed = filedPayload(rec)!;
     expect([filed.phone, filed.cdl_number]).toEqual(["555-0111", "TYPED1"]);
     expect(rec.forTable("application_intake_licences")).toHaveLength(0);
+  });
+
+  /**
+   * F1 part 2 (audit finding 13): a legacy link asked §40.25(j) as an unticked box, so a skipped box
+   * filed as No. It is a Yes/No now, and a filing with neither is refused in words, filing nothing.
+   * A v2 link never meets this: Part 1 refuses an intake without the answer (AI009).
+   */
+  it("refuses a legacy filing that never answered §40.25(j), and files nothing", async () => {
+    publish();
+    const rec = seed();
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION({ prior_failed_pre_employment_test: null }), CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("application_incomplete");
+    expect(isIntakeError(result) && result.message).toContain("tested positive or refused a test");
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  /**
+   * F2c: the carrier's page 2 asks question B (suspended or revoked) apart from A, and gives every
+   * conviction a state and a penalty. A filing without them is refused in words, on either kind of link.
+   */
+  it("refuses a filing that never answered question B, or a conviction with no state or penalty, and files nothing", async () => {
+    publish();
+    const rec = seed();
+    const noB = await submitApplication(
+      rec.client, env(), TOKEN, APPLICATION({ prior_failed_pre_employment_test: false, licence_suspended: null }), CTX, NOW,
+    );
+    expect(isIntakeError(noB) && noB.code).toBe("application_incomplete");
+    expect(isIntakeError(noB) && noB.message).toContain("suspended or revoked");
+    const noPenalty = await submitApplication(rec.client, env(), TOKEN, APPLICATION({
+      prior_failed_pre_employment_test: false, declares_no_violations: false,
+      violations: [{ occurred_on: "2025-02-01", offence: "Speeding", state: "IL", penalty: null }],
+    }), CTX, NOW);
+    expect(isIntakeError(noPenalty) && noPenalty.message).toContain("penalty");
+    expect(rec.rpcs()).toHaveLength(0);
   });
 });

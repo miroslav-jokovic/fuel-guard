@@ -103,6 +103,12 @@ export const APPLY_FLOW_COPY = {
     was: "You put",
     now: "It now says",
     blank: "nothing",
+    /** F3 (Q-AM13): a replace-only answer (the drug-test gender) — said, never shown, on a screen others may see. */
+    replaced: "They replaced this answer with the one you gave them. It is not shown here.",
+    /** F3 (Q-AM13): the office's reason for changing one of your own answers. */
+    because: "Why they changed it",
+    /** E2: a correction to a row the carrier later removed — said, so the label does not point at another row. */
+    removedLater: "they removed it later",
     /**
      * §391.21(b)(2) lists the Social Security number, and it is asked for HERE rather than on the
      * form (D-APP3, F4). It is the one answer that never enters a saved draft — so it cannot be
@@ -241,5 +247,24 @@ export const APPLY_FLOW_COPY = {
       `That date of birth did not match too many times, so this link has stopped working. Nothing you have done is lost — ask ${carrier} to send the signing link again.`,
     checking: "Checking…",
     action: "Continue",
+    // F0b: when the date of birth on file will not match, a code in its place.
+    codeOffer: "Your date of birth not working? We can send you a code instead.",
+    codeByEmail: "Email me a code",
+    codeByText: "Text me a code",
+    codeSent: (to: string, minutes: number): string => `We sent a code to ${to}. It works for ${minutes} minutes.`,
+    codeLabel: "The code from the message",
+    codeAction: "Open my application",
+    codeRefused: "That code does not match, or it has run out. Send a new one and use the newest.",
+    codeHeld: {
+      no_address: "We have no email for this application. Try a text, or ask the carrier.",
+      mail_disabled: "Email is not working just now. Try a text, or ask the carrier.",
+      no_consent: "You have not agreed to texts from us, so we can only email you a code.",
+      consent_revoked: "You asked us to stop texting you, so we can only email you a code.",
+      no_number: "We have no phone number to text. Email yourself a code instead.",
+      suppressed: "This number has asked us to stop texting it. Email yourself a code instead.",
+      quiet_hours: "It is too early or too late to text you. Email yourself a code instead.",
+    },
+    codeFailed: "The code could not be sent just now. Try again in a moment.",
+    codeTooMany: "We have already sent a few codes. Use the newest one, or try again in an hour.",
   },
 } as const;

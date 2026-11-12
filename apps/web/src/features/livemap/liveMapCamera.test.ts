@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planCameraMove, SELECT_FLY_MS, SELECT_ZOOM } from "./liveMapCamera";
+import { planCameraMove, planFleetFit, SELECT_FLY_MS, SELECT_ZOOM } from "./liveMapCamera";
 
 /**
  * The camera's rule, held still (D-LM19).
@@ -51,5 +51,28 @@ describe("planCameraMove", () => {
     // The first draft of the visibility test compared longitude only and passed everything above;
     // a fleet that runs I-80 east to west would have animated every click.
     expect(planCameraMove({ lng: -87.2, lat: 44 }, CORRIDOR, 12).kind).toBe("jump");
+  });
+});
+
+describe("planFleetFit", () => {
+  const truck = (vehicleId: string, lat: number, lng: number) => ({ vehicleId, position: { lat, lng } });
+  const fleet = [truck("a", 41.8, -87.6), truck("b", 32.8, -96.8), truck("c", 39.8, -86.2)];
+
+  it("frames nothing when there is nothing to frame, so the canvas tries again on the next board", () => {
+    expect(planFleetFit([], null)).toBeNull();
+  });
+
+  it("opens on the selected truck at the selection zoom when the board carries it", () => {
+    expect(planFleetFit(fleet, "b")).toEqual({ kind: "jump", center: [-96.8, 32.8], zoom: SELECT_ZOOM });
+  });
+
+  it("boxes the whole fleet otherwise, and when the selected truck is not on the board", () => {
+    const box = { kind: "fit", southWest: [-96.8, 32.8], northEast: [-86.2, 41.8] };
+    expect(planFleetFit(fleet, null)).toEqual(box);
+    expect(planFleetFit(fleet, "gone")).toEqual(box);
+  });
+
+  it("boxes a single truck as a point, which fitBounds then clamps to maxZoom", () => {
+    expect(planFleetFit([fleet[0]!], null)).toEqual({ kind: "fit", southWest: [-87.6, 41.8], northEast: [-87.6, 41.8] });
   });
 });

@@ -35,9 +35,19 @@ export type FieldPath = readonly (string | number)[];
  * dozen property reads per issue listed, which is nothing.
  */
 const topLabels = (): Record<string, string> => {
-  const { identity, licence, employment, safety, certify, fields } = APPLY_COPY;
+  const { identity, licence, employment, safety, certify, fields, partOne } = APPLY_COPY;
   /** Every top-level contract key, in the words the screen that owns it uses. */
   return {
+  // F3: Part 1's own answers, which an office correction now addresses by their intake key — in the
+  // words of the Part 1 screen that asked them, so 3.1 reads back the question the driver answered.
+  dot_program_30d: partOne.screening.program30d,
+  dot_tested_6m: partOne.screening.tested6m,
+  dot_random_12m: partOne.screening.random12m,
+  medical_card_pending: partOne.photo.noMedicalCard,
+  endorsements: partOne.licence.endorsements,
+  // F2b: the same question, where filing puts its answer (`composeFiledApplication`).
+  cdl_endorsements: partOne.licence.endorsements,
+  donor_gender: partOne.screening.gender,
   first_name: identity.first_name,
   middle_name: identity.middle_name,
   last_name: identity.last_name,
@@ -60,6 +70,8 @@ const topLabels = (): Record<string, string> => {
   // The question since C3c2c1 — it is what the driver answers, and what a refusal names.
   licence_ever_denied: safety.deniedQuestion,
   licence_denial_detail: safety.denialDetail,
+  licence_suspended: safety.suspendedQuestion,
+  licence_suspension_detail: safety.suspensionDetail,
   prior_failed_pre_employment_test: safety.priorTestHeading,
   employers: fields.employers,
   declares_no_employment: employment.none,
@@ -109,7 +121,8 @@ const rowLabels = (): Record<string, { noun: string; columns: Record<string, str
       issuing_authority: licence.issuingAuthority,
       number: licence.otherNumber,
       expires_at: licence.expires,
-      kind: licence.otherKind,
+      // P3: the question Part 1's other-licences screen asks (F2c part 2).
+      kind: APPLY_COPY.partOne.otherLicences.kind,
     },
   },
   employers: {
@@ -192,6 +205,19 @@ export const FIELD_LABEL_KEYS = {
  * returns something rather than throwing, because a validation summary that crashes is strictly
  * worse than one that is briefly ugly.
  */
+/**
+ * A whole row an edit replaced, added or removed — an other licence from the office's Part 1 correction
+ * (F3, `partOneEdits`) — as one line of its answers: "WI, W-1, 2027-01-01". Not JSON, which is what the
+ * signing screen printed for an object until F3, and not an employer's name, which is what the office's
+ * "What you changed" took any object for.
+ */
+export function rowText(value: Record<string, unknown>): string {
+  return Object.values(value)
+    .filter((v) => v !== null && v !== undefined && v !== "")
+    .map(String)
+    .join(", ");
+}
+
 export function describeField(path: FieldPath): string {
   const [head, index, column] = path;
   const key = String(head ?? "");
@@ -210,9 +236,13 @@ export function describeField(path: FieldPath): string {
   }
   // §9 P8: one carrier question, named by its own label in the page's language — the words printed
   // above its box — rather than "The carrier's own questions" for all eleven.
-  if (key === QUESTIONNAIRE_ANSWERS && typeof index === "string") {
+  // ⚠ Also under the DRAFT's key, `questionnaire` (`toDraftPayload`): every office correction of a carrier
+  // question is logged there, and until F3c part 2 this fell through to the raw key — the driver read
+  // "questionnaire" on 3.1 above the answer the office had changed. A row of a table answer (education,
+  // references) is the question and its row number: "Three personal references · 2".
+  if ((key === QUESTIONNAIRE_ANSWERS || key === DRAFT_QUESTIONNAIRE) && typeof index === "string") {
     const question = applicantQuestionnaire().questions.find((q) => q.id === index);
-    if (question) return question.label;
+    if (question) return typeof column === "number" ? `${question.label} · ${column + 1}` : question.label;
   }
   // §15.3: one of the carrier's OWN questions, by the wording it was stamped with.
   if (key === CARRIER_ANSWERS && typeof index === "string") {
@@ -274,6 +304,7 @@ const isEmpty = (v: unknown): boolean =>
   v === undefined || v === null || (typeof v === "string" && v.trim() === "");
 
 const QUESTIONNAIRE_ANSWERS = "questionnaire_answers";
+const DRAFT_QUESTIONNAIRE = "questionnaire";
 const CARRIER_ANSWERS = "carrier_answers";
 
 export function messageFor(issue: FieldIssueLike, value: unknown): string {

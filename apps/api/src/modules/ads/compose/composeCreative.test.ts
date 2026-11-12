@@ -473,19 +473,6 @@ describe("union — the band both languages' text covers", () => {
   });
 });
 
-describe("drawnCopy — the words the overlay is handed (D-ADL4)", () => {
-  const copy = { hook: "Earn more", cta: "Apply", who: "Class A drivers", also: "Home weekly", body: "Long text" };
-
-  it("a preset with only a headline and a call to action hands the overlay those two, and no small line", () => {
-    expect(drawnCopy({ headline: "hook", cta: "cta" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: null, subline: null });
-  });
-
-  it("a preset that names slots for the small lines hands each its own slot's words", () => {
-    expect(drawnCopy({ headline: "hook", cta: "cta", kicker: "who", subline: "also" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: "Class A drivers", subline: "Home weekly" });
-    expect(drawnCopy({ headline: "hook", cta: "cta", kicker: null, subline: "also" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: null, subline: "Home weekly" });
-  });
-});
-
 describe("composeCreative — the finished-ad judge, a second opinion (P1-7; Q-AD76)", () => {
   const on: AdsSettings = { ...settings, budgets: { ...settings.budgets, agents_enabled: { ...settings.budgets.agents_enabled, finished_ad_judge: true } } };
   const kit: AdBrandKit = { ...KIT, overlays: { "4:5": KIT.overlays["4:5"]!, "1:1": KIT.overlays["4:5"]! } };
@@ -570,4 +557,17 @@ describe("composeCreative — each starter preset, as adopted, composes (Q-AD77)
       expect([...new Set(last.assets.map((a) => a.format))].sort()).toEqual(["1:1", "4:5"]);
     });
   }
+});
+
+describe("drawnCopy — the words the overlay is handed (D-ADL4)", () => {
+  const copy = { hook: "Earn more", cta: "Apply", who: "Class A drivers", also: "Home weekly", body: "Long text" };
+
+  it("a preset with only a headline and a call to action hands the overlay those two, and no small line", () => {
+    expect(drawnCopy({ headline: "hook", cta: "cta" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: null, subline: null });
+  });
+
+  it("a preset that names slots for the small lines hands each its own slot's words", () => {
+    expect(drawnCopy({ headline: "hook", cta: "cta", kicker: "who", subline: "also" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: "Class A drivers", subline: "Home weekly" });
+    expect(drawnCopy({ headline: "hook", cta: "cta", kicker: null, subline: "also" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: null, subline: "Home weekly" });
+  });
 });

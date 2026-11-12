@@ -65,4 +65,14 @@ export const coreRoutes: RouteRecordRaw[] = [
     // 302 px of a 900 px window (audit 2026-10-26).
     meta: { requiresAuth: true, title: "Chat", fullBleed: true },
   },
+  {
+    // Unit notes' wall (UNIT-NOTES-PLAN D-UN13). ⚠ A WORKAROUND until UN8, labelled as the repo requires:
+    // `requireSurface("notes")` (UN2's API) throws on an uncatalogued key and `lint:surfaces` refuses a
+    // surface whose path is not a route, so the route has to exist before its page does. It shows the
+    // placeholder, to admins only (the surface is dark, D-UN14); UN8 points it at `NotesPage.vue`.
+    path: "/notes",
+    name: "notes",
+    component: () => import("@/pages/PlaceholderPage.vue"),
+    meta: { requiresAuth: true, title: "Notes" },
+  },
 ];

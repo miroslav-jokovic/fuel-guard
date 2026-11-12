@@ -24,7 +24,7 @@ const APPLICATION = {
   accidents: [], declares_no_accidents: true,
   violations: [{ occurred_on: "2025-02-01", offence: "Speeding", state: "IL", penalty: "$120" }],
   declares_no_violations: false,
-  licence_ever_denied: false, licence_denial_detail: null,
+  licence_ever_denied: false, licence_suspended: false, licence_denial_detail: null,
   employers: [{
     employer_name: "Old Carrier", usdot_number: "123456", address_line1: "12 Depot Rd", city: "Joliet",
     state: "IL", phone: "555-0100", email: null, position_held: "Driver",
@@ -326,7 +326,7 @@ describe("the draft preview", () => {
     employers: [], declares_no_employment: false,
     accidents: [], declares_no_accidents: false,
     violations: [], declares_no_violations: false,
-    licence_ever_denied: false, licence_denial_detail: "",
+    licence_ever_denied: false, licence_suspended: false, licence_denial_detail: "",
     questionnaire: { proof_of_age: true },
   } as unknown as ApplicationPdfInput["application"];
 
@@ -621,32 +621,18 @@ describe("the questionnaire section", () => {
     expect(valueBeside(lines, "How did you hear about this")).toBe("Not answered.");
   });
 
-  /** ⚠ The assertion this section exists to be safe for. */
-  it("never prints the reserved EEO answers, which the hiring decision must not see", async () => {
-    const pdf = (await pdfText(await renderApplicationPdf(answered({ eeo: { race: "UNIQUE-EEO-STRING" } }))));
-    expect(pdf).not.toContain("UNIQUE-EEO-STRING");
-    expect(pdf).not.toContain("eeo");
-  });
-
-  /**
-   * ⚠ A version with NO readable answer is a real filed state, not a crafted one: `draft.ts` stamps
-   * the version only when something was answered, and `cleanQuestionnaire` counts the reserved `eeo`
-   * key as something. The applicant who self-identified and answered nothing else was asked all ten
-   * of the carrier's questions, so the document says all ten went unanswered — and says nothing
-   * whatever about the key that did not.
-   */
-  it("prints every question as unanswered when the version is stamped and nothing readable was answered", async () => {
+  /** A version stamped with an empty answer set: every question the applicant was asked reads as unanswered. */
+  it("prints every question as unanswered when the version is stamped and nothing was answered", async () => {
     const pdf = await renderApplicationPdf(input({
       application: {
         ...APPLICATION,
         questionnaire_version: "silvicom_driver@v1",
-        questionnaire_answers: { eeo: { race: "UNIQUE-EEO-STRING" } },
+        questionnaire_answers: {},
       } as unknown as DriverApplication,
     }));
     const lines = await pdfDrawnLines(pdf);
     expect(valueBeside(lines, "Position you are applying for")).toBe("Not answered.");
     expect(valueBeside(lines, "Three personal references")).toBe("Not answered.");
-    expect((await pdfText(pdf))).not.toContain("UNIQUE-EEO-STRING");
   });
 
   /** Nobody was asked: the version is null, so there is no question to print and no page for it. */

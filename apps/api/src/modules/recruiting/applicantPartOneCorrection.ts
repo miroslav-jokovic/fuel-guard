@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ApplicantIdentity, ApplicantIntakeLicence, PartOneCorrection } from "@silvicom/shared";
+import { stopTextsToReplacedPhone } from "./applicantContactMove.js";
+import { partOneEdits, type ApplicantIdentity, type ApplicantIntakeLicence, type ApplicationContactMove, type PartOneCorrection } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
+import { partOneForFiling } from "./applicantIntake.js";
+import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
 
 /**
  * The office correcting Part 1's facts (Q-AW36 (a), owner 2026-09-27).
@@ -19,6 +22,13 @@ import { writeAudit } from "../../lib/audit.js";
  * runs on and the one on the filed application stay one licence (D-AF8, D-AW3). It refuses a revoked
  * invitation and a filed one; it does not refuse an expired link or a finished Part 1, because the
  * office corrects while it screens, and screening outlives both.
+ *
+ * ── EVERY CHANGE IS SHOWN TO THE DRIVER, AND NONE LANDS ONCE THEY ARE SIGNING (F3, E7) ─────
+ * Each field the correction changes becomes an `application_edits` row, addressed where the application
+ * files it (`partOneEdits`), so the driver reads "was / now" on 3.1 before signing, exactly as for a
+ * draft correction. Until F3 this wrote only the audit row, and stopped at filing rather than at the
+ * driver's first packet mark: the office could change a phone under a driver half way through signing,
+ * and the driver was never told.
  *
  * ⚠ The service role bypasses RLS: every read below names the org, and the function checks the
  * invitation belongs to it before writing.
@@ -63,14 +73,36 @@ async function hasIntakeRow(admin: SupabaseClient, orgId: string, invitationId: 
 async function storedLicences(admin: SupabaseClient, orgId: string, invitationId: string): Promise<ApplicantIntakeLicence[]> {
   const { data, error } = await admin
     .from("application_intake_licences")
-    .select("position, state_code, agency, licence_number, expires_on")
+    .select("position, state_code, agency, licence_number, expires_on, kind")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .order("position");
   if (error) throw new Error(error.message);
   return ((data ?? []) as Array<ApplicantIntakeLicence & { position: number }>)
     .sort((a, b) => a.position - b.position)
-    .map(({ state_code, agency, licence_number, expires_on }) => ({ state_code, agency, licence_number, expires_on }));
+    // P3: the type travels with the row — the identity correction posts this list back whole, and a
+    // licence re-posted without its `kind` would lose it (0588 writes an absent key as NULL).
+    .map(({ state_code, agency, licence_number, expires_on, kind }) => ({ state_code, agency, licence_number, expires_on, kind: kind ?? null }));
+}
+
+/**
+ * Which of the draft's addresses Part 1's street is filed over: the one with no `to` (the current home,
+ * `composeFiledApplication`). 0 when the draft has none yet — Part 1's street is still the current one.
+ */
+async function currentAddressIndex(admin: SupabaseClient, orgId: string, invitationId: string): Promise<number> {
+  const { data } = await admin
+    .from("application_drafts")
+    .select("payload")
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitationId)
+    .maybeSingle();
+  const addresses = ((data as { payload?: { addresses?: unknown } } | null)?.payload?.addresses);
+  if (!Array.isArray(addresses)) return 0;
+  const at = addresses.findIndex((a) => {
+    const to = (a as { to?: unknown } | null)?.to;
+    return to === null || to === undefined || String(to).trim() === "";
+  });
+  return at < 0 ? 0 : at;
 }
 
 /** The function's refusals, in the office's words. */
@@ -105,6 +137,7 @@ const licenceRows = (licences: readonly ApplicantIntakeLicence[]) =>
     agency: l.agency ?? null,
     licence_number: l.licence_number,
     expires_on: l.expires_on ?? null,
+    kind: l.kind ?? null,
     source: "intake",
   }));
 
@@ -130,10 +163,11 @@ async function overwrite(
 /**
  * The office's "Correct Part 1" — the whole set, overwriting, audited.
  *
- * ⚠ Refused once the application is FILED — the line the draft's own corrections stop at since §9 P5
- * (`applicationIsEditable`, HIRING-WORKFLOW-AUDIT-2026-10-31). It closed at approval until then; the
- * office now corrects until filing, and the driver is shown what changed before they sign. The audit row names the fields and carries no
- * value — a phone number and a licence number are what `apps/api/CLAUDE.md` says never to log.
+ * ⚠ Refused once the driver has made the first packet mark (F3, E7), the line the draft's own
+ * corrections stop at since §9 P5; and once filed, which that implies. It closed at approval until
+ * 2026-10-31, then at filing until F3. The driver is shown every change before they sign (the edit rows).
+ * The audit row names the fields and carries no value — a phone number and a licence number are what
+ * `apps/api/CLAUDE.md` says never to log; the values are in the edit rows, which are the driver's own.
  */
 export async function correctApplicantPartOne(
   admin: SupabaseClient,
@@ -141,7 +175,7 @@ export async function correctApplicantPartOne(
   invitationId: string,
   body: PartOneCorrection,
   actorId: string,
-): Promise<{ ok: true } | PartOneCorrectionError> {
+): Promise<{ ok: true; contact: ApplicationContactMove } | PartOneCorrectionError> {
   const invitation = await invitationOf(admin, orgId, invitationId);
   if (!invitation) return NOT_FOUND;
   if (invitation.submitted_at) {
@@ -157,9 +191,19 @@ export async function correctApplicantPartOne(
     };
   }
 
+  if (await signingStarted(admin, orgId, invitation.id)) return SIGNING_STARTED;
+
+  // What Part 1 held, read before the overwrite, so the driver can be shown each change (E7).
+  const was = await partOneForFiling(admin, orgId, invitation);
+  const currentAddress = await currentAddressIndex(admin, orgId, invitation.id);
+
   const { licences, ...fields } = body;
   const refused = await overwrite(admin, orgId, invitation, fields, licences);
   if (refused) return refused;
+
+  const unrecorded = was
+    ? await recordOfficeEdits(admin, orgId, invitation.id, partOneEdits(was, body, currentAddress), actorId)
+    : null;
 
   await writeAudit(admin, {
     orgId,
@@ -169,7 +213,9 @@ export async function correctApplicantPartOne(
     entityId: invitation.id,
     meta: { driverId: invitation.driver_id, fields: [...Object.keys(fields), "licences"] },
   });
-  return { ok: true };
+  // E3: the phone Part 1 held is the one texts went to; a new one has no consent (`applicantContactMove`).
+  const contact = await stopTextsToReplacedPhone(admin, orgId, invitation, was?.intake.phone, body.phone, actorId);
+  return unrecorded ?? { ok: true, contact };
 }
 
 /**

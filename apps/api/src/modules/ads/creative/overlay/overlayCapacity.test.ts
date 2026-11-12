@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AD_FORMATS, AD_LOOKS, AD_OVERLAY_LAYOUTS, FEED_FORMATS, OVERLAY_HEADLINE_MAX_CHARS, OVERLAY_SMALL_LINE_MAX_CHARS, QUIET_REGION, adPresetSaveSchema, type AdBrandKit, type AdLook } from "@silvicom/shared";
 import { COPYWRITER_EVAL, loadFixtures } from "../../workers/agentFixtures.js";
 import { overlayFit } from "./overlay.js";
@@ -19,6 +19,14 @@ import { layOut } from "./overlayLayout.js";
  * two is the copy ranking's to place (compose asks `overlayFit` per candidate), and what the save promises is
  * unchanged: nothing above the ceiling can be drawn by any look, and 45 or fewer is drawn by every one.
  */
+/**
+ * The measuring tests lay out every recorded headline (hundreds, in two languages) on every format, layout and look
+ * through the real overlay. About 2 s for the whole file on a laptop; on a loaded CI shard one test took 5,972 ms and
+ * another 8,049 ms against vitest's 5,000 (2026-11-11, PRs #2233 and #2234). The work is real and nothing here waits on
+ * a timer, so the limit is the file's own, as composeCreative.test.ts does for the same reason.
+ */
+vi.setConfig({ testTimeout: 30_000 });
+
 const overlay = { zone: null, text_color: "#FFFFFF", plate_color: "#0B3D2E" };
 const kit: Pick<AdBrandKit, "overlays"> = { overlays: Object.fromEntries(FEED_FORMATS.map((f) => [f, overlay])) };
 

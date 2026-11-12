@@ -614,7 +614,7 @@ describe("a value the carrier's column is too narrow for", () => {
       cdl_number: "PA334554", cdl_state: "PA", cdl_class: "A", cdl_expires_at: "2029-01-01",
       additional_licences: [], experience: "Eight years.", equipment_experience: [],
       declares_no_violations: true, violations: [],
-      licence_ever_denied: false, licence_denial_detail: null,
+      licence_ever_denied: false, licence_suspended: false, licence_denial_detail: null,
       prior_failed_pre_employment_test: false, questionnaire_version: "silvicom_driver@1",
       questionnaire_answers: {},
       certified: true, signed_name: NAME,

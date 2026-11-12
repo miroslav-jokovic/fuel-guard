@@ -177,13 +177,13 @@ export function page2(doc: PDFKit.PDFDocument, a: DriverApplication): void {
   );
 
   doc.moveDown(0.6);
-  // ⚠ The packet asks A and B separately; the contract has ONE field, `licence_ever_denied`, whose own
-  // wording covers "denied, revoked or suspended". Both lines therefore take the same answer, and the
-  // detail is printed once under whichever was answered yes. Splitting the contract to match the form
-  // would be changing what the driver is ASKED, which is D-PKT4's other half and counsel's.
+  // F2c (P4): A and B from their own answers; a payload filed before F2c has no B and prints its one
+  // combined answer on both lines, as it was signed (see `packetFieldValues.ts`).
+  const suspended = typeof a.licence_suspended === "boolean" ? a.licence_suspended : a.licence_ever_denied;
   line(doc, P2.deniedQuestion, yesNo(a.licence_ever_denied));
-  line(doc, P2.revokedQuestion, yesNo(a.licence_ever_denied));
   if (a.licence_ever_denied) line(doc, P2.explain, blank(a.licence_denial_detail));
+  line(doc, P2.revokedQuestion, yesNo(suspended));
+  if (a.licence_suspended) line(doc, P2.explain, blank(a.licence_suspension_detail));
 }
 
 /** Page 12 — the ten-year background verification log. */

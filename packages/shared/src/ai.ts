@@ -11,6 +11,12 @@ import { ANOMALY_SEVERITIES, type AnomalySeverity } from "./constants.js";
 export const AI_MODELS = {
   fast: "claude-haiku-4-5",
   deep: "claude-sonnet-4-6",
+  /**
+   * Ask AI's model (F21 Q-AI1, owner 2026-11-10: "(a) Haiku 5.5 everywhere, measured"). Its own key, not
+   * `fast`: the verification layer and the readers that use `fast` were tuned and costed on Haiku 4.5,
+   * and moving them is each one's own measured decision, not a side effect of the assistant's.
+   */
+  assistant: "claude-haiku-5-5",
 } as const;
 
 export const RECOMMENDED_ACTIONS = [

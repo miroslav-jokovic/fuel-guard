@@ -31,7 +31,7 @@ const APPLICATION_ROW = {
     cdl_number: "PA334554", cdl_state: "PA", cdl_expires_at: "2029-01-01",
     accidents: [], declares_no_accidents: true,
     violations: [], declares_no_violations: true,
-    licence_ever_denied: false,
+    licence_ever_denied: false, licence_suspended: false,
     employers: [], declares_no_employment: true,
     certified: true, signed_name: "Susan Godfrey",
   },

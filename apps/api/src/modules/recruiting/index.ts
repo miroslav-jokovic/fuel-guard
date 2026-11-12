@@ -37,3 +37,5 @@ export { startLeadUncontacted, sweepUncontactedLeads } from "./leads/leadUnconta
 // MSO1: a Med-Stop pre-employment order fills the step's appointment — handed to medstop by app.ts.
 export { recordOrderedDrugTest, releaseOrderedDrugTest } from "./applicantDrugTest.js";
 export { recordHireFromTms } from "./hireApplicant.js";
+// Ask AI's `recruiting_counts` (F21 R6b): the Applicants board's queues, statuses only (D-AI7).
+export { assistantRecruiting, RECRUITING_WAITING } from "./assistantRecruiting.js";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import { AppCombobox, AppTypedDate } from "@silvicom/ui";
+import { AppCombobox, AppRadioGroup, AppTypedDate } from "@silvicom/ui";
 import PartOneOtherLicences from "./PartOneOtherLicences.vue";
 import { emptyPartOneAnswers, type PartOneAnswers } from "./partOneScreens";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -20,12 +20,15 @@ function mountIt() {
   });
   return { w, answers };
 }
+/** The type's radio group — the screen's Yes/No question is one too, and comes first. */
+const kindGroup = (w: ReturnType<typeof mount>) => w.findAllComponents(AppRadioGroup).at(-1)!;
 const button = (w: ReturnType<typeof mount>, label: string) => w.findAll("button").find((b) => b.text() === label)!;
 
-async function typeEntry(w: ReturnType<typeof mount>, expiry: string | null) {
+async function typeEntry(w: ReturnType<typeof mount>, expiry: string | null, kind: string | null = "non_cdl") {
   await button(w, copy.add).trigger("click");
   w.findComponent(AppCombobox).vm.$emit("update:modelValue", "OH");
   await w.find("#p1-other-number").setValue("OH-555");
+  if (kind) await kindGroup(w).vm.$emit("update:modelValue", kind);
   if (expiry) await w.findComponent(AppTypedDate).vm.$emit("update:modelValue", expiry);
   await button(w, copy.save).trigger("click");
 }
@@ -50,7 +53,20 @@ describe("adding another licence", () => {
   it("adds an entry whose date has passed", async () => {
     const { w, answers } = mountIt();
     await typeEntry(w, "2020-12-31");
-    expect(answers.others).toEqual([{ state_code: "OH", agency: "", licence_number: "OH-555", expires_on: "2020-12-31" }]);
+    expect(answers.others).toEqual([{ state_code: "OH", agency: "", licence_number: "OH-555", expires_on: "2020-12-31", kind: "non_cdl" }]);
     expect(w.text()).not.toContain(copy.missingExpiry);
+  });
+
+  /** P3 (F2c part 2): the paper's licence grid asks STATE | LICENSE NO. | TYPE | EXPIRATION DATE. */
+  it("asks the licence's type in four answers, refuses an entry without one, and lists it in words", async () => {
+    const { w, answers } = mountIt();
+    await typeEntry(w, "2020-12-31", null);
+    expect(answers.others).toEqual([]);
+    expect(w.text()).toContain(copy.missingKind);
+    expect(kindGroup(w).props("options").map((o) => o.value)).toEqual(["cdl", "clp", "non_cdl", "other"]);
+    kindGroup(w).vm.$emit("update:modelValue", "clp");
+    await button(w, copy.save).trigger("click");
+    expect(answers.others[0]?.kind).toBe("clp");
+    expect(w.text()).toContain(copy.kindOptions.clp);
   });
 });

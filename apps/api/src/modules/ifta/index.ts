@@ -7,6 +7,8 @@
  * McLeod's hand-keyed fuel receipts (IP6) reach both reads through `receiptReads.ts`.
  */
 export { iftaRouter } from "./routes/index.js";
+// Ask AI's `ifta_report` (F21 R6b): the IFTA ledger page's quarter, by state.
+export { assistantIftaReport, IFTA_QUARTER_PERIODS } from "./assistantIftaReport.js";
 export { readIftaPeriod, readIftaJurisdictionTrucks, type IftaPeriodRows } from "./periodReads.js";
 /** The roster sweep's door onto 0433: a truck's fuel-tax exclusion, recorded as dated periods. */
 export { recordFuelTaxExclusion, type FuelTaxExclusionChange } from "./fuelTaxExclusion.js";

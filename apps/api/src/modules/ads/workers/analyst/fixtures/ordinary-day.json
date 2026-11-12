@@ -86,18 +86,18 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "analyst@5",
+    "prompt_version": "analyst@6",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T19:41:41.915Z",
+    "recorded_at": "2026-11-10T16:14:35.322Z",
     "output": {
-      "headline": "2 campaigns ran on November 3, 2026, spending $284.25 across 14,600 impressions and 203 clicks to bring in 7 leads at a $40.61 cost per lead.",
+      "headline": "2 campaigns spent $284.25 on November 3, 2026, pulling 7 leads at $40.61 each across 14,600 impressions.",
       "points": [
-        "Regional Class A — Joliet drove most of the day's volume: $184.50 spent, 9,120 impressions, 141 clicks at a 1.5% click rate, 6 leads at $30.75 each. Dedicated night runs added 1 lead at $99.75 on $99.75 spent, 5,480 impressions, 62 clicks, and a 1.1% click rate.",
-        "November 2026 is 28 days in with $612.30 spent on Meta so far.",
-        "The 2026-09-28 cohort (40 leads, mature) shows 36 contacted, 20 converted, 12 applied, 5 hired, and 9 lost after conversion — the strongest hire rate of the mature cohorts at 12.5%.",
-        "The 2026-09-21 cohort (38 leads, mature) has 33 contacted, 17 converted, 10 applied, 4 hired, and 8 lost after conversion — a 10.5% hire rate and 44.7% conversion rate.",
-        "The 2026-10-26 cohort has 12 leads and is too young to judge: 9 contacted, 3 converted, 1 applied, none hired so far, with leads still moving.",
-        "No lead quality data was available for the 14-day window — the campaign list came back empty."
+        "Regional Class A — Joliet led the day: $184.50 spend, 9,120 impressions, 141 clicks at 1.5%, and 6 leads at $30.75 each.",
+        "Dedicated night runs spent $99.75 for 5,480 impressions, 62 clicks at 1.1%, and 1 lead at $99.75 — cost per lead ran well above the other campaign.",
+        "Meta is the only platform spending in November 2026 so far, at $612.30 with 28 days left in the month.",
+        "The 2026-09-28 cohort (40 leads) has 20 made applicants, 12 applied, and 5 hired. The 2026-09-21 cohort (38 leads) has 17 made applicants, 10 applied, and 4 hired. Both cohorts are mature.",
+        "The 2026-10-26 cohort has 12 leads, 9 contacted, and 3 made applicants — it is too young to judge rates yet.",
+        "No lead-quality data was available for the 14-day window."
       ]
     }
   }

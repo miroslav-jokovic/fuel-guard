@@ -46,7 +46,7 @@ const DOCUMENT = {
   experience: "Eight years, dry van and reefer.",
   accidents: [], declares_no_accidents: true,
   violations: [], declares_no_violations: true,
-  licence_ever_denied: false,
+  licence_ever_denied: false, licence_suspended: false,
   employers: [], declares_no_employment: true,
   questionnaire_version: questionnaireRef(SERVED),
   questionnaire_answers: ANSWERS,

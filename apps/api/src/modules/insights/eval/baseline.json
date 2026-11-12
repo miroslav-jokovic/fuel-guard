@@ -1,0 +1,241 @@
+{
+  "model": "claude-haiku-5-5",
+  "recordedAt": "2026-11-11T21:14:13.746Z",
+  "passed": 22,
+  "total": 23,
+  "costUsd": 0.029,
+  "verdicts": [
+    {
+      "id": "theft-alerts-30d",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "fleet_summary"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 278.315
+    },
+    {
+      "id": "flagged-fills-drivers",
+      "pass": false,
+      "why": [
+        "expected top_risk, called nothing"
+      ],
+      "tools": [],
+      "outcome": "answered",
+      "costMicroUsd": 599.93
+    },
+    {
+      "id": "idle-2-weeks-trend",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "idle_report"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 1121.2549999999999
+    },
+    {
+      "id": "idle-3-weeks-by-week",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "idle_report"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 1203.105
+    },
+    {
+      "id": "worst-mpg-drivers-q",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "fuel_ranking"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 874.0500000000001
+    },
+    {
+      "id": "spend-and-mpg-last-month",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "fuel_report"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 831.15
+    },
+    {
+      "id": "top-stations",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "fuel_ranking"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 814.36
+    },
+    {
+      "id": "worst-idlers-month",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "idle_report",
+        "idling_summary"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 774.815
+    },
+    {
+      "id": "cost-per-mile",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "finance_report",
+        "finance_report"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 3548.01
+    },
+    {
+      "id": "drivers-moving",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "fleet_now"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 1346.7649999999999
+    },
+    {
+      "id": "mpg-nine-units",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "fuel_report",
+        "fuel_report"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 1782.37
+    },
+    {
+      "id": "loads-per-truck",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "loads_by_truck"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 927.3299999999999
+    },
+    {
+      "id": "ifta-by-state",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "ifta_report"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 2371.6800000000003
+    },
+    {
+      "id": "repair-bills",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "maintenance_cost"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 420.395
+    },
+    {
+      "id": "card-holds",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "card_holds"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 1431.735
+    },
+    {
+      "id": "dq-expiring",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "driver_file_expirations",
+        "driver_file_expirations"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 6344.9400000000005
+    },
+    {
+      "id": "annual-due",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "annual_inspections_due"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 353.615
+    },
+    {
+      "id": "applicants-waiting",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "recruiting_counts"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 274.375
+    },
+    {
+      "id": "income-statement",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "income_statement",
+        "income_statement"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 1009.7299999999999
+    },
+    {
+      "id": "idle-cost-vs-before",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "idle_report",
+        "idle_report"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 830.55
+    },
+    {
+      "id": "follow-up-month-before",
+      "pass": true,
+      "why": [],
+      "tools": [
+        "fuel_report"
+      ],
+      "outcome": "answered",
+      "costMicroUsd": 997.55
+    },
+    {
+      "id": "recruiter-no-fuel",
+      "pass": true,
+      "why": [],
+      "tools": [],
+      "outcome": "answered",
+      "costMicroUsd": 164.355
+    },
+    {
+      "id": "dispatcher-no-finance",
+      "pass": true,
+      "why": [],
+      "tools": [],
+      "outcome": "answered",
+      "costMicroUsd": 739.775
+    }
+  ]
+}

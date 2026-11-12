@@ -7,7 +7,7 @@
  */
 import { computed, type Ref } from "vue";
 import { keepPreviousData, useQuery } from "@tanstack/vue-query";
-import { FUEL_NETWORKS, type FuelNetwork, type FuelReport } from "@silvicom/shared";
+import { FUEL_COSTS_QUERY_KEYS, FUEL_NETWORKS, type FuelNetwork, type FuelReport } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { useQueryState } from "@silvicom/ui";
 import { useSpendFilters } from "./useSpendFilters";
@@ -59,9 +59,9 @@ export function useFuelCostFilters() {
       get: () => list(key),
       set: (v) => set({ [key]: v.length ? v.join(",") : undefined }),
     });
-  const states = listParam("states");
-  const siteIds = listParam("sites");
-  const networksRaw = listParam("networks");
+  const states = listParam(FUEL_COSTS_QUERY_KEYS.states);
+  const siteIds = listParam(FUEL_COSTS_QUERY_KEYS.sites);
+  const networksRaw = listParam(FUEL_COSTS_QUERY_KEYS.networks);
   // A hand-edited `?networks=pilot` would be refused by the API with a 400; drop it here instead, the
   // same courtesy `normalizeWindow` gives a backwards date.
   const networks = computed<FuelNetwork[]>({
@@ -91,7 +91,8 @@ export function useFuelCostFilters() {
   }));
 
   function reset(): void {
-    set({ from: undefined, to: undefined, trucks: undefined, grain: undefined, states: undefined, sites: undefined, networks: undefined });
+    const K = FUEL_COSTS_QUERY_KEYS;
+    set({ [K.from]: undefined, [K.to]: undefined, [K.trucks]: undefined, grain: undefined, [K.states]: undefined, [K.sites]: undefined, [K.networks]: undefined });
   }
 
   return { ...base, states, siteIds, networks, stationFiltered, active, params, reset };

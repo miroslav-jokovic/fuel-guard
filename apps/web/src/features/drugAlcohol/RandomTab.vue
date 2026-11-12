@@ -33,7 +33,7 @@ const props = defineProps<{
 }>();
 // UX3: "Order test" on every due draw not yet ordered — the drawer takes it as the seed (§7A.4).
 // Due includes a draw Med-Stop dated later in the current quarter (D-MSUX19).
-const emit = defineEmits<{ order: [selection: RandomDraw] }>();
+const emit = defineEmits<{ shown: [count: number | null]; order: [selection: RandomDraw] }>();
 
 const STATE: Record<RandomDrawState, { label: string; tone: string }> = {
   due: { label: "To test", tone: "warning" },
@@ -105,6 +105,8 @@ const list = useProgramList<Row>({
   text: (r) => [r.name, r.dispatcher?.who, r.dispatcher?.sub],
   narrow: (r) => choice.value.keep(r) && (!test.value || r.service === test.value),
   filters: () => ({ test: test.value }),
+  showMoved: () => show.value !== (props.currentPeriod ? "period" : "all"),
+  onShown: (n) => emit("shown", n),
 });
 const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, pageSize } = list;
 /**

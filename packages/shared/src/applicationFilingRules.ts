@@ -38,8 +38,9 @@ const asPeriod = (e: ApplicationEmployer, i: number): EmploymentPeriod => ({
   employerName: e.employer_name,
   startedOn: e.started_on,
   endedOn: e.ended_on ?? null,
-  dotRegulated: e.dot_regulated,
-  operatedCmv: e.operated_cmv,
+  // F1 part 2: unanswered is not Yes. The gap arithmetic runs on a draft, where a job may not be answered yet.
+  dotRegulated: e.dot_regulated === true,
+  operatedCmv: e.operated_cmv === true,
   inquiryStatus: "not_required",
 });
 
@@ -121,6 +122,55 @@ export function applicationV2FilingIssues(
         message: `Tell us what you were doing from ${formatDisplayDate(gap.from)} to ${formatDisplayDate(gap.to)}`,
       });
     }
+  }
+  return issues;
+}
+
+/**
+ * What a LEGACY link (no Part 1) may not be filed without, beyond the contract (F1 part 2, 2026-11-10).
+ *
+ * §40.25(j)'s two-year question. A v2 link asks it in Part 1, which refuses to store an intake without
+ * it (AI009), so this is the legacy link's alone. Not a contract rule: the field is nullish because every
+ * application filed before P8 has no answer and must go on parsing — but a NEW filing must answer it.
+ * It was an unticked box until F1 part 2, so a driver who skipped it had said No (audit finding 13).
+ */
+export const PRIOR_TEST_UNANSWERED =
+  "Say whether, in the last two years, you tested positive or refused a test for a driving job you applied for";
+
+export function applicationLegacyFilingIssues(
+  application: Pick<DriverApplicationFields, "prior_failed_pre_employment_test">,
+): ApplicationFilingIssue[] {
+  return typeof application.prior_failed_pre_employment_test === "boolean"
+    ? []
+    : [{ path: "prior_failed_pre_employment_test", message: PRIOR_TEST_UNANSWERED }];
+}
+
+/**
+ * What EVERY new filing must carry because the carrier's paper asks it (F2c, owner 2026-11-11: "the paper
+ * application is our guidance and the form must match it"), on a v2 link and a legacy one alike.
+ *
+ * Not the contract, for `applicationV2FilingIssues`'s reason: each is nullish there because applications
+ * filed before F2c lack them and must go on parsing.
+ * - Page 2's question B, "Has any license, permit or privilege ever been suspended or revoked?", asked
+ *   apart from A (denied) since F2c (P4).
+ * - Page 2's conviction grid: `STATE OF VIOLATION` and `PENALTY` are columns of every row (P10). They were
+ *   optional on the form, so a conviction printed with two empty cells.
+ */
+// US spelling, as the question it answers (Q-AM6, and the carrier's own page 2).
+export const SUSPENSION_UNANSWERED = "Say whether a license, permit or privilege of yours has ever been suspended or revoked";
+
+export function applicationPaperFilingIssues(
+  application: Pick<DriverApplicationFields, "licence_suspended" | "violations" | "declares_no_violations">,
+): ApplicationFilingIssue[] {
+  const issues: ApplicationFilingIssue[] = [];
+  if (typeof application.licence_suspended !== "boolean") {
+    issues.push({ path: "licence_suspended", message: SUSPENSION_UNANSWERED });
+  }
+  if (!application.declares_no_violations) {
+    (application.violations ?? []).forEach((v, i) => {
+      if (blank(v.state)) issues.push({ path: `violations.${i}.state`, message: "Give the state where it happened" });
+      if (blank(v.penalty)) issues.push({ path: `violations.${i}.penalty`, message: "Give the penalty — a fine, points, a suspension" });
+    });
   }
   return issues;
 }

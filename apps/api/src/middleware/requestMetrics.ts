@@ -201,12 +201,40 @@ export function snapshotRequestMetrics(nowMs: number = Date.now()): RequestMetri
   };
 }
 
+/**
+ * Extra counters a module adds to the per-minute line, by name (D-DR30: `hereTiles`, how often HERE
+ * refused us and how the pacer queued). Each reader returns its counts since its last call and
+ * clears them, so it is called once per window, by the reporter only.
+ *
+ * ⚠ Totals only, under the same rule as the rest of this file: nothing that names a person, an org
+ * or an address may go in. Registering the same name again replaces the reader; each test app and
+ * each process registers its own.
+ */
+const sections = new Map<string, () => Record<string, number>>();
+
+export function registerMetricsSection(name: string, read: () => Record<string, number>): void {
+  sections.set(name, read);
+}
+
+/** Every section's counts for this window, leaving out a section with nothing to say. */
+export function drainMetricsSections(): Record<string, Record<string, number>> {
+  const out: Record<string, Record<string, number>> = {};
+  for (const [name, read] of sections) {
+    const counts = read();
+    if (Object.values(counts).some((v) => v !== 0)) out[name] = counts;
+  }
+  return out;
+}
+
 export function resetRequestMetrics(nowMs: number = Date.now()): void {
   current = emptyWindow(nowMs);
 }
 
 /** One line, so it can be grepped out of Railway's log stream without a log platform. */
-export function formatMetricsLine(s: RequestMetricsSnapshot): string {
+export function formatMetricsLine(
+  s: RequestMetricsSnapshot,
+  extra: Record<string, Record<string, number>> = {},
+): string {
   return `[metrics] ${JSON.stringify({
     windowSec: Math.round(s.windowMs / 1000),
     requests: s.requests,
@@ -219,6 +247,7 @@ export function formatMetricsLine(s: RequestMetricsSnapshot): string {
     distinctRoutes: s.distinctRoutes,
     busiest: s.byRoute.slice(0, 5),
     slowest: [...s.byRoute].sort((a, b) => b.p95 - a.p95).slice(0, 3),
+    ...extra,
   })}`;
 }
 
@@ -270,9 +299,10 @@ export function startRequestMetricsReporter(
     const snapshot = snapshotRequestMetrics();
     snapshot.eventLoopMaxMs = Math.round(Math.max(0, loop.max / 1e6, tickLateMs));
     loop.reset();
+    const extra = drainMetricsSections();
     // A window nobody touched is not worth a line. An idle service should be quiet, not repetitive.
     if (snapshot.requests > 0 || snapshot.eventLoopMaxMs >= EVENT_LOOP_STALL_REPORT_MS) {
-      log(formatMetricsLine(snapshot));
+      log(formatMetricsLine(snapshot, extra));
     }
     resetRequestMetrics();
   }, intervalMs);

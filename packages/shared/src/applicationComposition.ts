@@ -1,5 +1,6 @@
 import type { DriverApplicationFields } from "./applicationContract.js";
 import type { ApplicationFilingIssue } from "./applicationFilingRules.js";
+import { ENDORSEMENT_CODES } from "./rosterContract.js";
 
 /**
  * The filed §391.21 application of a v2 invitation: what the applicant certified, with Part 1's facts
@@ -38,6 +39,12 @@ export interface PartOneFacts {
    * and once Part 2 stopped asking it (Q-AW34) nothing would have carried it.
    */
   cdl_class: string | null;
+  /**
+   * The endorsements declared in Part 1 (F2b, P12), as the intake row holds them — `null` before the
+   * screen asked. Composed onto the filed application so the packet prints what screening read.
+   * Optional because a reader of Part 1 that never needed them (the applicant's page) need not say so.
+   */
+  endorsements?: string[] | null;
 }
 
 /** One `application_intake_licences` row. Position 0 is the current CDL. */
@@ -47,6 +54,8 @@ export interface PartOneLicence {
   agency: string | null;
   licence_number: string;
   expires_on: string | null;
+  /** P3 (0588): the licence's type, `LICENCE_KINDS`; null for the current CDL and for rows before 0588. */
+  kind?: string | null;
 }
 
 /**
@@ -66,8 +75,8 @@ export interface PartOneFactsView {
  * `addresses` is only its CURRENT entry's street (`PART_ONE_STREET_KEYS`); the history is the applicant's.
  */
 export const PART_ONE_COMPOSED_KEYS = [
-  "phone", "addresses", "cdl_number", "cdl_state", "cdl_class", "cdl_expires_at", "additional_licences",
-  "prior_failed_pre_employment_test",
+  "phone", "addresses", "cdl_number", "cdl_state", "cdl_class", "cdl_endorsements", "cdl_expires_at",
+  "additional_licences", "prior_failed_pre_employment_test",
 ] as const;
 export const PART_ONE_STREET_KEYS = ["line1", "line2", "city", "state", "postal_code"] as const;
 
@@ -111,6 +120,12 @@ export function composeFiledApplication<T extends Composable>(
   }
   if (filled(intake.cdl_class)) out.cdl_class = intake.cdl_class;
   /**
+   * F2b: Part 1's list, whole — an empty one is an answer ("none"), so it is filed as asked rather than
+   * left to whatever a draft held. In the roster's order, so the packet prints them the same way twice.
+   */
+  const endorsements = intake.endorsements;
+  if (endorsements != null) out.cdl_endorsements = ENDORSEMENT_CODES.filter((c) => endorsements.includes(c));
+  /**
    * (b)(5) asks for each UNEXPIRED licence or permit, so the list Part 1 took — every licence held in
    * three years, because the MVR needs the expired ones too — is cut to those still valid on the
    * application's date. It REPLACES the draft's list, never joins it: C2b3's rule for the MVR's
@@ -132,7 +147,8 @@ export function composeFiledApplication<T extends Composable>(
         issuing_authority: l.agency ?? l.state_code,
         number: l.licence_number,
         expires_at: l.expires_on,
-        kind: null,
+        // P3: the code (`LICENCE_KINDS`), as Part 1 holds it — the packet prints its words (`licenceKindWords`).
+        kind: l.kind ?? null,
       });
     });
   }

@@ -4,7 +4,6 @@ import {
   EQUIPMENT_CLASS_LABELS,
   choiceLabel,
   jurisdictionName,
-  readableAnswers,
   type ApplicationCaptureView,
   type ApplicationSection,
   type EquipmentClass,
@@ -72,6 +71,15 @@ export const showMonth = (value: string | null | undefined): string => formatDis
 const text = (v: string | null | undefined): string =>
   (v ?? "").trim() === "" ? copy.empty : (v ?? "").trim();
 
+/**
+ * An other licence's type (P3): Part 1 files the code, so the driver reads the words the screen asked it
+ * with. A legacy draft's free-text answer is not a code and reads as typed.
+ */
+const licenceKindText = (v: string | null | undefined): string => {
+  const words = APPLY_COPY.partOne.otherLicences.kindOptions as Readonly<Record<string, string>>;
+  return words[(v ?? "").trim()] ?? text(v);
+};
+
 const yesNo = (v: boolean): string => (v ? "Yes" : "No");
 /** A yes/no the applicant may not have answered yet (Q-AW33). */
 const answered = (v: boolean | null): string => (v === null ? copy.empty : yesNo(v));
@@ -135,7 +143,7 @@ export interface ReviewInput {
 
 export function buildReviewSummary({ draft, questionnaire, carrier, captures }: ReviewInput): ReviewSection[] {
   const c = APPLY_COPY;
-  const answers = readableAnswers(draft.questionnaire);
+  const answers = draft.questionnaire ?? {};
 
   const identity: ReviewGroup[] = [
     {
@@ -179,7 +187,7 @@ export function buildReviewSummary({ draft, questionnaire, carrier, captures }: 
         { label: c.licence.issuingAuthority, value: text(l.issuing_authority) },
         { label: c.licence.otherNumber, value: text(l.number) },
         { label: c.licence.expires, value: showDate(l.expires_at) || copy.empty },
-        { label: c.licence.otherKind, value: text(l.kind) },
+        { label: APPLY_COPY.partOne.otherLicences.kind, value: licenceKindText(l.kind) },
       ],
     })),
   ];
@@ -195,8 +203,9 @@ export function buildReviewSummary({ draft, questionnaire, carrier, captures }: 
         { label: "Where", value: text([e.address_line1.trim(), e.city.trim(), e.state.trim() ? place(e.state) : ""].filter((p) => p).join(", ")) },
         { label: c.employment.phone, value: text(e.phone) },
         { label: c.employment.reason, value: text(e.reason_for_leaving) },
-        { label: c.employment.operatedCmv, value: yesNo(e.operated_cmv) },
-        { label: c.employment.dotRegulated, value: yesNo(e.dot_regulated) },
+        // F1 part 2: unanswered until tapped, like the (iv) pair below — "Not answered", never "Yes".
+        { label: c.employment.operatedCmv, value: answered(e.operated_cmv) },
+        { label: c.employment.dotRegulated, value: answered(e.dot_regulated) },
         // (b)(10)(iv)(A)/(B) (C3c1): filed, and now printed on the PDF, so shown before it is sent too.
         // `null` is unanswered since C3c2b (Q-AW33): `copy.empty` ("Not answered", as the PDF says), never "No".
         { label: c.employment.subjectToFmcsr, value: answered(e.subject_to_fmcsr) },
@@ -269,11 +278,19 @@ export function buildReviewSummary({ draft, questionnaire, carrier, captures }: 
             : draft.licence_ever_denied ? text(draft.licence_denial_detail) : "No",
           muted: !draft.licence_ever_denied,
         },
+        {
+          // F2c (P4): the carrier's question B, apart from A.
+          label: c.safety.everSuspended,
+          value: draft.licence_suspended === null
+            ? copy.empty
+            : draft.licence_suspended ? text(draft.licence_suspension_detail) : "No",
+          muted: !draft.licence_suspended,
+        },
         // §40.25(j) (P8). It was on no summary at all, and it is the single most consequential
         // answer on the form for what the carrier has to do next.
         {
           label: c.safety.priorTestHeading,
-          value: yesNo(draft.prior_failed_pre_employment_test),
+          value: answered(draft.prior_failed_pre_employment_test),
           muted: !draft.prior_failed_pre_employment_test,
         },
       ],
