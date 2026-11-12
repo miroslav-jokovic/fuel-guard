@@ -752,6 +752,45 @@ Body swaps between three states, footer swaps with them:
 
 Note the `<form :id>` + `<BaseButton :form type="submit">` bridge, the busy-label swap, and validation as computed strings fed to `FormField :error`.
 
+
+### 6.4 The one non-modal panel — Ask AI's dock (F21 Step 3a, Q-AI7 ruled 2026-11-11)
+
+`components/assistant/AssistantLauncher.vue` draws the launcher and the panel it opens
+(`#assistant-dock`) over any page; `AssistantThread` is the panel's body, and `/ask` shows the same
+thread full width. It is the product's **only** non-modal overlay, and the rules below are why it may be.
+Nothing else copies it: a drawer is still `SlideOver` (§6.1), a centred dialog still `BaseModal`.
+
+- **Why non-modal.** An answer is about the page behind it ("which trucks are due?" while looking at
+  the Shop), so the page stays readable, scrollable and clickable. There is no scrim, focus is not
+  trapped, and the panel is `role="dialog" aria-modal="false"`, labelled by its title.
+- **Layer.** `z-chrome`, below every dialog, scrim, popover and toast, so a modal the page opens covers
+  the dock and never the reverse.
+- **Size and place.** `w-[min(26rem,calc(100vw-3rem))]`, `h-[min(40rem,calc(100dvh-7rem))]`,
+  `rounded-dialog shadow-dialog ring-1 ring-edge-subtle`. It opens from the launcher's corner
+  (`useLauncherPosition`). Below `sm` it is the full width less `inset-x-2`, from `top-20` to `bottom-2`.
+  The question box stays above the fold at 390 px.
+- **Header.** `AssistantMark`, the title "Ask AI", and the line "Answers from your fleet data". Then
+  icon buttons, in this order: New chat (only when there are turns), Open full page (`/ask`, the same
+  thread full width), Close. No other action belongs here.
+- **Keyboard.** Ctrl/⌘J toggles. Opening puts focus in the question. Escape closes only when focus is
+  inside the dock (the page keeps its own Escape) and returns focus to the launcher.
+- **States**, each drawn by `AssistantThread`:
+  - empty: the questions this person's tools can answer, as buttons;
+  - pending: the report being read ("Reading the fuel report…"), then the streamed words under
+    `aria-busy` (Step 2d), so a screen reader reads the finished answer once;
+  - answered: the answer, its "Open in …" links, Copy;
+  - failed: the sentence in `text-danger-text` with "Try again";
+  - refused for good: a spent budget (429) or access (403). The API's sentence in
+    `text-ink-secondary`, no "Try again", because asking again is refused the same way.
+
+  No permission at all means no launcher (`useAssistantAccess`, the same answer as the route's).
+- **Motion.** The entrance is a 200 ms rise and fade, and the orb turns only on hover or drag. The
+  app-wide reduced-motion rule (`style.css`) stills both.
+- **Pinned by** `e2e-apply/assistantDock.spec.ts`: "opens on the shortcut with focus in the question,
+  answers, and closes on Escape back to the launcher", "a spent budget says so and when it resets, with
+  no Try again to be refused the same way", and "the dock fits the screen, opens without motion, and
+  the question box stays above the fold".
+
 ---
 
 ## 7. Writing tone

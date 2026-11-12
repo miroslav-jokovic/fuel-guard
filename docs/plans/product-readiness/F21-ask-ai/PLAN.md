@@ -1066,3 +1066,28 @@ audit row is the endpoint's own.
   - **Acceptance not yet measured:** first event under 2 s. The eval now records `firstEventMs` per
     answer and its median and p90. One run on production (~$0.03, owner's go) gives the figure; the
     staging check is the owner's walk.
+- 2026-11-12 — **Step 3a finished: the dock's design-contract entry, its two remaining states, and a
+  browser spec.**
+  - The launcher and the non-modal dock have shipped since the redesign. What 3a's acceptance still lacked:
+    - **States.** A spent budget (429) and a refusal of access (403) showed in red with "Try again",
+      which could only be refused the same way. Such a turn is now `final` (`finalRefusal` in the
+      store): the API's sentence, which already says when the budget resets, as a notice with no
+      retry. A 503 or a dropped connection keeps "Try again".
+    - **Design contract.** §6.4, "The one non-modal panel". It covers why the dock is non-modal, its
+      layer below every dialog, its size at 390 px, the header's actions, the keyboard, each state and
+      the motion.
+    - **Browser spec.** `e2e-apply/assistantDock.spec.ts`, against the built app in CI. It is signed in
+      by writing a session where supabase-js keeps it: the app decodes its token and never verifies
+      it, so this needs no build flag. It covers:
+      - keyboard only: Ctrl+J, focus in the question, a streamed answer, Escape back to the launcher;
+      - a spent budget with no "Try again";
+      - a 390 px phone with reduced motion: the dock fits, the question box is above the fold, and the
+        entrance is stilled.
+  - **Found while writing it.** `test.use({ reducedMotion })` did not reach the page, and the first
+    motion check passed only because it read the duration after the entrance had ended. The spec now
+    emulates on the page and reads mid-entrance. Deliberate breaks, killed: motion allowed (the
+    stilled-entrance check failed), "Try again" restored on a spent budget.
+  - **Not covered:** a screen-reader pass by ear. The `aria-busy` draft and `aria-live` thread are as
+    designed, but no one has listened to them. That belongs in the owner's live test (Q-AI8).
+  - Next: Step 5 (`open_view`, navigation). 3b is not built: Q-AI4 (c) keeps conversations tab-local
+    until somebody asks for them.
