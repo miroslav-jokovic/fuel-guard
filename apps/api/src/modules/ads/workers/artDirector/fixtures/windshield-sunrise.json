@@ -87,13 +87,13 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@4",
+    "prompt_version": "artDirector@5",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T15:04:01.668Z",
+    "recorded_at": "2026-11-12T22:55:12.488Z",
     "output": {
       "slots": {
-        "time_of_day": "pre-dawn, instrument glow faint on the glass, deep blue sky fading at the horizon",
-        "weather": "clear and dry, stars still visible overhead, first pale light lifting ahead"
+        "time_of_day": "pre-dawn, with a deep blue sky fading to amber on the horizon",
+        "weather": "clear and dry, light desert air"
       },
       "reference_photo": null,
       "focal_subject": "road_ahead",

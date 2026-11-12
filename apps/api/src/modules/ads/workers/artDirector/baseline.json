@@ -1,11 +1,11 @@
 {
   "worker": "artDirector",
-  "prompt_version": "artDirector@4",
+  "prompt_version": "artDirector@5",
   "model": "claude-sonnet-4-6",
   "fixtures": 21,
   "asked": 14,
   "agreed": 14,
   "agreement": 1,
   "planted_skipped": 7,
-  "recorded_at": "2026-11-11T15:04:01.668Z"
+  "recorded_at": "2026-11-12T22:55:12.490Z"
 }

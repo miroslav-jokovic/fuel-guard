@@ -82,7 +82,7 @@
   ],
   "recorded": {
     "source": "planted",
-    "prompt_version": "artDirector@4",
+    "prompt_version": "artDirector@5",
     "model": "none (written by a person)",
     "recorded_at": "2026-11-03T00:00:00Z",
     "output": {

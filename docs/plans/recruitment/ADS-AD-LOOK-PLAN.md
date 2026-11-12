@@ -254,6 +254,10 @@ marks the money — and its left edge holds long Spanish lines without the centr
   the trailer's corners, which the art director can ask for in a fixed three-quarter view); (b) the 2026-01 fleet
   photo shoot instead of generated photos; (c) let the model draw it and the checker refuse a misspelling.
   **Recommendation: (a)**, with (b) as the fallback for formats (a) cannot place.
+  **Half done 2026-11-12:** every image prompt with our equipment now asks for a clean trailer side and a grille
+  with no badge (`EQUIPMENT_CLAUSE`, fixed phrases of ours), and the art director (v5) stands ahead of the cab and
+  to one side so the trailer's side is in the picture. Placing the logo on that side is not built: it needs the
+  trailer side's corners in the finished picture, which nothing yet finds. Open.
 - **Q-ADL9 — which ad families (opened 2026-11-12).** Three are drawn: Number (pay-led), Photo (truck and life)
   and Field (the rest). Recommendation: all three, chosen by the preset as `look` is today, Number first.
   **ANSWERED 2026-11-12, the owner: "Yes, all three."** Built as D-ADL20.
@@ -264,6 +268,10 @@ marks the money — and its left edge holds long Spanish lines without the centr
   Candidates: (a) bring `QUIET_REGION.bottom_plate` back to a third, an art-director prompt change and so a
   recording; (b) leave it. **Recommendation: (a)**, asked before it is recorded, with the art director's re-run
   for the plain trailer and badge-free grille (Q-ADL8) so it is one recording, not two.
+  **ANSWERED 2026-11-12, the owner: "Yes, record it." Built as two-fifths, not a third:** measured with a supporting
+  line under every headline, a `bottom_plate` ad's words reach 33–36 %, and a `top_band` one's 38–41 % with the logo
+  above them, so a third would put the words on the subject. `QUIET_REGION` share 0.42 ("two-fifths");
+  `overlayCapacity.test.ts` holds both sides (nothing past 0.42, something past a third; a share of 0.40 fails it).
 
 ## 5. Build order (after Q-ADL1)
 
@@ -455,3 +463,12 @@ photos.
   - Not done: the art director still describes the old looks' needs (QUIET_REGION half, no trailer-decal or
     badge-free-grille instruction) — Q-ADL8 and Q-ADL10, one recording, asked first. The finished-ad judge has not
     scored these looks (L5's comparison would be a recording too).
+- **2026-11-12, art director v5 recorded (Q-ADL10 answered, Q-ADL8 half; the owner: "Yes, record it").**
+  - Recorded live: 14 asked, 14 agreed (agreement 1.0, as v4). The seven planted fixtures carry the new version
+    label; they are hand-written defects, not model answers.
+  - What changed in the answers, v4 → v5, over the seven recorded ones whose subject is a truck: the viewpoint is
+    "ahead and to one side" of the cab in 7 of 7 (v4: 4 of 7), so the trailer's side is in view for the decal. No
+    recorded answer describes markings (rule 11). Subjects and distances unchanged except one: `people-varied`
+    now names the person, not the tractor, which its scene allows.
+  - Not measured, and cannot be yet: whether the pictures are better. These are words for an image model; the
+    real proof is the finished-ad judge over generated images (V4 / Stage 2).

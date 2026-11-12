@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ADS_SETTINGS_UNSET, DISTANCE_CLAUSE, FOCAL_CLAUSE, FRAME_CLAUSE, NO_LETTERING, QUIET_REGION, type AdsSettings } from "@silvicom/shared";
+import { ADS_SETTINGS_UNSET, DISTANCE_CLAUSE, EQUIPMENT_CLAUSE, FOCAL_CLAUSE, FRAME_CLAUSE, NO_LETTERING, QUIET_REGION, type AdsSettings } from "@silvicom/shared";
 import type { MessagesClient } from "../../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../../testing/supabaseRecorder.js";
 import { ART_DIRECTOR_EVAL, loadFixtures } from "../agentFixtures.js";
@@ -123,6 +123,7 @@ describe("art director — what it refuses without asking, and what it sends", (
     const { out } = run(fx);
     const o = await out;
     const answer = fx.recorded.output as { focal_subject: keyof typeof FOCAL_CLAUSE; camera_distance: keyof typeof DISTANCE_CLAUSE };
-    expect(o.kind === "ready" && o.direction.prompt).toContain(`${FOCAL_CLAUSE[answer.focal_subject]}, ${DISTANCE_CLAUSE[answer.camera_distance]}, ${QUIET_REGION.bottom_plate.clause}, ${FRAME_CLAUSE["4:5"]}, ${NO_LETTERING}`);
+    const equipment = EQUIPMENT_CLAUSE[answer.focal_subject];
+    expect(o.kind === "ready" && o.direction.prompt).toContain(`${FOCAL_CLAUSE[answer.focal_subject]}, ${equipment ? `${equipment}, ` : ""}${DISTANCE_CLAUSE[answer.camera_distance]}, ${QUIET_REGION.bottom_plate.clause}, ${FRAME_CLAUSE["4:5"]}, ${NO_LETTERING}`);
   });
 });

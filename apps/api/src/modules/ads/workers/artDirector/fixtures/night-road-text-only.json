@@ -83,13 +83,13 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@4",
+    "prompt_version": "artDirector@5",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T15:03:40.407Z",
+    "recorded_at": "2026-11-12T22:54:51.307Z",
     "output": {
       "slots": {
         "weather": "clear and cold, stars sharp overhead",
-        "light": "twin headlight beams cutting pale yellow across the asphalt"
+        "light": "twin headlight beams cutting the dark, faint amber from a distant town on the horizon"
       },
       "reference_photo": null,
       "focal_subject": "road_ahead",
