@@ -1,4 +1,4 @@
--- 0590 — notes on drivers, trucks and trailers: the office's notes on the units it runs
+-- 0592 — notes on drivers, trucks and trailers: the office's notes on the units it runs
 -- (docs/plans/notes/UNIT-NOTES-PLAN.md §4.1, step UN1).
 --
 -- ── WHAT GAP ─────────────────────────────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ create index if not exists ix_unit_notes_trgm
   on public.unit_notes using gin (body public.gin_trgm_ops);
 
 comment on table public.unit_notes is
-  'UNIT-NOTES-PLAN (0590): the office''s notes on a driver, truck or trailer. Permanent (UN010/UN011) except pinned, the driver merge''s subject_id (UN012) and author_id to null; subject checked on insert (UN012/UN013) and never deleted under its notes (UN014). Office-wide (D-UN4). Not evidence. Service-role only (RLS, no policies).';
+  'UNIT-NOTES-PLAN (0592): the office''s notes on a driver, truck or trailer. Permanent (UN010/UN011) except pinned, the driver merge''s subject_id (UN012) and author_id to null; subject checked on insert (UN012/UN013) and never deleted under its notes (UN014). Office-wide (D-UN4). Not evidence. Service-role only (RLS, no policies).';
 
 -- ── 2. who a note names ──────────────────────────────────────────────────────────────────────────
 
@@ -109,7 +109,7 @@ create index if not exists ix_unit_note_mentions_user
 alter table public.unit_note_mentions enable row level security;
 
 comment on table public.unit_note_mentions is
-  'UNIT-NOTES-PLAN D-UN8 (0590): who a unit note names, derived on insert from the body''s <@uuid> tokens (chat_mention_ids, 0521). A note is never edited, so the set never changes after the insert. Service-role only.';
+  'UNIT-NOTES-PLAN D-UN8 (0592): who a unit note names, derived on insert from the body''s <@uuid> tokens (chat_mention_ids, 0521). A note is never edited, so the set never changes after the insert. Service-role only.';
 
 -- ── 3. the guards ────────────────────────────────────────────────────────────────────────────────
 
@@ -290,7 +290,7 @@ end;
 $$;
 
 comment on function public.set_unit_note_pinned(uuid, uuid, boolean) is
-  'UNIT-NOTES-PLAN D-UN6 (0590): pin (unpinning the unit''s other note) or unpin one note. UN020 not this carrier''s note.';
+  'UNIT-NOTES-PLAN D-UN6 (0592): pin (unpinning the unit''s other note) or unpin one note. UN020 not this carrier''s note.';
 
 -- ── 5. the Notes column's counts ─────────────────────────────────────────────────────────────────
 

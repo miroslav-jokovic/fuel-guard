@@ -162,7 +162,7 @@ export const NOTIFICATION_CATEGORIES = [
   "ads_creative_refresh",
   /**
    * Somebody named you with `<@you>` in a note on a driver, truck or trailer (UNIT-NOTES-PLAN D-UN8); it
-   * opens the notes drawer on that note. Never for your own note. Mirrored in the CHECK (0590); nothing
+   * opens the notes drawer on that note. Never for your own note. Mirrored in the CHECK (0592); nothing
    * writes it until UN3.
    */
   "unit_note_mention",

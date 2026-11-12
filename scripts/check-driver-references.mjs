@@ -64,7 +64,7 @@ const EXEMPT = new Map([
  */
 const POLYMORPHIC = new Map([
   ["unit_notes.subject_id",
-    "0590: subject_kind 'driver' + subject_id; the merge's update moves only driver notes and a " +
+    "0592: subject_kind 'driver' + subject_id; the merge's update moves only driver notes and a " +
     "truck/trailer note sharing the uuid stops the merge (UN012)."],
 ]);
 

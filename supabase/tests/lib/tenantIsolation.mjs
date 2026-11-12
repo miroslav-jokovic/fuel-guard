@@ -240,7 +240,7 @@ const FORMAT_PINNED = {
 /**
  * Polymorphic subjects: a `<kind>` + `<id>` pair with no foreign key, whose insert guard checks the id
  * exists in this org in the table the kind names. The seeder's random uuid is refused there, so the subject
- * is seeded as a real parent row, the same way a foreign key's parent is. `unit_notes` (0590, UNIT-NOTES-PLAN
+ * is seeded as a real parent row, the same way a foreign key's parent is. `unit_notes` (0592, UNIT-NOTES-PLAN
  * U4) is the first; the next table of this shape is one line here, not a hand seed in each matrix.
  */
 const POLYMORPHIC_SUBJECTS = {

@@ -1,4 +1,4 @@
-// UNIT-NOTES-PLAN §4.1 (step UN1), migration 0590: notes on drivers, trucks and trailers — permanent and
+// UNIT-NOTES-PLAN §4.1 (step UN1), migration 0592: notes on drivers, trucks and trailers — permanent and
 // signed, the subject checked and never deleted under its notes, one pin per unit, mentions of office members
 // only, a driver merge that moves a driver's notes and nothing else, word search with a typo pass, the
 // counts as one value, and the bell's category.
@@ -241,7 +241,7 @@ ok("an exact hit is not fuzzy", (await search(ORG, { q: "seal" }))[0].fuzzy === 
 await add(ORG, "vehicle", TRUCK, "Brakes adjusted at Petro", DISPATCHER, "2026-11-06T10:00:00Z");
 const typo = await search(ORG, { q: "brakse" });
 const sim = Number((await one(`select public.word_similarity('brakse', 'Brakes adjusted at Petro') s`)).s);
-ok("the typo scores between 0.4 and the extension's 0.6 default — why 0590 sets 0.4", sim >= 0.4 && sim < 0.6, String(sim));
+ok("the typo scores between 0.4 and the extension's 0.6 default — why 0592 sets 0.4", sim >= 0.4 && sim < 0.6, String(sim));
 ok("a typo finds the close match, marked fuzzy", typo.length >= 1 && typo[0].body === "Brakes adjusted at Petro" && typo.every((r) => r.fuzzy), JSON.stringify(typo.map((r) => [r.body, r.fuzzy])));
 ok("nonsense finds nothing, even fuzzily", (await search(ORG, { q: "zzqxv" })).length === 0);
 ok("a search never reaches another carrier", (await search(OTHER, { q: "seal" })).length === 0 && (await search(OTHER, { q: "brakse" })).length === 0);
