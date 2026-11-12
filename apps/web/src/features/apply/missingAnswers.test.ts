@@ -19,7 +19,7 @@ const complete = (): ApplicationDraft => ({
   addresses: [{ line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
   cdl_number: "PA334554", cdl_state: "PA", cdl_expires_at: "2029-01-01",
   declares_no_employment: true, employers: [],
-  declares_no_accidents: true, declares_no_violations: true, licence_ever_denied: false,
+  declares_no_accidents: true, declares_no_violations: true, licence_ever_denied: false, licence_suspended: false,
 });
 
 const copy = APPLY_COPY.missing;

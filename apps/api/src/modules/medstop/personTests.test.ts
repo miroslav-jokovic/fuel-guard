@@ -87,6 +87,30 @@ describe("readResultReview", () => {
     expectOrgScoped(r, ORG);
   });
 
+  it("'all' is every final result of the year, negatives and the first read included; an unverified drug result is not one", async () => {
+    const r = createSupabaseRecorder({
+      tables: {
+        medstop_tests: [
+          { medstop_id: "a", employee_medstop_id: "e1", service: "TD", reason: "RANDOM", status: "CLOSED", result: "NEGATIVE", collected_local: "2026-11-06T09:00:00", baseline: false },
+          { medstop_id: "b", employee_medstop_id: "e1", service: "TD", reason: "RANDOM", status: "RESULTS", result: "NEGATIVE", collected_local: "2026-11-09T09:00:00", baseline: false },
+          { medstop_id: "c", employee_medstop_id: "e2", service: "TA", reason: "RANDOM", status: "COMPLETED", result: "NEGATIVE", collected_local: "2026-10-20T09:00:00", baseline: false },
+          { medstop_id: "d", employee_medstop_id: "e2", service: "TD", reason: "PRE-EMPLOYMENT", status: "CLOSED", result: "NEGATIVE", collected_local: "2026-02-01T09:00:00", baseline: true },
+        ],
+        medstop_requests: [
+          { medstop_id: "r1", employee_medstop_id: "e3", service: "TD", reason: "RANDOM", status: "REFUSAL", requested_local: "2026-10-10T08:00:00", tested_local: null, first_seen_at: "2026-10-10T10:00:00Z" },
+        ],
+      },
+    });
+    const personOf = (id: string | null) => ({ driverId: null, medstopId: id, name: `P ${id}` });
+    const review = await readResultReview(r.client, ORG, "2025-10-12", personOf);
+    expect(review.all.map((x) => [x.source, x.medstopId, x.outcome])).toEqual([
+      ["test", "a", "negative"], ["test", "c", "negative"], ["order", "r1", "refusal"], ["test", "d", "negative"],
+    ]);
+    expect(review.recent.map((x) => x.medstopId)).toEqual(["r1"]);
+    expect(review.history).toEqual([]);
+    expectOrgScoped(r, ORG);
+  });
+
   it("an order Med-Stop closed as a refusal is a row: alerted is recent, older than our first sight is history (§7A.16)", async () => {
     const req = (medstop_id: string, status: string, requested_local: string | null, tested_local: string | null, first_seen_at: string) =>
       ({ medstop_id, employee_medstop_id: "e3", service: "TD", reason: "RANDOM", status, requested_local, tested_local, first_seen_at });

@@ -359,8 +359,10 @@ const employmentRow = (e: ApplicationEmployer): ApplicationEmploymentRow => ({
   position_held: e.position_held ?? null,
   started_on: e.started_on,
   ended_on: e.ended_on ?? null,
-  dot_regulated: e.dot_regulated,
-  operated_cmv: e.operated_cmv,
+  // Never null here: this projects a CERTIFIED document, and `driverApplicationSchema` refuses one with
+  // either question unanswered (`unansweredEmployerQuestions`, F1 part 2). `=== true` only satisfies the type.
+  dot_regulated: e.dot_regulated === true,
+  operated_cmv: e.operated_cmv === true,
   reason_for_leaving: e.reason_for_leaving ?? null,
   subject_to_fmcsr: e.subject_to_fmcsr ?? null,
   safety_sensitive: e.safety_sensitive ?? null,

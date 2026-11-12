@@ -18,7 +18,7 @@ const DRAFT = {
   cdl_number: "PA334554", cdl_state: "PA", cdl_class: "", cdl_expires_at: "2029-01-01", additional_licences: [],
   experience: "", equipment_experience: [],
   accidents: [], declares_no_accidents: true, violations: [], declares_no_violations: true,
-  licence_ever_denied: false, licence_denial_detail: "",
+  licence_ever_denied: false, licence_suspended: false, licence_denial_detail: "",
   employers: [{
     key: "40000000-0000-4000-8000-00000000000a", employer_name: "Old Carrier", usdot_number: "", address_line1: "",
     city: "", state: "", phone: "", email: "", position_held: "Driver", started_on: "2023-01-01", ended_on: "2025-06-30",
@@ -51,8 +51,11 @@ test("a job and a gap on the timeline: the gap is explained, then filled with a 
   await gap.getByRole("button", { name: "Add a job here" }).click();
   await expect(page.locator("#apply-employers-1-started_on")).toHaveValue("06/30/2025");
   await page.locator("#apply-employers-1-employer_name").fill("New Carrier");
-  // The DOT question is asked, not hidden.
+  // The DOT question is asked, not hidden — and since F1 part 2 neither it nor "did you drive a truck"
+  // starts at Yes, so the driver answers both before Save takes the job.
   await expect(page.locator("#apply-employers-1-dot_regulated")).toBeVisible();
+  await page.locator("#apply-employers-1-operated_cmv").getByRole("radio", { name: "Yes" }).check();
+  await page.locator("#apply-employers-1-dot_regulated").getByRole("radio", { name: "Yes" }).check();
   await page.getByRole("button", { name: "Save this job" }).click();
 
   // Newest first, and the gap is gone because the job closed it.

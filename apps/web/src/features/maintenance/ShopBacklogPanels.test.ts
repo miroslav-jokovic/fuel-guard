@@ -3,7 +3,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { computed, ref } from "vue";
-import type { ShopDefectDto, ShopWorkOrderDto } from "@silvicom/shared";
+import { shopAnnualDueToQuery, type AnnualDueDto, type ShopDefectDto, type ShopWorkOrderDto } from "@silvicom/shared";
 import { ROUTE_TABLE } from "@/router/table";
 
 /**
@@ -21,10 +21,11 @@ import { ROUTE_TABLE } from "@/router/table";
 
 const orders = ref<ShopWorkOrderDto[]>([]);
 const defects = ref<ShopDefectDto[]>([]);
+const annual = ref<AnnualDueDto[]>([]);
 vi.mock("@/features/maintenance/useShopBacklog", async () => {
   const { ref: r } = await import("vue");
   const q = (data: unknown) => ({ data, isLoading: r(false), isError: r(false), refetch: vi.fn() });
-  return { useOpenWorkOrdersQuery: () => q(orders), useUnresolvedDefectsQuery: () => q(defects) };
+  return { useOpenWorkOrdersQuery: () => q(orders), useUnresolvedDefectsQuery: () => q(defects), useAnnualDueQuery: () => q(annual) };
 });
 vi.mock("@/composables/useOrgTimezone", () => ({
   useOrgTimezone: () => ({ zone: computed(() => "America/Chicago"), isResolved: computed(() => true) }),
@@ -33,6 +34,7 @@ vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, 
 
 const WorkOrdersPage = (await import("@/features/maintenance/ShopWorkOrdersPanel.vue")).default;
 const DefectsPage = (await import("@/features/maintenance/ShopDefectsPanel.vue")).default;
+const AnnualDuePanel = (await import("@/features/maintenance/ShopAnnualDuePanel.vue")).default;
 
 async function page(component: unknown, url: string) {
   const router = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
@@ -58,6 +60,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-10-12T17:00:00.000Z")); // noon in Chicago
   orders.value = [];
   defects.value = [];
+  annual.value = [];
 });
 afterEach(() => vi.useRealTimers());
 
@@ -121,5 +124,18 @@ describe("open defects", () => {
   it("shows no severity, because FleetPal sends none", async () => {
     defects.value = [defect()];
     expect((await page(DefectsPage, "/shop/defects")).text()).not.toMatch(/severity/i);
+  });
+});
+
+describe("annual inspections due", () => {
+  it("narrows to the kind a link built by its contract names: Ask AI's 'truck' is the page's tractor (F21 R4b)", async () => {
+    annual.value = [
+      { subjectType: "tractor", unitId: "v1", unitNumber: "819", expiresOn: "2026-10-20", daysRemaining: 8 },
+      { subjectType: "trailer", unitId: "t1", unitNumber: "5301", expiresOn: "2026-10-01", daysRemaining: -11 },
+    ] as AnnualDueDto[];
+    const q = new URLSearchParams(shopAnnualDueToQuery({ kind: "truck" })).toString();
+    const w = await page(AnnualDuePanel, `/shop?${q}`);
+    expect(w.text()).toContain("819");
+    expect(w.text()).not.toContain("5301");
   });
 });

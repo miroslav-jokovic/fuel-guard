@@ -7,6 +7,7 @@ import {
 } from "@silvicom/shared";
 import { readMonthlyMileageByMonth } from "../samsara/index.js";
 import { readBilledMilesByDeliveryMonth } from "../mcleod/index.js";
+import { lastIncludedDay } from "./ledgerPeriod.js";
 
 /**
  * Mileage coverage for a period (G4 + G10) — how many trucks each month measured, whether that was
@@ -58,7 +59,8 @@ export async function getMileageCoverage(
   fromIso: string,
   toIso: string,
 ): Promise<MileageCoverageResult> {
-  const months = monthsBetween(fromIso, toIso);
+  // `toIso` is exclusive like every window here; the last month is the one its last day is in.
+  const months = monthsBetween(fromIso, lastIncludedDay(toIso));
   // The billing read spans whole months too, so a truck that delivered on the 31st is not
   // compared against a Samsara month that includes it.
   const first = `${months[0]!.year}-${String(months[0]!.month).padStart(2, "0")}-01`;

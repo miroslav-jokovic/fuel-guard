@@ -48,7 +48,7 @@ import { GLYPHS, GLYPH_NAMES, glyphState, type Glyph } from "./liveMapGlyphs";
  * So 30 costs 6.6 points on a view that is already three-quarters overlapped, and nothing at all
  * where markers are actually read. 24 remains the FLOOR for the arrow reading as a direction.
  */
-const SIZE = 30;
+export const MARKER_SIZE_PX = 30;
 const RATIO = 2;
 /**
  * How much of the 30 px the glyph itself takes. The old arrow ran to 26 px edge to edge with its
@@ -65,12 +65,12 @@ const OUTLINE_WIDTH = 2;
 
 function context(): CanvasRenderingContext2D | null {
   const canvas = document.createElement("canvas");
-  canvas.width = SIZE * RATIO;
-  canvas.height = SIZE * RATIO;
+  canvas.width = MARKER_SIZE_PX * RATIO;
+  canvas.height = MARKER_SIZE_PX * RATIO;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
   ctx.scale(RATIO, RATIO);
-  ctx.translate(SIZE / 2, SIZE / 2);
+  ctx.translate(MARKER_SIZE_PX / 2, MARKER_SIZE_PX / 2);
   ctx.lineJoin = "round";
   return ctx;
 }
@@ -118,7 +118,7 @@ function bitmap(glyph: Glyph, stateColour: string): ImageData | null {
   const ctx = context();
   if (!ctx) return null;
   drawGlyph(ctx, glyph, stateColour);
-  return ctx.getImageData(0, 0, SIZE * RATIO, SIZE * RATIO);
+  return ctx.getImageData(0, 0, MARKER_SIZE_PX * RATIO, MARKER_SIZE_PX * RATIO);
 }
 
 /**

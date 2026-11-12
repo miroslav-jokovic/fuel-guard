@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { applicantsToQuery, LINK_ANY } from "@silvicom/shared";
+import { ANY_PARAM } from "@silvicom/ui";
 import { flushPromises, mount } from "@vue/test-utils";
 import { ref } from "vue";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
@@ -305,6 +307,16 @@ describe("clearing a filter shows more, never nothing", () => {
     });
   }
 
+  // F21 R4b: Ask AI's "Open in Applicants" for an answer about everybody is built by the board's own
+  // contract, and must not land on the "waiting on you" default.
+  it("opens on everybody when a link built by its contract says so, and on a queue and stage when it names them", async () => {
+    const all = await mountBoard(true, `/recruitment?${new URLSearchParams(applicantsToQuery({ waiting: null })).toString()}`);
+    expect(names(all)).toContain("Already Declined");
+    expect(names(all).length).toBeGreaterThan(2);
+    const mine = await mountBoard(true, `/recruitment?${new URLSearchParams(applicantsToQuery({ waiting: "us" })).toString()}`);
+    expect(new Set(names(mine))).toEqual(new Set(["Mine One", "Mine Two"]));
+  });
+
   it("shows everyone, including the decided application, when the ✕ clears it", async () => {
     const wrapper = await mountBoard();
     const clear = wrapper
@@ -494,5 +506,12 @@ describe("the board in the URL (D-US2)", () => {
     await wrapper.findAll("button").find((b) => b.text() === "Clear filters")!.trigger("click");
     await flushPromises();
     expect(query()).toEqual({ dir: "asc" });
+  });
+});
+
+describe("the link contracts' any (F21 R4b)", () => {
+  // `LINK_ANY` restates `@silvicom/ui`'s `ANY_PARAM`, because ui takes no workspace dependency; this pins them.
+  it("the link contracts' any is the query state's ANY_PARAM", () => {
+    expect(LINK_ANY).toBe(ANY_PARAM);
   });
 });

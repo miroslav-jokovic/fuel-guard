@@ -81,7 +81,7 @@ const recorder = (totals: Total[] = TOTALS) =>
 describe("getIncomeStatement", () => {
   it("reports the asked-for month and the fiscal year to it, org-scoped", async () => {
     const rec = recorder();
-    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-07-31");
+    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-08-01");
 
     expect(s.revenue).toBe(4_491_402.5);
     expect(s.expenses).toBe(1_042_570.62);
@@ -97,7 +97,7 @@ describe("getIncomeStatement", () => {
 
   it("compares with the period of the same length immediately before, when asked (R6)", async () => {
     const rec = recorder();
-    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-07-31", "previous");
+    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-08-01", "previous");
     // The comparative column holds June, not the year to date.
     expect(s.comparison.kind).toBe("previous");
     expect(s.comparison.from).toBe("2026-06-01");
@@ -113,7 +113,7 @@ describe("getIncomeStatement", () => {
 
   it("compares a two-month window with the two months before it, and names the ones the sweep has not reached", async () => {
     const rec = recorder();
-    const s = await getIncomeStatement(rec.client, ORG, "2026-06-01", "2026-07-31", "previous");
+    const s = await getIncomeStatement(rec.client, ORG, "2026-06-01", "2026-08-01", "previous");
     expect(s.comparison.from).toBe("2026-04-01");
     expect(s.comparison.to).toBe("2026-06-01");
     // Only May is staged; April is a stated absence in the comparison, not a zero.
@@ -124,7 +124,7 @@ describe("getIncomeStatement", () => {
 
   it("carries no comparative column at all when asked for none", async () => {
     const rec = recorder();
-    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-07-31", "none");
+    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-08-01", "none");
     expect(s.comparison.kind).toBe("none");
     expect(s.toDateRevenue).toBeNull();
     expect(s.toDateExpenses).toBeNull();
@@ -133,7 +133,7 @@ describe("getIncomeStatement", () => {
 
   it("defaults to the fiscal year to date, and says so", async () => {
     const rec = recorder();
-    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-07-31");
+    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-08-01");
     expect(s.comparison.kind).toBe("ytd");
     expect(s.comparison.from).toBe("2026-01-01");
     expect(s.toDateRevenue).toBe(11_491_402.5);
@@ -164,7 +164,7 @@ describe("getIncomeStatement", () => {
 
   it("leaves balance-sheet accounts out of the statement entirely", async () => {
     const rec = recorder();
-    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-07-31");
+    const s = await getIncomeStatement(rec.client, ORG, "2026-07-01", "2026-08-01");
     const glids = s.sections.flatMap((sec) => sec.lines.map((l) => l.glid));
     expect(glids).not.toContain("17000000");
     expect(s.unrecognisedNet).toBe(0);

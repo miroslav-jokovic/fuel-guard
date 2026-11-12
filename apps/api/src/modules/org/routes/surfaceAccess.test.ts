@@ -144,10 +144,12 @@ describe("GET /api/surface-access", () => {
     expect(keys.every((k) => !k.endsWith(".detail"))).toBe(true);
     expect(body.editableRoles).not.toContain("admin");
     expect(body.editableRoles).not.toContain("driver");
-    // Every offered screen names the section it can never reach past (D-SURF2) — but one: Chat teams,
-    // a permission of no section that any office role can be given (D-CHAT21), whose ceiling is
-    // "office role" rather than a section.
-    expect(body.surfaces.filter((s) => s.section === null).map((s) => s.key)).toEqual(["chat.teams"]);
+    // Every offered screen names the section it can never reach past (D-SURF2) — but three STAFF screens
+    // whose ceiling is "office role" rather than a section: Chat teams (D-CHAT21), Ask AI, whose data is
+    // gated per tool by the section matrix instead (F21 R5, D-AI1), and Notes while it is built dark
+    // (UNIT-NOTES-PLAN D-UN14: `startsOnFor: []` is what lets an admin switch a role on for a staging
+    // walk). UN9 removes that default, Notes stops being answerable like chat, and drops off this list.
+    expect(body.surfaces.filter((s) => s.section === null).map((s) => s.key).sort()).toEqual(["ask-ai", "chat.teams", "notes"]);
   });
 
   /**

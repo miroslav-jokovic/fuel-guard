@@ -4,7 +4,10 @@ import {
   APPLICATION_FILLING_SECTIONS,
   APPLICATION_SECTION_KEYS,
   applicationV2FilingIssues,
+  applicationPaperFilingIssues,
   carrierAnswerIssues,
+  applicationLegacyFilingIssues,
+  unansweredEmployerQuestions,
   driverApplicationObject,
   isApplicationSection,
   ruleIssuePath,
@@ -88,9 +91,12 @@ function toSectionIssue(
  * form's own path, so its message lands on the box that answers it.
  */
 export function v2FilingIssues(draft: ApplicationDraft, asOf: string | null): SectionIssue[] {
-  if (!asOf) return [];
-  const candidate = toApplication(draft) as Parameters<typeof applicationV2FilingIssues>[0];
-  return applicationV2FilingIssues(candidate, asOf).map((issue) => {
+  const candidate = toApplication(draft) as Parameters<typeof applicationV2FilingIssues>[0]
+    & Parameters<typeof applicationPaperFilingIssues>[0];
+  // F2c: what the carrier's paper asks of EVERY filing — question B, each conviction's state and
+  // penalty — is asked on a legacy link too; the v2 rules only on a v2 one.
+  const found = [...applicationPaperFilingIssues(candidate), ...(asOf ? applicationV2FilingIssues(candidate, asOf) : [])];
+  return found.map((issue) => {
     const path = issue.path.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : p)) as FieldPath;
     return toSectionIssue({ code: "custom", message: issue.message, path }, sectionOwningPath(path), candidate);
   });
@@ -142,6 +148,17 @@ export function validateSection(
   // check the schema's refinement runs at filing, which a `.pick()` of the unrefined object never reaches.
   const candidateFields = candidate as Partial<DriverApplicationFields>;
   for (const issue of carrierAnswerIssues(candidateFields.carrier_questions, candidateFields.carrier_answers)) {
+    if (sectionOwningPath(issue.path) === section) {
+      issues.push(toSectionIssue({ code: "custom", message: issue.message, path: issue.path }, section, candidate));
+    }
+  }
+  // F1 part 2: each job's two questions, answered — the refinement the filing runs, which a `.pick()`
+  // never reaches. And on a legacy link, §40.25(j) (a v2 link asked it in Part 1).
+  const later = [
+    ...unansweredEmployerQuestions(candidateFields.employers),
+    ...(v2AsOf ? [] : applicationLegacyFilingIssues(candidateFields).map((i) => ({ path: [i.path], message: i.message }))),
+  ];
+  for (const issue of later) {
     if (sectionOwningPath(issue.path) === section) {
       issues.push(toSectionIssue({ code: "custom", message: issue.message, path: issue.path }, section, candidate));
     }

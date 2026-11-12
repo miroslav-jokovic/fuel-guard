@@ -32,7 +32,7 @@ export const APPLY_HISTORY_COPY_ES = {
     droveTruck: "¿Manejó un camión en este trabajo?",
     droveTruckHint: "Cualquier vehículo comercial: un tractocamión, un camión recto, un autobús.",
     dotQuestion: "¿Este empleador estaba regulado por el DOT?",
-    dotQuestionHint: "Una empresa de transporte o cualquier negocio cuyos camiones necesitan número USDOT. Deje Sí si no está seguro.",
+    dotQuestionHint: "Una empresa de transporte o cualquier negocio cuyos camiones necesitan número USDOT. Si no está seguro, responda Sí.",
     subjectToFmcsr: "En este trabajo, ¿le aplicaban las Regulaciones Federales de Seguridad de Transportistas (FMCSR)?",
     subjectToFmcsrHint: "Las reglas federales de seguridad para las empresas de transporte y sus conductores.",
     safetySensitive: "¿Era un trabajo sensible para la seguridad que requería pruebas de drogas y alcohol del DOT?",
@@ -116,8 +116,8 @@ export const APPLY_HISTORY_COPY_ES = {
     violationsQuestion:
       "En los últimos 3 años, ¿fue declarado culpable de infringir una ley de tránsito, o perdió una fianza o garantía por una infracción?",
     violationsQuestionHint: "Las multas de estacionamiento no cuentan.",
-    deniedQuestion:
-      "¿Alguna vez le han negado, revocado o suspendido una licencia, un permiso o el privilegio de manejar un vehículo de motor?",
+    deniedQuestion: "¿Alguna vez le han negado una licencia, un permiso o el privilegio de manejar un vehículo de motor?",
+    suspendedQuestion: "¿Alguna vez le han suspendido o revocado una licencia, un permiso o un privilegio de manejar?",
     accidentsHeading: "Accidentes",
     noAccidents: "No he tenido accidentes en los últimos 3 años",
     accidentDate: "Fecha",
@@ -130,22 +130,25 @@ export const APPLY_HISTORY_COPY_ES = {
     noViolations: "No he tenido condenas de tránsito ni he perdido fianzas en los últimos 3 años",
     violationDate: "Fecha",
     offence: "Infracción",
-    violationState: "Dónde ocurrió",
-    violationStateHint: "Opcional: con el estado basta.",
+    violationState: "Estado donde ocurrió",
+    violationStateHint: "Basta con dos letras: IL, IN, WI.",
     penalty: "Sanción",
-    penaltyHint: "Opcional.",
+    penaltyHint: "Una multa, puntos, una suspensión: lo que dio el tribunal.",
     addViolation: "Agregar una condena",
     licenceHeading: "Historial de licencias",
-    everDenied: "Me han negado, revocado o suspendido una licencia, un permiso o un privilegio de manejar",
-    denialDetail: "Qué pasó",
+    everDenied: "Me negaron una licencia, un permiso o un privilegio de manejar",
+    everSuspended: "Me suspendieron o revocaron una licencia, un permiso o un privilegio",
+    denialDetail: "Por qué se lo negaron",
     denialDetailHint: "El motivo por el que ocurrió.",
+    suspensionDetail: "Por qué se lo suspendieron o revocaron",
+    suspensionDetailHint: "Cuándo, y el motivo.",
     priorTestHeading: "Pruebas de drogas y alcohol",
     priorTestIntro:
       "Todas las empresas tienen que hacer esta pregunta, y un sí no termina su solicitud. Significa que tenemos "
       + "que ver los papeles que muestren que completó el proceso de regreso al trabajo (return-to-duty) antes de que pueda manejar.",
     priorTest:
-      "En los últimos dos años, solicité un trabajo de conductor que no obtuve, y di positivo o "
-      + "me negué a una prueba como parte de esa solicitud",
+      "En los últimos dos años, ¿solicitó un trabajo de conductor que no obtuvo, y dio positivo o "
+      + "se negó a una prueba como parte de esa solicitud?",
     priorTestHint: "Esto es sobre trabajos que solicitó, no sobre trabajos que tuvo.",
     remove: "Quitar",
   },

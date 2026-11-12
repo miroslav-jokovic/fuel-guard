@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adBriefSchema, adPresetRecipeSchema } from "@silvicom/shared";
+import { AD_NAME_LANGUAGES, adBriefSchema, adPresetRecipeSchema, type AdNameLanguage } from "@silvicom/shared";
 import type { Env } from "../../../../env.js";
 import type { PlatformOutcome } from "../adapter.js";
 import { graphForConnection, pageGraphForConnection, type ConnectionForGraph, type RegistryDeps } from "../registry.js";
 import type { CampaignRow } from "../../orchestrator/transitions.js";
-import { publishPaused, type PublisherDeps } from "./publisher.js";
-import type { PublishCreative } from "./publisherAds.js";
+import { publishPaused, type PublishInput, type PublisherDeps } from "./publisher.js";
+import { creativeRefusal, publishAds, type PublishCreative, type PublishedAd } from "./publisherAds.js";
 
 /**
  * The orchestrator's `createPaused` (ADS-AGENT-BUILD-WORKFLOW B2c2): everything `publishPaused` needs,
@@ -33,6 +33,44 @@ interface CampaignExtra { brief_source: string; brief_ref: string; brief_snapsho
 type ConnectionRow = ConnectionForGraph & { page_token_sealed: string | null; account_ref: string | null; page_ref: string | null; status: string };
 
 export async function publishCampaign(deps: PublishCampaignDeps, c: CampaignRow, key: string): Promise<PlatformOutcome> {
+  const ctx = await publishContext(deps, c, await approvedCreatives(deps.admin, c), key);
+  return ctx.ok ? publishPaused(ctx.publisher, ctx.input) : ctx;
+}
+
+export type ReplacementOutcome = { ok: true; ads: PublishedAd[] } | { ok: false; error_code: string; response?: unknown };
+
+/**
+ * A retired ad's approved replacement published into the campaign's EXISTING ad set (Q-AD68): its ads, one per
+ * language, PAUSED, made exactly as `publishPaused` makes every ad (`publishAds`: find by our name, adopt one, create
+ * none, refuse two). The ad set and the forms are the campaign's own, read from its refs; nothing above the ad level is
+ * created or changed. The ledger key is the creative's own (`<campaign>:refresh:<creative>`), so a retried step finds
+ * its rows, and the creative's short id is in every name, so a fresh execution of the retired ad's own preset makes
+ * new ads instead of adopting the retired ones. Turning them ACTIVE is the caller's (`compose/refreshCampaign.ts`).
+ */
+export async function publishReplacement(deps: PublishCampaignDeps, c: CampaignRow, creativeId: string): Promise<ReplacementOutcome> {
+  const creative = (await approvedCreatives(deps.admin, c)).find((x) => x.id === creativeId);
+  if (!creative) return { ok: false, error_code: "creative_not_approved" };
+  const refused = creativeRefusal(creative);
+  if (refused) return { ok: false, error_code: refused };
+  const refs = c.platform_refs ?? {};
+  const adsetId = typeof refs.meta_adset_id === "string" ? refs.meta_adset_id : null;
+  const forms = (refs.meta_form_ids ?? {}) as Partial<Record<AdNameLanguage, unknown>>;
+  if (!adsetId || AD_NAME_LANGUAGES.some((l) => typeof forms[l] !== "string")) return { ok: false, error_code: "not_on_platform" };
+  const ctx = await publishContext(deps, c, [creative], `${c.id}:refresh:${creativeId}`);
+  if (!ctx.ok) return ctx;
+  const out = await publishAds(ctx.publisher, ctx.input, { adsetId, forms: forms as Record<AdNameLanguage, string> });
+  // ⚠ A name carries only the creative's first eight hex characters (`shortId`). Two creatives that share them name
+  // their ads alike, and `publishAds` ADOPTS an ad it finds by name — so the replacement would come back holding the
+  // RETIRED ad, and turning it on would bring the tired ad back under a new approval. Found by this file's own test
+  // ("refuses an ad the campaign already holds") with two fixture ids alike in their first eight; with derived ids it is
+  // about one in four billion, and it is refused, never relied on.
+  const held = new Set(Array.isArray(refs.meta_ad_ids) ? (refs.meta_ad_ids as unknown[]) : []);
+  if (out.ok && out.ads.some((a) => held.has(a.meta_ad_id))) return { ok: false, error_code: "adopted_existing_ad", response: { ads: out.ads.map((a) => a.meta_ad_id) } };
+  return out;
+}
+
+/** What the publisher needs, read from our rows: the brief, the connection and both Graph clients. */
+async function publishContext(deps: PublishCampaignDeps, c: CampaignRow, creatives: PublishCreative[], key: string): Promise<{ ok: true; publisher: PublisherDeps; input: PublishInput } | { ok: false; error_code: string }> {
   const { admin } = deps;
   const { data: extra, error } = await admin.from("ads_campaigns").select("brief_source, brief_ref, brief_snapshot, created_at").eq("org_id", c.org_id).eq("id", c.id).maybeSingle();
   if (error) throw new Error(`ads_campaigns ${c.id}: ${error.message}`);
@@ -51,17 +89,21 @@ export async function publishCampaign(deps: PublishCampaignDeps, c: CampaignRow,
   const pageGraph = await pageGraphForConnection(deps, row);
   if (!graph.ok || !pageGraph.ok) return { ok: false, error_code: "no_platform" };
 
-  return publishPaused({ admin, graph: graph.graph, pageGraph: pageGraph.graph, readAsset: deps.readAsset, now: deps.now }, {
-    orgId: c.org_id, campaignId: c.id, connectionId: c.connection_id,
-    accountId: row.account_ref ?? "", pageId: row.page_ref ?? "",
-    platform: row.provider === "simulator" ? "simulator" : "meta",
-    brief_source: campaign.brief_source, brief_ref: campaign.brief_ref, created_at: campaign.created_at,
-    area: brief.data.area, form_questions: brief.data.form_questions, claims: brief.data.claims,
-    daily_budget_cents: c.daily_budget_cents, lifetime_cap_cents: c.lifetime_cap_cents,
-    creatives: await approvedCreatives(admin, c),
-    privacy_url: `${deps.env.WEB_APP_URL.replace(/\/+$/, "")}/privacy`,
-    key,
-  });
+  return {
+    ok: true,
+    publisher: { admin, graph: graph.graph, pageGraph: pageGraph.graph, readAsset: deps.readAsset, now: deps.now },
+    input: {
+      orgId: c.org_id, campaignId: c.id, connectionId: c.connection_id,
+      accountId: row.account_ref ?? "", pageId: row.page_ref ?? "",
+      platform: row.provider === "simulator" ? "simulator" : "meta",
+      brief_source: campaign.brief_source, brief_ref: campaign.brief_ref, created_at: campaign.created_at,
+      area: brief.data.area, form_questions: brief.data.form_questions, claims: brief.data.claims,
+      daily_budget_cents: c.daily_budget_cents, lifetime_cap_cents: c.lifetime_cap_cents,
+      creatives,
+      privacy_url: `${deps.env.WEB_APP_URL.replace(/\/+$/, "")}/privacy`,
+      key,
+    },
+  };
 }
 
 /** The campaign's approved creatives, each with its preset's key and the words Meta shows (`platform_slots`). */

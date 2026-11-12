@@ -34,7 +34,7 @@ const filled = (): PartOneAnswers => ({
   postal_code: "60432",
   cdl: { state_code: "IL", licence_number: "D123-4567", cdl_class: "A", expires_on: "2029-01-01", endorsements: ["N", "H"] },
   otherHeld: true,
-  others: [{ state_code: "IN", agency: "", licence_number: "IN-555", expires_on: "2021-06-30" }],
+  others: [{ state_code: "IN", agency: "", licence_number: "IN-555", expires_on: "2021-06-30", kind: "non_cdl" }],
   prior_positive_2y: false,
   dot_program_30d: true,
   dot_tested_6m: true,
@@ -111,19 +111,30 @@ describe("each screen's check", () => {
 
   it("refuses the current CDL or a listed licence typed again — 0376's unique index, in words", () => {
     const a = filled();
-    expect(validateOtherLicence({ state_code: "IL", agency: "", licence_number: "d123-4567", expires_on: "2029-01-01" }, a))
+    expect(validateOtherLicence({ state_code: "IL", agency: "", licence_number: "d123-4567", expires_on: "2029-01-01", kind: "non_cdl" }, a))
       .toEqual({ licence_number: "This licence is already on the list." });
-    expect(validateOtherLicence({ state_code: "IN", agency: "", licence_number: "IN-555", expires_on: "2021-06-30" }, a))
+    expect(validateOtherLicence({ state_code: "IN", agency: "", licence_number: "IN-555", expires_on: "2021-06-30", kind: "non_cdl" }, a))
       .toHaveProperty("licence_number");
-    expect(validateOtherLicence({ state_code: "WI", agency: "", licence_number: "W-1", expires_on: "2020-01-31" }, a)).toEqual({});
+    expect(validateOtherLicence({ state_code: "WI", agency: "", licence_number: "W-1", expires_on: "2020-01-31", kind: "non_cdl" }, a)).toEqual({});
   });
 
   /** Q-AW35 (a): filing refuses a licence with no date, and no screen after this one can ask for it. */
   it("needs another licence's expiry date, a past one included", () => {
-    const entry = { state_code: "OH", agency: "", licence_number: "OH-1", expires_on: "" };
+    const entry = { state_code: "OH", agency: "", licence_number: "OH-1", expires_on: "", kind: "clp" as const };
     expect(validateOtherLicence(entry, filled())).toEqual({ expires_on: "Enter the expiry date printed on the licence." });
     expect(validateOtherLicence({ ...entry, expires_on: "  " }, filled())).toEqual({ expires_on: "Enter the expiry date printed on the licence." });
     expect(validateOtherLicence({ ...entry, expires_on: "2019-05-01" }, filled())).toEqual({});
+  });
+
+  /** P3 (F2c part 2): the paper's licence grid asks a TYPE for every licence, and only this screen can ask it. */
+  it("needs another licence's type, and posts the code the packet prints words for", () => {
+    const entry = { state_code: "OH", agency: "", licence_number: "OH-1", expires_on: "2019-05-01", kind: "" as const };
+    expect(validateOtherLicence(entry, filled())).toEqual({ kind: "Choose the type of license." });
+    const a = { ...filled(), otherHeld: true, others: [{ ...entry, kind: "clp" as const }] };
+    expect(validateOtherLicence(a.others[0]!, { ...filled() })).toEqual({});
+    expect(licenceList(a)[1]).toMatchObject({ state_code: "OH", licence_number: "OH-1", kind: "clp" });
+    // The current CDL has no type of its own: its class and endorsements print in the TYPE cell (F2b).
+    expect(licenceList(a)[0]!.kind ?? null).toBeNull();
   });
 
   it("asks the follow-ups only after a Yes to the 30-day program", () => {

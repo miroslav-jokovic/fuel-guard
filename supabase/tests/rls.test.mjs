@@ -2399,6 +2399,13 @@ async function main() {
       // seeder cannot see; a qualified act carries no reason.
       // 0583 (LQ8a): provider and line_type are enumerated; the seeder would pick the first literal of the
       // first matching check, which is fine here, but the (org, phone) unique key needs a real E.164 value.
+      // 0585 (F0b): the code hangs on an invitation, which hangs on a driver; the hash is 64 hex characters.
+      application_unlock_codes: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'rls ' || gen_random_uuid()) returning id), ` +
+        `i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +
+        `select '${org}', id, md5(gen_random_uuid()::text), now() + interval '1 day' from d returning id) ` +
+        `insert into application_unlock_codes (org_id, invitation_id, channel, code_hash, expires_at) ` +
+        `select '${org}', i.id, 'email', repeat('a', 64), now() + interval '10 minutes' from i`,
       phone_lookups: (org) =>
         `insert into phone_lookups (org_id, phone_e164, provider, line_type) values ('${org}', '+17082360042', 'telnyx', 'unknown')`,
       recruiting_lead_closures: (org) =>
@@ -2683,6 +2690,13 @@ async function main() {
         `           select '${org}', d.id, md5(random()::text), now() + interval '10 days' from d returning id) ` +
         `insert into application_intake_licences (org_id, invitation_id, position, state_code, licence_number) ` +
         `select '${org}', i.id, 0, 'IL', 'D1234567' from i`,
+      // 0589: four digits, and who entered them — the checks that keep a whole SSN out of the clear.
+      application_ssns: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'RLS SSN') returning id), ` +
+        `     i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +
+        `           select '${org}', d.id, md5(random()::text), now() + interval '10 days' from d returning id) ` +
+        `insert into application_ssns (invitation_id, org_id, ssn_last4, entered_by) ` +
+        `select i.id, '${org}', '6789', 'applicant' from i`,
       application_screen_events: (org) =>
         `with d as (insert into drivers (org_id, full_name) values ('${org}', 'RLS Screen') returning id), ` +
         `     i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +

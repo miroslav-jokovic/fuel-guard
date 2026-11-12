@@ -129,6 +129,21 @@ describe("retention policy (the config itself)", () => {
     expect(RETENTION_RULES.some((r) => r.table === "notification_dedupe_keys")).toBe(false);
   });
 
+  /**
+   * Q-AI4 (F21 PLAN.md §5, ruled 2026-11-11): the Ask AI cost ledger is pruned at 13 months, and the
+   * record of who asked what is not. Asserted as a pair, because the ruling was both halves: (a) the
+   * text-free cost rows go after a year-over-year view, (b) the `ai.ask` audit row stays for good.
+   */
+  it("prunes Ask AI's cost rows after 13 months, keeping last year's same month whole, and never the audit row of the question", () => {
+    const usage = RETENTION_RULES.find((r) => r.table === "ai_assistant_usage");
+    expect(usage).toMatchObject({ timeColumn: "asked_at", strategy: "id", orgScoped: true });
+    // On the 31st, the same month a year ago began 396 days back.
+    expect(usage!.keepDays).toBeGreaterThanOrEqual(396);
+    expect(usage!.keepDays).toBeLessThanOrEqual(400);
+    expect(RETENTION_FORBIDDEN).toContain("audit_logs");
+    expect(RETENTION_RULES.some((r) => r.table === "audit_logs")).toBe(false);
+  });
+
   it("keeps raw telematics at least 13 months and only prunes finished jobs", () => {
     for (const r of RETENTION_RULES) {
       if (["idle_events", "hos_duty_segments", "idle_park_sessions", "vehicle_engine_days"].includes(r.table)) {

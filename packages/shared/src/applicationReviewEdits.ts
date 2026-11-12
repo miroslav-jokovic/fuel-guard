@@ -1,5 +1,6 @@
-import type { ApplicationEdit, ApplicationPath } from "./applicationReviewContract.js";
+import type { ApplicationEdit, ApplicationPath, ApplicationRowList } from "./applicationReviewContract.js";
 import { APPLICANT_IDENTITY_KEYS } from "./applicantIdentity.js";
+import { questionnaireForApplicant, type QuestionnaireQuestion } from "./questionnaireContract.js";
 
 /**
  * How one office edit changes the applicant's draft — pure, so the API applies exactly what is tested
@@ -123,6 +124,37 @@ export function applyApplicationEdit(
       const list = at >= 0 ? gaps.map((g, i) => (i === at ? edit.gap : g)) : [...gaps, edit.gap];
       return { payload: { ...payload, [GAPS]: list }, logPath: [GAPS, edit.gap.from], before, after: edit.gap.explanation };
     }
+    case "add_row": {
+      const declared = DECLARES_NONE[edit.list];
+      if (declared && payload[declared] === true) return refuse(ADD_WHILE_NONE[edit.list]!);
+      const list = rowsOf(payload, edit.list);
+      const next = { ...payload, [edit.list]: [...list, edit.row] };
+      return { payload: next, logPath: [edit.list, list.length], before: null, after: edit.row };
+    }
+    case "remove_answer_row": {
+      const table = answerTable(edit.question);
+      if (!table) return refuse("That question is not a table. Reload the application and try again.");
+      const rows = tableRows(payload, edit.question);
+      if (edit.index >= rows.length) return refuse("That row is no longer on the application. Reload it and try again.");
+      const next = draftWithValueAt(payload, [DRAFT_ANSWERS, edit.question], rows.filter((_, i) => i !== edit.index));
+      return {
+        payload: next as Record<string, unknown>,
+        logPath: [DRAFT_ANSWERS, edit.question, edit.index],
+        before: rows[edit.index],
+        after: null,
+      };
+    }
+    case "remove_row": {
+      const list = rowsOf(payload, edit.list);
+      if (edit.index >= list.length) return refuse("That row is no longer on the application. Reload it and try again.");
+      // The current home is the one row every application must have, and on a v2 link its street is
+      // Part 1's: it is corrected, never removed.
+      if (edit.list === "addresses" && edit.index === currentAddressAt(list)) {
+        return refuse("This is where they live now. Correct its answers instead of removing it.");
+      }
+      const next = { ...payload, [edit.list]: list.filter((_, i) => i !== edit.index) };
+      return { payload: next, logPath: [edit.list, edit.index], before: list[edit.index], after: null };
+    }
     default: {
       // `set` — one value at one path. An employer path is resolved through its key.
       const path = [...edit.path];
@@ -134,6 +166,10 @@ export function applyApplicationEdit(
        */
       if ((APPLICANT_IDENTITY_KEYS as readonly unknown[]).includes(path[0])) {
         return refuse(IDENTITY_IS_CORRECTED_ELSEWHERE);
+      }
+      if (path[0] === DRAFT_ANSWERS && path.length === 3) {
+        const refused = answerRowRefusal(payload, path[1]!, path[2]!, edit.value);
+        if (refused) return refused;
       }
       if (path[0] === EMPLOYERS && path.length >= 2) {
         const at = employerIndex(employers, rowsOf(original, EMPLOYERS), path[1]!);
@@ -155,6 +191,68 @@ export function applyApplicationEdit(
       };
     }
   }
+}
+
+/**
+ * A list whose emptiness is its own answer ("I have had no accidents"). Adding a row while that answer
+ * says none would leave the driver certifying both; the office changes that answer first, as its own
+ * correction the driver reads on 3.1, rather than this op flipping it silently.
+ */
+const DECLARES_NONE: Partial<Record<ApplicationRowList, string>> = {
+  accidents: "declares_no_accidents",
+  violations: "declares_no_violations",
+};
+const ADD_WHILE_NONE: Partial<Record<ApplicationRowList, string>> = {
+  accidents: "They said they have had no accidents. Change that answer to No first, then add the accident.",
+  violations: "They said they have had no convictions. Change that answer to No first, then add the conviction.",
+};
+
+/** The current home: the first address with no `to` — the row composition files Part 1's street over. */
+export function currentAddressAt(addresses: readonly unknown[]): number {
+  const at = addresses.findIndex((a) => {
+    const to = (a as { to?: unknown } | null)?.to;
+    return Boolean(a) && typeof a === "object" && (to === null || to === undefined || (typeof to === "string" && to.trim() === ""));
+  });
+  return at < 0 ? 0 : at;
+}
+
+/** The draft keeps the carrier's answers under one key (`toDraftPayload`), not the filed `questionnaire_answers`. */
+export const DRAFT_ANSWERS = "questionnaire";
+
+/** A carrier question answered as a table (education, references), or null. From the questionnaire, never a list. */
+export function answerTable(id: string | number): QuestionnaireQuestion | null {
+  const q = questionnaireForApplicant().questions.find((x) => x.id === id);
+  return q && q.kind === "table" ? q : null;
+}
+
+const tableRows = (payload: Record<string, unknown>, id: string): Row[] => {
+  const v = draftValueAt(payload, [DRAFT_ANSWERS, id]);
+  return Array.isArray(v) ? (v as Row[]) : [];
+};
+
+/**
+ * A whole table row written by `set` at `["questionnaire", question, i]` (F3c part 2). The draft schema
+ * holds the questionnaire as an open record, so it cannot check this — the row is checked here against
+ * the question's own columns: an existing row or the next one (never a hole), no more rows than the
+ * question asks for, an object of its columns and nothing else, and not wholly blank (filing drops a
+ * blank row, `cleanQuestionnaire`, so the driver would read an addition that never files).
+ */
+function answerRowRefusal(payload: Record<string, unknown>, id: string | number, at: string | number, value: unknown): EditRefusal | null {
+  const table = answerTable(id);
+  if (!table) return null;
+  if (typeof at !== "number") return refuse("A row of this answer is named by its place. Reload the application and try again.");
+  const rows = tableRows(payload, String(id));
+  if (at > rows.length) return refuse("That row is no longer on the application. Reload it and try again.");
+  if (at === rows.length && table.maxRows !== undefined && rows.length >= table.maxRows) {
+    return refuse(`This question takes at most ${table.maxRows} rows.`);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return refuse("That is not a valid answer for this field.");
+  const columns = new Set((table.columns ?? []).map((c) => c.id));
+  const cells = Object.entries(value as Row);
+  if (cells.some(([k]) => !columns.has(k))) return refuse("That is not a valid answer for this field.");
+  const filled = cells.some(([, v]) => (typeof v === "string" && v.trim() !== "") || typeof v === "number" || v === true);
+  if (!filled) return refuse("Fill in at least one answer, or remove the row instead.");
+  return null;
 }
 
 /** Said by the API and shown beside the answer list, so the office is sent to the one place that sticks. */

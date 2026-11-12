@@ -10,15 +10,29 @@ import { adPresetRecipeSchema, type AdPresetRecipe, type AdPresetSave, type AdPr
  * not edit, and the buttons follow `requireAdminOnly("ads.brand-kit")`.
  */
 const who = vi.hoisted(() => ({ admin: true }));
-const state = vi.hoisted(() => ({ saves: [] as AdPresetSave[], presets: [] as unknown[], refreshed: [] as unknown[], failed: null as Error | null }));
-vi.mock("@/lib/api", () => ({ apiFetch: async () => ({ ok: true }) }));
+const state = vi.hoisted(() => ({
+  saves: [] as AdPresetSave[], presets: [] as unknown[], refreshed: [] as unknown[], failed: null as Error | null,
+  calls: [] as string[], refuse: null as string | null, toasts: [] as string[],
+}));
+vi.mock("@/lib/api", () => ({
+  apiFetch: async (path: string) => {
+    state.calls.push(path);
+    if (state.refuse) return { ok: false, error: { message: state.refuse } };
+    return path.endsWith("/adopt") ? { ok: true, data: { adopted: ["P1", "P2", "P3", "P4", "P5"], skipped: [] } } : { ok: true };
+  },
+}));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ admin: who.admin }) }));
-vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
+vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: (m: string) => state.toasts.push(m), error: (m: string) => state.toasts.push(m) }) }));
 vi.mock("@tanstack/vue-query", () => ({
   useQuery: () => ({ data: ref(state.presets), isLoading: ref(false), isFetching: ref(false), error: ref(state.failed), refetch: vi.fn() }),
   useMutation: (o: { mutationFn: (v: AdPresetSave) => Promise<void>; onSuccess?: () => unknown }) => ({
     isPending: ref(false),
-    mutateAsync: async (v: AdPresetSave) => { state.saves.push(v); await o.mutationFn(v); await o.onSuccess?.(); },
+    mutateAsync: async (v: AdPresetSave) => {
+      if (v !== undefined) state.saves.push(v);
+      const out = await o.mutationFn(v);
+      await o.onSuccess?.();
+      return out;
+    },
   }),
   useQueryClient: () => ({ invalidateQueries: (q: unknown) => state.refreshed.push(q) }),
 }));
@@ -34,6 +48,7 @@ const RECIPE: AdPresetRecipe = adPresetRecipeSchema.parse({
   image_slots: ["time_of_day"], starts_from: "equipment_photo", shows_equipment: true, shows_people: false,
   motion_template: "A slow push-in on the tractor", formats: ["1:1", "4:5"],
   overlay_slots: { headline: "headline", cta: "cta" }, platform_slots: { primary_text: "body", headline: "title" },
+  hook_family: "pay_first", scene_family: "equipment_at_rest",
 });
 const VIEW: AdPresetView = { id: "p", key: "P2", archived_at: null, current: { id: "v", parent_id: "p", version: 2, body: RECIPE, enabled: false, saved_at: "2026-11-05T12:00:00Z", saved_by_name: "Ana" } };
 const filled = (over: Partial<PresetForm> = {}): PresetForm => ({ ...presetFormFrom("P2", true, RECIPE), ...over });
@@ -43,6 +58,9 @@ beforeEach(() => {
   state.presets = [];
   state.refreshed = [];
   state.failed = null;
+  state.calls = [];
+  state.refuse = null;
+  state.toasts = [];
   who.admin = true;
   setActivePinia(createPinia());
 });
@@ -67,6 +85,14 @@ describe("presetSaveFrom — what a save sends", () => {
 
   it("shows the contract's own sentence for a bad key", () => {
     expect(presetSaveFrom(filled({ key: "p2" }))).toEqual({ ok: false, message: "a preset's key is capitals, digits and underscores, like P2" });
+  });
+
+  it("a preset with no concept is refused here in the contract's sentence, and a version of an older preset must choose one", () => {
+    expect(presetSaveFrom(filled({ hook_family: null }))).toEqual({ ok: false, message: "Choose what the first line leads with: pay, life, equipment, straight talk or proof." });
+    const { hook_family: _h, scene_family: _s, ...older } = RECIPE;
+    const form = presetFormFrom("P2", true, adPresetRecipeSchema.parse(older));
+    expect([form.hook_family, form.scene_family]).toEqual([null, null]);
+    expect(presetSaveFrom(form)).toMatchObject({ ok: false, message: expect.stringContaining("first line leads with") });
   });
 
   it("a blank form starts with nothing that would pass", () => {
@@ -129,6 +155,28 @@ describe("AdsPresetCard", () => {
     expect(mount(AdsPresetCard, { global: { stubs } }).find("[data-test=new-preset]").exists()).toBe(false);
   });
 
+  it("an empty list offers an admin the five ready-made presets; adopting asks the API once and says what was added", async () => {
+    const w = mount(AdsPresetCard, { global: { stubs } });
+    await w.find("[data-test=adopt-presets]").trigger("click");
+    await flushPromises();
+    expect(state.calls).toEqual(["/api/ads/presets/adopt"]);
+    expect(state.toasts).toEqual(["Added P1, P2, P3, P4, P5, switched off. Read each one and switch on the ones you want."]);
+    expect(state.refreshed).toEqual([{ queryKey: ["ads", "presets"] }]);
+  });
+
+  it("the offer is an admin's, and is not made once a preset exists", () => {
+    who.admin = false;
+    expect(mount(AdsPresetCard, { global: { stubs } }).find("[data-test=adopt-presets]").exists()).toBe(false);
+    who.admin = true;
+    state.presets = [VIEW];
+    expect(mount(AdsPresetCard, { global: { stubs } }).find("[data-test=adopt-presets]").exists()).toBe(false);
+  });
+
+  it("each row names its concept", () => {
+    state.presets = [VIEW];
+    expect(mount(AdsPresetCard, { global: { stubs } }).find("[data-test=preset-row]").text()).toContain("pay first, truck at rest");
+  });
+
   it("an archived preset is not listed", () => {
     state.presets = [{ ...VIEW, archived_at: "2026-11-01T00:00:00Z" }];
     expect(mount(AdsPresetCard, { global: { stubs } }).find("[data-test=preset-row]").exists()).toBe(false);
@@ -155,6 +203,15 @@ describe("AdsPresetDrawer", () => {
     expect(w.emitted("close")).toHaveLength(1);
     // The list is read again, so the card shows the version just saved.
     expect(state.refreshed).toEqual([{ queryKey: ["ads", "presets"] }]);
+  });
+
+  it("the API's refusal of a concept another live preset holds stays on the form, and the drawer stays open", async () => {
+    state.refuse = "P2 and P1 would both be live as \"pay first, truck at rest\", and Meta shows two ads of one idea as one.";
+    const w = drawer(VIEW);
+    await w.find("[data-test=preset-form]").trigger("submit");
+    await flushPromises();
+    expect(w.find("[data-test=preset-refusal]").text()).toBe(state.refuse);
+    expect(w.emitted("close")).toBeUndefined();
   });
 
   it("a format switched off is left out of the next version, and the others keep their order", async () => {

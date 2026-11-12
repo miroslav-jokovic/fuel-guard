@@ -45,6 +45,20 @@ export interface RetentionRule {
 export const RETENTION_RULES: RetentionRule[] = [
   {
     /**
+     * F0b (0585): one-time codes that open a saved application when the date of birth on file will not. A
+     * code is dead ten minutes after it is sent; the row's `used_at` is the office's prompt that the date on
+     * file did not match, which matters while the application is under review — the 90-day draft prune
+     * already bounds that. Each send and each use is also in `audit_logs`, which keeps the record.
+     */
+    table: "application_unlock_codes",
+    timeColumn: "created_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "A code is dead after ten minutes; the office's notice matters only while the application is reviewed (the draft's own 90 days); audit_logs keeps each send and use.",
+  },
+  {
+    /**
      * LQ8a (0583): the phone provider's reading of a lead's number. A year-old line type says little about a
      * number (ports happen), the lead it served is itself prunable (D-LS7), and a pruned row costs one lookup
      * if the number ever turns up again. 400 = a year plus margin, the same figure `recruiting_leads` would get.
@@ -332,6 +346,20 @@ export const RETENTION_RULES: RetentionRule[] = [
     strategy: "id",
     orgScoped: true,
     why: "D-SR7 (SCANNER-RELAY-PLAN): relayed scanner reads and the tab each was routed to; never delivered past 60 s, and what a scan led to lives in its own table",
+  },
+  {
+    // 0584 (F21 R2), ruled Q-AI4 (a) 2026-11-11: the Ask AI cost ledger — tokens and dollars per answer,
+    // no question and no answer text. 400 days, not 365: "13 months" means a year-over-year view keeps
+    // last year's SAME month whole, and on the 31st that month began 396 days back. The question asked
+    // is kept elsewhere, by a different rule: the `ai.ask` row in `audit_logs` (RETENTION_FORBIDDEN,
+    // Q-AI4 (b)). The month meter reads only the current month (`p_since`), and `org_usage_month`
+    // carries its own rolled-up totals, so nothing the budget reads is pruned.
+    table: "ai_assistant_usage",
+    timeColumn: "asked_at",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "Q-AI4 (F21 PLAN.md §5): Ask AI's per-answer cost rows, no text; 13 months for the year-over-year cost view, and the audit row keeps who asked what",
   },
 ];
 

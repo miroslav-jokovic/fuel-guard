@@ -54,7 +54,7 @@ describe("what is kept", () => {
     const a = emptyPartOneAnswers();
     const h = heldPart(a);
     a.cdl.licence_number = "D123";
-    a.others.push({ state_code: "OH", agency: "", licence_number: "X", expires_on: "2027-01-01" });
+    a.others.push({ state_code: "OH", agency: "", licence_number: "X", expires_on: "2027-01-01", kind: "non_cdl" });
     expect(h.cdl.licence_number).toBe("");
     expect(h.others).toEqual([]);
   });

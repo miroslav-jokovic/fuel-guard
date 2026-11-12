@@ -12,7 +12,14 @@ import {
   TablePagination,
   sortRows,
 } from "@silvicom/ui";
-import { inspectionExpiry, todayInZone, type AnnualDueDto } from "@silvicom/shared";
+import {
+  ANNUAL_DUE_PAGE_KINDS,
+  ANNUAL_DUE_QUERY_KEYS,
+  inspectionExpiry,
+  todayInZone,
+  type AnnualDueDto,
+  type AnnualDuePageKind,
+} from "@silvicom/shared";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { useAnnualDueQuery } from "@/features/maintenance/useShopBacklog";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
@@ -33,17 +40,15 @@ import { formatDate } from "@/lib/format";
  */
 
 const PAGE_SIZE = 20;
-const KIND_OPTIONS = [
-  { value: "", label: "Trucks and trailers" },
-  { value: "tractor", label: "Trucks" },
-  { value: "trailer", label: "Trailers" },
-];
+// The kinds and their key are the tab's link contract's (F21 R4b), so Ask AI's link cannot name them differently.
+const KIND_LABELS: Record<AnnualDuePageKind, string> = { tractor: "Trucks", trailer: "Trailers" };
+const KIND_OPTIONS = [{ value: "", label: "Trucks and trailers" }, ...ANNUAL_DUE_PAGE_KINDS.map((k) => ({ value: k, label: KIND_LABELS[k] }))];
 
 const router = useRouter();
 const opens = useOpens();
 const qs = useQueryState();
 const search = qs.param("search");
-const kind = qs.param("kind", KIND_OPTIONS.map((o) => o.value));
+const kind = qs.param(ANNUAL_DUE_QUERY_KEYS.kind, KIND_OPTIONS.map((o) => o.value));
 const activeFilterCount = computed(() => [search.value.trim(), kind.value].filter(Boolean).length);
 const clearAll = () => qs.set({ search: undefined, kind: undefined });
 

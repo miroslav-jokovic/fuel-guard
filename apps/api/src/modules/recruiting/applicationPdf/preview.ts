@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DriverApplication } from "@silvicom/shared";
 import { renderPacketDocument, type PacketMarkRow } from "./packetDocument.js";
 import { carrierToday } from "../carrierClock.js";
+import { applicationAsFiled } from "../applicationAsFiled.js";
+import { identityOnRecord } from "../applicantIdentity.js";
 
 /**
  * ⚠ The words `render.ts` stamps on a preview, repeated here rather than imported, and the choice is
@@ -180,6 +182,21 @@ export async function applicationPreviewPdf(
     };
   }
 
+  /**
+   * F2b: the draft as it will be FILED — Part 1's facts laid over it and the identity on the record over
+   * that, the two overlays `applicationSubmit.ts` applies (`applicationAsFiled`, `identityOnRecord`). The
+   * raw draft is what the applicant's tab last saved, so a licence or class the office corrected in Part 1
+   * since, and every endorsement, never reached the copy the office reviews before sending it to sign.
+   * ⚠ `addresses` defaulted only for composition's walk: a draft saved before the address screen has none.
+   */
+  const composed = await applicationAsFiled(
+    admin, invitation, { ...payload, addresses: Array.isArray(payload.addresses) ? payload.addresses : [] } as never, now,
+  );
+  const asFiled = {
+    ...(composed.application as Record<string, unknown>),
+    ...(await identityOnRecord(admin, orgId, invitation.driver_id)),
+  };
+
   const pdf = await renderPacketDocument({
     /**
      * ⚠ **Empty for the OFFICE, and it is the point of this step rather than a gap** (§1a C4). Blank
@@ -198,7 +215,7 @@ export async function applicationPreviewPdf(
      */
     // §15.3 D-CQ2: the invitation's stamp laid over the draft — a draft holds the answers, never the
     // questions — so the reading copy and the preview print the sheet the filing will.
-    application: { ...payload, carrier_questions: invitation.carrier_questions ?? null } as DriverApplication,
+    application: { ...asFiled, carrier_questions: invitation.carrier_questions ?? null } as DriverApplication,
     /**
      * ⚠ TODAY, since C3s5 — the owner's D-AW17: *"all places … prefilled properly. We can review these
      * documents prefilled."* Until then this was empty, on the argument that page 1's `Date:` is the

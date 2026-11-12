@@ -1,11 +1,14 @@
 import { describe, it, expect } from "vitest";
 import type { LiveMapVehicle } from "@silvicom/shared";
 import {
+  EARTH_CIRCUMFERENCE_M,
   MAX_TWEEN_MS,
   MOTION_DURATION_MS,
   MOTION_LATENCY_BUDGET_MS,
   SNAP_DISTANCE_DEGREES,
+  metresPerPixel,
   planTweens,
+  redrawDue,
   sampleTweens,
   tweensSettled,
 } from "./liveMapMotion";
@@ -267,5 +270,113 @@ describe("how long a tween runs", () => {
     const sampled = sampleTweens(new Map([["slow", slow], ["quick", quick]]), 1_000);
     expect(sampled.get("quick")!.lat).toBe(10);
     expect(sampled.get("slow")!.lat).toBeCloseTo(1, 5);
+  });
+});
+
+/**
+ * The write gate (D-DR39): the map is written when a dot has moved a pixel, not on every frame.
+ *
+ * The truck below does what the fleet does: 65 mph (29 m/s) along a fix-to-fix segment sampled at
+ * sixty frames a second. The pixel figures are `metresPerPixel`'s, not constants copied from a
+ * table, so a change to the world size shows up here first.
+ */
+describe("redrawDue", () => {
+  const CHICAGO = { lat: 41.8, lng: -88.0 };
+  const ICON = { iconRadiusPx: 15 };
+  /** A northbound segment of 11 s at 29 m/s: 319 m, which is 0.00287° of latitude. */
+  const segment = {
+    from: { lat: CHICAGO.lat, lng: CHICAGO.lng, heading: 0 },
+    to: { lat: CHICAGO.lat + 0.00287, lng: CHICAGO.lng, heading: 0 },
+    startedAt: 0,
+    durationMs: 11_000,
+    toSampledAt: "x",
+  };
+  const tweens = new Map([["veh-1", segment]]);
+  const frameAt = (n: number) => sampleTweens(tweens, (n * 1000) / 60);
+
+  it("at zoom 7, a 65 mph truck earns no write in a whole second of frames", () => {
+    const drawn = frameAt(0);
+    for (let n = 1; n <= 60; n++) {
+      expect(redrawDue(drawn, frameAt(n), { zoom: 7, latitude: CHICAGO.lat, ...ICON })).toBe(false);
+    }
+  });
+
+  it("at zoom 14, the same truck earns a write within a quarter of a second, but not on the next frame", () => {
+    const drawn = frameAt(0);
+    const z14 = { zoom: 14, latitude: CHICAGO.lat, ...ICON };
+    expect(redrawDue(drawn, frameAt(1), z14)).toBe(false);
+    expect(redrawDue(drawn, frameAt(15), z14)).toBe(true);
+  });
+
+  it("writes exactly when the dot has crossed one pixel, measured by metresPerPixel, not sooner", () => {
+    // 2.5 px of ground at zoom 10 (57 m/px): a write. 0.5 px: not yet.
+    const px = metresPerPixel(10, CHICAGO.lat);
+    const moved = (metres: number) =>
+      new Map([["veh-1", { lat: CHICAGO.lat + metres / (EARTH_CIRCUMFERENCE_M / 360), lng: CHICAGO.lng, heading: 0 }]]);
+    const drawn = new Map([["veh-1", { ...CHICAGO, heading: 0 }]]);
+    const scale = { zoom: 10, latitude: CHICAGO.lat, ...ICON };
+    expect(redrawDue(drawn, moved(0.5 * px), scale)).toBe(false);
+    expect(redrawDue(drawn, moved(2.5 * px), scale)).toBe(true);
+  });
+
+  it("counts the arrow turning: 5° on a 15 px arrow moves its tip over a pixel, 2° does not", () => {
+    const drawn = new Map([["veh-1", { ...CHICAGO, heading: 90 }]]);
+    const turned = (heading: number) => new Map([["veh-1", { ...CHICAGO, heading }]]);
+    const scale = { zoom: 7, latitude: CHICAGO.lat, ...ICON };
+    expect(redrawDue(drawn, turned(92), scale)).toBe(false);
+    expect(redrawDue(drawn, turned(95), scale)).toBe(true);
+  });
+
+  it("measures a turn the short way round the compass", () => {
+    const drawn = new Map([["veh-1", { ...CHICAGO, heading: 359 }]]);
+    const scale = { zoom: 7, latitude: CHICAGO.lat, ...ICON };
+    // 359° → 1° is a 2° turn, not 358°.
+    expect(redrawDue(drawn, new Map([["veh-1", { ...CHICAGO, heading: 1 }]]), scale)).toBe(false);
+    expect(redrawDue(drawn, new Map([["veh-1", { ...CHICAGO, heading: 5 }]]), scale)).toBe(true);
+  });
+
+  it("writes when an arrow appears or vanishes, because that changes the icon itself", () => {
+    const scale = { zoom: 7, latitude: CHICAGO.lat, ...ICON };
+    const known = new Map([["veh-1", { ...CHICAGO, heading: 90 }]]);
+    const unknown = new Map([["veh-1", { ...CHICAGO, heading: null }]]);
+    expect(redrawDue(known, unknown, scale)).toBe(true);
+    expect(redrawDue(unknown, known, scale)).toBe(true);
+    expect(redrawDue(unknown, unknown, scale)).toBe(false);
+  });
+
+  it("writes when a truck appears, and when the fleet changes size", () => {
+    const scale = { zoom: 7, latitude: CHICAGO.lat, ...ICON };
+    const one = new Map([["veh-1", { ...CHICAGO, heading: 0 }]]);
+    const other = new Map([["veh-2", { ...CHICAGO, heading: 0 }]]);
+    const two = new Map([...one, ...other]);
+    expect(redrawDue(one, two, scale)).toBe(true);
+    expect(redrawDue(two, one, scale)).toBe(true);
+    expect(redrawDue(one, other, scale)).toBe(true);
+  });
+
+  /**
+   * ⚠ The settling frame uses a tolerance of zero. A dot allowed to stop a pixel short at zoom 7 is
+   * 128 pixels off at zoom 14 the moment the reader zooms in, and nothing would ever correct it.
+   */
+  it("with zero tolerance, any movement at all is a write and no movement is not", () => {
+    const scale = { zoom: 7, latitude: CHICAGO.lat, ...ICON };
+    const drawn = frameAt(0);
+    expect(redrawDue(drawn, frameAt(1), scale, 0)).toBe(true);
+    expect(redrawDue(drawn, frameAt(0), scale, 0)).toBe(false);
+  });
+});
+
+describe("metresPerPixel", () => {
+  it("is the equator over 512 pixels at zoom 0, and halves with every zoom", () => {
+    expect(metresPerPixel(0, 0)).toBeCloseTo(EARTH_CIRCUMFERENCE_M / 512, 3);
+    expect(metresPerPixel(1, 0)).toBeCloseTo(metresPerPixel(0, 0) / 2, 6);
+    expect(metresPerPixel(7, 0)).toBeCloseTo(metresPerPixel(0, 0) / 128, 6);
+  });
+
+  it("shrinks with latitude by the cosine, so a Chicago pixel is three quarters of an equator pixel", () => {
+    expect(metresPerPixel(7, 41.8) / metresPerPixel(7, 0)).toBeCloseTo(Math.cos((41.8 * Math.PI) / 180), 9);
+    // The numbers the plan quotes (HANDOFF-2026-11-10-VECTOR-MAP.md §10.1), in metres.
+    expect(metresPerPixel(7, 41.8)).toBeCloseTo(456, 0);
+    expect(metresPerPixel(14, 41.8)).toBeCloseTo(3.56, 1);
   });
 });

@@ -15,6 +15,7 @@ import {
   sortRows,
 } from "@silvicom/ui";
 import {
+  APPLICANTS_QUERY_KEYS,
   CLOSE_APPLICATION_PERMISSION,
   HIRING_PHASE_LABELS,
   canPurgeApplicant,
@@ -97,7 +98,7 @@ const page = qs.page();
  * passed, because a test that never presses the clear button cannot see it. The two filters that
  * inherited `"all"`/`"live"` from the previous board carried the same defect and are fixed here.
  */
-const phase = qs.param("phase", Object.keys(HIRING_PHASE_LABELS));
+const phase = qs.param(APPLICANTS_QUERY_KEYS.phase, Object.keys(HIRING_PHASE_LABELS));
 
 /**
  * The state filter, and it is the board's most important control.
@@ -115,8 +116,9 @@ const WAITING_KEYS = ["us", "them", "screen"] as const;
  * *Everyone* on the archived view (see `view`). So `waiting` is read through one parameter per view,
  * each with its own fallback, and a plain `?archived=1` link opens on Everyone as the chip does.
  */
-const waitingLive = qs.param("waiting", WAITING_KEYS, "us");
-const waitingArchived = qs.param("waiting", WAITING_KEYS);
+// The keys are the Applicants link contract's (F21 R4b), so Ask AI's "Open in Applicants" lands on them.
+const waitingLive = qs.param(APPLICANTS_QUERY_KEYS.waiting, WAITING_KEYS, "us");
+const waitingArchived = qs.param(APPLICANTS_QUERY_KEYS.waiting, WAITING_KEYS);
 const waitingOn = computed({
   get: () => (showArchived.value ? waitingArchived : waitingLive).value,
   set: (v: string) => {

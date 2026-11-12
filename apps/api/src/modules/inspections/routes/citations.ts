@@ -17,7 +17,7 @@ import { readInspectionCitations } from "../citation/read.js";
 import { actOnCitation } from "../citation/act.js";
 import { recordDisposition } from "../citation/dispose.js";
 import { approveDataqsRequest, recordDataqsFiled } from "../citation/dataqs.js";
-import { orgToday } from "../read/orgToday.js";
+import { orgToday } from "../../org/index.js";
 import type { DbError } from "../read/inspectionsList.js";
 
 /**

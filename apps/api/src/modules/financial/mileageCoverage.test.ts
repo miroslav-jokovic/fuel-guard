@@ -64,7 +64,7 @@ const recorder = (bills: Array<(typeof BILLS)[number] & { bill_type?: string }> 
 describe("getMileageCoverage", () => {
   it("refuses a period denominator when one of its months measured fewer trucks than delivered", async () => {
     const rec = recorder();
-    const r = await getMileageCoverage(rec.client, ORG, "2026-02-01", "2026-03-31");
+    const r = await getMileageCoverage(rec.client, ORG, "2026-02-01", "2026-04-01");
     expect(r.miles).toBeNull();
     expect(r.trucks).toBeNull();
     expect(r.reason).toContain("2026-02");
@@ -73,7 +73,7 @@ describe("getMileageCoverage", () => {
 
   it("gives miles and the busiest month's truck count when every month is complete", async () => {
     const rec = recorder();
-    const r = await getMileageCoverage(rec.client, ORG, "2026-03-01", "2026-03-31");
+    const r = await getMileageCoverage(rec.client, ORG, "2026-03-01", "2026-04-01");
     expect(r.miles).toBe(1_370_444);
     expect(r.trucks).toBe(3);
     expect(r.reason).toBeNull();
@@ -81,7 +81,7 @@ describe("getMileageCoverage", () => {
 
   it("reports each month separately, so a rollout gap cannot hide inside a total", async () => {
     const rec = recorder();
-    const r = await getMileageCoverage(rec.client, ORG, "2026-02-01", "2026-03-31");
+    const r = await getMileageCoverage(rec.client, ORG, "2026-02-01", "2026-04-01");
     const feb = r.months.find((m) => m.month === "2026-02")!;
     const mar = r.months.find((m) => m.month === "2026-03")!;
     expect(feb.measuredTrucks).toBe(2);
@@ -92,7 +92,7 @@ describe("getMileageCoverage", () => {
 
   it("buckets bills by delivery date, not by when the invoice was cut", async () => {
     const rec = recorder();
-    const r = await getMileageCoverage(rec.client, ORG, "2026-03-01", "2026-03-31");
+    const r = await getMileageCoverage(rec.client, ORG, "2026-03-01", "2026-04-01");
     // Only March's three loads, and the February ones are not dragged in by a later invoice date.
     expect(r.loads).toBe(3);
     expect(r.billedMiles).toBe(1_100_000);
@@ -100,7 +100,7 @@ describe("getMileageCoverage", () => {
 
   it("leaves a cancelled load out of billed miles, loads and revenue", async () => {
     const rec = recorder();
-    const r = await getMileageCoverage(rec.client, ORG, "2026-03-01", "2026-03-31");
+    const r = await getMileageCoverage(rec.client, ORG, "2026-03-01", "2026-04-01");
     expect(r.billedMiles).not.toBe(2_099_999);
     expect(r.billedRevenue).toBe(3_250_000);
   });
@@ -114,7 +114,7 @@ describe("getMileageCoverage", () => {
   it("counts a re-billed load once: the credit takes back its revenue, load and billed miles", async () => {
     const credit = { id: "c1", delivery_date: "2026-03-25", tractor_unit: "103", distance: 100_000, total_charges: 300_000, other_charge: 0, canceled: false, bill_type: "C" };
     const rebill = { id: "r1", delivery_date: "2026-03-25", tractor_unit: "103", distance: 100_000, total_charges: 310_000, other_charge: 0, canceled: false, bill_type: "I" };
-    const r = await getMileageCoverage(recorder([...BILLS, credit, rebill]).client, ORG, "2026-03-01", "2026-03-31");
+    const r = await getMileageCoverage(recorder([...BILLS, credit, rebill]).client, ORG, "2026-03-01", "2026-04-01");
     expect(r.billedRevenue).toBe(3_260_000);
     expect(r.loads).toBe(3);
     expect(r.billedMiles).toBe(1_100_000);
@@ -123,7 +123,7 @@ describe("getMileageCoverage", () => {
 
   it("counts a month with no Samsara rows as short rather than as complete with zero", async () => {
     const rec = recorder();
-    const r = await getMileageCoverage(rec.client, ORG, "2026-04-01", "2026-04-30");
+    const r = await getMileageCoverage(rec.client, ORG, "2026-04-01", "2026-05-01");
     const apr = r.months.find((m) => m.month === "2026-04")!;
     expect(apr.measuredTrucks).toBe(0);
     expect(apr.complete).toBe(false);

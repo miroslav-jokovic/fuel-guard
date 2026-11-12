@@ -128,7 +128,10 @@ async function mountPage() {
       stubs: {
         HiringStepDrawer: DrawerStub,
         HireDrawer: { name: "HireDrawer", props: ["open", "driverId"], template: '<div v-if="open" data-hire-drawer :data-driver="driverId" />' },
-        ApplicationReviewDrawer: true,
+        ApplicationReviewDrawer: {
+          name: "ApplicationReviewDrawer", props: ["open", "invitationId", "focus"], emits: ["close"],
+          template: '<div v-if="open" data-review-drawer :data-invitation="invitationId" :data-focus="focus ?? \'\'" />',
+        },
         CloseOrderDrawer: { name: "CloseOrderDrawer", props: ["open", "request"], emits: ["close", "closed", "orderAgain"], template: '<div v-if="open" data-close-drawer :data-request="request?.requestId" />' },
         OrderTestDrawer: { name: "OrderTestDrawer", props: ["open", "seed"], emits: ["close", "placed"], template: '<div v-if="open" data-order-drawer :data-seed="JSON.stringify(seed)" />' },
         DispositionSection: true,
@@ -268,3 +271,44 @@ describe("the Med-Stop drawers the drug-test step asks for (UX4, MSO2)", () => {
   });
 });
 
+
+/**
+ * F3c part 2, step 6: the Permissions and Road-test steps send the office to the application's card to
+ * correct the date of birth and licence. The review opens AT those rows, and closing it brings back the
+ * step they came from — they went to fix one answer, not to leave the step.
+ */
+describe("correcting the date of birth and licence from a step (step 6)", () => {
+  it("swaps the step for the review at the identity rows, then brings the step back on close", async () => {
+    const w = await mountPage();
+    await router.push("/recruitment/00000000-0000-4000-8000-0000000000d1?step=permissions_signed");
+    await settle(w);
+    // The fold shows the permissions under the row that holds them; that row is the one to come back to.
+    const row = document.body.querySelector("[data-drawer]")?.getAttribute("data-step");
+    expect(row).toBeTruthy();
+
+    w.findComponent({ name: "HiringStepDrawer" }).vm.$emit("correctIdentity", "inv-9");
+    await settle(w);
+    expect(document.body.querySelector("[data-drawer]")).toBeNull();
+    const review = document.body.querySelector("[data-review-drawer]");
+    expect(review?.getAttribute("data-invitation")).toBe("inv-9");
+    expect(review?.getAttribute("data-focus")).toBe("date_of_birth");
+
+    w.findComponent({ name: "ApplicationReviewDrawer" }).vm.$emit("close");
+    await settle(w);
+    expect(document.body.querySelector("[data-review-drawer]")).toBeNull();
+    expect(document.body.querySelector("[data-drawer]")?.getAttribute("data-step")).toBe(row);
+  });
+
+  it("an ordinary review neither focuses a row nor reopens the step it was opened from", async () => {
+    const w = await mountPage();
+    await router.push("/recruitment/00000000-0000-4000-8000-0000000000d1?step=permissions_signed");
+    await settle(w);
+    expect(document.body.querySelector("[data-drawer]")).not.toBeNull();
+    w.findComponent({ name: "HiringStepDrawer" }).vm.$emit("review", "inv-9");
+    await settle(w);
+    expect(document.body.querySelector("[data-review-drawer]")?.getAttribute("data-focus")).toBe("");
+    w.findComponent({ name: "ApplicationReviewDrawer" }).vm.$emit("close");
+    await settle(w);
+    expect(document.body.querySelector("[data-drawer]")).toBeNull();
+  });
+});

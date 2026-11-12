@@ -96,6 +96,9 @@ describe("the record on the one timeline (HW5b)", () => {
     w.findAllComponents({ name: "AppTypedDate" }).find((d) => d.html().includes('id="record-employer-started_on"'))!
       .vm.$emit("update:modelValue", "2023-03-01");
     await w.find("#record-employer-address_line1").setValue("1 Frontier Rd");
+    // F1 part 2: neither Yes/No starts answered, so the office answers both, as the driver does.
+    await w.find("fieldset#record-employer-operated_cmv").findAll("input[type=radio]")[0]!.setValue(true);
+    await w.find("fieldset#record-employer-dot_regulated").findAll("input[type=radio]")[0]!.setValue(true);
     await flushPromises();
     await press(w, "Save this job");
     expect(mutations.add).toHaveBeenCalledTimes(1);
@@ -243,6 +246,9 @@ describe("HW6b: the PSP record's suggestions on the record", () => {
     await w.find("#record-employer-employer_name").setValue("Werner");
     w.findAllComponents({ name: "AppTypedDate" }).find((d) => d.html().includes('id="record-employer-started_on"'))!
       .vm.$emit("update:modelValue", "2023-03-01");
+    // F1 part 2: neither Yes/No starts answered, so the office answers both, as the driver does.
+    await w.find("fieldset#record-employer-operated_cmv").findAll("input[type=radio]")[0]!.setValue(true);
+    await w.find("fieldset#record-employer-dot_regulated").findAll("input[type=radio]")[0]!.setValue(true);
     await flushPromises();
     await press(w, "Save this job");
     expect(mutations.add.mock.calls[1]![0]).toMatchObject({ source: "manual", employer_name: "Werner" });

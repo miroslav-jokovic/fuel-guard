@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { runDqAlertsOnce } from "./dqAlertScheduler.js";
 import { testEnv } from "../../testing/testEnv.js";
+import { DEFAULT_ORG_TIMEZONE, todayInZone } from "@silvicom/shared";
 
 /**
  * C3's done-when: two consecutive runs produce one notify() per alert per recipient and at most one
@@ -30,7 +31,9 @@ vi.mock("../../lib/mailer.js", () => ({
 }));
 
 const env = testEnv();
-const TODAY = new Date().toISOString().slice(0, 10);
+// The CARRIER's day, as the scheduler cuts it since 2026-11-11 (`orgToday`; the fixture org names no
+// zone, so the default). The UTC day here made a Central-evening run see the 60-day item at 61 days.
+const TODAY = todayInZone(new Date(), DEFAULT_ORG_TIMEZONE);
 const plus = (days: number): string =>
   new Date(Date.parse(`${TODAY}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
@@ -178,5 +181,36 @@ describe("runDqAlertsOnce (C3)", () => {
     await expect(runDqAlertsOnce(rec.client, env, ORG)).rejects.toThrow(/notification_keys_sent/);
     expect(notifyCalls).toHaveLength(0);
     expect(emails).toHaveLength(0);
+  });
+});
+
+describe("runDqAlertsOnce on a Central evening (F21 carrier-day fix, 2026-11-11)", () => {
+  beforeEach(() => {
+    notifyCalls.length = 0;
+    emails.length = 0;
+  });
+
+  it("does not call a CDL good through 11/10 expired at 7:30 pm Central on 11/10, when UTC is already 11/11", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-11T01:30:00Z"));
+    try {
+      const rec = createSupabaseRecorder({
+        tables: {
+          drivers: [{ id: "d1", full_name: "Marcus Reyes", status: "active", cdl_number: "D1" }],
+          certifications: [{ subject_id: "d1", kind: "cdl", qualifier: null, training_type: null, issued_at: null, expires_at: "2026-11-10", document_id: null }],
+          qualification_records: [],
+          documents: [],
+          memberships: [{ user_id: "u-admin", role: "admin" }],
+          organizations: { data: [{ notifications_enabled: true, notification_emails: ["office@x.com"], operating_hours: { tz: "America/Chicago" } }] },
+        },
+        rpc: ledgerRpc([]),
+      });
+      await runDqAlertsOnce(rec.client, env, ORG);
+      expect(emails).toHaveLength(1);
+      expect(emails[0]!.subject).not.toContain("expired");
+      expect(notifyCalls.every((c) => !String(c.dedupeKey).includes("overdue"))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

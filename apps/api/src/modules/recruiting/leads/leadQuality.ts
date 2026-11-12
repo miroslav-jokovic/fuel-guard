@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { medianMinutes, type LeadQuality, type LeadQualityCounts } from "@silvicom/shared";
+import { LEAD_LOST_REASONS, medianMinutes, type LeadLostReason, type LeadQuality, type LeadQualityCounts } from "@silvicom/shared";
 import { allPages, byIds } from "./leadOutcomes.js";
 import { readLeadVerdicts } from "./verdicts.js";
 
@@ -13,6 +13,14 @@ import { readLeadVerdicts } from "./verdicts.js";
  * the queue shows a recruiter, so the alert can never count a lead as unqualified that the queue does not.
  * Ids go 100 at a time (`byIds`; readLeadVerdicts' own bound), every read pages past PostgREST's 1,000.
  * A purged lead (0558) has no verdicts and no contacts left, so it counts only as a lead.
+ *
+ * ── CLOSED, BY REASON (LR4, ADS-AGENTS-AUDIT-2026-11-10 F-LR5) ────────────────────────────────────
+ * `recruiting_lead_closures` (0578) is append-only, one row per act, ordered by `seq`; a lead's state is its
+ * NEWEST row. So a lead counts as closed for a reason only while that close is its newest act: closed then
+ * reopened is open, closed twice counts once under the later reason. Only `LEAD_LOST_REASONS` are counted
+ * here — a `not_qualified:<requirement>` close already wrote the verified verdict `not_qualified` above reads,
+ * and one lead must not be in both. Every lost reason is in the answer, zero included, so the key set is the
+ * contract's and not whatever happened to occur.
  */
 export function recruitingLeadQuality(admin: SupabaseClient): LeadQuality {
   return { qualitySince: (orgId, since) => readLeadQuality(admin, orgId, since) };
@@ -45,6 +53,17 @@ export async function readLeadQuality(admin: SupabaseClient, orgId: string, sinc
     for (const [id, v] of verdicts) if (v.verdicts.some((x) => x.hard && x.verdict === "does_not_meet")) notQualified.add(id);
   }
 
+  // Ascending `seq`, so the last row written per lead is its newest act.
+  const newest = new Map<string, { kind: string; reason: string | null }>();
+  for (const c of await byIds("recruiting_lead_closures", ids, (chunk) => admin.from("recruiting_lead_closures")
+    .select("lead_id, kind, reason, seq").eq("org_id", orgId).in("lead_id", chunk).order("seq"))) {
+    newest.set(String(c.lead_id), { kind: String(c.kind), reason: c.reason === null || c.reason === undefined ? null : String(c.reason) });
+  }
+  const closedFor = (leadId: string): LeadLostReason | null => {
+    const act = newest.get(leadId);
+    return act?.kind === "closed" && (LEAD_LOST_REASONS as readonly string[]).includes(act.reason ?? "") ? (act.reason as LeadLostReason) : null;
+  };
+
   const byCampaign = new Map<string, typeof leads>();
   for (const l of leads) byCampaign.set(l.campaign, [...(byCampaign.get(l.campaign) ?? []), l]);
   return [...byCampaign].map(([campaign_id, ls]) => {
@@ -57,6 +76,7 @@ export async function readLeadQuality(admin: SupabaseClient, orgId: string, sinc
       reached: tried.filter((l) => reached.has(l.id)).length,
       not_qualified: ls.filter((l) => notQualified.has(l.id)).length,
       median_first_attempt_minutes: medianMinutes(tried.map((l) => Math.max(0, Math.round((first.get(l.id)! - l.at) / 60_000)))),
+      closed: Object.fromEntries(LEAD_LOST_REASONS.map((reason) => [reason, ls.filter((l) => closedFor(l.id) === reason).length])),
     };
   });
 }

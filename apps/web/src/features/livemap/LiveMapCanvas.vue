@@ -3,13 +3,14 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import maplibregl from "maplibre-gl";
 import { basemapFor, type BasemapChoice, type LiveMapVehicle } from "@silvicom/shared";
 import { useMapLibre, tokenColor } from "@/composables/useMapLibre";
+import { VECTOR_TILES_TEMPLATE, VECTOR_TRIAL_CHOICE } from "@/composables/vectorBasemap";
 import { useColorScheme } from "@/composables/useColorScheme";
 import LiveMapControls from "./LiveMapControls.vue";
-import { planCameraMove, SELECT_ZOOM } from "./liveMapCamera";
-import { installLiveMapIcons } from "./liveMapIcons";
+import { planCameraMove, planFleetFit } from "./liveMapCamera";
+import { installLiveMapIcons, MARKER_SIZE_PX } from "./liveMapIcons";
 import { isMarkerClick, showRoute, syncRoute, type DrawnRoute } from "./liveMapRouteLayer";
 import { toFeatureCollection, type MapBounds, type RenderedPlace } from "./liveMapLayer";
-import { planTweens, sampleTweens, tweensSettled, type Tween } from "./liveMapMotion";
+import { planTweens, redrawDue, sampleTweens, tweensSettled, type Tween } from "./liveMapMotion";
 
 /**
  * The fleet, drawn (LIVE-MAP-PLAN.md LM8, D-LM7/D-LM8).
@@ -87,6 +88,8 @@ const SELECTED_LAYER = "live-fleet-selected";
  */
 let tweens = new Map<string, Tween>();
 let places = new Map<string, RenderedPlace>();
+/** The places the map was last WRITTEN with — the gate's "where it is drawn" (D-DR39). */
+let drawn = places;
 let frame: number | null = null;
 let fitted = false;
 
@@ -97,7 +100,8 @@ let fitted = false;
  * ⚠ `setLngLat` is called from `step()`, every frame, for as long as the dot is moving. A popup
  * pinned to the board's last fix would sit still for five seconds while the truck it names slid out
  * from under it — at 60 mph and the zoom a dispatcher reads at, that is the marker leaving its own
- * card behind. One `setLngLat` per frame for ONE popup is nothing next to the `setData` beside it.
+ * card behind. One `setLngLat` per frame for ONE popup is nothing; the `setData` beside it is the
+ * costly write, and since D-DR39 it waits for a dot to have moved a pixel.
  *
  * ── WHY IT IS NOT FOCUSED ON OPEN ────────────────────────────────────────────────────────────────
  * `focusAfterOpen: false` overrides maplibre's default, and `focusPopover()` below is how the rail
@@ -174,8 +178,11 @@ function source(): maplibregl.GeoJSONSource | undefined {
   return map.value?.getSource(SOURCE) as maplibregl.GeoJSONSource | undefined;
 }
 
+/** The one write to the map. The `livemap:write` event is how a measuring page counts them (D-DR39). */
 function redraw(): void {
   source()?.setData(toFeatureCollection(props.vehicles, places, props.selectedId));
+  drawn = places;
+  window.dispatchEvent(new Event("livemap:write"));
 }
 
 /**
@@ -188,11 +195,15 @@ function redraw(): void {
 function step(): void {
   const now = performance.now();
   places = sampleTweens(tweens, now);
-  redraw();
+  const settled = tweensSettled(tweens, now);
+  // D-DR39: the map is written when a dot has moved a pixel, and once more as the motion settles so
+  // every dot ends ON its fix (`liveMapMotion.ts` has the measurements). The glide itself is untouched.
+  const m = map.value!;
+  if (redrawDue(drawn, places, { zoom: m.getZoom(), latitude: m.getCenter().lat, iconRadiusPx: MARKER_SIZE_PX / 2 }, settled ? 0 : 1)) redraw();
   // ⚠ In the frame loop, deliberately — see `popup` above for why a popover that does not follow
   // the dot is worse than no popover.
   syncPopover();
-  frame = tweensSettled(tweens, now) ? null : requestAnimationFrame(step);
+  frame = settled ? null : requestAnimationFrame(step);
 }
 
 function startMotion(): void {
@@ -220,17 +231,11 @@ function visibleBounds(instance: maplibregl.Map): MapBounds {
  * truck (the Dispatch board's "On the map", `?truck=`), whose `flyTo` ran before the map existed.
  */
 function fitToFleet(instance: maplibregl.Map): void {
-  if (fitted || props.vehicles.length === 0) return;
-  const chosen = props.selectedId ? props.vehicles.find((v) => v.vehicleId === props.selectedId) : undefined;
-  if (chosen) {
-    instance.jumpTo({ center: [chosen.position.lng, chosen.position.lat], zoom: SELECT_ZOOM });
-    fitted = true;
-    return;
-  }
-  const first = props.vehicles[0]!.position;
-  const bounds = new maplibregl.LngLatBounds([first.lng, first.lat], [first.lng, first.lat]);
-  for (const v of props.vehicles) bounds.extend([v.position.lng, v.position.lat]);
-  instance.fitBounds(bounds, { padding: 56, duration: 0, maxZoom: 9 });
+  if (fitted) return;
+  const fit = planFleetFit(props.vehicles, props.selectedId);
+  if (!fit) return;
+  if (fit.kind === "jump") instance.jumpTo({ center: fit.center, zoom: fit.zoom });
+  else instance.fitBounds(new maplibregl.LngLatBounds(fit.southWest, fit.northEast), { padding: 56, duration: 0, maxZoom: 9 });
   fitted = true;
 }
 
@@ -271,8 +276,10 @@ function fitToFleet(instance: maplibregl.Map): void {
  * publishes no `satellite.night` or `topo.night`, and D-DR8 already ruled that the reader is not
  * asked a question the app can answer.
  */
-const basemap = ref<BasemapChoice>("map");
+const basemap = ref<BasemapChoice | typeof VECTOR_TRIAL_CHOICE.key>("map");
 const tiles = computed(() => {
+  // D-DR31 trial: the vector road map follows the scheme by repainting, not by a different URL.
+  if (basemap.value === VECTOR_TRIAL_CHOICE.key) return VECTOR_TILES_TEMPLATE;
   const { style, format } = basemapFor(basemap.value, isDark.value);
   return `/api/fueling/map-tiles/{z}/{x}/{y}?style=${style}&format=${format}`;
 });
@@ -280,6 +287,7 @@ const tiles = computed(() => {
 const { map } = useMapLibre({
   container: mapEl,
   tiles,
+  isDark,
   // D-DR21: our own rail draws the zoom buttons, because maplibre's corner system has no free corner
   // left on this workspace and its control sat under the filters panel. See `useMapLibre`.
   navControl: false,
@@ -371,22 +379,16 @@ watch(() => props.generatedAt, () => {
 // status filter, reloaded the page to get the fleet back. Keyed on the ID LIST rather than the
 // array, so a poll that carries the same trucks does not redraw twice (the `generatedAt` watch above
 // owns that case, with motion).
-watch(
-  () => props.vehicles.map((v) => v.vehicleId).join(","),
-  () => {
-    redraw();
-    syncPopover();
-  },
-);
-
-// Selection is not animated — it is a ring appearing, and it must appear on the click rather than
-// on whichever poll happens next.
+//
+// Selection is not animated either — it is a ring appearing, and it must appear on the click rather
+// than on whichever poll happens next. Each of the three changes the picture without moving a dot,
+// so each is an UNCONDITIONAL write: D-DR39's pixel gate is on the frame loop only.
 //
 // ⚠ The popover is synced HERE as well as in `step()`, and both are needed: the frame loop stops
 // itself once every dot has arrived (D-LM8), so over a parked fleet — which is most of a board at
 // night — there is no next frame to open a popover on. `cardEl` is watched with it because it
 // arrives one tick after this component mounts, and a popover cannot be built out of `null`.
-watch([() => props.selectedId, () => props.cardEl], () => {
+watch([() => props.vehicles.map((v) => v.vehicleId).join(","), () => props.selectedId, () => props.cardEl], () => {
   redraw();
   syncPopover();
 });
