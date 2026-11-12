@@ -30,24 +30,24 @@
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T20:51:56.844Z",
+    "recorded_at": "2026-11-11T14:33:45.688Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A white semi-truck and trailer rolling down an open highway at sunset is immediately recognizable at a glance.",
+          "reason": "A white semi-truck and trailer rolling down an open highway at sunset is immediately identifiable at a glance.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The pay-per-mile headline is rendered in tiny text at the bottom corner while the dominant element is the APPLY button, leaving the headline nearly invisible and disconnected from the strong truck photo.",
-          "score": 2
+          "reason": "The headline touts pay-per-mile for OTR driving while the image shows a classic OTR tractor-trailer on the open road — a direct match — but the headline is rendered in tiny text at the bottom corner, making the connection nearly invisible at phone size.",
+          "score": 3
         },
         "hierarchy_reads": {
-          "reason": "The massive APPLY button dominates the entire lower half of the ad, completely overshadowing the actual headline which is relegated to tiny fine-print size in the corner.",
+          "reason": "The APPLY button dominates the entire ad in large bold text while the actual headline ($0.65 per mile, Class A OTR.) is relegated to tiny fine print in the bottom corner, completely inverting the intended hierarchy.",
           "score": 2
         },
         "looks_like_kit": {
-          "reason": "The dark green button (#0B3D2E range) and white text match the brand's primary and white colours exactly, giving a coherent on-brand feel despite no logo being present.",
-          "score": 4
+          "reason": "The deep forest-green button matches the brand's primary color (#0B3D2E) and white text matches the secondary color, but there is no logo present anywhere in the ad.",
+          "score": 3
         }
       }
     }

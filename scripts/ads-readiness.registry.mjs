@@ -1009,7 +1009,7 @@ export const READINESS = [
           ],
         },
       ],
-      L3: [{ need: "its scores compared with the owner's approve/reject on 30 real ads (Q-AD76), before any floor", gap: "P1-7 (2026-11-10) agreed 7 of 7 on two consecutive runs over seven drawn ads, three sound and four each planted with one weakness (pnpm ads:eval finishedAdJudge, baseline.json); no real image exists until V4 (Q-AD20), so the 30-ad comparison cannot start" }],
+      L3: [{ need: "its scores compared with the owner's approve/reject on 30 real ads (Q-AD76), before any floor", gap: "P1-7 (2026-11-10) agreed 7 of 7 on two consecutive runs over seven drawn ads, three sound and four each planted with one weakness; L5 (2026-11-11) added nine ads in the new look on the same photos and words and agreed 16 of 16 (pnpm ads:eval finishedAdJudge, baseline.json; ADS-AD-LOOK-PLAN progress log); no real image exists until V4 (Q-AD20), so the 30-ad comparison cannot start" }],
       L4: [{ need: "its scores over the composed ads of a sandbox run, every creative reaching review whatever it scored", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },

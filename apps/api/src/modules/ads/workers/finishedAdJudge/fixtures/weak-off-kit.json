@@ -30,23 +30,23 @@
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T20:52:03.600Z",
+    "recorded_at": "2026-11-11T14:33:51.793Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A white semi-truck and trailer on an open road at sunset is instantly recognizable as a tractor-trailer at a glance.",
+          "reason": "A white semi-truck and trailer rolling on an open road at sunset is instantly recognizable at a glance.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The OTR headline pairs well with a truck rolling down an open highway, telling a coherent on-the-road story.",
-          "score": 4
+          "reason": "The OTR headline pairs naturally with an open-road trucking photo, telling one clear story about long-haul driving.",
+          "score": 5
         },
         "hierarchy_reads": {
-          "reason": "The large magenta panel makes the headline the clear focal point and 'Apply today' reads as the secondary call to action, though it lacks a distinct button shape to separate it visually.",
-          "score": 3
+          "reason": "The large magenta panel anchors the headline boldly, the button text is clear, and the photo above does not compete with the text.",
+          "score": 4
         },
         "looks_like_kit": {
-          "reason": "The dominant magenta/hot-pink colour is entirely absent from the brand palette (dark green #0B3D2E and white), and no logo is present, so the ad feels like it belongs to a different carrier.",
+          "reason": "The dominant magenta/hot-pink color is far from the brand's given primary (#0B3D2E dark green) and no logo appears, so the ad feels off-brand.",
           "score": 1
         }
       }

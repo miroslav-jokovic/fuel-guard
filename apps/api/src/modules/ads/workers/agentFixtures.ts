@@ -262,7 +262,9 @@ export const ANALYST_EVAL: EvalWorker<AnalystFixture, BriefAnswer> = {
 /**
  * The finished-ad judge's cases (P1-7) are FINISHED ADS: `fixtures/images/*.jpg`, drawn 2026-11-10 by our own
  * overlay over the checker's corpus photos (one, `weak-hierarchy`, by hand: our overlay cannot plant that defect),
- * each with at most one weakness, which `truth.weak` names. A judge with no floor (Q-AD76) has no verdict to
+ * each with at most one weakness, which `truth.weak` names. `clean-*` and `weak-*` are the OLD overlay (the flat
+ * plate); `rail-*` and `ribbon-*` are the same photos, words and kit redrawn 2026-11-11 in the two looks
+ * (ADS-AD-LOOK-PLAN D-ADL12, D-ADL13), so one recording scores the look before and after. A judge with no floor (Q-AD76) has no verdict to
  * agree on, so agreement is about the SCORES: a sound ad scores 3 or more everywhere; a planted weakness scores 2 or
  * less on its criterion, and no criterion lower. The owner's approve/reject on 30 real ads is the bar this grows into.
  */

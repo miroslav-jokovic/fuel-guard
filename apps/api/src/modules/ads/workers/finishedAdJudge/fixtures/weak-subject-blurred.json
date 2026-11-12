@@ -30,24 +30,24 @@
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T20:52:10.759Z",
+    "recorded_at": "2026-11-11T14:33:59.379Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "The tractor and trailer are so heavily blurred and dark that the subject is nearly indistinguishable as a truck at phone size — only a vague dark mass is visible.",
-          "score": 2
+          "reason": "The tractor and trailer are so heavily blurred and dark that the subject cannot be identified as a truck at a glance — it reads as an indistinct dark blob against a sunset.",
+          "score": 1
         },
         "words_match_picture": {
-          "reason": "The OTR/pay headline calls for strong truck imagery, but the blurred, almost unrecognizable truck silhouette fails to reinforce the equipment or the open-road promise.",
+          "reason": "An OTR pay headline pairs reasonably with a truck-on-the-road photo, but the subject is too obscured to reinforce the message, weakening the connection.",
           "score": 2
         },
         "hierarchy_reads": {
-          "reason": "The dark green panel anchors the headline and button clearly at the bottom, with the headline large and the button text readable, giving a clean read order despite the busy background.",
+          "reason": "The dark green panel anchors the headline and button clearly at the bottom, with the headline large and the button readable, so the reading order is clean and unambiguous.",
           "score": 4
         },
         "looks_like_kit": {
-          "reason": "The dark green panel matches the primary brand colour (#0B3D2E) exactly, and white text aligns with the second brand colour, though there is no logo present.",
-          "score": 3
+          "reason": "The dark green panel matches the primary brand colour (#0B3D2E) exactly, and white text aligns with the second brand colour, though no logo is present.",
+          "score": 4
         }
       }
     }

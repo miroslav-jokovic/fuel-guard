@@ -2,10 +2,10 @@
   "worker": "finishedAdJudge",
   "prompt_version": "finishedAdJudge@1",
   "model": "claude-sonnet-4-6",
-  "fixtures": 9,
-  "asked": 7,
-  "agreed": 7,
+  "fixtures": 18,
+  "asked": 16,
+  "agreed": 16,
   "agreement": 1,
   "planted_skipped": 2,
-  "recorded_at": "2026-11-10T20:52:16.937Z"
+  "recorded_at": "2026-11-11T14:34:05.402Z"
 }

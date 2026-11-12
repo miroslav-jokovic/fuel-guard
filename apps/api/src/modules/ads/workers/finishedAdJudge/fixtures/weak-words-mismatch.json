@@ -30,11 +30,11 @@
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T20:52:16.936Z",
+    "recorded_at": "2026-11-11T14:34:05.402Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "The open road stretching to a sunset horizon is immediately clear and striking at any size.",
+          "reason": "The open road stretching to the horizon under a vivid sunset is instantly recognisable at a glance.",
           "score": 5
         },
         "words_match_picture": {
@@ -42,11 +42,11 @@
           "score": 2
         },
         "hierarchy_reads": {
-          "reason": "The dark green panel anchors the headline in large bold white text, with the button label clearly beneath it, giving a clean reading order.",
+          "reason": "The dark green panel anchors the headline in large bold white text, with the button label clearly beneath it, giving a clean read order on a phone.",
           "score": 4
         },
         "looks_like_kit": {
-          "reason": "The dark green panel and white text match the brand's primary (#0B3D2E) and white colours exactly, though no logo is present.",
+          "reason": "The dark green panel matches the primary brand colour (#0B3D2E) exactly and white text aligns with the second brand colour, though no logo is present.",
           "score": 4
         }
       }

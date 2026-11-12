@@ -30,23 +30,23 @@
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T20:51:49.969Z",
+    "recorded_at": "2026-11-11T14:32:37.393Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A clean white semi-truck tractor at a fuel stop is immediately recognizable at a glance, well-lit and dominating the frame.",
+          "reason": "The white semi-truck is prominently centered at a fuel stop, instantly recognizable as a tractor at phone size.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The headline calls for OTR Class A drivers and the picture shows a solo tractor at a truck stop, perfectly evoking the OTR lifestyle.",
-          "score": 5
+          "reason": "The headline calls for OTR drivers and the picture shows a road-going semi-truck at a fuel stop, which is a natural OTR setting.",
+          "score": 4
         },
         "hierarchy_reads": {
-          "reason": "The dark green band grounds large, bold headline text with the button below it, creating a clear read order, though 'Apply now' reads more like a second line than a distinct button.",
+          "reason": "The dark green band makes the large headline easy to read first, but 'Apply now' sits as plain text rather than a visually distinct button, weakening the call-to-action hierarchy.",
           "score": 3
         },
         "looks_like_kit": {
-          "reason": "The deep green (#0B3D2E) banner and white text match the brand colours exactly, though no logo is present to reinforce the carrier identity.",
+          "reason": "The dark green (#0B3D2E) banner and white text match the brand's two colours exactly, though no logo is present to reinforce the carrier identity.",
           "score": 4
         }
       }

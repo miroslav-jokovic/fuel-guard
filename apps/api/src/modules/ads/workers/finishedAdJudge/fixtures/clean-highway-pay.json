@@ -30,24 +30,24 @@
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T20:51:36.549Z",
+    "recorded_at": "2026-11-11T14:32:23.700Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A sharp, well-lit white semi-truck and trailer filling the frame against a vivid sunset sky is instantly identifiable as a tractor-trailer at a glance.",
+          "reason": "A white semi-truck and trailer on an open highway at sunset is immediately recognizable at a glance.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "A pay-per-mile OTR headline sits over a classic OTR tractor-trailer on an open highway, telling exactly one coherent story about the job.",
+          "reason": "An OTR pay-per-mile headline sits over a classic long-haul truck on an open road, telling exactly one consistent story.",
           "score": 5
         },
         "hierarchy_reads": {
-          "reason": "The large bold headline dominates the dark panel, the 'Apply today' button text is clearly secondary, but the button lacks a distinct button shape or border, making it read more like a subheading than a tappable CTA.",
-          "score": 3
+          "reason": "The dark green panel anchors the bottom, making the large headline unmissable first and the bold 'Apply today' button clearly second, with no picture element competing.",
+          "score": 4
         },
         "looks_like_kit": {
-          "reason": "The dark panel uses the brand's primary #0B3D2E green and white text precisely, though no logo is present and the button has no distinct styled treatment beyond the brand colours.",
-          "score": 4
+          "reason": "The deep dark-green panel (#0B3D2E) and white text match the brand colours exactly, though no logo is present to reinforce the carrier identity.",
+          "score": 3
         }
       }
     }

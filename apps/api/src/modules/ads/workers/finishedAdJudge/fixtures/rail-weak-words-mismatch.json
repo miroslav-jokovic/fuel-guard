@@ -1,0 +1,55 @@
+{
+  "name": "rail-weak-words-mismatch",
+  "about": "An empty road with no vehicle under the headline 'Drive a brand-new truck.': the words promise what the picture does not show. Redrawn for L5 (ADS-AD-LOOK-PLAN) in the new renderer's `rail` look (left rule, Barlow Condensed headline, drawn button, the kit's band at the foot): the same photo, words and kit as `weak-words-mismatch`, which is the same ad in the old overlay.",
+  "input": {
+    "image": "rail-weak-words-mismatch.jpg",
+    "format": "4:5",
+    "headline": "Drive a brand-new truck.",
+    "button": "Apply today",
+    "subject": "road_ahead",
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#0B3D2E"
+        },
+        {
+          "name": "white",
+          "hex": "#FFFFFF"
+        }
+      ]
+    }
+  },
+  "truth": {
+    "weak": "words_match_picture",
+    "how": "a new truck is promised over a picture with no truck in it"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "finishedAdJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-11T14:33:11.818Z",
+    "output": {
+      "scores": {
+        "subject_legible": {
+          "reason": "The open road stretching to the horizon under a vivid sunset is instantly recognisable at a glance — no clutter, no ambiguity.",
+          "score": 5
+        },
+        "words_match_picture": {
+          "reason": "The headline promises a brand-new truck but the picture shows an empty road with no truck visible, creating a disconnect between the claim and the visual.",
+          "score": 2
+        },
+        "hierarchy_reads": {
+          "reason": "The bold white headline dominates the lower half and the outlined 'Apply Today' button sits clearly beneath it, giving a clean and readable reading order on a phone.",
+          "score": 4
+        },
+        "looks_like_kit": {
+          "reason": "The dark green footer and button border match the primary brand colour (#0B3D2E) and white text is used consistently, but no company logo appears anywhere in the ad.",
+          "score": 3
+        }
+      }
+    }
+  }
+}

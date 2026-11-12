@@ -30,23 +30,23 @@
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T20:51:42.713Z",
+    "recorded_at": "2026-11-11T14:32:30.422Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A straight road through open farmland at sunset is immediately clear and striking at any screen size.",
+          "reason": "A straight road through open farmland at sunset is immediately clear at a glance — strong perspective line and golden fields make it unmistakable.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The headline 'regional runs through farm country' maps directly onto a road cutting through golden farm fields — a perfect visual match.",
+          "reason": "The headline 'Regional runs through farm country' is perfectly echoed by a road cutting through flat agricultural fields, telling one unified story.",
           "score": 5
         },
         "hierarchy_reads": {
-          "reason": "The dark navy panel behind the headline gives strong contrast, but 'Apply today' sits inside the same panel styled like a sub-line rather than a distinct tappable button, weakening the call-to-action hierarchy.",
+          "reason": "The dark navy panel behind the headline gives it strong contrast and clear priority, but 'Apply today' sits in the same panel as plain bold text with no button shape or visual distinction to make it read as a clickable button.",
           "score": 3
         },
         "looks_like_kit": {
-          "reason": "The deep navy (#1F3A5F) panel and white text match the brand colours exactly, though no logo is present and there is no secondary accent to reinforce identity further.",
+          "reason": "The navy panel (#1F3A5F) matches the primary brand colour and white text matches the secondary colour, but there is no logo present and no visible button element using brand colours.",
           "score": 3
         }
       }

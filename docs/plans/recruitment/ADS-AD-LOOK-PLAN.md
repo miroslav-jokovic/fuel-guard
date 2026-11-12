@@ -94,6 +94,27 @@ and **`ribbon`** (candidate A). Not built: D (italic, slanted) reads promotional
 (brand frame) reads as a flyer; either can be added as a third `LookSpec` when per-ad data says two looks tire.
 A look picker per KIT is still a second product and still not built.
 
+**D-ADL12 — L5 is a like-for-like comparison: same photo, same words, same kit; both looks; the old ads re-asked
+in the same run (2026-11-11).** The before-and-after only measures the LOOK if nothing else moves. So the three
+sound judge fixtures (`clean-*`, drawn by the old overlay) are redrawn by the new renderer on the checker's same
+three photos, with the same headline, button, format, layout and two-colour kit, no logo, no phone — once in
+`rail` and once in `ribbon` (six ads). The seven old ads are re-asked in the same recording, so "before" and
+"after" are one judge on one day; yesterday's scores (P1-7) stay in the table as a second reading of the before.
+**Not judged here: the kicker, the second line, the phone and the logo.** The judge's prompt
+(`finishedAdJudge@1`) is told only a headline and a button, the old ads had none of the others, and an ad with
+words the judge was not told about is a different question. The five-role look is judged when the judge's prompt
+learns those lines — a prompt change, its own recording.
+
+**D-ADL13 — Three of the four planted weaknesses are redrawn in `rail`; the fourth cannot be, and that is a
+finding (2026-11-11).** The weak fixtures calibrate the judge — does it find a planted defect — and every ad it
+will now see is in the new look, so its calibration must cover that look. `rail` (the default) carries the three
+the renderer can plant: the kit's colours swapped for hot pink (`rail-weak-off-kit`), the photo blurred and
+darkened (`rail-weak-subject-blurred`), a headline the picture contradicts (`rail-weak-words-mismatch`).
+**`weak-hierarchy` is not redrawn: the new renderer cannot draw it.** Its defect — a button louder than the
+headline, a headline in 20-pixel type — is ruled out by construction: every size is a fraction of the frame, the
+button has one size, and the headline's ladder has a floor below which it refuses (D-ADL3). The hand-drawn
+old-look fixture stays as the judge's calibration for that criterion.
+
 ## 3. The candidate looks (rendered 2026-11-10, fixture kit, fixture photos)
 
 Four looks, each drawn at 4:5 in English, 1:1 with a two-line headline, and 9:16 in Spanish.
@@ -119,6 +140,20 @@ marks the money — and its left edge holds long Spanish lines without the centr
   figure), the lifestyle and "straight talk" concepts take `ribbon`. Decided with the starters (#2211) in L2.
 - **Q-ADL5 — the kit editor's wording.** The drawer still says "plate colour"; the field now means the ground the
   picture darkens toward. L2 renames the label (the stored key stays, D-ADL8's reasoning).
+- **Q-ADL6 — `rail`'s band when it holds only the legal line (opened 2026-11-11).** Redrawing the judge's ads
+  showed it: with no logo and no phone in the kit, `rail` still draws its full band, so about a seventh of a 4:5
+  ad (and of a 1:1) is flat kit colour carrying one line of small print. The candidate answer: the band is drawn
+  only when it carries the phone or the logo, and otherwise the footer goes on the hairline, as `ribbon`'s does.
+  **Decided by L5, not by taste:** the six redrawn ads give `rail` and `ribbon` identical inputs, and `ribbon` has
+  no band. If `rail` scores below `ribbon` on `hierarchy_reads` or `looks_like_kit`, collapse the band (a renderer
+  change, no key); if not, the band stays as the kit's colour on the ad.
+  **ANSWERED 2026-11-11: the band stays.** Read honestly, the rule above tripped: `rail` scored one point below
+  `ribbon` on `hierarchy_reads` on one ad (highway, 4 against 5). But the rule was sized wrong, not the band. The
+  same judge re-scoring the same old ads a day apart moved 4 of 12 scores by one point, so a single one-point gap is
+  inside its own noise. On `looks_like_kit` the two looks tie (11 and 11), and the judge's reasons credit the
+  band with putting the kit on the ad on all three `rail` ads ("fills the footer bar", "in the bottom bar"). The
+  judge's reason for the one 4 doesn't mention the band. Nothing measured says the band hurts. Revisit when
+  per-ad results on real kits exist: a real kit usually has a phone, which the band was made to carry.
 - **Q-ADL3 — the real kit.** The mock-ups use the fixture kit (green, with an amber accent added for the
   mock-up). The real kit's colours and logo decide whether D-ADL5's fallback or D-ADL7's chip is ever seen.
 
@@ -204,3 +239,36 @@ photos.
     narrow letters), `rail` 52, 45 or fewer still fits everywhere. `OVERLAY_HEADLINE_MAX_CHARS` 56 → 58.
   - Not done: the owner's rating of the copy (#2054, Q-AD57) is still the only ground truth for quality and is
     still unrecorded; the numbers above are lengths and verdicts, not a quality score.
+- **2026-11-11, L5 recorded (the finished-ad judge on the new look; the owner's OK for the key the same day:
+  "Yes, record it").** One live run, `pnpm ads:eval finishedAdJudge --record`, prompt `finishedAdJudge@1` unchanged,
+  `claude-sonnet-4-6`, 16 calls: the seven old-look ads re-asked, and nine new-look ads on the same photos with the
+  same words and kit (D-ADL12, D-ADL13). **Agreement 16 of 16.** Scores are subject · words · hierarchy · kit:
+
+  | Ad (same photo, words, kit) | Old, 11-10 | Old, 11-11 | `rail` | `ribbon` |
+  |---|---|---|---|---|
+  | highway, pay, 4:5 low | 5 5 3 4 | 5 5 4 3 | 5 5 4 4 | 5 5 **5** 3 |
+  | empty road, regional, 4:5 high | 5 5 3 3 | 5 5 3 3 | 5 5 **5** 3 | 5 5 **5** 4 |
+  | truck yard, 1:1 low | 5 5 3 4 | 5 4 3 4 | 5 5 **5** 4 | 5 5 **5** 4 |
+  | *sum of the three* | 50 | 49 | **55** | **56** |
+  | planted: off-kit colours | 5 4 3 1 | 5 5 4 1 | 5 5 5 **1** | — |
+  | planted: subject blurred | 2 2 4 3 | 1 2 4 4 | **1** 2 4 4 | — |
+  | planted: words contradict picture | 5 2 4 4 | 5 2 4 4 | 5 **2** 4 3 | — |
+  | planted: hierarchy (hand-drawn) | 5 2 2 4 | 5 3 2 3 | cannot be drawn (D-ADL13) | — |
+
+  - **`hierarchy_reads`, the criterion the redesign was for: old 3, 3, 3 (11-10) and 4, 3, 3 (11-11); new 4, 5, 5
+    (`rail`) and 5, 5, 5 (`ribbon`).** Five of six new-look ads score 5. No old-look ad has scored 5 in either run.
+    The judge's old-look reasons name the same fault both days: "Apply today" is "plain bold text with no button
+    shape". Its new-look reasons name the drawn button ("the outlined button sits clearly beneath it", "the
+    pill-shaped button").
+  - `subject_legible` and `words_match_picture` were already 4–5 and stay there: the look didn't cost the
+    picture anything. `looks_like_kit` didn't move (old 11 and 10, `rail` 11, `ribbon` 11). With a two-colour kit
+    and no logo, every ad loses its point for the missing logo. That criterion waits on the real kit (Q-ADL3).
+  - The judge still finds every planted weakness on the new look, each at 2 or less on its own criterion. Reading
+    the off-kit ad, it gave hierarchy a 5 and kit a 1: the look carries the hierarchy whatever the colours.
+  - **The judge moves one point between runs on the same ad** (4 of 12 old-look scores, 11-10 against 11-11). So
+    any one-point difference between two single ads is noise. The look's gain (sums 55 and 56 against 49 and 50;
+    hierarchy 14 and 15 against 9 and 10) is not.
+  - Q-ADL6 answered from these numbers: `rail`'s band stays. Q-ADL2's third recording is spent.
+  - Not measured: the kicker, the second line, the phone and the logo (D-ADL12); a real carrier's kit (Q-ADL3);
+    real pictures (V4, Q-AD20). The six ads are three photos drawn twice, which is a small sample. It answers
+    "is the new look better than the old on the same inputs", not "is it good enough to launch".
