@@ -28,6 +28,8 @@ import type { PacketFieldLine } from "./packetFieldGeometry.js";
 /** A driver who answered everything, as a v2 owner-operator, so every conditional line is reached. */
 const FULL = {
   first_name: "Marija",
+  // Q-AM4: page 21 on a full application — hours that are not all zero, so the total says something.
+  seven_day_hours: [0, 8, 10.5, 0, 0, 6, 4], last_relieved_at: "2026-09-13T17:30",
   middle_name: "Ana",
   last_name: "Varmeda",
   date_of_birth: "1980-04-01",
@@ -115,6 +117,7 @@ const { placed } = packetFieldFill({
 const STAMP_LINES = new Set([
   "p01.date",
   "p15.date",
+  "p21.today",
   "p22.date",
   "p27.date",
   "p28.date",

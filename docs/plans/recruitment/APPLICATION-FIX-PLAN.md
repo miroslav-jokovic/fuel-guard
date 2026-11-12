@@ -530,3 +530,17 @@ A gate fails on a literal string in an `apply/` template.
   - `seven_day_statements` gains `source` (office, the default, or application) and `application_id`, which is unique, cascades with its application and is checked to be set exactly for application rows. The SD010 guard now covers both.
   - `record_application_seven_day_statement` writes a page-21 row once per application. It is service-role only and refuses another org's application (SD020).
   - **Next:** the reader merge, page 21 steps (1)–(5).
+- 2026-11-12: **Item 4: page 21 is back in the packet (Q-AM4, Q-AM21)** (`claude/application-page-21-form`). The 0591 migration merged as #2292. **Item 4 is complete with this merge.**
+  - **The answers:** `seven_day_hours` (seven numbers, oldest first) and `last_relieved_at` (local `YYYY-MM-DDTHH:mm`) on the application. Both are nullish for old filings. The dates are derived, never stored: `sevenDayWindow` of the application's day (`displayDayOf(certified_at)`, the day the page prints).
+  - **When they are asked:** at signing. `sevenDayStatementIssues` is its own rule, run only at filing and never at the form's hand-off, which comes first. Splitting it from `applicationPaperFilingIssues` was forced: the hand-off would otherwise have refused every application for a page not yet asked.
+  - **The driver:** the sign-off screen shows "Your last seven days", seven boxes named by their days in the carrier's calendar, a total, and "When were you last off duty?". Autosaved once whole.
+  - **The office:** the card corrects it before signing as one row (seven boxes, usually zeros) through the draft door. `last_relieved_at` uses a date-and-time box.
+  - **The packet:**
+    - the identity block is the single-licence block (same eight spans as pages 18/19, measured from the page's vector rules);
+    - the dated grid, the total, and the date and 12-hour time last relieved;
+    - two driver signature places `p21a` (with its date) and `p21b`, and the carrier's countersign line `p21c`.
+    - The walk grows from 15 to 17 stops (16 for a company driver), and the carrier's lines from four to five. Every pinned count says why it moved.
+    - The workbook keeps page 21's last row as ONE row holding the driver's and the carrier's lines, so the placement tests name it (`TWO_LINE_ROWS`).
+  - **Filing:** `recordSevenDayFromApplication` writes the roster's `seven_day_statements` row through 0591's function, once per application, best effort. It reads `last_relieved_at` in the carrier's zone.
+  - **⚠ Deploy note:** a packet's text version (A-5) changes with page 21, so a driver part-way through signing when this deploys is refused at their next mark (DR037) and restarts the walk. That is the existing mechanism, working as designed.
+  - **Next:** item 5, Q-AM14 (one transaction for a correction and its edit row).

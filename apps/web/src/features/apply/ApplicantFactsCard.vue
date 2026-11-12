@@ -6,6 +6,7 @@ import {
   type ApplicationRowList,
   formatDisplayDate,
   formatDisplayMonth,
+  formatDisplayWallTime,
   jurisdictionName,
   questionnaireForApplicant,
 } from "@silvicom/shared";
@@ -275,6 +276,8 @@ function shown(row: FactRow): string {
   if (row.rule === "replace_only") return row.given ? "Given — not shown to the office" : "Not answered";
   if (row.columns) return tableRowText(row.columns, row.value);
   const v = row.value;
+  // Page 21 (Q-AM4): the seven days oldest first, and their total.
+  if (row.input === "seven_days" && Array.isArray(v)) return `${v.join(" · ")} (total ${v.reduce((t: number, h) => t + Number(h), 0)})`;
   if (Array.isArray(v)) return v.length === 0 ? "None" : v.map((c) => row.choices?.find((x) => x.value === c)?.label ?? String(c)).join(", ");
   if (v === null || v === undefined || v === "") return "Not answered";
   if (typeof v === "boolean") return v ? "Yes" : "No";
@@ -282,6 +285,7 @@ function shown(row: FactRow): string {
   switch (row.input) {
     case "date": return formatDisplayDate(s);
     case "month": return formatDisplayMonth(s);
+    case "datetime": return formatDisplayWallTime(s, s);
     case "us_state":
     case "jurisdiction": { const name = jurisdictionName(s); return name ? `${name} (${s})` : s; }
     case "phone":

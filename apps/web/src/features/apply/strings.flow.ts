@@ -93,6 +93,20 @@ export const APPLY_FLOW_COPY = {
    * this is the screen where that obligation is discharged, or it is not discharged anywhere.
    */
   signOff: {
+    /**
+     * Page 21, the seven-day work statement (Q-AM4): given here, at signing — the office may already
+     * have filled it in, "most of the time … all zeros". Plain words; no regulation is named (D-UI9).
+     */
+    sevenDay: {
+      heading: "Your last seven days",
+      intro: "The hours you were on duty — driving or working — on each of the seven days before today. Put 0 for a day you did not work.",
+      day: (label: string): string => `Hours on ${label}`,
+      relieved: "When were you last off duty?",
+      relievedHint: "The date and time you last finished work.",
+      total: (hours: string): string => `Total: ${hours} hours`,
+      missingHours: "Fill in all seven days — 0 for a day you did not work.",
+      missingRelieved: "Give the date and time you were last off duty.",
+    },
     heading: "Ready for your signature",
     intro: (carrier: string): string =>
       `${sentenceCase(carrier)} has read your application. Check it once more and sign it — this is the version that goes in your file.`,

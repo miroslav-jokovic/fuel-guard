@@ -51,7 +51,8 @@ describe("stamping the carrier's lines", () => {
     const [before, after] = [await readPdfPages(new Uint8Array(source)), await readPdfPages(new Uint8Array(out))];
     expect(after).toHaveLength(before.length);
     for (const i of before.keys()) {
-      if ([17, 18, 21].includes(i)) continue;
+      // 0-based: pages 18, 19, 21 (Q-AM4) and 22.
+      if ([17, 18, 20, 21].includes(i)) continue;
       expect(pageText(after[i]!), `page ${i + 1}`).toBe(pageText(before[i]!));
     }
     const b = await PDFDocument.load(out, { updateMetadata: false });

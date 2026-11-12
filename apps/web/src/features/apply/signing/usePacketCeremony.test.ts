@@ -360,7 +360,8 @@ describe("the walk", () => {
     // page 19's two, because the driving-record release is a permission now. 13 since D-PKT19: so are
     // pages 15, 20 and 22, each a permission signed on the link before the form. 12 since D-AW16: so
     // is page 25, the handbook receipt the handbook's own h5 now takes.
-    expect(byKind("signature")).toHaveLength(12);
+    // 14 since Q-AM4 (2026-11-12): page 21's two lines are back.
+    expect(byKind("signature")).toHaveLength(14);
     expect(new Set(byKind("signature").map((m) => m.signedName))).toEqual(new Set(["Marija Varmeda"]));
   });
 

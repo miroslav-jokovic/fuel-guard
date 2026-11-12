@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { AppCallout } from "@silvicom/ui";
 import { currentEditPaths, type ApplicationCaptureView } from "@silvicom/shared";
 import SsnField from "./SsnField.vue";
+import SevenDayFields from "./SevenDayFields.vue";
 import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "./questionnaireCopy";
 import { buildReviewSummary } from "./reviewSummary";
 import { describeField, rowText } from "./fieldLabels";
@@ -31,6 +32,8 @@ import type { ApplyEdit } from "./useApplication";
 const props = defineProps<{
   /** The link, for the SSN's own save (Q-AM3). */
   token: string;
+  /** The carrier's day, for page 21's seven (Q-AM4). Null: the page is asked as soon as the API sends it. */
+  today?: string | null;
   carrier: string;
   edits: readonly ApplyEdit[];
   captures: readonly ApplicationCaptureView[];
@@ -131,6 +134,9 @@ const shown = (value: unknown): string => {
         </div>
       </div>
     </section>
+
+    <!-- Page 21, the seven-day work statement, given at signing (Q-AM4). -->
+    <SevenDayFields v-if="today" v-model="draft" :today="today" />
 
     <!-- §391.21(b)(2)'s Social Security number: asked in the form since Q-AM3 and saved sealed (0589);
          shown here as on file, or asked once more for a driver who skipped it. -->

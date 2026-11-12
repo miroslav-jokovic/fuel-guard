@@ -50,6 +50,9 @@ const topLabels = (): Record<string, string> => {
   donor_gender: partOne.screening.gender,
   // Q-AM17: the office's replacement is shown on 3.1 as "replaced", never its digits (withheld, 0586).
   ssn: identity.ssn,
+  // Page 21 (Q-AM4): the words of the sign-off screen that asks them.
+  seven_day_hours: APPLY_COPY.signOff.sevenDay.heading,
+  last_relieved_at: APPLY_COPY.signOff.sevenDay.relieved,
   first_name: identity.first_name,
   middle_name: identity.middle_name,
   last_name: identity.last_name,

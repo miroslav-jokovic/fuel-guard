@@ -34,6 +34,8 @@ import type { SectionIssue } from "@/features/apply/useApplicationWizard";
  * certification below is still the driver's second one.
  */
 const props = defineProps<{
+  /** The carrier's day (`carrierToday`): page 21's seven days are the seven before it (Q-AM4). Null from an older API. */
+  today?: string | null;
   token: string;
   carrier: string;
   edits: readonly ApplyEdit[];
@@ -148,6 +150,7 @@ const blocked = computed(() => props.stops.length > 0 && !packetDone.value);
     <SignOffFields
       v-model="draft"
       :token="token"
+      :today="today ?? null"
       :carrier="carrier"
       :edits="edits"
       :captures="captures"

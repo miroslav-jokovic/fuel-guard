@@ -151,6 +151,17 @@ export function formatDisplayDate(value: string | Date | null | undefined, fallb
  *
  * Unparseable input comes back trimmed, for `formatDisplayDate`'s reason.
  */
+/**
+ * The calendar day a value names, as `YYYY-MM-DD` — the same day `formatDisplayDate` prints for it, so a
+ * document that prints a date and computes from that date (page 21's seven-day window, Q-AM4) cannot
+ * disagree with itself. "" for nothing or something unparseable.
+ */
+export function displayDayOf(value: string | Date | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "";
+  const p = calendarParts(value);
+  return p ? `${p.y}-${pad2(p.m)}-${pad2(p.d)}` : "";
+}
+
 export function formatDisplayMonth(value: string | null | undefined, fallback = EM_DASH): string {
   const v = (value ?? "").trim();
   if (v === "") return fallback;

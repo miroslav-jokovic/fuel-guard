@@ -93,7 +93,7 @@ describe("countersigning the filed packet (Q-HB1)", () => {
     const [inserted, update] = rec.writtenRows("application_packet_countersignatures");
     expect(inserted).toMatchObject({
       org_id: ORG, invitation_id: "inv-1", application_id: "app-1", representative_id: OTHER_REP, recorded_by: "u-1",
-      placements: ["p18c", "p19ac", "p19bc", "p22c"], source_sha256: filedSha,
+      placements: ["p18c", "p19ac", "p19bc", "p21c", "p22c"], source_sha256: filedSha,
     });
     expect(update).toEqual({ document_id: ROW });
     // The one write is conditional on the column still being null, so a racing press cannot re-point it.
@@ -118,7 +118,7 @@ describe("countersigning the filed packet (Q-HB1)", () => {
     expectOrgScoped(rec, ORG, { exempt: ["organizations", "memberships", "user_profiles"] });
   });
 
-  it("changes nothing on the filed bytes but the four carrier lines", async () => {
+  it("changes nothing on the filed bytes but the five carrier lines", async () => {
     filedAs.packet = true;
     const rec = seed();
     await run(rec);
@@ -126,7 +126,7 @@ describe("countersigning the filed packet (Q-HB1)", () => {
     const stamped = await readPdfPages(new Uint8Array(upload.args[1] as Buffer));
     const source = await readPdfPages(new Uint8Array(filedBytes));
     expect(stamped).toHaveLength(source.length);
-    const carrierPages = new Set([18, 19, 22]);
+    const carrierPages = new Set([18, 19, 21, 22]);
     for (const [i, page] of stamped.entries()) {
       if (carrierPages.has(i + 1)) {
         expect(pageText(page)).toContain("applied by an office user in Silvicom 360 · 09/29/2026");

@@ -3,6 +3,7 @@ import {
   applicationAwaitsSignature,
   applicationLegacyFilingIssues,
   applicationPaperFilingIssues,
+  sevenDayStatementIssues,
   applicationV2FilingIssues,
   applicationWordingIsDraft,
   type ApplicationFilingIssue,
@@ -32,6 +33,7 @@ import {
   type SubmitContext,
 } from "./applicationIntake.js";
 import { dropPreSigningSsn, ssnForFiling } from "./applicantSsn.js";
+import { recordSevenDayFromApplication } from "./applicationSevenDay.js";
 import { identityOnRecord } from "./applicantIdentity.js";
 import { uncopiedCallSummaries } from "./applicantEmployerCalls.js";
 import { applicationAsFiled } from "./applicationAsFiled.js";
@@ -315,13 +317,14 @@ export async function submitApplication(
       ...composed.issues,
       ...applicationV2FilingIssues(composed.application, composed.asOf),
       ...applicationPaperFilingIssues(composed.application),
+      ...sevenDayStatementIssues(composed.application),
     ];
     if (issues.length > 0) return applicationIncomplete(issues);
     certified = composed.application;
   } else {
     // F1 part 2: a legacy link asks §40.25(j) on its own safety screen, and a new filing must answer it.
     // F2c: and what the carrier's paper asks of every filing (question B, each conviction's state and penalty).
-    const issues = [...applicationLegacyFilingIssues(stamped), ...applicationPaperFilingIssues(stamped)];
+    const issues = [...applicationLegacyFilingIssues(stamped), ...applicationPaperFilingIssues(stamped), ...sevenDayStatementIssues(stamped)];
     if (issues.length > 0) return applicationIncomplete(issues);
   }
 
@@ -402,6 +405,8 @@ export async function submitApplication(
   const applicationId = String((data as { application_id?: string } | null)?.application_id ?? "");
   // The number now lives on the filed row (D-HIRE6); the pre-signing copy goes (0589).
   await dropPreSigningSsn(admin, invitation.org_id, invitation.id);
+  // Q-AM21 (a): page 21 is also the roster's §395.8(j)(2) record — best effort, derived (0591).
+  if (applicationId) await recordSevenDayFromApplication(admin, invitation.org_id, applicationId);
 
   /**
    * Render the §391.51(b)(1) document, best effort (A6, D-APP9).

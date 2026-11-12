@@ -1,3 +1,4 @@
+import { sevenDayHours } from "./draft";
 import {
   applicantIdentitySchema,
   partOneAnswerSchema,
@@ -70,6 +71,12 @@ export function correctionFor(row: FactRow, value: FactValue, ctx: CorrectionCon
     const key = partOneKeyThrough(`application.${head}`) ?? head;
     const parsed = partOneAnswerSchema.safeParse({ key, value, ...(row.rule === "statement" ? { note: reason } : {}) });
     return parsed.success ? { door: "part_one_answer", answer: parsed.data } : { problem: firstProblem(parsed.error.issues) };
+  }
+  // Page 21 (Q-AM4): the seven boxes the card types, as the hours the contract files — all seven, or none.
+  if (row.input === "seven_days") {
+    const hours = Array.isArray(value) ? sevenDayHours(value as string[]) : null;
+    if (!hours) return { problem: "Fill in all seven days with hours from 0 to 24 — 0 for a day off." };
+    return { door: "draft", edit: { path: row.path, value: hours, revision: ctx.revision, ...(reason ? { note: reason } : {}) } };
   }
   if (Array.isArray(value)) return { problem: "That answer can't be corrected here." };
   const single = value as string | boolean | null;

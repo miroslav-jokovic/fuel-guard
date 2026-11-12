@@ -156,8 +156,10 @@ describe("every placement sits on the page the inventory claims", () => {
      */
     const claims = new Map<string, { page: number; needle: string; n: number }>();
     for (const p of PACKET_PLACEMENTS) {
-      const needle = p.anchor
-        .split("|")
+      // Q-AM4: page 21's last row is the driver's rule and the carrier's side by side; each claims its half.
+      const halves = p.anchor.split("|");
+      const twoLine = halves.length === 2 && /representative/i.test(halves[1]!) && !/representative/i.test(halves[0]!);
+      const needle = (twoLine ? [p.party === "driver" ? halves[0]! : halves[1]!] : halves)
         .map((piece) => flat(piece))
         .filter((piece) => /signat/i.test(piece))
         .sort((a, b) => b.length - a.length)[0];

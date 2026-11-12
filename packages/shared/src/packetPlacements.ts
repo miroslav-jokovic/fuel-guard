@@ -173,6 +173,16 @@ export const PACKET_PLACEMENTS: readonly PacketPlacement[] = [
   // permission, and so are pages 15 and 22 — see `PACKET_WITHDRAWALS`.
   { id: "p20", page: 20, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
     what: "Consumer reports for employment purposes" },
+  // Page 21, the §395.8(j)(2) seven-day work statement, back in the packet (Q-AM4, owner 2026-11-11;
+  // reverses D-PKT7). The page carries the driver's signature TWICE — under the identity block and under
+  // the certification of the hours — and both stay placements, for p19's reason: a renderer that dropped
+  // one would produce a page the carrier's paper does not have. The carrier's line is countersigned.
+  { id: "p21a", page: 21, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
+    what: "Your seven-day work statement" },
+  { id: "p21b", page: 21, party: "driver", mark: "signature", anchor: "Driver signature: | Company Representative:",
+    what: "That your hours and when you were last relieved from duty are correct" },
+  { id: "p21c", page: 21, party: "carrier", mark: "signature", anchor: "Driver signature: | Company Representative:",
+    what: "Countersigned by the carrier" },
   // ⚠ `signatrure`. Reproduced exactly, because the anchor's job is to be findable in the workbook.
   { id: "p22", page: 22, party: "driver", mark: "signature", anchor: "Driver name Print | Driver signatrure",
     what: "Agreement to give a urine sample" },

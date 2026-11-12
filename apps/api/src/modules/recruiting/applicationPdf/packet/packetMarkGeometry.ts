@@ -91,6 +91,11 @@ export const PACKET_MARK_LINES: readonly PacketMarkLine[] = [
     note: "p18's layout; lower of the pair the page carries twice." },
   { id: "p20", page: 20, x1: 154, x2: 412, y: 355.7, source: "seen",
     note: "p18's layout, under the FCRA disclosure." },
+  // Page 21 (Q-AM4): rules read off the page's vector paths (2026-11-12).
+  { id: "p21a", page: 21, x1: 154.1, x2: 412.2, y: 477.5, source: "seen",
+    note: "`Driver signature:` under the identity block, its `Date:` rule (463.7–553.2) level with it." },
+  { id: "p21b", page: 21, x1: 50.9, x2: 257.4, y: 142.2, source: "seen",
+    note: "The bottom rule captioned `Driver signature:` beneath it, after the certification of the hours." },
   { id: "p22", page: 22, x1: 360, x2: 553, y: 233.5, source: "seen",
     note: "`Driver name Print` left, `Driver signatrure` right, both captioned beneath." },
   { id: "p25", page: 25, x1: 257, x2: 553, y: 403.0, source: "seen",

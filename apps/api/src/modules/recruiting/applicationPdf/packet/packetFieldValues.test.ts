@@ -119,6 +119,22 @@ describe("what does not fit comes back rather than disappearing", () => {
     for (const id of ["p01.ssn", "p04.ssn", "p15.ssn", "p12.identity.r0.c4"]) expect(textAt(none, id) ?? "", id).toBe("");
   });
 
+  /**
+   * Page 21, the seven-day statement (Q-AM4). The dates are the seven days before the day it is made —
+   * the application's day — oldest first; the hours under them; the total; and when last relieved, in the
+   * paper's own "____ at ____ am/pm". A filing from before Q-AM4 has no hours and prints the page blank.
+   */
+  it("fills page 21 from the hours and the signing day, and leaves it blank for an older filing", () => {
+    const r = fill({ seven_day_hours: [0, 8, 10.5, 0, 0, 6, 4], last_relieved_at: "2026-09-13T17:30" });
+    expect(textAt(r, "p21.today")).toBe("09/14/2026");
+    expect(["r0.c0", "r0.c6"].map((c) => textAt(r, `p21.days.${c}`))).toEqual(["09/07", "09/13"]);
+    expect(["r1.c0", "r1.c2", "r1.c6"].map((c) => textAt(r, `p21.days.${c}`))).toEqual(["0", "10.5", "4"]);
+    expect(textAt(r, "p21.total")).toBe("28.5");
+    expect([textAt(r, "p21.relieved_date"), textAt(r, "p21.relieved_time")]).toEqual(["09/13/2026", "5:30 pm"]);
+    const old = fill();
+    expect(old.placed.filter((p) => p.line.id.startsWith("p21.") && !/^p21\.(driver_name|address|city|state|zip|cdl)/.test(p.line.id))).toEqual([]);
+  });
+
   /** ⚠ The carrier's licence grid has ONE row, which is the tightest ceiling in the packet. */
   it("returns a second licence rather than drawing over the first", () => {
     const r = fill({
@@ -257,7 +273,7 @@ describe("the date beside each signature", () => {
     );
     const r = fill({}, { markedAt: every });
     const dated = PACKET_MARK_SIDE_LINES.filter((l) => l.kind === "date");
-    expect(dated.length).toBe(13);
+    expect(dated.length).toBe(14); // 14 since Q-AM4: p21a's date.
     for (const l of dated) expect(textAt(r, l.id), l.id).toBe("09/14/2026");
   });
 
