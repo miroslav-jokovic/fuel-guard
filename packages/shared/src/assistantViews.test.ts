@@ -4,6 +4,7 @@ import { ASSISTANT_VIEWS, assistantViewsFor, parseAssistantViewFilters } from ".
 import { splitAssistantLink, assistantAnswerPages } from "./assistantContract.js";
 import { FUEL_PROBLEMS_QUERY_KEYS, fuelProblemsToQuery } from "./fuelProblemsLinkContract.js";
 import { FUEL_COSTS_QUERY_KEYS } from "./fuelCostsLinkContract.js";
+import { FUEL_CARDS_QUERY_KEYS, fuelCardsToQuery } from "./fuelCardsLinkContract.js";
 import { FUEL_ALERTS_QUERY_KEYS, fuelAlertsToQuery } from "./fuelAlertsLinkContract.js";
 import { FUEL_LOG_FACET_TABS, FUEL_LOG_QUERY_KEYS, fuelLogToQuery } from "./fuelLogLinkContract.js";
 import { SURFACES } from "./surfaceCatalogue.js";
@@ -22,7 +23,7 @@ describe("open_view's pages (F21 Step 5)", () => {
   });
 
   it("offers a page by its own surface gate: fuel's queue to whoever views fuel, never to a technician or a driver", () => {
-    expect(assistantViewsFor("admin", null, ALL)).toEqual(["fuel_problems", "fuel_log", "fuel_alerts"]);
+    expect(assistantViewsFor("admin", null, ALL)).toEqual(["fuel_problems", "fuel_log", "fuel_alerts", "fuel_cards"]);
     // Fuel alerts is `safety`'s page: a safety manager is offered it beside the fuel pages they view.
     expect(assistantViewsFor("safety_manager", null, ALL)).toContain("fuel_alerts");
     expect(assistantViewsFor("technician", null, ALL)).toEqual([]);
@@ -85,5 +86,19 @@ describe("open_view's pages (F21 Step 5)", () => {
     expect(fuelAlertsToQuery({ vehicleIds: ["v1", "v2"], status: "all", severity: "high", reeferOnly: true, from: "2026-11-01" }))
       .toEqual({ vehicle: "v1,v2", status: "all", severity: "high", reefer: "1", from: "2026-11-01" });
     expect(fuelAlertsToQuery({})).toEqual({});
+  });
+
+  it("Fuel cards: one value per filter, as the page's single-choice controls; the card's driver name is not a link filter", () => {
+    expect(parseAssistantViewFilters("fuel_cards", { status: "Hold", unit: "718", override: "active", linked: "unlinked", health: "errors", policy: "3" }).ok).toBe(true);
+    expect(parseAssistantViewFilters("fuel_cards", { status: "hold" }).ok).toBe(false);
+    expect(parseAssistantViewFilters("fuel_cards", { units: ["718", "751"] }).ok).toBe(false);
+    const driver = parseAssistantViewFilters("fuel_cards", { driver: "Ana Diaz" });
+    expect(!driver.ok && driver.error).toMatch(/cannot filter by driver.*It can filter by: status, unit, policy, override, linked, health/);
+  });
+
+  it("Fuel cards: writes the page's own keys, and the status-only link card_holds already sends is unchanged", () => {
+    expect(FUEL_CARDS_QUERY_KEYS).toEqual({ status: "status", unit: "unit", policy: "policy", override: "override", linked: "linked", health: "health" });
+    expect(fuelCardsToQuery({ status: "Fraud" })).toEqual({ status: "Fraud" });
+    expect(fuelCardsToQuery({ unit: "718", override: "active", health: "errors" })).toEqual({ unit: "718", override: "active", health: "errors" });
   });
 });

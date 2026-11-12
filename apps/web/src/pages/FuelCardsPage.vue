@@ -31,7 +31,8 @@ import { allowedInfoIdsFrom } from "@/features/fuelCards/promptDrafts";
 import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 import ExportButton from "@/components/ExportButton.vue";
 import { exportHref } from "@/lib/exportTarget";
-import { EFS_CARD_STATUSES, FUEL_CARDS_QUERY_KEYS, matchesCardFilters, type EfsCardFilters } from "@silvicom/shared";
+import { EFS_CARD_STATUSES, matchesCardFilters, type EfsCardFilters } from "@silvicom/shared";
+import { FUEL_CARDS_HEALTH, FUEL_CARDS_LINKED, FUEL_CARDS_OVERRIDE, FUEL_CARDS_QUERY_KEYS as K } from "@silvicom/shared";
 import { formatDateTime } from "@/lib/format";
 
 const PAGE_SIZE = 20;
@@ -48,8 +49,8 @@ const router = useRouter();
 const { param } = useQueryState();
 
 const search = param("search");
-// The Fuel cards link contract's key (F21 R4b): Ask AI's "Open in Fuel cards" sets it.
-const status = param(FUEL_CARDS_QUERY_KEYS.status, EFS_CARD_STATUSES);
+// The Fuel cards link contract's keys (F21 R4b, Step 5): Ask AI's links set them.
+const status = param(K.status, EFS_CARD_STATUSES);
 /**
  * The secondary facets. Applied CLIENT-side, deliberately: the route returns the whole inventory in
  * one response and this page already paginates in the browser, so filtering here is instant and adds
@@ -57,11 +58,11 @@ const status = param(FUEL_CARDS_QUERY_KEYS.status, EFS_CARD_STATUSES);
  * `driver`, `unit` and `policy` carry no vocabulary: theirs comes from the data (`optionsFrom`).
  */
 const driver = param("driver");
-const unit = param("unit");
-const policy = param("policy");
-const override = param("override", ["active", "none"]);
-const linked = param("linked", ["linked", "unlinked"]);
-const health = param("health", ["errors", "ok"]);
+const unit = param(K.unit);
+const policy = param(K.policy);
+const override = param(K.override, FUEL_CARDS_OVERRIDE);
+const linked = param(K.linked, FUEL_CARDS_LINKED);
+const health = param(K.health, FUEL_CARDS_HEALTH);
 const page = ref(1);
 
 const query = useEfsCards({ search, status });

@@ -5,6 +5,7 @@ import {
   ASSISTANT_VIEWS,
   assistantUnitKey,
   fuelAlertsToQuery,
+  fuelCardsToQuery,
   fuelLogToQuery,
   fuelProblemsToQuery,
   parseAssistantViewFilters,
@@ -85,9 +86,11 @@ export async function openAssistantView(
   if (!parsed.ok) return { error: parsed.error };
   const page = SURFACES.find((s) => s.key === ASSISTANT_VIEWS[view].surfaceKey)!;
 
-  // Trucks first, for every view that has them: a unit not in the fleet opens nothing.
-  const f = parsed.filters as { units?: string[] } & Record<string, unknown>;
-  const trucks = f.units?.length ? await trucksFor(admin, orgId, f.units) : null;
+  // Trucks first, for every view that has them: a unit not in the fleet opens nothing. Fuel cards takes
+  // ONE `unit` (its control is single-choice); the others a `units` list.
+  const f = parsed.filters as { units?: string[]; unit?: string } & Record<string, unknown>;
+  const named = f.units ?? (f.unit ? [f.unit] : []);
+  const trucks = named.length ? await trucksFor(admin, orgId, named) : null;
   if (trucks?.notFound.length) return { error: `Not in this fleet: ${trucks.notFound.join(", ")}. Nothing was opened.` };
 
   // One branch per view, each built by its page's own link contract. Exhaustive: a view added to
@@ -122,6 +125,12 @@ export async function openAssistantView(
         vehicleIds: trucks?.ids ?? [],
         reeferOnly: a.reefer,
       });
+      break;
+    }
+    case "fuel_cards": {
+      const c = parsed.filters as Filters<"fuel_cards">;
+      // The page matches the card's EFS unit prompt exactly, so the link carries the fleet's spelling.
+      query = fuelCardsToQuery({ ...c, unit: trucks?.unitNumbers[0] });
       break;
     }
     default: {

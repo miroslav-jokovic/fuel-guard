@@ -13,6 +13,8 @@ import {
   FUEL_LOG_TABS,
   FUEL_LOG_TANK_TYPES,
 } from "./fuelLogLinkContract.js";
+import { EFS_CARD_STATUSES } from "./efsCardCatalog.js";
+import { FUEL_CARDS_HEALTH, FUEL_CARDS_LINKED, FUEL_CARDS_OVERRIDE } from "./fuelCardsLinkContract.js";
 import { FUEL_ALERTS_SEVERITIES, FUEL_ALERTS_STATUS_ALL, FUEL_ALERTS_STATUSES } from "./fuelAlertsLinkContract.js";
 
 /**
@@ -112,6 +114,24 @@ export const ASSISTANT_VIEWS = {
       "shows open alerts, or every status when units are named), severity (ONE of " + FUEL_ALERTS_SEVERITIES.join(", ") +
       "; the page cannot show two at once), units (truck unit numbers), from/to (calendar days of the fill), " +
       "reefer (true = only alerts about reefer fuel going into the truck).",
+  },
+  fuel_cards: {
+    surfaceKey: "fuel.cards",
+    filters: z
+      .object({
+        status: z.enum(EFS_CARD_STATUSES).optional(),
+        unit: z.string().min(1).optional(),
+        policy: z.string().regex(/^\d+$/, "an EFS policy number, digits only").optional(),
+        override: z.enum(FUEL_CARDS_OVERRIDE).optional(),
+        linked: z.enum(FUEL_CARDS_LINKED).optional(),
+        health: z.enum(FUEL_CARDS_HEALTH).optional(),
+      })
+      .strict(),
+    describe:
+      "the EFS fuel card list. Filters, each ONE value (the page shows one at a time): status (" +
+      EFS_CARD_STATUSES.join(", ") + "), unit (ONE truck unit number, the card's unit prompt), policy (EFS policy " +
+      "number), override (active = an exception with uses left, none), linked (linked = the card matches a fleet " +
+      "fuel card, unlinked), health (errors = the last sync failed for the card, ok).",
   },
 } as const satisfies Record<string, { surfaceKey: string; filters: z.ZodType; describe: string }>;
 
