@@ -531,6 +531,8 @@ describe("composeCreative — each starter preset, as adopted, composes (Q-AD77)
     role === "pay" ? (lang === "en" ? "$0.65 per mile." : "$0.65 por milla.")
     : role === "headline" ? (lang === "en" ? "$0.65 per mile, Class A OTR." : "$0.65 por milla. Clase A OTR.")
     : role === "cta" ? words[lang].cta!
+    // The small lines (D-ADL15) hold 28: a short label, no figure, so the claim check has nothing to refuse.
+    : role === "small" ? (lang === "en" ? "Class A, over the road" : "Clase A, en ruta")
     : name === "primary_text" ? words[lang].body!
     : lang === "en" ? "Class A drivers, over the road." : "Conductores Clase A, en ruta.";
   const kit: AdBrandKit = { ...KIT, overlays: { "4:5": KIT.overlays["4:5"]!, "1:1": KIT.overlays["4:5"]! } };
@@ -538,7 +540,8 @@ describe("composeCreative — each starter preset, as adopted, composes (Q-AD77)
   for (const starter of STARTER_PRESETS) {
     it(`${starter.key} "${starter.recipe.name}" reaches ready in both feed formats`, async () => {
       const r = starter.recipe;
-      const roleOf = (n: string) => (n === r.overlay_slots!.headline ? (n === "pay" ? "pay" : "headline") : n === r.overlay_slots!.cta ? "cta" : undefined);
+      const o = r.overlay_slots!;
+      const roleOf = (n: string) => (n === o.headline ? (n === "pay" ? "pay" : "headline") : n === o.cta ? "cta" : n === o.kicker || n === o.subline ? "small" : undefined);
       const candidate = Object.fromEntries((["en", "es"] as const).map((l) => [l, Object.fromEntries(r.copy_slots.map((c) => [c.name, forSlot(l, c.name, roleOf(c.name))]))]));
       const art = {
         slots: Object.fromEntries(r.image_slots.map((s) => [s, "a plain choice for this slot"])),

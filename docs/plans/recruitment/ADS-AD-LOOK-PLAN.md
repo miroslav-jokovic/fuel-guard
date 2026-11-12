@@ -138,6 +138,27 @@ ad. Two ways out:
 - **Cost:** the subject gets the upper half instead of two thirds. The best-scoring L5 ads already had the truck in
   the upper 42–45 %, because those checker photos were composed that way.
 
+**D-ADL15 — Each starter names its look; three of the five use one small line (2026-11-11; answers Q-ADL4).**
+Decided on renders, not only on the recommendation: each starter was drawn in both looks, on its own layout, with
+copy of the kind its formula asks for, over the nearest checker photo (and a plain gradient for P2).
+- **A starter that leads with a figure takes `rail`.** That is P2 "The number" and P5 "On the road, in figures":
+  `rail` sets the figure in the kit's accent, so the thing a driver looks for is the brightest thing on the ad.
+  P4 "Walk-around" (equipment) takes `rail` as well.
+- **P1 "From the driver's seat" (straight talk) and P3 "Home on time" take `ribbon`,** which is calmer and centred.
+  On P3 the accent ribbon carries the second line well.
+- So the five alternate: a retired ad's successor (D-AD23) usually changes design, not only picture.
+- **Small lines: P2's kicker, P3's and P5's second line, nothing on P1 and P4.** Each goes where the starter's own
+  formula already asked for a second element. P2 said "then, in a few words, who the job is for"; P3 "then the one
+  fact that makes it believable"; P5 "two figures side by side". So the line takes over what the headline used to
+  carry, and adds no new copy. Each formula now names the line, and each slot is 28 characters, the overlay's
+  measured limit. Three rather than five: the v4 copy's known weakness is repeating a fact between rows (L3 log),
+  and a line the formula has no job for invites exactly that. P1 and P4 stay two-line ads, so the set shows both
+  densities.
+- **The handoff's "P5 needs its own short headline slot" is already done, by #2211.** The starter P5 is "proof",
+  with a 40-character `hook` as its headline; the carousel slot `card_get` survives only in one copywriter fixture
+  (`look-ribbon-es-regional`), which describes the old P5 and was kept as a record of what the model does with a
+  card-shaped slot.
+
 ## 3. The candidate looks (rendered 2026-11-10, fixture kit, fixture photos)
 
 Four looks, each drawn at 4:5 in English, 1:1 with a two-line headline, and 9:16 in Spanish.
@@ -161,6 +182,8 @@ marks the money — and its left edge holds long Spanish lines without the centr
 - **Q-ADL4 — which preset gets which look.** The Presets card has no look field yet (L2), so every preset draws
   `rail` until then. Recommendation: the pay-led and equipment-led concepts take `rail` (its accent marks the
   figure), the lifestyle and "straight talk" concepts take `ribbon`. Decided with the starters (#2211) in L2.
+  **ANSWERED 2026-11-11 (D-ADL15):** P2 pay first, P4 equipment and P5 proof take `rail`; P1 straight talk and P3
+  home take `ribbon`.
 - **Q-ADL5 — the kit editor's wording.** The drawer still says "plate colour"; the field now means the ground the
   picture darkens toward. L2 renames the label (the stored key stays, D-ADL8's reasoning).
 - **Q-ADL6 — `rail`'s band when it holds only the legal line (opened 2026-11-11).** Redrawing the judge's ads
@@ -326,3 +349,16 @@ photos.
     no image model is chosen (Q-AD20, V4), and the checker's photos are not drawn from these prompts. The real
     proof is the finished-ad judge over real V4 images, the L5 comparison repeated with pictures this prompt
     asked for. Q-ADL2's three recordings (L3, L4, L5) are all spent.
+- **2026-11-11, the starters take looks and small lines (Q-ADL4, D-ADL15; no key).** Branch `claude/ads-look-starters`
+  merges #2211 (starter presets) onto #2233. Six conflicts, every one "both sides added": the look field and the
+  concept families side by side in the contract, the form and the drawer. Rendered 20 ads (5 starters × 2 looks ×
+  4:5 and 1:1) to choose; every one passed the renderer's checks once the scratch brief held the home-time terms.
+  - In P3 and P5 the words climb onto the truck, but that is the stand-in photo, not the look: both are `top_band`
+    over checker photos composed for words at the bottom. A picture made for these presets is told to keep the upper
+    half plain (D-ADL14).
+  - Tests: the starters' looks and small lines are pinned in `starterPresets.test.ts` (P5 drawn `ribbon` fails it;
+    P3's or P5's second line removed fails it). The compose test that runs every starter now writes the small lines
+    too. Suites: shared 307, api 1,179, web 155.
+  - Not done: whether the copywriter writes these three small lines well on these formulas is a live recording
+    (the copywriter's fixtures do not include the starters). It is not asked for here: L3 measured the small lines
+    on four fixtures already. The owner's copy rating (#2054, Q-AD57) is still the ground truth, and still empty.

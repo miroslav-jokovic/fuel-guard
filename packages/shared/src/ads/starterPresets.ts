@@ -30,9 +30,19 @@ import type { AdPresetSave } from "./brandKitContract.js";
  * ── THE SLOTS ──────────────────────────────────────────────────────────────────────────────────────
  * Three to five image slots each, from CQ5's list (setting, weather, viewpoint, light, season), so the art
  * director has room to make two jobs look like two jobs. The overlay headline stays under
- * `OVERLAY_HEADLINE_MAX_CHARS` (56) — the save refuses more — and its width follows the copywriter fixtures'
+ * `OVERLAY_HEADLINE_MAX_CHARS` (58 since L3) — the save refuses more — and its width follows the copywriter fixtures'
  * measured slots (36–42): a short line is the one that reads in a feed. Every template ends in "no text, no
  * logos, no lettering" (D-AD9: our renderer draws the words).
+ *
+ * ── THE LOOK AND THE SMALL LINES (ADS-AD-LOOK-PLAN Q-ADL4, D-ADL15, 2026-11-11) ──────────────────────
+ * A starter that leads with a FIGURE (P2 pay first, P5 proof) takes `rail`, whose accent colour marks the figure
+ * — the one thing a driver looks for is the brightest thing in the ad; the equipment starter (P4) takes it too.
+ * The two that lead with a LIFE or a plain statement (P1 straight talk, P3 home) take `ribbon`, calmer and centred.
+ * So the five alternate, and a retired ad's successor (D-AD23) usually changes design, not only picture.
+ * Three use a small line, each where its formula already asked for a second element, so the line splits what the
+ * headline used to carry rather than adding copy: P2's "who the job is for" is the kicker, P3's believable fact
+ * and P5's second figure are the second line. P1 and P4 stay two-line ads. Each small line is 28 characters,
+ * the overlay's measured limit (`OVERLAY_SMALL_LINE_MAX_CHARS`).
  *
  * The keys are P1–P5, the names the plans and the fixtures use. A carrier that already holds P2 keeps its own;
  * the adopt skips that key and says so.
@@ -53,7 +63,7 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
       image_prompt_template: `View through a truck windshield from the driver's seat, {viewpoint}, an open {road} ahead through {setting}, {light}, {weather}, ${NO_WORDS}`,
       image_slots: ["viewpoint", "road", "setting", "light", "weather"],
       starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null,
-      layout: "bottom_plate", formats: FEED,
+      layout: "bottom_plate", look: "ribbon", formats: FEED,
       overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: PLATFORM,
     },
   },
@@ -62,13 +72,13 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
     recipe: {
       name: "The number",
       hook_family: "pay_first", scene_family: "abstract_plate",
-      hook_formula: "Lead with the pay figure alone, exactly as the brief states it and with its unit (per mile, per week, per year). If the brief states no pay, lead with its strongest other figure (a bonus, home days, miles) — never a figure the brief does not hold. Then, in a few words, who the job is for.",
-      copy_slots: [{ name: "pay", max_chars: 30 }, { name: "cta", max_chars: 22 }, { name: "primary_text", max_chars: 280 }, { name: "headline", max_chars: 40 }],
+      hook_formula: "Lead with the pay figure alone, exactly as the brief states it and with its unit (per mile, per week, per year). If the brief states no pay, lead with its strongest other figure (a bonus, home days, miles) — never a figure the brief does not hold. Who the job is for (the licence, the kind of run) goes in a few words on the small line above it, never in the pay line.",
+      copy_slots: [{ name: "pay", max_chars: 30 }, { name: "cta", max_chars: 22 }, { name: "primary_text", max_chars: 280 }, { name: "headline", max_chars: 40 }, { name: "kicker", max_chars: 28 }],
       image_prompt_template: `A plain {surface} background, {texture}, {light}, a soft {tone} gradient, nothing in the frame, ${NO_WORDS}`,
       image_slots: ["surface", "texture", "light", "tone"],
       starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null,
-      layout: "centered", formats: FEED,
-      overlay_slots: { headline: "pay", cta: "cta" }, platform_slots: PLATFORM,
+      layout: "centered", look: "rail", formats: FEED,
+      overlay_slots: { headline: "pay", cta: "cta", kicker: "kicker" }, platform_slots: PLATFORM,
     },
   },
   {
@@ -76,13 +86,13 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
     recipe: {
       name: "Home on time",
       hook_family: "life_first", scene_family: "home_street",
-      hook_formula: "Lead with being home: the home time the brief states (every night, weekends, so many days a month), in the reader's words. If the brief states no home time, lead with the schedule or the area that keeps the driver near home. Then the one fact that makes it believable.",
-      copy_slots: [{ name: "hook", max_chars: 40 }, { name: "cta", max_chars: 24 }, { name: "primary_text", max_chars: 260 }, { name: "headline", max_chars: 40 }],
+      hook_formula: "Lead with being home: the home time the brief states (every night, weekends, so many days a month), in the reader's words. If the brief states no home time, lead with the schedule or the area that keeps the driver near home. The one fact that makes it believable goes on the second line, in a few words.",
+      copy_slots: [{ name: "hook", max_chars: 40 }, { name: "cta", max_chars: 24 }, { name: "primary_text", max_chars: 260 }, { name: "headline", max_chars: 40 }, { name: "second_line", max_chars: 28 }],
       image_prompt_template: `Our truck parked on a quiet {street} at {time_of_day}, a porch light on, {season}, {viewpoint}, no people, ${NO_WORDS}`,
       image_slots: ["street", "time_of_day", "season", "viewpoint"],
       starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null,
-      layout: "top_band", formats: FEED,
-      overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: PLATFORM,
+      layout: "top_band", look: "ribbon", formats: FEED,
+      overlay_slots: { headline: "hook", cta: "cta", subline: "second_line" }, platform_slots: PLATFORM,
     },
   },
   {
@@ -95,7 +105,7 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
       image_prompt_template: `Our tractor parked at {setting}, {viewpoint}, {light}, {weather}, ${NO_WORDS}`,
       image_slots: ["setting", "viewpoint", "light", "weather"],
       starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null,
-      layout: "bottom_plate", formats: FEED,
+      layout: "bottom_plate", look: "rail", formats: FEED,
       overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: PLATFORM,
     },
   },
@@ -104,13 +114,13 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
     recipe: {
       name: "On the road, in figures",
       hook_family: "proof", scene_family: "equipment_on_road",
-      hook_formula: "Lead with two of the brief's own figures side by side, as evidence rather than a promise (the pay and the home time, or the miles and the bonus). If the brief states only one figure, use it and the plainest fact beside it. Never round, never add a figure.",
-      copy_slots: [{ name: "hook", max_chars: 40 }, { name: "cta", max_chars: 24 }, { name: "primary_text", max_chars: 260 }, { name: "headline", max_chars: 40 }],
+      hook_formula: "Lead with one of the brief's own figures as evidence rather than a promise (the pay, or the miles), and put a second on the second line (the home time, or the bonus), so the two read side by side. If the brief states only one figure, the second line is the plainest fact beside it. Never round, never add a figure.",
+      copy_slots: [{ name: "hook", max_chars: 40 }, { name: "cta", max_chars: 24 }, { name: "primary_text", max_chars: 260 }, { name: "headline", max_chars: 40 }, { name: "second_line", max_chars: 28 }],
       image_prompt_template: `Our truck driving on {road} through {setting}, {viewpoint}, {light}, {season}, ${NO_WORDS}`,
       image_slots: ["road", "setting", "viewpoint", "light", "season"],
       starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null,
-      layout: "top_band", formats: FEED,
-      overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: PLATFORM,
+      layout: "top_band", look: "rail", formats: FEED,
+      overlay_slots: { headline: "hook", cta: "cta", subline: "second_line" }, platform_slots: PLATFORM,
     },
   },
 ];
