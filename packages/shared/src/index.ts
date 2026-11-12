@@ -60,6 +60,7 @@ export * from "./ai.js";
 export * from "./assistantUsage.js";
 export * from "./assistantContract.js";
 export * from "./assistantAskContract.js";
+export * from "./assistantStreamContract.js";
 export * from "./fuelCostsLinkContract.js";
 export * from "./iftaLinkContract.js";
 export * from "./loadsLinkContract.js";

@@ -32,7 +32,7 @@ describe("assistant store", () => {
     d.resolve({ ok: true, data: { answer: "Spend was $41,200." } });
     await pending;
     expect(status.value).toBe("done");
-    expect(apiFetch).toHaveBeenCalledWith("/api/ai/ask", { method: "POST", body: { question: "How much did we spend?", history: [] } });
+    expect(apiFetch).toHaveBeenCalledWith("/api/ai/ask", { method: "POST", body: { question: "How much did we spend?", history: [] }, stream: expect.any(Function) });
     expect(s.turns).toEqual([{ id: 1, question: "How much did we spend?", status: "done", answer: "Spend was $41,200.", pages: [], links: [] }]);
   });
 
@@ -63,7 +63,7 @@ describe("assistant store", () => {
     await s.ask("q");
     expect(s.turns[0]).toMatchObject({ status: "error", answer: "AI is not configured" });
     await s.retry(1);
-    expect(apiFetch).toHaveBeenLastCalledWith("/api/ai/ask", { method: "POST", body: { question: "q", history: [] } });
+    expect(apiFetch).toHaveBeenLastCalledWith("/api/ai/ask", { method: "POST", body: { question: "q", history: [] }, stream: expect.any(Function) });
     expect(s.turns[0]).toMatchObject({ status: "done", answer: "Now it works." });
   });
 
@@ -118,5 +118,56 @@ describe("assistant store", () => {
     replies.push(async () => ({ ok: true, data: { answer: "ok" } }));
     await s.ask("fuel spend this month");
     expect((apiFetch.mock.calls[4]![1] as { body: { history: unknown[] } }).body.history).toEqual([]);
+  });
+
+  describe("the streamed answer (F21 Step 2d)", () => {
+    /** An API that streams: hands the store's reader the given chunks, then resolves as apiFetch does. */
+    const streams = (chunks: string[]) =>
+      apiFetch.mockImplementationOnce(async (_p: string, init: unknown) => {
+        const { stream } = init as { stream: (c: string) => void };
+        for (const c of chunks) stream(c);
+        return { ok: true, status: 200 };
+      });
+
+    it("shows the report being read, then the words as they come; a step drops the preamble before it; done is the record", async () => {
+      const seen: Array<{ step?: string; draft?: string }> = [];
+      const s = useAssistantStore();
+      apiFetch.mockImplementationOnce(async (_p: string, init: unknown) => {
+        const { stream } = init as { stream: (c: string) => void };
+        const snap = () => seen.push({ step: s.turns[0]!.step, draft: s.turns[0]!.draft });
+        stream('data: {"type":"text","delta":"Let me check."}\n\n');
+        snap();
+        stream('data: {"type":"step","label":"Reading the fuel report"}\n\ndata: {"type":"text","del');
+        snap();
+        stream('ta":"Spend was "}\n\ndata: {"type":"text","delta":"$41,200."}\n\n');
+        snap();
+        stream('data: {"type":"done","answer":"Spend was $41,200.","pages":["fuel.spend"],"links":[]}\n\n');
+        return { ok: true, status: 200 };
+      });
+      await s.ask("fuel spend");
+      expect(seen).toEqual([
+        { step: undefined, draft: "Let me check." },
+        { step: "Reading the fuel report", draft: undefined },
+        { step: "Reading the fuel report", draft: "Spend was $41,200." },
+      ]);
+      expect(s.turns[0]).toMatchObject({ status: "done", answer: "Spend was $41,200.", pages: ["fuel.spend"], links: [], step: undefined, draft: undefined });
+    });
+
+    it("an error event, a stream cut off before done, and a dropped connection are each an error the reader can retry", async () => {
+      const s = useAssistantStore();
+      streams(['data: {"type":"error","message":"The assistant could not answer just now."}\n\n']);
+      await s.ask("a");
+      expect(s.turns[0]).toMatchObject({ status: "error", answer: "The assistant could not answer just now." });
+      s.clear();
+      streams(['data: {"type":"text","delta":"Spend was"}\n\n']);
+      await s.ask("b");
+      expect(s.turns[0]).toMatchObject({ status: "error", answer: "The answer was cut off. Try again.", draft: undefined });
+      s.clear();
+      apiFetch.mockImplementationOnce(async () => {
+        throw new TypeError("network error");
+      });
+      await s.ask("c");
+      expect(s.turns[0]).toMatchObject({ status: "error", answer: "The connection dropped before the answer finished. Try again." });
+    });
   });
 });

@@ -59,6 +59,7 @@ const dollars = (run.costMicroUsd / 1_000_000).toFixed(4);
 console.log(`\n${run.passed}/${run.total} passed, ${AI_MODELS.assistant}, $${dollars}`);
 const sec = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 console.log(`answer time: median ${sec(run.latency.p50Ms)}, p90 ${sec(run.latency.p90Ms)}, slowest ${sec(run.latency.maxMs)}`);
+console.log(`first streamed event: median ${sec(run.latency.firstEventP50Ms)}, p90 ${sec(run.latency.firstEventP90Ms)}`);
 
 if (process.argv.includes("--record")) {
   const baseline = { model: AI_MODELS.assistant, recordedAt: new Date().toISOString(), passed: run.passed, total: run.total, costUsd: Number(dollars), latency: run.latency, verdicts: run.verdicts };

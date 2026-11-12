@@ -132,6 +132,13 @@ export async function apiFetch<T = unknown>(
      * request must be recognised as the same one rather than performed twice.
      */
     headers?: Record<string, string>;
+    /**
+     * Ask for Server-Sent Events and hand each decoded chunk to this as it arrives (F21 Step 2d, Ask
+     * AI). Only a 2xx `text/event-stream` answer is streamed; a refusal is JSON and comes back as
+     * usual, and so does the JSON answer of an API that does not stream yet. The result of a stream
+     * carries no `data`: the caller has read it.
+     */
+    stream?: (chunk: string) => void;
   } = {},
 ): Promise<ApiResult<T>> {
   const { data } = await supabase.auth.getSession();
@@ -146,10 +153,22 @@ export async function apiFetch<T = unknown>(
       // not required; the one proof of a recently-typed password where it is. Explicit per-call
       // headers still win, so a caller can override.
       ...stepUpHeader(),
+      ...(options.stream ? { Accept: "text/event-stream" } : {}),
       ...(options.headers ?? {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
+
+  if (options.stream && res.ok && res.body && (res.headers.get("content-type") ?? "").startsWith("text/event-stream")) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      options.stream(decoder.decode(value, { stream: true }));
+    }
+    return { ok: true, status: res.status };
+  }
 
   let payload: unknown = undefined;
   try {

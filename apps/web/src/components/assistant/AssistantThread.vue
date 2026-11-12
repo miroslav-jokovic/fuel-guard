@@ -21,9 +21,9 @@ const pagesOf = useAnswerPages();
 const scroller = ref<HTMLElement | null>(null);
 const composer = ref<InstanceType<typeof AssistantComposer> | null>(null);
 
-/** Follow the newest turn, and the answer as it lands. */
+/** Follow the newest turn, each step it reads, and the answer as it streams and lands (Step 2d). */
 watch(
-  () => store.turns.map((t) => t.status).join(),
+  () => store.turns.map((t) => `${t.status}:${t.step ?? ""}:${t.draft?.length ?? 0}`).join(),
   () => nextTick(() => scroller.value?.scrollTo({ top: scroller.value.scrollHeight, behavior: "smooth" })),
 );
 
@@ -75,14 +75,22 @@ defineExpose({ focus: () => composer.value?.focus() });
           <div class="flex gap-3">
             <AssistantMark size="sm" class="mt-0.5" />
             <div class="min-w-0 flex-1">
-              <p v-if="t.status === 'pending'" class="flex items-center gap-2 py-1 text-sm text-ink-muted">
-                <span class="flex gap-1" aria-hidden="true">
-                  <span class="size-1.5 animate-pulse rounded-full bg-brand-500"></span>
-                  <span class="size-1.5 animate-pulse rounded-full bg-brand-500 [animation-delay:150ms]"></span>
-                  <span class="size-1.5 animate-pulse rounded-full bg-brand-500 [animation-delay:300ms]"></span>
-                </span>
-                Reading your data…
-              </p>
+              <template v-if="t.status === 'pending'">
+                <!-- F21 Step 2d: the words as they arrive. aria-busy keeps a screen reader from reading
+                     every fragment; the finished answer replaces this and is read once. -->
+                <div v-if="t.draft" aria-busy="true">
+                  <AssistantAnswer :text="t.draft" />
+                </div>
+                <!-- Before the first word: the report being read now, one step per tool call. -->
+                <p v-else class="flex items-center gap-2 py-1 text-sm text-ink-muted">
+                  <span class="flex gap-1" aria-hidden="true">
+                    <span class="size-1.5 animate-pulse rounded-full bg-brand-500"></span>
+                    <span class="size-1.5 animate-pulse rounded-full bg-brand-500 [animation-delay:150ms]"></span>
+                    <span class="size-1.5 animate-pulse rounded-full bg-brand-500 [animation-delay:300ms]"></span>
+                  </span>
+                  {{ t.step ? `${t.step}…` : "Reading your data…" }}
+                </p>
+              </template>
               <template v-else-if="t.status === 'error'">
                 <p class="text-sm text-danger-text">{{ t.answer }}</p>
                 <button

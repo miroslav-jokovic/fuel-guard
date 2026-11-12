@@ -6,7 +6,24 @@ import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
  * sends (Haiku 5.5, medium effort, a cached prefix that today's date sits after), and how every stop ends.
  */
 const create = vi.fn();
-vi.mock("../../lib/anthropic.js", () => ({ anthropicClient: () => ({ messages: { create } }) }));
+/**
+ * The loop streams each round (Step 2d). The fake keeps `create` as the one source of each round's
+ * Message, so every test below still writes `create.mockResolvedValueOnce(msg(...))`; `stream` hands
+ * that Message to `finalMessage`, and plays its text blocks to an `on("text")` listener first.
+ */
+function stream(params: unknown) {
+  const listeners: Array<(delta: string) => void> = [];
+  const s = {
+    on: (event: string, fn: (delta: string) => void) => (event === "text" && listeners.push(fn), s),
+    finalMessage: async () => {
+      const m = (await create(params)) as { content: Array<{ type: string; text?: string }> };
+      for (const b of m.content) if (b.type === "text") for (const fn of listeners) fn(b.text ?? "");
+      return m;
+    },
+  };
+  return s;
+}
+vi.mock("../../lib/anthropic.js", () => ({ anthropicClient: () => ({ messages: { create, stream } }) }));
 const assistantFuelReport = vi.fn();
 vi.mock("../fuel-spend/index.js", () => ({
   assistantFuelReport: (...a: unknown[]) => assistantFuelReport(...a),

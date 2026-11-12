@@ -1024,3 +1024,45 @@ audit row is the endpoint's own.
     `loads-per-truck` called the right tool but its answer named neither McLeod nor miles, which is a
     wording check. It passed in the previous run, so this is run-to-run variation, not a code change
     (nothing it reads changed). It stays in the set as recorded.
+- 2026-11-12 — **Step 2d built: Ask AI streams its answer, with a step for each report it reads.**
+  - **The route.** It stays `POST /api/ai/ask`; a reader that sends `Accept: text/event-stream` gets
+    Server-Sent Events. The planned `POST /api/ai/conversations/:id/messages` waits on Step 3b, because
+    conversations do not exist yet. One route also means an older web, which sends no such header,
+    still gets JSON while the two deploy apart. A refusal before the model is reached (400, 403, the
+    429 budget) is still a JSON status. Wire and events: `assistantStreamContract.ts`.
+  - **Events:**
+    - `step`: the report being read, in the office's words (`ASSISTANT_TOOL_STEP`, a `Record` over every
+      tool, so a new tool cannot ship without one).
+    - `text`: the answer's words.
+    - `done`: the whole answer and its links, the same object the JSON route returns. It is the record.
+    - `error`: a model failure after the stream began.
+
+    A step clears text streamed before it, because that text was the model's preamble to a tool call.
+    The usage ledger and the `ai.ask` audit row are written exactly as for JSON. A reader who closes
+    the tab mid-answer does not stop it, so its cost is still counted.
+  - **Buffering.** `compression` would hold the stream to deflate it. `Cache-Control: no-transform`
+    keeps it off the response, and a flush after each event is a second guard. `X-Accel-Buffering: no`
+    asks a proxy in front to pass events straight on. The route test sends `Accept-Encoding: gzip, br`
+    through the real app, and holds the answer until the test has read the first event off the wire,
+    so a buffered stream times out. Deliberate breaks:
+    - Both guards removed: killed (timeout).
+    - `no-transform` removed: killed (the response came back `br`-encoded).
+  - **The loop.** `askData` asks each round with `messages.stream` and reads `finalMessage()`, the same
+    `Message` `create` returned, so every stop-reason path is unchanged. `fetchAllPaged` and `nameMaps`
+    moved to `askReads.ts` to keep `askData.ts` under the 500-line budget.
+  - **The web.** `apiFetch` gained a `stream` option, so sign-in, step-up and the access-changed path
+    stay in one place. A pending turn shows the current step, then the words, which `done` replaces.
+    The draft sits under `aria-busy`, so a screen reader reads the finished answer once rather than
+    every fragment. A stream that ends with neither `done` nor `error` is "cut off", and like a
+    dropped connection it can be retried.
+  - **Tests:**
+    - `ai.test.ts`: "sends each event the moment it happens, through the app's compression: the answer
+      waits on the reader having seen the first".
+    - `assistantStreamContract.test.ts`: "reads back exactly what the route wrote, however the network
+      cuts the bytes".
+    - `assistant.test.ts`: "shows the report being read, then the words as they come; a step drops the
+      preamble before it; done is the record".
+    - Store breaks killed: a step that keeps the preamble, a cut-off stream taken as an answer.
+  - **Acceptance not yet measured:** first event under 2 s. The eval now records `firstEventMs` per
+    answer and its median and p90. One run on production (~$0.03, owner's go) gives the figure; the
+    staging check is the owner's walk.
