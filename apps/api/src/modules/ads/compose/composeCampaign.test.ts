@@ -10,11 +10,11 @@ import type { ComposeOutcome } from "./composeCreative.js";
  * `composeCreative` is replaced — its own suite proves one creative — so these tests see only the campaign's part.
  */
 const outcomes = new Map<string, ComposeOutcome>();
-const composed: Array<{ id: string; preset: string; maxRegenerations: number }> = [];
+const composed: Array<{ id: string; preset: string; maxRegenerations: number; choice?: unknown }> = [];
 vi.mock("./composeCreative.js", async (orig) => ({
   ...(await orig<object>()),
-  composeCreative: vi.fn(async (_deps: unknown, input: { creative: { id: string; preset_version_id: string }; maxRegenerations: number }) => {
-    composed.push({ id: input.creative.id, preset: input.creative.preset_version_id, maxRegenerations: input.maxRegenerations });
+  composeCreative: vi.fn(async (_deps: unknown, input: { creative: { id: string; preset_version_id: string }; maxRegenerations: number; choice?: unknown }) => {
+    composed.push({ id: input.creative.id, preset: input.creative.preset_version_id, maxRegenerations: input.maxRegenerations, ...(input.choice ? { choice: input.choice } : {}) });
     return outcomes.get(input.creative.preset_version_id) ?? { kind: "ready" };
   }),
 }));
@@ -33,7 +33,7 @@ const PRESETS = ["P1", "P2", "P3"].map((key, i) => ({ id: `p-${i}`, key, version
 const isWrite = (q: RecordedQuery) => q.write !== null;
 const has = (q: RecordedQuery, col: string) => q.filters().some((f) => f.col === col);
 
-function world(opts: { draw?: unknown; kits?: number; kitId?: string | null; archived?: boolean; creatives?: unknown[]; liveCampaigns?: string[]; liveCreatives?: unknown[]; insertError?: unknown; enabled?: boolean } = {}) {
+function world(opts: { choices?: unknown[]; draw?: unknown; kits?: number; kitId?: string | null; archived?: boolean; creatives?: unknown[]; liveCampaigns?: string[]; liveCreatives?: unknown[]; insertError?: unknown; enabled?: boolean } = {}) {
   const rec = createSupabaseRecorder({
     tables: {
       ads_campaigns: (q) => {
@@ -53,6 +53,7 @@ function world(opts: { draw?: unknown; kits?: number; kitId?: string | null; arc
         return PRESETS.filter((p) => asked.includes(p.version)).map((p) => ({ id: p.version, preset_id: p.id }));
       },
       ads_settings_versions: [{ id: "v1", settings, kill_switch: false }],
+      ads_copy_choices: (q) => (opts.choices ?? []).filter((c) => (c as { replaces_creative_id: string }).replaces_creative_id === q.filters().find((f) => f.col === "replaces_creative_id")?.val),
       ads_creatives: (q) => {
         if (q.write?.method === "insert") {
           if (opts.insertError) return { data: null, error: opts.insertError, writeError: opts.insertError };
@@ -150,6 +151,21 @@ describe("composeCampaign — a creative per preset in this stint", () => {
     const rec = world({ creatives: [old] });
     await composeCampaign(deps(rec), campaign);
     expect(rec.writtenRows("ads_creatives")[0]).toMatchObject({ preset_version_id: order[0], supersedes_id: "old-1" });
+  });
+
+  it("a creative a person chose the words of is superseded by one built from those words, on its picture (Q-ADL7)", async () => {
+    const old = { id: "old-1", org_id: ORG, campaign_id: "c-1", preset_version_id: order[0], state: "rejected", regenerations: 0, created_at: "2026-11-03T10:00:00Z", last_error: null };
+    const words = { replaces_creative_id: "old-1", copy: { en: { hook: "A" }, es: { hook: "B" } }, from_candidate: 1, edited_slots: ["hook"], chosen_by_name: "Koni" };
+    const rec = world({ creatives: [old], choices: [words] });
+    await composeCampaign(deps(rec), campaign);
+    expect(rec.writtenRows("ads_creatives")[0]).toMatchObject({ preset_version_id: order[0], supersedes_id: "old-1" });
+    // The world answers any read by id with a creative at regenerations 0: its last attempt is 1.
+    expect(composed[0]!.choice).toMatchObject({ copy: words.copy, from_candidate: 1, edited_slots: ["hook"], chosen_by_name: "Koni", replaced: { creativeId: "old-1", attempt: 1 } });
+    // A creative superseded with nobody's words is composed as always.
+    const plain = world({ creatives: [{ ...old, state: "check_failed" }] });
+    composed.length = 0;
+    await composeCampaign(deps(plain), campaign);
+    expect(composed[0]!.choice).toBeUndefined();
   });
 
   it("a ready creative from an earlier stint is kept, not redone", async () => {

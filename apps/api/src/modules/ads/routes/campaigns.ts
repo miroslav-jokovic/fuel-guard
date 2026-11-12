@@ -1,5 +1,5 @@
 import type { Request, Response, Router } from "express";
-import { adsCampaignCreateSchema, adsCampaignLaunchSchema, adsCampaignMoveSchema, adsCreativeDecisionSchema, isRecordId, type AdBriefSource, type AdsCampaignCreateRefusal, type AppSection } from "@silvicom/shared";
+import { adsCampaignCreateSchema, adsCampaignLaunchSchema, adsCampaignMoveSchema, adsCopyChoiceSchema, adsCreativeDecisionSchema, isRecordId, type AdBriefSource, type AdsCampaignCreateRefusal, type AppSection } from "@silvicom/shared";
 import { requireAdminOnly, requireSection } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createCampaign, launchCampaign, listCampaigns, personMove, readCampaign, type MoveOutcome } from "../campaigns/campaignDoors.js";
 import type { Actor } from "../settings/settingsVersions.js";
 import { decideOnCreative, type DecisionOutcome } from "../campaigns/creativeDecisions.js";
+import { chooseWords, type CopyChoiceOutcome } from "../campaigns/copyChoice.js";
 import { campaignConcepts } from "../monitor/conceptPerformance.js";
 
 /**
@@ -57,6 +58,16 @@ const DECISION_REFUSAL: Record<Extract<DecisionOutcome, { kind: "refused" }>["re
   approval_not_found: "The decision could not be recorded. Try again.",
   approval_mismatch: "The decision could not be recorded. Try again.",
   approval_withdrawn: "The decision could not be recorded. Try again.",
+};
+
+const CHOICE_REFUSAL: Record<Extract<CopyChoiceOutcome, { kind: "refused" }>["reason"], string> = {
+  campaign_not_in_review: "The campaign is not waiting for review any more. Reload to see its state.",
+  not_ready: "This ad was already decided, or is not finished yet. Reload to see it.",
+  settings_not_saved: "Save the ads settings before reviewing ads.",
+  slots_mismatch: "Fill every line of the ad, in English and Spanish.",
+  unknown_candidate: "That copy is not one this ad was offered. Reload to see the ad.",
+  chosen_differently: "Different words were already chosen for this ad. Reload to see them.",
+  cannot_regenerate: "The ad cannot be remade now. Reload to see the campaign.",
 };
 
 const campaignId = (req: Request, res: Response): string | null => {
@@ -131,6 +142,21 @@ export function mountCampaignRoutes(router: Router, deps: CampaignRouteDeps): vo
     if (out.kind === "not_found") return void res.status(404).json(apiError("not_found", "Ad not found"));
     if (out.kind === "refused") return void res.status(409).json(apiError(out.reason, DECISION_REFUSAL[out.reason]));
     res.json({ state: out.state });
+  }));
+
+  // Q-ADL7: a person chooses an ad's words; the ad is remade with them on the same picture.
+  router.post("/campaigns/:campaignId/creatives/:creativeId/words", requireSection(deps.section, "manage"), asyncHandler(async (req, res) => {
+    const id = campaignId(req, res);
+    if (!id) return;
+    const creativeId = String(req.params.creativeId);
+    if (!isRecordId(creativeId)) return void res.status(400).json(apiError("bad_request", "Invalid ad"));
+    const parsed = adsCopyChoiceSchema.safeParse(req.body);
+    if (!parsed.success) return void res.status(400).json(apiError("bad_request", parsed.error.issues[0]?.message ?? "Invalid words"));
+    const out = await chooseWords(admin(req), req.auth!.orgId!, await deps.actorOf(req), id, creativeId, parsed.data, new Date());
+    if (out.kind === "not_found") return void res.status(404).json(apiError("not_found", "Ad not found"));
+    if (out.kind === "refused") return void res.status(409).json(apiError(out.reason, out.detail ? `${CHOICE_REFUSAL[out.reason]} (${out.detail})` : CHOICE_REFUSAL[out.reason]));
+    if (out.kind === "words_refused") return void res.status(422).json({ ...apiError("words_refused", "These words cannot become the ad. Change the lines marked below."), copy: out.copy, overlay: out.overlay });
+    res.json({ replaced: out.replaced });
   }));
 
   router.post("/campaigns/:campaignId/launch", requireAdminOnly("ads.spend"), requireFreshAuth(), asyncHandler(async (req, res) => {

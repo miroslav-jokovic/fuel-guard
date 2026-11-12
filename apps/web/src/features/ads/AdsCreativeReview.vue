@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { creativeCheckGrid, type AdsCreativeView } from "@silvicom/shared";
+import { creativeCheckGrid, type AdsCopyChoice, type AdsCreativeView } from "@silvicom/shared";
 import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInput } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { CHECK_LABEL, CHECK_VERDICT_LABEL, CHECK_VERDICT_TONE, CREATIVE_STATE_LABEL, copyLines } from "./adsCampaignFlow";
 import AdsCopyCandidates from "./AdsCopyCandidates.vue";
 import AdsFinishedAdOpinion from "./AdsFinishedAdOpinion.vue";
+import AdsWordsEditor from "./AdsWordsEditor.vue";
+import { editableWords, type Words } from "./adsWordChoice";
 
 /**
  * One ad on the review screen (E3; D-AD12: a person approves what they have seen): every format and language, its
@@ -17,12 +19,20 @@ import AdsFinishedAdOpinion from "./AdsFinishedAdOpinion.vue";
  * shows the checker's sentence in its cell. A body the grid cannot read says so instead of drawing passes. The
  * finished-ad judge's scores (P1-7) sit under the grid as a second opinion, never as a fourth check.
  */
-const props = defineProps<{ creative: AdsCreativeView; canDecide: boolean; busy: boolean; replaces?: boolean }>();
-const emit = defineEmits<{ approve: []; reject: [reason: string] }>();
+const props = defineProps<{ creative: AdsCreativeView; canDecide: boolean; busy: boolean; replaces?: boolean; canChooseWords?: boolean; wordsRefusal?: unknown }>();
+const emit = defineEmits<{ approve: []; reject: [reason: string]; words: [choice: AdsCopyChoice] }>();
 
 const rejecting = ref(false);
+/** The words being edited (Q-ADL7): null when the editor is closed, else the copy it starts from and which offered copy that is. */
+const editing = ref<{ start: Words; from: number | null } | null>(null);
+const editWords = (from: number | null) => {
+  const start = editableWords(from === null ? props.creative.copy : (props.creative.candidates?.ranked[from]?.copy ?? null));
+  if (start) editing.value = { start, from };
+};
 const reason = ref("");
 const languages = computed(() => [...new Set(props.creative.assets.map((a) => a.language))]);
+/** Words can be chosen on a ready ad of a campaign in review (the door's own rule), by whoever can decide it. */
+const choosable = computed(() => Boolean(props.canChooseWords) && props.creative.state === "ready" && !editing.value);
 const grid = computed(() => creativeCheckGrid(props.creative.checks, props.creative.assets.map((a) => a.format)));
 const tone = computed(() => (props.creative.state === "check_failed" || props.creative.state === "rejected" ? "danger" : props.creative.state === "approved" ? "success" : "neutral"));
 </script>
@@ -62,8 +72,9 @@ const tone = computed(() => (props.creative.state === "check_failed" || props.cr
       <div class="space-y-1">
         <p v-for="c in copyLines(creative.copy, l)" :key="c.slot" class="text-sm text-ink"><span class="text-ink-muted">{{ c.slot }}: </span>{{ c.text }}</p>
       </div>
-      <AdsCopyCandidates v-if="creative.candidates && creative.candidates.ranked.length > 1" :candidates="creative.candidates" :language="l" />
+      <AdsCopyCandidates v-if="creative.candidates && creative.candidates.ranked.length > 1" :candidates="creative.candidates" :language="l" :can-choose="choosable" @use="editWords" />
     </section>
+    <AdsWordsEditor v-if="editing" :start="editing.start" :from-candidate="editing.from" :busy="busy" :refusal="wordsRefusal" @save="(c) => emit('words', c)" @cancel="editing = null" />
     <div v-if="canDecide && creative.state === 'ready'" class="space-y-2">
       <FormField v-if="rejecting" v-slot="{ id }" label="Why is this ad rejected?" required>
         <BaseInput :id="id" v-model="reason" data-test="reject-reason" />
@@ -74,6 +85,7 @@ const tone = computed(() => (props.creative.state === "check_failed" || props.cr
           <BaseButton variant="danger" :disabled="busy || reason.trim() === ''" data-test="confirm-reject" @click="emit('reject', reason.trim())">Reject this ad</BaseButton>
         </template>
         <template v-else>
+          <BaseButton v-if="choosable && !editing" :disabled="busy" data-test="edit-words" @click="editWords(null)">Edit the words</BaseButton>
           <BaseButton :disabled="busy" data-test="reject" @click="rejecting = true">Reject</BaseButton>
           <BaseButton variant="primary" :disabled="busy" data-test="approve" @click="emit('approve')">Approve</BaseButton>
         </template>

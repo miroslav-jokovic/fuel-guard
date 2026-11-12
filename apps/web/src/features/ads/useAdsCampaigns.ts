@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { Ref } from "vue";
-import { adsLaunchMissingSchema, type AdsCampaignCreate, type AdsCampaignLaunch, type AdsCampaignMove, type AdsCampaignSummary, type AdsCampaignView, type AdsCreativeDecision, type AdsLaunchMissing, type CampaignConcepts } from "@silvicom/shared";
+import { adsLaunchMissingSchema, type AdsCampaignCreate, type AdsCampaignLaunch, type AdsCampaignMove, type AdsCampaignSummary, type AdsCampaignView, type AdsCopyChoice, type AdsCreativeDecision, type AdsLaunchMissing, type CampaignConcepts } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { apiRefusal } from "@/composables/useStepUpRetry";
 import { isWorking } from "./adsCampaignFlow";
@@ -97,3 +97,12 @@ export const useApproveAndLaunch = () =>
 export const useCreativeDecision = () =>
   useCampaignWrite<{ id: string; creativeId: string; decision: AdsCreativeDecision }>(({ id, creativeId, decision }) =>
     post(`/api/ads/campaigns/${id}/creatives/${creativeId}/decision`, decision, "Could not record the decision"));
+
+/**
+ * A person chooses an ad's words (Q-ADL7): the ad is remade with them on the same picture. A 422 `words_refused`
+ * keeps the API's findings on the error's `detail` (`copy`, `overlay`), so the editor marks the lines they name.
+ */
+export const useChooseWords = () =>
+  useCampaignWrite<{ id: string; creativeId: string; choice: AdsCopyChoice }>(({ id, creativeId, choice }) =>
+    post(`/api/ads/campaigns/${id}/creatives/${creativeId}/words`, choice, "Could not use these words"));
+

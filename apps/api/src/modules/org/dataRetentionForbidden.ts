@@ -325,8 +325,11 @@ export const RETENTION_FORBIDDEN = [
    * we told a platform about a lead's progress. None is re-derivable — the platform keeps its own
    * history, not ours — and each is what a billing dispute, a rejected ad's appeal or an
    * employment-advertising complaint asks for. All five are append-only by trigger for the service
-   * role too (AX010–AX012); this pins them against a prune by age as well.
+   * role too (AX010–AX012); this pins them against a prune by age as well. `ads_copy_choices` (0595,
+   * 2026-11-12) joined them: a person's choice of an ad's words, which is what the ad that ran said and who
+   * decided it — an employment-advertising complaint asks for exactly that — and is append-only by the same guard.
    */
+  "ads_copy_choices",
   "ads_actions",
   "ads_approvals",
   "ads_settings_versions",

@@ -194,6 +194,18 @@ line is 47 px because that is where 28 W's fit the narrowest zone and 29 do not 
 unchanged); the headline's floor is 80 px because that is where the longest recorded headline that fits is 58
 (`OVERLAY_HEADLINE_MAX_CHARS` unchanged). Starters: P1 and P3 `photo`, P2 `number`, P4 and P5 `field`.
 
+**D-ADL21 — A person chooses an ad's words by remaking it, never by editing it (2026-11-12; Q-ADL7 (a)).** On the
+review screen every offered copy has "Use these words", and the ad has "Edit the words"; both open one editor with
+every line in English and Spanish. 0537 freezes a creative once it leaves the workers, so the words of a `ready` ad
+are never changed in place: the door (`campaigns/copyChoice.ts`) checks the words exactly as compose would (the
+preset's slots, each limit, the brief's claims, the overlay on every published format in both languages), records
+the choice in `ads_copy_choices` (0595, append-only, one per replaced creative), rejects the ad with that reason,
+and runs `regenerate`. Compose builds the successor from the recorded words and asks for the replaced creative's art
+and picture under THEIR keys, so the ledger replays them and no picture is paid for twice; the overlay, the visual
+check and the finished-ad opinion run again because the words changed. A visual fail on the kept picture
+regenerates a new picture as always, keeping the person's words. The ranked set says who chose and which lines they
+changed (`chosen_by_person`), which is the craft judge's calibration label (R7) for free.
+
 ## 3. The candidate looks (rendered 2026-11-10, fixture kit, fixture photos)
 
 Four looks, each drawn at 4:5 in English, 1:1 with a two-line headline, and 9:16 in Spanish.
@@ -247,6 +259,8 @@ marks the money — and its left edge holds long Spanish lines without the centr
   settings (pay, home time, equipment, lanes) that the copywriter must draw its claims from; (c) both.
   **Recommendation: (c)**, (a) first because it needs no prompt change. (b) is a copywriter prompt change, so a
   live recording, asked before it is made.
+  **(a) BUILT 2026-11-12 (the owner: "Word choice first"), as D-ADL21.** (b) is still open: a copywriter prompt
+  change, asked before it is recorded.
 - **Q-ADL8 — the Silvicom decal on the trucks (opened 2026-11-12).** The design review's strongest finding: a plain
   white tractor belongs to any carrier. The mock-up's decal was drawn by the image model from the real decal as a
   reference, and came out right once, but D-AD9 exists because image models misspell. Candidates: (a) the model
@@ -472,3 +486,15 @@ photos.
     now names the person, not the tractor, which its scene allows.
   - Not measured, and cannot be yet: whether the pictures are better. These are words for an image model; the
     real proof is the finished-ad judge over generated images (V4 / Stage 2).
+
+- **2026-11-12, choosing the words built (D-ADL21; Q-ADL7 (a)).** Branch `claude/ads-word-choice`.
+  - Migration 0595 (`ads_copy_choices`, RLS on, no client policies, 0537's append-only guard); the door and the
+    `POST …/creatives/:id/words` route (manage); compose reads the choice and replays the old picture; the review
+    screen's editor.
+  - Tests: the route through the real app (8, including a refused claim, a headline the overlay cannot hold, a
+    missing slot, a second press, a viewer refused); compose (2: no writer or judge, the old keys asked; a visual
+    fail regenerates under the new key with the person's words); the campaign step hands the choice over (1);
+    the screen (7). Mutations: removing the door's word check fails 2 route tests; removing the picture reuse
+    fails both compose tests.
+  - Not checked in a browser: the screen needs a campaign in review with finished ads, which no local fixture has;
+    the mounted component tests cover it, and CI's build compiles the templates. Worth one look on staging.

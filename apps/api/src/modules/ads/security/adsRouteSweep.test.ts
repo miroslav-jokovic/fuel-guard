@@ -180,6 +180,7 @@ const SWEEP: Array<[string, string, unknown?]> = [
   // Launch before the archive move below: G-launch-gate's refusal is asserted on a paused campaign.
   ["POST /api/ads/campaigns/:campaignId/moves", `campaigns/${MINE.campaign}/moves`, { event: "archive", reason: "sweep" }],
   ["POST /api/ads/campaigns/:campaignId/creatives/:creativeId/decision", `campaigns/${MINE.campaign}/creatives/${MINE.creative}/decision`, { decision: "reject", reason: "sweep" }],
+  ["POST /api/ads/campaigns/:campaignId/creatives/:creativeId/words", `campaigns/${MINE.campaign}/creatives/${MINE.creative}/words`, { from_candidate: null, copy: { en: { hook: "Sweep" }, es: { hook: "Barrido" } } }],
 ];
 
 beforeAll(async () => {

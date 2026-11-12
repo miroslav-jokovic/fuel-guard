@@ -17,14 +17,17 @@
   "ads_actions": [
     "apps/api/src/modules/ads/actions/actionLedger.ts"
   ],
+  "ads_ad_spend_hourly": [
+    "apps/api/src/modules/ads/monitor/adInsightsPull.ts"
+  ],
   "ads_approvals": [
     "apps/api/src/modules/ads/guard/approvals.ts"
   ],
-  "ads_platform_connections": [
-    "apps/api/src/modules/ads/connections/connections.ts"
-  ],
   "ads_campaigns": [
     "apps/api/src/modules/ads/orchestrator/transitions.ts"
+  ],
+  "ads_copy_choices": [
+    "apps/api/src/modules/ads/campaigns/copyChoice.ts"
   ],
   "ads_creatives": [
     "apps/api/src/modules/ads/compose/composeCampaign.ts",
@@ -33,17 +36,17 @@
     "apps/api/src/modules/ads/compose/refreshCampaign.ts",
     "apps/api/src/modules/ads/monitor/retireTired.ts"
   ],
-  "ads_spend_hourly": [
-    "apps/api/src/modules/ads/monitor/insightsPull.ts"
-  ],
-  "ads_ad_spend_hourly": [
-    "apps/api/src/modules/ads/monitor/adInsightsPull.ts"
-  ],
   "ads_outcome_events": [
     "apps/api/src/modules/ads/outcomes/outcomeLedger.ts"
   ],
+  "ads_platform_connections": [
+    "apps/api/src/modules/ads/connections/connections.ts"
+  ],
   "ads_settings_versions": [
     "apps/api/src/modules/ads/settings/settingsVersions.ts"
+  ],
+  "ads_spend_hourly": [
+    "apps/api/src/modules/ads/monitor/insightsPull.ts"
   ],
   "anomalies": [
     "apps/api/src/modules/anomalies/assignAnomalies.ts",
@@ -65,12 +68,6 @@
     "apps/api/src/modules/recruiting/applicantIntake.ts",
     "apps/api/src/modules/recruiting/applicantSelfie.ts"
   ],
-  "application_ssns": [
-    "apps/api/src/modules/recruiting/applicantSsn.ts"
-  ],
-  "application_unlock_codes": [
-    "apps/api/src/modules/recruiting/applicationUnlockCode.ts"
-  ],
   "application_invitations": [
     "apps/api/src/modules/recruiting/applicationHandoff.ts",
     "apps/api/src/modules/recruiting/applicationLink.ts",
@@ -85,6 +82,12 @@
   ],
   "application_screen_events": [
     "apps/api/src/modules/recruiting/applicationScreenEvents.ts"
+  ],
+  "application_ssns": [
+    "apps/api/src/modules/recruiting/applicantSsn.ts"
+  ],
+  "application_unlock_codes": [
+    "apps/api/src/modules/recruiting/applicationUnlockCode.ts"
   ],
   "asset_types": [
     "apps/api/src/modules/maintenance/inventory/assetTypes.ts"
@@ -366,9 +369,6 @@
   "hiring_carrier_steps": [
     "apps/api/src/modules/recruiting/carrierSteps.ts"
   ],
-  "recruiting_carrier_questions": [
-    "apps/api/src/modules/recruiting/carrierQuestions.ts"
-  ],
   "hos_duty_segments": [
     "apps/api/src/modules/samsara/hosSync.ts"
   ],
@@ -488,9 +488,6 @@
   "mcleod_deductions": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
-  "mcleod_tractor_periods": [
-    "apps/api/src/modules/mcleod/tractorPeriods.ts"
-  ],
   "mcleod_dispatch_movements": [
     "apps/api/src/modules/mcleod/dispatchMovementIngest.ts"
   ],
@@ -515,6 +512,9 @@
   ],
   "mcleod_settlements": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
+  ],
+  "mcleod_tractor_periods": [
+    "apps/api/src/modules/mcleod/tractorPeriods.ts"
   ],
   "medstop_applicant_creates": [
     "apps/api/src/modules/medstop/applicantCreate.ts"
@@ -630,6 +630,9 @@
     "apps/api/src/modules/evidence/compliance.ts",
     "apps/api/src/modules/psp/pspImport.ts",
     "apps/api/src/modules/psp/pspOrder.ts"
+  ],
+  "recruiting_carrier_questions": [
+    "apps/api/src/modules/recruiting/carrierQuestions.ts"
   ],
   "recruiting_contacts": [
     "apps/api/src/modules/recruiting/leads/leadContacts.ts"

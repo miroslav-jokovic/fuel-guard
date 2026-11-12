@@ -85,6 +85,21 @@ export interface ComposeInput {
   maxRegenerations: number;
   /** `settings.budgets.candidates_per_creative` (CQ4); absent = the Copywriter's default. */
   candidates?: number;
+  /** A person chose this creative's words (Q-ADL7): no copywriter, no judge, and the replaced creative's picture. */
+  choice?: PersonChoice;
+}
+
+/**
+ * The words a person settled on for the creative this one replaces (`ads_copy_choices`, 0595), and that creative's
+ * ranked set and last attempt. The door already checked the words against the brief and the overlay; the overlay
+ * and the visual check run again here on the finished picture, as for any creative.
+ */
+export interface PersonChoice {
+  copy: AdCopy;
+  from_candidate: number | null;
+  edited_slots: string[];
+  chosen_by_name: string;
+  replaced: { creativeId: string; attempt: number; candidates: AdCandidates | null };
 }
 
 export interface CreativeAsset { format: AdFormat; language: OverlayLanguage; sha256: string; path: string; width: number; height: number }
@@ -108,6 +123,14 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
 
   if (!recipe.overlay_slots) return stop({ kind: "stop", reason: "no_overlay_slots: the preset does not say which copy slots the overlay draws" });
   if (publishedFormats(recipe.formats).length === 0) return stop({ kind: "stop", reason: `no_feed_format: the preset's formats (${recipe.formats.join(", ")}) hold none an ad is shown in` });
+
+  if (input.choice) {
+    // The person's words: the ranked set is the replaced creative's, pointing at the copy they started from.
+    const ch = input.choice, set = ch.replaced.candidates;
+    const candidates = set ? { ...set, chosen: ch.from_candidate ?? set.chosen, chosen_by_person: { name: ch.chosen_by_name, edited_slots: ch.edited_slots } } : null;
+    if (candidates) await keep(deps.admin, cr, { candidates });
+    return attempts(deps, input, ch.copy, candidates, stop);
+  }
 
   const written = await writeCopy(deps, { ...ids, attempt: 1, brief, recipe, company_name: input.kit.company_name, candidates: input.candidates });
   if (written.kind === "in_flight") return { kind: "pending", why: "copy in flight" };
@@ -143,12 +166,20 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
       : `render check: none of the ${ranked.length} copies fits the image — ${passedOver.map((p) => `#${p.index + 1} (${p.reason})`).join(" · ")}`;
     return stop({ kind: "stop", reason: reason.slice(0, 2000), checks: { copy: { ok: true }, render: { ok: false, format: first.format, language: first.language, findings: first.findings } } });
   }
-  const copy = { copy: ranked[fits]!.copy };
+  return attempts(deps, input, ranked[fits]!.copy, candidates, stop);
+}
 
+/**
+ * Art, render, overlay and visual check, regenerating on a visual failure (D-AD12), then the finished-ad opinion and
+ * `ready`. One function for the copy the ranking chose and the copy a person chose (Q-ADL7).
+ */
+async function attempts(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, candidates: AdCandidates | null, stop: (s: Stop) => Promise<ComposeOutcome>): Promise<ComposeOutcome> {
+  const { creative: cr, recipe } = input;
+  const ids = { orgId: cr.org_id, campaignId: cr.campaign_id, creativeId: cr.id };
   let failed: AdVisualCheck[] = [];
   const history: Array<{ attempt: number; visual: Record<string, VisualResult[]> }> = [];
   for (let attempt = 1; attempt <= 1 + input.maxRegenerations; attempt += 1) {
-    const r = await oneAttempt(deps, input, copy.copy, attempt, failed);
+    const r = await oneAttempt(deps, input, copy, attempt, failed);
     if (r.kind === "pending") return r;
     if (r.kind === "stop") return stop({ ...r, checks: { copy: { ok: true }, ...r.checks, visual_attempts: history } });
     history.push({ attempt, visual: r.visual });
@@ -157,11 +188,11 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
       // the creative still reaches review.
       const opinion = await judgeFinishedAds(deps, {
         ...ids, attempt, ads: r.english, kit: input.kit, logo: r.logo, subject: r.subject,
-        headline: copy.copy.en[recipe.overlay_slots.headline]!, button: copy.copy.en[recipe.overlay_slots.cta]!,
+        headline: copy.en[recipe.overlay_slots!.headline]!, button: copy.en[recipe.overlay_slots!.cta]!,
       });
       if (opinion.kind === "pending") return { kind: "pending", why: opinion.why };
       await finish(deps.admin, cr, {
-        state: "ready", copy: copy.copy, candidates, assets: r.assets, regenerations: attempt - 1, last_error: null,
+        state: "ready", copy, candidates, assets: r.assets, regenerations: attempt - 1, last_error: null,
         checks: { copy: { ok: true }, render: { ok: true }, visual: { ok: true, attempt, results: r.visual }, visual_attempts: history, finished_ad: opinion.check },
       });
       return { kind: "ready" };
@@ -182,7 +213,11 @@ type AttemptResult =
 async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, attempt: number, failedBefore: AdVisualCheck[]): Promise<AttemptResult> {
   const { creative: cr, brief, recipe, kit } = input;
   const ids = { orgId: cr.org_id, campaignId: cr.campaign_id, creativeId: cr.id };
-  const art = await directArt(deps, { ...ids, attempt, recipe, kit, context: brief.subject_matter.details, headline: copy.en[recipe.overlay_slots!.headline] ?? null });
+  // A person's choice keeps the replaced creative's picture: its art and render rows are replayed by their keys, so
+  // nothing is asked again and nothing is paid twice (Q-ADL7). A regeneration after a failed check is a new picture.
+  const reused = attempt === 1 && input.choice ? input.choice.replaced : null;
+  const from = reused ? { ...ids, creativeId: reused.creativeId } : ids, fromAttempt = reused ? reused.attempt : attempt;
+  const art = await directArt(deps, { ...from, attempt: fromAttempt, recipe, kit, context: brief.subject_matter.details, headline: copy.en[recipe.overlay_slots!.headline] ?? null });
   if (art.kind === "in_flight") return { kind: "pending", why: `art ${attempt} in flight` };
   if (art.kind === "not_possible") return { kind: "stop", reason: `art: ${art.reason}` };
   if (art.kind === "refused") return { kind: "stop", reason: `art check: ${art.findings.map((f) => f.kind).join(", ")}` };
@@ -191,7 +226,7 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
   if (!deps.renderModel) return { kind: "stop", reason: "render: no still model chosen yet (V4)" };
   const prompt = withRegenerationClauses(art.direction.prompt, failedBefore);
   const ref = art.direction.reference;
-  const render = await deps.render({ ...ids, attempt, model: deps.renderModel, params: stillParams(deps.renderModel, prompt, art.direction.composition.frame), reference: ref ? { sha256: ref.sha256, format: ref.format } : null });
+  const render = await deps.render({ ...from, attempt: fromAttempt, model: deps.renderModel, params: stillParams(deps.renderModel, prompt, art.direction.composition.frame), reference: ref ? { sha256: ref.sha256, format: ref.format } : null });
   if (render.kind === "pending") return { kind: "pending", why: `render ${attempt}: ${render.why}` };
   if (render.kind === "refused") return { kind: "stop", reason: `render: ${render.refusal}` };
   if (render.kind !== "stored") return { kind: "stop", reason: `render: ${render.kind === "failed" ? render.errorCode : render.refusal}` };

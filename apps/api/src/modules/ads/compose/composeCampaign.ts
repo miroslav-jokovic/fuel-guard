@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adBriefSchema, drawPresets, nextPresetBatch, type AdBrandKit, type AdPresetRecipe, type CreativeState, type PresetDraw } from "@silvicom/shared";
+import { adBriefSchema, adCandidatesSchema, drawPresets, nextPresetBatch, type AdBrandKit, type AdPresetRecipe, type CreativeState, type PresetDraw } from "@silvicom/shared";
 import { listBrandKits, listPresets } from "../creative/kitVersions.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 import { storePresetDraw, type CampaignRow } from "../orchestrator/transitions.js";
 import type { WorkerResult } from "../orchestrator/workers.js";
-import { composeCreative, type ComposeDeps, type CreativeRow } from "./composeCreative.js";
+import { composeCreative, type ComposeDeps, type CreativeRow, type PersonChoice } from "./composeCreative.js";
 
 /**
  * The campaign's compose step (ADS-AGENT-BUILD-WORKFLOW C5b2; plan D-AD11, D-AD12): what the orchestrator's
@@ -50,7 +50,7 @@ export interface ComposeCampaignDeps extends ComposeDeps {
 }
 
 interface CampaignExtra { brief_ref: string; brief_snapshot: unknown; preset_draw: PresetDraw | null; brand_kit_id: string | null }
-interface CreativeRead extends CreativeRow { preset_version_id: string; created_at: string; last_error: string | null }
+interface CreativeRead extends CreativeRow { preset_version_id: string; created_at: string; last_error: string | null; supersedes_id: string | null }
 
 export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow): Promise<WorkerResult> {
   const { admin } = deps;
@@ -78,7 +78,9 @@ export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow)
   const move = async (presetId: string) => {
     tally.moved.add(presetId);
     const creative = await creativeForStint(admin, c, presetId, kit.id, rows);
-    const out = await composeCreative(deps, { creative, brief: brief.data, recipe: recipes.get(presetId)!, kit: kit.body, maxRegenerations: settings.budgets.max_regenerations, candidates: settings.budgets.candidates_per_creative });
+    // A person chose the words of the creative this one replaces (Q-ADL7): built from them, on that picture.
+    const choice = creative.supersedes_id ? await choiceFor(admin, c.org_id, creative.supersedes_id) : null;
+    const out = await composeCreative(deps, { creative, brief: brief.data, recipe: recipes.get(presetId)!, kit: kit.body, maxRegenerations: settings.budgets.max_regenerations, candidates: settings.budgets.candidates_per_creative, ...(choice ? { choice } : {}) });
     if (out.kind === "pending") { tally.pending.push(`creative ${creative.id}: ${out.why}`); return; }
     const state = out.kind === "done" ? out.state : out.kind === "ready" ? "ready" : "check_failed";
     if (state === "ready" || state === "approved") tally.ready += 1;
@@ -145,7 +147,7 @@ export async function recipeById(admin: SupabaseClient, orgId: string, id: strin
 }
 
 async function creatives(admin: SupabaseClient, c: CampaignRow): Promise<CreativeRead[]> {
-  const { data, error } = await admin.from("ads_creatives").select("id, org_id, campaign_id, preset_version_id, state, regenerations, created_at, last_error").eq("org_id", c.org_id).eq("campaign_id", c.id).order("created_at", { ascending: true });
+  const { data, error } = await admin.from("ads_creatives").select("id, org_id, campaign_id, preset_version_id, state, regenerations, created_at, last_error, supersedes_id").eq("org_id", c.org_id).eq("campaign_id", c.id).order("created_at", { ascending: true });
   if (error) throw new Error(`ads_creatives: ${error.message}`);
   return (data ?? []) as CreativeRead[];
 }
@@ -165,11 +167,30 @@ async function creativeForStint(admin: SupabaseClient, c: CampaignRow, presetId:
     id, org_id: c.org_id, campaign_id: c.id, preset_version_id: presetId,
     brand_kit_version_id: kitVersionId, supersedes_id: newest?.id ?? null, state: "generating" as const,
   };
-  const { data, error } = await admin.from("ads_creatives").insert(row).select("id, org_id, campaign_id, preset_version_id, state, regenerations, created_at, last_error").single();
+  const { data, error } = await admin.from("ads_creatives").insert(row).select("id, org_id, campaign_id, preset_version_id, state, regenerations, created_at, last_error, supersedes_id").single();
   if (!error) return data as CreativeRead;
   if ((error as { code?: string }).code !== "23505") throw new Error(`ads_creatives: ${error.message}`);
-  const { data: won, error: e2 } = await admin.from("ads_creatives").select("id, org_id, campaign_id, preset_version_id, state, regenerations, created_at, last_error").eq("org_id", c.org_id).eq("id", row.id).single();
+  const { data: won, error: e2 } = await admin.from("ads_creatives").select("id, org_id, campaign_id, preset_version_id, state, regenerations, created_at, last_error, supersedes_id").eq("org_id", c.org_id).eq("id", row.id).single();
   if (e2) throw new Error(`ads_creatives: ${e2.message}`);
   return won as CreativeRead;
 }
 
+
+/**
+ * The words a person chose for the creative `replacedId` (`ads_copy_choices`, 0595, written by
+ * `campaigns/copyChoice.ts`), with what compose needs to build its successor on the same picture: the replaced
+ * creative's ranked set and its last attempt, whose art and render rows are replayed. Null when nobody chose.
+ */
+async function choiceFor(admin: SupabaseClient, orgId: string, replacedId: string): Promise<PersonChoice | null> {
+  const [{ data: choice, error }, { data: replaced, error: rErr }] = await Promise.all([
+    admin.from("ads_copy_choices").select("copy, from_candidate, edited_slots, chosen_by_name").eq("org_id", orgId).eq("replaces_creative_id", replacedId).maybeSingle(),
+    admin.from("ads_creatives").select("id, regenerations, candidates").eq("org_id", orgId).eq("id", replacedId).maybeSingle(),
+  ]);
+  if (error) throw new Error(`ads_copy_choices: ${error.message}`);
+  if (rErr) throw new Error(`ads_creatives: ${rErr.message}`);
+  if (!choice || !replaced) return null;
+  const ch = choice as Omit<PersonChoice, "replaced">;
+  const r = replaced as { id: string; regenerations: number; candidates: unknown };
+  const set = adCandidatesSchema.safeParse(r.candidates);
+  return { ...ch, replaced: { creativeId: r.id, attempt: r.regenerations + 1, candidates: set.success ? set.data : null } };
+}
