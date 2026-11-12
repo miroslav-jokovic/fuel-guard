@@ -2,9 +2,8 @@ import type { Request as ExpressRequest, Router, Response as ExpressResponse } f
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
-import { HERE_MAX_TILE_ZOOM, HERE_MAX_VECTOR_ZOOM, TRUCK_PLACES_ZOOM, VECTOR_GLYPH_FONTS, VECTOR_GLYPH_RANGE_FILE, resolveBasemapStyle, resolveBasemapFormat, resolveTileRequest } from "@silvicom/shared";
+import { HERE_MAX_TILE_ZOOM, HERE_MAX_VECTOR_ZOOM, TRUCK_PLACES_ZOOM, resolveBasemapStyle, resolveBasemapFormat, resolveTileRequest } from "@silvicom/shared";
 
-const GLYPH_FONTS = new Set<string>(VECTOR_GLYPH_FONTS);
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -301,37 +300,9 @@ export function registerMapRoutes(router: Router): void {
   vectorTileRoute("/map-tiles/vector/:z/:x/:y", (z) => z >= 0 && z <= HERE_MAX_VECTOR_ZOOM, "");
   vectorTileRoute("/map-tiles/truck-places/:z/:x/:y", (z) => z === TRUCK_PLACES_ZOOM, "&content=default,advanced_pois");
 
-  /**
-   * D-DR31: the glyphs the vector map draws its labels with. maplibre renders no text without them.
-   * HERE's glyph endpoint is keyless and unbilled; it is proxied so the page's content security
-   * policy stays `'self'` and the reader's browser talks only to us.
-   *
-   * ⚠ Only HERE's two style fonts, and only the range shape maplibre asks for, so this is not an open
-   * relay onto HERE's asset host. HERE sends no caching header on glyphs, so none is added here
-   * (Platform Terms, Exhibit 2 §1.3). Fira GO is an open font (SIL OFL), so serving our own build
-   * of it, cached, is the follow-up if the glyph requests ever show up in the metrics.
-   */
-  router.get(
-    "/map-tiles/glyphs/:fontstack/:range",
-    asyncHandler(async (req, res) => {
-      const fontstack = String(req.params.fontstack);
-      const range = String(req.params.range);
-      if (!GLYPH_FONTS.has(fontstack) || !VECTOR_GLYPH_RANGE_FILE.test(range)) {
-        res.status(400).json(apiError("bad_request", "unknown glyph range"));
-        return;
-      }
-      const upstream = await fetch(`https://assets.vector.hereapi.com/fonts/${encodeURIComponent(fontstack)}/${range}`, {
-        signal: AbortSignal.timeout(TILE_UPSTREAM_TIMEOUT_MS),
-      }).catch(() => null);
-      if (!upstream?.ok) {
-        noStore(res);
-        res.status(502).json(apiError("glyph_upstream_error", `HERE glyphs HTTP ${upstream?.status ?? "failed"}`));
-        return;
-      }
-      res.setHeader("Content-Type", "application/x-protobuf");
-      res.send(Buffer.from(await upstream.arrayBuffer()));
-    }),
-  );
+  // The glyph relay that stood here until 2026-11-12 (D-DR31) is gone: the labels' font is served
+  // from our own origin as static files (D-DR40, `apps/web/public/fonts/glyphs/`, `vectorBasemap.ts`
+  // `GLYPHS_PATH`), so no reader's label fetch touches HERE or spends this router's budget.
 
   // Tells the client whether an interactive HERE tile map is available (key present) or it should keep the
   // dependency-free SVG route preview. Cheap, org-agnostic.

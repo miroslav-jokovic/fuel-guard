@@ -320,6 +320,10 @@ tile plus an advanced one. The console count settles it.
    font whose licence allows it (Fira GO is believed to be under the SIL Open Font License; read the
    licence file, not the belief) answers Q-DR33, the terms question and C9's dependency in one small
    PR, served with our own cache headers from our origin. **M2.**
+   **Built 2026-11-12 (D-DR40):** the licence file read (SIL OFL 1.1, copyright Carrois and HERE
+   Europe B.V., no reserved font name); glyphs built from FiraGO 1.001's TTFs with fontnik, all 256
+   ranges for both weights, in `apps/web/public/fonts/glyphs/` with `OFL.txt` beside them; the API
+   relay and its ledger entry removed; a week's cache header on the static route. Q-DR33 closed.
 4. **C9 re-enters collision.** Text labels DO take part in placement, so unit numbers raise the
    cost M1 removes. C9 comes after M1 and gets its own re-measure with labels on.
 5. **No fallback when the vector style fails.** A glyph or tile 502, or a lost WebGL context, leaves
@@ -378,7 +382,9 @@ entirely, and only after the two reads above.
    §7, 2026-11-12). ⚠ Still owed: the FRAME-TIME comparison, because both sessions ran on a Mac at
    load average 19–30 and their frame figures measure that load, not the map. Run it on a quiet
    machine (the tool now prints the load; record only under ~4) — then the office-PC check (gap 2).
-2. **M2** — self-hosted glyphs (gap 3), licence read first.
+2. **M2** — self-hosted glyphs (gap 3), licence read first. **Built 2026-11-12 (D-DR40)**, gap 3
+   above has the shape. ⚠ `staging-map-frames.mjs` and `staging-map-compare.mjs` count requests to
+   `/map-tiles/`, which included glyph fetches until this; tile counts from here on are tiles only.
 3. **M3** — trial hardening: remember the basemap choice for the window (Q-DR36), fall back to
    raster on a style error, long-frame counter in the trial menu, the one-page office-PC protocol.
    **Counter and protocol built 2026-11-12** (gap 2 above), ahead of M2 because the owner's check

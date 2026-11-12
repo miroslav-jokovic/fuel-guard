@@ -1601,3 +1601,26 @@ conflict every time (`plan-progress-log-not-table-rows`).
   counter on a production build) each failed their tests. ⚠ Still owed before the owner runs the
   page: the quiet-machine frame-time comparison (this Mac at load average 18–26 all morning). Left
   in M3: remembering the basemap for the window (Q-DR36) and the raster fallback on a style error.
+- **2026-11-12 (afternoon) — D-DR40: the vector map's label glyphs are our own static files, and the
+  HERE glyph relay is gone (HANDOFF-2026-11-10 §10.4 gap 3, M2). Q-DR33 closed.** The licence was
+  read before anything was built: FiraGO's `OFL.txt` (bBoxType/FiraGO, master) is the SIL Open Font
+  License 1.1, copyright Carrois Corporate GbR and HERE Europe B.V., with NO reserved font name, so a
+  format conversion (a "Modified Version" under the licence's own definition) may be bundled with
+  software provided the copyright notice and licence travel with it. They do: `OFL.txt` sits in
+  `apps/web/public/fonts/glyphs/` beside the files. The glyphs were built from FiraGO 1.001's
+  `FiraGO-Regular.ttf` and `FiraGO-Bold.ttf` with fontnik 0.7.7 (in a scratch directory, not a repo
+  dependency: its install script is native), all 256 ranges of 256 codepoints for both weights, 30
+  non-empty ranges each, 1.1 MB a weight; `0-255.pbf` came out at exactly HERE's 74 120 bytes and an
+  empty range at HERE's 31, so the two builds are the same tool on the same font, and no range can
+  404 and trip the style's `error` event. The fonts are now named `FiraGO-Regular` / `FiraGO-Bold`
+  (one list, `VECTOR_GLYPH_FONTS`), the style's `GLYPHS_PATH` is `/fonts/glyphs/{fontstack}/{range}.pbf`
+  on our own origin, the API's static handler sends `Cache-Control: public, max-age=604800` for that
+  directory (a week; not hashed, so not immutable), and the relay route, its ledger entry and its
+  test are removed, so a label fetch no longer spends the API's per-caller budget or touches HERE.
+  A test reads the public folder and fails on any of the 512 files or the licence missing, or on a
+  glyph path back under `/api/`; four mutants (a range deleted, a font renamed to a directory that
+  is not there, the path moved back, the licence removed) each failed it. ⚠ Not verified in a
+  browser until this serves on staging: the owed check is that labels render in FiraGO (not the
+  browser font) with no "Rendering codepoint … locally" warning, done in the browser pass after
+  merge. ⚠ The staging rig scripts count `/map-tiles/` requests, which included glyphs; from here
+  tile counts are tiles only, so a lower count than yesterday's is partly this.

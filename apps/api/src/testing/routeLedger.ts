@@ -134,11 +134,6 @@ export const OPEN_ROUTES = new Map<string, string>([
     "the vector road map's truck places (D-DR34): the vector tile proxy with HERE's advanced place content, at one zoom only; same reasons as its sibling, the HERE key stays server-side and requireAuth stops an open relay against our quota",
   ],
 
-  [
-    "GET /api/fueling/map-tiles/glyphs/:fontstack/:range",
-    "relays HERE's two style fonts for map labels (D-DR31); keyless, unbilled, public font data, allowlisted to those two fonts and the range shape maplibre asks for",
-  ],
-
   // ── The bootstrap identity. ────────────────────────────────────────────────────────────────────
   [
     "GET /api/me",
