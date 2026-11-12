@@ -4,6 +4,9 @@ import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { ref } from "vue";
 import { answerConfirm } from "@silvicom/ui/testing";
+// Notes are pinned in components/notes/notesOnPages.test.ts; here the viewer holds no `notes` surface.
+vi.mock("@/components/notes/useUnitNotes", async () => (await import("@/components/notes/notesTesting")).notesOff());
+vi.mock("@/components/notes/NotesDrawer.vue", async () => (await import("@/components/notes/notesTesting")).notesStub());
 
 /**
  * Retiring a trailer asks through the product's dialog, not the browser's (D-US7, UI-STANDARDIZATION):

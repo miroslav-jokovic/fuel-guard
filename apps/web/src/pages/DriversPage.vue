@@ -28,6 +28,9 @@ import { capSelection } from "@/features/roster/binderSelection";
 import ExportHistory from "@/features/compliance/ExportHistory.vue";
 import { DRIVER_ROSTER_COLUMNS } from "@/features/roster/driverRosterColumns";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
+import NotesDrawer from "@/components/notes/NotesDrawer.vue";
+import { withNotesColumn } from "@/components/notes/notesColumn";
+import { useNotesAccess } from "@/components/notes/useUnitNotes";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
 import FileGallery from "@/components/files/FileGallery.vue";
 import FileUploadDialog from "@/components/files/FileUploadDialog.vue";
@@ -123,7 +126,8 @@ const ROSTER_TABLE = SAVED_VIEW_TABLES[0];
 const DQ_DUE_OPTIONS = dqDueFilterOptions();
 
 /** Which columns this reader keeps (R3b). */
-const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS);
+const notesOn = useNotesAccess(); // the Notes column only for the `notes` surface (UNIT-NOTES-PLAN D-UN14)
+const rosterColumns = useTableColumns(ROSTER_TABLE, () => withNotesColumn(DRIVER_ROSTER_COLUMNS, notesOn.value, "file"));
 
 /**
  * Search, status, the archived toggle, sort and page — all in the URL (R3c), so this view can be
@@ -400,6 +404,7 @@ async function onSubmit(input: DriverInput) {
       <ExportHistory />
     </SlideOver>
 
+    <NotesDrawer />
     <DriverReconcilePanel :open="reconcileOpen" :drivers="drivers ?? []" @close="reconcileOpen = false" />
 
     <SlideOver

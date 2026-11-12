@@ -5,6 +5,9 @@ import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { ref } from "vue";
 import TrailerDetailPage from "@/pages/TrailerDetailPage.vue";
 import { TRAILER_SECTIONS, resolveTrailerSection } from "@/pages/trailerSections";
+// Notes are pinned in components/notes/notesOnPages.test.ts; here the viewer holds no `notes` surface.
+vi.mock("@/components/notes/useUnitNotes", async () => (await import("@/components/notes/notesTesting")).notesOff());
+vi.mock("@/components/notes/NotesDrawer.vue", async () => (await import("@/components/notes/notesTesting")).notesStub());
 
 /**
  * The trailer's own page (UNIT-FILES-PLAN UF5b): the summary's facts with their labels and units, the

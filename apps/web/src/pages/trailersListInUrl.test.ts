@@ -3,6 +3,9 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { createPinia } from "pinia";
 import { ref } from "vue";
+// Notes are pinned in components/notes/notesOnPages.test.ts; here the viewer holds no `notes` surface.
+vi.mock("@/components/notes/useUnitNotes", async () => (await import("@/components/notes/notesTesting")).notesOff());
+vi.mock("@/components/notes/NotesDrawer.vue", async () => (await import("@/components/notes/notesTesting")).notesStub());
 
 /**
  * D-US2 (UI-STANDARDIZATION, 2026-10-12) — a filtered list keeps its filters, sort and page in the URL.

@@ -5,6 +5,9 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
 import { answerConfirm } from "@silvicom/ui/testing";
+// Notes are pinned in components/notes/notesOnPages.test.ts; here the viewer holds no `notes` surface.
+vi.mock("@/components/notes/useUnitNotes", async () => (await import("@/components/notes/notesTesting")).notesOff());
+vi.mock("@/components/notes/NotesDrawer.vue", async () => (await import("@/components/notes/notesTesting")).notesStub());
 
 /**
  * The Vehicles page arrives narrowed from the Operations tab's doors (FLEET-MANAGER-HOME-PLAN D-FM9):

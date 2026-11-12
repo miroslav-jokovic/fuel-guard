@@ -42,10 +42,16 @@ import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
+import NotesCell from "@/components/notes/NotesCell.vue";
+import NotesDrawer from "@/components/notes/NotesDrawer.vue";
+import { withNotesColumn } from "@/components/notes/notesColumn";
+import { useUnitNoteSummary } from "@/components/notes/useUnitNotes";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
-const { data: vehicles, isLoading, isError, refetch, isFetching } = useVehiclesQuery();
+const { data: vehicles, isLoading, isError, refetch, isFetching, dataUpdatedAt } = useVehiclesQuery();
+/** The Notes column (UNIT-NOTES-PLAN D-UN12), only for a viewer holding the `notes` surface (D-UN14). */
+const notes = useUnitNoteSummary("vehicle", dataUpdatedAt);
 const { data: drivers } = useDriversQuery();
 
 // Filters, sort and page live in the URL (D-US2), so reload, a pasted link and Back from a truck keep
@@ -135,6 +141,7 @@ const columns: DataTableColumn[] = [
   { key: "registration_expires_at", label: "Registration", sortable: true, width: "md" },
   { key: "status", label: "Status", sortable: true, width: "sm" },
 ];
+const shownColumns = computed(() => withNotesColumn(columns, notes.on.value, "file"));
 const { sort, onSort } = useUrlSort(
   qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
   qs.param("dir", SORT_DIRECTIONS),
@@ -284,7 +291,7 @@ async function onRetire(v: Vehicle) {
 
     <DataTable
       embedded
-      :columns="columns"
+      :columns="shownColumns"
       :rows="pageRows"
       row-key="id"
       :selectable="session.can('equipment')"
@@ -320,6 +327,7 @@ async function onRetire(v: Vehicle) {
         />
         <span v-else class="text-ink-tertiary">—</span>
       </template>
+      <template #cell-notes="{ row }"><NotesCell kind="vehicle" :id="row.id" :label="row.unit_number" :summary="notes.summary.value[row.id]" /></template>
       <template #cell-vehicle="{ row }">{{ [row.year, row.make, row.model].filter(Boolean).join(" ") || "—" }}</template>
       <template #cell-tank_capacity_gal="{ row }">
         <span v-if="Number(row.tank_capacity_gal) > 0">{{ row.tank_capacity_gal }} gal</span>
@@ -399,6 +407,8 @@ async function onRetire(v: Vehicle) {
       :file-link="upload ? `/vehicles/${upload.unit.id}?section=file` : '/vehicles'"
       @close="upload = null"
     />
+
+    <NotesDrawer />
 
     <SlideOver :open="setupOpen" title="Import vehicles" @close="setupOpen = false">
       <VehicleSetupImport :vehicles="vehicles ?? []" @done="setupOpen = false" />

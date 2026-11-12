@@ -21,6 +21,8 @@ import UnitInspectionsCard from "@/features/roadside/UnitInspectionsCard.vue";
 import UnitFileSection from "@/components/files/UnitFileSection.vue";
 import type { UnitFileSubject } from "@/components/files/fileSubject";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import NotesButton from "@/components/notes/NotesButton.vue";
+import NotesDrawer from "@/components/notes/NotesDrawer.vue";
 import { gpsPairingNote } from "@/lib/trailerPairingNote";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { TRAILER_SECTIONS, resolveTrailerSection, type TrailerSection } from "./trailerSections";
@@ -87,7 +89,11 @@ const facts = computed<Fact[]>(() => {
     <PageHeader
       :title="trailer ? `Trailer ${trailer.unit_number}` : 'Trailer'"
       :description="trailer ? [trailer.year, trailer.make, trailer.model].filter(Boolean).join(' ') || 'The trailer, its file and its maintenance record' : 'The trailer, its file and its maintenance record'"
-    />
+    >
+      <!-- The trailer's notes (UNIT-NOTES-PLAN D-UN12): the drawer the Trailers list's Notes cell opens. -->
+      <template v-if="trailer" #actions><NotesButton kind="trailer" :id="id" :label="trailer.unit_number" /></template>
+    </PageHeader>
+    <NotesDrawer />
     <QueryState
       :loading="trailerQuery.isLoading.value"
       :error="trailerQuery.isError.value ? trailerQuery.error.value : null"
