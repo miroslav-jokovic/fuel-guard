@@ -1008,3 +1008,19 @@ audit row is the endpoint's own.
     the page reading another tab key.
   - **R4b is now complete for every tool whose page can show the answer.** `maintenance_cost` and
     `fleet_now` stay bare, for the reasons in the entry above.
+- 2026-11-12 — **Answer time measured (Step 2d's gate): median 7.3 s, so streaming is built.**
+  - Production had one recorded answer (5.0 s, 3 rounds), too few to decide on. The eval now times each
+    whole answer around `askData`, as `routes/ai.ts` records `latency_ms`, and reports the median, p90 and
+    slowest by nearest rank (`EvalRun.latency`, recorded in `baseline.json`). Test: `assistantEval.test.ts`
+    "times each whole answer around the endpoint's own loop, and reports the median and p90 by nearest rank".
+  - **Run on production, Haiku 5.5 at `medium`, 23 questions ($0.028, owner's go):** median **7.3 s**, p90
+    **15.9 s**, slowest **20.3 s** (`ifta-by-state`). Single-tool answers sit at 3–7 s, while every answer
+    with two or more tool rounds takes 10–20 s. The two no-tool refusals take ~2–3 s.
+  - **Decision: build Step 2d.** The bar was a median over ~5 s. Because most of the wait happens before the
+    first word, during the tool rounds, streaming the text alone would not shorten it. So the stream also
+    sends one progress event per tool call (the tool's plain label, e.g. "Reading the fuel report"), and the
+    acceptance check becomes "first event under 2 s, measured on staging".
+  - **Score 21 of 23 (was 22).** `flagged-fills-drivers` still fails, for the tool-search reason above.
+    `loads-per-truck` called the right tool but its answer named neither McLeod nor miles, which is a
+    wording check. It passed in the previous run, so this is run-to-run variation, not a code change
+    (nothing it reads changed). It stays in the set as recorded.

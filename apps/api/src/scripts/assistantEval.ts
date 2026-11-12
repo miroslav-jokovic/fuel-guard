@@ -52,14 +52,16 @@ if (!env.ANTHROPIC_API_KEY) {
 
 const showAnswers = process.argv.includes("--answers");
 const run = await runAssistantEval(getSupabaseAdmin(env), env, orgId, cases, (v, answer) => {
-  console.log(`${v.pass ? "✓" : "✗"} ${v.id}  [${v.tools.join(", ") || "no tool"}]${v.why.length ? `  — ${v.why.join("; ")}` : ""}`);
+  console.log(`${v.pass ? "✓" : "✗"} ${v.id}  [${v.tools.join(", ") || "no tool"}] ${((v.latencyMs ?? 0) / 1000).toFixed(1)}s${v.why.length ? `  — ${v.why.join("; ")}` : ""}`);
   if (showAnswers) console.log(`${answer.replace(/^/gm, "    │ ")}\n`);
 });
 const dollars = (run.costMicroUsd / 1_000_000).toFixed(4);
 console.log(`\n${run.passed}/${run.total} passed, ${AI_MODELS.assistant}, $${dollars}`);
+const sec = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
+console.log(`answer time: median ${sec(run.latency.p50Ms)}, p90 ${sec(run.latency.p90Ms)}, slowest ${sec(run.latency.maxMs)}`);
 
 if (process.argv.includes("--record")) {
-  const baseline = { model: AI_MODELS.assistant, recordedAt: new Date().toISOString(), passed: run.passed, total: run.total, costUsd: Number(dollars), verdicts: run.verdicts };
+  const baseline = { model: AI_MODELS.assistant, recordedAt: new Date().toISOString(), passed: run.passed, total: run.total, costUsd: Number(dollars), latency: run.latency, verdicts: run.verdicts };
   writeFileSync(new URL("../modules/insights/eval/baseline.json", import.meta.url), `${JSON.stringify(baseline, null, 2)}\n`);
   console.log("Recorded eval/baseline.json");
 }

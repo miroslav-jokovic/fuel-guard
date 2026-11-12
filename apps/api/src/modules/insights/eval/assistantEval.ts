@@ -20,6 +20,12 @@ export interface EvalVerdict {
   tools: string[];
   outcome: AskTrace["outcome"];
   costMicroUsd: number;
+  /**
+   * Wall time of the whole answer, every round and tool read — what the route records as `latency_ms`
+   * (`routes/ai.ts`). Set by the runner, not `scoreCase`: a clock is not a verdict. Streaming (Step 2d)
+   * is built only if the median is over ~5 s (PLAN §6), and production has too few answers to say.
+   */
+  latencyMs?: number;
 }
 
 const ALL_MODULES = new Set(MODULE_KEYS) as ModuleSet;
@@ -60,6 +66,15 @@ export interface EvalRun {
   passed: number;
   total: number;
   costMicroUsd: number;
+  /** Answer time across the cases, the measurement streaming waits on. */
+  latency: { p50Ms: number; p90Ms: number; maxMs: number };
+}
+
+/** The value at a share of the sorted times, nearest rank (no interpolation: 23 answers, not a curve). */
+export function latencyPercentile(ms: readonly number[], share: number): number {
+  if (ms.length === 0) return 0;
+  const sorted = [...ms].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(share * sorted.length) - 1))]!;
 }
 
 export async function runAssistantEval(
@@ -78,8 +93,9 @@ export async function runAssistantEval(
   const verdicts: EvalVerdict[] = [];
   for (const c of cases) {
     const allowed = assistantToolsFor(c.role, null, ALL_MODULES);
+    const started = Date.now();
     const trace = await askData(admin, env, orgId, c.question, allowed, new Date(), c.history ?? []);
-    const v = scoreCase(c, trace);
+    const v: EvalVerdict = { ...scoreCase(c, trace), latencyMs: Date.now() - started };
     verdicts.push(v);
     onCase?.(v, trace.answer);
   }
@@ -88,5 +104,9 @@ export async function runAssistantEval(
     passed: verdicts.filter((v) => v.pass).length,
     total: verdicts.length,
     costMicroUsd: verdicts.reduce((n, v) => n + v.costMicroUsd, 0),
+    latency: (() => {
+      const ms = verdicts.map((v) => v.latencyMs ?? 0);
+      return { p50Ms: latencyPercentile(ms, 0.5), p90Ms: latencyPercentile(ms, 0.9), maxMs: Math.max(0, ...ms) };
+    })(),
   };
 }
