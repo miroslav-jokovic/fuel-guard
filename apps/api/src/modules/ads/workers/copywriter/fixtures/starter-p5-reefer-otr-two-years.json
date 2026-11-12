@@ -1,0 +1,188 @@
+{
+  "name": "starter-p5-reefer-otr-two-years",
+  "about": "Starter P5 \"On the road, in figures\" on the opening-reefer-otr-two-years brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A OTR reefer driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 70,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 78,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "week"
+        },
+        {
+          "kind": "quantity",
+          "value": 4,
+          "unit": "day"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "term",
+          "term": "rider policy"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "reefer freight",
+          "over-the-road runs",
+          "Produce out of the valley to the Midwest",
+          "Out 2 weeks, home 4 days"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "On the road, in figures",
+      "hook_formula": "Lead with one of the brief's own figures as evidence rather than a promise (the pay, or the miles), and put a second on the second line (the home time, or the bonus), so the two read side by side. If the brief states only one figure, the second line is the plainest fact beside it. Never round, never add a figure.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "Our truck driving on {road} through {setting}, {viewpoint}, {light}, {season}, no text, no logos, no lettering",
+      "image_slots": [
+        "road",
+        "setting",
+        "viewpoint",
+        "light",
+        "season"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "top_band",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "proof",
+      "scene_family": "equipment_on_road"
+    },
+    "company_name": null,
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:11:32.912Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "$0.70–$0.78 per mile",
+            "cta": "Apply today",
+            "primary_text": "Haul produce out of the valley to the Midwest. You earn $0.70 per mile loaded, $0.78 per mile on select runs. Out 2 weeks, home 4 days. We require 2 years of experience and 23+ years of age. 401k and a rider policy are included. Join our team.",
+            "headline": "OTR reefer opening",
+            "second_line": "Home 4 days"
+          },
+          "es": {
+            "hook": "$0.70–$0.78 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Carga refrigerada del valle al Medio Oeste. Ganas $0.70 por milla, hasta $0.78 por milla. Sales 2 semanas y regresas 4 días. Se requieren 2 años de experiencia y ser mayor de 23 años. Incluye 401k y política de acompañante.",
+            "headline": "Conductor OTR reefer",
+            "second_line": "4 días en casa"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home 4 days every 2 weeks",
+            "cta": "Apply today",
+            "primary_text": "Out 2 weeks, home 4 days — that is the schedule on this OTR reefer route. You haul produce from the valley to the Midwest and earn $0.70 per mile, up to $0.78 per mile. Must be 23+ with 2 years of experience. 401k and rider policy available.",
+            "headline": "OTR reefer, steady runs",
+            "second_line": "$0.70–$0.78/mile"
+          },
+          "es": {
+            "hook": "Casa 4 días cada 2 semanas",
+            "cta": "Aplica hoy",
+            "primary_text": "Sales 2 semanas y vuelves 4 días. Transportas carga refrigerada — produce del valle al Medio Oeste — y ganas $0.70 por milla, hasta $0.78 por milla. Requisitos: mayores de 23 años y 2 años de experiencia. 401k y política de acompañante disponibles.",
+            "headline": "OTR reefer, rutas fijas",
+            "second_line": "$0.70–$0.78/milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Reefer, valley to Midwest",
+            "cta": "Apply today",
+            "primary_text": "This is a produce reefer lane — valley to the Midwest, over the road. Pay runs $0.70 per mile and reaches $0.78 per mile. The rotation is 2 weeks out, 4 days home. You need 2 years of experience and must be 23+. 401k and a rider policy come with the seat.",
+            "headline": "Up to $0.78 per mile",
+            "second_line": "Out 2 wks, home 4 days"
+          },
+          "es": {
+            "hook": "Reefer, valle al Medio Oeste",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta de produce refrigerada del valle al Medio Oeste, carretera larga. La paga es de $0.70 por milla y sube hasta $0.78 por milla. El ciclo es 2 semanas en ruta, 4 días en casa. Necesitas 2 años de experiencia y ser mayor de 23 años. Incluye 401k y política de acompañante.",
+            "headline": "Hasta $0.78 por milla",
+            "second_line": "2 sem. fuera, 4 días casa"
+          }
+        }
+      ]
+    }
+  }
+}

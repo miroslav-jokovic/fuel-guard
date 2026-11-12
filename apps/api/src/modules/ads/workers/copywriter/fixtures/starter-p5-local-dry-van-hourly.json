@@ -1,0 +1,181 @@
+{
+  "name": "starter-p5-local-dry-van-hourly",
+  "about": "Starter P5 \"On the road, in figures\" on the opening-local-dry-van-hourly brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A local dry van driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 2800,
+          "per": "hour"
+        },
+        {
+          "kind": "money",
+          "cents": 3200,
+          "per": "hour"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "paid time off"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "local runs",
+          "Chicagoland store deliveries"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "On the road, in figures",
+      "hook_formula": "Lead with one of the brief's own figures as evidence rather than a promise (the pay, or the miles), and put a second on the second line (the home time, or the bonus), so the two read side by side. If the brief states only one figure, the second line is the plainest fact beside it. Never round, never add a figure.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "Our truck driving on {road} through {setting}, {viewpoint}, {light}, {season}, no text, no logos, no lettering",
+      "image_slots": [
+        "road",
+        "setting",
+        "viewpoint",
+        "light",
+        "season"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "top_band",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "proof",
+      "scene_family": "equipment_on_road"
+    },
+    "company_name": "360 Logistics",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:11:08.824Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "$28–$32 per hour",
+            "cta": "Apply today",
+            "primary_text": "360 Logistics is hiring Class A drivers for local dry van runs in Chicagoland. Dedicated route, store deliveries, $28 to $32 per hour. Home daily. Paid time off. Must be 23+ with 2 years experience.",
+            "headline": "Local. $28–$32/hr.",
+            "second_line": "Home daily"
+          },
+          "es": {
+            "hook": "$28–$32 por hora",
+            "cta": "Aplica hoy",
+            "primary_text": "360 Logistics busca conductores Clase A para rutas locales de carga seca en Chicago. Ruta dedicada, entregas a tiendas, $28 a $32 por hora. Casa cada día. Tiempo libre pagado. Mayores de 23 con 2 años de experiencia.",
+            "headline": "Local. $28–$32/hr.",
+            "second_line": "Casa cada día"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home daily. Every day.",
+            "cta": "Apply today",
+            "primary_text": "With 360 Logistics you run local dry van freight — Chicagoland store deliveries on a dedicated route. You are home every single day. Pay runs $28 to $32 per hour, plus paid time off. Class A required, 23+ and 2 years behind the wheel.",
+            "headline": "Home daily, local run",
+            "second_line": "$28–$32 per hour"
+          },
+          "es": {
+            "hook": "Casa cada día.",
+            "cta": "Aplica hoy",
+            "primary_text": "Con 360 Logistics manejas carga seca en rutas locales, entregando a tiendas en el área de Chicago. Ruta dedicada. Llegas a casa todos los días. Pago de $28 a $32 por hora, más tiempo libre pagado. Se requiere Clase A, mayores de 23 con 2 años de experiencia.",
+            "headline": "Casa diario, ruta local",
+            "second_line": "$28–$32 por hora"
+          }
+        },
+        {
+          "en": {
+            "hook": "Chicagoland stores. Daily.",
+            "cta": "Apply today",
+            "primary_text": "Dedicated dry van work in Chicagoland — local store deliveries, same lane every day. 360 Logistics pays $28 to $32 per hour and you are home daily. Paid time off. Class A, age 23+, 2 years experience required. Join our team.",
+            "headline": "Dedicated local driver",
+            "second_line": "$28–$32/hr, home daily"
+          },
+          "es": {
+            "hook": "Entregas locales, Chicago.",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta dedicada de carga seca en Chicagoland, entregas a tiendas locales todos los días. 360 Logistics paga entre $28 y $32 por hora y regresas a casa cada día. Tiempo libre pagado. Se requiere Clase A, mayores de 23 y 2 años de experiencia.",
+            "headline": "Conductor local dedicado",
+            "second_line": "$28–$32/hr, casa diario"
+          }
+        }
+      ]
+    }
+  }
+}

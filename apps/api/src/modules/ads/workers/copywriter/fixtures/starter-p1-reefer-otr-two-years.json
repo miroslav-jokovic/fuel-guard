@@ -1,0 +1,177 @@
+{
+  "name": "starter-p1-reefer-otr-two-years",
+  "about": "Starter P1 \"From the driver's seat\" on the opening-reefer-otr-two-years brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A OTR reefer driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 70,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 78,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "week"
+        },
+        {
+          "kind": "quantity",
+          "value": 4,
+          "unit": "day"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "term",
+          "term": "rider policy"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "reefer freight",
+          "over-the-road runs",
+          "Produce out of the valley to the Midwest",
+          "Out 2 weeks, home 4 days"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "From the driver's seat",
+      "hook_formula": "Say plainly what the run is, as if from the driver's seat: the lanes or the area, then the schedule or home time the brief states. If the brief states no lanes or area, say the kind of run (local, regional, over the road). Then what we need, if the brief states it (experience, licence, endorsements). No pay figure in the hook unless the brief states nothing else.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield from the driver's seat, {viewpoint}, an open {road} ahead through {setting}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "viewpoint",
+        "road",
+        "setting",
+        "light",
+        "weather"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "ribbon",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "straight_talk",
+      "scene_family": "cab_pov"
+    },
+    "company_name": null,
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:57:18.116Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Valley to Midwest, out 2 weeks",
+            "cta": "Apply today",
+            "primary_text": "Reefer OTR run: produce out of the valley to the Midwest. Out 2 weeks, home 4 days. Pay starts at $0.70 per mile, up to $0.78 per mile. Class A, 2 years experience, age 23+. 401k and rider policy available. Join our team.",
+            "headline": "Reefer OTR — $0.70/mile"
+          },
+          "es": {
+            "hook": "Valle al Medio Oeste, 2 semanas",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta OTR de reefer: carga de produce del valle al Medio Oeste. Sales 2 semanas, regresas 4 días. Pago desde $0.70 por milla, hasta $0.78 por milla. Clase A, 2 años de experiencia, mayores de 23. 401k y política de acompañante disponibles.",
+            "headline": "OTR reefer — $0.70/milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home 4 days after 2 weeks out",
+            "cta": "Apply now",
+            "primary_text": "Out 2 weeks, home 4 days — reefer freight, produce lanes from the valley to the Midwest. $0.70 per mile to start, $0.78 per mile as you go. Need Class A, 2 years experience, and age 23+. 401k and rider policy included.",
+            "headline": "Home 4 days every 2 weeks"
+          },
+          "es": {
+            "hook": "Casa 4 días tras 2 semanas fuera",
+            "cta": "Aplica ahora",
+            "primary_text": "Fuera 2 semanas, en casa 4 días — tráiler reefer, rutas de produce del valle al Medio Oeste. Desde $0.70 por milla, hasta $0.78 por milla. Se requiere Clase A, 2 años de experiencia, mayor de 23 años. 401k y política de acompañante.",
+            "headline": "4 días en casa cada 2 semanas"
+          }
+        },
+        {
+          "en": {
+            "hook": "Reefer, valley produce, OTR",
+            "cta": "Apply today",
+            "primary_text": "You haul reefer produce out of the valley to the Midwest, over the road. $0.78 per mile is on the table. Schedule runs 2 weeks out, 4 days home. Class A with 2 years required, age 23+. 401k and rider policy on offer.",
+            "headline": "Up to $0.78/mile, reefer OTR"
+          },
+          "es": {
+            "hook": "Reefer, produce del valle, OTR",
+            "cta": "Aplica hoy",
+            "primary_text": "Llevas carga reefer de produce del valle al Medio Oeste, ruta OTR. Hasta $0.78 por milla disponible. Ciclo de 2 semanas fuera, 4 días en casa. Se requiere Clase A con 2 años de experiencia, mayor de 23 años. 401k y política de acompañante.",
+            "headline": "Hasta $0.78/milla, reefer OTR"
+          }
+        }
+      ]
+    }
+  }
+}

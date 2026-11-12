@@ -1,0 +1,170 @@
+{
+  "name": "starter-p1-regional-reefer-weekly",
+  "about": "Starter P1 \"From the driver's seat\" on the opening-regional-reefer-weekly brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A regional reefer driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 62,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 70,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "term",
+          "term": "no-touch freight"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "reefer freight",
+          "regional runs",
+          "Chicago to Texas and back"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "From the driver's seat",
+      "hook_formula": "Say plainly what the run is, as if from the driver's seat: the lanes or the area, then the schedule or home time the brief states. If the brief states no lanes or area, say the kind of run (local, regional, over the road). Then what we need, if the brief states it (experience, licence, endorsements). No pay figure in the hook unless the brief states nothing else.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield from the driver's seat, {viewpoint}, an open {road} ahead through {setting}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "viewpoint",
+        "road",
+        "setting",
+        "light",
+        "weather"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "ribbon",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "straight_talk",
+      "scene_family": "cab_pov"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:57:31.648Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Chicago to Texas, home weekly",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc is hiring Class A reefer drivers for regional runs between Chicago and Texas. You haul no-touch freight, get paid weekly, and are home weekly. Starting at $0.62 per mile, rising to $0.70 per mile. Must be 23+ with 2 years of experience.",
+            "headline": "Home every week, $0.62/mi"
+          },
+          "es": {
+            "hook": "Chicago a Texas, en casa cada semana",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc busca conductores Clase A para rutas regionales de reefer entre Chicago y Texas. Carga sin tocar, pago semanal y regreso a casa cada semana. Desde $0.62 por milla, con potencial de $0.70 por milla. Se requieren mayores de 23 con 2 años de experiencia.",
+            "headline": "En casa cada semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "Regional reefer, home weekly",
+            "cta": "Join us today",
+            "primary_text": "Silvicom Inc runs reefer freight from Chicago to Texas and back. You touch nothing — no-touch freight every load. Weekly pay, home weekly. $0.62 per mile to start, up to $0.70 per mile. Class A, 23+, 2 years experience required.",
+            "headline": "$0.62–$0.70 per mile"
+          },
+          "es": {
+            "hook": "Reefer regional, casa cada semana",
+            "cta": "Únete hoy",
+            "primary_text": "Silvicom Inc mueve carga de reefer de Chicago a Texas y de regreso. Sin tocar la carga. Pago semanal y en casa cada semana. De $0.62 a $0.70 por milla. Se requiere Clase A, mayores de 23 y 2 años de experiencia.",
+            "headline": "$0.62 a $0.70 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Reefer, Chicago–Texas, Class A",
+            "cta": "Apply now",
+            "primary_text": "No-touch reefer freight on a Chicago-to-Texas regional lane. Silvicom Inc pays weekly — $0.62 per mile starting, up to $0.70 per mile — and has you home weekly. Need a Class A, 2 years behind the wheel, and be 23+.",
+            "headline": "No-touch freight, home weekly"
+          },
+          "es": {
+            "hook": "Reefer, Chicago–Texas, Clase A",
+            "cta": "Aplica ahora",
+            "primary_text": "Carga de reefer sin tocar en rutas regionales Chicago–Texas. Silvicom Inc paga cada semana: $0.62 por milla para comenzar, hasta $0.70 por milla. Y en casa cada semana. Clase A, 2 años de experiencia y mayores de 23.",
+            "headline": "Sin tocar carga, casa semanal"
+          }
+        }
+      ]
+    }
+  }
+}

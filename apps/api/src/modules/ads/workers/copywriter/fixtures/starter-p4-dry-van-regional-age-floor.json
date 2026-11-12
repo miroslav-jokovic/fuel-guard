@@ -1,0 +1,169 @@
+{
+  "name": "starter-p4-dry-van-regional-age-floor",
+  "about": "Starter P4 \"Walk-around\" on the opening-dry-van-regional-age-floor brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A regional dry van driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 160000,
+          "per": "week"
+        },
+        {
+          "kind": "money",
+          "cents": 190000,
+          "per": "week"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "dental and vision"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "regional runs",
+          "Midwest"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive or haul, as the brief describes it (the trailer type, the freight). If the brief says nothing about the equipment, lead with the freight or the kind of run. Then the strongest fact the brief states.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our tractor parked at {setting}, {viewpoint}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "setting",
+        "viewpoint",
+        "light",
+        "weather"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "equipment_first",
+      "scene_family": "equipment_at_rest"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:05:09.121Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Dry van, $1,600–$1,900/wk",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc is hiring Class A regional dry van drivers in the Midwest. Earn $1,600 to $1,900 per week and get home weekly. Health, dental, and vision insurance included. Must be 23+ with 2 years of experience.",
+            "headline": "Home weekly. Top pay."
+          },
+          "es": {
+            "hook": "Van seco, $1,600–$1,900/sem",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc busca conductores Clase A, rutas regionales de van seco en el Medio Oeste. Gana $1,600 a $1,900 por semana y llegas a casa cada semana. Seguro médico, dental y visión. Mayores de 23 años, 2 años de experiencia.",
+            "headline": "A casa cada semana."
+          }
+        },
+        {
+          "en": {
+            "hook": "Home weekly, dry van runs",
+            "cta": "Apply today",
+            "primary_text": "Regional Midwest dry van routes with Silvicom Inc. You're home every week and earning up to $1,900 per week. Health, dental, and vision coverage available. Class A required, age 23 and 2 years of experience to qualify.",
+            "headline": "$1,600–$1,900 per week"
+          },
+          "es": {
+            "hook": "A casa cada semana, van seco",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales de van seco en el Medio Oeste con Silvicom Inc. Regresa a casa cada semana y gana hasta $1,900 por semana. Cobertura médica, dental y de visión disponible. Se requiere Clase A, mayores de 23 años y 2 años de experiencia.",
+            "headline": "$1,600–$1,900 por semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "Dry van, Midwest regional",
+            "cta": "Apply today",
+            "primary_text": "Class A dry van driver needed for Midwest regional routes at Silvicom Inc. Pay runs $1,600 to $1,900 per week. You come home weekly. Health, dental, and vision insurance on the job. Must be 23+ with 2 years behind the wheel.",
+            "headline": "Up to $1,900 per week"
+          },
+          "es": {
+            "hook": "Van seco, rutas Medio Oeste",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc busca conductor Clase A, van seco regional en el Medio Oeste. Pago de $1,600 a $1,900 por semana. Llegas a casa cada semana. Seguro médico, dental y visión incluidos. Mayores de 23 años, 2 años de experiencia.",
+            "headline": "Hasta $1,900 por semana"
+          }
+        }
+      ]
+    }
+  }
+}

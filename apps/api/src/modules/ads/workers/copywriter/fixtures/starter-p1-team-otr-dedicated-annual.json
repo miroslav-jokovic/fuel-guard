@@ -1,0 +1,180 @@
+{
+  "name": "starter-p1-team-otr-dedicated-annual",
+  "about": "Starter P1 \"From the driver's seat\" on the opening-team-otr-dedicated-annual brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A team drivers, dedicated OTR",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 9500000,
+          "per": "year"
+        },
+        {
+          "kind": "money",
+          "cents": 11000000,
+          "per": "year"
+        },
+        {
+          "kind": "money",
+          "cents": 150000,
+          "per": null
+        },
+        {
+          "kind": "term",
+          "term": "referral bonus"
+        },
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "drop and hook"
+        },
+        {
+          "kind": "term",
+          "term": "late-model equipment"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "over-the-road runs",
+          "Coast to coast",
+          "Home every other weekend"
+        ],
+        "in_our_words": "Teams stay together; we do not split a good pair."
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "From the driver's seat",
+      "hook_formula": "Say plainly what the run is, as if from the driver's seat: the lanes or the area, then the schedule or home time the brief states. If the brief states no lanes or area, say the kind of run (local, regional, over the road). Then what we need, if the brief states it (experience, licence, endorsements). No pay figure in the hook unless the brief states nothing else.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield from the driver's seat, {viewpoint}, an open {road} ahead through {setting}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "viewpoint",
+        "road",
+        "setting",
+        "light",
+        "weather"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "ribbon",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "straight_talk",
+      "scene_family": "cab_pov"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:58:10.618Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Coast to coast, home every other weekend",
+            "cta": "Apply with Silvicom",
+            "primary_text": "Silvicom Inc runs dedicated dry van team freight coast to coast. Drop and hook keeps you moving. Teams earn $95,000–$110,000 per year. Late-model equipment, a $1,500 referral bonus, and a team that stays together. Class A, 2 years experience, 23+.",
+            "headline": "Team OTR, home every other weekend"
+          },
+          "es": {
+            "hook": "OTR en equipo, costa a costa",
+            "cta": "Aplica con Silvicom",
+            "primary_text": "Silvicom Inc opera rutas dedicadas de tráiler seco en equipo, costa a costa. Trabajo drop and hook para que sigas rodando. Los equipos ganan entre $95,000 y $110,000 al año. Equipo de modelo reciente y bono de referido de $1,500. Se requieren 2 años de experiencia y mayores de 23 años.",
+            "headline": "OTR en equipo, casa cada dos fines"
+          }
+        },
+        {
+          "en": {
+            "hook": "Team drivers: $95,000–$110,000 a year",
+            "cta": "Join Silvicom Inc",
+            "primary_text": "Dedicated coast-to-coast dry van with Silvicom Inc. Drop and hook freight, late-model trucks, and a $1,500 referral bonus. Home every other weekend. Your team stays together — Silvicom does not split a good pair. Class A required, 2 years experience, age 23+.",
+            "headline": "Up to $110,000 per year, teams"
+          },
+          "es": {
+            "hook": "Equipo: hasta $110,000 al año",
+            "cta": "Únete a Silvicom Inc",
+            "primary_text": "Ruta dedicada costa a costa con carga seca. Drop and hook, equipo de modelo reciente y bono de referido de $1,500. Casa cada dos fines de semana. En Silvicom Inc, los equipos no se separan. Se requiere Clase A, 2 años de experiencia y mayores de 23 años.",
+            "headline": "Hasta $110,000 al año en equipo"
+          }
+        },
+        {
+          "en": {
+            "hook": "Drop and hook, coast to coast",
+            "cta": "Apply today",
+            "primary_text": "Late-model equipment, dedicated dry van lanes coast to coast, and drop-and-hook freight that keeps both seats busy. Silvicom Inc keeps teams together — same partner, same truck. Home every other weekend. Earn $95,000–$110,000 per year plus a $1,500 referral bonus. Class A, 2 years, 23+.",
+            "headline": "Drop and hook, dedicated team lanes"
+          },
+          "es": {
+            "hook": "Drop and hook, rutas dedicadas",
+            "cta": "Aplica hoy",
+            "primary_text": "Equipo de modelo reciente, rutas dedicadas de carga seca costa a costa y trabajo drop and hook. En Silvicom Inc, los equipos se mantienen juntos. Casa cada dos fines de semana. Gana entre $95,000 y $110,000 al año más un bono de referido de $1,500. Clase A, 2 años de experiencia, mayores de 23 años.",
+            "headline": "Drop and hook, rutas dedicadas en equipo"
+          }
+        }
+      ]
+    }
+  }
+}

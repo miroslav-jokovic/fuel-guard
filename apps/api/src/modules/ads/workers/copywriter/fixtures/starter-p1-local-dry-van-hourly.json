@@ -1,0 +1,170 @@
+{
+  "name": "starter-p1-local-dry-van-hourly",
+  "about": "Starter P1 \"From the driver's seat\" on the opening-local-dry-van-hourly brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A local dry van driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 2800,
+          "per": "hour"
+        },
+        {
+          "kind": "money",
+          "cents": 3200,
+          "per": "hour"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "paid time off"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "local runs",
+          "Chicagoland store deliveries"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "From the driver's seat",
+      "hook_formula": "Say plainly what the run is, as if from the driver's seat: the lanes or the area, then the schedule or home time the brief states. If the brief states no lanes or area, say the kind of run (local, regional, over the road). Then what we need, if the brief states it (experience, licence, endorsements). No pay figure in the hook unless the brief states nothing else.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield from the driver's seat, {viewpoint}, an open {road} ahead through {setting}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "viewpoint",
+        "road",
+        "setting",
+        "light",
+        "weather"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "ribbon",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "straight_talk",
+      "scene_family": "cab_pov"
+    },
+    "company_name": "360 Logistics",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:57:04.608Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Local Chicagoland, home daily",
+            "cta": "Apply today",
+            "primary_text": "360 Logistics runs dry van freight to Chicagoland stores on a dedicated local route. You are home every day. Pay starts at $28 per hour and goes to $32 per hour. You need 2 years of Class A experience and must be 23+. Paid time off included. Join our team.",
+            "headline": "360 Logistics is hiring"
+          },
+          "es": {
+            "hook": "Local Chicagoland, casa cada día",
+            "cta": "Aplica hoy",
+            "primary_text": "360 Logistics hace entregas de carga seca a tiendas en Chicagoland en una ruta local dedicada. Llegas a casa cada día. El pago va de $28 por hora hasta $32 por hora. Se requieren 2 años de experiencia con licencia Clase A y ser mayor de 23 años. Tiempo libre pagado incluido.",
+            "headline": "360 Logistics está contratando"
+          }
+        },
+        {
+          "en": {
+            "hook": "$28–$32/hr, local, home daily",
+            "cta": "Apply now",
+            "primary_text": "Dry van store deliveries across Chicagoland — dedicated route, no nights away. 360 Logistics pays $28 to $32 per hour. Class A required, 2 years experience, age 23 or older. Paid time off on top. Come drive local with us.",
+            "headline": "$28–$32/hr, home daily"
+          },
+          "es": {
+            "hook": "$28–$32/hr, local, casa diario",
+            "cta": "Aplica ahora",
+            "primary_text": "Entregas de carga seca en furgón a tiendas de Chicagoland — ruta dedicada, sin noches fuera. 360 Logistics paga de $28 a $32 por hora. Se requiere Clase A, 2 años de experiencia y ser mayor de 23 años. Más tiempo libre pagado.",
+            "headline": "$28–$32/hr, casa cada día"
+          }
+        },
+        {
+          "en": {
+            "hook": "Dedicated dry van, home nightly",
+            "cta": "Join us today",
+            "primary_text": "This is a dedicated dry van position delivering to Chicagoland stores on local runs. 360 Logistics offers $28 to $32 per hour and paid time off. Class A with 2 years behind the wheel required. Must be 23+. Local work, steady schedule, home every night.",
+            "headline": "Dedicated local, $28–$32/hr"
+          },
+          "es": {
+            "hook": "Furgón dedicado, casa cada noche",
+            "cta": "Únete hoy",
+            "primary_text": "Posición dedicada de furgón seco con entregas a tiendas en Chicagoland, rutas locales. 360 Logistics paga de $28 a $32 por hora e incluye tiempo libre pagado. Se requiere Clase A con 2 años de experiencia. Debes ser mayor de 23 años. Trabajo local, horario estable.",
+            "headline": "Local dedicado, $28–$32/hr"
+          }
+        }
+      ]
+    }
+  }
+}

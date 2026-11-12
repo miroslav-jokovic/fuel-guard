@@ -1,0 +1,180 @@
+{
+  "name": "starter-p2-intermodal-local-nights",
+  "about": "Starter P2 \"The number\" on the opening-intermodal-local-nights brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A intermodal driver, nights",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 32000,
+          "per": "day"
+        },
+        {
+          "kind": "money",
+          "cents": 36000,
+          "per": "day"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "term",
+          "term": "automatic transmission"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "intermodal freight",
+          "local runs",
+          "Rail yards to Joliet warehouses"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "The number",
+      "hook_formula": "Lead with the pay figure alone, exactly as the brief states it and with its unit (per mile, per week, per year). If the brief states no pay, lead with its strongest other figure (a bonus, home days, miles) — never a figure the brief does not hold. Who the job is for (the licence, the kind of run) goes in a few words on the small line above it, never in the pay line.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "A plain {surface} background, {texture}, {light}, a soft {tone} gradient, nothing in the frame, no text, no logos, no lettering",
+      "image_slots": [
+        "surface",
+        "texture",
+        "light",
+        "tone"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "centered",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta",
+        "kicker": "kicker"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "pay_first",
+      "scene_family": "abstract_plate"
+    },
+    "company_name": "360 Logistics",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:59:44.843Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "pay": "$320–$360 per day",
+            "cta": "Apply today",
+            "primary_text": "360 Logistics runs intermodal freight from rail yards to Joliet warehouses on local night shifts. You are home daily and paid weekly. Trucks have automatic transmission. Class A required, 2 years experience, age 23+. Join our team tonight.",
+            "headline": "Home daily, weekly pay",
+            "kicker": "Night intermodal"
+          },
+          "es": {
+            "pay": "$320–$360 por día",
+            "cta": "Aplica hoy",
+            "primary_text": "360 Logistics mueve carga intermodal de patios ferroviarios a bodegas en Joliet, en turnos nocturnos locales. Regresas a casa cada día y cobras cada semana. Transmisión automática. Se requiere Clase A, 2 años de experiencia, mayor de 23 años.",
+            "headline": "A casa cada día, pago semanal",
+            "kicker": "Intermodal nocturno"
+          }
+        },
+        {
+          "en": {
+            "pay": "$320–$360 per day",
+            "cta": "Apply now",
+            "primary_text": "Rail yards to Joliet warehouses — short local hops on the night shift with 360 Logistics. Automatic transmission trucks, weekly pay, and you sleep in your own bed every day. Class A CDL, 2 years experience, 23+ required. Apply now and start earning.",
+            "headline": "Local runs, home daily",
+            "kicker": "Class A nights"
+          },
+          "es": {
+            "pay": "$320–$360 por día",
+            "cta": "Aplica ahora",
+            "primary_text": "De patios ferroviarios a bodegas en Joliet — rutas locales cortas en turno nocturno con 360 Logistics. Tráileres con transmisión automática y pago semanal. Duermes en tu casa cada día. CDL Clase A, 2 años de experiencia, mayor de 23 años.",
+            "headline": "Rutas locales, a casa cada día",
+            "kicker": "Clase A nocturno"
+          }
+        },
+        {
+          "en": {
+            "pay": "$320–$360 per day",
+            "cta": "Join us today",
+            "primary_text": "Drive automatic transmission equipment on intermodal freight — rail yards straight to Joliet warehouses. Night shift, local miles, home daily, weekly pay. 360 Logistics is hiring Class A drivers with 2 years experience, age 23+.",
+            "headline": "Automatic trucks, night shift",
+            "kicker": "Intermodal, local"
+          },
+          "es": {
+            "pay": "$320–$360 por día",
+            "cta": "Únete hoy",
+            "primary_text": "Maneja equipo con transmisión automática en carga intermodal — de patios ferroviarios directo a bodegas en Joliet. Turno nocturno, rutas locales, a casa cada día, pago semanal. 360 Logistics busca conductores Clase A con 2 años de experiencia, mayor de 23 años.",
+            "headline": "Transmisión automática, turno nocturno",
+            "kicker": "Intermodal local"
+          }
+        }
+      ]
+    }
+  }
+}

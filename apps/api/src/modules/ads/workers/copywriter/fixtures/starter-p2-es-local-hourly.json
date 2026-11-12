@@ -1,0 +1,175 @@
+{
+  "name": "starter-p2-es-local-hourly",
+  "about": "Starter P2 \"The number\" on the opening-es-local-hourly brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor local Clase A, caja seca",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 2700,
+          "per": "hour"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "term",
+          "term": "paid time off"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "local runs",
+          "Entregas locales en Chicago"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "The number",
+      "hook_formula": "Lead with the pay figure alone, exactly as the brief states it and with its unit (per mile, per week, per year). If the brief states no pay, lead with its strongest other figure (a bonus, home days, miles) — never a figure the brief does not hold. Who the job is for (the licence, the kind of run) goes in a few words on the small line above it, never in the pay line.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "A plain {surface} background, {texture}, {light}, a soft {tone} gradient, nothing in the frame, no text, no logos, no lettering",
+      "image_slots": [
+        "surface",
+        "texture",
+        "light",
+        "tone"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "centered",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta",
+        "kicker": "kicker"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "pay_first",
+      "scene_family": "abstract_plate"
+    },
+    "company_name": "360 Logistics",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:58:36.819Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "pay": "$27 per hour",
+            "cta": "Apply today",
+            "primary_text": "360 Logistics is hiring local Class A drivers for dry van freight in Chicago. You earn $27 per hour, come home daily, and get health insurance and paid time off. Two years of experience and age 23+ required. Join our team today.",
+            "headline": "Home daily, dry van",
+            "kicker": "Local Class A CDL"
+          },
+          "es": {
+            "pay": "$27 por hora",
+            "cta": "Aplica hoy",
+            "primary_text": "360 Logistics necesita conductores Clase A para rutas locales de caja seca en Chicago. Ganas $27 por hora y llegas a casa todos los días. Incluye seguro médico y tiempo libre pagado. Se requieren 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "A casa cada día, caja seca",
+            "kicker": "Clase A local CDL"
+          }
+        },
+        {
+          "en": {
+            "pay": "$27 per hour",
+            "cta": "Apply today",
+            "primary_text": "Local dry van runs in Chicago — no nights away from home. 360 Logistics pays $27 per hour with health insurance and paid time off included. Class A CDL, age 23+, and 2 years of experience required. Apply today and start coming home every night.",
+            "headline": "Health insurance included",
+            "kicker": "Dry van, Chicago"
+          },
+          "es": {
+            "pay": "$27 por hora",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas locales de caja seca en Chicago: llegas a casa cada noche. 360 Logistics paga $27 por hora e incluye seguro médico y tiempo libre pagado. Se requiere CDL Clase A, mayores de 23 años y 2 años de experiencia. Únete hoy.",
+            "headline": "Seguro médico incluido",
+            "kicker": "Caja seca, Chicago"
+          }
+        },
+        {
+          "en": {
+            "pay": "$27 per hour",
+            "cta": "Apply today",
+            "primary_text": "Class A dry van driver, local Chicago routes. You are home every day, earn $27 per hour, and have health insurance and paid time off from day one. 360 Logistics requires a Class A CDL, 2 years of experience, and age 23+. Come drive local.",
+            "headline": "Paid time off, home daily",
+            "kicker": "Now hiring: local CDL"
+          },
+          "es": {
+            "pay": "$27 por hora",
+            "cta": "Aplica hoy",
+            "primary_text": "Conductor Clase A, caja seca, rutas locales en Chicago. Llegas a casa cada día, ganas $27 por hora y cuentas con seguro médico y tiempo libre pagado. 360 Logistics pide CDL Clase A, 2 años de experiencia y ser mayor de 23 años. Maneja local con nosotros.",
+            "headline": "Tiempo libre pagado, casa diario",
+            "kicker": "Se busca: Clase A local"
+          }
+        }
+      ]
+    }
+  }
+}

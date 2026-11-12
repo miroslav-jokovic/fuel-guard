@@ -1,0 +1,187 @@
+{
+  "name": "starter-p2-es-otr-bonus",
+  "about": "Starter P2 \"The number\" on the opening-es-otr-bonus brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor Clase A de larga distancia",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 70,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "week"
+        },
+        {
+          "kind": "quantity",
+          "value": 3,
+          "unit": "day"
+        },
+        {
+          "kind": "money",
+          "cents": 250000,
+          "per": null
+        },
+        {
+          "kind": "term",
+          "term": "sign-on bonus"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "over-the-road runs",
+          "Costa a costa",
+          "Out 2 weeks, home 3 days"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "The number",
+      "hook_formula": "Lead with the pay figure alone, exactly as the brief states it and with its unit (per mile, per week, per year). If the brief states no pay, lead with its strongest other figure (a bonus, home days, miles) — never a figure the brief does not hold. Who the job is for (the licence, the kind of run) goes in a few words on the small line above it, never in the pay line.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "A plain {surface} background, {texture}, {light}, a soft {tone} gradient, nothing in the frame, no text, no logos, no lettering",
+      "image_slots": [
+        "surface",
+        "texture",
+        "light",
+        "tone"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "centered",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta",
+        "kicker": "kicker"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "pay_first",
+      "scene_family": "abstract_plate"
+    },
+    "company_name": null,
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:58:49.550Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "pay": "$0.70 per mile",
+            "cta": "Apply today",
+            "primary_text": "Earn $0.70 per mile hauling dry van freight on coast-to-coast runs. You are out 2 weeks and home 3 days. $2,500 sign-on bonus, 401k included. Must be age 23+ with 2 years of experience.",
+            "headline": "Dry van, coast to coast",
+            "kicker": "Class A OTR drivers"
+          },
+          "es": {
+            "pay": "$0.70 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Gana $0.70 por milla transportando carga de van seco en rutas de costa a costa. Sales 2 semanas y regresas a casa 3 días. Bono de contratación de $2,500 y plan 401k. Debes ser mayor de 23 años con 2 años de experiencia.",
+            "headline": "Van seco, costa a costa",
+            "kicker": "Conductores Clase A"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.70 per mile",
+            "cta": "Join our team",
+            "primary_text": "Coast-to-coast dry van runs at $0.70 a mile. You run 2 weeks out, then come home for 3 days — a steady rhythm you can plan around. $2,500 sign-on bonus and 401k. Age 23+ and 2 years of experience required.",
+            "headline": "Home 3 days after 2 weeks out",
+            "kicker": "OTR — dry van"
+          },
+          "es": {
+            "pay": "$0.70 por milla",
+            "cta": "Únete hoy",
+            "primary_text": "Rutas de costa a costa en van seco a $0.70 por milla. Sales 2 semanas y vuelves a casa 3 días — un ritmo fijo que puedes planear. Bono de $2,500 al firmar y plan 401k. Mayores de 23 con 2 años de experiencia.",
+            "headline": "3 días en casa tras 2 semanas",
+            "kicker": "OTR — van seco"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.70 per mile",
+            "cta": "Apply now",
+            "primary_text": "Start with a $2,500 sign-on bonus driving dry van freight across the country at $0.70 a mile. Runs go coast to coast: out 2 weeks, home 3 days. 401k available. Must be 23+ with 2 years behind the wheel.",
+            "headline": "$2,500 sign-on bonus",
+            "kicker": "Class A — coast to coast"
+          },
+          "es": {
+            "pay": "$0.70 por milla",
+            "cta": "Aplica ahora",
+            "primary_text": "Empieza con un bono de $2,500 al firmar manejando van seco por todo el país a $0.70 por milla. Rutas de costa a costa: fuera 2 semanas, en casa 3 días. 401k disponible. Mayores de 23 con 2 años de experiencia.",
+            "headline": "$2,500 bono de contratación",
+            "kicker": "Clase A — costa a costa"
+          }
+        }
+      ]
+    }
+  }
+}

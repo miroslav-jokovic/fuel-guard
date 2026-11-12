@@ -1,0 +1,182 @@
+{
+  "name": "starter-p4-team-otr-dedicated-annual",
+  "about": "Starter P4 \"Walk-around\" on the opening-team-otr-dedicated-annual brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A team drivers, dedicated OTR",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 9500000,
+          "per": "year"
+        },
+        {
+          "kind": "money",
+          "cents": 11000000,
+          "per": "year"
+        },
+        {
+          "kind": "money",
+          "cents": 150000,
+          "per": null
+        },
+        {
+          "kind": "term",
+          "term": "referral bonus"
+        },
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "drop and hook"
+        },
+        {
+          "kind": "term",
+          "term": "late-model equipment"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "over-the-road runs",
+          "Coast to coast",
+          "Home every other weekend"
+        ],
+        "in_our_words": "Teams stay together; we do not split a good pair."
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive or haul, as the brief describes it (the trailer type, the freight). If the brief says nothing about the equipment, lead with the freight or the kind of run. Then the strongest fact the brief states.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our tractor parked at {setting}, {viewpoint}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "setting",
+        "viewpoint",
+        "light",
+        "weather"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "equipment_first",
+      "scene_family": "equipment_at_rest"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "refused",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:08:33.769Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Dry van, coast to coast",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc runs dedicated OTR team lanes, dry van, drop and hook. Teams earn $95,000 to $110,000 per year. We do not split a team that works. Late-model equipment, $1,500 referral bonus. Age 23+, 2 years experience.",
+            "headline": "Up to $110,000 per year"
+          },
+          "es": {
+            "hook": "Van seco, costa a costa",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc opera rutas OTR dedicadas en equipo, carga seca, drop and hook. Los equipos ganan de $95,000 a $110,000 por año. No separamos parejas. Equipo de último modelo, bono de referido de $1,500. Mayores de 23 años, 2 años de experiencia.",
+            "headline": "Hasta $110,000 por año"
+          }
+        },
+        {
+          "en": {
+            "hook": "Drop and hook, $110,000",
+            "cta": "Join our team",
+            "primary_text": "Silvicom Inc hires Class A team drivers for dedicated OTR dry van, coast to coast. Drop and hook keeps you moving. Late-model equipment, home every other weekend. $95,000 to $110,000 per year. $1,500 referral bonus. Age 23+, 2 years experience.",
+            "headline": "Home every other weekend"
+          },
+          "es": {
+            "hook": "Drop and hook, $110,000",
+            "cta": "Únete hoy",
+            "primary_text": "Silvicom Inc contrata equipos Clase A, rutas OTR dedicadas, van seco, costa a costa. Drop and hook, equipo moderno, casa cada dos fines de semana. De $95,000 a $110,000 por año, bono de referido de $1,500. Mayores de 23 años, 2 años de experiencia.",
+            "headline": "Casa cada dos fines de semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "Late-model dry van OTR",
+            "cta": "Apply now",
+            "primary_text": "Late-model equipment, dedicated dry van lanes, coast to coast. Silvicom Inc does not split a team that works. Drop and hook runs, home every other weekend. $95,000 to $110,000 per year. $1,500 referral bonus. Age 23+, 2 years experience.",
+            "headline": "$95,000–$110,000 per year"
+          },
+          "es": {
+            "hook": "Van seco OTR, equipo nuevo",
+            "cta": "Aplica ahora",
+            "primary_text": "Equipo de último modelo, rutas dedicadas van seco, costa a costa. Silvicom Inc no separa a un equipo que funciona. Carga drop and hook, casa cada dos fines de semana. De $95,000 a $110,000 por año. Bono de $1,500. Mayores de 23 años, 2 años de experiencia.",
+            "headline": "$95,000–$110,000 por año"
+          }
+        }
+      ]
+    }
+  },
+  "expect_findings": [
+    "too_long"
+  ]
+}

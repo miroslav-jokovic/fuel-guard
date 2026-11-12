@@ -1,0 +1,169 @@
+{
+  "name": "starter-p4-local-dry-van-hourly",
+  "about": "Starter P4 \"Walk-around\" on the opening-local-dry-van-hourly brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A local dry van driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 2800,
+          "per": "hour"
+        },
+        {
+          "kind": "money",
+          "cents": 3200,
+          "per": "hour"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "paid time off"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "local runs",
+          "Chicagoland store deliveries"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive or haul, as the brief describes it (the trailer type, the freight). If the brief says nothing about the equipment, lead with the freight or the kind of run. Then the strongest fact the brief states.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our tractor parked at {setting}, {viewpoint}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "setting",
+        "viewpoint",
+        "light",
+        "weather"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "equipment_first",
+      "scene_family": "equipment_at_rest"
+    },
+    "company_name": "360 Logistics",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:07:06.687Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Dry van, $28–$32/hr",
+            "cta": "Apply today",
+            "primary_text": "360 Logistics is hiring Class A local drivers for dedicated Chicagoland store deliveries. You earn $28 to $32 per hour, come home daily, and get paid time off. Two years of experience required. Age 23 or older.",
+            "headline": "Local dry van, home daily"
+          },
+          "es": {
+            "hook": "Van seca, $28–$32/hr",
+            "cta": "Aplica hoy",
+            "primary_text": "360 Logistics busca conductores Clase A locales para entregas dedicadas en Chicago. Ganas de $28 a $32 por hora, regresas a casa diario y tienes tiempo libre pagado. Se requieren 2 años de experiencia. Mayores de 23 años.",
+            "headline": "Local, en casa cada día"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home daily. Local runs.",
+            "cta": "Join our team",
+            "primary_text": "With 360 Logistics, you run dedicated Chicagoland store deliveries and sleep in your own bed every night. Pay runs $28 to $32 per hour. Paid time off included. Class A required, with 2 years of experience and age 23 or older.",
+            "headline": "$28–$32/hr, home nightly"
+          },
+          "es": {
+            "hook": "Casa diario. Rutas locales.",
+            "cta": "Únete hoy",
+            "primary_text": "Con 360 Logistics, haces entregas dedicadas en tiendas del área de Chicago y duermes en casa cada noche. Pago de $28 a $32 por hora, más tiempo libre pagado. Se requiere Clase A, 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "$28–$32/hr, en casa diario"
+          }
+        },
+        {
+          "en": {
+            "hook": "Dedicated dry van, local",
+            "cta": "Apply now",
+            "primary_text": "Class A drivers: 360 Logistics runs dry van freight to Chicagoland stores on a dedicated route. You are home daily. Pay is $28 to $32 per hour with paid time off. Requires 2 years of experience and age 23 or older.",
+            "headline": "Dedicated route, $28–$32/hr"
+          },
+          "es": {
+            "hook": "Van seca dedicada, local",
+            "cta": "Aplica ahora",
+            "primary_text": "Conductores Clase A: 360 Logistics opera carga de van seca en rutas dedicadas a tiendas en Chicago. Regresas a casa diario. Pago de $28 a $32 por hora con tiempo libre pagado. Se requieren 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "Ruta fija, $28–$32 por hora"
+          }
+        }
+      ]
+    }
+  }
+}

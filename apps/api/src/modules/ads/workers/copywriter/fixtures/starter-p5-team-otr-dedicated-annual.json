@@ -1,0 +1,191 @@
+{
+  "name": "starter-p5-team-otr-dedicated-annual",
+  "about": "Starter P5 \"On the road, in figures\" on the opening-team-otr-dedicated-annual brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A team drivers, dedicated OTR",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 9500000,
+          "per": "year"
+        },
+        {
+          "kind": "money",
+          "cents": 11000000,
+          "per": "year"
+        },
+        {
+          "kind": "money",
+          "cents": 150000,
+          "per": null
+        },
+        {
+          "kind": "term",
+          "term": "referral bonus"
+        },
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "drop and hook"
+        },
+        {
+          "kind": "term",
+          "term": "late-model equipment"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "over-the-road runs",
+          "Coast to coast",
+          "Home every other weekend"
+        ],
+        "in_our_words": "Teams stay together; we do not split a good pair."
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "On the road, in figures",
+      "hook_formula": "Lead with one of the brief's own figures as evidence rather than a promise (the pay, or the miles), and put a second on the second line (the home time, or the bonus), so the two read side by side. If the brief states only one figure, the second line is the plainest fact beside it. Never round, never add a figure.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "Our truck driving on {road} through {setting}, {viewpoint}, {light}, {season}, no text, no logos, no lettering",
+      "image_slots": [
+        "road",
+        "setting",
+        "viewpoint",
+        "light",
+        "season"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "top_band",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "proof",
+      "scene_family": "equipment_on_road"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:12:34.132Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "$95,000–$110,000 per year",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc is hiring Class A team drivers for dedicated OTR dry van, coast to coast. Earn $95,000 to $110,000 per year. Drop and hook, late-model equipment, $1,500 referral bonus. Must be 23+, 2 years experience.",
+            "headline": "Coast to coast, dry van",
+            "second_line": "$1,500 referral bonus"
+          },
+          "es": {
+            "hook": "$95,000–$110,000 al año",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc busca conductores Clase A en equipo para ruta dedicada costa a costa. Gana $95,000 a $110,000 al año. Drop and hook, equipo moderno, bono de referido $1,500. Mayores de 23 años, 2 años de experiencia.",
+            "headline": "Ruta costa a costa, van",
+            "second_line": "Bono de referido $1,500"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home every other weekend",
+            "cta": "Join our team",
+            "primary_text": "Silvicom Inc runs dedicated coast-to-coast dry van freight. Teams stay together — we do not split a good pair. Pay: $95,000 to $110,000 per year. Drop and hook, late-model equipment. Must be 23+ with 2 years of experience.",
+            "headline": "Dedicated team OTR lanes",
+            "second_line": "$95,000–$110,000/year"
+          },
+          "es": {
+            "hook": "Casa cada dos fines de semana",
+            "cta": "Únete hoy",
+            "primary_text": "Silvicom Inc opera rutas dedicadas de carga seca costa a costa. Los equipos se mantienen juntos. Pago de $95,000 a $110,000 al año. Drop and hook, equipo moderno. Mayores de 23 años, 2 años de experiencia.",
+            "headline": "Ruta dedicada en equipo",
+            "second_line": "$95,000–$110,000 al año"
+          }
+        },
+        {
+          "en": {
+            "hook": "Drop and hook, late-model",
+            "cta": "Drive with us",
+            "primary_text": "Silvicom Inc runs Class A teams on dedicated dry van freight, coast to coast. The equipment is late-model, the freight is drop and hook, and the lanes are consistent. Pay: $95,000 to $110,000 per year. Refer another driver and earn a $1,500 bonus. Must be 23+, 2 years experience required.",
+            "headline": "$95,000–$110,000 a year",
+            "second_line": "$1,500 referral bonus"
+          },
+          "es": {
+            "hook": "Drop and hook, equipo moderno",
+            "cta": "Maneja con nosotros",
+            "primary_text": "Silvicom Inc opera equipos Clase A en rutas dedicadas de carga seca de costa a costa. Equipo moderno, carga drop and hook y rutas constantes. Pago de $95,000 a $110,000 al año. Refiere a otro conductor y gana $1,500. Mayores de 23 años con 2 años de experiencia.",
+            "headline": "$95,000–$110,000 al año",
+            "second_line": "Bono de referido $1,500"
+          }
+        }
+      ]
+    }
+  }
+}

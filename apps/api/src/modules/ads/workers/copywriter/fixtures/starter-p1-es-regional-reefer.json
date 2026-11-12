@@ -1,0 +1,170 @@
+{
+  "name": "starter-p1-es-regional-reefer",
+  "about": "Starter P1 \"From the driver's seat\" on the opening-es-regional-reefer brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor Clase A regional, refrigerado",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 64,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 72,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "term",
+          "term": "no-touch freight"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "reefer freight",
+          "regional runs",
+          "Chicago a Texas"
+        ],
+        "in_our_words": "Despacho habla español."
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "From the driver's seat",
+      "hook_formula": "Say plainly what the run is, as if from the driver's seat: the lanes or the area, then the schedule or home time the brief states. If the brief states no lanes or area, say the kind of run (local, regional, over the road). Then what we need, if the brief states it (experience, licence, endorsements). No pay figure in the hook unless the brief states nothing else.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield from the driver's seat, {viewpoint}, an open {road} ahead through {setting}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "viewpoint",
+        "road",
+        "setting",
+        "light",
+        "weather"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "ribbon",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "straight_talk",
+      "scene_family": "cab_pov"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:56:11.411Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Chicago to Texas, home weekly",
+            "cta": "Apply today",
+            "primary_text": "Regional reefer runs, Chicago to Texas. No-touch freight, weekly pay, and you're home weekly. $0.64–$0.72 per mile. Need 2 years experience and age 23+. Silvicom Inc dispatch speaks Spanish.",
+            "headline": "Home weekly, reefer runs"
+          },
+          "es": {
+            "hook": "Chicago a Texas, casa cada semana",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales de refrigerado, Chicago a Texas. Carga sin tocar, pago semanal y regresas a casa cada semana. $0.64–$0.72 por milla. Se requieren 2 años de experiencia y mayores de 23 años. El despacho de Silvicom Inc habla español.",
+            "headline": "Casa cada semana, refrigerado"
+          }
+        },
+        {
+          "en": {
+            "hook": "Regional reefer, weekly pay",
+            "cta": "Join us today",
+            "primary_text": "Silvicom Inc is hiring Class A drivers for regional reefer lanes, Chicago to Texas. Earn $0.64–$0.72 per mile with weekly pay. No-touch freight, home weekly. Must be 23+ with 2 years experience.",
+            "headline": "$0.64–$0.72 per mile"
+          },
+          "es": {
+            "hook": "Refrigerado regional, pago semanal",
+            "cta": "Únete hoy",
+            "primary_text": "Silvicom Inc busca conductores Clase A para rutas de refrigerado, Chicago a Texas. Gana $0.64–$0.72 por milla con pago semanal. Carga sin tocar, casa cada semana. Se requieren 2 años de experiencia y mayores de 23.",
+            "headline": "$0.64–$0.72 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Reefer lanes, 2 years needed",
+            "cta": "Apply now",
+            "primary_text": "Drive refrigerated freight on regional lanes from Chicago to Texas. No-touch loads. Home weekly, paid weekly. $0.64–$0.72 per mile. Silvicom Inc dispatch speaks Spanish — apply if you're 23+ with 2 years behind the wheel.",
+            "headline": "No-touch reefer, home weekly"
+          },
+          "es": {
+            "hook": "Refrigerado regional, 2 años requeridos",
+            "cta": "Aplica ahora",
+            "primary_text": "Maneja carga refrigerada en rutas regionales de Chicago a Texas. Carga sin tocar. Casa cada semana, pago semanal. $0.64–$0.72 por milla. El despacho de Silvicom Inc habla español — aplica si tienes 2 años de experiencia y eres mayor de 23 años.",
+            "headline": "Refrigerado, casa cada semana"
+          }
+        }
+      ]
+    }
+  }
+}

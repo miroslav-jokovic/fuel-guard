@@ -1,0 +1,176 @@
+{
+  "name": "starter-p5-es-local-hourly",
+  "about": "Starter P5 \"On the road, in figures\" on the opening-es-local-hourly brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor local Clase A, caja seca",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 2700,
+          "per": "hour"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "term",
+          "term": "paid time off"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "local runs",
+          "Entregas locales en Chicago"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "On the road, in figures",
+      "hook_formula": "Lead with one of the brief's own figures as evidence rather than a promise (the pay, or the miles), and put a second on the second line (the home time, or the bonus), so the two read side by side. If the brief states only one figure, the second line is the plainest fact beside it. Never round, never add a figure.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "Our truck driving on {road} through {setting}, {viewpoint}, {light}, {season}, no text, no logos, no lettering",
+      "image_slots": [
+        "road",
+        "setting",
+        "viewpoint",
+        "light",
+        "season"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "top_band",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "proof",
+      "scene_family": "equipment_on_road"
+    },
+    "company_name": "360 Logistics",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:09:07.817Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "$27 per hour, local.",
+            "cta": "Apply today",
+            "primary_text": "360 Logistics is hiring Class A dry van drivers for local runs in Chicago. You earn $27 per hour, come home every day, and get health insurance and paid time off. Two years of experience required. Age 23+.",
+            "headline": "360 Logistics is hiring",
+            "second_line": "Home daily."
+          },
+          "es": {
+            "hook": "$27 por hora, local.",
+            "cta": "Aplica hoy",
+            "primary_text": "360 Logistics contrata conductores Clase A para entregas locales en Chicago con caja seca. Ganas $27 por hora y regresas a casa diariamente. Incluye seguro médico y tiempo libre pagado. Se requieren 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "360 Logistics está contratando",
+            "second_line": "Casa cada día."
+          }
+        },
+        {
+          "en": {
+            "hook": "Home daily. $27/hr.",
+            "cta": "Join us today",
+            "primary_text": "Local dry van work in Chicago — no nights away. 360 Logistics pays $27 per hour with health insurance and paid time off included. You need 2 years of CDL-A experience and must be age 23+. Apply now.",
+            "headline": "Local Class A, Chicago",
+            "second_line": "Health insurance."
+          },
+          "es": {
+            "hook": "Casa a diario. $27/hr.",
+            "cta": "Únete hoy",
+            "primary_text": "Rutas locales con caja seca en Chicago — sin noches fuera. 360 Logistics paga $27 por hora e incluye seguro médico y tiempo libre pagado. Necesitas 2 años de experiencia y ser mayor de 23 años. Aplica ahora.",
+            "headline": "Clase A local, Chicago",
+            "second_line": "Seguro médico."
+          }
+        },
+        {
+          "en": {
+            "hook": "Dry van, local routes.",
+            "cta": "Apply now",
+            "primary_text": "360 Logistics runs local dry van freight through Chicago. You stay close to home — home daily — and earn $27 per hour. Benefits include health insurance and paid time off. Requires 2 years of experience, age 23+.",
+            "headline": "Class A drivers needed",
+            "second_line": "$27 per hour."
+          },
+          "es": {
+            "hook": "Caja seca, rutas locales.",
+            "cta": "Aplica ahora",
+            "primary_text": "360 Logistics maneja carga seca en rutas locales por Chicago. Llegas a casa cada día y ganas $27 por hora. Los beneficios incluyen seguro médico y tiempo libre pagado. Se requieren 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "Se buscan conductores A",
+            "second_line": "$27 por hora."
+          }
+        }
+      ]
+    }
+  }
+}
