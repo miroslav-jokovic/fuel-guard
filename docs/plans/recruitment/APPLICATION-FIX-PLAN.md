@@ -241,6 +241,7 @@ A gate fails on a literal string in an `apply/` template.
 | Q-AM18 | EEO self-identification: ask it? | ANSWERED 2026-11-11 (owner): **only if the carrier's paper asks it.** `application-11.pdf` prints the equal-opportunity STATEMENT (page 1 and "Qualifications") and no self-identification questions, so it is not asked and the reserved `eeo` key goes. The owner's rule, kept for every question: **the online form is a prefill of the carrier's paper application, and the paper decides what is asked** | — |
 | Q-AM19 | Documents | ANSWERED 2026-11-11 (owner): every document photo stays optional; **the office can send a separate documents-only link at any time**, opening just the photo list; photos are **normalised to scan quality** (cropped to the card, straightened, evened) so nobody scans them separately. Both are new builds | — |
 | Q-AM20 | The signed packet prints the full SSN (Q-AM3), but only admin and safety may see all nine digits (Q-AM17). The filed packet is a stored document that recruiters open, so a full SSN on it reaches the readers Q-AM17 keeps it from. Which wins, and how? | ANSWERED 2026-11-12 (owner, "as proposed"): **(a)**. The stored packet prints the last four (`•••-••-1234`). A holder of "See the full SSN" gets the full packet rendered on demand from the sealed number, never stored. The office preview masks for non-holders the same way. The driver sees their own full number on the signing pages | — |
+| Q-AM21 | Page 21 returns to the signing packet (Q-AM4). Should the signed page 21 also be a row of the roster's `seven_day_statements` (0236)? | ANSWERED 2026-11-12 (owner): **(a) yes**. Filing writes it through `record_application_seven_day_statement` (0591): `source = application`, the filed application named and unique, written once. The roster section shows it as the current statement, and the roster form stays for a start date too long after signing | — |
 
 ## 6. Size and order
 
@@ -516,3 +517,16 @@ A gate fails on a literal string in an `apply/` template.
   - **`maskSsn` and `formatSsn`** in `applicationIntake.ts` are the one definition the card, the packet and the preview use.
   - **Known, and why:** the full copy's cover is visual, so the masked four stay in its text layer. A grid cell redrawn alone may be a point off its original size.
   - **Next:** item 4, page 21 back in the packet (Q-AM4).
+- 2026-11-12: **Item 3 complete** (#2265 licence type, #2272/#2283/#2286/#2290 SSN). **Item 4 (page 21) scoped; one owner question, Q-AM21.**
+  - **What page 21 needs, measured:** `application-11.pdf` page 21 asks name, address, CDL (#, state, expiry), today's date, seven dated days of hours, a total, and "last relieved from duty at ___ at ___ am/pm". It has two driver signature lines and a `Company Representative` line. Today it has no signing places (`packetPlacements.ts`), no field geometry and no contract key: it left the packet on 2026-08-23 (D-PKT7).
+  - **The build, in order:**
+    - (1) a contract key `seven_day_statement` (days' hours, last relieved) on the application, nullish for old filings and required by `applicationPaperFilingIssues` for new ones. The seven dates are derived: the seven days before the signing day (Q-AM4: the driver fills it at signing; the roster form stays for a start date too long after).
+    - (2) the office corrects it through the draft door before signing, "usually to zeros" (Q-AM4).
+    - (3) the sign-off screen shows it for the driver to fill or accept.
+    - (4) page 21's geometry and signing places: two driver marks and the carrier's countersign line, like `p18c`.
+    - (5) filing: Q-AM21.
+  - **Next:** build (1)–(4); (5) after Q-AM21.
+- 2026-11-12: **Item 4, step 5's migration: page 21 is also the roster's record (Q-AM21 (a))** (`claude/application-page-21`, migration 0591; 0590 was taken by a parallel chat's unit notes).
+  - `seven_day_statements` gains `source` (office, the default, or application) and `application_id`, which is unique, cascades with its application and is checked to be set exactly for application rows. The SD010 guard now covers both.
+  - `record_application_seven_day_statement` writes a page-21 row once per application. It is service-role only and refuses another org's application (SD020).
+  - **Next:** the reader merge, page 21 steps (1)–(5).

@@ -233,6 +233,36 @@ ok(
     && mine >= 1,
 );
 
+// ── 7. A statement signed on the application's page 21 (0591, Q-AM21) ───────────────────────────
+{
+  const D21 = (await one(`insert into drivers (org_id,full_name) values ($1,'Page Twentyone') returning id`, [ORG])).id;
+  const APP = (await one(
+    `insert into driver_applications (org_id, driver_id, payload, signed_name, certified_at)
+     values ($1, $2, '{}'::jsonb, 'Page Twentyone', now()) returning id`, [ORG, D21])).id;
+  const record = (org = ORG, app = APP) =>
+    one(`select public.record_application_seven_day_statement($1,$2,'2026-08-08',$3::jsonb,'2026-08-07T18:30:00Z','Page Twentyone','2026-08-08') as id`,
+      [org, app, DAYS]);
+  const first = (await record()).id;
+  const row = await one(`select driver_id, source, application_id, recorded_by from seven_day_statements where id = $1`, [first]);
+  ok("filing records page 21 as the driver's statement, from the application", row.driver_id === D21
+    && row.source === "application" && row.application_id === APP && row.recorded_by === null);
+  ok("a retried filing records nothing twice, and answers with the same statement",
+    (await record()).id === first
+      && (await count(`select count(*)::int as n from seven_day_statements where application_id = $1`, [APP])) === 1);
+  ok("another org's application is not found (SD020), and nothing is written",
+    (await attempt(`select public.record_application_seven_day_statement($1,$2,'2026-08-08',$3::jsonb,now(),'X','2026-08-08')`, [OTHER, APP, DAYS])) === "SD020");
+  ok("the roster form's rows are the office's, as before 0591",
+    (await one(`select source, application_id from seven_day_statements where id = $1`, [ID])).source === "office");
+  ok("an application row names its application, and an office row cannot (23514)",
+    (await attempt(`insert into seven_day_statements (org_id, driver_id, statement_date, days, last_relieved_at, signed_name, signed_on, source)
+                    values ($1,$2,'2026-08-08',$3::jsonb,now(),'X','2026-08-08','application')`, [ORG, D21, DAYS])) === "23514");
+  ok("where a statement came from cannot be changed after (SD010)",
+    (await attempt(`update seven_day_statements set source = 'office', application_id = null where id = $1`, [first])) === "SD010");
+  const can = async (role) => (await one(
+    `select has_function_privilege($1, 'public.record_application_seven_day_statement(uuid,uuid,date,jsonb,timestamptz,text,date)', 'execute') c`, [role])).c;
+  ok("only the api can call the writer", (await can("anon")) === false && (await can("authenticated")) === false && (await can("service_role")) === true);
+}
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
