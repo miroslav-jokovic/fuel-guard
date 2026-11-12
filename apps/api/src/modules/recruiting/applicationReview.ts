@@ -28,7 +28,7 @@ import type { Env } from "../../env.js";
 import { notifyApplicationApproved, type ApprovalNotice } from "./applicationApprovalNotice.js";
 import { partOneFactsView, partOneForFiling } from "./applicantIntake.js";
 import { listCaptures } from "./applicationCapture.js";
-import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
+import { editRowsRefusal, editsParam, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
 import { partOneAnswersView } from "./applicantPartOneAnswer.js";
 import { ssnLast4View } from "./applicantSsn.js";
 import { invitationEmailAfter, phoneAnswerIsTexted, stopTextsToReplacedPhone } from "./applicantContactMove.js";
@@ -347,26 +347,21 @@ export async function editApplication(
     };
   }
 
-  // The draft first, then the record of the change. If the second write fails the edit is still
-  // made — and an edit nobody can see is exactly what D-AX13 exists to prevent — so the audit and
-  // the edit row are written before anything is reported as done, and a failure surfaces.
-  const { data: saved, error: saveError } = await admin.rpc("save_application_draft", {
+  // The draft and the record of the change in ONE transaction (Q-AM14, 0593): an edit the driver is
+  // never shown is exactly what D-AX13 exists to prevent, so if the row is refused the draft is too.
+  const { data: saved, error: saveError } = await admin.rpc("correct_application_draft", {
     p_org: orgId,
     p_invitation: invitationId,
     p_driver: inv.driver_id,
     p_payload: applied.payload,
-    p_section: null,
     p_expected_revision: edit.revision,
+    p_edits: editsParam([{ path: applied.logPath, before: applied.before, after: applied.after, note }]),
+    p_edited_by: ctx.actorId,
   });
   if (saveError) {
     if ((saveError as { code?: string }).code === "DA041") return DRAFT_CHANGED;
-    return { code: "edit_failed", message: "That change could not be saved. Try again." };
+    return editRowsRefusal(saveError) ?? { code: "edit_failed", message: "That change could not be saved. Try again." };
   }
-
-  const unrecorded = await recordOfficeEdits(
-    admin, orgId, invitationId, [{ path: applied.logPath, before: applied.before, after: applied.after, note }], ctx.actorId,
-  );
-  if (unrecorded) return unrecorded;
 
   await writeAudit(admin, {
     orgId,

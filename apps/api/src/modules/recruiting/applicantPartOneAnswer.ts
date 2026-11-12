@@ -6,7 +6,7 @@ import {
   type PartOneAnswersView,
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
-import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
+import { editRowsRefusal, editsParam, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
 
 /**
  * The office correcting ONE of Part 1's answers that the whole-set correction does not carry
@@ -124,18 +124,6 @@ export async function correctPartOneAnswer(
     return { code: "not_part_one", message: "This application was started before the first part existed. Correct its answers below." };
   }
 
-  const endorsements = body.key === "endorsements";
-  const { error } = await admin.rpc("record_applicant_intake", {
-    p_org: orgId,
-    p_invitation: invitation.id,
-    p_driver: invitation.driver_id,
-    p_intake: endorsements ? {} : { [body.key]: body.value },
-    p_licences: null,
-    p_endorsements: endorsements ? body.value : null,
-    p_overwrite: true,
-  });
-  if (error) return refusalOf(error);
-
   const withheld = applicantFact(`intake.${body.key}`)?.rule === "replace_only";
   const before = body.key === "endorsements" ? [...(was.endorsements ?? [])].sort() : was[body.key];
   const after = Array.isArray(body.value) ? [...body.value].sort() : body.value;
@@ -149,7 +137,20 @@ export async function correctPartOneAnswer(
   // An unchanged answer is not a correction the driver must read (the same rule as `partOneEdits`) —
   // except a withheld one, whose old value the office cannot see and so cannot know it repeated.
   const unchanged = !withheld && JSON.stringify(before ?? null) === JSON.stringify(after);
-  const unrecorded = unchanged ? null : await recordOfficeEdits(admin, orgId, invitation.id, [row], actorId);
+
+  // The answer and its edit row in one transaction (Q-AM14, 0593).
+  const endorsements = body.key === "endorsements";
+  const { error } = await admin.rpc("correct_applicant_intake", {
+    p_org: orgId,
+    p_invitation: invitation.id,
+    p_driver: invitation.driver_id,
+    p_intake: endorsements ? {} : { [body.key]: body.value },
+    p_licences: null,
+    p_endorsements: endorsements ? body.value : null,
+    p_edits: editsParam(unchanged ? [] : [row]),
+    p_edited_by: actorId,
+  });
+  if (error) return editRowsRefusal(error) ?? refusalOf(error);
 
   // Names, never values — and the note is not a name either (`apps/api/CLAUDE.md`).
   await writeAudit(admin, {
@@ -160,5 +161,5 @@ export async function correctPartOneAnswer(
     entityId: invitation.id,
     meta: { driverId: invitation.driver_id, fields: [body.key] },
   });
-  return unrecorded ?? { ok: true };
+  return { ok: true };
 }

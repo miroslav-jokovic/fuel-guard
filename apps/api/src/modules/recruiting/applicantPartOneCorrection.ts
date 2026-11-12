@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { stopTextsToReplacedPhone } from "./applicantContactMove.js";
-import { partOneEdits, type ApplicantIdentity, type ApplicantIntakeLicence, type ApplicationContactMove, type PartOneCorrection } from "@silvicom/shared";
+import { partOneEdits, type ApplicantIdentity, type ApplicantIntakeLicence, type ApplicationContactMove, type FactEditRow, type PartOneCorrection } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 import { partOneForFiling } from "./applicantIntake.js";
-import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
+import { editRowsRefusal, editsParam, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
 
 /**
  * The office correcting Part 1's facts (Q-AW36 (a), owner 2026-09-27).
@@ -147,17 +147,21 @@ async function overwrite(
   invitation: { id: string; driver_id: string },
   intake: Record<string, unknown>,
   licences: readonly ApplicantIntakeLicence[],
+  edits: readonly FactEditRow[],
+  actorId: string,
 ): Promise<PartOneCorrectionError | null> {
-  const { error } = await admin.rpc("record_applicant_intake", {
+  // The overwrite and the rows the driver is shown for it in one transaction (Q-AM14, 0593).
+  const { error } = await admin.rpc("correct_applicant_intake", {
     p_org: orgId,
     p_invitation: invitation.id,
     p_driver: invitation.driver_id,
     p_intake: intake,
     p_licences: licenceRows(licences),
     p_endorsements: null,
-    p_overwrite: true,
+    p_edits: editsParam(edits),
+    p_edited_by: actorId,
   });
-  return error ? refusalOf(error) : null;
+  return error ? (editRowsRefusal(error) ?? refusalOf(error)) : null;
 }
 
 /**
@@ -198,12 +202,9 @@ export async function correctApplicantPartOne(
   const currentAddress = await currentAddressIndex(admin, orgId, invitation.id);
 
   const { licences, ...fields } = body;
-  const refused = await overwrite(admin, orgId, invitation, fields, licences);
+  const edits = was ? partOneEdits(was, body, currentAddress) : [];
+  const refused = await overwrite(admin, orgId, invitation, fields, licences, edits, actorId);
   if (refused) return refused;
-
-  const unrecorded = was
-    ? await recordOfficeEdits(admin, orgId, invitation.id, partOneEdits(was, body, currentAddress), actorId)
-    : null;
 
   await writeAudit(admin, {
     orgId,
@@ -215,7 +216,7 @@ export async function correctApplicantPartOne(
   });
   // E3: the phone Part 1 held is the one texts went to; a new one has no consent (`applicantContactMove`).
   const contact = await stopTextsToReplacedPhone(admin, orgId, invitation, was?.intake.phone, body.phone, actorId);
-  return unrecorded ?? { ok: true, contact };
+  return { ok: true, contact };
 }
 
 /**
@@ -226,7 +227,7 @@ export async function correctApplicantPartOne(
  * position 0. Filing still files the corrected one (`identityOnRecord` overlays `drivers` last), but the
  * list is what the MVR checklist picks the state from and what the drawer and the applicant's page show
  * as "your licences" — so one correction left two answers. Through `record_applicant_intake` the list,
- * `drivers` and the draft move together.
+ * `drivers` and the draft move together, and (0593) the identity's edit rows with them.
  *
  * Returns null when this is not a v2 link with a licence on file, and the caller keeps the identity
  * writer it always used: a legacy link has no list to disagree with, and a v2 link with no licence yet
@@ -238,11 +239,13 @@ export async function correctIdentityThroughPartOne(
   orgId: string,
   invitation: { id: string; driver_id: string },
   body: ApplicantIdentity,
+  edits: readonly FactEditRow[],
+  actorId: string,
 ): Promise<{ ok: true } | PartOneCorrectionError | null> {
   if (!(await hasIntakeRow(admin, orgId, invitation.id))) return null;
   const [current, ...others] = await storedLicences(admin, orgId, invitation.id);
   if (!current) return null;
   const corrected = { ...current, state_code: body.cdl_state, licence_number: body.cdl_number };
-  const refused = await overwrite(admin, orgId, invitation, { date_of_birth: body.date_of_birth }, [corrected, ...others]);
+  const refused = await overwrite(admin, orgId, invitation, { date_of_birth: body.date_of_birth }, [corrected, ...others], edits, actorId);
   return refused ?? { ok: true };
 }

@@ -5,6 +5,7 @@ import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { editedBy, editsSent } from "../../../testing/officeEdits.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 
 /**
@@ -73,8 +74,8 @@ const seed = (over: {
       audit_logs: [],
     },
     rpc: {
-      record_applicant_intake: { intake_id: "intake-1", licence_count: 2, kept_existing: [] },
-      record_applicant_identity: { draft_id: "d-1", kept_existing: [] },
+      correct_applicant_intake: { intake_id: "intake-1", licence_count: 2, kept_existing: [] },
+      correct_applicant_identity: { draft_id: "d-1", kept_existing: [] },
       ...over.rpc,
     },
   });
@@ -97,7 +98,7 @@ const correct = (token: string | null = "recruiter", body: unknown = CORRECTION)
 const code = async (res: Response): Promise<string> =>
   ((await res.json()) as { error?: { code?: string } }).error?.code ?? "";
 const intakeCall = (rec: SupabaseRecorder) =>
-  rec.rpcs().find((r) => r.fn === "record_applicant_intake")?.args as Record<string, unknown> | undefined;
+  rec.rpcs().find((r) => r.fn === "correct_applicant_intake")?.args as Record<string, unknown> | undefined;
 
 beforeAll(async () => {
   const app = createApp(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv));
@@ -123,7 +124,7 @@ describe("the office corrects Part 1", () => {
     const res = await correct();
     expect(res.status).toBe(200);
     const args = intakeCall(rec)!;
-    expect(args).toMatchObject({ p_org: ORG, p_invitation: INV, p_driver: DRIVER, p_overwrite: true, p_endorsements: null });
+    expect(args).toMatchObject({ p_org: ORG, p_invitation: INV, p_driver: DRIVER, p_edited_by: "u-recruiter", p_endorsements: null });
     // Normalised by the contract: E.164, the state upper-cased, the second line cleared.
     expect(args.p_intake).toEqual({
       phone: "+17082365732", address_line1: "12 Depot Rd", address_line2: null, city: "Joliet",
@@ -134,7 +135,7 @@ describe("the office corrects Part 1", () => {
       { position: 1, state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30", kind: "clp", source: "intake" },
     ]);
     // Never the identity writer on its own: the intake writer calls it from inside, from position 0.
-    expect(rec.rpcs().some((r) => r.fn === "record_applicant_identity")).toBe(false);
+    expect(rec.rpcs().some((r) => r.fn === "correct_applicant_identity")).toBe(false);
   });
 
   it("audits the act by field name, and never a value", async () => {
@@ -192,7 +193,7 @@ describe("the office corrects Part 1", () => {
     ["AI009", 409, "part_one_not_begun"],
     ["23505", 400, "invalid_request"],
   ])("answers the function's %s as %i %s, and audits nothing", async (fnCode, httpStatus, answer) => {
-    const rec = seed({ rpc: { record_applicant_intake: { error: { code: fnCode, message: "refused" } } } });
+    const rec = seed({ rpc: { correct_applicant_intake: { error: { code: fnCode, message: "refused" } } } });
     holder.client = rec.client;
     const res = await correct();
     expect(res.status).toBe(httpStatus);
@@ -242,7 +243,7 @@ describe("the identity correction on a v2 link", () => {
     const rec = seed();
     expect((await identity(rec)).status).toBe(200);
     const args = intakeCall(rec)!;
-    expect(args).toMatchObject({ p_overwrite: true, p_intake: { date_of_birth: "1980-04-01" } });
+    expect(args).toMatchObject({ p_edited_by: "u-recruiter", p_intake: { date_of_birth: "1980-04-01" } });
     expect(args.p_licences).toEqual([
       // Number and state corrected; its expiry is Part 1's and stays.
       { position: 0, state_code: "PA", agency: null, licence_number: "PA334554", expires_on: "2028-05-01", kind: null, source: "intake" },
@@ -252,7 +253,7 @@ describe("the identity correction on a v2 link", () => {
     // …which needs the column READ: the recorder serves whole rows whatever is selected.
     const selects = rec.forTable("application_intake_licences").map((q) => q.ops.find((o) => o.method === "select")?.args[0]);
     expect(selects.every((c) => String(c).split(",").map((x) => x.trim()).includes("kind"))).toBe(true);
-    expect(rec.rpcs().some((r) => r.fn === "record_applicant_identity")).toBe(false);
+    expect(rec.rpcs().some((r) => r.fn === "correct_applicant_identity")).toBe(false);
     expect(rec.writtenRows("audit_logs")[0]).toMatchObject({ action: "application_identity_corrected", entity_id: INV });
     expectOrgScoped(rec, ORG);
   });
@@ -260,18 +261,18 @@ describe("the identity correction on a v2 link", () => {
   it("keeps the identity writer on a legacy link", async () => {
     const rec = seed({ intake: false });
     expect((await identity(rec)).status).toBe(200);
-    expect(rec.rpcs().map((r) => r.fn)).toEqual(["record_applicant_identity"]);
+    expect(rec.rpcs().map((r) => r.fn)).toEqual(["correct_applicant_identity"]);
   });
 
   /** No list yet: the applicant's first write is fill-only and keeps the office's value on `drivers`. */
   it("keeps the identity writer on a v2 link with no licence on file yet", async () => {
     const rec = seed({ licences: [] });
     expect((await identity(rec)).status).toBe(200);
-    expect(rec.rpcs().map((r) => r.fn)).toEqual(["record_applicant_identity"]);
+    expect(rec.rpcs().map((r) => r.fn)).toEqual(["correct_applicant_identity"]);
   });
 
   it("answers a refusal from the intake writer, and audits nothing", async () => {
-    const rec = seed({ rpc: { record_applicant_intake: { error: { code: "AI003", message: "refused" } } } });
+    const rec = seed({ rpc: { correct_applicant_intake: { error: { code: "AI003", message: "refused" } } } });
     const res = await identity(rec);
     expect(res.status).toBe(409);
     expect(await code(res)).toBe("already_filed");
@@ -291,7 +292,7 @@ describe("every office correction is shown to the driver, and none lands once th
   /** The current home is the SECOND address, so the row's index is read from the draft, not assumed. */
   const DRAFT = { addresses: [{ line1: "1 A St", from: "2019-01", to: "2022-12" }, { line1: "", from: "2023-01", to: null }] };
   const editRows = (rec: SupabaseRecorder) =>
-    rec.writtenRows("application_edits").map((r) => {
+    editsSent(rec).map((r) => {
       const row = r as Record<string, unknown>;
       return { path: row.path, before: row.before, after: row.after };
     });
@@ -312,8 +313,7 @@ describe("every office correction is shown to the driver, and none lands once th
         after: { issuing_authority: "Indiana BMV", number: "IN-555", expires_at: "2021-06-30", kind: "clp" },
       },
     ]);
-    const [row] = rec.writtenRows("application_edits") as Array<Record<string, unknown>>;
-    expect(row).toMatchObject({ org_id: ORG, invitation_id: INV, edited_by: "u-recruiter" });
+    expect(editedBy(rec)).toBe("u-recruiter");
     expectOrgScoped(rec, ORG);
   });
 
@@ -327,7 +327,7 @@ describe("every office correction is shown to the driver, and none lands once th
     const rec = seed({ stored: STORED, licences: three, draft: DRAFT });
     holder.client = rec.client;
     expect((await correct()).status).toBe(200);
-    const licenceRows = rec.writtenRows("application_edits")
+    const licenceRows = editsSent(rec)
       .map((r) => r as Record<string, unknown>)
       .filter((row) => (row.path as unknown[])[0] === "additional_licences")
       .map((row) => ({ path: row.path, before: row.before, after: row.after }));
@@ -394,11 +394,16 @@ describe("every office correction is shown to the driver, and none lands once th
     expect(rec.writes()).toHaveLength(0);
   });
 
-  it("says so when the change was made but the driver's record of it could not be written", async () => {
-    const rec = seed({ stored: STORED, draft: DRAFT, edits: { data: [], writeError: { message: "down" } } });
+  it("Q-AM14: makes no change when the driver's record of it is refused, and says so", async () => {
+    // 0593's AE001: the rows are refused, and the overwrite with them, in the one transaction.
+    const rec = seed({
+      stored: STORED, draft: DRAFT,
+      rpc: { correct_applicant_intake: { error: { code: "AE001", message: "application_edits_invalid" } } },
+    });
     holder.client = rec.client;
     const res = await correct();
     expect(res.status).not.toBe(200);
     expect(await code(res)).toBe("edit_not_recorded");
+    expect(rec.writtenRows("audit_logs")).toEqual([]);
   });
 });

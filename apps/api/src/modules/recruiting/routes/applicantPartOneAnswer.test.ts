@@ -5,6 +5,7 @@ import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { editedBy, editsSent } from "../../../testing/officeEdits.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 
 /**
@@ -12,7 +13,7 @@ import { closeTestServer } from "../../../testing/httpServer.js";
  * statements with a reason, medical card pending, endorsements, and the donor gender, blind.
  *
  * ⚠ The recorder executes no SQL, so this pins the TypeScript half: exactly one key reaches
- * `record_applicant_intake`, the licence list and endorsements are left alone unless sent, the edit row
+ * `correct_applicant_intake`, the licence list and endorsements are left alone unless sent, the edit row
  * is addressed where the driver reads it, a statement carries its note, and the donor gender's row and
  * the review read never carry its value. The function's write-present-keys-only rule is 0376/0469's,
  * pinned against real Postgres in `supabase/tests/application-intake-v2.test.mjs`.
@@ -30,7 +31,7 @@ const INTAKE = {
   medical_card_pending: false, endorsements: ["N", "H"], donor_gender: "female",
 };
 
-const seed = (over: { intake?: Record<string, unknown> | null; marks?: number; submitted?: string | null; edits?: unknown } = {}): SupabaseRecorder =>
+const seed = (over: { intake?: Record<string, unknown> | null; marks?: number; submitted?: string | null; edits?: unknown; written?: unknown } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       application_invitations: [{ id: INV, org_id: ORG, driver_id: DRIVER, submitted_at: over.submitted ?? null }],
@@ -39,7 +40,7 @@ const seed = (over: { intake?: Record<string, unknown> | null; marks?: number; s
       application_edits: (over.edits ?? []) as never,
       audit_logs: [],
     },
-    rpc: { record_applicant_intake: { intake_id: "intake-1", licence_count: 1, kept_existing: [] } },
+    rpc: { correct_applicant_intake: over.written ?? { intake_id: "intake-1", licence_count: 1, kept_existing: [] } },
   });
 
 const ctx = (role: string): AuthContext => ({ userId: `u-${role}`, email: `${role}@x.test`, orgId: ORG, role } as AuthContext);
@@ -55,8 +56,8 @@ const answer = (body: unknown, token = "recruiter") =>
   });
 const code = async (res: Response) => ((await res.json()) as { error?: { code?: string } }).error?.code ?? "";
 const intakeCall = (rec: SupabaseRecorder) =>
-  rec.rpcs().find((r) => r.fn === "record_applicant_intake")?.args as Record<string, unknown> | undefined;
-const editRows = (rec: SupabaseRecorder) => rec.writtenRows("application_edits") as Array<Record<string, unknown>>;
+  rec.rpcs().find((r) => r.fn === "correct_applicant_intake")?.args as Record<string, unknown> | undefined;
+const editRows = (rec: SupabaseRecorder) => editsSent(rec) as Array<Record<string, unknown>>;
 
 beforeAll(async () => {
   const app = createApp(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv));
@@ -80,7 +81,7 @@ describe("the driver's own statements (Q-AM13)", () => {
     holder.client = rec.client;
     expect((await answer({ key: "dot_tested_6m", value: true, note: "Driver called: tested in May" })).status).toBe(200);
     expect(intakeCall(rec)).toMatchObject({
-      p_org: ORG, p_invitation: INV, p_driver: DRIVER, p_overwrite: true,
+      p_org: ORG, p_invitation: INV, p_driver: DRIVER, p_edited_by: "u-recruiter",
       p_intake: { dot_tested_6m: true }, p_licences: null, p_endorsements: null,
     });
     expectOrgScoped(rec, ORG);
@@ -92,8 +93,8 @@ describe("the driver's own statements (Q-AM13)", () => {
     await answer({ key: "dot_tested_6m", value: true, note: "Driver called: tested in May" });
     expect(editRows(rec)).toEqual([expect.objectContaining({
       path: ["dot_tested_6m"], before: false, after: true, note: "Driver called: tested in May", withheld: false,
-      org_id: ORG, invitation_id: INV, edited_by: "u-recruiter",
     })]);
+    expect(editedBy(rec)).toBe("u-recruiter");
   });
 
   it("files §40.25(j) under the application's own question, where the driver reads it", async () => {
@@ -187,9 +188,13 @@ describe("when it is refused", () => {
     expect(rec.rpcs()).toEqual([]);
   });
 
-  it("says so when the change was made but the driver's record of it could not be written", async () => {
-    const rec = seed({ edits: { data: [], writeError: { message: "down" } } });
+  it("Q-AM14: makes no change when the driver's record of it is refused, and says so", async () => {
+    // 0593's AE001: the edit rows are refused, and the answer with them, in the one transaction.
+    const rec = seed({ written: { error: { code: "AE001", message: "application_edits_invalid" } } });
     holder.client = rec.client;
-    expect(await code(await answer({ key: "medical_card_pending", value: true }))).toBe("edit_not_recorded");
+    const res = await answer({ key: "medical_card_pending", value: true });
+    expect(res.status).not.toBe(200);
+    expect(await code(res)).toBe("edit_not_recorded");
+    expect(rec.writtenRows("audit_logs")).toEqual([]);
   });
 });
