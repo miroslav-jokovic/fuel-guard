@@ -30,7 +30,11 @@ export function checkEmployer(e: DraftEmployer, index: number, v2AsOf: string | 
       return rowIssue(field, issue.message, say);
     });
   }
-  return employerProblems(e, v2AsOf).map((p) => rowIssue([p.field], p.message, p.message));
+  // U7: the rule's key in the page's language, through the same `messageFor` as every other box.
+  return employerProblems(e, v2AsOf).map((p) => {
+    const say = messageFor({ code: "custom", message: p.message, issueKey: p.issueKey, params: p.params, path: ["employers", index, p.field] }, undefined);
+    return rowIssue([p.field], p.message, say);
+  });
 }
 
 /** The issues inside job `index`, as the form wants them: field → sentence (the first for each field). */

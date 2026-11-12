@@ -1,3 +1,8 @@
+import { APPLICANT_ISSUE_TEXT } from "./applicantIssues.js";
+import { dateOfBirthIssue, dateOfBirthProblem } from "./dateOfBirthRules.js";
+
+// Moved to `dateOfBirthRules.ts` (500-line budget); re-exported so no import path changed.
+export { dateOfBirthIssue, dateOfBirthProblem };
 import { z } from "zod";
 import { recordId } from "./recordId.js";
 import { DRIVER_STATUSES } from "./constants.js";
@@ -31,48 +36,6 @@ export const isoDateSchema = z.preprocess(
   z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD").nullish(),
 );
 
-/**
- * Date of birth — a `date` column with three rules `isoDateSchema` deliberately does not have.
- *
- * WHY THIS IS NOT JUST ANOTHER DATE (PSP-PLAN.md P0, D-PSP1's neighbourhood). DOB is the input that
- * gates every driver-screening integration we are building: FMCSA PSP makes it mandatory and matches
- * it EXACTLY against MCMIS (guide v3.9 §5.4.1, §8.1), a SambaSafety MVR needs it, and a §382.701
- * Clearinghouse query needs it. And PSP **charges the transaction fee on a `Failure` response**
- * (§8) — so a DOB typed as 2025 instead of 1925 is not a validation annoyance, it is an invoice for
- * a lookup that could never have matched. Catching it at the door is the cheapest place.
- *
- * The three rules, each with a source:
- *   • a REAL calendar date — `isoDateSchema`'s regex accepts `2026-02-31`, which Postgres then
- *     rejects with a 500. Fine for an expiry nobody screens on; not fine for a match key.
- *   • not in the future, and at least 18 years ago — PSP Error 27: *"Driver must be at least 18
- *     years of age."* 18 and not 21 on purpose: 21 is §391.11(b)(1)'s interstate rule and belongs to
- *     the qualification gate, which judges fitness to drive. This schema only judges whether the
- *     value can be a date of birth at all, so it takes the vendor's floor rather than inventing one.
- *   • not more than 120 years ago — the transposed-century typo, which is the common one.
- *
- * `dateOfBirthIssue` is exported separately and takes `today` as an argument so the rule is testable
- * without freezing a clock; the schema is the one place that reads the wall clock.
- */
-export function dateOfBirthIssue(value: string, today: string): string | null {
-  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  const todayParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(today);
-  if (!parts || !todayParts) return "Expected a date as YYYY-MM-DD";
-  const y = Number(parts[1]), m = Number(parts[2]), d = Number(parts[3]);
-  // Round-trip through UTC: `Date.UTC(2026, 1, 31)` normalises to March 3, so a component that comes
-  // back different is a day that does not exist. Local-time construction would shift by a timezone.
-  const at = new Date(Date.UTC(y, m - 1, d));
-  if (at.getUTCFullYear() !== y || at.getUTCMonth() !== m - 1 || at.getUTCDate() !== d) {
-    return "That is not a real date";
-  }
-  const ty = Number(todayParts[1]), tm = Number(todayParts[2]), td = Number(todayParts[3]);
-  // Whole years elapsed, birthday-aware — never a millisecond division, which gets leap years wrong.
-  let age = ty - y;
-  if (tm < m || (tm === m && td < d)) age -= 1;
-  if (age < 0) return "Date of birth cannot be in the future";
-  if (age < 18) return "A driver must be at least 18 years old";
-  if (age > 120) return "Check the year — that date of birth is over 120 years ago";
-  return null;
-}
 
 /**
  * The RULES a date of birth has to satisfy, with nothing said about whether one is required.
@@ -103,8 +66,10 @@ const dateOfBirthRules = z
      * One mistake, one message: the regex speaks for the shape, this speaks for the meaning.
      */
     if (!ISO_DATE.test(v)) return;
-    const issue = dateOfBirthIssue(v, new Date().toISOString().slice(0, 10));
-    if (issue) ctx.addIssue({ code: "custom", message: issue });
+    const problem = dateOfBirthProblem(v, new Date().toISOString().slice(0, 10));
+    if (problem && problem !== "shape") {
+      ctx.addIssue({ code: "custom", message: APPLICANT_ISSUE_TEXT[problem](), params: { issueKey: problem } });
+    }
   });
 
 /**

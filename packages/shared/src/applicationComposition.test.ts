@@ -68,7 +68,11 @@ describe("composeFiledApplication", () => {
     const { issues } = composeFiledApplication(application(), intake(), [
       licence(), licence({ position: 1, state_code: "OH", licence_number: "OH55", expires_on: null }),
     ], AS_OF);
-    expect(issues).toEqual([{ path: "additional_licences", message: "Give the expiry date of your OH licence" }]);
+    // U7: keyed, so the applicant's page says it in its own language; US spelling (Q-AM6).
+    expect(issues).toEqual([{
+      path: "additional_licences", message: "Give the expiration date of your OH license",
+      issueKey: "license_expiration", params: { state: "OH" },
+    }]);
   });
 
   it("leaves what Part 1 never answered as the applicant certified it", () => {

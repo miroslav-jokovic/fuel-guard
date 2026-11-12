@@ -596,4 +596,26 @@ A gate fails on a literal string in an `apply/` template.
     - The review returns `contact.rosterEmailMoved`, and the toast adds "Their driver record has the new address too." only when it moved.
   - **Item 5 is complete with this merge.** Q-AM22 (the other names) waits for the owner.
   - **Next:** item 6, F4 (U1–U9), with Q-AM5, Q-AM6 and Q-AM9.
+- 2026-11-12: **Item 5 is complete:** Q-AM16 merged as #2306 (0594) and #2312.
+- 2026-11-12: **Item 6 (F4), first PR: shared rules speak the page's language (U7)** (`claude/application-f4-scope`, no migration).
+  - **Why this first:** F4's other PRs rebuild the screens on top of the same rules. Keying the rules first means the wizard engine renders keys from the start, and no screen gets built twice. It also closes the gap named under F2c ("the new refusals read in English on the Spanish page").
+  - **The catalogue:** `APPLICANT_ISSUE_TEXT` (shared, `applicantIssues.ts`) holds every sentence a shared rule says to an applicant, by key, with typed params. It covers:
+    - the cross-field rules;
+    - the filing rules: v2, legacy, the carrier's paper, and page 21;
+    - the two job questions;
+    - composition's expiration refusal;
+    - the two "ends before it starts" refinements;
+    - the date-of-birth refinement (`dateOfBirthProblem`, now in `dateOfBirthRules.ts` for the file budget).
+  - **How each kind of issue carries its key:**
+    - Every issue keeps `message` (English, for the API and the office) and adds `issueKey` and `params`.
+    - A Zod refinement carries its key in the issue's `params`, which survive `safeParse` (`issueKeyOf`).
+  - **The page:**
+    - `APPLY_COPY.ruleIssues` is the catalogue itself in English. Its Spanish twin (`es/strings.es.issues.ts`) is checked key for key by `satisfies`, so a new rule without Spanish fails `vue-tsc`.
+    - `messageFor` renders a keyed issue in the page's language. The job form (`employerCheck`) now goes through it too; it had shown the rule's English directly.
+  - **US spelling (Q-AM6):** composition's refusal now reads "Give the expiration date of your OH license".
+  - **Not done, and why:**
+    - **The carrier's own questions** keep their English `message` in the API. The page already says "Answer this question." in its own language, because the label beside it names the question.
+    - **The schema's own shape messages** ("Expected a date as YYYY-MM-DD") stay unkeyed. `messageFor` never shows them to a driver (its generic branches).
+    - **U7's gate on literal strings in `apply/` templates** is not built here. It comes with the wizard engine, which replaces those templates.
+  - **Next:** Q-AM6, US spelling on every driver screen (U9's spelling half). Then the F4 wizard engine.
 

@@ -168,7 +168,7 @@ export const PACKET_SIGNED_BEFORE_VERSIONING: IntakeError = {
 };
 
 /** AW1's v2 rules, and Part 1's own, unmet on the composed application — each named for the applicant. */
-const applicationIncomplete = (issues: readonly ApplicationFilingIssue[]): IntakeError => ({
+const applicationIncomplete = (issues: readonly Pick<ApplicationFilingIssue, "path" | "message">[]): IntakeError => ({
   code: "application_incomplete",
   message: `Before this can be sent: ${issues.map((i) => i.message).join("; ")}.`,
 });

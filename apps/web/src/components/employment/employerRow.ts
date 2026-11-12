@@ -159,6 +159,9 @@ export interface EmployerProblem {
   message: string;
   /** The schema's own issue, when the schema found it — `messageFor` turns it into the applicant's words. */
   code?: string;
+  /** U7: a shared rule's key and params, so the applicant's page says it in its own language. */
+  issueKey?: string;
+  params?: unknown;
 }
 
 /**
@@ -175,6 +178,7 @@ export function employerProblems(e: EmployerFields, v2AsOf: string | null): Empl
       field: String(issue.path[0] ?? "employer_name"),
       message: issue.message,
       code: issue.code,
+      ...("params" in issue && issue.params ? { params: issue.params } : {}),
     }));
   }
   // F1 part 2: on every link and every surface — the two questions no job may be saved without, now
@@ -182,11 +186,12 @@ export function employerProblems(e: EmployerFields, v2AsOf: string | null): Empl
   const unanswered = unansweredEmployerQuestions([parsed.data]).map((issue) => ({
     field: String(issue.path[2]),
     message: issue.message,
+    issueKey: issue.issueKey,
   }));
   if (unanswered.length > 0 || !v2AsOf) return unanswered;
   // Filed as the only employer, so its issues are `employers.0.*`; the address and gap rules about the
   // whole application are left to the screen that holds the whole application.
   return applicationV2FilingIssues({ employers: [parsed.data], employment_gaps: [], addresses: [] }, v2AsOf)
     .filter((issue) => issue.path.startsWith("employers.0."))
-    .map((issue) => ({ field: issue.path.slice("employers.0.".length), message: issue.message }));
+    .map((issue) => ({ field: issue.path.slice("employers.0.".length), message: issue.message, issueKey: issue.issueKey, params: issue.params }));
 }

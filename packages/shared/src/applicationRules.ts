@@ -1,3 +1,4 @@
+import { applicantIssue, type ApplicantIssueKey } from "./applicantIssues.js";
 import type { DriverApplicationFields } from "./applicationContract.js";
 import { isAnswered } from "./questionnaireAnswers.js";
 import { isRequirableQuestion, withRequiredQuestions } from "./applicationFormSettings.js";
@@ -28,6 +29,9 @@ export interface ApplicationCrossFieldRule {
    */
   at?: readonly (string | number)[];
   message: string;
+  /** U7: the key the applicant's page renders in its own language; `message` is its English. */
+  issueKey: ApplicantIssueKey;
+  params?: Readonly<Record<string, string>>;
   check: (v: Partial<DriverApplicationFields>) => boolean;
 }
 
@@ -52,7 +56,7 @@ function requiredQuestionRule(q: QuestionnaireQuestion): ApplicationCrossFieldRu
   return {
     path: "questionnaire_answers",
     at: [q.id],
-    message: `Answer the question "${q.label}"`,
+    ...applicantIssue("question_answered", { question: q.label }),
     check: (v) => {
       const asked = questionnaireByRef(v.questionnaire_version) ?? questionnaireForApplicant();
       // §11 D-RS4: the carrier's set as stamped on this applicant's invitation, laid over the definition
@@ -72,17 +76,17 @@ function requiredQuestionRule(q: QuestionnaireQuestion): ApplicationCrossFieldRu
 export const APPLICATION_CROSS_FIELD_RULES: readonly ApplicationCrossFieldRule[] = [
   {
     path: "accidents",
-    message: "List every accident in the last 3 years, or confirm there were none",
+    ...applicantIssue("accidents_listed"),
     check: (v) => v.accidents === undefined || v.accidents.length > 0 || v.declares_no_accidents === true,
   },
   {
     path: "violations",
-    message: "List every violation in the last 3 years, or confirm there were none",
+    ...applicantIssue("violations_listed"),
     check: (v) => v.violations === undefined || v.violations.length > 0 || v.declares_no_violations === true,
   },
   {
     path: "employers",
-    message: "List your employers, or confirm you have not been employed",
+    ...applicantIssue("employers_listed"),
     check: (v) => v.employers === undefined || v.employers.length > 0 || v.declares_no_employment === true,
   },
   {
@@ -93,7 +97,7 @@ export const APPLICATION_CROSS_FIELD_RULES: readonly ApplicationCrossFieldRule[]
      * equipment they have driven even if they will not write a paragraph about it.
      */
     path: "equipment_experience",
-    message: "Describe your driving experience, or list the equipment you have driven",
+    ...applicantIssue("experience_given"),
     check: (v) =>
       v.equipment_experience === undefined
       || v.equipment_experience.length > 0
@@ -101,13 +105,13 @@ export const APPLICATION_CROSS_FIELD_RULES: readonly ApplicationCrossFieldRule[]
   },
   {
     path: "licence_denial_detail",
-    message: "Describe the denial",
+    ...applicantIssue("denial_described"),
     check: (v) => v.licence_ever_denied !== true || Boolean(v.licence_denial_detail?.trim()),
   },
   {
     // F2c (P4): the carrier's question B has its own "If yes, explain".
     path: "licence_suspension_detail",
-    message: "Describe the suspension or revocation",
+    ...applicantIssue("suspension_described"),
     check: (v) => v.licence_suspended !== true || Boolean(v.licence_suspension_detail?.trim()),
   },
   // §11: one rule per question a carrier MAY require (D-RS2), each deciding from the stamp whether it
@@ -125,7 +129,7 @@ export const ruleIssuePath = (rule: ApplicationCrossFieldRule): (string | number
  */
 export const questionnaireRequiredIssues = (
   v: Partial<DriverApplicationFields>,
-): { path: string; message: string }[] =>
+): { path: string; message: string; issueKey: ApplicantIssueKey; params?: Readonly<Record<string, string>> }[] =>
   APPLICATION_CROSS_FIELD_RULES
     .filter((rule) => rule.path === "questionnaire_answers" && !rule.check(v))
-    .map((rule) => ({ path: ruleIssuePath(rule).join("."), message: rule.message }));
+    .map((rule) => ({ path: ruleIssuePath(rule).join("."), message: rule.message, issueKey: rule.issueKey, ...(rule.params ? { params: rule.params } : {}) }));
