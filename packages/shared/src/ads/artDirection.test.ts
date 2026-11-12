@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  AD_CAMERA_DISTANCES, AD_FOCAL_SUBJECTS, DISTANCE_CLAUSE, FOCAL_CLAUSE, FRAME_CLAUSE, NO_LETTERING, QUIET_REGION, REGENERATION_CLAUSES,
+  AD_CAMERA_DISTANCES, AD_FOCAL_SUBJECTS, DISTANCE_CLAUSE, EQUIPMENT_CLAUSE, FOCAL_CLAUSE, FRAME_CLAUSE, NO_LETTERING, QUIET_REGION, REGENERATION_CLAUSES,
   artDirection, artPrecheck, composeImagePrompt, compositionClauses, judgeArt, withRegenerationClauses,
 } from "./artDirection.js";
 import { AD_OVERLAY_LAYOUTS } from "./brandKitContract.js";
@@ -77,9 +77,9 @@ describe("composeImagePrompt — every prompt ends with the no-lettering clause,
 describe("composition — where the subject goes and which part of the frame stays plain (AG3; D-AD28)", () => {
   const answer = { slots: { time_of_day: "dawn" }, reference_photo: "a".repeat(64), focal_subject: "tractor_and_trailer", camera_distance: "wide" } as const;
 
-  it("the prompt carries the subject, the distance, the plain region of the preset's layout and the frame's shape, in that order, before the no-lettering clause", () => {
+  it("the prompt carries the subject, what the equipment must leave clean, the distance, the plain region of the preset's layout and the frame's shape, in that order, before the no-lettering clause", () => {
     const d = artDirection(answer, recipe({ layout: "top_band", formats: ["9:16", "1:1", "4:5"] }), kit());
-    expect(d.prompt).toBe(`Our tractor at dawn, ${FOCAL_CLAUSE.tractor_and_trailer}, ${DISTANCE_CLAUSE.wide}, ${QUIET_REGION.top_band.clause}, ${FRAME_CLAUSE["4:5"]}, ${NO_LETTERING}`);
+    expect(d.prompt).toBe(`Our tractor at dawn, ${FOCAL_CLAUSE.tractor_and_trailer}, ${EQUIPMENT_CLAUSE.tractor_and_trailer}, ${DISTANCE_CLAUSE.wide}, ${QUIET_REGION.top_band.clause}, ${FRAME_CLAUSE["4:5"]}, ${NO_LETTERING}`);
     expect(d.composition).toEqual({ focal_subject: "tractor_and_trailer", camera_distance: "wide", layout: "top_band", frame: "4:5" });
   });
 
@@ -104,7 +104,7 @@ describe("composition — where the subject goes and which part of the frame sta
 
   it("every word of both vocabularies and every layout and format has a clause, and no clause holds a digit, a quotation or a word that asks for lettering", () => {
     const all = [
-      ...AD_FOCAL_SUBJECTS.map((s) => FOCAL_CLAUSE[s]), ...AD_CAMERA_DISTANCES.map((d) => DISTANCE_CLAUSE[d]),
+      ...AD_FOCAL_SUBJECTS.map((s) => FOCAL_CLAUSE[s]), ...Object.values(EQUIPMENT_CLAUSE), ...AD_CAMERA_DISTANCES.map((d) => DISTANCE_CLAUSE[d]),
       ...AD_OVERLAY_LAYOUTS.flatMap((l) => [QUIET_REGION[l].clause, QUIET_REGION[l].where]), ...AD_FORMATS.map((f) => FRAME_CLAUSE[f]),
     ];
     for (const c of all) {
@@ -114,6 +114,8 @@ describe("composition — where the subject goes and which part of the frame sta
       expect(kinds({ slots: { time_of_day: c }, reference_photo: "a".repeat(64), ...SEEN }).filter((k) => k !== "slot_too_long")).toEqual([]);
     }
     expect(compositionClauses({ focal_subject: "setting", camera_distance: "close", layout: "centered", frame: null })).toHaveLength(3);
+    // Our equipment gets the clean trailer side and plain grille; a road, a cab or a person does not.
+    for (const s of AD_FOCAL_SUBJECTS) expect(compositionClauses({ focal_subject: s, camera_distance: "medium", layout: "centered", frame: null }), s).toHaveLength(["tractor", "tractor_and_trailer", "trailer"].includes(s) ? 4 : 3);
   });
 
   it("refuses a subject the scene does not show: a person where the preset shows none, equipment where it shows none", () => {

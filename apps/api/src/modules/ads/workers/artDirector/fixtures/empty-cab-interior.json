@@ -83,13 +83,13 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@4",
+    "prompt_version": "artDirector@5",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T15:03:29.411Z",
+    "recorded_at": "2026-11-12T22:54:34.002Z",
     "output": {
       "slots": {
-        "time_of_day": "just before sunrise",
-        "light": "cool blue pre-dawn glow through the windshield, dashboard softly lit"
+        "time_of_day": "just before dawn",
+        "light": "dashboard glow warming the dark cab, faint blue pre-dawn through the windshield"
       },
       "reference_photo": null,
       "focal_subject": "cab_interior",

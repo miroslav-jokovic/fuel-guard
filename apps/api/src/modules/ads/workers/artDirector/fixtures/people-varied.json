@@ -87,16 +87,16 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@4",
+    "prompt_version": "artDirector@5",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T15:03:43.773Z",
+    "recorded_at": "2026-11-12T22:54:54.508Z",
     "output": {
       "slots": {
-        "time_of_day": "pre-dawn, truck-stop lights and amber vapor lamps casting warm pools on wet concrete",
-        "activity": "a person fueling the tractor, nozzle in hand, cab door open"
+        "time_of_day": "pre-dawn, amber overhead canopy lights casting warm pools on wet concrete",
+        "activity": "driver fueling the tractor, hose in hand, standing beside the fuel island"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "focal_subject": "tractor",
+      "focal_subject": "person_at_work",
       "camera_distance": "medium"
     }
   }

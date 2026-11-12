@@ -82,12 +82,12 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@4",
+    "prompt_version": "artDirector@5",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T15:03:52.386Z",
+    "recorded_at": "2026-11-12T22:55:03.316Z",
     "output": {
       "slots": {
-        "time_of_day": "golden hour dusk, warm low sun casting long shadows across the bridge deck"
+        "time_of_day": "early morning golden hour, low sun casting long shadows across the bridge deck"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "focal_subject": "tractor",

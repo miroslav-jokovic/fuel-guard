@@ -131,24 +131,27 @@ describe("the words stay inside the part of the picture the art director asks to
   const scaleTo45 = { "4:5": 1, "1:1": 1080 / 1350 } as const;
   // Colours and a phone: the footer row is drawn, and it lifts the stack.
   const full = { ...kit, colors: [{ name: "primary", hex: "#0B3D2E" }, { name: "accent", hex: "#F2B01E" }], phone: "(555) 010-0142" };
-  it("on the 4:5 frame and the 1:1 cut from it, in every look, no recorded headline with its supporting line reaches past QUIET_REGION's share", () => {
+  it("on the 4:5 frame and the 1:1 cut from it, in every look, no recorded headline with its supporting line and the logo reaches past QUIET_REGION's share, and a third would be too little", () => {
+    let widest = 0;
     for (const layout of ["bottom_plate", "top_band"] as const) {
       const share = QUIET_REGION[layout].share!;
       for (const look of AD_LOOKS) {
         for (const format of ["4:5", "1:1"] as const) {
+          // The worst case: a supporting line under every headline, and the logo, which sits above a top_band stack.
           const reach = headlines.flatMap((h) => {
-            const l = layOut({ format, language: h.language, headline: h.text, cta: "Apply today", brief: h.brief, kit: full, layout, look, hasLogo: false });
+            const l = layOut({ format, language: h.language, headline: h.text, subline: "Solo or team, all lanes", cta: "Apply today", brief: h.brief, kit: full, layout, look, hasLogo: true });
             return l.ok ? [(layout === "bottom_plate" ? l.height - l.stack.y : l.stack.y + l.stack.height) / l.height * scaleTo45[format]] : [];
           });
           expect(reach.length, `${look} ${format} ${layout}`).toBeGreaterThan(250);
           expect(Math.max(...reach), `${look} ${format} ${layout}`).toBeLessThanOrEqual(share);
-          // Since the three looks (2026-11-12) no look draws a button or a kicker above the headline, and a `bottom_plate`
-          // ad's words stay under a third of the picture in every look (measured: 0.284–0.318). The art director still
-          // asks for half (D-ADL14): more plain picture than the words need, which is the picture's loss, not a fault.
-          // Bringing QUIET_REGION back down is an art-director prompt change, so a recording (ADS-AD-LOOK-PLAN Q-ADL10).
-          if (layout === "bottom_plate") expect(Math.max(...reach), `${look} ${format}`).toBeLessThan(1 / 3);
+          widest = Math.max(widest, ...reach);
         }
       }
     }
+    // Since the three looks (2026-11-12) no look draws a button or a label above the headline. Measured then: a
+    // `bottom_plate` ad with a supporting line reaches 0.33–0.36 of the picture, a `top_band` one with the logo above
+    // it 0.38–0.41. Half (D-ADL14) gave the picture away for nothing; a third would put the words on the subject.
+    // So QUIET_REGION's share is 0.42 (ADS-AD-LOOK-PLAN Q-ADL10, art director v5), and this holds both sides of it.
+    expect(widest).toBeGreaterThan(1 / 3);
   });
 });

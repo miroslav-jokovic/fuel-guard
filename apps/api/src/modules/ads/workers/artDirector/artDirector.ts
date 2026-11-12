@@ -33,10 +33,16 @@ import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOut
  * looks' words measure, not a third; and it is asked for the commercial photograph — low sun or night, a low
  * camera on the equipment, `medium` distance — over the snapshot, unless the job's own context makes the weather
  * the story. v3 already chose low light in most answers; v4 removes the two examples that taught the rest.
+ *
+ * Prompt v5 (2026-11-12, ADS-AD-LOOK-PLAN Q-ADL8, Q-ADL10; the owner approved the recording): the three looks draw
+ * no button, so the plain part is "a headline and one short line" and two-fifths, not half (`QUIET_REGION`); a
+ * tractor with its trailer is seen from ahead and to one side so the trailer's long side shows, because the
+ * carrier's own marks go there afterwards; and it is told not to describe markings — the clean side and the plain
+ * grille are `EQUIPMENT_CLAUSE`'s, fixed phrases of ours, not a model's.
  */
 
-export const ART_DIRECTOR_PROMPT_VERSION = "artDirector@4";
-const PROMPT = readFileSync(new URL("./prompt.v4.md", import.meta.url), "utf8");
+export const ART_DIRECTOR_PROMPT_VERSION = "artDirector@5";
+const PROMPT = readFileSync(new URL("./prompt.v5.md", import.meta.url), "utf8");
 const MAX_TOKENS = 600;
 
 type Recipe = Pick<AdPresetRecipe, "image_prompt_template" | "image_slots" | "starts_from" | "shows_equipment" | "shows_people" | "layout" | "formats">;

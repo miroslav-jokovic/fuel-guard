@@ -909,7 +909,7 @@ export const READINESS = [
               "ends with it when the template already does, without saying it twice",
               "adds it when the template does not",
               "refuses a photo that is not this kit's, none for an equipment scene, and one for a text-only scene",
-              "the prompt carries the subject, the distance, the plain region of the preset's layout and the frame's shape, in that order, before the no-lettering clause",
+              "the prompt carries the subject, what the equipment must leave clean, the distance, the plain region of the preset's layout and the frame's shape, in that order, before the no-lettering clause",
               "refuses a subject the scene does not show: a person where the preset shows none, equipment where it shows none",
             ] },
           ],

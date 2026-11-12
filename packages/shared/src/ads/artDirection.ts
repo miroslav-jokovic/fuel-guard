@@ -24,14 +24,15 @@ import { publishedFormats, type AdFormat } from "./renderGeometry.js";
  * ── COMPOSITION IS DIRECTED (AG3, 2026-11-10; audit F-AG2; D-AD28) ─────────────────────────────────
  * Until AG3 nothing told the image model where the subject goes, how near the camera stands or which part
  * of the frame the words will cover: the only composition instruction anywhere was a clause added AFTER a
- * check had already failed. Now every prompt carries four fixed clauses of ours, between the template and
+ * check had already failed. Now every prompt carries four or five fixed clauses of ours, between the template and
  * `NO_LETTERING`:
  *   · what the one subject is and how near it is seen — the Art director's two answers, each from a closed
  *     list (`AD_FOCAL_SUBJECTS`, `AD_CAMERA_DISTANCES`) and written here as OUR phrase for that word, so
  *     no model text about composition reaches the image model;
  *   · which part of the frame stays plain — NOT asked of the model: the preset's `layout` already says
  *     where the overlay puts the words, and an answer could only agree with it or be wrong (`QUIET_REGION`);
- *   · the frame's shape — the first format the publisher sends (`publishedFormats`), in words, not digits.
+ *   · the frame's shape — the first format the publisher sends (`publishedFormats`), in words, not digits;
+ *   · for our equipment, a clean trailer side and a plain grille (`EQUIPMENT_CLAUSE`, since 2026-11-12).
  * A subject the scene does not show (a person when the preset shows none) is refused like any other finding.
  */
 
@@ -76,18 +77,33 @@ export const DISTANCE_CLAUSE: Record<AdCameraDistance, string> = {
  * what the Art director is TOLD (so its slots do not put a bridge or a treeline there); `clause` is what the
  * image model is told. Derived from the layout, never answered by a model.
  *
- * HALF, not a third (ADS-AD-LOOK-PLAN D-ADL14, 2026-11-11). Until L4 this said "the lower third", written before
- * the looks, when the words sat on a short plate. Measured over every recorded headline with the looks' own
- * layout, the words of a `bottom_plate` ad on the 4:5 frame the picture is made for reach 42 % of the frame's
- * height at the median and 45 % at most with a headline and a button (54 % with all four lines in `rail`), and
- * EVERY one passes a third: the image model was told to keep plain less than the words cover. `share` is the
- * figure the words say, and `overlayCapacity.test.ts` holds the renderer to it. `centered` has no share: its band
- * is the middle, not an edge, and the visual check judges it.
+ * TWO-FIFTHS (ADS-AD-LOOK-PLAN Q-ADL10, 2026-11-12). It said "the lower third" until L4, then HALF (D-ADL14,
+ * 2026-11-11), measured for looks whose words reached 42–54 % with a button and a label above the headline. The
+ * three looks (D-ADL20) draw neither. Measured again over every recorded headline with a supporting line under it,
+ * on the 4:5 frame and the 1:1 cut from it: a `bottom_plate` ad's words reach 33–36 % of the picture's height at
+ * most, a `top_band` ad's 29–32 %, and 38–41 % with the logo above them. So a third is too little and half gives
+ * away a sixth of the picture for nothing; `share` is 0.42, which holds every one, and the words say two-fifths.
+ * `overlayCapacity.test.ts` holds the renderer to `share`. `centered` has no share: its band is the middle, not an
+ * edge, and the visual check judges it.
  */
 export const QUIET_REGION: Record<AdOverlayLayout, { where: string; clause: string; share: number | null }> = {
-  bottom_plate: { where: "the lower half of the frame", clause: "the subject kept in the upper half, the lower half plain and uncluttered", share: 0.5 },
-  top_band: { where: "the upper half of the frame", clause: "the subject kept in the lower half, the upper half plain and uncluttered", share: 0.5 },
+  bottom_plate: { where: "the lower two-fifths of the frame", clause: "the subject kept in the upper part of the frame, the lower two-fifths plain and uncluttered", share: 0.42 },
+  top_band: { where: "the upper two-fifths of the frame", clause: "the subject kept in the lower part of the frame, the upper two-fifths plain and uncluttered", share: 0.42 },
   centered: { where: "the middle band of the frame", clause: "nothing important across the middle of the frame, which stays plain and uncluttered", share: null },
+};
+/**
+ * What our equipment must look like for the carrier's own marks to go on it afterwards (ADS-AD-LOOK-PLAN Q-ADL8,
+ * 2026-11-12). The design review's strongest finding was that a plain stock tractor belongs to any carrier; the
+ * fix is the carrier's real decal on the trailer, placed by a program from the kit's logo file, never drawn by the
+ * image model (D-AD9: it misspells). That needs a trailer side left clean to place it on. And a manufacturer's badge
+ * on a grille is another company's mark, which the visual check refuses (`no_foreign_logos`): the 2026-11-12 test
+ * images drew one on every International. Fixed phrases of ours, by subject, like the clauses above — no model
+ * writes them.
+ */
+export const EQUIPMENT_CLAUSE: Partial<Record<AdFocalSubject, string>> = {
+  tractor: "the grille plain, without any badge or emblem",
+  tractor_and_trailer: "the long side of the trailer a clean, unbroken white panel, the grille plain, without any badge or emblem",
+  trailer: "the long side of the trailer a clean, unbroken white panel",
 };
 /** The frame's shape in words: a digit in an image prompt is an invitation to draw one. */
 export const FRAME_CLAUSE: Record<AdFormat, string> = {
@@ -149,7 +165,8 @@ export interface ArtComposition {
 
 /** The composition as the image model reads it: our fixed clauses, in a fixed order. */
 export function compositionClauses(c: ArtComposition): string[] {
-  return [FOCAL_CLAUSE[c.focal_subject], DISTANCE_CLAUSE[c.camera_distance], QUIET_REGION[c.layout].clause, ...(c.frame ? [FRAME_CLAUSE[c.frame]] : [])];
+  const equipment = EQUIPMENT_CLAUSE[c.focal_subject];
+  return [FOCAL_CLAUSE[c.focal_subject], ...(equipment ? [equipment] : []), DISTANCE_CLAUSE[c.camera_distance], QUIET_REGION[c.layout].clause, ...(c.frame ? [FRAME_CLAUSE[c.frame]] : [])];
 }
 
 /**

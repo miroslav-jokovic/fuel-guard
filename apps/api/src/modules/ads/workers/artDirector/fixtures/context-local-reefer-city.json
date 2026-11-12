@@ -89,14 +89,14 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@4",
+    "prompt_version": "artDirector@5",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T15:03:22.610Z",
+    "recorded_at": "2026-11-12T22:54:28.720Z",
     "output": {
       "slots": {
-        "time_of_day": "dusk, last light fading after a local run",
-        "light": "warm amber glow on the horizon, long shadows across the asphalt",
-        "viewpoint": "low angle from road surface, slightly ahead and to the driver's side, looking up at the cab"
+        "time_of_day": "dusk, last light fading after sunset",
+        "light": "warm amber glow on the horizon, long shadows across the pavement",
+        "viewpoint": "low angle from the road shoulder, slightly ahead and to the left of the cab, looking up"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "focal_subject": "tractor",
