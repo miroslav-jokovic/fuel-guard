@@ -1,6 +1,6 @@
 import { computed, nextTick, ref, type Ref } from "vue";
 import { fromDraft, mentionLabel, mentionQueryAt } from "./mentionDraft";
-import { useMentions, type MentionCandidate } from "./mentionNames";
+import { useMentions, type MentionCandidate, type MentionContext } from "./mentionNames";
 
 /**
  * The `@` list of a text field (D-CHAT22, Q-CHAT20 (a)), for any composer under a `provideMentions`:
@@ -18,9 +18,16 @@ export function useMentionTypeahead(opts: {
   draft: Ref<string>;
   /** The listbox's id prefix; each option is `<id>-<index>` for `aria-activedescendant`. */
   idPrefix: string;
+  /**
+   * Whom the `@` may name, given directly, for a composer that IS the surface knowing the answer — a
+   * unit's notes name the whole office (D-UN8), which the note composer reads itself. A component
+   * cannot inject what it provides, so without this a provider would have to sit one level above.
+   * Absent: the nearest `provideMentions` (chat's stages).
+   */
+  mentions?: MentionContext;
 }) {
   const { field, draft } = opts;
-  const mentions = useMentions();
+  const mentions = opts.mentions ?? useMentions();
   const picks = ref(new Map<string, string>());
   const outgoing = computed(() => fromDraft(draft.value, picks.value));
   const typed = ref<{ query: string; start: number } | null>(null);
