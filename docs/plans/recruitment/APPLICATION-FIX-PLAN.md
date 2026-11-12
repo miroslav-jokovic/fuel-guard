@@ -544,3 +544,19 @@ A gate fails on a literal string in an `apply/` template.
   - **Filing:** `recordSevenDayFromApplication` writes the roster's `seven_day_statements` row through 0591's function, once per application, best effort. It reads `last_relieved_at` in the carrier's zone.
   - **⚠ Deploy note:** a packet's text version (A-5) changes with page 21, so a driver part-way through signing when this deploys is refused at their next mark (DR037) and restarts the walk. That is the existing mechanism, working as designed.
   - **Next:** item 5, Q-AM14 (one transaction for a correction and its edit row).
+- 2026-11-12: **Item 5, step 1: an office correction and its edit row are one transaction (Q-AM14 (a))** (migration `claude/application-edit-one-transaction` #2300, then `claude/application-edit-one-transaction-reader`).
+  - **The functions (0593):** one `correct_*` function per office door: `correct_application_draft`, `correct_applicant_intake`, `correct_applicant_identity` and `correct_applicant_ssn`. Each calls the existing writer unchanged, then `record_application_edits`, the one writer of the rows. A plpgsql call is one transaction, so if the rows are refused (AE001 for a malformed list or path, 23514 for 0586's CHECK) the correction is undone with them.
+  - **Why new functions, not an optional `p_edits` on the old four:**
+    - Every applicant save goes through two of those writers, and the applicant never logs an edit.
+    - A defaulted argument means drop-and-recreate (PGRST203), which would re-copy four long bodies.
+    - The old signatures and their callers stay exactly as they were.
+  - **The API:**
+    - `recordOfficeEdits` and its after-the-fact insert are gone.
+    - `editsParam` shapes the rows the call carries. `editRowsRefusal` turns a refused row into `edit_not_recorded`, which now says "Nothing was changed".
+    - All five doors call their `correct_*` function: the draft, the Part 1 correction, the single Part 1 answer, the identity (both writers) and the SSN replace.
+    - The edit rows are computed before the write, from the values read before it, as they already were.
+  - **Tests:**
+    - The matrix (`application-corrections-one-transaction.test.mjs`) proves that a refused row leaves each wrapped write as it was.
+    - The route tests read the rows off the call (`testing/officeEdits.ts`).
+    - Each door's refusal maps to `edit_not_recorded` with no audit row.
+  - **Next:** Q-AM15, a stable key on every row of the six lists.

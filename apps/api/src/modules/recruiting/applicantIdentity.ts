@@ -9,7 +9,7 @@ import {
 import { writeAudit } from "../../lib/audit.js";
 import { loadCarrierWording } from "./carrierWording.js";
 import { correctIdentityThroughPartOne } from "./applicantPartOneCorrection.js";
-import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
+import { editRowsRefusal, editsParam, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
 import {
   ALREADY_SUBMITTED,
   isIntakeError,
@@ -209,21 +209,23 @@ export async function correctApplicantIdentity(
 
   // What `drivers` held, read before the overwrite, so the driver can be shown each change (E7).
   const was = await identityOnRecord(admin, orgId, invitation.driver_id);
-  const recorded = () => recordOfficeEdits(admin, orgId, invitation.id, identityEdits(was, body), actorId);
+  const edits = identityEdits(was, body);
 
   // A v2 link's licence list moves with the identity (Q-AW36) — see `correctIdentityThroughPartOne`.
-  const throughPartOne = await correctIdentityThroughPartOne(admin, orgId, invitation, body);
+  // Either writer takes the edit rows in the same transaction as the change (Q-AM14, 0593).
+  const throughPartOne = await correctIdentityThroughPartOne(admin, orgId, invitation, body, edits, actorId);
   if (throughPartOne && "code" in throughPartOne) return throughPartOne;
   if (throughPartOne) {
-    const unrecorded = await recorded();
     await auditIdentityCorrection(admin, orgId, invitation, actorId);
-    return unrecorded ?? { ok: true };
+    return { ok: true };
   }
 
-  const { error } = await admin.rpc(
-    "record_applicant_identity",
-    rpcArgs(orgId, invitation.id, invitation.driver_id, body, true),
-  );
+  const { p_overwrite: _office, ...args } = rpcArgs(orgId, invitation.id, invitation.driver_id, body, true);
+  const { error } = await admin.rpc("correct_applicant_identity", {
+    ...args,
+    p_edits: editsParam(edits),
+    p_edited_by: actorId,
+  });
   if (error) {
     if (error.code === "AI001") return notFound;
     if (error.code === "AI002") {
@@ -233,12 +235,11 @@ export async function correctApplicantIdentity(
       return { code: "already_filed", message: "The application is filed, and what it says can no longer change." };
     }
     if (error.code === "AI004") return { code: "invalid_request", message: "Enter all three." };
-    return { code: "identity_failed", message: error.message };
+    return editRowsRefusal(error) ?? { code: "identity_failed", message: error.message };
   }
 
-  const unrecorded = await recorded();
   await auditIdentityCorrection(admin, orgId, invitation, actorId);
-  return unrecorded ?? { ok: true };
+  return { ok: true };
 }
 
 /** One audit row per identity correction, whichever writer carried it. Names, never values. */

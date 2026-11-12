@@ -1,5 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { editedBy, editsSent } from "../../testing/officeEdits.js";
 import { loadEnv } from "../../env.js";
 import { IDENTITY_IS_CORRECTED_ELSEWHERE } from "@silvicom/shared";
 import { applicationForReview, approveApplication, editApplication, isReviewError } from "./applicationReview.js";
@@ -119,7 +120,7 @@ const seed = (over: {
   v2?: boolean;
   /** The stored draft revision (0376). */
   revision?: number;
-  /** What `save_application_draft` answers — DA041 when the phone saved first. */
+  /** What `correct_application_draft` answers — DA041 when the phone saved first. */
   save?: unknown;
   /** Marks the driver has already made on the packet. */
   marks?: number;
@@ -131,7 +132,7 @@ const seed = (over: {
   driver?: Record<string, unknown>;
 } = {}) =>
   createSupabaseRecorder({
-    rpc: { save_application_draft: over.save ?? { draft_id: "d-1", updated_at: "2026-09-11T12:00:00Z", revision: (over.revision ?? 3) + 1 } },
+    rpc: { correct_application_draft: over.save ?? { draft_id: "d-1", updated_at: "2026-09-11T12:00:00Z", revision: (over.revision ?? 3) + 1 } },
     tables: {
       application_packet_marks: { data: [], count: over.marks ?? 0 },
       ...(over.v2 ? PART_ONE : { application_intakes: [] }),
@@ -255,7 +256,7 @@ const REV = 3;
 const KEY = "11111111-2222-4333-8444-555555555555";
 const KEYED = { ...PAYLOAD, employers: PAYLOAD.employers.map((e) => ({ ...e, key: KEY })) };
 const savedPayload = (rec: ReturnType<typeof seed>) =>
-  (rec.rpcs().find((r) => r.fn === "save_application_draft")!.args as { p_payload: typeof PAYLOAD & { employment_gaps?: unknown[] } }).p_payload;
+  (rec.rpcs().find((r) => r.fn === "correct_application_draft")!.args as { p_payload: typeof PAYLOAD & { employment_gaps?: unknown[] } }).p_payload;
 
 describe("correcting the driver's own statement in the draft (F3, Q-AM13)", () => {
   /** On a legacy link §40.25(j) is a draft answer; the catalogue's `statement` rule holds it to a reason. */
@@ -274,7 +275,7 @@ describe("correcting the driver's own statement in the draft (F3, Q-AM13)", () =
       { actorId: ACTOR },
     );
     expect(isReviewError(result)).toBe(false);
-    expect(rec.writtenRows("application_edits")[0]).toMatchObject({
+    expect(editsSent(rec)[0]).toMatchObject({
       path: ["prior_failed_pre_employment_test"], after: true, note: "Driver called 11/10", withheld: false,
     });
   });
@@ -283,7 +284,7 @@ describe("correcting the driver's own statement in the draft (F3, Q-AM13)", () =
     const rec = seed({ payload: KEYED });
     const result = await editApplication(rec.client, ORG, INV, { path: ["first_name"], value: "Ann", revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result)).toBe(false);
-    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ note: null });
+    expect(editsSent(rec)[0]).toMatchObject({ note: null });
   });
 });
 
@@ -300,19 +301,19 @@ describe("correcting one answer", () => {
     expect(result.revision).toBe(REV + 1);
 
     // §8.1: the RPC with the revision the office read — never a bare update of the draft.
-    const call = rec.rpcs().find((r) => r.fn === "save_application_draft")!.args as Record<string, unknown>;
-    expect(call).toMatchObject({ p_org: ORG, p_invitation: INV, p_driver: DRIVER, p_expected_revision: REV, p_section: null });
+    const call = rec.rpcs().find((r) => r.fn === "correct_application_draft")!.args as Record<string, unknown>;
+    expect(call).toMatchObject({ p_org: ORG, p_invitation: INV, p_driver: DRIVER, p_expected_revision: REV, p_edited_by: ACTOR });
     expect(rec.writtenRows("application_drafts")).toHaveLength(0);
     expect(savedPayload(rec).employers[0]!.city).toBe("Joliet");
 
-    const edit = rec.writtenRows("application_edits")[0] as Record<string, unknown>;
+    const edit = editsSent(rec)[0] as Record<string, unknown>;
     // Q-AX7: the row by its key, so a later removal re-points nothing.
     expect(edit.path).toEqual(["employers", KEY, "city"]);
     // ⚠ The applicant's own answer, kept. Without it the payload alone cannot say what was changed,
     // and the driver cannot be shown the mark D-AX12 requires.
     expect(edit.before).toBe("Jolliet");
     expect(edit.after).toBe("Joliet");
-    expect(edit.edited_by).toBe(ACTOR);
+    expect(editedBy(rec)).toBe(ACTOR);
   });
 
   /**
@@ -325,8 +326,8 @@ describe("correcting one answer", () => {
       const result = await editApplication(rec.client, ORG, INV, { path: [...path], value: "1981-04-01", revision: REV }, { actorId: ACTOR });
       expect(isReviewError(result) && result.code, String(path)).toBe("invalid_edit");
       expect(isReviewError(result) && result.message).toBe(IDENTITY_IS_CORRECTED_ELSEWHERE);
-      expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
-      expect(rec.writtenRows("application_edits")).toHaveLength(0);
+      expect(rec.rpcs().some((r) => r.fn === "correct_application_draft")).toBe(false);
+      expect(editsSent(rec)).toHaveLength(0);
     }
   });
 
@@ -338,7 +339,7 @@ describe("correcting one answer", () => {
     const result = await editApplication(rec.client, ORG, INV, { path: ["carrier_answers", PET], value: false, revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result)).toBe(false);
     expect((savedPayload(rec) as unknown as { carrier_answers: Record<string, unknown> }).carrier_answers[PET]).toBe(false);
-    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["carrier_answers", PET], before: true, after: false });
+    expect(editsSent(rec)[0]).toMatchObject({ path: ["carrier_answers", PET], before: true, after: false });
   });
 
   it("⚠ step 5: refuses a carrier answer the stamp does not take — or any, on an invitation stamped none — writing nothing", async () => {
@@ -353,8 +354,8 @@ describe("correcting one answer", () => {
       const result = await editApplication(rec.client, ORG, INV, { path: c.path, value: c.value, revision: REV }, { actorId: ACTOR });
       expect(isReviewError(result) && result.code, JSON.stringify(c)).toBe("invalid_edit");
       expect(isReviewError(result) && result.message).toMatch(c.says);
-      expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
-      expect(rec.writtenRows("application_edits")).toHaveLength(0);
+      expect(rec.rpcs().some((r) => r.fn === "correct_application_draft")).toBe(false);
+      expect(editsSent(rec)).toHaveLength(0);
     }
   });
 
@@ -365,7 +366,7 @@ describe("correcting one answer", () => {
     );
     expect(isReviewError(result) && result.code).toBe("draft_revision_conflict");
     expect(rec.rpcs()).toEqual([]);
-    expect(rec.writtenRows("application_edits")).toHaveLength(0);
+    expect(editsSent(rec)).toHaveLength(0);
   });
 
   it("§9 P5: maps the database's own refusal (DA041) — the phone saved between the read and the write", async () => {
@@ -375,7 +376,20 @@ describe("correcting one answer", () => {
     );
     expect(isReviewError(result) && result.code).toBe("draft_revision_conflict");
     expect(isReviewError(result) && result.message).toContain("reload");
+    // Q-AM14: the edit row went only inside the refused call, so the database wrote neither, and
+    // nothing wrote one beside it.
     expect(rec.writtenRows("application_edits")).toHaveLength(0);
+  });
+
+  it("Q-AM14: makes no change when the driver's record of it is refused, and says so", async () => {
+    // 0593's AE001: the edit row is refused inside `correct_application_draft`, and the draft with it.
+    const rec = seed({ payload: KEYED, save: { error: { code: "AE001", message: "application_edits_invalid" } } });
+    const result = await editApplication(
+      rec.client, ORG, INV, { path: ["middle_name"], value: "PA1", revision: REV }, { actorId: ACTOR },
+    );
+    expect(isReviewError(result) && result.code).toBe("edit_not_recorded");
+    expect(isReviewError(result) && result.message).toContain("Nothing was changed");
+    expect(rec.writtenRows("audit_logs")).toHaveLength(0);
   });
 
   it("EM-2: fills a field the applicant left blank (a null cell)", async () => {
@@ -385,7 +399,7 @@ describe("correcting one answer", () => {
     );
     expect(isReviewError(result)).toBe(false);
     expect(savedPayload(rec).employers[0]!.subject_to_fmcsr).toBe(false);
-    expect((rec.writtenRows("application_edits")[0] as Record<string, unknown>).before).toBeNull();
+    expect((editsSent(rec)[0] as Record<string, unknown>).before).toBeNull();
   });
 
   it("Q-AX7: a row that had no key is given one, and the edit is logged under it", async () => {
@@ -396,7 +410,7 @@ describe("correcting one answer", () => {
     expect(isReviewError(result)).toBe(false);
     const minted = savedPayload(rec).employers[0] as { key?: string };
     expect(minted.key).toMatch(/^[0-9a-f-]{36}$/);
-    expect((rec.writtenRows("application_edits")[0] as Record<string, unknown>).path).toEqual(["employers", minted.key, "city"]);
+    expect((editsSent(rec)[0] as Record<string, unknown>).path).toEqual(["employers", minted.key, "city"]);
   });
 
   it("Q-AX7: refuses a position for a row that already has a key — rows are named by key", async () => {
@@ -417,7 +431,7 @@ describe("correcting one answer", () => {
     );
     expect(isReviewError(result) && result.code).toBe("invalid_edit");
     expect(rec.rpcs()).toEqual([]);
-    expect(rec.writtenRows("application_edits")).toHaveLength(0);
+    expect(editsSent(rec)).toHaveLength(0);
   });
 
   it("⚠ does not refuse a real autosaved draft for carrying the carrier's own questions", async () => {
@@ -477,7 +491,7 @@ describe("the jobs: add, remove, explain a gap", () => {
     const employers = savedPayload(rec).employers as unknown as Array<{ employer_name: string; address_line1: string }>;
     expect(employers.map((e) => e.employer_name)).toEqual(["Old Carrier", "Werner"]);
     expect(employers[1]!.address_line1).toBe("14507 Frontier Rd");
-    const edit = rec.writtenRows("application_edits")[0] as Record<string, unknown>;
+    const edit = editsSent(rec)[0] as Record<string, unknown>;
     expect(edit.path).toEqual(["employers", WERNER.key]);
     expect(edit.before).toBeNull();
   });
@@ -496,7 +510,7 @@ describe("the jobs: add, remove, explain a gap", () => {
     const result = await editApplication(rec.client, ORG, INV, { op: "remove_employer", key: KEY, revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result)).toBe(false);
     expect((savedPayload(rec).employers as unknown as Array<{ key: string }>).map((e) => e.key)).toEqual([WERNER.key]);
-    const edit = rec.writtenRows("application_edits")[0] as Record<string, unknown>;
+    const edit = editsSent(rec)[0] as Record<string, unknown>;
     expect(edit.path).toEqual(["employers", KEY]);
     expect((edit.before as { employer_name: string }).employer_name).toBe("Old Carrier");
     expect(edit.after).toBeNull();
@@ -516,7 +530,7 @@ describe("the jobs: add, remove, explain a gap", () => {
     const result = await editApplication(rec.client, ORG, INV, { op: "explain_gap", gap, revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result)).toBe(false);
     expect(savedPayload(rec).employment_gaps).toEqual([gap]);
-    const edit = rec.writtenRows("application_edits")[0] as Record<string, unknown>;
+    const edit = editsSent(rec)[0] as Record<string, unknown>;
     expect(edit.path).toEqual(["employment_gaps", "2021-06-01"]);
     expect(edit.before).toBe("Off");
     expect(edit.after).toBe("Caring for a parent");
@@ -698,7 +712,7 @@ describe("adding and removing a row (E2)", () => {
     const result = await editApplication(rec.client, ORG, INV, { op: "add_row", list: "addresses", row: OLD, revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result)).toBe(false);
     expect(savedPayload(rec).addresses).toEqual([PAYLOAD.addresses[0], OLD]);
-    const edit = rec.writtenRows("application_edits")[0] as Record<string, unknown>;
+    const edit = editsSent(rec)[0] as Record<string, unknown>;
     expect(edit).toMatchObject({ path: ["addresses", 1], before: null, after: OLD });
     expectOrgScoped(rec, ORG);
   });
@@ -709,7 +723,7 @@ describe("adding and removing a row (E2)", () => {
       rec.client, ORG, INV, { op: "add_row", list: "addresses", row: { ...OLD, city: "" }, revision: REV }, { actorId: ACTOR },
     );
     expect(isReviewError(result) && result.code).toBe("invalid_edit");
-    expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+    expect(rec.rpcs().some((r) => r.fn === "correct_application_draft")).toBe(false);
   });
 
   it("removes a row and logs the row it took", async () => {
@@ -717,7 +731,7 @@ describe("adding and removing a row (E2)", () => {
     const result = await editApplication(rec.client, ORG, INV, { op: "remove_row", list: "addresses", index: 1, revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result)).toBe(false);
     expect(savedPayload(rec).addresses).toEqual(PAYLOAD.addresses);
-    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["addresses", 1], before: OLD, after: null });
+    expect(editsSent(rec)[0]).toMatchObject({ path: ["addresses", 1], before: OLD, after: null });
   });
 
   const LICENCE = { issuing_authority: "IN", number: "IN-9", expires_at: "2027-01-01", kind: null };
@@ -727,7 +741,7 @@ describe("adding and removing a row (E2)", () => {
       rec.client, ORG, INV, { op: "add_row", list: "additional_licences", row: LICENCE, revision: REV }, { actorId: ACTOR },
     );
     expect(isReviewError(result) && result.message).toMatch(/licences are corrected/);
-    expect(rec.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+    expect(rec.rpcs().some((r) => r.fn === "correct_application_draft")).toBe(false);
   });
 
   it("adds a licence row on a legacy link, where the draft is what files", async () => {
@@ -818,11 +832,11 @@ describe("a row of education or references (step 4)", () => {
     const rec = seed({ payload: withRefs });
     const added = await editApplication(rec.client, ORG, INV, { path: ["questionnaire", "references", 1], value: { ...REF, full_name: "Bo" }, revision: REV }, { actorId: ACTOR });
     expect(isReviewError(added)).toBe(false);
-    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["questionnaire", "references", 1], before: null });
+    expect(editsSent(rec)[0]).toMatchObject({ path: ["questionnaire", "references", 1], before: null });
     const full = seed({ payload: { ...PAYLOAD, questionnaire: { references: [REF, REF, REF] } } });
     const refused = await editApplication(full.client, ORG, INV, { path: ["questionnaire", "references", 3], value: REF, revision: REV }, { actorId: ACTOR });
     expect(isReviewError(refused) && refused.code).toBe("invalid_edit");
-    expect(full.rpcs().some((r) => r.fn === "save_application_draft")).toBe(false);
+    expect(full.rpcs().some((r) => r.fn === "correct_application_draft")).toBe(false);
   });
 
   it("removes a reference and logs the row it took", async () => {
@@ -830,6 +844,6 @@ describe("a row of education or references (step 4)", () => {
     const result = await editApplication(rec.client, ORG, INV, { op: "remove_answer_row", question: "references", index: 0, revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result)).toBe(false);
     expect((savedPayload(rec) as unknown as { questionnaire: { references: unknown[] } }).questionnaire.references).toEqual([]);
-    expect(rec.writtenRows("application_edits")[0]).toMatchObject({ path: ["questionnaire", "references", 0], before: REF, after: null });
+    expect(editsSent(rec)[0]).toMatchObject({ path: ["questionnaire", "references", 0], before: REF, after: null });
   });
 });

@@ -4,7 +4,7 @@ import type { Env } from "../../env.js";
 import { writeAudit } from "../../lib/audit.js";
 import { open, secretAad } from "../../lib/secretBox.js";
 import { loadCarrierWording } from "./carrierWording.js";
-import { recordOfficeEdits, signingStarted, SIGNING_STARTED as EDIT_SIGNING_STARTED } from "./applicationEditLog.js";
+import { editRowsRefusal, editsParam, signingStarted, SIGNING_STARTED as EDIT_SIGNING_STARTED } from "./applicationEditLog.js";
 import {
   ALREADY_SUBMITTED,
   isIntakeError,
@@ -177,21 +177,24 @@ export async function replaceApplicantSsn(
   if (await signingStarted(admin, orgId, invitation.id)) return EDIT_SIGNING_STARTED;
 
   const sealed = sealSsn(env, orgId, ssn);
-  const { error } = await admin.rpc("record_applicant_ssn", {
+  const { error } = await admin.rpc("correct_applicant_ssn", {
+    // The number and its withheld edit row in one transaction (Q-AM14, 0593); entered by the office.
     p_org: orgId,
     p_invitation: invitation.id,
     p_driver: invitation.driver_id,
     p_last4: sealed.last4,
     p_sealed: sealed.sealed,
-    p_entered_by: "office",
+    p_edits: editsParam([{ path: ["ssn"], before: null, after: null, withheld: true }]),
+    p_edited_by: actorId,
   });
+  const unrecorded = editRowsRefusal(error);
+  if (unrecorded) return unrecorded;
   if (error) return { code: error.code === "SN003" ? "application_not_editable" : "ssn_not_saved", message: refusalOf(error).message };
 
-  const unrecorded = await recordOfficeEdits(admin, orgId, invitation.id, [{ path: ["ssn"], before: null, after: null, withheld: true }], actorId);
   await writeAudit(admin, {
     orgId, actorId, action: "application.ssn_replaced", entity: "application_invitation", entityId: invitation.id,
   });
-  return unrecorded ?? { ok: true, last4: sealed.last4! };
+  return { ok: true, last4: sealed.last4! };
 }
 
 /**

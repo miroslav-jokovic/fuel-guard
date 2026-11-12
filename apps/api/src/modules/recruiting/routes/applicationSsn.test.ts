@@ -5,6 +5,7 @@ import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { editsSent } from "../../../testing/officeEdits.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { open, seal, secretAad } from "../../../lib/secretBox.js";
 
@@ -27,7 +28,7 @@ const KEY = Buffer.alloc(32, 7).toString("base64");
 const ENV = loadEnv({ NODE_ENV: "test", SECRETS_ENCRYPTION_KEY: KEY } as NodeJS.ProcessEnv);
 const SEALED = seal(ENV, "123456789", secretAad(ORG, "driver_ssn"));
 
-const seed = (over: { marks?: number; submitted?: string | null; ssn?: Record<string, unknown> | null; grants?: unknown[] } = {}): SupabaseRecorder =>
+const seed = (over: { marks?: number; submitted?: string | null; ssn?: Record<string, unknown> | null; grants?: unknown[]; replaced?: unknown } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       application_invitations: [{ id: INV, org_id: ORG, driver_id: DRIVER, submitted_at: over.submitted ?? null }],
@@ -37,7 +38,7 @@ const seed = (over: { marks?: number; submitted?: string | null; ssn?: Record<st
       audit_logs: [],
       org_role_permissions: (over.grants ?? []) as never,
     },
-    rpc: { record_applicant_ssn: null },
+    rpc: { correct_applicant_ssn: over.replaced ?? null },
   });
 
 const ctx = (role: string): AuthContext => ({ userId: `u-${role}`, email: `${role}@x.test`, orgId: ORG, role } as AuthContext);
@@ -78,11 +79,12 @@ describe("replacing the SSN", () => {
     const res = await call("POST", "recruiter", { ssn: "987-65-4321" });
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ ok: true, last4: "4321" });
-    const args = rec.rpcs().find((r) => r.fn === "record_applicant_ssn")!.args as Record<string, unknown>;
-    expect(args).toMatchObject({ p_org: ORG, p_invitation: INV, p_driver: DRIVER, p_last4: "4321", p_entered_by: "office" });
+    const args = rec.rpcs().find((r) => r.fn === "correct_applicant_ssn")!.args as Record<string, unknown>;
+    // `correct_applicant_ssn` always enters it as the office's (0593); the editor is the recruiter.
+    expect(args).toMatchObject({ p_org: ORG, p_invitation: INV, p_driver: DRIVER, p_last4: "4321", p_edited_by: "u-recruiter" });
     expect(open(ENV, String(args.p_sealed), secretAad(ORG, "driver_ssn"))).toBe("987654321");
-    const rows = rec.writtenRows("application_edits");
-    expect(rows).toEqual([expect.objectContaining({ path: ["ssn"], before: null, after: null, withheld: true, edited_by: "u-recruiter" })]);
+    const rows = editsSent(rec);
+    expect(rows).toEqual([expect.objectContaining({ path: ["ssn"], before: null, after: null, withheld: true })]);
     // Neither the old nor the new number reaches the edit row or the audit row.
     expect(JSON.stringify([rows, rec.writtenRows("audit_logs")])).not.toMatch(/987654321|4321|123456789/);
     expectOrgScoped(rec, ORG);
@@ -95,6 +97,15 @@ describe("replacing the SSN", () => {
     expect(res.status).toBe(409);
     expect(await code(res)).toBe("application_not_editable");
     expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("Q-AM14: keeps the driver's number when the record of the replacement is refused, and says so", async () => {
+    const rec = seed({ replaced: { error: { code: "AE001", message: "application_edits_invalid" } } });
+    holder.client = rec.client;
+    const res = await call("POST", "recruiter", { ssn: "987654321" });
+    expect(res.status).toBe(500);
+    expect(await code(res)).toBe("edit_not_recorded");
+    expect(rec.writtenRows("audit_logs")).toEqual([]);
   });
 
   it("refuses a role that does not manage recruitment", async () => {

@@ -11,6 +11,7 @@ import {
 } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { hashInvitationToken } from "../applicationIntake.js";
+import { editedBy, editsSent } from "../../../testing/officeEdits.js";
 
 /**
  * The applicant's identity, taken with the permissions (AF3, D-AF1) and written by one function
@@ -64,6 +65,7 @@ const seed = (over: {
     },
     rpc: {
       record_applicant_identity: { draft_id: "d-1", kept_existing: [] },
+      correct_applicant_identity: { draft_id: "d-1", kept_existing: [] },
       record_driver_release: { authorization_id: "a-1", signed_count: 1, completed: false },
       save_application_draft: { draft_id: "d-1", updated_at: "2026-09-24T10:05:00Z" },
       ...over.rpc,
@@ -99,7 +101,9 @@ const office = (path: string, token: string | null, body: unknown) =>
 const code = async (res: Response): Promise<string> =>
   ((await res.json()) as { error?: { code?: string } }).error?.code ?? "";
 
-const identityCall = (rec: SupabaseRecorder) => rec.rpcs().find((r) => r.fn === "record_applicant_identity");
+/** The applicant's fill-only write, or (0593) the office's overwrite with its edit rows. */
+const identityCall = (rec: SupabaseRecorder) =>
+  rec.rpcs().find((r) => r.fn === "record_applicant_identity" || r.fn === "correct_applicant_identity");
 
 beforeAll(async () => {
   const app = createApp(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv));
@@ -269,7 +273,10 @@ describe("the office corrects identity", () => {
     holder.client = rec.client;
     const res = await correct("recruiter");
     expect(res.status).toBe(200);
-    expect((identityCall(rec)!.args as Record<string, unknown>).p_overwrite).toBe(true);
+    // The office's overwrite, carrying what changed for the driver's 3.1 in the same call (Q-AM14).
+    expect(identityCall(rec)!.fn).toBe("correct_applicant_identity");
+    expect(editsSent(rec).map((e) => e.path)).toEqual([["date_of_birth"], ["cdl_number"], ["cdl_state"]]);
+    expect(editedBy(rec)).toBe("u-recruiter");
     const [audit] = rec.writtenRows("audit_logs");
     expect(audit).toMatchObject({ action: "application_identity_corrected", entity_id: INV });
     // ⚠ apps/api/CLAUDE.md: never log a licence number. The row-change trigger on `drivers` keeps
@@ -296,7 +303,7 @@ describe("the office corrects identity", () => {
   });
 
   it("refuses a filed application with a conflict, not a failure", async () => {
-    holder.client = seed({ rpc: { record_applicant_identity: { error: { code: "AI003", message: "application_already_submitted" } } } }).client;
+    holder.client = seed({ rpc: { correct_applicant_identity: { error: { code: "AI003", message: "application_already_submitted" } } } }).client;
     const res = await correct("recruiter");
     expect(res.status).toBe(409);
     expect(await code(res)).toBe("already_filed");
