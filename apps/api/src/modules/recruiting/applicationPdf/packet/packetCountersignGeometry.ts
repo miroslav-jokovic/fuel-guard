@@ -53,6 +53,8 @@ export const PACKET_COUNTERSIGN_LINES: readonly PacketCountersignLine[] = [
     note: "Upper of page 19's two carrier lines, with its own `Date:` rule level with it." },
   { id: "p19bc", page: 19, x1: 205.7, x2: 553.2, y: 157.4, date: null, caption: { x: 207.7, y: 148.6, x2: 553.2 },
     note: "Lower carrier line on page 19; no date rule." },
+  { id: "p21c", page: 21, x1: 308.9, x2: 553.2, y: 142.2, date: null, caption: { x: 310.8, y: 116.0, x2: 553.2 },
+    note: "The bottom right rule, `Company Representative:` captioned beneath it (Q-AM4); no date rule." },
   { id: "p22c", page: 22, x1: 50.9, x2: 309.0, y: 157.4, date: { x1: 412.1, x2: 553.2, y: 141.2 },
     caption: { x: 52.8, y: 134.0, x2: 553.2 },
     note: "Rule above its printed caption; the `Date` rule is 16pt LOWER, beside the `Date` caption." },

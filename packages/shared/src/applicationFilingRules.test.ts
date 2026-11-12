@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applicationLegacyFilingIssues,
   applicationPaperFilingIssues,
+  sevenDayStatementIssues,
   applicationV2FilingIssues,
   PRIOR_TEST_UNANSWERED,
   SUSPENSION_UNANSWERED,
@@ -164,9 +165,22 @@ describe("what the carrier's paper asks of every new filing (F2c)", () => {
     expect(issues.map((i) => i.path)).toEqual(["violations.1.state", "violations.1.penalty"]);
   });
 
+  /** Q-AM4: page 21 is asked at signing, so the paper's hand-off rules do not ask it. */
+  it("does not ask page 21 before signing", () => {
+    expect(applicationPaperFilingIssues({ licence_suspended: false, violations: [], declares_no_violations: true })).toEqual([]);
+  });
+
   it("asks nothing of the rows a declared-none leaves behind", () => {
     expect(applicationPaperFilingIssues({
       licence_suspended: false, declares_no_violations: true, violations: [{ ...conviction, state: null, penalty: null }],
     })).toEqual([]);
+  });
+});
+
+describe("page 21 at signing (Q-AM4)", () => {
+  it("asks the seven days and when last off duty, and takes all zeros as an answer", () => {
+    expect(sevenDayStatementIssues({}).map((i) => i.path)).toEqual(["seven_day_hours", "last_relieved_at"]);
+    expect(sevenDayStatementIssues({ seven_day_hours: [0, 0, 0, 0, 0, 0, 0], last_relieved_at: "2026-11-01T17:00" })).toEqual([]);
+    expect(sevenDayStatementIssues({ seven_day_hours: [0, 0, 0, 0, 0, 0, 0], last_relieved_at: " " }).map((i) => i.path)).toEqual(["last_relieved_at"]);
   });
 });

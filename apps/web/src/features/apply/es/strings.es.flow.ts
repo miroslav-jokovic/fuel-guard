@@ -35,6 +35,16 @@ export const APPLY_FLOW_COPY_ES = {
   },
 
   signOff: {
+    sevenDay: {
+      heading: "Sus últimos siete días",
+      intro: "Las horas que estuvo de servicio — manejando o trabajando — en cada uno de los siete días antes de hoy. Ponga 0 en un día que no trabajó.",
+      day: (label: string): string => `Horas del ${label}`,
+      relieved: "¿Cuándo fue la última vez que terminó su servicio?",
+      relievedHint: "La fecha y la hora en que terminó de trabajar por última vez.",
+      total: (hours: string): string => `Total: ${hours} horas`,
+      missingHours: "Llene los siete días — 0 en un día que no trabajó.",
+      missingRelieved: "Dé la fecha y la hora en que terminó su servicio por última vez.",
+    },
     heading: "Lista para su firma",
     intro: (carrier: string): string =>
       `${sentenceCase(carrier)} leyó su solicitud. Revísela una vez más y fírmela; esta es la versión que va a su expediente.`,

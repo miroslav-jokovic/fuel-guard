@@ -306,7 +306,8 @@ export function applicantFactRows({ payload, partOne, edits, questionnaire, part
     if (ELSEWHERE.has(column ? name : (list ?? name))) continue;
 
     // A set (the endorsements, F2b) is one answer, ticked as a whole — not a row per item like other names.
-    if (column === undefined && (list === null || fact.input === "multi_choice")) {
+    // So is page 21's week (Q-AM4): seven hours, corrected together.
+    if (column === undefined && (list === null || fact.input === "multi_choice" || fact.input === "seven_days")) {
       const door = doorOf(fact, Boolean(partOne), null, current);
       if (door) push(fact, [list ?? name], doc[list ?? name], door);
       continue;

@@ -58,6 +58,15 @@ const skipped = computed<boolean>({
 });
 const NUMERIC = new Set<FactInput>(["count", "miles", "zip", "usdot"]);
 
+/** Page 21's seven boxes: the stored hours as text, edited one box at a time (`correctionFor` converts back). */
+const hours = computed<readonly string[]>(() =>
+  Array.isArray(model.value) ? model.value.map(String) : ["", "", "", "", "", "", ""]);
+function setHour(i: number, v: string): void {
+  const next = [...hours.value];
+  next[i] = v;
+  model.value = next;
+}
+
 /** A multi-choice answer (endorsements): the ticked codes, kept in the choices' own order, as the wizard does. */
 const ticked = computed<readonly string[]>(() => (Array.isArray(model.value) ? model.value : []));
 function tick(value: string, on: boolean): void {
@@ -111,11 +120,24 @@ function tick(value: string, on: boolean): void {
     :aria-label="label"
   />
   <BaseTextarea v-else-if="input === 'longtext'" :id="id" v-model="text" rows="3" :aria-label="label" />
+  <!-- Page 21 (Q-AM4): seven hour boxes, oldest day first — the dates are the signing day's, so not known yet. -->
+  <fieldset v-else-if="input === 'seven_days'" :id="id" class="grid grid-cols-4 gap-2 sm:grid-cols-7">
+    <legend class="sr-only">{{ label }}</legend>
+    <BaseInput
+      v-for="(_, i) in 7"
+      :key="i"
+      :model-value="hours[i] ?? ''"
+      inputmode="decimal"
+      autocomplete="off"
+      :aria-label="`${label} — day ${i + 1} of 7`"
+      @update:model-value="setHour(i, String($event))"
+    />
+  </fieldset>
   <BaseInput
     v-else
     :id="id"
     v-model="text"
-    :type="input === 'email' ? 'email' : 'text'"
+    :type="input === 'email' ? 'email' : input === 'datetime' ? 'datetime-local' : 'text'"
     :inputmode="NUMERIC.has(input) ? 'numeric' : input === 'phone' || input === 'us_mobile' ? 'tel' : undefined"
     autocomplete="off"
     :aria-label="label"

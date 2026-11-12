@@ -316,7 +316,8 @@ describe("the pages that are not the applicant's document", () => {
     expect(strays).toEqual([]);
     // ⚠ Named as well as derived: the derivation is only as good as the inventory, and these four
     // are the pages the ruling is about.
-    for (const page of [14, 21, 23, 24]) {
+    // Page 21 left the ruling on 2026-11-12 (Q-AM4): the driver signs the seven-day statement again.
+    for (const page of [14, 23, 24]) {
       expect(signed.has(page), `page ${page} must take no driver mark`).toBe(false);
     }
   });

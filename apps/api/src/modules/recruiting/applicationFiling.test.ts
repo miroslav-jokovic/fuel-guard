@@ -68,6 +68,8 @@ const APPLICATION = (over: Record<string, unknown> = {}) => ({
     additional_licences: [], experience: "Eight years, dry van.",
     accidents: [], declares_no_accidents: true, violations: [], declares_no_violations: true,
     licence_ever_denied: false, licence_suspended: false, prior_failed_pre_employment_test: null,
+    // Q-AM4: page 21, answered (all zeros is an answer).
+    seven_day_hours: [0, 0, 0, 0, 0, 0, 0], last_relieved_at: "2026-08-20T17:00",
     employers: [EMPLOYER], declares_no_employment: false, employment_gaps: [],
     // §9 P8 / §11: a certified document answers the carrier's required questions (v3's seven).
     questionnaire_version: "silvicom_driver@v3",
@@ -157,6 +159,45 @@ describe("filing refuses marks made under another text (A-5)", () => {
  * envelope, unopened — and the pre-signing copy is deleted once the filing has committed, so the number
  * lives in one place. A number typed at sign-off (a page served before the form asked it) still wins.
  */
+/**
+ * Q-AM21 (a): page 21's statement is also the driver's §395.8(j)(2) record on the roster. Filing writes
+ * it once, by its own function, with the days the packet prints (the seven before the application's
+ * day) and the last-relieved wall time read in the carrier's zone; a filing without it writes nothing.
+ */
+describe("page 21 becomes the roster's seven-day statement (Q-AM21)", () => {
+  const seededFiled = (payload: Record<string, unknown>) =>
+    createSupabaseRecorder({
+      tables: {
+        application_invitations: [invitation()],
+        organizations: [{ name: "Silvicom", operating_hours: { timezone: "America/Chicago" } }],
+        application_packet_marks: packet(),
+        ...PART_ONE,
+        driver_applications: [{ payload, signed_name: "Susan Godfrey", certified_at: "2026-09-14T15:00:00Z" }],
+      },
+      rpc: { submit_driver_application: { application_id: "app-1" }, record_application_seven_day_statement: "sds-1" },
+    });
+
+  it("records the statement once, with the packet's dates and the carrier's clock", async () => {
+    publish();
+    const rec = seededFiled({ seven_day_hours: [0, 8, 10.5, 0, 0, 6, 4], last_relieved_at: "2026-09-13T17:30" });
+    expect(isIntakeError(await submitApplication(rec.client, env(), TOKEN, APPLICATION(), CTX, NOW))).toBe(false);
+    const call = rec.rpcs().find((c) => c.fn === "record_application_seven_day_statement")!.args as Record<string, unknown>;
+    expect(call).toMatchObject({ p_org: ORG, p_application: "app-1", p_statement_date: "2026-09-14", p_signed_on: "2026-09-14", p_signed_name: "Susan Godfrey" });
+    expect((call.p_days as Array<{ date: string; hours: number }>).map((d) => `${d.date}:${d.hours}`)).toEqual([
+      "2026-09-07:0", "2026-09-08:8", "2026-09-09:10.5", "2026-09-10:0", "2026-09-11:0", "2026-09-12:6", "2026-09-13:4",
+    ]);
+    // 17:30 in Chicago (CDT, UTC−5) on 13 September.
+    expect(call.p_last_relieved_at).toBe("2026-09-13T22:30:00.000Z");
+  });
+
+  it("records nothing for a filing that has no page 21", async () => {
+    publish();
+    const rec = seededFiled({});
+    await submitApplication(rec.client, env(), TOKEN, APPLICATION(), CTX, NOW);
+    expect(rec.rpcs().some((c) => c.fn === "record_application_seven_day_statement")).toBe(false);
+  });
+});
+
 describe("the SSN the form saved is the one filed (Q-AM3)", () => {
   const ssnArgs = (rec: ReturnType<typeof seed>) => {
     const call = rec.rpcs().find((c) => c.fn === "submit_driver_application")?.args as Record<string, unknown>;

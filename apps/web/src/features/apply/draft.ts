@@ -161,6 +161,8 @@ export function toApplication(draft: ApplicationDraft): unknown {
     licence_denial_detail: text(draft.licence_denial_detail),
     licence_suspended: draft.licence_suspended,
     licence_suspension_detail: text(draft.licence_suspension_detail),
+    seven_day_hours: sevenDayHours(draft.seven_day_hours),
+    last_relieved_at: WALL_TIME.test(draft.last_relieved_at) ? draft.last_relieved_at : null,
     prior_failed_pre_employment_test: draft.prior_failed_pre_employment_test,
     // §9 P8 (AF-4): every job the applicant put anything into, named or not. Only a job with nothing in
     // it is dropped — the accidental "Add". An unnamed job with dates used to vanish here silently, so
@@ -230,6 +232,16 @@ export const employerIsBlank = (e: DraftEmployer): boolean =>
 export const employerIsUnfinished = (e: DraftEmployer): boolean =>
   !employerIsBlank(e) && (e.employer_name.trim() === "" || e.started_on === "");
 
+/** Page 21's local date and time, as the contract takes it (`last_relieved_at`). */
+const WALL_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+/** Page 21's seven boxes as numbers, or null while any is empty or not an hour count (0–24). */
+export function sevenDayHours(typed: readonly string[]): number[] | null {
+  if (typed.length !== 7) return null;
+  const hours = typed.map((t) => (t.trim() === "" ? NaN : Number(t)));
+  return hours.every((h) => Number.isFinite(h) && h >= 0 && h <= 24) ? hours : null;
+}
+
 /**
  * Draft → the autosave payload (A2, D-APP3).
  *
@@ -275,6 +287,9 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     licence_denial_detail: draft.licence_denial_detail,
     ...(draft.licence_suspended === null ? {} : { licence_suspended: draft.licence_suspended }),
     licence_suspension_detail: draft.licence_suspension_detail,
+    // Page 21 (Q-AM4): only a whole answer is saved — see `ApplicationDraft.seven_day_hours`.
+    ...(sevenDayHours(draft.seven_day_hours) ? { seven_day_hours: sevenDayHours(draft.seven_day_hours) } : {}),
+    ...(WALL_TIME.test(draft.last_relieved_at) ? { last_relieved_at: draft.last_relieved_at } : {}),
     // ⚠ Absent from this list until 2026-09-11, and it is §40.25(j)'s two-year question — by this
     // file's own reckoning "the single most consequential answer on the form for what the carrier has
     // to do next". A driver who ticked it, closed the tab and came back had answered NO, silently,
@@ -375,6 +390,10 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     licence_denial_detail: str("licence_denial_detail"),
     licence_suspended: typeof payload.licence_suspended === "boolean" ? payload.licence_suspended : null,
     licence_suspension_detail: str("licence_suspension_detail"),
+    seven_day_hours: Array.isArray(payload.seven_day_hours) && payload.seven_day_hours.length === 7
+      ? payload.seven_day_hours.map((h) => (typeof h === "number" ? String(h) : ""))
+      : ["", "", "", "", "", "", ""],
+    last_relieved_at: str("last_relieved_at"),
     // F1 part 2: a saved answer, or unanswered — never floored at a "No" the applicant did not give.
     prior_failed_pre_employment_test: answer(payload.prior_failed_pre_employment_test),
     // AW1: an entry saved before keys existed gets one now, and keeps it from the next save on.

@@ -287,6 +287,23 @@ export const driverApplicationObject = z
     licence_suspended: z.boolean().nullish(),
     licence_suspension_detail: z.string().max(1000).nullish(),
     /**
+     * Page 21, the §395.8(j)(2) seven-day work statement, back in the packet (Q-AM4, owner 2026-11-11;
+     * reverses D-PKT7's 2026-08-23 move to the hire). The driver gives it at signing; the office corrects
+     * it beforehand like any answer, "most of the time … all zeros".
+     *
+     * Hours on duty for each of the seven days before the day the application is signed, OLDEST FIRST.
+     * The dates are not stored: they are derived from the signing day (`sevenDayWindow`), so an answer
+     * given on Monday and signed on Thursday is dated by Thursday, the day it is a statement about.
+     * Quarter-hours and up to 24, `sevenDayEntrySchema`'s rule. Nullish: every filing before Q-AM4 has
+     * none and must go on parsing; a new filing must answer it (`sevenDayStatementIssues`, at signing).
+     */
+    seven_day_hours: z.array(z.number().min(0).max(24)).length(7).nullish(),
+    /**
+     * §395.8(j)(2)'s second half: when the driver was last relieved from duty, as a local date and time
+     * (`YYYY-MM-DDTHH:mm`, the paper's "____ at ____ am/pm"). Nullish for the same reason.
+     */
+    last_relieved_at: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Expected a date and time").nullish(),
+    /**
      * §40.25(j) — the question the carrier is REQUIRED to put to the applicant, and the one the
      * application system shipped without (P8, found while building the packet renderer).
      *

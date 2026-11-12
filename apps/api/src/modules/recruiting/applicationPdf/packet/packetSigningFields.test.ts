@@ -288,9 +288,10 @@ describe("the identity block pages 18 and 19 both ask for", () => {
  * touching the geometry at all.
  */
 describe("nothing reaches a page that is not the applicant's document", () => {
-  it("places no value on pages 14, 21, 23 or 24", () => {
+  // Page 21 left this list on 2026-11-12 (Q-AM4): the seven-day statement is the driver's again.
+  it("places no value on pages 14, 23 or 24", () => {
     const r = fill();
-    const strays = r.placed.filter((p) => [14, 21, 23, 24].includes(p.line.page));
+    const strays = r.placed.filter((p) => [14, 23, 24].includes(p.line.page));
     expect(strays.map((p) => p.line.id)).toEqual([]);
   });
 });

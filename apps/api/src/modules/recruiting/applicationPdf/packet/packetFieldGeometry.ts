@@ -174,6 +174,20 @@ export const PACKET_FIELD_LINES: readonly PacketFieldLine[] = [
     note: "Second of the same three." },
   { id: "p16.training.3", page: 16, x1: 50.9, x2: 553.2, y: 310.6, source: "sibling",
     note: "Third of the same three." },
+
+  // ── page 21 — the seven-day work statement (Q-AM4) ──────────────────────────────────────────
+  // Every rule here was read off the page's own vector paths (`pdftocairo -svg`, 2026-11-12), not by
+  // eye; the identity block above it is the single-licence block (`packetSigningGeometry.ts`).
+  { id: "p21.today", page: 21, x1: 154.1, x2: 205.8, y: 370.8, source: "seen",
+    note: "`Today's date:` boxed left, its short rule right — the day the statement is made, which the window counts back from." },
+  { id: "p21.total", page: 21, x1: 257.3, x2: 309.0, y: 248.9, source: "seen",
+    note: "`Total hours worked past seven days:`, its rule right." },
+  { id: "p21.relieved_date", page: 21, x1: 50.9, x2: 154.2, y: 172.7, source: "seen",
+    note: "First rule of `____ at ____ am/pm` under `last relieved from duty at:`." },
+  { id: "p21.relieved_time", page: 21, x1: 205.7, x2: 257.4, y: 172.7, source: "seen",
+    note: "Second rule of the same row, before `am/pm`, which is printed — so the time prints in 12-hour form." },
+  // ⚠ The short rule at (257.3–309.0, y 187.9) after `relieved from duty at:` stays blank on purpose:
+  // the row beneath it asks the date and the time, and printing either twice would be two answers.
 ];
 
 /**
@@ -250,6 +264,16 @@ export const PACKET_FIELD_TABLES: readonly PacketFieldTable[] = [
     source: "seen",
     note: "`Full name | Years known | Phone number`, three rows — the page asks for exactly three.",
   },
+  {
+    id: "p21.days",
+    page: 21,
+    columns: [103.0, 154.6, 206.2, 257.8, 309.4, 361.0, 412.6, 464.2],
+    // Row 0 is the printed `date` row (its value sits on the cell's bottom rule, below the caption);
+    // row 1 the hours under it. Two records, one grid, seven columns, oldest day first.
+    rows: [325.1, 294.6],
+    source: "seen",
+    note: "Seven `date` cells and seven hour cells, 51.6pt each, read off the vector rules (Q-AM4).",
+  },
 ];
 
 /**
@@ -310,6 +334,8 @@ export const PACKET_MARK_SIDE_LINES: readonly PacketMarkSideLine[] = [
     source: "sibling", note: "p18's layout; lower of the pair the page carries twice." },
   { id: "p20.date", placementId: "p20", kind: "date", page: 20, x1: 463.7, x2: 553.2, y: 355.7,
     source: "sibling", note: "p18's layout, under the FCRA disclosure." },
+  { id: "p21a.date", placementId: "p21a", kind: "date", page: 21, x1: 463.7, x2: 553.2, y: 477.5,
+    source: "seen", note: "p18's layout under page 21's identity block (Q-AM4). The bottom signature has no date rule." },
   { id: "p22.printed_name", placementId: "p22", kind: "printed_name", page: 22, x1: 50.9, x2: 309.0, y: 233.5,
     source: "seen", note: "⚠ NOT a date. `Driver name Print` left, `Driver signatrure` right — the packet asks for the name in block capitals beside the mark, which is what D-APP8 calls the printed name." },
   { id: "p31a.date", placementId: "p31a", kind: "date", page: 31, x1: 360.5, x2: 463.8, y: 554.5,

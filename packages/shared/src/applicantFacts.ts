@@ -41,7 +41,9 @@ export type FactPath = string;
 /** What kind of answer it is — the control a correction has to offer (E8: never a stored-format box). */
 export type FactInput =
   | "text" | "longtext" | "date" | "month" | "us_state" | "jurisdiction" | "phone" | "us_mobile"
-  | "email" | "zip" | "yesno" | "count" | "miles" | "choice" | "multi_choice" | "usdot" | "table" | "names";
+  | "email" | "zip" | "yesno" | "count" | "miles" | "choice" | "multi_choice" | "usdot" | "table" | "names"
+  // Page 21 (Q-AM4): seven hour boxes under their derived dates, and a local date-and-time.
+  | "seven_days" | "datetime";
 
 /**
  * Which rule wants the fact. A §391.21(b) item, the two drug-and-alcohol rules, the §391.23 inquiry,
@@ -51,7 +53,7 @@ export type FactInput =
 export type FactBasis =
   | "391.21(b)(2)" | "391.21(b)(3)" | "391.21(b)(5)" | "391.21(b)(6)" | "391.21(b)(7)"
   | "391.21(b)(8)" | "391.21(b)(9)" | "391.21(b)(10)" | "391.21(b)(11)" | "40.25(j)" | "382.301(b)"
-  | "391.23(a)(2)" | "screening" | "carrier";
+  | "391.23(a)(2)" | "395.8(j)(2)" | "screening" | "carrier";
 
 /**
  * Where the carrier's packet prints it: a line id (`p01.phone`), a grid column (`p02.licences#1`),
@@ -112,11 +114,12 @@ export interface ApplicantFact {
  */
 export const PACKET_FULL_NAME_LINES = [
   "p03.printed_name", "p04.printed_name", "p10.printed_name", "p15.name", "p18.driver_name",
-  "p19.driver_name", "p22.printed_name", "p26.name", "p28.driver_owner_name", "p31.driver_name",
+  "p19.driver_name", "p21.driver_name", "p22.printed_name", "p26.name", "p28.driver_owner_name", "p31.driver_name",
   "p31.owner_operator_name", "p31.aka_op",
 ] as const;
 
-const both = (field: string): string[] => [`p18.${field}`, `p19.${field}`];
+/** The single-licence identity block: pages 18 and 19, and page 21's seven-day statement since Q-AM4. */
+const both = (field: string): string[] => [`p18.${field}`, `p19.${field}`, `p21.${field}`];
 
 // ── the addendum F2 appends ───────────────────────────────────────────────────
 
@@ -272,6 +275,11 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   // against that stamp (`carrierAnswerRefusal`) — the draft does not carry it (Q-CQ7). F3c part 2, step 5.
   app("carrier_answers", "choice", "carrier",
     { notPrinted: "printed on the application's own questions page (questionnairePage.ts), not on the carrier's paper" }),
+
+  // ── page 21, the seven-day work statement (Q-AM4) — given at signing, corrected before like any answer ──
+  // The dates are derived from the signing day, so they are no fact; the total is the hours summed.
+  app("seven_day_hours[]", "seven_days", "395.8(j)(2)", ["p21.days", "p21.total"]),
+  app("last_relieved_at", "datetime", "395.8(j)(2)", ["p21.relieved_date", "p21.relieved_time"]),
 
   // ── the one fact on its own endpoint ──
   {

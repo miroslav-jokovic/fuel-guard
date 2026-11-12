@@ -209,7 +209,8 @@ export const APPLICATION_SECTION_KEYS: Record<
   documents: [],
   // Nothing of its own: it renders what the other screens collected, which is the point of it.
   review: [],
-  certify: ["certified", "signed_name"],
+  // Page 21 (Q-AM4): the seven-day statement is given at signing, so it is the sign-off screen's.
+  certify: ["certified", "signed_name", "seven_day_hours", "last_relieved_at"],
 };
 
 /**

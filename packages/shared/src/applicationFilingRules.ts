@@ -174,3 +174,22 @@ export function applicationPaperFilingIssues(
   }
   return issues;
 }
+
+/**
+ * Page 21, the seven-day work statement (Q-AM4, owner 2026-11-11): asked at SIGNING, so judged only
+ * there and at filing — never at the form's hand-off to the office, which comes before it is asked.
+ * Zeros are an answer ("most of the time … all zeros"); an empty one is not. Every new filing, v2 or
+ * legacy; a filing from before Q-AM4 is never re-judged (`driver_applications` is append-only).
+ */
+export function sevenDayStatementIssues(
+  application: Pick<DriverApplicationFields, "seven_day_hours" | "last_relieved_at">,
+): ApplicationFilingIssue[] {
+  const issues: ApplicationFilingIssue[] = [];
+  if (!Array.isArray(application.seven_day_hours) || application.seven_day_hours.length !== 7) {
+    issues.push({ path: "seven_day_hours", message: "Give your hours on duty for each of the last seven days — 0 for a day you did not work" });
+  }
+  if (blank(application.last_relieved_at)) {
+    issues.push({ path: "last_relieved_at", message: "Give the date and time you were last off duty" });
+  }
+  return issues;
+}

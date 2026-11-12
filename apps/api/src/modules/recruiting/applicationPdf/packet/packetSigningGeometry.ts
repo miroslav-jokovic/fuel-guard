@@ -88,6 +88,9 @@ const SINGLE_LICENCE_BLOCK_SPANS = {
 const SINGLE_LICENCE_BLOCK_ROWS = {
   18: { driver_name: 217.0, address: 201.7, city: 186.5, cdl: 171.2 },
   19: { driver_name: 401.3, address: 370.8, city: 340.3, cdl: 309.8 },
+  // Page 21, the seven-day statement (Q-AM4): the same eight spans to the tenth of a point, measured from
+  // the page's own vector rules (`pdftocairo -svg`, 2026-11-12) rather than assumed from its siblings.
+  21: { driver_name: 599.4, address: 568.9, city: 538.4, cdl: 508.0 },
 } as const;
 
 /** Which of the four rules each of the eight spans sits on. */
@@ -98,7 +101,7 @@ const SINGLE_LICENCE_BLOCK_ROW_OF = {
 } as const;
 
 const SINGLE_LICENCE_BLOCK_LINES: readonly PacketFieldLine[] = (
-  [18, 19] as const
+  [18, 19, 21] as const
 ).flatMap((page) =>
   (Object.keys(SINGLE_LICENCE_BLOCK_SPANS) as Array<keyof typeof SINGLE_LICENCE_BLOCK_SPANS>).map(
     (field): PacketFieldLine => ({
@@ -108,7 +111,7 @@ const SINGLE_LICENCE_BLOCK_LINES: readonly PacketFieldLine[] = (
       x2: SINGLE_LICENCE_BLOCK_SPANS[field].x2,
       y: SINGLE_LICENCE_BLOCK_ROWS[page][SINGLE_LICENCE_BLOCK_ROW_OF[field]],
       source: "seen",
-      note: `${page === 18 ? "CERTIFICATE OF SINGLE LICENSE" : "AUTHORIZATION FOR DRIVING RECORD CHECK"} identity block — ${SINGLE_LICENCE_BLOCK_SPANS[field].note}`,
+      note: `${page === 18 ? "CERTIFICATE OF SINGLE LICENSE" : page === 19 ? "AUTHORIZATION FOR DRIVING RECORD CHECK" : "SEVEN DAY WORK STATEMENT"} identity block — ${SINGLE_LICENCE_BLOCK_SPANS[field].note}`,
     }),
   ),
 );
@@ -118,8 +121,8 @@ export const SINGLE_LICENCE_BLOCK_FIELDS = Object.keys(
   SINGLE_LICENCE_BLOCK_SPANS,
 ) as ReadonlyArray<keyof typeof SINGLE_LICENCE_BLOCK_SPANS>;
 
-/** The two pages that carry it. ⚠ Page numbers, and `p18`/`p19` id prefixes, come from here. */
-export const SINGLE_LICENCE_BLOCK_PAGES = [18, 19] as const;
+/** The pages that carry it. ⚠ Page numbers, and `p18`/`p19`/`p21` id prefixes, come from here. */
+export const SINGLE_LICENCE_BLOCK_PAGES = [18, 19, 21] as const;
 
 /**
  * Where the signer writes themselves down, on the pages they sign.

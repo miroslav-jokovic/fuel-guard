@@ -240,6 +240,7 @@ const emit = defineEmits<{
       v-model="draft"
       :token="token"
       :carrier="invitation.data.value?.carrier ?? ''"
+      :today="invitation.data.value?.carrierToday ?? null"
       :edits="invitation.data.value?.edits ?? []"
       :captures="invitation.data.value?.captures ?? []"
       :stops="packetStops"

@@ -108,8 +108,9 @@ describe("recording one mark", () => {
     // ⚠ 21 since L-1 (2026-09-24): page 4 is withdrawn from signing. 19 since D-MVR1 (2026-09-25):
     // page 19's two lines are, because the driving-record release is a permission now. 16 since
     // D-PKT19 (2026-09-25): so are pages 15, 20 and 22, for the same reason. 15 since D-AW16
-    // (2026-09-26): page 25's handbook receipt is signed on the handbook itself (h5).
-    expect(args.p_expected_count).toBe(15);
+    // (2026-09-26): page 25's handbook receipt is signed on the handbook itself (h5). 17 since Q-AM4
+    // (2026-11-12): page 21's two driver lines are back.
+    expect(args.p_expected_count).toBe(17);
     expect(args.p_expected_count).toBe(driverPlacements(null).length);
   });
 
@@ -122,13 +123,13 @@ describe("recording one mark", () => {
     const rec = seed({ marks: every });
     const result = await recordPacketMark(rec.client, TOKEN, body("p31b"), CTX, NOW);
     expect(isIntakeError(result)).toBe(false);
-    expect(result).toMatchObject({ id: "mark-1", signedCount: 15, complete: true });
+    expect(result).toMatchObject({ id: "mark-1", signedCount: 17, complete: true });
   });
 
   /**
    * ⚠ Production's shape: a walk from before L-1 holding a p04 mark, and from before D-MVR1 holding
    * page 19's two, from before D-PKT19 holding pages 15, 20 and 22, and from before D-AW16 holding
-   * page 25. Twenty-one ROWS, fourteen real stops — and the transaction, counting rows, says complete.
+   * page 25 — and page 21's two (Q-AM4) still to sign. Twenty-one ROWS, sixteen real stops — and the transaction, counting rows, says complete.
    * The driver must not be told so.
    */
   it("does not count a mark on a withdrawn line towards the packet, whatever the transaction says", async () => {
@@ -147,7 +148,7 @@ describe("recording one mark", () => {
       rpc: { record_packet_mark: { mark_id: "m-21", signed_count: 21, complete: true } },
     });
     const result = await recordPacketMark(rec.client, TOKEN, body("p31a"), CTX, NOW);
-    expect(result).toMatchObject({ signedCount: 14, complete: false });
+    expect(result).toMatchObject({ signedCount: 16, complete: false });
   });
 });
 
@@ -376,7 +377,7 @@ describe("the queue the ceremony walks", () => {
   it("serves the driver's stops in the packet's own page order", async () => {
     const rec = seed();
     const stops = await packetStops(rec.client, ORG, "inv-1");
-    expect(stops).toHaveLength(15);
+    expect(stops).toHaveLength(17);
     expect(stops.every((s) => s.party === "driver")).toBe(true);
     // ⚠ The paper's order, not a convenient one. A driver reviewing a document they are signing
     // follows the paper, and a queue in another order would disagree with the PDF about what came
@@ -398,13 +399,13 @@ describe("the queue the ceremony walks", () => {
       ],
     });
     const stops = await packetStops(rec.client, ORG, "inv-1");
-    expect(stops).toHaveLength(15);
+    expect(stops).toHaveLength(17);
     expect(stops.find((s) => s.id === "p03")!.signedAt).toBe("2026-09-14T11:00:00Z");
     expect(stops.find((s) => s.id === "p11b")!.signedAt).toBe("2026-09-14T11:01:00Z");
     // ⚠ p11a and p11b sit on the same page and differ only in what they say. A queue keyed on the
     // page would have marked both.
     expect(stops.find((s) => s.id === "p11a")!.signedAt).toBeNull();
-    expect(stops.filter((s) => s.signedAt === null)).toHaveLength(13);
+    expect(stops.filter((s) => s.signedAt === null)).toHaveLength(15);
   });
 
   it("scopes the read to the org the token resolved to", async () => {
@@ -474,11 +475,11 @@ describe("a company driver's walk", () => {
     const company = await packetStops(seed({ applyingAs: "company_driver" }).client, ORG, "inv-1");
     expect(company.map((s) => s.id)).not.toContain("p31b");
     expect(company.map((s) => s.id)).toContain("p31a");
-    expect(company).toHaveLength(14);
+    expect(company).toHaveLength(16);
     const op = await packetStops(seed({ applyingAs: "owner_operator" }).client, ORG, "inv-1");
     expect(op.at(-1)!.id).toBe("p31b");
     // ⚠ No draft, or no answer in it, is the paper as printed.
-    expect(await packetStops(seed({ applyingAs: null }).client, ORG, "inv-1")).toHaveLength(15);
+    expect(await packetStops(seed({ applyingAs: null }).client, ORG, "inv-1")).toHaveLength(17);
   });
 
   it("reads one key of the draft by path, scoped to the org, and never its payload", async () => {
@@ -499,12 +500,12 @@ describe("a company driver's walk", () => {
     expect(rec.rpcs()).toHaveLength(0);
   });
 
-  it("tells the transaction their count, and is complete at fourteen", async () => {
+  it("tells the transaction their count, and is complete at sixteen", async () => {
     const twenty = driverPlacements("company_driver").map((p) => ({ placement_id: p.id, signed_at: "2026-09-24T12:00:00Z" }));
     const rec = seed({ applyingAs: "company_driver", marks: twenty });
     const result = await recordPacketMark(rec.client, TOKEN, body("p31a"), CTX, NOW);
-    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_expected_count).toBe(14);
-    expect(result).toMatchObject({ signedCount: 14, complete: true });
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_expected_count).toBe(16);
+    expect(result).toMatchObject({ signedCount: 16, complete: true });
   });
 
   it("does not count a p31b recorded before the answer changed", async () => {
@@ -512,7 +513,7 @@ describe("a company driver's walk", () => {
     const withoutP03 = every.filter((m) => m.placement_id !== "p03");
     const rec = seed({ applyingAs: "company_driver", marks: withoutP03 });
     const result = await recordPacketMark(rec.client, TOKEN, body("p03"), CTX, NOW);
-    // Fourteen ROWS, one of them p31b: thirteen of a company driver's fourteen stops.
-    expect(result).toMatchObject({ signedCount: 13, complete: false });
+    // Sixteen ROWS, one of them p31b: fifteen of a company driver's sixteen stops (two are page 21's, Q-AM4).
+    expect(result).toMatchObject({ signedCount: 15, complete: false });
   });
 });

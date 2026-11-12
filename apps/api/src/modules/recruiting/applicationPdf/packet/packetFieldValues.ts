@@ -1,4 +1,13 @@
-import { packetPageWithdrawn, packetWithdrawal, type EquipmentClass } from "@silvicom/shared";
+import {
+  displayDayOf,
+  formatDisplayDayShort,
+  packetPageWithdrawn,
+  packetWithdrawal,
+  SEVEN_DAY_LENGTH,
+  sevenDayTotal,
+  sevenDayWindow,
+  type EquipmentClass,
+} from "@silvicom/shared";
 import { PACKET_ROW_OF, addressCells, blank, date, foldedType, fullName, licenceKindWords, licenceType, yesNo } from "./packetDraw.js";
 import { P1, P2, P12 } from "./packetText.js";
 import { answer, bool, page16, push } from "./packetFieldQuestionnaire.js";
@@ -300,6 +309,36 @@ function page12(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketF
   );
 }
 
+/**
+ * Page 21, the seven-day work statement (Q-AM4). The identity block is filled with pages 18 and 19's
+ * (`packetSigningFields.ts`); this is the statement itself. The seven dates are DERIVED: the seven days
+ * before the day it is made (`sevenDayWindow`), and that day is the application's — `certifiedAt` on the
+ * filed packet, today on a preview — printed the same way p01's `Date:` prints it.
+ * An application filed before Q-AM4 has no hours, and its page 21 prints blank, as it was signed.
+ */
+function page21(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFieldOverflow[]): void {
+  const a = input.application;
+  const hours = a.seven_day_hours;
+  if (!Array.isArray(hours) || hours.length !== SEVEN_DAY_LENGTH) return;
+  const day = displayDayOf(input.certifiedAt);
+  push(into, "p21.today", date(day));
+  fillGrid("p21.days", "Seven days", ["Date", "", "", "", "", "", ""], 21,
+    [sevenDayWindow(day).map((d) => formatDisplayDayShort(d, "")), hours.map(String)], into, over);
+  push(into, "p21.total", String(sevenDayTotal(hours.map((h, i) => ({ date: String(i), hours: h })))));
+  if (a.last_relieved_at) {
+    push(into, "p21.relieved_date", date(a.last_relieved_at.slice(0, 10)));
+    push(into, "p21.relieved_time", wallTime12(a.last_relieved_at));
+  }
+}
+
+/** `14:30` → `2:30` — the paper prints `am/pm` after the rule, so the rule takes the 12-hour clock. */
+const wallTime12 = (v: string): string => {
+  const m = /T(\d{2}):(\d{2})/.exec(v);
+  if (!m) return "";
+  const h = Number(m[1]) % 12 || 12;
+  return `${h}:${m[2]} ${Number(m[1]) < 12 ? "am" : "pm"}`;
+};
+
 function page15(input: PacketFieldInput, into: PlacedFieldValue[]): void {
   const a = input.application;
   // ⚠ The DATE here is the date the driver signed THIS page — p15's own mark — not `certifiedAt`.
@@ -358,6 +397,7 @@ export function packetFieldFill(input: PacketFieldInput): PacketFieldFill {
   page2(input, placed, overflow);
   page12(input, placed, overflow);
   page15(input, placed);
+  page21(input, placed, overflow);
   page16(input, placed, overflow);
   markSides(input, placed);
   packetSigningFill(input, placed);

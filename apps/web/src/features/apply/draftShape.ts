@@ -120,6 +120,14 @@ export interface ApplicationDraft {
   licence_suspended: boolean | null;
   licence_suspension_detail: string;
   /**
+   * Page 21 (Q-AM4): the hours on each of the seven days before signing, as typed — "" for a box left
+   * empty. Saved only once all seven are numbers (`toDraftPayload`): a partial list is not an answer the
+   * contract takes, and one bad key would refuse every office correction (`employment_gaps`' lesson).
+   */
+  seven_day_hours: string[];
+  /** Page 21: when the driver was last off duty, `YYYY-MM-DDTHH:mm`, local; "" for none. */
+  last_relieved_at: string;
+  /**
    * §40.25(j)'s two-year question (P8), on a legacy link — a v2 link asks it in Part 1. `null` until
    * answered (F1 part 2): it was `false` behind an unticked box, so a driver who skipped the box had said
    * No to a question the carrier must ask (audit finding 13). A saved `true` or `false` is kept.
@@ -215,6 +223,7 @@ export const emptyDraft = (): ApplicationDraft => ({
   violations: [], declares_no_violations: false,
   licence_ever_denied: null, licence_denial_detail: "",
   licence_suspended: null, licence_suspension_detail: "",
+  seven_day_hours: ["", "", "", "", "", "", ""], last_relieved_at: "",
   prior_failed_pre_employment_test: null,
   employers: [emptyEmployer()], declares_no_employment: false,
   employment_gaps: [],

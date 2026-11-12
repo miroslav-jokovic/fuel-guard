@@ -106,6 +106,8 @@ describe("the card is the catalogue", () => {
       const matching = list.filter((r) => {
         const [head, at, col] = r.path;
         if (column) return head === name && typeof at === "number" && col === column;
+        // A set answered as a whole (endorsements, page 21's week) is one row at its own key.
+        if (name!.endsWith("[]") && (fact.input === "multi_choice" || fact.input === "seven_days")) return r.key === name!.slice(0, -2);
         if (name!.endsWith("[]")) return head === name!.slice(0, -2) && typeof at === "number";
         return r.key === name;
       });
