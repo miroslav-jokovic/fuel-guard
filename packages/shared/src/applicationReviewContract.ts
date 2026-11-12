@@ -133,6 +133,8 @@ export type ApplicationEdit = z.infer<typeof applicationEditSchema>;
  */
 export interface ApplicationContactMove {
   emailMoved?: boolean;
+  /** Q-AM16 (0594): the roster's email followed too — it still held the old address, or none. */
+  rosterEmailMoved?: boolean;
   textsStopped?: boolean;
 }
 

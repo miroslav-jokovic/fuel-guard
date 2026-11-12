@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { latestCodeUnlock } from "./applicationUnlockCode.js";
 import { identityOnRecord } from "./applicantIdentity.js";
 import { randomUUID } from "node:crypto";
+import { moveApplicantRosterEmail } from "../roster/index.js";
 import {
   applyApplicationEdit,
   applicationIsEditable,
@@ -398,11 +399,13 @@ async function moveContact(
   if (!email) return {};
   const { error } = await admin.from("application_invitations").update({ email }).eq("org_id", orgId).eq("id", inv.id);
   if (error) return {};
+  // Q-AM16: the roster's email follows, through the roster's own rule (`moveApplicantRosterEmail`, 0594).
+  const rosterEmailMoved = await moveApplicantRosterEmail(admin, orgId, inv.id, inv.email, email);
   await writeAudit(admin, {
     orgId, actorId, action: "application_contact_moved", entity: "application_invitations", entityId: inv.id,
-    meta: { driverId: inv.driver_id, field: "email" },
+    meta: { driverId: inv.driver_id, field: "email", rosterEmailMoved },
   });
-  return { emailMoved: true };
+  return { emailMoved: true, ...(rosterEmailMoved ? { rosterEmailMoved: true } : {}) };
 }
 
 /**
