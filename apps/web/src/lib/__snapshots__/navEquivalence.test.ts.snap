@@ -98,6 +98,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Dashboard → /",
       "Chat → /chat",
+      "Notes → /notes",
     ],
   },
   {
@@ -143,6 +144,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -188,6 +190,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -482,6 +485,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Dashboard → /",
       "Chat → /chat",
+      "Notes → /notes",
     ],
   },
   {
@@ -554,6 +558,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -626,6 +631,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -783,6 +789,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "items": [
       "Dashboard → /",
       "Chat → /chat",
+      "Notes → /notes",
     ],
   },
   {
@@ -823,6 +830,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -863,6 +871,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -935,6 +944,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "items": [
       "Dashboard → /",
       "Chat → /chat",
+      "Notes → /notes",
     ],
   },
   {
@@ -1007,6 +1017,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -1079,6 +1090,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -1150,6 +1162,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     "items": [
       "Dashboard → /",
       "Chat → /chat",
+      "Notes → /notes",
     ],
   },
   {
@@ -1173,6 +1186,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -1196,6 +1210,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -1220,6 +1235,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "items": [
       "Dashboard → /",
       "Chat → /chat",
+      "Notes → /notes",
     ],
   },
   {
@@ -1273,6 +1289,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -1326,6 +1343,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -1380,6 +1398,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     "items": [
       "Dashboard → /",
       "Chat → /chat",
+      "Notes → /notes",
     ],
   },
   {
@@ -1408,6 +1427,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -1436,6 +1456,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     "group": null,
     "items": [
       "Dashboard → /",
+      "Notes → /notes",
     ],
   },
   {
@@ -1465,6 +1486,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "items": [
       "Dashboard → /",
       "Chat → /chat",
+      "Notes → /notes",
     ],
   },
   {
@@ -1493,6 +1515,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "items": [
       "Dashboard → /",
       "Chat → /chat",
+      "Notes → /notes",
     ],
   },
   {
@@ -1567,6 +1590,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "items": [
         "Dashboard → /",
         "Chat → /chat",
+        "Notes → /notes",
       ],
     },
     {
@@ -1596,6 +1620,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "items": [
         "Dashboard → /",
         "Chat → /chat",
+        "Notes → /notes",
       ],
     },
     {

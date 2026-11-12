@@ -107,6 +107,15 @@ import { buildNavGroups } from "./nav";
  * Five snapshots moved, five lines, every one `Notes → /notes` in the ungrouped top block: admin in
  * all three module sets, the null-module-set case and the badge case (both admin). No line removed,
  * no group moved, and no non-admin snapshot moved — which is the proof that the screen is dark.
+ *
+ * ── AND AN ELEVENTH TIME, ON 2026-11-12: UNIT NOTES SWITCHED ON (UNIT-NOTES-PLAN UN9, D-UN4) ───────
+ * UN9 removed the `notes` line's `startsOnFor: []`, leaving chat's exact shape: `STAFF`, on for every
+ * office role. Twenty-five lines added, every one `Notes → /notes` in the ungrouped top block: the
+ * seven office roles that are not admin (fleet_manager, auditor, dispatcher, safety_manager,
+ * recruiter, accountant, technician) in all three module sets, the two screen-answer cases
+ * (technician, fleet_manager), and both halves of the sections-claim case (dispatcher, recruiter).
+ * No line removed, no group moved; the driver and the null role did not move — the screen is still
+ * never a driver's — and admin did not move, because it already had it at UN0.
  */
 
 /** Every module enabled, none, and the shipped default — the three that change what the nav shows. */

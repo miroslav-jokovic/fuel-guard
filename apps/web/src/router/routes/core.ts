@@ -66,8 +66,8 @@ export const coreRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Chat", fullBleed: true },
   },
   {
-    // Unit notes' wall (UNIT-NOTES-PLAN D-UN13): every note of the carrier, for every office role once
-    // UN9 turns the `notes` surface on (D-UN14).
+    // Unit notes' wall (UNIT-NOTES-PLAN D-UN13): every note of the carrier, for every office role — the
+    // `notes` surface is on for all of them since UN9 (D-UN4, D-UN14).
     path: "/notes",
     name: "notes",
     component: () => import("@/pages/NotesPage.vue"),

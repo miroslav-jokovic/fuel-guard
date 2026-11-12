@@ -78,7 +78,13 @@ const API: Array<[RegExp, Handler]> = [
   [/^\/api\/dispatch\/loads\/([^/]+)$/, (u) => loadDetail(u.pathname.split("/")[4]!) ?? undefined],
   [/^\/api\/dispatch\/loads\/([^/]+)\/events$/, () => ({ events: [] })],
   [/^\/api\/dispatch\/exceptions$/, () => ({ exceptions: [] })],
-  [/^\/api\/fueling\/map-config$/, () => ({ tilesEnabled: Boolean(process.env.HERE_API_KEY) })],
+  // The board's Notes column (UNIT-NOTES-PLAN D-UN12), a dispatcher's since UN9 switched the `notes`
+  // surface on for every office role. The tutorial world has no notes: each kind asked answers empty,
+  // the shape of `UnitNoteSummary`, so every row shows the column's quiet "Add".
+  [/^\/api\/notes\/summary$/, (u) => ({
+    kinds: Object.fromEntries((u.searchParams.get("kinds") ?? "").split(",").filter(Boolean).map((k) => [k, {}])),
+  })],
+  [/^\/api\/fueling\/map-config$/,() => ({ tilesEnabled: Boolean(process.env.HERE_API_KEY) })],
   [/^\/api\/hazmat\/products$/, (u) => hazmatProducts(u)],
   [/^\/api\/hazmat\/calc$/, (_u, body) => hazmatCalc(body)],
 ];

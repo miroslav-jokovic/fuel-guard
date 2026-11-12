@@ -31,8 +31,8 @@ import { useModulesQuery } from "@/composables/useModules";
  * The `notes` surface's own answer, asked the way the sidebar asks it (`lib/nav.ts`): the gate and
  * modules (`canReachSurface`), then the carrier's and the role's screen answer (`surfaceAllowed`).
  * Every route of the API asks `requireSurface("notes")` (D-UN4), so a column or button shown on any
- * other rule would be an offer the API refuses. While the surface ships dark (D-UN14,
- * `startsOnFor: []`) that is admins only; UN9 turning it on needs no change here.
+ * other rule would be an offer the API refuses. While the surface shipped dark (D-UN14,
+ * `startsOnFor: []`) that was admins only; UN9 turned it on for every office role with no change here.
  */
 const NOTES_SURFACE = SURFACES.find((s) => s.key === "notes")!;
 

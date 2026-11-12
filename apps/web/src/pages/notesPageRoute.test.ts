@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { OFFICE_ROLES } from "@silvicom/shared";
 import { buildNavGroups } from "@/lib/nav";
 
 /**
  * Where the Notes page is reached (UNIT-NOTES-PLAN D-UN13, D-UN14): `/notes` is the page itself — the
  * placeholder UN0 put there is gone — and the sidebar's Notes entry, in the top group beside Chat,
- * follows the `notes` surface: an admin while it ships dark, any office role a carrier switches it on
- * for, never a driver.
+ * follows the `notes` surface: every office role, with no carrier answer needed (D-UN4; UN9 removed
+ * the `startsOnFor: []` it was built dark behind, D-UN14), never a driver.
  */
 const notesItem = (role: Parameters<typeof buildNavGroups>[0], surfaces: Record<string, boolean> | null = null) =>
   buildNavGroups(role, null, {}, null, surfaces)
@@ -22,13 +23,9 @@ describe("the Notes page's route", () => {
 });
 
 describe("the sidebar's Notes entry", () => {
-  it("is shown to an admin while the screen ships dark, and links to /notes", () => {
-    expect(notesItem("admin")).toMatchObject({ name: "Notes", to: "/notes", show: true });
-  });
-
-  it("is hidden from an accountant until the carrier switches the screen on, then shown", () => {
-    expect(notesItem("accountant")?.show ?? false).toBe(false);
-    expect(notesItem("accountant", { notes: true })?.show).toBe(true);
+  it("is shown to every office role with no carrier answer at all, and links to /notes", () => {
+    for (const role of OFFICE_ROLES)
+      expect(notesItem(role), role).toMatchObject({ name: "Notes", to: "/notes", show: true });
   });
 
   it("is never shown to a driver, whatever the screen answer says", () => {

@@ -1,8 +1,9 @@
 # Unit notes — notes on drivers, trucks and trailers · 2026-11-11
 
-**Status: BUILDING since 2026-11-11. v2 the same day after the owner's second round of rulings (§3: no
-removal for now, no hire line, notes are office-wide and refresh by themselves); UN0 built the same
-day (contract frozen; the `notes` surface ships dark, D-UN14). Progress: [`progress/`](progress/README.md).**
+**Status: BUILT 2026-11-12 (UN0–UN9). v2 on 2026-11-11 after the owner's second round of rulings (§3: no
+removal for now, no hire line, notes are office-wide and refresh by themselves); UN0 froze the contract
+and shipped the `notes` surface dark (D-UN14); UN9 switched it on for every office role on 2026-11-12.
+It reaches production with the release the owner approves. Progress: [`progress/`](progress/README.md).**
 This document is both the plan (what and why) and the build workflow (which chat builds what, in
 which files, in what order, and how each step proves it is done). It is written so that several
 chats can build at once under one orchestrator chat (§7).
