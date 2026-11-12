@@ -91,6 +91,9 @@ defineExpose({ focus: () => composer.value?.focus() });
                   {{ t.step ? `${t.step}…` : "Reading your data…" }}
                 </p>
               </template>
+              <!-- A refusal asking again cannot fix (the month's budget, or access): the API's sentence
+                   says why and when, as a notice, with no "Try again" to be refused the same way. -->
+              <p v-else-if="t.status === 'error' && t.final" class="text-sm text-ink-secondary" :data-final="t.final">{{ t.answer }}</p>
               <template v-else-if="t.status === 'error'">
                 <p class="text-sm text-danger-text">{{ t.answer }}</p>
                 <button

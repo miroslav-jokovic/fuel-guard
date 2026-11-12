@@ -40,6 +40,12 @@ export interface AssistantTurn {
   pages?: string[];
   /** F21 R4b: the same pages with the answer's filters (`splitAssistantLink`). Absent from an older API. */
   links?: AssistantAnswerLink[];
+  /**
+   * Set on an error that asking again cannot fix: the month's Ask AI budget is spent (429
+   * `ai_budget_exhausted`), or this person's access has no questions or no Ask AI (403). The thread
+   * shows the API's sentence without "Try again", which would only be refused the same way.
+   */
+  final?: "budget" | "access";
   /** While pending: the report being read now, in the office's words. */
   step?: string;
   /** While pending: the answer's words so far. Replaced by `answer` when it is done. */
@@ -48,6 +54,18 @@ export interface AssistantTurn {
 
 /** The endpoint's cap on a question (`assistantAskContract.ts`); the composer stops there too. */
 export const QUESTION_MAX = ASSISTANT_QUESTION_MAX;
+
+/**
+ * Whether a refused question can be asked again. The 429 is the budget's (`routes/ai.ts`) and holds
+ * until the month turns or an admin raises the limit; every 403 is access (`ai_no_tools`,
+ * `surface_denied`, `no_membership`), which asking again does not change. A 503 or a dropped
+ * connection can pass, so those keep "Try again".
+ */
+export function finalRefusal(status: number, code: string | undefined): AssistantTurn["final"] {
+  if (status === 429 || code === "ai_budget_exhausted") return "budget";
+  if (status === 403) return "access";
+  return undefined;
+}
 
 export const useAssistantStore = defineStore("assistant", () => {
   const turns = ref<AssistantTurn[]>([]);
@@ -127,6 +145,7 @@ export const useAssistantStore = defineStore("assistant", () => {
     } else {
       live.status = "error";
       live.answer = res.error?.message ?? "Could not get an answer. Try again.";
+      live.final = finalRefusal(res.status, res.error?.code);
     }
   }
 
@@ -140,7 +159,7 @@ export const useAssistantStore = defineStore("assistant", () => {
 
   async function retry(id: number) {
     const turn = turns.value.find((t) => t.id === id);
-    if (!turn || turn.status !== "error" || busy()) return;
+    if (!turn || turn.status !== "error" || turn.final || busy()) return;
     turn.status = "pending";
     turn.answer = null;
     await run(turn);

@@ -170,4 +170,21 @@ describe("assistant store", () => {
       expect(s.turns[0]).toMatchObject({ status: "error", answer: "The connection dropped before the answer finished. Try again." });
     });
   });
+
+  it("a spent budget and a refusal of access end the turn without a retry; a 503 keeps it", async () => {
+    const s = useAssistantStore();
+    replies.push(async () => ({ ok: false, status: 429, error: { code: "ai_budget_exhausted", message: "Ask AI has reached this month's spending cap. It resets on the 1st." } }));
+    await s.ask("a");
+    expect(s.turns[0]).toMatchObject({ status: "error", final: "budget", answer: "Ask AI has reached this month's spending cap. It resets on the 1st." });
+    await s.retry(1);
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    s.clear();
+    replies.push(async () => ({ ok: false, status: 403, error: { code: "ai_no_tools", message: "Ask AI has no questions for your role's areas yet." } }));
+    await s.ask("b");
+    expect(s.turns[0]).toMatchObject({ status: "error", final: "access" });
+    s.clear();
+    replies.push(async () => ({ ok: false, status: 503, error: { code: "ai_unavailable", message: "AI is not configured" } }));
+    await s.ask("c");
+    expect(s.turns[0]!.final).toBeUndefined();
+  });
 });
