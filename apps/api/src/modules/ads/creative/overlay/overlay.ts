@@ -2,9 +2,9 @@ import { createCanvas, loadImage, type SKRSContext2D } from "@napi-rs/canvas";
 import sharp from "sharp";
 import {
   checkRender, contrastRatio, FORMAT_SIZE, parseHex,
-  type AdFormat, type AdOverlayLayout, type PlacedText, type Rect, type Rgb,
+  type AdFormat, type AdLook, type AdOverlayLayout, type PlacedText, type Rect, type Rgb,
 } from "@silvicom/shared";
-import { CHEVRON, fontOf, layOut, type Laid, type LaidRow, type OverlayFinding, type OverlayText } from "./overlayLayout.js";
+import { fontOf, layOut, type Laid, type LaidRow, type OverlayFinding, type OverlayText } from "./overlayLayout.js";
 import { inkOn, SCRIM_STEPS, SCRIM_TARGET } from "./overlayLooks.js";
 
 export { EEO_LINE } from "./overlayLayout.js";
@@ -18,11 +18,13 @@ export type { OverlayFinding, OverlayLanguage, OverlayText } from "./overlayLayo
  * ── WHAT CHANGED ON 2026-11-10, AND WHY ────────────────────────────────────────────────────────────
  * Until then this drew one office sans at three fixed sizes inside a flat rectangle (the "plate") pasted on the
  * picture. The owner's verdict on the result: "they don't look really good, professional and enterprise grade."
- * Now the words sit ON the picture in display faces, the picture is darkened under them, the call to action is
- * a drawn button, the kit's colours are used, and the phone and the legal line have a footer. WHERE things go
- * and whether the words fit is `overlayLayout.ts`; WHAT a look is, is `overlayLooks.ts`; this file paints.
+ * Then the words sat on the picture in display faces with a drawn button, a rail or ribbon and a hairline footer.
+ * Since 2026-11-12 (ADS-AD-LOOK-PLAN D-ADL16–19) an ad wears the carrier's own brand with no ornament: `field` and
+ * `number` put the words on a solid band of the kit's ground colour, `photo` puts them on the picture, and no look
+ * draws a button. WHERE things go and whether the words fit is `overlayLayout.ts`; WHAT a look is, is
+ * `overlayLooks.ts`; this file paints.
  *
- * ── THE SCRIM IS MEASURED, NOT A CONSTANT ──────────────────────────────────────────────────────────
+ * ── THE SCRIM IS MEASURED, NOT A CONSTANT (`photo` only) ───────────────────────────────────────────
  * The picture is blended toward the kit's ground colour across the stack and fades out beyond it (D-ADL1). How
  * strongly is decided per picture: the pixels under every line that sits on the picture are read first, and the
  * weakest step of `SCRIM_STEPS` at which the worst of them reaches `SCRIM_TARGET` is used. A constant was
@@ -44,7 +46,7 @@ export interface OverlayInput extends OverlayText {
 }
 
 export type OverlayOutcome =
-  | { kind: "rendered"; png: Buffer; blocks: PlacedText[]; /** Kicker to button: the band the visual check judges. */ stack: Rect; /** The scrim step used; 0 when nothing was darkened. */ scrim: number }
+  | { kind: "rendered"; png: Buffer; blocks: PlacedText[]; /** Headline to supporting line: the part the visual check judges. */ stack: Rect; /** The scrim step used; 0 when nothing was darkened. */ scrim: number; /** The look drawn, after `layOut`'s fallbacks. */ look: AdLook }
   | { kind: "refused"; findings: OverlayFinding[] };
 
 /** Every SAMPLE_STEP-th pixel in each direction under a line is a contrast sample. */
@@ -117,7 +119,7 @@ const colorsOf = (row: LaidRow) => [row.color, ...(row.figureColor ? [row.figure
 
 /** The weakest step at which every line on the picture reaches the target; the strongest when none does. */
 function scrimFor(ctx: SKRSContext2D, l: Laid): number {
-  if (!l.palette.ground) return 0;
+  if (!l.palette.ground || l.band) return 0;
   const ground = rgbOf(l.palette.ground);
   const under = l.rows.filter((r) => r.on === "picture").flatMap((row) => {
     const colors = colorsOf(row).map(rgbOf);
@@ -141,49 +143,17 @@ function paintScrim(ctx: SKRSContext2D, l: Laid, step: number): void {
   }
 }
 
-/** A ">" of the given height with its top-left at (x, y). */
-function chevron(ctx: SKRSContext2D, x: number, y: number, h: number, color: string): void {
-  const w = h * 0.55, k = h * 0.34;
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(x, y); ctx.lineTo(x + k, y); ctx.lineTo(x + k + w, y + h / 2); ctx.lineTo(x + k, y + h); ctx.lineTo(x, y + h); ctx.lineTo(x + w, y + h / 2);
-  ctx.closePath();
-  ctx.fill();
-}
-
-function paintShapes(ctx: SKRSContext2D, l: Laid): void {
-  const { palette, u } = l;
-  if (l.band) {
-    ctx.fillStyle = palette.primary!;
-    ctx.fillRect(l.band.x, l.band.y, l.band.width, l.band.height);
-    ctx.fillStyle = palette.accent;
-    ctx.fillRect(l.band.x, l.band.y, l.band.width, 5 * u);
-  }
-  if (l.hairline) {
-    ctx.globalAlpha = 0.4;
-    ctx.fillStyle = palette.text;
-    ctx.fillRect(l.hairline.x, l.hairline.y, l.hairline.width, l.hairline.height);
-    ctx.globalAlpha = 1;
-  }
-  if (l.rail) { ctx.fillStyle = palette.accent; ctx.fillRect(l.rail.x, l.rail.y, l.rail.width, l.rail.height); }
-  for (const row of l.rows) {
-    if (!row.shape) continue;
-    const { rect, fill, radius } = row.shape;
-    ctx.fillStyle = fill;
-    ctx.beginPath();
-    ctx.roundRect(rect.x, rect.y, rect.width, rect.height, radius);
-    ctx.fill();
-    if (row.shape.kind === "button") {
-      const line = row.lines[0]!, h = CHEVRON.height * u;
-      chevron(ctx, line.x + line.width + CHEVRON.gap * u, rect.y + (rect.height - h) / 2, h, row.color);
-    }
-  }
+/** The solid band of `field` and `number`, in the kit's ground colour: a field, not a panel — edge to edge, no line on it (D-ADL17). */
+function paintBand(ctx: SKRSContext2D, l: Laid): void {
+  if (!l.band) return;
+  ctx.fillStyle = l.band.fill;
+  ctx.fillRect(l.band.x, l.band.y, l.band.width, l.band.height);
 }
 
 /**
  * The logo, top-left of the zone, never recoloured (D-ADL7). Its contrast is measured: the mean of its opaque
- * pixels against the mean of what is under it. Below 3:1 it is set on a chip in whichever of the kit's two
- * overlay colours it reads better on. A mean is a crude reading of a many-coloured logo; it is the reading that
+ * pixels against the mean of what is under it. Below 3:1 it is set on a square block in whichever of the kit's two
+ * overlay colours it reads better on — square since 2026-11-12, as a rounded chip is a card (D-ADL17). A mean is a crude reading of a many-coloured logo; it is the reading that
  * catches the case that matters, a dark logo on a darkened picture or a white one on a bright sky.
  */
 async function paintLogo(ctx: SKRSContext2D, l: Laid, bytes: Buffer): Promise<void> {
@@ -201,9 +171,7 @@ async function paintLogo(ctx: SKRSContext2D, l: Laid, bytes: Buffer): Promise<vo
   if (n > 0 && contrastRatio([r / n, g / n, b / n], [mean(0), mean(1), mean(2)]) < 3) {
     const hex = `#${[r, g, b].map((v) => Math.round(v / n).toString(16).padStart(2, "0")).join("")}`, pad = 12 * l.u;
     ctx.fillStyle = inkOn(hex, l.palette);
-    ctx.beginPath();
-    ctx.roundRect(box.x - pad, box.y - pad, w + 2 * pad, h + 2 * pad, 10 * l.u);
-    ctx.fill();
+    ctx.fillRect(box.x - pad, box.y - pad, w + 2 * pad, h + 2 * pad);
   }
   ctx.drawImage(logo, box.x, box.y, w, h);
 }
@@ -238,18 +206,18 @@ export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome
   ctx.drawImage(await loadImage(await frameStill(input.base, input.format, layout)), 0, 0, l.width, l.height);
   const scrim = scrimFor(ctx, l);
   paintScrim(ctx, l, scrim);
-  paintShapes(ctx, l);
+  paintBand(ctx, l);
   if (input.logo) await paintLogo(ctx, l, input.logo);
 
   // 2. Measure what lies under each line on that background, judge, and only then draw the words. A row drawn
   //    in two colours is judged in both.
   const placed: PlacedText[] = l.rows.flatMap((row) => colorsOf(row).map((color, i) => ({
     label: i === 0 ? row.label : `${row.label}_figures`, box: row.box, needed_width: Math.floor(row.needed),
-    px: row.style.px * l.u, bold: row.style.face !== "medium", color: rgbOf(color),
+    px: row.style.px * l.u, bold: row.style.face === "display", color: rgbOf(color),
     background_samples: row.lines.flatMap((_, n) => samplesUnder(ctx, lineBox(row, n), l).map((s) => s.rgb)),
   })));
   const verdict = checkRender(input.format, placed, l.zone);
   if (verdict.length) return { kind: "refused", findings: verdict };
   paintText(ctx, l);
-  return { kind: "rendered", png: await canvas.encode("png"), blocks: placed, stack: l.stack, scrim };
+  return { kind: "rendered", png: await canvas.encode("png"), blocks: placed, stack: l.stack, scrim, look: l.look };
 }

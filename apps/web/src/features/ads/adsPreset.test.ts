@@ -103,14 +103,23 @@ describe("presetSaveFrom — what a save sends", () => {
 describe("presetFormFrom — the next version starts from the last", () => {
   it("keeps every field, the motion template it has no input for included, through a save with no edit", () => {
     const ask = presetSaveFrom(presetFormFrom("P2", false, RECIPE));
-    // One key is added: a preset saved before the looks named none and drew the rail look; its next version says so.
-    expect(ask.ok && ask.save).toEqual({ key: "P2", enabled: false, recipe: { ...RECIPE, look: "rail" } });
+    // One key is added: a preset saved before the looks named none and draws `field`; its next version says so.
+    expect(ask.ok && ask.save).toEqual({ key: "P2", enabled: false, recipe: { ...RECIPE, look: "field" } });
+  });
+
+  it("a preset saved under a retired look opens as its successor and is saved under the new name", () => {
+    for (const [old, now] of [["rail", "field"], ["ribbon", "photo"]] as const) {
+      const form = presetFormFrom("P2", false, adPresetRecipeSchema.parse({ ...RECIPE, look: old }));
+      expect(form.look, old).toBe(now);
+      const ask = presetSaveFrom(form);
+      expect(ask.ok && ask.save.recipe.look, old).toBe(now);
+    }
   });
 
   it("a preset's look and its two small lines come back as they were saved, and go out again unchanged", () => {
-    const saved = adPresetRecipeSchema.parse({ ...RECIPE, look: "ribbon", copy_slots: [...RECIPE.copy_slots, { name: "who", max_chars: 28 }, { name: "also", max_chars: 28 }], overlay_slots: { headline: "headline", cta: "cta", kicker: "who", subline: "also" } });
+    const saved = adPresetRecipeSchema.parse({ ...RECIPE, look: "photo", copy_slots: [...RECIPE.copy_slots, { name: "who", max_chars: 28 }, { name: "also", max_chars: 28 }], overlay_slots: { headline: "headline", cta: "cta", kicker: "who", subline: "also" } });
     const form = presetFormFrom("P2", true, saved);
-    expect([form.look, form.overlay_kicker, form.overlay_subline]).toEqual(["ribbon", "who", "also"]);
+    expect([form.look, form.overlay_kicker, form.overlay_subline]).toEqual(["photo", "who", "also"]);
     const ask = presetSaveFrom(form);
     expect(ask.ok && ask.save.recipe).toEqual(saved);
   });

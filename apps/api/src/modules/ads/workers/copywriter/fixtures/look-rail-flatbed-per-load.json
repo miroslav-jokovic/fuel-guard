@@ -99,7 +99,7 @@
       "shows_people": false,
       "motion_template": null,
       "layout": "bottom_plate",
-      "look": "rail",
+      "look": "field",
       "formats": [
         "1:1",
         "4:5"

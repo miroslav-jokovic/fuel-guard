@@ -12,12 +12,12 @@ import { layOut } from "./overlayLayout.js";
  * does: after a template size, a safe zone or the bundled face changes, or after the fixtures are re-recorded.
  * Then the figure is measured again and changed in shared; it is never adjusted to make this pass.
  *
- * Re-measured 2026-11-10 for the looks (ADS-AD-LOOK-PLAN D-ADL3): the headline is now capitals in a display face
- * that steps down a ladder, and each look has its own face. `ribbon` (Anton) holds what the old overlay held —
- * the longest recorded headline that fits is the ceiling (56 on the v3 copy, 58 on v4's) — and `rail` (Barlow Condensed ExtraBold, wider,
- * and set in from its rail) holds a little less: 52. So the ceiling is the widest look's, a headline between the
- * two is the copy ranking's to place (compose asks `overlayFit` per candidate), and what the save promises is
- * unchanged: nothing above the ceiling can be drawn by any look, and 45 or fewer is drawn by every one.
+ * Re-measured 2026-11-10 for the looks (ADS-AD-LOOK-PLAN D-ADL3), and again 2026-11-12 for the three looks and Big
+ * Shoulders (D-ADL16–19): `field` and `photo` share one face and the full measure, so they hold the same — the longest
+ * recorded headline that fits is 58, the ceiling, with the ladder's floor at 80 (it was 67 at a floor of 66, which is
+ * why the floor is 80: `overlayLooks.ts`). `number` holds what `field` holds, because a headline its column cannot
+ * hold is drawn `field`. What the save promises is unchanged: nothing above the ceiling can be drawn by any look,
+ * and 45 or fewer is drawn by every one.
  */
 /**
  * The measuring tests lay out every recorded headline (hundreds, in two languages) on every format, layout and look
@@ -36,7 +36,7 @@ const recorded = loadFixtures(COPYWRITER_EVAL).flatMap(({ fixture }) => {
   const out = fixture.recorded?.output as { candidates?: Array<Record<"en" | "es", Record<string, string>>> } | undefined;
   return (out?.candidates ?? []).flatMap((c) => (["en", "es"] as const).flatMap((language) => (c[language]?.[slot] ? [{ language, text: c[language][slot]!, brief: fixture.input.brief }] : [])));
 });
-const findingsOf = (h: (typeof recorded)[number], format: (typeof FEED_FORMATS)[number], layout: (typeof AD_OVERLAY_LAYOUTS)[number], look: AdLook = "ribbon") =>
+const findingsOf = (h: (typeof recorded)[number], format: (typeof FEED_FORMATS)[number], layout: (typeof AD_OVERLAY_LAYOUTS)[number], look: AdLook = "field") =>
   overlayFit({ format, language: h.language, headline: h.text, cta: "Apply", brief: h.brief, kit, layout, look });
 /**
  * A headline the claim check refuses never reaches the layout step (the overlay answers the claim and stops), so it
@@ -45,7 +45,7 @@ const findingsOf = (h: (typeof recorded)[number], format: (typeof FEED_FORMATS)[
 const headlines = recorded.filter((h) => findingsOf(h, "4:5", "bottom_plate").every((f) => LENGTH.has(f.kind)));
 /** Measured once per headline, format, layout and look: three tests ask, and a measurement is a font shaping. */
 const measured = new Map<string, boolean>();
-const tooLong = (h: (typeof recorded)[number], format: (typeof FEED_FORMATS)[number], layout: (typeof AD_OVERLAY_LAYOUTS)[number], look: AdLook = "ribbon") => {
+const tooLong = (h: (typeof recorded)[number], format: (typeof FEED_FORMATS)[number], layout: (typeof AD_OVERLAY_LAYOUTS)[number], look: AdLook = "field") => {
   const key = `${h.language}|${h.text}|${format}|${layout}|${look}`;
   if (!measured.has(key)) measured.set(key, findingsOf(h, format, layout, look).some((f) => LENGTH.has(f.kind)));
   return measured.get(key)!;
@@ -56,7 +56,7 @@ describe("the two small lines' ceiling is the overlay's own (D-ADL4)", () => {
   const fits = (role: "kicker" | "subline", text: string) => AD_LOOKS.every((look) => AD_FORMATS.every((format) =>
     overlayFit({ format, language: "en", headline: "Apply", cta: "Apply", [role]: text, brief: { claims: [] }, kit: { overlays: ov }, look }).length === 0));
 
-  it("the limit's worth of any capital, digit or common mark fits both small lines in both looks on every format", () => {
+  it("the limit's worth of any capital, digit or common mark fits both small lines in every look on every format", () => {
     for (const ch of "ABCDEFGHIJKLMNÑOPQRSTUVWXYZÁÉÍÓÚÜ·&-.,!?¡¿") {
       for (const role of ["kicker", "subline"] as const) expect(fits(role, ch.repeat(OVERLAY_SMALL_LINE_MAX_CHARS)), `${role} ${ch}`).toBe(true);
     }
@@ -87,9 +87,9 @@ describe("the headline's ceiling is the overlay's own (D-AD27)", () => {
     expect(best).toBe(OVERLAY_HEADLINE_MAX_CHARS);
   });
 
-  it("the rail look holds a little less than the ribbon look: its longest recorded headline is 52 characters", () => {
+  it("field, number and photo hold the same longest recorded headline: number falls back to field rather than refuse", () => {
     const longest = (look: AdLook) => Math.max(...FEED_FORMATS.flatMap((format) => headlines.filter((h) => !tooLong(h, format, "bottom_plate", look)).map((h) => h.text.length)));
-    expect([longest("rail"), longest("ribbon")]).toEqual([52, OVERLAY_HEADLINE_MAX_CHARS]);
+    expect(AD_LOOKS.map(longest)).toEqual(AD_LOOKS.map(() => OVERLAY_HEADLINE_MAX_CHARS));
   });
 
   it("every recorded headline of 45 characters or fewer fits everywhere, in every look — the save's ceiling refuses nothing that plainly works", () => {
@@ -121,18 +121,17 @@ describe("the headline's ceiling is the overlay's own (D-AD27)", () => {
  * The art director tells the image model which part of the picture to keep plain (`QUIET_REGION`, D-AD28) — and
  * the renderer decides where the words actually go. Until L4 the first said a third and the second covered 42 %
  * at the median; nothing compared them (ADS-AD-LOOK-PLAN D-ADL14). This measures, over every recorded headline
- * with a button, how far from its edge a `bottom_plate` or `top_band` ad's words reach on the 4:5 frame the
+ * with its supporting line, how far from its edge a `bottom_plate` or `top_band` ad's words reach on the 4:5 frame the
  * picture is made for, and on the 1:1 cut from it (which keeps the words' edge, `frameStill`, so 1:1's reach is
  * scaled into the 4:5 picture's height). The footer is counted: it is below the stack, over the same picture.
- * Not held here, and measured 2026-11-11: an ad with all four lines reaches 54 % in `rail` (50 % in `ribbon`),
- * and a preset that publishes 1:1 alone has its picture made square, where `rail` reaches 55 %. Those are the
- * visual check's to judge (`safe_zone_clear`, on the stack), which regenerates with the subject smaller.
+ * Not held here: a preset that publishes 1:1 alone has its picture made square. That is the visual check's to judge
+ * (`safe_zone_clear`, on the stack), which regenerates with the subject smaller.
  */
 describe("the words stay inside the part of the picture the art director asks to keep plain (D-ADL14)", () => {
   const scaleTo45 = { "4:5": 1, "1:1": 1080 / 1350 } as const;
-  // Colours and a phone: `rail` draws its band only for a kit with a primary colour, and the band lifts the stack.
+  // Colours and a phone: the footer row is drawn, and it lifts the stack.
   const full = { ...kit, colors: [{ name: "primary", hex: "#0B3D2E" }, { name: "accent", hex: "#F2B01E" }], phone: "(555) 010-0142" };
-  it("on the 4:5 frame and the 1:1 cut from it, in both looks, no recorded headline with its button reaches past QUIET_REGION's share", () => {
+  it("on the 4:5 frame and the 1:1 cut from it, in every look, no recorded headline with its supporting line reaches past QUIET_REGION's share", () => {
     for (const layout of ["bottom_plate", "top_band"] as const) {
       const share = QUIET_REGION[layout].share!;
       for (const look of AD_LOOKS) {
@@ -143,8 +142,11 @@ describe("the words stay inside the part of the picture the art director asks to
           });
           expect(reach.length, `${look} ${format} ${layout}`).toBeGreaterThan(250);
           expect(Math.max(...reach), `${look} ${format} ${layout}`).toBeLessThanOrEqual(share);
-          // A third, the figure before L4, is passed by most of them: the share is the words', not a round number.
-          if (layout === "bottom_plate") expect(reach.filter((r) => r > 1 / 3).length / reach.length, `${look} ${format}`).toBeGreaterThan(0.5);
+          // Since the three looks (2026-11-12) no look draws a button or a kicker above the headline, and a `bottom_plate`
+          // ad's words stay under a third of the picture in every look (measured: 0.284–0.318). The art director still
+          // asks for half (D-ADL14): more plain picture than the words need, which is the picture's loss, not a fault.
+          // Bringing QUIET_REGION back down is an art-director prompt change, so a recording (ADS-AD-LOOK-PLAN Q-ADL10).
+          if (layout === "bottom_plate") expect(Math.max(...reach), `${look} ${format}`).toBeLessThan(1 / 3);
         }
       }
     }

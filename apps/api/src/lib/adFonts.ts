@@ -4,32 +4,32 @@ import { fileURLToPath } from "node:url";
 import fontkit from "@pdf-lib/fontkit";
 
 /**
- * The faces an ad's words are drawn in (ADS-AD-LOOK-PLAN D-ADL2). Until 2026-11-10 an ad used the PDF face,
- * Liberation Sans (`pdfFonts.ts`): chosen for documents because it is metric-compatible with Helvetica, and
- * exactly that — an office sans at three sizes — is what the owner's verdict on the finished ads named
- * ("they don't look really good, professional and enterprise grade"; audit F-AG9, "one bundled face").
+ * The faces an ad's words are drawn in (ADS-AD-LOOK-PLAN D-ADL2, D-ADL18). Until 2026-11-10 an ad used the PDF
+ * face, Liberation Sans (`pdfFonts.ts`); from then until 2026-11-12, Barlow Condensed and Anton. The owner's
+ * verdict on that second set ("font weights are not really appropriate", and a generic look overall) and the
+ * same day's research put the ads in ONE family at two weights: Big Shoulders, drawn for the City of Chicago,
+ * where Silvicom is based (`.claude/skills/silvicom-brand/SKILL.md`).
  *
- * Two families, both SIL Open Font License 1.1, each shipped beside its licence as Liberation is:
- *   · Barlow Condensed (Medium, SemiBold, Bold, ExtraBold) — `fonts/LICENSE_BARLOW_CONDENSED`. Every line
- *     that is not a headline, and the `rail` look's headline (ExtraBold).
- *   · Anton (Regular) — `fonts/LICENSE_ANTON`. The `ribbon` look's headline.
- * The files are the upstream `.ttf` builds from github.com/google/fonts (`ofl/barlowcondensed`, `ofl/anton`),
- * unmodified. They are read here from their bytes and registered by the overlay, so a host with no fonts
- * installed draws the same pixels — the reason Liberation is bundled, unchanged.
+ * Both files are SIL Open Font License 1.1 (`fonts/LICENSE_BIG_SHOULDERS`), cut from the upstream variable fonts
+ * at github.com/google/fonts (`ofl/bigshouldersdisplay`, `ofl/bigshoulderstext`) with `fonttools varLib.instancer`
+ * at one weight each, otherwise unmodified:
+ *   · `display` — Big Shoulders Display, wght 900. Every headline and the Number look's figure.
+ *   · `text`    — Big Shoulders Text, wght 500. The supporting line, the phone and the legal line.
+ * Static instances rather than the variable files because the canvas draws a variable font at its default
+ * instance; a named weight is only certain in a file that holds one. They are read here from their bytes and
+ * registered by the overlay, so a host with no fonts installed draws the same pixels.
  *
- * `canDrawAd` is the fonts' OWN character maps intersected, as `pdfFonts.canDraw` is and for its reason: a word
- * must not print in one face and fall to an empty box in another. Both families hold Spanish (¡ ¿ ñ and the
- * accented vowels, upper and lower case — the overlay draws capitals).
+ * `canDrawAd` is the two files' OWN character maps intersected, as `pdfFonts.canDraw` is and for its reason: a
+ * word must not print in one face and fall to an empty box in the other. Both hold Spanish (¡ ¿ ñ and the
+ * accented vowels in both cases) and ¢. Against the faces they replace, they lose only ten characters no ad
+ * writes (ĳ ǥ ǩ ǯ ȟ Ȩ ȩ ʒ Δ Ω), measured 2026-11-12.
  */
 
 const FONT_DIR = join(dirname(fileURLToPath(import.meta.url)), "fonts");
 
 export const AD_FACES = {
-  medium: "BarlowCondensed-Medium.ttf",
-  semibold: "BarlowCondensed-SemiBold.ttf",
-  bold: "BarlowCondensed-Bold.ttf",
-  extrabold: "BarlowCondensed-ExtraBold.ttf",
-  anton: "Anton-Regular.ttf",
+  display: "BigShouldersDisplay-Black.ttf",
+  text: "BigShouldersText-Medium.ttf",
 } as const;
 export type AdFace = keyof typeof AD_FACES;
 

@@ -70,7 +70,7 @@
       "shows_people": false,
       "motion_template": "Slow push-in down the highway as the light rises",
       "layout": "bottom_plate",
-      "look": "rail",
+      "look": "field",
       "formats": [
         "9:16",
         "4:5"

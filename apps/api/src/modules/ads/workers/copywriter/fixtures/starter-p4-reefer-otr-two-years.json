@@ -101,7 +101,7 @@
       "shows_people": false,
       "motion_template": null,
       "layout": "bottom_plate",
-      "look": "rail",
+      "look": "field",
       "formats": [
         "4:5",
         "1:1"

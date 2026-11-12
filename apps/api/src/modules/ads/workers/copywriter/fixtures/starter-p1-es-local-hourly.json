@@ -90,7 +90,7 @@
       "shows_people": false,
       "motion_template": null,
       "layout": "bottom_plate",
-      "look": "ribbon",
+      "look": "photo",
       "formats": [
         "4:5",
         "1:1"

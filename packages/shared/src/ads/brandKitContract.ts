@@ -121,21 +121,28 @@ export const AD_SCENE_FAMILY_LABELS: Record<AdSceneFamily, string> = {
 };
 
 /**
- * How the words are DRAWN (ADS-AD-LOOK-PLAN D-ADL1–D-ADL7, D-ADL11; the owner, 2026-11-10: the finished ads
- * "don't look really good, professional and enterprise grade"). `layout` above says WHERE the stack sits; the
- * look says in which faces, with which shapes and where the kit's colours go. Both are the preset's: a concept's
- * look is part of the concept, so when a tired ad is retired and the next concept enters (D-AD23), the design
- * changes with it and not only the picture.
- *   · `rail`   — left-aligned; the headline's figures in the kit's accent colour; a rail beside the stack; the
- *                call to action a filled button; the phone and the legal line on a band in the kit's primary.
- *   · `ribbon` — centred; a white headline in a heavier face; the second line on one ribbon in the accent
- *                colour; a pill button; the phone and the legal line on a hairline footer.
- * Since the look, the layout names read oddly — nothing is drawn on a plate or a band any more; the words sit on
- * the picture, darkened under them (D-ADL1). The stored names stay (D-ADL8): they are in every saved preset, and
- * a rename would migrate every one of them for no reader's benefit. Read them as low, high and middle.
+ * How the words are DRAWN (ADS-AD-LOOK-PLAN D-ADL16–D-ADL19, 2026-11-12). `layout` above says WHERE the words sit;
+ * the look says how. Both are the preset's: a concept's look is part of the concept, so when a tired ad is retired
+ * and the next concept enters (D-AD23), the design changes with it and not only the picture.
+ *   · `field`  — the picture, then a solid band in the kit's ground colour holding the headline (figures in the
+ *                accent), one supporting line and the legal line. The default.
+ *   · `number` — the same band, with the headline's opening figure as its biggest object ("70¢" beside "a mile,
+ *                hazmat OTR"). A headline that does not open with a figure is drawn `field`.
+ *   · `photo`  — the whole picture, the words straight on it, darkened only as much as the picture needs.
+ * The owner chose all three on 2026-11-12 (Q-ADL9). They replace `rail` and `ribbon`, whose side rail, ribbon
+ * tag, pill button and hairline are on the banned list (D-ADL17).
  */
-export const AD_LOOKS = ["rail", "ribbon"] as const;
+export const AD_LOOKS = ["field", "number", "photo"] as const;
 export type AdLook = (typeof AD_LOOKS)[number];
+/**
+ * The looks before 2026-11-12, as stored in presets saved under them, and the look each now draws. A rename
+ * without a migration: the value lives inside a preset's jsonb recipe, every reader parses it through
+ * `adPresetRecipeSchema`, and this map is the one place the old names are read. The next save writes the new name.
+ * `rail` was left-aligned with its figures in the accent over a band, so it is `field`; `ribbon` was the words on
+ * the picture, so it is `photo`.
+ */
+export const RETIRED_LOOKS = { rail: "field", ribbon: "photo" } as const satisfies Record<string, AdLook>;
+const lookSchema = z.preprocess((v) => (typeof v === "string" && v in RETIRED_LOOKS ? RETIRED_LOOKS[v as keyof typeof RETIRED_LOOKS] : v), z.enum(AD_LOOKS));
 
 export const adBrandKitSchema = z.object({
   /** Exactly as it should read in an ad. */
@@ -208,10 +215,11 @@ export const adPresetRecipeSchema = z.object({
   /** Where the words sit (CQ6). Defaulted, so a recipe saved before CQ6 is the layout it always had. */
   layout: z.enum(AD_OVERLAY_LAYOUTS).default("bottom_plate"),
   /**
-   * How the words are drawn (`AD_LOOKS`). Absent = `rail`. Optional rather than defaulted, as `platform_slots`
-   * is and for its reason: a default makes the parsed type require the key in every recipe literal.
+   * How the words are drawn (`AD_LOOKS`). Absent = `field`; a retired name reads as its successor
+   * (`RETIRED_LOOKS`). Optional rather than defaulted, as `platform_slots` is and for its reason: a default makes
+   * the parsed type require the key in every recipe literal.
    */
-  look: z.enum(AD_LOOKS).optional(),
+  look: lookSchema.optional(),
   formats: z.array(z.enum(AD_FORMATS)).min(1, "choose at least one format").max(AD_FORMATS.length),
   /**
    * Which copy slots the overlay draws (C5b): the headline (≤ 2 lines) and the call to action. The other

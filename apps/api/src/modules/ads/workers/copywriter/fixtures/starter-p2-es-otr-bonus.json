@@ -105,7 +105,7 @@
       "shows_people": false,
       "motion_template": null,
       "layout": "centered",
-      "look": "rail",
+      "look": "number",
       "formats": [
         "4:5",
         "1:1"
