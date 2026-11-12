@@ -137,6 +137,15 @@ describe("useRosterFilters", () => {
     expect(f.status.value).toBe("");
   });
 
+  // F21 Step 5: `open_view` writes the roster's other filters through the same contract.
+  it("reads every other filter a link built by the Drivers contract names", async () => {
+    const q = driversToQuery({ search: "Diaz", due: "30", requirement: "medical_card", unseated: true, status: "on_leave" });
+    const { f } = await mountFilters(`/drivers?${new URLSearchParams(q).toString()}`);
+    expect([f.search.value, f.dqDue.value, f.dqRequirement.value, f.seat.value, f.status.value]).toEqual(["Diaz", "30", "medical_card", "none", "on_leave"]);
+    const archived = await mountFilters(`/drivers?${new URLSearchParams(driversToQuery({ archived: true })).toString()}`);
+    expect(archived.f.showArchived.value).toBe(true);
+  });
+
   it("reads a link that narrows several things at once", async () => {
     const { f } = await mountFilters("/drivers?q=reyes&status=active&show=archived&sort=phone&dir=desc&page=2");
     expect(f.search.value).toBe("reyes");

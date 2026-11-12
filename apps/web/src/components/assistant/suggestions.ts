@@ -106,6 +106,8 @@ const BY_SURFACE: Record<string, Suggestion[]> = {
   ],
   "fleet.vehicles": [ask("How many trucks, trailers and drivers are active right now?", "fleet_roster")],
   "fleet.drivers": [
+    // F21 Step 5: filters this page behind the dock (`open_view`, view `drivers`).
+    ask("Show me the drivers whose medical card is due in the next 30 days", "open_view"),
     ask("Which drivers have an expired or expiring CDL or medical card?", "driver_file_expirations"),
     ask("How many drivers are active right now?", "fleet_roster"),
     ask("Best and worst drivers by safety score this month", "driver_performance"),

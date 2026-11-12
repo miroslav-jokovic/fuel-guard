@@ -277,6 +277,6 @@ describe("POST /api/ai/ask — open_view (F21 Step 5)", () => {
       body: JSON.stringify({ question: "show me the open fuel problems", page: "fuel.spend" }),
     });
     expect(await res.json()).toEqual({ answer: "Opened.", pages: ["fuel.exceptions"], links: [link] });
-    expect(askData.mock.calls[0]![8]).toEqual({ views: ["fuel_problems", "fuel_log", "fuel_alerts", "fuel_cards"], page: "fuel.spend" });
+    expect(askData.mock.calls[0]![8]).toEqual({ views: ["fuel_problems", "fuel_log", "fuel_alerts", "fuel_cards", "drivers"], page: "fuel.spend" });
   });
 });
