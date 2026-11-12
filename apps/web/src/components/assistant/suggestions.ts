@@ -50,6 +50,8 @@ const BY_SURFACE: Record<string, Suggestion[]> = {
     ask("What do we owe Texas for IFTA this quarter so far?", "ifta_report"),
   ],
   "fuel.cards": [
+    // F21 Step 5: filters this page behind the dock (`open_view`, view `fuel_cards`).
+    ask("Show me the cards with an active override", "open_view"),
     ask("Which fuel cards are on hold or on a fraud hold right now?", "card_holds"),
     ask("How many declined card attempts this month, and how many look suspicious?", "declined_summary"),
     ask("Which drivers have the most flagged fills this month?", "top_risk"),

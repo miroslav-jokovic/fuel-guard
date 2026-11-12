@@ -93,6 +93,17 @@ describe("the fuel cards page's filters round-trip through the query string", ()
     expect(seenQuery.at(-1)!.status).toBe("Fraud");
   });
 
+  // F21 Step 5: `open_view` writes the client-side facets through the same contract.
+  it("narrows the table to the unit and facets a link built by the contract names", async () => {
+    // Each facet alone, so every one of them has to do the narrowing (one row of two each).
+    const link = (f: Parameters<typeof fuelCardsToQuery>[0]) => `/fuel-cards?${new URLSearchParams(fuelCardsToQuery(f)).toString()}`;
+    for (const [f, card] of [[{ unit: "202" }, "••5678"], [{ linked: "unlinked" }, "••5678"], [{ health: "ok" }, "••1234"], [{ policy: "3" }, "••1234"]] as const) {
+      const { w } = await mountAt(link(f));
+      expect(rowCount(w), JSON.stringify(f)).toBe(1);
+      expect(w.text()).toContain(card);
+    }
+  });
+
   it("puts a server-side facet in the URL and sends it to the route", async () => {
     const { w, query } = await mountAt("/fuel-cards");
     await pick(w, "Status", "Hold");

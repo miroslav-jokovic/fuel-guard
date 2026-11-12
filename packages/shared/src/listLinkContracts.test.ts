@@ -18,6 +18,6 @@ describe("the Applicants, Drivers and Fuel cards link contracts (F21 R4b)", () =
 
   it("Fuel cards: one catalogue status", () => {
     expect(fuelCardsToQuery({ status: "Hold" })).toEqual({ status: "Hold" });
-    expect(FUEL_CARDS_QUERY_KEYS).toEqual({ status: "status" });
+    expect(FUEL_CARDS_QUERY_KEYS.status).toBe("status");
   });
 });

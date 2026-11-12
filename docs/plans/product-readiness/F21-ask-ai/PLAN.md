@@ -1210,3 +1210,38 @@ audit row is the endpoint's own.
     - unit numbers where the page reads ids;
     - the page reading the reefer view from another key.
   - **Next:** Fuel cards, then Drivers.
+- 2026-11-12 — **Step 5, fourth page: `open_view` opens Fuel cards filtered.**
+  - **The contract grew from one key to six.** `fuelCardsLinkContract.ts` (R4b: `status` only) now holds
+    `status`, `unit`, `policy`, `override`, `linked` and `health`, with the three yes/no vocabularies. The
+    page reads every one of them from it. `card_holds`' status-only link is unchanged.
+  - **One value per filter.** Every control on the page is single-choice, so the schema takes ONE `unit`
+    (not a list) and one of everything else. "Cards for 718 and 751" is refused.
+  - **The unit is the card's EFS unit prompt**, matched exactly by the page. The model's spelling
+    ("Unit 718") becomes the fleet's ("718"), as on the Fuel log. A card whose prompt EFS spells
+    differently from the fleet (say "0718") is not matched by the page either. The link shows what the
+    page shows for that truck; it does not guess.
+  - **Not offered:** the card's driver name and free-text search. They have no rule yet for turning a
+    person's name into the card's spelling (the same reason as on the Fuel log).
+  - The dock suggests "Show me the cards with an active override" on Fuel cards.
+  - **Tests:**
+    - `assistantViews.test.ts`:
+      - "Fuel cards: one value per filter, as the page's single-choice controls; the card's driver name is
+        not a link filter";
+      - "Fuel cards: writes the page's own keys, and the status-only link card_holds already sends is
+        unchanged".
+    - `openAssistantView.test.ts`: "opens Fuel cards on ONE truck as the fleet spells its unit, with the
+      page's own facets".
+    - `fuelCardsFiltersInUrl.test.ts`: "narrows the table to the unit and facets a link built by the
+      contract names".
+    - Eval case `show-cards-with-override`. Not yet run.
+  - **Deliberate breaks:**
+    - Killed:
+      - the cards schema passing unknown keys;
+      - the model's unit spelling written into the link;
+      - the page reading `policy` from another key.
+    - **Survived the first time:** the page reading `linked` from another key. The page test linked
+      `unit=202` with the facets, and the unit alone already narrowed the table to that row, so the facets
+      did no work. The test now opens one link per facet, each of which must narrow the two rows to one.
+      Killed on the rerun.
+  - **Next:** Drivers (`fleet.drivers`; `driversLinkContract.ts`), then Loads and Vehicles, which first
+    need their filters in the URL (S4).

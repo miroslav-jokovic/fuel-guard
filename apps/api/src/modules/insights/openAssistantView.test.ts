@@ -76,4 +76,17 @@ describe("openAssistantView", () => {
     expect(two.error).toMatch(/severity/);
     expect(two.link).toBeUndefined();
   });
+
+  it("opens Fuel cards on ONE truck as the fleet spells its unit, with the page's own facets", async () => {
+    const r = rec();
+    const out = (await openAssistantView(r.client, ORG, { view: "fuel_cards", filters: { unit: "Unit 718", status: "Hold" } }, ["fuel_cards"])) as Record<string, unknown>;
+    expect(out).toEqual({
+      opened: "Fuel cards",
+      filters: { unit: "Unit 718", status: "Hold" },
+      link: { surfaceKey: "fuel.cards", query: { status: "Hold", unit: "718" } },
+    });
+    expectOrgScoped(r, ORG);
+    const missing = (await openAssistantView(r.client, ORG, { view: "fuel_cards", filters: { unit: "999" } }, ["fuel_cards"])) as { error: string };
+    expect(missing.error).toBe("Not in this fleet: 999. Nothing was opened.");
+  });
 });
