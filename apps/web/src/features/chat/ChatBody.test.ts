@@ -4,7 +4,7 @@ import { mount } from "@vue/test-utils";
 import type { ChatDirectoryEntry, ChatMessage } from "@silvicom/shared";
 import ChatMessageRow from "./ChatMessageRow.vue";
 import ChatRail from "./ChatRail.vue";
-import { provideChatNames } from "./chatNames";
+import { provideMentionNames as provideChatNames } from "@/components/mentions/mentionNames";
 
 /**
  * A mention on screen (D-CHAT22): the token is the record, the chip is how it reads. A reader sees the

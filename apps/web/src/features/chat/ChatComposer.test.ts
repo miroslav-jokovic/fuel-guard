@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { defineComponent, h, ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import ChatComposer from "./ChatComposer.vue";
-import { provideChatMentions, type MentionCandidate } from "./chatNames";
+import { provideMentions as provideChatMentions, type MentionCandidate } from "@/components/mentions/mentionNames";
 
 /**
  * The composer's `@` list (CH6b-2, D-CHAT22, Q-CHAT20 (a)). What a writer relies on: typing `@` and a

@@ -8,7 +8,7 @@ import { useToastStore } from "@/stores/toast";
 import { useChatFollow } from "../chatRealtime";
 import { firstUnreadSeqOf } from "../chatGrouping";
 import { useChatMarkRead, useChatMembersQuery, useChatMessageActions, useChatSend, useChatSetMute, type PendingLine } from "../useChat";
-import { provideChatMentions, type MentionCandidate } from "../chatNames";
+import { provideMentions, type MentionCandidate } from "@/components/mentions/mentionNames";
 import ChatChannelPane from "./ChatChannelPane.vue";
 import ChatRepliesPane from "./ChatRepliesPane.vue";
 import ChatEarlierButton from "../ChatEarlierButton.vue";
@@ -107,7 +107,7 @@ const onRemove = (id: string) => retract.mutateAsync(id).catch(fail("Could not r
 const members = useChatMembersQuery(joinedId);
 const teamMembers = useTeamMembersQuery(computed(() => (joinedId.value ? (found.value?.team.space_id ?? null) : null)));
 const addMembers = useAddChannelMembers();
-provideChatMentions({
+provideMentions({
   candidates: computed<MentionCandidate[]>(() => {
     const inIt = new Set((members.data.value ?? []).map((m) => m.user_id));
     return [

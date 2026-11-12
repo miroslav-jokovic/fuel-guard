@@ -18,7 +18,7 @@ vi.mock("@/lib/api", () => ({ apiFetch }));
 
 import ChatMessageRow from "./ChatMessageRow.vue";
 import { LINE_ACTS, provideChatLineActs, type ChatLineActs } from "./useChatLineActs";
-import { provideChatNames } from "./chatNames";
+import { provideMentionNames as provideChatNames } from "@/components/mentions/mentionNames";
 
 const ME = "11111111-1111-4111-8111-111111111111";
 const BEN = "22222222-2222-4222-8222-222222222222";

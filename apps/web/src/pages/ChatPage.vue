@@ -40,7 +40,7 @@ import { useChatFollow } from "@/features/chat/chatRealtime";
 import { useChatTeamsQuery } from "@/features/chat/teams/useChatTeams";
 import { useChatRailActions } from "@/features/chat/teams/useChatRailActions";
 import { useChatShortcuts } from "@/features/chat/useChatShortcuts";
-import { provideChatNames } from "@/features/chat/chatNames";
+import { provideMentionNames } from "@/components/mentions/mentionNames";
 
 /**
  * /chat — office chat (OFFICE-CHAT-PLAN CH2; CHAT-REDESIGN-PLAN, 2026-10-26): a workspace, not a
@@ -186,7 +186,7 @@ const starting = ref(false);
 // The office's people: the New conversation dialog's list, and who every `<@id>` on the page is
 // (D-CHAT22) — so it is asked as soon as the page is, not when the dialog opens.
 const people = useChatPeopleQuery(entitled);
-provideChatNames(people.data);
+provideMentionNames(people.data);
 const openDirect = useChatOpenDirect();
 const createGroup = useChatCreateGroup();
 const startBusy = computed(() => openDirect.isPending.value || createGroup.isPending.value);

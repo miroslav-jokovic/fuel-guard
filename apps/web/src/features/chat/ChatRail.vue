@@ -8,7 +8,7 @@ import KebabMenuItem from "@/components/KebabMenuItem.vue";
 import ChatUnreadCount from "./ChatUnreadCount.vue";
 import ChatDesktopAlertsControl from "./ChatDesktopAlertsControl.vue";
 import { chatRowTime } from "./chatTime";
-import { useChatNames } from "./chatNames";
+import { useMentionNames } from "@/components/mentions/mentionNames";
 
 /**
  * The one rail of /chat (CHAT-REDESIGN-PLAN D-CHATUI2, D-CHATUI3): everything you are in, in sections —
@@ -63,7 +63,7 @@ const emit = defineEmits<{
   "retry-teams": [];
 }>();
 
-const nameOf = useChatNames();
+const nameOf = useMentionNames();
 const query = ref("");
 const q = computed(() => query.value.trim().toLowerCase());
 const matches = (name: string) => !q.value || name.toLowerCase().includes(q.value);

@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { CHAT_BODY_MAX, CHAT_FILE_ACCEPT, type ChatFileRef } from "@silvicom/shared";
-import { AppAvatar, AppButton as BaseButton, AppIcon, AppIconButton, AppTextarea as BaseTextarea } from "@silvicom/ui";
+import { AppButton as BaseButton, AppIcon, AppIconButton, AppTextarea as BaseTextarea } from "@silvicom/ui";
 import { AtIcon, PaperAirplaneIcon, PaperclipIcon } from "@silvicom/ui/icons";
 import FilePickButton from "@/components/ui/FilePickButton.vue";
 import ChatComposerFiles from "./ChatComposerFiles.vue";
 import { useChatAttachments } from "./useChatAttachments";
 import ChatEmojiTray from "./ChatEmojiTray.vue";
 import { useBottomChrome } from "@/composables/bottomChrome";
-import { useChatMentions, type MentionCandidate } from "./chatNames";
-import { fromDraft, mentionLabel, mentionQueryAt } from "./mentionDraft";
+import MentionList from "@/components/mentions/MentionList.vue";
+import { useMentionTypeahead } from "@/components/mentions/useMentionTypeahead";
 
 /**
  * The box a line is written in — a conversation's, a channel's, a reply's (CH2, CH5c; CHAT-REDESIGN-PLAN
@@ -26,8 +26,9 @@ import { fromDraft, mentionLabel, mentionQueryAt } from "./mentionDraft";
  * Up in an EMPTY field hands focus to the log (`up`, D-CHATUI16): Slack's way into the lines without a
  * mouse. With words in the field Up is the caret's, as ever.
  *
- * `@` opens a list of the people the stage says this conversation may name (`provideChatMentions`,
- * D-CHAT22, Q-CHAT20 (a)): Up and Down move, Enter or Tab picks, Esc closes, and while it is open those
+ * `@` opens a list of the people the stage says this conversation may name (`provideMentions`,
+ * D-CHAT22, Q-CHAT20 (a); `useMentionTypeahead`, shared with a unit's notes since UN4): Up and Down
+ * move, Enter or Tab picks, Esc closes, and while it is open those
  * keys are the list's, not Send's or the log's. A pick writes `@Name` into the field and is remembered;
  * on send every remembered label becomes its `<@id>` token (`mentionDraft.ts`), so the limit counts what
  * is sent. A person not in a channel yet is offered as "Add to # Loads", and picking them adds them first.
@@ -70,54 +71,16 @@ function onPaste(e: ClipboardEvent) {
 }
 
 const draft = ref("");
-const picks = ref(new Map<string, string>());
-const outgoing = computed(() => fromDraft(draft.value, picks.value));
 const field = ref<{ $el: HTMLTextAreaElement } | null>(null);
+// ── the @ list ──
+const { mentions, outgoing, active, listId, options, listOpen, addLabel, readCaret, pick, onListKey, close: closeList, reset: resetMentions } =
+  useMentionTypeahead({ field, draft, idPrefix: "chat-mentions" });
 const form = ref<HTMLElement | null>(null);
 useBottomChrome(form);
 
 const over = computed(() => outgoing.value.length > CHAT_BODY_MAX);
 const remaining = computed(() => CHAT_BODY_MAX - outgoing.value.length);
 const nearLimit = computed(() => outgoing.value.length >= CHAT_BODY_MAX * 0.9);
-
-// ── the @ list ──
-const mentions = useChatMentions();
-const typed = ref<{ query: string; start: number } | null>(null);
-const active = ref(0);
-const listId = `chat-mentions-${Math.random().toString(36).slice(2, 8)}`;
-const options = computed<MentionCandidate[]>(() => {
-  if (!typed.value || !mentions) return [];
-  const q = typed.value.query.toLowerCase();
-  // Any word of the name: "@ru" finds Ana Ruiz as well as "@an" does.
-  return [...mentions.candidates.value]
-    .filter((c) => c.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(q)))
-    // Members first: naming somebody already here is the common case; adding somebody is the exception.
-    .sort((a, b) => Number(b.member) - Number(a.member) || a.name.localeCompare(b.name))
-    .slice(0, 6);
-});
-const listOpen = computed(() => options.value.length > 0);
-function readCaret() {
-  const el = field.value?.$el;
-  // The element's own value, never `draft`: this listener runs before v-model has written the key just
-  // typed, and a caret measured on one text and applied to another put the pick one character off.
-  typed.value = el && typeof el.selectionStart === "number" ? mentionQueryAt(el.value, el.selectionStart) : null;
-  active.value = 0;
-}
-async function pick(c: MentionCandidate) {
-  const at = typed.value;
-  if (!at || !mentions) return;
-  typed.value = null;
-  if (!c.member && !(await mentions.add(c.user_id))) return;
-  const label = mentionLabel(c.name);
-  const el = field.value?.$el;
-  const end = at.start + 1 + at.query.length;
-  draft.value = `${draft.value.slice(0, at.start)}${label} ${draft.value.slice(end)}`;
-  picks.value = new Map(picks.value).set(label, c.user_id);
-  await nextTick();
-  const caret = at.start + label.length + 1;
-  el?.focus();
-  el?.setSelectionRange(caret, caret);
-}
 
 /** Eight lines of `text-sm` plus the field's padding, then the field scrolls. */
 const MAX_HEIGHT = 8 * 20 + 20;
@@ -129,7 +92,7 @@ function grow() {
 }
 watch(draft, grow, { flush: "post" });
 // A different conversation is a different draft: the field empties and shrinks with it.
-watch(() => props.threadKey, () => { draft.value = ""; picks.value = new Map(); typed.value = null; attachments.clear(); });
+watch(() => props.threadKey, () => { draft.value = ""; resetMentions(); attachments.clear(); });
 
 function submit() {
   const body = outgoing.value.trim();
@@ -137,31 +100,11 @@ function submit() {
   emit("send", body, attachments.ready.value);
   attachments.clear();
   draft.value = "";
-  picks.value = new Map();
-  typed.value = null;
+  resetMentions();
   field.value?.$el.focus();
 }
 function onKey(e: KeyboardEvent) {
-  if (listOpen.value && !e.isComposing) {
-    const n = options.value.length;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      active.value = (active.value + (e.key === "ArrowDown" ? 1 : n - 1)) % n;
-      return;
-    }
-    if (e.key === "Enter" || e.key === "Tab") {
-      e.preventDefault();
-      void pick(options.value[active.value]!);
-      return;
-    }
-    if (e.key === "Escape") {
-      // The list's Esc only: a thread panel around this field must not close with it.
-      e.preventDefault();
-      e.stopPropagation();
-      typed.value = null;
-      return;
-    }
-  }
+  if (onListKey(e)) return;
   if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
     e.preventDefault();
     submit();
@@ -217,33 +160,10 @@ defineExpose({ focus: () => field.value?.$el.focus() });
         @click="readCaret"
         @keyup.left="readCaret"
         @keyup.right="readCaret"
-        @blur="typed = null"
+        @blur="closeList"
         @paste="onPaste"
       />
-      <ul
-        v-if="listOpen"
-        :id="listId"
-        role="listbox"
-        aria-label="People to mention"
-        class="absolute bottom-full left-0 mb-1 w-72 max-w-full overflow-hidden rounded-surface bg-surface py-1 shadow-overlay ring-1 ring-edge-subtle"
-      >
-        <!-- mousedown, not click: a click lands after the field's blur has closed the list. -->
-        <li
-          v-for="(c, i) in options"
-          :id="`${listId}-${i}`"
-          :key="c.user_id"
-          role="option"
-          :aria-selected="i === active"
-          class="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm"
-          :class="i === active ? 'bg-surface-subtle text-ink' : 'text-ink-secondary'"
-          @mousedown.prevent="pick(c)"
-          @mousemove="active = i"
-        >
-          <AppAvatar :label="c.name" :identity="c.user_id" size="xs" />
-          <span class="min-w-0 flex-1 truncate">{{ c.name }}</span>
-          <span v-if="!c.member && mentions?.addLabel.value" class="shrink-0 text-2xs text-ink-tertiary">{{ mentions.addLabel.value }}</span>
-        </li>
-      </ul>
+      <MentionList v-if="listOpen" :id="listId" :options="options" :active="active" :add-label="addLabel" @pick="pick" @point="active = $event" />
       <ChatComposerFiles :files="pendingFiles" :refusal="refusal" @remove="attachments.remove" @retry="attachments.retry" />
       <div class="flex items-center gap-0.5 px-1.5 pb-1.5" role="toolbar" aria-label="Message tools">
         <FilePickButton v-if="uploadTo" :icon="PaperclipIcon" label="Attach files" :accept="CHAT_FILE_ACCEPT" @files="attachments.add" />

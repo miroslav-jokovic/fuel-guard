@@ -14,7 +14,7 @@ import ChatFilesDialog from "./ChatFilesDialog.vue";
 import ChatPinnedDialog from "./ChatPinnedDialog.vue";
 import ChatCatchupDialog from "./ChatCatchupDialog.vue";
 import { useChatCatchupOn } from "./useChatCatchup";
-import { provideChatMentions } from "./chatNames";
+import { provideMentions } from "@/components/mentions/mentionNames";
 
 /**
  * One open conversation (CH2; CHAT-REDESIGN-PLAN §4): its header, its log and its composer, filling
@@ -69,7 +69,7 @@ const viewerName = computed(() => props.data.members.find((m) => m.user_id === p
 
 // The `@` list: the people in it (Q-CHAT20 (a)). Adding somebody to a group is the header's act, not
 // the composer's, so nobody outside it is offered.
-provideChatMentions({
+provideMentions({
   candidates: computed(() => others.value.map((m) => ({ user_id: m.user_id, name: m.name ?? "Someone", member: true }))),
   addLabel: computed(() => null),
   add: async () => false,
