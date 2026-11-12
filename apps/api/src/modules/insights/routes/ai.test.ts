@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ASSISTANT_MONTHLY_CAP_MICRO_USD, type AuthContext } from "@silvicom/shared";
+import { ASSISTANT_MONTHLY_CAP_MICRO_USD, readAssistantEvents, type AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
@@ -187,5 +187,81 @@ describe("POST /api/ai/ask — module-gated tools", () => {
     expect((await post("fuel last month")).status).toBe(200);
     expect(allowedOf()).not.toContain("fleet_now");
     expect(allowedOf()).toContain("fuel_report");
+  });
+});
+
+describe("POST /api/ai/ask — the streamed answer (F21 Step 2d)", () => {
+  const postStream = (question: string) =>
+    fetch(`${baseUrl}/api/ai/ask`, {
+      method: "POST",
+      headers: { authorization: "Bearer t", "content-type": "application/json", accept: "text/event-stream", "accept-encoding": "gzip, deflate, br" },
+      body: JSON.stringify({ question }),
+    });
+
+  it("sends each event the moment it happens, through the app's compression: the answer waits on the reader having seen the first", async () => {
+    setup(0);
+    let release!: () => void;
+    const reached = new Promise<void>((r) => (release = r));
+    askData.mockImplementationOnce(async (...a: unknown[]) => {
+      const onEvent = a[7] as (e: unknown) => void;
+      onEvent({ type: "step", label: "Reading the fuel report" });
+      // Held until the test has READ that step off the wire. A buffered stream never delivers it,
+      // so this answer never finishes and the test times out.
+      await reached;
+      onEvent({ type: "text", delta: "Spend was $41,200." });
+      return { answer: "Spend was $41,200.", tools: [{ name: "fuel_report", input: {} }], usage: USAGE, outcome: "answered", links: [] };
+    });
+    const res = await postStream("fuel spend last month");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/^text\/event-stream/);
+    expect(res.headers.get("content-encoding")).toBeNull();
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const seen: Array<{ type: string }> = [];
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const read = readAssistantEvents(buffer + decoder.decode(value, { stream: true }));
+      buffer = read.rest;
+      for (const e of read.events) {
+        seen.push(e);
+        if (e.type === "step") release();
+      }
+    }
+    expect(seen).toEqual([
+      { type: "step", label: "Reading the fuel report" },
+      { type: "text", delta: "Spend was $41,200." },
+      { type: "done", answer: "Spend was $41,200.", pages: ["fuel.spend"], links: [] },
+    ]);
+    // The meter and the audit row are the same as the JSON answer's.
+    expect(rec.rpcs().filter((c) => c.fn === "record_assistant_answer")).toHaveLength(1);
+    expect(audit()?.meta.outcome).toBe("answered");
+  });
+
+  it("a model failure after the stream began ends it with an error event, and what it spent is still recorded", async () => {
+    setup(0);
+    askData.mockResolvedValueOnce({ answer: "The assistant could not answer just now. Try again in a minute.", tools: [], usage: USAGE, outcome: "error", links: [] });
+    const res = await postStream("fuel spend");
+    expect(res.status).toBe(200);
+    expect(readAssistantEvents(await res.text()).events).toEqual([{ type: "error", message: "The assistant could not answer just now. Try again in a minute." }]);
+    expect(rec.rpcs().filter((c) => c.fn === "record_assistant_answer")).toHaveLength(1);
+  });
+
+  it("a refusal before the model is reached is still a JSON status, never a stream", async () => {
+    setup(ASSISTANT_MONTHLY_CAP_MICRO_USD);
+    const res = await postStream("fuel spend");
+    expect(res.status).toBe(429);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("ai_budget_exhausted");
+    expect(askData).not.toHaveBeenCalled();
+  });
+
+  it("without the stream header the answer is JSON, as an older web expects, and askData is given no listener", async () => {
+    setup(0);
+    askData.mockResolvedValueOnce({ answer: "ok", tools: [], usage: USAGE, outcome: "answered", links: [] });
+    const res = await post("fuel spend");
+    expect(res.headers.get("content-type")).toMatch(/json/);
+    expect(((await res.json()) as { answer: string }).answer).toBe("ok");
+    expect(askData.mock.calls[0]![7]).toBeUndefined();
   });
 });

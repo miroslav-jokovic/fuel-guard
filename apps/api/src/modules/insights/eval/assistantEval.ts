@@ -26,6 +26,11 @@ export interface EvalVerdict {
    * is built only if the median is over ~5 s (PLAN §6), and production has too few answers to say.
    */
   latencyMs?: number;
+  /**
+   * Time to the first streamed event, a step or a word: what a reader of the streamed answer waits
+   * before anything moves (Step 2d's acceptance, under 2 s). Absent when nothing streamed.
+   */
+  firstEventMs?: number;
 }
 
 const ALL_MODULES = new Set(MODULE_KEYS) as ModuleSet;
@@ -67,7 +72,7 @@ export interface EvalRun {
   total: number;
   costMicroUsd: number;
   /** Answer time across the cases, the measurement streaming waits on. */
-  latency: { p50Ms: number; p90Ms: number; maxMs: number };
+  latency: { p50Ms: number; p90Ms: number; maxMs: number; firstEventP50Ms: number; firstEventP90Ms: number };
 }
 
 /** The value at a share of the sorted times, nearest rank (no interpolation: 23 answers, not a curve). */
@@ -94,8 +99,11 @@ export async function runAssistantEval(
   for (const c of cases) {
     const allowed = assistantToolsFor(c.role, null, ALL_MODULES);
     const started = Date.now();
-    const trace = await askData(admin, env, orgId, c.question, allowed, new Date(), c.history ?? []);
-    const v: EvalVerdict = { ...scoreCase(c, trace), latencyMs: Date.now() - started };
+    let firstEventMs: number | undefined;
+    const trace = await askData(admin, env, orgId, c.question, allowed, new Date(), c.history ?? [], () => {
+      firstEventMs ??= Date.now() - started;
+    });
+    const v: EvalVerdict = { ...scoreCase(c, trace), latencyMs: Date.now() - started, ...(firstEventMs === undefined ? {} : { firstEventMs }) };
     verdicts.push(v);
     onCase?.(v, trace.answer);
   }
@@ -106,7 +114,14 @@ export async function runAssistantEval(
     costMicroUsd: verdicts.reduce((n, v) => n + v.costMicroUsd, 0),
     latency: (() => {
       const ms = verdicts.map((v) => v.latencyMs ?? 0);
-      return { p50Ms: latencyPercentile(ms, 0.5), p90Ms: latencyPercentile(ms, 0.9), maxMs: Math.max(0, ...ms) };
+      const first = verdicts.flatMap((v) => (v.firstEventMs === undefined ? [] : [v.firstEventMs]));
+      return {
+        p50Ms: latencyPercentile(ms, 0.5),
+        p90Ms: latencyPercentile(ms, 0.9),
+        maxMs: Math.max(0, ...ms),
+        firstEventP50Ms: latencyPercentile(first, 0.5),
+        firstEventP90Ms: latencyPercentile(first, 0.9),
+      };
     })(),
   };
 }

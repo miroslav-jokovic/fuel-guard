@@ -97,20 +97,30 @@ describe("runAssistantEval", () => {
 });
 
 describe("answer time (Step 2d's measurement)", () => {
-  it("times each whole answer around the endpoint's own loop, and reports the median and p90 by nearest rank", async () => {
+  it("times each whole answer around the endpoint's own loop, and reports the median and p90 by nearest rank, and the time to the first streamed event", async () => {
     askData.mockReset();
     let clock = 0;
     const now = vi.spyOn(Date, "now").mockImplementation(() => clock);
-    // Each answer takes longer than the last: 1 s, 2 s, 3 s, 4 s.
-    askData.mockImplementation(async () => {
-      clock += 1000 * askData.mock.calls.length;
+    // Each answer takes longer than the last: 1 s, 2 s, 3 s, 4 s. Its first streamed event comes at a
+    // tenth of that, and a second event later does not move it; the last case streams nothing.
+    askData.mockImplementation(async (...a: unknown[]) => {
+      const n = askData.mock.calls.length;
+      const onEvent = a[7] as (e: unknown) => void;
+      if (n < 4) {
+        clock += 100 * n;
+        onEvent({ type: "step", label: "Reading the fuel report" });
+        clock += 50;
+        onEvent({ type: "text", delta: "Spend" });
+        clock += 1000 * n - 100 * n - 50;
+      } else clock += 1000 * n;
       return trace([{ name: "fuel_report" }]);
     });
     const cases = [byId("spend-and-mpg-last-month"), byId("top-stations"), byId("cost-per-mile"), byId("drivers-moving")];
     const run = await runAssistantEval({} as never, {} as never, "org-1", cases);
     now.mockRestore();
     expect(run.verdicts.map((v) => v.latencyMs)).toEqual([1000, 2000, 3000, 4000]);
-    expect(run.latency).toEqual({ p50Ms: 2000, p90Ms: 4000, maxMs: 4000 });
+    expect(run.verdicts.map((v) => v.firstEventMs)).toEqual([100, 200, 300, undefined]);
+    expect(run.latency).toEqual({ p50Ms: 2000, p90Ms: 4000, maxMs: 4000, firstEventP50Ms: 200, firstEventP90Ms: 300 });
   });
 
   it("nearest rank: no answer time is invented between two measured ones", () => {

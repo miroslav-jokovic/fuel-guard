@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AI_MODELS, ASSISTANT_MODEL_PRICES, splitAssistantLink, stripNeverExposed, type AssistantAnswerLink, type AssistantHistoryTurn, type AssistantToolName, CASE_RULE_ID, computeSubjectMpg, IN_SERVICE_VEHICLE_STATUSES, odometerAccuracy, organizationTimezone, requestCostMicroUsd, todayInZone, type OdoRow, type SubjectFill } from "@silvicom/shared";
+import { AI_MODELS, ASSISTANT_MODEL_PRICES, assistantStepLabel, type AssistantStreamEvent, splitAssistantLink, stripNeverExposed, type AssistantAnswerLink, type AssistantHistoryTurn, type AssistantToolName, CASE_RULE_ID, computeSubjectMpg, IN_SERVICE_VEHICLE_STATUSES, odometerAccuracy, organizationTimezone, requestCostMicroUsd, todayInZone, type OdoRow, type SubjectFill } from "@silvicom/shared";
 import { FUEL_EVENT_DROP } from "../fuel/index.js";
 import type { Env } from "../../env.js";
 import { anthropicClient } from "../../lib/anthropic.js";
@@ -15,6 +15,7 @@ import { assistantRecruiting } from "../recruiting/index.js";
 import { assistantMaintenanceCost } from "../fleetpal/index.js";
 import { assistantCardHolds } from "../efs/index.js";
 import { assistantLoadsByTruck } from "../loads/index.js";
+import { fetchAllPaged, nameMaps } from "./askReads.js";
 import { toolsFor } from "./askTools.js";
 import type { AnswerOutcome, AnswerUsage } from "./assistantUsage.js";
 
@@ -33,34 +34,6 @@ const asFill = (r: FuelRow): SubjectFill => ({
   mpg: n(r.computed_mpg),
   gallons: Number(r.gallons) || 0,
 });
-
-/** Fetch every row of a query by paging in 1000-row windows (PostgREST caps a page at 1000) — so
- *  aggregates are correct for orgs with more than 1000 rows in the window. Bounded to 50 pages. */
-async function fetchAllPaged<T>(
-  build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
-): Promise<T[]> {
-  const PAGE = 1000;
-  const out: T[] = [];
-  for (let page = 0; page < 50; page++) {
-    const { data, error } = await build(page * PAGE, page * PAGE + PAGE - 1);
-    if (error) throw new Error(error.message);
-    const batch = (data ?? []) as T[];
-    out.push(...batch);
-    if (batch.length < PAGE) break;
-  }
-  return out;
-}
-
-async function nameMaps(admin: SupabaseClient, orgId: string) {
-  const [{ data: veh }, { data: drv }] = await Promise.all([
-    admin.from("vehicles").select("id, unit_number").eq("org_id", orgId),
-    admin.from("drivers").select("id, full_name").eq("org_id", orgId),
-  ]);
-  return {
-    unit: new Map((veh ?? []).map((v) => [v.id as string, v.unit_number as string])),
-    driver: new Map((drv ?? []).map((d) => [d.id as string, d.full_name as string])),
-  };
-}
 
 interface FuelRow {
   driver_id?: string | null;
@@ -411,6 +384,8 @@ export async function askData(
   now: Date = new Date(),
   /** F21 R3a: the conversation so far, already trimmed by `assistantHistoryForRequest`. Text only. */
   history: readonly AssistantHistoryTurn[] = [],
+  /** Step 2d: told of each tool read and each piece of text as it happens (the streamed route). */
+  onEvent?: (e: Extract<AssistantStreamEvent, { type: "step" | "text" }>) => void,
 ): Promise<AskTrace> {
   const client = anthropicClient(env);
   // "Last month" and "October" need today's date, on the carrier's clock (D-PREC6) — without it the
@@ -440,7 +415,8 @@ export async function askData(
   for (let i = 0; i < MAX_ROUNDS; i++) {
     let resp: Anthropic.Message;
     try {
-      resp = await client.messages.create({
+      // Streamed so words reach a streaming reader as written; `finalMessage` is `create`'s Message.
+      const stream = client.messages.stream({
         model: AI_MODELS.assistant,
         max_tokens: MAX_TOKENS,
         output_config: { effort: "medium" },
@@ -449,6 +425,8 @@ export async function askData(
         tools: toolsFor(allowed),
         messages,
       });
+      if (onEvent) stream.on("text", (delta) => onEvent({ type: "text", delta }));
+      resp = await stream.finalMessage();
     } catch (e) {
       console.error(`[ai] org ${orgId}: model request failed: ${e instanceof Error ? e.message : String(e)}`);
       return done("The assistant could not answer just now. Try again in a minute.", "error");
@@ -472,6 +450,7 @@ export async function askData(
     for (const tu of toolUses) {
       let out: unknown;
       let failed = false;
+      onEvent?.({ type: "step", label: assistantStepLabel(tu.name) });
       try {
         // D-AI1's second check: the model was shown only `allowed`, and a call outside it is refused
         // here as well, never run. D-AI7: what a tool returns loses every never-shown field.

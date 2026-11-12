@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth, requireOrg } from "../../../middleware/auth.js";
-import { ASSISTANT_ANSWER_MAX, ASSISTANT_QUESTION_MAX, ASSISTANT_TOOL_MODULES, assistantAnswerPages, assistantHistoryForRequest, assistantToolsFor } from "@silvicom/shared";
+import { ASSISTANT_ANSWER_MAX, ASSISTANT_QUESTION_MAX, ASSISTANT_STREAM_TYPE, ASSISTANT_TOOL_MODULES, encodeAssistantEvent, type AssistantStreamEvent, assistantAnswerPages, assistantHistoryForRequest, assistantToolsFor } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -67,8 +67,29 @@ export function aiRouter(): Router {
         res.status(429).json(apiError("ai_budget_exhausted", budget.message));
         return;
       }
+      // F21 Step 2d: a reader that asks for a stream gets each tool read and the words as they happen
+      // (`assistantStreamContract.ts`). Everything that can refuse has refused above, as JSON.
+      const streaming = String(req.headers.accept ?? "").includes(ASSISTANT_STREAM_TYPE);
+      const send = (e: AssistantStreamEvent) => {
+        if (res.writableEnded || res.destroyed) return;
+        res.write(encodeAssistantEvent(e));
+        // `compression` holds writes until it has enough to deflate; `no-transform` below already
+        // keeps it off this response, and a flush is the second lock on the same door.
+        (res as unknown as { flush?: () => void }).flush?.();
+      };
+      if (streaming) {
+        res.status(200);
+        res.setHeader("Content-Type", `${ASSISTANT_STREAM_TYPE}; charset=utf-8`);
+        // `no-transform`: `compression` skips the response (it would buffer the stream to deflate it).
+        // `X-Accel-Buffering: no`: a proxy in front (Railway's edge) passes each event straight on.
+        res.setHeader("Cache-Control", "no-cache, no-transform");
+        res.setHeader("X-Accel-Buffering", "no");
+        res.flushHeaders();
+      }
       const started = Date.now();
-      const { answer, tools, usage, outcome, links } = await askData(admin, env, orgId, question, allowed, now, history);
+      // A reader who closes the tab mid-answer does not stop it: the model's cost is already spent, and
+      // the ledger and the audit row below must still count it.
+      const { answer, tools, usage, outcome, links } = await askData(admin, env, orgId, question, allowed, now, history, streaming ? send : undefined);
       const latencyMs = Date.now() - started;
       const toolNames = tools.map((t) => t.name);
       console.log(assistantLogLine(orgId, usage, latencyMs, toolNames, outcome));
@@ -81,6 +102,11 @@ export function aiRouter(): Router {
         orgId, actorId: userId, action: "ai.ask",
         meta: { question, answer: answer.slice(0, ASSISTANT_ANSWER_MAX), tools, outcome, cost_micro_usd: Math.round(usage.costMicroUsd), history_turns: history.length },
       });
+      if (streaming) {
+        send(outcome === "error" ? { type: "error", message: answer } : { type: "done", answer, pages: assistantAnswerPages(tools), links });
+        res.end();
+        return;
+      }
       if (outcome === "error") {
         res.status(503).json(apiError("ai_unavailable", answer));
         return;
