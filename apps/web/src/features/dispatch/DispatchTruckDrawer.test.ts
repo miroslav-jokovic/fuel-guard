@@ -66,6 +66,8 @@ const stop = { seq: 2, kind: "dropoff", name: "Kroger DC", city: "Indianapolis",
 const loaded: DispatchBoardRow = {
   vehicleId: "v-773", unitNumber: "773", inShop: false, fleetCode: "VINNIEV",
   driver: { id: "d-1", name: "Dana Kelly" },
+  coDriver: null,
+  trailerId: null,
   hos: { status: "driving", driveRemainingMs: 4 * 3_600_000, shiftRemainingMs: 6 * 3_600_000, cycleRemainingMs: 40 * 3_600_000, breakRemainingMs: 2 * 3_600_000, fetchedAt: "2026-10-10T15:00:00Z" },
   position: null, fuelPercent: null,
   current: { loadId: LOAD, ref: "0012345", status: "in_transit", source: "mcleod", externalStatus: "P", customerName: "Kroger", dispatcherId: "vinniev", driverName: null, trailerUnit: null, nextStop: stop, lastStop: stop, stopsLeft: 1 },

@@ -75,6 +75,8 @@ function boardRow(t: Truck): DispatchBoardRow {
   return {
     vehicleId: vehicleId(t.unit), unitNumber: t.unit, inShop: t.story === "shop", fleetCode: t.fleet,
     driver: t.driver ? { id: driverId(t.driver), name: t.driver } : null,
+    coDriver: null,
+    trailerId: null,
     hos: t.driver
       ? { status: t.speedMph > 0 ? "driving" : "onDuty", driveRemainingMs: t.driveHoursLeft * H, shiftRemainingMs: (t.driveHoursLeft + 2) * H, cycleRemainingMs: 38 * H, breakRemainingMs: 3 * H, fetchedAt: at(-0.05) }
       : null,

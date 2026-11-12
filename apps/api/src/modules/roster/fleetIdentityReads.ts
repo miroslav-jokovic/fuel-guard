@@ -19,6 +19,13 @@ export interface FleetIdentity {
   status: string | null;
   driver: { id: string; name: string } | null;
   /**
+   * The second seat of a team: `vehicles.co_driver_id` (0475), kept beside `assigned_driver_id` by the
+   * Samsara sync's slower pass, so the two seats come from one pairing. Read for the Dispatch Board's
+   * notes drawer, which holds both seats' notes (UNIT-NOTES-PLAN D-UN12, Q-UN5). Production on
+   * 2026-11-12: 4 trucks carry one, and none disagrees with the open load's McLeod co-driver.
+   */
+  coDriver: { id: string; name: string } | null;
+  /**
    * The tank and when the vendor read it, or null when this truck has never reported one
    * (`Q-LM20`, the live map's item 8).
    *
@@ -55,6 +62,7 @@ type VehicleRow = {
   unit_number: string | null;
   status: string | null;
   assigned_driver_id: string | null;
+  co_driver_id: string | null;
   /** `numeric(5,1)` (migration 0138), so PostgREST sends it as a STRING — see `toFuel`. */
   samsara_fuel_percent: number | string | null;
   samsara_fuel_at: string | null;
@@ -115,7 +123,7 @@ export async function readFleetIdentities(
   const { data: vData, error: vErr } = await admin
     .from("vehicles")
     .select(
-      "id, unit_number, status, assigned_driver_id, samsara_fuel_percent, samsara_fuel_at, mcleod_fleet_code, winding_down, " +
+      "id, unit_number, status, assigned_driver_id, co_driver_id, samsara_fuel_percent, samsara_fuel_at, mcleod_fleet_code, winding_down, " +
         "dot_annual_inspection_expires_at, current_odometer",
     )
     .eq("org_id", orgId)
@@ -123,7 +131,7 @@ export async function readFleetIdentities(
   if (vErr) throw new Error(vErr.message);
   const vehicles = (vData ?? []) as unknown as VehicleRow[];
 
-  const driverIds = [...new Set(vehicles.map((v) => v.assigned_driver_id).filter((id): id is string => !!id))];
+  const driverIds = [...new Set(vehicles.flatMap((v) => [v.assigned_driver_id, v.co_driver_id]).filter((id): id is string => !!id))];
   const drivers = new Map<string, DriverRow>();
   if (driverIds.length > 0) {
     const { data: dData, error: dErr } = await admin
@@ -139,6 +147,7 @@ export async function readFleetIdentities(
   const byVehicleId = new Map<string, FleetIdentity>();
   for (const v of vehicles) {
     const d = v.assigned_driver_id ? drivers.get(v.assigned_driver_id) : undefined;
+    const co = v.co_driver_id ? drivers.get(v.co_driver_id) : undefined;
     byVehicleId.set(v.id, {
       vehicleId: v.id,
       // A vehicle with no unit number is a roster defect, not a truck to hide: the map shows it with
@@ -146,6 +155,7 @@ export async function readFleetIdentities(
       unitNumber: v.unit_number?.trim() || "—",
       status: v.status,
       driver: d ? { id: d.id, name: displayName(d) } : null,
+      coDriver: co ? { id: co.id, name: displayName(co) } : null,
       fuel: toFuel(v),
       fleetCode: v.mcleod_fleet_code?.trim() || null,
       windingDown: v.winding_down === true,

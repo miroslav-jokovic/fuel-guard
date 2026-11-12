@@ -22,7 +22,7 @@ const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: fal
 const NOW = Date.parse("2026-10-09T20:00:00Z");
 /** An empty truck, free now where it stands — or, with `hours`, free that many hours from the board's clock. */
 const row = (unitNumber: string, fleetCode: string, o: { hours?: number; state?: string } = {}): DispatchBoardRow => ({
-  vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode, driver: null, hos: null, position: null,
+  vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode, driver: null, coDriver: null, trailerId: null, hos: null, position: null,
   fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", milesLeft: null, warnings: [], flags: { ...flags, emptyNow: true },
   available: {
     place: null, ...(o.state === "GA" ? { city: "Savannah", state: "GA", postalCode: "31401", lat: 32.08, lng: -81.09 } : { city: "Lakeland", state: "FL", postalCode: "33801", lat: 28.04, lng: -81.95 }),

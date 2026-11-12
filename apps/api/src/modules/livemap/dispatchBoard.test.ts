@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { readDispatchBoard, __resetDispatchBoardCaches, BOARD_ROWS_TTL_MS } from "./dispatchBoard.js";
-import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped, type RecorderFixture } from "../../testing/supabaseRecorder.js";
 import { USER_ROLES, canReadTestingRecords, canViewSection } from "@silvicom/shared";
 
 /**
@@ -38,47 +38,50 @@ const pickup = stop({ seq: 1, kind: "pickup", location_name: "Viking Packing", c
   appointment_start: "2026-10-09T14:00:00Z", appointment_end: null, external_status: "D",
   actual_arrival_at: "2026-10-09T14:10:00Z", lat: 41.52, lon: -88.08 });
 
-function recorder(o: {
+type Fleet = {
   vehicles?: unknown[]; positions?: unknown[]; loads?: unknown[]; stops?: unknown[]; clocks?: unknown[];
   dispatchers?: unknown[]; fleets?: unknown[]; shop?: Record<string, unknown[]>; trailers?: unknown[];
   certifications?: unknown[]; medstop?: Record<string, unknown[]>;
-} = {}) {
-  return createSupabaseRecorder({
-    tables: {
-      vehicles: { data: o.vehicles ?? [vehicle()] },
-      // Both owners read `drivers` — roster for the name, samsara to resolve its clocks' driver id.
-      // …and evidence reads it for the driver's DQ file (DBV4).
-      drivers: { data: [{ id: "drv-1", first_name: "Ana", last_name: "Ruiz", samsara_driver_id: "5551", full_name: "Ana Ruiz", status: "active", cdl_number: "R123" }] },
-      certifications: { data: o.certifications ?? [] },
-      qualification_records: { data: [] },
-      documents: { data: [] },
-      medstop_employees: { data: o.medstop?.employees ?? [] },
-      medstop_pools: { data: o.medstop?.pools ?? [] },
-      medstop_selections: { data: o.medstop?.selections ?? [] },
-      vehicle_positions: { data: o.positions ?? [position()] },
-      driver_hos_clocks: {
-        data: o.clocks ?? [{
-          samsara_driver_id: "5551", duty_status: "driving", drive_remaining_ms: 6 * H, shift_remaining_ms: 8 * H,
-          cycle_remaining_ms: 40 * H, break_remaining_ms: 3 * H, fetched_at: ago(120),
-        }],
-      },
-      loads: { data: o.loads ?? [load()] },
-      trailers: { data: o.trailers ?? [] },
-      fleetpal_units: { data: o.shop?.units ?? [] },
-      fleetpal_pm_schedules: { data: o.shop?.schedules ?? [] },
-      fleetpal_pm_intervals: { data: o.shop?.intervals ?? [] },
-      fleetpal_work_orders: { data: o.shop?.orders ?? [] },
-      load_stops: { data: o.stops ?? [pickup, stop()] },
-      tms_dispatchers: {
-        data: o.dispatchers ?? [
-          { external_id: "vinniev", display_name: "vinniev", is_system: false, is_active: true, user_id: USER },
-          { external_id: "asen", display_name: "asen", is_system: false, is_active: true, user_id: null },
-        ],
-      },
-      tms_fleets: { data: o.fleets ?? [{ code: "VINNIEV", dispatcher_external_id: "vinniev" }, { code: "VLADI", dispatcher_external_id: null }] },
+};
+
+function recorder(o: Fleet = {}) {
+  return createSupabaseRecorder({ tables: tables(o), rpc: { org_module_enabled: false } });
+}
+
+function tables(o: Fleet = {}): Record<string, RecorderFixture> {
+  return {
+    vehicles: { data: o.vehicles ?? [vehicle()] },
+    // Both owners read `drivers` — roster for the name, samsara to resolve its clocks' driver id.
+    // …and evidence reads it for the driver's DQ file (DBV4).
+    drivers: { data: [{ id: "drv-1", first_name: "Ana", last_name: "Ruiz", samsara_driver_id: "5551", full_name: "Ana Ruiz", status: "active", cdl_number: "R123" }] },
+    certifications: { data: o.certifications ?? [] },
+    qualification_records: { data: [] },
+    documents: { data: [] },
+    medstop_employees: { data: o.medstop?.employees ?? [] },
+    medstop_pools: { data: o.medstop?.pools ?? [] },
+    medstop_selections: { data: o.medstop?.selections ?? [] },
+    vehicle_positions: { data: o.positions ?? [position()] },
+    driver_hos_clocks: {
+      data: o.clocks ?? [{
+        samsara_driver_id: "5551", duty_status: "driving", drive_remaining_ms: 6 * H, shift_remaining_ms: 8 * H,
+        cycle_remaining_ms: 40 * H, break_remaining_ms: 3 * H, fetched_at: ago(120),
+      }],
     },
-    rpc: { org_module_enabled: false },
-  });
+    loads: { data: o.loads ?? [load()] },
+    trailers: { data: o.trailers ?? [] },
+    fleetpal_units: { data: o.shop?.units ?? [] },
+    fleetpal_pm_schedules: { data: o.shop?.schedules ?? [] },
+    fleetpal_pm_intervals: { data: o.shop?.intervals ?? [] },
+    fleetpal_work_orders: { data: o.shop?.orders ?? [] },
+    load_stops: { data: o.stops ?? [pickup, stop()] },
+    tms_dispatchers: {
+      data: o.dispatchers ?? [
+        { external_id: "vinniev", display_name: "vinniev", is_system: false, is_active: true, user_id: USER },
+        { external_id: "asen", display_name: "asen", is_system: false, is_active: true, user_id: null },
+      ],
+    },
+    tms_fleets: { data: o.fleets ?? [{ code: "VINNIEV", dispatcher_external_id: "vinniev" }, { code: "VLADI", dispatcher_external_id: null }] },
+  };
 }
 
 describe("the dispatch board", () => {
@@ -155,6 +158,43 @@ describe("the dispatch board", () => {
     ]);
     expect(r.flags.warningUrgent).toBe(true);
     expectOrgScoped(rec, ORG);
+  });
+
+  it("names a team's second seat and the current load's trailer by id, for the row's notes drawer (Q-UN5)", async () => {
+    // The fake answers as PostgREST would: only the columns `vehicles` selected, and only the drivers
+    // the `.in("id", …)` asked for — so a reader that forgets the co-driver's column or id sends null.
+    const selected = (q: { ops: Array<{ method: string; args: unknown[] }> }) =>
+      String(q.ops.find((op) => op.method === "select")?.args[0] ?? "*").split(",").map((c) => c.trim());
+    const team = vehicle({ co_driver_id: "drv-2" });
+    const people = [
+      { id: "drv-1", first_name: "Ana", last_name: "Ruiz", samsara_driver_id: "5551", full_name: "Ana Ruiz", status: "active", cdl_number: "R123" },
+      { id: "drv-2", first_name: "Ben", last_name: "Okafor", samsara_driver_id: null, full_name: "Ben Okafor", status: "active", cdl_number: "R456" },
+    ];
+    const rec = createSupabaseRecorder({
+      tables: {
+        ...tables({ loads: [load({ trailer_id: "trl-3152" })] }),
+        vehicles: (q) => {
+          const cols = selected(q);
+          return cols.includes("*") ? [team] : [Object.fromEntries(cols.map((c) => [c, (team as Record<string, unknown>)[c] ?? null]))];
+        },
+        drivers: (q) => {
+          const asked = q.filters().find((f) => f.col === "id")?.val;
+          return Array.isArray(asked) ? people.filter((p) => asked.includes(p.id)) : people;
+        },
+      },
+      rpc: { org_module_enabled: false },
+    });
+    const r = (await readDispatchBoard(rec.client, ORG, READER, NOW)).rows[0]!;
+    expect(r.driver).toEqual({ id: "drv-1", name: "Ana Ruiz" });
+    expect(r.coDriver).toEqual({ id: "drv-2", name: "Ben Okafor" });
+    expect(r.trailerId).toBe("trl-3152");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("sends no second seat and no trailer id for a solo truck whose load has no trailer", async () => {
+    const r = (await readDispatchBoard(recorder().client, ORG, READER, NOW)).rows[0]!;
+    expect(r.coDriver).toBeNull();
+    expect(r.trailerId).toBeNull();
   });
 
   it("says nothing is due when nothing is — no chips, and no attention for it", async () => {
