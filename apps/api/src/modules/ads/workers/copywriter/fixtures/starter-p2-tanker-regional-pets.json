@@ -1,0 +1,175 @@
+{
+  "name": "starter-p2-tanker-regional-pets",
+  "about": "Starter P2 \"The number\" on the opening-tanker-regional-pets brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A tanker driver, hazmat",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 75,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekends"
+        },
+        {
+          "kind": "term",
+          "term": "pet policy"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "tanker freight",
+          "regional runs",
+          "Illinois, Indiana, Wisconsin"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "The number",
+      "hook_formula": "Lead with the pay figure alone, exactly as the brief states it and with its unit (per mile, per week, per year). If the brief states no pay, lead with its strongest other figure (a bonus, home days, miles) — never a figure the brief does not hold. Who the job is for (the licence, the kind of run) goes in a few words on the small line above it, never in the pay line.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "A plain {surface} background, {texture}, {light}, a soft {tone} gradient, nothing in the frame, no text, no logos, no lettering",
+      "image_slots": [
+        "surface",
+        "texture",
+        "light",
+        "tone"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "centered",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta",
+        "kicker": "kicker"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "pay_first",
+      "scene_family": "abstract_plate"
+    },
+    "company_name": null,
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:00:51.455Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "pay": "$0.75 per mile",
+            "cta": "Apply today",
+            "primary_text": "Regional tanker runs through Illinois, Indiana, and Wisconsin. You're home weekends, paid weekly, and you can bring your pet. Hazmat and tanker endorsements required, two years of experience, age 23+.",
+            "headline": "Home weekends, hazmat runs",
+            "kicker": "Class A tanker"
+          },
+          "es": {
+            "pay": "$0.75 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales de tanquero en Illinois, Indiana y Wisconsin. Regresas a casa los fines de semana, con pago semanal y política para mascotas. Se requiere endoso de materiales peligrosos, dos años de experiencia y ser mayor de 23 años.",
+            "headline": "Casa los fines de semana",
+            "kicker": "Tanquero Clase A"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.75 per mile",
+            "cta": "Join us now",
+            "primary_text": "You run regional tanker freight — Illinois, Indiana, Wisconsin — and you're back home every weekend. Weekly pay, pet policy, two years of tanker or hazmat experience required. Age 23+.",
+            "headline": "Regional tanker, home weekly",
+            "kicker": "Hazmat tanker CDL"
+          },
+          "es": {
+            "pay": "$0.75 por milla",
+            "cta": "Únete hoy",
+            "primary_text": "Rutas regionales de tanquero en Illinois, Indiana y Wisconsin, con regreso a casa cada fin de semana. Pago semanal y política para mascotas. Se requieren dos años de experiencia y mayores de 23 años.",
+            "headline": "Regional, casa cada fin de semana",
+            "kicker": "Tanquero hazmat CDL"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.75 per mile",
+            "cta": "Apply now",
+            "primary_text": "Tanker and hazmat work across Illinois, Indiana, and Wisconsin. Two years of experience gets you in. You earn weekly, bring your pet, and are home weekends. Class A with hazmat and tanker endorsements, age 23+.",
+            "headline": "Tanker hazmat, home weekends",
+            "kicker": "Regional tanker runs"
+          },
+          "es": {
+            "pay": "$0.75 por milla",
+            "cta": "Aplica ahora",
+            "primary_text": "Carga de tanquero con materiales peligrosos en Illinois, Indiana y Wisconsin. Con dos años de experiencia puedes aplicar. Pago semanal, política para mascotas y fines de semana en casa. Clase A con endosos requeridos, mayores de 23 años.",
+            "headline": "Tanquero hazmat, fines en casa",
+            "kicker": "Rutas regionales tanquero"
+          }
+        }
+      ]
+    }
+  }
+}

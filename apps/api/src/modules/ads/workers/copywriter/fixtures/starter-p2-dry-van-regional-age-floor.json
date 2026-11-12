@@ -1,0 +1,180 @@
+{
+  "name": "starter-p2-dry-van-regional-age-floor",
+  "about": "Starter P2 \"The number\" on the opening-dry-van-regional-age-floor brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A regional dry van driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 160000,
+          "per": "week"
+        },
+        {
+          "kind": "money",
+          "cents": 190000,
+          "per": "week"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "dental and vision"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "regional runs",
+          "Midwest"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "The number",
+      "hook_formula": "Lead with the pay figure alone, exactly as the brief states it and with its unit (per mile, per week, per year). If the brief states no pay, lead with its strongest other figure (a bonus, home days, miles) — never a figure the brief does not hold. Who the job is for (the licence, the kind of run) goes in a few words on the small line above it, never in the pay line.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "A plain {surface} background, {texture}, {light}, a soft {tone} gradient, nothing in the frame, no text, no logos, no lettering",
+      "image_slots": [
+        "surface",
+        "texture",
+        "light",
+        "tone"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "centered",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta",
+        "kicker": "kicker"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "pay_first",
+      "scene_family": "abstract_plate"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:58:23.613Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "pay": "$1,600–$1,900/week",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc is hiring dry van drivers for regional Midwest runs. Earn $1,600 to $1,900 per week and get home weekly. Health, dental, and vision insurance included. Must be 23+ with 2 years of experience.",
+            "headline": "Home weekly, Midwest runs",
+            "kicker": "Class A regional"
+          },
+          "es": {
+            "pay": "$1,600–$1,900/semana",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc busca conductores de van seca para rutas regionales en el Medio Oeste. Gana de $1,600 a $1,900 por semana y regresa a casa cada semana. Seguro médico, dental y de visión incluidos. Se requieren mayores de 23 con 2 años de experiencia.",
+            "headline": "A casa cada semana",
+            "kicker": "Clase A regional"
+          }
+        },
+        {
+          "en": {
+            "pay": "$1,600–$1,900/week",
+            "cta": "Join us today",
+            "primary_text": "Home weekly on Midwest regional dry van runs — that is the job at Silvicom Inc. Pay runs $1,600 to $1,900 per week. Full benefits: health, dental, and vision insurance. Requirements: 23+ and 2 years behind the wheel.",
+            "headline": "Silvicom Inc is hiring",
+            "kicker": "Midwest dry van"
+          },
+          "es": {
+            "pay": "$1,600–$1,900/semana",
+            "cta": "Únete hoy",
+            "primary_text": "Regresas a casa cada semana en rutas regionales de van seca por el Medio Oeste — ese es el trabajo en Silvicom Inc. Paga de $1,600 a $1,900 por semana. Beneficios completos: seguro médico, dental y de visión. Requisitos: mayores de 23 y 2 años de experiencia.",
+            "headline": "Silvicom Inc está contratando",
+            "kicker": "Van seca, Medio Oeste"
+          }
+        },
+        {
+          "en": {
+            "pay": "$1,600–$1,900/week",
+            "cta": "Apply now",
+            "primary_text": "Dry van, Midwest regional, home weekly. Silvicom Inc pays $1,600 to $1,900 per week with health, dental, and vision insurance. If you have 2 years of experience and are 23+, this run is ready for you.",
+            "headline": "Midwest dry van, home weekly",
+            "kicker": "2 yrs exp required"
+          },
+          "es": {
+            "pay": "$1,600–$1,900/semana",
+            "cta": "Aplica ahora",
+            "primary_text": "Van seca, rutas regionales en el Medio Oeste, a casa cada semana. Silvicom Inc paga de $1,600 a $1,900 por semana con seguro médico, dental y de visión. Si tienes 2 años de experiencia y eres mayor de 23, esta ruta te espera.",
+            "headline": "Van seca, a casa cada semana",
+            "kicker": "Se requieren 2 años"
+          }
+        }
+      ]
+    }
+  }
+}

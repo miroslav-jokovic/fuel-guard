@@ -1,0 +1,176 @@
+{
+  "name": "starter-p2-es-tanker-weekends",
+  "about": "Starter P2 \"The number\" on the opening-es-tanker-weekends brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor de tanque Clase A, regional",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 76,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 80,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekends"
+        },
+        {
+          "kind": "term",
+          "term": "pet policy"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "tanker freight",
+          "regional runs",
+          "Illinois e Indiana"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "The number",
+      "hook_formula": "Lead with the pay figure alone, exactly as the brief states it and with its unit (per mile, per week, per year). If the brief states no pay, lead with its strongest other figure (a bonus, home days, miles) — never a figure the brief does not hold. Who the job is for (the licence, the kind of run) goes in a few words on the small line above it, never in the pay line.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "A plain {surface} background, {texture}, {light}, a soft {tone} gradient, nothing in the frame, no text, no logos, no lettering",
+      "image_slots": [
+        "surface",
+        "texture",
+        "light",
+        "tone"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "centered",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta",
+        "kicker": "kicker"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "pay_first",
+      "scene_family": "abstract_plate"
+    },
+    "company_name": "Dispatch Freight Lines",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:59:16.850Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "pay": "$0.76–$0.80 per mile",
+            "cta": "Apply today",
+            "primary_text": "Dispatch Freight Lines runs tanker freight on regional lanes in Illinois and Indiana. You earn $0.76 to $0.80 per mile and get home weekends. Pet policy available. Must be age 23 with 2 years of experience. Join our team.",
+            "headline": "Home weekends, great miles",
+            "kicker": "Class A tanker"
+          },
+          "es": {
+            "pay": "$0.76–$0.80 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Dispatch Freight Lines opera rutas regionales de tanque en Illinois e Indiana. Ganas $0.76 a $0.80 por milla y regresas a casa los fines de semana. Política de mascotas disponible. Se requieren mayores de 23 años con 2 años de experiencia. Únete al equipo.",
+            "headline": "A casa los fines de semana",
+            "kicker": "Tanque Clase A"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.76–$0.80 per mile",
+            "cta": "Apply now",
+            "primary_text": "Home weekends on regional tanker runs — Illinois and Indiana lanes. Dispatch Freight Lines pays $0.76 to $0.80 per mile. Pet policy in place. Require age 23 and 2 years behind the wheel. Come drive with us.",
+            "headline": "Tanker, home every weekend",
+            "kicker": "Regional tanker"
+          },
+          "es": {
+            "pay": "$0.76–$0.80 por milla",
+            "cta": "Aplica ahora",
+            "primary_text": "Regresas a casa los fines de semana en rutas de tanque por Illinois e Indiana. Dispatch Freight Lines paga $0.76 a $0.80 por milla. Se acepta mascota. Requisitos: mayor de 23 años y 2 años de experiencia. Maneja con nosotros.",
+            "headline": "A casa cada fin de semana",
+            "kicker": "Rutas regionales"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.76–$0.80 per mile",
+            "cta": "Start today",
+            "primary_text": "Illinois and Indiana regional tanker routes with Dispatch Freight Lines. The rate is $0.76 to $0.80 per mile. You are home weekends. Pet policy included. Must hold a Class A and have 2 years of experience, age 23 or older.",
+            "headline": "IL & IN regional tanker",
+            "kicker": "IL & IN tanker lanes"
+          },
+          "es": {
+            "pay": "$0.76–$0.80 por milla",
+            "cta": "Empieza hoy",
+            "primary_text": "Rutas regionales de tanque en Illinois e Indiana con Dispatch Freight Lines. La tarifa es $0.76 a $0.80 por milla. Llegas a casa los fines de semana. Se acepta mascota. Se requiere Clase A, 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "Tanque regional, IL e IN",
+            "kicker": "Rutas IL e IN"
+          }
+        }
+      ]
+    }
+  }
+}

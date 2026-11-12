@@ -1,0 +1,180 @@
+{
+  "name": "starter-p2-regional-reefer-weekly",
+  "about": "Starter P2 \"The number\" on the opening-regional-reefer-weekly brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A regional reefer driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 62,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 70,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "term",
+          "term": "no-touch freight"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "reefer freight",
+          "regional runs",
+          "Chicago to Texas and back"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "The number",
+      "hook_formula": "Lead with the pay figure alone, exactly as the brief states it and with its unit (per mile, per week, per year). If the brief states no pay, lead with its strongest other figure (a bonus, home days, miles) — never a figure the brief does not hold. Who the job is for (the licence, the kind of run) goes in a few words on the small line above it, never in the pay line.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "A plain {surface} background, {texture}, {light}, a soft {tone} gradient, nothing in the frame, no text, no logos, no lettering",
+      "image_slots": [
+        "surface",
+        "texture",
+        "light",
+        "tone"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "centered",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta",
+        "kicker": "kicker"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "pay_first",
+      "scene_family": "abstract_plate"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:00:39.191Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "pay": "$0.62–$0.70 per mile",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc is hiring regional reefer drivers for Chicago-to-Texas lanes. You haul no-touch freight, get paid weekly, and are home weekly. Rates run $0.62 to $0.70 per mile depending on experience. You need 2 years of experience and must be 23+. Join our team.",
+            "headline": "Home weekly, weekly pay",
+            "kicker": "Class A reefer runs"
+          },
+          "es": {
+            "pay": "$0.62–$0.70 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc busca conductores de tráiler refrigerado para rutas regionales de Chicago a Texas. Carga sin tocar mercancía, pago semanal y regreso a casa cada semana. La tarifa es de $0.62 a $0.70 por milla. Se requieren 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "En casa cada semana",
+            "kicker": "Rutas regionales reefer"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.62–$0.70 per mile",
+            "cta": "Apply now",
+            "primary_text": "Home weekly. Weekly pay. No-touch freight. Silvicom Inc runs reefer lanes from Chicago to Texas and back — regional miles, predictable schedule, pay you can count on. Earn $0.62 to $0.70 per mile. Need a Class A CDL, 2 years of experience, and be 23+.",
+            "headline": "No-touch, home weekly",
+            "kicker": "Regional reefer driver"
+          },
+          "es": {
+            "pay": "$0.62–$0.70 por milla",
+            "cta": "Aplica ahora",
+            "primary_text": "En casa cada semana. Pago semanal. Sin tocar carga. Silvicom Inc opera rutas reefer de Chicago a Texas y de regreso. Gana de $0.62 a $0.70 por milla con CDL clase A, 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "Sin tocar carga, casa semanal",
+            "kicker": "Conductor reefer regional"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.62–$0.70 per mile",
+            "cta": "Apply today",
+            "primary_text": "These are Chicago-to-Texas reefer runs — regional lanes, no-touch freight, and you're back home every week. Silvicom Inc pays $0.62 to $0.70 per mile, every week. Class A CDL required, 2 years of experience, age 23+.",
+            "headline": "Regional reefer, weekly pay",
+            "kicker": "Chicago–Texas reefer"
+          },
+          "es": {
+            "pay": "$0.62–$0.70 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales de Chicago a Texas en tráiler refrigerado, sin tocar la carga y en casa cada semana. Silvicom Inc paga de $0.62 a $0.70 por milla cada semana. Se requiere CDL clase A, 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "Reefer regional, pago semanal",
+            "kicker": "Rutas Chicago–Texas reefer"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "name": "starter-p1-es-tanker-weekends",
+  "about": "Starter P1 \"From the driver's seat\" on the opening-es-tanker-weekends brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor de tanque Clase A, regional",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 76,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 80,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekends"
+        },
+        {
+          "kind": "term",
+          "term": "pet policy"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "tanker freight",
+          "regional runs",
+          "Illinois e Indiana"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "From the driver's seat",
+      "hook_formula": "Say plainly what the run is, as if from the driver's seat: the lanes or the area, then the schedule or home time the brief states. If the brief states no lanes or area, say the kind of run (local, regional, over the road). Then what we need, if the brief states it (experience, licence, endorsements). No pay figure in the hook unless the brief states nothing else.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield from the driver's seat, {viewpoint}, an open {road} ahead through {setting}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "viewpoint",
+        "road",
+        "setting",
+        "light",
+        "weather"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "ribbon",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "straight_talk",
+      "scene_family": "cab_pov"
+    },
+    "company_name": "Dispatch Freight Lines",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:56:24.855Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Regional tanker, home weekends",
+            "cta": "Apply today",
+            "primary_text": "Illinois and Indiana regional tanker runs with Dispatch Freight Lines. You are home weekends. Pay starts at $0.76 per mile and goes to $0.80 per mile. Pet policy in place. Age 23 and 2 years of experience required. Join our team.",
+            "headline": "Home every weekend"
+          },
+          "es": {
+            "hook": "Tráiler tanque regional, fines en casa",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales en tráiler tanque por Illinois e Indiana con Dispatch Freight Lines. Llegas a casa los fines de semana. Pago desde $0.76 por milla hasta $0.80 por milla. Política de mascotas disponible. Se requieren mayores de 23 años con 2 años de experiencia.",
+            "headline": "A casa los fines de semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "IL and IN tanker, tank endorsement",
+            "cta": "Apply now",
+            "primary_text": "Dispatch Freight Lines runs tanker freight through Illinois and Indiana. Regional schedule means you are home weekends. Pay is $0.76 per mile, up to $0.80 per mile. Pet policy included. Requirements: age 23 and 2 years of experience.",
+            "headline": "$0.76–$0.80 per mile"
+          },
+          "es": {
+            "hook": "Tanque IL e IN, casa los fines",
+            "cta": "Aplica ahora",
+            "primary_text": "Dispatch Freight Lines opera rutas de carga en tanque por Illinois e Indiana. Ruta regional: en casa los fines de semana. Pago de $0.76 a $0.80 por milla. Política de mascotas incluida. Requisitos: mayores de 23 años y 2 años de experiencia.",
+            "headline": "$0.76 a $0.80 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Tanker, Midwest regional, 2 yrs exp",
+            "cta": "Join us today",
+            "primary_text": "You run tanker freight across Illinois and Indiana and get home weekends. Dispatch Freight Lines pays $0.76 per mile to start, moving to $0.80 per mile. Pets ride along — pet policy in place. Must be age 23 with 2 years behind the wheel.",
+            "headline": "Tanker, home weekends"
+          },
+          "es": {
+            "hook": "Tanque Midwest regional, 2 años exp",
+            "cta": "Únete hoy",
+            "primary_text": "Manejas carga en tanque por Illinois e Indiana y llegas a casa los fines de semana. Dispatch Freight Lines paga de $0.76 a $0.80 por milla. Se permiten mascotas. Se requieren mayores de 23 años con 2 años de experiencia en tráiler.",
+            "headline": "Tanque, casa los fines"
+          }
+        }
+      ]
+    }
+  }
+}

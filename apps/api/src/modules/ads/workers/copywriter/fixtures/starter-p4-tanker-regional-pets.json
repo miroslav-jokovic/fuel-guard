@@ -1,0 +1,164 @@
+{
+  "name": "starter-p4-tanker-regional-pets",
+  "about": "Starter P4 \"Walk-around\" on the opening-tanker-regional-pets brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A tanker driver, hazmat",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 75,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekends"
+        },
+        {
+          "kind": "term",
+          "term": "pet policy"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "tanker freight",
+          "regional runs",
+          "Illinois, Indiana, Wisconsin"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive or haul, as the brief describes it (the trailer type, the freight). If the brief says nothing about the equipment, lead with the freight or the kind of run. Then the strongest fact the brief states.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our tractor parked at {setting}, {viewpoint}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "setting",
+        "viewpoint",
+        "light",
+        "weather"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "equipment_first",
+      "scene_family": "equipment_at_rest"
+    },
+    "company_name": null,
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:08:10.836Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Tanker, $0.75 per mile",
+            "cta": "Apply today",
+            "primary_text": "Regional tanker runs: Illinois, Indiana, Wisconsin. Class A CDL, hazmat and tanker endorsements, age 23+, 2 years experience required. Weekly pay, home weekends, pet policy.",
+            "headline": "Tanker hazmat, regional"
+          },
+          "es": {
+            "hook": "Tráiler tanque, $0.75/milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales en tanque: Illinois, Indiana y Wisconsin. CDL clase A, endoso hazmat y tanque, mayores de 23 años, 2 años de experiencia. Pago semanal, casa los fines de semana, política de mascotas.",
+            "headline": "Tanque hazmat, regional"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home weekends, tanker",
+            "cta": "Apply today",
+            "primary_text": "You are home weekends driving tanker freight on regional runs in Illinois, Indiana, and Wisconsin. Pay is $0.75 per mile, weekly. Requires Class A CDL with hazmat and tanker endorsements, 2 years of experience, and age 23+. Pet policy available.",
+            "headline": "Home weekends, $0.75/mi"
+          },
+          "es": {
+            "hook": "Casa fines de semana, tanque",
+            "cta": "Aplica hoy",
+            "primary_text": "Casa los fines de semana en rutas de tanque por Illinois, Indiana y Wisconsin. Pago $0.75 por milla, semanal. CDL clase A, endoso hazmat y tanque, 2 años de experiencia, mayores de 23 años. Política de mascotas.",
+            "headline": "Casa fin de semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "Hazmat tanker, regional",
+            "cta": "Apply today",
+            "primary_text": "Illinois, Indiana, Wisconsin regional tanker routes. You earn $0.75 per mile with weekly pay and get home weekends. Class A CDL required, hazmat and tanker endorsements, 2 years of experience, age 23+. Pet policy on board.",
+            "headline": "$0.75/mile, home weekends"
+          },
+          "es": {
+            "hook": "Tanque hazmat, regional",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales en tanque: Illinois, Indiana y Wisconsin. Ganas $0.75 por milla con pago semanal y llegas a casa los fines de semana. CDL clase A con endoso de hazmat y tanque, 2 años de experiencia, mayores de 23 años. Política de mascotas incluida.",
+            "headline": "$0.75/milla, casa fines de semana"
+          }
+        }
+      ]
+    }
+  }
+}

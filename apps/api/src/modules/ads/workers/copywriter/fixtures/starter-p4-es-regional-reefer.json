@@ -1,0 +1,169 @@
+{
+  "name": "starter-p4-es-regional-reefer",
+  "about": "Starter P4 \"Walk-around\" on the opening-es-regional-reefer brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor Clase A regional, refrigerado",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 64,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 72,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "term",
+          "term": "no-touch freight"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "reefer freight",
+          "regional runs",
+          "Chicago a Texas"
+        ],
+        "in_our_words": "Despacho habla español."
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive or haul, as the brief describes it (the trailer type, the freight). If the brief says nothing about the equipment, lead with the freight or the kind of run. Then the strongest fact the brief states.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our tractor parked at {setting}, {viewpoint}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "setting",
+        "viewpoint",
+        "light",
+        "weather"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "equipment_first",
+      "scene_family": "equipment_at_rest"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:05:52.719Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Reefer, $0.72 per mile",
+            "cta": "Apply today",
+            "primary_text": "Regional reefer runs, Chicago to Texas. No-touch freight, weekly pay, and home weekly. Silvicom Inc needs Class A drivers with 2 years experience, age 23+. Dispatch speaks Spanish.",
+            "headline": "Home weekly, $0.64–$0.72/mi"
+          },
+          "es": {
+            "hook": "Reefer, $0.72 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales en reefer, de Chicago a Texas. Carga sin tocar, pago semanal y regreso a casa cada semana. Silvicom Inc busca conductores Clase A con 2 años de experiencia, mayores de 23 años. El despacho habla español.",
+            "headline": "A casa semanal, $0.72/milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home weekly, reefer runs",
+            "cta": "Join us now",
+            "primary_text": "You drive regional reefer, Chicago to Texas, and you're back home every week. No-touch freight. Pay starts at $0.64 per mile and goes up to $0.72 per mile. Class A, 2 years experience, age 23+. Dispatch speaks Spanish — Silvicom Inc.",
+            "headline": "$0.64–$0.72 per mile"
+          },
+          "es": {
+            "hook": "A casa semanal, reefer",
+            "cta": "Únete hoy",
+            "primary_text": "Reefer regional, Chicago a Texas. A casa cada semana, sin tocar la carga. De $0.64 a $0.72 por milla, pago semanal. Clase A, 2 años de experiencia, mayores de 23. El despacho habla español — Silvicom Inc.",
+            "headline": "$0.64–$0.72 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Reefer, Chicago to Texas",
+            "cta": "Apply now",
+            "primary_text": "Regional reefer lanes, Chicago to Texas. No-touch freight, home weekly, weekly pay. $0.64 to $0.72 per mile. Need Class A with 2 years experience and age 23+. Dispatch speaks Spanish. Apply with Silvicom Inc today.",
+            "headline": "No-touch, home weekly"
+          },
+          "es": {
+            "hook": "Reefer, Chicago a Texas",
+            "cta": "Aplica ahora",
+            "primary_text": "Rutas regionales en reefer de Chicago a Texas. Sin tocar la carga, pago semanal y a casa cada semana. De $0.64 a $0.72 por milla. Clase A, 2 años de experiencia, mayores de 23. El despacho habla español. Aplica con Silvicom Inc.",
+            "headline": "Sin tocar carga, casa semanal"
+          }
+        }
+      ]
+    }
+  }
+}

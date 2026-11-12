@@ -1,0 +1,180 @@
+{
+  "name": "starter-p3-es-regional-reefer",
+  "about": "Starter P3 \"Home on time\" on the opening-es-regional-reefer brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor Clase A regional, refrigerado",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 64,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 72,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "term",
+          "term": "no-touch freight"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "reefer freight",
+          "regional runs",
+          "Chicago a Texas"
+        ],
+        "in_our_words": "Despacho habla español."
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Home on time",
+      "hook_formula": "Lead with being home: the home time the brief states (every night, weekends, so many days a month), in the reader's words. If the brief states no home time, lead with the schedule or the area that keeps the driver near home. The one fact that makes it believable goes on the second line, in a few words.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "Our truck parked on a quiet {street} at {time_of_day}, a porch light on, {season}, {viewpoint}, no people, no text, no logos, no lettering",
+      "image_slots": [
+        "street",
+        "time_of_day",
+        "season",
+        "viewpoint"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "top_band",
+      "look": "ribbon",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "life_first",
+      "scene_family": "home_street"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:02:23.505Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Home every week.",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc runs reefer freight from Chicago to Texas. Regional lanes mean home weekly, with weekly pay on the same schedule. $0.64–$0.72 per mile, no-touch freight, dispatcher speaks Spanish. Must be 23+ with 2 years experience.",
+            "headline": "Home every week.",
+            "second_line": "$0.64–$0.72/mile"
+          },
+          "es": {
+            "hook": "A casa cada semana.",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc corre rutas refrigeradas de Chicago a Texas. Ruta regional: regresas a casa cada semana y cobras cada semana. De $0.64 a $0.72 por milla, carga sin toque y el despacho habla español. Mayores de 23 con 2 años de experiencia.",
+            "headline": "A casa cada semana.",
+            "second_line": "$0.64–$0.72/milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Weekly pay. Home weekly.",
+            "cta": "Join us today",
+            "primary_text": "Regional reefer runs, Chicago to Texas. You earn $0.64–$0.72 per mile on no-touch freight, get paid every week, and you're back home every week. Silvicom Inc keeps you on a regional loop so the miles and the home time both work in your favor. 23+ and 2 years experience required.",
+            "headline": "Weekly pay. Home weekly.",
+            "second_line": "No-touch freight"
+          },
+          "es": {
+            "hook": "Pago semanal. Casa semanal.",
+            "cta": "Únete hoy",
+            "primary_text": "Rutas regionales de refrigerado, Chicago a Texas. Ganas de $0.64 a $0.72 por milla en carga sin toque, cobras cada semana y llegas a casa cada semana. Silvicom Inc te mantiene en rutas regionales donde las millas y el tiempo en casa funcionan para ti. Se requieren más de 23 años y 2 años de experiencia.",
+            "headline": "Pago semanal. Casa semanal.",
+            "second_line": "Carga sin toque"
+          }
+        },
+        {
+          "en": {
+            "hook": "Chicago to Texas. Home weekly.",
+            "cta": "Apply now",
+            "primary_text": "Reefer lanes, Chicago to Texas. Silvicom Inc pays $0.64–$0.72 per mile on no-touch freight. Weekly pay, home weekly — regional miles that bring you back every week. Dispatcher speaks Spanish. Must be 23+ with 2 years experience.",
+            "headline": "Chicago–Texas. Home weekly.",
+            "second_line": "Weekly pay"
+          },
+          "es": {
+            "hook": "Chicago a Texas. Casa cada semana.",
+            "cta": "Aplica ahora",
+            "primary_text": "Rutas de refrigerado, Chicago a Texas. Silvicom Inc paga de $0.64 a $0.72 por milla en carga sin toque. Pago semanal y a casa cada semana — ruta regional que te regresa seguido. El despacho habla español. Se requieren mayores de 23 con 2 años de experiencia.",
+            "headline": "Chicago–Texas. Casa semanal.",
+            "second_line": "Pago semanal"
+          }
+        }
+      ]
+    }
+  }
+}

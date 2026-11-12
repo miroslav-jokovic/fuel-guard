@@ -1,0 +1,164 @@
+{
+  "name": "starter-p4-es-local-hourly",
+  "about": "Starter P4 \"Walk-around\" on the opening-es-local-hourly brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor local Clase A, caja seca",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 2700,
+          "per": "hour"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "term",
+          "term": "paid time off"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "local runs",
+          "Entregas locales en Chicago"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive or haul, as the brief describes it (the trailer type, the freight). If the brief says nothing about the equipment, lead with the freight or the kind of run. Then the strongest fact the brief states.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our tractor parked at {setting}, {viewpoint}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "setting",
+        "viewpoint",
+        "light",
+        "weather"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "equipment_first",
+      "scene_family": "equipment_at_rest"
+    },
+    "company_name": "360 Logistics",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:05:20.493Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Dry van, $27 an hour",
+            "cta": "Apply today",
+            "primary_text": "Local dry van runs in Chicago. You're home every day and earning $27 per hour. 360 Logistics offers health insurance and paid time off. Class A required, 2 years experience, age 23+.",
+            "headline": "360 Logistics is hiring"
+          },
+          "es": {
+            "hook": "Caja seca, $27 por hora",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas locales de caja seca en Chicago. Llegas a casa todos los días y ganas $27 por hora. 360 Logistics ofrece seguro médico y tiempo libre pagado. Se requiere Clase A, 2 años de experiencia y mayores de 23 años.",
+            "headline": "360 Logistics está contratando"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home daily, dry van",
+            "cta": "Join us now",
+            "primary_text": "You run local Chicago routes in a dry van and sleep in your own bed every night. Pay is $27 per hour. Health insurance and paid time off included. Class A CDL, 2 years experience, 23+ required.",
+            "headline": "Local runs, home every day"
+          },
+          "es": {
+            "hook": "Casa cada día, caja seca",
+            "cta": "Únete hoy",
+            "primary_text": "Rutas locales en Chicago con caja seca y llegas a tu casa cada noche. El pago es de $27 por hora. Incluye seguro médico y tiempo libre pagado. Se requiere CDL Clase A, 2 años de experiencia y mayores de 23 años.",
+            "headline": "Local, en casa cada día"
+          }
+        },
+        {
+          "en": {
+            "hook": "Local Chicago, dry van",
+            "cta": "Apply now",
+            "primary_text": "Dry van freight, local Chicago deliveries. $27 per hour, home daily, health insurance, and paid time off. Class A CDL with 2 years behind the wheel and age 23+ gets you started with 360 Logistics.",
+            "headline": "$27/hr, local dry van"
+          },
+          "es": {
+            "hook": "Local Chicago, caja seca",
+            "cta": "Aplica ahora",
+            "primary_text": "Entregas locales en Chicago con tráiler de caja seca. Ganas $27 por hora, llegas a casa cada día y tienes seguro médico y tiempo libre pagado. CDL Clase A, 2 años de experiencia y mayores de 23 años para unirte a 360 Logistics.",
+            "headline": "$27/hr, caja seca local"
+          }
+        }
+      ]
+    }
+  }
+}

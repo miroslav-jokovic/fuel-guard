@@ -1,0 +1,165 @@
+{
+  "name": "starter-p1-tanker-regional-pets",
+  "about": "Starter P1 \"From the driver's seat\" on the opening-tanker-regional-pets brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A tanker driver, hazmat",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 75,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekends"
+        },
+        {
+          "kind": "term",
+          "term": "pet policy"
+        },
+        {
+          "kind": "term",
+          "term": "weekly pay"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "tanker freight",
+          "regional runs",
+          "Illinois, Indiana, Wisconsin"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "From the driver's seat",
+      "hook_formula": "Say plainly what the run is, as if from the driver's seat: the lanes or the area, then the schedule or home time the brief states. If the brief states no lanes or area, say the kind of run (local, regional, over the road). Then what we need, if the brief states it (experience, licence, endorsements). No pay figure in the hook unless the brief states nothing else.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield from the driver's seat, {viewpoint}, an open {road} ahead through {setting}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "viewpoint",
+        "road",
+        "setting",
+        "light",
+        "weather"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "ribbon",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "straight_talk",
+      "scene_family": "cab_pov"
+    },
+    "company_name": null,
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:57:44.919Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Regional tanker, home weekends",
+            "cta": "Apply today",
+            "primary_text": "Tanker runs through Illinois, Indiana, and Wisconsin. You haul regional, you're home on weekends, and you get paid weekly. $0.75 per mile. Pet policy in place. Class A with tanker and hazmat endorsements required. Must be 23+ with 2 years of experience.",
+            "headline": "Home every weekend"
+          },
+          "es": {
+            "hook": "Tanque regional, casa los fines",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales en tráiler tanque por Illinois, Indiana y Wisconsin. Regresas a casa los fines de semana y cobras cada semana. $0.75 por milla. Se permiten mascotas. Se requiere Clase A con endoso de tanque y hazmat. Mayores de 23 años con 2 años de experiencia.",
+            "headline": "Casa los fines de semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "IL, IN, WI tanker — hazmat",
+            "cta": "Join our team",
+            "primary_text": "$0.75 per mile on regional tanker lanes. Illinois, Indiana, Wisconsin — you know the territory. Weekly pay, home weekends, and a pet policy. Class A, tanker and hazmat endorsements, 23+, 2 years behind the wheel.",
+            "headline": "$0.75 per mile"
+          },
+          "es": {
+            "hook": "Tanque IL, IN, WI — hazmat",
+            "cta": "Únete hoy",
+            "primary_text": "$0.75 por milla en rutas de tanque regional. Illinois, Indiana y Wisconsin — territorio conocido. Pago semanal, casa los fines de semana y política de mascotas. Clase A con endoso de tanque y hazmat. Mayor de 23 años y 2 años de experiencia.",
+            "headline": "$0.75 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Tanker, Midwest, home weekends",
+            "cta": "Apply now",
+            "primary_text": "Class A tanker driver needed for regional hazmat runs in Illinois, Indiana, and Wisconsin. You earn $0.75 per mile, get home on weekends, and are paid weekly. Pets welcome. Need tanker and hazmat endorsements, 2 years experience, age 23+.",
+            "headline": "Class A hazmat tanker"
+          },
+          "es": {
+            "hook": "Tanque, Midwest, fines en casa",
+            "cta": "Aplica ahora",
+            "primary_text": "Se busca conductor Clase A para rutas regionales de tanque y hazmat en Illinois, Indiana y Wisconsin. Ganas $0.75 por milla, llegas a casa los fines de semana y cobras semanalmente. Se aceptan mascotas. Se requieren endosos de tanque y hazmat, 2 años de experiencia, mayor de 23 años.",
+            "headline": "Tanque hazmat Clase A"
+          }
+        }
+      ]
+    }
+  }
+}

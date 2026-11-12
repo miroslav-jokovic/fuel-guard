@@ -1,0 +1,187 @@
+{
+  "name": "starter-p3-es-otr-bonus",
+  "about": "Starter P3 \"Home on time\" on the opening-es-otr-bonus brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor Clase A de larga distancia",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 70,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "week"
+        },
+        {
+          "kind": "quantity",
+          "value": 3,
+          "unit": "day"
+        },
+        {
+          "kind": "money",
+          "cents": 250000,
+          "per": null
+        },
+        {
+          "kind": "term",
+          "term": "sign-on bonus"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "over-the-road runs",
+          "Costa a costa",
+          "Out 2 weeks, home 3 days"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Home on time",
+      "hook_formula": "Lead with being home: the home time the brief states (every night, weekends, so many days a month), in the reader's words. If the brief states no home time, lead with the schedule or the area that keeps the driver near home. The one fact that makes it believable goes on the second line, in a few words.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "Our truck parked on a quiet {street} at {time_of_day}, a porch light on, {season}, {viewpoint}, no people, no text, no logos, no lettering",
+      "image_slots": [
+        "street",
+        "time_of_day",
+        "season",
+        "viewpoint"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "top_band",
+      "look": "ribbon",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "life_first",
+      "scene_family": "home_street"
+    },
+    "company_name": null,
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:02:00.407Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Home 3 days after 2 weeks out",
+            "cta": "Apply today",
+            "primary_text": "Dry van, coast to coast. You run over-the-road for 2 weeks, then you're home for 3 days — a schedule you can plan your life around. $0.70 per mile, a $2,500 sign-on bonus, and 401k. Must be age 23 with 2 years of experience.",
+            "headline": "Home 3 days",
+            "second_line": "Out 2 weeks"
+          },
+          "es": {
+            "hook": "3 días en casa tras 2 semanas",
+            "cta": "Aplica hoy",
+            "primary_text": "Carga seca, de costa a costa. Sales 2 semanas y regresas 3 días a casa — una ruta que puedes planear. $0.70 por milla, bono de contratación de $2,500 y 401k. Mayores de 23 con 2 años de experiencia.",
+            "headline": "3 días en casa",
+            "second_line": "Sales 2 semanas"
+          }
+        },
+        {
+          "en": {
+            "hook": "$0.70/mile, home every 2 weeks",
+            "cta": "Apply now",
+            "primary_text": "Coast-to-coast dry van runs at $0.70 per mile. Every 2 weeks out, you get 3 days home — plus a $2,500 sign-on bonus and 401k. Class A, age 23+, 2 years experience required. Join our team.",
+            "headline": "$0.70 per mile",
+            "second_line": "Home 3 days"
+          },
+          "es": {
+            "hook": "$0.70/milla, a casa cada 2 semanas",
+            "cta": "Aplica ahora",
+            "primary_text": "Rutas de costa a costa con carga seca a $0.70 por milla. Cada 2 semanas en ruta, vuelves 3 días a casa. Bono de $2,500 al firmar y 401k. Clase A, mayores de 23 y 2 años de experiencia requeridos.",
+            "headline": "$0.70 por milla",
+            "second_line": "3 días en casa"
+          }
+        },
+        {
+          "en": {
+            "hook": "Dry van OTR, home 3 days",
+            "cta": "Start today",
+            "primary_text": "Class A over-the-road dry van, coast to coast. The run is 2 weeks out, 3 days home — a real schedule. $0.70 per mile keeps the miles honest. $2,500 sign-on bonus and 401k included. Age 23+, 2 years experience.",
+            "headline": "Coast-to-coast OTR",
+            "second_line": "Home 3 days"
+          },
+          "es": {
+            "hook": "Carga seca OTR, 3 días en casa",
+            "cta": "Empieza hoy",
+            "primary_text": "Conductor Clase A, carga seca de costa a costa en ruta larga. Sales 2 semanas y descansas 3 días en casa — una ruta real. $0.70 por milla, bono de $2,500 al contratar y 401k. Mayor de 23 años y 2 años de experiencia.",
+            "headline": "Costa a costa OTR",
+            "second_line": "3 días en casa"
+          }
+        }
+      ]
+    }
+  }
+}

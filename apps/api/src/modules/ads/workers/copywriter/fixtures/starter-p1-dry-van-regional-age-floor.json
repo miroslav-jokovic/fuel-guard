@@ -1,0 +1,170 @@
+{
+  "name": "starter-p1-dry-van-regional-age-floor",
+  "about": "Starter P1 \"From the driver's seat\" on the opening-dry-van-regional-age-floor brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A regional dry van driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 160000,
+          "per": "week"
+        },
+        {
+          "kind": "money",
+          "cents": 190000,
+          "per": "week"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "dental and vision"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "regional runs",
+          "Midwest"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "From the driver's seat",
+      "hook_formula": "Say plainly what the run is, as if from the driver's seat: the lanes or the area, then the schedule or home time the brief states. If the brief states no lanes or area, say the kind of run (local, regional, over the road). Then what we need, if the brief states it (experience, licence, endorsements). No pay figure in the hook unless the brief states nothing else.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 42
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 300
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "View through a truck windshield from the driver's seat, {viewpoint}, an open {road} ahead through {setting}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "viewpoint",
+        "road",
+        "setting",
+        "light",
+        "weather"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "ribbon",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "straight_talk",
+      "scene_family": "cab_pov"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T16:55:34.971Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Midwest regional, home weekly",
+            "cta": "Apply today",
+            "primary_text": "Dry van freight on regional Midwest runs. You're home weekly and earning $1,600–$1,900 per week. Health, dental and vision insurance included. Class A, 2 years experience, 23+. Join Silvicom Inc.",
+            "headline": "Home weekly, $1,600/wk"
+          },
+          "es": {
+            "hook": "Ruta regional Midwest, casa semanal",
+            "cta": "Aplica hoy",
+            "primary_text": "Carga seca en rutas regionales por el Midwest. Regresas a casa cada semana y ganas entre $1,600 y $1,900 por semana. Seguro médico, dental y de visión incluidos. Clase A, 2 años de experiencia, mayores de 23. Únete a Silvicom Inc.",
+            "headline": "Casa semanal, $1,600/sem"
+          }
+        },
+        {
+          "en": {
+            "hook": "Midwest regional, home weekly",
+            "cta": "Apply with us",
+            "primary_text": "Silvicom Inc is hiring Class A dry van drivers for regional Midwest lanes. Pay runs $1,600 to $1,900 per week. You need 2 years experience and to be 23+. Health, dental and vision coverage on the job.",
+            "headline": "$1,600–$1,900 per week"
+          },
+          "es": {
+            "hook": "Ruta regional Midwest, casa semanal",
+            "cta": "Aplica con nosotros",
+            "primary_text": "Silvicom Inc busca conductores Clase A para carga seca en rutas regionales por el Midwest. Pago de $1,600 a $1,900 por semana. Se requieren 2 años de experiencia y ser mayor de 23 años. Seguro médico, dental y de visión incluidos.",
+            "headline": "$1,600–$1,900 por semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "Midwest regional, home weekly",
+            "cta": "Join our team",
+            "primary_text": "Dry van, regional Midwest. Class A drivers with 2 years experience earn $1,600–$1,900 per week at Silvicom Inc. Health, dental and vision included. Must be 23+. Home every week.",
+            "headline": "Dry van, Midwest regional"
+          },
+          "es": {
+            "hook": "Ruta regional Midwest, casa semanal",
+            "cta": "Únete al equipo",
+            "primary_text": "Tráiler seco, rutas regionales en el Midwest. Conductores Clase A con 2 años de experiencia ganan $1,600–$1,900 por semana en Silvicom Inc. Seguro médico, dental y de visión. Mayores de 23 años. Casa cada semana.",
+            "headline": "Van seco, rutas Midwest"
+          }
+        }
+      ]
+    }
+  }
+}

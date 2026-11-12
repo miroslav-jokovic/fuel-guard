@@ -2,10 +2,35 @@
   "worker": "copywriter",
   "prompt_version": "copywriter@4",
   "model": "claude-sonnet-4-6",
-  "fixtures": 69,
-  "asked": 64,
-  "agreed": 63,
-  "agreement": 0.984,
+  "fixtures": 129,
+  "asked": 124,
+  "agreed": 121,
+  "agreement": 0.976,
   "planted_skipped": 5,
-  "recorded_at": "2026-11-11T05:04:35.419Z"
+  "recorded_at": "2026-11-12T17:12:34.134Z",
+  "parts": [
+    {
+      "worker": "copywriter",
+      "prompt_version": "copywriter@4",
+      "model": "claude-sonnet-4-6",
+      "fixtures": 69,
+      "asked": 64,
+      "agreed": 63,
+      "agreement": 0.984,
+      "planted_skipped": 5,
+      "recorded_at": "2026-11-11T05:04:35.419Z"
+    },
+    {
+      "worker": "copywriter",
+      "prompt_version": "copywriter@4",
+      "model": "claude-sonnet-4-6",
+      "fixtures": 129,
+      "asked": 60,
+      "agreed": 58,
+      "agreement": 0.967,
+      "planted_skipped": 5,
+      "only": "starter-",
+      "recorded_at": "2026-11-12T17:12:34.134Z"
+    }
+  ]
 }

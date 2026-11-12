@@ -329,6 +329,71 @@ the reviewer pick another candidate (AG7), and does not restyle the overlay (AG8
 kit photo or a drawn road, so "composed" is proven as *the request carries the direction and the cut keeps the
 subject*, not as a judgement of a real model's output.
 
+## 8. The owner's rating packets (planned 2026-11-12)
+
+Five workers stand at L2 on `pnpm ads:readiness` (37 of 70 steps), each waiting on something only the owner holds: a
+rating, a threshold, an approval. This section is how each one is asked for, decided by the PM under the owner's
+standing instruction ("decide what you can, ask me only for what is mine").
+
+### 8.1 Decisions
+
+- **D-AD30 · The owner rates copy written for the starters, not for the old P1–P5.** Every recorded copy set before
+  today used ADS-AGENT-PLAN §4a's P1–P5 ("Windshield sunrise", the carousel); #2211 re-specified all five (new hook
+  formulas, P2's 30-character `pay` slot, P5 as "proof"). A rating of the old copy would measure a prompt on presets
+  no carrier adopts. So the 12 `opening-*` briefs (8 English, 4 written in Spanish; every freight, schedule and pay
+  unit those fixtures hold) are crossed with the five `STARTER_PRESETS` into 60 `starter-*` fixtures by
+  `src/scripts/adsStarterCopyFixtures.ts`, which reads the recipes rather than restating them, and recorded live
+  once (the owner's OK, 2026-11-12: "Yes, record it"). `ads:eval --only <prefix>` records a new set without
+  re-asking the rest; the baseline then holds both runs as `parts`, and is refused unless the earlier baseline
+  measured every other fixture under the same prompt and model.
+- **D-AD31 · The rating is a page, not a PR comment.** #2054's 40 ads, slot by slot in a comment, were never
+  rated. The packet is a private Artifact (“Ad copy ratings”) that saves each tap to its own store, which the PM
+  reads back: one set per screen, the brief's facts beside the candidates, the overlay words drawn as the ad draws
+  them, three answers per candidate (*Run as is · Needs an edit · Wouldn't run*), the best of the set, a note.
+  Only the candidates that pass the claim and length checks are shown — the rest never reach review. Candidates
+  are in a seeded shuffle, and no judge score is shown, so the ratings stay blind to the writer's order and the
+  craft judge's (they are its ground truth). The owner rates English; Spanish is rated on the same page by a
+  Spanish reader (F-AG12), as its own documents.
+- **D-AD32 · What each rating becomes.**
+  - Copywriter L3: the share of the 60 sets with at least one candidate rated *Run as is* in English (a person
+    chooses at review, so one usable candidate is a usable set), recorded as the baseline; the share of single
+    candidates rated so is recorded beside it. §4R sets no bar for it; the number is the bar later prompts beat.
+  - Craft judge L3: one live judge recording over the same 60 sets (its own approval), then agreement = the share
+    of sets with two or more shown candidates where the judge's first choice is one the owner rated *Run as is*,
+    or, where none was, is the owner's best. At Q-AD57's bar (rec. 0.8).
+  - The starters (Q-AD12): the page's first tab, approve or "needs an edit" with a note, per starter. An approval
+    lets the art director's L3 re-run on P1–P5 (its own approval to record).
+- **D-AD33 · No proxy for the finished-ad judge's 30 ads.** Q-AD76 asks for 30 *real* ads; ads drawn on the
+  checker's stand-in photos would rate the overlay, not the ad. It waits for V4's pictures (Q-AD20), which wait for
+  Stage 2's Higgsfield budget; the same page format is reused then.
+- **D-AD34 · The checker's threshold is a ruling, not a sheet.** It goes to the owner in the decision list as
+  Q-AD78 below; growing the corpus past one image per defect needs pictures, so it is Stage 2 work.
+
+### 8.2 Open question
+
+- **Q-AD78 · The checker's recall threshold (owner).** (a) Every planted image caught (recall 1.0) for lettering,
+  a foreign logo and a person under a "none" policy — the legal and brand faults — and ≥ 0.9 for the wrong truck,
+  malformed shapes and a subject in the text band; at least 5 images per defect type. (b) 0.9 for every type.
+  (c) 1.0 for every type. **Rec: (a)** — a missed lettering defect publishes words we did not write; a missed
+  malformed wheel is a weaker ad that a person still sees at review.
+
+### 8.3 Progress log
+
+- **2026-11-12** — The 60 starter fixtures recorded (`copywriter@4`, `claude-sonnet-4-6`, one run, the owner's OK
+  the same day): **58 of 60 sets have at least one candidate that passes the claim and length checks** (old P1–P5:
+  63 of 64). The whole baseline is now 121 of 124, in two `parts`.
+  - **25 of the 58 needed the fit pass**, against few on the old presets: 11 of 12 on P4 (a 36-character hook) and
+    9 of 12 on P5. The starters' slots are shorter than the old fixtures' (36–40 against 42), and the model writes
+    to the old length first. Wording only, mended by the pass the worker already makes, but a cost: every fit pass
+    is a second call. Worth a look if the owner's ratings show the mended lines read clipped.
+  - **The two refusals are both on the team brief** (`opening-team-otr-dedicated-annual`, the longest facts list):
+    P3 wrote a quantity the brief does not hold and ran long (stopped, not mended: an invented figure is never
+    coaxed); P4 stayed over length after its one fit pass.
+  - 180 candidates written, 164 pass the checks and are on the rating page; 16 were refused and are not shown,
+    since they would never reach review.
+  - The rating page (D-AD31) is published, private to the owner: https://claude.ai/artifact/KG1h65doetP92nctQvSvnx.
+    The Spanish column needs a Spanish reader the owner names and shares the page with.
+
 ## Sources (read 2026-11-09)
 
 Meta, primary: [Asset Feed Spec](https://developers.facebook.com/docs/marketing-api/ad-creative/asset-feed-spec/) ·

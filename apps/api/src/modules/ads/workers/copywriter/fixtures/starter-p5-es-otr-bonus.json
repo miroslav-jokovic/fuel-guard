@@ -1,0 +1,188 @@
+{
+  "name": "starter-p5-es-otr-bonus",
+  "about": "Starter P5 \"On the road, in figures\" on the opening-es-otr-bonus brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor Clase A de larga distancia",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 70,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "week"
+        },
+        {
+          "kind": "quantity",
+          "value": 3,
+          "unit": "day"
+        },
+        {
+          "kind": "money",
+          "cents": 250000,
+          "per": null
+        },
+        {
+          "kind": "term",
+          "term": "sign-on bonus"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "over-the-road runs",
+          "Costa a costa",
+          "Out 2 weeks, home 3 days"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "On the road, in figures",
+      "hook_formula": "Lead with one of the brief's own figures as evidence rather than a promise (the pay, or the miles), and put a second on the second line (the home time, or the bonus), so the two read side by side. If the brief states only one figure, the second line is the plainest fact beside it. Never round, never add a figure.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "Our truck driving on {road} through {setting}, {viewpoint}, {light}, {season}, no text, no logos, no lettering",
+      "image_slots": [
+        "road",
+        "setting",
+        "viewpoint",
+        "light",
+        "season"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "top_band",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "proof",
+      "scene_family": "equipment_on_road"
+    },
+    "company_name": null,
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:09:23.107Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "$0.70 per mile",
+            "cta": "Apply today",
+            "primary_text": "Dry van, coast to coast. You run over-the-road and earn $0.70 per mile from day one. Out 2 weeks, home 3 days. There is a $2,500 sign-on bonus, plus 401k. Must be 23+ with 2 years of experience. Apply today.",
+            "headline": "$2,500 sign-on bonus",
+            "second_line": "Home every 2 weeks"
+          },
+          "es": {
+            "hook": "$0.70 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Van seco, costa a costa. Ganas $0.70 por milla en rutas de larga distancia. Sales 2 semanas y regresas 3 días. Bono de entrada de $2,500 y plan 401k. Se requieren mayores de 23 con 2 años de experiencia. Aplica hoy.",
+            "headline": "Bono de $2,500 al firmar",
+            "second_line": "Casa cada 2 semanas"
+          }
+        },
+        {
+          "en": {
+            "hook": "Out 2 weeks, home 3 days",
+            "cta": "Apply now",
+            "primary_text": "You know the schedule before you sign: out 2 weeks, back home for 3 days. Dry van freight, over-the-road runs coast to coast. Pay is $0.70 per mile. Start with a $2,500 sign-on bonus. 401k available. Must be 23+ and have 2 years behind the wheel.",
+            "headline": "Coast-to-coast dry van",
+            "second_line": "$0.70 per mile"
+          },
+          "es": {
+            "hook": "2 semanas fuera, 3 días en casa",
+            "cta": "Aplica ahora",
+            "primary_text": "El horario es claro: fuera 2 semanas, en casa 3 días. Carga de van seco en rutas de larga distancia de costa a costa. Pago de $0.70 por milla. Bono de $2,500 al firmar y plan 401k. Mayor de 23 años con 2 años de experiencia requeridos.",
+            "headline": "Van seco, costa a costa",
+            "second_line": "$0.70 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "$2,500 sign-on bonus",
+            "cta": "Join the team",
+            "primary_text": "Start with $2,500 in your pocket. Dry van freight on over-the-road runs, coast to coast. You earn $0.70 per mile. The cycle is straightforward: out 2 weeks, home 3 days. 401k included. Must be 23+ with 2 years of Class A experience. Join the team.",
+            "headline": "Dry van, coast to coast",
+            "second_line": "$0.70 per mile"
+          },
+          "es": {
+            "hook": "Bono de $2,500 al firmar",
+            "cta": "Únete hoy",
+            "primary_text": "Empieza con $2,500 en el bolsillo. Carga de van seco en rutas de larga distancia, de costa a costa. Ganas $0.70 por milla. El ciclo es sencillo: 2 semanas en ruta, 3 días en casa. Incluye plan 401k. Mayores de 23 con 2 años de experiencia Clase A.",
+            "headline": "Van seco, costa a costa",
+            "second_line": "$0.70 por milla"
+          }
+        }
+      ]
+    }
+  }
+}

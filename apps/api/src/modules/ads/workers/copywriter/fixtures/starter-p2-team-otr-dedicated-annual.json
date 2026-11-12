@@ -1,0 +1,190 @@
+{
+  "name": "starter-p2-team-otr-dedicated-annual",
+  "about": "Starter P2 \"The number\" on the opening-team-otr-dedicated-annual brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A team drivers, dedicated OTR",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 9500000,
+          "per": "year"
+        },
+        {
+          "kind": "money",
+          "cents": 11000000,
+          "per": "year"
+        },
+        {
+          "kind": "money",
+          "cents": 150000,
+          "per": null
+        },
+        {
+          "kind": "term",
+          "term": "referral bonus"
+        },
+        {
+          "kind": "term",
+          "term": "dedicated"
+        },
+        {
+          "kind": "term",
+          "term": "drop and hook"
+        },
+        {
+          "kind": "term",
+          "term": "late-model equipment"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "over-the-road runs",
+          "Coast to coast",
+          "Home every other weekend"
+        ],
+        "in_our_words": "Teams stay together; we do not split a good pair."
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "The number",
+      "hook_formula": "Lead with the pay figure alone, exactly as the brief states it and with its unit (per mile, per week, per year). If the brief states no pay, lead with its strongest other figure (a bonus, home days, miles) — never a figure the brief does not hold. Who the job is for (the licence, the kind of run) goes in a few words on the small line above it, never in the pay line.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "A plain {surface} background, {texture}, {light}, a soft {tone} gradient, nothing in the frame, no text, no logos, no lettering",
+      "image_slots": [
+        "surface",
+        "texture",
+        "light",
+        "tone"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "centered",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta",
+        "kicker": "kicker"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "pay_first",
+      "scene_family": "abstract_plate"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:01:18.088Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "pay": "$95,000–$110,000/yr",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc runs dedicated, coast-to-coast dry van lanes with drop-and-hook freight. Teams earn $95,000 to $110,000 per year. Refer a driver, earn a $1,500 bonus. Late-model equipment. Must be 23+ with 2 years of experience.",
+            "headline": "Dedicated OTR team pay",
+            "kicker": "Class A team drivers"
+          },
+          "es": {
+            "pay": "$95,000–$110,000/año",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc opera rutas dedicadas de costa a costa, van seca, drop and hook. Los equipos ganan de $95,000 a $110,000 por año. Bono de referido de $1,500. Equipo moderno. Mayores de 23 años con 2 años de experiencia.",
+            "headline": "Pago OTR para equipos",
+            "kicker": "Equipos Clase A"
+          }
+        },
+        {
+          "en": {
+            "pay": "$110,000 per year",
+            "cta": "Join us today",
+            "primary_text": "Coast to coast, drop and hook, dry van — dedicated lanes where teams earn up to $110,000 per year. Silvicom Inc keeps teams paired on late-model equipment. $1,500 referral bonus. Must be 23+ with 2 years experience.",
+            "headline": "Teams earn up to $110k",
+            "kicker": "Team OTR, dedicated"
+          },
+          "es": {
+            "pay": "$110,000 por año",
+            "cta": "Únete hoy",
+            "primary_text": "Costa a costa, drop and hook, van seca — ruta dedicada donde los equipos ganan hasta $110,000 por año. Silvicom Inc mantiene los equipos juntos con tráileres modernos. Bono de referido de $1,500. Mayores de 23 años con 2 años de experiencia.",
+            "headline": "Equipos ganan $110,000",
+            "kicker": "OTR dedicado, equipos"
+          }
+        },
+        {
+          "en": {
+            "pay": "$95,000–$110,000/yr",
+            "cta": "Apply now",
+            "primary_text": "Late-model trucks, drop-and-hook freight, dedicated OTR lanes from coast to coast. If you have a partner to run with, Silvicom Inc pays $95,000 to $110,000 per year and keeps you together. $1,500 referral bonus available. Must be 23+ with 2 years experience.",
+            "headline": "Drop & hook, top team pay",
+            "kicker": "Dry van, coast to coast"
+          },
+          "es": {
+            "pay": "$95,000–$110,000/año",
+            "cta": "Aplica ahora",
+            "primary_text": "Tráileres modernos, drop and hook, rutas OTR dedicadas de costa a costa. Con un compañero, ganan de $95,000 a $110,000 por año. Silvicom Inc no separa a los equipos. Bono de referido de $1,500. Mayores de 23 años con 2 años de experiencia.",
+            "headline": "Drop & hook, pago en equipo",
+            "kicker": "Van seca, costa a costa"
+          }
+        }
+      ]
+    }
+  }
+}

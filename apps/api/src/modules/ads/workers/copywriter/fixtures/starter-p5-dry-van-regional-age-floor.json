@@ -1,0 +1,181 @@
+{
+  "name": "starter-p5-dry-van-regional-age-floor",
+  "about": "Starter P5 \"On the road, in figures\" on the opening-dry-van-regional-age-floor brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A regional dry van driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 160000,
+          "per": "week"
+        },
+        {
+          "kind": "money",
+          "cents": 190000,
+          "per": "week"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "dental and vision"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "dry van freight",
+          "regional runs",
+          "Midwest"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "On the road, in figures",
+      "hook_formula": "Lead with one of the brief's own figures as evidence rather than a promise (the pay, or the miles), and put a second on the second line (the home time, or the bonus), so the two read side by side. If the brief states only one figure, the second line is the plainest fact beside it. Never round, never add a figure.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "Our truck driving on {road} through {setting}, {viewpoint}, {light}, {season}, no text, no logos, no lettering",
+      "image_slots": [
+        "road",
+        "setting",
+        "viewpoint",
+        "light",
+        "season"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "top_band",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "proof",
+      "scene_family": "equipment_on_road"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:08:56.138Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "$1,600–$1,900 per week",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc is hiring Class A regional drivers for dry van runs across the Midwest. Earn $1,600 to $1,900 per week and get home weekly. Health, dental, and vision coverage included. Must be 23+ with 2 years of experience. Join our team.",
+            "headline": "Regional dry van, Midwest",
+            "second_line": "Home weekly"
+          },
+          "es": {
+            "hook": "$1,600–$1,900 por semana",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc busca conductores Clase A para carga seca en el Midwest. Gana de $1,600 a $1,900 por semana y regresa a casa cada semana. Seguro médico, dental y visión incluidos. Mayor de 23 años y 2 años de experiencia requeridos.",
+            "headline": "Ruta regional, Midwest",
+            "second_line": "Casa cada semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home weekly",
+            "cta": "Apply today",
+            "primary_text": "Get home every week running dry van freight across the Midwest for Silvicom Inc. Pay runs $1,600 to $1,900 per week. Health insurance plus dental and vision are part of the package. Class A required, age 23+, 2 years of experience. Apply today.",
+            "headline": "Midwest regional, dry van",
+            "second_line": "$1,600–$1,900/week"
+          },
+          "es": {
+            "hook": "Casa cada semana",
+            "cta": "Aplica hoy",
+            "primary_text": "Regresa a casa cada semana manejando carga seca por el Midwest con Silvicom Inc. El pago va de $1,600 a $1,900 por semana. Incluye seguro médico, dental y visión. Se requiere Clase A, mayor de 23 años y 2 años de experiencia. Aplica hoy.",
+            "headline": "Regional Midwest, carga seca",
+            "second_line": "$1,600–$1,900/semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "Dry van, Midwest regional",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc runs dry van freight on regional Midwest lanes. You are home weekly and earn $1,600 to $1,900 per week. Health, dental, and vision insurance included. Class A CDL required, 23+, 2 years of experience. Talk to us today.",
+            "headline": "$1,600–$1,900 per week",
+            "second_line": "Home weekly"
+          },
+          "es": {
+            "hook": "Carga seca, rutas Midwest",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc opera rutas regionales de carga seca por el Midwest. Regresas a casa cada semana y ganas de $1,600 a $1,900 por semana. Seguro médico, dental y visión incluidos. Se requiere CDL Clase A, mayor de 23 años y 2 años de experiencia. Contáctanos hoy.",
+            "headline": "$1,600–$1,900 por semana",
+            "second_line": "Casa cada semana"
+          }
+        }
+      ]
+    }
+  }
+}

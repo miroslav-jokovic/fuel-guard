@@ -881,7 +881,7 @@ export const READINESS = [
             "every leftover digit is reported, so a figure cannot hide inside an unrecognised shape",
           ] }],
         },
-        { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "60 briefs over P1–P5 (20 of them made through openingBrief from fields an opening can hold, CQ2), 20 in Spanish, THREE candidates each since CQ4 (prompt v3): 58 of 60 sets have at least one candidate pass the claim and length checks after the one fit pass (pnpm ads:eval copywriter, baseline.json, 2026-11-09); the owner rates them (the rating sheet in the PR) and the rate is recorded here" },
+        { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "the 60 starter sets (12 opening briefs, 4 written in Spanish, × the five STARTER_PRESETS; D-AD30) recorded under prompt v4 on 2026-11-12: 58 of 60 have at least one candidate pass the claim and length checks after the one fit pass (pnpm ads:eval copywriter --only starter-, baseline.json parts); the owner rates them on the rating page (D-AD31, ADS-CREATIVE-QUALITY-PLAN §8) and the share of sets with a candidate run as is is recorded here (D-AD32)" },
       ],
       // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
       // evaluation set alone (ADS-AGENT-PLAN §9). The run below was written by us from the ruling and CONFIRMED BY THE OWNER 2026-11-06.
@@ -969,7 +969,7 @@ export const READINESS = [
           ],
         },
       ],
-      L3: [{ need: "agreement with the owner's ratings of real copy at the bar Q-AD57 sets (rec 0.8)", gap: "the planted-filler set ranks the filler last 6 of 6, twice (pnpm ads:eval craftJudge, baseline.json, 2026-11-09); the owner's rating sheet (#2054) is the ground truth this grows into and is not yet recorded" }],
+      L3: [{ need: "agreement with the owner's ratings of real copy at the bar Q-AD57 sets (rec 0.8)", gap: "the planted-filler set ranks the filler last 6 of 6, twice (pnpm ads:eval craftJudge, baseline.json, 2026-11-09); the owner's ratings of the 60 starter sets (the rating page, ADS-CREATIVE-QUALITY-PLAN §8, D-AD32) are the ground truth; once rated, one live judge run over the same sets measures agreement" }],
       L4: [{ need: "its ranking over the Copywriter's live candidates on a sandbox run, with the chosen copy created on Meta without refusal", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },

@@ -1,0 +1,165 @@
+{
+  "name": "starter-p4-es-tanker-weekends",
+  "about": "Starter P4 \"Walk-around\" on the opening-es-tanker-weekends brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Conductor de tanque Clase A, regional",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 76,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 80,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekends"
+        },
+        {
+          "kind": "term",
+          "term": "pet policy"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "tanker freight",
+          "regional runs",
+          "Illinois e Indiana"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Walk-around",
+      "hook_formula": "Point at the equipment: what the driver will actually drive or haul, as the brief describes it (the trailer type, the freight). If the brief says nothing about the equipment, lead with the freight or the kind of run. Then the strongest fact the brief states.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 36
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 240
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        }
+      ],
+      "image_prompt_template": "Our tractor parked at {setting}, {viewpoint}, {light}, {weather}, no text, no logos, no lettering",
+      "image_slots": [
+        "setting",
+        "viewpoint",
+        "light",
+        "weather"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "equipment_first",
+      "scene_family": "equipment_at_rest"
+    },
+    "company_name": "Dispatch Freight Lines",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:06:04.518Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Tanker. $0.76–$0.80/mile.",
+            "cta": "Apply today",
+            "primary_text": "Dispatch Freight Lines runs tanker freight through Illinois and Indiana. You earn $0.76 to $0.80 per mile on regional routes, and you are home weekends. Pets ride along. Must be age 23 with 2 years of experience. Join our team.",
+            "headline": "Home every weekend"
+          },
+          "es": {
+            "hook": "Tanque. $0.76–$0.80/milla.",
+            "cta": "Aplica hoy",
+            "primary_text": "Dispatch Freight Lines mueve carga en tanque por Illinois e Indiana. Ganas de $0.76 a $0.80 por milla en rutas regionales y llegas a casa los fines de semana. Se permiten mascotas. Se requiere ser mayor de 23 años con 2 años de experiencia.",
+            "headline": "Casa los fines de semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home weekends. Tanker.",
+            "cta": "Apply today",
+            "primary_text": "Regional tanker runs through Illinois and Indiana with Dispatch Freight Lines. You are home weekends, and you earn $0.76 to $0.80 per mile. Pets welcome. Age 23, 2 years experience required. Apply and ride with us.",
+            "headline": "$0.76–$0.80 per mile"
+          },
+          "es": {
+            "hook": "Casa fines de semana.",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales en tanque por Illinois e Indiana con Dispatch Freight Lines. Llegas a casa los fines de semana y ganas de $0.76 a $0.80 por milla. Se aceptan mascotas. Mayor de 23 años y 2 años de experiencia requeridos.",
+            "headline": "$0.76–$0.80 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Tanker, IL & IN regions.",
+            "cta": "Apply today",
+            "primary_text": "You pull tanker freight on regional lanes in Illinois and Indiana. Dispatch Freight Lines pays $0.76 to $0.80 per mile and gets you home weekends. Pets are welcome. Must be age 23 and have 2 years behind the wheel.",
+            "headline": "Up to $0.80 per mile"
+          },
+          "es": {
+            "hook": "Tanque, rutas IL e IN.",
+            "cta": "Aplica hoy",
+            "primary_text": "Jalas carga en tanque por rutas regionales en Illinois e Indiana. Dispatch Freight Lines paga de $0.76 a $0.80 por milla y llegas a casa los fines de semana. Se permiten mascotas. Mayor de 23 años y 2 años de experiencia requeridos.",
+            "headline": "Hasta $0.80 por milla"
+          }
+        }
+      ]
+    }
+  }
+}

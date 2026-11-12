@@ -1,0 +1,187 @@
+{
+  "name": "starter-p2-reefer-otr-two-years",
+  "about": "Starter P2 \"The number\" on the opening-reefer-otr-two-years brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A OTR reefer driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 70,
+          "per": "mile"
+        },
+        {
+          "kind": "money",
+          "cents": 78,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "week"
+        },
+        {
+          "kind": "quantity",
+          "value": 4,
+          "unit": "day"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "term",
+          "term": "rider policy"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "reefer freight",
+          "over-the-road runs",
+          "Produce out of the valley to the Midwest",
+          "Out 2 weeks, home 4 days"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "The number",
+      "hook_formula": "Lead with the pay figure alone, exactly as the brief states it and with its unit (per mile, per week, per year). If the brief states no pay, lead with its strongest other figure (a bonus, home days, miles) — never a figure the brief does not hold. Who the job is for (the licence, the kind of run) goes in a few words on the small line above it, never in the pay line.",
+      "copy_slots": [
+        {
+          "name": "pay",
+          "max_chars": 30
+        },
+        {
+          "name": "cta",
+          "max_chars": 22
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 280
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "kicker",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "A plain {surface} background, {texture}, {light}, a soft {tone} gradient, nothing in the frame, no text, no logos, no lettering",
+      "image_slots": [
+        "surface",
+        "texture",
+        "light",
+        "tone"
+      ],
+      "starts_from": "text_only",
+      "shows_equipment": false,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "centered",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "pay",
+        "cta": "cta",
+        "kicker": "kicker"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "pay_first",
+      "scene_family": "abstract_plate"
+    },
+    "company_name": null,
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:00:24.312Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "pay": "$0.70–$0.78 per mile",
+            "cta": "Apply today",
+            "primary_text": "Haul produce out of the valley to the Midwest. You run OTR reefer freight — out 2 weeks, home 4 days. Pay starts at $0.70 per mile and goes to $0.78 per mile. Must be 23+ with 2 years of experience. 401k and rider policy included. Join our team.",
+            "headline": "Up to $0.78 per mile",
+            "kicker": "Class A OTR reefer"
+          },
+          "es": {
+            "pay": "$0.70–$0.78 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Ruta OTR de refrigerado — produce del valle al Medio Oeste. Salidas de 2 semanas, casa 4 días. Pago entre $0.70 y $0.78 por milla. Se requieren mayores de 23 años con 2 años de experiencia. 401k y política de acompañante incluidos.",
+            "headline": "Hasta $0.78 por milla",
+            "kicker": "Conductor OTR clase A"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.70–$0.78 per mile",
+            "cta": "Apply now",
+            "primary_text": "Out 2 weeks, home 4 days — that's the schedule on this OTR reefer run. You haul produce from the valley to the Midwest. Pay is $0.70 to $0.78 per mile. Need 2 years of experience and must be 23+. 401k and rider policy available.",
+            "headline": "Home every 2 weeks",
+            "kicker": "OTR reefer driver"
+          },
+          "es": {
+            "pay": "$0.70–$0.78 por milla",
+            "cta": "Aplica ahora",
+            "primary_text": "Fuera 2 semanas, en casa 4 días. Rutas OTR de refrigerado — carga de produce del valle al Medio Oeste. Pago de $0.70 a $0.78 por milla. Se requieren 2 años de experiencia y ser mayor de 23 años. 401k y política de acompañante disponibles.",
+            "headline": "Casa cada 2 semanas",
+            "kicker": "Conductor reefer OTR"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.70–$0.78 per mile",
+            "cta": "Apply today",
+            "primary_text": "Reefer freight, valley to Midwest. These are over-the-road produce runs — you know the lane, you know the work. Pay runs $0.70 to $0.78 per mile depending on experience. Must be 23+ with 2 years behind the wheel. 401k and rider policy on offer.",
+            "headline": "Reefer OTR, $0.78/mi",
+            "kicker": "Class A, 2 yrs exp."
+          },
+          "es": {
+            "pay": "$0.70–$0.78 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Carga refrigerada del valle al Medio Oeste. Rutas OTR de produce — la ruta es conocida, el trabajo es claro. Pago de $0.70 a $0.78 por milla según experiencia. Mayores de 23 años con 2 años de experiencia. 401k y política de acompañante disponibles.",
+            "headline": "Reefer OTR, $0.78/mi",
+            "kicker": "Clase A, 2 años exp."
+          }
+        }
+      ]
+    }
+  }
+}

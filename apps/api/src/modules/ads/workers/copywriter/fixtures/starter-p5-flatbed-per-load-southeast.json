@@ -1,0 +1,181 @@
+{
+  "name": "starter-p5-flatbed-per-load-southeast",
+  "about": "Starter P5 \"On the road, in figures\" on the opening-flatbed-per-load-southeast brief (the owner's copy rating, 2026-11-12).",
+  "input": {
+    "brief": {
+      "source": "recruiting_opening",
+      "ref": "0b6f3c1e-2d4a-4f5b-8c6d-7e8f9a0b1c2d@v1",
+      "subject": "Class A flatbed driver, regional",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 42000,
+          "per": "load"
+        },
+        {
+          "kind": "money",
+          "cents": 68000,
+          "per": "load"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "term",
+          "term": "guaranteed pay"
+        },
+        {
+          "kind": "term",
+          "term": "paid orientation"
+        },
+        {
+          "kind": "quantity",
+          "value": 23,
+          "unit": "age"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        }
+      ],
+      "area": {
+        "label": "Joliet, IL",
+        "latitude": 41.525,
+        "longitude": -88.0817,
+        "radius_miles": 75,
+        "reason": "The terminal's daily dispatch radius"
+      },
+      "subject_matter": {
+        "details": [
+          "flatbed freight",
+          "regional runs",
+          "Georgia, the Carolinas, Tennessee"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [
+        "class_a_held",
+        "class_a_years"
+      ],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "On the road, in figures",
+      "hook_formula": "Lead with one of the brief's own figures as evidence rather than a promise (the pay, or the miles), and put a second on the second line (the home time, or the bonus), so the two read side by side. If the brief states only one figure, the second line is the plainest fact beside it. Never round, never add a figure.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "Our truck driving on {road} through {setting}, {viewpoint}, {light}, {season}, no text, no logos, no lettering",
+      "image_slots": [
+        "road",
+        "setting",
+        "viewpoint",
+        "light",
+        "season"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "top_band",
+      "look": "rail",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "proof",
+      "scene_family": "equipment_on_road"
+    },
+    "company_name": "Dispatch Freight Lines",
+    "candidates": 3
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@4",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-12T17:10:21.681Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "$420–$680 per load",
+            "cta": "Apply today",
+            "primary_text": "Dispatch Freight Lines runs flatbed freight through Georgia, the Carolinas, and Tennessee. Loads pay $420 to $680. Pay is guaranteed, and orientation is paid. You need 2 years of experience and must be 23+. Home weekly.",
+            "headline": "Flatbed, Southeast runs",
+            "second_line": "Home weekly"
+          },
+          "es": {
+            "hook": "$420–$680 por carga",
+            "cta": "Aplica hoy",
+            "primary_text": "Dispatch Freight Lines mueve carga en plataforma por Georgia, las Carolinas y Tennessee. Cargas de $420 a $680 con pago garantizado. Orientación pagada. Se requieren 2 años de experiencia y ser mayor de 23 años. Regreso semanal.",
+            "headline": "Flatbed, rutas del sureste",
+            "second_line": "Regreso semanal"
+          }
+        },
+        {
+          "en": {
+            "hook": "Home weekly",
+            "cta": "Apply today",
+            "primary_text": "Flatbed runs through Georgia, the Carolinas, and Tennessee — and you're home every week. Loads pay $420 to $680 with guaranteed pay. Paid orientation included. Must have 2 years of flatbed experience and be 23+. Join Dispatch Freight Lines today.",
+            "headline": "Regional flatbed, SE",
+            "second_line": "$420–$680 per load"
+          },
+          "es": {
+            "hook": "Regreso a casa cada semana",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas de plataforma por Georgia, las Carolinas y Tennessee. Regreso semanal a casa. Cargas de $420 a $680, pago garantizado y orientación pagada. Se requieren 2 años en plataforma y ser mayor de 23 años. Únete a Dispatch Freight Lines.",
+            "headline": "Flatbed regional, sureste",
+            "second_line": "$420–$680 por carga"
+          }
+        },
+        {
+          "en": {
+            "hook": "Guaranteed pay, every load",
+            "cta": "Apply today",
+            "primary_text": "Dispatch Freight Lines runs flatbed freight across Georgia, the Carolinas, and Tennessee. Every load is guaranteed pay — $420 to $680 depending on the run. You come home weekly. Paid orientation. Must be 23+ with 2 years of experience. Apply today.",
+            "headline": "Flatbed, GA, NC, SC, TN",
+            "second_line": "$420–$680 per load"
+          },
+          "es": {
+            "hook": "Pago garantizado, cada carga",
+            "cta": "Aplica hoy",
+            "primary_text": "Dispatch Freight Lines opera rutas de plataforma por Georgia, las Carolinas y Tennessee. Cada carga tiene pago garantizado: de $420 a $680 según la ruta. Regreso a casa cada semana y orientación pagada. Se requiere ser mayor de 23 años con 2 años de experiencia.",
+            "headline": "Flatbed, GA, NC, SC, TN",
+            "second_line": "$420–$680 por carga"
+          }
+        }
+      ]
+    }
+  }
+}
