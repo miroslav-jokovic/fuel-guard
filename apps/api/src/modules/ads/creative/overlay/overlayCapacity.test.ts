@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { AD_FORMATS, AD_LOOKS, AD_OVERLAY_LAYOUTS, FEED_FORMATS, OVERLAY_HEADLINE_MAX_CHARS, OVERLAY_SMALL_LINE_MAX_CHARS, adPresetSaveSchema, type AdBrandKit, type AdLook } from "@silvicom/shared";
+import { AD_FORMATS, AD_LOOKS, AD_OVERLAY_LAYOUTS, FEED_FORMATS, OVERLAY_HEADLINE_MAX_CHARS, OVERLAY_SMALL_LINE_MAX_CHARS, QUIET_REGION, adPresetSaveSchema, type AdBrandKit, type AdLook } from "@silvicom/shared";
 import { COPYWRITER_EVAL, loadFixtures } from "../../workers/agentFixtures.js";
 import { overlayFit } from "./overlay.js";
+import { layOut } from "./overlayLayout.js";
 
 /**
  * `OVERLAY_HEADLINE_MAX_CHARS` is a figure in shared about a renderer in the API (D-AD27): the preset save refuses
@@ -113,5 +114,39 @@ describe("the headline's ceiling is the overlay's own (D-AD27)", () => {
     expect(adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: recipe(OVERLAY_HEADLINE_MAX_CHARS + 1) }).error?.issues.map((i) => [i.path.join("."), i.message])).toEqual([
       ["recipe.copy_slots", `The headline on the image (hook) holds at most ${OVERLAY_HEADLINE_MAX_CHARS} characters: a longer one needs a third line, and the image has room for two.`],
     ]);
+  });
+});
+
+/**
+ * The art director tells the image model which part of the picture to keep plain (`QUIET_REGION`, D-AD28) — and
+ * the renderer decides where the words actually go. Until L4 the first said a third and the second covered 42 %
+ * at the median; nothing compared them (ADS-AD-LOOK-PLAN D-ADL14). This measures, over every recorded headline
+ * with a button, how far from its edge a `bottom_plate` or `top_band` ad's words reach on the 4:5 frame the
+ * picture is made for, and on the 1:1 cut from it (which keeps the words' edge, `frameStill`, so 1:1's reach is
+ * scaled into the 4:5 picture's height). The footer is counted: it is below the stack, over the same picture.
+ * Not held here, and measured 2026-11-11: an ad with all four lines reaches 54 % in `rail` (50 % in `ribbon`),
+ * and a preset that publishes 1:1 alone has its picture made square, where `rail` reaches 55 %. Those are the
+ * visual check's to judge (`safe_zone_clear`, on the stack), which regenerates with the subject smaller.
+ */
+describe("the words stay inside the part of the picture the art director asks to keep plain (D-ADL14)", () => {
+  const scaleTo45 = { "4:5": 1, "1:1": 1080 / 1350 } as const;
+  // Colours and a phone: `rail` draws its band only for a kit with a primary colour, and the band lifts the stack.
+  const full = { ...kit, colors: [{ name: "primary", hex: "#0B3D2E" }, { name: "accent", hex: "#F2B01E" }], phone: "(555) 010-0142" };
+  it("on the 4:5 frame and the 1:1 cut from it, in both looks, no recorded headline with its button reaches past QUIET_REGION's share", () => {
+    for (const layout of ["bottom_plate", "top_band"] as const) {
+      const share = QUIET_REGION[layout].share!;
+      for (const look of AD_LOOKS) {
+        for (const format of ["4:5", "1:1"] as const) {
+          const reach = headlines.flatMap((h) => {
+            const l = layOut({ format, language: h.language, headline: h.text, cta: "Apply today", brief: h.brief, kit: full, layout, look, hasLogo: false });
+            return l.ok ? [(layout === "bottom_plate" ? l.height - l.stack.y : l.stack.y + l.stack.height) / l.height * scaleTo45[format]] : [];
+          });
+          expect(reach.length, `${look} ${format} ${layout}`).toBeGreaterThan(250);
+          expect(Math.max(...reach), `${look} ${format} ${layout}`).toBeLessThanOrEqual(share);
+          // A third, the figure before L4, is passed by most of them: the share is the words', not a round number.
+          if (layout === "bottom_plate") expect(reach.filter((r) => r > 1 / 3).length / reach.length, `${look} ${format}`).toBeGreaterThan(0.5);
+        }
+      }
+    }
   });
 });

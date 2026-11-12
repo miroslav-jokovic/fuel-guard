@@ -28,10 +28,15 @@ import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOut
  * answers the two things only it can: what the one subject is and how near the camera stands, each from a
  * closed list. The headline is the English one compose chose (AG1): it already passed the claim check, and it
  * is data to this model like every other field — never text to draw.
+ *
+ * Prompt v4 (2026-11-11, ADS-AD-LOOK-PLAN D-ADL10, D-ADL14): the plain part it is told about is now the half the
+ * looks' words measure, not a third; and it is asked for the commercial photograph — low sun or night, a low
+ * camera on the equipment, `medium` distance — over the snapshot, unless the job's own context makes the weather
+ * the story. v3 already chose low light in most answers; v4 removes the two examples that taught the rest.
  */
 
-export const ART_DIRECTOR_PROMPT_VERSION = "artDirector@3";
-const PROMPT = readFileSync(new URL("./prompt.v3.md", import.meta.url), "utf8");
+export const ART_DIRECTOR_PROMPT_VERSION = "artDirector@4";
+const PROMPT = readFileSync(new URL("./prompt.v4.md", import.meta.url), "utf8");
 const MAX_TOKENS = 600;
 
 type Recipe = Pick<AdPresetRecipe, "image_prompt_template" | "image_slots" | "starts_from" | "shows_equipment" | "shows_people" | "layout" | "formats">;

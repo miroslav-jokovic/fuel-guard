@@ -87,13 +87,13 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@3",
+    "prompt_version": "artDirector@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T17:29:24.189Z",
+    "recorded_at": "2026-11-11T15:03:43.773Z",
     "output": {
       "slots": {
-        "time_of_day": "early morning, overcast Midwest light, low grey sky",
-        "activity": "driver standing at the fuel island, nozzle in hand, fueling up"
+        "time_of_day": "pre-dawn, truck-stop lights and amber vapor lamps casting warm pools on wet concrete",
+        "activity": "a person fueling the tractor, nozzle in hand, cab door open"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "focal_subject": "tractor",

@@ -88,14 +88,14 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@3",
+    "prompt_version": "artDirector@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T17:29:35.614Z",
+    "recorded_at": "2026-11-11T15:03:55.521Z",
     "output": {
       "slots": {
-        "time_of_day": "late afternoon",
-        "light": "low golden side-light from the west, long shadows across asphalt",
-        "viewpoint": "low angle from the road shoulder, slightly ahead of and beside the cab"
+        "time_of_day": "late afternoon golden hour",
+        "light": "warm low sun casting long shadows across the asphalt, sky deep amber and blue",
+        "viewpoint": "low angle from road surface, slightly ahead and to the side of the cab, looking up"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "focal_subject": "tractor",
