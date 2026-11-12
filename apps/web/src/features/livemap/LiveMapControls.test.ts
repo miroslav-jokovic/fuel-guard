@@ -130,4 +130,54 @@ describe("the live map's control rail", () => {
     await p.get('[aria-label="Basemap: Map"]').trigger("click");
     expect(entries()).toEqual(["Map", "Satellite", "Terrain"]);
   });
+
+  /**
+   * HANDOFF-2026-11-10 §10.4 gap 2: the office-PC check reads a long-frame count per map off this
+   * menu. Trial builds only, under the choices, not an entry — so the entry list above is untouched —
+   * and it restarts when the basemap changes, so the figure belongs to the map that is on.
+   */
+  describe("the long-frame counter (trial builds only)", () => {
+    class FakePerformanceObserver {
+      static supportedEntryTypes = ["longtask"];
+      static last: FakePerformanceObserver | null = null;
+      constructor(private readonly cb: (list: { getEntries: () => { duration: number }[] }) => void) {
+        FakePerformanceObserver.last = this;
+      }
+      observe(): void {}
+      disconnect(): void {}
+      fire(durations: number[]): void {
+        this.cb({ getEntries: () => durations.map((duration) => ({ duration })) });
+      }
+    }
+    const line = () => document.querySelector('[data-testid="long-frames"]')?.textContent?.trim();
+
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("is absent on a production build, whatever the browser can observe", async () => {
+      vi.stubGlobal("PerformanceObserver", FakePerformanceObserver);
+      const w = render();
+      await w.get('[aria-label="Basemap: Map"]').trigger("click");
+      expect(line()).toBeUndefined();
+    });
+
+    it("shows a count per map that restarts on a basemap change, and keeps the entries as they were", async () => {
+      vi.stubEnv("VITE_APP_ENVIRONMENT", "UAT");
+      vi.stubGlobal("PerformanceObserver", FakePerformanceObserver);
+      const w = render();
+      FakePerformanceObserver.last!.fire([70, 230]);
+      await w.get('[aria-label="Basemap: Map"]').trigger("click");
+      expect(entries()).toEqual(["Map", "Satellite", "Terrain", "Map (vector trial)"]);
+      expect(line()).toMatch(/^Long frames: 2 in \d+ s, worst 230 ms$/);
+      await w.setProps({ basemap: "vector" });
+      expect(line()).toMatch(/^Long frames: 0 in \d+ s$/);
+    });
+
+    it("says the browser cannot count rather than showing a zero that reads as a clean run", async () => {
+      vi.stubEnv("VITE_APP_ENVIRONMENT", "UAT");
+      vi.stubGlobal("PerformanceObserver", undefined);
+      const w = render();
+      await w.get('[aria-label="Basemap: Map"]').trigger("click");
+      expect(line()).toBe("Long frames: not counted in this browser (Chrome or Edge count them)");
+    });
+  });
 });

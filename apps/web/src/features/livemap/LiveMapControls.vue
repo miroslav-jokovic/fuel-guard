@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, toRef } from "vue";
 import { BASEMAP_CHOICES, type BasemapChoice } from "@silvicom/shared";
 import { VECTOR_TRIAL_CHOICE, vectorTrialOffered } from "@/composables/vectorBasemap";
 import { AppIcon, AppButton as BaseButton } from "@silvicom/ui";
 import { PlusIcon, MinusIcon, MapIcon } from "@silvicom/ui/icons";
 import KebabMenu from "@/components/KebabMenu.vue";
+import { longFrameSummary, useLongFrames } from "./liveMapLongFrames";
 
 /**
  * The map's own control rail — zoom, and which basemap is underneath (D-DR20/D-DR21).
@@ -56,6 +57,21 @@ const choices = vectorTrialOffered() ? [...BASEMAP_CHOICES, VECTOR_TRIAL_CHOICE]
 const activeLabel = computed(
   () => choices.find((c) => c.key === props.basemap)?.label ?? choices[0]!.label,
 );
+
+/**
+ * The long-frame counter, trial builds only (HANDOFF-2026-11-10 §10.4 gap 2): the owner's office-PC
+ * check reads a count per map off this menu instead of reporting a feeling. The count restarts on
+ * every basemap change, so it belongs to the map that is on. `liveMapLongFrames.ts` says what counts.
+ * ⚠ Conditional on the same build-time switch as the trial entry, so it is never on a production
+ * menu and leaves with the trial. The condition is fixed for the component's life, which is what
+ * makes calling a composable behind it sound.
+ */
+const longFrames = vectorTrialOffered() ? useLongFrames(toRef(props, "basemap")) : null;
+const longFrameLine = computed(() => {
+  if (!longFrames) return "";
+  if (!longFrames.available) return "Long frames: not counted in this browser (Chrome or Edge count them)";
+  return longFrameSummary(longFrames.tally.value, longFrames.now.value);
+});
 </script>
 
 <template>
@@ -133,6 +149,18 @@ const activeLabel = computed(
       >
         {{ choice.label }}
       </BaseButton>
+      <!--
+        The office-PC figure (gap 2): one line under the choices, trial builds only. Not a button, so
+        it is not a menu entry and no test counting `kebab-item`s sees it; a click on it closes the
+        menu like a click anywhere in the panel, which is fine for a line that is only read.
+      -->
+      <p
+        v-if="longFrames"
+        class="mt-1 border-t border-edge-subtle px-3 pt-1.5 pb-0.5 text-xs text-ink-tertiary"
+        data-testid="long-frames"
+      >
+        {{ longFrameLine }}
+      </p>
     </KebabMenu>
   </div>
 </template>

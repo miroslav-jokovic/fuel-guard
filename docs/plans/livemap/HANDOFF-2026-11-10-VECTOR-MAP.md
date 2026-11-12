@@ -312,6 +312,9 @@ tile plus an advanced one. The console count settles it.
    long-frame counter to the trial's basemap menu from a `longtask` observer, so the ruling comes
    back as a count per map, not a feeling. Also open `chrome://gpu` on that PC: "no real PC sits at
    the software floor" is an assumption, and a blocklisted driver puts a PC exactly there.
+   **Built 2026-11-12:** the page is `OFFICE-PC-CHECK-2026-11-12.md` beside this file; the counter
+   is `liveMapLongFrames.ts` shown under the choices in `LiveMapControls.vue` on trial builds only,
+   restarting on every basemap change (design plan §7, 2026-11-12 later).
 3. **Glyphs are HERE's Fira GO from a keyless endpoint, with no caching header (Q-DR33) and no terms
    read.** Follow-up C9 would set OUR unit numbers in that font. Self-hosting the glyph files of a
    font whose licence allows it (Fira GO is believed to be under the SIL Open Font License; read the
@@ -378,6 +381,8 @@ entirely, and only after the two reads above.
 2. **M2** — self-hosted glyphs (gap 3), licence read first.
 3. **M3** — trial hardening: remember the basemap choice for the window (Q-DR36), fall back to
    raster on a style error, long-frame counter in the trial menu, the one-page office-PC protocol.
+   **Counter and protocol built 2026-11-12** (gap 2 above), ahead of M2 because the owner's check
+   needs them and neither waits on the glyph licence. Still open in M3: Q-DR36 and the fallback.
 4. **Owner** — separate HERE keys (Q-DR31) and usage alerts; the month's tile count; the road
    density stills of section 5 item 5; then the office-PC check with the protocol; then the ruling
    (default with "Map (classic)" for two weeks, or drop).
