@@ -76,15 +76,15 @@ interface SearchRow {
   author_name: string;
   pinned: boolean;
   created_at: string;
-  /** From `unit_note_mentions` (0590's search returns it; the insert's own select does not). */
+  /** From `unit_note_mentions` (0592's search returns it; the insert's own select does not). */
   mentions?: string[] | null;
   fuzzy?: boolean | null;
 }
 
 /**
- * The people a note mentions: `unit_note_mentions` as 0590's search returns it. A freshly inserted row
+ * The people a note mentions: `unit_note_mentions` as 0592's search returns it. A freshly inserted row
  * has no such column, so for it the body's `<@id>` tokens are read with chat's one parser (D-CHAT22,
- * `chatMentionIds`), which is exactly what 0590's insert trigger indexes. A token naming a non-member
+ * `chatMentionIds`), which is exactly what 0592's insert trigger indexes. A token naming a non-member
  * never reaches the table (UN015), so the two answers are the same set.
  */
 function toNote(row: SearchRow, labelOverride?: string): UnitNote {
@@ -204,7 +204,7 @@ async function subjectLabel(admin: SupabaseClient, orgId: string, kind: UnitNote
 }
 
 /**
- * 0590's refusals, as answers. UN012: no such unit in this carrier (the read above already said so;
+ * 0592's refusals, as answers. UN012: no such unit in this carrier (the read above already said so;
  * this is the race where it went between the two); UN013: a driver still an applicant, whose notes
  * stay on the applicant record (D-UN11); UN015: a `<@id>` names somebody who is not an office member
  * of this carrier.
@@ -250,6 +250,25 @@ export async function addUnitNote(
 }
 
 /**
+ * One note, by its id: what the bell's entity resolves to (UN3, see `noteMentions.ts`). The web needs
+ * the note's unit to open the drawer on it (`?notes=<kind>:<id>&note=<id>`, D-UN12), and the note's id is
+ * all a notification row can carry. Another carrier's id, or no such note, is `null` → 404.
+ */
+export async function getUnitNote(admin: SupabaseClient, orgId: string, noteId: string): Promise<UnitNote | null | NoteRefusal> {
+  const { data, error } = await admin
+    .from("unit_notes")
+    .select("id, subject_kind, subject_id, body, author_id, author_name, pinned, created_at")
+    .eq("org_id", orgId)
+    .eq("id", noteId)
+    .maybeSingle();
+  if (error) return { code: "db_error", message: "Could not load the note" };
+  const row = data as SearchRow | null;
+  if (!row || !isUnitNoteKind(row.subject_kind)) return null;
+  const label = await subjectLabel(admin, orgId, row.subject_kind, row.subject_id);
+  return toNote(row, label ?? "");
+}
+
+/**
  * Pin one note above the unit's list (unpinning its other, D-UN6) or unpin it, through UN1's RPC — the
  * one UPDATE the table's guard lets through besides the driver merge. The read first answers "is this
  * note this carrier's", so a note id from elsewhere is a 404 and the RPC is never asked.
@@ -269,7 +288,7 @@ export async function pinUnitNote(
   if (!note) return { code: "not_found", message: "Note not found" };
   const { data, error } = await admin.rpc("set_unit_note_pinned", { p_org: orgId, p_note: noteId, p_pinned: pinned });
   if (error) {
-    // UN020: 0590's own "not this carrier's note" — the read above answers first; this is the second line.
+    // UN020: 0592's own "not this carrier's note" — the read above answers first; this is the second line.
     return (error as { code?: string }).code === "UN020"
       ? { code: "not_found", message: "Note not found" }
       : { code: "db_error", message: "Could not pin the note" };

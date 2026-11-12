@@ -294,7 +294,7 @@ describe("POST / — adding a note", () => {
     expectOrgScoped(rec, ORG, EXEMPT);
   });
 
-  it("answers 0590's refusals: no such unit (UN012) and an applicant (UN013) are 404, a non-member mention (UN015) is 422", async () => {
+  it("answers 0592's refusals: no such unit (UN012) and an applicant (UN013) are 404, a non-member mention (UN015) is 422", async () => {
     for (const code of ["UN012", "UN013"]) {
       seed({ insertError: { code, message: "refused" } });
       expect((await post("/", "dispatcher", { kind: "driver", subjectId: DRIVER, body: "x" })).status, code).toBe(404);
