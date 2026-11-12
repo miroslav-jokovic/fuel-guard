@@ -369,9 +369,12 @@ entirely, and only after the two reads above.
    `LiveMapCanvas.vue`'s `step()`, zero tolerance on the settling frame, `livemap:write` announced per
    write, `planFleetFit` moved to `liveMapCamera.ts` to keep the canvas inside the 500-line budget.
    Nine mutants of the gate and the fit each failed their tests. `staging-map-frames.mjs` now prints
-   writes a second over a 10 s still hold at the fitted zoom and writes per walk. Owed once staging
-   serves it: that measurement, both maps, 5 alternating runs with `GPU=1`, recorded in §7 of the
-   design plan as ranges — then the office-PC check (gap 2) is worth doing.
+   writes a second over a 10 s still hold at the fitted zoom and writes per walk.
+   **Measured 2026-11-12 on staging (PR #2273 merged):** writes fell from ~60 a second to 0.4–5.6
+   a second still and from ~780 to 33–124 over the zoom walk, both maps, two sessions (design plan
+   §7, 2026-11-12). ⚠ Still owed: the FRAME-TIME comparison, because both sessions ran on a Mac at
+   load average 19–30 and their frame figures measure that load, not the map. Run it on a quiet
+   machine (the tool now prints the load; record only under ~4) — then the office-PC check (gap 2).
 2. **M2** — self-hosted glyphs (gap 3), licence read first.
 3. **M3** — trial hardening: remember the basemap choice for the window (Q-DR36), fall back to
    raster on a style error, long-frame counter in the trial menu, the one-page office-PC protocol.

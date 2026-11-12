@@ -16,6 +16,11 @@ const THROTTLE = Number(process.env.THROTTLE ?? 4);
 // renderer on the CPU (measured 2026-11-11: "SwiftShader Device"), which no office PC with a GPU uses and which
 // costs a vector map far more than raster images. Neither is the office PC: SwiftShader is a floor, a
 // developer Mac's GPU a ceiling. Each run prints the renderer it actually used.
+// ⚠ And the machine's LOAD, per run. Measured 2026-11-12: at a load average of 19–30 (other sessions' builds and
+// tests on this Mac) both maps gave worst frames of 141–1 142 ms against 50–108 ms the day before on the same
+// build. Frame figures are only worth recording when the load is under about 4; the write counts survive load.
+import { loadavg } from "node:os";
+const load = () => loadavg().map((l) => l.toFixed(1)).join(" ");
 const browser = await chromium.launch(process.env.GPU === "1" ? { args: ["--enable-gpu", "--use-angle=metal", "--ignore-gpu-blocklist"] } : {});
 const results = [];
 for (let i = 0; i < RUNS * 2; i++) {
@@ -28,6 +33,7 @@ for (let i = 0; i < RUNS * 2; i++) {
   if (mode === "vector") { await page.click('[aria-label^="Basemap:"]'); await page.click('button.kebab-item:has-text("Map (vector trial)")'); await page.waitForTimeout(5000); }
   const renderer = await page.evaluate(() => { const gl = document.createElement("canvas").getContext("webgl2"); const d = gl?.getExtension("WEBGL_debug_renderer_info"); return d ? gl.getParameter(d.UNMASKED_RENDERER_WEBGL) : "unknown"; });
   if (i === 0) console.log("renderer:", renderer);
+  console.log(`load average (1 5 15 min): ${load()}`);
   let tiles = 0;
   page.on("request", (r) => { if (r.url().includes("/map-tiles/")) tiles++; });
   const cdp = await ctx.newCDPSession(page);
