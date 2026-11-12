@@ -162,10 +162,7 @@ describe("the applicant fact catalogue (D-AM1)", () => {
     const shut = APPLICANT_FACTS.filter((f): f is ApplicantFact & { office: { none: string } } => typeof f.office === "object");
     for (const f of shut) expect(f.office.none.trim(), f.path).not.toBe("");
     // A snapshot of the gap, so closing one (F3) or opening one is a visible change to this test.
-    expect(shut.map((f) => f.path)).toMatchInlineSnapshot(`
-      [
-        "ssn",
-      ]
-    `);
+    // Item 3 (Q-AM17) closed the last one: every fact the driver answers has a door.
+    expect(shut.map((f) => f.path)).toEqual([]);
   });
 });

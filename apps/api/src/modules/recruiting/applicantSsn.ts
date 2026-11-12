@@ -1,7 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
+import { writeAudit } from "../../lib/audit.js";
+import { open, secretAad } from "../../lib/secretBox.js";
 import { loadCarrierWording } from "./carrierWording.js";
-import { signingStarted } from "./applicationEditLog.js";
+import { recordOfficeEdits, signingStarted, SIGNING_STARTED as EDIT_SIGNING_STARTED } from "./applicationEditLog.js";
 import {
   ALREADY_SUBMITTED,
   isIntakeError,
@@ -100,6 +102,12 @@ export async function ssnOnFile(admin: SupabaseClient, orgId: string, invitation
   return row ? { last4: row.ssn_last4, sealed: row.ssn_sealed, enteredBy: row.entered_by } : null;
 }
 
+/** What the office's review is told: the last four, or null. The sealed envelope stays here. */
+export async function ssnLast4View(admin: SupabaseClient, orgId: string, invitationId: string): Promise<{ last4: string } | null> {
+  const held = await ssnOnFile(admin, orgId, invitationId);
+  return held ? { last4: held.last4 } : null;
+}
+
 /**
  * The two values filing writes onto `driver_applications`: the number typed at sign-off if one was
  * (a page served before this change still asks it there), else the one on file. Null for none.
@@ -123,4 +131,87 @@ export async function ssnForFiling(
  */
 export async function dropPreSigningSsn(admin: SupabaseClient, orgId: string, invitationId: string): Promise<void> {
   await admin.from("application_ssns").delete().eq("org_id", orgId).eq("invitation_id", invitationId);
+}
+
+// ── The office's side (Q-AM17): replace it, or — with "See the full SSN" — read it ───────────────────
+
+export interface OfficeSsnError {
+  code: string;
+  message: string;
+}
+export const isOfficeSsnError = (v: unknown): v is OfficeSsnError =>
+  typeof v === "object" && v !== null && "code" in v && "message" in v;
+
+const NOT_FOUND: OfficeSsnError = { code: "application_not_found", message: "That application is not in this organization." };
+
+async function officeInvitation(admin: SupabaseClient, orgId: string, invitationId: string) {
+  const { data } = await admin
+    .from("application_invitations")
+    .select("id, driver_id, submitted_at")
+    .eq("org_id", orgId)
+    .eq("id", invitationId)
+    .maybeSingle();
+  return data as { id: string; driver_id: string; submitted_at: string | null } | null;
+}
+
+/**
+ * The office replaces the number (Q-AM17: everyone who works the application may, whoever may read it).
+ * Like every correction: refused once the driver has started signing (F3, E7), and logged so the driver is
+ * shown it on 3.1 and accepts it — WITHHELD (0586), so the edit row records that it changed and never the
+ * digits, before or after.
+ */
+export async function replaceApplicantSsn(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  invitationId: string,
+  ssn: string,
+  actorId: string,
+): Promise<{ ok: true; last4: string } | OfficeSsnError> {
+  const invitation = await officeInvitation(admin, orgId, invitationId);
+  if (!invitation) return NOT_FOUND;
+  if (invitation.submitted_at) {
+    return { code: "application_not_editable", message: "This application is signed and filed, so what it says is fixed now." };
+  }
+  if (await signingStarted(admin, orgId, invitation.id)) return EDIT_SIGNING_STARTED;
+
+  const sealed = sealSsn(env, orgId, ssn);
+  const { error } = await admin.rpc("record_applicant_ssn", {
+    p_org: orgId,
+    p_invitation: invitation.id,
+    p_driver: invitation.driver_id,
+    p_last4: sealed.last4,
+    p_sealed: sealed.sealed,
+    p_entered_by: "office",
+  });
+  if (error) return { code: error.code === "SN003" ? "application_not_editable" : "ssn_not_saved", message: refusalOf(error).message };
+
+  const unrecorded = await recordOfficeEdits(admin, orgId, invitation.id, [{ path: ["ssn"], before: null, after: null, withheld: true }], actorId);
+  await writeAudit(admin, {
+    orgId, actorId, action: "application.ssn_replaced", entity: "application_invitation", entityId: invitation.id,
+  });
+  return unrecorded ?? { ok: true, last4: sealed.last4! };
+}
+
+/**
+ * All nine digits, for a holder of "See the full SSN" — the route checks the permission, this does the
+ * read. Every read is audited (who, which application; never the number). Null when the number was kept
+ * as its last four only (no secret box configured, 0220's rule) or none was given.
+ */
+export async function revealApplicantSsn(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  invitationId: string,
+  actorId: string,
+): Promise<{ ssn: string | null; last4: string | null } | OfficeSsnError> {
+  const invitation = await officeInvitation(admin, orgId, invitationId);
+  if (!invitation) return NOT_FOUND;
+  const held = await ssnOnFile(admin, orgId, invitation.id);
+  if (!held) return { ssn: null, last4: null };
+  const ssn = held.sealed ? open(env, held.sealed, secretAad(orgId, "driver_ssn")) : null;
+  await writeAudit(admin, {
+    orgId, actorId, action: "application.ssn_viewed", entity: "application_invitation", entityId: invitation.id,
+  });
+  return { ssn, last4: held.last4 };
 }

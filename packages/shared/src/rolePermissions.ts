@@ -48,6 +48,15 @@ export const IDENTITY_NUMBER_IMAGES_PERMISSION = "recruitment.identity_number_im
  */
 export const CLOSE_APPLICATION_PERMISSION = "recruitment.close_application";
 
+/**
+ * Who may read an applicant's whole Social Security number (Q-AM17, owner 2026-11-11): "admin and
+ * safety". Everyone else who works the application — the recruiter included — sees the last four and
+ * may only REPLACE it (Q-AM13's replace-only rule, kept for the nine digits). Not Q-WF4b's picture
+ * switch: that one ships to the recruiter, and a number on a screen is not a photograph of a card.
+ * No regulation names the reader, so it is the carrier's to switch, here.
+ */
+export const FULL_SSN_PERMISSION = "recruitment.full_ssn";
+
 export const EDITABLE_PERMISSIONS = [
   {
     key: IDENTITY_NUMBER_IMAGES_PERMISSION,
@@ -63,6 +72,14 @@ export const EDITABLE_PERMISSIONS = [
     description:
       "Close a finished application, which puts the applicant on the roster. The six federal checks must still be on file whoever closes it.",
     // Owner, 2026-11-09: "Safety and admin can close application" — the admin holds every permission.
+    shippedRoles: ["safety_manager"],
+  },
+  {
+    key: FULL_SSN_PERMISSION,
+    label: "See the full SSN",
+    description:
+      "Read all nine digits of an applicant's Social Security number and open the signed application with it printed in full. Without it the number shows as its last four and can only be replaced.",
+    // Owner, Q-AM17 (2026-11-11): "admin and safety" — the admin holds every permission.
     shippedRoles: ["safety_manager"],
   },
 ] as const satisfies readonly EditablePermission[];

@@ -17,6 +17,7 @@ import { emptyQuestionRow } from "./draft";
 import { addableTables, tableRowText } from "./tableAnswer";
 import OfficeJobsSection from "./OfficeJobsSection.vue";
 import FactRowAdder from "./FactRowAdder.vue";
+import ApplicantSsnRow from "./ApplicantSsnRow.vue";
 import { editableLists, factBlocks, listDoor, listSection, rowChange, rowNoun, rowRemovable } from "./factRowLists";
 import { draftEmployers, draftGaps } from "./officeJobs";
 import { describeField, fieldId } from "./fieldLabels";
@@ -417,6 +418,8 @@ function shown(row: FactRow): string {
         </li>
         </template>
       </ul>
+      <!-- Q-AM17: the SSN has its own door — the last four for all, whole for "See the full SSN", replaced by any corrector. -->
+      <ApplicantSsnRow v-if="group.section === 'identity'" :invitation-id="invitationId" :last4="review.ssn?.last4 ?? null" :open="recordOpen" />
       <template v-for="t in tablesIn(group.section)" :key="t.question.id">
         <div v-if="addingTable === t.question.id" class="space-y-2 rounded-surface bg-surface-muted p-3" :data-table-adder="t.question.id">
           <p class="text-sm font-medium text-ink">New: {{ describeField(['questionnaire', t.question.id, t.count]) }}</p>

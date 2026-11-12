@@ -53,6 +53,8 @@ export interface ApplicationReview {
   signingStarted?: boolean;
   /** F3: Part 1's other answers; the donor gender only as whether it was given (Q-AM13). Null on a legacy link. */
   partOneAnswers?: PartOneAnswersView | null;
+  /** Q-AM3/Q-AM17 (0589): the last four of the SSN held before signing, or null. Optional: an older API sends none. */
+  ssn?: { last4: string } | null;
   /** E3: the invitation's email, and whether the phone on file is texted. Optional: an API before E3 sends none. */
   contact?: { email: string | null; phoneTexted: boolean };
   /**
@@ -199,4 +201,35 @@ export function useCorrectPartOneAnswer(invitationId: Ref<string | null>) {
     },
     onSettled: () => void qc.invalidateQueries({ queryKey: ["recruitment"] }),
   });
+}
+
+/**
+ * The office replaces an applicant's SSN (Q-AM17). Any corrector may; the driver is shown on 3.1 that it
+ * was replaced, never the digits.
+ */
+export function useReplaceApplicantSsn(invitationId: Ref<string | null>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ssn: string): Promise<{ last4: string }> => {
+      const res = await apiFetch<{ ok: true; last4: string }>(
+        `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/ssn`,
+        { method: "POST", body: { ssn } },
+      );
+      if (!res.ok) throw new Error(res.error?.message ?? "That number could not be saved.");
+      return { last4: res.data!.last4 };
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["recruitment"] }),
+  });
+}
+
+/**
+ * All nine digits, for a holder of "See the full SSN" (Q-AM17). A plain request, deliberately NOT a
+ * query: the number must not sit in the query cache after the row is closed. Every read is audited.
+ */
+export async function revealApplicantSsn(invitationId: string): Promise<string | null> {
+  const res = await apiFetch<{ ssn: string | null }>(
+    `/api/recruitment/applications/${encodeURIComponent(invitationId)}/ssn`,
+  );
+  if (!res.ok) throw new Error(res.error?.message ?? "The number could not be read.");
+  return res.data?.ssn ?? null;
 }

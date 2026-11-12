@@ -8,6 +8,7 @@ import { recruitmentInquiriesRouter } from "./inquiries.js";
 import { recruitmentApplicationInvitesRouter } from "./applicationInvites.js";
 import { recruitmentDispositionsRouter } from "./dispositions.js";
 import { recruitmentApplicationReviewRouter } from "./applicationReview.js";
+import { recruitmentApplicationSsnRouter } from "./applicationSsn.js";
 import { recruitmentWordingRouter } from "./wording.js";
 import { recruitmentChecklistRouter } from "./checklist.js";
 import { recruitmentHiringEvidenceRouter } from "./hiringEvidence.js";
@@ -53,6 +54,7 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentHireRouter()); // applicant -> driver, and the evidence handoff (H8)
   router.use(recruitmentDispositionsRouter()); // the other exit: why an application ended without one (0238)
   router.use(recruitmentApplicationReviewRouter()); // read, correct and approve an application before it is signed (F4)
+  router.use(recruitmentApplicationSsnRouter()); // replace an applicant's SSN; read it whole with "See the full SSN" (Q-AM17)
   router.use(recruitmentWordingRouter()); // the carrier publishes its own instrument wording (0338)
   router.use(recruitmentChecklistRouter()); // where one applicant has got to, folded from evidence (B3)
   router.use(recruitmentHiringEvidenceRouter()); // the MVR, the Clearinghouse query and the drug test, recorded (D1)

@@ -3,9 +3,11 @@ import {
   callerCanView,
   canReadAllRestricted,
   canReadRestrictedKind,
+  effectivePermission,
   isAdmin,
   isReadOnly,
   type AppSection,
+  type EditablePermissionKey,
   type SectionClaim,
   type SurfaceClaim,
   type UserRole,
@@ -35,6 +37,8 @@ export interface FakeSession {
   canReadKind: (kind: string) => boolean;
   /** May this role read every restricted kind — the binder's opt-in (D-DQ15); the store's own predicate. */
   readonly restrictedAccess: boolean;
+  /** A named permission (Settings → Permissions), the shipped default for `role` — the store's resolver. */
+  hasPermission: (key: EditablePermissionKey) => boolean;
 }
 
 export function fakeSession(role: UserRole | null = "admin"): FakeSession {
@@ -54,6 +58,7 @@ export function fakeSession(role: UserRole | null = "admin"): FakeSession {
     get restrictedAccess() {
       return canReadAllRestricted(s.role);
     },
+    hasPermission: (key) => effectivePermission(s.role, key, {}),
   };
   return s;
 }
