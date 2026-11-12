@@ -159,6 +159,29 @@ copy of the kind its formula asks for, over the nearest checker photo (and a pla
   (`look-ribbon-es-regional`), which describes the old P5 and was kept as a record of what the model does with a
   card-shaped slot.
 
+**D-ADL16 — The ads wear Silvicom's own brand, measured from Silvicom (2026-11-12).** The owner: "we need to
+use our brand colors" and "avoid any generic AI looks". Navy `#0A2144` is measured from the wordmark file,
+cyan `#00B2E3` from the decal on the trailers in the 2026-01 fleet shoot. The site's CSS uses `#002160`; the
+wordmark is the brand and the CSS is the website. The fixture kit's green and amber, and the stand-in orange of
+the first mock-ups, are gone. The rules live in one place, `.claude/skills/silvicom-brand/SKILL.md`, so prompts,
+reviews and the renderer read the same list instead of restating it.
+
+**D-ADL17 — No generic-AI devices, by name (2026-11-12).** The owner: "avoid using any dots and lines, these are
+generic AI things". Research the same day (Meta Ad Library: Werner, Schneider, Knight; designers' published
+lists of AI tells) agreed and named more: tracked small-caps kickers, pills and chips, glass panels, gradient
+fades, hairlines, decorative arrows, one font for everything. Today's `rail` (side bar, chevron button) and
+`ribbon` (ribbon tag, pill button) are built from exactly these, so the renderer's two looks are replaced, not
+tuned, when Q-ADL9 is answered. The banned list is in the brand skill.
+
+**D-ADL18 — Big Shoulders replaces Barlow Condensed and Anton (2026-11-12).** One family, two weights: Display
+Black for the headline in capitals, Text Medium for the one supporting line. OFL, and drawn for the City of
+Chicago, where Silvicom is based. Inter, the website's face, is on the designers' list of AI tells, and the
+website is not the ads. Takes effect with the renderer change.
+
+**D-ADL19 — No call-to-action button inside the picture (2026-11-12).** Meta draws its own "Apply now" under
+every ad; a second one in the picture competes with it and is one more device. The overlay's `cta` slot stays
+in the contract for formats that need it; the new looks do not draw it.
+
 ## 3. The candidate looks (rendered 2026-11-10, fixture kit, fixture photos)
 
 Four looks, each drawn at 4:5 in English, 1:1 with a two-line headline, and 9:16 in Spanish.
@@ -202,6 +225,25 @@ marks the money — and its left edge holds long Spanish lines without the centr
   per-ad results on real kits exist: a real kit usually has a phone, which the band was made to carry.
 - **Q-ADL3 — the real kit.** The mock-ups use the fixture kit (green, with an amber accent added for the
   mock-up). The real kit's colours and logo decide whether D-ADL5's fallback or D-ADL7's chip is ever seen.
+  **FOUND 2026-11-12 (D-ADL16), not asked:** the owner said the company's information and logo are already
+  ours, and to research the rest. Silvicom, Inc.'s wordmark, white wordmark and fleet photos are on
+  silvicominc.com; the colours are measured from them, not chosen. The kit row itself is still to be entered.
+- **Q-ADL7 — choosing the words (opened 2026-11-12, the owner: "we should in settings have texts to choose, or
+  ads page").** Today the craft judge picks the copy and the review only SHOWS the others (`AdsCopyCandidates`).
+  Candidates: (a) on the creative review, "Use this one" on every offered copy, each line editable before
+  approval, the pick recorded as the owner's label for the judge (R7); (b) an "Approved lines" list in Ads
+  settings (pay, home time, equipment, lanes) that the copywriter must draw its claims from; (c) both.
+  **Recommendation: (c)**, (a) first because it needs no prompt change. (b) is a copywriter prompt change, so a
+  live recording, asked before it is made.
+- **Q-ADL8 — the Silvicom decal on the trucks (opened 2026-11-12).** The design review's strongest finding: a plain
+  white tractor belongs to any carrier. The mock-up's decal was drawn by the image model from the real decal as a
+  reference, and came out right once, but D-AD9 exists because image models misspell. Candidates: (a) the model
+  draws a plain trailer and the renderer warps the real logo file onto the trailer side (exact every time; needs
+  the trailer's corners, which the art director can ask for in a fixed three-quarter view); (b) the 2026-01 fleet
+  photo shoot instead of generated photos; (c) let the model draw it and the checker refuse a misspelling.
+  **Recommendation: (a)**, with (b) as the fallback for formats (a) cannot place.
+- **Q-ADL9 — which ad families (opened 2026-11-12).** Three are drawn: Number (pay-led), Photo (truck and life)
+  and Field (the rest). Recommendation: all three, chosen by the preset as `look` is today, Number first.
 
 ## 5. Build order (after Q-ADL1)
 
@@ -362,3 +404,20 @@ photos.
   - Not done: whether the copywriter writes these three small lines well on these formulas is a live recording
     (the copywriter's fixtures do not include the starters). It is not asked for here: L3 measured the small lines
     on four fixtures already. The owner's copy rating (#2054, Q-AD57) is still the ground truth, and still empty.
+- **2026-11-12, the look redone in Silvicom's brand (D-ADL16–19; Q-ADL7–9 opened).** The owner on the first
+  three directions (Inter Tight, a stand-in orange, fades and chips): "this are ok, but" the brand is ours, the
+  trucks are old models, dots and lines are generic AI, and research how real designers work.
+  - Research (subagent, sources in the session): real carrier ads use one brand colour as a solid field, their
+    own trucks and one short heavy headline; the slop catalogues name the devices now banned in D-ADL17.
+  - Skills: `ad-creative` (coreyhaines31/marketingskills, MIT) is vendored into `.claude/skills/` for the words,
+    without its video references; `silvicom-brand` is new. Impeccable, already installed, ran the critique.
+  - Photos: six images on Higgsfield (GPT Image 2.6, high, 2k), 16.5 credits, with the 2026-01 fleet photo as
+    the model reference: 2027 Cascadia on a highway and at a fuel island, 2027 LT 625 on a wet interstate and in a
+    yard, then two edits (the decal added to the Cascadia's trailer, the International badge removed from the LT).
+  - The critique (impeccable, two isolated reviewers): the detector's six `cramped-padding` findings are the
+    full-bleed canvas read as a web panel, false positives. The design review said type, colour and the absence
+    of devices pass, and what still read generic was unmarked trucks, a footer logo and uneven bands. Fixed in
+    round three: logo top-left at about 10% of the height, one seam at y=950, cyan only for the figure, the decal.
+  - Shown to the owner: https://claude.ai/artifact/LEaFJ6qWC6e1dth6o38MhQ. Not done: the renderer itself. It
+    waits on Q-ADL9, and the art director's prompt (plain trailer, badge-free grille, three-quarter view) waits
+    on Q-ADL8. Both are recordings or code, asked before they are made.
