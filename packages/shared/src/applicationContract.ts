@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { applicationRowKeySchema } from "./applicationRowKey.js";
+export { applicationRowKeySchema };
 import { ENDORSEMENT_CODES, endorsementCodeSchema, isoDateSchema, requiredDateOfBirthSchema } from "./rosterContract.js";
 // ⚠ The rules that span fields live in their own module since 2026-09-11 (the 500-line budget), and
 // they import this file's TYPE only — `import type` is erased, so there is no runtime cycle.
@@ -107,6 +109,7 @@ export const applicationEquipmentSchema = z.object({
   ),
   /** "APPROX # OF MILES (TOTAL)". Approximate by the form's own word, so it is never required. */
   approx_miles: z.coerce.number().int().min(0).max(100_000_000).nullish(),
+  key: applicationRowKeySchema,
 }).strict();
 export type ApplicationEquipment = z.infer<typeof applicationEquipmentSchema>;
 
@@ -122,6 +125,7 @@ export const applicationAddressSchema = z.object({
     (v) => (typeof v === "string" && v.trim() === "" ? null : v),
     z.string().regex(/^\d{4}-\d{2}$/, "Expected a month as YYYY-MM").nullish(),
   ),
+  key: applicationRowKeySchema,
   // `.strict()` like the parent (A3). The 2026-08-21 audit found the four nested schemas silently
   // accepting unknown keys while the top level refused them — so a client could smuggle a field into
   // the certified payload through any array on the form, which is precisely the hole `.strict()`
@@ -144,6 +148,7 @@ export const applicationAccidentSchema = z.object({
   fatalities: z.coerce.number().int().min(0).max(999).default(0),
   injuries: z.coerce.number().int().min(0).max(999).default(0),
   hazmat_spill: z.boolean().default(false),
+  key: applicationRowKeySchema,
 }).strict();
 export type ApplicationAccident = z.infer<typeof applicationAccidentSchema>;
 
@@ -153,6 +158,7 @@ export const applicationViolationSchema = z.object({
   offence: z.string().min(1).max(300),
   state: z.string().max(40).nullish(),
   penalty: z.string().max(200).nullish(),
+  key: applicationRowKeySchema,
 }).strict();
 export type ApplicationViolation = z.infer<typeof applicationViolationSchema>;
 
@@ -182,6 +188,7 @@ export const applicationLicenceSchema = z
     expires_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),
     /** What it is, in the applicant's words — "CDL A", "hazmat endorsement", "learner permit". */
     kind: z.string().max(80).nullish(),
+    key: applicationRowKeySchema,
   })
   .strict();
 export type ApplicationLicence = z.infer<typeof applicationLicenceSchema>;

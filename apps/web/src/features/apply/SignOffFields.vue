@@ -8,7 +8,7 @@ import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "./questio
 import { buildReviewSummary } from "./reviewSummary";
 import { describeField, rowText } from "./fieldLabels";
 import { APPLY_COPY } from "./strings";
-import type { ApplicationDraft } from "./draft";
+import { toDraftPayload, type ApplicationDraft } from "./draft";
 import type { ApplyEdit } from "./useApplication";
 
 /**
@@ -55,7 +55,9 @@ const summary = computed(() =>
  * later one, and the recorded "Address 3 · City" would then name an address the driver no longer has
  * (`currentEditPaths`). A correction to a row removed since says so.
  */
-const currentPaths = computed(() => currentEditPaths(props.edits));
+// Q-AM15: a keyed correction is looked up in the driver's own draft, so deleting or reordering a row on
+// this phone after the office corrected it moves the correction with its row.
+const currentPaths = computed(() => currentEditPaths(props.edits, toDraftPayload(draft.value)));
 function editLabel(i: number): string {
   const now = currentPaths.value[i];
   if (!now) return describeField(props.edits[i]!.path);

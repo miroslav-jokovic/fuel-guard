@@ -25,7 +25,7 @@ const complete = (): ApplicationDraft => ({
   experience: "Eight years, dry van and reefer.",
   first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
   email: "s@example.test", phone: "555-0111",
-  addresses: [{ line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
+  addresses: [{ key: "00000000-0000-4000-8000-000000000017", line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
   cdl_number: "PA334554", cdl_state: "PA", cdl_expires_at: "2029-01-01",
   employers: [{
     key: "40000000-0000-4000-8000-00000000000a", employer_name: "Old Carrier", usdot_number: "123456", address_line1: "12 Depot Rd", city: "Joliet", state: "IL",
@@ -45,7 +45,7 @@ describe("what the carrier's paper asks, on any link (F2c)", () => {
   it("names an unanswered question B and a conviction's missing state and penalty on the safety screen, legacy link too", () => {
     const draft = {
       ...complete(), licence_suspended: null, declares_no_violations: false,
-      violations: [{ occurred_on: "2025-02-01", offence: "Speeding", state: "", penalty: "" }],
+      violations: [{ key: "00000000-0000-4000-8000-000000000018", occurred_on: "2025-02-01", offence: "Speeding", state: "", penalty: "" }],
     };
     const found = v2FilingIssues(draft, null).map((i) => [i.section, i.path.join(".")]);
     expect(found).toEqual([
@@ -108,7 +108,7 @@ describe("one screen at a time", () => {
   it("validates the extra licences on the licence screen", () => {
     const draft = {
       ...complete(),
-      additional_licences: [{ issuing_authority: "", number: "X1", expires_at: "2030-01-01", kind: "" }],
+      additional_licences: [{ key: "00000000-0000-4000-8000-000000000019", issuing_authority: "", number: "X1", expires_at: "2030-01-01", kind: "" }],
     };
     const issues = validateSection("licence", draft);
     expect(issues.map((i) => i.key)).toContain("additional_licences");
@@ -153,7 +153,7 @@ describe("sending the whole document", () => {
     const draft = {
       ...complete(),
       declares_no_violations: false,
-      violations: [{ occurred_on: "2025-02-01", offence: "Speeding", state: "IL", penalty: "$120" }],
+      violations: [{ key: "00000000-0000-4000-8000-000000000020", occurred_on: "2025-02-01", offence: "Speeding", state: "IL", penalty: "$120" }],
     };
     const parsed = driverApplicationSchema.safeParse(toApplication(draft));
     expect(parsed.success).toBe(true);

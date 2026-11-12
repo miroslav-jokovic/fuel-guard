@@ -216,7 +216,8 @@ export function applicantFactRows({ payload, partOne, edits, questionnaire, part
   // renders inside the drawer's body, and one missing list must not take the whole record down.
   // E2: where each correction points NOW — a removal since moves the rows after it up, takes its own
   // row's corrections with it, and marks nothing itself (`currentEditPaths`).
-  const editedAt = currentEditPaths(Array.isArray(edits) ? edits : [])
+  // Q-AM15: a keyed correction is found by its key in the document the card shows.
+  const editedAt = currentEditPaths(Array.isArray(edits) ? edits : [], doc)
     .filter((e) => !e.gone)
     .map((e) => pathKey(e.path));
   const corrected = (key: string) => editedAt.some((e) => key === e || key.startsWith(`${e}.`));

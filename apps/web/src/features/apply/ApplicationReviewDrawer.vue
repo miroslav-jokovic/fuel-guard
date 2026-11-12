@@ -89,7 +89,8 @@ const signingStarted = computed(() =>
 /** Part 1 and the identity: open while the office screens, before Send, until the first mark (F3). */
 const recordCorrectable = computed(() => canManage.value && state.value !== "certified" && !signingStarted.value);
 const edits = computed(() => review.data.value?.edits ?? []);
-const currentPaths = computed(() => currentEditPaths(edits.value));
+// Q-AM15: a keyed correction is looked up in the draft, wherever the driver has moved its row since.
+const currentPaths = computed(() => currentEditPaths(edits.value, payload.value));
 /** F0b: when they used a code — an instant, so the drawer's own date-and-time format, or null. */
 const unlockedByCode = computed(() => {
   const at = review.data.value?.unlockedByCodeAt;

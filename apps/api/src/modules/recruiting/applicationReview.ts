@@ -7,6 +7,7 @@ import {
   applicationIsEditable,
   isEditRefusal,
   withEmployerKeys,
+  withRowKeys,
   applicationReviewState,
   applicationDraftPayloadSchema,
   applicationFactAt,
@@ -326,7 +327,9 @@ export async function editApplication(
     ? carrierAnswerRefusal(carrierStampOf(inv.carrier_questions), edit.path, edit.value) : null;
   if (carrier) return { code: "invalid_edit", message: carrier };
 
-  const applied = applyApplicationEdit(withEmployerKeys(original, randomUUID), original, edit);
+  // Q-AX7 and Q-AM15: every employer and every row of the five object lists is keyed on the office's
+  // first write, so from then on a correction names its row by key, whoever moves the rows after.
+  const applied = applyApplicationEdit(withRowKeys(withEmployerKeys(original, randomUUID), randomUUID), original, edit, randomUUID);
   if (isEditRefusal(applied)) return applied;
 
   /**

@@ -29,7 +29,8 @@ describe("the lists' rows", () => {
   });
 
   it("⚠ opens a new row as the driver's own blank row: blanks are \"\", never null", () => {
-    expect(blankRow("addresses")).toEqual(emptyAddress());
+    // Q-AM15: with a key of its own, minted per row, so the API names it by key from the start.
+    expect(blankRow("addresses")).toEqual({ ...emptyAddress(), key: expect.stringMatching(/^[0-9a-f-]{36}$/) });
     expect(Object.values(blankRow("accidents") as Record<string, unknown>)).not.toContain(null);
     expect(blankRow("other_names")).toBe("");
   });
@@ -174,7 +175,7 @@ describe("adding and removing on the card", () => {
     await w.find("[data-fact-adder='addresses']").findAll("button").find((b) => b.text() === "Add")!.trigger("click");
     await settle(w);
     const body = sent().find((b) => (b as { op?: string })?.op === "add_row") as { row: Record<string, unknown> };
-    expect(body.row).toEqual({ ...emptyAddress(), line1: "4 New St" });
+    expect(body.row).toEqual({ ...emptyAddress(), key: expect.stringMatching(/^[0-9a-f-]{36}$/), line1: "4 New St" });
   });
 
   it("keeps the form open with the API's reason when it refuses", async () => {

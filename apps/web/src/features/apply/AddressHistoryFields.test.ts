@@ -17,7 +17,7 @@ import { APPLY_COPY } from "./strings";
 const AS_OF = "2026-09-26";
 const copy = APPLY_COPY.addresses;
 const at = (from: string, to: string, over: Partial<DraftAddress> = {}): DraftAddress =>
-  ({ ...emptyAddress(), line1: "1 Road", city: "Joliet", state: "IL", postal_code: "60432", from, to, ...over });
+  ({ ...emptyAddress(), key: "00000000-0000-4000-8000-0000000000a1", line1: "1 Road", city: "Joliet", state: "IL", postal_code: "60432", from, to, ...over });
 const screen = (addresses: DraftAddress[]) =>
   mount(AddressHistoryFields, { props: { modelValue: { ...emptyDraft(), addresses } as ApplicationDraft, asOf: AS_OF } });
 
@@ -103,7 +103,8 @@ describe("one address per screen (C3c2c1)", () => {
     const { w, draft } = v2Screen([at("2025-02", "")]);
     await button(w, copy.change)!.trigger("click");
     await button(w, copy.remove)!.trigger("click");
-    expect(draft.value.addresses).toEqual([emptyAddress()]);
+    // Q-AM15: the fresh row has its own new key.
+    expect(draft.value.addresses).toEqual([{ ...emptyAddress(), key: expect.any(String) }]);
     expect(w.findAll("li")).toHaveLength(0);
     w.unmount();
   });

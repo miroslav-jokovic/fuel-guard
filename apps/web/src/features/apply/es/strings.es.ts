@@ -271,6 +271,7 @@ export const APPLY_COPY_ES = {
     gaps: "Tiempo entre trabajos",
     questionnaire: "Las preguntas de la empresa",
     employerRecord: "El registro de este empleador",
+    rowRecord: "El registro de esta fila",
     gapFrom: "Desde",
     gapTo: "Hasta",
     gapWhat: "Qué hacía",

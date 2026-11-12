@@ -27,6 +27,12 @@ export interface DraftAddress {
   postal_code: string;
   from: string;
   to: string;
+  /**
+   * The row's stable id (Q-AM15): an office correction names the row by it, so deleting or reordering
+   * rows here never moves a correction onto another row. Minted when the row is made (`newRowKey`) or,
+   * for a draft saved before keys, on load (`fromDraftPayload`). Never filed (`toApplication`).
+   */
+  key: string;
 }
 
 /**
@@ -42,6 +48,12 @@ export interface DraftAccident {
   fatalities: string;
   injuries: string;
   hazmat_spill: boolean;
+  /**
+   * The row's stable id (Q-AM15): an office correction names the row by it, so deleting or reordering
+   * rows here never moves a correction onto another row. Minted when the row is made (`newRowKey`) or,
+   * for a draft saved before keys, on load (`fromDraftPayload`). Never filed (`toApplication`).
+   */
+  key: string;
 }
 
 export interface DraftViolation {
@@ -59,6 +71,12 @@ export interface DraftViolation {
    */
   state: string;
   penalty: string;
+  /**
+   * The row's stable id (Q-AM15): an office correction names the row by it, so deleting or reordering
+   * rows here never moves a correction onto another row. Minted when the row is made (`newRowKey`) or,
+   * for a draft saved before keys, on load (`fromDraftPayload`). Never filed (`toApplication`).
+   */
+  key: string;
 }
 
 /** §391.21(b)(6) — one class of equipment the applicant has operated, and for how long. */
@@ -68,6 +86,12 @@ export interface DraftEquipment {
   from: string;
   to: string;
   approx_miles: string;
+  /**
+   * The row's stable id (Q-AM15): an office correction names the row by it, so deleting or reordering
+   * rows here never moves a correction onto another row. Minted when the row is made (`newRowKey`) or,
+   * for a draft saved before keys, on load (`fromDraftPayload`). Never filed (`toApplication`).
+   */
+  key: string;
 }
 
 /** §391.21(b)(5) — one of the other unexpired licences or permits the applicant holds. */
@@ -76,6 +100,12 @@ export interface DraftLicence {
   number: string;
   expires_at: string;
   kind: string;
+  /**
+   * The row's stable id (Q-AM15): an office correction names the row by it, so deleting or reordering
+   * rows here never moves a correction onto another row. Minted when the row is made (`newRowKey`) or,
+   * for a draft saved before keys, on load (`fromDraftPayload`). Never filed (`toApplication`).
+   */
+  key: string;
 }
 
 /**
@@ -186,8 +216,11 @@ export interface ApplicationDraft {
   ssn_on_file: string;
 }
 
+/** A new row's key (Q-AM15) — the same kind of id as a job's (`newEmployerKey`, AW1). */
+export const newRowKey = (): string => crypto.randomUUID();
+
 export const emptyAddress = (): DraftAddress => ({
-  line1: "", line2: "", city: "", state: "", postal_code: "", from: "", to: "",
+  line1: "", line2: "", city: "", state: "", postal_code: "", from: "", to: "", key: newRowKey(),
 });
 
 export { newEmployerKey };
@@ -196,19 +229,19 @@ export { newEmployerKey };
 export const emptyEmployer = (): DraftEmployer => blankEmployer();
 
 export const emptyAccident = (): DraftAccident => ({
-  occurred_on: "", nature: "", fatalities: "0", injuries: "0", hazmat_spill: false,
+  occurred_on: "", nature: "", fatalities: "0", injuries: "0", hazmat_spill: false, key: newRowKey(),
 });
 
 export const emptyViolation = (): DraftViolation => ({
-  occurred_on: "", offence: "", state: "", penalty: "",
+  occurred_on: "", offence: "", state: "", penalty: "", key: newRowKey(),
 });
 
 export const emptyEquipment = (): DraftEquipment => ({
-  equipment_class: "", equipment_type: "", from: "", to: "", approx_miles: "",
+  equipment_class: "", equipment_type: "", from: "", to: "", approx_miles: "", key: newRowKey(),
 });
 
 export const emptyLicence = (): DraftLicence => ({
-  issuing_authority: "", number: "", expires_at: "", kind: "",
+  issuing_authority: "", number: "", expires_at: "", kind: "", key: newRowKey(),
 });
 
 export const emptyDraft = (): ApplicationDraft => ({

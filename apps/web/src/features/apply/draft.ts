@@ -9,6 +9,7 @@ import {
 import {
   emptyDraft,
   newEmployerKey,
+  newRowKey,
   type ApplicationDraft,
   type DraftAccident,
   type DraftAddress,
@@ -65,6 +66,8 @@ const text = (v: string): string | null => (v.trim() === "" ? null : v.trim());
  */
 const EMPLOYER_KEY = recordId();
 const isEmployerKey = (v: unknown): v is string => EMPLOYER_KEY.safeParse(v).success;
+/** Q-AM15: a row's key, by the same contract rule (`applicationRowKeySchema` is the same id). */
+const isRowKey = isEmployerKey;
 /**
  * A count the driver typed — miles, fatalities, injuries — as the number they meant, or NaN.
  *
@@ -340,6 +343,13 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     typeof payload[k] === "boolean" ? (payload[k] as boolean) : (base[k] as boolean);
   const rows = <T>(k: keyof ApplicationDraft, fallback: T[]): T[] =>
     Array.isArray(payload[k]) && (payload[k] as unknown[]).length > 0 ? (payload[k] as T[]) : fallback;
+  /**
+   * Q-AM15: a row saved before keys existed gets one now and keeps it from the next save on — AW1's rule
+   * for the jobs, below. The office's first write keys them too (`withRowKeys`); whichever comes first,
+   * the other keeps it.
+   */
+  const keyed = <T extends { key: string }>(list: T[]): T[] =>
+    list.map((r) => (isRowKey(r?.key) ? r : { ...r, key: newRowKey() }));
 
   /**
    * A stored state, as the code the picker can show (D-AX5).
@@ -374,16 +384,16 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     date_of_birth: str("date_of_birth"),
     email: str("email"),
     phone: str("phone"),
-    addresses: rows<DraftAddress>("addresses", base.addresses).map((a) => ({ ...a, state: state(a.state) })),
+    addresses: keyed(rows<DraftAddress>("addresses", base.addresses)).map((a) => ({ ...a, state: state(a.state) })),
     cdl_number: str("cdl_number"),
     cdl_state: state(payload.cdl_state),
     cdl_class: str("cdl_class"),
     cdl_expires_at: str("cdl_expires_at"),
     experience: str("experience"),
-    equipment_experience: rows<DraftEquipment>("equipment_experience", base.equipment_experience),
-    accidents: rows<DraftAccident>("accidents", base.accidents),
+    equipment_experience: keyed(rows<DraftEquipment>("equipment_experience", base.equipment_experience)),
+    accidents: keyed(rows<DraftAccident>("accidents", base.accidents)),
     declares_no_accidents: bool("declares_no_accidents"),
-    violations: rows<DraftViolation>("violations", base.violations),
+    violations: keyed(rows<DraftViolation>("violations", base.violations)),
     declares_no_violations: bool("declares_no_violations"),
     // A saved answer, or unanswered (C3c2c1) — never floored at a "No" the applicant did not give.
     licence_ever_denied: typeof payload.licence_ever_denied === "boolean" ? payload.licence_ever_denied : null,
@@ -417,7 +427,7 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     employment_gaps: rows<DraftGap>("employment_gaps", base.employment_gaps).filter(
       (g) => typeof g?.from === "string" && typeof g.to === "string" && typeof g.explanation === "string",
     ),
-    additional_licences: rows<DraftLicence>("additional_licences", base.additional_licences),
+    additional_licences: keyed(rows<DraftLicence>("additional_licences", base.additional_licences)),
     correction_note: str("correction_note"),
     questionnaire,
     questionnaire_version: questionnaireVersionOf(payload, questionnaire),

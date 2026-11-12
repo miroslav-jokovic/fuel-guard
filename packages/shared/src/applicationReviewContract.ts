@@ -116,9 +116,13 @@ export const applicationEditSchema = z.union([
   z.object({
     op: z.literal("remove_row"),
     list: z.enum(APPLICATION_ROW_LISTS),
-    index: z.number().int().min(0).max(200),
+    // Q-AM15: a keyed row is named by its `key`; `index` reaches only a row that had none when the office
+    // read it (a draft from before keys, or the other names, which are plain strings) — the AW1 rule the
+    // employers follow (`applyApplicationEdit`).
+    key: z.string().min(1).max(80).optional(),
+    index: z.number().int().min(0).max(200).optional(),
     revision: draftRevision,
-  }),
+  }).refine((e) => e.key !== undefined || e.index !== undefined, { message: "Say which row to remove." }),
 ]);
 
 export type ApplicationEdit = z.infer<typeof applicationEditSchema>;

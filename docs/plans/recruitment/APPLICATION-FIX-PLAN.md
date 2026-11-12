@@ -242,6 +242,7 @@ A gate fails on a literal string in an `apply/` template.
 | Q-AM19 | Documents | ANSWERED 2026-11-11 (owner): every document photo stays optional; **the office can send a separate documents-only link at any time**, opening just the photo list; photos are **normalised to scan quality** (cropped to the card, straightened, evened) so nobody scans them separately. Both are new builds | — |
 | Q-AM20 | The signed packet prints the full SSN (Q-AM3), but only admin and safety may see all nine digits (Q-AM17). The filed packet is a stored document that recruiters open, so a full SSN on it reaches the readers Q-AM17 keeps it from. Which wins, and how? | ANSWERED 2026-11-12 (owner, "as proposed"): **(a)**. The stored packet prints the last four (`•••-••-1234`). A holder of "See the full SSN" gets the full packet rendered on demand from the sealed number, never stored. The office preview masks for non-holders the same way. The driver sees their own full number on the signing pages | — |
 | Q-AM21 | Page 21 returns to the signing packet (Q-AM4). Should the signed page 21 also be a row of the roster's `seven_day_statements` (0236)? | ANSWERED 2026-11-12 (owner): **(a) yes**. Filing writes it through `record_application_seven_day_statement` (0591): `source = application`, the filed application named and unique, written once. The roster section shows it as the current statement, and the roster form stays for a start date too long after signing | — |
+| Q-AM22 | Q-AM15 keys the rows of the five lists of OBJECTS (addresses, licences, equipment, accidents, convictions). The other names are a list of plain STRINGS (`other_names: string[]`), so a row has nowhere to hold a key, and they stay named by position, with the office's own removals replayed. A driver who deletes an other name on their phone after the office corrected a later one still moves that correction onto its neighbour. Keying them changes the list's shape, and every reader of it would change with it: the catalogue's fact path, the packet's three places, the employer-inquiry projection, `drivers.other_names`, the preview, the card and the wizard's name list. | (a) Change the list to `{name, key}` everywhere, with old string lists still parsing. About one PR; the packet and `drivers` projection read the name. (b) Key them in the DRAFT only, as `{name, key}`. The form's filing (`toApplication`) and the preview's composition hand on the names, so the certified shape, the packet and `drivers` stay as they are. (c) Leave them positional. The case is one driver deleting an alias after a correction, which is rare, and 3.1 still shows the correction, possibly against the wrong name. | **(b)**: the key addresses a draft row, never an answer, which is the reason the five lists' keys are left off a filing too |
 
 ## 6. Size and order
 
@@ -560,3 +561,24 @@ A gate fails on a literal string in an `apply/` template.
     - The route tests read the rows off the call (`testing/officeEdits.ts`).
     - Each door's refusal maps to `edit_not_recorded` with no audit row.
   - **Next:** Q-AM15, a stable key on every row of the six lists.
+- 2026-11-12: **Item 5, step 1 complete:** #2300 (0593) and #2301 merged.
+- 2026-11-12: **Item 5, step 2: stable row keys (Q-AM15 (a))** (`claude/application-row-keys`, no migration). Drafts are JSON, so a key is just another field on the row.
+  - **The key:** `applicationRowKeySchema` (a record id, nullish) is now on every row of addresses, other licences, equipment, accidents and convictions, the way the employers have had one since AW1.
+    - It is nullish because every filing before it has none.
+    - The form leaves it off a filing (`toApplication`), so a filed document is exactly what it was. The key addresses a draft row, never an answer.
+    - The catalogue lists it as `NOT_APPLICANT_FACTS`, and the card's labels name it ("This row's record") so the labels test holds.
+  - **Who mints it:**
+    - the form, when it makes a row (`newRowKey` in each `empty*`) and when it loads a draft saved before keys (`fromDraftPayload`, AW1's rule for jobs);
+    - the API, on the office's first write (`withRowKeys`), and on an added row the card sent without one.
+  - **The office's edits name the row by key:**
+    - a correction is `["addresses", "<key>", "city"]`;
+    - `remove_row` takes `key`, and `index` reaches only a row that was keyless when read (`rowIndex`, the employers' rule);
+    - `add_row` logs the new row's key;
+    - a whole-row `set` keeps the row's key;
+    - the card sends keys (`keyedEditPath`).
+  - **The readers look a keyed correction up, rather than replay it:** `currentEditPaths(edits, rows)` finds the key in the draft the reader holds, so the card's mark, the office's "What you changed" and the driver's 3.1 follow the row wherever the driver has moved it. A correction is `gone` once its row is deleted. The replay stays for the positional paths that remain.
+  - **Not done, and why:**
+    - **The other names stay positional** (Q-AM22, §5). They are strings, with nowhere to hold a key, and keying them changes the list's shape for every reader. The recommendation is to key them in the draft only.
+    - **Deploy window:** a positional correction recorded before this merge is still replayed. A keyed removal after it does not shift that correction. This only affects an application open across the deploy.
+    - A browser left open on old code during the deploy drops the keys on its next save. The API then re-keys the rows on the office's next write, and an office correction made in that window shows as gone on 3.1. The fix is a reload, which the next page load does anyway.
+  - **Next:** Q-AM16, the roster email following an office email correction, through a roster-owned RPC. Q-AM22 waits for the owner.

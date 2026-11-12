@@ -396,6 +396,8 @@ export const APPLY_COPY_EN = {
     gaps: "Time between jobs",
     questionnaire: "The carrier's own questions",
     employerRecord: "This employer's record",
+    // Q-AM15: a row's stable id, never a control — named only if a refusal ever points at it.
+    rowRecord: "This row's record",
     gapFrom: "From",
     gapTo: "To",
     gapWhat: "What you were doing",
