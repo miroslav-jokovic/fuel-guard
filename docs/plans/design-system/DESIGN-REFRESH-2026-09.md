@@ -1584,3 +1584,20 @@ conflict every time (`plan-progress-log-not-table-rows`).
   says nothing about either map. The tool now prints the load average with the renderer, and a
   run is only recorded when it is under about 4. Owed: the frame-time comparison on a quiet
   machine, five alternating runs — then the owner's office-PC check (HANDOFF §10.4 gap 2).
+- **2026-11-12 (later) — the office-PC check gets its protocol and its number (HANDOFF-2026-11-10
+  §10.4 gap 2; the first two pieces of M3, pulled ahead of M2 because the owner's check needs them
+  and neither waits on the glyph licence).** The page is
+  `docs/plans/livemap/OFFICE-PC-CHECK-2026-11-12.md`: `chrome://gpu` first (WebGL hardware or
+  software, the GL_RENDERER line), Chrome or Edge, a quiet hour while the HERE key is shared
+  (Q-DR31), four alternating passes of the rig's sequence (10 s still, 7 double-clicks in, 4 wheel
+  notches out, a pan), then one pass per map in the dark scheme, a table with a still and an end
+  reading per pass, and how to read it. The number is a long-frame counter under the basemap choices
+  on trial builds only (`liveMapLongFrames.ts`, shown by `LiveMapControls.vue`), from the browser's
+  `longtask` observer — the same quantity `staging-map-frames.mjs` prints as long-task, so the office
+  figure and the rig figure sit in one table — restarting on every basemap change so each figure
+  belongs to one map: count, elapsed seconds and the worst task. Firefox and Safari are told they
+  cannot count rather than shown a zero. Seven mutants (worst kept as a minimum, no restart on a
+  basemap change, observer never disconnected, always observable, count not bumped, interval leaked,
+  counter on a production build) each failed their tests. ⚠ Still owed before the owner runs the
+  page: the quiet-machine frame-time comparison (this Mac at load average 18–26 all morning). Left
+  in M3: remembering the basemap for the window (Q-DR36) and the raster fallback on a style error.
