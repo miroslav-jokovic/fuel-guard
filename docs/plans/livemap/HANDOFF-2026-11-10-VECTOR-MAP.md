@@ -307,6 +307,9 @@ tile plus an advanced one. The console count settles it.
    every morning for two weeks, and whether anybody used it cannot be read from preferences. Q-DR36.
    Candidate measure without new telemetry: raster against vector tile route counts in the
    `[metrics]` line, which needs the owner's AWS access.
+   **Built 2026-11-12 (Q-DR36 (a)):** `liveMapBasemapMemory.ts` keeps the choice in `sessionStorage`
+   for the window and reads it back only if the menu still offers it. (b), the count, still waits
+   on AWS access.
 2. **The office-PC check has no protocol and returns no number.** Write one page for the owner (open
    Dispatch, the 7-in 4-out zoom sequence, a pan, a basemap switch, the night scheme) and add a
    long-frame counter to the trial's basemap menu from a `longtask` observer, so the ruling comes
@@ -329,6 +332,10 @@ tile plus an advanced one. The console count settles it.
 5. **No fallback when the vector style fails.** A glyph or tile 502, or a lost WebGL context, leaves
    a dispatcher with no map and, per gap 1, no remembered way back. Falling back to the raster
    basemap for the session on a style `error` event is cheap. Part of **M3** with gaps 1 and 2.
+   **2026-11-12: NOT built, and "cheap" was wrong.** A fallback on tile errors would move an office
+   onto the dearer raster tiles exactly when the pacer is refusing late callers on purpose (10.3).
+   Q-DR37 in the design plan has the candidates; until ruled, the way back is gap 1's memory plus
+   the menu, and the glyph half of the risk is gone with D-DR40.
 6. **The shared HERE key.** The owner's staging check spends production's rate limit (Q-DR31), so the
    separate staging key is wanted BEFORE the office-PC check, or the check runs outside the busy hours.
 7. **Truck repair shops via HERE Browse (Q-DR34 (b)) likely conflicts with Platform Terms §6.4(l)**,
@@ -387,8 +394,9 @@ entirely, and only after the two reads above.
    `/map-tiles/`, which included glyph fetches until this; tile counts from here on are tiles only.
 3. **M3** — trial hardening: remember the basemap choice for the window (Q-DR36), fall back to
    raster on a style error, long-frame counter in the trial menu, the one-page office-PC protocol.
-   **Counter and protocol built 2026-11-12** (gap 2 above), ahead of M2 because the owner's check
-   needs them and neither waits on the glyph licence. Still open in M3: Q-DR36 and the fallback.
+   **Counter and protocol built 2026-11-12** (gap 2 above, PR #2289), ahead of M2 because the
+   owner's check needs them. **Basemap memory built 2026-11-12** (gap 1, Q-DR36 (a)). **The
+   fallback is NOT built**: gap 5 and Q-DR37 say why; it waits on the owner's ruling there.
 4. **Owner** — separate HERE keys (Q-DR31) and usage alerts; the month's tile count; the road
    density stills of section 5 item 5; then the office-PC check with the protocol; then the ruling
    (default with "Map (classic)" for two weeks, or drop).
