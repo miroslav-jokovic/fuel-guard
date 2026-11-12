@@ -23,6 +23,10 @@ import {
   warningWords,
 } from "./dispatchBoardView";
 import { BOARD_HOS_LOW_MS } from "@silvicom/shared";
+import { computed } from "vue";
+import { useUnitNoteSummaries } from "@/components/notes/useUnitNotes";
+import BoardNotesCell from "./BoardNotesCell.vue";
+import { boardNoteSummary, boardNoteTargets } from "./boardNotes";
 
 /**
  * The dispatch board's table (DISPATCH-BOARD-V2-PLAN D-DBV1): one row per truck, read left to right the
@@ -59,6 +63,17 @@ const props = defineProps<{
 const emit = defineEmits<{ retry: []; open: [row: DispatchBoardRow]; sort: [key: string]; "update:page": [page: number] }>();
 
 const at = (iso: string | null | undefined) => formatDateTime(iso, "—", props.zone);
+
+/**
+ * The Notes column's counts (UNIT-NOTES-PLAN D-UN12, §6 UN6): the three kinds in ONE call for the
+ * whole board, never per cell (`useUnitNoteSummaries`' own warning), every 60 s and again whenever the
+ * board's rows were rebuilt — `now` is the board's `generatedAt`, so it moves exactly when they are.
+ * Until the board's first load `now` is the browser's clock, so the stamp is 0 then: the first rows
+ * are not a refresh, and the counts are already being asked for alongside them.
+ * Nothing is asked for a viewer without the `notes` surface (D-UN14); the page leaves the column out.
+ */
+const boardStamp = computed(() => (props.loading ? 0 : props.now.getTime()));
+const notes = useUnitNoteSummaries(["vehicle", "driver", "trailer"], boardStamp);
 
 /** Why a Miles left cell reads what it does — an estimate, an empty truck, or no figure and why. */
 function milesLeftTitle(r: DispatchBoardRow): string | undefined {
@@ -171,6 +186,13 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
         </span>
       </div>
       <span v-else class="text-ink-tertiary">—</span>
+    </template>
+
+    <template #cell-notes="{ row }">
+      <BoardNotesCell
+        :targets="boardNoteTargets(row)"
+        :summary="boardNoteSummary(boardNoteTargets(row), notes.summaries.value)"
+      />
     </template>
 
     <template #cell-driver="{ row }">

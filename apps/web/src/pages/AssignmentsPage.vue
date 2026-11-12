@@ -23,6 +23,9 @@ import { formatDateTime } from "@/lib/format";
 import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import DispatchBoardTable from "@/features/dispatch/DispatchBoardTable.vue";
 import DispatchTruckDrawer from "@/features/dispatch/DispatchTruckDrawer.vue";
+import NotesDrawer from "@/components/notes/NotesDrawer.vue";
+import { withNotesColumn } from "@/components/notes/notesColumn";
+import { useNotesAccess } from "@/components/notes/useUnitNotes";
 import { censusSelectOptions, censusValue, pickOf, truckCensusItems } from "@/features/dispatch/censusItems";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { dispatcherOptions, useScopeChoice } from "@/features/dispatch/dispatchScope";
@@ -122,7 +125,10 @@ const { sort, onSort } = useUrlSort(qs.param("sort", BOARD_SORT_KEYS, BOARD_DEFA
  * the default, so a long-haul planner can drop Empties and a local one Next stop without either
  * losing the column for the other. The truck stays; it is the row's name.
  */
-const boardColumns = useTableColumns(BOARD_COLUMNS_ID, () => BOARD_COLUMNS, { defaultHidden: BOARD_LIVE_COLUMNS });
+// Notes (UNIT-NOTES-PLAN D-UN12): one column for the truck, its drivers and its trailer, after Warnings,
+// shown by default — and absent from the table AND the picker for a viewer without `notes` (D-UN14).
+const notesOn = useNotesAccess();
+const boardColumns = useTableColumns(BOARD_COLUMNS_ID, () => withNotesColumn(BOARD_COLUMNS, notesOn.value, "warnings"), { defaultHidden: BOARD_LIVE_COLUMNS });
 /**
  * Saved views: a name and this page's URL — queue, scope, fleet, dispatcher, search, sort and hidden
  * columns — so "late trucks in VINNIEV, by appointment" is one click. Applying one is a navigation,
@@ -300,6 +306,7 @@ const emptyText = computed(() =>
       </DataWorkspace>
 
       <DispatchTruckDrawer :row="openRow" :zone="zone" :fleets="fleets" @close="closeTruck" />
+      <NotesDrawer />
     </template>
   </div>
 </template>

@@ -54,6 +54,13 @@ vi.mock("@/composables/useSavedViews", () => ({
   },
 }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
+// Notes on the board are `features/dispatch/boardNotesOnBoard.test.ts`'s; here the viewer holds none.
+// `notesOff()` answers the one-kind summary; the board asks for three kinds at once.
+vi.mock("@/components/notes/useUnitNotes", async () => ({
+  ...(await import("@/components/notes/notesTesting")).notesOff(),
+  useUnitNoteSummaries: () => ({ on: computed(() => false), summaries: computed(() => ({})) }),
+}));
+vi.mock("@/components/notes/NotesDrawer.vue", async () => (await import("@/components/notes/notesTesting")).notesStub());
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
 import AssignmentsPage from "./AssignmentsPage.vue";
 
