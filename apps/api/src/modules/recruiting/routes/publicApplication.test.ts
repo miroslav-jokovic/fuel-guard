@@ -225,7 +225,9 @@ const APPLICATION = {
     experience: "Eight years, dry van and reefer.",
     accidents: [], declares_no_accidents: true,
     violations: [], declares_no_violations: true,
-    licence_ever_denied: false,
+    licence_ever_denied: false, licence_suspended: false,
+    // §40.25(j) answered: a legacy filing is refused without it since F1 part 2.
+    prior_failed_pre_employment_test: false,
     employers: [], declares_no_employment: true,
     // §9 P8: the carrier's seven required answers (Q-WF3) — a certified document gives them.
     questionnaire_version: "silvicom_driver@v3",
@@ -460,7 +462,7 @@ describe("opening the link", () => {
     const body = (await res.json()) as { edits: Array<Record<string, unknown>> };
     expect(body.edits).toHaveLength(1);
     expect(body.edits[0]).toEqual({
-      path: ["employers", 0, "city"], before: "Jolliet", after: "Joliet",
+      path: ["employers", 0, "city"], before: "Jolliet", after: "Joliet", note: null, withheld: false,
       editedAt: "2026-09-11T08:00:00Z",
     });
     expect(JSON.stringify(body.edits)).not.toContain("cccccccc");

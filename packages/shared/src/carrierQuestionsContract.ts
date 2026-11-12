@@ -206,3 +206,36 @@ export function answersToStamp(
   const kept = Object.fromEntries(stamp.filter((q) => isAnswered(answers?.[q.id])).map((q) => [q.id, answers![q.id]]));
   return Object.keys(kept).length > 0 ? kept : null;
 }
+
+/**
+ * Why an office correction of one of the carrier's own answers is refused, or null (APPLICATION-FIX-PLAN
+ * F3c part 2, step 5).
+ *
+ * ── THE STAMP ON THE INVITATION, NEVER THE DRAFT ──────────────────────────────────────────────
+ * The draft holds `carrier_answers` as an open record and does not carry the questions (Q-CQ7), so the
+ * draft schema cannot check a correction — before step 5 a `set` at `["carrier_answers", id]` was taken
+ * for any id and any value. The API passes the invitation's own stamp: the questions THIS applicant was
+ * asked, which filing checks the answers against (`carrierAnswerIssues`). A correction filing would
+ * refuse is refused here, while the office can still read why.
+ *
+ * ⚠ A blank is refused, required or not. The applicant's form does not let an optional question be left
+ * blank either — it is answered or skipped with its own words ("I'd rather not say"), and the card
+ * offers that skip as the form does.
+ */
+export function carrierAnswerRefusal(
+  stamp: readonly CarrierQuestionStampItem[],
+  path: readonly (string | number)[],
+  value: unknown,
+): string | null {
+  if (path.length !== 2 || typeof path[1] !== "string") {
+    return "The carrier's own questions are corrected one answer at a time. Reload the application and try again.";
+  }
+  const asked = stamp.find((q) => q.id === path[1]);
+  if (!asked) return "That question was not asked on this application. Reload it and try again.";
+  const question = carrierQuestionAsQuestion(asked);
+  if (!isAnswered(value)) {
+    return question.skip ? `Give an answer, or choose "${question.skip.label}".` : `"${asked.wording}" must be answered.`;
+  }
+  const shapes = (questionnaireAnswersSchema(carrierQuestionnaire([asked])) as z.ZodObject<Record<string, z.ZodTypeAny>>).shape;
+  return shapes[asked.id]!.safeParse(value).success ? null : `That is not an answer to "${asked.wording}".`;
+}

@@ -7,6 +7,8 @@ import { drawFieldValues, fitText, mergeOverflow } from "./packetFit.js";
 import type { PacketOverlayInput } from "./packetOverlayInput.js";
 import { appendContinuationSheet, continuationNoticeFor } from "./packetContinuation.js";
 import { appendCarrierQuestionsSheet } from "./packetCarrierQuestions.js";
+import { appendAnswerSheet } from "./packetAnswerSheet.js";
+import { ADDENDUM_SHEET } from "./packetAddendum.js";
 import { drawWithdrawalNotices } from "./packetWithdrawals.js";
 import { correctedPacketTemplate } from "./packetTemplate.js";
 
@@ -372,6 +374,11 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
       overflow,
       applicantName: input.applicantName ?? "",
     });
+  }
+  // F2: the answers the carrier's paper has no place for, after the continuation sheet it shares page 11's
+  // "attach sheet" with — appended, never inserted.
+  if (input.addendum) {
+    await appendAnswerSheet(doc, { ...ADDENDUM_SHEET, applicantName: input.applicantName ?? "", sections: input.addendum });
   }
   // §15.3: the carrier's own questions, appended after the continuation sheet — never inserted.
   if (input.carrierQuestions) {

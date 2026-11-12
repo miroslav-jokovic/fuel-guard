@@ -4,7 +4,7 @@ import { AD_FORMATS, FEED_FORMATS, type AdFormat, type AdPresetView } from "@sil
 import { AppButton as BaseButton, AppCallout, AppFormField as FormField, AppInput as BaseInput, AppSelect, AppSwitch as BaseSwitch, AppTextarea } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useToastStore } from "@/stores/toast";
-import { blankPresetForm, layoutOptions, lookOptions, presetFormFrom, presetSaveFrom, type PresetForm } from "./adsPresetForm";
+import { blankPresetForm, hookFamilyOptions, layoutOptions, lookOptions, presetFormFrom, presetSaveFrom, sceneFamilyOptions, type PresetForm } from "./adsPresetForm";
 import { useSavePreset } from "./useAdsPresets";
 
 /**
@@ -49,6 +49,8 @@ async function submit(): Promise<void> {
     toast.success(props.preset ? `Saved as version ${nextVersion.value}` : "Preset saved");
     emit("close");
   } catch (e) {
+    // The API's refusal names what to change (a concept another live preset holds, Q-AD77), so it stays on the form.
+    refusal.value = e instanceof Error ? e.message : null;
     toast.error("Could not save the preset", e instanceof Error ? e.message : undefined);
   }
 }
@@ -64,6 +66,12 @@ async function submit(): Promise<void> {
       <FormField v-slot="{ id }" label="Hook" hint="What the first line should do, for the copywriter." required>
         <AppTextarea :id="id" v-model="form.hook_formula" rows="2" />
       </FormField>
+      <fieldset class="grid gap-4 sm:grid-cols-2">
+        <legend class="text-sm font-semibold text-ink">The idea</legend>
+        <p class="text-sm text-ink-muted sm:col-span-2">Two presets in use may not share both. Meta shows two ads of one idea as one ad.</p>
+        <FormField v-slot="{ id }" label="The first line leads with" required><AppSelect :id="id" v-model="form.hook_family" :options="hookFamilyOptions()" placeholder="Choose…" data-test="preset-hook-family" /></FormField>
+        <FormField v-slot="{ id }" label="The picture shows" required><AppSelect :id="id" v-model="form.scene_family" :options="sceneFamilyOptions()" placeholder="Choose…" data-test="preset-scene-family" /></FormField>
+      </fieldset>
       <div class="flex items-center justify-between gap-4">
         <p class="text-sm text-ink">Use this preset for new ads</p>
         <BaseSwitch v-model="form.enabled" label="Use this preset for new ads" />

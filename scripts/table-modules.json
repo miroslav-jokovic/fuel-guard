@@ -90,6 +90,28 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "application_ssns": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "0589: at most one row per open application, deleted at filing (the number then lives on driver_applications) and with its invitation."
+      }
+    },
+    "application_unlock_codes": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "new in 0585 (2026-11-10, F0b); one row per code SENT, bounded by unlockCodeLimiter (3 per link per hour) and only asked for after a failed date of birth; pruned at 90 days from created_at."
+      }
+    },
     "application_invitations": {
       "module": "recruiting",
       "layer": "core",
@@ -1441,6 +1463,17 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "new in 0553 (2026-11-03); one row per lead x requirement per computation (five rules in profile v1); goes with its lead."
+      }
+    },
+    "ai_assistant_usage": {
+      "module": "insights",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "new in 0584 (2026-11-10, F21 R2): one row per Ask AI answer, counts and cost only, no text. Measured use 20 answers in four months; budgeted at PLAN.md §3's 10k answers a month. Retention 400 days, ruled Q-AI4 (a) 2026-11-11: 13 months of cost history, the same month last year kept whole."
       }
     },
     "lead_conversions": {

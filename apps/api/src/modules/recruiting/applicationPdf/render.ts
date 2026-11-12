@@ -181,8 +181,9 @@ function employerBlock(doc: PDFKit.PDFDocument, e: ApplicationEmployer): void {
   field(doc, "USDOT", blank(e.usdot_number));
   field(doc, "Position", blank(e.position_held));
   field(doc, "From / to", `${date(e.started_on)} — ${e.ended_on ? date(e.ended_on) : "present"}`);
-  field(doc, "Drove a CMV", yesNo(e.operated_cmv));
-  field(doc, "DOT-regulated", yesNo(e.dot_regulated));
+  // F1 part 2: a draft's preview may hold a job not answered yet — "Not answered", as for the (iv) pair below.
+  field(doc, "Drove a CMV", e.operated_cmv == null ? "Not answered" : yesNo(e.operated_cmv));
+  field(doc, "DOT-regulated", e.dot_regulated == null ? "Not answered" : yesNo(e.dot_regulated));
   field(doc, "Reason for leaving", blank(e.reason_for_leaving));
   /**
    * (b)(10)(iv)(A) and (B) — asked of every (b)(10) employer and filed in the payload since the contract
@@ -195,6 +196,16 @@ function employerBlock(doc: PDFKit.PDFDocument, e: ApplicationEmployer): void {
   field(doc, "Subject to the FMCSRs", e.subject_to_fmcsr == null ? "Not answered" : yesNo(e.subject_to_fmcsr));
   field(doc, "DOT drug and alcohol testing", e.safety_sensitive == null ? "Not answered" : yesNo(e.safety_sensitive));
   rule(doc);
+}
+
+/** (b)(9). F2c (P4): asked as two questions since; a filing from before has one combined answer. */
+function licenceHistory(doc: PDFKit.PDFDocument, a: ApplicationPdfInput["application"]): void {
+  if (typeof a.licence_suspended !== "boolean") {
+    body(doc, a.licence_ever_denied ? blank(a.licence_denial_detail) : "The applicant declared none.");
+    return;
+  }
+  field(doc, "Denied", a.licence_ever_denied ? blank(a.licence_denial_detail) || "Yes" : "No");
+  field(doc, "Suspended or revoked", a.licence_suspended ? blank(a.licence_suspension_detail) || "Yes" : "No");
 }
 
 export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<Buffer> {
@@ -318,7 +329,7 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
   }
 
   paragraph(doc, "§391.21(b)(9)", "Licence denied, revoked or suspended");
-  body(doc, a.licence_ever_denied ? blank(a.licence_denial_detail) : "The applicant declared none.");
+  licenceHistory(doc, a);
 
   paragraph(doc, "§391.21(b)(10) and (b)(11)", "Employment history");
   if ((a.employers ?? []).length === 0) {

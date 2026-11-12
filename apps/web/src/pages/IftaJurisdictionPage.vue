@@ -20,7 +20,7 @@ import {
   useUrlSort,
 } from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
-import { STATE_NAMES, type IftaJurisdictionTruck } from "@silvicom/shared";
+import { IFTA_QUERY_KEYS, STATE_NAMES, type IftaJurisdictionTruck } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
@@ -61,7 +61,7 @@ const NOW = new Date();
 const quarters = selectableQuarters(NOW);
 // Not checked against `quarterOptions`: a forwarded link may name a quarter older than the picker
 // offers, and `parseQuarterKey` is what decides whether it is a quarter at all.
-const qParam = qs.param("q");
+const qParam = qs.param(IFTA_QUERY_KEYS.quarter);
 const quarter = computed<IftaQuarter>(() => parseQuarterKey(qParam.value) ?? quarters[0]!);
 const quarterOptions = quarters.map((q) => ({ value: quarterKey(q), label: quarterLabel(q) }));
 const selectedKey = computed<string>({

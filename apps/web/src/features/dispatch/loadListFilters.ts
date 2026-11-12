@@ -1,5 +1,5 @@
 import { computed, type Ref } from "vue";
-import { dayRangeInstants, formatDisplayDate, isEnteredAhead, loadDeliveredAt, parseYmd, shiftDay, todayInZone } from "@silvicom/shared";
+import { dayRangeInstants, formatDisplayDate, LOADS_QUERY_KEYS as K, isEnteredAhead, loadDeliveredAt, parseYmd, shiftDay, todayInZone } from "@silvicom/shared";
 import type { UrlQueryState } from "@silvicom/ui";
 import type { DispatchLoad } from "./useDispatchLoads";
 
@@ -30,16 +30,17 @@ export function useDeliveredWindow(qs: UrlQueryState, zone: Ref<string>, now: ()
     const to = todayInZone(now(), zone.value);
     return { from: shiftDay(to, -(DEFAULT_WINDOW_DAYS - 1)), to };
   });
-  const fromParam = qs.param("delivered_from");
-  const toParam = qs.param("delivered_to");
+  // The keys are the Loads link contract's (F21 R4b), so Ask AI's "Open in Loads" opens these days.
+  const fromParam = qs.param(K.deliveredFrom);
+  const toParam = qs.param(K.deliveredTo);
   // A day equal to its fallback is left out of the URL, so the default stays "the last week".
   const from = computed<string>({
     get: () => DAY_PARAM(fromParam.value) ?? fallback.value.from,
-    set: (v) => qs.set({ delivered_from: v === fallback.value.from ? undefined : v }),
+    set: (v) => qs.set({ [K.deliveredFrom]: v === fallback.value.from ? undefined : v }),
   });
   const to = computed<string>({
     get: () => DAY_PARAM(toParam.value) ?? fallback.value.to,
-    set: (v) => qs.set({ delivered_to: v === fallback.value.to ? undefined : v }),
+    set: (v) => qs.set({ [K.deliveredTo]: v === fallback.value.to ? undefined : v }),
   });
   /** The two instants the API takes. The zone is in it, so a zone that lands late re-reads (D-PREC6). */
   const instants = computed(() => {
@@ -47,7 +48,7 @@ export function useDeliveredWindow(qs: UrlQueryState, zone: Ref<string>, now: ()
     return { from: r.start, before: r.endExclusive };
   });
   const moved = computed(() => from.value !== fallback.value.from || to.value !== fallback.value.to);
-  const reset = (): Partial<Record<string, undefined>> => ({ delivered_from: undefined, delivered_to: undefined });
+  const reset = (): Partial<Record<string, undefined>> => ({ [K.deliveredFrom]: undefined, [K.deliveredTo]: undefined });
   return { from, to, instants, moved, reset };
 }
 

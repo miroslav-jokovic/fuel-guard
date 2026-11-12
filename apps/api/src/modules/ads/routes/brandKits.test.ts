@@ -2,7 +2,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
-import { USER_ROLES, rolesThatCanView, rolesThatManage, type AdBrandKit, type AdPresetRecipe, type AuthContext, type UserRole } from "@silvicom/shared";
+import { STARTER_PRESETS, USER_ROLES, rolesThatCanView, rolesThatManage, type AdBrandKit, type AdPresetRecipe, type AuthContext, type UserRole } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { postgrestFixture, type FixtureRow } from "../../../testing/postgrestFixture.js";
@@ -36,6 +36,7 @@ const RECIPE: AdPresetRecipe = {
   image_prompt_template: "An empty highway at {time_of_day}, no text, no logos, no lettering", image_slots: ["time_of_day"],
   overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: { primary_text: "pay", headline: "title" },
   starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null, layout: "bottom_plate", formats: ["4:5"],
+  hook_family: "pay_first", scene_family: "abstract_plate",
 };
 
 let server: Server;
@@ -128,6 +129,7 @@ describe("/api/ads brand kits and presets — who may do what", () => {
       ["brand-kits/assets", { upload_id: "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b" }],
       ["brand-kits", { kit_id: null, name: "Main", kit: KIT }],
       ["presets", { key: "P1", enabled: true, recipe: RECIPE }],
+      ["presets/adopt", {}],
     ] as const) expect((await call("POST", path, body)).status, path).toBe(403);
     expect(adWrites()).toEqual([]);
     expect(db.storageCalls()).toEqual([]);
@@ -236,5 +238,79 @@ describe("a save is a new version, never an edit", () => {
     expect(res.status).toBe(400);
     expect(JSON.stringify(await res.json())).toContain("Meta shows beside the image");
     expect(adWrites()).toEqual([]);
+  });
+});
+
+describe("two live presets may not hold one concept (Q-AD77)", () => {
+  const save = (key: string, enabled: boolean, recipe: AdPresetRecipe = RECIPE) => call("POST", "presets", { key, enabled, recipe });
+
+  it("refuses a live save whose hook × scene another live preset holds, naming both keys, and writes nothing", async () => {
+    expect((await save("P1", true)).status).toBe(201);
+    const before = adWrites().length;
+    const res = await save("P7", true, { ...RECIPE, name: "Same idea, new name" });
+    expect(res.status).toBe(409);
+    const body = await res.json() as { error: { code: string; message: string }; key: string };
+    expect(body).toMatchObject({ error: { code: "ads_concept_taken" }, key: "P1" });
+    expect(body.error.message).toContain("P7 and P1 would both be live as \"pay first, plain background\"");
+    expect(adWrites().length).toBe(before);
+    expect(tables.ad_concept_presets!.map((p) => p.key)).toEqual(["P1"]);
+  });
+
+  it("a switched-off version, a new version of the holder itself, and another pair are all saved", async () => {
+    expect((await save("P1", true)).status).toBe(201);
+    expect((await save("P7", false)).status).toBe(201);
+    expect((await save("P1", true, { ...RECIPE, name: "P1, reworded" })).status).toBe(201);
+    expect((await save("P8", true, { ...RECIPE, scene_family: "cab_pov" })).status).toBe(201);
+  });
+
+  it("switching the second one on is the save that is checked; once the holder is off or archived it goes through", async () => {
+    await save("P1", true);
+    await save("P7", false);
+    expect((await save("P7", true)).status).toBe(409);
+    await save("P1", false);
+    expect((await save("P7", true)).status).toBe(201);
+    // P1 back on now meets P7.
+    expect((await save("P1", true)).status).toBe(409);
+    tables.ad_concept_presets!.find((p) => p.key === "P7")!.archived_at = "2026-11-10T00:00:00Z";
+    expect((await save("P1", true)).status).toBe(201);
+  });
+
+  it("a live preset stored before the families has no pair and blocks nothing", async () => {
+    const { hook_family: _h, scene_family: _s, ...older } = RECIPE;
+    tables.ad_concept_presets!.push({ id: "44444444-4444-4444-8444-444444444444", org_id: ORG, key: "P0", archived_at: null });
+    tables.ad_concept_preset_versions!.push({ id: "v-old", org_id: ORG, preset_id: "44444444-4444-4444-8444-444444444444", version: 1, enabled: true, recipe: older, created_by: "u-x", created_by_name: "X", created_at: "2026-11-01T00:00:00Z" });
+    expect((await save("P1", true)).status).toBe(201);
+  });
+});
+
+describe("adopting the starter presets (Q-AD77)", () => {
+  it("writes version 1 of all five, switched off; adopting twice writes the five once", async () => {
+    const first = await call("POST", "presets/adopt", {});
+    expect(first.status).toBe(201);
+    expect(await first.json()).toEqual({ adopted: ["P1", "P2", "P3", "P4", "P5"], skipped: [] });
+    const second = await call("POST", "presets/adopt", {});
+    expect(second.status).toBe(200);
+    expect(await second.json()).toEqual({ adopted: [], skipped: ["P1", "P2", "P3", "P4", "P5"] });
+    expect(tables.ad_concept_presets).toHaveLength(5);
+    expect(tables.ad_concept_preset_versions!.map((v) => [v.version, v.enabled])).toEqual(Array(5).fill([1, false]));
+    // What is stored is the starter as shipped — the carrier's from here on.
+    expect(tables.ad_concept_preset_versions!.map((v) => v.recipe)).toEqual(STARTER_PRESETS.map((s) => s.recipe));
+    const { presets } = await (await call("GET", "presets")).json() as { presets: Array<{ key: string; current: { enabled: boolean } }> };
+    expect(presets.map((p) => [p.key, p.current.enabled])).toEqual(STARTER_PRESETS.map((s) => [s.key, false]));
+    adQueriesScoped();
+  });
+
+  it("skips a key the carrier already holds — live or archived — and leaves that preset as it was", async () => {
+    await call("POST", "presets", { key: "P2", enabled: true, recipe: RECIPE });
+    tables.ad_concept_presets!.push({ id: "55555555-5555-4555-8555-555555555555", org_id: ORG, key: "P4", archived_at: "2026-11-01T00:00:00Z" });
+    const res = await call("POST", "presets/adopt", {});
+    expect(await res.json()).toEqual({ adopted: ["P1", "P3", "P5"], skipped: ["P2", "P4"] });
+    const p2 = tables.ad_concept_presets!.find((p) => p.key === "P2")!;
+    expect(tables.ad_concept_preset_versions!.filter((v) => v.preset_id === p2.id).map((v) => (v.recipe as AdPresetRecipe).name)).toEqual(["Fixture preset"]);
+  });
+
+  it("all five adopted can then be switched on together: their pairs are distinct", async () => {
+    await call("POST", "presets/adopt", {});
+    for (const s of STARTER_PRESETS) expect((await call("POST", "presets", { ...s, enabled: true })).status, s.key).toBe(201);
   });
 });

@@ -1,3 +1,4 @@
+import type { AnswerSheetSection } from "./packetAnswerSheet.js";
 import type { PacketFieldOverflow, PlacedFieldValue } from "./packetGrid.js";
 
 /**
@@ -94,4 +95,10 @@ export interface PacketOverlayInput {
    * after the continuation sheet (`packetCarrierQuestions.ts`). Absent or an empty stamp: no sheet.
    */
   carrierQuestions?: { stamp: unknown; answers: Record<string, unknown> | null | undefined } | null;
+  /**
+   * F2: the applicant's answers the carrier's paper has no place for (`packetAddendum.ts`), drawn on a sheet
+   * appended after the continuation sheet and before the carrier's questions. Absent: no sheet — the blank
+   * template the office prints has nobody's answers.
+   */
+  addendum?: readonly AnswerSheetSection[] | null;
 }

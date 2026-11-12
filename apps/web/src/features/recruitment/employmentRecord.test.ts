@@ -20,7 +20,11 @@ const ROW: EmploymentHistory = {
 
 describe("an office add (EM-5)", () => {
   it("is saved as added by the office, with the street, and with no inquiry status typed in", () => {
-    const fields = { ...blankEmployer(), employer_name: "Werner", started_on: "2023-01-01", address_line1: "1 Frontier Rd", city: "Omaha", state: "NE" };
+    const fields = {
+      ...blankEmployer(), employer_name: "Werner", started_on: "2023-01-01", address_line1: "1 Frontier Rd", city: "Omaha", state: "NE",
+      // The office answers both, as the driver does — neither starts at Yes since F1 part 2.
+      operated_cmv: true, dot_regulated: true,
+    };
     const { body, errors } = historyWrite(fields, "", DRIVER, null);
     expect(errors).toEqual({});
     expect(body).toMatchObject({
@@ -43,9 +47,14 @@ describe("a change to a row (EM-6)", () => {
     expect(historyWrite(fields, ROW.notes!, DRIVER, ROW).body).toEqual({ employer_city: "Chicago" });
   });
 
-  it("sends nothing for a row nobody changed, though the form shows an unstated 'drove a truck' as Yes", () => {
-    expect(historyToFields(ROW).operated_cmv).toBe(true);
+  it("shows an unstated 'drove a truck' as unanswered, and sends nothing for a row nobody changed (F1 part 2)", () => {
+    expect(historyToFields(ROW).operated_cmv).toBeNull();
     expect(historyWrite(historyToFields(ROW), ROW.notes!, DRIVER, ROW).body).toEqual({});
+  });
+
+  it("sends a Yes the office taps on an unstated 'drove a truck' — it is an answer now, not the form's", () => {
+    const fields = { ...historyToFields(ROW), operated_cmv: true };
+    expect(historyWrite(fields, ROW.notes!, DRIVER, ROW).body).toEqual({ operated_cmv: true });
   });
 
   it("writes an answer that was given — a No to 'drove a truck', the (iv) answers, the notes", () => {

@@ -33,13 +33,14 @@ const CORRECTION = {
   cdl_class: "A",
   licences: [
     { state_code: "IL", licence_number: "D123-4567", expires_on: "2029-01-01" },
-    { state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30" },
+    { state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30", kind: "clp" },
   ],
 };
 
 const STORED_LICENCES = [
   // Out of order on purpose: the list is the positions, whatever order the rows arrive in.
-  { invitation_id: INV, position: 1, state_code: "OH", agency: null, licence_number: "OH-1", expires_on: "2020-01-31" },
+  // P3: a stored type, so the identity correction is seen to post it back rather than wipe it (0588).
+  { invitation_id: INV, position: 1, state_code: "OH", agency: null, licence_number: "OH-1", expires_on: "2020-01-31", kind: "non_cdl" },
   { invitation_id: INV, position: 0, state_code: "PA", agency: null, licence_number: "PA-OLD", expires_on: "2028-05-01" },
 ];
 
@@ -48,15 +49,27 @@ const seed = (over: {
   intake?: boolean;
   licences?: unknown[];
   rpc?: Record<string, unknown>;
+  /** F3: what Part 1 and `drivers` held before the correction, and packet marks made. */
+  stored?: Record<string, unknown>;
+  driver?: Record<string, unknown>;
+  marks?: number;
+  draft?: Record<string, unknown> | null;
+  edits?: unknown;
+  /** E3: this applicant's live text consents. */
+  consents?: unknown[];
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       application_invitations: over.invitation === null ? [] : [{
         id: INV, org_id: ORG, driver_id: DRIVER, submitted_at: null, ...over.invitation,
       }],
-      application_intakes: over.intake === false ? [] : [{ id: "intake-1", invitation_id: INV }],
+      application_intakes: over.intake === false ? [] : [{ id: "intake-1", invitation_id: INV, ...over.stored }],
       application_intake_licences: over.licences ?? STORED_LICENCES,
-      drivers: [{ id: DRIVER, org_id: ORG, date_of_birth: null, cdl_number: null, cdl_state: null }],
+      drivers: [{ id: DRIVER, org_id: ORG, date_of_birth: null, cdl_number: null, cdl_state: null, ...over.driver }],
+      application_packet_marks: { data: [], count: over.marks ?? 0 },
+      application_drafts: over.draft ? [{ invitation_id: INV, payload: over.draft, revision: 3 }] : [],
+      application_edits: (over.edits ?? []) as never,
+      sms_consents: (over.consents ?? []) as never,
       audit_logs: [],
     },
     rpc: {
@@ -117,8 +130,8 @@ describe("the office corrects Part 1", () => {
       state: "IL", postal_code: "60432", cdl_class: "A",
     });
     expect(args.p_licences).toEqual([
-      { position: 0, state_code: "IL", agency: null, licence_number: "D123-4567", expires_on: "2029-01-01", source: "intake" },
-      { position: 1, state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30", source: "intake" },
+      { position: 0, state_code: "IL", agency: null, licence_number: "D123-4567", expires_on: "2029-01-01", kind: null, source: "intake" },
+      { position: 1, state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30", kind: "clp", source: "intake" },
     ]);
     // Never the identity writer on its own: the intake writer calls it from inside, from position 0.
     expect(rec.rpcs().some((r) => r.fn === "record_applicant_identity")).toBe(false);
@@ -232,9 +245,13 @@ describe("the identity correction on a v2 link", () => {
     expect(args).toMatchObject({ p_overwrite: true, p_intake: { date_of_birth: "1980-04-01" } });
     expect(args.p_licences).toEqual([
       // Number and state corrected; its expiry is Part 1's and stays.
-      { position: 0, state_code: "PA", agency: null, licence_number: "PA334554", expires_on: "2028-05-01", source: "intake" },
-      { position: 1, state_code: "OH", agency: null, licence_number: "OH-1", expires_on: "2020-01-31", source: "intake" },
+      { position: 0, state_code: "PA", agency: null, licence_number: "PA334554", expires_on: "2028-05-01", kind: null, source: "intake" },
+      // P3: the stored type travels with the list the identity correction posts back whole.
+      { position: 1, state_code: "OH", agency: null, licence_number: "OH-1", expires_on: "2020-01-31", kind: "non_cdl", source: "intake" },
     ]);
+    // …which needs the column READ: the recorder serves whole rows whatever is selected.
+    const selects = rec.forTable("application_intake_licences").map((q) => q.ops.find((o) => o.method === "select")?.args[0]);
+    expect(selects.every((c) => String(c).split(",").map((x) => x.trim()).includes("kind"))).toBe(true);
     expect(rec.rpcs().some((r) => r.fn === "record_applicant_identity")).toBe(false);
     expect(rec.writtenRows("audit_logs")[0]).toMatchObject({ action: "application_identity_corrected", entity_id: INV });
     expectOrgScoped(rec, ORG);
@@ -259,5 +276,129 @@ describe("the identity correction on a v2 link", () => {
     expect(res.status).toBe(409);
     expect(await code(res)).toBe("already_filed");
     expect(rec.writtenRows("audit_logs")).toHaveLength(0);
+  });
+});
+
+/**
+ * F3 (E7): every change the office makes reaches the driver's signing screen as an `application_edits`
+ * row, and none lands once the driver has started marking the packet.
+ */
+describe("every office correction is shown to the driver, and none lands once they are signing", () => {
+  const STORED = {
+    phone: "+17082365732", address_line1: "9 Old Rd", address_line2: null, city: "Joliet",
+    state: "IL", postal_code: "60432", prior_positive_2y: false,
+  };
+  /** The current home is the SECOND address, so the row's index is read from the draft, not assumed. */
+  const DRAFT = { addresses: [{ line1: "1 A St", from: "2019-01", to: "2022-12" }, { line1: "", from: "2023-01", to: null }] };
+  const editRows = (rec: SupabaseRecorder) =>
+    rec.writtenRows("application_edits").map((r) => {
+      const row = r as Record<string, unknown>;
+      return { path: row.path, before: row.before, after: row.after };
+    });
+
+  it("writes one row per Part 1 change, addressed where the application files it", async () => {
+    const rec = seed({ stored: STORED, driver: { cdl_class: "B" }, draft: DRAFT });
+    holder.client = rec.client;
+    expect((await correct()).status).toBe(200);
+    expect(editRows(rec)).toEqual([
+      { path: ["addresses", 1, "line1"], before: "9 Old Rd", after: "12 Depot Rd" },
+      { path: ["cdl_class"], before: "B", after: "A" },
+      { path: ["cdl_state"], before: "PA", after: "IL" },
+      { path: ["cdl_number"], before: "PA-OLD", after: "D123-4567" },
+      { path: ["cdl_expires_at"], before: "2028-05-01", after: "2029-01-01" },
+      {
+        path: ["additional_licences", 0],
+        before: { issuing_authority: "OH", number: "OH-1", expires_at: "2020-01-31", kind: "non_cdl" },
+        after: { issuing_authority: "Indiana BMV", number: "IN-555", expires_at: "2021-06-30", kind: "clp" },
+      },
+    ]);
+    const [row] = rec.writtenRows("application_edits") as Array<Record<string, unknown>>;
+    expect(row).toMatchObject({ org_id: ORG, invitation_id: INV, edited_by: "u-recruiter" });
+    expectOrgScoped(rec, ORG);
+  });
+
+  /** F3c part 2 (E2): one licence taken out of the middle is ONE line on 3.1, not a shift of the rest. */
+  it("logs a licence removed from the middle of Part 1's list as one removal row", async () => {
+    const three = [
+      { invitation_id: INV, position: 0, state_code: "IL", agency: null, licence_number: "D123-4567", expires_on: "2029-01-01" },
+      { invitation_id: INV, position: 1, state_code: "OH", agency: null, licence_number: "OH-1", expires_on: "2020-01-31" },
+      { invitation_id: INV, position: 2, state_code: "IN", agency: "Indiana BMV", licence_number: "IN-555", expires_on: "2021-06-30", kind: "clp" },
+    ];
+    const rec = seed({ stored: STORED, licences: three, draft: DRAFT });
+    holder.client = rec.client;
+    expect((await correct()).status).toBe(200);
+    const licenceRows = rec.writtenRows("application_edits")
+      .map((r) => r as Record<string, unknown>)
+      .filter((row) => (row.path as unknown[])[0] === "additional_licences")
+      .map((row) => ({ path: row.path, before: row.before, after: row.after }));
+    expect(licenceRows).toEqual([
+      { path: ["additional_licences", 0], before: { issuing_authority: "OH", number: "OH-1", expires_at: "2020-01-31", kind: null }, after: null },
+    ]);
+  });
+
+  /** E3: texts went to the number Part 1 held; the corrected one has no consent, so the old one stops. */
+  it("stops this applicant's texts to the phone Part 1 held, and says so", async () => {
+    const rec = seed({ stored: { ...STORED, phone: "+17085550100" }, draft: DRAFT, consents: [{ id: "c-1" }] });
+    holder.client = rec.client;
+    const res = await correct();
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { contact: unknown }).contact).toEqual({ textsStopped: true });
+    const [update] = rec.writes().filter((q) => q.table === "sms_consents");
+    expect(update!.filters()).toEqual(expect.arrayContaining([
+      { col: "org_id", val: ORG }, { col: "driver_id", val: DRIVER }, { col: "phone", val: "+17085550100" },
+    ]));
+  });
+
+  it("stops nothing when the phone did not change", async () => {
+    const rec = seed({ stored: STORED, draft: DRAFT, consents: [{ id: "c-1" }] });
+    holder.client = rec.client;
+    expect(((await (await correct()).json()) as { contact: unknown }).contact).toEqual({});
+    expect(rec.writes().filter((q) => q.table === "sms_consents")).toEqual([]);
+  });
+
+  it("refuses a Part 1 correction once the driver has marked the packet, writing nothing", async () => {
+    const rec = seed({ stored: STORED, marks: 1 });
+    holder.client = rec.client;
+    const res = await correct();
+    expect(res.status).toBe(409);
+    expect(await code(res)).toBe("application_not_editable");
+    expect(rec.rpcs()).toEqual([]);
+    expect(rec.writes()).toHaveLength(0);
+  });
+
+  const IDENTITY = { date_of_birth: "1980-04-01", cdl_number: "PA334554", cdl_state: "PA" };
+  const identity = (rec: SupabaseRecorder) => {
+    holder.client = rec.client;
+    return office(`/applications/${INV}/identity`, "recruiter", IDENTITY);
+  };
+
+  it("writes a row for each identity value that changed, on a v2 link", async () => {
+    const rec = seed({ driver: { date_of_birth: "1980-01-04", cdl_number: "PA334554", cdl_state: "PA" } });
+    expect((await identity(rec)).status).toBe(200);
+    // The licence did not change, so only the date of birth is shown to the driver.
+    expect(editRows(rec)).toEqual([{ path: ["date_of_birth"], before: "1980-01-04", after: "1980-04-01" }]);
+  });
+
+  it("writes the rows on a legacy link too, where the identity writer carries it", async () => {
+    const rec = seed({ intake: false, driver: { date_of_birth: "1980-01-04", cdl_number: "X1", cdl_state: "IL" } });
+    expect((await identity(rec)).status).toBe(200);
+    expect(editRows(rec).map((r) => r.path)).toEqual([["date_of_birth"], ["cdl_number"], ["cdl_state"]]);
+  });
+
+  it("refuses an identity correction once the driver has marked the packet, writing nothing", async () => {
+    const rec = seed({ marks: 2 });
+    const res = await identity(rec);
+    expect(res.status).toBe(409);
+    expect(await code(res)).toBe("application_not_editable");
+    expect(rec.rpcs()).toEqual([]);
+    expect(rec.writes()).toHaveLength(0);
+  });
+
+  it("says so when the change was made but the driver's record of it could not be written", async () => {
+    const rec = seed({ stored: STORED, draft: DRAFT, edits: { data: [], writeError: { message: "down" } } });
+    holder.client = rec.client;
+    const res = await correct();
+    expect(res.status).not.toBe(200);
+    expect(await code(res)).toBe("edit_not_recorded");
   });
 });

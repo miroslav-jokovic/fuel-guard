@@ -185,6 +185,11 @@ async function seedApplicant(org, name) {
   // 0471 (UX5c): the Med-Stop create attempt leaves with the invitation (on delete cascade), so it is
   // proved by the footprint below rather than counted by the purge function.
   await db.query(`insert into medstop_applicant_creates (org_id, invitation_id, outcome) values ($1,$2,'created')`, [org, inv]);
+  // 0585 (F0b): a one-time unlock code leaves with the invitation the same way (on delete cascade) —
+  // proved by the footprint, not counted by the purge function.
+  await db.query(
+    `insert into application_unlock_codes (org_id, invitation_id, channel, code_hash, expires_at, used_at)
+     values ($1,$2,'email',repeat('a',64),now() + interval '10 minutes',now())`, [org, inv]);
   await db.query(
     `insert into application_intake_licences (org_id, invitation_id, position, state_code, licence_number) values ($1,$2,0,'IL','X123')`,
     [org, inv]);
@@ -205,6 +210,8 @@ async function seedApplicant(org, name) {
   await db.query(`insert into sms_suppressions (org_id, driver_id, phone, reason) values ($1,$2,$3,'stop')`,
     [org, d, `+1312555${stopPhoneSeq++}`]);
   await db.query(`insert into application_edits (org_id, invitation_id, path) values ($1,$2,'["employers",0,"city"]')`, [org, inv]);
+  // 0589: the pre-signing SSN row goes with its invitation (on delete cascade), not by name.
+  await db.query(`insert into application_ssns (invitation_id, org_id, ssn_last4, entered_by) values ($1,$2,'6789','applicant')`, [inv, org]);
   await db.query(`insert into application_drafts (org_id, invitation_id, driver_id) values ($1,$2,$3)`, [org, inv, d]);
   await db.query(
     `insert into applicant_dispositions (org_id, driver_id, outcome, decided_on) values ($1,$2,'withdrawn','2026-09-01')`,

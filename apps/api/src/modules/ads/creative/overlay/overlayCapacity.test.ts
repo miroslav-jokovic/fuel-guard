@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AD_FORMATS, AD_LOOKS, AD_OVERLAY_LAYOUTS, FEED_FORMATS, OVERLAY_HEADLINE_MAX_CHARS, OVERLAY_SMALL_LINE_MAX_CHARS, adPresetSaveSchema, type AdBrandKit, type AdLook } from "@silvicom/shared";
 import { COPYWRITER_EVAL, loadFixtures } from "../../workers/agentFixtures.js";
 import { overlayFit } from "./overlay.js";
@@ -18,6 +18,14 @@ import { overlayFit } from "./overlay.js";
  * two is the copy ranking's to place (compose asks `overlayFit` per candidate), and what the save promises is
  * unchanged: nothing above the ceiling can be drawn by any look, and 45 or fewer is drawn by every one.
  */
+/**
+ * The measuring tests lay out every recorded headline (hundreds, in two languages) on every format, layout and look
+ * through the real overlay. About 2 s for the whole file on a laptop; on a loaded CI shard one test took 5,972 ms and
+ * another 8,049 ms against vitest's 5,000 (2026-11-11, PRs #2233 and #2234). The work is real and nothing here waits on
+ * a timer, so the limit is the file's own, as composeCreative.test.ts does for the same reason.
+ */
+vi.setConfig({ testTimeout: 30_000 });
+
 const overlay = { zone: null, text_color: "#FFFFFF", plate_color: "#0B3D2E" };
 const kit: Pick<AdBrandKit, "overlays"> = { overlays: Object.fromEntries(FEED_FORMATS.map((f) => [f, overlay])) };
 
@@ -99,6 +107,7 @@ describe("the headline's ceiling is the overlay's own (D-AD27)", () => {
       starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null, formats: ["4:5"],
       copy_slots: [{ name: "hook", max_chars: max }, { name: "cta", max_chars: 24 }, { name: "body", max_chars: 220 }, { name: "title", max_chars: 40 }],
       overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: { primary_text: "body", headline: "title" },
+      hook_family: "pay_first", scene_family: "equipment_on_road",
     });
     expect(adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: recipe(OVERLAY_HEADLINE_MAX_CHARS) }).success).toBe(true);
     expect(adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: recipe(OVERLAY_HEADLINE_MAX_CHARS + 1) }).error?.issues.map((i) => [i.path.join("."), i.message])).toEqual([

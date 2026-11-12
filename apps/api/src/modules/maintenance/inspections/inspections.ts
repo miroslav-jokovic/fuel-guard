@@ -10,6 +10,7 @@ import {
   chooseVehicleIdentification,
 } from "@silvicom/shared";
 import { getEquipmentIdentity } from "../../roster/index.js";
+import { orgToday } from "../../org/index.js";
 import type { ServiceError } from "./inspectors.js";
 
 /**
@@ -343,7 +344,10 @@ export async function createCorrection(
     inspector_id: prior.inspector_id,
     // Today, not the superseded date: this is a new inspection of the vehicle, and back-dating it to
     // the report it replaces would put two inspections on one day and make the expiry ambiguous.
-    inspected_on: new Date().toISOString().slice(0, 10),
+    // The CARRIER's today (`orgToday`): `inspected_on` is a day on the shop's own calendar, the same
+    // kind the inspector types on a new report, and the record is append-only — a correction started
+    // at 7 pm Central was filed as inspected tomorrow, a date only another correction could undo.
+    inspected_on: await orgToday(admin, orgId),
     catalogue_version: INSPECTION_CATALOGUE_VERSION,
     vehicle_identification_method: prior.vehicle_identification_method ?? "vin",
     vehicle_identification_value: prior.vehicle_identification_value ?? null,

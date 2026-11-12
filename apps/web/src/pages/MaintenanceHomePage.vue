@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { AppTabs, useQueryState } from "@silvicom/ui";
-import { repairSettled } from "@silvicom/shared";
+import { repairSettled, SHOP_ANNUAL_DUE_TAB, SHOP_QUERY_KEYS } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import WalkActions, { type WalkAction } from "@/components/WalkActions.vue";
 import { useAnnualDueQuery, useOpenWorkOrdersQuery, useUnresolvedDefectsQuery } from "@/features/maintenance/useShopBacklog";
@@ -57,7 +57,7 @@ const ALL_TABS = [
   { value: "roadside", label: "Roadside repairs", screen: "/shop/roadside-repairs", rows: () => roadsideDue.value },
   { value: "defects", label: "Defects", screen: "/shop/defects", rows: () => defectsQ.data.value },
   { value: "work-orders", label: "Work orders", screen: "/shop/work-orders", rows: () => ordersQ.data.value },
-  { value: "annual", label: "Annual due", screen: "/shop", rows: () => annualQ.data.value },
+  { value: SHOP_ANNUAL_DUE_TAB, label: "Annual due", screen: "/shop", rows: () => annualQ.data.value },
   { value: "bills", label: "Repair bills", screen: "/shop/repair-spend", rows: () => undefined },
 ] as const;
 type TabKey = (typeof ALL_TABS)[number]["value"];
@@ -66,7 +66,8 @@ const shown = computed(() => ALL_TABS.filter((t) => opens(t.screen)));
 const tabs = computed(() => shown.value.map((t) => ({ value: t.value, label: t.label, badge: count(t.rows()) })));
 
 const qs = useQueryState();
-const asked = qs.param("tab", ALL_TABS.map((t) => t.value));
+// The tab key and the Annual due tab's name are the link contract's (F21 R4b): Ask AI links here.
+const asked = qs.param(SHOP_QUERY_KEYS.tab, ALL_TABS.map((t) => t.value));
 const tab = computed<TabKey>({
   get: () => {
     const keys = shown.value.map((t) => t.value) as TabKey[];
@@ -75,7 +76,7 @@ const tab = computed<TabKey>({
     return (withRows?.value ?? (keys.includes("defects") ? "defects" : keys[0] ?? "defects")) as TabKey;
   },
   // A tab is a different list, so its search, filters, sort and page do not follow it across.
-  set: (v) => void router.replace({ query: { tab: v } }),
+  set: (v) => void router.replace({ query: { [SHOP_QUERY_KEYS.tab]: v } }),
 });
 
 const actions = computed<WalkAction[]>(() =>

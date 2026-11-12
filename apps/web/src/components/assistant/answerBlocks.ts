@@ -110,3 +110,21 @@ export function parseAnswer(source: string): AnswerBlock[] {
   flush();
   return blocks;
 }
+
+/** A cell's plain words: the inline marks dropped, the text kept. */
+const plain = (inlines: Inline[]): string => inlines.map((i) => i.text).join("").trim();
+
+/**
+ * One answer table as a CSV grid (F21 R4a): the reader's next step with a ranking is a spreadsheet.
+ * Cells are the words the reader sees. In a NUMERIC column (`numeric`, the same rule that
+ * right-aligns it), `$` and thousands separators are dropped so the column sums in Excel or Sheets;
+ * a unit or `%` stays, and anything else is left as written. Quoting and the formula guard are
+ * `csvCell`'s, in `downloadCsv`.
+ */
+export function tableCsv(block: Extract<AnswerBlock, { type: "table" }>): { headers: string[]; rows: string[][] } {
+  const figure = (v: string) => v.replace(/^([-+−]?)\$\s?/, "$1").replace(/(\d),(?=\d{3}\b)/g, "$1").replace(/^−/, "-");
+  return {
+    headers: block.head.map(plain),
+    rows: block.rows.map((r) => r.map((cell, c) => (block.numeric[c] ? figure(plain(cell)) : plain(cell)))),
+  };
+}

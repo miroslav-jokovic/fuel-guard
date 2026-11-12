@@ -199,7 +199,7 @@ describe("the licence list", () => {
     const res = await post("/intake/licences", {
       licences: [
         { state_code: "il", licence_number: " D123-4567-8901 ", expires_on: "2029-05-01" },
-        { state_code: "IN", licence_number: "1234-56-7890", agency: "Indiana BMV", expires_on: "2021-02-28" },
+        { state_code: "IN", licence_number: "1234-56-7890", agency: "Indiana BMV", expires_on: "2021-02-28", kind: "non_cdl" },
       ],
     });
     expect(res.status).toBe(201);
@@ -207,8 +207,8 @@ describe("the licence list", () => {
     const args = rec.rpcs()[0]!.args as Row;
     expect(args.p_intake).toEqual({});
     expect(args.p_licences).toEqual([
-      { position: 0, state_code: "IL", agency: null, licence_number: "D123-4567-8901", expires_on: "2029-05-01", source: "intake" },
-      { position: 1, state_code: "IN", agency: "Indiana BMV", licence_number: "1234-56-7890", expires_on: "2021-02-28", source: "intake" },
+      { position: 0, state_code: "IL", agency: null, licence_number: "D123-4567-8901", expires_on: "2029-05-01", kind: null, source: "intake" },
+      { position: 1, state_code: "IN", agency: "Indiana BMV", licence_number: "1234-56-7890", expires_on: "2021-02-28", kind: "non_cdl", source: "intake" },
     ]);
   });
 

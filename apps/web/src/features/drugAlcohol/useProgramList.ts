@@ -26,6 +26,18 @@ export function useProgramList<T>(opts: {
   /** The filter parameters "Clear filters" removes, and their current values (for the page reset and the count). */
   filters?: () => Record<string, string>;
   qs?: UrlQueryState;
+  /**
+   * The tab's Show is on another list than the one it opens on. Show is not a filter (Clear keeps it),
+   * but a reader who picked "Needs review" is looking at a narrower list all the same.
+   */
+  showMoved?: () => boolean;
+  /**
+   * Told the count of rows on screen whenever the reader has narrowed the list, and null when they
+   * have not — the page puts it in the open tab's number (owner, 2026-11-10: "filters don't change the
+   * numbers on the tab"). Null hands the number back to the tab's own meaning: Random counts the draws
+   * to test, not the quarter it opens on, and that is R5's decision, not this function's.
+   */
+  onShown?: (count: number | null) => void;
 }) {
   const qs = opts.qs ?? useQueryState(opts.scope);
   const search = qs.param("search");
@@ -47,6 +59,11 @@ export function useProgramList<T>(opts: {
   const filterValues = () => opts.filters?.() ?? {};
   /** The search counts as a filter (§5.5 rule 5); a filter at its default reads `""` and does not. */
   const activeCount = computed(() => [search.value.trim(), ...Object.values(filterValues())].filter(Boolean).length);
+  const narrowed = computed(() => activeCount.value > 0 || Boolean(opts.showMoved?.()));
+  if (opts.onShown) {
+    const tell = opts.onShown;
+    watch(() => (narrowed.value ? filtered.value.length : null), (n) => tell(n), { immediate: true });
+  }
   const clearAll = () =>
     qs.set({ search: undefined, ...Object.fromEntries(Object.keys(filterValues()).map((k) => [k, undefined])) });
 

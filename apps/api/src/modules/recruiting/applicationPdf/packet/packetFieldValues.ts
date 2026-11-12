@@ -1,5 +1,5 @@
 import { packetPageWithdrawn, packetWithdrawal, type EquipmentClass } from "@silvicom/shared";
-import { PACKET_ROW_OF, addressCells, blank, date, foldedType, fullName, yesNo } from "./packetDraw.js";
+import { PACKET_ROW_OF, addressCells, blank, date, foldedType, fullName, licenceKindWords, licenceType, yesNo } from "./packetDraw.js";
 import { P1, P2, P12 } from "./packetText.js";
 import { answer, bool, page16, push } from "./packetFieldQuestionnaire.js";
 import {
@@ -152,11 +152,11 @@ function page2(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
     P2.licenceColumns,
     2,
     [
-      [blank(a.cdl_state), blank(a.cdl_number), blank(a.cdl_class), date(a.cdl_expires_at)],
+      [blank(a.cdl_state), blank(a.cdl_number), licenceType(a.cdl_class, a.cdl_endorsements), date(a.cdl_expires_at)],
       ...(a.additional_licences ?? []).map((l) => [
         blank(l.issuing_authority),
         blank(l.number),
-        blank(l.kind),
+        licenceKindWords(l.kind),
         date(l.expires_at),
       ]),
     ],
@@ -252,17 +252,20 @@ function page2(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
     over,
   );
 
-  // ⚠ The packet asks A and B separately; the contract has ONE field whose own wording covers
-  // "denied, revoked or suspended", so both lines take the same answer and the detail is printed
-  // under A. Splitting the contract to match the form would change what the driver is ASKED, which
-  // is D-PKT4's other half and counsel's.
+  // F2c (P4): the carrier's A (denied) and B (suspended or revoked), each from its own answer.
+  // ⚠ An application filed before F2c answered ONE question worded "denied, revoked or suspended", so
+  // it has no B; that one answer prints on both lines, as every packet printed it until F2c. Not a
+  // workaround: `driver_applications` is append-only and a filed packet must re-render as it was signed
+  // (§390.32(d)), so this read is the only one an old payload can have.
   const denied = a.licence_ever_denied;
+  const suspended = typeof a.licence_suspended === "boolean" ? a.licence_suspended : denied;
   push(into, denied ? "p02.denied.yes" : "p02.denied.no", "X");
-  push(into, denied ? "p02.revoked.yes" : "p02.revoked.no", "X");
+  push(into, suspended ? "p02.revoked.yes" : "p02.revoked.no", "X");
   // ⚠ Labelled, and only the free-text rules are (AUD-1). A value too long for its rule is cut on
   // the paper and reproduced on the continuation sheet, which then has to say what it answers —
   // and an explanation of a licence suspension is the longest thing page 2 asks anybody to write.
   if (denied) push(into, "p02.denied.explain", blank(a.licence_denial_detail), P2.deniedQuestion);
+  if (a.licence_suspended) push(into, "p02.revoked.explain", blank(a.licence_suspension_detail), P2.revokedQuestion);
 }
 
 function page12(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFieldOverflow[]): void {

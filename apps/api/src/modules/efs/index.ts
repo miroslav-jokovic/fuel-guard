@@ -29,3 +29,5 @@ export { registerEfsSoapIntegrationRoutes } from "./routes/integrationSoap.js";
 export { registerFeedFreshnessRoutes, type FeedFreshnessResponse } from "./routes/feedFreshness.js";
 export { registerEfsExportRoutes } from "./routes/exports.js";
 export { registerEfsSoapCertRoutes } from "./routes/integrationSoapCerts.js";
+// Ask AI's `card_holds` (F21 R6b): the Fuel Cards page's statuses, through the page's own list read.
+export { assistantCardHolds, CARD_HOLD_STATUSES } from "./assistantCardHolds.js";
