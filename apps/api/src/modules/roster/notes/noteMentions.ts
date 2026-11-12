@@ -9,7 +9,7 @@ import { notify } from "../../messaging/index.js";
  * ── WHO CAN BE NAMED ────────────────────────────────────────────────────────────────────────────
  * Every OFFICE member of the carrier, because every one of them can read notes (D-UN4). A login whose
  * role is `driver` cannot, and neither can a suspended member (Q-SET12). The list answers exactly
- * the people 0590's insert guard accepts (`role <> 'driver' and suspended_at is null`, UN015), so a
+ * the people 0592's insert guard accepts (`role <> 'driver' and suspended_at is null`, UN015), so a
  * name picked from it is never refused on save.
  *
  * ── THE BELL ────────────────────────────────────────────────────────────────────────────────────
@@ -20,10 +20,10 @@ import { notify } from "../../messaging/index.js";
  *
  * The author is never told about their own note (D-UN8, and Fleetio's behaviour, plan §2). A person
  * named twice in one note is told once: `mentions` is already a set (`chatMentionIds` dedupes, and
- * 0590 keys `unit_note_mentions` on (note, person)), so nothing here dedupes it again.
+ * 0592 keys `unit_note_mentions` on (note, person)), so nothing here dedupes it again.
  *
  * The entity is the NOTE (`entity_type: "unit_note"`, `entity_id`: its id), not the unit. The note's
- * id is the one fact that never changes: a driver merge moves a note to the surviving driver (0590's
+ * id is the one fact that never changes: a driver merge moves a note to the surviving driver (0592's
  * guard, `DRIVER_REASSIGNMENTS`), and a bell that named the unit would then open a driver who no longer
  * exists. The web turns the id into the drawer through `GET /api/notes/:id` (UN7's).
  *
