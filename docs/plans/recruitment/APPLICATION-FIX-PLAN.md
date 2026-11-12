@@ -582,3 +582,18 @@ A gate fails on a literal string in an `apply/` template.
     - **Deploy window:** a positional correction recorded before this merge is still replayed. A keyed removal after it does not shift that correction. This only affects an application open across the deploy.
     - A browser left open on old code during the deploy drops the keys on its next save. The API then re-keys the rows on the office's next write, and an office correction made in that window shows as gone on 3.1. The fix is a reload, which the next page load does anyway.
   - **Next:** Q-AM16, the roster email following an office email correction, through a roster-owned RPC. Q-AM22 waits for the owner.
+- 2026-11-12: **Item 5, step 2 complete:** Q-AM15 merged as #2305.
+- 2026-11-12: **Item 5, step 3: the roster's email follows an office email correction (Q-AM16 (a))** (migration `claude/application-roster-email` #2306, then `claude/application-roster-email-reader`).
+  - **The roster's function (0594):** `move_applicant_roster_email` sets `drivers.email` only when all of these hold:
+    - the invitation is this org's and unfiled;
+    - its driver is still an applicant;
+    - the row still holds the address being replaced (ignoring case and spaces), or none.
+    - An email set on the roster since is never overwritten from an application, and a hired driver's email is the roster's own business.
+    - It answers whether it moved.
+  - **The roster's door:** `moveApplicantRosterEmail` in `modules/roster`, exported from its index. Recruiting calls it after the invitation's email moves (`moveContact`) and never writes `drivers` itself.
+  - **What the office sees:**
+    - The audit row carries `rosterEmailMoved`.
+    - The review returns `contact.rosterEmailMoved`, and the toast adds "Their driver record has the new address too." only when it moved.
+  - **Item 5 is complete with this merge.** Q-AM22 (the other names) waits for the owner.
+  - **Next:** item 6, F4 (U1–U9), with Q-AM5, Q-AM6 and Q-AM9.
+

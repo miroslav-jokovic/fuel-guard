@@ -27,6 +27,7 @@
 // purpose: `vehicles` and `drivers` are roster's, and one question is what this answers.
 export { writeAssignmentHistory, type HistoryWrite } from "./driverVehicleAssignmentWrites.js";
 export { readFleetIdentities, readTrailerAnnualInspections, type FleetIdentity } from "./fleetIdentityReads.js";
+export { moveApplicantRosterEmail } from "./applicantRosterEmail.js";
 // The truck's TMS home fleet, written by mcleod's roster sweep (DISPATCH-BOARD-PLAN DB1).
 export { recordVehicleFleetCodes, recordVehicleWindingDown, type FleetPlacement, type WindingDownPlacement } from "./vehicleFleetCodes.js";
 // The one door a person's driver row is made through — the roster route and recruiting's lead conversion

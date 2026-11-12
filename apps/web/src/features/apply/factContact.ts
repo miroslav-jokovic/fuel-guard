@@ -35,6 +35,7 @@ export function contactNotice(row: FactRow, reached: ReachedAt | undefined): str
 export function contactToast(moved: ApplicationContactMove | void | undefined): string {
   const said = ["The applicant is shown this change before they sign."];
   if (moved?.emailMoved) said.push("Their emails now go to the new address.");
+  if (moved?.rosterEmailMoved) said.push("Their driver record has the new address too.");
   if (moved?.textsStopped) said.push("Texts to the old number have stopped.");
   return said.join(" ");
 }

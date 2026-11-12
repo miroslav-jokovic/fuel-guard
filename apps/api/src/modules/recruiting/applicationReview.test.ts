@@ -115,6 +115,8 @@ const PART_ONE = {
 };
 
 const seed = (over: {
+  /** Q-AM16: what the roster's `move_applicant_roster_email` answers (0594). */
+  roster?: unknown;
   invitation?: Record<string, unknown> | null;
   payload?: unknown;
   v2?: boolean;
@@ -132,7 +134,10 @@ const seed = (over: {
   driver?: Record<string, unknown>;
 } = {}) =>
   createSupabaseRecorder({
-    rpc: { correct_application_draft: over.save ?? { draft_id: "d-1", updated_at: "2026-09-11T12:00:00Z", revision: (over.revision ?? 3) + 1 } },
+    rpc: {
+      correct_application_draft: over.save ?? { draft_id: "d-1", updated_at: "2026-09-11T12:00:00Z", revision: (over.revision ?? 3) + 1 },
+      move_applicant_roster_email: over.roster ?? false,
+    },
     tables: {
       application_packet_marks: { data: [], count: over.marks ?? 0 },
       ...(over.v2 ? PART_ONE : { application_intakes: [] }),
@@ -776,6 +781,23 @@ describe("a corrected email or phone moves how the carrier reaches them (E3)", (
     expect(contactAudits(rec)).toHaveLength(1);
     expect(JSON.stringify(contactAudits(rec)[0])).not.toContain("susan.g@");
     expectOrgScoped(rec, ORG);
+  });
+
+  it("Q-AM16: asks the roster to follow, from the invitation's old address, and says so when it did", async () => {
+    const rec = seed({ roster: true });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["email"], value: "susan.g@example.test", revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result) ? null : result.contact).toEqual({ emailMoved: true, rosterEmailMoved: true });
+    const call = rec.rpcs().find((r) => r.fn === "move_applicant_roster_email")!.args as Record<string, unknown>;
+    expect(call).toEqual({ p_org: ORG, p_invitation: INV, p_from: "susan@example.test", p_to: "susan.g@example.test" });
+    // Never a write to `drivers` from recruiting: the roster's function is the only door (0594).
+    expect(rec.writes().some((q) => q.table === "drivers")).toBe(false);
+    expect(contactAudits(rec)[0]!.meta).toMatchObject({ field: "email", rosterEmailMoved: true });
+  });
+
+  it("Q-AM16: does not claim the roster moved when the roster kept its own address", async () => {
+    const rec = seed({ roster: false });
+    const result = await editApplication(rec.client, ORG, INV, { path: ["email"], value: "susan.g@example.test", revision: REV }, { actorId: ACTOR });
+    expect(isReviewError(result) ? null : result.contact).toEqual({ emailMoved: true });
   });
 
   it("keeps the invitation's email for the same address in other capitals", async () => {

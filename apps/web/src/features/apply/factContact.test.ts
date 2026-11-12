@@ -24,6 +24,9 @@ describe("what the card says about the applicant's contact", () => {
 
   it("says after Save what moved", () => {
     expect(contactToast({ emailMoved: true })).toContain("emails now go to the new address");
+    // Q-AM16: the roster's record is named only when it actually followed.
+    expect(contactToast({ emailMoved: true })).not.toContain("driver record");
+    expect(contactToast({ emailMoved: true, rosterEmailMoved: true })).toContain("driver record has the new address");
     expect(contactToast({ textsStopped: true })).toContain("old number have stopped");
     expect(contactToast(undefined)).toBe("The applicant is shown this change before they sign.");
   });
