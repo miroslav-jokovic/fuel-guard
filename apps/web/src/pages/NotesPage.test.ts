@@ -26,7 +26,8 @@ vi.mock("@/composables/useModules", async () => {
   const { computed } = await import("vue");
   return { useModulesQuery: () => ({ data: computed(() => new Set<string>()) }) };
 });
-vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("@/stores/toast", () => ({ useToastStore: () => toast }));
 vi.mock("@/components/ui/PageHeader.vue", () => ({ default: { template: "<header><slot /></header>" } }));
 
 const NotesPage = (await import("./NotesPage.vue")).default;
@@ -44,11 +45,13 @@ const ok = <T>(data: T) => ({ ok: true, status: 200, data });
 let wall: () => unknown;
 
 let router: Router;
+let replaces: ReturnType<typeof vi.spyOn>;
 const mounted: VueWrapper[] = [];
 async function render(at = "/notes") {
   router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/notes", component: { template: "<div/>" } }] });
   await router.push(at);
   await router.isReady();
+  replaces = vi.spyOn(router, "replace");
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const Host = defineComponent({ setup: () => () => h(NotesPage) });
   const w = mount(Host, { attachTo: document.body, global: { plugins: [router, [VueQueryPlugin, { queryClient: client }]] } });
@@ -78,6 +81,7 @@ beforeEach(() => {
 afterEach(() => {
   for (const w of mounted.splice(0)) w.unmount();
   apiFetch.mockReset();
+  toast.error.mockReset();
   document.body.innerHTML = "";
 });
 
@@ -127,5 +131,72 @@ describe("the Notes page", () => {
     who.role = "accountant";
     await render();
     expect(apiFetch.mock.calls.filter((c) => String(c[0]).startsWith("/api/notes"))).toEqual([]);
+  });
+});
+
+/**
+ * B3, ruled (a) 2026-11-12: a mention's bell lands on `/notes?note=<id>` (`notificationRoute`), because
+ * the notification row names the note and not its unit. The page asks `GET /api/notes/:id` and REPLACES
+ * the URL with the drawer's full address, so the drawer opens on that unit, marking that note.
+ */
+describe("a link that names only a note", () => {
+  const noteCalls = () => apiFetch.mock.calls.map((c) => String(c[0])).filter((p) => p.startsWith("/api/notes/") && p !== "/api/notes/people");
+  const answer = (res: unknown) => {
+    const base = apiFetch.getMockImplementation()!;
+    apiFetch.mockImplementation(async (path: string) => (path === `/api/notes/${N2}` ? res : base(path)));
+  };
+
+  it("opens the note's unit's drawer on that note, replacing the address rather than adding to history", async () => {
+    answer(ok({ note: hit(N2, { kind: "trailer", subjectId: TRL, subjectLabel: "53-007" }) }));
+    await render(`/notes?note=${N2}`);
+    expect(noteCalls()).toEqual([`/api/notes/${N2}`]);
+    expect(router.currentRoute.value.query).toEqual({ notes: `trailer:${TRL}`, note: N2 });
+    expect(replaces).toHaveBeenCalledTimes(1);
+    expect(document.body.querySelector("[data-notes-drawer]")).not.toBeNull();
+    expect(document.body.textContent).toContain("Notes · Trailer 53-007");
+  });
+
+  it("closes quietly on a note the API will not give — another carrier's, or gone (404)", async () => {
+    answer({ ok: false, status: 404, error: { code: "not_found", message: "Note not found" } });
+    await render(`/notes?note=${N2}`);
+    expect(router.currentRoute.value.query).toEqual({});
+    expect(document.body.querySelector("[data-notes-drawer]")).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(rows()).toHaveLength(2);
+  });
+
+  it("closes and says so when the read itself failed, where trying again can help", async () => {
+    answer({ ok: false, status: 500, error: { code: "db_error", message: "Could not load the note" } });
+    await render(`/notes?note=${N2}`);
+    expect(router.currentRoute.value.query).toEqual({});
+    expect(toast.error).toHaveBeenCalledWith("Could not open the note", "Could not load the note");
+  });
+
+  it("asks nothing for a note id that is not one, and drops it", async () => {
+    await render("/notes?note=not-a-note");
+    expect(noteCalls()).toEqual([]);
+    expect(router.currentRoute.value.query).toEqual({});
+  });
+
+  it("leaves a link that already names the unit alone", async () => {
+    await render(`/notes?notes=trailer:${TRL}&note=${N2}`);
+    expect(noteCalls()).toEqual([]);
+    expect(replaces).not.toHaveBeenCalled();
+  });
+
+  it("does not drag back a reader who moved on while the answer was in flight", async () => {
+    let release!: (v: unknown) => void;
+    answer(new Promise((r) => (release = r)));
+    await render(`/notes?note=${N2}`);
+    await router.push("/notes?q=reefer");
+    release(ok({ note: hit(N2, { kind: "trailer", subjectId: TRL, subjectLabel: "53-007" }) }));
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ q: "reefer" });
+  });
+
+  it("asks nothing for somebody without the notes surface (dark, D-UN14)", async () => {
+    who.role = "accountant";
+    await render(`/notes?note=${N2}`);
+    expect(noteCalls()).toEqual([]);
   });
 });

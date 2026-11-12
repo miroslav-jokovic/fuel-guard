@@ -7,8 +7,8 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import NotesList from "@/components/notes/NotesList.vue";
 import NotesDrawer from "@/components/notes/NotesDrawer.vue";
-import { useNotesDrawer } from "@/components/notes/useNotesDrawer";
-import { usePinUnitNote, useUnitNotePeople, useUnitNotesFeed, type UnitNoteFeedParams } from "@/components/notes/useUnitNotes";
+import { useNoteOnlyLink, useNotesDrawer } from "@/components/notes/useNotesDrawer";
+import { useNotesAccess, usePinUnitNote, useUnitNotePeople, useUnitNotesFeed, type UnitNoteFeedParams } from "@/components/notes/useUnitNotes";
 import { useToastStore } from "@/stores/toast";
 
 /**
@@ -51,6 +51,8 @@ const activeCount = computed(() => [q.value, kind.value, author.value, from.valu
 const clear = () => qs.set({ q: undefined, kind: undefined, author: undefined, from: undefined, to: undefined });
 
 const drawer = useNotesDrawer();
+// A mention's bell lands here as `/notes?note=<id>` (B3 (a)); this turns it into the drawer's address.
+useNoteOnlyLink(useNotesAccess());
 const openUnit = (n: UnitNoteSearchHit) => drawer.open([{ kind: n.kind, id: n.subjectId, label: n.subjectLabel }], n.id);
 const toast = useToastStore();
 const pin = usePinUnitNote();

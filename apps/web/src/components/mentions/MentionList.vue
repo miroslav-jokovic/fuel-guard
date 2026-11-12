@@ -26,7 +26,7 @@ const emit = defineEmits<{
     :id="id"
     role="listbox"
     aria-label="People to mention"
-    class="absolute left-0 z-10 w-72 max-w-full overflow-hidden rounded-surface bg-surface py-1 shadow-overlay ring-1 ring-edge-subtle"
+    class="absolute left-0 z-popover w-72 max-w-full overflow-hidden rounded-surface bg-surface py-1 shadow-overlay ring-1 ring-edge-subtle"
     :class="below ? 'top-full mt-1' : 'bottom-full mb-1'"
   >
     <!-- mousedown, not click: a click lands after the field's blur has closed the list. -->

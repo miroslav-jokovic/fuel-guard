@@ -66,6 +66,15 @@ describe("notificationRoute", () => {
     expect(notificationRoute("chat_mention", "chat_channel", null)).toBeNull();
   });
 
+  it("a mention in a unit's note goes to the Notes page with the note, which opens that unit's drawer on it (B3 (a))", () => {
+    const id = "55555555-5555-4555-8555-555555555555";
+    expect(notificationRoute("unit_note_mention", "unit_note", id)).toBe(`/notes?note=${id}`);
+    expect(notificationRoute("unit_note_mention", "vehicle", id)).toBeNull();
+    expect(notificationRoute("unit_note_mention", "unit_note", null)).toBeNull();
+    // Dark surface (D-UN14): a reader without `/notes` is informed, not sent to a refusal.
+    expect(notificationRoute("unit_note_mention", "unit_note", id, (to) => !to.startsWith("/notes"))).toBeNull();
+  });
+
   it("returns null for a destination the reader's guard would refuse (SP5)", () => {
     const opens = (to: string) => !to.startsWith("/hazmat");
     expect(notificationRoute("hazmat_review", "load", "L1", opens)).toBeNull();
