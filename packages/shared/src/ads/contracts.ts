@@ -74,8 +74,11 @@ export type OutcomeStage = LeadOutcomeStage;
  * 0537 checks `ad_generations.agent` by shape (`^[a-z][a-z_]{1,40}$`), not by list, so a worker added
  * here needs no migration — every name below fits that shape.
  */
-/** The model-using workers, each with its own switch and ledger rows. `craft_judge` ranks the Copywriter's candidates (CQ4). */
-export const AD_AI_AGENTS = ["copywriter", "art_director", "renderer", "checker", "analyst", "craft_judge"] as const;
+/**
+ * The model-using workers, each with its own switch and ledger rows. `craft_judge` ranks the Copywriter's candidates
+ * (CQ4); `finished_ad_judge` scores the finished ad as a second opinion (P1-7, Q-AD76).
+ */
+export const AD_AI_AGENTS = ["copywriter", "art_director", "renderer", "checker", "analyst", "craft_judge", "finished_ad_judge"] as const;
 export type AdAiAgent = (typeof AD_AI_AGENTS)[number];
 
 // ── the brief: the only source of an ad's facts (D-AD1) ─────────────────────────────────────────

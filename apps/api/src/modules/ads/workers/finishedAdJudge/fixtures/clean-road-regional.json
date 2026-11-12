@@ -1,0 +1,55 @@
+{
+  "name": "clean-road-regional",
+  "about": "A sound text-only ad: an empty road through wheat at sunrise, the words at the top on the kit's navy plate. Our overlay (top_band) over the checker's clean-empty-road photo.",
+  "input": {
+    "image": "clean-road-regional.jpg",
+    "format": "4:5",
+    "headline": "Regional runs through farm country.",
+    "button": "Apply today",
+    "subject": "road_ahead",
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#1F3A5F"
+        },
+        {
+          "name": "white",
+          "hex": "#FFFFFF"
+        }
+      ]
+    }
+  },
+  "truth": {
+    "weak": null,
+    "how": "nothing planted: the headline is about the road and the picture is the road"
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "finishedAdJudge@1",
+    "model": "claude-sonnet-4-6",
+    "recorded_at": "2026-11-10T20:51:42.713Z",
+    "output": {
+      "scores": {
+        "subject_legible": {
+          "reason": "A straight road through open farmland at sunset is immediately clear and striking at any screen size.",
+          "score": 5
+        },
+        "words_match_picture": {
+          "reason": "The headline 'regional runs through farm country' maps directly onto a road cutting through golden farm fields — a perfect visual match.",
+          "score": 5
+        },
+        "hierarchy_reads": {
+          "reason": "The dark navy panel behind the headline gives strong contrast, but 'Apply today' sits inside the same panel styled like a sub-line rather than a distinct tappable button, weakening the call-to-action hierarchy.",
+          "score": 3
+        },
+        "looks_like_kit": {
+          "reason": "The deep navy (#1F3A5F) panel and white text match the brand colours exactly, though no logo is present and there is no secondary accent to reinforce identity further.",
+          "score": 3
+        }
+      }
+    }
+  }
+}

@@ -41,7 +41,7 @@ const editable = computed(() => session.admin);
 const PLATFORM_LABEL: Record<AdPlatform, string> = { meta: "Meta (Facebook, Instagram)", tiktok: "TikTok", x: "X", simulator: "Simulator" };
 const AGENT_LABEL: Record<AdAiAgent, string> = {
   copywriter: "Writes the ad's words", art_director: "Describes the picture", renderer: "Draws the picture",
-  checker: "Checks the picture", analyst: "Writes the daily report", craft_judge: "Ranks the copies the writer offers",
+  checker: "Checks the picture", analyst: "Writes the daily report", craft_judge: "Ranks the copies the writer offers", finished_ad_judge: "Gives a second opinion on each finished ad",
 };
 const PAUSE_TOGGLES = [
   { key: "pause_at_daily_cap", label: "Pause at the daily budget" },

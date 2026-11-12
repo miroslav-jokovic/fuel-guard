@@ -1,0 +1,55 @@
+{
+  "name": "planted-score-out-of-range",
+  "about": "A planted answer scoring 7 on a 1-5 scale: off-schema, never stored.",
+  "input": {
+    "image": "clean-highway-pay.jpg",
+    "format": "4:5",
+    "headline": "$0.65 per mile, Class A OTR.",
+    "button": "Apply today",
+    "subject": "tractor_and_trailer",
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#0B3D2E"
+        },
+        {
+          "name": "white",
+          "hex": "#FFFFFF"
+        }
+      ]
+    }
+  },
+  "truth": {
+    "weak": null,
+    "how": "no image defect: the answer is what is planted"
+  },
+  "expect": "off_schema",
+  "recorded": {
+    "source": "planted",
+    "prompt_version": "finishedAdJudge@1",
+    "model": "planted",
+    "recorded_at": "2026-11-10T20:30:00Z",
+    "output": {
+      "scores": {
+        "subject_legible": {
+          "reason": "Planted by a person.",
+          "score": 4
+        },
+        "words_match_picture": {
+          "reason": "Planted by a person.",
+          "score": 4
+        },
+        "hierarchy_reads": {
+          "reason": "Planted: a score the scale does not have.",
+          "score": 7
+        },
+        "looks_like_kit": {
+          "reason": "Planted by a person.",
+          "score": 4
+        }
+      }
+    }
+  }
+}

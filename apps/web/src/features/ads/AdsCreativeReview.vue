@@ -5,6 +5,7 @@ import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInp
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { CHECK_LABEL, CHECK_VERDICT_LABEL, CHECK_VERDICT_TONE, CREATIVE_STATE_LABEL, copyLines } from "./adsCampaignFlow";
 import AdsCopyCandidates from "./AdsCopyCandidates.vue";
+import AdsFinishedAdOpinion from "./AdsFinishedAdOpinion.vue";
 
 /**
  * One ad on the review screen (E3; D-AD12: a person approves what they have seen): every format and language, its
@@ -13,7 +14,8 @@ import AdsCopyCandidates from "./AdsCopyCandidates.vue";
  *
  * The checks grid is `creativeCheckGrid`'s (shared), one row per format × language. Copy and render failures name
  * their findings in `last_error`, compose's own summary, so that line stays above the grid; a failed visual item
- * shows the checker's sentence in its cell. A body the grid cannot read says so instead of drawing passes.
+ * shows the checker's sentence in its cell. A body the grid cannot read says so instead of drawing passes. The
+ * finished-ad judge's scores (P1-7) sit under the grid as a second opinion, never as a fourth check.
  */
 const props = defineProps<{ creative: AdsCreativeView; canDecide: boolean; busy: boolean; replaces?: boolean }>();
 const emit = defineEmits<{ approve: []; reject: [reason: string] }>();
@@ -47,6 +49,7 @@ const tone = computed(() => (props.creative.state === "check_failed" || props.cr
         </div>
       </li>
     </ul>
+    <AdsFinishedAdOpinion :checks="creative.checks" />
     <section v-for="l in languages" :key="l" class="space-y-2">
       <h3 class="text-sm font-semibold text-ink">{{ l.toUpperCase() }}</h3>
       <div class="grid grid-cols-3 gap-2">

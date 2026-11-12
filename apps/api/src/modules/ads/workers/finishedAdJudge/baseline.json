@@ -1,0 +1,11 @@
+{
+  "worker": "finishedAdJudge",
+  "prompt_version": "finishedAdJudge@1",
+  "model": "claude-sonnet-4-6",
+  "fixtures": 9,
+  "asked": 7,
+  "agreed": 7,
+  "agreement": 1,
+  "planted_skipped": 2,
+  "recorded_at": "2026-11-10T20:52:16.937Z"
+}

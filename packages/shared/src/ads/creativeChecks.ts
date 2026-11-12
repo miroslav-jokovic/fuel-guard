@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AD_VISUAL_CHECKS } from "./brandKitContract.js";
 import { AD_NAME_LANGUAGES } from "./naming.js";
+import { finishedAdCheckSchema } from "./finishedAd.js";
 
 /**
  * D-AD12's three checks on one creative — copy, render, visual — as the review screen (E3) shows them: one verdict
@@ -48,6 +49,8 @@ export const adCreativeChecksSchema = z.looseObject({
   render: z.looseObject({ ok: z.boolean(), format: str, language: str, findings: z.array(renderFinding).optional() }).optional(),
   visual: z.looseObject({ ok: z.boolean(), attempt: num, results: visualResults.optional() }).optional(),
   visual_attempts: z.array(z.looseObject({ attempt: z.number(), visual: visualResults })).optional(),
+  /** P1-7 (Q-AD76): the finished-ad judge's scores — a second opinion beside the three checks, never one of them. */
+  finished_ad: finishedAdCheckSchema.optional(),
 });
 export type AdCreativeChecks = z.infer<typeof adCreativeChecksSchema>;
 

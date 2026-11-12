@@ -10,7 +10,8 @@ import { frameStill, overlayFit, renderOverlay, type OverlayFinding, type Overla
 import { writeCopy, type AdCopy, type SlotFinding } from "../workers/copywriter/copywriter.js";
 import { CRAFT_JUDGE_PROMPT_VERSION, judgeCraft } from "../workers/craftJudge/craftJudge.js";
 import { directArt } from "../workers/artDirector/artDirector.js";
-import { checkVisual, type FractionRect, type VisualResult } from "../workers/checker/checker.js";
+import { checkVisual, type FractionRect, type VisionImage, type VisualResult } from "../workers/checker/checker.js";
+import { judgeFinishedAds } from "../workers/finishedAdJudge/finishedAdJudge.js";
 
 /**
  * One creative, moved as far as it can go (ADS-AGENT-BUILD-WORKFLOW C5b; plan D-AD9, D-AD12). Called by
@@ -152,9 +153,16 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
     if (r.kind === "stop") return stop({ ...r, checks: { copy: { ok: true }, ...r.checks, visual_attempts: history } });
     history.push({ attempt, visual: r.visual });
     if (r.kind === "passed") {
+      // P1-7 (Q-AD76): a second opinion on the finished ad, never a gate — switched off or refused, it says so and
+      // the creative still reaches review.
+      const opinion = await judgeFinishedAds(deps, {
+        ...ids, attempt, ads: r.english, kit: input.kit, logo: r.logo, subject: r.subject,
+        headline: copy.copy.en[recipe.overlay_slots.headline]!, button: copy.copy.en[recipe.overlay_slots.cta]!,
+      });
+      if (opinion.kind === "pending") return { kind: "pending", why: opinion.why };
       await finish(deps.admin, cr, {
         state: "ready", copy: copy.copy, candidates, assets: r.assets, regenerations: attempt - 1, last_error: null,
-        checks: { copy: { ok: true }, render: { ok: true }, visual: { ok: true, attempt, results: r.visual }, visual_attempts: history },
+        checks: { copy: { ok: true }, render: { ok: true }, visual: { ok: true, attempt, results: r.visual }, visual_attempts: history, finished_ad: opinion.check },
       });
       return { kind: "ready" };
     }
@@ -168,7 +176,7 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
 type AttemptResult =
   | Pending
   | Stop
-  | { kind: "passed"; visual: Record<string, VisualResult[]>; assets: CreativeAsset[] }
+  | { kind: "passed"; visual: Record<string, VisualResult[]>; assets: CreativeAsset[]; english: Array<{ format: AdFormat; png: Buffer }>; logo: VisionImage | null; subject: string }
   | { kind: "visual_failed"; visual: Record<string, VisualResult[]>; failed: AdVisualCheck[] };
 
 async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, attempt: number, failedBefore: AdVisualCheck[]): Promise<AttemptResult> {
@@ -227,7 +235,8 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
     const ref = await deps.storeAsset(cr.org_id, r.png);
     assets.push({ format: r.format, language: r.language, sha256: ref.sha256, path: `${cr.org_id}/${ref.sha256}.png`, width: ref.width, height: ref.height });
   }
-  return { kind: "passed", visual, assets };
+  const english = rendered.filter((r) => r.language === "en").map((r) => ({ format: r.format, png: r.png }));
+  return { kind: "passed", visual, assets, english, logo: kit.logo && logo ? { format: kit.logo.format, bytes: new Uint8Array(logo) } : null, subject: art.direction.composition.focal_subject };
 }
 
 /**

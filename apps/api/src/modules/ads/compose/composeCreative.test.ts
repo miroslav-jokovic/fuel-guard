@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import sharp from "sharp";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { ZodType } from "zod";
-import { ADS_SETTINGS_UNSET, FRAME_CLAUSE, STARTER_PRESETS, NO_LETTERING, QUIET_REGION, adCandidatesSchema, adCreativeChecksSchema, REGENERATION_CLAUSES, type AdAssetRef, type AdBrandKit, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
+import { ADS_SETTINGS_UNSET, FINISHED_AD_CRITERIA, FRAME_CLAUSE, STARTER_PRESETS, NO_LETTERING, QUIET_REGION, adCandidatesSchema, adCreativeChecksSchema, REGENERATION_CLAUSES, type AdAssetRef, type AdBrandKit, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
 import type { MessagesClient } from "../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
@@ -86,7 +86,9 @@ afterAll(() => {
 const pass = (checks: readonly string[]) => ({ checks: Object.fromEntries(checks.map((c) => [c, { reason: "Looks right here.", verdict: "pass" }])) });
 const failOn = (bad: string) => (checks: readonly string[]) => ({ checks: Object.fromEntries(checks.map((c) => [c, { reason: c === bad ? "Lettering on the trailer side." : "Looks right here.", verdict: c === bad ? "fail" : "pass" }])) });
 
-function harness(opts: { settings?: AdsSettings; judge?: (n: number) => unknown; visual?: Array<(checks: readonly string[]) => unknown>; copy?: unknown; art?: unknown; render?: (i: RenderInput) => RenderOutcome } = {}) {
+const FINISHED = (score: number) => ({ scores: Object.fromEntries(FINISHED_AD_CRITERIA.map((c) => [c, { reason: `Fixture reason for ${c}.`, score }])) });
+
+function harness(opts: { settings?: AdsSettings; judge?: (n: number) => unknown; visual?: Array<(checks: readonly string[]) => unknown>; copy?: unknown; art?: unknown; render?: (i: RenderInput) => RenderOutcome; finished?: unknown } = {}) {
   const rec = createSupabaseRecorder({
     tables: {
       ads_settings_versions: [{ id: "v1", org_id: ORG, version: 1, settings: opts.settings ?? settings, kill_switch: false, kill_reason: null, created_at: NOW.toISOString(), created_by_name: "X" }],
@@ -101,6 +103,7 @@ function harness(opts: { settings?: AdsSettings; judge?: (n: number) => unknown;
     const input = tool.name === "write_copy" ? opts.copy ?? copyFx.recorded.output
       : tool.name === "judge_copy" ? (opts.judge ?? ((n: number) => ({ scores: Array.from({ length: n }, () => ({ reason: "fixture", scores: { hook: 3, specific: 3, plain: 3, spanish: 3, no_filler: 3 } })) })))((tool.input_schema as unknown as { properties: { scores: { minItems: number } } }).properties.scores.minItems)
       : tool.name === "direct_art" ? opts.art ?? artFx.recorded.output
+      : tool.name === "judge_finished_ad" ? opts.finished ?? FINISHED(4)
       : (visual.length > 1 ? visual.shift()! : visual[0]!)(Object.keys(tool.input_schema.properties.checks!.properties));
     return { id: "msg_1", stop_reason: "tool_use", content: [{ type: "tool_use", id: "t1", name: tool.name, input }], usage: { input_tokens: 100, output_tokens: 50 } };
   });
@@ -467,6 +470,55 @@ describe("composeCreative — what stops at once, never regenerated", () => {
 describe("union — the band both languages' text covers", () => {
   it("is the smallest rectangle holding every box, clipped to the frame", () => {
     expect(union([{ x: 0.1, y: 0.6, width: 0.5, height: 0.1 }, { x: 0.05, y: 0.7, width: 0.9, height: 0.4 }])).toEqual({ x: 0.05, y: 0.6, width: 0.9, height: 0.4 });
+  });
+});
+
+describe("composeCreative — the finished-ad judge, a second opinion (P1-7; Q-AD76)", () => {
+  const on: AdsSettings = { ...settings, budgets: { ...settings.budgets, agents_enabled: { ...settings.budgets.agents_enabled, finished_ad_judge: true } } };
+  const kit: AdBrandKit = { ...KIT, overlays: { "4:5": KIT.overlays["4:5"]!, "1:1": KIT.overlays["4:5"]! } };
+  const lastChecks = (h: ReturnType<typeof harness>) => (h.creativeWrites().at(-1)!.write!.payload as { checks: { finished_ad?: Record<string, unknown> } }).checks.finished_ad;
+  const judgeCalls = (h: ReturnType<typeof harness>) => h.create.mock.calls.map((c) => c[0] as unknown as { tools: Array<{ name: string }>; messages: Array<{ content: Array<{ type: string; source?: { data: string } }> }> }).filter((b) => b.tools[0]!.name === "judge_finished_ad");
+
+  it("switched on, it is asked once per published format, on the English ad as composed, and its scores are stored beside the checks", async () => {
+    const h = harness({ settings: on });
+    expect(await h.run({ kit, recipe: { ...RECIPE, formats: ["4:5", "1:1"] } })).toEqual({ kind: "ready" });
+    const calls = judgeCalls(h);
+    expect(calls).toHaveLength(2);
+    // The image sent is one of the stored ads — the finished one, words drawn — and the English one (stored first per format).
+    const stored = new Set(h.stored.map((b) => b.toString("base64")));
+    for (const c of calls) expect(stored.has(c.messages[0]!.content.find((p) => p.type === "image")!.source!.data)).toBe(true);
+    const englishFirst = [h.stored[0]!, h.stored[2]!].map((b) => b.toString("base64"));
+    expect(calls.map((c) => c.messages[0]!.content.find((p) => p.type === "image")!.source!.data)).toEqual(englishFirst);
+    const fa = lastChecks(h)!;
+    expect(fa).toMatchObject({ ran: true, prompt_version: "finishedAdJudge@1" });
+    expect(Object.keys(fa.by_format as object)).toEqual(["4:5", "1:1"]);
+    expect((fa.by_format as Record<string, Record<string, { score: number }>>)["4:5"]!.subject_legible!.score).toBe(4);
+  });
+
+  it("is never a gate: an ad scored 1 on everything still reaches review, with the scores on it", async () => {
+    const h = harness({ settings: on, finished: FINISHED(1) });
+    expect(await h.run()).toEqual({ kind: "ready" });
+    expect(lastChecks(h)).toMatchObject({ ran: true });
+    expect(h.creativeWrites().at(-1)!.write!.payload).toMatchObject({ state: "ready" });
+  });
+
+  it("switched off, nothing is asked and the creative reaches review saying the judge did not run", async () => {
+    const h = harness();
+    expect(await h.run()).toEqual({ kind: "ready" });
+    expect(judgeCalls(h)).toEqual([]);
+    expect(lastChecks(h)).toEqual({ ran: false, prompt_version: "finishedAdJudge@1", not_run: "agent_off" });
+  });
+
+  it("an answer it cannot read is recorded as not run, and the creative still reaches review", async () => {
+    const h = harness({ settings: on, finished: { scores: { subject_legible: { reason: "x", score: 9 } } } });
+    expect(await h.run()).toEqual({ kind: "ready" });
+    expect(lastChecks(h)).toMatchObject({ ran: false, not_run: "failed (off_schema)" });
+  });
+
+  it("is asked only of a creative that passed the visual check: a stopped one has no opinion", async () => {
+    const h = harness({ settings: on, visual: [failOn("no_glyphs")] });
+    expect((await h.run({ maxRegenerations: 0 })).kind).toBe("check_failed");
+    expect(judgeCalls(h)).toEqual([]);
   });
 });
 

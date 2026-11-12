@@ -58,6 +58,10 @@ export const ADS_CAMPAIGN_WORKERS: Readonly<Record<string, readonly AdsCampaignW
       "platform": null
     },
     {
+      "worker": "Finished-ad judge",
+      "platform": null
+    },
+    {
       "worker": "Security (all)",
       "platform": null
     }
@@ -72,6 +76,7 @@ export const ADS_WORKER_LEVELS: Readonly<Record<string, AdsReadinessLevel>> = {
   "Checker": "L2",
   "Copywriter": "L2",
   "Craft judge": "L2",
+  "Finished-ad judge": "L2",
   "Lead intake": "L3",
   "Monitor": "L3",
   "Orchestrator": "L3",

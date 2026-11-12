@@ -1,12 +1,13 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { z } from "zod";
-import { AD_PEOPLE_POLICIES, AD_VISUAL_CHECKS, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, judgeArt, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
+import { AD_FORMATS, AD_PEOPLE_POLICIES, AD_VISUAL_CHECKS, FINISHED_AD_CRITERIA, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, judgeArt, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
 import type { ForcedToolRequest } from "../../../lib/anthropic.js";
 import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, buildFitRequest, fittable, judgeSet, type CopySet } from "./copywriter/copywriter.js";
 import { CRAFT_JUDGE_PROMPT_VERSION, buildJudgeRequest, judgeAnswer, presentationOrder, type JudgeAnswer } from "./craftJudge/craftJudge.js";
 import { rankCandidates } from "@silvicom/shared";
 import { ART_DIRECTOR_PROMPT_VERSION, buildArtRequest } from "./artDirector/artDirector.js";
 import { ANALYST_PROMPT_VERSION, briefTool, buildBriefRequest, judgeBrief, type BriefAnswer } from "./analyst/analyst.js";
+import { FINISHED_AD_JUDGE_PROMPT_VERSION, buildFinishedAdRequest, finishedAdTool, scoreLine, type FinishedAdAnswer } from "./finishedAdJudge/finishedAdJudge.js";
 import { CHECKER_PROMPT_VERSION, applicableChecks, buildVisualRequest, judgeVisual, prepareSubject, visualTool, type VisualAnswer, type VisualSubject } from "./checker/checker.js";
 
 /**
@@ -258,7 +259,59 @@ export const ANALYST_EVAL: EvalWorker<AnalystFixture, BriefAnswer> = {
   withRecording: (f, recorded) => ({ ...f, recorded }),
 };
 
-export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL, checker: CHECKER_EVAL, analyst: ANALYST_EVAL, craftJudge: CRAFT_JUDGE_EVAL } as const;
+/**
+ * The finished-ad judge's cases (P1-7) are FINISHED ADS: `fixtures/images/*.jpg`, drawn 2026-11-10 by our own
+ * overlay over the checker's corpus photos (one, `weak-hierarchy`, by hand: our overlay cannot plant that defect),
+ * each with at most one weakness, which `truth.weak` names. A judge with no floor (Q-AD76) has no verdict to
+ * agree on, so agreement is about the SCORES: a sound ad scores 3 or more everywhere; a planted weakness scores 2 or
+ * less on its criterion, and no criterion lower. The owner's approve/reject on 30 real ads is the bar this grows into.
+ */
+export const finishedAdJudgeFixtureSchema = z.object({
+  name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,60}$/),
+  about: z.string().min(10),
+  input: z.object({
+    image: z.string().regex(/^[a-z0-9-]+\.jpg$/),
+    format: z.enum(AD_FORMATS),
+    headline: z.string().min(1).max(120),
+    button: z.string().min(1).max(60),
+    subject: z.string().nullable(),
+    kit: z.object({ company_name: z.string().min(1).max(120), colors: z.array(z.object({ name: z.string().min(1), hex: z.string().regex(/^#[0-9A-Fa-f]{6}$/) })).min(1) }).strict(),
+  }).strict(),
+  truth: z.object({ weak: z.enum(FINISHED_AD_CRITERIA).nullable(), how: z.string().min(10) }).strict(),
+  expect: z.enum(["ready", "off_schema"]),
+  recorded: recordingSchema,
+}).strict();
+export type FinishedAdJudgeFixture = z.infer<typeof finishedAdJudgeFixtureSchema>;
+
+const FINISHED_DIR = new URL("./finishedAdJudge/fixtures/", import.meta.url);
+const finishedRequest = (f: FinishedAdJudgeFixture) => buildFinishedAdRequest({
+  image: { format: "jpeg", bytes: new Uint8Array(readFileSync(new URL(`images/${f.input.image}`, FINISHED_DIR))) },
+  headline: f.input.headline, button: f.input.button, subject: f.input.subject, kit: f.input.kit, logo: null,
+});
+
+export const FINISHED_AD_JUDGE_EVAL: EvalWorker<FinishedAdJudgeFixture, FinishedAdAnswer> = {
+  promptVersion: FINISHED_AD_JUDGE_PROMPT_VERSION,
+  dir: FINISHED_DIR,
+  parse: (raw) => finishedAdJudgeFixtureSchema.parse(raw),
+  name: (f) => f.name,
+  source: (f) => f.recorded.source,
+  request: finishedRequest,
+  // The verdict carries the scores ("criterion:score", criteria order) as its "findings", so `agrees` can read them.
+  judge: (_f, output) => {
+    const parsed = finishedAdTool.schema.safeParse(output);
+    return parsed.success ? { verdict: "ready", findings: scoreLine(parsed.data.scores) } : { verdict: "off_schema", findings: [] };
+  },
+  agrees: (f, verdict, line) => {
+    if (verdict !== "ready") return verdict === f.expect;
+    const score = Object.fromEntries(line.map((x) => [x.split(":")[0]!, Number(x.split(":")[1])]));
+    if (f.truth.weak === null) return FINISHED_AD_CRITERIA.every((c) => score[c]! >= 3);
+    const weak = score[f.truth.weak]!;
+    return weak <= 2 && FINISHED_AD_CRITERIA.every((c) => score[c]! >= weak);
+  },
+  withRecording: (f, recorded) => ({ ...f, recorded }),
+};
+
+export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL, checker: CHECKER_EVAL, analyst: ANALYST_EVAL, craftJudge: CRAFT_JUDGE_EVAL, finishedAdJudge: FINISHED_AD_JUDGE_EVAL } as const;
 
 /** Every fixture of a worker, parsed, in file-name order; a file whose `name` is not its file name throws. */
 export function loadFixtures<F, T>(w: EvalWorker<F, T>): Array<{ file: URL; fixture: F }> {
