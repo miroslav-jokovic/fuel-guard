@@ -59,8 +59,8 @@ function destination(category: string, entityType: string | null, entityId: stri
   // UNIT-NOTES-PLAN D-UN8, ruling B3 (a): the entity is the note, not its unit (the note id survives a
   // driver merge), so the bell goes to the Notes page with the note alone, and the page asks the API
   // which unit it is on and opens that unit's drawer on it (`useNoteOnlyLink`). The page is the
-  // `notes` surface, which every reader of notes holds; while it is dark (D-UN14) `opens` refuses it
-  // for non-admins and their entry informs without navigating.
+  // `notes` surface, which every office role holds since UN9 (D-UN4); for a reader `opens` would still
+  // refuse — the surface turned off for them — the entry informs without navigating.
   if (category === "unit_note_mention" && entityType === "unit_note" && entityId) return `/notes?note=${encodeURIComponent(entityId)}`;
   // A10. The applicant board IS the queue for a stalled application — there is no per-applicant page
   // to land on, and "an alert that cannot deep-link to its queue is half an alert".

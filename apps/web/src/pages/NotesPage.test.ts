@@ -195,8 +195,8 @@ describe("a link that names only a note", () => {
     expect(router.currentRoute.value.query).toEqual({ q: "reefer" });
   });
 
-  it("asks nothing for somebody without the notes surface (dark, D-UN14)", async () => {
-    who.role = "accountant";
+  it("asks nothing for somebody without the notes surface (the driver role, D-UN4)", async () => {
+    who.role = "driver";
     await render(`/notes?note=${N2}`);
     expect(noteCalls()).toEqual([]);
   });
