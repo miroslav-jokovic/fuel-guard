@@ -470,6 +470,18 @@ Cropping to a fixed band at build time would have to be redone at every breakpoi
   when "Map (classic)" is removed; (b) leave it unremembered and read raster against vector tile
   route counts from the `[metrics]` line, which needs AWS access. Recommendation: (a) for the
   dispatcher plus (b) for the count; neither alone answers "does anybody need it".
+- **Q-DR37 — falling back to the raster map on a vector style error (HANDOFF-2026-11-10 §10.4 gap
+  5) conflicts with the tile pacer's deliberate refusals.** Under the 50-seat cold start of §10.3
+  the pacer answers late callers with a refusal on purpose and the vector map retries; a fallback
+  that flips to raster on tile errors would move an office onto the dearer raster tiles (2.6× the
+  requests) at exactly the moment the pacer is protecting the key, the opposite of the capacity
+  case. Candidates: (a) fall back only on errors that mean the style itself cannot draw: a glyph
+  range answering 404 or 5xx (now our own static files, D-DR40), a `webglcontextlost` that is not
+  restored, or the vector SOURCE receiving no tile at all within the pacer's 20 s wait; never on an
+  individual tile error; (b) no automatic fallback: the basemap kept for the window (Q-DR36 (a))
+  and "Map (classic)" in the menu are the way back, and a lost WebGL context is a reload; (c) fall
+  back on any `error` event. Recommendation: (a), with its thresholds measured on staging under
+  the cold-start rig before it ships; (c) is refused. Until ruled, (b) is what ships, which is today.
 
 ---
 
@@ -1624,3 +1636,18 @@ conflict every time (`plan-progress-log-not-table-rows`).
   browser font) with no "Rendering codepoint … locally" warning, done in the browser pass after
   merge. ⚠ The staging rig scripts count `/map-tiles/` requests, which included glyphs; from here
   tile counts are tiles only, so a lower count than yesterday's is partly this.
+- **2026-11-12 (afternoon, later) — D-DR40 verified on staging; Q-DR36 (a) built; Q-DR37 opened.**
+  D-DR40 (PR #2294, staging from 17:49Z), checked in a browser as the dispatcher member: the two
+  glyph fetches went to `/fonts/glyphs/FiraGO-Regular/0-255.pbf` and `…/FiraGO-Bold/0-255.pbf`,
+  both 200 with `Cache-Control: public, max-age=604800`, zero requests to the old relay, zero
+  console font warnings, and the screenshot shows town names in FiraGO bold, water names in
+  regular, and the US 20 shield. Q-DR36 (a) built as recommended: `liveMapBasemapMemory.ts` keeps
+  the basemap in `sessionStorage` for the window (it dies with the tab, which is what keeps this
+  out of D-DR6's trap), read back on load only if the menu still offers it, so a stored "vector"
+  on a production build falls back to "map"; both maps; the canvas reads it in two lines. Four
+  mutants (any stored key accepted, the write throwing through, the trial always offered, the read
+  throwing through) each failed their tests. (b), the tile-route counts from `[metrics]`, still
+  needs the owner's AWS access. The raster fallback on a style error (gap 5) is NOT built: Q-DR37
+  above says why, and until it is ruled the way back is the remembered basemap plus the menu. M3 is
+  therefore the counter and protocol (#2289), the basemap memory (this PR), and the fallback
+  pending Q-DR37.

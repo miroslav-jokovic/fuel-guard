@@ -11,6 +11,7 @@ import { installLiveMapIcons, MARKER_SIZE_PX } from "./liveMapIcons";
 import { isMarkerClick, showRoute, syncRoute, type DrawnRoute } from "./liveMapRouteLayer";
 import { toFeatureCollection, type MapBounds, type RenderedPlace } from "./liveMapLayer";
 import { planTweens, redrawDue, sampleTweens, tweensSettled, type Tween } from "./liveMapMotion";
+import { offeredBasemaps, rememberBasemap, rememberedBasemap } from "./liveMapBasemapMemory";
 
 /**
  * The fleet, drawn (LIVE-MAP-PLAN.md LM8, D-LM7/D-LM8).
@@ -276,7 +277,8 @@ function fitToFleet(instance: maplibregl.Map): void {
  * publishes no `satellite.night` or `topo.night`, and D-DR8 already ruled that the reader is not
  * asked a question the app can answer.
  */
-const basemap = ref<BasemapChoice | typeof VECTOR_TRIAL_CHOICE.key>("map");
+const basemap = ref<BasemapChoice | typeof VECTOR_TRIAL_CHOICE.key>(rememberedBasemap(offeredBasemaps(), "map"));
+watch(basemap, (choice) => rememberBasemap(choice)); // Q-DR36 (a): kept for this window, read back on load.
 const tiles = computed(() => {
   // D-DR31 trial: the vector road map follows the scheme by repainting, not by a different URL.
   if (basemap.value === VECTOR_TRIAL_CHOICE.key) return VECTOR_TILES_TEMPLATE;
