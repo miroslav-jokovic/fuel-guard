@@ -250,6 +250,25 @@ export async function addUnitNote(
 }
 
 /**
+ * One note, by its id: what the bell's entity resolves to (UN3, see `noteMentions.ts`). The web needs
+ * the note's unit to open the drawer on it (`?notes=<kind>:<id>&note=<id>`, D-UN12), and the note's id is
+ * all a notification row can carry. Another carrier's id, or no such note, is `null` → 404.
+ */
+export async function getUnitNote(admin: SupabaseClient, orgId: string, noteId: string): Promise<UnitNote | null | NoteRefusal> {
+  const { data, error } = await admin
+    .from("unit_notes")
+    .select("id, subject_kind, subject_id, body, author_id, author_name, pinned, created_at")
+    .eq("org_id", orgId)
+    .eq("id", noteId)
+    .maybeSingle();
+  if (error) return { code: "db_error", message: "Could not load the note" };
+  const row = data as SearchRow | null;
+  if (!row || !isUnitNoteKind(row.subject_kind)) return null;
+  const label = await subjectLabel(admin, orgId, row.subject_kind, row.subject_id);
+  return toNote(row, label ?? "");
+}
+
+/**
  * Pin one note above the unit's list (unpinning its other, D-UN6) or unpin it, through UN1's RPC — the
  * one UPDATE the table's guard lets through besides the driver merge. The read first answers "is this
  * note this carrier's", so a note id from elsewhere is a 404 and the RPC is never asked.

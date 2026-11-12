@@ -1,6 +1,7 @@
 import { Router, type Request } from "express";
 import {
   OFFICE_ROLES,
+  isRecordId,
   unitNoteCreateSchema,
   unitNoteListQuerySchema,
   unitNotePinSchema,
@@ -14,11 +15,13 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { addUnitNote, isNoteRefusal, listUnitNotes, pinUnitNote, summariseUnitNotes, type NoteRefusal } from "./unitNotes.js";
+import { addUnitNote, getUnitNote, isNoteRefusal, listUnitNotes, pinUnitNote, summariseUnitNotes, type NoteRefusal } from "./unitNotes.js";
+import { listNotePeople, ringNoteMentions } from "./noteMentions.js";
 
 /**
  * `/api/notes` — notes on drivers, trucks and trailers (`docs/plans/notes/UNIT-NOTES-PLAN.md` §4.3,
- * step UN2). The bell for a mention, and `GET /people` for the `@` list, are UN3's.
+ * steps UN2 and UN3). UN3 added the `@` list (`GET /people`), the bell a mention rings on `POST /`, and
+ * `GET /:id`, which turns the bell's note id into the unit the drawer opens on (`noteMentions.ts`).
  *
  * ── WHO ────────────────────────────────────────────────────────────────────────────────────────
  * Notes are OFFICE-WIDE (D-UN4, owner 2026-11-11: "if dispatch leaves a note related to billing or
@@ -54,6 +57,18 @@ export function unitNotesRouter(): Router {
         return;
       }
       res.json(out);
+    }),
+  );
+
+  router.get(
+    "/people",
+    asyncHandler(async (req, res) => {
+      const people = await listNotePeople(adminOf(req), req.auth!.orgId!);
+      if (!people) {
+        res.status(500).json(apiError("db_error", "Could not load the people"));
+        return;
+      }
+      res.json({ people });
     }),
   );
 
@@ -101,7 +116,27 @@ export function unitNotesRouter(): Router {
         entityId: note.id,
         meta: { kind: note.kind, subjectId: note.subjectId },
       });
+      // After the save and its audit, never before: a ring that fails must not lose the note (noteMentions.ts).
+      await ringNoteMentions(admin, orgId, req.auth!.userId, note);
       res.status(201).json({ note });
+    }),
+  );
+
+  // Declared after `/summary` and `/people`, which `/:id` would otherwise read as a note id.
+  router.get(
+    "/:id",
+    asyncHandler(async (req, res) => {
+      const noteId = String(req.params.id ?? "");
+      const note = isRecordId(noteId) ? await getUnitNote(adminOf(req), req.auth!.orgId!, noteId.toLowerCase()) : null;
+      if (isNoteRefusal(note)) {
+        res.status(500).json(apiError(note.code, note.message));
+        return;
+      }
+      if (!note) {
+        res.status(404).json(apiError("not_found", "Note not found"));
+        return;
+      }
+      res.json({ note });
     }),
   );
 
