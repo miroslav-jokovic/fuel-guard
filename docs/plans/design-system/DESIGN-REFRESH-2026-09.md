@@ -1651,3 +1651,26 @@ conflict every time (`plan-progress-log-not-table-rows`).
   above says why, and until it is ruled the way back is the remembered basemap plus the menu. M3 is
   therefore the counter and protocol (#2289), the basemap memory (this PR), and the fallback
   pending Q-DR37.
+- **2026-11-12 (12:25–12:30 CST) — D-DR39's frame-time comparison, on the quiet machine it was owed
+  from. M1 closed.** `tools/staging-map-frames.mjs`, `GPU=1` (ANGLE Metal, M4 Pro), 4× CPU
+  slowdown, the dispatcher test member, staging serving 5646c80 (D-DR40 in, so tile counts are
+  tiles only), load average 2.7–3.7 for runs 1–4 of both maps. Four complete pairs:
+
+  | | today's map | vector trial |
+  | --- | --- | --- |
+  | frames over 50 ms in the 13 s walk | 0–2 | 0–1 |
+  | worst frame, ms | 43–67 | 50–66 |
+  | main-thread long-task, ms | 0–66 | 0–107 |
+  | tile requests (no glyphs now) | 98–114 | 50–54 |
+  | writes a second, 10 s still | 0.8–4.4 | 3.5–4.8 |
+  | writes over the walk | 52–98 | 82–116 |
+
+  On this GPU, after the gate, the two maps are not told apart by frame time: the day before the
+  gate the same rig gave worst frames of 50–108 ms, and before the GPU flag the vector map's
+  software-rendered figures were the ones the plan had been reasoning from. The vector map still
+  asks for half the tiles. ⚠ Run 5 is NOT recorded: staging redeployed the basemap-memory merge
+  (#2296, host up 18:30:09Z) under it, so run 5's raster pass saw a load of 6.8, a worst frame of
+  200 ms and 75 tiles mid-restart, and its vector pass timed out at the login form. Four pairs at
+  quiet load are the measurement; the fifth would have been the same build on the same machine.
+  What this does not say: anything about an office PC. That is the owner's check, now unblocked,
+  with `OFFICE-PC-CHECK-2026-11-12.md` and the counter from #2289.
