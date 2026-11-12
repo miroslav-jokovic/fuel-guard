@@ -45,6 +45,8 @@ const seed = (
     draft?: Record<string, unknown> | null;
     /** A v2 link (C3c2c2): its Part 1 row, licences, and the `drivers` row Part 1 wrote. */
     partOne?: { intake: Record<string, unknown>; licences: Record<string, unknown>[]; driver: Record<string, unknown> };
+    /** Q-AM3 (0589): the SSN the form saved. */
+    ssn?: Record<string, unknown>;
   } = {},
 ) =>
   createSupabaseRecorder({
@@ -54,6 +56,7 @@ const seed = (
       application_intakes: opts.partOne ? [opts.partOne.intake] : [],
       application_intake_licences: opts.partOne?.licences ?? [],
       drivers: opts.partOne ? [opts.partOne.driver] : [],
+      application_ssns: opts.ssn ? [opts.ssn] : [],
       organizations: [{ id: ORG, operating_hours: null }],
     },
     rpc: { save_application_draft: { draft_id: "d-1", updated_at: "2026-08-21T09:05:00Z" } },
@@ -108,6 +111,19 @@ describe("saving against a revision (AW10, C3d1b)", () => {
     expect(wrong).toMatchObject({ locked: true, revision: 9 });
     const right = await unlockDraft(rec.client, TOKEN, "1980-04-01", NOW);
     expect(right).toMatchObject({ locked: false, revision: 9 });
+  });
+
+  /** Q-AM3 (0589): a saved SSN's last four are released on the right answer only, and never more of it. */
+  it("releases the last four of a saved SSN with the body, and not on a wrong answer", async () => {
+    const rec = seed({
+      draft: draftRow({ date_of_birth: "1980-04-01" }),
+      ssn: { ssn_last4: "6789", ssn_sealed: "v1.sealed", entered_by: "applicant" },
+    });
+    const wrong = await unlockDraft(rec.client, TOKEN, "1999-01-01", NOW);
+    expect(wrong).not.toHaveProperty("ssnLast4");
+    const right = await unlockDraft(rec.client, TOKEN, "1980-04-01", NOW);
+    expect(right).toMatchObject({ locked: false, ssnLast4: "6789" });
+    expect(JSON.stringify(right)).not.toContain("v1.sealed");
   });
 
   it("reads the revision column with the draft, scoped to the org", async () => {

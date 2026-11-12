@@ -13,7 +13,7 @@ import { APPLY_COPY } from "./strings";
  * to their own sworn answer, and they are owed the why.
  */
 const mountWith = (edits: unknown[]) =>
-  mount(SignOffFields, { props: { carrier: "Silvicom", edits: edits as never, captures: [], modelValue: emptyDraft() } });
+  mount(SignOffFields, { props: { token: "t", carrier: "Silvicom", edits: edits as never, captures: [], modelValue: emptyDraft() } });
 
 describe("what the carrier changed", () => {
   it("prints the office's reason beside a change to the driver's own statement", () => {

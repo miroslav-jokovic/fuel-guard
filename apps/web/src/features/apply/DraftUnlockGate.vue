@@ -58,7 +58,9 @@ const codeRefused = ref(false);
 const codeWorking = ref(false);
 
 function released(draft: ApplyDraft): void {
-  emit("unlocked", { payload: draft.payload ?? {}, partOne: draft.partOne ?? null, revision: draft.revision });
+  emit("unlocked", {
+    payload: draft.payload ?? {}, partOne: draft.partOne ?? null, revision: draft.revision, ssnLast4: draft.ssnLast4 ?? null,
+  });
 }
 
 async function sendCode(channel: UnlockCodeChannel): Promise<void> {

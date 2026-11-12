@@ -202,8 +202,8 @@ export async function unlockWithCode(
     entityId: invitation.id,
     meta: { driverId: invitation.driver_id },
   });
-  const { row, partOne } = await gatedRelease(admin, invitation, now);
-  return releasedView(row, partOne);
+  const { row, partOne, ssnLast4 } = await gatedRelease(admin, invitation, now);
+  return releasedView(row, partOne, ssnLast4);
 }
 
 /**

@@ -171,6 +171,11 @@ export interface ApplicationDraft {
    * types, and nowhere else.
    */
   ssn: string;
+  /**
+   * Q-AM3 (0589): the last four of the SSN already saved for this application, "" for none. Released with
+   * the unlocked draft (`ssnLast4`) and set by a save; like `ssn`, never part of the draft payload.
+   */
+  ssn_on_file: string;
 }
 
 export const emptyAddress = (): DraftAddress => ({
@@ -222,4 +227,5 @@ export const emptyDraft = (): ApplicationDraft => ({
   carrier_answers: {},
   correction_note: "",
   ssn: "",
+  ssn_on_file: "",
 });

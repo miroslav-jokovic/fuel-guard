@@ -49,13 +49,19 @@ describe("the unlock gate", () => {
   it("hands up the body and Part 1's facts together", async () => {
     const partOne = { intake: { phone: "+13125550142" }, licences: [], asOf: "2026-09-27" };
     const w = await answer({ locked: false, payload: { first_name: "Susan" }, partOne, revision: 6 });
-    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: { first_name: "Susan" }, partOne, revision: 6 });
+    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: { first_name: "Susan" }, partOne, revision: 6, ssnLast4: null });
+  });
+
+  /** Q-AM3 (0589): the last four of the SSN on file ride up with the body, and nothing more of it. */
+  it("hands up the last four of a saved SSN with the body", async () => {
+    const w = await answer({ locked: false, payload: {}, revision: 2, ssnLast4: "6789" });
+    expect(w.emitted("unlocked")![0]![0]).toMatchObject({ ssnLast4: "6789" });
   });
 
   it("treats an unlocked answer with no body as nothing to resume, never as a wrong date", async () => {
     const w = await answer({ locked: false, payload: null, revision: 0 });
     // Revision 0: nothing saved yet, which the first save names as its expectation.
-    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: {}, partOne: null, revision: 0 });
+    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: {}, partOne: null, revision: 0, ssnLast4: null });
     expect(w.text()).not.toContain(APPLY_COPY.unlock.failed);
   });
 
@@ -131,7 +137,7 @@ describe("a code in place of the date of birth (F0b)", () => {
     await button(w, APPLY_COPY.unlock.codeAction).trigger("click");
     await flushPromises();
     expect(code.verify).toHaveBeenCalledWith("t", "042917");
-    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: { first_name: "Susan" }, partOne: null, revision: 4 });
+    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: { first_name: "Susan" }, partOne: null, revision: 4, ssnLast4: null });
   });
 
   it("says why a text could not go, in the driver's words, and offers no code box", async () => {

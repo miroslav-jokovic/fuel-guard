@@ -6,6 +6,7 @@ import type { PartOneFactsView } from "@silvicom/shared";
 import type { ApplicationDraft } from "@/features/apply/draft";
 import ApplyField from "@/features/apply/ApplyField.vue";
 import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
+import SsnField from "@/features/apply/SsnField.vue";
 import PartOneFactsCard from "@/features/apply/PartOneFactsCard.vue";
 import { aboutYouRows } from "@/features/apply/partOneFacts";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -39,6 +40,8 @@ const props = defineProps<{
    * which Part 1 never asked, are asked here as before.
    */
   partOne?: PartOneFactsView | null;
+  /** The link, for the SSN's own save (Q-AM3). */
+  token?: string;
 }>();
 const factRows = computed(() => (props.partOne ? aboutYouRows(draft.value, props.partOne) : []));
 const copy = APPLY_COPY.identity;
@@ -100,9 +103,9 @@ const lockedHint = APPLY_COPY.identityStep.lockedHint;
          steps, after the two heaviest screens in the form. -->
     <QuestionnaireFields v-model="draft" section="identity" />
 
-    <!-- ⚠ The Social Security number is NOT here since F4. It moved to the signing screen, and it was
-         forced rather than chosen: D-APP3 keeps it out of every saved draft, the application is now
-         signed on a SECOND visit after the office has read it, and a number typed here would be gone
-         by then. `SignOffFields.vue` says the rest. -->
+    <!-- §391.21(b)(2)'s Social Security number, back in the form (Q-AM3, owner 2026-11-11). F4 had moved
+         it to the signing screen because D-APP3 keeps it out of every saved draft; it is saved on its
+         own now, sealed (0589), so the office reviews it before the driver signs. `SsnField` says how. -->
+    <SsnField v-if="token" v-model="draft" :token="token" id="identity-ssn" />
   </section>
 </template>

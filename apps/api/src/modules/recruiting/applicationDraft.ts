@@ -19,6 +19,7 @@ import {
 import { loadCarrierWording } from "./carrierWording.js";
 import { identityOnRecord } from "./applicantIdentity.js";
 import { partOneFactsView } from "./applicantIntake.js";
+import { ssnOnFile } from "./applicantSsn.js";
 import { SIGN_LINK_LOCKED, countWrongUnlock } from "./signLinkUnlock.js";
 
 /**
@@ -77,6 +78,11 @@ export interface DraftView {
    * answer on that link — every other link keeps D-APP16's no-counter rule, and says nothing.
    */
   attemptsLeft?: number;
+  /**
+   * Q-AM3 (0589): the last four of the SSN the form saved, released with the body and on the same answer,
+   * so a returning applicant sees it is on file. Never the number; absent when none is on file.
+   */
+  ssnLast4?: string;
 }
 
 const EMPTY_VIEW: DraftView = { locked: false, payload: null, furthestSection: null, updatedAt: null, revision: 0 };
@@ -230,7 +236,7 @@ export async function unlockDraft(
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
 
-  const { row, partOne, stored } = await gatedRelease(admin, invitation, now);
+  const { row, partOne, stored, ssnLast4 } = await gatedRelease(admin, invitation, now);
   // Nothing recorded to check against: there is nothing gated, so unlocking is a no-op that returns
   // the same view the plain read would have — and no Part 1 facts. It must not become a way to ask
   // whether a draft exists.
@@ -245,7 +251,7 @@ export async function unlockDraft(
       ...(counted === null ? {} : { attemptsLeft: counted }),
     };
   }
-  return releasedView(row, partOne);
+  return releasedView(row, partOne, ssnLast4);
 }
 
 /**
@@ -261,16 +267,17 @@ export async function gatedRelease(
   admin: SupabaseClient,
   invitation: { id: string; org_id: string; driver_id: string },
   now: Date,
-): Promise<{ row: DraftRow | null; partOne: PartOneFactsView | null; stored: string | null }> {
+): Promise<{ row: DraftRow | null; partOne: PartOneFactsView | null; stored: string | null; ssnLast4: string | null }> {
   const row = await readDraft(admin, invitation.org_id, invitation.id);
   const partOne = await partOneFactsView(admin, invitation.org_id, invitation, now);
   const stored = (row ? draftDateOfBirth(row.payload) : null)
     ?? (partOne ? await driverDateOfBirth(admin, invitation.org_id, invitation.driver_id) : null);
-  return { row, partOne, stored };
+  const ssnLast4 = (await ssnOnFile(admin, invitation.org_id, invitation.id))?.last4 ?? null;
+  return { row, partOne, stored, ssnLast4 };
 }
 
 /** The draft, released. An empty body when Part 1 was answered and nothing of Part 2 yet. */
-export function releasedView(row: DraftRow | null, partOne: PartOneFactsView | null): DraftView {
+export function releasedView(row: DraftRow | null, partOne: PartOneFactsView | null, ssnLast4?: string | null): DraftView {
   return {
     locked: false,
     payload: row?.payload ?? {},
@@ -278,6 +285,7 @@ export function releasedView(row: DraftRow | null, partOne: PartOneFactsView | n
     updatedAt: row?.updated_at ?? null,
     revision: revisionOf(row),
     ...(partOne ? { partOne } : {}),
+    ...(ssnLast4 ? { ssnLast4 } : {}),
   };
 }
 

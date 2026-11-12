@@ -28,10 +28,10 @@ import {
   phasesOf,
   requireEsignConsent,
   resolveInvitation,
-  sealSsn,
   type IntakeError,
   type SubmitContext,
 } from "./applicationIntake.js";
+import { dropPreSigningSsn, ssnForFiling } from "./applicantSsn.js";
 import { identityOnRecord } from "./applicantIdentity.js";
 import { uncopiedCallSummaries } from "./applicantEmployerCalls.js";
 import { applicationAsFiled } from "./applicationAsFiled.js";
@@ -331,7 +331,8 @@ export async function submitApplication(
   };
 
   const { driverPatch, employment } = planApplicationIntake(application);
-  const ssn = sealSsn(env, invitation.org_id, body.ssn);
+  // Q-AM3: the number the form saved (0589), or one typed at sign-off by a page served before it.
+  const ssn = await ssnForFiling(admin, env, invitation.org_id, invitation.id, body.ssn);
 
   /**
    * A8/D-APP10: the staged photographs become filed documents in the transaction below, so the bytes
@@ -399,6 +400,8 @@ export async function submitApplication(
     return { code: "submit_failed", message: error.message };
   }
   const applicationId = String((data as { application_id?: string } | null)?.application_id ?? "");
+  // The number now lives on the filed row (D-HIRE6); the pre-signing copy goes (0589).
+  await dropPreSigningSsn(admin, invitation.org_id, invitation.id);
 
   /**
    * Render the §391.51(b)(1) document, best effort (A6, D-APP9).

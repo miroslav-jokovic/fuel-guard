@@ -82,6 +82,16 @@ export const ssnSchema = z.string().regex(/^\d{9}$/, "A Social Security number i
 /** The four digits that may be stored in the clear. Everything else is sealed or discarded. */
 export const ssnLast4 = (ssn: string): string => ssn.slice(-4);
 
+/**
+ * `POST /api/public/application/:token/ssn` — the SSN, entered in the form (Q-AM3, 0589). Typed with
+ * dashes or spaces as people write it; stored as the nine digits `ssnSchema` takes. Its own request,
+ * never the draft's (D-APP3).
+ */
+export const applicantSsnSchema = z
+  .object({ ssn: z.string().transform((v) => v.replace(/[\s-]/g, "")).pipe(ssnSchema) })
+  .strict();
+export type ApplicantSsn = z.infer<typeof applicantSsnSchema>;
+
 export const applicationSubmitSchema = z.object({
   application: driverApplicationSchema,
   ssn: ssnSchema.nullish(),

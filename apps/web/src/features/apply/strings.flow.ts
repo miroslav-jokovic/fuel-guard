@@ -110,13 +110,11 @@ export const APPLY_FLOW_COPY = {
     /** E2: a correction to a row the carrier later removed — said, so the label does not point at another row. */
     removedLater: "they removed it later",
     /**
-     * §391.21(b)(2) lists the Social Security number, and it is asked for HERE rather than on the
-     * form (D-APP3, F4). It is the one answer that never enters a saved draft — so it cannot be
-     * collected on the first visit and still be there on the second, and the honest place to ask for
-     * it is the moment the file is actually created.
+     * Q-AM3 (owner 2026-11-11): the SSN is asked in the form now and saved on its own, sealed (0589). It
+     * is shown here too, so a driver who skipped it on "About you" can still give it before signing.
      */
     ssnNote:
-      "Your Social Security number is not saved with the rest of your answers, so we ask for it here — it goes straight into your file when you sign.",
+      "Your Social Security number is saved apart from your other answers and locked. Only its last four digits are ever shown.",
     sign: "Sign and send it",
     signing: "Sending…",
     /**

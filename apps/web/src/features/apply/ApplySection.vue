@@ -42,7 +42,7 @@ useApplyScreen(() => `part2.${props.section}`);
 </script>
 
 <template>
-  <ApplicantDetailsFields v-if="section === 'identity'" v-model="draft" :locked-by="identityLockedBy" :part-one="partOne" />
+  <ApplicantDetailsFields v-if="section === 'identity'" v-model="draft" :locked-by="identityLockedBy" :part-one="partOne" :token="token" />
   <AddressHistoryFields v-else-if="section === 'addresses'" v-model="draft" :as-of="asOf" :v2-as-of="v2AsOf" :part-one="partOne" />
   <LicenceFields v-else-if="section === 'licence'" v-model="draft" :locked-by="identityLockedBy" :part-one="partOne" />
   <ApplyEmploymentFields v-else-if="section === 'employment'" v-model="draft" :as-of="asOf" :v2-as-of="v2AsOf" />

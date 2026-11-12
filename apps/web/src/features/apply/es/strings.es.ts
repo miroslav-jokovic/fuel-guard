@@ -153,6 +153,12 @@ export const APPLY_COPY_ES = {
     ssn: "Número de Seguro Social",
     ssnHint:
       "Opcional. Está en la solicitud porque algunas verificaciones del historial de manejo se hacen con él. Solo los últimos cuatro dígitos se guardan de forma legible.",
+    ssnSave: "Guardar mi número",
+    ssnSaving: "Guardando…",
+    ssnSaved: (last4: string): string => `Guardado: •••-••-${last4}`,
+    ssnChange: "Cambiarlo",
+    ssnInvalid: "Escriba los nueve dígitos de su número de Seguro Social.",
+    ssnFailed: "No se guardó. Revise su señal e inténtelo de nuevo.",
   },
 
   addresses: {

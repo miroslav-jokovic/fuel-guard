@@ -233,6 +233,13 @@ export const APPLY_COPY_EN = {
     /** Q-H2. The number is optional, and the reason it is asked at all is stated in one sentence. */
     ssnHint:
       "Optional. It is on the application because some driving-record checks match on it. Only the last four digits are kept in a readable form.",
+    // Q-AM3 (0589): saved on its own, sealed, the moment the driver presses Save — never with the draft.
+    ssnSave: "Save my number",
+    ssnSaving: "Saving…",
+    ssnSaved: (last4: string): string => `Saved: •••-••-${last4}`,
+    ssnChange: "Change it",
+    ssnInvalid: "Enter the nine digits of your Social Security number.",
+    ssnFailed: "That did not save. Check your signal and try again.",
   },
 
   addresses: {
