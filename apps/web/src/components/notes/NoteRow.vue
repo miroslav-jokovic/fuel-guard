@@ -32,8 +32,8 @@ const body = computed(() => chatBodyText(props.note.body, props.nameOf ?? (() =>
     :aria-current="highlighted ? 'true' : undefined"
     data-note
   >
-    <div class="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
-      <p class="min-w-0 text-xs text-ink-muted">
+    <div class="flex items-start justify-between gap-2">
+      <p class="min-w-0 flex-1 pt-1 text-xs text-ink-muted">
         <span v-if="note.pinned" class="font-medium text-ink">Pinned · </span>
         <button
           v-if="showUnit"
@@ -44,7 +44,7 @@ const body = computed(() => chatBodyText(props.note.body, props.nameOf ?? (() =>
         >{{ UNIT_NOTE_KIND_LABELS[note.kind] }} {{ note.subjectLabel }}</button><span v-if="showUnit"> · </span>
         <span class="text-ink-secondary">{{ note.authorName }}</span> · {{ formatDisplayDateTime(note.createdAt) }}
       </p>
-      <BaseButton size="sm" variant="ghost" :disabled="pinBusy" data-note-pin @click="emit('pin', note)">
+      <BaseButton class="shrink-0" size="sm" variant="ghost" :disabled="pinBusy" data-note-pin @click="emit('pin', note)">
         {{ note.pinned ? "Unpin" : "Pin to top" }}
       </BaseButton>
     </div>
