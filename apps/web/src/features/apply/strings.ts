@@ -155,7 +155,7 @@ export const APPLY_COPY_EN = {
     needs: [
       `Every address you have lived at in the last ${EMPLOYMENT_WINDOW_YEARS} years.`,
       `Every job you have held in the last ${EMPLOYMENT_WINDOW_YEARS} years, and every driving job in the last ${CMV_WINDOW_YEARS} — with dates, addresses and phone numbers.`,
-      `Your licence, and every other licence or permit you hold or have held in the last ${MVR_LOOKBACK_YEARS} years.`,
+      `Your license, and every other license or permit you hold or have held in the last ${MVR_LOOKBACK_YEARS} years.`,
     ],
     /** Introduces the photographs, which are named from the capture catalogue rather than retyped. */
     photographHeading: "And these, to photograph:",
@@ -172,7 +172,7 @@ export const APPLY_COPY_EN = {
      * A driver told "the application follows" would sit on the waiting screen wondering what broke.
      */
     signFirst: (carrier: string): string =>
-      `${sentenceCase(carrier)} asks for your licence details and a few signed permissions first. After checking your record, they send you the application itself — we will email you the link.`,
+      `${sentenceCase(carrier)} asks for your license details and a few signed permissions first. After checking your record, they send you the application itself — we will email you the link.`,
     /**
      * ⚠ AF5 (D-AF3): the signing is no longer a visit to this link. It happens in the carrier's
      * office, on the same visit as the road test — and saying "we will send you the link" would
@@ -214,9 +214,9 @@ export const APPLY_COPY_EN = {
 
   identity: {
     intro:
-      "Your name and date of birth are matched against your driving record, so enter them exactly as they appear on your licence.",
+      "Your name and date of birth are matched against your driving record, so enter them exactly as they appear on your license.",
     /** A v2 link (C3c2c2): the date of birth is Part 1's and shown, so only the name is entered here. */
-    introPartOne: "Your name is matched against your driving record, so enter it exactly as it appears on your licence.",
+    introPartOne: "Your name is matched against your driving record, so enter it exactly as it appears on your license.",
     first_name: "First name",
     middle_name: "Middle name",
     last_name: "Last name",
@@ -288,12 +288,12 @@ export const APPLY_COPY_EN = {
     dateOfBirth: "Date of birth",
     phone: "Mobile phone",
     cdl: "Your CDL",
-    otherLicences: "Other licences",
+    otherLicences: "Other licenses",
     noOtherLicences: "None",
     classLabel: (cdlClass: string): string => `Class ${cdlClass}`,
     expires: (date: string): string => `expires ${date}`,
     /** A licence Part 1 recorded without an expiry: filing cannot place it on the application (Q-AW35). */
-    noExpiry: "no expiry date given",
+    noExpiry: "no expiration date given",
     /** (b)(5) lists unexpired licences only; an expired one is still checked (the MVR), just not listed. */
     expired: "expired — checked, but not listed on the application",
     currentAddress: "Where you live now",
@@ -304,24 +304,24 @@ export const APPLY_COPY_EN = {
   },
 
   licence: {
-    intro: `Every licence and permit you hold, and any you have held in the last ${MVR_LOOKBACK_YEARS} years, in any state. Start with the one you drive on.`,
-    number: "Licence number",
+    intro: `Every license and permit you hold, and any you have held in the last ${MVR_LOOKBACK_YEARS} years, in any state. Start with the one you drive on.`,
+    number: "License number",
     state: "Issuing state",
     stateHint: "Start typing to find it.",
     class: "Class",
     expires: "Expires",
-    othersHeading: `Other licences and permits, now or in the last ${MVR_LOOKBACK_YEARS} years`,
+    othersHeading: `Other licenses and permits, now or in the last ${MVR_LOOKBACK_YEARS} years`,
     othersIntro:
       // Q-AF4 (owner, 2026-09-25): §391.23(a)(1) needs a driving record from every state that
       // licensed the driver in the last three years, so a licence given up on moving is asked for
       // here too. Each one listed becomes an MVR the office owes (`mvrJurisdictions.ts`).
-      `If you moved from another state in the last ${MVR_LOOKBACK_YEARS} years, add that state's licence, even if you gave it up. Also add permits and endorsements issued separately. You may only hold one commercial licence at a time.`,
+      `If you moved from another state in the last ${MVR_LOOKBACK_YEARS} years, add that state's license, even if you gave it up. Also add permits and endorsements issued separately. You may only hold one commercial license at a time.`,
     issuingAuthority: "Issuing authority",
     issuingAuthorityHint: "The state or agency that issued it.",
     otherNumber: "Number",
     otherKind: "What it is",
     otherKindHint: "Optional — for example, hazmat endorsement.",
-    addOther: "Add another licence or permit",
+    addOther: "Add another license or permit",
     remove: "Remove",
     optional: "Optional.",
   },
@@ -405,7 +405,7 @@ export const APPLY_COPY_EN = {
     nouns: {
       other_names: "Name",
       addresses: "Address",
-      additional_licences: "Licence",
+      additional_licences: "License",
       employers: "Employer",
       employment_gaps: "Gap",
       equipment_experience: "Equipment",

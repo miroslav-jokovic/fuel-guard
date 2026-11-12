@@ -205,11 +205,11 @@ describe("everything the driver typed is on the page they certify", () => {
 
   it("says which photographs were taken and which were not", () => {
     const text = asText(summary(filled(), CAPTURES));
-    expect(text).toContain("Front of your licence");
+    expect(text).toContain("Front of your license");
     const back = summary(filled(), CAPTURES)
       .find((s) => s.section === "documents")!
       .groups.flatMap((g) => g.entries)
-      .find((e) => e.label === "Back of your licence");
+      .find((e) => e.label === "Back of your license");
     expect(back?.value).toBe("None declared");
   });
 });

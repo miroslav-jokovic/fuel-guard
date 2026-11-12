@@ -61,7 +61,7 @@ test("the back takes itself once its barcode reads, and what it read fills Part 
 
   // The kept photograph is read again for its barcode (`usePartOne`) — so the photo itself is legible —
   // and the standard's example lands in the next screens.
-  await expect(page.getByText(/We read your licence's barcode and filled in/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/We read your license's barcode and filled in/)).toBeVisible({ timeout: 15_000 });
   const upload = stub.callsTo("PUT", /\/capture\/[^/]+$/).at(-1)!;
   expect(upload.body).toMatchObject({ slot: "cdl_back", content_type: expect.stringMatching(/^image\/(webp|jpeg)$/) });
   await page.getByRole("button", { name: "Continue" }).click();

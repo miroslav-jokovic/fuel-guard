@@ -15,14 +15,14 @@ import { sentenceCase } from "./sentenceCase";
  */
 export const APPLY_IDENTITY_COPY = {
   identityStep: {
-    heading: "Your driver's licence",
+    heading: "Your driver's license",
     intro: (carrier: string): string =>
-      `${sentenceCase(carrier)} checks your driving record and safety history with these before sending you the application. Enter them as they appear on your licence.`,
+      `${sentenceCase(carrier)} checks your driving record and safety history with these before sending you the application. Enter them as they appear on your license.`,
     dateOfBirth: "Date of birth",
-    number: "Licence number",
+    number: "License number",
     state: "Issuing state",
     stateHint: "Start typing to find it.",
-    photosHeading: "Photos of your licence",
+    photosHeading: "Photos of your license",
     photosIntro: "Both sides, if you can. If your camera will not open, carry on — the office can ask for them later.",
     action: "Continue",
     working: "Saving…",
@@ -34,8 +34,8 @@ export const APPLY_IDENTITY_COPY = {
      */
     missing: {
       date_of_birth: "Enter your date of birth.",
-      cdl_number: "Enter the number on your licence.",
-      cdl_state: "Choose the state that issued your licence.",
+      cdl_number: "Enter the number on your license.",
+      cdl_state: "Choose the state that issued your license.",
     },
     /** Fill-only (D-AF8): a value the carrier already held was kept. Says so without saying what it is. */
     kept: (carrier: string): string =>

@@ -109,7 +109,7 @@ export const APPLY_HISTORY_COPY = {
     penalty: "Penalty",
     penaltyHint: "A fine, points, a suspension — what the court gave.",
     addViolation: "Add a conviction",
-    licenceHeading: "Licence history",
+    licenceHeading: "License history",
     everDenied: "Denied a license, permit or privilege to drive",
     everSuspended: "A license, permit or privilege suspended or revoked",
     denialDetail: "Why it was denied",

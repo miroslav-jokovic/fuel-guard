@@ -107,9 +107,9 @@ describe("the documents the application asks for", () => {
     await settle(w);
     const labels = w.find('[data-testid="offered-documents"]').findAllComponents(AppCheckbox).map((b: { props: (k: string) => unknown }) => b.props("label"));
     expect(labels).toContain("Passport");
-    expect(labels).not.toContain("Front of your licence");
+    expect(labels).not.toContain("Front of your license");
     expect(labels).not.toContain("Medical examiner's certificate");
-    expect(w.find('[data-testid="offered-documents"]').text()).toContain("Always asked: Front of your licence, Back of your licence, Medical examiner's certificate");
+    expect(w.find('[data-testid="offered-documents"]').text()).toContain("Always asked: Front of your license, Back of your license, Medical examiner's certificate");
   });
 
   it("writes the slots still asked for when one is unticked, and null for 'Ask for every document'", async () => {

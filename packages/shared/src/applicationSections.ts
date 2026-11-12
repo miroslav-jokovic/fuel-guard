@@ -67,7 +67,7 @@ export const APPLICATION_FILLING_SECTIONS = APPLICATION_SECTION_ORDER.filter(
 export const APPLICATION_SECTION_LABELS: Record<ApplicationSection, string> = {
   identity: "About you",
   addresses: "Where you have lived",
-  licence: "Your licence",
+  licence: "Your license",
   employment: "Where you have worked",
   safety: "Your driving record",
   questions: "The carrier's own questions",

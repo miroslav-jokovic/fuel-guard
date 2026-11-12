@@ -52,7 +52,7 @@ describe("the licence list", () => {
       const r = one(blank);
       expect(r.success).toBe(false);
       expect(r.error?.issues[0]).toMatchObject({
-        path: ["licences", 0, "expires_on"], message: "Give the expiry date printed on the licence",
+        path: ["licences", 0, "expires_on"], message: "Give the expiration date printed on the license",
       });
     }
     expect(one({ expires_on: "31/12/2020" }).success).toBe(false);

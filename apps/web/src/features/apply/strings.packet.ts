@@ -89,7 +89,7 @@ export const APPLY_PACKET_COPY = {
       blank: "We could not find a signature in that picture. Sign a white sheet in dark ink and photograph it in good light.",
     },
     adoptLabel: "Type your full name",
-    adoptHint: "Type it as it appears on your licence. This is what goes on the form.",
+    adoptHint: "Type it as it appears on your license. This is what goes on the form.",
     /**
      * ⚠ The hint says what the initials are FOR, not how to make them. The packet asks for initials
      * on three pages and for a signature on the rest, and a driver told "your initials" without

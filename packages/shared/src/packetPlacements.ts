@@ -152,7 +152,7 @@ export const PACKET_PLACEMENTS: readonly PacketPlacement[] = [
   { id: "p17", page: 17, party: "driver", mark: "signature", anchor: "Signature of applicant | Date",
     what: "That this application is true, and that we may check your history" },
   { id: "p18", page: 18, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
-    what: "That the licence you gave us is the only one you hold" },
+    what: "That the license you gave us is the only one you hold" },
   { id: "p18c", page: 18, party: "carrier", mark: "signature", anchor: "Silvicom Inc Representative:",
     what: "Countersigned by the carrier" },
   // ⚠ Page 19 carries its heading twice and two identical driver signature lines. It reads as two

@@ -33,7 +33,7 @@ export const APPLY_PERMISSIONS_COPY = {
         `${sentenceCase(carrier)} needs you to sign ${count} permissions before they can check your record. Each one is its own document. Make your signature and initials once below, then we show you each document and where to sign it.`,
       initialsHint:
         "A few pages of your application ask for your initials instead of your full name. We keep these for them.",
-      adoptHint: "Type it as it appears on your licence. This is the name each document is signed in.",
+      adoptHint: "Type it as it appears on your license. This is the name each document is signed in.",
       stylePreviewLabel: "This is how your signature will look",
       uploadPreviewLabel: "This is how your signature will look",
       drawHint: "Use your finger. Your typed name is recorded with it as well.",
