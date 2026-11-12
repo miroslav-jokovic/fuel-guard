@@ -14,6 +14,11 @@ import {
   FUEL_LOG_TANK_TYPES,
 } from "./fuelLogLinkContract.js";
 import { EFS_CARD_STATUSES } from "./efsCardCatalog.js";
+import { DRIVER_STATUSES } from "./constants.js";
+import { DQ_ROSTER_COLUMN_KEYS } from "./dqFile.js";
+import { DQ_DUE_FILTERS } from "./dqFleetFilter.js";
+import { FILE_FILTERS } from "./fileChip.js";
+import { LINK_ANY } from "./linkContract.js";
 import { FUEL_CARDS_HEALTH, FUEL_CARDS_LINKED, FUEL_CARDS_OVERRIDE } from "./fuelCardsLinkContract.js";
 import { FUEL_ALERTS_SEVERITIES, FUEL_ALERTS_STATUS_ALL, FUEL_ALERTS_STATUSES } from "./fuelAlertsLinkContract.js";
 
@@ -40,6 +45,8 @@ import { FUEL_ALERTS_SEVERITIES, FUEL_ALERTS_STATUS_ALL, FUEL_ALERTS_STATUSES } 
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "a calendar day, YYYY-MM-DD");
 const units = z.array(z.string().min(1)).min(1).max(25);
+/** The roster's Due words without its "any time" blank, which a link says by leaving `due` out. */
+const DQ_DUE_DAYS = DQ_DUE_FILTERS.filter((d): d is Exclude<(typeof DQ_DUE_FILTERS)[number], ""> => d !== "");
 
 /**
  * A Fuel log facet belongs to ONE tab (`FUEL_LOG_FACET_TABS`): the page clears it on any other, so a
@@ -132,6 +139,27 @@ export const ASSISTANT_VIEWS = {
       EFS_CARD_STATUSES.join(", ") + "), unit (ONE truck unit number, the card's unit prompt), policy (EFS policy " +
       "number), override (active = an exception with uses left, none), linked (linked = the card matches a fleet " +
       "fuel card, unlinked), health (errors = the last sync failed for the card, ok).",
+  },
+  drivers: {
+    surfaceKey: "fleet.drivers",
+    filters: z
+      .object({
+        status: z.enum([...DRIVER_STATUSES, LINK_ANY]).optional(),
+        file: z.enum(FILE_FILTERS).optional(),
+        due: z.enum(DQ_DUE_DAYS).optional(),
+        requirement: z.enum(DQ_ROSTER_COLUMN_KEYS).optional(),
+        search: z.string().trim().min(1).max(60).optional(),
+        unseated: z.boolean().optional(),
+        archived: z.boolean().optional(),
+      })
+      .strict(),
+    describe:
+      "the drivers roster. Filters, each ONE value: status (" + [...DRIVER_STATUSES, LINK_ANY].join(", ") +
+      "; default active), file (the driver's file chip, which is their WORST item: " + FILE_FILTERS.join(", ") +
+      "; attention = anything not complete), due (qualification items overdue, or overdue-or-due inside 7, 14 or " +
+      "30 days: " + DQ_DUE_DAYS.join(", ") + "), requirement (narrows due to ONE item: " +
+      DQ_ROSTER_COLUMN_KEYS.join(", ") + "), search (a name or employee number, as the search box matches it), " +
+      "unseated (true = active drivers holding no truck), archived (true = the archived roster).",
   },
 } as const satisfies Record<string, { surfaceKey: string; filters: z.ZodType; describe: string }>;
 

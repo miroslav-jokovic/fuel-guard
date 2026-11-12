@@ -4,6 +4,7 @@ import type { z } from "zod";
 import {
   ASSISTANT_VIEWS,
   assistantUnitKey,
+  driversToQuery,
   fuelAlertsToQuery,
   fuelCardsToQuery,
   fuelLogToQuery,
@@ -131,6 +132,12 @@ export async function openAssistantView(
       const c = parsed.filters as Filters<"fuel_cards">;
       // The page matches the card's EFS unit prompt exactly, so the link carries the fleet's spelling.
       query = fuelCardsToQuery({ ...c, unit: trucks?.unitNumbers[0] });
+      break;
+    }
+    case "drivers": {
+      const d = parsed.filters as Filters<"drivers">;
+      // `any` is the roster's spelling of every status; the contract writes it from `null`.
+      query = driversToQuery({ ...d, status: d.status === "any" ? null : d.status });
       break;
     }
     default: {

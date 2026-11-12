@@ -89,4 +89,16 @@ describe("openAssistantView", () => {
     const missing = (await openAssistantView(r.client, ORG, { view: "fuel_cards", filters: { unit: "999" } }, ["fuel_cards"])) as { error: string };
     expect(missing.error).toBe("Not in this fleet: 999. Nothing was opened.");
   });
+
+  it("opens the Drivers roster with the qualification filters as the roster reads them, `any` for every status", async () => {
+    const r = rec();
+    const out = (await openAssistantView(r.client, ORG, { view: "drivers", filters: { status: "any", due: "30", requirement: "medical_card" } }, ["drivers"])) as Record<string, unknown>;
+    expect(out).toEqual({
+      opened: "Drivers",
+      filters: { status: "any", due: "30", requirement: "medical_card" },
+      link: { surfaceKey: "fleet.drivers", query: { status: "any", due: "30", req: "medical_card" } },
+    });
+    // No trucks named, so nothing was read at all.
+    expect(r.queries.length).toBe(0);
+  });
 });

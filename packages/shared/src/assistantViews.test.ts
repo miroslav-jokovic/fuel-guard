@@ -4,6 +4,7 @@ import { ASSISTANT_VIEWS, assistantViewsFor, parseAssistantViewFilters } from ".
 import { splitAssistantLink, assistantAnswerPages } from "./assistantContract.js";
 import { FUEL_PROBLEMS_QUERY_KEYS, fuelProblemsToQuery } from "./fuelProblemsLinkContract.js";
 import { FUEL_COSTS_QUERY_KEYS } from "./fuelCostsLinkContract.js";
+import { DRIVERS_QUERY_KEYS, driversToQuery } from "./driversLinkContract.js";
 import { FUEL_CARDS_QUERY_KEYS, fuelCardsToQuery } from "./fuelCardsLinkContract.js";
 import { FUEL_ALERTS_QUERY_KEYS, fuelAlertsToQuery } from "./fuelAlertsLinkContract.js";
 import { FUEL_LOG_FACET_TABS, FUEL_LOG_QUERY_KEYS, fuelLogToQuery } from "./fuelLogLinkContract.js";
@@ -23,7 +24,9 @@ describe("open_view's pages (F21 Step 5)", () => {
   });
 
   it("offers a page by its own surface gate: fuel's queue to whoever views fuel, never to a technician or a driver", () => {
-    expect(assistantViewsFor("admin", null, ALL)).toEqual(["fuel_problems", "fuel_log", "fuel_alerts", "fuel_cards"]);
+    expect(assistantViewsFor("admin", null, ALL)).toEqual(["fuel_problems", "fuel_log", "fuel_alerts", "fuel_cards", "drivers"]);
+    // The roster is `roster`'s page: the recruiter views it (the matrix), and nothing fuel.
+    expect(assistantViewsFor("recruiter", null, ALL)).toEqual(["drivers"]);
     // Fuel alerts is `safety`'s page: a safety manager is offered it beside the fuel pages they view.
     expect(assistantViewsFor("safety_manager", null, ALL)).toContain("fuel_alerts");
     expect(assistantViewsFor("technician", null, ALL)).toEqual([]);
@@ -100,5 +103,21 @@ describe("open_view's pages (F21 Step 5)", () => {
     expect(FUEL_CARDS_QUERY_KEYS).toEqual({ status: "status", unit: "unit", policy: "policy", override: "override", linked: "linked", health: "health" });
     expect(fuelCardsToQuery({ status: "Fraud" })).toEqual({ status: "Fraud" });
     expect(fuelCardsToQuery({ unit: "718", override: "active", health: "errors" })).toEqual({ unit: "718", override: "active", health: "errors" });
+  });
+
+  it("Drivers: the roster's own vocabularies, one value each; `any` is every status, and a truck is not a roster filter", () => {
+    expect(parseAssistantViewFilters("drivers", { status: "any", file: "expired", due: "30", requirement: "medical_card", unseated: true }).ok).toBe(true);
+    expect(parseAssistantViewFilters("drivers", { due: "" }).ok).toBe(false);
+    expect(parseAssistantViewFilters("drivers", { requirement: "twic" }).ok).toBe(false);
+    const truck = parseAssistantViewFilters("drivers", { units: ["718"] });
+    expect(!truck.ok && truck.error).toMatch(/cannot filter by units.*It can filter by: status, file, due, requirement, search, unseated, archived/);
+  });
+
+  it("Drivers: writes the roster's own keys; status left out opens its default, `null` writes `any`, and card_holds-era links are unchanged", () => {
+    expect(DRIVERS_QUERY_KEYS.search).toBe("q");
+    expect(driversToQuery({ due: "30", requirement: "medical_card", unseated: true, archived: true, search: "Diaz" }))
+      .toEqual({ due: "30", req: "medical_card", seat: "none", show: "archived", q: "Diaz" });
+    expect(driversToQuery({ file: "expired", status: null })).toEqual({ file: "expired", status: "any" });
+    expect(driversToQuery({})).toEqual({});
   });
 });

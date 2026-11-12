@@ -50,8 +50,9 @@ describe("assistantToolsFor — every role, every tool, from the section matrix"
     expect(assistantToolsFor("admin", null, ALL_MODULES)).toEqual(ASSISTANT_TOOL_NAMES);
     expect(assistantToolsFor("driver", null, ALL_MODULES)).toEqual([]);
     // R6b: the matrix lets a recruiter VIEW the roster, so the Drivers page's file tool is theirs.
-    // …and the Applicants board's queues, theirs by `recruitment`.
-    expect(assistantToolsFor("recruiter", null, ALL_MODULES)).toEqual(["driver_file_expirations", "recruiting_counts"]);
+    // …and the Applicants board's queues, theirs by `recruitment`. Since Step 5's Drivers view, `open_view`
+    // too: the roster is a page the recruiter can open (`assistantViewsFor`), so it can be opened filtered.
+    expect(assistantToolsFor("recruiter", null, ALL_MODULES)).toEqual(["driver_file_expirations", "recruiting_counts", "open_view"]);
     // R6b: the technician's first tool is the truck page's repair bills, because the matrix lets them open it.
     expect(assistantToolsFor("technician", null, ALL_MODULES)).toEqual(["annual_inspections_due", "maintenance_cost"]);
     // A dispatcher sees fuel (view) and roster/equipment (view) but not safety: no idling or driver scores.

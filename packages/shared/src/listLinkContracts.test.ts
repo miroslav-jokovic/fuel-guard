@@ -13,7 +13,7 @@ describe("the Applicants, Drivers and Fuel cards link contracts (F21 R4b)", () =
   it("Drivers: a File word and every status as `any`, since the roster opens on active", () => {
     expect(driversToQuery({ file: "expired", status: null })).toEqual({ file: "expired", status: "any" });
     expect(driversToQuery({ file: "attention", status: "on_leave" })).toEqual({ file: "attention", status: "on_leave" });
-    expect(DRIVERS_QUERY_KEYS).toEqual({ file: "file", status: "status" });
+    expect([DRIVERS_QUERY_KEYS.file, DRIVERS_QUERY_KEYS.status]).toEqual(["file", "status"]);
   });
 
   it("Fuel cards: one catalogue status", () => {

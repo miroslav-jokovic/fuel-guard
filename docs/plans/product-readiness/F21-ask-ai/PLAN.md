@@ -1245,3 +1245,43 @@ audit row is the endpoint's own.
       Killed on the rerun.
   - **Next:** Drivers (`fleet.drivers`; `driversLinkContract.ts`), then Loads and Vehicles, which first
     need their filters in the URL (S4).
+- 2026-11-12 — **Step 5, fifth page: `open_view` opens the Drivers roster filtered.**
+  - **The contract grew from two keys to seven.** `driversLinkContract.ts` (R4b: `file`, `status`) now holds
+    the roster's search (`q`), the qualification horizon (`due`), the one-requirement narrowing (`req`),
+    `seat=none` and `show=archived`. `useRosterFilters` reads every key from it.
+  - **`status` keeps its three spellings.** Absent is the roster's default: active on the live roster, every
+    status on the archived one. `any` means every status. A named status is that status. The contract writes
+    absence only when the link says nothing, and the view's `any` becomes `null`, which the contract writes
+    as `any`. `driver_file_expirations`' link is unchanged.
+  - **The values are the roster's own lists:** `DRIVER_STATUSES`, `FILE_FILTERS`, `DQ_DUE_FILTERS` (without
+    the "any time" blank, which a link says by leaving `due` out) and `DQ_ROSTER_COLUMN_KEYS`. The view's
+    description says `file` is the driver's WORST chip (Q-AI13). So "drivers with something expiring"
+    opens `file=expiring` only as the roster means it, and for one requirement the model has `due` +
+    `requirement`, which is per item.
+  - **No truck filter.** The roster has none, so "drivers on 718" is refused, naming what the roster can
+    filter by.
+  - **Who is offered it is the surface's own gate (`section("roster")`).** That gives the recruiter the
+    roster and nothing fuel, as the matrix says. The technician is offered no page.
+    So the recruiter now has `open_view`, their third tool (`assistantContract.test.ts`'s owner's-facts
+    pin, updated; CI found it, the targeted local run did not).
+  - The dock suggests "Show me the drivers whose medical card is due in the next 30 days" on Drivers.
+  - **Tests:**
+    - `assistantViews.test.ts`:
+      - "Drivers: the roster's own vocabularies, one value each; `any` is every status, and a truck is
+        not a roster filter";
+      - "Drivers: writes the roster's own keys; status left out opens its default, `null` writes `any`,
+        and card_holds-era links are unchanged".
+    - `openAssistantView.test.ts`: "opens the Drivers roster with the qualification filters as the roster
+      reads them, `any` for every status".
+    - `useRosterFilters.test.ts`: "reads every other filter a link built by the Drivers contract names".
+    - Eval case `show-medical-due-drivers` (safety manager). Not yet run.
+  - **Deliberate breaks, each killed:**
+    - an absent status written as `any`;
+    - `any` dropped to absence by the view;
+    - the roster reading `due` from another key.
+  - **Step 5's link-contract pages are done:** Fuel problems, Fuel log, Fuel alerts, Fuel cards, Drivers.
+    Next are Loads and Vehicles. Their filters are not in the URL yet (D-AI6/S4), so each first gets its
+    filters into the URL, as a page PR of its own, before it can be a view.
+  - **Waiting on the owner:**
+    - one eval run (~$0.03) covering the six `open_view` cases;
+    - Q-AI14 (an amount filter on Fuel problems).

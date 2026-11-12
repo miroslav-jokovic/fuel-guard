@@ -1,5 +1,5 @@
 import { computed, type ComputedRef, type WritableComputedRef } from "vue";
-import { DRIVERS_QUERY_KEYS, type DriverStatus, FILE_FILTERS } from "@silvicom/shared";
+import { DRIVERS_QUERY_KEYS as K, DRIVERS_SEAT_NONE, DRIVERS_SHOW_ARCHIVED, type DriverStatus, FILE_FILTERS } from "@silvicom/shared";
 import { ANY_PARAM, type SortState, toggleSort, useQueryState } from "@silvicom/ui";
 
 /**
@@ -89,8 +89,8 @@ export function useRosterFilters(): RosterFilters {
   const setFiltering = (patch: Record<string, string | undefined>) => set({ ...patch, page: undefined });
 
   const search = computed<string>({
-    get: () => one("q") ?? "",
-    set: (v) => setFiltering({ q: v.trim() ? v : undefined }),
+    get: () => one(K.search) ?? "",
+    set: (v) => setFiltering({ [K.search]: v.trim() ? v : undefined }),
   });
 
   /**
@@ -116,15 +116,15 @@ export function useRosterFilters(): RosterFilters {
    * terminated, 16 inactive, 1 applicant, 0 active), so an "active" default there would turn the
    * Archived toggle into an empty table that reads as "nobody has ever been archived".
    */
-  const showArchived = computed(() => one("show") === "archived");
+  const showArchived = computed(() => one(K.show) === DRIVERS_SHOW_ARCHIVED);
   const defaultStatus = computed(() => (showArchived.value ? "" : DEFAULT_ROSTER_STATUS));
   const status = computed<string>({
     get: () => {
-      const raw = one(DRIVERS_QUERY_KEYS.status);
+      const raw = one(K.status);
       if (raw === undefined) return defaultStatus.value;
       return raw === ANY_PARAM ? "" : raw;
     },
-    set: (v) => setFiltering({ [DRIVERS_QUERY_KEYS.status]: v === defaultStatus.value ? undefined : v || ANY_PARAM }),
+    set: (v) => setFiltering({ [K.status]: v === defaultStatus.value ? undefined : v || ANY_PARAM }),
   });
 
   /**
@@ -133,13 +133,13 @@ export function useRosterFilters(): RosterFilters {
    * differently, and a second copy of the predicate is how they would.
    */
   const dqDue = computed<string>({
-    get: () => one("due") ?? "",
-    set: (v) => setFiltering({ due: v || undefined }),
+    get: () => one(K.due) ?? "",
+    set: (v) => setFiltering({ [K.due]: v || undefined }),
   });
 
   const dqRequirement = computed<string>({
-    get: () => one("req") ?? "",
-    set: (v) => setFiltering({ req: v || undefined }),
+    get: () => one(K.requirement) ?? "",
+    set: (v) => setFiltering({ [K.requirement]: v || undefined }),
   });
 
   /**
@@ -153,21 +153,21 @@ export function useRosterFilters(): RosterFilters {
   const file = computed<string>({
     get: () => {
       // The File key is the Drivers link contract's (F21 R4b), which Ask AI's link is built with.
-      const v = one(DRIVERS_QUERY_KEYS.file) ?? one("dq") ?? "";
+      const v = one(K.file) ?? one("dq") ?? "";
       return (FILE_FILTERS as readonly string[]).includes(v) ? v : "";
     },
-    set: (v) => setFiltering({ [DRIVERS_QUERY_KEYS.file]: v || undefined, dq: undefined }),
+    set: (v) => setFiltering({ [K.file]: v || undefined, dq: undefined }),
   });
 
   const seat = computed<string>({
-    get: () => (one("seat") === "none" ? "none" : ""),
-    set: (v) => setFiltering({ seat: v === "none" ? "none" : undefined }),
+    get: () => (one(K.seat) === DRIVERS_SEAT_NONE ? DRIVERS_SEAT_NONE : ""),
+    set: (v) => setFiltering({ [K.seat]: v === DRIVERS_SEAT_NONE ? DRIVERS_SEAT_NONE : undefined }),
   });
 
   const view = computed<string>({
     get: () => (showArchived.value ? "archived" : "live"),
     // Anything that is not the word `archived` means the live roster — including `?show=banana`.
-    set: (v) => setFiltering({ show: v === "archived" ? "archived" : undefined }),
+    set: (v) => setFiltering({ [K.show]: v === DRIVERS_SHOW_ARCHIVED ? DRIVERS_SHOW_ARCHIVED : undefined }),
   });
 
   const sort = computed<SortState>(() => {
@@ -190,7 +190,7 @@ export function useRosterFilters(): RosterFilters {
   });
 
   const active = computed(
-    () => Boolean(one("q") || one("status") || one("show") || one("dq") || one("due") || one("req") || one("file") || one("seat")),
+    () => Boolean(one(K.search) || one(K.status) || one(K.show) || one("dq") || one(K.due) || one(K.requirement) || one(K.file) || one(K.seat)),
   );
 
   // Clears what narrows the roster and keeps the sort: the sort orders the list rather than
