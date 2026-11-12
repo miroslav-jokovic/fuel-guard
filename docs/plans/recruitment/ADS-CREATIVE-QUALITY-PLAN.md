@@ -392,7 +392,9 @@ standing instruction ("decide what you can, ask me only for what is mine").
   - 180 candidates written, 164 pass the checks and are on the rating page; 16 were refused and are not shown,
     since they would never reach review.
   - The rating page (D-AD31) is published, private to the owner: https://claude.ai/artifact/KG1h65doetP92nctQvSvnx.
-    The Spanish column needs a Spanish reader the owner names and shares the page with.
+    **The owner, 2026-11-12: "English only for now."** So the L3 rate is recorded from the English ratings and
+    says so; the Spanish words stay checked by the claim and length checks alone, and the Spanish column waits
+    for a reader the owner names (F-AG12 stays open).
 
 ## Sources (read 2026-11-09)
 
