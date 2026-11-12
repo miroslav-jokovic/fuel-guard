@@ -23,6 +23,7 @@ import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useOpens } from "@/composables/useOpens";
 import { fuelTxnStatus, describeRowCoverage, fleetMpgScope, usd2, type FuelTransaction } from "@silvicom/shared";
+import { FUEL_LOG_QUERY_KEYS as LOG_KEYS, FUEL_LOG_TANK_TYPES } from "@silvicom/shared";
 import { weakSignals, whyTitle, hasWhy } from "./fillWhy";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { efsDateTime, stationClockNote, FUEL_LOG_DATES_NOTE } from "@/lib/stationTime";
@@ -67,7 +68,7 @@ const { data: drivers } = useDriversQuery();
  *
  * `tank` rather than `tankType`, because the parameter is what a reader pastes into a ticket.
  */
-const tankTypeFilter = props.shared.facet("tank", ["tractor", "reefer"]);
+const tankTypeFilter = props.shared.facet(LOG_KEYS.tank, FUEL_LOG_TANK_TYPES);
 const driverFilter = props.shared.facet("driver");
 const searchBind = props.shared.facet("search");
 

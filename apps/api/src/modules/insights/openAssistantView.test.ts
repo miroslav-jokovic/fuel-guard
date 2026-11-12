@@ -36,4 +36,25 @@ describe("openAssistantView", () => {
     const denied = (await openAssistantView(r.client, ORG, { view: "fuel_problems", filters: {} }, [])) as { error: string };
     expect(denied.error).toMatch(/not available with this person's access/);
   });
+
+  it("opens the Fuel log's declines on the asked trucks, writing each unit as the fleet spells it, never an id", async () => {
+    const r = rec();
+    const out = (await openAssistantView(
+      r.client,
+      ORG,
+      { view: "fuel_log", filters: { tab: "declines", units: ["#718", "Unit 751"], risk: "alert", from: "2026-11-05", to: "2026-11-11" } },
+      ["fuel_problems", "fuel_log"],
+    )) as Record<string, unknown>;
+    expect(out).toEqual({
+      opened: "Fuel log",
+      filters: { tab: "declines", units: ["#718", "Unit 751"], risk: "alert", from: "2026-11-05", to: "2026-11-11" },
+      link: { surfaceKey: "fuel.log", query: { tab: "declines", unit: "718,751", risk: "alert", from: "2026-11-05", to: "2026-11-11" } },
+    });
+    expectOrgScoped(r, ORG);
+    const wrongTab = (await openAssistantView(r.client, ORG, { view: "fuel_log", filters: { risk: "alert" } }, ["fuel_log"])) as { error: string; link?: unknown };
+    expect(wrongTab.error).toMatch(/only the declines tab has this filter/);
+    expect(wrongTab.link).toBeUndefined();
+    const missing = (await openAssistantView(r.client, ORG, { view: "fuel_log", filters: { units: ["999"] } }, ["fuel_log"])) as { error: string };
+    expect(missing.error).toBe("Not in this fleet: 999. Nothing was opened.");
+  });
 });

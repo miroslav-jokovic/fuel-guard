@@ -31,6 +31,8 @@ const GENERAL: Suggestion[] = [
 
 const BY_SURFACE: Record<string, Suggestion[]> = {
   "fuel.log": [
+    // F21 Step 5: a navigation, filtering this page behind the dock (`open_view`, view `fuel_log`).
+    ask("Show me the high-risk declines from the last 7 days", "open_view"),
     ask("Top 5 fuel stations by spend in the last 30 days", "fuel_ranking"),
     ask("Fuel spend and MPG by month this year so far", "fuel_report"),
     ask("Is fuel spend going up week by week this quarter?", "spend_trend"),

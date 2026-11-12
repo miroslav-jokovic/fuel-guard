@@ -1,4 +1,4 @@
-import { isRecordId } from "@silvicom/shared";
+import { FUEL_LOG_DECLINE_RISKS, FUEL_LOG_TANK_TYPES, isRecordId } from "@silvicom/shared";
 import type { Request, Response, Router } from "express";
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -91,7 +91,7 @@ export function registerFuelExportRoutes(router: Router): void {
           from: ymd(req.query.from),
           to: ymd(req.query.to),
           driverId: uuid(req.query.driver),
-          tankType: oneOf(req.query.tank, ["tractor", "reefer"] as const),
+          tankType: oneOf(req.query.tank, FUEL_LOG_TANK_TYPES),
           search: str(req.query.search),
         },
         rosters,
@@ -128,7 +128,7 @@ export function registerFuelExportRoutes(router: Router): void {
         ...(picked.length ? { units: picked } : {}),
         ...(ymd(req.query.from) ? { from: ymd(req.query.from)! } : {}),
         ...(ymd(req.query.to) ? { to: ymd(req.query.to)! } : {}),
-        ...(oneOf(req.query.risk, ["clear", "review", "alert"] as const) ? { suspicion: String(req.query.risk) } : {}),
+        ...(oneOf(req.query.risk, FUEL_LOG_DECLINE_RISKS) ? { suspicion: String(req.query.risk) } : {}),
         ...(str(req.query.error) ? { errorCode: str(req.query.error)! } : {}),
         ...(str(req.query.state) ? { state: str(req.query.state)! } : {}),
         ...(str(req.query.driver) ? { driver: str(req.query.driver)! } : {}),

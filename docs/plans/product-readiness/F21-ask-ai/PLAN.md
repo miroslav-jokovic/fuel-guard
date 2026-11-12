@@ -1141,3 +1141,39 @@ audit row is the endpoint's own.
     - the dock moving on `/ask`.
   - **Next, one page per PR:** Fuel log, Alerts (`/anomalies`), Fuel cards, Drivers; then Loads and
     Vehicles, which first need their filters in the URL (S4).
+- 2026-11-12 — **Step 5, second page: `open_view` opens the Fuel log filtered.**
+  - **The page's contract.** `fuelLogLinkContract.ts` now holds the Fuel log's URL: the tab (`fills`,
+    `declines`, `source`), the shared `from`/`to`/`unit`, and the three facets a link may set, each with
+    the tab that owns it (`tank` on Fills; `risk` on Declines; `state` on Declines and Source). The page
+    reads all of them from it (`useFuelLogFilters` and the three tabs), and the CSV export route reads its
+    tank and risk lists from it too, so the page, its export and Ask AI cannot name different values.
+  - **Trucks are unit numbers here, not ids.** The Fuel log's `unit` key carries unit numbers because two
+    of its tabs read EFS tables keyed on the unit as text (FUEL-P1). `openAssistantView` resolves the
+    model's spelling ("#718", "Unit 751") against the fleet and writes the fleet's own spelling. A unit
+    not in the fleet opens nothing, as on Fuel problems.
+  - **A facet on the wrong tab is refused.** The page clears a facet on any tab but its own, so Fills'
+    `tank` on Declines would open a list wider than the answer says. The schema refuses it and names the
+    tab that has the filter. It does not move the link to that tab on the model's behalf.
+  - **Not offered, on purpose:** the driver filter, free-text search and sort. `driver` is a driver id on
+    Fills and a card-printed name on the two feeds, so it needs a name→id rule that does not exist
+    yet. A driver filter is refused and the model is told what the page can filter by. That is the
+    contract's refusal, not a gap in the page.
+  - `openAssistantView` builds links in an exhaustive `switch`: a view added without its branch does not
+    compile.
+  - The dock suggests "Show me the high-risk declines from the last 7 days" on the Fuel log.
+  - **Tests:**
+    - `assistantViews.test.ts`: "Fuel log: a tab's own facet is refused on another tab, naming the tab
+      that has it, never moved there"; "Fuel log: writes the page's own keys, trucks as unit numbers
+      under `unit`, the default tab left out".
+    - `openAssistantView.test.ts`: "opens the Fuel log's declines on the asked trucks, writing each unit
+      as the fleet spells it, never an id".
+    - `useFuelLogFilters.test.ts`: "lands a link built by the contract as the tab, window, trucks and the
+      tab's own facets it names"; "opens on Fills with the tank a link names, and a tab change drops the
+      facet it owned".
+    - The eval set gains `show-declines-fuel-log` (dispatcher). It is not yet run; it goes in the same
+      run as `show-open-fuel-problems` (~$0.03 on the owner's go).
+  - **Deliberate breaks, each killed:**
+    - no facet-to-tab check;
+    - the model's unit spelling written into the link;
+    - the page reading its trucks from another key.
+  - **Next:** Alerts (`/anomalies`, `safety.alerts`), then Fuel cards, then Drivers.

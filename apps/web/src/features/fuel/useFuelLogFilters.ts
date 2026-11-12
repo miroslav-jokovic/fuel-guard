@@ -1,5 +1,12 @@
 import { computed, type ComputedRef, type WritableComputedRef } from "vue";
 import { useQueryState } from "@silvicom/ui";
+import {
+  DEFAULT_FUEL_LOG_TAB,
+  FUEL_LOG_QUERY_KEYS as K,
+  FUEL_LOG_TABS,
+  SHARED_FUEL_LOG_KEYS,
+  type FuelLogTab,
+} from "@silvicom/shared";
 
 /**
  * The Fuel Log's state, which is its URL (FUEL-C2 and FUEL-C3, D-FUI1/D-FUI8).
@@ -60,20 +67,15 @@ import { useQueryState } from "@silvicom/ui";
  * rather than a refactor, and it is written up in C3's note in the plan for whoever makes it.
  */
 
-/** The tab, in the URL. `source` rather than `transactions` — the tab is a view, not the old page. */
-export const FUEL_LOG_TABS = ["fills", "declines", "source"] as const;
-export type FuelLogTab = (typeof FUEL_LOG_TABS)[number];
-
-export const DEFAULT_FUEL_LOG_TAB: FuelLogTab = "fills";
+/**
+ * The tab, the keys and which of them are shared live in `fuelLogLinkContract.ts` (F21 Step 5, D-AI6), the
+ * one definition this page and Ask AI's `open_view` both read. `source` rather than `transactions` — the
+ * tab is a view, not the old page. Re-exported so the page shell keeps one import.
+ */
+export { DEFAULT_FUEL_LOG_TAB, FUEL_LOG_TABS, SHARED_FUEL_LOG_KEYS, type FuelLogTab };
 
 const isTab = (v: string | undefined): v is FuelLogTab =>
   !!v && (FUEL_LOG_TABS as readonly string[]).includes(v);
-
-/**
- * The parameters that mean the same thing on every tab, and therefore the ONLY ones that survive a
- * tab change. Everything else in the query belongs to the tab that wrote it — see the header.
- */
-export const SHARED_FUEL_LOG_KEYS = ["tab", "from", "to", "unit"] as const;
 
 /**
  * ⚠ **The three shared filters are READ-ONLY refs with named setters beside them, and the tab is not.**
@@ -129,7 +131,7 @@ export function useFuelLogFilters(): FuelLogSharedFilters {
 
   const tab = computed<FuelLogTab>({
     get: () => {
-      const v = one("tab");
+      const v = one(K.tab);
       return isTab(v) ? v : DEFAULT_FUEL_LOG_TAB;
     },
     /**
@@ -140,7 +142,7 @@ export function useFuelLogFilters(): FuelLogSharedFilters {
      * `facet()` calls, and a copy is a workaround with a delay fuse.
      */
     set: (v) => {
-      const patch: Record<string, string | undefined> = { tab: v };
+      const patch: Record<string, string | undefined> = { [K.tab]: v };
       for (const key of Object.keys(q.value)) {
         if (!(SHARED_FUEL_LOG_KEYS as readonly string[]).includes(key)) patch[key] = undefined;
       }
@@ -152,15 +154,15 @@ export function useFuelLogFilters(): FuelLogSharedFilters {
 
   return {
     tab,
-    from: computed(() => one("from")),
-    to: computed(() => one("to")),
-    units: computed(() => list("unit")),
-    setFrom: write("from"),
-    setTo: write("to"),
+    from: computed(() => one(K.from)),
+    to: computed(() => one(K.to)),
+    units: computed(() => list(K.units)),
+    setFrom: write(K.from),
+    setTo: write(K.to),
     // An empty selection REMOVES the parameter rather than writing `?unit=`, so "the whole fleet" has
     // one spelling in the URL instead of two that a reader would have to know are the same.
-    setUnits: (v: string[]) => set({ unit: v.length ? v.join(",") : undefined }),
+    setUnits: (v: string[]) => set({ [K.units]: v.length ? v.join(",") : undefined }),
     facet: param,
-    clear: () => set({ from: undefined, to: undefined, unit: undefined }),
+    clear: () => set({ [K.from]: undefined, [K.to]: undefined, [K.units]: undefined }),
   };
 }

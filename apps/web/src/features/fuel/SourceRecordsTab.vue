@@ -18,6 +18,7 @@
  * two without a gate would hand every EFS line to a recruiter. The tab strip is built from the same
  * matrix the surface catalogue reads; see `FuelLogPage.vue`.
  */
+import { FUEL_LOG_QUERY_KEYS } from "@silvicom/shared";
 import { ref, computed, watch } from "vue";
 import { useEfsTransactions, useEfsFacets, useEfsRowCoverage, EFS_PAGE_SIZE, type EfsFilters } from "./useEfsData";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -51,7 +52,7 @@ const props = defineProps<{ shared: FuelLogSharedFilters }>();
  */
 const search = props.shared.facet("search");
 const item = props.shared.facet("item");
-const state = props.shared.facet("state");
+const state = props.shared.facet(FUEL_LOG_QUERY_KEYS.state);
 const driver = props.shared.facet("driver");
 
 /**
