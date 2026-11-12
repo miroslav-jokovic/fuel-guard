@@ -103,6 +103,8 @@ const { placed } = packetFieldFill({
   certifiedAt: "2026-09-14T09:00:00Z",
   markedAt: MARKED,
   signedName: "Marija Varmeda",
+  // Q-AM3: a full application has an SSN, printed as the stored packet prints it (Q-AM20 (a)).
+  ssn: "•••-••-6789",
 });
 
 /**

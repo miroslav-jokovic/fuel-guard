@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { formatSsn, maskSsn } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { writeAudit } from "../../lib/audit.js";
 import { open, secretAad } from "../../lib/secretBox.js";
@@ -214,4 +215,29 @@ export async function revealApplicantSsn(
     orgId, actorId, action: "application.ssn_viewed", entity: "application_invitation", entityId: invitation.id,
   });
   return { ssn, last4: held.last4 };
+}
+
+/**
+ * The SSN as one rendering of the packet prints it (Q-AM20 (a)): all nine for `whole` — the driver
+ * reading what they are about to sign, or an office holder of "See the full SSN" — else the last four
+ * masked. Null when none is on file. An office reader's whole read is audited like `revealApplicantSsn`;
+ * the driver's own is not, since it is their number. Kept as the last four only (no secret box): masked.
+ */
+export async function ssnForPacket(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  invitationId: string,
+  whole: { reader: "applicant" } | { reader: "office"; actorId: string } | null,
+): Promise<string | null> {
+  const held = await ssnOnFile(admin, orgId, invitationId);
+  if (!held) return null;
+  if (!whole || !held.sealed) return maskSsn(held.last4);
+  if (whole.reader === "office") {
+    await writeAudit(admin, {
+      orgId, actorId: whole.actorId, action: "application.ssn_viewed", entity: "application_invitation", entityId: invitationId,
+      meta: { in: "packet_preview" },
+    });
+  }
+  return formatSsn(open(env, held.sealed, secretAad(orgId, "driver_ssn")));
 }

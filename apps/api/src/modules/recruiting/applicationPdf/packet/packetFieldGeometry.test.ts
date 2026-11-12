@@ -154,12 +154,12 @@ describe("the vocabulary", () => {
   });
 
   /**
-   * ⚠ **The Social Security number is absent from all three places the packet asks for it**, and
-   * that is D-HIRE6 rather than an oversight. This asserts the absence, because an absence nothing
-   * checks is one somebody adds back while filling in a gap.
+   * The Social Security number has a line in every place the carrier's paper asks for it, and no others
+   * (Q-AM3, reversing D-HIRE6's blank): page 1, page 4 and page 15 as rules, page 12 as the identity
+   * grid's `SS #` column. What each prints is the caller's (`packetFieldValues.test.ts`).
    */
-  it("carries no field for the Social Security number anywhere", () => {
-    expect(lineIds.filter((id) => /ssn|social|ss_?#/i.test(id))).toEqual([]);
+  it("has an SSN line in exactly the paper's places", () => {
+    expect(lineIds.filter((id) => /ssn|social|ss_?#/i.test(id)).sort()).toEqual(["p01.ssn", "p04.ssn", "p15.ssn"]);
   });
 
   /**

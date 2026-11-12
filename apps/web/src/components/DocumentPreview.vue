@@ -235,6 +235,9 @@ const sizeLabel = computed(() => {
         <!-- A caller that pages through several papers (FileGallery, UNIT-FILES-PLAN UF4) puts its
              ‹ 2 of 5 › here; the viewer itself still shows exactly one document. -->
         <div v-if="$slots.nav" class="mr-auto flex items-center gap-2"><slot name="nav" /></div>
+        <!-- A caller's own act on THIS document, beside Download (Q-AM20: the signed application with the
+             full SSN, for its permission's holder). The viewer stays one document and knows no kinds. -->
+        <slot name="actions" />
         <BaseButton v-if="!isPdf" variant="ghost" @click="print">
           <AppIcon :icon="PrinterIcon" class="size-4" aria-hidden="true" />
           Print

@@ -25,11 +25,11 @@
  * boundaries were measured off a coordinate ruler drawn across the page and then confirmed by
  * putting values under the captions. The test says it cannot check them, rather than pretending to.
  *
- * ── WHAT IS DELIBERATELY NOT DRAWN ────────────────────────────────────────────────────────────
- * The Social Security number, in all three places the packet asks for it (page 1, page 12's `SS #`,
- * page 15's `SSN`). D-HIRE6 seals it everywhere and a rendered document a recruiter emails is the
- * last place nine digits should appear — `renderPacket.ts` made the same choice and says so. The
- * carrier's own label stays on the paper because the paper is theirs.
+ * ── THE SOCIAL SECURITY NUMBER (Q-AM3, Q-AM20 (a), 2026-11-12) ──────────────────────────────
+ * Printed in all four places the packet asks for it: page 1, page 4 (whose rule it shares with the
+ * printed name), page 12's `SS #` and page 15's `SSN`. D-HIRE6 left them blank until the owner ruled
+ * that the paper decides what is asked. WHAT is printed is the caller's (`PacketFieldInput.ssn`): the
+ * last four on the stored packet, all nine only for a reader allowed them.
  */
 
 /** How far above a rule a value's baseline sits — the carrier's own type measures 3.0pt. */
@@ -102,7 +102,8 @@ export const PACKET_FIELD_LINES: readonly PacketFieldLine[] = [
     note: "Right half of the `Date:` row — a long rule running to the margin." },
   { id: "p01.position", page: 1, x1: 102.5, x2: 205.8, y: 539.9, source: "seen",
     note: "`Position:` — p01.date's layout one row down. The carrier's own question (A9/D-APP12)." },
-  // ⚠ The rule at (360.5, 539.9) is `Social Security number` and is deliberately absent. D-HIRE6.
+  { id: "p01.ssn", page: 1, x1: 360.5, x2: 553.2, y: 539.9, source: "seen",
+    note: "Right half of the `Position:` row, captioned `Social Security number` at x255–356 to its left (Q-AM3)." },
   { id: "p01.cdl", page: 1, x1: 102.5, x2: 309.0, y: 296.0, source: "seen",
     note: "`Cdl #` bold label, long rule to the right; `Phone #` is the same row's right half." },
   { id: "p01.phone", page: 1, x1: 360.5, x2: 553.2, y: 296.0, source: "seen",
@@ -150,7 +151,10 @@ export const PACKET_FIELD_LINES: readonly PacketFieldLine[] = [
   { id: "p15.dob", page: 15, x1: 205.7, x2: 309.0, y: 143.6, source: "seen",
     note: "Bottom row, second cell, captioned `DOB` beneath." },
   // ⚠ `Sent to` (412.1–553.2, y 174.1) is left blank on purpose and is NOT an omission — see Q-PKT11.
-  // ⚠ `SSN` (360.5–463.8, y 143.6) is left blank by D-HIRE6, like page 1's and page 12's.
+  { id: "p15.ssn", page: 15, x1: 360.5, x2: 463.8, y: 143.6, source: "seen",
+    note: "Bottom row, fourth cell, captioned `SSN` beneath at x362 (Q-AM3)." },
+  { id: "p04.ssn", page: 4, x1: 310.8, x2: 463.8, y: 235.1, source: "seen",
+    note: "The right part of the rule `p04.printed_name` shares, captioned `Social Security Number` beneath at x310.8–413.4 (Q-AM3)." },
 
   // ── page 16 — education and training ────────────────────────────────────────────────────────
   { id: "p16.military", page: 16, x1: 257.3, x2: 360.6, y: 371.5, source: "seen",
@@ -220,7 +224,7 @@ export const PACKET_FIELD_TABLES: readonly PacketFieldTable[] = [
     columns: [51.4, 154.6, 257.8, 361.0, 464.2, 553.6],
     rows: [585.6],
     source: "seen",
-    note: "`Last name | First name | Aliases | DOB | SS #`, one row. ⚠ The last cell stays empty (D-HIRE6).",
+    note: "`Last name | First name | Aliases | DOB | SS #`, one row. The last cell is the SSN as the caller prints it (Q-AM3).",
   },
   {
     id: "p12.employment",

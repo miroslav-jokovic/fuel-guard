@@ -5,6 +5,10 @@ import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseR
 import { pdfText as textOf } from "../../testing/pdfText.js";
 import { applicationPreviewPdf, isPreviewError } from "./applicationPdf/preview.js";
 import { applicantReadingCopy } from "./applicationReadingCopy.js";
+import { loadEnv } from "../../env.js";
+import { seal, secretAad } from "../../lib/secretBox.js";
+
+const ENV = loadEnv({ NODE_ENV: "test", SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") } as NodeJS.ProcessEnv);
 import { hashInvitationToken, isIntakeError } from "./applicationIntake.js";
 import { APPLICATION_CAPTURE_MARK_SLOT } from "@silvicom/shared";
 
@@ -69,7 +73,7 @@ const invitation = (over: Record<string, unknown> = {}) => ({
  * cross-tenant test below would then prove only that the fake ignores filters.
  */
 const seed = (
-  over: { invitation?: Record<string, unknown> | null; payload?: unknown; marks?: unknown[] } = {},
+  over: { invitation?: Record<string, unknown> | null; payload?: unknown; marks?: unknown[]; ssn?: Record<string, unknown> } = {},
 ) =>
   createSupabaseRecorder({
     tables: {
@@ -90,6 +94,7 @@ const seed = (
       esign_consents: [],
       application_captures: [],
       documents: [],
+      application_ssns: over.ssn ? [over.ssn] : [],
     },
   });
 
@@ -98,7 +103,7 @@ const signedP03 = [{ placement_id: "p03", signed_name: ADOPTED, signed_at: "2026
 
 describe("the packet a driver reads before signing it", () => {
   it("serves the carrier's paper with no DRAFT band across it", async () => {
-    const result = await applicantReadingCopy(seed().client, TOKEN, NOW);
+    const result = await applicantReadingCopy(seed().client, ENV, TOKEN, NOW);
     expect(isIntakeError(result)).toBe(false);
     if (isIntakeError(result)) return;
     expect(result.pdf.subarray(0, 5).toString()).toBe("%PDF-");
@@ -112,11 +117,27 @@ describe("the packet a driver reads before signing it", () => {
   });
 
   it("names every place the driver signs inside the copy it serves, so the walk can open its page (D-HB12)", async () => {
-    const result = await applicantReadingCopy(seed().client, TOKEN, NOW);
+    const result = await applicantReadingCopy(seed().client, ENV, TOKEN, NOW);
     if (isIntakeError(result)) throw new Error(result.message);
     const dests = await pdfDestinations(result.pdf);
     for (const id of driverPlacementIds(null)) expect(dests.get(signingPlaceDestination(id))?.kind, id).toBe("FitR");
     expect(dests.get(signingPlaceDestination("p18"))?.page).toBe(18);
+  });
+
+  /**
+   * Q-AM20 (a): the driver reads their own number in full on the paper they are about to sign; the
+   * office's preview of the same application prints the last four (a holder of "See the full SSN" is
+   * the route's to decide, `routes/applicationReview.ts`).
+   */
+  it("prints the driver's own SSN in full for them, and the last four on the office's preview", async () => {
+    const ssn = { ssn_last4: "6789", ssn_sealed: seal(ENV, "123456789", secretAad(ORG, "driver_ssn")), entered_by: "applicant" };
+    const driver = await applicantReadingCopy(seed({ ssn }).client, ENV, TOKEN, NOW);
+    const office = await applicationPreviewPdf(seed({ ssn }).client, ORG, INV);
+    if (isIntakeError(driver) || isPreviewError(office)) throw new Error("no document");
+    expect(await textOf(driver.pdf)).toContain("123-45-6789");
+    const officeText = await textOf(office.pdf);
+    expect(officeText).not.toContain("123-45-6789");
+    expect(officeText).toContain("6789");
   });
 
   /**
@@ -126,7 +147,7 @@ describe("the packet a driver reads before signing it", () => {
    */
   it("still bands the office's preview of the very same application", async () => {
     const rec = seed();
-    const driver = await applicantReadingCopy(rec.client, TOKEN, NOW);
+    const driver = await applicantReadingCopy(rec.client, ENV, TOKEN, NOW);
     const office = await applicationPreviewPdf(seed().client, ORG, INV);
     expect(isIntakeError(driver)).toBe(false);
     expect(isPreviewError(office)).toBe(false);
@@ -141,7 +162,7 @@ describe("the packet a driver reads before signing it", () => {
    * one renderer and changes nothing about which paper is drawn.
    */
   it("draws the signatures already on the paper, for a driver coming back", async () => {
-    const withMark = await applicantReadingCopy(seed({ marks: signedP03 }).client, TOKEN, NOW);
+    const withMark = await applicantReadingCopy(seed({ marks: signedP03 }).client, ENV, TOKEN, NOW);
     expect(isIntakeError(withMark)).toBe(false);
     if (isIntakeError(withMark)) return;
     expect(withMark.markCount).toBe(1);
@@ -149,7 +170,7 @@ describe("the packet a driver reads before signing it", () => {
 
     // ⚠ The other half, so the fixture can discriminate: a walk nobody has started must NOT have the
     // mark on it. Without this, a renderer that stamped the adopted name on every packet would pass.
-    const fresh = await applicantReadingCopy(seed().client, TOKEN, NOW);
+    const fresh = await applicantReadingCopy(seed().client, ENV, TOKEN, NOW);
     expect(isIntakeError(fresh)).toBe(false);
     if (isIntakeError(fresh)) return;
     expect(fresh.markCount).toBe(0);
@@ -166,7 +187,7 @@ describe("the packet a driver reads before signing it", () => {
     // The default fixture is deliberately unapproved; this states the property rather than leaving
     // it implicit in every other test here.
     const unapproved = seed({ invitation: invitation({ review_requested_at: null, approved_at: null }) });
-    const result = await applicantReadingCopy(unapproved.client, TOKEN, NOW);
+    const result = await applicantReadingCopy(unapproved.client, ENV, TOKEN, NOW);
     expect(isIntakeError(result)).toBe(false);
   });
 
@@ -184,7 +205,7 @@ describe("the packet a driver reads before signing it", () => {
    */
   it("refuses a filed application without rendering anything at all", async () => {
     const filed = seed({ invitation: invitation({ submitted_at: "2026-09-18T11:00:00Z" }) });
-    const result = await applicantReadingCopy(filed.client, TOKEN, NOW);
+    const result = await applicantReadingCopy(filed.client, ENV, TOKEN, NOW);
     expect(isIntakeError(result)).toBe(true);
     if (!isIntakeError(result)) return;
     expect(result.code).toBe("already_filed");
@@ -197,14 +218,14 @@ describe("the packet a driver reads before signing it", () => {
   });
 
   it("gives a dead link the one refusal this surface gives every dead link", async () => {
-    const result = await applicantReadingCopy(seed({ invitation: null }).client, TOKEN, NOW);
+    const result = await applicantReadingCopy(seed({ invitation: null }).client, ENV, TOKEN, NOW);
     expect(isIntakeError(result)).toBe(true);
     if (!isIntakeError(result)) return;
     expect(result.code).toBe("invalid_link");
   });
 
   it("says there is nothing to read rather than drawing an empty packet", async () => {
-    const result = await applicantReadingCopy(seed({ payload: null }).client, TOKEN, NOW);
+    const result = await applicantReadingCopy(seed({ payload: null }).client, ENV, TOKEN, NOW);
     expect(isIntakeError(result)).toBe(true);
     if (!isIntakeError(result)) return;
     expect(result.code).toBe("nothing_to_read");
@@ -216,7 +237,7 @@ describe("the packet a driver reads before signing it", () => {
    */
   it("scopes every read to the invitation's own org", async () => {
     const rec = seed({ marks: signedP03 });
-    await applicantReadingCopy(rec.client, TOKEN, NOW);
+    await applicantReadingCopy(rec.client, ENV, TOKEN, NOW);
     /**
      * ⚠ `application_invitations` is exempt because it is the CREDENTIAL lookup — the query that
      * resolves a token hash to an org, and therefore the one query that cannot already know one.
@@ -236,7 +257,7 @@ describe("the packet a driver reads before signing it", () => {
    */
   it("reads the marks for the org the token resolved to, not some other", async () => {
     const rec = seed({ invitation: invitation({ org_id: OTHER_ORG }), marks: signedP03 });
-    await applicantReadingCopy(rec.client, TOKEN, NOW);
+    await applicantReadingCopy(rec.client, ENV, TOKEN, NOW);
     const markQueries = rec.forTable("application_packet_marks");
     expect(markQueries.length).toBeGreaterThan(0);
     for (const q of markQueries) {
@@ -257,7 +278,7 @@ describe("the packet a driver reads before signing it", () => {
    */
   it("reads both adopted marks, by the slot the contract names for each kind", async () => {
     const rec = seed({ marks: signedP03 });
-    await applicantReadingCopy(rec.client, TOKEN, NOW);
+    await applicantReadingCopy(rec.client, ENV, TOKEN, NOW);
     const slots = rec
       .forTable("application_captures")
       .map((q) => q.filters().find((f) => f.col === "slot")?.val);
@@ -275,7 +296,7 @@ describe("the packet a driver reads before signing it", () => {
    */
   it("fetches neither picture on a packet nobody has signed yet", async () => {
     const rec = seed();
-    await applicantReadingCopy(rec.client, TOKEN, NOW);
+    await applicantReadingCopy(rec.client, ENV, TOKEN, NOW);
     expect(rec.forTable("application_captures")).toHaveLength(0);
   });
 });

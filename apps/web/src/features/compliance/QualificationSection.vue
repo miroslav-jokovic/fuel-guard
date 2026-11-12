@@ -6,6 +6,7 @@ import {
   dqAttention,
   dqGroups,
   DQ_ITEMS,
+  FULL_SSN_PERMISSION,
   moduleEnabled,
   type DqFileItem,
   type DocumentRow,
@@ -32,6 +33,7 @@ import RequirementTable, { type RequirementRow } from "@/components/files/Requir
 import type { FileSubject } from "@/components/files/fileSubject";
 import { useExportDocument } from "@/composables/useDqExports";
 import { useDriverDropItems } from "@/composables/useFileDropItems";
+import { openPdf } from "@/lib/documentDownload";
 
 /**
  * One driver's §391.51 file (DQ redesign, D-DQ7).
@@ -143,6 +145,19 @@ const previewLabel = ref("");
 const previewDoc = computed(() =>
   previewDocId.value ? (docById.value.get(previewDocId.value) ?? null) : null,
 );
+/** Q-AM20 (a): the signed application with all nine digits, for "See the full SSN" — a new tab, never cached. */
+const openingFull = ref(false);
+async function openFullSsn(documentId: string): Promise<void> {
+  openingFull.value = true;
+  try {
+    await openPdf(`/api/recruitment/filed-applications/${encodeURIComponent(documentId)}/full-ssn.pdf`);
+  } catch (e) {
+    toast.error("Could not open it", e instanceof Error ? e.message : undefined);
+  } finally {
+    openingFull.value = false;
+  }
+}
+
 function openPreview(row: { documentId: string | null; label: string }): void {
   if (!row.documentId) return;
   previewDocId.value = row.documentId;
@@ -374,6 +389,14 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
       :label="previewLabel"
       :doc="previewDoc"
       @close="previewDocId = null"
-    />
+    >
+      <!-- Q-AM20 (a): the stored application prints the SSN's last four; a holder of "See the full SSN"
+           opens it with all nine, drawn on demand and never stored (the API audits every one). -->
+      <template v-if="previewDoc?.kind === 'employment_application' && session.hasPermission(FULL_SSN_PERMISSION)" #actions>
+        <BaseButton variant="ghost" :disabled="openingFull" @click="openFullSsn(previewDoc.id)">
+          {{ openingFull ? "Opening…" : "Open with the full SSN" }}
+        </BaseButton>
+      </template>
+    </DocumentPreview>
   </div>
 </template>

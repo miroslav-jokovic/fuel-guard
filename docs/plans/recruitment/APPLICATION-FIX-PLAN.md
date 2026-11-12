@@ -506,3 +506,13 @@ A gate fails on a literal string in an `apply/` template.
     - The review carries only `ssn.last4`.
   - **The catalogue:** the SSN's door is `office: "ssn"`. **The office-gap list is empty: every fact the driver answers can now be corrected.**
   - **Next:** step 5, the packet (Q-AM20 (a)): the stored packet prints the last four, and holders get the full packet on demand. Step 4 (filing moves it and deletes the pre-signing copy) shipped with step 2.
+- 2026-11-12: **Item 3, step 5: the SSN on the packet (Q-AM20 (a))** (`claude/application-ssn-packet`). Step 3 merged as #2286. **Item 3 is complete with this step.**
+  - **Four places, measured:** page 1 `Social Security number`, page 4's rule shared with the printed name (x310.8–463.8), page 12's `SS #` cell, and page 15's `SSN`. D-HIRE6's blank and its pin test are gone. The packet prints only what its caller hands it (`PacketFieldInput.ssn`), so no rendering prints more than its reader may see.
+  - **Who reads what:**
+    - **The stored packet** (`file.ts`): `•••-••-1234`, from the clear last four. It never reads the sealed column.
+    - **The office preview:** masked by default. A holder of "See the full SSN" gets all nine, and the read is audited.
+    - **The driver's reading copy:** their own number in full.
+    - **The filed packet in full,** for a holder only: a new **Open with the full SSN** button in the document viewer of the driver's qualification file. It calls `GET /filed-applications/:documentId/full-ssn.pdf`, which covers the four places on the stored copy (the countersigned one once there is one) and draws the nine digits there. It is never stored, uncached and audited. It refuses a number kept as its last four only, and an application filed before the packet.
+  - **`maskSsn` and `formatSsn`** in `applicationIntake.ts` are the one definition the card, the packet and the preview use.
+  - **Known, and why:** the full copy's cover is visual, so the masked four stay in its text layer. A grid cell redrawn alone may be a point off its original size.
+  - **Next:** item 4, page 21 back in the packet (Q-AM4).

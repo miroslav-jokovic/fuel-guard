@@ -91,8 +91,10 @@ function page1(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
   push(into, "p01.date", date(input.certifiedAt));
   push(into, "p01.dob", date(a.date_of_birth));
   push(into, "p01.position", answer(a, "position"), P1.position);
-  // ⚠ The Social Security number is NOT drawn (D-HIRE6), here or on page 12 or page 15. The
-  // carrier's label stays on the paper because the paper is theirs.
+  // Q-AM3/Q-AM20: the SSN as this rendering may print it — masked or whole, decided by the caller.
+  push(into, "p01.ssn", blank(input.ssn));
+  // Page 4 has no answers of its own besides the printed name (`packetSigningFill`); its SSN shares that rule.
+  push(into, "p04.ssn", blank(input.ssn));
   push(into, "p01.cdl", `${blank(a.cdl_number)}${a.cdl_state ? ` (${a.cdl_state})` : ""}`);
   push(into, "p01.phone", blank(a.phone));
   push(into, "p01.legally_work", yesNo(bool(a, "legally_work")));
@@ -275,7 +277,7 @@ function page12(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketF
     P12.heading,
     P12.identityColumns,
     12,
-    [[blank(a.last_name), blank(a.first_name), (a.other_names ?? []).join(", "), date(a.date_of_birth), ""]],
+    [[blank(a.last_name), blank(a.first_name), (a.other_names ?? []).join(", "), date(a.date_of_birth), blank(input.ssn)]],
     into,
     over,
   );
@@ -311,6 +313,7 @@ function page15(input: PacketFieldInput, into: PlacedFieldValue[]): void {
   // one of the few standalone rules that reaches the floor size on an ordinary applicant.
   push(into, "p15.name", fullName(a), "Name of applicant");
   push(into, "p15.dob", date(a.date_of_birth));
+  push(into, "p15.ssn", blank(input.ssn));
   // ⚠ `Sent to` is deliberately blank — the packet carries ONE copy of this page and a driver with
   // four previous employers needs it sent to four of them. Q-PKT11, open.
 }

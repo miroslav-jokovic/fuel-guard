@@ -278,7 +278,8 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
     path: "ssn",
     input: "text",
     basis: "391.21(b)(2)",
-    packet: { notPrinted: "never drawn (D-HIRE6) until item 3's packet step: Q-AM20 (a) prints the last four on the stored packet" },
+    // Q-AM20 (a): all four of the paper's places — masked on the stored packet, whole only for its readers.
+    packet: ["p01.ssn", "p04.ssn", "p15.ssn", "p12.identity#4"],
     // Q-AM3/Q-AM17: asked in the form and held sealed before signing (application_ssns, 0589); replaced by the
     // office, read whole only with "See the full SSN".
     office: "ssn",

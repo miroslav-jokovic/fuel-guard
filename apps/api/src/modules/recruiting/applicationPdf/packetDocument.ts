@@ -87,6 +87,8 @@ export interface PacketDocumentInput {
    * filing path draws exactly what it drew before this option existed.
    */
   band?: string | null;
+  /** The SSN as this rendering prints it (`PacketFieldInput.ssn`, Q-AM20): masked, whole, or null. */
+  ssn?: string | null;
 }
 
 /**
@@ -112,6 +114,7 @@ export async function renderPacketDocument(input: PacketDocumentInput): Promise<
     certifiedAt: input.certifiedAt,
     markedAt,
     signedName: input.signedName,
+    ssn: input.ssn ?? null,
   });
   const a = input.application;
   return renderPacketOverlay({

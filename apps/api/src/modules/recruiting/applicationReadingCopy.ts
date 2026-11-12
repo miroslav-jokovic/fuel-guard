@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Env } from "../../env.js";
+import { ssnForPacket } from "./applicantSsn.js";
 import { writeAudit } from "../../lib/audit.js";
 import { applicationPreviewPdf, isPreviewError } from "./applicationPdf/preview.js";
 import { packetMarksFor } from "./applicationPdf/packetDocument.js";
@@ -76,6 +78,7 @@ const NOTHING_TO_READ: IntakeError = {
 
 export async function applicantReadingCopy(
   admin: SupabaseClient,
+  env: Env,
   token: string,
   now: Date,
 ): Promise<ApplicantReadingCopy | IntakeError> {
@@ -113,6 +116,8 @@ export async function applicantReadingCopy(
     band: null,
     drawnMark,
     initialsMark,
+    // Q-AM20 (a): the driver reads their own number in full on what they are about to sign.
+    ssn: await ssnForPacket(admin, env, invitation.org_id, invitation.id, { reader: "applicant" }),
   });
   if (isPreviewError(preview)) {
     // ⚠ Mapped, not passed through. `applicationPreviewPdf`'s sentences are written for an office

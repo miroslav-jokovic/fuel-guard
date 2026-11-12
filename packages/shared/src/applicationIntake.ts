@@ -83,6 +83,15 @@ export const ssnSchema = z.string().regex(/^\d{9}$/, "A Social Security number i
 export const ssnLast4 = (ssn: string): string => ssn.slice(-4);
 
 /**
+ * The SSN as everyone but a holder of "See the full SSN" reads it (Q-AM17/Q-AM20): the last four behind
+ * the number's own shape. One definition for the office card, the stored packet and the preview.
+ */
+export const maskSsn = (last4: string): string => `•••-••-${last4}`;
+
+/** All nine, as the paper writes them: `123-45-6789`. For the reader allowed them. */
+export const formatSsn = (nine: string): string => `${nine.slice(0, 3)}-${nine.slice(3, 5)}-${nine.slice(5)}`;
+
+/**
  * `POST /api/public/application/:token/ssn` — the SSN, entered in the form (Q-AM3, 0589). Typed with
  * dashes or spaces as people write it; stored as the nine digits `ssnSchema` takes. Its own request,
  * never the draft's (D-APP3).

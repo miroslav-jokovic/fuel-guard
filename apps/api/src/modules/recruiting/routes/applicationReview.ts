@@ -1,6 +1,8 @@
 import { Router } from "express";
 import {
   applicantIdentitySchema,
+  FULL_SSN_PERMISSION,
+  type UserRole,
   applicationEditSchema,
   partOneAnswerSchema,
   partOneCorrectionSchema,
@@ -20,6 +22,8 @@ import {
   isReviewError,
 } from "../applicationReview.js";
 import { applicationPreviewPdf, isPreviewError } from "../applicationPdf/preview.js";
+import { ssnForPacket } from "../applicantSsn.js";
+import { callerNamedPermissions } from "../../org/index.js";
 import { applicationPermissionsPdf, isPermissionsError } from "../applicationPdf/permissions.js";
 import { correctApplicantIdentity, isIdentityCorrectionError } from "../applicantIdentity.js";
 import { correctApplicantPartOne, isPartOneCorrectionError } from "../applicantPartOneCorrection.js";
@@ -98,12 +102,15 @@ export function recruitmentApplicationReviewRouter(): Router {
     requireOrg,
     canView,
     asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const result = await applicationPreviewPdf(
-        admin,
-        req.auth!.orgId!,
-        String(req.params.invitationId ?? ""),
-      );
+      const { env } = getAppLocals(req);
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const invitationId = String(req.params.invitationId ?? "");
+      // Q-AM20 (a): all nine digits for a holder of "See the full SSN" (audited), the last four for everyone else.
+      const whole = (await callerNamedPermissions(req, orgId, req.auth!.role as UserRole))[FULL_SSN_PERMISSION];
+      const result = await applicationPreviewPdf(admin, orgId, invitationId, {
+        ...(whole ? { ssn: await ssnForPacket(admin, env, orgId, invitationId, { reader: "office", actorId: req.auth!.userId }) } : {}),
+      });
       if (isPreviewError(result)) {
         res.status(status(result.code)).json(apiError(result.code, result.message));
         return;
