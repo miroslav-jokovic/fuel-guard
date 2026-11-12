@@ -111,6 +111,8 @@ const rowLabels = (): Record<string, { noun: string; columns: Record<string, str
   addresses: {
     noun: noun.addresses,
     columns: {
+      // Q-AM15: the row's stable id (`applicationRowKeySchema`), not a control.
+      key: fields.rowRecord,
       line1: addresses.line1,
       line2: addresses.line2,
       city: addresses.city,
@@ -123,6 +125,8 @@ const rowLabels = (): Record<string, { noun: string; columns: Record<string, str
   additional_licences: {
     noun: noun.additional_licences,
     columns: {
+      // Q-AM15: the row's stable id (`applicationRowKeySchema`), not a control.
+      key: fields.rowRecord,
       issuing_authority: licence.issuingAuthority,
       number: licence.otherNumber,
       expires_at: licence.expires,
@@ -160,6 +164,8 @@ const rowLabels = (): Record<string, { noun: string; columns: Record<string, str
   equipment_experience: {
     noun: noun.equipment_experience,
     columns: {
+      // Q-AM15: the row's stable id (`applicationRowKeySchema`), not a control.
+      key: fields.rowRecord,
       equipment_class: employment.equipmentClass,
       equipment_type: employment.equipmentType,
       from: employment.equipmentFrom,
@@ -170,6 +176,8 @@ const rowLabels = (): Record<string, { noun: string; columns: Record<string, str
   accidents: {
     noun: noun.accidents,
     columns: {
+      // Q-AM15: the row's stable id (`applicationRowKeySchema`), not a control.
+      key: fields.rowRecord,
       occurred_on: safety.accidentDate,
       nature: safety.accidentNature,
       fatalities: safety.fatalities,
@@ -180,6 +188,8 @@ const rowLabels = (): Record<string, { noun: string; columns: Record<string, str
   violations: {
     noun: noun.violations,
     columns: {
+      // Q-AM15: the row's stable id (`applicationRowKeySchema`), not a control.
+      key: fields.rowRecord,
       occurred_on: safety.violationDate,
       offence: safety.offence,
       state: safety.violationState,
@@ -217,7 +227,10 @@ export const FIELD_LABEL_KEYS = {
  * "What you changed" took any object for.
  */
 export function rowText(value: Record<string, unknown>): string {
-  return Object.values(value)
+  // Q-AM15: a row's `key` is its reference, never words the driver gave — not read out on 3.1.
+  return Object.entries(value)
+    .filter(([k]) => k !== "key")
+    .map(([, v]) => v)
     .filter((v) => v !== null && v !== undefined && v !== "")
     .map(String)
     .join(", ");

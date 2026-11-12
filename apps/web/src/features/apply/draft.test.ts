@@ -26,7 +26,7 @@ const complete = (): ApplicationDraft => ({
   experience: "Eight years, dry van and reefer.",
   first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
   email: "s@example.test", phone: "555-0111",
-  addresses: [{ line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
+  addresses: [{ key: "00000000-0000-4000-8000-000000000001", line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
   cdl_number: "PA334554", cdl_state: "pa", cdl_expires_at: "2029-01-01",
   employers: [{
     key: "40000000-0000-4000-8000-00000000000a", employer_name: "Old Carrier", usdot_number: "123456", address_line1: "12 Depot Rd", city: "Joliet", state: "IL",
@@ -57,17 +57,17 @@ const everything = (): ApplicationDraft => ({
   cdl_state: "PA",
   other_names: ["Susan Bellweather"],
   addresses: [
-    { line1: "1 Road", line2: "Apt 4", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" },
-    { line1: "9 Old Way", line2: "", city: "Gary", state: "IN", postal_code: "46402", from: "2017-03", to: "2019-12" },
+    { key: "00000000-0000-4000-8000-000000000002", line1: "1 Road", line2: "Apt 4", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" },
+    { key: "00000000-0000-4000-8000-000000000003", line1: "9 Old Way", line2: "", city: "Gary", state: "IN", postal_code: "46402", from: "2017-03", to: "2019-12" },
   ],
   cdl_class: "A",
-  additional_licences: [{ issuing_authority: "IL", number: "HM-9", expires_at: "2027-05-01", kind: "Hazmat endorsement" }],
+  additional_licences: [{ key: "00000000-0000-4000-8000-000000000004", issuing_authority: "IL", number: "HM-9", expires_at: "2027-05-01", kind: "Hazmat endorsement" }],
   equipment_experience: [
-    { equipment_class: "tractor_tanker", equipment_type: "Tank", from: "2021-02", to: "2023-08", approx_miles: "180000" },
+    { key: "00000000-0000-4000-8000-000000000005", equipment_class: "tractor_tanker", equipment_type: "Tank", from: "2021-02", to: "2023-08", approx_miles: "180000" },
   ],
-  accidents: [{ occurred_on: "2024-06-02", nature: "Rear-ended at a light", fatalities: "0", injuries: "1", hazmat_spill: false }],
+  accidents: [{ key: "00000000-0000-4000-8000-000000000006", occurred_on: "2024-06-02", nature: "Rear-ended at a light", fatalities: "0", injuries: "1", hazmat_spill: false }],
   declares_no_accidents: false,
-  violations: [{ occurred_on: "2024-02-11", offence: "Speeding", state: "IL", penalty: "$120" }],
+  violations: [{ key: "00000000-0000-4000-8000-000000000007", occurred_on: "2024-02-11", offence: "Speeding", state: "IL", penalty: "$120" }],
   declares_no_violations: false,
   licence_ever_denied: true,
   licence_denial_detail: "Suspended for 30 days in 2016.",
@@ -106,7 +106,7 @@ describe("what the form sends", () => {
   it("drops rows the applicant added and left blank", () => {
     const draft = complete();
     draft.employers.push(emptyEmployer());
-    draft.addresses.push({ line1: "", line2: "", city: "", state: "", postal_code: "", from: "", to: "" });
+    draft.addresses.push({ key: "00000000-0000-4000-8000-000000000008", line1: "", line2: "", city: "", state: "", postal_code: "", from: "", to: "" });
     const sent = toApplication(draft) as { employers: unknown[]; addresses: unknown[] };
     expect(sent.employers).toHaveLength(1);
     expect(sent.addresses).toHaveLength(1);
@@ -453,6 +453,8 @@ describe("coming back to a saved draft", () => {
     expect(fromDraftPayload(null)).toEqual({
       ...blank,
       employers: blank.employers.map((e) => ({ ...e, key: expect.stringMatching(/^[0-9a-f-]{36}$/) })),
+      // Q-AM15: the blank address is keyed per call too.
+      addresses: blank.addresses.map((a) => ({ ...a, key: expect.stringMatching(/^[0-9a-f-]{36}$/) })),
     });
   });
 });

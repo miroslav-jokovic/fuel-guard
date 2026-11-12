@@ -1,4 +1,5 @@
 import {
+  keyedEditPath,
   APPLICANT_FACTS,
   APPLICATION_ROW_LISTS,
   partOneCorrectionSchema,
@@ -97,6 +98,8 @@ export interface RowChangeContext {
   partOne: PartOneFactsView | null | undefined;
   /** The draft's addresses, for which one is the current home (Part 1's body carries its street). */
   addresses: unknown;
+  /** The draft, so a keyed row is removed by its key (Q-AM15). */
+  payload?: unknown;
 }
 
 export type RowChange =
@@ -117,7 +120,7 @@ export function rowChange(
   if (listDoor(list, Boolean(ctx.partOne)) === "draft") {
     const edit: ApplicationEdit = "add" in change
       ? { op: "add_row", list, row: change.add, revision: ctx.revision }
-      : { op: "remove_row", list, index: change.remove, revision: ctx.revision };
+      : removeByKeyOrPlace(list, change.remove, ctx);
     return { door: "draft", edit };
   }
   const body = partOneLicencesWith(
@@ -130,6 +133,14 @@ export function rowChange(
   return parsed.success
     ? { door: "part_one", body: parsed.data }
     : { problem: parsed.error.issues[0]?.message ?? "That licence could not be saved." };
+}
+
+/** Q-AM15: a keyed row is removed by its key; a keyless one (or an other name) by its place. */
+function removeByKeyOrPlace(list: ApplicationRowList, index: number, ctx: RowChangeContext): ApplicationEdit {
+  const [, named] = keyedEditPath([list, index], ctx.payload);
+  return typeof named === "string"
+    ? { op: "remove_row", list, key: named, revision: ctx.revision }
+    : { op: "remove_row", list, index, revision: ctx.revision };
 }
 
 /** The current home is never removed (`applyApplicationEdit` refuses it); every other row may be. */

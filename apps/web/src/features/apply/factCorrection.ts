@@ -1,5 +1,6 @@
 import { sevenDayHours } from "./draft";
 import {
+  keyedEditPath,
   applicantIdentitySchema,
   partOneAnswerSchema,
   partOneCorrectionWith,
@@ -39,6 +40,8 @@ export interface CorrectionContext {
   rows: readonly FactRow[];
   /** The draft's addresses, for which one is the current home. */
   addresses: unknown;
+  /** The draft itself, so a row of a keyed list is sent by its key (Q-AM15, `keyedEditPath`). */
+  payload?: unknown;
 }
 
 /** A typed answer for Part 1 and the identity: a blank is no answer (null), which their contracts read. */
@@ -82,7 +85,8 @@ export function correctionFor(row: FactRow, value: FactValue, ctx: CorrectionCon
   const single = value as string | boolean | null;
 
   if (row.door === "draft") {
-    const edit = { path: row.path, value: draftStored(single), revision: ctx.revision, ...(reason ? { note: reason } : {}) };
+    const path = keyedEditPath(row.path, ctx.payload);
+    const edit = { path, value: draftStored(single), revision: ctx.revision, ...(reason ? { note: reason } : {}) };
     return { door: "draft", edit };
   }
   const next = stored(single);

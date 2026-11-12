@@ -179,7 +179,7 @@ watch(id, () => { adding.value = null; removing.value = null; });
 async function removeRow(list: ApplicationRowList, index: number): Promise<void> {
   removeProblem.value = null;
   try {
-    const change = rowChange(list, { remove: index }, { revision: props.review.revision ?? 0, partOne: props.review.partOne, addresses: addresses.value });
+    const change = rowChange(list, { remove: index }, { revision: props.review.revision ?? 0, partOne: props.review.partOne, addresses: addresses.value, payload: props.review.payload });
     if ("problem" in change) { removeProblem.value = change.problem; return; }
     if (change.door === "draft") await removeEdit.mutateAsync(change.edit);
     else await partOneEdit.mutateAsync(change.body);
@@ -253,6 +253,7 @@ async function save(row: FactRow): Promise<void> {
     partOne: props.review.partOne,
     rows: rows.value,
     addresses: (props.review.payload as { addresses?: unknown } | null)?.addresses,
+    payload: props.review.payload,
   }, note.value);
   if ("problem" in correction) {
     problem.value = correction.problem;

@@ -707,13 +707,15 @@ describe("approving it", () => {
 describe("adding and removing a row (E2)", () => {
   const OLD = { line1: "9 Old Rd", line2: "", city: "Gary", state: "IN", postal_code: "46401", from: "2015-01", to: "2019-03" };
 
-  it("adds an earlier address and logs the whole row at its new position", async () => {
+  it("adds an earlier address and logs the whole row under its key (Q-AM15)", async () => {
     const rec = seed();
     const result = await editApplication(rec.client, ORG, INV, { op: "add_row", list: "addresses", row: OLD, revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result)).toBe(false);
-    expect(savedPayload(rec).addresses).toEqual([PAYLOAD.addresses[0], OLD]);
+    // The office's first write keys every row (Q-AM15); the added row's key names it in the log.
+    const saved = savedPayload(rec).addresses as Array<Record<string, unknown>>;
+    expect(saved).toEqual([{ ...PAYLOAD.addresses[0], key: expect.any(String) }, { ...OLD, key: expect.any(String) }]);
     const edit = editsSent(rec)[0] as Record<string, unknown>;
-    expect(edit).toMatchObject({ path: ["addresses", 1], before: null, after: OLD });
+    expect(edit).toMatchObject({ path: ["addresses", saved[1]!.key], before: null, after: saved[1] });
     expectOrgScoped(rec, ORG);
   });
 
@@ -726,12 +728,13 @@ describe("adding and removing a row (E2)", () => {
     expect(rec.rpcs().some((r) => r.fn === "correct_application_draft")).toBe(false);
   });
 
-  it("removes a row and logs the row it took", async () => {
+  it("removes a row the office read keyless by its place, and logs it under the key it was given", async () => {
     const rec = seed({ payload: { ...PAYLOAD, addresses: [...PAYLOAD.addresses, OLD] } });
     const result = await editApplication(rec.client, ORG, INV, { op: "remove_row", list: "addresses", index: 1, revision: REV }, { actorId: ACTOR });
     expect(isReviewError(result)).toBe(false);
-    expect(savedPayload(rec).addresses).toEqual(PAYLOAD.addresses);
-    expect(editsSent(rec)[0]).toMatchObject({ path: ["addresses", 1], before: OLD, after: null });
+    expect(savedPayload(rec).addresses).toEqual([{ ...PAYLOAD.addresses[0], key: expect.any(String) }]);
+    const sent = editsSent(rec)[0] as { path: unknown[]; before: Record<string, unknown> };
+    expect(sent).toMatchObject({ path: ["addresses", expect.any(String)], before: { ...OLD, key: sent.path[1] }, after: null });
   });
 
   const LICENCE = { issuing_authority: "IN", number: "IN-9", expires_at: "2027-01-01", kind: null };

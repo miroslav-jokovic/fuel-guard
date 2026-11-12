@@ -13,14 +13,15 @@ const OLDER = { ...OLD, city: "Hammond", from: "2015-01", to: "2018-12" };
 const PAYLOAD = { addresses: [HOME, OLD, OLDER], declares_no_accidents: true, accidents: [], other_names: ["Sue Smith"] };
 
 const apply = (edit: unknown, payload: Record<string, unknown> = PAYLOAD) =>
-  applyApplicationEdit(payload, payload, applicationEditSchema.parse(edit));
+  applyApplicationEdit(payload, payload, applicationEditSchema.parse(edit), () => "k-new");
 
 describe("adding a row", () => {
-  it("appends the whole row and logs it at its new position, before nothing", () => {
+  it("appends the whole row and logs it under its new key, before nothing", () => {
     const row = { ...OLD, city: "Gary West" };
     const done = apply({ op: "add_row", list: "addresses", row, revision: 3 }) as AppliedEdit;
     expect((done.payload.addresses as unknown[]).length).toBe(4);
-    expect(done).toMatchObject({ logPath: ["addresses", 3], before: null, after: row });
+    // Q-AM15: an address is keyed, so the new row is named by the key it was given, not its place.
+    expect(done).toMatchObject({ logPath: ["addresses", "k-new"], before: null, after: { ...row, key: "k-new" } });
   });
 
   it("adds a plain string to a list of strings", () => {

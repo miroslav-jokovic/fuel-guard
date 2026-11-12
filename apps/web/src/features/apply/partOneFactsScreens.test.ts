@@ -101,7 +101,8 @@ describe("the current address", () => {
     expect(w.find("#apply-addresses-1-line1").exists()).toBe(false);
     expect(w.find("#apply-addresses-1-from").exists()).toBe(true);
     await button(w, APPLY_COPY.addresses.drawerSave)!.trigger("click");
-    expect(w.emitted("save")![0]![0]).toEqual({ ...STREET, from: "2024-06", to: "" });
+    // Q-AM15: the row keeps its key — Part 1's street is laid over it.
+    expect(w.emitted("save")![0]![0]).toEqual({ ...STREET, from: "2024-06", to: "", key: expect.any(String) });
     w.unmount();
   });
 

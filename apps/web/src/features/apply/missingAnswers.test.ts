@@ -16,7 +16,7 @@ const complete = (): ApplicationDraft => ({
   experience: "Eight years, dry van and reefer.",
   first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
   email: "s@example.test", phone: "555-0111",
-  addresses: [{ line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
+  addresses: [{ key: "00000000-0000-4000-8000-000000000009", line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
   cdl_number: "PA334554", cdl_state: "PA", cdl_expires_at: "2029-01-01",
   declares_no_employment: true, employers: [],
   declares_no_accidents: true, declares_no_violations: true, licence_ever_denied: false, licence_suspended: false,

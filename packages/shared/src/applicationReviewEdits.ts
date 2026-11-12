@@ -1,4 +1,4 @@
-import type { ApplicationEdit, ApplicationPath, ApplicationRowList } from "./applicationReviewContract.js";
+import { APPLICATION_ROW_LISTS, type ApplicationEdit, type ApplicationPath, type ApplicationRowList } from "./applicationReviewContract.js";
 import { APPLICANT_IDENTITY_KEYS } from "./applicantIdentity.js";
 import { questionnaireForApplicant, type QuestionnaireQuestion } from "./questionnaireContract.js";
 
@@ -17,6 +17,15 @@ import { questionnaireForApplicant, type QuestionnaireQuestion } from "./questio
  * row on the office's first write, so from then on every row is addressable the one way. A numeric
  * index is still accepted for a row that HAD no key when the office read it — that is the only way to
  * reach it — and is logged under the key it was just given.
+ *
+ * ── AND THE ROWS OF THE OTHER LISTS (Q-AM15 (a), owner 2026-11-11) ────────────────────────────
+ * The same rule now holds for every list of objects in `APPLICATION_ROW_LISTS` (addresses, licences,
+ * equipment, accidents, convictions): `withRowKeys` gives a keyless row a key on the office's first
+ * write, a correction is logged as `[list, "<key>", column]`, and `add_row` / `remove_row` name the row
+ * by key. Before, those rows were named by position, and when the DRIVER deleted or reordered one on
+ * their phone after a correction, nothing was logged, so the card and 3.1 pointed it at the wrong row.
+ * The other names are plain strings with nowhere to hold a key, so they stay positional and replayed
+ * (`currentEditPaths`) — APPLICATION-FIX-PLAN Q-AM22.
  */
 
 export interface AppliedEdit {
@@ -47,6 +56,48 @@ export function withEmployerKeys(payload: Record<string, unknown>, mint: () => s
     row && typeof row === "object" && !row.key ? { ...row, key: mint() } : row,
   );
   return { ...payload, [EMPLOYERS]: employers };
+}
+
+/** The lists whose rows are objects and so carry a `key` (Q-AM15). `other_names` is a list of strings. */
+export const KEYED_ROW_LISTS: readonly ApplicationRowList[] = APPLICATION_ROW_LISTS.filter((l) => l !== "other_names");
+const KEYED = new Set<string>(KEYED_ROW_LISTS);
+export const isKeyedRowList = (list: unknown): list is ApplicationRowList => KEYED.has(String(list));
+
+/** Every row of every keyed list with a key — a missing one minted by `mint`. A copy; the input is untouched. */
+export function withRowKeys(payload: Record<string, unknown>, mint: () => string): Record<string, unknown> {
+  let out = payload;
+  for (const list of KEYED_ROW_LISTS) {
+    if (!Array.isArray(payload[list])) continue;
+    const rows = rowsOf(payload, list);
+    if (rows.every((r) => !r || typeof r !== "object" || r.key)) continue;
+    out = { ...out, [list]: rows.map((r) => (r && typeof r === "object" && !r.key ? { ...r, key: mint() } : r)) };
+  }
+  return out;
+}
+
+/**
+ * The position of the row a segment names in a keyed list: a key is looked up, and a number reaches only
+ * a row that was keyless when the office read it (`keyless` — the list BEFORE `withRowKeys`), the AW1 rule.
+ */
+function rowIndex(rows: readonly Row[], keyless: readonly Row[], segment: string | number | undefined): number | EditRefusal {
+  if (typeof segment === "string") {
+    const at = rows.findIndex((r) => r?.key === segment);
+    return at >= 0 ? at : refuse("That row is no longer on the application. Reload it and try again.");
+  }
+  if (typeof segment === "number" && keyless[segment] && !keyless[segment]!.key) return segment;
+  return refuse("Rows are changed by their own reference now. Reload the application and try again.");
+}
+
+/**
+ * The path an office correction sends for a row the card found by its place (Q-AM15): the row's key in
+ * place of its index, when the draft's row has one. A keyless row keeps its index, which the API accepts
+ * for exactly that row (`rowIndex`). Every other path is returned as given.
+ */
+export function keyedEditPath(path: ApplicationPath, payload: unknown): ApplicationPath {
+  const [list, at, ...rest] = path;
+  if (!isKeyedRowList(list) || typeof at !== "number" || !payload || typeof payload !== "object") return path;
+  const key = rowsOf(payload as Record<string, unknown>, list)[at]?.key;
+  return typeof key === "string" && key !== "" ? ([list, key, ...rest] as ApplicationPath) : path;
 }
 
 /** The value at a contract path, or undefined. */
@@ -93,13 +144,15 @@ function employerIndex(
 }
 
 /**
- * Apply one edit to the draft. `payload` must already have passed through `withEmployerKeys`;
- * `original` is the payload as read, for `employerIndex`'s keyless rule.
+ * Apply one edit to the draft. `payload` must already have passed through `withEmployerKeys` and
+ * `withRowKeys`; `original` is the payload as read, for the keyless rule (`employerIndex`, `rowIndex`).
  */
 export function applyApplicationEdit(
   payload: Record<string, unknown>,
   original: Record<string, unknown>,
   edit: ApplicationEdit,
+  /** A new row's key when `add_row` sent none — the caller's, as for `withEmployerKeys`. */
+  mint: () => string,
 ): AppliedEdit | EditRefusal {
   const employers = rowsOf(payload, EMPLOYERS);
 
@@ -128,8 +181,18 @@ export function applyApplicationEdit(
       const declared = DECLARES_NONE[edit.list];
       if (declared && payload[declared] === true) return refuse(ADD_WHILE_NONE[edit.list]!);
       const list = rowsOf(payload, edit.list);
-      const next = { ...payload, [edit.list]: [...list, edit.row] };
-      return { payload: next, logPath: [edit.list, list.length], before: null, after: edit.row };
+      if (!isKeyedRowList(edit.list)) {
+        const next = { ...payload, [edit.list]: [...list, edit.row] };
+        return { payload: next, logPath: [edit.list, list.length], before: null, after: edit.row };
+      }
+      // Q-AM15: the new row is named by its key from the start — the form's own if it minted one.
+      if (!edit.row || typeof edit.row !== "object" || Array.isArray(edit.row)) return refuse("That is not a valid row.");
+      const given = (edit.row as Row).key;
+      if (given !== undefined && given !== null && (typeof given !== "string" || given === "")) return refuse("That is not a valid row.");
+      if (typeof given === "string" && list.some((r) => r?.key === given)) return refuse("That row is already on the application.");
+      const row = typeof given === "string" ? (edit.row as Row) : { ...(edit.row as Row), key: mint() };
+      const next = { ...payload, [edit.list]: [...list, row] };
+      return { payload: next, logPath: [edit.list, String(row.key)], before: null, after: row };
     }
     case "remove_answer_row": {
       const table = answerTable(edit.question);
@@ -146,14 +209,20 @@ export function applyApplicationEdit(
     }
     case "remove_row": {
       const list = rowsOf(payload, edit.list);
-      if (edit.index >= list.length) return refuse("That row is no longer on the application. Reload it and try again.");
+      const keyed = isKeyedRowList(edit.list);
+      const at = keyed
+        ? rowIndex(list, rowsOf(original, edit.list), edit.key ?? edit.index)
+        : (edit.index !== undefined && edit.index < list.length ? edit.index : refuse("That row is no longer on the application. Reload it and try again."));
+      if (typeof at !== "number") return at;
       // The current home is the one row every application must have, and on a v2 link its street is
       // Part 1's: it is corrected, never removed.
-      if (edit.list === "addresses" && edit.index === currentAddressAt(list)) {
+      if (edit.list === "addresses" && at === currentAddressAt(list)) {
         return refuse("This is where they live now. Correct its answers instead of removing it.");
       }
-      const next = { ...payload, [edit.list]: list.filter((_, i) => i !== edit.index) };
-      return { payload: next, logPath: [edit.list, edit.index], before: list[edit.index], after: null };
+      const next = { ...payload, [edit.list]: list.filter((_, i) => i !== at) };
+      // A row the caller did not key (`withRowKeys` skipped) is still named by its place, never "undefined".
+      const named = keyed && typeof list[at]!.key === "string" ? String(list[at]!.key) : at;
+      return { payload: next, logPath: [edit.list, named], before: list[at], after: null };
     }
     default: {
       // `set` — one value at one path. An employer path is resolved through its key.
@@ -183,6 +252,22 @@ export function applyApplicationEdit(
           after: edit.value,
         };
       }
+      if (isKeyedRowList(path[0]) && path.length >= 2) {
+        const list = rowsOf(payload, String(path[0]));
+        const at = rowIndex(list, rowsOf(original, String(path[0])), path[1]);
+        if (typeof at !== "number") return at;
+        // ⚠ A whole-row `set` would replace the row's key with whatever was sent; the key is the row's, kept.
+        const value = path.length === 2 && edit.value && typeof edit.value === "object" && !Array.isArray(edit.value)
+          ? { ...(edit.value as Row), key: list[at]!.key }
+          : edit.value;
+        const writePath = [path[0]!, at, ...path.slice(2)];
+        return {
+          payload: draftWithValueAt(payload, writePath, value) as Record<string, unknown>,
+          logPath: [path[0]!, typeof list[at]!.key === "string" ? String(list[at]!.key) : at, ...path.slice(2)] as ApplicationPath,
+          before: draftValueAt(payload, writePath),
+          after: value,
+        };
+      }
       return {
         payload: draftWithValueAt(payload, path, edit.value) as Record<string, unknown>,
         logPath: edit.path,
@@ -192,6 +277,7 @@ export function applyApplicationEdit(
     }
   }
 }
+
 
 /**
  * A list whose emptiness is its own answer ("I have had no accidents"). Adding a row while that answer

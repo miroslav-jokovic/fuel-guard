@@ -1,5 +1,5 @@
 import { APPLICATION_ROW_LISTS, type ApplicationPath } from "./applicationReviewContract.js";
-import { DRAFT_ANSWERS, answerTable } from "./applicationReviewEdits.js";
+import { DRAFT_ANSWERS, answerTable, isKeyedRowList } from "./applicationReviewEdits.js";
 
 /**
  * Where each office correction points NOW, after every row removed since (F3c part 2, E2).
@@ -18,6 +18,14 @@ import { DRAFT_ANSWERS, answerTable } from "./applicationReviewEdits.js";
  *
  * ⚠ It sees only the OFFICE's removals. A driver deleting a row on their phone before the office's
  * correction is signed shifts it too, and that is not logged anywhere — APPLICATION-FIX-PLAN Q-AM15.
+ *
+ * ── SINCE Q-AM15: KEYED ROWS ARE LOOKED UP, NOT REPLAYED ──────────────────────────────────────
+ * A correction to a row of a keyed list (`isKeyedRowList`) is recorded as `[list, "<key>", column]`.
+ * Its place NOW is wherever that key is in the draft the reader holds (`rows`), whoever moved it — the
+ * office or the driver — and it is `gone` when the key is not there. So the replay is left with the
+ * positional paths: the other names (Q-AM22), the carrier's table answers, and corrections recorded
+ * before keys. ⚠ A keyed removal does not shift a POSITIONAL correction recorded before keys to the
+ * same list; that pair exists only on an application open across the Q-AM15 deploy.
  */
 export interface ReplayableEdit {
   path: ApplicationPath;
@@ -60,7 +68,7 @@ export const isRowRemoval = (e: ReplayableEdit): boolean =>
  * Each edit's current path, in the order given. The replay itself runs oldest first by `editedAt`
  * (the review sends newest first, 3.1 oldest first); edits without a time keep their given order.
  */
-export function currentEditPaths(edits: readonly ReplayableEdit[]): CurrentEditPath[] {
+export function currentEditPaths(edits: readonly ReplayableEdit[], rows?: Record<string, unknown> | null): CurrentEditPath[] {
   const order = edits
     .map((e, i) => ({ e, i }))
     .sort((a, b) => (a.e.editedAt && b.e.editedAt ? a.e.editedAt.localeCompare(b.e.editedAt) : 0) || a.i - b.i);
@@ -80,6 +88,18 @@ export function currentEditPaths(edits: readonly ReplayableEdit[]): CurrentEditP
       if (row === at) out[j] = { ...now, gone: true };
       else if (row > at) out[j] = { ...now, path: [...list, row - 1, ...now.path.slice(depth + 1)] as ApplicationPath };
     }
+  });
+  edits.forEach((e, i) => {
+    const [list, key, ...rest] = e.path;
+    if (!isKeyedRowList(list) || typeof key !== "string") return;
+    const removal = rest.length === 0 && e.after === null && e.before !== null && e.before !== undefined;
+    const held = rows && Array.isArray(rows[list as string]) ? (rows[list as string] as Array<{ key?: unknown } | null>) : null;
+    const at = held ? held.findIndex((r) => r?.key === key) : -1;
+    // Without the draft, a keyed path cannot be placed; it is left as recorded rather than guessed.
+    if (!held) { out[i] = { path: [...e.path] as ApplicationPath, gone: removal, removal }; return; }
+    out[i] = removal || at < 0
+      ? { path: [...e.path] as ApplicationPath, gone: true, removal }
+      : { path: [list!, at, ...rest] as ApplicationPath, gone: false, removal: false };
   });
   return out;
 }

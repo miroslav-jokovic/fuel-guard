@@ -28,11 +28,11 @@ const typed = (): ApplicationDraft => ({
   date_of_birth: "1980-04-01",
   phone: "555-0000",
   addresses: [
-    { line1: "9 Old Rd", line2: "", city: "Gary", state: "IN", postal_code: "46402", from: "2020-01", to: "2024-05" },
-    { line1: "typed", line2: "Apt 1", city: "typed", state: "WI", postal_code: "00000", from: "2024-06", to: "" },
+    { key: "00000000-0000-4000-8000-000000000010", line1: "9 Old Rd", line2: "", city: "Gary", state: "IN", postal_code: "46402", from: "2020-01", to: "2024-05" },
+    { key: "00000000-0000-4000-8000-000000000011", line1: "typed", line2: "Apt 1", city: "typed", state: "WI", postal_code: "00000", from: "2024-06", to: "" },
   ],
   cdl_number: "TYPED", cdl_state: "WI", cdl_class: "B", cdl_expires_at: "2027-01-01",
-  additional_licences: [{ issuing_authority: "Ohio", number: "DRAFT9", expires_at: "2030-01-01", kind: "permit" }],
+  additional_licences: [{ key: "00000000-0000-4000-8000-000000000012", issuing_authority: "Ohio", number: "DRAFT9", expires_at: "2030-01-01", kind: "permit" }],
   prior_failed_pre_employment_test: false,
 });
 
@@ -49,8 +49,9 @@ describe("laying Part 1 over the draft", () => {
   it("keeps the draft's own shape — Part 1's blank second line is \"\", never null — and the months the applicant gave", () => {
     const draft = typed();
     applyPartOne(draft, facts());
+    // Q-AM15: the row keeps its own key — Part 1 lays a street over it, not a new row.
     expect(draft.addresses[1]).toEqual({
-      line1: "1 Main St", line2: "", city: "Joliet", state: "IL", postal_code: "60431", from: "2024-06", to: "",
+      key: "00000000-0000-4000-8000-000000000011", line1: "1 Main St", line2: "", city: "Joliet", state: "IL", postal_code: "60431", from: "2024-06", to: "",
     });
     // History is the applicant's; Part 1 records only where they live now.
     expect(draft.addresses[0]!.line1).toBe("9 Old Rd");
