@@ -23,8 +23,8 @@ import { useToastStore } from "@/stores/toast";
  * is no composer here, because a note is always about one unit (D-UN1) and the drawer is where one is
  * chosen.
  *
- * Reached only through the `notes` surface (the route guard and the sidebar ask the catalogue line);
- * dark until UN9 (D-UN14).
+ * Reached only through the `notes` surface (the route guard and the sidebar ask the catalogue line):
+ * every office role since UN9, never the driver role (D-UN4, D-UN14).
  */
 const qs = useQueryState();
 const q = qs.param("q");

@@ -11,7 +11,7 @@ import type { DispatchBoardResponse, DispatchBoardRow } from "@silvicom/shared";
  * real notes pieces behind a mocked API: ONE column per row, after Warnings, counting the truck's, the
  * drivers' and the trailer's notes together; a click opens ONE drawer holding every unit on the row
  * (and not the truck's drawer under it); the three kinds asked in ONE call, again when the board's rows
- * are rebuilt; and nothing at all for a viewer without the `notes` surface (D-UN14).
+ * are rebuilt; and nothing at all for a viewer without the `notes` surface — the driver role only, since UN9 (D-UN4).
  */
 const apiFetch = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ apiFetch }));
@@ -173,7 +173,7 @@ describe("the Dispatch Board's Notes column", () => {
   });
 
   it("is not there at all — not in the table, not in the picker, nothing asked — without the notes surface", async () => {
-    who.role = "dispatcher"; // dark until UN9 (D-UN14): admins only
+    who.role = "driver"; // the one role the `notes` surface is never on for (D-UN4)
     const w = await render();
     expect(columnKeys(w)).toContain("warnings");
     expect(columnKeys(w)).not.toContain("notes");

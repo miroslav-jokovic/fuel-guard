@@ -71,7 +71,7 @@ describe("notificationRoute", () => {
     expect(notificationRoute("unit_note_mention", "unit_note", id)).toBe(`/notes?note=${id}`);
     expect(notificationRoute("unit_note_mention", "vehicle", id)).toBeNull();
     expect(notificationRoute("unit_note_mention", "unit_note", null)).toBeNull();
-    // Dark surface (D-UN14): a reader without `/notes` is informed, not sent to a refusal.
+    // A reader the guard refuses `/notes` (the surface turned off for them) is informed, not sent to a refusal.
     expect(notificationRoute("unit_note_mention", "unit_note", id, (to) => !to.startsWith("/notes"))).toBeNull();
   });
 

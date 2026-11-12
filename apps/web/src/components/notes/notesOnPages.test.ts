@@ -102,8 +102,8 @@ describe("the Vehicles list's Notes column", () => {
     expect(document.body.textContent).toContain("Notes · Truck 1042");
   });
 
-  it("is not there at all — and nothing is asked — for a viewer without the notes surface", async () => {
-    who.role = "dispatcher";
+  it("is not there at all — and nothing is asked — for a viewer without the notes surface (the driver role)", async () => {
+    who.role = "driver";
     const w = await render(VehiclesPage);
     expect(columnKeys(w)).toContain("file");
     expect(columnKeys(w)).not.toContain("notes");
@@ -134,8 +134,8 @@ describe("the detail page's Notes button", () => {
     expect(router.currentRoute.value.query.notes).toBe(`vehicle:${VEH}`);
   });
 
-  it("is not offered to a viewer without the notes surface", async () => {
-    who.role = "safety_manager";
+  it("is not offered to a viewer without the notes surface (the driver role)", async () => {
+    who.role = "driver";
     const w = await render(NotesButton, { kind: "vehicle", id: VEH, label: "1042" });
     expect(w.find("[data-notes-button]").exists()).toBe(false);
   });

@@ -61,19 +61,10 @@ const searchRow = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-/**
- * The notes screen ships DARK (D-UN14, `startsOnFor: []`): only an admin holds it until UN9. Every
- * other office role here has it switched on for the org, the way an admin does on the Permissions
- * page, so the tests ask the API's own question rather than the build-time default.
- */
-const SURFACE_ON = ["dispatcher", "accountant", "recruiter", "technician"].map((role) => ({
-  org_id: ORG, role, surface_key: "notes", allowed: true,
-}));
-
 function seed(over: { rpc?: Record<string, unknown>; surfaceRows?: unknown[]; insertError?: unknown } = {}): SupabaseRecorder {
   rec = createSupabaseRecorder({
     tables: {
-      org_role_surface_access: postgrestFixture((over.surfaceRows ?? SURFACE_ON) as Record<string, unknown>[]),
+      org_role_surface_access: postgrestFixture((over.surfaceRows ?? []) as Record<string, unknown>[]),
       user_surface_access: [],
       organizations: postgrestFixture([{ id: ORG, operating_hours: { timezone: "America/Chicago" } }]),
       vehicles: postgrestFixture([
@@ -150,7 +141,12 @@ describe("who reaches /api/notes (D-UN4)", () => {
     expect(rec.rpcs()).toEqual([]);
   });
 
-  it("lets every office role the screen is on for read, write and pin — billing reads a dispatcher's note", async () => {
+  /**
+   * The notes screen is on for every office role by the catalogue alone (D-UN4): UN9 removed the
+   * `startsOnFor: []` it was built dark behind (D-UN14), so no org answer is seeded here — the tests
+   * ask the API's own question with an org that has never touched the Permissions page.
+   */
+  it("lets every office role read, write and pin with no org answer at all — billing reads a dispatcher's note", async () => {
     for (const role of ["admin", "dispatcher", "accountant", "recruiter", "technician"]) {
       seed();
       expect((await call(`/?subjects=vehicle:${TRUCK}`, role)).status, role).toBe(200);
@@ -159,15 +155,11 @@ describe("who reaches /api/notes (D-UN4)", () => {
     }
   });
 
-  it("refuses an office role while the screen is dark for it, by the surface code (D-UN14)", async () => {
-    seed({ surfaceRows: [] });
-    const res = await call("/summary?kinds=vehicle", "dispatcher");
-    expect(res.status).toBe(403);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("surface_denied");
-    expect(rec.rpcs()).toEqual([]);
-    // An admin holds it dark or not.
-    seed({ surfaceRows: [] });
-    expect((await call("/summary?kinds=vehicle", "admin")).status).toBe(200);
+  it("is no longer dark: every office role reaches the summary without an org switching it on (UN9, D-UN14)", async () => {
+    for (const role of ["dispatcher", "accountant", "recruiter", "technician"]) {
+      seed({ surfaceRows: [] });
+      expect((await call("/summary?kinds=vehicle", role)).status, role).toBe(200);
+    }
   });
 });
 

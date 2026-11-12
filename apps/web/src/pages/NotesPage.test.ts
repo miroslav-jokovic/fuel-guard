@@ -10,7 +10,8 @@ import type { UnitNoteSearchHit } from "@silvicom/shared";
  *  · every note of the carrier, newest first, each naming its unit — no `subjects`, so it is the wall;
  *  · the drawer's search and filters (unit kind, author, days) are in the URL, so a link is the view;
  *  · a row's unit opens that unit's drawer on that note, in place;
- *  · nobody without the `notes` surface is asked anything (D-UN14);
+ *  · nobody without the `notes` surface — the driver role, since UN9 switched it on for every office
+ *    role (D-UN4, D-UN14) — is asked anything;
  *  · a failed read says so and is never "no notes".
  * The route and the sidebar entry are pinned at the bottom.
  */
@@ -127,8 +128,8 @@ describe("the Notes page", () => {
     expect(document.body.querySelector("[data-notes-empty]")).toBeNull();
   });
 
-  it("asks nothing for somebody without the notes surface (dark, D-UN14)", async () => {
-    who.role = "accountant";
+  it("asks nothing for somebody without the notes surface (the driver role, D-UN4)", async () => {
+    who.role = "driver";
     await render();
     expect(apiFetch.mock.calls.filter((c) => String(c[0]).startsWith("/api/notes"))).toEqual([]);
   });
@@ -194,8 +195,8 @@ describe("a link that names only a note", () => {
     expect(router.currentRoute.value.query).toEqual({ q: "reefer" });
   });
 
-  it("asks nothing for somebody without the notes surface (dark, D-UN14)", async () => {
-    who.role = "accountant";
+  it("asks nothing for somebody without the notes surface (the driver role, D-UN4)", async () => {
+    who.role = "driver";
     await render(`/notes?note=${N2}`);
     expect(noteCalls()).toEqual([]);
   });

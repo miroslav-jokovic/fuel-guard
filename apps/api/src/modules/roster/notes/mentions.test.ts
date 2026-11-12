@@ -57,8 +57,8 @@ function seed(over: { directory?: unknown; emit?: (args: Record<string, unknown>
   let n = 0;
   rec = createSupabaseRecorder({
     tables: {
-      // The screen is dark (D-UN14); the org has switched it on for dispatchers, as an admin would.
-      org_role_surface_access: postgrestFixture([{ org_id: ORG, role: "dispatcher", surface_key: "notes", allowed: true }]),
+      // No org answer: the notes screen is on for every office role by the catalogue (D-UN4, UN9).
+      org_role_surface_access: [],
       user_surface_access: [],
       vehicles: postgrestFixture([{ id: TRUCK, org_id: ORG, unit_number: "1042" }]),
       user_profiles: [{ full_name: "Dana Dispatch" }],

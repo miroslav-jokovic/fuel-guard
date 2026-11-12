@@ -109,16 +109,15 @@ describe("NotesDrawer", () => {
     expect(rows().map((r) => r.id)).toEqual([`note-${N1}`, `note-${N3}`, `note-${N2}`]);
   });
 
-  it("is no drawer, and asks nothing, for a viewer without the notes surface (dark, D-UN14)", async () => {
-    who.role = "dispatcher";
+  it("is no drawer, and asks nothing, for a viewer without the notes surface (the driver role)", async () => {
+    who.role = "driver";
     await render(`/vehicles?notes=vehicle:${VEH}`);
     expect(drawer()).toBeNull();
     expect(calls().filter((c) => c.path.startsWith("/api/notes"))).toEqual([]);
   });
 
-  it("opens for a dispatcher once the carrier switches the screen on for the role", async () => {
+  it("opens for a dispatcher with no carrier answer at all (D-UN4: on for every office role since UN9)", async () => {
     who.role = "dispatcher";
-    who.surfaces = { notes: true };
     await render(`/vehicles?notes=vehicle:${VEH}`);
     expect(drawer()).not.toBeNull();
   });

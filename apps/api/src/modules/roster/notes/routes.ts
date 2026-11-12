@@ -29,8 +29,9 @@ import { listNotePeople, ringNoteMentions } from "./noteMentions.js";
  * (plan M5), so notes answer to their own screen, `notes`, gated `STAFF` like office chat (M5b): every
  * office role reads, writes and pins; the `driver` role never reaches a note. The router asks exactly
  * chat's stack (`messaging/routes/chat.ts`): `requireRole(...OFFICE_ROLES)` is the role gate the
- * route-gate fitness functions can see, and `requireSurface("notes")` is the screen — which also lets
- * an admin turn the screen off for a role, and keeps it dark while it is built (D-UN14).
+ * route-gate fitness functions can see, and `requireSurface("notes")` is the screen. It kept the
+ * screen dark, admins only, while it was built (D-UN14); since UN9 the catalogue line is chat's exact
+ * shape, so it is on for every office role and no longer a switch on the Permissions page.
  *
  * ⚠ The audit row says THAT a note was written or pinned and which unit it is on, never what it says.
  * The audit log is an admin's reading, and a note is the office's sentence about a person or a truck —
