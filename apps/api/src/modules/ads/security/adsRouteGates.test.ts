@@ -59,6 +59,7 @@ const LEDGER: Record<string, string> = {
   "POST /api/ads/brand-kits/assets": BRAND_KIT,
   "POST /api/ads/brand-kits": BRAND_KIT,
   "POST /api/ads/presets": BRAND_KIT,
+  "POST /api/ads/presets/adopt": BRAND_KIT,
   "GET /api/ads/campaigns": VIEW,
   "GET /api/ads/campaigns/:campaignId": VIEW,
   "GET /api/ads/campaigns/:campaignId/concepts": VIEW,

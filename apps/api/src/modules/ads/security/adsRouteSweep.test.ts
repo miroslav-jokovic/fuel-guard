@@ -100,6 +100,7 @@ const SWEEP_RECIPE = {
   image_prompt_template: "An empty highway at {time_of_day}, no text, no logos, no lettering", image_slots: ["time_of_day"],
   overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: { primary_text: "pay", headline: "title" },
   starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null, formats: ["4:5"],
+  hook_family: "pay_first", scene_family: "abstract_plate",
 };
 
 const sealedValues: string[] = [];
@@ -170,6 +171,7 @@ const SWEEP: Array<[string, string, unknown?]> = [
   ["POST /api/ads/brand-kits/assets", "brand-kits/assets", { upload_id: randomUUID() }],
   ["POST /api/ads/brand-kits", "brand-kits", { kit_id: MINE.kit, kit: {} }],
   ["POST /api/ads/presets", "presets", { key: "P1", enabled: true, recipe: {} }],
+  ["POST /api/ads/presets/adopt", "presets/adopt", {}],
   ["GET /api/ads/campaigns", "campaigns"],
   ["GET /api/ads/campaigns/:campaignId", `campaigns/${MINE.campaign}`],
   ["GET /api/ads/campaigns/:campaignId/concepts", `campaigns/${MINE.campaign}/concepts`],

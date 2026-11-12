@@ -26,3 +26,18 @@ export function useSavePreset() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ADS_PRESETS_KEY }),
   });
 }
+
+/** What the adopt answers (`POST /api/ads/presets/adopt`, Q-AD77): the starter keys written, and those already held. */
+export interface AdoptAnswer { adopted: string[]; skipped: string[] }
+
+export function useAdoptStarterPresets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<AdoptAnswer> => {
+      const res = await apiFetch<AdoptAnswer>("/api/ads/presets/adopt", { method: "POST", body: {} });
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not add the ready-made presets");
+      return res.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ADS_PRESETS_KEY }),
+  });
+}
