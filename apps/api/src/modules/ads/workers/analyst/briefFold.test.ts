@@ -132,7 +132,7 @@ describe("readBriefFold — lead quality from recruiting's LeadQuality (LQ3c)", 
   const C1 = "00000000-0000-4000-8000-00000000aa01";
   const C2 = "00000000-0000-4000-8000-00000000aa02";
   const q = (campaign_id: string, leads: number): LeadQualityCounts =>
-    ({ campaign_id, leads, attempted: 3, wrong_number: 1, reached: 2, not_qualified: 1, median_first_attempt_minutes: 9 });
+    ({ campaign_id, leads, attempted: 3, wrong_number: 1, reached: 2, not_qualified: 1, median_first_attempt_minutes: 9, closed: { out_of_area: 2, spam: 0 } });
   const named = () => createSupabaseRecorder({ tables: {
     ads_spend_hourly: [],
     ads_campaigns: [{ org_id: ORG, id: C1, name: "Joliet Class A" }, { org_id: ORG, id: C2, name: "Gary regional" }],

@@ -3,7 +3,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { computed, ref } from "vue";
-import type { TruckIdleVerdict } from "@silvicom/shared";
+import { idlingToQuery, type TruckIdleVerdict } from "@silvicom/shared";
 
 /**
  * Idling, mounted — the Trucks table's shape (design verdict 2026-10-03, E3). Thirteen columns put the two
@@ -297,6 +297,12 @@ describe("IdlingPage keeps what the reader was looking at in the URL", () => {
     expect(seen.filter!.value).toEqual({ from: "2026-09-01T00:00:00", to: "2026-09-30T23:59:59" });
     await mountPage("/idling?from=yesterday");
     expect(seen.filter!.value).toEqual({ from: undefined, to: undefined });
+  });
+
+  it("opens on the days a link built by its contract names (F21 R4b, Ask AI's idle_report)", async () => {
+    const q = new URLSearchParams(idlingToQuery({ from: "2026-10-01", to: "2026-10-31" })).toString();
+    await mountPage(`/idling?${q}`);
+    expect(seen.filter!.value).toEqual({ from: "2026-10-01T00:00:00", to: "2026-10-31T23:59:59" });
   });
 
   it("opens the tab the link names, and each tab's list reads its own scoped keys", async () => {

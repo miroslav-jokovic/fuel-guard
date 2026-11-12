@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { effectScope, ref } from "vue";
 import { APPLICATION_SECTION_ORDER, driverApplicationSchema, questionnaireForApplicant, sectionOwningPath } from "@silvicom/shared";
 import { emptyDraft, type ApplicationDraft } from "./draft";
-import { issuesFromParse, useApplicationWizard, validateSection } from "./useApplicationWizard";
+import { issuesFromParse, useApplicationWizard, v2FilingIssues, validateSection } from "./useApplicationWizard";
 import { toApplication } from "./draft";
 import { APPLY_COPY } from "./strings";
 import { CARRIER_ANSWERS } from "@/testing/carrierAnswers";
@@ -35,8 +35,24 @@ const complete = (): ApplicationDraft => ({
   }],
   declares_no_accidents: true, declares_no_violations: true,
   // (b)(9) answered — `emptyDraft` leaves it unanswered since C3c2c1, so a complete draft says No itself.
-  licence_ever_denied: false,
+  licence_ever_denied: false, licence_suspended: false,
+  // §40.25(j) answered — unanswered in `emptyDraft` since F1 part 2, for (b)(9)'s reason above.
+  prior_failed_pre_employment_test: false,
   certified: true, signed_name: "Susan Godfrey",
+});
+
+describe("what the carrier's paper asks, on any link (F2c)", () => {
+  it("names an unanswered question B and a conviction's missing state and penalty on the safety screen, legacy link too", () => {
+    const draft = {
+      ...complete(), licence_suspended: null, declares_no_violations: false,
+      violations: [{ occurred_on: "2025-02-01", offence: "Speeding", state: "", penalty: "" }],
+    };
+    const found = v2FilingIssues(draft, null).map((i) => [i.section, i.path.join(".")]);
+    expect(found).toEqual([
+      ["safety", "licence_suspended"], ["safety", "violations.0.state"], ["safety", "violations.0.penalty"],
+    ]);
+    expect(v2FilingIssues(complete(), null)).toEqual([]);
+  });
 });
 
 describe("one screen at a time", () => {
@@ -71,7 +87,7 @@ describe("one screen at a time", () => {
 
   it("asks for the denial detail only once the driver says there was one", () => {
     expect(validateSection("safety", complete())).toEqual([]);
-    const denied = { ...complete(), licence_ever_denied: true, licence_denial_detail: "" };
+    const denied = { ...complete(), licence_ever_denied: true, licence_suspended: false, licence_denial_detail: "" };
     expect(validateSection("safety", denied).map((i) => i.key)).toContain("licence_denial_detail");
   });
 
@@ -96,6 +112,26 @@ describe("one screen at a time", () => {
     };
     const issues = validateSection("licence", draft);
     expect(issues.map((i) => i.key)).toContain("additional_licences");
+  });
+});
+
+describe("questions that start unanswered (F1 part 2)", () => {
+  it("stops the jobs screen on a job whose two Yes/Nos are blank, on their own controls", () => {
+    const draft = complete();
+    draft.employers[0] = { ...draft.employers[0]!, operated_cmv: null, dot_regulated: null };
+    expect(validateSection("employment", draft).map((i) => [i.fieldId, i.message])).toEqual([
+      ["apply-employers-0-operated_cmv", "Say whether you drove a truck in this job"],
+      ["apply-employers-0-dot_regulated", "Say whether this employer was regulated by the DOT"],
+    ]);
+    draft.employers[0] = { ...draft.employers[0]!, operated_cmv: false, dot_regulated: false };
+    expect(validateSection("employment", draft)).toEqual([]);
+  });
+
+  it("stops a legacy link's driving-record screen on an unanswered §40.25(j), and not a v2 link's", () => {
+    const draft = { ...complete(), prior_failed_pre_employment_test: null };
+    expect(validateSection("safety", draft).map((i) => i.fieldId)).toEqual(["apply-prior_failed_pre_employment_test"]);
+    // A v2 link asked it in Part 1, and its draft holds that answer — this screen does not ask again.
+    expect(validateSection("safety", draft, "2026-09-26").map((i) => i.fieldId)).not.toContain("apply-prior_failed_pre_employment_test");
   });
 });
 

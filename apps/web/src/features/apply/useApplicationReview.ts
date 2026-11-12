@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicationCaptureView, ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
+import type { ApplicantIdentity, ApplicantIdentityKey, ApplicationCaptureView, ApplicationContactMove, ApplicationEdit, ApplicationPath, ApplicationReviewState, CarrierQuestionStamp, PartOneAnswer, PartOneAnswersView, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -17,6 +17,10 @@ export interface ApplicationEditRow {
   path: ApplicationPath;
   before: unknown;
   after: unknown;
+  /** F3 (0586): the office's reason, on the driver's own statement. Optional: an API before F3 sends none. */
+  note?: string | null;
+  /** F3 (0586): recorded without its values — a replace-only answer. */
+  withheld?: boolean;
   editedAt: string;
   editedBy: string | null;
 }
@@ -43,6 +47,19 @@ export interface ApplicationReview {
   carrierQuestions?: CarrierQuestionStamp;
   /** What the applicant has photographed (F0). Optional: an API from before F0 sends none. */
   captures?: ApplicationCaptureView[];
+  /** F0b: when the applicant last opened it with a code because the date of birth on file did not match. */
+  unlockedByCodeAt?: string | null;
+  /** F3: the driver has made the first packet mark, so no correction lands. Optional: an API before F3 sends none. */
+  signingStarted?: boolean;
+  /** F3: Part 1's other answers; the donor gender only as whether it was given (Q-AM13). Null on a legacy link. */
+  partOneAnswers?: PartOneAnswersView | null;
+  /** E3: the invitation's email, and whether the phone on file is texted. Optional: an API before E3 sends none. */
+  contact?: { email: string | null; phoneTexted: boolean };
+  /**
+   * Step 6: the date of birth and licence on the applicant's RECORD, only those set — what screening runs on
+   * and filing lays over the draft. Optional: an API from before step 6 sends none, and the draft's copy shows.
+   */
+  identity?: Partial<Record<ApplicantIdentityKey, string>>;
   edits: ApplicationEditRow[];
 }
 
@@ -50,6 +67,8 @@ export interface ApplicationReview {
 export interface AppliedOfficeEdit {
   revision: number | null;
   payload: Record<string, unknown> | null;
+  /** E3: what the correction moved — the invitation's email, the texts to the old number. */
+  contact: ApplicationContactMove;
 }
 
 const key = (invitationId: string) => ["recruitment", "application-review", invitationId] as const;
@@ -79,7 +98,7 @@ export function useEditApplicationAnswer(invitationId: Ref<string | null>) {
      * the first write, which the payload says. `null` revision from an API that sent none.
      */
     mutationFn: async (input: ApplicationEdit): Promise<AppliedOfficeEdit> => {
-      const res = await apiFetch<{ revision?: number | null; payload?: Record<string, unknown> }>(
+      const res = await apiFetch<{ revision?: number | null; payload?: Record<string, unknown>; contact?: ApplicationContactMove }>(
         `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/answer`,
         { method: "PATCH", body: input },
       );
@@ -87,6 +106,7 @@ export function useEditApplicationAnswer(invitationId: Ref<string | null>) {
       return {
         revision: typeof res.data?.revision === "number" ? res.data.revision : null,
         payload: res.data?.payload ?? null,
+        contact: res.data?.contact ?? {},
       };
     },
     // Settled, not only on success: a refusal for a stale revision (the applicant saved since this
@@ -132,13 +152,51 @@ export function useApproveApplication(invitationId: Ref<string | null>) {
 export function useCorrectPartOne(invitationId: Ref<string | null>) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: PartOneCorrection): Promise<void> => {
-      const res = await apiFetch(
+    mutationFn: async (input: PartOneCorrection): Promise<ApplicationContactMove> => {
+      const res = await apiFetch<{ contact?: ApplicationContactMove }>(
         `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/part-one`,
         { method: "POST", body: input },
       );
       if (!res.ok) throw new Error(res.error?.message ?? "That correction could not be saved.");
+      return res.data?.contact ?? {};
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: key(invitationId.value ?? "") }),
+  });
+}
+
+/**
+ * The office correcting the date of birth or the current licence from the "Applicant facts" card (F3).
+ * Since step 6 (F3c part 2) the only editor of the three: the Permissions and Road-test drawers send the
+ * office here (`ApplicantIdentityOnFile`), and the page re-reads its driver row when the review closes.
+ *
+ * ⚠ Invalidates every `recruitment` query, not only this review: the checklist reads the same three
+ * values (the licence state picks the MVR), and naming its key here would be a copy of recruitment's.
+ */
+export function useCorrectIdentityFromReview(invitationId: Ref<string | null>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ApplicantIdentity): Promise<void> => {
+      const res = await apiFetch(
+        `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/identity`,
+        { method: "POST", body: input },
+      );
+      if (!res.ok) throw new Error(res.error?.message ?? "That correction could not be saved.");
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["recruitment"] }),
+  });
+}
+
+/** F3 (Q-AM13): one Part 1 answer the whole-set correction does not carry — a statement with its reason, or a blind replace. */
+export function useCorrectPartOneAnswer(invitationId: Ref<string | null>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: PartOneAnswer): Promise<void> => {
+      const res = await apiFetch(
+        `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/part-one/answer`,
+        { method: "POST", body: input },
+      );
+      if (!res.ok) throw new Error(res.error?.message ?? "That correction could not be saved.");
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["recruitment"] }),
   });
 }

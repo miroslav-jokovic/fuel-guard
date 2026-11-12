@@ -4,14 +4,14 @@ import { readFileSync } from "node:fs";
 import sharp from "sharp";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { ZodType } from "zod";
-import { ADS_SETTINGS_UNSET, FINISHED_AD_CRITERIA, FRAME_CLAUSE, NO_LETTERING, QUIET_REGION, adCandidatesSchema, adCreativeChecksSchema, REGENERATION_CLAUSES, type AdAssetRef, type AdBrandKit, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
+import { ADS_SETTINGS_UNSET, FINISHED_AD_CRITERIA, FRAME_CLAUSE, STARTER_PRESETS, NO_LETTERING, QUIET_REGION, adCandidatesSchema, adCreativeChecksSchema, REGENERATION_CLAUSES, type AdAssetRef, type AdBrandKit, type AdPresetRecipe, type AdsSettings } from "@silvicom/shared";
 import type { MessagesClient } from "../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
 import { ART_DIRECTOR_EVAL, COPYWRITER_EVAL, loadFixtures } from "../workers/agentFixtures.js";
 import { SIMULATED_STILL_MODEL } from "../creative/higgsfield/prices.js";
 import { frameStill } from "../creative/overlay/overlay.js";
-import { composeCreative, union, type ComposeInput, type CreativeRow } from "./composeCreative.js";
+import { composeCreative, drawnCopy, union, type ComposeInput, type CreativeRow } from "./composeCreative.js";
 
 /**
  * One creative through copy → art → render → overlay → visual check (C5b), against the real workers and the
@@ -21,6 +21,15 @@ import { composeCreative, union, type ComposeInput, type CreativeRow } from "./c
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const NOW = new Date("2026-11-04T18:00:00Z");
+/**
+ * This file's tests run whole composes, and several run three of them: each draws up to four full-size PNGs
+ * through the real overlay. About 2.4 s for the slowest on a laptop; on a loaded CI shard, 5,011 ms, 5,019 ms and
+ * 5,016 ms against vitest's 5,000 (2026-11-10, three runs, two different tests). The work is real and nothing
+ * here waits on a timer, so the limit is the file's own — raised once, here, rather than test by test as each
+ * one's turn comes to be the slowest.
+ */
+vi.setConfig({ testTimeout: 20_000 });
+
 const IMAGES = new URL("../workers/checker/fixtures/images/", import.meta.url);
 const jpg = (n: string) => readFileSync(new URL(`${n}.jpg`, IMAGES));
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
@@ -79,7 +88,7 @@ const failOn = (bad: string) => (checks: readonly string[]) => ({ checks: Object
 
 const FINISHED = (score: number) => ({ scores: Object.fromEntries(FINISHED_AD_CRITERIA.map((c) => [c, { reason: `Fixture reason for ${c}.`, score }])) });
 
-function harness(opts: { settings?: AdsSettings; judge?: (n: number) => unknown; visual?: Array<(checks: readonly string[]) => unknown>; copy?: unknown; render?: (i: RenderInput) => RenderOutcome; finished?: unknown } = {}) {
+function harness(opts: { settings?: AdsSettings; judge?: (n: number) => unknown; visual?: Array<(checks: readonly string[]) => unknown>; copy?: unknown; art?: unknown; render?: (i: RenderInput) => RenderOutcome; finished?: unknown } = {}) {
   const rec = createSupabaseRecorder({
     tables: {
       ads_settings_versions: [{ id: "v1", org_id: ORG, version: 1, settings: opts.settings ?? settings, kill_switch: false, kill_reason: null, created_at: NOW.toISOString(), created_by_name: "X" }],
@@ -93,7 +102,7 @@ function harness(opts: { settings?: AdsSettings; judge?: (n: number) => unknown;
     const tool = body.tools[0]!;
     const input = tool.name === "write_copy" ? opts.copy ?? copyFx.recorded.output
       : tool.name === "judge_copy" ? (opts.judge ?? ((n: number) => ({ scores: Array.from({ length: n }, () => ({ reason: "fixture", scores: { hook: 3, specific: 3, plain: 3, spanish: 3, no_filler: 3 } })) })))((tool.input_schema as unknown as { properties: { scores: { minItems: number } } }).properties.scores.minItems)
-      : tool.name === "direct_art" ? artFx.recorded.output
+      : tool.name === "direct_art" ? opts.art ?? artFx.recorded.output
       : tool.name === "judge_finished_ad" ? opts.finished ?? FINISHED(4)
       : (visual.length > 1 ? visual.shift()! : visual[0]!)(Object.keys(tool.input_schema.properties.checks!.properties));
     return { id: "msg_1", stop_reason: "tool_use", content: [{ type: "tool_use", id: "t1", name: tool.name, input }], usage: { input_tokens: 100, output_tokens: 50 } };
@@ -143,8 +152,9 @@ describe("composeCreative — a creative from copy to ready (C5b)", () => {
     const dims = await Promise.all(images.map(async (b) => { const m = await sharp(Buffer.from(b.source!.data, "base64")).metadata(); return [m.width, m.height]; }));
     expect(dims[0]).toEqual([1080, 1350]);
     expect(images[1]!.source!.data).toBe(jpg("reference").toString("base64"));
-    // The band is the overlay's own text stack: the zone's width less its padding (886 px of 1080), shorter than the frame.
-    expect(dims[2]![0]).toBe(886);
+    // The band is the overlay's own stack, kicker to button: the zone's width less the rail look's inset (920 px
+    // of 1080), shorter than the frame. The footer is not part of it.
+    expect(dims[2]![0]).toBe(920);
     expect(dims[2]![1]).toBeLessThan(700);
   });
 
@@ -509,5 +519,52 @@ describe("composeCreative — the finished-ad judge, a second opinion (P1-7; Q-A
     const h = harness({ settings: on, visual: [failOn("no_glyphs")] });
     expect((await h.run({ maxRegenerations: 0 })).kind).toBe("check_failed");
     expect(judgeCalls(h)).toEqual([]);
+  });
+});
+
+describe("composeCreative — each starter preset, as adopted, composes (Q-AD77)", () => {
+  // The copy and the art are written for each starter's own slots — the recordings answer the fixtures' slots —
+  // from the fixture's brief, so the claim check judges its real figure ($0.65 a mile). The headline is the
+  // shortest slot of the five (36), so one short line serves them all.
+  const words = { en: firstCandidate.en, es: firstCandidate.es };
+  const forSlot = (lang: "en" | "es", name: string, role: string | undefined): string =>
+    role === "pay" ? (lang === "en" ? "$0.65 per mile." : "$0.65 por milla.")
+    : role === "headline" ? (lang === "en" ? "$0.65 per mile, Class A OTR." : "$0.65 por milla. Clase A OTR.")
+    : role === "cta" ? words[lang].cta!
+    : name === "primary_text" ? words[lang].body!
+    : lang === "en" ? "Class A drivers, over the road." : "Conductores Clase A, en ruta.";
+  const kit: AdBrandKit = { ...KIT, overlays: { "4:5": KIT.overlays["4:5"]!, "1:1": KIT.overlays["4:5"]! } };
+
+  for (const starter of STARTER_PRESETS) {
+    it(`${starter.key} "${starter.recipe.name}" reaches ready in both feed formats`, async () => {
+      const r = starter.recipe;
+      const roleOf = (n: string) => (n === r.overlay_slots!.headline ? (n === "pay" ? "pay" : "headline") : n === r.overlay_slots!.cta ? "cta" : undefined);
+      const candidate = Object.fromEntries((["en", "es"] as const).map((l) => [l, Object.fromEntries(r.copy_slots.map((c) => [c.name, forSlot(l, c.name, roleOf(c.name))]))]));
+      const art = {
+        slots: Object.fromEntries(r.image_slots.map((s) => [s, "a plain choice for this slot"])),
+        reference_photo: r.starts_from === "equipment_photo" ? kit.equipment_photos[0]!.asset.sha256 : null,
+        focal_subject: r.shows_equipment ? "tractor" : r.scene_family === "cab_pov" ? "road_ahead" : "setting",
+        camera_distance: "medium",
+      };
+      const h = harness({ copy: { candidates: [candidate, candidate, candidate] }, art });
+      expect(await h.run({ recipe: r, kit })).toEqual({ kind: "ready" });
+      expect(h.tools().filter((t) => t === "direct_art")).toHaveLength(1);
+      const last = h.creativeWrites().at(-1)!.write!.payload as { state: string; assets: Array<{ format: string }> };
+      expect(last.state).toBe("ready");
+      expect([...new Set(last.assets.map((a) => a.format))].sort()).toEqual(["1:1", "4:5"]);
+    });
+  }
+});
+
+describe("drawnCopy — the words the overlay is handed (D-ADL4)", () => {
+  const copy = { hook: "Earn more", cta: "Apply", who: "Class A drivers", also: "Home weekly", body: "Long text" };
+
+  it("a preset with only a headline and a call to action hands the overlay those two, and no small line", () => {
+    expect(drawnCopy({ headline: "hook", cta: "cta" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: null, subline: null });
+  });
+
+  it("a preset that names slots for the small lines hands each its own slot's words", () => {
+    expect(drawnCopy({ headline: "hook", cta: "cta", kicker: "who", subline: "also" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: "Class A drivers", subline: "Home weekly" });
+    expect(drawnCopy({ headline: "hook", cta: "cta", kicker: null, subline: "also" }, copy)).toEqual({ headline: "Earn more", cta: "Apply", kicker: null, subline: "Home weekly" });
   });
 });

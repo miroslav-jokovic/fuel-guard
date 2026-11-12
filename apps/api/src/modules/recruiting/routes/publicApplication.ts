@@ -21,6 +21,7 @@ import { publicApplicationCaptureRouter } from "./publicApplicationCapture.js";
 import { publicApplicationAdoptionRouter } from "./publicApplicationAdoption.js";
 import { publicApplicationDocumentsRouter } from "./publicApplicationDocuments.js";
 import { publicApplicationSmsRouter } from "./publicApplicationSms.js";
+import { publicApplicationUnlockCodeRouter } from "./publicApplicationUnlockCode.js";
 import { publicApplicationScreenEventsRouter } from "./publicApplicationScreenEvents.js";
 import { saveDraft, unlockDraft } from "../applicationDraft.js";
 import { recordEsignConsent } from "../esignConsent.js";
@@ -391,6 +392,8 @@ export function publicApplicationRouter(): Router {
   // The optional agreement to be texted (SMS-OPT-IN-PLAN D-SMS1) — offered on the waiting screens,
   // never in the path.
   router.use(publicApplicationSmsRouter());
+  // F0b: a one-time code in place of the date of birth, when the date on file will not match.
+  router.use(publicApplicationUnlockCodeRouter());
 
   // Which screens the page showed (AW14, C3d3a), on its own rate budget — see `applicationLimits.ts`.
   router.use(publicApplicationScreenEventsRouter());

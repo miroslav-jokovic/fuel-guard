@@ -1,12 +1,16 @@
 import { z } from "zod";
-import { isoDateSchema, requiredDateOfBirthSchema } from "./rosterContract.js";
+import { ENDORSEMENT_CODES, endorsementCodeSchema, isoDateSchema, requiredDateOfBirthSchema } from "./rosterContract.js";
 // ⚠ The rules that span fields live in their own module since 2026-09-11 (the 500-line budget), and
 // they import this file's TYPE only — `import type` is erased, so there is no runtime cycle.
 import { APPLICATION_CROSS_FIELD_RULES, ruleIssuePath } from "./applicationRules.js";
 import { carrierAnswerIssues, carrierQuestionStampSchema } from "./carrierQuestionsContract.js";
 import { questionnaireForApplicant } from "./questionnaireContract.js";
 import { questionnaireAnswersSchema } from "./questionnaireAnswers.js";
-import { applicationEmployerSchema, applicationEmploymentGapSchema } from "./applicationEmployerContract.js";
+import {
+  applicationEmployerSchema,
+  applicationEmploymentGapSchema,
+  unansweredEmployerQuestions,
+} from "./applicationEmployerContract.js";
 import { LICENSING_AUTHORITY_MAX_LENGTH } from "./mvrJurisdictions.js";
 
 /**
@@ -241,6 +245,12 @@ export const driverApplicationObject = z
     cdl_number: z.string().min(1).max(60),
     cdl_state: z.string().min(2).max(10),
     cdl_class: z.string().max(10).nullish(),
+    /**
+     * The endorsements the applicant declared in Part 1 (F2b, P12), in the roster's letters. Filed from the
+     * intake row by `composeFiledApplication` — never typed in Part 2 — and printed with the class in the
+     * licence grid's `TYPE` column. Absent on a legacy link and on anything filed before F2b, which asked none.
+     */
+    cdl_endorsements: z.array(endorsementCodeSchema).max(ENDORSEMENT_CODES.length).nullish(),
     cdl_expires_at: isoDateSchema,
     // Defaulted rather than required: every application filed before A3 predates the field, and an
     // applicant holding only one licence — which §383.21 makes the normal case — answers this by
@@ -259,9 +269,23 @@ export const driverApplicationObject = z
     declares_no_accidents: z.boolean(),
     violations: z.array(applicationViolationSchema),
     declares_no_violations: z.boolean(),
-    /** (b)(9) — has a licence, permit or privilege ever been denied, revoked or suspended? */
+    /**
+     * (b)(9), the carrier's question A — has a licence, permit or privilege ever been DENIED? Until F2c it
+     * asked "denied, revoked or suspended" in one, while the carrier's page 2 asks A and B apart, so a
+     * suspension printed "denied: Yes" (audit P4). The key keeps its name: it is A's answer on every
+     * application filed since, and on one filed before it is the combined answer, which the packet reads
+     * into both lines (`packetFieldValues.ts`).
+     */
     licence_ever_denied: z.boolean(),
     licence_denial_detail: z.string().max(1000).nullish(),
+    /**
+     * (b)(9), the carrier's question B — has a licence, permit or privilege ever been SUSPENDED OR REVOKED
+     * (F2c, P4)? Nullish for the reason `prior_failed_pre_employment_test` is: every application filed
+     * before F2c has no answer and must go on parsing. A new filing must answer it
+     * (`applicationPaperFilingIssues`).
+     */
+    licence_suspended: z.boolean().nullish(),
+    licence_suspension_detail: z.string().max(1000).nullish(),
     /**
      * §40.25(j) — the question the carrier is REQUIRED to put to the applicant, and the one the
      * application system shipped without (P8, found while building the packet renderer).
@@ -379,7 +403,7 @@ export const applicationDraftPayloadSchema = driverApplicationObject.partial().e
    * "Something wrong? Tell us" (C3c2c2, Q-AW34): a v2 applicant's message to the office about a Part 1
    * fact they are shown read-only. The DRAFT's and never the certified document's — it is a note to the
    * office, not an answer the applicant certifies, and `driverApplicationObject` is strict, so it cannot
-   * reach a filing. Shown on the office's drawer; never offered as a correctable answer (`editableFields`).
+   * reach a filing. Shown on the office's drawer; never offered as a correctable answer (`applicantFactRows`: it is in no catalogue entry).
    */
   correction_note: z.string().max(APPLICATION_CORRECTION_NOTE_MAX).nullish(),
 });
@@ -395,6 +419,10 @@ const crossFieldRules = (v: object, ctx: z.RefinementCtx): void => {
   const fields = v as Partial<DriverApplicationFields>;
   for (const rule of APPLICATION_CROSS_FIELD_RULES) {
     if (!rule.check(fields)) ctx.addIssue({ code: "custom", message: rule.message, path: ruleIssuePath(rule) });
+  }
+  // F1 part 2: each job's "did you drive a truck" and "was it DOT-regulated", answered, never defaulted.
+  for (const issue of unansweredEmployerQuestions(fields.employers)) {
+    ctx.addIssue({ code: "custom", message: issue.message, path: issue.path });
   }
   // §15.3 D-CQ3: the carrier's own questions, judged against the stamp the document carries.
   for (const issue of carrierAnswerIssues(fields.carrier_questions, fields.carrier_answers)) {

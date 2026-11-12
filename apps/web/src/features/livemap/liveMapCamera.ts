@@ -85,3 +85,31 @@ export function planCameraMove(
 function isVisible(target: { lng: number; lat: number }, b: MapBounds): boolean {
   return target.lng >= b.west && target.lng <= b.east && target.lat >= b.south && target.lat <= b.north;
 }
+
+/** Where the map opens: on the chosen truck, or around the whole fleet. */
+export type FleetFit =
+  | { kind: "jump"; center: [number, number]; zoom: number }
+  | { kind: "fit"; southWest: [number, number]; northEast: [number, number] };
+
+/**
+ * The first view of the fleet (LM8). A selected truck, when the board carries it, is where the
+ * reader asked to be, at `SELECT_ZOOM`; otherwise the box around every truck. `null` when there is
+ * nothing to fit to yet — the canvas tries again on the next board rather than framing nothing.
+ *
+ * Pure for the same reason as `planCameraMove`: the decision used to live inside `LiveMapCanvas.vue`,
+ * where no test can reach it.
+ */
+export function planFleetFit(
+  vehicles: readonly { vehicleId: string; position: { lat: number; lng: number } }[],
+  selectedId: string | null,
+): FleetFit | null {
+  if (vehicles.length === 0) return null;
+  const chosen = selectedId ? vehicles.find((v) => v.vehicleId === selectedId) : undefined;
+  if (chosen) return { kind: "jump", center: [chosen.position.lng, chosen.position.lat], zoom: SELECT_ZOOM };
+  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+  for (const { position: p } of vehicles) {
+    west = Math.min(west, p.lng); east = Math.max(east, p.lng);
+    south = Math.min(south, p.lat); north = Math.max(north, p.lat);
+  }
+  return { kind: "fit", southWest: [west, south], northEast: [east, north] };
+}

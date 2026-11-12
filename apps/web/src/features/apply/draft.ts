@@ -159,6 +159,8 @@ export function toApplication(draft: ApplicationDraft): unknown {
     declares_no_violations: draft.declares_no_violations,
     licence_ever_denied: draft.licence_ever_denied,
     licence_denial_detail: text(draft.licence_denial_detail),
+    licence_suspended: draft.licence_suspended,
+    licence_suspension_detail: text(draft.licence_suspension_detail),
     prior_failed_pre_employment_test: draft.prior_failed_pre_employment_test,
     // §9 P8 (AF-4): every job the applicant put anything into, named or not. Only a job with nothing in
     // it is dropped — the accidental "Add". An unnamed job with dates used to vanish here silently, so
@@ -271,6 +273,8 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     // is not — so one saved null would refuse every correction, `employment_gaps`' lesson (C3c1).
     ...(draft.licence_ever_denied === null ? {} : { licence_ever_denied: draft.licence_ever_denied }),
     licence_denial_detail: draft.licence_denial_detail,
+    ...(draft.licence_suspended === null ? {} : { licence_suspended: draft.licence_suspended }),
+    licence_suspension_detail: draft.licence_suspension_detail,
     // ⚠ Absent from this list until 2026-09-11, and it is §40.25(j)'s two-year question — by this
     // file's own reckoning "the single most consequential answer on the form for what the carrier has
     // to do next". A driver who ticked it, closed the tab and came back had answered NO, silently,
@@ -369,7 +373,10 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     // A saved answer, or unanswered (C3c2c1) — never floored at a "No" the applicant did not give.
     licence_ever_denied: typeof payload.licence_ever_denied === "boolean" ? payload.licence_ever_denied : null,
     licence_denial_detail: str("licence_denial_detail"),
-    prior_failed_pre_employment_test: bool("prior_failed_pre_employment_test"),
+    licence_suspended: typeof payload.licence_suspended === "boolean" ? payload.licence_suspended : null,
+    licence_suspension_detail: str("licence_suspension_detail"),
+    // F1 part 2: a saved answer, or unanswered — never floored at a "No" the applicant did not give.
+    prior_failed_pre_employment_test: answer(payload.prior_failed_pre_employment_test),
     // AW1: an entry saved before keys existed gets one now, and keeps it from the next save on.
     employers: rows<DraftEmployer>("employers", base.employers).map((e) => ({
       ...e,
@@ -378,6 +385,10 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
       // Q-AW33 (C3c2b): a saved answer is kept, `true` or `false` alike — including the `false` a draft
       // from before C3c2b holds because the box was never ticked; it cannot be told from a real "No".
       // Anything else — absent, or not a boolean — is unanswered, never "No".
+      // F1 part 2: the same rule for the two questions that used to start at Yes. A saved Yes from before
+      // is kept — it cannot be told from a real one, and the review drawer shows it to the office.
+      operated_cmv: answer(e.operated_cmv),
+      dot_regulated: answer(e.dot_regulated),
       subject_to_fmcsr: answer(e.subject_to_fmcsr),
       safety_sensitive: answer(e.safety_sensitive),
     })),

@@ -1,3 +1,4 @@
+import type { LicenceKind } from "@silvicom/shared";
 import { sentenceCase } from "./sentenceCase";
 /**
  * Part 1's words — "Get started" (APPLICATION-FLOW-V2-PLAN.md §6.2, AW3, C3a).
@@ -108,7 +109,17 @@ export const APPLY_PART_ONE_COPY = {
       missingState: "Choose the state or province that issued it.",
       missingNumber: "Enter the licence number.",
       answerFirst: "Answer Yes or No.",
-      entry: (state: string, number: string): string => `${state} · ${number}`,
+      // P3 (F2c part 2): the paper's licence grid asks a TYPE for every licence. US spelling (Q-AM6);
+      // the rest of this screen is renamed with F4's U9.
+      kind: "Type of license",
+      kindOptions: {
+        cdl: "Commercial driver's license (CDL)",
+        clp: "Commercial learner's permit (CLP)",
+        non_cdl: "Regular driver's license (not a CDL)",
+        other: "Other (a license from another country, a state ID)",
+      } satisfies Record<LicenceKind, string>,
+      missingKind: "Choose the type of license.",
+      entry: (state: string, number: string, kind: string): string => [state, number, kind].filter(Boolean).join(" · "),
     },
     screening: {
       heading: "Questions about drug and alcohol testing",

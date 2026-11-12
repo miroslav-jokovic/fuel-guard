@@ -5,7 +5,6 @@ import {
   type ApplicationCaptureSlot,
 } from "./applicationCaptureContract.js";
 import {
-  EEO_ANSWER_KEY,
   questionnaireForApplicant,
   type QuestionnaireDefinition,
   type QuestionnaireQuestion,
@@ -32,10 +31,10 @@ import {
 /**
  * The questions a carrier may require of this definition (D-RS2): all of them except one asked only
  * after another question's answer ("If so, when?" — required, it would refuse an applicant who was
- * never shown it) and the reserved EEO key, which the person deciding the hire may never see.
+ * never shown it).
  */
 export const isRequirableQuestion = (q: QuestionnaireQuestion): boolean =>
-  !q.askedWhen && q.id !== EEO_ANSWER_KEY;
+  !q.askedWhen;
 
 export const requirableQuestions = (
   def: QuestionnaireDefinition = questionnaireForApplicant(),

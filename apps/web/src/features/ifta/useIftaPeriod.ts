@@ -14,7 +14,7 @@ import {
   type IftaPosition, type MilesTieOut,
   type IftaJurisdictionTrucks, type IftaJurisdictionTrucksResponse, type IftaPeriodReceipts,
 } from "@silvicom/shared";
-import { milesFromMeters } from "@silvicom/shared";
+import { iftaQuarterKey, milesFromMeters, parseIftaQuarterKey } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 export interface IftaQuarter {
@@ -128,13 +128,13 @@ export function selectableQuarters(now: Date, back = 7): IftaQuarter[] {
 
 export const quarterLabel = (q: IftaQuarter): string => `Q${q.quarter} ${q.year}`;
 
-/** `"2026-Q2"` — the URL form, so a quarter can be sent to somebody. */
-export const quarterKey = (q: IftaQuarter): string => `${q.year}-Q${q.quarter}`;
-
-export function parseQuarterKey(key: string | null | undefined): IftaQuarter | null {
-  const m = /^(\d{4})-Q([1-4])$/.exec(String(key ?? "").trim());
-  return m ? { year: Number(m[1]), quarter: Number(m[2]) } : null;
-}
+/**
+ * `"2026-Q2"` — the URL form, so a quarter can be sent to somebody. The writer and the reader are the
+ * IFTA link contract's (`iftaLinkContract.ts`, F21 R4b), which Ask AI's `ifta_report` link is built
+ * with too; kept here under their old names for the pages that import them.
+ */
+export const quarterKey = (q: IftaQuarter): string => iftaQuarterKey(q);
+export const parseQuarterKey = (key: string | null | undefined): IftaQuarter | null => parseIftaQuarterKey(key);
 
 /**
  * One jurisdiction's quarter, truck by truck — what a ledger row is made of. The API returns

@@ -20,6 +20,7 @@ import { formatDate } from "@/lib/format";
  * review found stacked tables confusing); Show picks WHICH list, so "Clear filters" keeps it.
  */
 const props = defineProps<{ medical: MedicalCards }>();
+const emit = defineEmits<{ shown: [count: number | null] }>();
 
 const LISTS = {
   due: {
@@ -35,10 +36,15 @@ const LISTS = {
 } as const;
 
 const qs = useQueryState("medical");
-const show = qs.param("show", ["due", "disagree"], "due");
-const list = computed(() => LISTS[show.value as keyof typeof LISTS]);
+/**
+ * Show is a choice of WHICH list, and the list the tab opens on is its "" choice — the one FilterSelect
+ * draws as "no filter", with no ✕. Until 2026-11-10 the opening list was a named value, so the ✕ beside
+ * it wrote "" and `LISTS[""]` was undefined: clicking ✕ on Show crashed the page (owner, Results).
+ */
+const show = qs.param("show", ["disagree"], "");
+const list = computed(() => (show.value === "disagree" ? LISTS.disagree : LISTS.due));
 const showOptions = computed(() => [
-  { value: "due", label: `${LISTS.due.label} (${props.medical.due.length})` },
+  { value: "", label: `${LISTS.due.label} (${props.medical.due.length})` },
   { value: "disagree", label: `${LISTS.disagree.label} (${props.medical.disagree.length})` },
 ]);
 
@@ -81,6 +87,8 @@ const { search, page, sort, onSort, filtered, pageRows, activeCount, clearAll, p
   text: (r) => [r.name],
   narrow: (r) => (!when.value || whenOf(r.daysLeft) === when.value) && (!basis.value || basisOf(r) === basis.value),
   filters: () => ({ when: when.value, from: basis.value }),
+  showMoved: () => show.value !== "",
+  onShown: (n) => emit("shown", n),
 });
 const sourceDate = (row: MedicalCardRow, s: MedicalSource) => row.sources.find((c) => c.source === s)?.expiresOn ?? null;
 </script>

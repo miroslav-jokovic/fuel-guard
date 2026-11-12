@@ -117,51 +117,51 @@
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@3",
+    "prompt_version": "copywriter@4",
     "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:20:04.517Z",
+    "recorded_at": "2026-11-11T04:56:36.013Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Home every 2 weeks. On time.",
-            "cta": "Apply now",
-            "primary_text": "Out 2 weeks, home 4 days — that schedule holds. Reefer runs, produce from the valley to the Midwest. Pay starts at $0.70 per mile, up to $0.78 per mile. Two years of experience required, age 23+. 401k and rider policy included.",
-            "headline": "OTR Reefer — $0.70/$0.78/mi"
+            "hook": "Home 4 days every 2 weeks.",
+            "cta": "Apply today",
+            "primary_text": "Reefer OTR hauling produce from the valley to the Midwest. Out 2 weeks, home 4 days — every run, on schedule. Starting at $0.70 per mile, up to $0.78 per mile. Must be age 23 with 2 years of experience. 401k and rider policy included.",
+            "headline": "Know when you're home."
           },
           "es": {
-            "hook": "Casa cada 2 semanas, siempre.",
+            "hook": "4 días en casa cada 2 semanas.",
             "cta": "Aplica hoy",
-            "primary_text": "Sales 2 semanas, regresas 4 días. Carga refrigerada del valle al Medio Oeste. Pago desde $0.70 por milla, hasta $0.78 por milla. Se requieren 2 años de experiencia y ser mayor de 23 años. 401k y política de acompañante.",
-            "headline": "Reefer OTR — $0.70/$0.78/mi"
+            "primary_text": "Ruta OTR en reefer, produce del valle al Medio Oeste. Sales 2 semanas, descansas 4 días en casa. De $0.70 a $0.78 por milla. Mayores de 23 con 2 años de experiencia. 401k y política de acompañante.",
+            "headline": "Sabes cuándo llegas."
           }
         },
         {
           "en": {
-            "hook": "4 days home. Earned it.",
-            "cta": "Join our team",
-            "primary_text": "Two weeks out, then 4 days home — every time. Reefer freight, produce from the valley to the Midwest. Pay starts at $0.70 per mile, up to $0.78 per mile. Need 2 years of experience, age 23+. Rider policy and 401k available.",
-            "headline": "$0.78/mile on OTR reefer"
+            "hook": "Up to $0.78 per mile, OTR.",
+            "cta": "Apply now",
+            "primary_text": "Class A reefer driver needed for produce runs — valley to the Midwest and back. The schedule is set: out 2 weeks, home 4 days. Pay starts at $0.70 per mile and reaches $0.78 per mile. Age 23 and 2 years experience required. 401k and rider policy available.",
+            "headline": "Reefer. $0.78/mile."
           },
           "es": {
-            "hook": "4 días en casa, bien ganados.",
-            "cta": "Únete hoy",
-            "primary_text": "Dos semanas en ruta, luego 4 días en casa. Carga refrigerada del valle al Medio Oeste. Pago de $0.70 por milla, hasta $0.78 por milla. Se requieren 2 años de experiencia y ser mayor de 23 años. 401k y política de acompañante.",
-            "headline": "$0.78/milla en ruta reefer"
+            "hook": "Hasta $0.78 por milla, OTR.",
+            "cta": "Aplica ahora",
+            "primary_text": "Se busca conductor Clase A para rutas reefer de produce — del valle al Medio Oeste. El horario es fijo: 2 semanas afuera, 4 días en casa. Pago desde $0.70 por milla hasta $0.78 por milla. Se requiere ser mayor de 23 con 2 años de experiencia. 401k y política de acompañante disponibles.",
+            "headline": "Reefer. $0.78 por milla."
           }
         },
         {
           "en": {
-            "hook": "Reefer OTR. Know your runs.",
-            "cta": "Get started",
-            "primary_text": "Valley produce to the Midwest — consistent OTR reefer lanes so you know what to expect. $0.70 per mile starting rate, up to $0.78 per mile. Home for 4 days after every 2-week run. Requires 2 years of Class A experience, age 23+. 401k and rider policy on offer.",
-            "headline": "2 weeks out, 4 days home"
+            "hook": "Reefer runs. Real home time.",
+            "cta": "Join the team",
+            "primary_text": "Produce reefer, valley to the Midwest. Two weeks out, four days home — that's the run, every time. $0.70 to $0.78 per mile. Must be age 23 and have 2 years behind the wheel. 401k and rider policy on offer. If you want a consistent OTR schedule, this is it.",
+            "headline": "2 weeks out, 4 days home."
           },
           "es": {
-            "hook": "Reefer OTR. Rutas definidas.",
-            "cta": "Empieza hoy",
-            "primary_text": "Produce del valle al Medio Oeste — rutas OTR en tráiler refrigerado, constantes y bien definidas. Pago inicial de $0.70 por milla, hasta $0.78 por milla. Regresas 4 días a casa tras cada salida de 2 semanas. Se requieren 2 años de experiencia y ser mayor de 23 años. 401k y política de acompañante disponibles.",
-            "headline": "2 semanas fuera, 4 días casa"
+            "hook": "Reefer con tiempo en casa real.",
+            "cta": "Únete al equipo",
+            "primary_text": "Produce en reefer, del valle al Medio Oeste. Dos semanas en ruta, cuatro días en casa — así es cada viaje. De $0.70 a $0.78 por milla. Se requiere ser mayor de 23 con 2 años de experiencia. 401k y política de acompañante disponibles. Si buscas una ruta OTR con horario fijo, esta es.",
+            "headline": "2 semanas fuera, 4 en casa."
           }
         }
       ]

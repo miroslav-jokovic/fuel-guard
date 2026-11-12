@@ -11,6 +11,7 @@ import {
   type ApplicantIntakeLicence,
   type AamvaLicence,
   type DonorGender,
+  type LicenceKind,
   type ApplicationCaptureView,
   type PartOneScreen,
   type PartOneStatus,
@@ -56,6 +57,11 @@ export interface OtherLicence {
   agency: string;
   licence_number: string;
   expires_on: string;
+  /**
+   * P3 (F2c part 2): the paper's TYPE — a `LICENCE_KINDS` code, "" until chosen. A device copy held
+   * before P3 restores without the key, and posts it as no type (`otherPayload`), as the server holds it.
+   */
+  kind: LicenceKind | "";
 }
 
 export interface PartOneAnswers {
@@ -168,6 +174,8 @@ export function validateOtherLicence(entry: OtherLicence, a: PartOneAnswers): Sc
   if (entry.state_code.trim() === "") errors.state_code = o.missingState;
   if (entry.licence_number.trim() === "") errors.licence_number = o.missingNumber;
   if (entry.expires_on.trim() === "") errors.expires_on = o.missingExpiry;
+  // P3: the paper asks a TYPE for every licence, and this screen is the only place that can ask it.
+  if (!entry.kind) errors.kind = o.missingKind;
   if (Object.keys(errors).length > 0) return errors;
   const parsed = applicantIntakeLicenceSchema.safeParse(otherPayload(entry));
   if (!parsed.success) {
@@ -245,6 +253,7 @@ const otherPayload = (o: OtherLicence): ApplicantIntakeLicence => ({
   agency: o.agency.trim() === "" ? null : o.agency.trim(),
   licence_number: o.licence_number.trim(),
   expires_on: o.expires_on,
+  kind: o.kind || null,
 });
 
 /** The whole list, current CDL first — the positions ARE the order (0376). */

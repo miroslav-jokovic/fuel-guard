@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
+import { iftaToQuery } from "@silvicom/shared";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { computed, ref } from "vue";
 import { createPinia, setActivePinia } from "pinia";
@@ -34,12 +35,14 @@ const loading = ref(false);
 const errored = ref(false);
 /** The period's `refetch`, kept so the failure's Retry can be seen to reach it (D-US5). */
 const refetch = vi.fn();
+/** The quarter the page asked the period read for (F21 R4b: a link's `q` must reach it). */
+const asked: { quarter: { value: unknown } | null } = { quarter: null };
 
 vi.mock("@/features/ifta/useIftaPeriod", async (orig) => {
   const actual = await orig<typeof import("@/features/ifta/useIftaPeriod")>();
   return {
     ...actual,
-    useIftaPeriodQuery: () => ({
+    useIftaPeriodQuery: (q: { value: unknown }) => (asked.quarter = q, {
       data: computed(() => period.value),
       isLoading: loading,
       isError: errored,
@@ -296,3 +299,13 @@ describe("IftaLedgerPage", () => {
     expect(push).toHaveBeenCalledWith({ path: "/ifta/CA", query: { q: "2026-Q1" } });
   });
 });
+
+describe("IftaLedgerPage — its URL is the IFTA link contract's (F21 R4b)", () => {
+  it("opens on the quarter a link built by the contract names, and links each state on the same quarter", async () => {
+    const { w } = await mountPage(`?${new URLSearchParams(iftaToQuery({ year: 2025, quarter: 2 })).toString()}`);
+    expect(asked.quarter?.value).toEqual({ year: 2025, quarter: 2 });
+    const toState = w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to")).find((to) => typeof to !== "string" && String(to.path).startsWith("/ifta/"));
+    expect(toState).toMatchObject({ query: { q: "2025-Q2" } });
+  });
+});
+

@@ -54,14 +54,14 @@ describe("one form for everyone (HW5b, EM-5)", () => {
     ]);
   });
 
-  it("starts a new job at the applicant's defaults: drove a truck Yes, DOT-regulated Yes, the (iv) answers unanswered", () => {
+  it("starts a new job with every Yes/No unanswered, drove a truck and DOT-regulated included (F1 part 2)", () => {
     const fresh = blankEmployer();
-    expect([fresh.operated_cmv, fresh.dot_regulated, fresh.subject_to_fmcsr, fresh.safety_sensitive]).toEqual([true, true, null, null]);
+    expect([fresh.operated_cmv, fresh.dot_regulated, fresh.subject_to_fmcsr, fresh.safety_sensitive]).toEqual([null, null, null, null]);
     const { w } = form(fresh);
     const checked = (id: string) =>
       w.find(`fieldset#apply-employers-2-${id}`).findAll("input[type=radio]").map((r) => (r.element as HTMLInputElement).checked);
-    expect(checked("operated_cmv")).toEqual([true, false]);
-    expect(checked("dot_regulated")).toEqual([true, false]);
+    expect(checked("operated_cmv")).toEqual([false, false]);
+    expect(checked("dot_regulated")).toEqual([false, false]);
   });
 
   it("EM-3: has a street box", () => {

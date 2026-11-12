@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { AppIconButton } from "@silvicom/ui";
 import { PencilSquareIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import AssistantThread from "@/components/assistant/AssistantThread.vue";
 import { suggestionsFor } from "@/components/assistant/suggestions";
+import { useAssistantTools } from "@/components/assistant/useAssistantAccess";
 import { useAssistantStore } from "@/stores/assistant";
 
 /**
@@ -14,7 +15,8 @@ import { useAssistantStore } from "@/stores/assistant";
  */
 const store = useAssistantStore();
 const thread = ref<InstanceType<typeof AssistantThread> | null>(null);
-const suggestions = suggestionsFor("/ask", 6);
+const tools = useAssistantTools();
+const suggestions = computed(() => suggestionsFor("/ask", tools.value, 6));
 
 onMounted(() => thread.value?.focus());
 </script>

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isReplacement } from "@silvicom/shared";
 
 /**
  * A person's decision on one creative (D-AD12; Track S's S1d door calls this). `ads_creatives` is written only
@@ -14,7 +15,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *
  * ── ONE MOVE, COMPARE-AND-SET ────────────────────────────────────────────────────────────────────
  * `ready → approved` or `ready → rejected`, only while the campaign is in `review` — the state in which the
- * machine offers `creatives_approved`. The update is conditioned on `state = 'ready'`, so two people deciding
+ * machine offers `creatives_approved` — or, since Q-AD68, for a retired ad's replacement on a `live` campaign
+ * (`campaignAcceptsDecision`). The update is conditioned on `state = 'ready'`, so two people deciding
  * at once make one move; the loser reads the row back and gets `already` (the same decision) or `not_ready`
  * (the other one won). The same request twice is `already`, never an error a retrying screen must handle.
  * A rejected creative is what compose's Regenerate supersedes (`composeCampaign` REDO), so nothing here
@@ -63,7 +65,7 @@ export async function decideCreative(admin: SupabaseClient, orgId: string, ask: 
 
   const { data: campaign, error: cErr } = await admin.from("ads_campaigns").select("state").eq("org_id", orgId).eq("id", ask.campaignId).maybeSingle();
   if (cErr) throw new Error(`ads_campaigns: ${cErr.message}`);
-  if ((campaign as { state?: string } | null)?.state !== "review") return { ok: false, refusal: "campaign_not_in_review" };
+  if (!(await campaignAcceptsDecision(admin, orgId, ask.campaignId, ask.creativeId, (campaign as { state?: string } | null)?.state))) return { ok: false, refusal: "campaign_not_in_review" };
 
   const { data: moved, error: uErr } = await admin.from("ads_creatives")
     .update({ state: to, updated_at: ask.now.toISOString() })
@@ -75,6 +77,22 @@ export async function decideCreative(admin: SupabaseClient, orgId: string, ask: 
   // Someone else decided between our read and our write: their decision stands.
   const after = await readCreative(admin, orgId, ask);
   return after?.state === to ? { ok: true, state: to, moved: false } : { ok: false, refusal: "not_ready", state: after?.state };
+}
+
+/**
+ * Whether a person may decide on this creative now: while the campaign is in `review`, as always — or, on a `live`
+ * campaign, for a retired ad's replacement only (Q-AD68, `isReplacement`: it names a creative the monitor retired).
+ * Every other creative of a live campaign stays undecidable. The door (`campaigns/creativeDecisions.ts`) and this file
+ * ask the same function, so the screen's buttons, the door and the move cannot disagree.
+ */
+export async function campaignAcceptsDecision(admin: SupabaseClient, orgId: string, campaignId: string, creativeId: string, campaignState: string | undefined): Promise<boolean> {
+  if (campaignState === "review") return true;
+  if (campaignState !== "live") return false;
+  const { data, error } = await admin.from("ads_creatives").select("id, supersedes_id, platform_status").eq("org_id", orgId).eq("campaign_id", campaignId);
+  if (error) throw new Error(`ads_creatives: ${error.message}`);
+  const rows = (data ?? []) as Array<{ id: string; supersedes_id: string | null; platform_status: string | null }>;
+  const me = rows.find((r) => r.id === creativeId);
+  return !!me && isReplacement(me, rows);
 }
 
 async function readCreative(admin: SupabaseClient, orgId: string, ask: Pick<DecideCreativeAsk, "campaignId" | "creativeId">): Promise<{ state: string } | null> {

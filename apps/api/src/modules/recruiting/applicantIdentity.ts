@@ -2,12 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   APPLICANT_IDENTITY_KEYS,
   draftIdentityComplete,
+  identityEdits,
   type ApplicantIdentity,
   type ApplicantIdentityKey,
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 import { loadCarrierWording } from "./carrierWording.js";
 import { correctIdentityThroughPartOne } from "./applicantPartOneCorrection.js";
+import { recordOfficeEdits, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
 import {
   ALREADY_SUBMITTED,
   isIntakeError,
@@ -181,6 +183,11 @@ export const isIdentityCorrectionError = (v: object): v is IdentityCorrectionErr
  * value: a licence number and a date of birth are exactly what `apps/api/CLAUDE.md` says not to
  * log. `drivers`' own row-change trigger already keeps the before and after where the table's
  * access rules apply to it.
+ *
+ * ⚠ F3 (E7): each of the three that changed is also an `application_edits` row, so the driver is shown
+ * "was / now" on 3.1 before signing; until F3 a corrected date of birth reached the signed application
+ * unannounced. And it is refused once the driver has made the first packet mark, like every office
+ * correction (`applicationEditLog.ts`).
  */
 export async function correctApplicantIdentity(
   admin: SupabaseClient,
@@ -198,13 +205,19 @@ export async function correctApplicantIdentity(
   const invitation = inv as { id: string; driver_id: string } | null;
   const notFound = { code: "application_not_found", message: "That application is not in this organization." };
   if (!invitation) return notFound;
+  if (await signingStarted(admin, orgId, invitation.id)) return SIGNING_STARTED;
+
+  // What `drivers` held, read before the overwrite, so the driver can be shown each change (E7).
+  const was = await identityOnRecord(admin, orgId, invitation.driver_id);
+  const recorded = () => recordOfficeEdits(admin, orgId, invitation.id, identityEdits(was, body), actorId);
 
   // A v2 link's licence list moves with the identity (Q-AW36) — see `correctIdentityThroughPartOne`.
   const throughPartOne = await correctIdentityThroughPartOne(admin, orgId, invitation, body);
   if (throughPartOne && "code" in throughPartOne) return throughPartOne;
   if (throughPartOne) {
+    const unrecorded = await recorded();
     await auditIdentityCorrection(admin, orgId, invitation, actorId);
-    return { ok: true };
+    return unrecorded ?? { ok: true };
   }
 
   const { error } = await admin.rpc(
@@ -223,8 +236,9 @@ export async function correctApplicantIdentity(
     return { code: "identity_failed", message: error.message };
   }
 
+  const unrecorded = await recorded();
   await auditIdentityCorrection(admin, orgId, invitation, actorId);
-  return { ok: true };
+  return unrecorded ?? { ok: true };
 }
 
 /** One audit row per identity correction, whichever writer carried it. Names, never values. */

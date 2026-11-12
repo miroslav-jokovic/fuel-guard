@@ -89,8 +89,9 @@ export const APPLY_HISTORY_COPY = {
     violationsQuestion:
       "In the last 3 years, were you convicted of breaking a traffic law, or did you forfeit bond or collateral for one?",
     violationsQuestionHint: "Parking tickets do not count.",
-    deniedQuestion:
-      "Has any licence, permit or privilege of yours to drive a motor vehicle ever been denied, revoked or suspended?",
+    // F2c (P4): the carrier's A and B, asked apart as page 2 asks them.
+    deniedQuestion: "Have you ever been denied a license, permit or privilege to operate a motor vehicle?",
+    suspendedQuestion: "Has any license, permit or privilege of yours ever been suspended or revoked?",
     accidentsHeading: "Accidents",
     noAccidents: "I have had no accidents in the last 3 years",
     accidentDate: "Date",
@@ -103,15 +104,18 @@ export const APPLY_HISTORY_COPY = {
     noViolations: "I have had no traffic convictions or forfeitures in the last 3 years",
     violationDate: "Date",
     offence: "Offence",
-    violationState: "Where it happened",
-    violationStateHint: "Optional — the state is enough.",
+    violationState: "State where it happened",
+    violationStateHint: "Two letters are enough — IL, IN, WI.",
     penalty: "Penalty",
-    penaltyHint: "Optional.",
+    penaltyHint: "A fine, points, a suspension — what the court gave.",
     addViolation: "Add a conviction",
     licenceHeading: "Licence history",
-    everDenied: "A licence, permit or privilege of mine has been denied, revoked or suspended",
-    denialDetail: "What happened",
+    everDenied: "Denied a license, permit or privilege to drive",
+    everSuspended: "A license, permit or privilege suspended or revoked",
+    denialDetail: "Why it was denied",
     denialDetailHint: "The reason it happened.",
+    suspensionDetail: "Why it was suspended or revoked",
+    suspensionDetailHint: "When, and the reason.",
     /**
      * §40.25(j)'s two-year question (P8). ⚠ No citation in the copy — D-UI9 — and the voice rule
      * applies with force here: this is the most resented question on the form, so it says why it is
@@ -123,8 +127,8 @@ export const APPLY_HISTORY_COPY = {
       "Every carrier has to ask this one, and a yes does not end your application. It means we have "
       + "to see the paperwork showing you finished the return-to-duty process before you can drive.",
     priorTest:
-      "In the last two years, I applied for a driving job I did not get, and I tested positive or "
-      + "refused a test as part of that application",
+      "In the last two years, did you apply for a driving job you did not get, and test positive or "
+      + "refuse a test as part of that application?",
     priorTestHint: "This is about jobs you applied for, not jobs you had.",
     remove: "Remove",
   },

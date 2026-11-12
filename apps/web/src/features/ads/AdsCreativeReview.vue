@@ -17,7 +17,7 @@ import AdsFinishedAdOpinion from "./AdsFinishedAdOpinion.vue";
  * shows the checker's sentence in its cell. A body the grid cannot read says so instead of drawing passes. The
  * finished-ad judge's scores (P1-7) sit under the grid as a second opinion, never as a fourth check.
  */
-const props = defineProps<{ creative: AdsCreativeView; canDecide: boolean; busy: boolean }>();
+const props = defineProps<{ creative: AdsCreativeView; canDecide: boolean; busy: boolean; replaces?: boolean }>();
 const emit = defineEmits<{ approve: []; reject: [reason: string] }>();
 
 const rejecting = ref(false);
@@ -29,7 +29,14 @@ const tone = computed(() => (props.creative.state === "check_failed" || props.cr
 
 <template>
   <article class="space-y-3 rounded-detail p-3 ring-1 ring-edge" data-test="creative">
-    <span :class="[BADGE_BASE, toneClass(tone)]">{{ CREATIVE_STATE_LABEL[creative.state] }}</span>
+    <div class="flex flex-wrap items-center gap-2">
+      <span :class="[BADGE_BASE, toneClass(tone)]">{{ CREATIVE_STATE_LABEL[creative.state] }}</span>
+      <span v-if="creative.platform_status === 'retired'" :class="[BADGE_BASE, toneClass('warning')]" data-test="creative-retired">Retired: it had tired</span>
+      <span v-if="replaces" :class="[BADGE_BASE, toneClass('info')]" data-test="creative-replacement">Replaces a retired ad</span>
+    </div>
+    <p v-if="replaces && creative.state === 'ready'" class="text-sm text-ink-muted" data-test="replacement-note">
+      The campaign is running. Approve this ad and it is turned on in the same campaign, with the same budget; reject it and one more is made.
+    </p>
     <p v-if="creative.last_error" class="text-sm text-ink-muted" data-test="creative-error">{{ creative.last_error }}</p>
     <p v-if="!grid.readable" class="text-sm text-ink-muted" data-test="checks-unreadable">The checks on this ad could not be read, so it cannot be judged from this screen.</p>
     <ul v-else-if="grid.rows.length > 0" class="divide-y divide-edge text-sm" aria-label="The three checks on this ad, per format and language" data-test="checks">

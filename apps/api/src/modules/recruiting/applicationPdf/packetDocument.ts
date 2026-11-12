@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyingAsOf, driverPlacementIds, type DriverApplication } from "@silvicom/shared";
 import { packetFieldFill } from "./packet/packetFieldValues.js";
+import { addendumSections } from "./packet/packetAddendum.js";
 import { renderPacketOverlay } from "./packet/packetOverlay.js";
 
 /**
@@ -126,5 +127,7 @@ export async function renderPacketDocument(input: PacketDocumentInput): Promise<
     // §15.3 D-CQ2: the stamp the payload carries — the filed one's own, or the invitation's laid over the
     // draft by `preview.ts` — and the answers, under the one key a draft and a filing share.
     carrierQuestions: { stamp: a.carrier_questions, answers: a.carrier_answers },
+    // F2: what the carrier's paper has no place for, from the same payload the pages are filled from.
+    addendum: addendumSections(a),
   });
 }

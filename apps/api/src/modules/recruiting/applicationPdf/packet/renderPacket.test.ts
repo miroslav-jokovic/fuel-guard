@@ -42,7 +42,7 @@ const APPLICATION = {
   declares_no_accidents: true,
   violations: [{ occurred_on: "2025-02-01", offence: "Speeding", state: "IL", penalty: "$120" }],
   declares_no_violations: false,
-  licence_ever_denied: false,
+  licence_ever_denied: false, licence_suspended: false,
   licence_denial_detail: null,
   employers: [
     {

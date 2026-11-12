@@ -6,7 +6,7 @@ import { computed, ref, type Ref } from "vue";
 // The spend window reads "today" on the carrier's clock; no org row in a mounted page test.
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
 vi.mock("@/lib/api", () => ({ apiDownload: vi.fn() }));
-import { fuelReportTotals, spendChangeLine, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelReport, type FuelReportDay } from "@silvicom/shared";
+import { fuelCostsToQuery, fuelReportTotals, spendChangeLine, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelReport, type FuelReportDay } from "@silvicom/shared";
 import type { FuelReportParams } from "@/features/reconcile/useFuelReport";
 
 /**
@@ -191,6 +191,14 @@ describe("FuelCostsPage — every filter reaches the query", () => {
     expect(seen.params?.value).toEqual({
       from: "2026-06-01", to: "2026-06-30", vehicleIds: ["v1", "v2"], states: ["TX", "CA"], siteIds: ["s-1"], networks: ["out", "unknown"],
     });
+  });
+
+  // F21 R4b: the page reads its own link contract, so Ask AI's "Open in Fuel costs" — built by the same
+  // `fuelCostsToQuery` — opens exactly the filters the answer reported.
+  it("opens on exactly the filters a link built by its contract carries", async () => {
+    const filters = { from: "2026-07-01", to: "2026-09-30", vehicleIds: ["v748", "v751"], states: ["TX"], siteIds: ["s-1"], networks: ["out"] };
+    await mountPage(`?${new URLSearchParams(fuelCostsToQuery(filters)).toString()}`);
+    expect(seen.params?.value).toEqual(filters);
   });
 
   it("follows the URL when a filter changes, rather than holding its first answer", async () => {

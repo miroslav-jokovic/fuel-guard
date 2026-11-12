@@ -41,7 +41,7 @@ const stub = (name: string) => ({ name, template: `<div data-body="${name}" />` 
 const STUBS = {
   ApplicationInviteCard: stub("invite"),
   AuthorizationsPanel: stub("authorizations"),
-  ApplicantIdentityCorrection: stub("identity"),
+  ApplicantIdentityOnFile: { ...stub("identity"), name: "ApplicantIdentityOnFile", emits: ["correct"] },
   SendApplicationPanel: stub("send"),
   SendForSigningPanel: stub("send-for-signing"),
   EmploymentHistorySection: stub("employment"),
@@ -166,9 +166,16 @@ describe("a row opens the work behind the step", () => {
     expect(bodies(await openOn("application_sent", null))).toEqual([]);
   });
 
-  it("puts the identity correction under the releases, and only when there is an invitation", async () => {
+  it("puts the identity under the releases, and only when there is an invitation", async () => {
     expect(bodies(await openOn("permissions_signed"))).toEqual(["authorizations", "identity"]);
     expect(bodies(await openOn("permissions_signed", null))).toEqual(["authorizations"]);
+  });
+
+  /** F3c part 2, step 6: corrected on the application's card — the drawer asks the page, naming the invitation. */
+  it("hands a correction of the identity to the page, for this invitation's card", async () => {
+    await openOn("permissions_signed");
+    wrapper!.findComponent({ name: "ApplicantIdentityOnFile" }).vm.$emit("correct");
+    expect(wrapper!.emitted("correctIdentity")).toEqual([["invite-1"]]);
   });
 
   /**

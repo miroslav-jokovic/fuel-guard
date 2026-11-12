@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { OVERLAY_HEADLINE_MAX_CHARS } from "./copyCandidates.js";
-import { adBrandKitSaveSchema, adBrandKitSchema, adPresetRecipeSchema, adPresetSaveSchema, kitAssets, templateSlots, type AdBrandKit, type AdPresetRecipe } from "./brandKitContract.js";
+import { OVERLAY_HEADLINE_MAX_CHARS, OVERLAY_SMALL_LINE_MAX_CHARS } from "./copyCandidates.js";
+import { adBrandKitSaveSchema, adBrandKitSchema, adPresetRecipeSchema, adPresetSaveSchema, conceptPair, conceptPairLabel, kitAssets, overlaySlotList, templateSlots, type AdBrandKit, type AdPresetRecipe } from "./brandKitContract.js";
 import { safeZone } from "./renderGeometry.js";
 
 /** Fixtures only — never a real brand value or preset (Q-AD14, Q-AD12 are the owner's). */
@@ -14,8 +14,48 @@ const RECIPE: AdPresetRecipe = {
   starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null, layout: "bottom_plate", formats: ["1:1"],
   overlay_slots: null,
   platform_slots: null,
+  hook_family: "pay_first", scene_family: "equipment_at_rest",
 };
 const ASSET = { sha256: "a".repeat(64), format: "png", source_format: "svg", width: 10, height: 10, byte_size: 99 } as const;
+
+describe("a preset's look (ADS-AD-LOOK-PLAN D-ADL11)", () => {
+  it("a recipe saved before the looks still parses and names none; a named look is one of the two; any other word is refused", () => {
+    const before = adPresetRecipeSchema.safeParse(RECIPE);
+    expect(before.success && before.data.look).toBe(undefined);
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, look: "ribbon" }).success).toBe(true);
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, look: "rail" }).success).toBe(true);
+    expect(adPresetRecipeSchema.safeParse({ ...RECIPE, look: "poster" }).error?.issues.map((i) => i.path.join("."))).toEqual(["look"]);
+  });
+});
+
+describe("the two small lines on the image (ADS-AD-LOOK-PLAN D-ADL4)", () => {
+  const six = { ...RECIPE, copy_slots: [...RECIPE.copy_slots, { name: "who", max_chars: 28 }, { name: "also", max_chars: 28 }, { name: "body", max_chars: 200 }, { name: "title", max_chars: 40 }] };
+  const slots = (over: object) => ({ ...six, overlay_slots: { headline: "hook", cta: "cta", ...over }, platform_slots: { primary_text: "body", headline: "title" } });
+  const issues = (r: object) => adPresetRecipeSchema.safeParse(r).error?.issues.map((i) => [i.path.join("."), i.message]) ?? [];
+
+  it("a preset may name a slot for either, both or neither; absent and null both mean the line is not drawn", () => {
+    for (const over of [{}, { kicker: "who" }, { subline: "also" }, { kicker: "who", subline: "also" }, { kicker: null, subline: null }]) expect(issues(slots(over)), JSON.stringify(over)).toEqual([]);
+    expect(overlaySlotList({ headline: "hook", cta: "cta", kicker: "who", subline: "also" })).toEqual([["kicker", "who"], ["headline", "hook"], ["subline", "also"], ["cta", "cta"]]);
+    expect(overlaySlotList({ headline: "hook", cta: "cta", kicker: null })).toEqual([["headline", "hook"], ["cta", "cta"]]);
+  });
+
+  it("a small line must be one of the copy slots, and no two lines on the image may read the same slot", () => {
+    expect(issues(slots({ kicker: "nobody" }))).toEqual([["overlay_slots.kicker", "nobody is not one of copy_slots"]]);
+    expect(issues(slots({ kicker: "hook" }))).toEqual([["overlay_slots", "each line on the image is a different slot"]]);
+    expect(issues(slots({ kicker: "who", subline: "who" }))).toEqual([["overlay_slots", "each line on the image is a different slot"]]);
+  });
+
+  it("a slot drawn as a small line cannot also be the platform's text", () => {
+    expect(issues({ ...slots({ kicker: "who" }), platform_slots: { primary_text: "who", headline: "title" } })).toEqual([["platform_slots.primary_text", "who is drawn on the image; the platform's text is another slot"]]);
+  });
+
+  it("the save refuses a small line allowed more than its one line holds, by name, and accepts one at the limit", () => {
+    const save = (max: number, role: "kicker" | "subline") => adPresetSaveSchema.safeParse({ key: "P1", enabled: true, recipe: { ...slots({ [role]: "who" }), copy_slots: six.copy_slots.map((c) => (c.name === "who" ? { ...c, max_chars: max } : c)) } });
+    expect(save(OVERLAY_SMALL_LINE_MAX_CHARS, "kicker").success).toBe(true);
+    expect(save(OVERLAY_SMALL_LINE_MAX_CHARS + 1, "kicker").error?.issues.map((i) => i.message)).toEqual(["The small line above the headline (who) holds at most 28 characters: it is one line at one size."]);
+    expect(save(OVERLAY_SMALL_LINE_MAX_CHARS + 1, "subline").error?.issues.map((i) => i.message)).toEqual(["The second line under the headline (who) holds at most 28 characters: it is one line at one size."]);
+  });
+});
 
 describe("brand kit contract", () => {
   it("lets a kit tighten a format's safe zone, never widen it", () => {
@@ -96,6 +136,26 @@ describe("preset recipe contract", () => {
     expect(noPlatform.error?.issues.map((i) => i.path.join("."))).toEqual(["recipe.platform_slots"]);
     // The recipe itself still parses without them: a body saved before B2c is history, not an error.
     expect(adPresetRecipeSchema.safeParse({ ...whole, overlay_slots: null, platform_slots: null }).success).toBe(true);
+  });
+
+  it("a new version must name its concept — both families, from the closed lists — though a stored recipe may not", () => {
+    const four = { ...RECIPE, copy_slots: [...RECIPE.copy_slots, { name: "body", max_chars: 200 }, { name: "title", max_chars: 40 }] };
+    const whole = { ...four, overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: { primary_text: "body", headline: "title" } };
+    const { hook_family: _h, scene_family: _s, ...older } = whole;
+    const refused = adPresetSaveSchema.safeParse({ key: "P1", enabled: false, recipe: older });
+    expect(refused.error?.issues.map((i) => [i.path.join("."), i.message])).toEqual([
+      ["recipe.hook_family", "Choose what the first line leads with: pay, life, equipment, straight talk or proof."],
+      ["recipe.scene_family", "Choose what the picture shows: the cab, the truck on the road, the truck at rest, a home street or a plain background."],
+    ]);
+    expect(adPresetSaveSchema.safeParse({ key: "P1", enabled: false, recipe: { ...whole, scene_family: undefined } }).error?.issues.map((i) => i.path.join("."))).toEqual(["recipe.scene_family"]);
+    // A body stored before P1-6 is history: it parses, and has no pair to compare.
+    expect(adPresetRecipeSchema.safeParse(older).success).toBe(true);
+    expect(conceptPair(adPresetRecipeSchema.parse(older))).toBeNull();
+    expect(conceptPair(whole)).toBe("pay_first+equipment_at_rest");
+    expect(conceptPairLabel(whole)).toBe("pay first, truck at rest");
+    // Closed lists: a family typed outside them is refused by the recipe itself.
+    expect(adPresetRecipeSchema.safeParse({ ...whole, hook_family: "humour" }).success).toBe(false);
+    expect(adPresetRecipeSchema.safeParse({ ...whole, scene_family: "beach" }).success).toBe(false);
   });
 
   it("a new version must hold a format an ad is shown in: 9:16 alone is refused in a sentence, 9:16 beside a feed format is kept", () => {

@@ -1,15 +1,15 @@
 import type { Request, Response, Router } from "express";
-import { adAssetAcceptSchema, adBrandKitSaveSchema, adPresetSaveSchema, type AppSection } from "@silvicom/shared";
+import { adAssetAcceptSchema, adBrandKitSaveSchema, adPresetSaveSchema, conceptPairLabel, type AppSection } from "@silvicom/shared";
 import { requireAdminOnly, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import type { Actor } from "../settings/settingsVersions.js";
 import { acceptAsset, assetUploadUrl } from "../creative/brandAssets.js";
-import { listBrandKits, listPresets, saveBrandKitVersion, savePresetVersion, type SaveOutcome } from "../creative/kitVersions.js";
+import { adoptStarterPresets, listBrandKits, listPresets, saveBrandKitVersion, savePresetVersion, type SaveOutcome } from "../creative/kitVersions.js";
 
 /**
- * `/api/ads/brand-kits`, `/api/ads/presets` (workflow C1; plan D-AD10, D-AD11, §5).
+ * `/api/ads/brand-kits`, `/api/ads/presets`, `/api/ads/presets/adopt` (workflow C1; plan D-AD10, D-AD11, §5; Q-AD77).
  *   read     anyone who can VIEW the brief's section — the readers of Settings › Ads control
  *   write    `ads.brand-kit` (admin only, by name): `ADS_AUTHORITY.edit_settings_brand_kit_presets`
  *            is `["admin"]`. No fresh sign-in: nothing here spends or hands an account over, and a
@@ -54,7 +54,18 @@ export function mountBrandKitRoutes(router: Router, deps: { section: AppSection;
   router.post("/presets", write, asyncHandler(async (req, res) => {
     const parsed = adPresetSaveSchema.safeParse(req.body);
     if (!parsed.success) return void res.status(400).json(apiError("bad_request", parsed.error.issues[0]?.message ?? "Invalid preset"));
-    send(res, await savePresetVersion(admin(req), req.auth!.orgId!, await deps.actorOf(req), parsed.data), "preset");
+    const out = await savePresetVersion(admin(req), req.auth!.orgId!, await deps.actorOf(req), parsed.data);
+    if (out.kind === "concept_taken") {
+      const pair = conceptPairLabel(parsed.data.recipe)!;
+      return void res.status(409).json({ ...apiError("ads_concept_taken", `${parsed.data.key} and ${out.key} would both be live as "${pair}", and Meta shows two ads of one idea as one. Change the hook or the scene of ${parsed.data.key}, or switch ${out.key} off first.`), key: out.key });
+    }
+    send(res, out, "preset");
+  }));
+
+  /** The five starters (Q-AD77), switched off; a key the carrier holds is skipped and named. Same door as a save. */
+  router.post("/presets/adopt", write, asyncHandler(async (req, res) => {
+    const out = await adoptStarterPresets(admin(req), req.auth!.orgId!, await deps.actorOf(req));
+    res.status(out.adopted.length > 0 ? 201 : 200).json(out);
   }));
 }
 
@@ -64,6 +75,7 @@ function send(res: Response, out: SaveOutcome, what: string): void {
     case "conflict": return void res.status(409).json(apiError("ads_version_conflict", `Someone saved this ${what} at the same moment. Reload and try again.`));
     case "not_found": return void res.status(404).json(apiError("not_found", `This ${what} does not exist.`));
     case "archived": return void res.status(409).json(apiError("ads_archived", `This ${what} is archived; it takes no new versions.`));
+    case "concept_taken": throw new Error("concept_taken is answered by the presets route");
     case "assets_mismatch": return void res.status(422).json({ ...apiError("ads_assets_mismatch", "A file this brand kit names was not uploaded here, or is not the file described. Upload it again."), sha256: out.sha256 });
   }
 }

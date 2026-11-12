@@ -100,6 +100,17 @@ const settle = async (w: ReturnType<typeof drawer>) => {
 const button = (w: ReturnType<typeof drawer>, label: string) =>
   w.findAll("button").find((b) => b.text().trim().startsWith(label));
 
+/** F3: an answer's row on the Applicant facts card, and its Edit (absent when its door is closed). */
+const factRow = (w: ReturnType<typeof drawer>, key: string) => w.find(`[data-fact='${key}']`);
+const editOf = (w: ReturnType<typeof drawer>, key: string) => {
+  const row = factRow(w, key);
+  return row.exists() ? row.findAll("button").find((b) => b.text().trim() === "Edit") : undefined;
+};
+async function openFact(w: ReturnType<typeof drawer>, key: string): Promise<void> {
+  await editOf(w, key)!.trigger("click");
+  await settle(w);
+}
+
 beforeEach(() => {
   sessionHolder.s!.role = "recruiter";
   pinia = createPinia();
@@ -123,7 +134,7 @@ describe("what the office reads", () => {
     const w = drawer();
     await settle(w);
     expect(w.find("[data-testid='review-read-only']").exists()).toBe(true);
-    expect(w.text()).not.toContain("Correct an answer");
+    expect(w.find("[data-applicant-facts]").exists()).toBe(false);
     expect(w.findAll("button").some((b) => b.text().startsWith("Approve"))).toBe(false);
   });
 
@@ -157,6 +168,43 @@ describe("what the office reads", () => {
   });
 
   /**
+   * F3c part 2 (D-AM7): the jobs are the card's Employment group — every answer on the one card — and
+   * still have ONE editor. Before this they were a second section of the drawer under the card.
+   */
+  it("draws the jobs once, inside the Applicant facts card's Employment group", async () => {
+    const w = drawer();
+    await settle(w);
+    expect(w.findAll("[data-testid='employment-timeline']")).toHaveLength(1);
+    const card = w.find("[data-applicant-facts]");
+    expect(card.find("[data-testid='employment-timeline']").text()).toContain("Old Carrier");
+    expect(card.findAll("button").some((b) => b.text().trim() === "Add a job")).toBe(true);
+  });
+
+  it("keeps a job found by the card's search, and leaves it out of a search for something else", async () => {
+    const w = drawer();
+    await settle(w);
+    // The search field's own debounce is its business; the card's is what the query does.
+    const search = w.findComponent({ name: "AppSearchField" });
+    search.vm.$emit("update:modelValue", "old carrier");
+    await settle(w);
+    expect(w.find("[data-applicant-facts] [data-testid='employment-timeline']").exists()).toBe(true);
+    expect(w.find("[data-fact='date_of_birth']").exists()).toBe(false);
+    search.vm.$emit("update:modelValue", "date of birth");
+    await settle(w);
+    expect(w.find("[data-fact='date_of_birth']").exists()).toBe(true);
+    expect(w.find("[data-testid='employment-timeline']").exists()).toBe(false);
+  });
+
+  it("⚠ still shows a view-only reader the jobs, read-only, without the card", async () => {
+    sessionHolder.s!.role = "auditor";
+    const w = drawer();
+    await settle(w);
+    expect(w.find("[data-applicant-facts]").exists()).toBe(false);
+    expect(w.find("[data-testid='employment-timeline']").text()).toContain("Old Carrier");
+    expect(w.findAll("button").some((b) => b.text().trim() === "Add a job")).toBe(false);
+  });
+
+  /**
    * §15.3 D-CQ2: the carrier's own questions print from the invitation's STAMP, the words this applicant
    * was asked — a question the carrier retired since still prints, and the skip reads as the applicant chose it.
    */
@@ -165,6 +213,7 @@ describe("what the office reads", () => {
       ok: true,
       data: review({
         payload: { ...PAYLOAD, carrier_answers: { "q-pet": true, "q-lane": "I'd rather not say" } },
+        edits: [{ path: ["carrier_answers", "q-lane"], before: "East", after: "I'd rather not say", editedAt: "2026-11-11T12:00:00Z", editedBy: "Dana" }],
         carrierQuestions: [
           { id: "q-pet", wording: "Do you own a pet?", hint: null, kind: "boolean", choices: null, required: true },
           { id: "q-lane", wording: "Preferred lane", hint: null, kind: "select", choices: ["East", "West"], required: false },
@@ -178,16 +227,21 @@ describe("what the office reads", () => {
     expect(text).toContain("Preferred lane");
     expect(text).toMatch(/Do you own a pet\?\s*Yes/);
     expect(text).toMatch(/Preferred lane\s*I'd rather not say/);
-    // Not offered as a correction: the draft does not carry the stamp that labels them (Q-CQ7).
-    expect(w.find("[id^='apply-carrier_answers']").exists()).toBe(false);
+    // F3c part 2, step 5: corrected on the card, one row per stamped question (until then not offered —
+    // the draft does not carry the stamp, Q-CQ7; the review response does).
+    expect(w.find("[data-fact='carrier_answers.q-pet']").text()).toContain("Do you own a pet?");
+    expect(w.find("[data-fact='carrier_answers.q-lane']").exists()).toBe(true);
+    // "What you changed" names the question by its stamped words, not "The carrier's own questions".
+    expect(text).toMatch(/Preferred lane\s*East/);
+    expect(text).not.toContain("The carrier's own questions East");
   });
 
   /**
    * C3c2c2 (Q-AW34): a v2 application is read as filing will compose it — Part 1's phone, not the draft's
-   * retyped copy — with the applicant's note above the answers, and no box offered for an answer filing
-   * takes from Part 1 (the correction would be filed over).
+   * retyped copy — with the applicant's note above the answers. F3: the card shows that phone once, and
+   * corrects it through Part 1, where filing takes it from; a legacy link's phone is the draft's.
    */
-  it("reads a v2 application as filing composes it, shows the note, and offers no Part 1 answer to correct", async () => {
+  it("reads a v2 application as filing composes it, shows the note, and corrects Part 1's answers at Part 1", async () => {
     const FACTS = {
       intake: {
         phone: "+13125550142", address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL",
@@ -203,35 +257,74 @@ describe("what the office reads", () => {
     expect(w.text()).toContain("+13125550142");
     expect(w.text()).not.toContain("555-0000");
     expect(w.find("[data-correction-note]").text()).toContain("My phone ends in 42.");
-    expect(w.find("input#apply-phone").exists()).toBe(false);
+    expect(factRow(w, "phone").text()).toContain("(312) 555-0142");
 
+    await openFact(w, "phone");
+    // E8: the box opens as a person types a phone, never Part 1's stored "+13125550142".
+    expect((w.find("input#apply-phone").element as HTMLInputElement).value).toBe("(312) 555-0142");
+    expect(button(w, "Save")!.attributes("disabled")).toBeDefined();
+    await w.find("input#apply-phone").setValue("(312) 555-0199");
+    apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true } });
+    await button(w, "Save")!.trigger("click");
+    await settle(w);
+    const sent = apiFetch.mock.calls.find((c) => String(c[0]).endsWith("/part-one"));
+    expect(sent?.[1].body).toMatchObject({ phone: "+13125550199", address_line1: "1 Main St", cdl_class: "A" });
+    expect(apiFetch.mock.calls.some((c) => c[1]?.method === "PATCH")).toBe(false);
+
+    apiFetch.mockReset();
     apiFetch.mockResolvedValue({ ok: true, data: review({ payload: { ...PAYLOAD, phone: "555-0000" } }) });
     const legacy = drawer();
     await settle(legacy);
     expect(legacy.text()).toContain("555-0000");
     expect(legacy.find("[data-correction-note]").exists()).toBe(false);
-    expect(legacy.find("input#apply-phone").exists()).toBe(true);
+    await openFact(legacy, "phone");
+    await legacy.find("input#apply-phone").setValue("555-0001");
+    await button(legacy, "Save")!.trigger("click");
+    await settle(legacy);
+    expect(apiFetch.mock.calls.find((c) => c[1]?.method === "PATCH")?.[1].body).toMatchObject({ path: ["phone"], value: "555-0001" });
   });
 
-  /** Q-AW36: the correction the note asks for sits under it — on a v2 application, until filing (§9 P5). */
-  it("offers the Part 1 correction on a v2 application until it is filed, and never on a legacy one", async () => {
+  /**
+   * F0b: an applicant who opened their application with a code could not match the date of birth on
+   * file — the date is what may be wrong, and the office corrects it (Q-AM13).
+   */
+  it("tells the office the date of birth on file may be wrong when the applicant used a code", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review({ unlockedByCodeAt: "2026-11-10T15:01:00Z" }) });
+    const w = drawer();
+    await settle(w);
+    expect(w.find("[data-unlocked-by-code]").text()).toContain("The date of birth on file may be wrong.");
+    expect(w.find("[data-unlocked-by-code]").text()).toContain("correct it under Applicant facts");
+
+    apiFetch.mockResolvedValue({ ok: true, data: review({ unlockedByCodeAt: null }) });
+    const never = drawer();
+    await settle(never);
+    expect(never.find("[data-unlocked-by-code]").exists()).toBe(false);
+  });
+
+  /**
+   * Q-AW36 → F3: Part 1's answers are corrected while the office screens — before it has sent the form
+   * (`editable` false) — and after approval, until filing or the first packet mark; a legacy link's
+   * phone is a draft answer, so it follows the draft's window.
+   */
+  it("offers Part 1's answers for correction on a v2 application until it is filed or signing starts", async () => {
     const FACTS = {
       intake: { phone: "+13125550142", address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL",
         postal_code: "60431", prior_positive_2y: false, cdl_class: "A" },
       licences: [{ position: 0, state_code: "IL", agency: null, licence_number: "IL123", expires_on: "2029-03-01" }],
       asOf: "2026-09-26",
     };
-    for (const [over, shown] of [
+    for (const [over, offered] of [
       [{ partOne: FACTS }, true],
       [{ partOne: FACTS, state: "filling", editable: false }, true],
       [{ partOne: FACTS, state: "approved", editable: true }, true],
+      [{ partOne: FACTS, state: "approved", editable: true, signingStarted: true }, false],
       [{ partOne: FACTS, state: "certified", editable: false }, false],
-      [{}, false],
+      [{ state: "filling", editable: false }, false],
     ] as const) {
       apiFetch.mockResolvedValue({ ok: true, data: review(over) });
       const w = drawer();
       await settle(w);
-      expect(w.find("[data-part-one-correction]").exists(), JSON.stringify(over).slice(0, 60)).toBe(shown);
+      expect(Boolean(editOf(w, "phone")), JSON.stringify(over).slice(0, 80)).toBe(offered);
     }
   });
 
@@ -270,6 +363,9 @@ async function fillJob(w: ReturnType<typeof drawer>, over: { street?: boolean; t
   w.findAllComponents({ name: "AppCombobox" }).find((c) => c.props("id") === "office-employer-state")!.vm.$emit("update:modelValue", "NE");
   await field(w, "reason_for_leaving").setValue("Moved");
   await settle(w);
+  // F1 part 2: neither starts at Yes, so the office answers both before the (iv) pair.
+  await field(w, "operated_cmv").findAll("input[type=radio]")[0]!.setValue(true);
+  await field(w, "dot_regulated").findAll("input[type=radio]")[0]!.setValue(true);
   await field(w, "subject_to_fmcsr").findAll("input[type=radio]")[0]!.setValue(true);
   if (over.tested !== false) await field(w, "safety_sensitive").findAll("input[type=radio]")[1]!.setValue(true);
   await settle(w);
@@ -363,8 +459,8 @@ describe("correcting one answer", () => {
     const w = drawer();
     await settle(w);
 
-    const name = w.find("input#apply-first_name");
-    await name.setValue("Suzan");
+    await openFact(w, "first_name");
+    await w.find("input#apply-first_name").setValue("Suzan");
     await settle(w);
     apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true } });
     await button(w, "Save")!.trigger("click");
@@ -383,11 +479,12 @@ describe("correcting one answer", () => {
 
   /**
    * F0 (APPLICATION-FIX-PLAN E9): a refused correction used to clear the box, so the recruiter lost what
-   * they had typed. It stays now, with Save still offered and the stored answer printed beneath it.
+   * they had typed. It stays now, with Save still offered, the reason under it and the answer on file.
    */
   it("⚠ keeps what the recruiter typed when the correction is refused, beside the answer on file", async () => {
     const w = drawer();
     await settle(w);
+    await openFact(w, "first_name");
     await w.find("input#apply-first_name").setValue("Suzan");
     await settle(w);
     apiFetch.mockResolvedValueOnce({ ok: false, status: 409, data: null, error: { message: "The applicant saved first." } });
@@ -396,18 +493,38 @@ describe("correcting one answer", () => {
 
     expect((w.find("input#apply-first_name").element as HTMLInputElement).value).toBe("Suzan");
     expect(button(w, "Save")).toBeDefined();
-    expect(w.find("[data-testid='answer-on-file']").text()).toContain("Susan");
+    expect(w.text()).toContain("The applicant saved first.");
+    expect(w.find("[data-fact-on-file]").text()).toContain("Susan");
 
-    await button(w, "Undo")!.trigger("click");
+    await button(w, "Cancel")!.trigger("click");
     await settle(w);
-    expect((w.find("input#apply-first_name").element as HTMLInputElement).value).toBe("Susan");
+    expect(w.find("input#apply-first_name").exists()).toBe(false);
+    expect(factRow(w, "first_name").text()).toContain("Susan");
   });
 
-  it("⚠ does not offer the date of birth for correction here — it is the record's, and would be replaced", async () => {
+  /**
+   * F3 (E1 → Q-AM13): the date of birth is the record's, so it is corrected through the identity writer —
+   * with the licence it is written beside, as shown — and never as a draft edit, which would be replaced.
+   */
+  it("corrects the date of birth through the identity writer, with its own date control", async () => {
+    apiFetch.mockResolvedValue({
+      ok: true,
+      data: review({ payload: { ...PAYLOAD, cdl_number: "IL123", cdl_state: "IL" } }),
+    });
     const w = drawer();
     await settle(w);
-    expect(w.find("input#apply-date_of_birth").exists()).toBe(false);
-    expect(w.text()).toContain("Date of birth and licence");
+    expect(factRow(w, "date_of_birth").text()).toContain("04/01/1980");
+    await openFact(w, "date_of_birth");
+    const box = w.find("input#apply-date_of_birth");
+    await box.setValue("01041980");
+    await box.trigger("blur");
+    await settle(w);
+    apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true } });
+    await button(w, "Save")!.trigger("click");
+    await settle(w);
+    const call = apiFetch.mock.calls.find((c) => String(c[0]).endsWith("/identity"));
+    expect(call?.[1].body).toEqual({ date_of_birth: "1980-01-04", cdl_number: "IL123", cdl_state: "IL" });
+    expect(apiFetch.mock.calls.some((c) => c[1]?.method === "PATCH")).toBe(false);
   });
 
   it("offers nothing to save until something is actually different", async () => {
@@ -416,6 +533,8 @@ describe("correcting one answer", () => {
     const w = drawer();
     await settle(w);
     expect(button(w, "Save")).toBeUndefined();
+    await openFact(w, "first_name");
+    expect(button(w, "Save")!.attributes("disabled")).toBeDefined();
   });
 
   it("shows every correction, with what the answer was before it", async () => {
@@ -434,6 +553,51 @@ describe("correcting one answer", () => {
   });
 });
 
+/** F3 (Q-AM13): the driver's own statements need a reason; the donor gender is replaced blind. */
+describe("the owner's two exceptions", () => {
+  const V2 = {
+    partOne: PART_ONE,
+    partOneAnswers: { dot_program_30d: true, dot_tested_6m: false, dot_random_12m: true, medical_card_pending: false, endorsements: [], donorGenderGiven: true },
+  };
+
+  it("keeps Save off on a drug-test statement until the office gives its reason, then sends it", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review(V2) });
+    const w = drawer();
+    await settle(w);
+    await openFact(w, "dot_tested_6m");
+    await factRow(w, "dot_tested_6m").findAll("input[type=radio]")[0]!.setValue(true);
+    await settle(w);
+    expect(button(w, "Save")!.attributes("disabled")).toBeDefined();
+    await w.find("[data-fact-note]").setValue("Driver called: tested in May");
+    await settle(w);
+    apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true } });
+    await button(w, "Save")!.trigger("click");
+    await settle(w);
+    const call = apiFetch.mock.calls.find((c) => String(c[0]).endsWith("/part-one/answer"));
+    expect(call?.[1].body).toEqual({ key: "dot_tested_6m", value: true, note: "Driver called: tested in May" });
+  });
+
+  it("⚠ never shows the donor gender — says it was given, and opens the editor empty", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review(V2) });
+    const w = drawer();
+    await settle(w);
+    expect(factRow(w, "donor_gender").text()).toContain("Given — not shown to the office");
+    await openFact(w, "donor_gender");
+    expect(w.find("[data-fact-blind]").exists()).toBe(true);
+    expect(w.find("[data-fact-on-file]").exists()).toBe(false);
+  });
+
+  it("says a withheld correction was a replacement, never what to or from", async () => {
+    apiFetch.mockResolvedValue({
+      ok: true,
+      data: review({ ...V2, edits: [{ path: ["donor_gender"], before: null, after: null, withheld: true, note: null, editedAt: "2026-11-10T12:00:00Z", editedBy: null }] }),
+    });
+    const w = drawer();
+    await settle(w);
+    expect(w.text()).toContain("Replaced — not shown to the office");
+  });
+});
+
 /**
  * ⚠ The window. It would be easy to leave the controls up until the driver signs — the draft is still
  * a draft. It must not be: approval is what tells the driver *this document, now, please sign it*.
@@ -443,7 +607,7 @@ describe("when the answers may still be changed", () => {
     apiFetch.mockResolvedValue({ ok: true, data: review({ state: "approved", editable: false }) });
     const w = drawer();
     await settle(w);
-    expect(w.find("input#apply-first_name").exists()).toBe(false);
+    expect(w.findAll("[data-fact] button").length).toBe(0);
     expect(button(w, "Approve")).toBeUndefined();
     // And says why, rather than simply having nothing there.
     expect(w.text()).toContain("started signing");
@@ -453,7 +617,7 @@ describe("when the answers may still be changed", () => {
     apiFetch.mockResolvedValue({ ok: true, data: review({ state: "approved", editable: true }) });
     const w = drawer();
     await settle(w);
-    expect(w.find("input#apply-first_name").exists()).toBe(true);
+    expect(editOf(w, "first_name")).toBeDefined();
     expect(button(w, "Approve")).toBeUndefined();
   });
 
@@ -461,7 +625,7 @@ describe("when the answers may still be changed", () => {
     apiFetch.mockResolvedValue({ ok: true, data: review({ state: "filling", editable: true }) });
     const w = drawer();
     await settle(w);
-    expect(w.find("input#apply-first_name").exists()).toBe(true);
+    expect(editOf(w, "first_name")).toBeDefined();
     expect(button(w, "Approve")).toBeUndefined();
     expect(w.text()).toContain("type in what they tell you on the phone");
   });
@@ -594,6 +758,6 @@ describe("when the application cannot be read (D-US5)", () => {
     // loads the PSP suggestions beside the jobs (HW6b), which is a different question.
     expect(apiFetch.mock.calls.filter(([path]) => !String(path).includes("psp")).length).toBe(2);
     expect(w.text()).not.toContain("Could not load the application.");
-    expect(w.text()).toContain("Correct an answer");
+    expect(w.text()).toContain("Applicant facts");
   });
 });

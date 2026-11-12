@@ -179,7 +179,7 @@ export const APPLICATION_SECTION_KEYS: Record<
   // §391.21(b)(2) does not ask for it and §391.23(a)(2) is what it serves (see the contract).
   identity: ["first_name", "middle_name", "last_name", "other_names", "date_of_birth", "email", "phone"],
   addresses: ["addresses"],
-  licence: ["cdl_number", "cdl_state", "cdl_class", "cdl_expires_at", "additional_licences"],
+  licence: ["cdl_number", "cdl_state", "cdl_class", "cdl_endorsements", "cdl_expires_at", "additional_licences"],
   // Both halves of (b)(6) live here: the narrative and the equipment grid the same sentence requires.
   employment: [
     "experience", "equipment_experience", "employers", "declares_no_employment", "employment_gaps",
@@ -191,6 +191,8 @@ export const APPLICATION_SECTION_KEYS: Record<
     "declares_no_violations",
     "licence_ever_denied",
     "licence_denial_detail",
+    "licence_suspended",
+    "licence_suspension_detail",
     // ⚠ §40.25(j)'s two-year question (P8). On THIS screen rather than `employment` because it is a
     // question about the applicant's own testing history, not about a job they held — the employment
     // screen's `safety_sensitive`/`subject_to_fmcsr` are per-employer and answer something else. The

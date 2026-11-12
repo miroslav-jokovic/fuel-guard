@@ -255,3 +255,27 @@ describe("the summary that reaches the log", () => {
     }
   });
 });
+
+/**
+ * D-DR30: modules add totals to the per-minute line (the tile proxy's `hereTiles`: what HERE refused,
+ * what the pacer queued). The line is the only place those numbers can be read in production.
+ */
+describe("extra sections on the metrics line", () => {
+  it("prints a section with something to say and leaves a silent one out", async () => {
+    const { registerMetricsSection, drainMetricsSections, formatMetricsLine, snapshotRequestMetrics } =
+      await import("./requestMetrics.js");
+    let refused = 3;
+    registerMetricsSection("testTiles", () => {
+      const out = { refused429: refused };
+      refused = 0;
+      return out;
+    });
+    registerMetricsSection("testQuiet", () => ({ n: 0 }));
+    const first = drainMetricsSections();
+    expect(first).toMatchObject({ testTiles: { refused429: 3 } });
+    expect(first).not.toHaveProperty("testQuiet");
+    expect(formatMetricsLine(snapshotRequestMetrics(), first)).toContain('"testTiles":{"refused429":3}');
+    // Drained: the next window starts from zero, so a minute is never counted twice.
+    expect(drainMetricsSections()).not.toHaveProperty("testTiles");
+  });
+});

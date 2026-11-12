@@ -17,6 +17,7 @@ import {
   formatDisplayDate,
   formatDisplayDayShort,
   IDLE_DEFAULT_WINDOW_DAYS,
+  IDLING_QUERY_KEYS,
   type ApuType,
   type BehavesLike,
 } from "@silvicom/shared";
@@ -47,9 +48,10 @@ const isoDay = (key: string) => {
 };
 
 // Date range (drives the driver leaderboard, the fleet KPIs, and the avoidable-idles tab). The picker
-// emits YYYY-MM-DD; unset = the default last-30-days window. `to` is made end-of-day inclusive.
-const dateFrom = isoDay("from");
-const dateTo = isoDay("to");
+// emits YYYY-MM-DD; unset = the default last-30-days window. `to` is made end-of-day inclusive. The
+// keys are the page's link contract's, so Ask AI's link and the page cannot name them differently.
+const dateFrom = isoDay(IDLING_QUERY_KEYS.from);
+const dateTo = isoDay(IDLING_QUERY_KEYS.to);
 const dateFilter = computed<IdleDateFilter>(() => ({
   from: dateFrom.value ? `${dateFrom.value}T00:00:00` : undefined,
   to: dateTo.value ? `${dateTo.value}T23:59:59` : undefined,

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
-import { AI_MODELS, checkClaims, type AdBrief, type AdClaim, type AdPresetRecipe, type ClaimFinding } from "@silvicom/shared";
+import { AI_MODELS, checkClaims, overlaySlotList, type AdBrief, type AdClaim, type AdPresetRecipe, type ClaimFinding } from "@silvicom/shared";
 import type { ForcedTool } from "../../../../lib/anthropic.js";
 import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOutcome } from "../../generations/claudeGeneration.js";
 
@@ -32,8 +32,8 @@ import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOut
  * `pnpm ads:eval` asks and judges exactly as the worker does.
  */
 
-export const COPYWRITER_PROMPT_VERSION = "copywriter@3";
-const PROMPT = readFileSync(new URL("./prompt.v3.md", import.meta.url), "utf8");
+export const COPYWRITER_PROMPT_VERSION = "copywriter@4";
+const PROMPT = readFileSync(new URL("./prompt.v4.md", import.meta.url), "utf8");
 export const COPY_LANGUAGES = ["en", "es"] as const;
 /** Five candidates of eight slots in two languages is ~5,000 tokens of text; the ceiling leaves room. */
 const MAX_TOKENS = 6000;
@@ -97,8 +97,18 @@ export function shownFact(c: AdClaim): string {
   return `$${dollars}${c.per ? ` per ${c.per}` : ""}`;
 }
 
+/**
+ * How a slot the overlay draws is named to the model (prompt v4; ADS-AD-LOOK-PLAN D-ADL4). Until v4 the model was
+ * handed every slot alike, so the line drawn across the picture in display type was written like the paragraph
+ * beside it: a two-sentence hook near its limit, which the look's ladder then drew at its smallest rung. The
+ * roles are the contract's (`overlaySlotList`), worded for a reader: the model is told a `second_line` and a
+ * `button`, not our field names.
+ */
+const ON_IMAGE = { kicker: "kicker", headline: "headline", subline: "second_line", cta: "button" } as const;
+
 /** The user message: the brief's facts (each also written out), what the job is like, the carrier, and the concept, as data. */
 export function copyUserMessage(brief: Pick<AdBrief, "subject" | "claims" | "subject_matter">, recipe: AdPresetRecipe, ctx: CopyContext = NO_CONTEXT): string {
+  const drawn = new Map(recipe.overlay_slots ? overlaySlotList(recipe.overlay_slots).map(([role, slot]) => [slot, role] as const) : []);
   return JSON.stringify({
     subject: brief.subject,
     facts: brief.claims.map((c) => ({ ...c, shown: shownFact(c) })),
@@ -109,7 +119,7 @@ export function copyUserMessage(brief: Pick<AdBrief, "subject" | "claims" | "sub
     concept: {
       name: recipe.name,
       hook_formula: recipe.hook_formula,
-      slots: recipe.copy_slots.map((s) => ({ name: s.name, max_chars: toldLimit(s.max_chars) })),
+      slots: recipe.copy_slots.map((s) => ({ name: s.name, max_chars: toldLimit(s.max_chars), ...(drawn.has(s.name) ? { on_image: ON_IMAGE[drawn.get(s.name)!] } : {}) })),
     },
   }, null, 2);
 }

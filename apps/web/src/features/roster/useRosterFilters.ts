@@ -1,5 +1,5 @@
 import { computed, type ComputedRef, type WritableComputedRef } from "vue";
-import { type DriverStatus, FILE_FILTERS } from "@silvicom/shared";
+import { DRIVERS_QUERY_KEYS, type DriverStatus, FILE_FILTERS } from "@silvicom/shared";
 import { ANY_PARAM, type SortState, toggleSort, useQueryState } from "@silvicom/ui";
 
 /**
@@ -120,11 +120,11 @@ export function useRosterFilters(): RosterFilters {
   const defaultStatus = computed(() => (showArchived.value ? "" : DEFAULT_ROSTER_STATUS));
   const status = computed<string>({
     get: () => {
-      const raw = one("status");
+      const raw = one(DRIVERS_QUERY_KEYS.status);
       if (raw === undefined) return defaultStatus.value;
       return raw === ANY_PARAM ? "" : raw;
     },
-    set: (v) => setFiltering({ status: v === defaultStatus.value ? undefined : v || ANY_PARAM }),
+    set: (v) => setFiltering({ [DRIVERS_QUERY_KEYS.status]: v === defaultStatus.value ? undefined : v || ANY_PARAM }),
   });
 
   /**
@@ -152,10 +152,11 @@ export function useRosterFilters(): RosterFilters {
    */
   const file = computed<string>({
     get: () => {
-      const v = one("file") ?? one("dq") ?? "";
+      // The File key is the Drivers link contract's (F21 R4b), which Ask AI's link is built with.
+      const v = one(DRIVERS_QUERY_KEYS.file) ?? one("dq") ?? "";
       return (FILE_FILTERS as readonly string[]).includes(v) ? v : "";
     },
-    set: (v) => setFiltering({ file: v || undefined, dq: undefined }),
+    set: (v) => setFiltering({ [DRIVERS_QUERY_KEYS.file]: v || undefined, dq: undefined }),
   });
 
   const seat = computed<string>({

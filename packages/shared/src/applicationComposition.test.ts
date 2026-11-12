@@ -40,6 +40,16 @@ describe("composeFiledApplication", () => {
     expect(out.addresses[0]!.line1).toBe("9 Old Rd");
   });
 
+  /** P3 (F2c part 2): the paper's licence grid has a TYPE for every licence; Part 1's code is filed as held. */
+  it("files each other licence's type as Part 1 holds it, and none for a licence asked before P3", () => {
+    const { application: out } = composeFiledApplication(application(), intake(), [
+      licence(),
+      licence({ position: 1, state_code: "OH", licence_number: "OH55", expires_on: "2028-06-30", kind: "clp" }),
+      licence({ position: 2, state_code: "WI", licence_number: "W1", expires_on: "2028-06-30" }),
+    ], AS_OF);
+    expect(out.additional_licences.map((l) => l.kind)).toEqual(["clp", null]);
+  });
+
   it("files position 0 as the primary licence and only the unexpired others as (b)(5)'s list, replacing the draft's", () => {
     const { application: out } = composeFiledApplication(application(), intake(), [
       licence({ position: 2, state_code: "IN", licence_number: "IN-OLD", expires_on: "2025-01-01" }),
@@ -65,5 +75,16 @@ describe("composeFiledApplication", () => {
     const blank = intake({ phone: null, address_line1: null, prior_positive_2y: null, cdl_class: null });
     const { application: out } = composeFiledApplication(application(), blank, [], AS_OF);
     expect(out).toEqual(application());
+  });
+
+  it("files Part 1's endorsements in the roster's order, an empty list as an answer, and none before the screen asked (F2b)", () => {
+    const filed = (endorsements: string[] | null | undefined) =>
+      composeFiledApplication({ ...application(), cdl_endorsements: ["X"] }, intake({ endorsements }), [licence()], AS_OF)
+        .application.cdl_endorsements;
+    expect(filed(["T", "H", "N"])).toEqual(["H", "N", "T"]);
+    expect(filed([])).toEqual([]);
+    // Never answered in Part 1: what the application held stands (a legacy filing's absent key).
+    expect(filed(null)).toEqual(["X"]);
+    expect(filed(undefined)).toEqual(["X"]);
   });
 });

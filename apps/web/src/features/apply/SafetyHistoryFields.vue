@@ -72,6 +72,14 @@ const everDenied = computed<boolean | null>({
     if (yes === false) draft.value.licence_denial_detail = "";
   },
 });
+/** F2c (P4): the carrier's question B, asked apart from A as page 2 asks it. "No" clears its description. */
+const everSuspended = computed<boolean | null>({
+  get: () => draft.value.licence_suspended,
+  set: (yes) => {
+    draft.value.licence_suspended = yes;
+    if (yes === false) draft.value.licence_suspension_detail = "";
+  },
+});
 </script>
 
 <template>
@@ -144,10 +152,10 @@ const everDenied = computed<boolean | null>({
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <ApplyField v-slot="f" :path="['violations', i, 'state']" :label="copy.violationState" :hint="copy.violationStateHint">
-              <BaseInput v-bind="f" v-model="violation.state" placeholder="Optional" />
+              <BaseInput v-bind="f" v-model="violation.state" autocapitalize="characters" />
             </ApplyField>
             <ApplyField v-slot="f" :path="['violations', i, 'penalty']" :label="copy.penalty" :hint="copy.penaltyHint">
-              <BaseInput v-bind="f" v-model="violation.penalty" placeholder="Optional" />
+              <BaseInput v-bind="f" v-model="violation.penalty" />
             </ApplyField>
           </div>
           <div class="flex justify-end">
@@ -175,6 +183,21 @@ const everDenied = computed<boolean | null>({
       >
         <BaseInput v-bind="f" v-model="draft.licence_denial_detail" />
       </ApplyField>
+      <YesNoField
+        :id="idFor(['licence_suspended'])"
+        v-model="everSuspended"
+        :legend="copy.suspendedQuestion"
+        :error="errorFor(['licence_suspended'])"
+      />
+      <ApplyField
+        v-if="everSuspended"
+        v-slot="f"
+        :path="['licence_suspension_detail']"
+        :label="copy.suspensionDetail"
+        :hint="copy.suspensionDetailHint"
+      >
+        <BaseInput v-bind="f" v-model="draft.licence_suspension_detail" />
+      </ApplyField>
     </div>
 
     <!-- §40.25(j) (P8). The carrier's packet gives this a page of its own; here it is the last block
@@ -186,8 +209,14 @@ const everDenied = computed<boolean | null>({
     <div v-if="askPriorTest" class="space-y-3">
       <h3 class="text-sm font-semibold text-ink">{{ copy.priorTestHeading }}</h3>
       <p class="text-sm text-ink-muted">{{ copy.priorTestIntro }}</p>
-      <BaseCheckbox v-model="draft.prior_failed_pre_employment_test" size="touch">{{ copy.priorTest }}</BaseCheckbox>
-      <p class="text-xs text-ink-muted">{{ copy.priorTestHint }}</p>
+      <!-- F1 part 2: Yes and No, nothing chosen — an unticked box was a "No" nobody gave (audit finding 13). -->
+      <YesNoField
+        :id="idFor(['prior_failed_pre_employment_test'])"
+        v-model="draft.prior_failed_pre_employment_test"
+        :legend="copy.priorTest"
+        :hint="copy.priorTestHint"
+        :error="errorFor(['prior_failed_pre_employment_test'])"
+      />
     </div>
   </section>
 </template>
