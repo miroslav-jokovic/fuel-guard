@@ -58,6 +58,8 @@ export const ASSISTANT_EVAL_SET: AssistantEvalCase[] = [
   { id: "ifta-by-state", kind: "tool", role: "accountant", source: "ifta_report", question: "IFTA by state last quarter: miles, gallons and tax owed", expectTools: ["ifta_report"] },
   { id: "repair-bills", kind: "tool", role: "technician", source: "maintenance_cost", question: "What did trucks 748 and 751 cost in repairs over the last 12 months?", expectTools: ["maintenance_cost"], expectInput: { units: ["748", "751"] } },
   { id: "card-holds", kind: "tool", role: "fleet_manager", source: "card_holds", question: "Which fuel cards are on hold or on a fraud hold right now?", expectTools: ["card_holds"] },
+  // F21 Step 5: a navigation, not a figure. The model must open the page, not read and recite a list.
+  { id: "show-open-fuel-problems", kind: "tool", role: "fleet_manager", source: "open_view", question: "Show me the open fuel problems for unit 718", expectTools: ["open_view"], expectInput: { view: "fuel_problems" } },
   { id: "dq-expiring", kind: "tool", role: "safety_manager", source: "driver_file_expirations", question: "Which drivers have an expired or expiring CDL or medical card?", expectTools: ["driver_file_expirations"] },
   { id: "annual-due", kind: "tool", role: "technician", source: "annual_inspections_due", question: "Which trucks and trailers are due for their annual inspection?", expectTools: ["annual_inspections_due"] },
   { id: "applicants-waiting", kind: "tool", role: "recruiter", source: "recruiting_counts", question: "How many applicants are waiting on us, and who has waited longest?", expectTools: ["recruiting_counts"] },

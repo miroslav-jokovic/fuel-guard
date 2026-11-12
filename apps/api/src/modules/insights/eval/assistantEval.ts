@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assistantToolsFor, assistantUnitKey, MODULE_KEYS, type ModuleSet } from "@silvicom/shared";
+import { assistantToolsFor, assistantUnitKey, assistantViewsFor, MODULE_KEYS, type ModuleSet } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { askData, type AskTrace } from "../askData.js";
 import type { AssistantEvalCase } from "./assistantEvalSet.js";
@@ -98,11 +98,13 @@ export async function runAssistantEval(
   const verdicts: EvalVerdict[] = [];
   for (const c of cases) {
     const allowed = assistantToolsFor(c.role, null, ALL_MODULES);
+    // The pages `open_view` may open for the role, as the route computes them (Step 5).
+    const views = assistantViewsFor(c.role, null, ALL_MODULES);
     const started = Date.now();
     let firstEventMs: number | undefined;
     const trace = await askData(admin, env, orgId, c.question, allowed, new Date(), c.history ?? [], () => {
       firstEventMs ??= Date.now() - started;
-    });
+    }, { views });
     const v: EvalVerdict = { ...scoreCase(c, trace), latencyMs: Date.now() - started, ...(firstEventMs === undefined ? {} : { firstEventMs }) };
     verdicts.push(v);
     onCase?.(v, trace.answer);

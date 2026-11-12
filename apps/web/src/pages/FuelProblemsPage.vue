@@ -14,7 +14,7 @@ import {
 import {
   QUEUE_FINDING_KINDS, FINDING_KIND_LABELS,
   FINDING_QUEUE_STATES, FINDING_QUEUE_STATE_LABELS,
-  findingAgeDays,
+  findingAgeDays, FUEL_PROBLEMS_OWNER_ME, FUEL_PROBLEMS_QUERY_KEYS,
   type FindingKind, type FindingQueueState, type FindingSource,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -90,8 +90,9 @@ const { param, set } = useQueryState();
  * reinterpreting one as the other is how a sent link stops meaning what its sender saw.
  */
 const DEFAULT_STATES: FindingQueueState[] = ["open", "investigating", "working"];
-const stateParam = param("state");
-const kindParam = param("kind");
+// The keys are the link contract's (F21 Step 5): Ask AI's `open_view` opens this page with them.
+const stateParam = param(FUEL_PROBLEMS_QUERY_KEYS.state);
+const kindParam = param(FUEL_PROBLEMS_QUERY_KEYS.kind);
 const states = computed<FindingQueueState[]>({
   get: () => {
     const named = stateParam.value.split(",").filter((v): v is FindingQueueState =>
@@ -116,12 +117,12 @@ const kinds = computed<FindingKind[]>({
  * happens to pass" shape CLAUDE.md names, and the blocker is written into the plan (Q-FUI4) rather than
  * routed around. `mine` needs no directory: it is the caller's own id.
  */
-const mine = param("owner", ["me"]);
+const mine = param(FUEL_PROBLEMS_QUERY_KEYS.owner, [FUEL_PROBLEMS_OWNER_ME]);
 const OWNER_OPTIONS = [
   { value: "", label: "Anyone" },
-  { value: "me", label: "Assigned to me" },
+  { value: FUEL_PROBLEMS_OWNER_ME, label: "Assigned to me" },
 ];
-const assignedTo = computed(() => (mine.value === "me" ? (session.userId ?? null) : null));
+const assignedTo = computed(() => (mine.value === FUEL_PROBLEMS_OWNER_ME ? (session.userId ?? null) : null));
 
 /**
  * What "Clear filters" would undo. The status filter OPENS on the three working states, so a status
@@ -147,7 +148,8 @@ const activeFilterCount = computed(
  * own `reset` restates them.
  */
 function resetFilters(): void {
-  set({ from: undefined, to: undefined, trucks: undefined, grain: undefined, state: undefined, kind: undefined, owner: undefined });
+  const K = FUEL_PROBLEMS_QUERY_KEYS;
+  set({ [K.from]: undefined, [K.to]: undefined, [K.trucks]: undefined, grain: undefined, [K.state]: undefined, [K.kind]: undefined, [K.owner]: undefined });
 }
 
 const page = ref(1);

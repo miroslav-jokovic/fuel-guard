@@ -61,6 +61,8 @@ export * from "./assistantUsage.js";
 export * from "./assistantContract.js";
 export * from "./assistantAskContract.js";
 export * from "./assistantStreamContract.js";
+export * from "./assistantViews.js";
+export * from "./fuelProblemsLinkContract.js";
 export * from "./fuelCostsLinkContract.js";
 export * from "./iftaLinkContract.js";
 export * from "./loadsLinkContract.js";

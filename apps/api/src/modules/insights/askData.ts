@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AI_MODELS, ASSISTANT_MODEL_PRICES, assistantStepLabel, type AssistantStreamEvent, splitAssistantLink, stripNeverExposed, type AssistantAnswerLink, type AssistantHistoryTurn, type AssistantToolName, CASE_RULE_ID, computeSubjectMpg, IN_SERVICE_VEHICLE_STATUSES, odometerAccuracy, organizationTimezone, requestCostMicroUsd, todayInZone, type OdoRow, type SubjectFill } from "@silvicom/shared";
+import { AI_MODELS, ASSISTANT_MODEL_PRICES, assistantStepLabel, type AssistantStreamEvent, type AssistantView, SURFACES, splitAssistantLink, stripNeverExposed, type AssistantAnswerLink, type AssistantHistoryTurn, type AssistantToolName, CASE_RULE_ID, computeSubjectMpg, IN_SERVICE_VEHICLE_STATUSES, odometerAccuracy, organizationTimezone, requestCostMicroUsd, todayInZone, type OdoRow, type SubjectFill } from "@silvicom/shared";
 import { FUEL_EVENT_DROP } from "../fuel/index.js";
 import type { Env } from "../../env.js";
 import { anthropicClient } from "../../lib/anthropic.js";
@@ -17,6 +17,7 @@ import { assistantCardHolds } from "../efs/index.js";
 import { assistantLoadsByTruck } from "../loads/index.js";
 import { fetchAllPaged, nameMaps } from "./askReads.js";
 import { toolsFor } from "./askTools.js";
+import { openAssistantView } from "./openAssistantView.js";
 import type { AnswerOutcome, AnswerUsage } from "./assistantUsage.js";
 
 const n = (v: unknown): number | null => (v == null ? null : Number(v));
@@ -386,7 +387,10 @@ export async function askData(
   history: readonly AssistantHistoryTurn[] = [],
   /** Step 2d: told of each tool read and each piece of text as it happens (the streamed route). */
   onEvent?: (e: Extract<AssistantStreamEvent, { type: "step" | "text" }>) => void,
+  /** Step 5: the pages `open_view` may open for this caller, and the surface the reader is looking at. */
+  context: { views?: readonly AssistantView[]; page?: string } = {},
 ): Promise<AskTrace> {
+  const views = context.views ?? [];
   const client = anthropicClient(env);
   // "Last month" and "October" need today's date, on the carrier's clock (D-PREC6) — without it the
   // model guesses the year from its training data.
@@ -396,6 +400,9 @@ export async function askData(
     { type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } },
     { type: "text", text: `Today is ${todayInZone(now, zone)} (YYYY-MM-DD) in the carrier's timezone, ${zone}.` },
   ];
+  // Step 5: "filter this to 718" needs to know what "this" is. A known surface only; after the breakpoint.
+  const onPage = SURFACES.find((s) => s.key === context.page);
+  if (onPage) system.push({ type: "text", text: `The person is looking at the ${onPage.label} page (${onPage.path}).` });
   // R3a: earlier turns go first as plain user/assistant text, so the conversation alternates and the
   // new question is last. No tool results are replayed (`assistantAskContract.ts`).
   const messages: Anthropic.MessageParam[] = [
@@ -422,7 +429,7 @@ export async function askData(
         output_config: { effort: "medium" },
         cache_control: { type: "ephemeral" },
         system,
-        tools: toolsFor(allowed),
+        tools: toolsFor(allowed, views),
         messages,
       });
       if (onEvent) stream.on("text", (delta) => onEvent({ type: "text", delta }));
@@ -456,7 +463,9 @@ export async function askData(
         // here as well, never run. D-AI7: what a tool returns loses every never-shown field.
         if (!(allowed as readonly string[]).includes(tu.name)) throw new Error("That tool is not available with this person's access.");
         // R4b (D-AI8): the page link is lifted off BEFORE the model sees the result — it carries ids.
-        const split = splitAssistantLink(tu.name, await runTool(admin, orgId, tu.name, (tu.input ?? {}) as Record<string, unknown>));
+        const input = (tu.input ?? {}) as Record<string, unknown>;
+        const raw = tu.name === "open_view" ? await openAssistantView(admin, orgId, input, views) : await runTool(admin, orgId, tu.name, input);
+        const split = splitAssistantLink(tu.name, raw);
         out = stripNeverExposed(split.result);
         tools.push({ name: tu.name, input: tu.input });
         if (split.link) links.push(split.link);

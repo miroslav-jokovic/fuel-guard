@@ -185,4 +185,25 @@ describe("askData", () => {
     const out = await askData(createSupabaseRecorder({ tables: { organizations: [] } }).client, env, "org-1", "q", ALL);
     expect(out).toMatchObject({ outcome: "step_limit", usage: { rounds: 6 } });
   });
+
+  it("tells the model the page the person is on, offers open_view with their pages, and marks its link to navigate, ids off the model's text (Step 5)", async () => {
+    create
+      .mockResolvedValueOnce(msg([{ type: "tool_use", id: "t1", name: "open_view", input: { view: "fuel_problems", filters: { states: ["open"], units: ["718"] } } }], "tool_use"))
+      .mockResolvedValueOnce(msg([{ type: "text", text: "Opened the open fuel problems for 718." }]));
+    const r = createSupabaseRecorder({ tables: { organizations: [{ operating_hours: { tz: "America/Chicago" } }], vehicles: [{ id: "v718-uuid", unit_number: "718", org_id: "org-1" }] } });
+    const out = await askData(r.client, env, "org-1", "show me the open fuel problems for 718", ALL, LATE_OCT_31_CENTRAL, [], undefined, { views: ["fuel_problems"], page: "fuel.spend" });
+    const first = create.mock.calls[0]![0];
+    expect(first.system.at(-1).text).toBe("The person is looking at the Fuel costs page (/fuel-spend).");
+    expect(first.tools.find((t: { name: string }) => t.name === "open_view").input_schema.properties.view.enum).toEqual(["fuel_problems"]);
+    expect(out.links).toEqual([{ surfaceKey: "fuel.exceptions", query: { state: "open", trucks: "v718-uuid" }, navigate: true }]);
+    expect(JSON.stringify(create.mock.calls.map((c) => c[0].messages))).not.toContain("v718-uuid");
+  });
+
+  it("an unknown page is not described to the model, and without pages open_view is not offered", async () => {
+    create.mockResolvedValueOnce(msg([{ type: "text", text: "ok" }]));
+    await askData(rec().client, env, "org-1", "q", ALL, LATE_OCT_31_CENTRAL, [], undefined, { views: [], page: "nowhere" });
+    const req = create.mock.calls[0]![0];
+    expect(req.system).toHaveLength(2);
+    expect(req.tools.map((t: { name: string }) => t.name)).not.toContain("open_view");
+  });
 });
