@@ -1262,6 +1262,8 @@ audit row is the endpoint's own.
     filter by.
   - **Who is offered it is the surface's own gate (`section("roster")`).** That gives the recruiter the
     roster and nothing fuel, as the matrix says. The technician is offered no page.
+    So the recruiter now has `open_view`, their third tool (`assistantContract.test.ts`'s owner's-facts
+    pin, updated; CI found it, the targeted local run did not).
   - The dock suggests "Show me the drivers whose medical card is due in the next 30 days" on Drivers.
   - **Tests:**
     - `assistantViews.test.ts`:
