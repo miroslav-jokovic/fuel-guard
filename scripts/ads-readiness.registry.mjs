@@ -1213,16 +1213,22 @@ export const READINESS = [
           // three (D-ADL4), and which darkens the picture by measurement instead of pasting a plate (D-ADL1) — so the
           // bright-stripe case is now "the scrim rises, and a kit with no ground still refuses". The ribbon look's
           // goldens are pinned beside the rail look's.
+          // 2026-11-12, the three looks (D-ADL16–19): `field` is the default and keeps the plain titles; `number`'s
+          // and `photo`'s goldens replace the ribbon look's. No look draws a button any more, so the one-size
+          // refusal names the supporting line, as the second line or the kicker.
           need: "the overlay renderer (stills): golden images per format and look, text from the brief only, a too-long line refuses",
           tests: [{ file: "apps/api/src/modules/ads/creative/overlay/overlay.test.ts", titles: [
             "1:1 matches its golden image",
             "4:5 matches its golden image",
             "9:16 matches its golden image",
-            "1:1 ribbon matches its golden image",
-            "4:5 ribbon matches its golden image",
-            "9:16 ribbon matches its golden image",
+            "1:1 number matches its golden image",
+            "4:5 number matches its golden image",
+            "9:16 number matches its golden image",
+            "1:1 photo matches its golden image",
+            "4:5 photo matches its golden image",
+            "9:16 photo matches its golden image",
             "a headline that needs a third line at the lowest rung refuses, naming it, with no image",
-            "a line with one size refuses as an overflow, never shrunk: the call to action, the kicker and the second line",
+            "a line with one size refuses as an overflow, never shrunk: the supporting line, whether the second line or the kicker",
             "a figure the brief does not hold is refused here too, whatever checked it before — in the headline, the kicker or the second line",
             "one narrow bright stripe behind the words raises the step for the whole stack, where a null plate would refuse",
             "a format with no overlay in the brand kit refuses — no colour is invented",

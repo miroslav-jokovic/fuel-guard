@@ -182,6 +182,18 @@ website is not the ads. Takes effect with the renderer change.
 every ad; a second one in the picture competes with it and is one more device. The overlay's `cta` slot stays
 in the contract for formats that need it; the new looks do not draw it.
 
+**D-ADL20 — The renderer draws `field`, `number` and `photo` (2026-11-12; Q-ADL9).** They replace `rail` and
+`ribbon` in `AD_LOOKS`; a preset stored under an old name reads as its successor (`RETIRED_LOOKS`: rail → field,
+ribbon → photo) with no migration, because the name lives inside the preset's jsonb recipe and every reader parses
+it through one schema. `field` is the default. No look draws a button, a rail, a ribbon or a hairline; the kicker
+is drawn only as the supporting line when there is no second line. `number` draws only a headline that OPENS with
+a figure (all 36 of P2's recorded headlines do) and falls back to `field` when its figure leaves its words no
+column ("$0.70–$0.78 PER MILE" is too wide at every rung); a band look falls back to `photo` for a kit with no colour
+a band could be. The look actually drawn is returned with the render. Sizes measured, not chosen: the supporting
+line is 47 px because that is where 28 W's fit the narrowest zone and 29 do not (`OVERLAY_SMALL_LINE_MAX_CHARS`
+unchanged); the headline's floor is 80 px because that is where the longest recorded headline that fits is 58
+(`OVERLAY_HEADLINE_MAX_CHARS` unchanged). Starters: P1 and P3 `photo`, P2 `number`, P4 and P5 `field`.
+
 ## 3. The candidate looks (rendered 2026-11-10, fixture kit, fixture photos)
 
 Four looks, each drawn at 4:5 in English, 1:1 with a two-line headline, and 9:16 in Spanish.
@@ -244,6 +256,14 @@ marks the money — and its left edge holds long Spanish lines without the centr
   **Recommendation: (a)**, with (b) as the fallback for formats (a) cannot place.
 - **Q-ADL9 — which ad families (opened 2026-11-12).** Three are drawn: Number (pay-led), Photo (truck and life)
   and Field (the rest). Recommendation: all three, chosen by the preset as `look` is today, Number first.
+  **ANSWERED 2026-11-12, the owner: "Yes, all three."** Built as D-ADL20.
+- **Q-ADL10 — the plain part of the picture (opened 2026-11-12).** With no button and no label above the headline,
+  a `bottom_plate` ad's words now reach at most 32 % of the picture's height in every look (measured over every
+  recorded headline: 28.4–31.8 %), where the art director still asks for the lower HALF to be kept plain
+  (`QUIET_REGION`, D-ADL14, sized for the old looks' 42–54 %). The picture gives up more room than the words use.
+  Candidates: (a) bring `QUIET_REGION.bottom_plate` back to a third, an art-director prompt change and so a
+  recording; (b) leave it. **Recommendation: (a)**, asked before it is recorded, with the art director's re-run
+  for the plain trailer and badge-free grille (Q-ADL8) so it is one recording, not two.
 
 ## 5. Build order (after Q-ADL1)
 
@@ -421,3 +441,17 @@ photos.
   - Shown to the owner: https://claude.ai/artifact/LEaFJ6qWC6e1dth6o38MhQ. Not done: the renderer itself. It
     waits on Q-ADL9, and the art director's prompt (plain trailer, badge-free grille, three-quarter view) waits
     on Q-ADL8. Both are recordings or code, asked before they are made.
+- **2026-11-12, the three looks built (D-ADL20; the owner: "Yes, all three").** Branch `claude/ads-three-looks`.
+  - Fonts: Big Shoulders Display Black and Text Medium, cut from Google's variable fonts at one weight each; Barlow
+    Condensed and Anton removed. Coverage measured: every character an ad writes, ¢ and the Spanish marks included;
+    lost against the old faces, ten characters no ad writes.
+  - Rendered six real ads (2027 Cascadia with the decal, the LT, the fuel island) with the Silvicom kit through the
+    renderer itself before writing tests; the logo's contrast block lost its rounded corners (a card, D-ADL17).
+  - Tests: 17 new goldens (field ×9, number ×3, photo ×5), looked at. Overlay suites 56, shared ads 324, ads API
+    1,277 (+1 sweep flake that passes alone, 66 of 66), ads web 86. The 64 copywriter fixtures that named a look
+    were renamed in place: the look never reaches the model (`copyUserMessage` sends name, hook and slots), so their
+    recordings stand.
+  - Measured on the way (Q-ADL10): the words now reach under a third of the picture in every look.
+  - Not done: the art director still describes the old looks' needs (QUIET_REGION half, no trailer-decal or
+    badge-free-grille instruction) — Q-ADL8 and Q-ADL10, one recording, asked first. The finished-ad judge has not
+    scored these looks (L5's comparison would be a recording too).

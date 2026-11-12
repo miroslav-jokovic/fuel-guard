@@ -37,9 +37,9 @@ describe("the five starter presets", () => {
     expect(STARTER_PRESETS.filter((s) => s.recipe.starts_from === "text_only").map((s) => s.key)).toEqual(["P1", "P2"]);
   });
 
-  it("each names a look: the figure-led starters and the equipment one draw rail, the life-led and straight-talk ones ribbon", () => {
+  it("each names a look: pay first draws number, equipment and proof draw field, the life-led and straight-talk ones photo", () => {
     expect(STARTER_PRESETS.map((s) => [s.key, s.recipe.hook_family, s.recipe.look])).toEqual([
-      ["P1", "straight_talk", "ribbon"], ["P2", "pay_first", "rail"], ["P3", "life_first", "ribbon"], ["P4", "equipment_first", "rail"], ["P5", "proof", "rail"],
+      ["P1", "straight_talk", "photo"], ["P2", "pay_first", "number"], ["P3", "life_first", "photo"], ["P4", "equipment_first", "field"], ["P5", "proof", "field"],
     ]);
     expect(new Set(STARTER_PRESETS.map((s) => s.recipe.look))).toEqual(new Set(AD_LOOKS));
   });

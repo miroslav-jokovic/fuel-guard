@@ -35,12 +35,14 @@ import type { AdPresetSave } from "./brandKitContract.js";
  * logos, no lettering" (D-AD9: our renderer draws the words).
  *
  * ── THE LOOK AND THE SMALL LINES (ADS-AD-LOOK-PLAN Q-ADL4, D-ADL15, 2026-11-11) ──────────────────────
- * A starter that leads with a FIGURE (P2 pay first, P5 proof) takes `rail`, whose accent colour marks the figure
- * — the one thing a driver looks for is the brightest thing in the ad; the equipment starter (P4) takes it too.
- * The two that lead with a LIFE or a plain statement (P1 straight talk, P3 home) take `ribbon`, calmer and centred.
- * So the five alternate, and a retired ad's successor (D-AD23) usually changes design, not only picture.
+ * Re-assigned 2026-11-12 with the three looks (Q-ADL9, D-ADL16–19). P2 (pay first) takes `number`: every one of
+ * its 36 recorded headlines opens with the figure, which is that look's precondition, and the figure becomes the
+ * ad's biggest object. P4 (equipment) and P5 (proof) take `field`, the band with figures in the accent. P1
+ * (straight talk) and P3 (home) take `photo`, the whole picture with the words on it. So a retired ad's successor
+ * (D-AD23) usually changes design, not only picture.
  * Three use a small line, each where its formula already asked for a second element, so the line splits what the
- * headline used to carry rather than adding copy: P2's "who the job is for" is the kicker, P3's believable fact
+ * headline used to carry rather than adding copy: P2's "who the job is for" is the kicker (drawn as the
+ * supporting line since 2026-11-12, D-ADL17), P3's believable fact
  * and P5's second figure are the second line. P1 and P4 stay two-line ads. Each small line is 28 characters,
  * the overlay's measured limit (`OVERLAY_SMALL_LINE_MAX_CHARS`).
  *
@@ -63,7 +65,7 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
       image_prompt_template: `View through a truck windshield from the driver's seat, {viewpoint}, an open {road} ahead through {setting}, {light}, {weather}, ${NO_WORDS}`,
       image_slots: ["viewpoint", "road", "setting", "light", "weather"],
       starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null,
-      layout: "bottom_plate", look: "ribbon", formats: FEED,
+      layout: "bottom_plate", look: "photo", formats: FEED,
       overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: PLATFORM,
     },
   },
@@ -77,7 +79,7 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
       image_prompt_template: `A plain {surface} background, {texture}, {light}, a soft {tone} gradient, nothing in the frame, ${NO_WORDS}`,
       image_slots: ["surface", "texture", "light", "tone"],
       starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null,
-      layout: "centered", look: "rail", formats: FEED,
+      layout: "centered", look: "number", formats: FEED,
       overlay_slots: { headline: "pay", cta: "cta", kicker: "kicker" }, platform_slots: PLATFORM,
     },
   },
@@ -91,7 +93,7 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
       image_prompt_template: `Our truck parked on a quiet {street} at {time_of_day}, a porch light on, {season}, {viewpoint}, no people, ${NO_WORDS}`,
       image_slots: ["street", "time_of_day", "season", "viewpoint"],
       starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null,
-      layout: "top_band", look: "ribbon", formats: FEED,
+      layout: "top_band", look: "photo", formats: FEED,
       overlay_slots: { headline: "hook", cta: "cta", subline: "second_line" }, platform_slots: PLATFORM,
     },
   },
@@ -105,7 +107,7 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
       image_prompt_template: `Our tractor parked at {setting}, {viewpoint}, {light}, {weather}, ${NO_WORDS}`,
       image_slots: ["setting", "viewpoint", "light", "weather"],
       starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null,
-      layout: "bottom_plate", look: "rail", formats: FEED,
+      layout: "bottom_plate", look: "field", formats: FEED,
       overlay_slots: { headline: "hook", cta: "cta" }, platform_slots: PLATFORM,
     },
   },
@@ -119,7 +121,7 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
       image_prompt_template: `Our truck driving on {road} through {setting}, {viewpoint}, {light}, {season}, ${NO_WORDS}`,
       image_slots: ["road", "setting", "viewpoint", "light", "season"],
       starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null,
-      layout: "top_band", look: "rail", formats: FEED,
+      layout: "top_band", look: "field", formats: FEED,
       overlay_slots: { headline: "hook", cta: "cta", subline: "second_line" }, platform_slots: PLATFORM,
     },
   },
