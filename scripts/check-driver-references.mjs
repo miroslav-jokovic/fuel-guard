@@ -15,6 +15,8 @@
  *   2. REFUSAL_SET — signed evidence; merge_driver_v2 refuses the merge (MD010);
  *   3. HANDLED_IN_FUNCTION — semantic moves inside merge_driver_v2's stable body;
  *   4. EXEMPT — with the reason it never needs moving.
+ * A POLYMORPHIC column (a `kind` + `id` pair that may name a driver, so no FK is possible) counts
+ * as a driver reference once a migration creates it; from there the same rule holds.
  * A drivers(id) FK the lists don't cover fails the build — the answer is one TypeScript list
  * entry, not a function re-issue.
  *
@@ -49,6 +51,21 @@ const EXEMPT = new Map([
     "0467: each source's CURRENT claim about a medical card, not evidence — a merged-away driver's " +
     "rows cascade and the next McLeod/Med-Stop sweep re-reports them for the canonical driver. " +
     "Moving them would collide on the (driver, kind, source) key the two drivers both hold."],
+]);
+
+/**
+ * Driver references that cannot be foreign keys (UNIT-NOTES-PLAN B2, 2026-11-12). `unit_notes`
+ * hangs a note on a driver, truck or trailer by `subject_kind` + `subject_id` (D-UN1), so
+ * `subject_id` can carry no `references drivers(id)` — yet a merge must move a driver's notes, or
+ * the duplicate's delete stops on UN014. Until this set existed the gate could not tell that list
+ * entry from a stale one. A key here is treated exactly as a found FK: it must be accounted for
+ * (normally by DRIVER_REASSIGNMENTS), and it is itself reported stale once no migration creates
+ * the column. The reason travels with it, as EXEMPT's does.
+ */
+const POLYMORPHIC = new Map([
+  ["unit_notes.subject_id",
+    "0592: subject_kind 'driver' + subject_id; the merge's update moves only driver notes and a " +
+    "truck/trailer note sharing the uuid stops the merge (UN012)."],
 ]);
 
 // Tables that no longer exist take their FKs with them.
@@ -108,6 +125,17 @@ for (const f of readdirSync(MIGRATIONS).filter((x) => x.endsWith(".sql")).sort()
     dropped.add(m[1].toLowerCase());
   for (const key of driverFks(sql)) found.set(key, f);
 }
+const created = new Map(); // "table.column" -> migration file, for POLYMORPHIC's existence check
+for (const f of readdirSync(MIGRATIONS).filter((x) => x.endsWith(".sql")).sort()) {
+  const sql = stripSql(readFileSync(join(MIGRATIONS, f), "utf8"));
+  for (const t of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_][a-z0-9_]*)\s*\(([\s\S]*?)\n\);/gi))
+    for (const c of t[2].matchAll(/^\s*([a-z_][a-z0-9_]*)\s+uuid\b/gim)) created.set(`${t[1].toLowerCase()}.${c[1].toLowerCase()}`, f);
+}
+const stalePolymorphic = [];
+for (const key of POLYMORPHIC.keys()) {
+  if (created.has(key) && !dropped.has(key.split(".")[0])) found.set(key, created.get(key));
+  else stalePolymorphic.push(`POLYMORPHIC names ${key} but no migration creates that uuid column — stale entry, remove it`);
+}
 for (const key of [...found.keys()]) if (dropped.has(key.split(".")[0])) found.delete(key);
 found.delete("drivers.id");
 
@@ -121,14 +149,14 @@ if (listed.size === 0) {
   process.exit(1);
 }
 
-function verdict(refs) {
-  const errors = [];
+function verdict(refs, list = listed) {
+  const errors = [...stalePolymorphic];
   for (const [key, mig] of refs) {
-    if (listed.has(key) || REFUSAL_SET.has(key) || HANDLED_IN_FUNCTION.has(key) || EXEMPT.has(key)) continue;
+    if (list.has(key) || REFUSAL_SET.has(key) || HANDLED_IN_FUNCTION.has(key) || EXEMPT.has(key)) continue;
     errors.push(`${key} (added in ${mig}) references drivers(id) but no merge list accounts for it — add it to DRIVER_REASSIGNMENTS in modules/roster/mergeDriver.ts (one line), or pin it here with the reason`);
   }
-  for (const key of listed)
-    if (!found.has(key)) errors.push(`DRIVER_REASSIGNMENTS lists ${key} but no migration defines that drivers(id) FK — stale entry, remove it`);
+  for (const key of list)
+    if (!refs.has(key)) errors.push(`DRIVER_REASSIGNMENTS lists ${key} but no migration defines that drivers(id) FK — stale entry, remove it`);
   return errors;
 }
 
@@ -138,6 +166,12 @@ if (process.argv.includes("--self-test")) {
   const fails = [];
   if (!verdict(fake).some((e) => e.startsWith("ghost_table.driver_id"))) fails.push("unaccounted-FK detector did not fire");
   if (verdict(found).length !== 0) fails.push("real tree should be clean for the self-test baseline");
+  // B2: a polymorphic driver reference dropped from the merge list is still reported.
+  for (const key of POLYMORPHIC.keys()) {
+    const without = new Set([...listed].filter((k) => k !== key));
+    if (!verdict(found, without).some((e) => e.startsWith(key)))
+      fails.push(`dropping polymorphic ${key} from DRIVER_REASSIGNMENTS was not reported`);
+  }
   // 0524's shape: a plain column on one table, then a driver FK on the next.
   const twoAlters = driverFks(
     "alter table asset_types add column held_by text not null default 'unit';\n" +
@@ -154,7 +188,7 @@ if (process.argv.includes("--self-test")) {
   if (composite.sort().join() !== "lead_conversions.driver_id,load_x.co_driver_id")
     fails.push(`a composite drivers FK was not read: got ${composite.join() || "nothing"}`);
   if (fails.length) { for (const f of fails) console.error(`✗ self-test: ${f}`); process.exit(1); }
-  console.log("✓ driver-references self-test — the unaccounted-FK detector fires, each alter table ends at its semicolon, and a composite FK is read.");
+  console.log("✓ driver-references self-test — the unaccounted-FK detector fires, each alter table ends at its semicolon, a composite FK is read, and a polymorphic reference left off the list is reported.");
   process.exit(0);
 }
 
@@ -165,5 +199,5 @@ if (errors.length) {
   process.exit(1);
 }
 console.log(
-  `✓ driver references ok — ${found.size} drivers(id) FKs: ${[...found.keys()].filter((k) => listed.has(k)).length} merge-listed, ${REFUSAL_SET.size} refusal-set, ${HANDLED_IN_FUNCTION.size} in-function, ${EXEMPT.size} exempt.`,
+  `✓ driver references ok — ${found.size} drivers(id) FKs: ${[...found.keys()].filter((k) => listed.has(k)).length} merge-listed, ${REFUSAL_SET.size} refusal-set, ${HANDLED_IN_FUNCTION.size} in-function, ${EXEMPT.size} exempt (${POLYMORPHIC.size} polymorphic).`,
 );

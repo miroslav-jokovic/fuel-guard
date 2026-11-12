@@ -123,6 +123,14 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
   { table: "inventory_assets", column: "driver_id", orgScoped: true },
   { table: "asset_movements", column: "from_driver_id", orgScoped: true },
   { table: "asset_movements", column: "to_driver_id", orgScoped: true },
+  /*
+   * The office's notes on a driver (0592, UNIT-NOTES-PLAN §4.1): what dispatch, billing and safety wrote
+   * about the person follows them to the surviving record. The column is polymorphic — `subject_id` names a
+   * driver, a truck or a trailer — and this update matches on it alone, so 0592's guard does the narrowing:
+   * only a `driver` note may move, and only to a driver of the same carrier (UN012); the surviving driver's
+   * pin wins. A missing line would not lose the notes — 0592's UN014 stops the final driver delete.
+   */
+  { table: "unit_notes", column: "subject_id", orgScoped: true },
 ];
 
 /** Atomically fold a duplicate driver into the canonical one. One rpc = one transaction — the

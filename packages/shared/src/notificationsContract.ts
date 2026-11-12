@@ -160,6 +160,12 @@ export const NOTIFICATION_CATEGORIES = [
    * Q-AD68). Mirrored in the CHECK (0587); nothing writes it until the runner's `refresh` step merges.
    */
   "ads_creative_refresh",
+  /**
+   * Somebody named you with `<@you>` in a note on a driver, truck or trailer (UNIT-NOTES-PLAN D-UN8); it
+   * opens the notes drawer on that note. Never for your own note. Mirrored in the CHECK (0592); nothing
+   * writes it until UN3.
+   */
+  "unit_note_mention",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -213,6 +219,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   ads_creative_retired: "An ad retired for fatigue; the next concept is due",
   ai_assistant_budget: "Ask AI is near or at this month's spending cap",
   ads_creative_refresh: "A new ad awaits approval on a running campaign",
+  unit_note_mention: "Mentions in unit notes",
 };
 
 /**
