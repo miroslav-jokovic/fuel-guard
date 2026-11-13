@@ -27,7 +27,8 @@ export const EMPLOYMENT_FORM_COPY = {
   usdot: "USDOT number",
   usdotHint: "If you know it.",
   address: "Street address",
-  addressHint: "We have to record where we wrote to.",
+  // D-AM4: the office completes an address the driver does not know.
+  addressHint: "We have to record where we wrote to. If you do not know it, leave it blank and the office will fill it in.",
   city: "City",
   state: "State",
   phone: "Phone",

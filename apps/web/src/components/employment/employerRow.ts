@@ -1,6 +1,7 @@
 import {
   applicationEmployerSchema,
   applicationV2FilingIssues,
+  driverMustAnswer,
   employmentSegments,
   unansweredEmployerQuestions,
   recordId,
@@ -191,7 +192,9 @@ export function employerProblems(e: EmployerFields, v2AsOf: string | null): Empl
   if (unanswered.length > 0 || !v2AsOf) return unanswered;
   // Filed as the only employer, so its issues are `employers.0.*`; the address and gap rules about the
   // whole application are left to the screen that holds the whole application.
+  // D-AM4: the address is the office's to complete, so no job's save waits for it — on either side of the
+  // form. The office's Send for signing and filing refuse without it (`OFFICE_COMPLETES`).
   return applicationV2FilingIssues({ employers: [parsed.data], employment_gaps: [], addresses: [] }, v2AsOf)
-    .filter((issue) => issue.path.startsWith("employers.0."))
+    .filter((issue) => issue.path.startsWith("employers.0.") && driverMustAnswer(issue))
     .map((issue) => ({ field: issue.path.slice("employers.0.".length), message: issue.message, issueKey: issue.issueKey, params: issue.params }));
 }
