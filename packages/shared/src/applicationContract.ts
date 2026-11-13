@@ -147,7 +147,12 @@ export const applicationAccidentSchema = z.object({
   nature: z.string().min(1).max(500),
   fatalities: z.coerce.number().int().min(0).max(999).default(0),
   injuries: z.coerce.number().int().min(0).max(999).default(0),
-  hazmat_spill: z.boolean().default(false),
+  /**
+   * HM SPILL, a Yes/No with nothing chosen since F4 PR 1b-1: as a checkbox an unasked accident filed "No".
+   * Null is unanswered, refused on a new filing by `applicationPaperFilingIssues`; a filed payload holds a
+   * boolean, and an absent one defaults to No as before (the previous employer's report sends a box).
+   */
+  hazmat_spill: z.boolean().nullable().default(false),
   key: applicationRowKeySchema,
 }).strict();
 export type ApplicationAccident = z.infer<typeof applicationAccidentSchema>;

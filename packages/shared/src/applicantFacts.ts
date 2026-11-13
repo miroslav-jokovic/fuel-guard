@@ -154,7 +154,11 @@ const app = (
   basis: FactBasis,
   packet: FactPacket,
   office: Door = "draft",
-): ApplicantFact => ({ path: `application.${key}`, input, basis, packet, ...door(office) });
+  ask?: FactAsk | readonly FactAsk[],
+): ApplicantFact => ({
+  path: `application.${key}`, input, basis, packet, ...door(office),
+  ...(ask ? { ask: Array.isArray(ask) ? ask : [ask as FactAsk] } : {}),
+});
 const intake = (
   key: string,
   input: FactInput,
@@ -251,22 +255,28 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("equipment_experience[].approx_miles", "miles", "391.21(b)(6)", ["p02.experience#4"]),
 
   // ── (b)(7) accidents, (b)(8) convictions, (b)(9) denials ──
-  app("declares_no_accidents", "yesno", "391.21(b)(7)", EMPTY_GRID),
-  app("accidents[].occurred_on", "date", "391.21(b)(7)", ["p02.accidents#0"]),
-  app("accidents[].nature", "longtext", "391.21(b)(7)", ["p02.accidents#1"]),
-  app("accidents[].fatalities", "count", "391.21(b)(7)", ["p02.accidents#2"]),
-  app("accidents[].injuries", "count", "391.21(b)(7)", ["p02.accidents#3"]),
-  app("accidents[].hazmat_spill", "yesno", "391.21(b)(7)", ["p02.accidents#4"]),
-  app("declares_no_violations", "yesno", "391.21(b)(8)", EMPTY_GRID),
-  app("violations[].occurred_on", "date", "391.21(b)(8)", ["p02.convictions#0"]),
-  app("violations[].offence", "text", "391.21(b)(8)", ["p02.convictions#1"]),
-  app("violations[].state", "jurisdiction", "391.21(b)(8)", ["p02.convictions#2"]),
-  app("violations[].penalty", "text", "391.21(b)(8)", ["p02.convictions#3"]),
+  // `ask` (F4 PR 1b-1, SCREEN-MAP 2.18–2.21): each list behind its yes/no gate, each row's screens
+  // repeated per accident or conviction; the casualties are one fact typed together (D-AM3).
+  app("declares_no_accidents", "yesno", "391.21(b)(7)", EMPTY_GRID, "draft", { screen: "safety.accidents", gate: "accidents" }),
+  app("accidents[].occurred_on", "date", "391.21(b)(7)", ["p02.accidents#0"], "draft", { screen: "safety.accident_date", dates: "past" }),
+  app("accidents[].nature", "longtext", "391.21(b)(7)", ["p02.accidents#1"], "draft", { screen: "safety.accident_nature" }),
+  app("accidents[].fatalities", "count", "391.21(b)(7)", ["p02.accidents#2"], "draft", { screen: "safety.accident_casualties" }),
+  app("accidents[].injuries", "count", "391.21(b)(7)", ["p02.accidents#3"], "draft", { screen: "safety.accident_casualties" }),
+  app("accidents[].hazmat_spill", "yesno", "391.21(b)(7)", ["p02.accidents#4"], "draft", { screen: "safety.accident_hazmat" }),
+  app("declares_no_violations", "yesno", "391.21(b)(8)", EMPTY_GRID, "draft", { screen: "safety.violations", gate: "violations" }),
+  app("violations[].occurred_on", "date", "391.21(b)(8)", ["p02.convictions#0"], "draft", { screen: "safety.violation_date", dates: "past" }),
+  app("violations[].offence", "text", "391.21(b)(8)", ["p02.convictions#1"], "draft",
+    { screen: "safety.violation_offence", quickPicks: "violation_offence" }),
+  app("violations[].state", "jurisdiction", "391.21(b)(8)", ["p02.convictions#2"], "draft", { screen: "safety.violation_state" }),
+  app("violations[].penalty", "text", "391.21(b)(8)", ["p02.convictions#3"], "draft",
+    { screen: "safety.violation_penalty", quickPicks: "violation_penalty" }),
   // F2c (P4): the carrier's A and B, apart. (A filing from before F2c prints its one answer on both lines.)
-  app("licence_ever_denied", "yesno", "391.21(b)(9)", ["p02.denied.yes", "p02.denied.no"]),
-  app("licence_denial_detail", "longtext", "391.21(b)(9)", ["p02.denied.explain"]),
-  app("licence_suspended", "yesno", "391.21(b)(9)", ["p02.revoked.yes", "p02.revoked.no"]),
-  app("licence_suspension_detail", "longtext", "391.21(b)(9)", ["p02.revoked.explain"]),
+  app("licence_ever_denied", "yesno", "391.21(b)(9)", ["p02.denied.yes", "p02.denied.no"], "draft", { screen: "safety.denied" }),
+  app("licence_denial_detail", "longtext", "391.21(b)(9)", ["p02.denied.explain"], "draft",
+    { screen: "safety.denied_detail", when: { fact: "application.licence_ever_denied", is: true } }),
+  app("licence_suspended", "yesno", "391.21(b)(9)", ["p02.revoked.yes", "p02.revoked.no"], "draft", { screen: "safety.suspended" }),
+  app("licence_suspension_detail", "longtext", "391.21(b)(9)", ["p02.revoked.explain"], "draft",
+    { screen: "safety.suspended_detail", when: { fact: "application.licence_suspended", is: true } }),
   app("prior_failed_pre_employment_test", "yesno", "40.25(j)", ["p26.prior_test.yes", "p26.prior_test.no"], STATEMENT),
 
   // ── (b)(10)/(b)(11) employers ──

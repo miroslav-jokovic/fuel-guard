@@ -131,5 +131,29 @@ export const APPLY_HISTORY_COPY = {
       + "refuse a test as part of that application?",
     priorTestHint: "This is about jobs you applied for, not jobs you had.",
     remove: "Remove",
+    /**
+     * The task walked one question to a screen (F4 PR 1b-1, SCREEN-MAP 2.18–2.21). The section's labels
+     * above stay the office's and the review's ("Date", "Offence"); on a screen of its own a label IS the
+     * question, so it is asked as one.
+     */
+    walk: {
+      accidentDate: "When was the accident?",
+      accidentNature: "What happened?",
+      accidentNatureHint: "A sentence is enough — for example, \"rear-ended at a light\".",
+      fatalities: "How many people died?",
+      injuries: "How many people were hurt?",
+      hazmatSpill: "Were hazardous materials spilled?",
+      violationDate: "When were you convicted?",
+      offence: "What was it for?",
+      violationState: "In which state did it happen?",
+      penalty: "What was the penalty?",
+      quickPickHint: "Tap one, or type your own.",
+      accidentRow: (n: number) => `Accident ${n}`,
+      violationRow: (n: number) => `Conviction ${n}`,
+      anotherAccident: "Were you in any other accident in the last 3 years?",
+      anotherViolation: "Were you convicted of any other traffic violation in the last 3 years?",
+      removeAccident: "Remove this accident",
+      removeViolation: "Remove this conviction",
+    },
   },
 } as const;

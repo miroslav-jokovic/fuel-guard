@@ -23,6 +23,18 @@ export const APPLY_HUB_COPY_ES = {
     backToList: "Volver a su solicitud",
     saveAndContinue: "Guardar y continuar",
     open: (task: string): string => `Abrir ${task}`,
+    question: (n: number, of: number): string => `Pregunta ${n} de ${of}`,
+    next: "Continuar",
+    chooseYesOrNo: "Elija Sí o No.",
+  },
+  quickPicks: {
+    violation_offence: {
+      Speeding: "Exceso de velocidad",
+      "Logbook or hours of service": "Bitácora u horas de servicio",
+      Equipment: "Equipo del vehículo",
+      "Lane change or following too closely": "Cambio de carril o seguir muy de cerca",
+    },
+    violation_penalty: { Fine: "Multa", Points: "Puntos", Suspension: "Suspensión", "Bond forfeited": "Fianza perdida" },
   },
   employerCheck: {
     heading: "Antes de enviar: la verificación de sus empleadores anteriores",

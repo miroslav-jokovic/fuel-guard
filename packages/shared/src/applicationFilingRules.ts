@@ -154,12 +154,14 @@ export function applicationLegacyFilingIssues(
  *   apart from A (denied) since F2c (P4).
  * - Page 2's conviction grid: `STATE OF VIOLATION` and `PENALTY` are columns of every row (P10). They were
  *   optional on the form, so a conviction printed with two empty cells.
+ * - Page 2's accident grid: `HM SPILL` on every row (F4 PR 1b-1), a Yes/No that no longer starts at No.
  */
 // US spelling, as the question it answers (Q-AM6, and the carrier's own page 2).
 export const SUSPENSION_UNANSWERED = APPLICANT_ISSUE_TEXT.suspension_answered();
 
 export function applicationPaperFilingIssues(
-  application: Pick<DriverApplicationFields, "licence_suspended" | "violations" | "declares_no_violations">,
+  application: Pick<DriverApplicationFields, "licence_suspended" | "violations" | "declares_no_violations">
+    & Partial<Pick<DriverApplicationFields, "accidents" | "declares_no_accidents">>,
 ): ApplicationFilingIssue[] {
   const issues: ApplicationFilingIssue[] = [];
   if (typeof application.licence_suspended !== "boolean") {
@@ -169,6 +171,14 @@ export function applicationPaperFilingIssues(
     (application.violations ?? []).forEach((v, i) => {
       if (blank(v.state)) issues.push({ path: `violations.${i}.state`, ...applicantIssue("violation_state") });
       if (blank(v.penalty)) issues.push({ path: `violations.${i}.penalty`, ...applicantIssue("violation_penalty") });
+    });
+  }
+  // Page 2's accident grid: HM SPILL is a column of every row (F4 PR 1b-1). Null is "not answered".
+  if (!application.declares_no_accidents) {
+    (application.accidents ?? []).forEach((a, i) => {
+      if (typeof a.hazmat_spill !== "boolean") {
+        issues.push({ path: `accidents.${i}.hazmat_spill`, ...applicantIssue("accident_hazmat") });
+      }
     });
   }
   return issues;

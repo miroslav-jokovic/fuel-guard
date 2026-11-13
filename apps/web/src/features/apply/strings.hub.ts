@@ -1,3 +1,5 @@
+import type { QUICK_PICKS, QuickPickList } from "@silvicom/shared";
+
 /**
  * Part 2's words — "Your application" as a task list (APPLICATION-FLOW-V2-PLAN.md §6.4, D-AW11, C3c2).
  *
@@ -36,7 +38,25 @@ export const APPLY_HUB_COPY = {
     saveAndContinue: "Save and continue",
     /** Screen reader: what pressing a row does, beside the row's own name and status. */
     open: (task: string): string => `Open ${task}`,
+    /** Inside a task walked one question to a screen (F4 PR 1b): where the driver is in it. */
+    question: (n: number, of: number): string => `Question ${n} of ${of}`,
+    next: "Continue",
+    /** The "Any other?" screen that ends a list, asked with nothing chosen. */
+    chooseYesOrNo: "Choose Yes or No.",
   },
+  /**
+   * A quick pick's words in the page's language, by the English value it files (`QUICK_PICKS`, F4 PR 1b).
+   * Typed by the shared list, so a pick added there without words here fails `vue-tsc`.
+   */
+  quickPicks: {
+    violation_offence: {
+      Speeding: "Speeding",
+      "Logbook or hours of service": "Logbook or hours of service",
+      Equipment: "Equipment",
+      "Lane change or following too closely": "Lane change or following too closely",
+    },
+    violation_penalty: { Fine: "Fine", Points: "Points", Suspension: "Suspension", "Bond forfeited": "Bond forfeited" },
+  } satisfies { [L in QuickPickList]: Record<(typeof QUICK_PICKS)[L][number], string> },
   employerCheck: {
     heading: "Before you send: checking your past employers",
     /** §391.21(d), first sentence. */

@@ -28,6 +28,7 @@ import DraftNotice from "@/features/apply/DraftNotice.vue";
 import { provideLocalCopy } from "@/features/apply/deviceCopies";
 import { useApplicationSending } from "@/features/apply/useApplicationSending";
 import { useApplicationWizard, type SectionIssue } from "@/features/apply/useApplicationWizard";
+import { provideTaskWalk, useTaskWalk } from "@/features/apply/wizard/useTaskWalk";
 import { provideApplyIssues } from "@/features/apply/issues";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -160,6 +161,8 @@ async function showIssue(issue: SectionIssue): Promise<void> {
     else wizard.goTo(issue.section, true);
     await nextTick();
   }
+  walk.show(issue);
+  await nextTick();
   wizard.focusIssue(issue);
 }
 /** A "Fix" on the review screen: a task in Part 2's list, a screen in the legacy wizard. */
@@ -266,6 +269,8 @@ const { isPartOneLink, partOneNeeded, partOneInputs, refreshPartOne, partOneFini
   usePartOneStep(invitation, consentNeeded);
 // C3c2a (§6.4, D-AW11): a v2 link's Part 2 is a task list over the same screens; a legacy link keeps the wizard.
 const hub = useTaskHub(wizard, isPartOneLink);
+// F4 PR 1b: inside a generated task the buttons step its screens; the last Continue closes the task.
+const walk = provideTaskWalk(useTaskWalk(draft, wizard, hub, v2AsOf));
 const identityNeeded = computed(
   () => ceremonyNeeded.value && !isPartOneLink.value && !identityComplete.value && !identityDone.value,
 );
@@ -389,7 +394,9 @@ watch(
           @go-to="wizard.goTo"
         />
 
+        <!-- A walked task says each problem under its own box, one screen at a time (`TaskWalk`). -->
         <ApplyIssueList
+          v-if="!walk.active.value"
           :issues="wizard.issues.value"
           :send-error="sendError"
           :final="wizard.isLast.value"
@@ -427,7 +434,9 @@ watch(
         <!-- Stacked on a phone, the forward act on top: side by side at 44 px (C3d3b2) the two need 380 px
              of a 342 px column, and at 320 px they overflowed even at 36. -->
         <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <BaseButton v-if="hub.inTask.value" variant="ghost" @click="hub.leave">{{ APPLY_COPY.hub.backToList }}</BaseButton>
+          <BaseButton v-if="hub.inTask.value" variant="ghost" @click="walk.back">
+            {{ walk.active.value && !walk.atStart.value ? APPLY_COPY.nav.back : APPLY_COPY.hub.backToList }}
+          </BaseButton>
           <BaseButton v-else-if="!wizard.isFirst.value" variant="ghost" @click="wizard.back">
             {{ APPLY_COPY.nav.back }}
           </BaseButton>
@@ -435,7 +444,7 @@ watch(
           <BaseButton
             variant="primary"
             :disabled="handingOver || (wizard.isLast.value && wordingNotFinal)"
-            @click="wizard.isLast.value ? sendForReview() : hub.inTask.value ? hub.finish() : wizard.next()"
+            @click="wizard.isLast.value ? sendForReview() : hub.inTask.value ? walk.next() : wizard.next()"
           >
             <template v-if="wizard.isLast.value">
               <!-- Disabled rather than hidden: the driver has reached the end of their application and
@@ -450,7 +459,9 @@ watch(
                   ? APPLY_COPY.handoff.sending
                   : APPLY_COPY.handoff.send(invitation.data.value.carrier) }}
             </template>
-            <template v-else-if="hub.inTask.value">{{ APPLY_COPY.hub.saveAndContinue }}</template>
+            <template v-else-if="hub.inTask.value">
+              {{ walk.active.value && !walk.atEnd.value ? APPLY_COPY.hub.next : APPLY_COPY.hub.saveAndContinue }}
+            </template>
             <template v-else>
               {{ wizard.section.value === 'documents' ? APPLY_COPY.nav.review : APPLY_COPY.nav.next }}
             </template>

@@ -175,6 +175,21 @@ describe("what the carrier's paper asks of every new filing (F2c)", () => {
       licence_suspended: false, declares_no_violations: true, violations: [{ ...conviction, state: null, penalty: null }],
     })).toEqual([]);
   });
+
+  /** F4 PR 1b-1: the accident grid's HM SPILL, a Yes/No that no longer starts at No. */
+  it("asks each accident whether hazardous materials were spilled, and takes No as an answer", () => {
+    const accident = { occurred_on: "2025-03-01", nature: "Rear-ended", fatalities: 0, injuries: 0, key: null };
+    const answered = { licence_suspended: false, violations: [], declares_no_violations: true };
+    const issues = applicationPaperFilingIssues({
+      ...answered, declares_no_accidents: false,
+      accidents: [{ ...accident, hazmat_spill: false }, { ...accident, hazmat_spill: null }, { ...accident, hazmat_spill: true }],
+    });
+    expect(issues).toMatchObject([{ path: "accidents.1.hazmat_spill", issueKey: "accident_hazmat" }]);
+    // A declared none files no rows, so nothing is asked of a row left behind.
+    expect(applicationPaperFilingIssues({
+      ...answered, declares_no_accidents: true, accidents: [{ ...accident, hazmat_spill: null }],
+    })).toEqual([]);
+  });
 });
 
 describe("page 21 at signing (Q-AM4)", () => {
