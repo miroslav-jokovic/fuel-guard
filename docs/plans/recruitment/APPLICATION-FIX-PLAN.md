@@ -750,3 +750,14 @@ A gate fails on a literal string in an `apply/` template.
     - screenshots at 390×844 in EN and ES.
   - **Seen, left to U3:** the carrier's Yes/No questions use the segmented control, smaller than the driving record's big Yes/No.
   - **Next:** 1b-3, "Where you have lived."
+- 2026-11-13: **F4 PR 1b-2 merged** (#2352).
+- 2026-11-13: **F4 PR 1b-3a: the answers the office completes** (D-AM4 and Q-AM8 (a); `claude/application-office-completes`, no migration). The groundwork for 1b-3 and 1b-4: both rulings let the driver leave an answer the office finds, so one rule serves both.
+  - **`OFFICE_COMPLETES`** (shared): an employer's address (`job_address`) and an address's street and ZIP (`address_street`, new). Each is judged three ways:
+    - **the driver's checks skip it** (`driverMustAnswer`): the task's check, the review list, the send, and the one employer form, on both sides;
+    - **the office's Send for signing refuses** while any remains, naming each (`office_must_complete`, 409). It is the one refusal there: D-AF6's warnings are about travel and hire, and these are answers on the document. A link sent without them sends the driver to sign something filing would refuse;
+    - **filing still refuses** without them, unchanged.
+  - **Contract:** an address's `line1` may be empty and `postal_code` may be empty (a given ZIP is still 3–20 characters). Filing's paper rule now requires both on every address (page 1's "Street, City, State, Zip").
+  - **The driver is told:** under the street and the ZIP, and under the employer's street, "If you do not remember it, leave it blank. The office will fill it in." (EN and ES).
+  - **Changed tests, on purpose:** EM-3 ("will not add a job without its street") and the driver panel's address refusal are D-AM4's old rule; both now assert the save goes through.
+  - **Proof:** shared rule and contract (+3); web driver checks (+1); API refusal, nothing minted, written or sent, org-scoped, and a complete draft sent (+2). Eight of eight mutants killed.
+  - **Next:** 1b-3, the address walk on top of this; then 1b-4.
