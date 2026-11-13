@@ -10,14 +10,17 @@
  * Trucks are the Dispatch board's (`board.rows`), so this list and the board name one fleet (its census,
  * D-DB11), and the page's Dispatcher / fleet choice narrows both alike. Drivers are the active roster.
  *
- * ⚠ It cannot tell home time from idle: `driver_time_off` exists and nothing feeds it (Q-LA1). Current HOS
- * sits beside the days for that reason, and a long off-duty run is a question, not a verdict.
+ * Home time is said beside the days (Q-LA1, closed by HOME-TIME-PLAN): a driver the office marked home,
+ * or a truck at home with its driver, reads "Home time until …" under its figure, so six days without a
+ * load is not mistaken for six idle days. Only what the office MARKED: an unmarked driver still reads as
+ * days and current HOS, and a long off-duty run there is still a question, not a verdict.
  */
 import { computed } from "vue";
 import type { ActivitySummary, DispatchBoardResponse } from "@silvicom/shared";
 import { AppButton as BaseButton, AppSegmentedControl, DataTable, FilterBar, TablePagination, useQueryState, type DataTableColumn } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { useLoadActivityQuery } from "./useDispatchLoads";
+import { useHomeTimeList } from "@/components/homeTime/useHomeTime";
 import { IDLE_OPTIONS, IDLE_VALUES, compareIdle, idleTone, passesIdle } from "./activityRows";
 import { BADGE_BASE, hosStatusBadge, toneClass } from "@/lib/badges";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -72,6 +75,21 @@ const since = computed(() => formatDate(data.value?.historyFrom ?? data.value?.w
 const idleWords = (r: Row): string =>
   r.currentLoad ? "On a load" : r.daysWithoutLoad === null ? `None since ${since.value}` : r.daysWithoutLoad === 1 ? "1 day" : `${r.daysWithoutLoad} days`;
 const at = (iso: string | null) => formatDateTime(iso, "—", props.zone);
+
+/** Who is home now, by driver; and which trucks home time holds, from the board's own Available. */
+const homeTime = useHomeTimeList();
+const homeByDriver = computed(() => new Map((homeTime.data.value?.live ?? []).filter((p) => p.state !== "scheduled").map((p) => [p.driverId, p])));
+const heldTrucks = computed(() => new Map((props.board?.rows ?? []).filter((r) => r.available?.basis === "home_time").map((r) => [r.vehicleId, r.available!.at])));
+function homeWords(r: Row): string | null {
+  if (r.currentLoad) return null;
+  if (who.value === "trucks") {
+    const until = heldTrucks.value.get(r.subjectId);
+    return until ? `At home with its driver until ${at(until)}` : null;
+  }
+  const p = homeByDriver.value.get(r.subjectId);
+  if (!p) return null;
+  return p.state === "overdue" ? `Home time, was due back ${at(p.expectedReturnAt)}` : `Home time until ${at(p.expectedReturnAt)}`;
+}
 const isAhead = (iso: string | null) => Boolean(iso && data.value && Date.parse(iso) > Date.parse(data.value.asOf));
 
 const activeCount = computed(() => [idle.value, search.value.trim()].filter(Boolean).length);
@@ -107,6 +125,7 @@ const clear = () => qs.set({ idle: undefined, search: undefined });
     >
       <template #cell-idle="{ row }">
         <span :class="[BADGE_BASE, toneClass(idleTone(row.daysWithoutLoad, Boolean(row.currentLoad)))]">{{ idleWords(row) }}</span>
+        <p v-if="homeWords(row)" class="text-xs text-ink-muted" data-testid="activity-home-time">{{ homeWords(row) }}</p>
       </template>
       <template #cell-now="{ row }">
         <BaseButton v-if="row.currentLoad" variant="link" :to="{ name: 'load-detail', params: { id: row.currentLoad.id } }">{{ row.currentLoad.ref }}</BaseButton>

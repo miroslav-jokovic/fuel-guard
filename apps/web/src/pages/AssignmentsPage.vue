@@ -24,6 +24,9 @@ import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import DispatchBoardTable from "@/features/dispatch/DispatchBoardTable.vue";
 import DispatchTruckDrawer from "@/features/dispatch/DispatchTruckDrawer.vue";
 import NotesDrawer from "@/components/notes/NotesDrawer.vue";
+import HomeTimeDrawer from "@/components/homeTime/HomeTimeDrawer.vue";
+import { useHomeTimeList } from "@/components/homeTime/useHomeTime";
+import HomeTimeTab from "@/features/dispatch/HomeTimeTab.vue";
 import { withNotesColumn } from "@/components/notes/notesColumn";
 import { useNotesAccess } from "@/components/notes/useUnitNotes";
 import { censusSelectOptions, censusValue, pickOf, truckCensusItems } from "@/features/dispatch/censusItems";
@@ -90,12 +93,20 @@ import {
  * links here that way (D-DB6 point 4), so a load's truck is one click from its board row. The query
  * holds the UNIT, which is what a person reads and a link can be written with; the drawer resolves it
  * against the polled board each minute, so it never shows a truck as it was when it opened.
+ *
+ * ── HOME TIME (HOME-TIME-PLAN D-HT8) ─────────────────────────────────────────────────────────────
+ * A tab before History, the same shape: a different feed at the end of the strip. It lists DRIVERS who
+ * are scheduled, home or overdue, because a driver without a truck has no row on a truck board. Its
+ * badge is that list's own length, so the number on the tab is the rows behind it. The home-time drawer
+ * is mounted once here for every tab (`?homeTime=<driver>`): the truck's drawer, the tab and a pasted
+ * link all open it.
  */
 const { zone } = useOrgTimezone();
 const qs = useQueryState();
 const { data: board, isLoading, isError, refetch, isFetching } = useDispatchBoardQuery();
 
 const HISTORY = "history";
+const HOME_TIME = "home-time";
 const tab = computed({
   get: () => qs.one("queue") ?? "all",
   set: (v: string) => qs.set({ queue: v === "all" ? undefined : v }),
@@ -190,8 +201,23 @@ const tabItems = computed(() => [
     label: q.label,
     badge: board.value ? filterBoard(rows.value, scope.value, { ...base.value, queue: q.value }, now.value).length : undefined,
   })),
+  { value: HOME_TIME, label: "Home time", badge: homeTime.data.value?.live.length },
   { value: HISTORY, label: "History" },
 ]);
+
+/**
+ * Asked on every tab, not only its own: the badge is its count, and the drawer reads the same cache.
+ * One small request a minute, bounded by the number of drivers.
+ */
+const homeTime = useHomeTimeList();
+/**
+ * When this driver's truck empties, if it is carrying a load — the form's default "Leaves" (plan §3.3):
+ * a dispatcher marking a driver who is still rolling means "after this delivery", not "now".
+ */
+const leavesHint = (driverId: string): string | null => {
+  const row = rows.value.find((r) => r.driver?.id === driverId || r.coDriver?.id === driverId);
+  return row?.current && row.available?.at && row.available.basis !== "home_time" ? row.available.at : null;
+};
 
 const openUnit = computed(() => qs.one("truck") ?? null);
 const openRow = computed(() => (openUnit.value ? (rows.value.find((r) => r.unitNumber === openUnit.value) ?? null) : null));
@@ -201,6 +227,7 @@ const closeTruck = () => qs.set({ truck: undefined });
 const at = (iso: string | null | undefined) => formatDateTime(iso, "—", zone.value);
 const description = computed(() => {
   if (tab.value === HISTORY) return "Who was signed in to which truck, and when, from Samsara, with the loads the truck was on. The attribution trail behind every evidence panel.";
+  if (tab.value === HOME_TIME) return "Every driver who is scheduled for home time, home now, or past the return time. Overdue first, then by when each is due back.";
   const hos = board.value?.hosAsOf ? ` HOS as of ${at(board.value.hosAsOf)}.` : "";
   return `When and where every truck is next free, soonest first.${hos}`;
 });
@@ -224,6 +251,7 @@ const emptyText = computed(() =>
     <AppTabs v-model="tab" :tabs="tabItems" label="Dispatch board queue" />
 
     <AssignmentHistory v-if="tab === HISTORY" />
+    <HomeTimeTab v-else-if="tab === HOME_TIME" :zone="zone" />
 
     <template v-else>
       <AppCallout v-if="board && !scope.linked" tone="info">
@@ -308,5 +336,7 @@ const emptyText = computed(() =>
       <DispatchTruckDrawer :row="openRow" :zone="zone" :fleets="fleets" @close="closeTruck" />
       <NotesDrawer />
     </template>
+    <!-- Outside the tabs: the Home time tab and the board both open it, and a pasted link opens it on either. -->
+    <HomeTimeDrawer :zone="zone" :leaves-hint="leavesHint" />
   </div>
 </template>

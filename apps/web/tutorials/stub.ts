@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { BrowserContext, Route } from "@playwright/test";
-import { resolveBasemapFormat, resolveBasemapStyle, resolveTileRequest } from "@silvicom/shared";
+import { HOME_TIME_DEFAULTS, resolveBasemapFormat, resolveBasemapStyle, resolveTileRequest } from "@silvicom/shared";
 import {
   allLoads, dispatchBoard, driverRows, drivenPath, liveMapPositions, loadDetail, loadRoute, trailerRows,
 } from "./fixtures/endpoints";
@@ -84,6 +84,10 @@ const API: Array<[RegExp, Handler]> = [
   [/^\/api\/notes\/summary$/, (u) => ({
     kinds: Object.fromEntries((u.searchParams.get("kinds") ?? "").split(",").filter(Boolean).map((k) => [k, {}])),
   })],
+  // The board's Home time tab reads its count on every tab (HOME-TIME-PLAN D-HT8). The tutorial world has
+  // nobody on home time: the list's own shape with nothing in it and the shipped thresholds, so the tab
+  // shows a quiet 0 and no row carries a chip.
+  [/^\/api\/roster\/home-time$/, () => ({ generatedAt: new Date().toISOString(), live: [], recent: [], settings: HOME_TIME_DEFAULTS })],
   [/^\/api\/fueling\/map-config$/,() => ({ tilesEnabled: Boolean(process.env.HERE_API_KEY) })],
   [/^\/api\/hazmat\/products$/, (u) => hazmatProducts(u)],
   [/^\/api\/hazmat\/calc$/, (_u, body) => hazmatCalc(body)],
