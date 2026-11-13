@@ -93,6 +93,15 @@ describe("POST /api/tms/lumper", () => {
     expect(rec.rpcs()).toHaveLength(0);
   });
 
+  it("does not apply an empty sweep, and says so, because it would read as every lumper having been removed", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await post(sweep({ orders: [], charges: [], payments: [payment] }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, orders: 0, charges: 0, payments: 0, bills: 0, chargesRemoved: 0, paymentsRemoved: 0, billsRemoved: 0, casesOpened: 0, skipped: "empty" });
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
   it("refuses an unknown token", async () => {
     const rec = seed();
     holder.client = rec.client;

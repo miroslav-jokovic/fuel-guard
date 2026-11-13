@@ -28,6 +28,12 @@ export const JOBS = [
   // Listed after `roster`: when both are due, a new hire reaching the office matters more than a
   // departure leaving it.
   { name: "retire", everyMs: 15 * 60_000 },
+  // Lumper fees (LUMPER-REVISED-RC-PLAN LRC1, Part 7 of the review file): four statements, about 0.7
+  // seconds on one core for 90 days (measured on the analytics copy, 2026-11-13). Hourly, because the
+  // office works these cases through the day and payroll keys the payment 9 to 88 hours after the
+  // lumper; a minute's freshness would buy nothing. After the roster feeds and before finance: a
+  // dispatcher's board never waits on it. `serviceJobs` below leaves it out unless LUMPER_FEED=on.
+  { name: "lumper", everyMs: 60 * 60_000 },
   // Nightly, outside dispatch hours. A failed night retries every 30 minutes until it succeeds, rather
   // than waiting a whole day or hammering the server every tick.
   { name: "financial", dailyAtHour: 2, retryMs: 30 * 60_000 },
@@ -70,4 +76,18 @@ export function dueJobs(now, runs = {}, jobs = JOBS) {
     if (!doneToday && !throttled) due.push(job.name);
   }
   return due;
+}
+
+/**
+ * The jobs this service run is allowed to schedule, given its two feed switches.
+ *
+ * The switches have OPPOSITE defaults, on purpose, and `agent.mjs` reads them that way:
+ *  · finance is ON unless the settings say `FINANCE_FEED=off`: it has run for months, and a line that
+ *    went missing must not stop it silently.
+ *  · lumper is OFF unless the settings say `LUMPER_FEED=on`: the Board VM's settings file has no such
+ *    line, so installing this code there starts nothing. It reads LME only after IT has reviewed
+ *    Part 7 and a person has added the line.
+ */
+export function serviceJobs({ financeFeed, lumperFeed }, jobs = JOBS) {
+  return jobs.filter((j) => (j.name !== "financial" || financeFeed) && (j.name !== "lumper" || lumperFeed));
 }

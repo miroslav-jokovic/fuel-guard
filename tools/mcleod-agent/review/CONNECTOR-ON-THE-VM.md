@@ -47,6 +47,7 @@ node --env-file=connector.env agent.mjs --service
   - open loads, every minute;
   - closing loads, every 10 minutes;
   - drivers/trucks/trailers, every 15 minutes, and right after it who has left (Part 5);
+  - lumper fees, every 60 minutes, only when `LUMPER_FEED=on` (see "Lumper fees come later");
   - finance, at 2:00 AM Central.
 - It logs one line per step to standard output: counts, times and McLeod ids, never addresses or
   licence details. Under systemd that lands in the journal. It can also write to a file if
@@ -112,6 +113,30 @@ roster, and leaves the 2:00 AM finance run out. Its first log line says so. The 
 
 Once finance runs on this login, the NikiAnalytics login is no longer needed for this work.
 
+
+## Lumper fees come later
+
+Added 2026-11-13. The code for the lumper read (Part 7 of `SILVICOM-READ-ROUTINE.sql`, four
+statements) can be on the VM without running: the service schedules it only when `connector.env`
+has the line `LUMPER_FEED=on`. A file with no such line, which is what the VM has today, means off,
+and the service's second log line says "lumper OFF". The order:
+
+1. The grants. On LME the login needs `other_charge`, `other_charge_hist` and `drs_pending_deduct`
+   (granted 2026-11-13) and `drs_deduct_hist` and `billing_history` (asked for 2026-11-13).
+2. You review Part 7.
+3. The connector's code on the VM is updated to the commit that has this feed (`update-connector.ps1`,
+   as for any update). Nothing new runs.
+4. One watched read, sending nothing:
+   `node --env-file=connector.env agent.mjs --lumper --dry-run`
+   It runs the four statements once and prints counts, dollar totals and the time each statement
+   took. It opens its own connection for about a second, beside the service's one. Without
+   `--dry-run` the command refuses to run: only the service sends a lumper read.
+5. If the counts look right, `LUMPER_FEED=on` is added to `connector.env` and the service restarted.
+   From then on the four statements run once an hour, one after another, never beside another feed.
+
+If a read comes back empty or the four statements disagree with each other, the connector sends
+nothing, logs why, and tries again an hour later. Setting the line back to `off` (or removing it)
+and restarting stops the feed; nothing else changes.
 
 ## Later updates
 

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { LUMPER_ORDERS, LUMPER_CHARGES, LUMPER_PAYMENTS, LUMPER_BILLS } from "./queries.mjs";
-import { lumperSince, mapLumperBill, mapLumperPayment, summarizeLumper } from "./lumper.mjs";
+import { lumperFeedOn, lumperPayload, lumperSince, lumperSweepProblems, mapLumperBill, mapLumperPayment, summarizeLumper } from "./lumper.mjs";
 
 /**
  * The lumper feed (LRC1). The statements are pinned as text for the reason `queries.test.mjs` gives:
@@ -72,3 +72,46 @@ test("the dry-run summary counts a paid lumper that was billed with no lumper li
   assert.equal(s.coverage.rowsOutsideTheOrderList, 1);
   assert.equal(s.payments.voided, 1);
 });
+
+test("the feed is on only for the exact word, so a missing line, an empty one and a typo all leave it off", () => {
+  for (const v of ["on", "ON", " on "]) assert.equal(lumperFeedOn(v), true, JSON.stringify(v));
+  for (const v of [undefined, null, "", "off", "true", "1", "yes", "onn"]) assert.equal(lumperFeedOn(v), false, JSON.stringify(v));
+});
+
+const sweep = (o = {}) => ({
+  since: "2026-08-15",
+  orders: [{ order_external_id: "O1", company_id: "TMS" }],
+  charges: [{ external_id: "C1", order_external_id: "O1", company_id: "TMS" }],
+  payments: [{ external_id: "D1", order_external_id: null, company_id: "TMS" }, { external_id: "D2", order_external_id: "O7", company_id: "TMS" }],
+  bills: [{ external_id: "B1", order_external_id: "O1", company_id: "TMS" }],
+  timings_ms: { orders: 1 },
+  ...o,
+});
+
+test("the payload is the four lists, the company and the start date, and nothing else", () => {
+  const p = lumperPayload(sweep(), "TMS");
+  assert.deepEqual(Object.keys(p), ["company_id", "since", "orders", "charges", "payments", "bills"]);
+  assert.equal(p.company_id, "TMS");
+  assert.equal(p.since, "2026-08-15");
+  assert.equal(p.payments.length, 2);
+});
+
+test("a good sweep has no reason to be held back; a payment may name no order or one outside the list", () => {
+  assert.deepEqual(lumperSweepProblems(sweep(), "TMS"), []);
+});
+
+test("an empty read is never sent, because 360 would take it as every lumper having been removed", () => {
+  const problems = lumperSweepProblems(sweep({ orders: [], charges: [], bills: [] }), "TMS");
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /no orders/);
+});
+
+test("a charge or bill of an order the order read did not return holds the sweep back", () => {
+  assert.match(lumperSweepProblems(sweep({ charges: [{ external_id: "C9", order_external_id: "O9", company_id: "TMS" }] }), "TMS")[0], /1 charge or bill/);
+  assert.match(lumperSweepProblems(sweep({ bills: [{ external_id: "B9", order_external_id: "O9", company_id: "TMS" }] }), "TMS")[0], /1 charge or bill/);
+});
+
+test("a row of another company holds the sweep back", () => {
+  assert.match(lumperSweepProblems(sweep({ orders: [{ order_external_id: "O1", company_id: "TMS2" }] }), "TMS").join(" "), /other than TMS/);
+});
+

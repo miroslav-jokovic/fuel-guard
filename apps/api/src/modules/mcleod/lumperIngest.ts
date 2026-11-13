@@ -22,9 +22,19 @@ export interface LumperSweepResult {
   paymentsRemoved: number;
   billsRemoved: number;
   casesOpened: number;
+  /** Set when the sweep was NOT applied, with the reason; every count is then 0. */
+  skipped?: "empty";
 }
 
 export async function ingestLumperSweep(admin: SupabaseClient, orgId: string, payload: LumperSweepPayload): Promise<LumperSweepResult> {
+  // An empty sweep is never applied (the ledger feed's rule, D-FIN6). The function would take it as
+  // "McLeod holds no lumper in this window" and remove every charge and payment from every open case;
+  // 90 days held 87 orders when measured, so an empty one is a wrong company id or a failed read. The
+  // connector holds such a sweep back itself; this is the same refusal for any other caller.
+  if (payload.orders.length === 0) {
+    console.warn(`[lumper] empty sweep for org ${orgId} company ${payload.company_id} since ${payload.since} — not applied; what 360 holds is unchanged`);
+    return { orders: 0, charges: 0, payments: 0, bills: 0, chargesRemoved: 0, paymentsRemoved: 0, billsRemoved: 0, casesOpened: 0, skipped: "empty" };
+  }
   const { data, error } = await admin.rpc("lumper_sweep_apply", {
     p_org: orgId,
     p_company: payload.company_id,
