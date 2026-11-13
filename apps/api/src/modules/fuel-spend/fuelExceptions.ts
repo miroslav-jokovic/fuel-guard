@@ -46,6 +46,8 @@ export interface ExceptionFilters {
   unitNumbers?: string[] | null;
   from?: string | null;
   to?: string | null;
+  /** Money identified at least this many dollars (Q-AI14 (a), `parseFuelProblemsMinAmount`). */
+  minAmount?: number | null;
   limit?: number;
   offset?: number;
 }
@@ -69,6 +71,7 @@ export async function listExceptions(
   if (f.unitNumbers) q = q.in("unit_number", f.unitNumbers);
   if (f.from) q = q.gte("occurred_on", f.from);
   if (f.to) q = q.lte("occurred_on", f.to);
+  if (f.minAmount) q = q.gte("amount", f.minAmount);
 
   const limit = Math.min(Math.max(f.limit ?? 50, 1), 200);
   const offset = Math.max(f.offset ?? 0, 0);

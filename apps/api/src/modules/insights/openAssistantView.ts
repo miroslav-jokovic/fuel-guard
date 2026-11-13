@@ -15,6 +15,7 @@ import {
   type AssistantView,
   type FindingKind,
   type FindingQueueState,
+  type FuelProblemsMinAmount,
 } from "@silvicom/shared";
 
 /**
@@ -107,6 +108,7 @@ export async function openAssistantView(
         states: p.states as FindingQueueState[] | undefined,
         kinds: p.kinds as FindingKind[] | undefined,
         mine: p.mine,
+        minAmountUsd: p.min_amount as FuelProblemsMinAmount | undefined,
       });
       break;
     }

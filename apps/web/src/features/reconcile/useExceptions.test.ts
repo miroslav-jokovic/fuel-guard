@@ -105,5 +105,7 @@ describe("the export's parameters are the list's", () => {
     expect(q).toContain("from=2026-08-01");
     expect(q).not.toContain("limit=");
     expect(q).not.toContain("offset=");
+    // Q-AI14 (a): the page's minimum amount, under the Fuel problems link contract's own key.
+    expect(exceptionExportQuery({ ...QUERY, minAmount: 200 })).toContain("min=200");
   });
 });

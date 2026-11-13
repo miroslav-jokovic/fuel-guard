@@ -64,6 +64,12 @@ export interface FindingsFilters {
   from?: string | null;
   to?: string | null;
   assignedTo?: string | null;
+  /**
+   * Money identified at least this many dollars (Q-AI14 (a)). Only the ledger carries money identified,
+   * so with a minimum the two case sources are not read at all: a fill case or a card incident has no
+   * amount to be over anything (`fuelProblemsLinkContract.ts` says the same on the page's side).
+   */
+  minAmount?: number | null;
   limit?: number;
   offset?: number;
 }
@@ -111,8 +117,8 @@ export async function readFindings(
    */
   const fleet = f.vehicleIds?.length ? await fleetScope(admin, orgId, f.vehicleIds) : null;
 
-  const wantsAnomalies = !f.kinds?.length || f.kinds.includes(CASE_RULE_ID as FindingKind);
-  const wantsIncidents = !f.kinds?.length || f.kinds.includes(CARD_FRAUD_KIND as FindingKind);
+  const wantsAnomalies = !f.minAmount && (!f.kinds?.length || f.kinds.includes(CASE_RULE_ID as FindingKind));
+  const wantsIncidents = !f.minAmount && (!f.kinds?.length || f.kinds.includes(CARD_FRAUD_KIND as FindingKind));
   // Only the queue's money kinds (9b, Q-F2): a buying habit named in a filter reads as nothing, not as a
   // way back into the queue for the kinds that left it.
   const exceptionKinds = (f.kinds ?? []).filter((k): k is FuelExceptionKind => (QUEUE_EXCEPTION_KINDS as readonly string[]).includes(k));
@@ -260,6 +266,7 @@ async function readExceptions(
   q = q.in("kind", kinds.length ? kinds : [...QUEUE_EXCEPTION_KINDS]);
   if (f.from) q = q.gte("occurred_on", f.from);
   if (f.to) q = q.lte("occurred_on", f.to);
+  if (f.minAmount) q = q.gte("amount", f.minAmount);
   const { data } = await q.order("occurred_on", { ascending: false }).limit(READ_CAP);
   return ((data ?? []) as Parameters<typeof findingFromException>[0][]).map(findingFromException);
 }

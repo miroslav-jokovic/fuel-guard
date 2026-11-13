@@ -5,7 +5,7 @@ import type { ModuleSet } from "./entitlements.js";
 import { canReachSurface } from "./surfaces.js";
 import { SURFACES } from "./surfaceCatalogue.js";
 import { FINDING_KIND_LABELS } from "./findingAssignment.js";
-import { FUEL_PROBLEMS_LINK_KINDS, FUEL_PROBLEMS_LINK_STATES } from "./fuelProblemsLinkContract.js";
+import { FUEL_PROBLEMS_LINK_KINDS, FUEL_PROBLEMS_LINK_STATES, FUEL_PROBLEMS_MIN_AMOUNTS } from "./fuelProblemsLinkContract.js";
 import {
   DEFAULT_FUEL_LOG_TAB,
   FUEL_LOG_DECLINE_RISKS,
@@ -73,6 +73,11 @@ export const ASSISTANT_VIEWS = {
         from: day.optional(),
         to: day.optional(),
         mine: z.boolean().optional(),
+        // One of the page's own steps (Q-AI14 (a)): "over $250" has no step and is refused, naming them.
+        min_amount: z
+          .number()
+          .refine((n) => (FUEL_PROBLEMS_MIN_AMOUNTS as readonly number[]).includes(n), `one of ${FUEL_PROBLEMS_MIN_AMOUNTS.join(", ")} (dollars)`)
+          .optional(),
       })
       .strict(),
     describe:
@@ -80,7 +85,9 @@ export const ASSISTANT_VIEWS = {
       "from their truck). Filters: states (" + FUEL_PROBLEMS_LINK_STATES.join(", ") + "; default open, investigating, " +
       "working), kinds (" + FUEL_PROBLEMS_LINK_KINDS.map((k) => `${k} = ${FINDING_KIND_LABELS[k]}`).join("; ") + "), " +
       "units (truck unit numbers), from/to (calendar days the problem's fill fell on; default the last 90 days), " +
-      "mine (true = assigned to the person asking).",
+      "mine (true = assigned to the person asking), min_amount (money identified at least this many dollars, ONE of " +
+      FUEL_PROBLEMS_MIN_AMOUNTS.join(", ") + "; with it only vendor and policy findings are listed, as fill cases and card " +
+      "fraud carry no amount).",
   },
   fuel_log: {
     surfaceKey: "fuel.log",

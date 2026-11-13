@@ -15,6 +15,7 @@ import {
   QUEUE_FINDING_KINDS, FINDING_KIND_LABELS,
   FINDING_QUEUE_STATES, FINDING_QUEUE_STATE_LABELS,
   findingAgeDays, FUEL_PROBLEMS_OWNER_ME, FUEL_PROBLEMS_QUERY_KEYS,
+  FUEL_PROBLEMS_MIN_AMOUNTS, parseFuelProblemsMinAmount,
   type FindingKind, type FindingQueueState, type FindingSource,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -125,6 +126,25 @@ const OWNER_OPTIONS = [
 const assignedTo = computed(() => (mine.value === FUEL_PROBLEMS_OWNER_ME ? (session.userId ?? null) : null));
 
 /**
+ * The minimum money identified (Q-AI14 (a), owner 2026-11-12): "is this worth chasing". The steps are the
+ * link contract's, so Ask AI's `open_view` and this control name the same values. With a minimum, the
+ * queue holds only vendor and policy findings: a fill case or a card incident has no amount (the note
+ * under the control says so).
+ */
+const minParam = param(FUEL_PROBLEMS_QUERY_KEYS.minAmount, FUEL_PROBLEMS_MIN_AMOUNTS.map(String));
+const minAmount = computed(() => parseFuelProblemsMinAmount(minParam.value));
+const AMOUNT_OPTIONS = [
+  { value: "", label: "Any amount" },
+  ...FUEL_PROBLEMS_MIN_AMOUNTS.map((n) => ({ value: String(n), label: `${usd(n)} or more` })),
+];
+/** The `#more` filters as chips (contract §5.5 rule 6). */
+const moreChips = computed(() => [
+  ...(mine.value ? [{ key: "owner", label: "Owner", value: "Assigned to me" }] : []),
+  // The chip says the case sources drop out, because it is the one place visible once the popover closes.
+  ...(minAmount.value ? [{ key: "min", label: "Amount", value: `${usd(minAmount.value)} or more · billing findings only` }] : []),
+]);
+
+/**
  * What "Clear filters" would undo. The status filter OPENS on the three working states, so a status
  * list equal to that default is not a narrowing — counting it would light the button on every visit.
  * Grain is not counted: `useSpendFilters` carries it, but this page offers no control for it.
@@ -138,7 +158,8 @@ const activeFilterCount = computed(
     (f.vehicleIds.value.length ? 1 : 0) +
     (isDefaultStates.value ? 0 : 1) +
     (kinds.value.length ? 1 : 0) +
-    (mine.value ? 1 : 0),
+    (mine.value ? 1 : 0) +
+    (minAmount.value ? 1 : 0),
 );
 /**
  * ONE patch through this page's own `useQueryState`, not `f.reset()` beside three `param` writes:
@@ -149,7 +170,7 @@ const activeFilterCount = computed(
  */
 function resetFilters(): void {
   const K = FUEL_PROBLEMS_QUERY_KEYS;
-  set({ [K.from]: undefined, [K.to]: undefined, [K.trucks]: undefined, grain: undefined, [K.state]: undefined, [K.kind]: undefined, [K.owner]: undefined });
+  set({ [K.from]: undefined, [K.to]: undefined, [K.trucks]: undefined, grain: undefined, [K.state]: undefined, [K.kind]: undefined, [K.owner]: undefined, [K.minAmount]: undefined });
 }
 
 const page = ref(1);
@@ -166,12 +187,12 @@ const kindOptions = QUEUE_FINDING_KINDS.map((v) => ({ value: v, label: FINDING_K
 const query = computed<FindingsQuery>(() => ({
   states: states.value, kinds: kinds.value,
   vehicleIds: f.vehicleIds.value, assignedTo: assignedTo.value,
-  from: f.from.value, to: f.to.value,
+  from: f.from.value, to: f.to.value, minAmount: minAmount.value,
   page: page.value, pageSize: PAGE_SIZE,
 }));
 // Narrowing while on page nine of the old result set lands on an empty page that looks like an error.
 watch(
-  [states, kinds, () => f.from.value, () => f.to.value, () => f.vehicleIds.value, assignedTo],
+  [states, kinds, () => f.from.value, () => f.to.value, () => f.vehicleIds.value, assignedTo, minAmount],
   () => { page.value = 1; },
   { deep: true },
 );
@@ -321,9 +342,9 @@ const truckOptions = computed(() =>
       :count="total"
       count-label="problems"
       :active-count="activeFilterCount"
-      :more-count="mine ? 1 : 0"
-      :chips="mine ? [{ key: 'owner', label: 'Owner', value: 'Assigned to me' }] : []"
-      @remove="mine = ''"
+      :more-count="moreChips.length"
+      :chips="moreChips"
+      @remove="(key: string) => (key === 'owner' ? (mine = '') : (minParam = ''))"
       @clear-all="resetFilters"
     >
       <template #filters>
@@ -336,6 +357,8 @@ const truckOptions = computed(() =>
            and "assigned to me" is a narrowing a reviewer reaches for after the dates and the kind. -->
       <template #more>
         <FilterSelect v-model="mine" label="Owner" :options="OWNER_OPTIONS" block />
+        <FilterSelect v-model="minParam" label="Amount" :options="AMOUNT_OPTIONS" block />
+        <p v-if="minAmount" class="text-xs text-ink-secondary">Billing findings only: a fill case or card fraud has no amount.</p>
       </template>
       <template #actions>
         <MoneyExportActions
@@ -345,6 +368,7 @@ const truckOptions = computed(() =>
           :assigned-to="assignedTo"
           :from="f.from.value"
           :to="f.to.value"
+          :min-amount="minAmount"
           :money-ids="moneyIds"
         />
       </template>

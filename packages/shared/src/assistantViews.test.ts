@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MODULE_KEYS, type ModuleSet } from "./entitlements.js";
 import { ASSISTANT_VIEWS, assistantViewsFor, parseAssistantViewFilters } from "./assistantViews.js";
 import { splitAssistantLink, assistantAnswerPages } from "./assistantContract.js";
-import { FUEL_PROBLEMS_QUERY_KEYS, fuelProblemsToQuery } from "./fuelProblemsLinkContract.js";
+import { FUEL_PROBLEMS_QUERY_KEYS, fuelProblemsToQuery, parseFuelProblemsMinAmount } from "./fuelProblemsLinkContract.js";
 import { FUEL_COSTS_QUERY_KEYS } from "./fuelCostsLinkContract.js";
 import { DRIVERS_QUERY_KEYS, driversToQuery } from "./driversLinkContract.js";
 import { FUEL_CARDS_QUERY_KEYS, fuelCardsToQuery } from "./fuelCardsLinkContract.js";
@@ -17,7 +17,7 @@ describe("open_view's pages (F21 Step 5)", () => {
     const r = parseAssistantViewFilters("fuel_problems", { states: ["open"], units: ["718"], amount_over: 200 });
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toMatch(/cannot filter by amount_over/);
-    expect(!r.ok && r.error).toMatch(/It can filter by: states, kinds, units, from, to, mine/);
+    expect(!r.ok && r.error).toMatch(/It can filter by: states, kinds, units, from, to, mine, min_amount/);
     // A value outside the page's own list is refused too.
     expect(parseAssistantViewFilters("fuel_problems", { states: ["disputed"] }).ok).toBe(false);
     expect(parseAssistantViewFilters("fuel_problems", { states: ["open"], units: ["718"] })).toEqual({ ok: true, filters: { states: ["open"], units: ["718"] } });
@@ -119,5 +119,13 @@ describe("open_view's pages (F21 Step 5)", () => {
       .toEqual({ due: "30", req: "medical_card", seat: "none", show: "archived", q: "Diaz" });
     expect(driversToQuery({ file: "expired", status: null })).toEqual({ file: "expired", status: "any" });
     expect(driversToQuery({})).toEqual({});
+  });
+
+  it("Fuel problems: a minimum amount is one of the page's steps, so \"over $200\" opens and \"over $250\" is refused naming them (Q-AI14)", () => {
+    expect(parseAssistantViewFilters("fuel_problems", { states: ["open"], units: ["718"], min_amount: 200 }).ok).toBe(true);
+    const odd = parseAssistantViewFilters("fuel_problems", { min_amount: 250 });
+    expect(!odd.ok && odd.error).toMatch(/min_amount: one of 50, 100, 200, 500, 1000/);
+    expect(fuelProblemsToQuery({ minAmountUsd: 200 })).toEqual({ min: "200" });
+    expect([parseFuelProblemsMinAmount("200"), parseFuelProblemsMinAmount("250"), parseFuelProblemsMinAmount("2e2"), parseFuelProblemsMinAmount(undefined)]).toEqual([200, null, null, null]);
   });
 });

@@ -54,6 +54,7 @@ vi.mock("@/features/reconcile/useExceptions", () => ({
     if ((q.status as string[])?.length) p.set("status", (q.status as string[]).join(","));
     if ((q.vehicleIds as string[])?.length) p.set("vehicles", (q.vehicleIds as string[]).join(","));
     if (q.assignedTo) p.set("assignedTo", String(q.assignedTo));
+    if (q.minAmount) p.set("min", String(q.minAmount));
     return p.toString();
   },
 }));
@@ -333,6 +334,17 @@ describe("Fuel problems", () => {
     // rather than restated here. `closed` covers three of them, and a file built from the axis word
     // would have asked the export for a status the ledger has never heard of.
     expect(csv.href).not.toContain("status=closed");
+  });
+
+  // Q-AI14 (a): "is this worth chasing". The amount reaches the list and the file, and only the page's steps count.
+  it("narrows the list and the export to a minimum amount, says the cases drop out, and ignores an amount it has no step for", async () => {
+    const { w } = await mountPage("?min=200");
+    expect(seen.listQuery?.minAmount).toBe(200);
+    const csv = (w.getComponent(MoneyExportActions).getComponent(ExportButton).props("items") as ExportItem[]).find((i) => i.key === "csv")!;
+    expect(csv.href).toContain("min=200");
+    expect(w.text()).toContain("$200 or more · billing findings only");
+    await mountPage("?min=250");
+    expect(seen.listQuery?.minAmount).toBeNull();
   });
 
   it("states the empty case as a fact and a next action", async () => {
