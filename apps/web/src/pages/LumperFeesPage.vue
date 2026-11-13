@@ -83,7 +83,7 @@ const unmatchedColumns: DataTableColumn[] = [
       <FilterBar
         v-model:search="search"
         embedded
-        search-placeholder="Search by order, broker, dispatcher or EFS reference…"
+        search-placeholder="Search order, broker, EFS…"
         :count="rows.length"
         count-label="cases"
         :active-count="activeFilterCount"
@@ -108,6 +108,8 @@ const unmatchedColumns: DataTableColumn[] = [
       >
         <template #empty>
           <p v-if="activeFilterCount">No lumper case matches these filters.</p>
+          <!-- Before the first read, "nothing is open" would be a claim about loads nobody has looked at. -->
+          <p v-else-if="!data?.sweptAt" data-test="empty-unread">Nothing to show yet. Lumper fees appear here after the first read from McLeod.</p>
           <p v-else>No open lumper cases. Every lumper we know of is invoiced with its revised RC on file, or closed.</p>
         </template>
         <template #cell-customerName="{ value }">{{ value ?? "—" }}</template>

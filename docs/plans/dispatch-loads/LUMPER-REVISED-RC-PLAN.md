@@ -319,4 +319,17 @@ VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
   plainly while the connector's lumper read is not switched on. An amount the dispatcher keyed that
   payroll has not paid yet is shown and labelled "keyed". Not done: the case on the load page
   (the list is the door for now), and a browser pass on staging once the tables hold data.
+- 2026-11-13, LRC3 merged and walked — PR #2341 is on main (migration 0601) and on staging. Browser
+  pass on staging as the test dispatcher: "Lumper fees" is in the Dispatch group, the page loads,
+  says McLeod has not been read yet, and the only refused request is the notifications one that
+  staging refuses for every page. Two wording faults found there and fixed: the empty list said
+  "every lumper is invoiced" before any read had happened, and the search hint was cut off.
+- 2026-11-13, grants checked (permission metadata only, no table read) under the connector's login
+  after the request went to IT. **On live LME, Part 5 is in:** `other_charge`, `other_charge_hist`
+  and `drs_pending_deduct` are readable. **Part 4 is not:** `drs_deduct_hist`, `billing_history` and
+  the other finance tables are still refused. The lumper read needs those two (what payroll paid,
+  and the invoices), so it cannot run on LME yet. The analytics copy is unchanged: last restored
+  2026-10-09, and it refuses every finance and lumper table under the connector's login. Still owed
+  by IT: the refresh, Part 2 on the copy, Part 4 on LME. Still owed by us: the regenerated review
+  file (33 statements, Part 7) sent to IT before the VM runs the lumper read.
 
