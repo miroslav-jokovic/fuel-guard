@@ -112,7 +112,12 @@ describe("LumperFeesPage", () => {
   });
 
   it("says so when McLeod has never been read or was last read over a day ago, and stays quiet when fresh", async () => {
-    expect((await mountPage("/lumper-fees", response({ cases: [], sweptAt: null }))).w.find('[data-test="feed"]').text()).toContain("No lumper fees have been read from McLeod yet");
+    const unread = (await mountPage("/lumper-fees", response({ cases: [], sweptAt: null }))).w;
+    expect(unread.find('[data-test="feed"]').text()).toContain("No lumper fees have been read from McLeod yet");
+    // An empty list before the first read is not "every lumper is invoiced".
+    expect(unread.find('[data-test="empty-unread"]').exists()).toBe(true);
+    expect(unread.text()).not.toContain("Every lumper we know of");
+    expect((await mountPage("/lumper-fees", response({ cases: [] }))).w.text()).toContain("Every lumper we know of");
     const old = new Date(Date.now() - 3 * 86_400_000).toISOString();
     expect((await mountPage("/lumper-fees", response({ sweptAt: old }))).w.find('[data-test="feed"]').text()).toContain("3 days ago");
     expect((await mountPage()).w.find('[data-test="feed"]').text()).toContain("within the last hour");
