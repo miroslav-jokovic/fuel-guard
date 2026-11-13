@@ -25,6 +25,9 @@ export {
 } from "./liveLoadReads.js";
 // Each truck's current and next load, for the dispatch board (DISPATCH-BOARD-PLAN DB4).
 export { readTruckLoadPlans, type TruckLoadPlan } from "./truckLoadPlanReads.js";
+// Pickups that actually happened since an instant, with who was on the load: the evidence that a
+// driver marked home has gone back to work (HOME-TIME-PLAN D-HT6).
+export { readDriverPickupsSince, type DriverPickup } from "./driverPickups.js";
 // The board's ETA to each truck's next stop, recorded hourly so it can be scored against the arrival
 // (DB7, 0453). `livemap` makes the estimate; the row is a fact about this module's stop.
 export { recordStopEtaPredictions, type StopEtaPrediction } from "./etaPredictions.js";

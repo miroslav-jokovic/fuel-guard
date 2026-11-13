@@ -199,6 +199,12 @@ const API_ALLOW = new Set([
   // evidence and medstop; every call is at request time, never at module load.
   "livemap -> evidence",
   "livemap -> medstop",
+  // Home time's alerts (HOME-TIME-PLAN D-HT13, 2026-11-13): the quarter-hourly job composes the periods
+  // (roster), the pickups (loads), the fleet's dispatcher (mcleod) and the carrier's clock (org) — the
+  // board's own four owners — and hands the result to messaging's one sender (`sendAlerts`). It lives here
+  // and not in roster because `loads -> roster` exists, so `roster -> loads` would close a cycle.
+  // messaging imports nothing of livemap's.
+  "livemap -> messaging",
   // The board's "today" (F21 carrier-day fix, 2026-11-11): the annual chip and the drivers' credential
   // warnings are judged on the carrier's calendar day, `orgToday`, which org owns because it reads
   // `organizations`. One function through org's index — the same arrow evidence, maintenance and

@@ -121,9 +121,10 @@ const WAIVERS = new Map([
   // Each leaves in the merge of the step named, which ships the code that reads or writes it.
   // home_time_settings left on 2026-11-13 in HT2: roster/homeTime/homeTime.ts reads the carrier's thresholds
   // for the board's chips and the Home time tab (a read is producer evidence here); HT5's Settings page saves them.
-  ["notification_routes", "HOME-TIME-PLAN.md HT4 — messaging's recipientsFor reads an alert's routes, and HT5's Settings page saves them (schema-only, 0598; leaves in HT4's merge)"],
-  ["notification_channel_settings", "HOME-TIME-PLAN.md HT4 — messaging's sendAlert reads the hours a text is held, and HT5's Settings page saves them (schema-only, 0598; leaves in HT4's merge)"],
-  ["notification_contacts", "HOME-TIME-PLAN.md HT4 — messaging's recipientsFor reads a person's confirmed number to decide whether SMS can reach them; HT6's \"My alerts\" writes it (schema-only, 0598; leaves in HT4's merge)"],
+  // notification_routes and notification_contacts left on 2026-11-13 in HT4: messaging/alertRouting.ts reads an
+  // alert's routes and who has a confirmed number (reads are producer evidence here); HT5 saves the routes and
+  // HT6's "My alerts" writes the numbers.
+  ["notification_channel_settings", "HOME-TIME-PLAN.md HT6 — the text sender reads the hours a text is held, and the Settings page saves them; only a text is ever held, so its reader ships with texting (schema-only, 0598; leaves in HT6's merge)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

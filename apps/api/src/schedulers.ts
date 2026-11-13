@@ -22,7 +22,7 @@ import { startFinancialProjectionScheduler, startFinancialFreshnessScheduler } f
 import { startFleetpalScheduler } from "./modules/fleetpal/index.js";
 import { startMedstopScheduler } from "./modules/medstop/index.js";
 import { startLeadUncontacted, startSmsOutboxScheduler } from "./modules/recruiting/index.js";
-import { startBoardEtaRecorder } from "./modules/livemap/index.js";
+import { startBoardEtaRecorder, startHomeTimeScheduler } from "./modules/livemap/index.js";
 import { startFmcsaFeedScheduler } from "./modules/inspections/index.js";
 import { startMcleodRelinkScheduler } from "./modules/mcleod/index.js";
 import { startAdsDailyBrief, startAdsInsights, startAdsLeadsBackfill, startAdsOrchestrator, startAdsOutcomeFeed, startAdsReconcile } from "./modules/ads/index.js";
@@ -81,6 +81,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   { name: "medstop", lane: "general", start: startMedstopScheduler }, // hourly Med-Stop roster/pool/selection mirror (MEDSTOP MS1); OFF unless MEDSTOP_SYNC_ENABLED
   { name: "sms-outbox", lane: "general", start: startSmsOutboxScheduler }, // A-11/C2d: five-minutely drain of texts queued for their recipient's civil hours
   { name: "board-eta-recorder", lane: "general", start: startBoardEtaRecorder }, // DB7: hourly sample of the dispatch board's ETAs, scored later against arrivals
+  { name: "home-time", lane: "general", start: startHomeTimeScheduler }, // HOME-TIME D-HT13: every 15 min, ends finished home time and sends its three alerts
   { name: "fmcsa-feed", lane: "general", start: startFmcsaFeedScheduler }, // IC1 (0457): daily snapshot of FMCSA's public record of our roadside inspections
   { name: "mcleod-relink", lane: "general", start: startMcleodRelinkScheduler }, // D-LA3 via D-RLY12: every 10 min, re-make the links of loads whose codes resolve now
   { name: "financial-freshness", lane: "general", start: startFinancialFreshnessScheduler }, // D-FIN3: six-hourly — a stale McLeod financial sweep or a failed finance job becomes a finding

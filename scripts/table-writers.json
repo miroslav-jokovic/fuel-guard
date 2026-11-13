@@ -539,6 +539,9 @@
   "messages": [
     "apps/api/src/modules/messaging/messages.ts"
   ],
+  "notification_deliveries": [
+    "apps/api/src/modules/messaging/alertRouting.ts"
+  ],
   "notification_events": [
     "apps/api/src/modules/messaging/notify.ts"
   ],
