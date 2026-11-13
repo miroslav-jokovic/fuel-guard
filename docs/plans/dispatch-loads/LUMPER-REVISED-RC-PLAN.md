@@ -332,4 +332,31 @@ VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
   2026-10-09, and it refuses every finance and lumper table under the connector's login. Still owed
   by IT: the refresh, Part 2 on the copy, Part 4 on LME. Still owed by us: the regenerated review
   file (33 statements, Part 7) sent to IT before the VM runs the lumper read.
+- 2026-11-13, LRC1 second half — the connector can send the lumper read, and ships switched off.
+  `schedule.mjs` has a `lumper` job, every 60 minutes, that `serviceJobs` leaves out unless
+  `connector.env` says `LUMPER_FEED=on`; a missing line means off, so updating the VM's code starts
+  nothing. `agent.mjs --lumper --dry-run` reads once and prints counts; `--lumper` without
+  `--dry-run` refuses, because a sweep replaces what 360 holds and one run by hand against the
+  analytics copy would take away every payment newer than the copy. A sweep with no orders, or
+  whose four statements disagree, is not sent (`lumperSweepProblems`), and the API refuses an empty
+  one too. The review file's Part 7 changed in its comments only (the four statements are byte for
+  byte what IT was sent on 2026-11-13); the new version must reach IT before the feed is switched on.
+- 2026-11-13, a real sweep checked end to end — the 90 days to 2026-10-09 read from the analytics
+  copy, passed through `lumperSweepPayloadSchema`, applied by `lumper_sweep_apply` in a database
+  built from the migrations, and read by `lumperCaseState`. Counts only. The contract accepted all
+  456 rows (143 KB against the route's 8 MB); a second apply of the same sweep removed nothing and
+  opened nothing; 87 cases. With no RC on file: 77 billed with no revised RC ($23,350.69 paid,
+  $24,960.56 billed), 7 billed without the lumper ($2,156.64), 1 billed short ($80.00 of $200.00),
+  2 waiting. 3 settlement lines name no order. Of the 67 orders that carry both a money code and a
+  reimbursement, the two amounts are equal on 66 and differ on one by $250.00, which is what the
+  "paid is the larger side, not the sum" rule was written for. The 7 billed without the lumper are
+  the same count the first measurement found.
+- Still to do before the feed runs on the VM, in order: IT grants `drs_deduct_hist` and
+  `billing_history` on LME; IT reviews Part 7; production has the release that carries
+  `/api/tms/lumper` (the route merged 2026-11-13; a release is the owner's approval); the VM's code is
+  updated (`windows/manifest.mjs` first, then `update-connector.ps1` pinned to that commit); the dry
+  run on LME; then the `LUMPER_FEED=on` line. **`set-connector-line.ps1` cannot add that line**: it
+  changes the address or the token only, and checks that the line count is unchanged. Adding a
+  third change to it has to be written and tried on the VM itself, since PowerShell is not on the
+  Mac it would be written from. Open: Q-LRC9, Q-LRC8.
 

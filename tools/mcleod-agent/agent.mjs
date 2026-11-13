@@ -32,7 +32,7 @@ import { fetchMovementFacts } from "./movements.mjs";
 import { fetchDispatchLoads, fetchClosedLoads, fetchDeliveredLoads, loadHash } from "./loads.mjs";
 import { describeDryRun, describeMirrorDryRun } from "./dryRun.mjs";
 import { holdConnection, releaseConnection, breakerState } from "./connection.mjs";
-import { dueJobs, JOBS } from "./schedule.mjs";
+import { dueJobs, serviceJobs } from "./schedule.mjs";
 import {
   LOCK_HEARTBEAT_MS,
   loadServiceState as readServiceState,
@@ -46,6 +46,7 @@ import { fetchLedgerControl, fetchGlAccounts, fetchGlControl } from "./ledger.mj
 import { fetchTractorPeriods } from "./tractorPeriods.mjs";
 import { fetchBilling, mapBilling } from "./billing.mjs";
 import { fetchFuelTaxReceipts, receiptWindow } from "./fuelTaxReceipts.mjs";
+import { fetchLumper, lumperFeedOn, lumperPayload, lumperSince, lumperSweepProblems, summarizeLumper } from "./lumper.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
 /** A path beside agent.mjs itself, so state does not follow the working directory around. */
@@ -126,6 +127,16 @@ const CFG = {
   // ON, deliberately: a missing line must not silently stop finance for good, where a present `off`
   // is announced in the service's own start line.
   financeFeed: (process.env.FINANCE_FEED ?? "on").toLowerCase() !== "off",
+  // --lumper --dry-run reads the four lumper statements once and prints counts, dollars and timings:
+  // never a row, never a POST (LUMPER-REVISED-RC-PLAN LRC1). It is the read IT watches on LME before
+  // the feed is switched on. There is deliberately no posting one-shot: 360 REPLACES what it holds
+  // inside the sweep's window, so a sweep run by hand against the analytics copy would take away every
+  // payment newer than the copy. Only --service posts, and it reads the database the VM is set to.
+  lumper: process.argv.includes("--lumper"),
+  // LUMPER_FEED=on puts the hourly lumper read on the service's schedule. Unset means OFF, the opposite
+  // of FINANCE_FEED and for the opposite reason: the Board VM's connector.env has no such line, so
+  // installing this code starts nothing until a person adds it, after IT has reviewed Part 7.
+  lumperFeed: lumperFeedOn(process.env.LUMPER_FEED),
   // 'report'   — matches and counts, and writes NOTHING. How §7's numbers get reproduced by the
   //              pipeline against the carrier's live fleet without touching a row. Start here.
   // 'link'     — match keys only; no date of birth or home address is READ, let alone sent.
@@ -210,7 +221,7 @@ if (CFG.service) {
   if (problems.length) fail(problems.join("\n  "));
 }
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
-if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun || CFG.financial || CFG.loads || CFG.service || CFG.close || CFG.loadsBackfill) {
+if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun || CFG.financial || CFG.lumper || CFG.loads || CFG.service || CFG.close || CFG.loadsBackfill) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
     if (!CFG.sql[k]) fail(`Reading McLeod needs ${k === "companyId" ? "MCLEOD_COMPANY_ID" : `MCLEOD_SQL_${k.toUpperCase()}`}.`);
   }
@@ -811,6 +822,38 @@ async function runFinancial() {
   // authoritative for fuel (D-FS2) and the McLeod copy lands via P3.4's projection decision.
 }
 
+/**
+ * One lumper sweep (LUMPER-REVISED-RC-PLAN LRC1, D-LRC8): the four statements of Part 7, then ONE
+ * request to 360, which writes the sweep and removes what it no longer holds in one transaction.
+ *
+ * `--lumper --dry-run` stops after the read and prints the coverage summary (counts, dollars, timings;
+ * no row). Under --service a sweep with a reason not to be sent (`lumperSweepProblems`) fails the cycle
+ * with that reason, and the service tries again in an hour; 360 keeps what it had.
+ */
+async function runLumper() {
+  const since = lumperSince();
+  log(
+    `${CFG.dryRun ? "DRY RUN — nothing will be posted — " : ""}` +
+      `lumper: reading orders with a lumper since ${since} from ${CFG.sql.database} as company ${CFG.sql.companyId}`,
+  );
+  const sweep = await fetchLumper({ ...CFG.sql, since });
+  const t = sweep.timings_ms;
+  const read = `orders=${sweep.orders.length} charges=${sweep.charges.length} payments=${sweep.payments.length} bills=${sweep.bills.length} (${t.orders + t.charges + t.payments + t.bills} ms)`;
+  const problems = lumperSweepProblems(sweep, CFG.sql.companyId);
+  if (CFG.dryRun) {
+    console.log(JSON.stringify(summarizeLumper(sweep), null, 2));
+    log(`lumper: read ${read}; ${problems.length ? `this sweep would NOT be sent: ${problems.join("; ")}` : "this sweep would be sent"}`);
+    if (problems.length) process.exitCode = 1;
+    return;
+  }
+  if (problems.length) throw new Error(`lumper sweep not sent (${read}): ${problems.join("; ")}`);
+  const r = await postToFuelGuard("/api/tms/lumper", lumperPayload(sweep, CFG.sql.companyId));
+  log(
+    `lumper: sent ${read}; 360 removed charges=${r.chargesRemoved ?? 0} payments=${r.paymentsRemoved ?? 0} bills=${r.billsRemoved ?? 0}, opened cases=${r.casesOpened ?? 0}` +
+      (r.skipped ? ` — 360 did not apply it: ${r.skipped}` : ""),
+  );
+}
+
 
 // ── --service (CA3) ─────────────────────────────────────────────────────────────────────────────────
 /** What the service remembers between cycles and restarts (service.mjs: atomic, with a `.bak`). */
@@ -956,11 +999,17 @@ async function runService() {
     roster: () => runRoster(),
     retire: () => runRetire(),
     financial: () => runFinancial(),
+    lumper: () => runLumper(),
   };
-  const jobs = JOBS.filter((j) => j.name !== "financial" || CFG.financeFeed);
+  const jobs = serviceJobs({ financeFeed: CFG.financeFeed, lumperFeed: CFG.lumperFeed });
   log(
     `service: started (pid ${process.pid}); schedule ${jobs.map((j) => j.name + (j.everyMs ? ` every ${j.everyMs / 60_000} min` : ` daily at ${j.dailyAtHour}:00 Central`)).join(", ")}` +
       (CFG.financeFeed ? "" : "; financial OFF (FINANCE_FEED=off) until the finance grants are on LME"),
+  );
+  log(
+    CFG.lumperFeed
+      ? "service: lumper ON (LUMPER_FEED=on) — Part 7 of the review file, once an hour"
+      : "service: lumper OFF — it is scheduled only when connector.env says LUMPER_FEED=on",
   );
 
   while (!stopping) {
@@ -1015,6 +1064,12 @@ async function main() {
         }
       }
     }
+    return;
+  }
+  // --lumper is tested before the bare --dry-run for the reason --financial is, just below.
+  if (CFG.lumper) {
+    if (!CFG.dryRun) fail("--lumper runs only with --dry-run. A lumper sweep REPLACES what 360 holds, so only the service sends one. To read and count: --lumper --dry-run");
+    await runLumper();
     return;
   }
   // --financial is tested BEFORE the bare --dry-run below: that one is the ROSTER dry run, and

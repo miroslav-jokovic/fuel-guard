@@ -176,6 +176,41 @@ export function summarizeLumper({ since, orders, charges, payments, bills, timin
   };
 }
 
+/**
+ * The feed's switch. ON only when the settings say exactly `LUMPER_FEED=on`; unset, empty, `off` or a
+ * typo all mean off. The opposite default from FINANCE_FEED, because the Board VM's settings file has
+ * no such line: installing this code there must start nothing (`serviceJobs`, schedule.mjs).
+ */
+export function lumperFeedOn(value) {
+  return String(value ?? "").trim().toLowerCase() === "on";
+}
+
+/** One sweep as `POST /api/tms/lumper` takes it (lumperContract.ts): the four lists, whole, in one request. */
+export function lumperPayload({ since, orders, charges, payments, bills }, companyId) {
+  return { company_id: companyId, since, orders, charges, payments, bills };
+}
+
+/**
+ * Reasons not to send a sweep, in words for the log. 360 REPLACES what it holds inside the sweep's
+ * window, so a sweep that is wrong must not arrive.
+ *  · No orders at all. 90 days held 87 orders when measured; an empty read means a wrong company id or
+ *    a statement that returned nothing, and sending it would take every charge and payment off every
+ *    open case until the next good read.
+ *  · A charge or bill of an order the order read did not return: the four statements disagree with
+ *    each other, which the dry run also reports as a failure.
+ *  · A row of another company: the statements bind the company, so this is a fault, not data.
+ */
+export function lumperSweepProblems({ orders, charges, payments, bills }, companyId) {
+  const problems = [];
+  if (orders.length === 0) problems.push("the read returned no orders with a lumper; nothing is sent, so 360 keeps what it has");
+  const known = new Set(orders.map((o) => o.order_external_id));
+  const orphans = charges.filter((c) => !known.has(c.order_external_id)).length + bills.filter((b) => !known.has(b.order_external_id)).length;
+  if (orphans) problems.push(`${orphans} charge or bill row(s) name an order the order read did not return`);
+  const foreign = [...orders, ...charges, ...payments, ...bills].filter((r) => r.company_id !== companyId).length;
+  if (foreign) problems.push(`${foreign} row(s) belong to a company other than ${companyId}`);
+  return problems;
+}
+
 /** `node --env-file=.env lumper.mjs [since YYYY-MM-DD]` — reads and reports, sends nothing. */
 async function main() {
   const since = process.argv[2] ?? lumperSince();

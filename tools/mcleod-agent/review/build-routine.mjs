@@ -154,7 +154,7 @@ const PARTS = [
     ],
   },
   {
-    title: "PART 7 - LUMPER FEES (added 2026-11-13; not on the schedule yet)",
+    title: `PART 7 - LUMPER FEES (added 2026-11-13; ${every("lumper")} once switched on, and switched off today)`,
     intro: [
       "Every load where we paid a lumper, so Silvicom 360 can list them and show which ones still",
       "wait for the broker's revised rate confirmation. An order is read when it carries a LUM",
@@ -164,8 +164,11 @@ const PARTS = [
       "for all four on one core. These need Part 5 of the grants file (other_charge,",
       "other_charge_hist, drs_pending_deduct) and two tables of Part 4 (drs_deduct_hist,",
       "billing_history); until then this part stops with a permission error under the connector's",
-      "login. No schedule runs it today. When it goes on the schedule the plan is once an hour, and",
-      "a new version of this file will say so first.",
+      "login. The connector runs these four once an hour, one after another, only when its settings",
+      "file on the VM says LUMPER_FEED=on. That line is not there today, so nothing runs them, and it",
+      "is added only after you have reviewed this part. To watch one read first, this command runs",
+      "the four statements once, prints counts and timings, and sends nothing:",
+      "  node --env-file=connector.env agent.mjs --lumper --dry-run",
     ],
     lumper: true,
     statements: [
