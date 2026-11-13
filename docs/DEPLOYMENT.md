@@ -259,24 +259,38 @@ EFS feed card, for the last delivery and any gap; then `railway logs` on `@fleet
 `efs_soap_posted`. It is the only WEX-whitelisted host, so nothing polls if it is down or its `RUN_SCHEDULERS_IN_PROCESS` became `false` (§ Exactly one service
 runs the schedulers). (F02–F04 chunk 16, measured 2026-10-09.)
 
-## Office chat on the phone: the Web Push key pair (2026-11-13)
+## Office chat on the phone: the Web Push key pair (2026-11-13, AWS)
 
 `WEB_PUSH_VAPID_PUBLIC_KEY` and `WEB_PUSH_VAPID_PRIVATE_KEY` (`apps/api/src/envWebPush.ts`,
 `docs/plans/messaging/CHAT-WEB-PUSH-PLAN.md`) are this server's identity to the browsers' push services.
 **Unset, chat notifications are simply off** — the chat rail offers the in-tab desktop alerts instead.
 
-- **Both services of an environment carry the SAME pair.** The office SPA calls `@fleetguard/api`, so that is
-  where pushes are sent from today; `@fleetguard/web` runs the same API and must agree with it.
-- **A different pair per environment** (staging `uat`, production). A pair is not a secret to share around.
+- **Where:** AWS Parameter Store, `SecureString`, under **`/silvicom/<staging|production>/api/`** only. Caddy
+  sends every `/api/*` request on the app's host to the `api` replicas (`infra/server/Caddyfile`, D-AWS17), so
+  the `web` container never serves a push route and needs no copy.
+- **A different pair per environment.** Never the same pair on staging and production.
+- **Loaded at deploy, not live:** `fetch-settings.sh` reads Parameter Store when `deploy.sh` runs, and the
+  settings-hash label recreates only the containers whose settings moved. Staging: `gh workflow run image.yml --ref main`
+  (an image already in ECR is not rebuilt; `deploy-staging` redeploys it). Production: the release that ships, or — to load a change without a new
+  commit — `gh workflow run aws-production.yml -f sha=<the commit production runs>` (the EFS runbook §2.1 pattern).
 - **Never change a pair casually.** A browser subscribes with the public key; a push signed by another key is
-  refused, so after a change every person turns notifications on again on every device. A mismatched pair (a
-  public key from another pair) turns push OFF and logs `[chat-push] push is OFF` once, rather than failing every
-  send.
-- Generate with `pnpm --filter @silvicom/api exec tsx src/scripts/generateVapidKeys.ts`.
+  refused, so after a change every person turns notifications on again on every device. A public key that is not
+  the private key's half turns push OFF and logs `[chat-push] push is OFF` once.
+- **Origins:** a device registers from the page's own origin, which must be in `ALLOWED_ORIGINS` or be
+  `WEB_APP_URL`'s origin on that environment's api (production `https://360.silvicominc.com`, staging
+  `https://staging-api.360.silvicominc.com`); otherwise Turn on answers "Notifications can only open this app".
 
-**Check it works:** `GET /api/chat/push` (signed in) answers `{"available":true,…}`; in the app, Chat → the
-rail's foot → Turn on → Send a test. A device the push service says is gone is revoked by itself
-(`web_push_subscriptions.revoked_reason = 'gone'`); a refused key is logged as `[chat-push] device …: 403`.
+```bash
+pnpm --filter @silvicom/api exec tsx src/scripts/generateVapidKeys.ts   # prints the two values
+aws ssm put-parameter --profile silvicom --region us-west-2 --type SecureString \
+  --name /silvicom/<env>/api/WEB_PUSH_VAPID_PUBLIC_KEY --value <public>
+aws ssm put-parameter --profile silvicom --region us-west-2 --type SecureString \
+  --name /silvicom/<env>/api/WEB_PUSH_VAPID_PRIVATE_KEY --value <private>
+```
+
+**Check it works:** signed in, `GET /api/chat/push` answers `{"available":true,…}`; Chat → the rail's foot →
+Turn on → Send a test. Logs: CloudWatch `/silvicom/<env>`, `silvicom-api-*`, lines `[chat-push]`. A device the
+push service says is gone is revoked by itself (`web_push_subscriptions.revoked_reason = 'gone'`).
 
 ## One-time Railway setup (makes the files above authoritative)
 

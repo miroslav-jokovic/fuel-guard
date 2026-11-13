@@ -13,8 +13,8 @@ is that users are logged in in the browser and not in a dedicated application."*
 | The web app has **no service worker and no manifest** | `apps/web/public/`, `index.html` |
 | Phone push exists for the DRIVER app only: Expo tokens in `device_push_tokens`, delivered once a minute from `notification_events` | `notify.ts` `deliverPending`, `notificationPush.ts` |
 | A chat line rings the bell only for a mention or a reply (D-CHAT7, D-CHAT23); who is told is SQL (`chat_notify_targets`, 0521) | `chatNotify.ts` |
-| The SPA is served by `@fleetguard/web` (360.silvicominc.com); its `/api` calls go cross-origin to `@fleetguard/api` | `docs/DEPLOYMENT.md` |
-| A deploy drains: SIGTERM waits up to 35 s for tracked work (`RAILWAY_DEPLOYMENT_DRAINING_SECONDS=45`) | `lib/shutdown.ts` |
+| Hosting is AWS (Railway production retired 2026-10-28, AWS-MIGRATION-PLAN): one EC2 server per environment, Docker Compose + Caddy. Production: the app at `360.silvicominc.com`, where Caddy sends `/api/*` to the `api` replicas (D-AWS17, same origin). Staging: `staging-api.360.silvicominc.com` serves app and API (`staging.360` has no DNS record). Settings: Parameter Store `/silvicom/<env>/<service>/`, read at deploy | `infra/server/Caddyfile`, `fetch-settings.sh`, `staging.env`, `production.env` |
+| A deploy drains: SIGTERM waits up to 35 s for tracked work — compose passes `DRAIN_SECONDS=45` as `stop_grace_period` and as the variable `lib/shutdown.ts` reads (its Railway-era name) | `infra/server/compose.yml`, `lib/shutdown.ts` |
 | Production use: 14 office memberships (7 admin, 3 dispatcher, 4 others), 5 direct conversations, 8 lines ever, 2 in the last 7 days | `supabase db query --linked`, 2026-11-13 |
 
 **A defect this work depends on.** `ChatPage.vue` and `ChatChannelStage.vue` mark a conversation read whenever
@@ -144,7 +144,7 @@ have the Expo app, and production has 0 driver threads. App badge counts on the 
 |---|---|---|
 | WP1 | Migration 0599: `web_push_subscriptions`; `web_push_subscribe` / `web_push_unsubscribe`; `chat_push_targets`; `revoke_push_tokens` also revokes web subscriptions. PGlite matrix `chat-web-push.test.mjs` (40 checks; six deliberate breaks of the migration each fail one) | — |
 | WP2 | API: env, `webPush.ts` (send, classify failures), `chatPush.ts` (hold, targets, fan-out, record), routes `/api/chat/push` (key, subscribe, unsubscribe, test); web: `sw.js`, manifest + icons, `lib/webPush.ts`, the device control, sign-out removes this device, read-only-when-visible; shared contract + wording | WP1 on staging |
-| WP3 | Owner: VAPID keys on Railway (`uat` and production, both services), then the device walk (§6) | WP2 |
+| WP3 | VAPID keys in Parameter Store `/silvicom/staging/api/` and `/silvicom/production/api/` (a pair each), staging redeployed, then the device walk (§6); production loads its pair with the release that first carries WP2 | WP2 |
 
 ## 6. How to check it on staging
 
@@ -180,3 +180,4 @@ have the Expo app, and production has 0 driver threads. App badge counts on the 
   `sw.js` + manifest + icons, `lib/webPush.ts`, the rail control, sign-out stops the device, read only while
   visible (D-WP6). Each of six deliberate breaks (read while hidden, sw opening another site, gone not revoked,
   origin unchecked, another person's subscription kept, a lax push host) turns a test red.
+- 2026-11-13: WP2 merged. Its deployment notes first named Railway services; corrected for AWS (Parameter Store, `api` service only, redeploy to load) after the owner pointed out Railway production was retired on 2026-10-28.

@@ -10,9 +10,11 @@ import { z } from "zod";
  *
  * ⚠ CHANGING THE PAIR INVALIDATES EVERY SUBSCRIPTION. A push service refuses a message signed by a key other
  * than the one the browser subscribed with, so after a rotation every person turns notifications on again on
- * each device. Generate a pair with `pnpm --filter @silvicom/api exec tsx src/scripts/generateVapidKeys.ts`;
- * set the same pair on `@fleetguard/api` AND `@fleetguard/web` (both run this API; docs/DEPLOYMENT.md), and a
- * different pair per environment.
+ * each device. Generate a pair with `pnpm --filter @silvicom/api exec tsx src/scripts/generateVapidKeys.ts`
+ * and put it in AWS Parameter Store under `/silvicom/<staging|production>/api/` (SecureString), a different
+ * pair per environment; the next deploy of that environment loads it (`infra/server/fetch-settings.sh`).
+ * Only the `api` service needs it: Caddy sends every `/api/*` request on the app's host to the api replicas
+ * (`infra/server/Caddyfile`), so the `web` container never answers a push route (docs/DEPLOYMENT.md).
  */
 const base64url = (bytes: number) =>
   z.string().trim().regex(/^[A-Za-z0-9_-]+$/, "base64url, no padding")
