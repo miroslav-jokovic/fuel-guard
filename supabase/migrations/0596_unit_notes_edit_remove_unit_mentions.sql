@@ -555,6 +555,16 @@ $$;
 
 -- The return gains `edited_at` and `unit_mentions` (`[{ kind, id, label }]`, the units the note names), so
 -- the function is dropped and made again; the arguments are 0592's.
+-- ⚠ Load pg_trgm's library in THIS session before the function below names its setting. Measured on
+-- staging, 2026-11-13 02:11 UTC: the first 0596 stopped here with "permission denied to set parameter
+-- pg_trgm.word_similarity_threshold" (42501). Until the library is loaded the setting is only a
+-- placeholder, and Postgres 15+ lets a non-superuser attach a placeholder to a function only if they could
+-- set it as superuser. 0592 never met this because its trigram index, earlier in the same file, had already
+-- loaded the library. Calling one pg_trgm function does the same here. The PGlite matrices run as superuser,
+-- which is why none of them could see it. Nothing had applied 0596 (staging rolled it back, production
+-- never ran it), so this file was corrected in place rather than followed by a migration that could never run.
+select public.similarity('unit', 'notes');
+
 drop function if exists public.unit_notes_search(uuid, text[], jsonb, text, uuid, timestamptz, timestamptz, timestamptz, uuid, timestamptz, uuid, integer);
 create function public.unit_notes_search(
   p_org uuid, p_kinds text[], p_subjects jsonb, p_q text, p_author uuid,
