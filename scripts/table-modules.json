@@ -3587,6 +3587,17 @@
         "budget_rows_per_day": null,
         "why": "LUMPER-REVISED-RC-PLAN LRC2 (0600): when the lumper feed last ran, one row per org and McLeod company, rewritten by every sweep; bounded by the number of companies, not by time."
       }
+    },
+    "lumper_case_files": {
+      "module": "mcleod",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "LUMPER-REVISED-RC-PLAN D-LRC3 (0601): the broker's revised rate confirmation filed on a lumper case, one or two papers a case and under one case a day (256 orders in 2026 to 10-09). The row is the record that the RC arrived, so it is never deleted and has no window; a wrong paper is marked removed."
+      }
     }
   }
 }

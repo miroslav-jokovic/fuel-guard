@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { recordId } from "./recordId.js";
+import { LUMPER_CASE_STATES } from "./lumperCase.js";
 
 /**
  * The lumper feed's wire contract — `POST /api/tms/lumper` (LUMPER-REVISED-RC-PLAN.md LRC2, D-LRC8).
@@ -128,3 +130,105 @@ export const LUMPER_CLOSE_REASON_LABELS: Record<LumperCloseReason, string> = {
   included_in_rate: "Included in the rate",
   not_a_lumper: "Not a lumper",
 };
+
+// ── The page (LRC3): `GET /api/lumper-cases` and the three acts on a case ─────────────────────────
+
+/** What a revised RC may be filed as. An email is saved as a PDF first; a mailbox that takes the email itself is LRC6. */
+export const LUMPER_FILE_TYPES = {
+  "application/pdf": { label: "PDF", extensions: [".pdf"] },
+  "image/jpeg": { label: "JPEG", extensions: [".jpg", ".jpeg"] },
+  "image/png": { label: "PNG", extensions: [".png"] },
+} as const;
+export type LumperFileMime = keyof typeof LUMPER_FILE_TYPES;
+export const LUMPER_FILE_MIMES = Object.keys(LUMPER_FILE_TYPES) as [LumperFileMime, ...LumperFileMime[]];
+export const LUMPER_FILE_MAX_BYTES = 25 * 1024 * 1024;
+
+/** The browser states what it uploaded; the API checks the stored bytes against every field before filing. */
+export const lumperFileConfirmSchema = z.object({
+  file_id: recordId(),
+  file_name: z.string().trim().min(1).max(200).regex(/^[^/\\]+$/, "A file name cannot contain a slash."),
+  mime: z.enum(LUMPER_FILE_MIMES),
+  byte_size: z.number().int().min(1).max(LUMPER_FILE_MAX_BYTES),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+});
+export type LumperFileConfirm = z.infer<typeof lumperFileConfirmSchema>;
+
+export const lumperFileRemoveSchema = z.object({ reason: z.string().trim().min(3).max(300) });
+export type LumperFileRemove = z.infer<typeof lumperFileRemoveSchema>;
+
+export const lumperCaseCloseSchema = z.object({
+  reason: z.enum(LUMPER_CLOSE_REASONS),
+  note: z.string().trim().max(500).nullable(),
+});
+export type LumperCaseClose = z.infer<typeof lumperCaseCloseSchema>;
+
+export const lumperCaseFileSchema = z.object({
+  id: z.string(),
+  fileName: z.string(),
+  mime: z.string(),
+  byteSize: z.number(),
+  uploadedBy: z.string().nullable(),
+  uploadedByName: z.string().nullable(),
+  uploadedAt: z.string(),
+});
+export type LumperCaseFile = z.infer<typeof lumperCaseFileSchema>;
+
+export const lumperCaseRowSchema = z.object({
+  id: z.string(),
+  companyId: z.string(),
+  orderId: z.string(),
+  chargeCode: z.string(),
+  state: z.enum(LUMPER_CASE_STATES),
+  open: z.boolean(),
+  openedAt: z.string(),
+  // Who and where (D-LRC10). All from McLeod's order; null when the sweep has not carried it.
+  customerName: z.string().nullable(),
+  dispatcherUserId: z.string().nullable(),
+  dispatcherName: z.string().nullable(),
+  consigneeName: z.string().nullable(),
+  consigneeCity: z.string().nullable(),
+  consigneeState: z.string().nullable(),
+  deliveredAt: z.string().nullable(),
+  driverCode: z.string().nullable(),
+  // What (D-LRC2).
+  paidAmount: z.number(),
+  paidAt: z.string().nullable(),
+  references: z.array(z.string()),
+  chargeAmount: z.number(),
+  chargeDescriptions: z.array(z.string()),
+  billedAmount: z.number(),
+  shortAmount: z.number(),
+  invoiced: z.boolean(),
+  lastInvoiceNo: z.string().nullable(),
+  lastInvoiceAt: z.string().nullable(),
+  // The revised RC.
+  rcOnFile: z.boolean(),
+  files: z.array(lumperCaseFileSchema),
+  // A person's close.
+  closedAt: z.string().nullable(),
+  closedByName: z.string().nullable(),
+  closeReason: z.enum(LUMPER_CLOSE_REASONS).nullable(),
+  closeNote: z.string().nullable(),
+});
+export type LumperCaseRow = z.infer<typeof lumperCaseRowSchema>;
+
+/** A settlement line payroll keyed with no order number: "lumper paid, order unknown", for a person to match. */
+export const lumperUnmatchedPaymentSchema = z.object({
+  id: z.string(),
+  deductCode: z.string(),
+  amount: z.number(),
+  transactedAt: z.string().nullable(),
+  referenceNo: z.string().nullable(),
+  driverCode: z.string().nullable(),
+  tractorUnit: z.string().nullable(),
+  pending: z.boolean(),
+});
+export type LumperUnmatchedPayment = z.infer<typeof lumperUnmatchedPaymentSchema>;
+
+export const lumperCasesResponseSchema = z.object({
+  cases: z.array(lumperCaseRowSchema),
+  unmatchedPayments: z.array(lumperUnmatchedPaymentSchema),
+  /** When the connector last read McLeod; null before the first sweep. The page says so when it is old. */
+  sweptAt: z.string().nullable(),
+});
+export type LumperCasesResponse = z.infer<typeof lumperCasesResponseSchema>;
