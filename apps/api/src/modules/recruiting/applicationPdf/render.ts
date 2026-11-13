@@ -316,7 +316,8 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
   for (const acc of a.accidents ?? []) {
     field(doc, date(acc.occurred_on), blank(acc.nature));
     field(doc, "Fatalities / injuries", `${acc.fatalities} / ${acc.injuries}`);
-    field(doc, "Hazmat spill", yesNo(acc.hazmat_spill));
+    // F4 PR 1b-1: a Yes/No with nothing chosen until answered, so a draft's preview may hold none yet.
+    field(doc, "Hazmat spill", acc.hazmat_spill == null ? "Not answered" : yesNo(acc.hazmat_spill));
     rule(doc);
   }
 

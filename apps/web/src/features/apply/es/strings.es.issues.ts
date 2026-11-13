@@ -30,6 +30,7 @@ export const APPLY_ISSUES_COPY_ES = {
     suspension_answered: () => "Diga si alguna vez le suspendieron o revocaron una licencia, permiso o privilegio",
     violation_state: () => "Indique el estado donde ocurrió",
     violation_penalty: () => "Indique la sanción: una multa, puntos, una suspensión",
+    accident_hazmat: () => "Diga si se derramaron materiales peligrosos",
     seven_day_hours: () => "Indique sus horas de servicio de cada uno de los últimos siete días: 0 para un día que no trabajó",
     last_relieved_at: () => "Indique la fecha y la hora en que quedó libre de servicio por última vez",
     license_expiration: (p: { state: string }) => `Indique la fecha de vencimiento de su licencia de ${p.state}`,

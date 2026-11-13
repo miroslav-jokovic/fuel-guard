@@ -31,7 +31,10 @@ describe("the lists' rows", () => {
   it("⚠ opens a new row as the driver's own blank row: blanks are \"\", never null", () => {
     // Q-AM15: with a key of its own, minted per row, so the API names it by key from the start.
     expect(blankRow("addresses")).toEqual({ ...emptyAddress(), key: expect.stringMatching(/^[0-9a-f-]{36}$/) });
-    expect(Object.values(blankRow("accidents") as Record<string, unknown>)).not.toContain(null);
+    // Every TEXT blank is "" — a null there is what crashed the drawer (11/10). The one null is the
+    // accident's hazmat Yes/No, unanswered since F4 PR 1b-1 rather than a "No" nobody gave.
+    const accident = Object.entries(blankRow("accidents") as Record<string, unknown>);
+    expect(accident.filter(([, v]) => v === null).map(([k]) => k)).toEqual(["hazmat_spill"]);
     expect(blankRow("other_names")).toBe("");
   });
 

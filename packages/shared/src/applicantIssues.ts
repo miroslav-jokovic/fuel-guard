@@ -46,6 +46,8 @@ export const APPLICANT_ISSUE_TEXT = {
   suspension_answered: () => "Say whether a license, permit or privilege of yours has ever been suspended or revoked",
   violation_state: () => "Give the state where it happened",
   violation_penalty: () => "Give the penalty — a fine, points, a suspension",
+  // F4 PR 1b-1: the grid's HM SPILL column, asked as a Yes/No with nothing chosen.
+  accident_hazmat: () => "Say whether hazardous materials were spilled",
   // ── page 21 (`sevenDayStatementIssues`) ──
   seven_day_hours: () => "Give your hours on duty for each of the last seven days — 0 for a day you did not work",
   last_relieved_at: () => "Give the date and time you were last off duty",

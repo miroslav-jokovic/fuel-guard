@@ -667,3 +667,61 @@ A gate fails on a literal string in an `apply/` template.
     - every e2e-apply spec walks the new screens (35 passed);
     - a screenshot pass at 390×844 in EN and ES.
   - **Next:** F4 PR 1b, Stage 2 generated, with the loops (addresses, employers, licences, equipment, accidents, convictions), replacing the five section components.
+- 2026-11-13: **F4 PR 1a merged as #2325** (in production with `v2026.11.13`). **F4 PR 1b, Stage 2, planned against the code and every later ruling.** The owner said "proceed as proposed, without assumptions".
+  - **Measured first:**
+    - Production, read-only: **0 open legacy links** (no Part 1 row) against 4 open v2 links.
+    - Every invitation is minted with its Part 1 row (`mintIntakeRow`), so no new legacy link can exist.
+    - So the generated walk serves **Part 2's task list only** (`useTaskHub`, v2). The legacy wizard keeps the section components until a closing PR retires the legacy Part 2 path with them. That is sequencing, not a second editor: no link can reach it.
+  - **Where SCREEN-MAP §3 is overruled by a later ruling** (it predates them):
+
+    | Row | SCREEN-MAP §3 says | Built as | Ruling |
+    |---|---|---|---|
+    | 2.10 employer dates | month and year | the exact day, as today | Q-AM11 (b) |
+    | 2.19c conviction place | city and state | the state only | P10, the paper's columns |
+    | 2.22/2.23 education | level + CDL school, table dropped | the paper's table, one screen | Q-AM18's rule: the paper decides |
+    | §5 "proof of age" | dropped | asked, as `p01.proof_of_age` prints it | Q-AM18's rule |
+    | 2.24a military "when" | a date range | the paper's free text | Q-AM18's rule |
+    | 2.30 documents | multi-pick, then a photo each | the documents task, unchanged here | Q-AM19 builds documents separately |
+
+  - **Order: one PR per task, each complete.** The task list already makes a task the unit the driver opens, saves and closes.
+    1. **1b-1, the engine and "Your driving record."**
+       - The generated walk inside a task (`useTaskWalk`). Continue checks only that screen's share of the task's own check (`validateSection`). Continue on the last screen closes the task (`hub.finish`), and a refusal opens the screen holding the problem.
+       - Loops are derived from the catalogue: a screen whose facts are one list's columns repeats per row, then asks "Any other?". A gate is a yes/no that answers whether the list has rows (`ask.gate`).
+       - Quick picks file the English words, because the packet is the carrier's English paper (Q-AW11). The button shows them in the page's language, as license kinds already do (`licenceKindWords`).
+       - Screens: accidents (gate; date; what happened; hurt and killed together, one fact; hazmat spill), convictions (gate; date; offence with quick picks; state; penalty with quick picks), denied plus its detail, suspended plus its detail. The §40.25(j) question stays Part 1's (D-AW13).
+       - **Hazmat spill becomes a real Yes/No** (SCREEN-MAP 2.18d; F1 part 2's rule that no question starts answered). It was a checkbox defaulting to No. It is now nullish in the contract (every filed payload holds a boolean, so they still parse) and required per accident by `applicationPaperFilingIssues`, because the paper's grid has the column.
+    2. **1b-2, "About you" and the carrier's questions.** Name (one fact, grouped), email, other names (gate, then a list), and the SSN. Every asked carrier question is one screen, generated from the served definition (the built-in questions and the carrier's own; a table question is one screen). Quick picks for "How did you hear about us?". "Applying as" is skipped when the opening says which (SCREEN-MAP 2.3), if the invitation carries it; if not, it is recorded here as a gap.
+    3. **1b-3, "Where you have lived."** The move-in month of the current home; then a loop of earlier homes (address, then dates) until the coverage meter reads three years. The street stays asked and may be left for the office (Q-AM8 (a)).
+    4. **1b-4, "Where you have worked."**
+       - The employer loop (2.7–2.15): name; city and state, optional; dates (exact day); drove a truck; position only if not; one DOT question with "Not sure" (Q-AM9 (a)); reason for leaving with quick picks; "Did you work anywhere before?".
+       - Gap explanations with quick picks; equipment (multi-pick, then one screen per class); the experience narrative.
+       - **D-AM4 moves the employer address requirement from the driver's hand-off to the office's "Send for signing"**, and filing still refuses without it. "Not sure" (Q-AM9) is stored per job, and the office resolves it before Send for signing.
+       - The office keeps the one employer form (HW5b).
+    5. **1b-5, closing:** retire the legacy Part 2 path and the five section components (SCREEN-MAP §7).
+  - **After 1b:** U1 (the true intro and the three-stage bar), U2 (remembered device, scan prefill), U3 (big Yes/No that advances, keyboards), U4 (errors on blur), U5 (backwards job walk and coverage meter, largely 1b-4), U6 (one review page with the office's changes), U8 (phone or email, Q-AM5; permit holders; "I'll bring my CDL"). Then the timed walk at 390×844 in EN and ES, and the owner's real-phone walk.
+- 2026-11-13: **F4 PR 1b-1: the walk inside a task, and "Your driving record" one question to a screen** (`claude/application-wizard-stage2`, no migration).
+  - **The engine (shared):**
+    - Stage 2 ids are `<task>.<question>`.
+    - `GENERATED_TASKS` lists the tasks that are walked (`safety` for now).
+    - A screen's `list` is derived: every field is one list's column.
+    - `FactAsk.gate` is a yes/no that answers whether its list has rows.
+    - `FactAsk.quickPicks` names one of the `QUICK_PICKS` lists.
+    - `TASK_FACTS_ASKED_ELSEWHERE` names the one fact the task owns but does not ask (§40.25(j), Part 1's).
+    - Tests hold every fact of a generated task to an `ask`, and every loop to its gate.
+  - **The walk (web):**
+    - `useTaskWalk` steps the open task's screens. Each row repeats its list's screens, then asks "Any other …?": Yes adds a row and walks it, and No moves on.
+    - Continue checks that screen's share of `validateSection`. The last Continue is the task's "Save and continue". A refusal at the close opens the first screen holding the problem, and a problem no screen holds is said on the screen in front of the driver.
+    - `draftFields.ts` is Part 2's binding. A gate's No clears its list and its Yes opens one blank row. An answer that closes a conditional screen empties it, read from the catalogue's `when`.
+    - `TaskWalk.vue` shows "Question n of m", the row's name ("Accident 2") and "Remove this accident".
+    - The page's buttons step the walk. The task's issue list moves under each box.
+  - **Found in the build, fixed:**
+    - Yes on a gate left a blank first row that filing drops, so the list rule held the driver on "Yes". A Yes gate is no longer refused for its empty list; the close still is.
+    - On the Spanish page a quick pick put the English word in the box. It now reads in the page's language and files English, and typing a pick's own words files the pick.
+  - **Hazmat spill is a real Yes/No** (SCREEN-MAP 2.18d). It is nullable in the contract (`.nullable().default(false)`: filed payloads and the previous employer's report are unchanged), required per accident by `applicationPaperFilingIssues`, and the packet prints nothing for unanswered, never "No". A new accident's counts start blank, not "0" (2.18c). A draft saved before keeps the box it held.
+  - **Proof:**
+    - shared: wizard tests (5 new) and the filing rule;
+    - web: binding (7), walk (12), component (4);
+    - 11 of 12 mutants killed. The survivor (`list` taken from a mixed screen) is equivalent for the catalogue: no screen mixes a row column with a plain fact.
+    - All 37 e2e-apply specs pass, the new `drivingRecordWalk.spec.ts` among them.
+    - Screenshots at 390×844 in EN and ES.
+  - **Next:** 1b-2, "About you" and the carrier's questions.

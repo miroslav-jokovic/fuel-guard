@@ -5,7 +5,7 @@ import type { FactPath } from "@silvicom/shared";
  * answer, the words its control shows, the problem found with it, and its control's DOM id.
  *
  * ⚠ The screen knows facts by catalogue path and nothing else. Part 1's page holds its answers in its
- * own shape (`partOneFields.ts`); Part 2's draft will hold them in the contract's. A binding is the
+ * own shape (`partOneFields.ts`); Part 2's draft holds them in the contract's (`draftFields.ts`). A binding is the
  * one place each page says where its answers are, so `WizardScreen` is the same component on both.
  */
 export interface FieldCopy {
@@ -17,10 +17,14 @@ export interface FieldCopy {
   readonly autocomplete?: string;
 }
 
+/**
+ * `row` is the row a loop screen asks about (Stage 2, F4 PR 1b-1): `application.accidents[].nature` on
+ * row 2 is the third accident's. A page with no loops (Part 1's) ignores it.
+ */
 export interface WizardBinding {
-  read(path: FactPath): unknown;
-  write(path: FactPath, value: unknown): void;
+  read(path: FactPath, row?: number): unknown;
+  write(path: FactPath, value: unknown, row?: number): void;
   copy(path: FactPath): FieldCopy;
-  error(path: FactPath): string | undefined;
-  id(path: FactPath): string;
+  error(path: FactPath, row?: number): string | undefined;
+  id(path: FactPath, row?: number): string;
 }

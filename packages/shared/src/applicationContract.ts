@@ -147,7 +147,14 @@ export const applicationAccidentSchema = z.object({
   nature: z.string().min(1).max(500),
   fatalities: z.coerce.number().int().min(0).max(999).default(0),
   injuries: z.coerce.number().int().min(0).max(999).default(0),
-  hazmat_spill: z.boolean().default(false),
+  /**
+   * The paper grid's HM SPILL column, asked as a Yes/No with nothing chosen since F4 PR 1b-1 (F1 part 2's
+   * rule: no question starts answered). It was a checkbox, so an accident nobody asked about filed "No".
+   * Null is unanswered, which `applicationPaperFilingIssues` refuses on a new filing; every payload filed
+   * before holds a boolean, and an absent one still defaults to No as it always did (the previous
+   * employer's report reuses this schema and sends a box).
+   */
+  hazmat_spill: z.boolean().nullable().default(false),
   key: applicationRowKeySchema,
 }).strict();
 export type ApplicationAccident = z.infer<typeof applicationAccidentSchema>;

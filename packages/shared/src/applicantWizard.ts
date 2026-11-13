@@ -2,12 +2,22 @@ import { z } from "zod";
 import { APPLICANT_FACTS, type ApplicantFact, type FactPath } from "./applicantFacts.js";
 import { applicantIntakeLicenceSchema, applicantIntakeSchema } from "./applicantScreeningContract.js";
 import { PART_ONE_SCREENS, type PartOneScreen } from "./applicationScreens.js";
+import type { ApplicationSection } from "./applicationSections.js";
 import {
   WIZARD_SCREEN_IDS,
   type FactAsk,
   type WizardCondition,
   type WizardScreenId,
 } from "./applicantWizardScreens.js";
+
+/**
+ * Part 2's tasks whose screens are generated (F4 PR 1b, plan §7 2026-11-13) — each joins with its PR.
+ * A task not here is still its hand-written section component.
+ */
+export const GENERATED_TASKS = ["safety"] as const satisfies readonly ApplicationSection[];
+export type GeneratedTask = (typeof GENERATED_TASKS)[number];
+export const isGeneratedTask = (section: string): section is GeneratedTask =>
+  (GENERATED_TASKS as readonly string[]).includes(section);
 
 /**
  * The wizard, generated from the fact catalogue (APPLICATION-SCREEN-MAP.md §7, F4 PR 1).
@@ -26,28 +36,59 @@ export interface WizardField {
 
 export interface WizardScreen {
   readonly id: WizardScreenId;
-  /** The page that saves it (`applicantWizardScreens.ts`'s header). */
-  readonly page: PartOneScreen;
+  /** Stage 1 is Part 1's pages; Stage 2 is Part 2's tasks (`applicantWizardScreens.ts`'s header). */
+  readonly stage: 1 | 2;
+  /** The page (Stage 1) or task (Stage 2) that saves it. */
+  readonly page: PartOneScreen | GeneratedTask;
   /** SCREEN-MAP's "1Q" (one question) or "G" (one fact typed together). */
   readonly kind: "question" | "group";
   readonly fields: readonly WizardField[];
   /** Shown only when (the "IF" column). Every field of a screen asks under the same condition. */
   readonly when?: WizardCondition;
+  /**
+   * The list whose row this screen asks about — set when every field is one list's column
+   * (`application.accidents[].nature` → `accidents`). DERIVED, never stated: a screen of row columns
+   * is a loop screen by what it asks, so the walk repeats it per row and ends the list with "Any other?".
+   */
+  readonly list?: string;
+  /** The list this screen's yes/no opens or closes (`FactAsk.gate`). */
+  readonly gate?: string;
 }
 
-const pageOf = (id: WizardScreenId): PartOneScreen => id.slice(0, id.indexOf(".")) as PartOneScreen;
+const pageOf = (id: WizardScreenId): PartOneScreen | GeneratedTask =>
+  id.slice(0, id.indexOf(".")) as PartOneScreen | GeneratedTask;
+
+/** `application.accidents[].nature` → `accidents`; undefined for anything that is not a row's column. */
+export const rowListOf = (path: FactPath): string | undefined => /^application\.([a-z_]+)\[\]\./.exec(path)?.[1];
 
 /** Every screen, in walking order. */
 export const WIZARD_SCREENS: readonly WizardScreen[] = WIZARD_SCREEN_IDS.map((id) => {
   const fields = APPLICANT_FACTS.flatMap((fact) =>
     (fact.ask ?? []).filter((a) => a.screen === id).map((ask) => ({ fact, ask })));
   const when = fields[0]?.ask.when;
-  return { id, page: pageOf(id), kind: fields.length > 1 ? "group" : "question", fields, ...(when ? { when } : {}) };
+  const gate = fields[0]?.ask.gate;
+  const lists = new Set(fields.map((f) => rowListOf(f.fact.path)));
+  const list = lists.size === 1 ? [...lists][0] : undefined;
+  const page = pageOf(id);
+  return {
+    id,
+    stage: isGeneratedTask(page) ? 2 : 1,
+    page,
+    kind: fields.length > 1 ? "group" : "question",
+    fields,
+    ...(when ? { when } : {}),
+    ...(list ? { list } : {}),
+    ...(gate ? { gate } : {}),
+  } satisfies WizardScreen;
 });
 
 /** A page's screens, in order. Empty for a page the wizard does not generate (the photographs, the rights). */
 export const wizardScreensOf = (page: PartOneScreen): readonly WizardScreen[] =>
-  WIZARD_SCREENS.filter((s) => s.page === page);
+  WIZARD_SCREENS.filter((s) => s.stage === 1 && s.page === page);
+
+/** A Part 2 task's screens, in order (F4 PR 1b). Empty for a task still hand-written. */
+export const wizardTaskScreens = (task: ApplicationSection): readonly WizardScreen[] =>
+  WIZARD_SCREENS.filter((s) => s.stage === 2 && s.page === task);
 
 /** Is the screen asked, given the answers so far? `answer` reads a fact's current value by path. */
 export const wizardScreenShown = (screen: WizardScreen, answer: (path: FactPath) => unknown): boolean =>
@@ -62,6 +103,15 @@ export const ASKED_BY_HAND: Readonly<Record<FactPath, string>> = {
   "intake.licences[].agency": "asked per other licence in the other-licences loop (PartOneOtherLicences) until F4 PR 1b generates the loops",
   "intake.licences[].kind": "asked per other licence in the other-licences loop (PartOneOtherLicences) until F4 PR 1b generates the loops",
   "intake.medical_card_pending": "the medical-card photo screen's own \"I don't have one yet\" (PartOnePhoto) — a photo's alternative, not a question",
+};
+
+/**
+ * Facts a generated task owns (`APPLICATION_SECTION_KEYS`) that its walk does not ask, each with where
+ * they ARE asked. The catalogue test holds every fact of a generated task to an `ask` or a line here.
+ */
+export const TASK_FACTS_ASKED_ELSEWHERE: Readonly<Record<FactPath, string>> = {
+  "application.prior_failed_pre_employment_test":
+    "asked once, in Part 1 (D-AW13, SCREEN-MAP 1.10); a v2 filing takes Part 1's answer, and the legacy wizard asks its own",
 };
 
 /** Part 1's own pages the wizard may cut a screen from — what an id's prefix must be. */
