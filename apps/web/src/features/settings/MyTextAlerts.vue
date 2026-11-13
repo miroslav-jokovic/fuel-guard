@@ -35,34 +35,34 @@ const showForm = computed(() => changing.value || state.value === "none");
 const phoneOk = computed(() => normalisePhone(phone.value) !== null);
 const codeOk = computed(() => alertPhoneConfirmSchema.safeParse({ code: code.value.trim() }).success);
 
-async function run(step: () => Promise<unknown>, done?: string): Promise<boolean> {
+async function run(step: () => Promise<unknown>, failed: string, done?: string): Promise<boolean> {
   said.value = null;
   try {
     await step();
     if (done) toast.success(done);
     return true;
   } catch (e) {
-    said.value = e instanceof Error ? e.message : "That did not work. Try again.";
+    said.value = e instanceof Error ? e.message : failed;
     return false;
   }
 }
 
 async function onStart(): Promise<void> {
   if (!phoneOk.value || !agreed.value) return;
-  if (await run(() => start.mutateAsync({ phone: phone.value }))) {
+  if (await run(() => start.mutateAsync({ phone: phone.value }), "Could not text that number.")) {
     changing.value = false;
     code.value = "";
   }
 }
 async function onConfirm(): Promise<void> {
   if (!codeOk.value) return;
-  if (await run(() => confirm.mutateAsync({ code: code.value.trim() }), "Text alerts are on")) {
+  if (await run(() => confirm.mutateAsync({ code: code.value.trim() }), "Could not check the code.", "Text alerts are on")) {
     code.value = "";
     phone.value = "";
     agreed.value = false;
   }
 }
-const onStop = () => run(() => stop.mutateAsync(), "Text alerts are off");
+const onStop = () => run(() => stop.mutateAsync(), "Could not stop text alerts.", "Text alerts are off");
 function change(): void {
   changing.value = true;
   said.value = null;
