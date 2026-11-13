@@ -168,3 +168,91 @@ export function resolveAlertRecipients(
   for (const [userId, channels] of out) if (channels.size === 0) out.delete(userId);
   return out;
 }
+
+// ── the Settings page and "My alerts" (HOME-TIME-PLAN HT5, NOTIFICATION-ROUTING-PLAN NR4) ─────────
+
+/** `PUT /api/alert-routing/:alert` — the alert's whole set of switches, replacing what was saved. */
+export const alertRoutesSaveSchema = z.object({ routes: z.array(alertRouteSchema).max(300) });
+export type AlertRoutesSave = z.infer<typeof alertRoutesSaveSchema>;
+
+/** One switch's identity: a set of routes holds each (recipient, channel) once. */
+export const alertRouteId = (r: Pick<AlertRoute, "recipientKind" | "recipientKey" | "channel">): string => `${r.recipientKind}:${r.recipientKey}:${r.channel}`;
+
+/**
+ * Why a set of routes cannot be saved for an alert, in words for the page, or null when it can.
+ *
+ * `memberIds` are the carrier's active members who can view the alert's section — the only people a
+ * `user` row may name (anybody else would never be reached, and the page would say they are).
+ * The last rule is the plan's: an alert addressed to nobody is a failure, so a set with every switch
+ * off is refused rather than saved and then quietly sent to everyone who manages the section.
+ */
+export function alertRoutesProblem(key: AlertKey, routes: readonly AlertRoute[], memberIds: ReadonlySet<string>): string | null {
+  const def = alertDefinition(key);
+  const viewers = new Set<string>(rolesThatCanView(def.section));
+  const seen = new Set<string>();
+  for (const r of routes) {
+    const id = alertRouteId(r);
+    if (seen.has(id)) return "The same recipient and channel is listed twice.";
+    seen.add(id);
+    if (r.recipientKind === "role" && !viewers.has(r.recipientKey)) return "That role cannot open the page this alert is about, so it cannot receive it.";
+    if (r.recipientKind === "relation" && !(def.relations as readonly string[]).includes(r.recipientKey)) return "This alert does not have that recipient.";
+    if (r.recipientKind === "user" && !memberIds.has(r.recipientKey)) return "One of the people listed is not an active member who can open the page this alert is about.";
+  }
+  if (!routes.some((r) => r.enabled)) return "An alert cannot be sent to nobody. Leave at least one recipient switched on.";
+  return null;
+}
+
+const alertKeySchema = z.string().refine(isAlertKey);
+
+/** `GET /api/alert-routing` — every alert the carrier can route, the switches in force, and who can be added. */
+export const alertRoutingViewSchema = z.object({
+  alerts: z.array(
+    z.object({
+      key: alertKeySchema,
+      label: z.string(),
+      description: z.string(),
+      /** The relations this alert has, with their words. */
+      relations: z.array(z.object({ key: z.enum(ALERT_RELATIONS), label: z.string() })),
+      /** The roles that can view the alert's section — the only ones that can receive it. */
+      roles: z.array(z.object({ key: z.string(), label: z.string() })),
+      /** The switches in force: the carrier's saved set, or the defaults. */
+      routes: z.array(alertRouteSchema),
+      /** True when the carrier has saved nothing for this alert, so `routes` are the defaults. */
+      usesDefaults: z.boolean(),
+    }),
+  ),
+  /** Active members, with their role, so the page can add a person and say who a role reaches. */
+  members: z.array(z.object({ userId: z.string(), name: z.string(), role: z.string() })),
+});
+export type AlertRoutingView = z.infer<typeof alertRoutingViewSchema>;
+
+/**
+ * `GET /api/me/alerts` — what the caller receives (D-HT17's read-only half). `always` is by their role
+ * or their own row; each relation is what they get when the event is theirs.
+ */
+export const myAlertsSchema = z.object({
+  alerts: z.array(
+    z.object({
+      key: alertKeySchema,
+      label: z.string(),
+      description: z.string(),
+      always: z.array(z.enum(ALERT_CHANNELS)),
+      whenMine: z.array(z.object({ relation: z.enum(ALERT_RELATIONS), label: z.string(), channels: z.array(z.enum(ALERT_CHANNELS)) })),
+    }),
+  ),
+});
+export type MyAlerts = z.infer<typeof myAlertsSchema>;
+
+/**
+ * What one member receives of one alert, from the ONE resolver — so "My alerts" cannot say something
+ * the sender would not do. A relation is listed only when it adds a channel `always` does not have.
+ */
+export function alertsForMember(key: AlertKey, saved: readonly AlertRoute[], member: AlertMember): { always: AlertChannel[]; whenMine: { relation: AlertRelation; channels: AlertChannel[] }[] } {
+  const order = (set: Set<AlertChannel> | undefined) => ALERT_CHANNELS.filter((c) => set?.has(c));
+  const always = order(resolveAlertRecipients(key, saved, [member], {}).get(member.userId));
+  const whenMine = alertDefinition(key).relations.flatMap((relation) => {
+    const channels = order(resolveAlertRecipients(key, saved, [member], { [relation]: member.userId }).get(member.userId)).filter((c) => !always.includes(c));
+    return channels.length > 0 ? [{ relation, channels }] : [];
+  });
+  return { always, whenMine };
+}

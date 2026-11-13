@@ -345,6 +345,17 @@ the owner approves; HT1 must be released before HT2's readers.
   asked for it*). Q-NR5: each person gets "My alerts" for their phone, and no self-service muting of email
   or SMS (*recommend yes*). Q-NR1 and Q-NR4 concern the old alerts and stay with that plan.
 
+- **Q-HT8 — A carrier's own section changes are not seen by a background audience** (found building HT5,
+  2026-11-13; not new with home time). "Who can view Dispatch" is asked of the DEFAULT role matrix
+  (`rolesThatCanView`) by the alert resolver, by "My alerts" and by the Settings page — the same way every
+  other background audience asks (`usersInRoles(rolesThatManage(section))`, `org/memberLookup.ts`). An
+  org that gave a role Dispatch on the Permissions page, or took it away, is honoured by the API gates
+  (the token carries the override) and not by an alert, which has no token. The three home-time surfaces
+  agree with each other, so nothing reads wrong today. Candidates: (a) a shared reader of the org's
+  overrides used by every background audience; (b) leave it, and say on the Permissions page that
+  alerts follow the default roles. *Recommend (a), as its own step in the routing plan:* it touches
+  fourteen senders, not this feature.
+
 ## 7. Owner tasks, known limits, blockers
 
 Owner tasks (the feature works without them; the alerts reach fewer people until they are done):
@@ -504,3 +515,44 @@ sidebar.
   - Until the owner links dispatchers to their McLeod logins (2 of 16 today), "the truck's dispatcher"
     resolves to nobody for most trucks and the alert reaches whoever marked the period; when that is
     nobody either, everyone who manages Dispatch.
+- 2026-11-13 — **HT4 merged** (PR 2342, `3c79540`). The table-writer manifest gained
+  `notification_deliveries` ← `messaging/alertRouting.ts`, found by `pnpm ci:local` before the push.
+- 2026-11-13 — **HT5 the settings** (branch `claude/home-time-ht5-settings`). After this step an admin
+  decides when the three alerts are sent and who is told, and everybody can see what they are told.
+  - **Settings → Notifications** gains "Home time alerts" (only for a carrier with Dispatch): the three
+    thresholds with the table's own ranges, and one card per alert with a switch per recipient for
+    Dashboard and Email — the two relations, every role that can view Dispatch with how many people it
+    is today, and any person added by name. Save sends the alert's whole set; "Use the defaults" asks
+    first and removes the carrier's rows.
+  - **"My alerts"** in the account menu: for each alert, in a sentence, how it reaches the signed-in
+    person — always, or only when the period or the truck is theirs. Read-only.
+  - **API:** `GET/PUT/DELETE /api/alert-routing[/:alert]` (messaging) and `GET/PUT
+    /api/roster/home-time-settings` (roster, the table's owner), all behind the screen's own pair
+    (`settings: manage`, then `admin.settings.notifications`); `GET /api/me/alerts` for any member.
+    Audited as `settings.notification_routes_saved` (the switches on and off), `…_reset`, and
+    `settings.home_time_alerts_saved` (the old numbers beside the new).
+  - **One rule, three readers.** `alertRoutesProblem` (shared) refuses a set that reaches nobody, a role
+    or a person who cannot view Dispatch, a relation the alert does not have, and a switch listed twice;
+    the page shows its sentence before the click and the API answers 422 with the same one. "My alerts"
+    is `alertsForMember`, which asks the sender's own resolver.
+  - Changes from §5, each for a reason:
+    - **No Text column and no quiet window on the page yet.** Nobody can confirm a number until HT6, and
+      only a text is ever held; both arrive with texting. A text route already saved is carried through
+      a save untouched.
+    - **A save writes the switches before it removes anything** (whole rows on the route's own identity,
+      then the rows the page no longer lists). The other order could leave an alert with no rows, which
+      reads as "use the defaults".
+    - **Adding a person starts on what their role already gives them**, because a person's own switch
+      wins over the role's in both directions: starting on "dashboard only" would silently take a fleet
+      manager's email away.
+    - **A person who left is dropped by the form** and removed by the next save; the API would refuse
+      to save their row again.
+    - Q-HT8 is new (§6): background audiences ask the default role matrix, not the carrier's own.
+  - Tests: shared 30 (the save rule, what one member receives); API 20 through the real mounts (the
+    gate on all five routes, what a save writes and removes, every refusal writing nothing, org scope);
+    web 42 (the form's logic, the section on screen, "My alerts"). Mutation run: 14 deliberate breakages,
+    14 caught.
+  - **Browser pass** on the built app behind a stubbed API at 1440 px and 390 px, with data and with
+    the three reads failing: no page error, nothing wider than the viewport. It found and fixed three
+    things no test saw: a dash in every role's row where "Take off" stands for a person, the person
+    picker reading "Select…", and the dispatcher row's explanation cut off on a phone.

@@ -29,3 +29,4 @@ export { startRealtimeProbeScheduler } from "./realtimeProbe.js";
 export { startChatExportSweeper } from "./chatExportSweeper.js";
 export { getRealtimeHealth, realtimeHealthy, type RealtimeHealth } from "./realtimeHealth.js";
 export { loginForDriver } from "./notify.js";
+export { alertRoutingRouter, myAlertsRouter } from "./routes/alertRouting.js";

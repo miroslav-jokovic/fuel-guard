@@ -3,6 +3,8 @@ import {
   ALERT_CATALOGUE,
   ALERT_KEYS,
   alertDefinition,
+  alertRoutesProblem,
+  alertsForMember,
   isAlertKey,
   resolveAlertRecipients,
   routesInForce,
@@ -195,5 +197,64 @@ describe("homeTimeAlertsDue (D-HT12)", () => {
     expect(homeTimeAlertLine({ kind: "home_time_overdue" }, p, NOW, "11/13/2026 4:00 AM")).toBe("Marcus Hill (truck 702) is past his home-time return of 11/13/2026 4:00 AM and is not marked back");
     expect(homeTimeAlertLine({ kind: "home_time_truck_limit" }, p, NOW, "")).toBe("Truck 702 has been at Marcus Hill's home for 9 days");
     expect(homeTimeAlertLine({ kind: "home_time_overdue" }, { ...p, unitNumber: null }, NOW, "11/13/2026 4:00 AM")).toBe("Marcus Hill is past his home-time return of 11/13/2026 4:00 AM and is not marked back");
+  });
+});
+
+describe("what the Settings page may save (HT5)", () => {
+  const members = new Set(["u-fm", "u-disp"]);
+  const r = (recipientKind: AlertRoute["recipientKind"], recipientKey: string, channel: AlertRoute["channel"], enabled = true): AlertRoute => ({ recipientKind, recipientKey, channel, enabled });
+
+  it("accepts the catalogue's own defaults for every alert", () => {
+    for (const a of ALERT_CATALOGUE) expect(alertRoutesProblem(a.key, a.defaults, members), a.key).toBeNull();
+  });
+
+  it("refuses a set that reaches nobody — every switch off, or no switch at all", () => {
+    expect(alertRoutesProblem("home_time_overdue", [], members)).toMatch(/cannot be sent to nobody/);
+    expect(alertRoutesProblem("home_time_overdue", [r("role", "fleet_manager", "bell", false)], members)).toMatch(/cannot be sent to nobody/);
+  });
+
+  it("refuses the same recipient and channel twice, even with different switches", () => {
+    expect(alertRoutesProblem("home_time_overdue", [r("role", "fleet_manager", "bell"), r("role", "fleet_manager", "bell", false)], members)).toMatch(/twice/);
+    expect(alertRoutesProblem("home_time_overdue", [r("role", "fleet_manager", "bell"), r("role", "fleet_manager", "email")], members)).toBeNull();
+  });
+
+  it("refuses a role that cannot view the alert's section, a relation the alert does not have, and a person who is not a member", () => {
+    expect(alertRoutesProblem("home_time_overdue", [r("role", "driver", "bell")], members)).toMatch(/role cannot open/);
+    expect(alertRoutesProblem("home_time_overdue", [r("relation", "the_owner", "bell")], members)).toMatch(/does not have that recipient/);
+    expect(alertRoutesProblem("home_time_overdue", [r("user", "u-gone", "bell")], members)).toMatch(/not an active member/);
+    expect(alertRoutesProblem("home_time_overdue", [r("user", "u-fm", "bell")], members)).toBeNull();
+  });
+});
+
+describe("what one member receives (My alerts)", () => {
+  const fm: AlertMember = { userId: "u-fm", role: "fleet_manager" };
+  const disp: AlertMember = { userId: "u-disp", role: "dispatcher" };
+
+  it("on the defaults: a fleet manager always hears an overstay by dashboard and email; a dispatcher only when it is theirs", () => {
+    expect(alertsForMember("home_time_overdue", [], fm)).toEqual({ always: ["bell", "email"], whenMine: [] });
+    expect(alertsForMember("home_time_overdue", [], disp)).toEqual({
+      always: [],
+      whenMine: [
+        { relation: "marked_by", channels: ["bell"] },
+        { relation: "truck_dispatcher", channels: ["bell"] },
+      ],
+    });
+  });
+
+  it("a person's own switch off removes what their role gives, and a relation never repeats a channel they always get", () => {
+    const saved: AlertRoute[] = [
+      { recipientKind: "role", recipientKey: "fleet_manager", channel: "bell", enabled: true },
+      { recipientKind: "role", recipientKey: "fleet_manager", channel: "email", enabled: true },
+      { recipientKind: "relation", recipientKey: "marked_by", channel: "bell", enabled: true },
+      { recipientKind: "relation", recipientKey: "marked_by", channel: "email", enabled: true },
+      { recipientKind: "user", recipientKey: "u-fm", channel: "email", enabled: false },
+    ];
+    // His own "no email" wins over the role AND over the relation.
+    expect(alertsForMember("home_time_overdue", saved, fm)).toEqual({ always: ["bell"], whenMine: [] });
+    expect(alertsForMember("home_time_overdue", saved, disp)).toEqual({ always: [], whenMine: [{ relation: "marked_by", channels: ["bell", "email"] }] });
+  });
+
+  it("says nothing to somebody whose role cannot view the alert's section", () => {
+    expect(alertsForMember("home_time_overdue", [{ recipientKind: "user", recipientKey: "u-d", channel: "bell", enabled: true }], { userId: "u-d", role: "driver" })).toEqual({ always: [], whenMine: [] });
   });
 });

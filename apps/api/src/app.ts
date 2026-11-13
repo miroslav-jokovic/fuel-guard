@@ -65,8 +65,8 @@ import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazm
 import { publicApplicationRouter, recordOrderedDrugTest, recruitingBriefSource, recruitmentRouter, releaseOrderedDrugTest } from "./modules/recruiting/index.js";
 import { complianceRouter } from "./modules/evidence/index.js";
 import { driverAppSettingsRouter, meRouter } from "./modules/driver-app/index.js";
-import { chatRouters, notificationsRouter, messagesRouter } from "./modules/messaging/index.js";
-import { rosterArchiveRouter, rosterCredentialsRouter, rosterDriversRouter, rosterHomeTimeRouter, rosterSevenDayRouter } from "./modules/roster/index.js";
+import { alertRoutingRouter, chatRouters, myAlertsRouter, notificationsRouter, messagesRouter } from "./modules/messaging/index.js";
+import { rosterArchiveRouter, rosterCredentialsRouter, rosterDriversRouter, rosterHomeTimeRouter, rosterHomeTimeSettingsRouter, rosterSevenDayRouter } from "./modules/roster/index.js";
 import { unitNotesRouter } from "./modules/roster/notes/routes.js";
 import { authRouter } from "./routes/auth.js";
 import { authStepUpRouter } from "./routes/authStepUp.js";
@@ -192,6 +192,8 @@ function mountApiRouters(app: Express, env: Env): void {
   // between was invisible to it (the router now applies requireAuth itself). Before /api/me so the
   // longer prefix wins.
   app.use("/api/me/notifications", notificationsRouter());
+  app.use("/api/me/alerts", myAlertsRouter()); // what the caller receives of the routed alerts (HOME-TIME D-HT17)
+  app.use("/api/alert-routing", alertRoutingRouter()); // Settings › Notifications: who is told, by which channel (HOME-TIME D-HT15)
   app.use("/api/me/hazmat", meHazmatRouter()); // driver capture surface (M6) — before /api/me so this prefix wins
   app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
   app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
@@ -235,6 +237,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
   app.use("/api/notes", unitNotesRouter()); // notes on drivers, trucks, trailers — office-wide (UNIT-NOTES D-UN4)
   app.use("/api/roster/home-time", rosterHomeTimeRouter()); // a driver's home time and return, marked by dispatch (HOME-TIME D-HT7)
+  app.use("/api/roster/home-time-settings", rosterHomeTimeSettingsRouter()); // the three alert thresholds, saved from Settings › Notifications (HOME-TIME D-HT12)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/card-fraud-incidents", cardFraudIncidentsRouter());

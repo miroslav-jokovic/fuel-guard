@@ -20,6 +20,7 @@ import { currentItemKey } from "@/lib/sidebarShortcuts";
 import { paletteEntries } from "@/lib/commandPalette";
 import { visibleSettingsScreens } from "@/lib/settingsCards";
 import SectionTabBar from "@/layouts/SectionTabBar.vue";
+import MyAlertsPanel from "@/features/settings/MyAlertsPanel.vue";
 import { useOpens } from "@/composables/useOpens";
 import { usePhoneFirst } from "@/composables/usePhoneFirst";
 import { bottomChromeHeight } from "@/composables/bottomChrome";
@@ -353,5 +354,7 @@ async function signOut() {
     </div>
     <SectionTabBar v-if="tabs" :group="tabs" :current="currentTab" />
     <CommandPalette :open="paletteOpen" :entries="palette" @close="paletteOpen = false" />
+    <!-- Opened from the account menu, which is mounted in both sidebars (`useMyAlertsPanel`). -->
+    <MyAlertsPanel />
   </div>
 </template>

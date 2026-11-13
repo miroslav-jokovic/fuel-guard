@@ -370,6 +370,9 @@
   "hiring_carrier_steps": [
     "apps/api/src/modules/recruiting/carrierSteps.ts"
   ],
+  "home_time_settings": [
+    "apps/api/src/modules/roster/homeTime/settingsRoutes.ts"
+  ],
   "hos_duty_segments": [
     "apps/api/src/modules/samsara/hosSync.ts"
   ],
@@ -550,6 +553,9 @@
   ],
   "notification_reads": [
     "apps/api/src/modules/messaging/routes/notifications.ts"
+  ],
+  "notification_routes": [
+    "apps/api/src/modules/messaging/alertRoutingSettings.ts"
   ],
   "org_disclosures": [
     "apps/api/src/modules/recruiting/carrierWording.ts"

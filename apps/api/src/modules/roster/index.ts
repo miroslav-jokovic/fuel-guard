@@ -34,6 +34,7 @@ export { readHomeTimeSettings, readLiveHomeTimes, type HomeTimeRow } from "./hom
 // …and the alert job (HT4) ends a period the driver has plainly finished, and names who it alerts about.
 export { endHomeTime, hydrateHomeTimes, isHomeTimeRefusal, readDriversOffRoster } from "./homeTime/homeTime.js";
 export { rosterHomeTimeRouter } from "./homeTime/routes.js";
+export { rosterHomeTimeSettingsRouter } from "./homeTime/settingsRoutes.js";
 export { moveApplicantRosterEmail } from "./applicantRosterEmail.js";
 // The truck's TMS home fleet, written by mcleod's roster sweep (DISPATCH-BOARD-PLAN DB1).
 export { recordVehicleFleetCodes, recordVehicleWindingDown, type FleetPlacement, type WindingDownPlacement } from "./vehicleFleetCodes.js";

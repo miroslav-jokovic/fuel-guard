@@ -60,24 +60,28 @@ export interface AlertSendResult {
   fellBack: number;
 }
 
-interface Directory {
+export interface Directory {
   members: AlertMember[];
   emailOf: Map<string, string>;
+  /** The name the Settings page shows; the login email when no name was ever entered. */
+  nameOf: Map<string, string>;
 }
 
 /** The carrier's active members with their login email — `org_member_directory` (0301, 0393), one read. */
-async function readDirectory(admin: SupabaseClient, orgId: string): Promise<Directory> {
+export async function readDirectory(admin: SupabaseClient, orgId: string): Promise<Directory> {
   const { data, error } = await admin.rpc("org_member_directory", { p_org_id: orgId });
   if (error) throw new Error(`org_member_directory: ${error.message}`);
-  const rows = (data ?? []) as Array<{ user_id: string; email: string | null; role: string; suspended_at: string | null }>;
+  const rows = (data ?? []) as Array<{ user_id: string; email: string | null; full_name?: string | null; role: string; suspended_at: string | null }>;
   const members: AlertMember[] = [];
   const emailOf = new Map<string, string>();
+  const nameOf = new Map<string, string>();
   for (const r of rows) {
     if (r.suspended_at !== null || !(USER_ROLES as readonly string[]).includes(r.role)) continue;
     members.push({ userId: r.user_id, role: r.role as UserRole });
     if (r.email) emailOf.set(r.user_id, r.email);
+    nameOf.set(r.user_id, r.full_name?.trim() || r.email || "Unnamed member");
   }
-  return { members, emailOf };
+  return { members, emailOf, nameOf };
 }
 
 /** The carrier's saved routes for one alert; empty means "the catalogue's defaults" (`routesInForce`). */

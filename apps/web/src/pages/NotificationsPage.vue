@@ -12,6 +12,8 @@ import {
   QueryState,
 } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import { useModulesQuery } from "@/composables/useModules";
+import AlertRoutingSection from "@/features/settings/AlertRoutingSection.vue";
 
 const { data, isLoading, isError, error, isFetching, refetch } = useOrgSettingsQuery();
 const save = useSaveOrgNotifications();
@@ -30,6 +32,9 @@ watch(
   },
   { immediate: true },
 );
+
+/** Home time is marked on the Dispatch board; a carrier without Dispatch has no such alerts to route. */
+const modules = useModulesQuery();
 
 const toast = useToastStore();
 const fieldErr = ref<Record<string, string>>({});
@@ -118,5 +123,6 @@ async function onSave() {
         </div>
       </form>
     </QueryState>
+    <AlertRoutingSection v-if="modules.data.value?.has('dispatch')" />
   </div>
 </template>
