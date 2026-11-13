@@ -31,6 +31,8 @@ export async function deriveDriverHomeAtFill(
   if (!Number.isFinite(t)) return undefined;
   // Overlap test with a ±1-day buffer: the time-off window must have STARTED by (fill + 1d) and must not
   // have ENDED before (fill − 1d). end_at NULL = open-ended (still off) → counts as covering the fill.
+  // A period the office marked by mistake and canceled (0597, HOME-TIME-PLAN D-HT2) keeps a null end_at,
+  // so it is excluded by name: a canceled home time is not home time.
   const lo = new Date(t - DAY_MS).toISOString();
   const hi = new Date(t + DAY_MS).toISOString();
   const { data: offRows } = await admin
@@ -38,6 +40,7 @@ export async function deriveDriverHomeAtFill(
     .select("id")
     .eq("org_id", orgId)
     .eq("driver_id", driverId)
+    .is("canceled_at", null)
     .lte("start_at", hi)
     .or(`end_at.is.null,end_at.gte.${lo}`)
     .limit(1);

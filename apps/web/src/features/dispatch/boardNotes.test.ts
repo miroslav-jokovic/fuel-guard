@@ -6,13 +6,13 @@ import { boardNoteSummary, boardNoteTargets, boardNoteUnitsWords } from "./board
  * Which units one Dispatch Board row's notes are about, and what its one Notes cell counts
  * (UNIT-NOTES-PLAN D-UN12, §6 UN6). Mounted on the board: `boardNotesOnBoard.test.ts`.
  */
-const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false };
+const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false, homeTimeUrgent: false };
 const load = { loadId: "l", ref: "291013", status: "in_transit", source: "tms", externalStatus: "P", customerName: null,
   dispatcherId: null, driverName: null, trailerUnit: "3152", nextStop: null, lastStop: null, stopsLeft: 1 };
 const row = (o: Partial<DispatchBoardRow> = {}): DispatchBoardRow => ({
   vehicleId: "veh-773", unitNumber: "773", inShop: false, fleetCode: "VINNIEV", driver: null, coDriver: null, trailerId: null,
   hos: null, position: null, fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null,
-  milesLeft: null, warnings: [], noteMentions: [], flags, ...o,
+  milesLeft: null, warnings: [], noteMentions: [], homeTimes: [], flags, ...o,
 });
 const ana = { id: "drv-1", name: "Ana Ruiz" };
 const ben = { id: "drv-2", name: "Ben Okafor" };

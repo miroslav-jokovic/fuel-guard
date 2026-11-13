@@ -238,11 +238,14 @@ export function boardFlags(input: {
     hosLow: input.current != null && legal != null && legal < BOARD_HOS_LOW_MS,
     noGps: input.gpsAgeSeconds == null || input.gpsAgeSeconds > OFFLINE_BOUND_SECONDS,
     warningUrgent: (input.warnings ?? []).some(warningIsUrgent),
+    // The reader's, set after the row cache with the row's home times (`readDispatchBoard`).
+    homeTimeUrgent: false,
   };
 }
 
 /** Does any flag call for a dispatcher? The row's left-edge dot (plan §4 #4). */
-export const needsAttention = (f: DispatchBoardFlags): boolean => f.lateRisk || f.hosLow || f.noGps || f.warningUrgent;
+export const needsAttention = (f: DispatchBoardFlags): boolean =>
+  f.lateRisk || f.hosLow || f.noGps || f.warningUrgent || f.homeTimeUrgent;
 
 /**
  * Is this truck "mine" (D-DB1, D-DB3)? Two axes, never merged: the truck is in a fleet my login runs,

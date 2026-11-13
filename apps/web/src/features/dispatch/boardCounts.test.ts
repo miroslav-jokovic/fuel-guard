@@ -3,12 +3,12 @@ import type { DispatchBoardResponse, DispatchBoardRow } from "@silvicom/shared";
 import { boardDoor, boardRows, fleetNow, queueLabel } from "./boardCounts";
 import { BOARD_QUEUES, filterBoard } from "./dispatchBoardView";
 
-const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false };
+const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false, homeTimeUrgent: false };
 const load = { loadId: "l", ref: "291013", status: "in_transit", source: "tms", externalStatus: "P", customerName: "Viking Packing",
   dispatcherId: "vinniev", driverName: null, trailerUnit: null, nextStop: null, lastStop: null, stopsLeft: 1 };
 const row = (unitNumber: string, o: Partial<DispatchBoardRow> = {}): DispatchBoardRow => ({
   vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode: "VINNIEV", driver: null, coDriver: null, trailerId: null, hos: null, position: null,
-  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null, milesLeft: null, warnings: [], noteMentions: [], flags, ...o,
+  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null, milesLeft: null, warnings: [], noteMentions: [], homeTimes: [], flags, ...o,
 });
 
 const board = (rows: DispatchBoardRow[]): DispatchBoardResponse => ({

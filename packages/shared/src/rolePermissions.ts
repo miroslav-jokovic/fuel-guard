@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EDITABLE_ROLES } from "./auth.js";
+import { EDITABLE_ROLES, isEditableRole, rolesThatManage } from "./auth.js";
 import type { UserRole } from "./constants.js";
 
 // ── Named permissions a carrier switches per role (HIRING-WORKFLOW-AUDIT-2026-10-31 §15.1, D-IDP1..4) ──
@@ -66,6 +66,18 @@ export const FULL_SSN_PERMISSION = "recruitment.full_ssn";
  */
 export const NOTES_MANAGE_ALL_PERMISSION = "notes.manage_all";
 
+/**
+ * Who may mark, change, end, cancel and reopen a driver's home time (HOME-TIME-PLAN D-HT7, owner
+ * 2026-11-13: "a button for dispatchers"). The period is a roster row (`driver_time_off`), and the
+ * dispatcher holds `roster: view` only — on purpose, since `roster: manage` is every write on the driver
+ * roster. Neither section says "may record that a driver went home", which is the question, so it is
+ * asked by name (the recruiter's applicant row is the same case). No regulation names who records it.
+ *
+ * Ships to every role that manages Dispatch, DERIVED from the matrix: a role given Dispatch tomorrow
+ * marks home time without this list being remembered.
+ */
+export const HOME_TIME_PERMISSION = "roster.home_time";
+
 export const EDITABLE_PERMISSIONS = [
   {
     key: IDENTITY_NUMBER_IMAGES_PERMISSION,
@@ -98,6 +110,14 @@ export const EDITABLE_PERMISSIONS = [
       "Change or remove any note on a driver, truck or trailer, whoever wrote it. Without it a person edits and removes only their own notes. Every edit and removal is on the Audit page, and the old words are kept.",
     // Owner, 2026-11-12: admin only to start — the admin holds every permission.
     shippedRoles: [],
+  },
+  {
+    key: HOME_TIME_PERMISSION,
+    label: "Mark a driver's home time",
+    description:
+      "Record that a driver is going home and when he is due back, change the return, and mark him back. Without it a person sees who is home on the Dispatch board and cannot change it.",
+    // D-HT7: whoever manages Dispatch (the admin holds every permission and is not an editable role).
+    shippedRoles: rolesThatManage("dispatch").filter(isEditableRole),
   },
 ] as const satisfies readonly EditablePermission[];
 

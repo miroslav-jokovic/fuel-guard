@@ -405,3 +405,27 @@ sidebar.
     split §5 expected was not needed.
   - The held-text window is its own one-row table, `notification_channel_settings` (messaging's), not a
     column of `home_time_settings` (roster's): it holds every alert's texts, not only home time's.
+- 2026-11-13 — **HT1 merged** (PR 2333, `9dfdc7a`); `migrate-staging` applied 0597 and 0598 the same hour
+  (`pnpm verify:live staging`: schema version 0598).
+- 2026-11-13 — **HT2 the rules and the API** (branch `claude/home-time-ht2-api`).
+  - **Shared:** `homeTimeContract.ts` (wire shapes, `HOME_TIME_DEFAULTS`), `homeTime.ts` (state, the
+    board's chips, `homeTimeHold`, the time refusals, the tab's order), the board contract's `homeTimes`,
+    `available.basis = "home_time"` and `flags.homeTimeUrgent`, which joins `needsAttention`.
+  - **Permission:** `roster.home_time` in `EDITABLE_PERMISSIONS`, shipped to
+    `rolesThatManage("dispatch")` (D-HT7); no migration, the key's shape is 0564's.
+  - **Roster:** `modules/roster/homeTime/` — the service and `/api/roster/home-time` (list, the form's
+    drivers, mark, change, end, cancel, reopen). Reads ask `dispatch: view` on a carrier entitled to
+    Dispatch; every write asks the named permission and writes `home_time.marked | changed | ended |
+    canceled | reopened`.
+  - **Board:** `withHomeTimes` merges each seat's live period after the row cache. A truck is held only
+    when every seat is home and it is with one of them, and never when it carries a load or is in the
+    shop; a held truck is not "empty now".
+  - **Fuel rule:** `deriveDriverHomeAtFill` skips canceled periods (§3.7).
+  - **`home_time_settings` left the producer gate's waiver list**: the board and the tab read it.
+  - **Not in this step, moved to where it is used:** the alert planner (`planHomeTimeAlerts`) is HT4's,
+    with its sender; `PUT` of the thresholds is HT5's, with the page that calls it.
+  - Tests: shared 30, routes 21, board merge 17, fuel rule 4. Thirteen mutants (missing live condition
+    on change, no org filter on the period read, McLeod rows in the live read, any driver status, ending
+    a scheduled period, cancel without the permission, reads without the Dispatch gate, holding a loaded
+    or shop truck, a held truck still empty-now, a seat not home ignored, the window's boundary, canceled
+    read after ended, the fuel rule's canceled filter) each fail a test.

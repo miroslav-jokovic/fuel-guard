@@ -6,6 +6,7 @@ import {
   EDITABLE_PERMISSIONS,
   CLOSE_APPLICATION_PERMISSION,
   FULL_SSN_PERMISSION,
+  HOME_TIME_PERMISSION,
   IDENTITY_NUMBER_IMAGES_PERMISSION,
   NOTES_MANAGE_ALL_PERMISSION,
   callerPermissions,
@@ -118,18 +119,21 @@ describe("closing an application is a named switch", () => {
       [CLOSE_APPLICATION_PERMISSION]: false,
       [FULL_SSN_PERMISSION]: false,
       [NOTES_MANAGE_ALL_PERMISSION]: false,
+      [HOME_TIME_PERMISSION]: false,
     });
     expect(callerPermissions("admin", {})).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: true,
       [CLOSE_APPLICATION_PERMISSION]: true,
       [FULL_SSN_PERMISSION]: true,
       [NOTES_MANAGE_ALL_PERMISSION]: true,
+      [HOME_TIME_PERMISSION]: true,
     });
     expect(callerPermissions(null, {})).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: false,
       [CLOSE_APPLICATION_PERMISSION]: false,
       [FULL_SSN_PERMISSION]: false,
       [NOTES_MANAGE_ALL_PERMISSION]: false,
+      [HOME_TIME_PERMISSION]: false,
     });
   });
 });
