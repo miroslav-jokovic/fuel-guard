@@ -30,7 +30,7 @@ const JURISDICTIONS = jurisdictionOptions();
         <BaseInput v-bind="f" v-model="address.line1" autocomplete="address-line1" />
       </ApplyField>
       <ApplyField v-slot="f" :path="['addresses', index, 'line2']" :label="copy.line2" :hint="copy.optional">
-        <BaseInput v-bind="f" v-model="address.line2" placeholder="Optional" autocomplete="address-line2" />
+        <BaseInput v-bind="f" v-model="address.line2" :placeholder="APPLY_COPY.placeholders.optional" autocomplete="address-line2" />
       </ApplyField>
     </div>
     <div v-if="!streetLocked" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -38,7 +38,7 @@ const JURISDICTIONS = jurisdictionOptions();
         <BaseInput v-bind="f" v-model="address.city" autocomplete="address-level2" />
       </ApplyField>
       <ApplyField v-slot="f" :path="['addresses', index, 'state']" :label="copy.state">
-        <ComboSelect v-bind="f" v-model="address.state" :options="JURISDICTIONS" />
+        <ComboSelect v-bind="f" v-model="address.state" :placeholder="APPLY_COPY.placeholders.choose" :options="JURISDICTIONS" />
       </ApplyField>
       <ApplyField v-slot="f" :path="['addresses', index, 'postal_code']" :label="copy.postal_code">
         <BaseInput v-bind="f" v-model="address.postal_code" inputmode="numeric" autocomplete="postal-code" />

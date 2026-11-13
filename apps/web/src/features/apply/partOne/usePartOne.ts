@@ -215,10 +215,13 @@ export function usePartOne(
     if (keptNow.length > 0 && !kept.value) kept.value = true;
   }
 
+  /** May this page be left as it is — answers on file and nothing typed, or a list this session cannot re-post? */
+  const skippable = computed(() => locked.value || (onFile.value && blank(screen.value)));
+
   async function next(): Promise<void> {
     const s = screen.value;
     failure.value = null;
-    if (locked.value || (onFile.value && blank(s))) return advance();
+    if (skippable.value) return advance();
 
     const found = check(s);
     errors.value = found;
@@ -303,6 +306,11 @@ export function usePartOne(
     barcode,
     readsBarcode,
     prefilledHere,
+    /** The answers the barcode filled, by `PREFILL_FIELDS` key — the wizard says so on the screen that shows them. */
+    fromLicence,
+    skippable,
+    /** The page's own check, without showing it — the wizard asks one screen's share of it (F4 PR 1). */
+    pageErrors: (): ScreenErrors => check(screen.value),
     licencePhotoStaged,
     back,
     next,

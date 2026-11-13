@@ -634,3 +634,36 @@ A gate fails on a literal string in an `apply/` template.
     - **The questionnaire's proof-of-age hint** is fixed in v3 in place. Its spelling is not the question asked, and screen map §5 drops that question with the wizard.
   - **Next:** the F4 wizard engine (plan §6, F4 PR 1: generated from the catalogue).
 
+- 2026-11-12: **Q-AM6 merged as #2317.**
+- 2026-11-12: **F4 PR 1a: the wizard engine, and Stage 1 one question per screen (SCREEN-MAP §7, D-AM2/D-AM3, U7's gate)** (`claude/application-wizard-engine`, no migration).
+  - **The catalogue says where each fact is asked.** `ApplicantFact.ask` is a list of places: the screen, its "IF" condition (`when`) and, for a date, which years a short answer means (`dates`). A list, because one fact can be asked twice: the CDL's number on its own card, and each other licence's in the loop.
+  - **The screens are generated, not written.** `WIZARD_SCREENS` (`packages/shared/src/applicantWizard.ts`) is, for each id in `WIZARD_SCREEN_IDS`, the facts whose `ask` names it, in catalogue order. One fact is a single-question screen; several are one fact typed together (the address, the licence card).
+    - The ids are a listed vocabulary, because the page's copy and the walking order are keyed by them. A test holds the list and the catalogue to each other both ways.
+    - A choice's answers are read from the contract's own enum (`factChoices`), never restated.
+  - **One `WizardScreen` renders any screen.** The control comes from the fact's `input` kind alone. It reads and writes through a binding (`wizard/wizardBinding.ts`), the one place a page says where its answers live. Part 1's binding is `partOneFields.ts`; Part 2's draft gets its own with PR 1b.
+  - **Stage 1 (Part 1's typed pages).** "About you" is now the phone, then the date of birth. The CDL is its card, its class, its expiration, then its endorsements. The drug-and-alcohol page is one question to a screen, and 1.12 and 1.13 appear only after a "yes" to 1.11. `PartOneAnswerFields.vue` is gone.
+  - **The page still saves; the screen only asks** (`usePartOneWizard`).
+    - A screen's Continue checks that screen's share of the page's own check. Its Back steps within the page.
+    - The page's last screen is the page's old Continue. So the posting order (0376), the device copy, the resume point and the screen reports are all unchanged and stay per page.
+    - If the page's Continue still refuses, the walk opens the screen holding the problem.
+    - "Step n of m" counts screens: 16, or 18 after a "yes" to 1.11.
+  - **U7's gate** (`templateLiterals.test.ts`) reads every driver template under `apply/` with Vue's own parser. It fails on:
+    - a literal text node;
+    - a static or quoted-sentence `label`/`legend`/`hint`/`placeholder`/`title`/`alt`/`heading`/`aria-label`;
+    - a picker left with `AppCombobox`'s English "Select…".
+  - **What the gate fixed.**
+    - It found: the signing rail ("0 of 22 done", "Page 4", its two list labels), "You are reading page…" and "Take me back", the read-only releases panel, three "Optional" placeholders, two page labels, the packet viewer's label, and "Select…" on eight pickers. The rail's screen-reader sentence lives in its script, where no template gate looks; it moved with them.
+    - All now come from `APPLY_COPY` (`strings.screens.ts`), with Spanish drafted for the owner's review.
+    - The office's own screens in the folder are listed by name and left in English (Q-AM6's ruling).
+  - **Not done, and why:**
+    - **Stage 2** (Part 2's five section components) and the loops, including Part 1's other-licences loop: PR 1b. Their facts get `ask`; `loop` and `quickPicks` join the type then, with their first reader.
+    - **Part 1's two loop columns and the medical card's "not yet"** are named in `ASKED_BY_HAND`, with where each is asked. The catalogue test holds every Part 1 fact to an `ask` or a line there.
+    - **The screen reports stay per page** (`part1.about`). A finer name is a new value in 0376's vocabulary, so it waits for U1's measured walk, which will decide what it needs to time.
+    - **Yes/No is still the radio pair** (`YesNoQuestion`). The two big buttons are U3.
+  - **Proof:**
+    - shared: 10 wizard tests;
+    - web: the walk (7), the screen (8) and the gate (3);
+    - every mutant caught (9, including one survivor that got its own test);
+    - every e2e-apply spec walks the new screens (35 passed);
+    - a screenshot pass at 390×844 in EN and ES.
+  - **Next:** F4 PR 1b, Stage 2 generated, with the loops (addresses, employers, licences, equipment, accidents, convictions), replacing the five section components.

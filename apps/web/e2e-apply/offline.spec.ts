@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { PART_ONE_SCREENS } from "@silvicom/shared";
 import { shootWithScanner } from "./liveScanner";
 import { partOneLink, partTwoLink, STORAGE_UPLOAD, stubApi, TOKEN, type Stub } from "./stubApi";
 
@@ -25,61 +24,76 @@ async function chooseState(page: Page, id: string, typed: string, option: RegExp
   await page.getByRole("option", { name: option }).first().click();
 }
 
+/**
+ * Part 1's steps since F4 PR 1 (one question to a screen): the two photos, about (2), the address, the CDL
+ * (4), the other licences, the drug-and-alcohol questions (3 until a "yes" adds two), the medical card, the
+ * selfie and the rights. The screens below are numbered in it.
+ */
+const STEPS = 16;
+const step = (n: number): string => `Step ${n} of ${STEPS}`;
+
 /** Screens 3–6 of Part 1, typed. Nothing of them reaches the server until screen 7 (0376, AI009). */
 async function typeHeldScreens(page: Page): Promise<void> {
   await page.getByLabel("Mobile phone number").fill("3125550142");
-  // D-AM6: one box, typed the way it is written; the slashes draw themselves.
-  await page.locator("#p1-dob").fill("03071985");
   await continueButton(page).click();
-  await page.locator("#p1-line1").fill("12 Depot Rd");
+  // D-AM6: one box, typed the way it is written; the slashes draw themselves.
+  await page.locator("#p1-date_of_birth").fill("03071985");
+  await continueButton(page).click();
+  await page.locator("#p1-address_line1").fill("12 Depot Rd");
   await page.locator("#p1-city").fill("Joliet");
   await chooseState(page, "#p1-state", "Illin", /Illinois/);
-  await page.locator("#p1-zip").fill("60432");
+  await page.locator("#p1-postal_code").fill("60432");
   await continueButton(page).click();
-  await chooseState(page, "#p1-cdl-state", "Illin", /Illinois/);
-  await page.locator("#p1-cdl-number").fill("D12345678901");
+  await chooseState(page, "#p1-cdl-state_code", "Illin", /Illinois/);
+  await page.locator("#p1-cdl-licence_number").fill("D12345678901");
+  await continueButton(page).click();
   await page.getByLabel("A", { exact: true }).check();
+  await continueButton(page).click();
   // D-AM6: one box, typed the way it is written; the slashes draw themselves.
-  await page.locator("#p1-cdl-expires").fill("05012029");
+  await page.locator("#p1-cdl-expires_on").fill("05012029");
+  await continueButton(page).click();
+  // Endorsements: none.
   await continueButton(page).click();
   await page.getByLabel("No", { exact: true }).check();
   await continueButton(page).click();
 }
 
 /**
- * Screen 7's questions. Deliberately never kept on the phone (Q-AW39), so asked again after a reload —
- * the drug test's gender too (UX5b, D-MSUX10).
+ * Screen 7's questions, one to a screen. Deliberately never kept on the phone (Q-AW39), so asked again
+ * after a reload — the drug test's gender too (UX5b, D-MSUX10). Ends on the gender, before its Continue.
  */
 async function answerScreening(page: Page): Promise<void> {
-  const noes = page.getByLabel("No", { exact: true });
-  await expect(noes).toHaveCount(2);
-  for (let i = 0; i < 2; i += 1) await noes.nth(i).check();
+  for (let i = 0; i < 2; i += 1) {
+    await page.getByLabel("No", { exact: true }).check();
+    await continueButton(page).click();
+  }
   await page.getByLabel("I'd rather not say", { exact: true }).check();
 }
 
 test("Part 1: a cut connection at screen 7 and a reload lose none of screens 3–6 (C3d1a)", async ({ page }) => {
   const stub = await stubApi(page, partOneLink());
   await page.goto(url);
-  await expect(page.getByText(`Step 3 of ${PART_ONE_SCREENS.length}`)).toBeVisible();
+  await expect(page.getByText(step(3))).toBeVisible();
   await typeHeldScreens(page);
-  await expect(page.getByText(`Step 7 of ${PART_ONE_SCREENS.length}`)).toBeVisible();
+  await expect(page.getByText(step(11))).toBeVisible();
 
   // The signal goes as the driver presses Continue on screen 7: the first write fails.
   stub.cut(/\/intake/);
   await answerScreening(page);
   await continueButton(page).click();
   await expect(page.getByText("That did not save. Check your signal and try again.")).toBeVisible();
-  await expect(page.getByText(`Step 7 of ${PART_ONE_SCREENS.length}`)).toBeVisible();
+  await expect(page.getByText(step(13))).toBeVisible();
 
   // The phone is reloaded with the signal back. Screens 3–6 come back from the phone, not the server
   // (which has none of them), and the walk reopens where it was.
   stub.restore();
   const beforeReload = stub.state.calls.length;
   await page.reload();
-  await expect(page.getByText(`Step 7 of ${PART_ONE_SCREENS.length}`)).toBeVisible();
+  // The page reopens at its first question: the device copy keeps the page, not the screen within it.
+  await expect(page.getByText(step(11))).toBeVisible();
   await answerScreening(page);
   await continueButton(page).click();
-  await expect(page.getByText(`Step 8 of ${PART_ONE_SCREENS.length}`)).toBeVisible();
+  await expect(page.getByText(step(14))).toBeVisible();
 
   // What was typed BEFORE the reload is what the first write carried.
   const [answers, licences, identity] = stub.state.calls

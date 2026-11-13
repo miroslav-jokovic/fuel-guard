@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { APPLY_COPY } from "@/features/apply/strings";
 import { computed } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import type { RailPlace } from "@/features/apply/signing/signingPlaces";
@@ -65,6 +66,7 @@ const props = defineProps<{
   signedIds: ReadonlySet<string>;
 }>();
 const emit = defineEmits<{ look: [stopId: string] }>();
+const walk = APPLY_COPY.signingWalk;
 
 type RailStop = {
   stop: RailPlace;
@@ -100,13 +102,8 @@ function dotClass(r: RailStop): string {
 
 /** What a screen reader is told about each place, on either layout. */
 function stopLabel(r: RailStop): string {
-  const state = r.signed
-    ? "signed"
-    : r.signing
-      ? "the place you are signing now"
-      : "still to come";
-  const page = r.stop.page ? `, page ${r.stop.page}` : "";
-  return `Place ${r.index}${page}. ${r.stop.what} — ${state}`;
+  const state = r.signed ? walk.signed : r.signing ? walk.signingNow : walk.toCome;
+  return walk.place(r.index, r.stop.page ?? null, r.stop.what, state);
 }
 </script>
 
@@ -114,12 +111,12 @@ function stopLabel(r: RailStop): string {
   <div class="w-full">
     <!-- ⚠ Names what it counts (C3s4b): the walk's "Place N of M" now spans the handbook too (D-AW16), and
          an unqualified "0 of 15 done" beside "Place 1 of 20" read as two answers to one question. -->
-    <p class="mb-2 text-xs text-ink-muted">{{ signedCount }} of {{ stops.length }} {{ scope }} done</p>
+    <p class="mb-2 text-xs text-ink-muted">{{ walk.done(signedCount, stops.length, scope) }}</p>
 
     <!-- The phone: an indicator, not a menu. Wrapped rather than scrolled — see the header. -->
     <ul
       class="flex flex-wrap gap-1.5 lg:hidden"
-      :aria-label="`Progress through ${stops.length} places`"
+      :aria-label="walk.progress(stops.length)"
     >
       <li v-for="r in rail" :key="r.stop.id">
         <span class="block size-2.5 rounded-full" :class="dotClass(r)" />
@@ -130,7 +127,7 @@ function stopLabel(r: RailStop): string {
     <!-- The desktop: the column of places, each one a real button to the page it sits on. -->
     <nav
       class="hidden lg:block"
-      :aria-label="`The ${stops.length} places you are asked to sign`"
+      :aria-label="walk.places(stops.length)"
     >
       <ol class="flex flex-col gap-0.5">
         <li v-for="r in rail" :key="r.stop.id">
@@ -143,7 +140,7 @@ function stopLabel(r: RailStop): string {
           >
             <span class="size-2 shrink-0 rounded-full" :class="dotClass(r)" aria-hidden="true" />
             <span class="text-xs font-medium text-ink-tertiary">{{ r.index }}</span>
-            <span v-if="r.stop.page" class="truncate text-xs text-ink-muted">Page {{ r.stop.page }}</span>
+            <span v-if="r.stop.page" class="truncate text-xs text-ink-muted">{{ walk.page(r.stop.page) }}</span>
             <span class="sr-only">{{ stopLabel(r) }}</span>
           </BaseButton>
         </li>

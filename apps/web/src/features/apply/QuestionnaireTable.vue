@@ -59,6 +59,7 @@ const options = (column: { options?: readonly string[] }) =>
           v-else-if="column.kind === 'select'"
           :id="`q-${question.id}-${index}-${column.id}`"
           :model-value="(row[column.id] as string) ?? ''"
+          :placeholder="APPLY_COPY.placeholders.choose"
           :options="options(column)"
           @update:model-value="set(index, column.id, $event)"
         />

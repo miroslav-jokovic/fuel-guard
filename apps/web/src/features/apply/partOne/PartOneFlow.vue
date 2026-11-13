@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
-import PartOneAnswerFields from "./PartOneAnswerFields.vue";
 import PartOneOtherLicences from "./PartOneOtherLicences.vue";
 import PartOnePhoto from "./PartOnePhoto.vue";
 import PartOneRights from "./PartOneRights.vue";
 import { isPhotoScreen, photoDone, type PartOneScreen, type PhotoScreen } from "./partOneScreens";
 import { useHandoffPoll, useIsDesktop } from "./useDesktopHandoff";
 import { usePartOne, type PartOneInputs } from "./usePartOne";
+import { usePartOneWizard } from "./usePartOneWizard";
+import WizardScreen from "@/features/apply/wizard/WizardScreen.vue";
 import { useApplyScreen } from "@/features/apply/useScreenEvents";
 import { partOneScreenName } from "@silvicom/shared";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -29,6 +30,11 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * office needs the facts in, and a driver on a phone is served by "Step 4 of 10" and one Continue. Back
  * is always there; a returning applicant opens on the first screen still owed (`resumeScreen`).
  *
+ * Since F4 PR 1 (D-AM2) the typed pages are cut one question to a screen, generated from the fact
+ * catalogue (`usePartOneWizard`, `WizardScreen`): "about" is the phone, then the date of birth; the CDL
+ * is its card, class, expiration and endorsements. A page still saves as one, on its last screen, so
+ * "Step n of m" counts screens while posting, resuming and the screen reports stay per page.
+ *
  * ⚠ The photo screen is keyed by screen: `useApplicationCaptures` reads its slot list once, at setup, so
  * a reused instance would keep photographing the CDL's front on the medical-card screen.
  */
@@ -44,6 +50,8 @@ const copy = APPLY_COPY.partOne;
 const flow = usePartOne(toRef(props, "token"), toRef(props, "inputs"), props.refresh, () => emit("done"));
 useApplyScreen(() => partOneScreenName(flow.screen.value));
 const answers = flow.answers;
+// F4 PR 1: the typed pages one question per screen, generated from the fact catalogue.
+const wizard = usePartOneWizard(flow);
 
 const HEADINGS: Record<Exclude<PartOneScreen, PhotoScreen>, string> = {
   about: copy.about.heading,
@@ -135,14 +143,14 @@ function onContinue(): void {
     unsent.value = true;
     return;
   }
-  void flow.next();
+  void wizard.next();
 }
 </script>
 
 <template>
   <section class="space-y-5">
     <div>
-      <p class="text-xs font-medium text-ink-tertiary">{{ copy.step(flow.step.value, flow.steps) }}</p>
+      <p class="text-xs font-medium text-ink-tertiary">{{ copy.step(wizard.step.value, wizard.steps.value) }}</p>
       <h1 class="mt-1 text-lg font-semibold text-ink">{{ heading }}</h1>
       <p v-if="intro" class="mt-2 text-sm text-ink-muted">{{ intro }}</p>
     </div>
@@ -151,7 +159,7 @@ function onContinue(): void {
     <AppCallout v-if="flow.locked.value" tone="info">{{ APPLY_COPY.identityStep.lockedHint(carrier) }}</AppCallout>
     <template v-else>
       <AppCallout v-if="flow.onFile.value" tone="info">{{ copy.onFile }}</AppCallout>
-      <AppCallout v-if="flow.prefilledHere.value" tone="info">{{ copy.fromLicence }}</AppCallout>
+      <AppCallout v-if="wizard.prefilledHere.value" tone="info">{{ copy.fromLicence }}</AppCallout>
       <PartOneOtherLicences
         v-if="flow.screen.value === 'otherLicences'"
         v-model:answers="answers"
@@ -173,7 +181,10 @@ function onContinue(): void {
         @holding="holding = $event"
       />
       <PartOneRights v-else-if="flow.screen.value === 'rights' && inputs.summary" :summary="inputs.summary" />
-      <PartOneAnswerFields v-else v-model:answers="answers" :screen="flow.screen.value" :errors="flow.errors.value" />
+      <template v-else-if="wizard.current.value">
+        <WizardScreen :key="wizard.current.value.id" :screen="wizard.current.value" :binding="wizard.binding" />
+        <p v-for="problem in wizard.stray.value" :key="problem" class="text-sm text-danger-700" role="alert">{{ problem }}</p>
+      </template>
     </template>
 
     <AppCallout v-if="flow.kept.value" tone="info">{{ copy.kept(carrier) }}</AppCallout>
@@ -181,7 +192,7 @@ function onContinue(): void {
     <p v-if="flow.failure.value" class="text-sm text-danger-700" role="alert">{{ flow.failure.value }}</p>
 
     <div class="flex items-center justify-between gap-3">
-      <BaseButton v-if="flow.step.value > 1" variant="ghost" :disabled="flow.working.value" @click="flow.back()">
+      <BaseButton v-if="wizard.step.value > 1" variant="ghost" :disabled="flow.working.value" @click="wizard.back()">
         {{ copy.back }}
       </BaseButton>
       <span v-else />

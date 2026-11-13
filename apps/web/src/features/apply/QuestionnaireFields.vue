@@ -176,6 +176,7 @@ const selectOptions = (question: QuestionnaireQuestion): Array<{ value: string; 
           v-else-if="question.kind === 'select'"
           v-bind="f"
           :model-value="(answer(question.id) as string) ?? ''"
+          :placeholder="APPLY_COPY.placeholders.choose"
           :options="selectOptions(question)"
           @update:model-value="set(question.id, $event)"
         />
