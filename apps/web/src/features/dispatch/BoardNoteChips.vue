@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppIcon } from "@silvicom/ui";
+import { AppButton, AppIcon } from "@silvicom/ui";
 import { CheckCircleIcon } from "@silvicom/ui/icons";
 import { UNIT_NOTE_KIND_LABELS, UNIT_NOTE_MAX_SUBJECTS, formatDisplayDate, type DispatchBoardNoteMention, type DispatchBoardRow } from "@silvicom/shared";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -74,9 +74,9 @@ async function resolveChip(m: DispatchBoardNoteMention): Promise<void> {
       :class="[BADGE_BASE, toneClass('brand')]"
       data-board-note-chip
     >
-      <button
-        type="button"
-        class="inline-flex items-center gap-1 hover:underline"
+      <!-- `link`: an action inside the chip's own line, with no box of its own (AppButton's LINK_SIZE). -->
+      <AppButton
+        variant="link"
         :title="`${m.authorName} mentioned ${unitWords(m)} in a note on ${writtenOn(m)}`"
         :aria-label="`Open ${m.authorName}'s note mentioning ${unitWords(m)}`"
         data-board-note-open
@@ -84,19 +84,17 @@ async function resolveChip(m: DispatchBoardNoteMention): Promise<void> {
       >
         <AppIcon :icon="notesIcon" class="size-3 shrink-0" aria-hidden="true" />
         Note · {{ m.authorName }} · {{ formatDisplayDate(m.at).slice(0, 5) }}
-      </button>
-      <!-- Not AppIconButton: its smallest is 32 px, which would make every board row with a chip taller.
-           The chip's own height, with the title and the label saying what it does. -->
-      <button
-        type="button"
-        class="-my-0.5 -mr-1 rounded p-0.5 text-brand-700 hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-brand-600"
-        :title="'Resolve — take this note off the board'"
+      </AppButton>
+      <!-- Not AppIconButton: its smallest is 32 px, which would make every board row with a chip taller. -->
+      <AppButton
+        variant="link"
+        title="Resolve — take this note off the board"
         :aria-label="`Resolve ${m.authorName}'s note on ${unitWords(m)}`"
         data-board-note-resolve
         @click.stop="resolveChip(m)"
       >
-        <AppIcon :icon="CheckCircleIcon" class="size-3.5" aria-hidden="true" />
-      </button>
+        <AppIcon :icon="CheckCircleIcon" class="size-4" aria-hidden="true" />
+      </AppButton>
     </span>
   </div>
 </template>

@@ -318,9 +318,10 @@ export interface UnitNoteUnitRef {
 /**
  * `<#vehicle:id>` · `<#trailer:id>` · `<#driver:id>` — the people token's shape (`<@id>`, D-CHAT22) with
  * its kind, so a renumbered truck or a married name never breaks the link. 0596's
- * `unit_note_unit_tokens` reads exactly this shape.
+ * `unit_note_unit_tokens` reads exactly this shape. The id is a loose 36 characters here and is then
+ * asked of the one id rule (`isRecordId`), as chat's `MENTION_SHAPE` does — never a second id regex.
  */
-const UNIT_TOKEN_SHAPE = /<#(vehicle|trailer|driver):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})>/g;
+const UNIT_TOKEN_SHAPE = /<#(vehicle|trailer|driver):([0-9a-fA-F-]{36})>/g;
 
 export const unitNoteUnitToken = (kind: UnitNoteKind, id: string): string => `<#${kind}:${id.toLowerCase()}>`;
 
@@ -328,6 +329,7 @@ export const unitNoteUnitToken = (kind: UnitNoteKind, id: string): string => `<#
 export function unitNoteUnitTokens(body: string | null | undefined): UnitNoteSubject[] {
   const out: UnitNoteSubject[] = [];
   for (const m of (body ?? "").matchAll(UNIT_TOKEN_SHAPE)) {
+    if (!isRecordId(m[2])) continue;
     const kind = m[1]!.toLowerCase() as UnitNoteKind;
     const id = m[2]!.toLowerCase();
     if (!out.some((u) => u.kind === kind && u.id === id)) out.push({ kind, id });
@@ -343,6 +345,8 @@ export function unitNoteBodyParts(body: string): UnitNoteBodyPart[] {
   let at = 0;
   const words = (text: string) => parts.push(...chatBodyParts(text));
   for (const m of body.matchAll(UNIT_TOKEN_SHAPE)) {
+    // Not an id by the one rule: it stays words, as the database's own reader leaves it (0596).
+    if (!isRecordId(m[2])) continue;
     if (m.index > at) words(body.slice(at, m.index));
     parts.push({ unit: { kind: m[1]!.toLowerCase() as UnitNoteKind, id: m[2]!.toLowerCase() } });
     at = m.index + m[0].length;
