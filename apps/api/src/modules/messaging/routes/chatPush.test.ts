@@ -152,8 +152,8 @@ describe("POST /api/chat/push/test", () => {
   it("notifies every live device of the caller's own, in this organisation, and only every ten seconds", async () => {
     const s = subscription();
     tables.web_push_subscriptions = [
-      { id: "d1", endpoint: s.endpoint, p256dh: s.keys.p256dh, auth: s.keys.auth, origin: ORIGIN },
-      { id: "d2", endpoint: "https://web.push.apple.com/xyz", p256dh: s.keys.p256dh, auth: s.keys.auth, origin: ORIGIN },
+      { id: "d1", endpoint: s.endpoint, p256dh: s.keys.p256dh, auth: s.keys.auth, origin: ORIGIN, last_seen_at: new Date().toISOString() },
+      { id: "d2", endpoint: "https://web.push.apple.com/xyz", p256dh: s.keys.p256dh, auth: s.keys.auth, origin: ORIGIN, last_seen_at: new Date().toISOString() },
     ];
     holder.rec = createSupabaseRecorder({ rpc: (fn) => rpc[fn], tables: tables as never });
     const res = await send("/test", "POST", {});
@@ -163,5 +163,81 @@ describe("POST /api/chat/push/test", () => {
     expect(read.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "user_id", val: USER }]));
     expectOrgScoped(holder.rec!, ORG);
     expect((await send("/test", "POST", {})).status).toBe(429);
+  });
+});
+
+describe("PUT /api/chat/push/subscription — a page load's refresh (D-WP10)", () => {
+  it("does not bring back a device the person removed from another device: 409, and the database is not asked", async () => {
+    tables.web_push_subscriptions = [{ revoked_reason: "removed" }];
+    holder.rec = createSupabaseRecorder({ rpc: (fn) => rpc[fn], tables: tables as never });
+    const res = await send("/subscription", "PUT", subscription({ refresh: true }));
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("device_removed");
+    expect(calls("web_push_subscribe")).toEqual([]);
+    const read = holder.rec!.forTable("web_push_subscriptions").find((q) => !q.write)!;
+    expect(read.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "user_id", val: USER }, { col: "endpoint", val: subscription().endpoint }]));
+  });
+
+  it("refreshes any other device, and a press of Turn on revives even a removed one", async () => {
+    tables.web_push_subscriptions = [{ revoked_reason: "unused" }];
+    holder.rec = createSupabaseRecorder({ rpc: (fn) => rpc[fn], tables: tables as never });
+    expect((await send("/subscription", "PUT", subscription({ refresh: true }))).status).toBe(200);
+    tables.web_push_subscriptions = [{ revoked_reason: "removed" }];
+    holder.rec = createSupabaseRecorder({ rpc: (fn) => rpc[fn], tables: tables as never });
+    expect((await send("/subscription", "PUT", subscription())).status).toBe(200);
+    expect(calls("web_push_subscribe")).toHaveLength(1);
+  });
+});
+
+describe("GET /api/chat/push/devices", () => {
+  const row = (id: string, days: number) => ({
+    id, device_label: "Chrome on Android", created_at: "2026-11-01T00:00:00Z",
+    last_seen_at: new Date(Date.now() - days * 86_400_000).toISOString(), last_success_at: null, last_failure_at: null,
+  });
+  it("lists the caller's own live devices in this organisation, never an endpoint or a key, and retires the unused", async () => {
+    const live = row("d0000000-0000-4000-8000-000000000001", 2);
+    const old = row("d0000000-0000-4000-8000-000000000002", 120);
+    tables.web_push_subscriptions = (q: { write?: unknown }) => (q.write ? [] : [live, old]);
+    holder.rec = createSupabaseRecorder({ rpc: (fn) => rpc[fn], tables: tables as never });
+    const res = await call("/devices");
+    expect(await res.json()).toEqual({ devices: [live] });
+    const read = holder.rec!.forTable("web_push_subscriptions").find((q) => !q.write)!;
+    expect(read.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "user_id", val: USER }]));
+    const select = read.ops.find((o) => o.method === "select")!.args[0] as string;
+    expect(select).not.toMatch(/endpoint|p256dh|auth/);
+    expect(holder.rec!.writes().map((w) => w.write?.payload)).toEqual([expect.objectContaining({ revoked_reason: "unused" })]);
+    expectOrgScoped(holder.rec!, ORG);
+  });
+
+  it("is chat's: a driver is refused", async () => {
+    me = { ...me, role: "driver" };
+    expect((await call("/devices")).status).toBe(403);
+  });
+});
+
+describe("DELETE /api/chat/push/devices/:id", () => {
+  const ID = "d0000000-0000-4000-8000-000000000001";
+  it("removes one of the caller's own devices in this organisation, as removed", async () => {
+    tables.web_push_subscriptions = (q: { write?: unknown }) => (q.write ? [{ id: ID }] : []);
+    holder.rec = createSupabaseRecorder({ rpc: (fn) => rpc[fn], tables: tables as never });
+    const res = await call(`/devices/${ID}`, { method: "DELETE" });
+    expect(await res.json()).toEqual({ revoked: 1 });
+    const [w] = holder.rec!.writes();
+    expect(w!.write?.payload).toMatchObject({ revoked_reason: "removed", revoked_at: expect.any(String) });
+    expect(w!.filters()).toEqual(expect.arrayContaining([{ col: "id", val: ID }, { col: "org_id", val: ORG }, { col: "user_id", val: USER }]));
+  });
+
+  it("answers 404 for a device that is not the caller's (the update touched nothing), and 400 for a non-id", async () => {
+    tables.web_push_subscriptions = [];
+    holder.rec = createSupabaseRecorder({ rpc: (fn) => rpc[fn], tables: tables as never });
+    expect((await call(`/devices/${ID}`, { method: "DELETE" })).status).toBe(404);
+    expect((await call("/devices/not-an-id", { method: "DELETE" })).status).toBe(400);
+  });
+
+  it("works for somebody chat was taken from — a lost phone must still be stoppable", async () => {
+    me = { ...me, role: "driver" };
+    tables.web_push_subscriptions = (q: { write?: unknown }) => (q.write ? [{ id: ID }] : []);
+    holder.rec = createSupabaseRecorder({ rpc: (fn) => rpc[fn], tables: tables as never });
+    expect((await call(`/devices/${ID}`, { method: "DELETE" })).status).toBe(200);
   });
 });

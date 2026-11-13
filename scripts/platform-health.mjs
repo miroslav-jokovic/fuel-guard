@@ -46,6 +46,10 @@ export function classify(read) {
   // drift heals at the next deploy, and a backup that stopped copying stays stopped.
   const backup = v.storageBackup?.state;
   if (backup && !OK_BACKUP.has(backup)) return `storageBackup:${backup}`;
+  // Chat notifications (CHAT-WEB-PUSH-PLAN D-WP12): only the key pair being refused pages — every phone is
+  // silent and only a person can fix it. `degraded` (one phone dropped off) is published, not paged, and
+  // `unknown` is the database unreadable, which the checks above already name. Above drift: it does not heal.
+  if (v.webPush?.state === "key_rejected") return "webPush:key_rejected";
   if (v.schema?.drift === true) return `schema:${v.schema.state ?? "drift"}`;
   return "";
 }
@@ -83,6 +87,8 @@ const WHAT = {
   "storageBackup:stale":
     "The nightly backup of uploaded files to AWS S3 has not succeeded for over 36 hours, and no run is failing — the runs stopped.",
   "storageBackup:unknown": "The API could not read the backup's job ledger — the database may be unreachable.",
+  "webPush:key_rejected":
+    "Chat notifications to phones are being refused (401/403) by the push services for more devices than still receive them — the Web Push key pair in Parameter Store (/silvicom/production/api/WEB_PUSH_VAPID_*) does not match what the devices subscribed with. docs/DEPLOYMENT.md, \"Office chat on the phone\".",
 };
 
 /** A scheduler lane's alarm, in words an owner can act on at night (D-RLY3). Pure. */
@@ -220,6 +226,10 @@ function selfTest() {
   eq("a failing backup is a problem", classify(v({ storageBackup: { state: "failing" } })), "storageBackup:failing");
   eq("a stale backup outranks drift", classify(v({ storageBackup: { state: "stale" }, schema: { state: "ahead", drift: true } })), "storageBackup:stale");
   eq("a failing backup's alert names S3", compose("alert", "storageBackup:failing", { url: "u" }).text.includes("S3"), true);
+  eq("chat push with its key refused is a problem", classify(v({ webPush: { state: "key_rejected" } })), "webPush:key_rejected");
+  eq("chat push off, pending, degraded or unknown pages nothing", ["off", "pending", "degraded", "unknown"].map((state) => classify(v({ webPush: { state } }))).join(""), "");
+  eq("a refused key outranks drift", classify(v({ webPush: { state: "key_rejected" }, schema: { state: "ahead", drift: true } })), "webPush:key_rejected");
+  eq("a refused key's alert names the setting", compose("alert", "webPush:key_rejected", { url: "u" }).text.includes("WEB_PUSH_VAPID"), true);
   eq("a stale lane's alert says what stopped", compose("alert", "schedulers:general:stale", { url: "u" }).text.includes("Samsara"), true);
 
   const one = decide(null, "schema:ahead");

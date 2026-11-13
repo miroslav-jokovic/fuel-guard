@@ -51,8 +51,9 @@ function browser() {
 
 const benPhone = browser();
 const caraPc = browser();
-const device = (id: string, user_id: string, b: ReturnType<typeof browser>, endpoint: string, origin = ORIGIN) =>
-  ({ id, user_id, endpoint, p256dh: b.p256dh, auth: b.auth, origin });
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+const device = (id: string, user_id: string, b: ReturnType<typeof browser>, endpoint: string, origin = ORIGIN, last_seen_at = daysAgo(1)) =>
+  ({ id, user_id, endpoint, p256dh: b.p256dh, auth: b.auth, origin, last_seen_at });
 const BEN_PHONE = device("d0000000-0000-4000-8000-000000000001", BEN, benPhone, "https://fcm.googleapis.com/fcm/send/ben");
 const CARA_PC = device("d0000000-0000-4000-8000-000000000002", CARA, caraPc, "https://wns2-bn3p.notify.windows.com/w/?token=cara", "https://fleetguardweb-production.up.railway.app");
 
@@ -105,7 +106,7 @@ const writes = () => rec.writes().map((q) => ({ filters: q.filters(), payload: q
 describe("deliverChatPush", () => {
   it("words the line as each recipient's own inbox names it, and opens it on the origin the device came from", async () => {
     const r = await deliverChatPush(rec.client, keys, ORG, ANA, MSG, null, fetcher);
-    expect(r).toEqual({ targets: 2, devices: 2, sent: 2, gone: 0, failed: 0 });
+    expect(r).toEqual({ targets: 2, devices: 2, sent: 2, gone: 0, failed: 0, unused: 0 });
     const toBen = sentTo(BEN_PHONE.endpoint, benPhone);
     const toCara = sentTo(CARA_PC.endpoint, caraPc);
     // An unnamed group is named by its OTHER members, per viewer — as chatTitle does in each inbox.
@@ -151,9 +152,24 @@ describe("deliverChatPush", () => {
 
   it("reads and sends nothing when the database owes nobody a push", async () => {
     rpc.chat_push_targets = [];
-    expect(await deliverChatPush(rec.client, keys, ORG, ANA, MSG, null, fetcher)).toEqual({ targets: 0, devices: 0, sent: 0, gone: 0, failed: 0 });
+    expect(await deliverChatPush(rec.client, keys, ORG, ANA, MSG, null, fetcher)).toEqual({ targets: 0, devices: 0, sent: 0, gone: 0, failed: 0, unused: 0 });
     expect(rec.forTable("web_push_subscriptions")).toHaveLength(0);
     expect(posted).toHaveLength(0);
+  });
+
+  it("retires a device nobody has opened for over 90 days instead of pushing it, and pushes one opened inside them (D-WP9)", async () => {
+    tables.web_push_subscriptions = [
+      device(BEN_PHONE.id, BEN, benPhone, BEN_PHONE.endpoint, ORIGIN, daysAgo(91)),
+      device(CARA_PC.id, CARA, caraPc, CARA_PC.endpoint, ORIGIN, daysAgo(89)),
+    ];
+    rec = createSupabaseRecorder({ rpc: (fn) => rpc[fn], tables: tables as never });
+    const r = await deliverChatPush(rec.client, keys, ORG, ANA, MSG, null, fetcher);
+    expect(r).toMatchObject({ devices: 1, sent: 1, unused: 1 });
+    expect(posted.map((p) => p.url)).toEqual([CARA_PC.endpoint]);
+    const retire = writes().find((w) => w.payload.revoked_reason === "unused")!;
+    expect(retire.payload).toMatchObject({ revoked_at: expect.any(String) });
+    expect(retire.filters).toEqual(expect.arrayContaining([{ col: "id", val: [BEN_PHONE.id] }, { col: "org_id", val: ORG }]));
+    expectOrgScoped(rec, ORG);
   });
 
   it("sends nothing to people who have no device", async () => {

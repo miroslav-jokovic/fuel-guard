@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * this device; and a tapped notification moves the open app by its router, only within this site.
  */
 const calls: Array<{ path: string; method: string; body?: unknown }> = [];
+/** What the server answers this browser's PUT: its row id, or — set per test — a refusal. */
+let putAnswer: { ok: boolean; status: number; data?: unknown; error?: { code: string; message: string } };
 const order: string[] = [];
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string, init: { method?: string; body?: unknown } = {}) => {
@@ -15,6 +17,7 @@ vi.mock("@/lib/api", () => ({
     calls.push({ path, method: init.method ?? "GET", body: init.body });
     if (path === "/api/chat/push") return { ok: true, status: 200, data: { available: true, public_key: KEY } };
     if (path === "/api/chat/push/test") return { ok: true, status: 200, data: { devices: 1, sent: 1 } };
+    if (path === "/api/chat/push/subscription" && init.method === "PUT") return putAnswer;
     return { ok: true, status: 200, data: {} };
   }),
 }));
@@ -23,6 +26,7 @@ const KEY = "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6Tl
 const ANA = "11111111-1111-4111-8111-111111111111";
 const BEN = "22222222-2222-4222-8222-222222222222";
 const ENDPOINT = "https://fcm.googleapis.com/fcm/send/this-browser";
+const ROW = "99999999-9999-4999-8999-999999999999";
 const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1";
 
@@ -39,6 +43,7 @@ type Sub = ReturnType<typeof fakeSub>;
 let current: Sub | null;
 let pushManager: { getSubscription: ReturnType<typeof vi.fn>; subscribe: ReturnType<typeof vi.fn> };
 let swListeners: Array<(e: MessageEvent) => void>;
+let shown: Array<{ tag: string; close: ReturnType<typeof vi.fn> }>;
 
 function device(ua: string, opts: { push?: boolean; standalone?: boolean; permission?: NotificationPermission } = {}) {
   const push = opts.push ?? true;
@@ -47,7 +52,11 @@ function device(ua: string, opts: { push?: boolean; standalone?: boolean; permis
     getSubscription: vi.fn(async () => current),
     subscribe: vi.fn(async (o: { applicationServerKey: Uint8Array }) => (current = fakeSub(o.applicationServerKey))),
   };
-  const reg = { pushManager };
+  shown = [];
+  const reg = {
+    pushManager,
+    getNotifications: vi.fn(async (o: { tag?: string } = {}) => shown.filter((n) => !o.tag || n.tag === o.tag)),
+  };
   swListeners = [];
   vi.stubGlobal("navigator", {
     userAgent: ua,
@@ -99,6 +108,7 @@ function installStorage() {
 beforeEach(() => {
   calls.length = 0;
   order.length = 0;
+  putAnswer = { ok: true, status: 200, data: { id: ROW } };
   installStorage();
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -143,7 +153,8 @@ describe("turning on", () => {
     expect(put.path).toBe("/api/chat/push/subscription");
     expect(put.body).toMatchObject({ endpoint: ENDPOINT, origin: window.location.origin, device_label: "Chrome on Android" });
     expect(w.pushOnHere.value).toBe(true);
-    expect(JSON.parse(localStorage.getItem("fg.chat.push")!)).toEqual({ userId: ANA, endpoint: ENDPOINT });
+    expect(JSON.parse(localStorage.getItem("fg.chat.push")!)).toEqual({ userId: ANA, endpoint: ENDPOINT, id: ROW });
+    expect(put.body).not.toHaveProperty("refresh");
   });
 
   it("a refusal registers nothing", async () => {
@@ -175,6 +186,7 @@ describe("on every page load", () => {
     localStorage.setItem("fg.chat.push", JSON.stringify({ userId: ANA, endpoint: ENDPOINT }));
     await w.loadPushState(ANA);
     expect(calls.filter((c) => c.method === "PUT")).toHaveLength(1);
+    expect(calls.find((c) => c.method === "PUT")!.body).toMatchObject({ refresh: true });
     expect(w.pushOnHere.value).toBe(true);
     expect((Notification.requestPermission as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
   });
@@ -190,6 +202,56 @@ describe("on every page load", () => {
     expect(calls.some((c) => c.method === "PUT")).toBe(false);
     expect(localStorage.getItem("fg.chat.push")).toBeNull();
     expect(w.pushOnHere.value).toBe(false);
+  });
+});
+
+describe("a device removed from another device's list (D-WP10)", () => {
+  it("lets go here on the next page load, instead of coming back", async () => {
+    device(ANDROID, { permission: "granted" });
+    const w = await lib();
+    const sub = fakeSub(w.applicationServerKey(KEY));
+    current = sub;
+    localStorage.setItem("fg.chat.push", JSON.stringify({ userId: ANA, endpoint: ENDPOINT, id: ROW }));
+    putAnswer = { ok: false, status: 409, error: { code: "device_removed", message: "removed" } };
+    await w.loadPushState(ANA);
+    expect(sub.unsubscribe).toHaveBeenCalled();
+    expect(localStorage.getItem("fg.chat.push")).toBeNull();
+    expect(w.pushOnHere.value).toBe(false);
+  });
+
+  it("removing THIS device from the list is turning it off here; another device is removed by its id", async () => {
+    device(ANDROID, { permission: "granted" });
+    const w = await lib();
+    current = fakeSub(w.applicationServerKey(KEY));
+    localStorage.setItem("fg.chat.push", JSON.stringify({ userId: ANA, endpoint: ENDPOINT, id: ROW }));
+    await w.loadPushState(ANA);
+    expect(w.thisDeviceId()).toBe(ROW);
+    calls.length = 0;
+    expect(await w.removePushDevice("d0000000-0000-4000-8000-000000000002")).toBe(true);
+    expect(calls).toEqual([{ path: "/api/chat/push/devices/d0000000-0000-4000-8000-000000000002", method: "DELETE", body: undefined }]);
+    calls.length = 0;
+    expect(await w.removePushDevice(ROW)).toBe(true);
+    expect(calls.find((c) => c.method === "DELETE")).toMatchObject({ path: "/api/chat/push/subscription", body: { reason: "turned_off" } });
+    expect(w.pushOnHere.value).toBe(false);
+  });
+});
+
+describe("a conversation read on this device (D-WP11)", () => {
+  it("closes this device's notifications for that conversation, and no other's", async () => {
+    device(ANDROID, { permission: "granted" });
+    const w = await lib();
+    const mine = { tag: "chat:t1", close: vi.fn() };
+    const other = { tag: "chat:t2", close: vi.fn() };
+    shown.push(mine, other);
+    await w.clearChatNotifications("t1");
+    expect(mine.close).toHaveBeenCalled();
+    expect(other.close).not.toHaveBeenCalled();
+  });
+
+  it("does nothing in a browser without a service worker", async () => {
+    device(IPHONE, { push: false });
+    const w = await lib();
+    await expect(w.clearChatNotifications("t1")).resolves.toBeUndefined();
   });
 });
 

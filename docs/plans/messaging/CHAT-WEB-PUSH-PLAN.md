@@ -137,6 +137,10 @@ have the Expo app, and production has 0 driver threads. App badge counts on the 
 | D-WP6 | A conversation is marked read only while the page is visible (fixes §1's defect) |
 | D-WP7 | Endpoints restricted to the four push services; origin restricted to `ALLOWED_ORIGINS` |
 | D-WP8 | Web Push built on `node:crypto`, tested against RFC 8291's worked example; no `web-push` dependency |
+| D-WP9 | A device not opened for 90 days (`last_seen_at`, refreshed by every page load) is revoked `unused` at the moment it would be pushed — no scheduler; revoked, never deleted; opening the app there again turns it back on (0602) |
+| D-WP10 | "Your devices" lists the caller's live devices (never an endpoint or key); Remove revokes one as `removed`, which a page load on that device does NOT revive (409 `device_removed`, the browser lets go) — only a press of Turn on there does |
+| D-WP11 | Reading a conversation on a device closes that device's notifications for it (`chatPushTag`, one definition for the push and the clear) |
+| D-WP12 | `GET /api/version` publishes `webPush` (each live device's latest answer in 24 h) and folds it into `ok`; `platform-health.mjs` pages on `key_rejected` — more devices refused 401/403 than still delivered |
 
 ## 5. Work queue
 
@@ -144,6 +148,7 @@ have the Expo app, and production has 0 driver threads. App badge counts on the 
 |---|---|---|
 | WP1 | Migration 0599: `web_push_subscriptions`; `web_push_subscribe` / `web_push_unsubscribe`; `chat_push_targets`; `revoke_push_tokens` also revokes web subscriptions. PGlite matrix `chat-web-push.test.mjs` (40 checks; six deliberate breaks of the migration each fail one) | — |
 | WP2 | API: env, `webPush.ts` (send, classify failures), `chatPush.ts` (hold, targets, fan-out, record), routes `/api/chat/push` (key, subscribe, unsubscribe, test); web: `sw.js`, manifest + icons, `lib/webPush.ts`, the device control, sign-out removes this device, read-only-when-visible; shared contract + wording | WP1 on staging |
+| WP4 | Migration 0602 (`unused`, `removed`); `GET /api/chat/push/devices`, `DELETE /api/chat/push/devices/:id`, the refresh rule (D-WP10); delivery and the test retire unused devices (D-WP9); "Your devices" dialog in the rail; clear on read (D-WP11); `webPush` health + the monitor's page (D-WP12) | WP2 |
 | WP3 | VAPID keys in Parameter Store `/silvicom/staging/api/` and `/silvicom/production/api/` (a pair each), staging redeployed, then the device walk (§6); production loads its pair with the release that first carries WP2 | WP2 |
 
 ## 6. How to check it on staging
@@ -162,6 +167,8 @@ have the Expo app, and production has 0 driver threads. App badge counts on the 
 | Q-WP1 | Hold before pushing | (a) 15 s, then only if unread; (b) no hold — every device buzzes at once, including while reading on the PC; (c) push only when no tab of the person is open (needs presence, CH9) | **(a)**, built as recommended on the owner's "build it" (2026-11-13); (c) when CH9 lands |
 | Q-WP2 | Text on a lock screen | (a) Q-CHAT18 (a)'s 80 characters, as on the PC; (b) no text on the phone ("New message from Ana") | **(a)**, built: the person's own device, and iOS/Android let the person hide previews system-wide. (b) is one flag if an office asks |
 | Q-WP3 | Bell categories (fuel alerts, DQ expiries…) as phone pushes too? | (a) Not now — chat only; (b) per category, opt-in per person | **(a)**; the subscription table is channel-neutral, so (b) is a delivery loop and a settings row |
+| Q-WP4 | Should a push respect the person's quiet hours and muted bell categories? Today only chat's own mutes apply (`chat_push_targets`). **Measured 2026-11-13: production has 0 `notification_preferences` rows** — nobody has quiet hours or a muted category, so any answer changes nothing for anyone today. ⚠ The bell's rule is ONE function, `notification_allowed` (0089), and its FIRST question is the org's `notifications` module: "follow the bell exactly" would silence chat pushes for any carrier that bought Messages but not Notifications | (a) exactly the bell's rule, `notification_allowed` as is; (b) the person's half of it — their quiet hours (critical never suppressed) and their mute of the chat categories — without the module question, which `messages` already answers for chat; (c) leave as is until somebody sets quiet hours | **(b)**, as one new SQL function both `notification_allowed` and `chat_push_targets` call, so the rule is not restated (a migration: drop and recreate `chat_push_targets`, its shape unchanged). Owner to rule |
+| Q-WP5 | Clear a notification on the OTHER devices once a conversation is read anywhere? | (a) Not possible reliably on the web — a push that only clears must still show a notification (§2 rule 1; Safari revokes the permission otherwise); (b) a silent "clear" push on Android only | **(a), a known limit**: a device's notification clears when it is tapped, dismissed, replaced by the next line of that conversation (same tag), or when the conversation is read on that device (D-WP11) |
 
 ## 8. Sources (2026-11-13)
 
@@ -181,3 +188,5 @@ have the Expo app, and production has 0 driver threads. App badge counts on the 
   visible (D-WP6). Each of six deliberate breaks (read while hidden, sw opening another site, gone not revoked,
   origin unchecked, another person's subscription kept, a lax push host) turns a test red.
 - 2026-11-13: WP2 merged. Its deployment notes first named Railway services; corrected for AWS (Parameter Store, `api` service only, redeploy to load) after the owner pointed out Railway production was retired on 2026-10-28.
+- 2026-11-13: staging check, signed in as the test dispatcher: `GET /api/chat/push` answers **403 `module_disabled`** — the staging org has no Messages module, so chat itself (and the device walk, §6) cannot run there until it is granted (admin console entitlement, or the owner's SQL with its audit row).
+- 2026-11-13: WP4 built: migration 0602, the device list and Remove, the refresh rule, unused devices retired at delivery, clear on read, `webPush` health on `/api/version` paged by `platform-health.mjs` on `key_rejected`. Q-WP4 (quiet hours) and Q-WP5 (other devices) written up; Q-WP4 waits on the owner.

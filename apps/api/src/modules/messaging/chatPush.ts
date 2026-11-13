@@ -6,6 +6,7 @@ import {
   chatMemberSchema,
   chatPushMessage,
   chatPushPath,
+  isUnusedPushDevice,
   type ChatMember,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
@@ -43,10 +44,41 @@ interface DeviceRow {
   p256dh: string;
   auth: string;
   origin: string;
+  last_seen_at: string;
 }
 
-export interface ChatPushResult { targets: number; devices: number; sent: number; gone: number; failed: number }
-const NOTHING: ChatPushResult = { targets: 0, devices: 0, sent: 0, gone: 0, failed: 0 };
+/** The columns every reader of a device to push to selects — `liveDevices` needs `last_seen_at`. */
+export const PUSH_DEVICE_COLUMNS = "id, user_id, endpoint, p256dh, auth, origin, last_seen_at";
+
+export interface ChatPushResult { targets: number; devices: number; sent: number; gone: number; failed: number; unused: number }
+const NOTHING: ChatPushResult = { targets: 0, devices: 0, sent: 0, gone: 0, failed: 0, unused: 0 };
+
+/**
+ * The live rows a push may go to, after retiring those not seen for `WEB_PUSH_UNUSED_DAYS` (0602, D-WP9).
+ * Retired HERE, at the moment one would have been pushed, rather than by a sweep: no scheduler to place
+ * (WORKER-DEPLOYMENT.md's one-process rule), and a device nobody is pushed to harms nobody while it waits.
+ * Revoked, never deleted — the row's history stays. Every reader of devices to push to goes through this, so
+ * the delivery, the test and the device list cannot disagree about which devices are live.
+ */
+export async function liveDevices<T extends { id: string; last_seen_at: string }>(
+  admin: SupabaseClient,
+  orgId: string,
+  rows: readonly T[],
+  now: Date = new Date(),
+): Promise<{ live: T[]; unused: number }> {
+  const stale = rows.filter((r) => isUnusedPushDevice(r.last_seen_at, now));
+  if (stale.length > 0) {
+    const { error } = await admin
+      .from("web_push_subscriptions")
+      .update({ revoked_at: now.toISOString(), revoked_reason: "unused" })
+      .in("id", stale.map((r) => r.id))
+      .eq("org_id", orgId)
+      .is("revoked_at", null);
+    if (error) console.error(`[chat-push] could not retire ${stale.length} unused device(s): ${error.message}`);
+  }
+  const gone = new Set(stale.map((r) => r.id));
+  return { live: rows.filter((r) => !gone.has(r.id)), unused: stale.length };
+}
 
 type Fetcher = typeof fetch;
 
@@ -61,6 +93,23 @@ export async function recordPushOutcome(admin: SupabaseClient, orgId: string, de
         : { last_failure: `${outcome.status ?? "no answer"}: ${outcome.detail}`.slice(0, 500), last_failure_at: now };
   const { error } = await admin.from("web_push_subscriptions").update(patch).eq("id", device.id).eq("org_id", orgId);
   if (error) console.error(`[chat-push] could not record ${outcome.kind} for device ${device.id}: ${error.message}`);
+}
+
+/**
+ * One of the caller's own devices stops: removed from another device's "Your devices" list (D-WP10). The row
+ * must be the caller's, in this organisation, and still live; the answer is how many rows that was (0 or 1).
+ */
+export async function removeOwnPushDevice(admin: SupabaseClient, orgId: string, userId: string, id: string): Promise<number> {
+  const { data, error } = await admin
+    .from("web_push_subscriptions")
+    .update({ revoked_at: new Date().toISOString(), revoked_reason: "removed" })
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .is("revoked_at", null)
+    .select("id");
+  if (error) throw new Error(error.message);
+  return (data ?? []).length;
 }
 
 /** The words of a line as the push gives them: its body, or for a line that is only files, what the bell says. */
@@ -90,13 +139,13 @@ export async function deliverChatPush(
 
   const { data: devicesData, error: devicesError } = await admin
     .from("web_push_subscriptions")
-    .select("id, user_id, endpoint, p256dh, auth, origin")
+    .select(PUSH_DEVICE_COLUMNS)
     .eq("org_id", orgId)
     .in("user_id", people.map((p) => p.user_id))
     .is("revoked_at", null);
   if (devicesError) throw new Error(devicesError.message);
-  const devices = (devicesData ?? []) as DeviceRow[];
-  if (devices.length === 0) return { ...NOTHING, targets: people.length };
+  const { live: devices, unused } = await liveDevices(admin, orgId, (devicesData ?? []) as DeviceRow[]);
+  if (devices.length === 0) return { ...NOTHING, targets: people.length, unused };
 
   // The line as it stands NOW — an edit in the hold is what the person should read.
   const { data: lineData } = await admin
@@ -119,7 +168,7 @@ export async function deliverChatPush(
   // its hyphens is 32 hex characters, inside the topic's 32 base64url characters.
   const topic = line.thread_id.replace(/-/g, "");
 
-  const result: ChatPushResult = { targets: people.length, devices: devices.length, sent: 0, gone: 0, failed: 0 };
+  const result: ChatPushResult = { targets: people.length, devices: devices.length, sent: 0, gone: 0, failed: 0, unused };
   await Promise.all(devices.map(async (device) => {
     const title = chatAlertTitle(sender, chatAlertPlace(conversation, members, device.user_id));
     const message = chatPushMessage({
@@ -177,7 +226,9 @@ export function scheduleChatPush(
     clearTimeout(timer);
     try {
       const r = await deliverChatPush(admin, keys, orgId, senderId, messageId, mentioned);
-      if (r.devices > 0) console.log(`[chat-push] ${messageId}: ${r.sent} sent, ${r.gone} gone, ${r.failed} failed of ${r.devices} device(s)`);
+      if (r.devices > 0 || r.unused > 0) {
+        console.log(`[chat-push] ${messageId}: ${r.sent} sent, ${r.gone} gone, ${r.failed} failed of ${r.devices} device(s); ${r.unused} retired unused`);
+      }
     } catch (e) {
       console.error(`[chat-push] ${messageId}: ${e instanceof Error ? e.message : String(e)}`);
     } finally {

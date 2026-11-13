@@ -4,6 +4,7 @@ import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import { BellIcon } from "@silvicom/ui/icons";
 import { pushOnHere, pushPermission, pushServer, pushSupport, sendTestPush, turnOffPush, turnOnPush } from "@/lib/webPush";
 import { useChatDesktopAlertsChoice } from "./useChatDesktopAlerts";
+import ChatPushDevicesDialog from "./ChatPushDevicesDialog.vue";
 
 /**
  * The foot of the chat rail: notifications on THIS device (CHAT-WEB-PUSH-PLAN D-WP5; CH6d before it).
@@ -15,6 +16,8 @@ import { useChatDesktopAlertsChoice } from "./useChatDesktopAlerts";
  *     Screen), so it gets the three steps that make it possible instead of a button that would do nothing.
  *   · Anything else that has notifications keeps CH6d's desktop alerts while the tab is open.
  *
+ * "Your devices" (WP4) lists every device where notifications are on, to remove a lost or replaced one.
+ *
  * "Not now" is the same per-browser choice CH6d stored, so dismissing once dismisses in both modes. A browser
  * that blocked notifications says so and how to undo it: the browser will not ask twice.
  */
@@ -24,6 +27,7 @@ const pushMode = computed(() => support === "available" && pushServer.value?.ava
 const device = typeof navigator !== "undefined" && /iPad/.test(navigator.userAgent) ? "iPad" : "phone";
 const busy = ref(false);
 const note = ref<string | null>(null);
+const devicesOpen = ref(false);
 
 async function pushOn() {
   if (busy.value) return;
@@ -60,7 +64,10 @@ async function test() {
         <span>Notifications: on for this device</span>
         <BaseButton size="sm" variant="link" class="text-xs" :disabled="busy" @click="pushOff">Turn off</BaseButton>
       </p>
-      <BaseButton size="sm" variant="link" class="self-start text-xs" :disabled="busy" @click="test">Send a test</BaseButton>
+      <p class="flex items-center gap-3">
+        <BaseButton size="sm" variant="link" class="text-xs" :disabled="busy" @click="test">Send a test</BaseButton>
+        <BaseButton size="sm" variant="link" class="text-xs" @click="devicesOpen = true">Your devices</BaseButton>
+      </p>
     </div>
     <AppCallout v-else-if="choice === null" tone="info" :icon="BellIcon">
       <p class="text-xs">Get a notification on this device when a message for you arrives, even when Silvicom is closed.</p>
@@ -74,6 +81,7 @@ async function test() {
       <BaseButton size="sm" variant="link" class="text-xs" :disabled="busy" @click="pushOn">Turn on</BaseButton>
     </p>
     <p v-if="note" class="mt-1 text-xs text-ink-muted" role="status">{{ note }}</p>
+    <ChatPushDevicesDialog :open="devicesOpen" @close="devicesOpen = false" />
   </div>
 
   <!-- An iPhone or iPad in a Safari tab: the Home Screen is the only way in -->

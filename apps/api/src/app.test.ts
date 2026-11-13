@@ -87,6 +87,8 @@ describe("GET /api/version", () => {
     expect(Object.keys(body.storageBackup as object).sort()).toEqual(["lastSucceededAt", "state"]);
     // A state, one timestamp, one latency and one platform-wide count (realtimeHealth.ts) — no org, no topic.
     expect(Object.keys(body.realtime as object).sort()).toEqual(["lastProbeAt", "latencyMs", "sendFailures24h", "state"]);
+    // A state and three platform-wide device counts (pushHealth.ts) — no org, no person, no endpoint.
+    expect(Object.keys(body.webPush as object).sort()).toEqual(["delivered24h", "failing24h", "rejected24h", "state"]);
     const keys = Object.keys(body).sort();
     expect(keys).toEqual([
       "branch",
@@ -107,6 +109,8 @@ describe("GET /api/version", () => {
       "stepUp",
       "storageBackup",
       "version",
+      // Whether chat notifications reach phones (CHAT-WEB-PUSH-PLAN D-WP12): a state, never whose devices.
+      "webPush",
     ]);
   });
 
