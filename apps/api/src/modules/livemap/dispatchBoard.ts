@@ -42,6 +42,13 @@
  * next poll, not twenty seconds later, and an office of ten looking at the board pays one small read
  * each. Only for a reader who holds the `notes` screen — the chip opens a note, and a note is that
  * screen's (D-UN4) — which the route answers (`readsNotes`).
+ *
+ * ── AND HOME TIME, WHICH CHANGES WHEN A DISPATCHER PRESSES A BUTTON (HOME-TIME-PLAN D-HT9, D-HT10) ──
+ * Each seat's live home-time period is merged in after the row cache too (`withHomeTimes`): a mark or a
+ * "Back from home time" must show on the next poll. It moves three things on a row, all by the shared
+ * rules: the Warnings chips, the urgent flag, and — when every seat is home and the truck is with one of
+ * them — Available, which then reads "Home until" the return instead of "Now". A truck carrying a load
+ * or standing in the shop is never held: the load and the shop are facts, the period is a statement.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -58,6 +65,10 @@ import {
   boardEtaAlong,
   boardFlags,
   freshHos,
+  homeTimeChipUrgent,
+  homeTimeChips,
+  homeTimeHold,
+  homeTimeState,
   onTimeVerdict,
   secondsSince,
   sortWarnings,
@@ -65,10 +76,19 @@ import {
   type DispatchBoardResponse,
   type DispatchBoardRow,
   type DispatchScope,
+  type HomeTimeSettings,
   IN_SERVICE_VEHICLE_STATUSES,
 } from "@silvicom/shared";
 import { readHosClocks, readVehiclePositions } from "../samsara/index.js";
-import { readFleetIdentities, readOpenUnitMentions, readTrailerAnnualInspections, type OpenUnitMentions } from "../roster/index.js";
+import {
+  readFleetIdentities,
+  readHomeTimeSettings,
+  readLiveHomeTimes,
+  readOpenUnitMentions,
+  readTrailerAnnualInspections,
+  type HomeTimeRow,
+  type OpenUnitMentions,
+} from "../roster/index.js";
 import { readUnitMaintenance } from "../fleetpal/index.js";
 import { readTruckLoadPlans } from "../loads/index.js";
 import { readDispatchLinks } from "../mcleod/index.js";
@@ -108,6 +128,9 @@ type BoardRows = Awaited<ReturnType<typeof readBoardRows>> & { builtAt: Date };
 const rowsCache = createCoalescingCache<BoardRows>(BOARD_ROWS_TTL_MS);
 const credentialsCache = createCoalescingCache<Map<string, ReturnType<typeof credentialWarnings>>>(WARNINGS_TTL_MS);
 const drawnCache = createCoalescingCache<Set<string>>(WARNINGS_TTL_MS);
+// The carrier's thresholds change when an admin saves Settings, not by the minute; the periods themselves
+// are read on every request (the header's reason).
+const homeTimeSettingsCache = createCoalescingCache<HomeTimeSettings>(WARNINGS_TTL_MS);
 
 export async function readDispatchBoard(
   admin: SupabaseClient,
@@ -116,14 +139,18 @@ export async function readDispatchBoard(
   now: Date = new Date(),
 ): Promise<DispatchBoardResponse> {
   // The org IS the key: these reads bypass RLS, so the key is the tenancy boundary (coalescingCache.ts).
-  const [board, links, mentions] = await Promise.all([
+  const [board, links, mentions, homeTimes, homeTimeSettings] = await Promise.all([
     rowsCache.get(orgId, async () => ({ ...(await readBoardRows(admin, orgId, now)), builtAt: now }), now.getTime()),
     readDispatchLinks(admin, orgId, reader.userId),
     reader.readsNotes ? readOpenUnitMentions(admin, orgId) : Promise.resolve<OpenUnitMentions>(new Map()),
+    readLiveHomeTimes(admin, orgId),
+    homeTimeSettingsCache.get(orgId, () => readHomeTimeSettings(admin, orgId), now.getTime()),
   ]);
+  const rows = withNoteMentions(await withDriverWarnings(admin, orgId, board.rows, links.scope, reader, board.today), mentions);
   return {
     generatedAt: board.builtAt.toISOString(),
-    rows: withNoteMentions(await withDriverWarnings(admin, orgId, board.rows, links.scope, reader, board.today), mentions),
+    // Judged on the rows' own clock (`builtAt`), the one Available's colour is judged on in the browser.
+    rows: withHomeTimes(rows, homeTimes, homeTimeSettings, board.builtAt),
     scope: links.scope,
     fleets: links.fleets,
     dispatchers: links.dispatchers.map(({ id, name, isSystem }) => ({ id, name, isSystem })),
@@ -137,6 +164,7 @@ export function __resetDispatchBoardCaches(): void {
   rowsCache.invalidate();
   credentialsCache.invalidate();
   drawnCache.invalidate();
+  homeTimeSettingsCache.invalidate();
 }
 
 /**
@@ -231,6 +259,8 @@ export async function readBoardRows(
       warnings,
       // Per reader, after the cache (`withNoteMentions`).
       noteMentions: [],
+      // Per request, after the cache (`withHomeTimes`).
+      homeTimes: [],
       flags: boardFlags({ inShop, current: plan.current, next: plan.next, onTime, hos, gpsAgeSeconds: position?.ageSeconds ?? null, warnings }),
     });
   }
@@ -302,5 +332,83 @@ export function withNoteMentions(rows: DispatchBoardRow[], mentions: OpenUnitMen
     const found = keys.flatMap((k) => mentions.get(k) ?? []);
     if (found.length === 0) return r;
     return { ...r, noteMentions: found.sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || (a.noteId < b.noteId ? 1 : -1)) };
+  });
+}
+
+/**
+ * Each row's home time (HOME-TIME-PLAN D-HT9..D-HT11): the live period of each seat that has one, the
+ * chips the Warnings cell draws, the urgent flag, and — when home time holds the truck — Available.
+ *
+ * A driver with two live periods (possible only after a merge of two drivers who were both home,
+ * D-HT3) shows the newest; `periods` arrives newest first.
+ *
+ * A held truck is free when its driver is due back, where it stands: Available keeps the truck's own
+ * place and takes the return as its time, so State, Near, Free and the default sort need no special
+ * case. It is no longer "empty now" — the In-shop rule, for the same reason: it cannot take a load.
+ */
+export function withHomeTimes(
+  rows: DispatchBoardRow[],
+  periods: readonly HomeTimeRow[],
+  settings: HomeTimeSettings,
+  now: Date,
+): DispatchBoardRow[] {
+  if (periods.length === 0) return rows;
+  const byDriver = new Map<string, HomeTimeRow>();
+  for (const p of periods) if (p.driver_id && !byDriver.has(p.driver_id)) byDriver.set(p.driver_id, p);
+
+  return rows.map((r) => {
+    const seats = [r.driver, r.coDriver].filter((s): s is { id: string; name: string } => s != null);
+    const found = seats.map((seat) => {
+      const p = byDriver.get(seat.id);
+      if (!p) return null;
+      const state = homeTimeState({ startAt: p.start_at, expectedReturnAt: p.expected_return_at, endAt: p.end_at, canceledAt: p.canceled_at }, now);
+      return { seat, p, state };
+    });
+    if (found.every((f) => f === null)) return r;
+
+    const hold =
+      r.inShop || r.current
+        ? null
+        : homeTimeHold(found.map((f) => (f ? { state: f.state, disposition: f.p.truck_disposition, expectedReturnAt: f.p.expected_return_at } : null)));
+    const homeTimes = found
+      .filter((f): f is NonNullable<typeof f> => f !== null)
+      .map((f) => ({
+        periodId: f.p.id,
+        driverId: f.seat.id,
+        driverName: f.seat.name,
+        state: f.state,
+        startAt: f.p.start_at,
+        expectedReturnAt: f.p.expected_return_at,
+        disposition: f.p.truck_disposition,
+        chips: homeTimeChips(
+          { startAt: f.p.start_at, expectedReturnAt: f.p.expected_return_at, disposition: f.p.truck_disposition },
+          f.state,
+          settings,
+          now,
+          hold !== null,
+        ),
+      }));
+    const available = hold
+      ? {
+          place: r.available?.place ?? null,
+          city: r.available?.city ?? null,
+          state: r.available?.state ?? null,
+          postalCode: r.available?.postalCode ?? null,
+          lat: r.available?.lat ?? null,
+          lng: r.available?.lng ?? null,
+          at: hold.until,
+          basis: "home_time" as const,
+        }
+      : r.available;
+    return {
+      ...r,
+      homeTimes,
+      available,
+      flags: {
+        ...r.flags,
+        emptyNow: hold ? false : r.flags.emptyNow,
+        homeTimeUrgent: homeTimes.some((h) => h.chips.some(homeTimeChipUrgent)),
+      },
+    };
   });
 }

@@ -281,7 +281,7 @@ VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
   schedule and posts nowhere (it needs LRC2's ingest route), and the VM's file list
   (`windows/manifest.mjs`) is regenerated on the day the VM is updated. The regenerated review file
   must go to IT before that day.
-- 2026-11-13, LRC2 — Migration 0599: `mcleod_lumper_orders`, `_charges`, `_payments`, `_bills`,
+- 2026-11-13, LRC2 — Migration 0600: `mcleod_lumper_orders`, `_charges`, `_payments`, `_bills`,
   `_sweeps`, the `lumper_cases` table, and `lumper_sweep_apply`, which writes one sweep and removes
   what the sweep no longer holds in one transaction. `POST /api/tms/lumper` takes the sweep
   (`lumperContract.ts`). The state of a case is not stored: `lumperCaseState`

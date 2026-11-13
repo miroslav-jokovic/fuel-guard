@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * The lumper feed's wire contract — `POST /api/tms/lumper` (LUMPER-REVISED-RC-PLAN.md LRC2, D-LRC8).
  * One sweep of the four facts a lumper case is built from, as `tools/mcleod-agent/lumper.mjs` reads
- * them, for the `mcleod_lumper_*` tables (0599).
+ * them, for the `mcleod_lumper_*` tables (0600).
  *
  * ── EVERY KEY IS REQUIRED, NULL IS THE ONLY WAY TO SAY "NONE" ──────────────────────────────────────
  * Same rule as the dispatch mirror: the sweep REPLACES what 360 holds, so a connector that forgets a

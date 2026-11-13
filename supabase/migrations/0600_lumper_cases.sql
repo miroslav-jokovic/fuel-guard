@@ -1,4 +1,4 @@
--- 0599 — Lumper fees: the facts McLeod holds about each lumper, and one case per order.
+-- 0600 — Lumper fees: the facts McLeod holds about each lumper, and one case per order.
 --
 -- LUMPER-REVISED-RC-PLAN.md, step LRC2 (D-LRC1, D-LRC2, D-LRC8). When we pay a lumper on the spot the
 -- broker owes it back, and the proof is the broker's revised rate confirmation. McLeod records that a

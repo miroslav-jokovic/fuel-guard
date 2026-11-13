@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LumperSweepPayload } from "@silvicom/shared";
 
 /**
- * One lumper sweep into `mcleod_lumper_*` (LUMPER-REVISED-RC-PLAN.md LRC2, migration 0599).
+ * One lumper sweep into `mcleod_lumper_*` (LUMPER-REVISED-RC-PLAN.md LRC2, migration 0600).
  *
  * ONE function call, on purpose. The sweep replaces what 360 holds for its window: it writes the
  * rows it carries and deletes the charges, settlement lines and bills McLeod no longer has. Done as

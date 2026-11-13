@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { boardHomeTimeSchema } from "./homeTimeContract.js";
 
 /**
  * The dispatch board's wire contract (`docs/plans/dispatch-loads/DISPATCH-BOARD-PLAN.md`, DB4).
@@ -75,6 +76,8 @@ export type DispatchBoardEta = z.infer<typeof dispatchBoardEtaSchema>;
 /**
  * Where and when the truck is next free (`availableAt`, D-DBV3): the last delivery, or where an empty
  * truck stands. `basis` says what set the time — the appointment, our ETA when it is later, or "now".
+ * `home_time` is the fourth (HOME-TIME-PLAN D-HT10): the truck is with its driver at home, and it is
+ * free when he is due back, where it stands.
  */
 export const dispatchBoardAvailableSchema = z.object({
   place: z.string().nullable(),
@@ -84,7 +87,7 @@ export const dispatchBoardAvailableSchema = z.object({
   lat: z.number().nullable(),
   lng: z.number().nullable(),
   at: iso.nullable(),
-  basis: z.enum(["appointment", "eta", "now"]).nullable(),
+  basis: z.enum(["appointment", "eta", "now", "home_time"]).nullable(),
 });
 export type DispatchBoardAvailable = z.infer<typeof dispatchBoardAvailableSchema>;
 
@@ -137,6 +140,12 @@ export const dispatchBoardFlagsSchema = z.object({
    * truck or its trailer, or a random test to send the driver to.
    */
   warningUrgent: z.boolean(),
+  /**
+   * A seat's home time must be acted on now (`homeTimeChipUrgent`, HOME-TIME-PLAN D-HT11): the driver
+   * is past his return time, or the truck has been at his home past the carrier's limit. Set per
+   * request, after the row cache, with `homeTimes`.
+   */
+  homeTimeUrgent: z.boolean().default(false),
 });
 export type DispatchBoardFlags = z.infer<typeof dispatchBoardFlagsSchema>;
 
@@ -194,6 +203,12 @@ export const dispatchBoardRowSchema = z.object({
    * screen.
    */
   noteMentions: z.array(dispatchBoardNoteMentionSchema).default([]),
+  /**
+   * The live home-time period of each seat that has one (HOME-TIME-PLAN D-HT9): scheduled, home or
+   * overdue, with the chips the Warnings cell draws. Added per request AFTER the 20-second row cache, as
+   * `noteMentions` is, so a mark or a "Back from home time" shows on the next poll.
+   */
+  homeTimes: z.array(boardHomeTimeSchema).default([]),
   flags: dispatchBoardFlagsSchema,
 });
 export type DispatchBoardRow = z.infer<typeof dispatchBoardRowSchema>;

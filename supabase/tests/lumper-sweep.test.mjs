@@ -1,4 +1,4 @@
-// LUMPER-REVISED-RC-PLAN step LRC2, migration 0599: one lumper sweep applied in one transaction. What the
+// LUMPER-REVISED-RC-PLAN step LRC2, migration 0600: one lumper sweep applied in one transaction. What the
 // sweep carries is written, what it no longer carries is removed inside its own window and nowhere else,
 // a case is opened once per order and never reopened or closed by a sweep, and another carrier's rows are
 // never touched.

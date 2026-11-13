@@ -183,7 +183,8 @@
     "apps/api/src/modules/performance/driverScoreSync.ts"
   ],
   "driver_time_off": [
-    "apps/api/src/modules/mcleod/tmsIngest.ts"
+    "apps/api/src/modules/mcleod/tmsIngest.ts",
+    "apps/api/src/modules/roster/homeTime/homeTime.ts"
   ],
   "driver_vehicle_assignments": [
     "apps/api/src/modules/idle/idleSync.ts",
