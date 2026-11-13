@@ -113,7 +113,12 @@ on there (`localStorage` keyed by user); a subscription found under another pers
   Unset → push is off and the web shows only the desktop alerts. **Changing the key pair invalidates every
   subscription** (push services refuse a different key; rows are revoked on 403/404/410 and people turn it on again).
 - Table: RLS on, no client policies; functions service-role only.
-- Library: `web-push` **3.6.7** (Jan 2024, MPL-2.0), not 4.0.0 (published 2026-11-06, one week old).
+- **No library: `node:crypto`** (`apps/api/src/modules/messaging/webPush.ts`, D-WP8). The plan first chose
+  `web-push` 3.6.7 (Jan 2024; 4.0.0 was a week old). Adding it re-resolved unrelated peers across the workspace
+  lockfile (eslint's parser onto TypeScript 6, a second expo-router snapshot) — and a clean `main` regenerates
+  with no change, so the churn was the dependency's. RFC 8291 encryption and RFC 8292 VAPID are ~100 lines on
+  `node:crypto`, and RFC 8291's own worked example pins the encryption byte for byte (`webPush.test.ts`; the RFC's
+  printed `Content-Length: 145` is erratum 5230 — its values make 144).
 
 ### 3.7 Not in this item
 
@@ -131,6 +136,7 @@ have the Expo app, and production has 0 driver threads. App badge counts on the 
 | D-WP5 | One device control; push replaces in-tab alerts on that browser; iPhone in Safari gets the Home Screen steps |
 | D-WP6 | A conversation is marked read only while the page is visible (fixes §1's defect) |
 | D-WP7 | Endpoints restricted to the four push services; origin restricted to `ALLOWED_ORIGINS` |
+| D-WP8 | Web Push built on `node:crypto`, tested against RFC 8291's worked example; no `web-push` dependency |
 
 ## 5. Work queue
 
@@ -169,3 +175,8 @@ have the Expo app, and production has 0 driver threads. App badge counts on the 
 ## 9. Progress log
 
 - 2026-11-13: plan written from the measurements in §1 and the research in §2; WP1 built.
+- 2026-11-13: WP1 opened as PR (migration 0599). WP2 built on top: shared contract and wording
+  (`chatPushContract.ts`), transport (`webPush.ts`), delivery (`chatPush.ts`, held 15 s), routes `/api/chat/push`,
+  `sw.js` + manifest + icons, `lib/webPush.ts`, the rail control, sign-out stops the device, read only while
+  visible (D-WP6). Each of six deliberate breaks (read while hidden, sw opening another site, gone not revoked,
+  origin unchecked, another person's subscription kept, a lax push host) turns a test red.

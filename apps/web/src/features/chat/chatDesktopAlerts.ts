@@ -1,4 +1,4 @@
-import { chatBodyText, chatTitle, type ChatActivityItem, type ChatConversation } from "@silvicom/shared";
+import { chatAlertText, chatAlertTitle, chatTitle, type ChatActivityItem, type ChatConversation } from "@silvicom/shared";
 
 /**
  * What a desktop alert says, and when one is owed (OFFICE-CHAT-PLAN CH6d; Q-CHAT18 ruled (a), Q-CHAT4 (a)).
@@ -18,8 +18,12 @@ import { chatBodyText, chatTitle, type ChatActivityItem, type ChatConversation }
  * A direct-conversation mention appears in both, so an alert is keyed by its message id and rings once.
  */
 
-/** The first characters of a line (Q-CHAT18 (a): 80), mentions as `@Name`, on one line. */
-export const ALERT_TEXT_MAX = 80;
+/**
+ * The words are `@silvicom/shared`'s (`chatAlertText`, `chatAlertTitle`) since CH10: the phone's push says
+ * exactly what this alert says (CHAT-WEB-PUSH-PLAN D-WP4), and two copies of a wording drift.
+ */
+const alertText = chatAlertText;
+const alertTitle = chatAlertTitle;
 
 export interface DesktopAlert {
   /** The line it is about — the dedupe key. */
@@ -33,17 +37,6 @@ export interface DesktopAlert {
 }
 
 type NameOf = (userId: string) => string | null | undefined;
-
-export function alertText(body: string | null, nameOf: NameOf): string {
-  const flat = chatBodyText(body ?? "", nameOf).replace(/\s+/g, " ").trim();
-  return flat.length > ALERT_TEXT_MAX ? `${flat.slice(0, ALERT_TEXT_MAX - 1).trimEnd()}…` : flat;
-}
-
-/** Who said it, and where: "Ana" for a direct line, "Ana in Night dispatch", "Ana in # Loads". */
-function alertTitle(sender: string | null, place: string | null): string {
-  const who = sender?.trim() || "Someone";
-  return place ? `${who} in ${place}` : who;
-}
 
 /** The conversation on screen in a visible tab — the one that never rings. */
 export interface OnScreen { visible: boolean; threadId: string | null }

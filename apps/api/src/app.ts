@@ -459,7 +459,11 @@ export function createApp(env: Env): Express {
       express.static(webDist, {
         index: false,
         setHeaders: (res, filePath) => {
-          if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          if (path.basename(filePath) === "sw.js" || path.basename(filePath) === "manifest.webmanifest") {
+            // The service worker and the manifest are not hashed and must reach a browser the deploy they
+            // change (CHAT-WEB-PUSH-PLAN WP2): a cached sw.js would keep an old push handler for a day.
+            res.setHeader("Cache-Control", "no-cache");
+          } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
             res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
           } else if (filePath.includes(`${path.sep}fonts${path.sep}glyphs${path.sep}`)) {
             // D-DR40: the vector map's label glyphs, ~74 KB a character range, asked for on every map
