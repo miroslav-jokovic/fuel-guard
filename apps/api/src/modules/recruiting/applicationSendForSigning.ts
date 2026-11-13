@@ -13,6 +13,7 @@ import { mintInvitationToken } from "./applicationIntake.js";
 import { carrierName, deliverApplicationMail } from "./applicationMail.js";
 import { recruitingSettings } from "./recruitingSettings.js";
 import { sendOrQueueSms, type OutboxOutcome } from "./smsOutbox.js";
+import { officeMustComplete } from "./applicationOfficeCompletes.js";
 
 /**
  * The office sends the packet for signing, to the driver's own phone, while the driver is there (D-AW14,
@@ -43,7 +44,8 @@ import { sendOrQueueSms, type OutboxOutcome } from "./smsOutbox.js";
  *
  * ── IT WARNS, IT NEVER REFUSES, ON WHAT IS OUTSTANDING (D-AF6) ────────────────────────────────
  * Unchanged from AF5: the federal gates refuse where they belong — at travel and at hire — and the
- * warning is read from the SAME fold the checklist shows (`OPEN_SIGNING_WARNS_ON`).
+ * warning is read from the SAME fold the checklist shows (`OPEN_SIGNING_WARNS_ON`). The one refusal is
+ * an answer the office completes and filing requires (D-AM4, Q-AM8 (a), `applicationOfficeCompletes.ts`).
  */
 
 export type SendForSigningError = { code: string; message: string };
@@ -58,6 +60,7 @@ const FILED: SendForSigningError = { code: "already_filed", message: "The applic
 
 interface InvitationToSend {
   id: string;
+  org_id: string;
   driver_id: string;
   email: string | null;
   approved_at: string | null;
@@ -83,7 +86,7 @@ export async function sendForSigning(
 ): Promise<SigningSent | SendForSigningError> {
   const { data: inv } = await admin
     .from("application_invitations")
-    .select("id, driver_id, email, approved_at, revoked_at, submitted_at")
+    .select("id, org_id, driver_id, email, approved_at, revoked_at, submitted_at")
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .maybeSingle();
@@ -91,6 +94,10 @@ export async function sendForSigning(
   if (!invitation) return NOT_FOUND;
   if (invitation.revoked_at) return REVOKED;
   if (invitation.submitted_at) return FILED;
+  // D-AM4, Q-AM8 (a): the one refusal on what is outstanding — answers on the document itself, which the
+  // office completes and filing requires (`applicationOfficeCompletes.ts` says why it is not a warning).
+  const incomplete = await officeMustComplete(admin, invitation, now);
+  if (incomplete) return incomplete;
   // §9 P4: approval is advised first, not refused — it is on `OPEN_SIGNING_WARNS_ON`, and the packet
   // itself still refuses a mark until it (DR032).
 
