@@ -236,3 +236,7 @@ the same day the money code is used, before anyone keys anything in McLeod.
   in 2026). Checked the connector's login on live LME: no finance or lumper table is granted. Grant
   lines added as Parts 4 and 5 of `SILVICOM-GRANTS.sql`; request to Alex drafted in
   `tools/mcleod-agent/review/REQUEST-TO-ALEX-2026-11-13-FINANCE-ON-LME-AND-LUMPER.md`.
+- 2026-11-13, third pass — Read the saved thread with IT before writing to them. The connector's
+  login reads no finance table on the analytics copy either: the 10-09 restore removed the 09-28/29
+  grants, so the agreed finance night never ran under it. The request to IT was rewritten around
+  that: refresh, Part 2 on the copy again, one night, then Parts 4 and 5 on LME.

@@ -58,6 +58,10 @@
 --   Part 4 is the step Part 2 always promised: the same finance tables on LME, so the nightly
 --   finance read uses the books as they are today and no longer waits for a restore of the
 --   analytics copy. Checked 2026-11-13 under the connector's login: on LME it reads none of them.
+--   Part 2 ALSO NEEDS RUNNING AGAIN on lme_analytics: checked the same day, the login reads no
+--   finance table there either. The copy was restored on 2026-10-09, and a restore carries LME's
+--   permissions, so the grants of 2026-09-28 and 2026-09-29 on the copy did not survive it. Every
+--   later restore will do the same until Part 4 is on LME.
 --   Part 5 is three tables for lumper fees: the charges on an order, the charges on an invoice,
 --   and the settlement deductions not yet paid. No statement reads them yet; the statements come
 --   for review before they run. No personal data beyond a driver id on a settlement line.
