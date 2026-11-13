@@ -355,6 +355,11 @@ the owner approves; HT1 must be released before HT2's readers.
   overrides used by every background audience; (b) leave it, and say on the Permissions page that
   alerts follow the default roles. *Recommend (a), as its own step in the routing plan:* it touches
   fourteen senders, not this feature.
+  **Answered for these alerts 2026-11-13 (owner: "proceed and fix").** It was not hypothetical: measured
+  on production the same day, 6 saved changes, one of them Dispatch taken from the Fleet Manager role —
+  the role every overstay escalates to by default. The resolver, the sender's fallback, the Settings
+  page and "My alerts" now ask the carrier's answer (progress log). The other background audiences
+  (`usersWhoManage`, 32 call sites) are unchanged and stay with the routing plan's NR3.
 
 ## 7. Owner tasks, known limits, blockers
 
@@ -610,3 +615,27 @@ sidebar.
   doable from a desk today:** the walk of every row of §4 on staging (the staging org has no
   notifications module, so no bell rings there until it is switched on), the same walk on production
   after the release that carries HT4–HT6, and HT6's real text to the owner's phone.
+- 2026-11-13 — **Alerts follow the Permissions page** (branch `claude/alerts-follow-permissions`, Q-HT8).
+  - **Measured on production first:** `org_section_access` 5 rows, `user_section_access` 1. Fleet
+    Manager: Dispatch `none`. With the shipped matrix the one fleet manager would have been rung and
+    emailed about every overstay and could not open the page, and nobody else was escalated to.
+  - **One rule.** Every member the alert code handles now carries the section claim their own token
+    would (`AlertMember.sections`, built by `alertMemberSections`: the role's saved rows with the
+    person's own over them, nothing for admin and driver, whose access cannot be edited). "Can view"
+    and "can manage" are `resolveSectionAccess`, the function the API's gates ask. `readDirectory`
+    reads the two tables beside the member list and throws on a failed read: falling back to the
+    shipped matrix would be this defect again.
+  - **Four readers, one answer:** the resolver (role, person and relation routes), the sender's
+    fallback (those who MANAGE the section), the Settings page (the roles offered, the people listed,
+    the save rule) and "My alerts" (now from the directory, not the token: a token is up to a lifetime
+    old, and the page must say what the next run does).
+  - **A set that named somebody who can no longer receive it** — the DEFAULTS included — is shown
+    without that switch (`receivableRoutes`) and the next save writes it so; the sender already skips
+    them. Otherwise a permission change would leave a set the page refuses to save.
+  - **What it leaves for the owner:** on production the overstay and truck-too-long alerts now reach
+    whoever marked the period and the truck's dispatcher, and nobody above them, until somebody is
+    switched on in Settings → Notifications. That is the carrier's choice to make; the code does not
+    pick a person.
+  - Tests: shared 9 more (taken from a role, given to a role, a person both ways, the two locked
+    roles, the fallback, the save rule, the shown set); the job 4 more, with production's own case;
+    routes 4 more; web 1. Mutation run: 11 deliberate breakages, 11 caught.

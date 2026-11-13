@@ -1,4 +1,4 @@
-import { alertsForMember, type AlertChannel, type AlertKey, type AlertRoute, type AlertRoutingView, type UserRole } from "@silvicom/shared";
+import { alertDefinition, alertsForMember, type AlertChannel, type AlertKey, type AlertRoute, type AlertRoutingView, type UserRole } from "@silvicom/shared";
 
 /**
  * The routing section's form, as plain data (HOME-TIME-PLAN HT5): one row per recipient with a switch
@@ -84,7 +84,11 @@ export const PERSON_HINT = "This person's own switches. They win over the role's
  * somebody never silently takes away a channel their role gives them.
  */
 export function personRow(alertKey: AlertKey, rows: readonly RecipientRow[], member: RoutingMember): RecipientRow {
-  const always = alertsForMember(alertKey, toRoutes(rows, []), { userId: member.userId, role: member.role as UserRole }).always;
+  // The API lists only people who can open the alert's section on the carrier's own Permissions page —
+  // somebody given it by name included — so the member is stated as a viewer here rather than judged
+  // again from the shipped role matrix, which is the mistake Q-HT8 removed.
+  const viewer = { userId: member.userId, role: member.role as UserRole, sections: { [alertDefinition(alertKey).section]: "view" as const } };
+  const always = alertsForMember(alertKey, toRoutes(rows, []), viewer).always;
   return {
     id: `user:${member.userId}`,
     kind: "user",

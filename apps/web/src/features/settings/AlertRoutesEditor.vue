@@ -39,7 +39,7 @@ const alertKey = computed(() => props.alert.key as AlertKey);
 const changed = computed(() => routesChanged(rows.value, props.alert, props.members));
 const channels = computed(() => editedChannels(props.textsAvailable));
 const routes = computed(() => toRoutes(rows.value, props.alert.routes, channels.value));
-const problem = computed(() => alertRoutesProblem(alertKey.value, routes.value, new Set(props.members.map((m) => m.userId))));
+const problem = computed(() => alertRoutesProblem(alertKey.value, routes.value, new Set(props.members.map((m) => m.userId)), new Set(props.alert.roles.map((r) => r.key))));
 
 const columns = computed<DataTableColumn[]>(() => [
   { key: "recipient", label: "Who", width: "xl" },

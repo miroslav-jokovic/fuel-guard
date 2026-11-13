@@ -3,9 +3,14 @@ import {
   ALERT_CATALOGUE,
   ALERT_KEYS,
   alertDefinition,
+  alertMemberCanManage,
+  alertMemberCanView,
+  alertMemberSections,
+  alertRolesFor,
   alertRoutesProblem,
   alertsForMember,
   isAlertKey,
+  receivableRoutes,
   resolveAlertRecipients,
   routesInForce,
   type AlertMember,
@@ -202,27 +207,28 @@ describe("homeTimeAlertsDue (D-HT12)", () => {
 
 describe("what the Settings page may save (HT5)", () => {
   const members = new Set(["u-fm", "u-disp"]);
+  const ROLES = new Set<string>(rolesThatCanView("dispatch"));
   const r = (recipientKind: AlertRoute["recipientKind"], recipientKey: string, channel: AlertRoute["channel"], enabled = true): AlertRoute => ({ recipientKind, recipientKey, channel, enabled });
 
   it("accepts the catalogue's own defaults for every alert", () => {
-    for (const a of ALERT_CATALOGUE) expect(alertRoutesProblem(a.key, a.defaults, members), a.key).toBeNull();
+    for (const a of ALERT_CATALOGUE) expect(alertRoutesProblem(a.key, a.defaults, members, ROLES), a.key).toBeNull();
   });
 
   it("refuses a set that reaches nobody — every switch off, or no switch at all", () => {
-    expect(alertRoutesProblem("home_time_overdue", [], members)).toMatch(/cannot be sent to nobody/);
-    expect(alertRoutesProblem("home_time_overdue", [r("role", "fleet_manager", "bell", false)], members)).toMatch(/cannot be sent to nobody/);
+    expect(alertRoutesProblem("home_time_overdue", [], members, ROLES)).toMatch(/cannot be sent to nobody/);
+    expect(alertRoutesProblem("home_time_overdue", [r("role", "fleet_manager", "bell", false)], members, ROLES)).toMatch(/cannot be sent to nobody/);
   });
 
   it("refuses the same recipient and channel twice, even with different switches", () => {
-    expect(alertRoutesProblem("home_time_overdue", [r("role", "fleet_manager", "bell"), r("role", "fleet_manager", "bell", false)], members)).toMatch(/twice/);
-    expect(alertRoutesProblem("home_time_overdue", [r("role", "fleet_manager", "bell"), r("role", "fleet_manager", "email")], members)).toBeNull();
+    expect(alertRoutesProblem("home_time_overdue", [r("role", "fleet_manager", "bell"), r("role", "fleet_manager", "bell", false)], members, ROLES)).toMatch(/twice/);
+    expect(alertRoutesProblem("home_time_overdue", [r("role", "fleet_manager", "bell"), r("role", "fleet_manager", "email")], members, ROLES)).toBeNull();
   });
 
   it("refuses a role that cannot view the alert's section, a relation the alert does not have, and a person who is not a member", () => {
-    expect(alertRoutesProblem("home_time_overdue", [r("role", "driver", "bell")], members)).toMatch(/role cannot open/);
-    expect(alertRoutesProblem("home_time_overdue", [r("relation", "the_owner", "bell")], members)).toMatch(/does not have that recipient/);
-    expect(alertRoutesProblem("home_time_overdue", [r("user", "u-gone", "bell")], members)).toMatch(/not an active member/);
-    expect(alertRoutesProblem("home_time_overdue", [r("user", "u-fm", "bell")], members)).toBeNull();
+    expect(alertRoutesProblem("home_time_overdue", [r("role", "driver", "bell")], members, ROLES)).toMatch(/role cannot open/);
+    expect(alertRoutesProblem("home_time_overdue", [r("relation", "the_owner", "bell")], members, ROLES)).toMatch(/does not have that recipient/);
+    expect(alertRoutesProblem("home_time_overdue", [r("user", "u-gone", "bell")], members, ROLES)).toMatch(/not an active member/);
+    expect(alertRoutesProblem("home_time_overdue", [r("user", "u-fm", "bell")], members, ROLES)).toBeNull();
   });
 });
 
@@ -256,5 +262,79 @@ describe("what one member receives (My alerts)", () => {
 
   it("says nothing to somebody whose role cannot view the alert's section", () => {
     expect(alertsForMember("home_time_overdue", [{ recipientKind: "user", recipientKey: "u-d", channel: "bell", enabled: true }], { userId: "u-d", role: "driver" })).toEqual({ always: [], whenMine: [] });
+  });
+});
+
+describe("alerts follow the carrier's Permissions page (Q-HT8)", () => {
+  // Production, 2026-11-13: Dispatch taken from the Fleet Manager role — the role every overstay
+  // escalates to by default.
+  const NO_DISPATCH = { fleet_manager: { dispatch: "none" } } as const;
+  const member = (userId: string, role: AlertMember["role"], roleOverrides: Parameters<typeof alertMemberSections>[1] = {}, own?: Parameters<typeof alertMemberSections>[2]): AlertMember => ({
+    userId,
+    role,
+    sections: alertMemberSections(role, roleOverrides, own),
+  });
+  const told = (members: AlertMember[], relations: Parameters<typeof resolveAlertRecipients>[3] = {}) => [...resolveAlertRecipients("home_time_overdue", [], members, relations).keys()].sort();
+
+  it("does not tell a role the carrier took the section from, though the default route names it", () => {
+    expect(told([member(FRAN, "fleet_manager"), member(DANA, "dispatcher")])).toEqual([FRAN]);
+    expect(told([member(FRAN, "fleet_manager", NO_DISPATCH), member(DANA, "dispatcher", NO_DISPATCH)])).toEqual([]);
+  });
+
+  it("does not tell that person by name or as whoever marked it either", () => {
+    const fran = member(FRAN, "fleet_manager", NO_DISPATCH);
+    expect(told([fran], { marked_by: FRAN })).toEqual([]);
+    expect([...resolveAlertRecipients("home_time_overdue", [{ recipientKind: "user", recipientKey: FRAN, channel: "bell", enabled: true }], [fran], {}).keys()]).toEqual([]);
+  });
+
+  it("a person's own access wins over their role's, both ways", () => {
+    // Given Dispatch back by name while the role has none: told through the role's route.
+    expect(told([member(FRAN, "fleet_manager", NO_DISPATCH, { dispatch: "view" })])).toEqual([FRAN]);
+    // Taken from one fleet manager while the role keeps it.
+    expect(told([member(FRAN, "fleet_manager", {}, { dispatch: "none" })])).toEqual([]);
+  });
+
+  it("tells a role the carrier GAVE the section to, when a route names it", () => {
+    const route = [{ recipientKind: "role" as const, recipientKey: "recruiter", channel: "bell" as const, enabled: true }];
+    const rex = member(REX, "recruiter", { recruiter: { dispatch: "view" } });
+    expect(alertMemberCanView(rex, "dispatch")).toBe(true);
+    expect([...resolveAlertRecipients("home_time_overdue", route, [rex], {}).keys()]).toEqual([REX]);
+    // Without the carrier's change the same route reaches nobody.
+    expect([...resolveAlertRecipients("home_time_overdue", route, [member(REX, "recruiter")], {}).keys()]).toEqual([]);
+  });
+
+  it("never lets a saved row narrow or widen an admin or a driver: their access is not editable", () => {
+    expect(alertMemberSections("admin", { admin: { dispatch: "none" } } as never, { dispatch: "none" })).toEqual({});
+    expect(alertMemberCanView(member(ADA, "admin", { admin: { dispatch: "none" } } as never, { dispatch: "none" }), "dispatch")).toBe(true);
+    expect(alertMemberCanView({ userId: "u-d", role: "driver", sections: alertMemberSections("driver", {}, { dispatch: "manage" }) }, "dispatch")).toBe(false);
+  });
+
+  it("lists the roles that can receive: the shipped ones less those taken away, plus those given", () => {
+    expect(alertRolesFor("dispatch", {})).toEqual(rolesThatCanView("dispatch"));
+    expect(alertRolesFor("dispatch", NO_DISPATCH)).not.toContain("fleet_manager");
+    expect(alertRolesFor("dispatch", NO_DISPATCH)).toContain("dispatcher");
+    expect(alertRolesFor("dispatch", { recruiter: { dispatch: "view" } })).toContain("recruiter");
+  });
+
+  it("falls back only to people who MANAGE the section on the carrier's answer", () => {
+    expect(alertMemberCanManage(member(FRAN, "fleet_manager"), "dispatch")).toBe(true);
+    expect(alertMemberCanManage(member(FRAN, "fleet_manager", NO_DISPATCH), "dispatch")).toBe(false);
+    expect(alertMemberCanManage(member(FRAN, "fleet_manager", { fleet_manager: { dispatch: "view" } }), "dispatch")).toBe(false);
+  });
+
+  it("the save rule refuses a role that can no longer receive it, and the page is shown the set without it", () => {
+    const roles = new Set<string>(alertRolesFor("dispatch", NO_DISPATCH));
+    const defaults = alertDefinition("home_time_overdue").defaults;
+    expect(alertRoutesProblem("home_time_overdue", defaults, new Set(), roles)).toMatch(/role cannot open/);
+    const shown = receivableRoutes(defaults, new Set(), roles);
+    expect(shown.some((r) => r.recipientKey === "fleet_manager")).toBe(false);
+    expect(shown.filter((r) => r.recipientKind === "relation")).toHaveLength(2);
+    expect(alertRoutesProblem("home_time_overdue", shown, new Set(), roles)).toBeNull();
+    // …and a person who left is dropped the same way.
+    expect(receivableRoutes([{ recipientKind: "user", recipientKey: "u-gone", channel: "bell", enabled: true }], new Set(["u-here"]), roles)).toEqual([]);
+  });
+
+  it("what one member receives is the same answer: nothing for somebody the carrier took the section from", () => {
+    expect(alertsForMember("home_time_overdue", [], member(FRAN, "fleet_manager", NO_DISPATCH))).toEqual({ always: [], whenMine: [] });
   });
 });

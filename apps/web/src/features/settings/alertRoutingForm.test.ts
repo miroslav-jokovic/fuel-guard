@@ -8,6 +8,7 @@ const MEMBERS: RoutingMember[] = [
   { userId: "u-ivo", name: "Ivo K", role: "dispatcher", textReady: false },
   { userId: "u-fran", name: "Fran Fleet", role: "fleet_manager", textReady: true },
 ];
+const ROLES = new Set(["admin", "fleet_manager", "dispatcher"]);
 const def = ALERT_CATALOGUE.find((a) => a.key === "home_time_overdue")!;
 const alert = (routes: AlertRoute[] = [...def.defaults], usesDefaults = true): RoutingAlert => ({
   key: def.key,
@@ -50,7 +51,7 @@ describe("recipientRows", () => {
 describe("toRoutes", () => {
   it("round-trips the defaults into a set the API's own rule accepts, with the same people told", () => {
     const routes = toRoutes(recipientRows(alert(), MEMBERS), def.defaults);
-    expect(alertRoutesProblem(def.key, routes, new Set(MEMBERS.map((m) => m.userId)))).toBeNull();
+    expect(alertRoutesProblem(def.key, routes, new Set(MEMBERS.map((m) => m.userId)), ROLES)).toBeNull();
     expect(routes.filter((x) => x.enabled).map((x) => `${x.recipientKey}:${x.channel}`).sort()).toEqual(def.defaults.map((x) => `${x.recipientKey}:${x.channel}`).sort());
   });
 
@@ -67,12 +68,12 @@ describe("toRoutes", () => {
     const rows = recipientRows(alert(original, false), MEMBERS).map((x) => (x.id === "role:fleet_manager" ? { ...x, sms: false } : x));
     const routes = toRoutes(rows, original, editedChannels(true));
     expect(routes.filter((x) => x.recipientKey === "fleet_manager" && x.channel === "sms")).toEqual([r("role", "fleet_manager", "sms", false)]);
-    expect(alertRoutesProblem(def.key, routes, new Set(MEMBERS.map((m) => m.userId)))).toBeNull();
+    expect(alertRoutesProblem(def.key, routes, new Set(MEMBERS.map((m) => m.userId)), ROLES)).toBeNull();
   });
 
   it("a set with every switch off is what the API refuses", () => {
     const rows = recipientRows(alert(), MEMBERS).map((x) => ({ ...x, bell: false, email: false }));
-    expect(alertRoutesProblem(def.key, toRoutes(rows, []), new Set())).toMatch(/cannot be sent to nobody/);
+    expect(alertRoutesProblem(def.key, toRoutes(rows, []), new Set(), ROLES)).toMatch(/cannot be sent to nobody/);
   });
 });
 
@@ -117,5 +118,13 @@ describe("who a Text switch really reaches", () => {
     const rows = recipientRows(a, MEMBERS);
     expect(rows.find((x) => x.id === "role:fleet_manager")).toMatchObject({ sms: true, textHint: "1 of 1 confirmed" });
     expect(routesChanged(rows.map((x) => ({ ...x, sms: false })), a, MEMBERS)).toBe(true);
+  });
+});
+
+describe("a person the carrier gave the section to by name (Q-HT8)", () => {
+  it("can be added although their role cannot open the page: the API listed them, and the form does not judge them again", () => {
+    const rex: RoutingMember = { userId: "u-rex", name: "Rex Recruiter", role: "recruiter", textReady: false };
+    // Told on the dashboard at least — not a row with every switch off because his ROLE has no Dispatch.
+    expect(personRow(def.key, recipientRows(alert(), [...MEMBERS, rex]), rex)).toMatchObject({ id: "user:u-rex", bell: true, email: false });
   });
 });

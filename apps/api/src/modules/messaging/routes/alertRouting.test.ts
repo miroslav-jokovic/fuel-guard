@@ -43,12 +43,14 @@ const put = (path: string, token: string, body: unknown) => call(path, token, { 
 const row = (o: Record<string, unknown>) => ({ org_id: ORG, alert: "home_time_overdue", recipient_kind: "role", recipient_key: "fleet_manager", channel: "bell", enabled: true, ...o });
 const r = (recipientKind: AlertRoute["recipientKind"], recipientKey: string, channel: AlertRoute["channel"], enabled = true): AlertRoute => ({ recipientKind, recipientKey, channel, enabled });
 
-function seed(over: { routes?: Record<string, unknown>[]; settings?: Record<string, unknown>[]; contacts?: Record<string, unknown>[]; quiet?: Record<string, unknown>[] } = {}): SupabaseRecorder {
+function seed(over: { routes?: Record<string, unknown>[]; settings?: Record<string, unknown>[]; contacts?: Record<string, unknown>[]; quiet?: Record<string, unknown>[]; roleAccess?: Record<string, unknown>[]; userAccess?: Record<string, unknown>[] } = {}): SupabaseRecorder {
   rec = createSupabaseRecorder({
     tables: {
       org_role_surface_access: [],
       user_surface_access: [],
       notification_routes: postgrestFixture(over.routes ?? []),
+      org_section_access: postgrestFixture(over.roleAccess ?? []),
+      user_section_access: postgrestFixture(over.userAccess ?? []),
       notification_contacts: postgrestFixture(over.contacts ?? [{ org_id: ORG, user_id: DANA, phone: "+17085550100", verified_at: "2026-11-01T00:00:00Z", stopped_at: null, code_hash: null }]),
       notification_channel_settings: postgrestFixture(over.quiet ?? []),
       home_time_settings: postgrestFixture(over.settings ?? []),
@@ -338,5 +340,44 @@ describe("/api/me/alerts/phone — the caller's own number", () => {
     expect(up.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "user_id", val: DANA }]));
     expect(audits()[0]).toMatchObject({ action: "alerts.text_stopped", actor_id: DANA, meta: { by: "page" } });
     expectOrgScoped(rec, ORG);
+  });
+});
+
+describe("on the carrier's own Permissions page (Q-HT8)", () => {
+  const fmNoDispatch = [{ org_id: ORG, role: "fleet_manager", section: "dispatch", access: "none" }];
+  const rexGiven = [{ org_id: ORG, user_id: REX, section: "dispatch", access: "view" }];
+
+  it("the Settings page offers neither a role the carrier took Dispatch from nor its default switches, and lists its people no more", async () => {
+    seed({ roleAccess: fmNoDispatch });
+    const view = (await (await call("/api/alert-routing", "admin")).json()) as AlertRoutingView;
+    const overdue = view.alerts.find((a) => a.key === "home_time_overdue")!;
+    expect(overdue.roles.map((x) => x.key)).not.toContain("fleet_manager");
+    expect(overdue.roles.map((x) => x.key)).toContain("dispatcher");
+    expect(overdue.routes.some((x) => x.recipientKey === "fleet_manager")).toBe(false);
+    expect(overdue.routes).toEqual([r("relation", "marked_by", "bell"), r("relation", "truck_dispatcher", "bell")]);
+    expect(view.members.map((m) => m.userId)).not.toContain(FRAN);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("lists a person the carrier gave Dispatch to by name, and lets a route name them", async () => {
+    seed({ userAccess: rexGiven });
+    const view = (await (await call("/api/alert-routing", "admin")).json()) as AlertRoutingView;
+    expect(view.members.map((m) => m.userId)).toContain(REX);
+    expect((await put("/api/alert-routing/home_time_overdue", "admin", { routes: [r("user", REX, "bell")] })).status).toBe(200);
+  });
+
+  it("refuses to save a switch for a role that can no longer open Dispatch", async () => {
+    seed({ roleAccess: fmNoDispatch });
+    const res = await put("/api/alert-routing/home_time_overdue", "admin", { routes: [r("role", "fleet_manager", "bell")] });
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { error: { message: string } }).error.message).toMatch(/role cannot open/);
+    expect(rec.forTable("notification_routes").filter((q) => q.write)).toEqual([]);
+  });
+
+  it("My alerts lists nothing for a fleet manager without Dispatch, and lists them for a recruiter given it by name", async () => {
+    seed({ roleAccess: fmNoDispatch, userAccess: rexGiven });
+    const mine = async (token: string) => ((await (await call("/api/me/alerts", token)).json()) as MyAlerts).alerts;
+    expect(await mine("fleet_manager")).toEqual([]);
+    expect((await mine("recruiter")).map((a) => a.key)).toContain("home_time_overdue");
   });
 });

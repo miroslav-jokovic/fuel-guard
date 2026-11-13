@@ -5,9 +5,11 @@ import {
   USER_ROLE_LABELS,
   alertDefinition,
   alertRouteId,
+  alertMemberCanView,
+  alertRolesFor,
   alertRoutesProblem,
   alertsForMember,
-  rolesThatCanView,
+  receivableRoutes,
   routesInForce,
   type AlertChannel,
   type AlertKey,
@@ -15,7 +17,6 @@ import {
   type AlertRoute,
   type AlertRoutingView,
   type MyAlerts,
-  type UserRole,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { smsConfigured } from "../../lib/sms.js";
@@ -63,8 +64,8 @@ const savedFor = (rows: readonly RouteRow[], alert: AlertKey): AlertRoute[] => r
 
 /** The active members who can view the alert's section: the people a route can reach. */
 const reachable = (members: readonly AlertMember[], alert: AlertKey): AlertMember[] => {
-  const viewers = new Set<string>(rolesThatCanView(alertDefinition(alert).section));
-  return members.filter((m) => viewers.has(m.role));
+  const section = alertDefinition(alert).section;
+  return members.filter((m) => alertMemberCanView(m, section));
 };
 
 /** Who has a confirmed number they have not stopped: the people a Text switch actually reaches. */
@@ -79,14 +80,19 @@ export async function readAlertRoutingView(admin: SupabaseClient, env: Env, orgI
   const listed = new Set<string>();
   const alerts = ALERT_CATALOGUE.map((def) => {
     const saved = savedFor(rows, def.key);
-    for (const m of reachable(directory.members, def.key)) listed.add(m.userId);
+    const people = reachable(directory.members, def.key);
+    for (const m of people) listed.add(m.userId);
+    const roles = alertRolesFor(def.section, directory.roleChanges);
+    // What can still receive it: a role or a person the carrier has since taken the section from is not
+    // shown as a switch — and the sender already skips them.
+    const inForce = receivableRoutes(routesInForce(def.key, saved), new Set(people.map((m) => m.userId)), new Set<string>(roles));
     return {
       key: def.key,
       label: def.label,
       description: def.description,
       relations: def.relations.map((key) => ({ key, label: ALERT_RELATION_LABELS[key] })),
-      roles: rolesThatCanView(def.section).map((key) => ({ key, label: USER_ROLE_LABELS[key as UserRole] ?? key })),
-      routes: [...routesInForce(def.key, saved)],
+      roles: roles.map((key) => ({ key, label: USER_ROLE_LABELS[key] ?? key })),
+      routes: inForce,
       usesDefaults: saved.length === 0,
     };
   });
@@ -102,7 +108,8 @@ export type AlertRoutesSaved = { ok: true; routes: AlertRoute[] } | { ok: false;
 /** Replace one alert's set. Refused, in words for the page, when the set breaks `alertRoutesProblem`. */
 export async function saveAlertRoutes(admin: SupabaseClient, orgId: string, actorId: string, alert: AlertKey, routes: readonly AlertRoute[], now: Date): Promise<AlertRoutesSaved> {
   const directory = await readDirectory(admin, orgId);
-  const problem = alertRoutesProblem(alert, routes, new Set(reachable(directory.members, alert).map((m) => m.userId)));
+  const roleKeys = new Set<string>(alertRolesFor(alertDefinition(alert).section, directory.roleChanges));
+  const problem = alertRoutesProblem(alert, routes, new Set(reachable(directory.members, alert).map((m) => m.userId)), roleKeys);
   if (problem) return { ok: false, problem };
 
   const { error } = await admin.from("notification_routes").upsert(
@@ -138,11 +145,14 @@ export async function resetAlertRoutes(admin: SupabaseClient, orgId: string, ale
 }
 
 /** What this member receives, alert by alert; an alert about a section they cannot view is not listed. */
-export async function readMyAlerts(admin: SupabaseClient, orgId: string, userId: string, role: string | null): Promise<MyAlerts> {
-  const rows = await readRouteRows(admin, orgId);
+export async function readMyAlerts(admin: SupabaseClient, orgId: string, userId: string): Promise<MyAlerts> {
+  // The caller as the SENDER sees them — from the directory, with the carrier's permission changes —
+  // not from the token: a token is up to a lifetime old, and this must say what the next run will do.
+  const [rows, directory] = await Promise.all([readRouteRows(admin, orgId), readDirectory(admin, orgId)]);
+  const me = directory.members.find((m) => m.userId === userId);
   const alerts = ALERT_CATALOGUE.flatMap((def) => {
-    if (!role || !(rolesThatCanView(def.section) as readonly string[]).includes(role)) return [];
-    const mine = alertsForMember(def.key, savedFor(rows, def.key), { userId, role: role as UserRole });
+    if (!me || !alertMemberCanView(me, def.section)) return [];
+    const mine = alertsForMember(def.key, savedFor(rows, def.key), me);
     return [
       {
         key: def.key,

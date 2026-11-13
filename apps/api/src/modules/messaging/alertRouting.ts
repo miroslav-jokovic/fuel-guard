@@ -2,14 +2,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   USER_ROLES,
   alertDefinition,
+  alertMemberCanManage,
+  alertMemberSections,
   resolveAlertRecipients,
-  rolesThatManage,
   type AlertChannel,
   type AlertKey,
   type AlertMember,
   type AlertRelation,
   type AlertRoute,
   type NotificationSeverity,
+  type SectionAccess,
+  type SectionClaim,
+  type SectionOverrides,
   type UserRole,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
@@ -70,11 +74,41 @@ export interface Directory {
   emailOf: Map<string, string>;
   /** The name the Settings page shows; the login email when no name was ever entered. */
   nameOf: Map<string, string>;
+  /** The carrier's role-level section changes, for "which roles can receive this alert" (`alertRolesFor`). */
+  roleChanges: SectionOverrides;
 }
 
-/** The carrier's active members with their login email — `org_member_directory` (0301, 0393), one read. */
+/**
+ * What the carrier changed on the Permissions page: section access per role (`org_section_access`,
+ * 0291) and per person (`user_section_access`, 0299). Two sparse reads — tens of rows — and a THROW on
+ * a failed one: answering from the shipped matrix instead would send an alert to somebody the carrier
+ * took the section from, which is the defect this exists to end (Q-HT8).
+ */
+export interface SectionChanges {
+  roles: SectionOverrides;
+  users: Map<string, SectionClaim>;
+}
+export async function readSectionChanges(admin: SupabaseClient, orgId: string): Promise<SectionChanges> {
+  const [byRole, byUser] = await Promise.all([
+    admin.from("org_section_access").select("role, section, access").eq("org_id", orgId),
+    admin.from("user_section_access").select("user_id, section, access").eq("org_id", orgId),
+  ]);
+  if (byRole.error) throw new Error(`org_section_access: ${byRole.error.message}`);
+  if (byUser.error) throw new Error(`user_section_access: ${byUser.error.message}`);
+  const roles: Record<string, Record<string, SectionAccess>> = {};
+  for (const r of (byRole.data ?? []) as { role: string; section: string; access: SectionAccess }[]) (roles[r.role] ??= {})[r.section] = r.access;
+  const users = new Map<string, Record<string, SectionAccess>>();
+  for (const r of (byUser.data ?? []) as { user_id: string; section: string; access: SectionAccess }[]) users.set(r.user_id, { ...(users.get(r.user_id) ?? {}), [r.section]: r.access });
+  return { roles: roles as SectionOverrides, users: users as Map<string, SectionClaim> };
+}
+
+/**
+ * The carrier's active members with their login email — `org_member_directory` (0301, 0393) — each
+ * carrying the section claim their own token would (`alertMemberSections`), so "who can open the page
+ * this alert is about" is the carrier's answer everywhere a member is asked it.
+ */
 export async function readDirectory(admin: SupabaseClient, orgId: string): Promise<Directory> {
-  const { data, error } = await admin.rpc("org_member_directory", { p_org_id: orgId });
+  const [{ data, error }, changes] = await Promise.all([admin.rpc("org_member_directory", { p_org_id: orgId }), readSectionChanges(admin, orgId)]);
   if (error) throw new Error(`org_member_directory: ${error.message}`);
   const rows = (data ?? []) as Array<{ user_id: string; email: string | null; full_name?: string | null; role: string; suspended_at: string | null }>;
   const members: AlertMember[] = [];
@@ -82,11 +116,12 @@ export async function readDirectory(admin: SupabaseClient, orgId: string): Promi
   const nameOf = new Map<string, string>();
   for (const r of rows) {
     if (r.suspended_at !== null || !(USER_ROLES as readonly string[]).includes(r.role)) continue;
-    members.push({ userId: r.user_id, role: r.role as UserRole });
+    const role = r.role as UserRole;
+    members.push({ userId: r.user_id, role, sections: alertMemberSections(role, changes.roles, changes.users.get(r.user_id)) });
     if (r.email) emailOf.set(r.user_id, r.email);
     nameOf.set(r.user_id, r.full_name?.trim() || r.email || "Unnamed member");
   }
-  return { members, emailOf, nameOf };
+  return { members, emailOf, nameOf, roleChanges: changes.roles };
 }
 
 /** The carrier's saved routes for one alert; empty means "the catalogue's defaults" (`routesInForce`). */
@@ -155,8 +190,7 @@ export async function sendAlerts(admin: SupabaseClient, env: Env, orgId: string,
   if (events.length === 0) return result;
   const def = alertDefinition(alert);
   const audience = await readAlertAudience(admin, orgId, alert);
-  const managers = new Set<string>(rolesThatManage(def.section));
-  const fallback = audience.directory.members.filter((m) => managers.has(m.role)).map((m) => m.userId);
+  const fallback = audience.directory.members.filter((m) => alertMemberCanManage(m, def.section)).map((m) => m.userId);
 
   /** Per person, the events to email them about, and to text them about. */
   const emailFor = new Map<string, AlertEvent[]>();

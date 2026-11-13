@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { rolesThatCanView, type AppSection } from "./auth.js";
+import { EDITABLE_ROLES, effectiveSectionAccess, isEditableRole, resolveSectionAccess, rolesThatCanView, type AppSection, type SectionClaim, type SectionOverrides } from "./auth.js";
 import type { UserRole } from "./constants.js";
 import type { NotificationCategory } from "./notificationsContract.js";
 import { alertTextQuietSchema } from "./alertTexts.js";
@@ -25,6 +25,14 @@ import { alertTextQuietSchema } from "./alertTexts.js";
  *
  * Only people who can VIEW the alert's section receive it (Q-NR2, ruled 2026-11-13 for these alerts):
  * an alert is a request to act, and the link in it opens a page of that section.
+ *
+ * ── "CAN VIEW" IS THE CARRIER'S ANSWER, NOT THE SHIPPED MATRIX'S (Q-HT8, 2026-11-13) ────────────
+ * A carrier changes who can open a section on the Permissions page, for a role and for one person.
+ * Measured on production the day home time's alerts were finished: the Fleet Manager role had
+ * Dispatch taken away, and the default routes escalated every overstay to exactly that role — an email
+ * about a page its one holder could not open, and nobody else told. So every member here carries the
+ * section claim their own token would (`AlertMember.sections`), and every question below is asked
+ * with `resolveSectionAccess`, the function the API's gates ask.
  */
 
 export const ALERT_CHANNELS = ["bell", "email", "sms"] as const;
@@ -121,6 +129,37 @@ export function routesInForce(key: AlertKey, saved: readonly AlertRoute[]): read
 export interface AlertMember {
   userId: string;
   role: UserRole;
+  /**
+   * The member's section claim — their role's saved changes with their own over them, as
+   * `custom_access_token_hook` mints it (`alertMemberSections`). Absent = nothing saved: the shipped matrix.
+   */
+  sections?: SectionClaim;
+}
+
+/**
+ * The claim a member's token would carry, from the carrier's two override tables: the role's rows with
+ * the person's own over them. Empty for a role whose access cannot be edited (admin, driver) — the
+ * hook mints none for them, and a stray row must not colour their answer.
+ */
+export function alertMemberSections(role: UserRole, roleOverrides: SectionOverrides, userClaim: SectionClaim | undefined): SectionClaim {
+  if (!isEditableRole(role)) return {};
+  return { ...(roleOverrides[role] ?? {}), ...(userClaim ?? {}) };
+}
+
+/** Can this member open the alert's section, on the carrier's own answer? */
+export const alertMemberCanView = (m: AlertMember, section: AppSection): boolean => resolveSectionAccess(m.role, section, m.sections ?? null) !== "none";
+/** …and manage it — the people an alert addressed to nobody falls back to. */
+export const alertMemberCanManage = (m: AlertMember, section: AppSection): boolean => resolveSectionAccess(m.role, section, m.sections ?? null) === "manage";
+
+/**
+ * The ROLES that can receive an alert about this section: those whose members can view it by the
+ * role's own answer (the carrier's change, else the shipped one). A person given the section by name
+ * is reached as a person, not through their role.
+ */
+export function alertRolesFor(section: AppSection, roleOverrides: SectionOverrides): UserRole[] {
+  const shipped = rolesThatCanView(section);
+  const all = [...new Set<UserRole>([...shipped, ...EDITABLE_ROLES])];
+  return all.filter((role) => effectiveSectionAccess(role, section, roleOverrides) !== "none");
 }
 
 /**
@@ -130,9 +169,9 @@ export interface AlertMember {
  * - A **relation** row reaches the person the sender resolved for this event, if anybody.
  * - A **user** row beats both (D-NR2): on adds the person, off removes them — so somebody can opt a
  *   colleague out of an alert their role gets without changing the role's switch.
- * - Nobody outside the alert's section is ever reached, whatever a row says: a member whose role cannot
- *   view it is dropped, and so is an id that is not a current member (a person who left, a relation
- *   that points at a suspended account).
+ * - Nobody outside the alert's section is ever reached, whatever a row says: a member who cannot view
+ *   it — on the carrier's own Permissions page, `alertMemberCanView` — is dropped, and so is an id
+ *   that is not a current member (a person who left, a relation that points at a suspended account).
  *
  * `members` are the carrier's ACTIVE members. The result holds only people with at least one channel.
  * It may be empty: the sender then falls back, loudly — an alert addressed to nobody is a failure.
@@ -144,8 +183,7 @@ export function resolveAlertRecipients(
   relations: Partial<Record<AlertRelation, string | null>>,
 ): Map<string, Set<AlertChannel>> {
   const def = alertDefinition(key);
-  const viewers = new Set<string>(rolesThatCanView(def.section));
-  const eligible = new Map(members.filter((m) => viewers.has(m.role)).map((m) => [m.userId, m.role]));
+  const eligible = new Map(members.filter((m) => alertMemberCanView(m, def.section)).map((m) => [m.userId, m.role]));
   const out = new Map<string, Set<AlertChannel>>();
   const add = (userId: string | null | undefined, channel: AlertChannel) => {
     if (!userId || !eligible.has(userId)) return;
@@ -184,12 +222,14 @@ export const alertRouteId = (r: Pick<AlertRoute, "recipientKind" | "recipientKey
  *
  * `memberIds` are the carrier's active members who can view the alert's section — the only people a
  * `user` row may name (anybody else would never be reached, and the page would say they are).
+ * `roleKeys` are the roles that can (`alertRolesFor`). Both are the CARRIER's answer, so the caller
+ * passes them: the API from its override tables, the page from what the API listed.
  * The last rule is the plan's: an alert addressed to nobody is a failure, so a set with every switch
  * off is refused rather than saved and then quietly sent to everyone who manages the section.
  */
-export function alertRoutesProblem(key: AlertKey, routes: readonly AlertRoute[], memberIds: ReadonlySet<string>): string | null {
+export function alertRoutesProblem(key: AlertKey, routes: readonly AlertRoute[], memberIds: ReadonlySet<string>, roleKeys: ReadonlySet<string>): string | null {
   const def = alertDefinition(key);
-  const viewers = new Set<string>(rolesThatCanView(def.section));
+  const viewers = roleKeys;
   const seen = new Set<string>();
   for (const r of routes) {
     const id = alertRouteId(r);
@@ -266,4 +306,14 @@ export function alertsForMember(key: AlertKey, saved: readonly AlertRoute[], mem
     return channels.length > 0 ? [{ relation, channels }] : [];
   });
   return { always, whenMine };
+}
+
+/**
+ * A saved set, less what can no longer receive the alert: a role the carrier has since taken the
+ * section from, a person who left or lost it. The page shows this and its next save writes it, so a
+ * permission change never leaves a set the page then refuses to save. The DEFAULTS pass through here
+ * too — a default naming a role this carrier removed from the section is not shown as a switch.
+ */
+export function receivableRoutes(routes: readonly AlertRoute[], memberIds: ReadonlySet<string>, roleKeys: ReadonlySet<string>): AlertRoute[] {
+  return routes.filter((r) => (r.recipientKind === "role" ? roleKeys.has(r.recipientKey) : r.recipientKind === "user" ? memberIds.has(r.recipientKey) : true));
 }
