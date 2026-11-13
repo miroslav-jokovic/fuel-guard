@@ -29,3 +29,6 @@ export { startRealtimeProbeScheduler } from "./realtimeProbe.js";
 export { startChatExportSweeper } from "./chatExportSweeper.js";
 export { getRealtimeHealth, realtimeHealthy, type RealtimeHealth } from "./realtimeHealth.js";
 export { loginForDriver } from "./notify.js";
+// The magic-number check on an uploaded file's first bytes. Exported for the lumper cases' revised RC
+// (LUMPER-REVISED-RC-PLAN LRC3), so "is this really a PDF" has one definition.
+export { bytesAreKind } from "./chatFiles.js";

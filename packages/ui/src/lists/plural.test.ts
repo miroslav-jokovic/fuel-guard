@@ -107,6 +107,8 @@ function scanSource(): Scan {
  */
 const EXPECTED: Record<string, string> = {
   alerts: "alert",
+  // Lumper fees: one case per order with a lumper (LUMPER-REVISED-RC-PLAN D-LRC1).
+  cases: "case",
   items: "item",
   "trucks and trailers": "truck or trailer",
   applicants: "applicant",

@@ -196,6 +196,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/truck-stops",
   },
   {
+    "name": "lumper-fees",
+    "params": {},
+    "url": "/lumper-fees",
+  },
+  {
     "name": "idling",
     "params": {},
     "url": "/idling",
@@ -1171,6 +1176,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "login",
     "path": "/login",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Lumper fees",
+    },
+    "name": "lumper-fees",
+    "path": "/lumper-fees",
     "redirect": null,
   },
   {

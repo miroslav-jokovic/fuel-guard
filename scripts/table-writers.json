@@ -474,6 +474,12 @@
     "apps/api/src/modules/loads/mirrorLoads.ts",
     "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts"
   ],
+  "lumper_case_files": [
+    "apps/api/src/modules/mcleod/lumper/lumperCases.ts"
+  ],
+  "lumper_cases": [
+    "apps/api/src/modules/mcleod/lumper/lumperCases.ts"
+  ],
   "maintenance_inspectors": [
     "apps/api/src/modules/maintenance/inspections/inspectors.ts"
   ],
