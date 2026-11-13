@@ -22,6 +22,7 @@ import {
   type FuelExceptionStatus,
   type UserRole,
   isRecordId,
+  parseFuelProblemsMinAmount,
 } from "@silvicom/shared";
 import { exceptionTotals, listExceptions, moveException, readException } from "../fuelExceptions.js";
 import { readFindings, readFindingsSummary } from "../findingsRead.js";
@@ -211,6 +212,7 @@ export function registerExceptionRoutes(router: Router): void {
           typeof req.query.assignedTo === "string" && isRecordId(req.query.assignedTo) ? req.query.assignedTo : null,
         from: ymd(req.query.from),
         to: ymd(req.query.to),
+        minAmount: parseFuelProblemsMinAmount(req.query.min),
         limit: Number(req.query.limit) || 50,
         offset: Number(req.query.offset) || 0,
       });
@@ -280,6 +282,7 @@ export function registerExceptionRoutes(router: Router): void {
         unitNumbers: await unitsForVehicles(admin, req.auth!.orgId!, req.query.vehicles),
         from: ymd(req.query.from),
         to: ymd(req.query.to),
+        minAmount: parseFuelProblemsMinAmount(req.query.min),
         limit: Number(req.query.limit) || 50,
         offset: Number(req.query.offset) || 0,
       });
@@ -328,6 +331,8 @@ export function registerExceptionRoutes(router: Router): void {
         unitNumbers: await unitsForVehicles(admin, orgId, req.query.vehicles),
         from: ymd(req.query.from),
         to: ymd(req.query.to),
+        // The page's minimum amount (Q-AI14 (a)), so the file holds the rows on screen.
+        minAmount: parseFuelProblemsMinAmount(req.query.min),
       };
 
       let out;

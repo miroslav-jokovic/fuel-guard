@@ -24,6 +24,9 @@ describe("openAssistantView", () => {
       link: { surfaceKey: "fuel.exceptions", query: { state: "open", trucks: "v718" } },
     });
     expectOrgScoped(r, ORG);
+    // Step 5's acceptance question, now that the page has the filter (Q-AI14 (a)).
+    const over = (await openAssistantView(r.client, ORG, { view: "fuel_problems", filters: { states: ["open"], units: ["718"], min_amount: 200 } }, ["fuel_problems"])) as { link: unknown };
+    expect(over.link).toEqual({ surfaceKey: "fuel.exceptions", query: { state: "open", trucks: "v718", min: "200" } });
   });
 
   it("refuses a filter the page lacks, a truck not in the fleet, and a page outside the caller's own, opening nothing", async () => {

@@ -54,6 +54,18 @@ describe("which sections a caller sees findings in", () => {
 });
 
 describe("the merged queue", () => {
+  // Q-AI14 (a): only the ledger carries money identified, so a minimum reads it alone, bounded in the query.
+  it("with a minimum amount reads only the ledger, bounded on `amount`, and no case source at all", async () => {
+    const rec = seed();
+    const page = await readFindings(rec.client, ORG, "admin", { minAmount: 200 });
+    expect(rec.forTable("anomalies")).toHaveLength(0);
+    expect(rec.forTable("card_fraud_incidents")).toHaveLength(0);
+    const [ledger] = rec.forTable("fuel_exceptions");
+    expect(ledger!.ops).toContainEqual({ method: "gte", args: ["amount", 200] });
+    expect(page.rows.every((r) => r.source === "exception")).toBe(true);
+    expectOrgScoped(rec, ORG);
+  });
+
   it("returns both sources, newest first, and is org-scoped", async () => {
     const rec = seed();
     const page = await readFindings(rec.client, ORG, "admin");

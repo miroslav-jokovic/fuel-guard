@@ -19,7 +19,29 @@ export const FUEL_PROBLEMS_QUERY_KEYS = {
   state: "state",
   kind: "kind",
   owner: "owner",
+  minAmount: "min",
 } as const;
+
+/**
+ * The minimum MONEY IDENTIFIED a finding must carry, in whole dollars (Q-AI14 (a), owner 2026-11-12).
+ *
+ * One of these steps, not any number: the page's control is a `FilterSelect` (the design contract's
+ * secondary filter, §5.5 rule 4), so a link may only name a value the control can show. Otherwise the
+ * page would be narrowed by a filter its own control says is off.
+ *
+ * ⚠ Only a vendor or policy finding (`fuel_exceptions.amount`) carries money identified. A fill case or
+ * a card-fraud incident has none (`FindingRow.amountUsd` is null), so with a minimum set they leave the
+ * list, and the page says so under the filter. Treating "no amount" as zero would mean the same, and
+ * stating it is the honest half.
+ */
+export const FUEL_PROBLEMS_MIN_AMOUNTS = [50, 100, 200, 500, 1000] as const;
+export type FuelProblemsMinAmount = (typeof FUEL_PROBLEMS_MIN_AMOUNTS)[number];
+
+/** A query value read as one of the steps, or null: one parser for the page, the queue route and the export. */
+export function parseFuelProblemsMinAmount(raw: unknown): FuelProblemsMinAmount | null {
+  const n = typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : NaN;
+  return (FUEL_PROBLEMS_MIN_AMOUNTS as readonly number[]).includes(n) ? (n as FuelProblemsMinAmount) : null;
+}
 
 export const FUEL_PROBLEMS_OWNER_ME = "me";
 
@@ -30,6 +52,7 @@ export interface FuelProblemsLinkFilters {
   states?: readonly FindingQueueState[];
   kinds?: readonly FindingKind[];
   mine?: boolean;
+  minAmountUsd?: FuelProblemsMinAmount;
 }
 
 export function fuelProblemsToQuery(f: FuelProblemsLinkFilters): Record<string, string> {
@@ -41,6 +64,7 @@ export function fuelProblemsToQuery(f: FuelProblemsLinkFilters): Record<string, 
   if (f.states?.length) q[K.state] = f.states.join(",");
   if (f.kinds?.length) q[K.kind] = f.kinds.join(",");
   if (f.mine) q[K.owner] = FUEL_PROBLEMS_OWNER_ME;
+  if (f.minAmountUsd) q[K.minAmount] = String(f.minAmountUsd);
   return q;
 }
 
