@@ -66,6 +66,9 @@ const POLYMORPHIC = new Map([
   ["unit_notes.subject_id",
     "0592: subject_kind 'driver' + subject_id; the merge's update moves only driver notes and a " +
     "truck/trailer note sharing the uuid stops the merge (UN012)."],
+  ["unit_note_unit_mentions.subject_id",
+    "0596: subject_kind 'driver' + subject_id, the unit a note NAMES; the merge's update moves only " +
+    "driver rows (UN012) and a note naming both drivers keeps one row."],
 ]);
 
 // Tables that no longer exist take their FKs with them.
