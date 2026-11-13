@@ -78,8 +78,8 @@ const picked = (path: FactPath): string[] => (read(path) as string[] | undefined
 
 /**
  * A list of names (`other_names`, SCREEN-MAP 2.1a): a box per name, "Add a name", and a removal per box,
- * as the section component asked it. Each write is the whole list, so the draft's array is replaced and
- * autosave sees the change.
+ * as the section component asked it. Every change is written through the binding, the one door a
+ * generated screen writes by, never into the array it read.
  */
 const names = (path: FactPath): string[] => (read(path) as string[] | undefined) ?? [];
 const setName = (path: FactPath, at: number, value: string): void =>
