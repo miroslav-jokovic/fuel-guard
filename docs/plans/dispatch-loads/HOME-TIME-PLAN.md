@@ -527,7 +527,7 @@ sidebar.
   - **"My alerts"** in the account menu: for each alert, in a sentence, how it reaches the signed-in
     person — always, or only when the period or the truck is theirs. Read-only.
   - **API:** `GET/PUT/DELETE /api/alert-routing[/:alert]` (messaging) and `GET/PUT
-    /api/roster/home-time-settings` (roster, the table's owner), all behind the screen's own pair
+    /api/roster/home-time/settings` (roster, the table's owner), all behind the screen's own pair
     (`settings: manage`, then `admin.settings.notifications`); `GET /api/me/alerts` for any member.
     Audited as `settings.notification_routes_saved` (the switches on and off), `…_reset`, and
     `settings.home_time_alerts_saved` (the old numbers beside the new).
@@ -560,3 +560,8 @@ sidebar.
     (`lint:ui-adoption`; it is `embedded dense` now), the older Notifications page test mounted the new
     section without its data layer, and `GET /api/me/alerts` needed its argument in the open-route
     ledger (it is gated per alert, by the caller's role, inside the read).
+  - CI's file-size gate refused the merge with main: `apps/api/src/app.ts` reached 501 lines once the
+    lumper mount and this step's three met. The thresholds are now served under the home-time mount
+    (`/api/roster/home-time/settings`, mounted ahead of the board's router with its own gate) instead
+    of a mount of their own. **`app.ts` is at exactly 500**: the next mount anybody adds needs a split.
+

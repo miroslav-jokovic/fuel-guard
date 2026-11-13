@@ -28,6 +28,7 @@ import {
   reopenHomeTime,
   type HomeTimeRefusal,
 } from "./homeTime.js";
+import { homeTimeSettingsRouter } from "./settingsRoutes.js";
 
 /**
  * `/api/roster/home-time` — the office marks a driver's home time (`docs/plans/dispatch-loads/
@@ -45,6 +46,14 @@ import {
  * question an overstay raises, and the row is the only record of the old value.
  */
 export function rosterHomeTimeRouter(): Router {
+  const outer = Router();
+  // The alert thresholds are Settings › Notifications', behind that screen's gate, not the board's.
+  outer.use("/settings", homeTimeSettingsRouter());
+  outer.use(homeTimePeriodsRouter());
+  return outer;
+}
+
+function homeTimePeriodsRouter(): Router {
   const router = Router();
   router.use(requireAuth, requireOrg, requireModule("dispatch"), requireSection("dispatch", "view"));
   const mayMark = requireNamedPermission(HOME_TIME_PERMISSION);

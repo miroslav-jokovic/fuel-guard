@@ -15,7 +15,7 @@ import { HOME_TIME_KEY } from "@/components/homeTime/useHomeTime";
 
 /**
  * Alert routing's data layer (HOME-TIME-PLAN HT5): Settings › Notifications' routing section
- * (`/api/alert-routing`), the home-time thresholds (`/api/roster/home-time-settings`) and the caller's
+ * (`/api/alert-routing`), the home-time thresholds (`/api/roster/home-time/settings`) and the caller's
  * own "My alerts" (`/api/me/alerts`). ⚠ `apiFetch` serialises the body itself.
  */
 export const ALERT_ROUTING_KEY = ["alert-routing"] as const;
@@ -59,7 +59,7 @@ export function useHomeTimeThresholds() {
   return useQuery({
     queryKey: THRESHOLDS_KEY,
     queryFn: async (): Promise<HomeTimeSettings> =>
-      homeTimeSettingsSchema.parse((await read(apiFetch<{ settings: HomeTimeSettings }>("/api/roster/home-time-settings"), "Could not load the alert times.")).settings),
+      homeTimeSettingsSchema.parse((await read(apiFetch<{ settings: HomeTimeSettings }>("/api/roster/home-time/settings"), "Could not load the alert times.")).settings),
   });
 }
 
@@ -67,7 +67,7 @@ export function useSaveHomeTimeThresholds() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (settings: HomeTimeSettings): Promise<void> => {
-      await read(apiFetch("/api/roster/home-time-settings", { method: "PUT", body: settings }), "Could not save the alert times.");
+      await read(apiFetch("/api/roster/home-time/settings", { method: "PUT", body: settings }), "Could not save the alert times.");
     },
     // The board's chips are judged on the same numbers, and its list carries them.
     onSettled: () => {

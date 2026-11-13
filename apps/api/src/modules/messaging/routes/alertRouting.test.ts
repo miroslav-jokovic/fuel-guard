@@ -98,8 +98,8 @@ describe("who may open and save the routing section", () => {
       ["GET", "/api/alert-routing", undefined],
       ["PUT", "/api/alert-routing/home_time_overdue", { routes }],
       ["DELETE", "/api/alert-routing/home_time_overdue", undefined],
-      ["GET", "/api/roster/home-time-settings", undefined],
-      ["PUT", "/api/roster/home-time-settings", HOME_TIME_DEFAULTS],
+      ["GET", "/api/roster/home-time/settings", undefined],
+      ["PUT", "/api/roster/home-time/settings", HOME_TIME_DEFAULTS],
     ] as const) {
       const init = { method, ...(body ? { body: JSON.stringify(body) } : {}) };
       expect((await call(path, "admin", init)).status, `${method} ${path} admin`).toBe(200);
@@ -222,18 +222,18 @@ describe("DELETE /api/alert-routing/:alert", () => {
   });
 });
 
-describe("/api/roster/home-time-settings", () => {
+describe("/api/roster/home-time/settings", () => {
   it("reads the defaults for a carrier that has saved none, and the carrier's own once saved", async () => {
     seed();
-    expect(await (await call("/api/roster/home-time-settings", "admin")).json()).toEqual({ settings: HOME_TIME_DEFAULTS });
+    expect(await (await call("/api/roster/home-time/settings", "admin")).json()).toEqual({ settings: HOME_TIME_DEFAULTS });
     seed({ settings: [{ org_id: ORG, return_due_hours: 48, overdue_after_hours: 4, truck_limit_days: 10 }] });
-    expect(await (await call("/api/roster/home-time-settings", "admin")).json()).toEqual({ settings: { returnDueHours: 48, overdueAfterHours: 4, truckLimitDays: 10 } });
+    expect(await (await call("/api/roster/home-time/settings", "admin")).json()).toEqual({ settings: { returnDueHours: 48, overdueAfterHours: 4, truckLimitDays: 10 } });
   });
 
   it("saves all three numbers as one whole row, and the audit row keeps the old numbers beside the new", async () => {
     seed({ settings: [{ org_id: ORG, return_due_hours: 48, overdue_after_hours: 4, truck_limit_days: 10 }] });
     const next = { returnDueHours: 12, overdueAfterHours: 0, truckLimitDays: 14 };
-    expect((await put("/api/roster/home-time-settings", "admin", next)).status).toBe(200);
+    expect((await put("/api/roster/home-time/settings", "admin", next)).status).toBe(200);
     const up = writes("home_time_settings", "upsert")[0]!;
     expect(up.write!.payload).toMatchObject({ org_id: ORG, return_due_hours: 12, overdue_after_hours: 0, truck_limit_days: 14, updated_by: ADA });
     expect(conflictOf(up)).toBe("org_id");
@@ -244,7 +244,7 @@ describe("/api/roster/home-time-settings", () => {
   it("refuses a number outside the table's range before any write", async () => {
     seed();
     for (const bad of [{ returnDueHours: 0 }, { returnDueHours: 169 }, { overdueAfterHours: -1 }, { truckLimitDays: 61 }, { truckLimitDays: 2.5 }]) {
-      expect((await put("/api/roster/home-time-settings", "admin", { ...HOME_TIME_DEFAULTS, ...bad })).status, JSON.stringify(bad)).toBe(400);
+      expect((await put("/api/roster/home-time/settings", "admin", { ...HOME_TIME_DEFAULTS, ...bad })).status, JSON.stringify(bad)).toBe(400);
     }
     expect(writes("home_time_settings", "upsert")).toEqual([]);
   });
