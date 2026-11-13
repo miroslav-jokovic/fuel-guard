@@ -103,6 +103,10 @@ team second drivers (MHOUSTON, WILLKENO, MGARZA, LFEAGIN), two of them on HOS *d
   *Candidates:* (a) ask Alex for SELECT on McLeod's driver home-time/PTO table and feed `driver_time_off`;
   (b) the office marks home time in Silvicom; (c) leave it, and show current HOS beside the days.
   *Recommendation:* (a). Until then the view shows (c), and the days figure carries no verdict.
+  **Answered 2026-11-13 by building (b)** (`HOME-TIME-PLAN.md`, HT1–HT6 merged): the office marks home
+  time on the Dispatch board, and Loads → Activity says "Home time until …" under a marked driver's days
+  without a load and under a truck that home time holds. Closed for the wording; the production walk of
+  the feature is that plan's HT7.
 - **Q-LA2 — History before 09/17/2026.** Older loads exist only in McLeod `_hist`. *Recommendation:* not
   now. Activity looks back weeks, not months, and the mirror passes 30 days on 10/17.
 - **Q-LA3 — Active drivers off duty 25+ days** (ROMENDOZ, MOTIS, WMARDY, TSMITH, CHRILAFL, BELSTON on
