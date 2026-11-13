@@ -3,8 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import {
   alertRoutingViewSchema,
   homeTimeSettingsSchema,
+  myAlertContactSchema,
   myAlertsSchema,
   type AlertKey,
+  type AlertTextQuiet,
+  type MyAlertContact,
   type AlertRoute,
   type AlertRoutingView,
   type HomeTimeSettings,
@@ -85,3 +88,35 @@ export function useMyAlerts(enabled: Ref<boolean>) {
     queryFn: async (): Promise<MyAlerts> => myAlertsSchema.parse(await read(apiFetch<MyAlerts>("/api/me/alerts"), "Could not load your alerts.")) as MyAlerts,
   });
 }
+
+export const useSaveAlertTextHours = () =>
+  useRoutingWrite<AlertTextQuiet>((quiet) => apiFetch("/api/alert-routing/text-hours", { method: "PUT", body: quiet }), "Could not save the quiet hours.");
+
+// ── the signed-in person's own number for text alerts (D-HT17) ────────────────────────────────────
+
+const MY_PHONE_KEY = ["my-alerts", "phone"] as const;
+
+export function useMyAlertContact(enabled: Ref<boolean>) {
+  return useQuery({
+    queryKey: MY_PHONE_KEY,
+    enabled: computed(() => enabled.value),
+    queryFn: async (): Promise<MyAlertContact> => myAlertContactSchema.parse(await read(apiFetch<MyAlertContact>("/api/me/alerts/phone"), "Could not load your text alerts.")),
+  });
+}
+
+/** Each step answers with where the person now stands, which becomes the cache: no second request to draw it. */
+function useContactStep<V>(call: (v: V) => Promise<ApiResult<MyAlertContact>>, fallback: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: V): Promise<MyAlertContact> => myAlertContactSchema.parse(await read(call(v), fallback)),
+    onSuccess: (contact) => {
+      qc.setQueryData(MY_PHONE_KEY, contact);
+      // An admin's routing page shows who can be texted.
+      void qc.invalidateQueries({ queryKey: ALERT_ROUTING_KEY });
+    },
+  });
+}
+
+export const useStartAlertPhone = () => useContactStep<{ phone: string }>((v) => apiFetch("/api/me/alerts/phone", { method: "POST", body: { phone: v.phone, agreed: true } }), "Could not text that number.");
+export const useConfirmAlertPhone = () => useContactStep<{ code: string }>((v) => apiFetch("/api/me/alerts/phone/confirm", { method: "POST", body: v }), "Could not check the code.");
+export const useStopAlertTexts = () => useContactStep<void>(() => apiFetch("/api/me/alerts/phone/stop", { method: "POST", body: {} }), "Could not stop text alerts.");

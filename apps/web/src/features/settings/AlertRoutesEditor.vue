@@ -3,7 +3,7 @@ import { computed, ref, watch } from "vue";
 import { alertRoutesProblem, type AlertKey } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCard as BaseCard, AppSelect, AppSwitch as BaseSwitch, DataTable, useConfirm, type DataTableColumn } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
-import { addablePeople, personRow, recipientRows, routesChanged, toRoutes, type EditedChannel, type RecipientRow, type RoutingAlert, type RoutingMember } from "./alertRoutingForm";
+import { addablePeople, editedChannels, personRow, recipientRows, routesChanged, toRoutes, type EditedChannel, type RecipientRow, type RoutingAlert, type RoutingMember } from "./alertRoutingForm";
 import { useResetAlertRoutes, useSaveAlertRoutes } from "./useAlertRouting";
 
 /**
@@ -13,7 +13,12 @@ import { useResetAlertRoutes, useSaveAlertRoutes } from "./useAlertRouting";
  * alert routed in a way nobody chose. Save is refused HERE by the API's own rule (`alertRoutesProblem`),
  * with its sentence, so "an alert cannot be sent to nobody" is read before the click, not after it.
  */
-const props = defineProps<{ alert: RoutingAlert; members: RoutingMember[] }>();
+const props = defineProps<{
+  alert: RoutingAlert;
+  members: RoutingMember[];
+  /** Can this server send a text at all? Without it there is no Text column, and text routes are left as they are. */
+  textsAvailable: boolean;
+}>();
 
 const toast = useToastStore();
 const ask = useConfirm();
@@ -32,14 +37,16 @@ watch(
 
 const alertKey = computed(() => props.alert.key as AlertKey);
 const changed = computed(() => routesChanged(rows.value, props.alert, props.members));
-const routes = computed(() => toRoutes(rows.value, props.alert.routes));
+const channels = computed(() => editedChannels(props.textsAvailable));
+const routes = computed(() => toRoutes(rows.value, props.alert.routes, channels.value));
 const problem = computed(() => alertRoutesProblem(alertKey.value, routes.value, new Set(props.members.map((m) => m.userId))));
 
-const columns: DataTableColumn[] = [
+const columns = computed<DataTableColumn[]>(() => [
   { key: "recipient", label: "Who", width: "xl" },
   { key: "bell", label: "Dashboard", align: "center", width: "sm" },
   { key: "email", label: "Email", align: "center", width: "sm" },
-];
+  ...(props.textsAvailable ? [{ key: "sms", label: "Text", align: "center" as const, width: "sm" as const }] : []),
+]);
 
 function set(row: RecipientRow, channel: EditedChannel, on: boolean): void {
   rows.value = rows.value.map((r) => (r.id === row.id ? { ...r, [channel]: on } : r));
@@ -101,9 +108,13 @@ async function onReset(): Promise<void> {
       <template #cell-email="{ row }">
         <BaseSwitch :model-value="row.email" :label="`${row.label}: email`" :disabled="busy" @update:model-value="set(row as RecipientRow, 'email', $event)" />
       </template>
+      <template #cell-sms="{ row }">
+        <BaseSwitch :model-value="row.sms" :label="`${row.label}: text`" :disabled="busy" @update:model-value="set(row as RecipientRow, 'sms', $event)" />
+        <span v-if="row.sms && row.textHint" class="block text-xs font-normal text-ink-muted">{{ row.textHint }}</span>
+      </template>
       <!-- The table's own actions slot, not a column: a column's empty cell draws a dash on every role's row. -->
       <template #actions="{ row }">
-        <BaseButton v-if="row.kind === 'user'" variant="link" :disabled="busy" :aria-label="`Take ${row.label} off this alert's list`" @click="remove(row as RecipientRow)">Take off</BaseButton>
+        <BaseButton v-if="row.kind === 'user'" variant="link" class="whitespace-nowrap" :disabled="busy" :aria-label="`Take ${row.label} off this alert's list`" @click="remove(row as RecipientRow)">Take off</BaseButton>
       </template>
     </DataTable>
 

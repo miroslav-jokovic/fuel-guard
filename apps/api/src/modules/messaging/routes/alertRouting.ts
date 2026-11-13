@@ -1,5 +1,18 @@
-import { Router, type Request } from "express";
-import { alertRouteId, alertRoutesSaveSchema, isAlertKey, type AlertKey, type AlertRoutesSave } from "@silvicom/shared";
+import { Router, type Request, type Response } from "express";
+import {
+  alertPhoneConfirmSchema,
+  alertPhoneStartSchema,
+  alertRouteId,
+  alertRoutesSaveSchema,
+  alertTextQuietSchema,
+  isAlertKey,
+  type AlertKey,
+  type AlertPhoneConfirm,
+  type AlertPhoneStart,
+  type AlertRoutesSave,
+  type AlertTextQuiet,
+  type MyAlertContact,
+} from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireSurface } from "../../../middleware/requireSurface.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
@@ -7,6 +20,8 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { readAlertRoutingView, readMyAlerts, resetAlertRoutes, saveAlertRoutes } from "../alertRoutingSettings.js";
+import { readAlertTextQuiet, saveAlertTextQuiet } from "../alertTexts.js";
+import { confirmAlertPhone, isAlertContactRefusal, readMyAlertContact, startAlertPhone, stopAlertTexts, type AlertContactRefusal } from "../alertContacts.js";
 
 /**
  * `/api/alert-routing` — Settings › Notifications' routing section (HOME-TIME-PLAN HT5, D-HT15).
@@ -28,7 +43,22 @@ export function alertRoutingRouter(): Router {
   router.get(
     "/",
     asyncHandler(async (req, res) => {
-      res.json(await readAlertRoutingView(adminOf(req), req.auth!.orgId!));
+      res.json(await readAlertRoutingView(adminOf(req), getAppLocals(req).env, req.auth!.orgId!));
+    }),
+  );
+
+  // Registered ahead of `/:alert`, so "text-hours" is never read as an alert's key.
+  router.put(
+    "/text-hours",
+    validateBody(alertTextQuietSchema),
+    asyncHandler(async (req, res) => {
+      const admin = adminOf(req);
+      const orgId = req.auth!.orgId!;
+      const next = res.locals.body as AlertTextQuiet;
+      const before = await readAlertTextQuiet(admin, orgId);
+      await saveAlertTextQuiet(admin, orgId, req.auth!.userId, next, new Date());
+      await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "settings.alert_text_hours_saved", entity: "notification_channel_settings", entityId: orgId, meta: { before, after: next } });
+      res.json({ ok: true });
     }),
   );
 
@@ -96,6 +126,57 @@ export function myAlertsRouter(): Router {
     "/",
     asyncHandler(async (req, res) => {
       res.json(await readMyAlerts(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, req.auth!.userId, req.auth!.role ?? null));
+    }),
+  );
+
+  // ── the caller's own mobile number for text alerts (D-HT17, HT6) ─────────────────────────────
+  // Their own row and nobody else's: the user id is the token's, never the body's.
+  const refuse = (res: Response, r: AlertContactRefusal): void => {
+    const status = r.code === "unavailable" ? 503 : r.code === "too_soon" ? 429 : r.code === "db_error" || r.code === "send_failed" ? 502 : 422;
+    res.status(status).json(apiError(r.code, r.message));
+  };
+  const answer = (res: Response, out: MyAlertContact | AlertContactRefusal): void => {
+    if (isAlertContactRefusal(out)) refuse(res, out);
+    else res.json(out);
+  };
+  const who = (req: Request) => ({ env: getAppLocals(req).env, admin: getSupabaseAdmin(getAppLocals(req).env), orgId: req.auth!.orgId!, userId: req.auth!.userId });
+
+  router.get(
+    "/phone",
+    asyncHandler(async (req, res) => {
+      const c = who(req);
+      res.json(await readMyAlertContact(c.admin, c.env, c.orgId, c.userId));
+    }),
+  );
+
+  router.post(
+    "/phone",
+    validateBody(alertPhoneStartSchema),
+    asyncHandler(async (req, res) => {
+      const c = who(req);
+      answer(res, await startAlertPhone(c.admin, c.env, c.orgId, c.userId, (res.locals.body as AlertPhoneStart).phone, new Date()));
+    }),
+  );
+
+  router.post(
+    "/phone/confirm",
+    validateBody(alertPhoneConfirmSchema),
+    asyncHandler(async (req, res) => {
+      const c = who(req);
+      const out = await confirmAlertPhone(c.admin, c.env, c.orgId, c.userId, (res.locals.body as AlertPhoneConfirm).code, new Date());
+      // The consent is an act worth a row: who agreed to be texted, when, to which words. Never the number.
+      if (!isAlertContactRefusal(out)) await writeAudit(c.admin, { orgId: c.orgId, actorId: c.userId, action: "alerts.text_number_confirmed", entity: "notification_contacts", entityId: c.userId, meta: { last4: out.last4 } });
+      answer(res, out);
+    }),
+  );
+
+  router.post(
+    "/phone/stop",
+    asyncHandler(async (req, res) => {
+      const c = who(req);
+      const out = await stopAlertTexts(c.admin, c.env, c.orgId, c.userId, new Date());
+      await writeAudit(c.admin, { orgId: c.orgId, actorId: c.userId, action: "alerts.text_stopped", entity: "notification_contacts", entityId: c.userId, meta: { by: "page" } });
+      res.json(out);
     }),
   );
   return router;

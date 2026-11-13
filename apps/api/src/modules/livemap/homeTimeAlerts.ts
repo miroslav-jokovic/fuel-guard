@@ -48,7 +48,7 @@ import {
 import { readDriverPickupsSince } from "../loads/index.js";
 import { readFleetDispatchers } from "../mcleod/index.js";
 import { orgTimezone } from "../org/index.js";
-import { sendAlerts, type AlertEvent } from "../messaging/index.js";
+import { drainAlertTexts, sendAlerts, type AlertEvent } from "../messaging/index.js";
 
 const BOOT_DELAY_MS = 150_000;
 
@@ -59,6 +59,8 @@ export interface HomeTimeRunResult {
   /** Bell items and emails that actually went out (a deduped one is not counted). */
   bells: number;
   emails: number;
+  /** Texts that left in this run: new ones outside the quiet window, and held ones whose morning came. */
+  texts: number;
 }
 
 /** What the job decided, said by the job: the reason and the end are its own, not read back from the row. */
@@ -75,7 +77,7 @@ async function auditAutoEnd(admin: SupabaseClient, orgId: string, period: HomeTi
 
 /** One carrier, one run. Exported for the tests; the scheduler below calls it for every org. */
 export async function runHomeTimeOnce(admin: SupabaseClient, env: Env, orgId: string, now: Date = new Date()): Promise<HomeTimeRunResult> {
-  const result: HomeTimeRunResult = { endedLeft: 0, endedOnLoad: 0, bells: 0, emails: 0 };
+  const result: HomeTimeRunResult = { endedLeft: 0, endedOnLoad: 0, bells: 0, emails: 0, texts: 0 };
   const rows = (await readLiveHomeTimes(admin, orgId)).filter((r): r is HomeTimeRow & { driver_id: string } => !!r.driver_id);
   if (rows.length === 0) return result;
   const { data: entitled, error: moduleError } = await admin.rpc("org_module_enabled", { p_org: orgId, p_module: "dispatch" });
@@ -158,9 +160,10 @@ export async function runHomeTimeOnce(admin: SupabaseClient, env: Env, orgId: st
     }
   }
   for (const [alert, events] of byAlert) {
-    const sent = await sendAlerts(admin, env, orgId, alert, events);
+    const sent = await sendAlerts(admin, env, orgId, alert, events, { zone, now });
     result.bells += sent.bells;
     result.emails += sent.emails;
+    result.texts += sent.texts;
   }
   return result;
 }
@@ -179,9 +182,18 @@ export function startHomeTimeScheduler(env: Env): void {
       if (error) throw new Error(error.message);
       for (const { id } of (data ?? []) as { id: string }[]) {
         try {
-          const r = await runHomeTimeOnce(admin, env, id);
-          if (r.endedLeft + r.endedOnLoad + r.bells + r.emails > 0) {
-            console.log(`[home-time] org ${id}: ended ${r.endedOnLoad} on a load, ${r.endedLeft} left; ${r.bells} bell item(s), ${r.emails} email(s)`);
+          const now = new Date();
+          const r = await runHomeTimeOnce(admin, env, id, now);
+          // Texts that waited for the morning, and any a dead run left queued. After the run, so a text
+          // queued a moment ago is not looked at twice; for every carrier, because a held text outlives
+          // the home time it was about. One cheap read when nothing is queued.
+          const drained = await drainAlertTexts(admin, env, id, now, () => orgTimezone(admin, id));
+          r.texts += drained.sent;
+          if (r.endedLeft + r.endedOnLoad + r.bells + r.emails + r.texts + drained.failed + drained.skipped > 0) {
+            console.log(
+              `[home-time] org ${id}: ended ${r.endedOnLoad} on a load, ${r.endedLeft} left; ${r.bells} bell item(s), ${r.emails} email(s), ${r.texts} text(s)` +
+                (drained.failed + drained.skipped > 0 ? `; ${drained.failed} text(s) failed, ${drained.skipped} skipped` : ""),
+            );
           }
         } catch (e) {
           console.error(`[home-time] run failed for org ${id}:`, e instanceof Error ? e.message : e);

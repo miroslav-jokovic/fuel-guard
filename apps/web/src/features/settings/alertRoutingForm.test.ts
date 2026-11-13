@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { ALERT_CATALOGUE, alertRoutesProblem, type AlertRoute } from "@silvicom/shared";
-import { addablePeople, personRow, recipientRows, routesChanged, toRoutes, type RoutingAlert, type RoutingMember } from "./alertRoutingForm";
+import { addablePeople, editedChannels, personRow, recipientRows, routesChanged, textHint, toRoutes, type RoutingAlert, type RoutingMember } from "./alertRoutingForm";
 
 const MEMBERS: RoutingMember[] = [
-  { userId: "u-ada", name: "Ada Admin", role: "admin" },
-  { userId: "u-dana", name: "Dana Dispatch", role: "dispatcher" },
-  { userId: "u-ivo", name: "Ivo K", role: "dispatcher" },
-  { userId: "u-fran", name: "Fran Fleet", role: "fleet_manager" },
+  { userId: "u-ada", name: "Ada Admin", role: "admin", textReady: false },
+  { userId: "u-dana", name: "Dana Dispatch", role: "dispatcher", textReady: true },
+  { userId: "u-ivo", name: "Ivo K", role: "dispatcher", textReady: false },
+  { userId: "u-fran", name: "Fran Fleet", role: "fleet_manager", textReady: true },
 ];
 const def = ALERT_CATALOGUE.find((a) => a.key === "home_time_overdue")!;
 const alert = (routes: AlertRoute[] = [...def.defaults], usesDefaults = true): RoutingAlert => ({
@@ -54,12 +54,20 @@ describe("toRoutes", () => {
     expect(routes.filter((x) => x.enabled).map((x) => `${x.recipientKey}:${x.channel}`).sort()).toEqual(def.defaults.map((x) => `${x.recipientKey}:${x.channel}`).sort());
   });
 
-  it("carries a text route of a listed recipient through untouched, and lets go of one whose person was taken off", () => {
+  it("on a page with no Text column, carries a text route of a listed recipient through untouched, and lets go of one whose person was taken off", () => {
     const original = [r("role", "fleet_manager", "bell"), r("role", "fleet_manager", "sms"), r("user", "u-dana", "sms"), r("user", "u-dana", "bell")];
     const rows = recipientRows(alert(original, false), MEMBERS).filter((x) => x.id !== "user:u-dana");
-    const routes = toRoutes(rows, original);
-    expect(routes).toContainEqual(r("role", "fleet_manager", "sms"));
+    const routes = toRoutes(rows, original, editedChannels(false));
+    expect(routes.filter((x) => x.channel === "sms")).toEqual([r("role", "fleet_manager", "sms")]);
     expect(routes.some((x) => x.recipientKey === "u-dana")).toBe(false);
+  });
+
+  it("on a page WITH the Text column, sends the Text switch as the page shows it — once, not carried as well", () => {
+    const original = [r("role", "fleet_manager", "bell"), r("role", "fleet_manager", "sms")];
+    const rows = recipientRows(alert(original, false), MEMBERS).map((x) => (x.id === "role:fleet_manager" ? { ...x, sms: false } : x));
+    const routes = toRoutes(rows, original, editedChannels(true));
+    expect(routes.filter((x) => x.recipientKey === "fleet_manager" && x.channel === "sms")).toEqual([r("role", "fleet_manager", "sms", false)]);
+    expect(alertRoutesProblem(def.key, routes, new Set(MEMBERS.map((m) => m.userId)))).toBeNull();
   });
 
   it("a set with every switch off is what the API refuses", () => {
@@ -91,5 +99,23 @@ describe("routesChanged", () => {
     expect(routesChanged(rows, a, MEMBERS)).toBe(false);
     expect(routesChanged(rows.map((x) => (x.id === "role:dispatcher" ? { ...x, bell: true } : x)), a, MEMBERS)).toBe(true);
     expect(routesChanged([...rows, personRow(def.key, rows, MEMBERS[1]!)], a, MEMBERS)).toBe(true);
+  });
+});
+
+describe("who a Text switch really reaches", () => {
+  it("says how many of a role confirmed a number, and when a named person has not", () => {
+    expect(textHint("role", "dispatcher", MEMBERS)).toBe("1 of 2 confirmed");
+    expect(textHint("role", "fleet_manager", MEMBERS)).toBe("1 of 1 confirmed");
+    expect(textHint("role", "auditor", MEMBERS)).toBe("");
+    expect(textHint("user", "u-ivo", MEMBERS)).toBe("No confirmed number");
+    expect(textHint("user", "u-dana", MEMBERS)).toBe("");
+    expect(textHint("relation", "marked_by", MEMBERS)).toBe("If they confirmed a number");
+  });
+
+  it("reads a saved text route into the row, and counts it as a change when it moves", () => {
+    const a = alert([r("role", "fleet_manager", "bell"), r("role", "fleet_manager", "sms")], false);
+    const rows = recipientRows(a, MEMBERS);
+    expect(rows.find((x) => x.id === "role:fleet_manager")).toMatchObject({ sms: true, textHint: "1 of 1 confirmed" });
+    expect(routesChanged(rows.map((x) => ({ ...x, sms: false })), a, MEMBERS)).toBe(true);
   });
 });

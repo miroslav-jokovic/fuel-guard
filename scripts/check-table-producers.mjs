@@ -124,7 +124,8 @@ const WAIVERS = new Map([
   // notification_routes and notification_contacts left on 2026-11-13 in HT4: messaging/alertRouting.ts reads an
   // alert's routes and who has a confirmed number (reads are producer evidence here); HT5 saves the routes and
   // HT6's "My alerts" writes the numbers.
-  ["notification_channel_settings", "HOME-TIME-PLAN.md HT6 — the text sender reads the hours a text is held, and the Settings page saves them; only a text is ever held, so its reader ships with texting (schema-only, 0598; leaves in HT6's merge)"],
+  // notification_channel_settings left on 2026-11-13 in HT6: messaging/alertTexts.ts reads the hours a text is
+  // held and the Settings page saves them.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { QueryState } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
+import MyTextAlerts from "./MyTextAlerts.vue";
 import { myAlertLines } from "./myAlertsWords";
 import { useMyAlerts } from "./useAlertRouting";
 import { useMyAlertsPanel } from "./useMyAlertsPanel";
@@ -9,7 +10,8 @@ import { useMyAlertsPanel } from "./useMyAlertsPanel";
 /**
  * "My alerts", from the account menu (HOME-TIME-PLAN D-HT17): what the signed-in person receives, read
  * only. Who is told is the carrier's decision, made in Settings, Notifications; a person's own control
- * is the bell's mute. Text alerts and confirming a mobile number arrive with the text step (HT6).
+ * is the bell's mute — and, below the list, their own mobile number for texts (`MyTextAlerts`), which is
+ * outside the list's read state so that a failed list does not hide the way to stop texts.
  */
 const panel = useMyAlertsPanel();
 const mine = useMyAlerts(panel.open);
@@ -41,5 +43,6 @@ const alerts = computed(() => (mine.data.value?.alerts ?? []).map((a) => ({ ...a
         An admin chooses who is told in Settings, Notifications. To stop an alert for yourself, mute it from the bell.
       </p>
     </QueryState>
+    <MyTextAlerts />
   </SlideOver>
 </template>

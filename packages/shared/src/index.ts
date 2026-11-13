@@ -157,6 +157,7 @@ export * from "./dispatchContract.js";
 export * from "./homeTimeContract.js";
 export * from "./homeTime.js";
 export * from "./alertRouting.js";
+export * from "./alertTexts.js";
 export * from "./dispatchBoardContract.js";
 export * from "./trailerLinkContract.js";
 export * from "./dispatchBoard.js";

@@ -15,6 +15,7 @@ import {
 import type { Env } from "../../env.js";
 import { sendEmail } from "../../lib/mailer.js";
 import { notify } from "./notify.js";
+import { readAlertTextQuiet, textOne, type AlertTextClock } from "./alertTexts.js";
 
 /**
  * Alert routing's server half (NOTIFICATION-ROUTING-PLAN D-NR3, D-NR4; HOME-TIME-PLAN §3.6, D-HT14):
@@ -28,8 +29,9 @@ import { notify } from "./notify.js";
  *   · ONE email listing everything new for them, never one per driver (the DQ alerts' rule): queued
  *     with `queue_notification_delivery` (0598), which claims each line's key in the dedupe ledger and
  *     queues only the lines it claimed, then sent, and the outcome written back on the row.
- * SMS is resolved here — who would get a text — and SENT in HT6, with the confirmation and STOP
- * handling a text needs; until then `sms` is in nobody's channels, because nobody has a verified number.
+ *   · ONE text listing everything new for them (HT6), to the mobile number they confirmed and have not
+ *     stopped: queued the same way and sent at once, or held until the quiet window ends
+ *     (`alertTexts.ts`).
  *
  * ── AN ALERT ADDRESSED TO NOBODY IS A FAILURE ───────────────────────────────────────────────────
  * When the routes resolve to nobody for an event — the truck's fleet has no linked dispatcher, the
@@ -56,6 +58,9 @@ export interface AlertSendResult {
   /** Bell items actually made (a deduped or muted one is not). */
   bells: number;
   emails: number;
+  /** Texts that left now; one held for the morning is `textsHeld`, and is sent by the drain. */
+  texts: number;
+  textsHeld: number;
   /** Events whose routes resolved to nobody, sent to the section's managers instead. */
   fellBack: number;
 }
@@ -100,22 +105,22 @@ export async function readAlertRoutes(admin: SupabaseClient, orgId: string, aler
   }));
 }
 
-/** The members who can be texted: a number they confirmed and have not stopped (D-NR5). */
-async function readTextable(admin: SupabaseClient, orgId: string): Promise<Set<string>> {
+/** The members who can be texted, with the number: one they confirmed and have not stopped (D-NR5). */
+async function readTextable(admin: SupabaseClient, orgId: string): Promise<Map<string, string>> {
   const { data, error } = await admin
     .from("notification_contacts")
-    .select("user_id")
+    .select("user_id, phone")
     .eq("org_id", orgId)
     .not("verified_at", "is", null)
     .is("stopped_at", null);
   if (error) throw new Error(`notification_contacts: ${error.message}`);
-  return new Set(((data ?? []) as { user_id: string }[]).map((r) => r.user_id));
+  return new Map(((data ?? []) as { user_id: string; phone: string }[]).map((r) => [r.user_id, r.phone]));
 }
 
 export interface AlertAudience {
   routes: AlertRoute[];
   directory: Directory;
-  textable: Set<string>;
+  textable: Map<string, string>;
 }
 
 /** Everything `recipientsFor` needs for one alert, read once per run and reused for every event. */
@@ -140,17 +145,22 @@ export function recipientsFor(alert: AlertKey, audience: AlertAudience, relation
 
 const escapeHtml = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** Send a batch of events of one alert. Never throws for one person's failure: the rest are still told. */
-export async function sendAlerts(admin: SupabaseClient, env: Env, orgId: string, alert: AlertKey, events: readonly AlertEvent[]): Promise<AlertSendResult> {
-  const result: AlertSendResult = { bells: 0, emails: 0, fellBack: 0 };
+/**
+ * Send a batch of events of one alert. Never throws for one person's failure: the rest are still told.
+ * `clock` is the carrier's zone and the run's instant — the caller already holds both, and a text is
+ * held or sent on that clock.
+ */
+export async function sendAlerts(admin: SupabaseClient, env: Env, orgId: string, alert: AlertKey, events: readonly AlertEvent[], clock: AlertTextClock): Promise<AlertSendResult> {
+  const result: AlertSendResult = { bells: 0, emails: 0, texts: 0, textsHeld: 0, fellBack: 0 };
   if (events.length === 0) return result;
   const def = alertDefinition(alert);
   const audience = await readAlertAudience(admin, orgId, alert);
   const managers = new Set<string>(rolesThatManage(def.section));
   const fallback = audience.directory.members.filter((m) => managers.has(m.role)).map((m) => m.userId);
 
-  /** Per person, the events to email them about. */
+  /** Per person, the events to email them about, and to text them about. */
   const emailFor = new Map<string, AlertEvent[]>();
+  const textFor = new Map<string, AlertEvent[]>();
   for (const event of events) {
     let recipients = recipientsFor(alert, audience, event.relations);
     if (recipients.size === 0) {
@@ -173,6 +183,7 @@ export async function sendAlerts(admin: SupabaseClient, env: Env, orgId: string,
         if (id) result.bells += 1;
       }
       if (channels.has("email")) emailFor.set(userId, [...(emailFor.get(userId) ?? []), event]);
+      if (channels.has("sms")) textFor.set(userId, [...(textFor.get(userId) ?? []), event]);
     }
   }
   if (result.fellBack > 0) console.warn(`[alerts] org ${orgId}: ${result.fellBack} ${alert} event(s) resolved to nobody and went to who manages ${def.section}`);
@@ -184,6 +195,22 @@ export async function sendAlerts(admin: SupabaseClient, env: Env, orgId: string,
       if (await emailOne(admin, env, orgId, alert, def, userId, to, mine)) result.emails += 1;
     } catch (e) {
       console.error(`[alerts] org ${orgId}: email of ${alert} failed for one recipient:`, e instanceof Error ? e.message : e);
+    }
+  }
+
+  if (textFor.size > 0) {
+    const quiet = await readAlertTextQuiet(admin, orgId);
+    for (const [userId, mine] of textFor) {
+      const phone = audience.textable.get(userId);
+      if (!phone) continue;
+      try {
+        const items = mine.map((e) => ({ key: e.dedupeKey, line: e.line }));
+        const outcome = await textOne(admin, env, orgId, alert, def.label, userId, phone, items, quiet, clock);
+        if (outcome === "sent") result.texts += 1;
+        else if (outcome === "held") result.textsHeld += 1;
+      } catch (e) {
+        console.error(`[alerts] org ${orgId}: text of ${alert} failed for one recipient:`, e instanceof Error ? e.message : e);
+      }
     }
   }
   return result;

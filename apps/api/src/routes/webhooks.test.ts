@@ -13,6 +13,13 @@ vi.mock("../modules/recruiting/index.js", async (orig) => ({
   ...(await orig<object>()),
   recordDeliveryReceipt: receipts.fn,
 }));
+// HOME-TIME HT6: the same receipt is offered to the office alert texts, whose write is
+// `messaging/alertTexts.test.ts`'s to prove.
+const alertReceipts = vi.hoisted(() => ({ fn: vi.fn(async () => false) }));
+vi.mock("../modules/messaging/index.js", async (orig) => ({
+  ...(await orig<object>()),
+  recordAlertTextReceipt: alertReceipts.fn,
+}));
 
 /**
  * The path we PUBLISH is the path we LISTEN on.
@@ -139,6 +146,7 @@ describe("the inbound SMS receiver", () => {
     });
     expect(res.status).toBe(200);
     expect(receipts.fn).toHaveBeenCalledWith(expect.anything(), { messageId: "tx-1", status: "delivery_failed" }, expect.any(Date));
+    expect(alertReceipts.fn).toHaveBeenCalledWith(expect.anything(), { messageId: "tx-1", status: "delivery_failed" });
   });
 
   // Telnyx posts JSON. The `express.urlencoded` mount this route used to sit behind was for Twilio,

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { rolesThatCanView, type AppSection } from "./auth.js";
 import type { UserRole } from "./constants.js";
 import type { NotificationCategory } from "./notificationsContract.js";
+import { alertTextQuietSchema } from "./alertTexts.js";
 
 /**
  * Alert routing — which alert goes to whom, by bell, email or text
@@ -222,7 +223,17 @@ export const alertRoutingViewSchema = z.object({
     }),
   ),
   /** Active members, with their role, so the page can add a person and say who a role reaches. */
-  members: z.array(z.object({ userId: z.string(), name: z.string(), role: z.string() })),
+  members: z.array(
+    z.object({
+      userId: z.string(),
+      name: z.string(),
+      role: z.string(),
+      /** Has a mobile number they confirmed and have not stopped: a Text switch reaches them. */
+      textReady: z.boolean(),
+    }),
+  ),
+  /** Texting: whether this server can send one at all, and the hours a text is held (D-HT18). */
+  texts: z.object({ available: z.boolean(), quiet: alertTextQuietSchema }),
 });
 export type AlertRoutingView = z.infer<typeof alertRoutingViewSchema>;
 

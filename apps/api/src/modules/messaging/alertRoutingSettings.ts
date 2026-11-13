@@ -17,7 +17,10 @@ import {
   type MyAlerts,
   type UserRole,
 } from "@silvicom/shared";
+import type { Env } from "../../env.js";
+import { smsConfigured } from "../../lib/sms.js";
 import { readDirectory } from "./alertRouting.js";
+import { readAlertTextQuiet } from "./alertTexts.js";
 
 /**
  * What the office sets and sees about alert routing (HOME-TIME-PLAN HT5; NOTIFICATION-ROUTING-PLAN
@@ -64,8 +67,15 @@ const reachable = (members: readonly AlertMember[], alert: AlertKey): AlertMembe
   return members.filter((m) => viewers.has(m.role));
 };
 
-export async function readAlertRoutingView(admin: SupabaseClient, orgId: string): Promise<AlertRoutingView> {
-  const [rows, directory] = await Promise.all([readRouteRows(admin, orgId), readDirectory(admin, orgId)]);
+/** Who has a confirmed number they have not stopped: the people a Text switch actually reaches. */
+async function readTextReady(admin: SupabaseClient, orgId: string): Promise<Set<string>> {
+  const { data, error } = await admin.from("notification_contacts").select("user_id").eq("org_id", orgId).not("verified_at", "is", null).is("stopped_at", null);
+  if (error) throw new Error(`notification_contacts: ${error.message}`);
+  return new Set(((data ?? []) as { user_id: string }[]).map((r) => r.user_id));
+}
+
+export async function readAlertRoutingView(admin: SupabaseClient, env: Env, orgId: string): Promise<AlertRoutingView> {
+  const [rows, directory, quiet, ready] = await Promise.all([readRouteRows(admin, orgId), readDirectory(admin, orgId), readAlertTextQuiet(admin, orgId), readTextReady(admin, orgId)]);
   const listed = new Set<string>();
   const alerts = ALERT_CATALOGUE.map((def) => {
     const saved = savedFor(rows, def.key);
@@ -82,9 +92,9 @@ export async function readAlertRoutingView(admin: SupabaseClient, orgId: string)
   });
   const members = directory.members
     .filter((m) => listed.has(m.userId))
-    .map((m) => ({ userId: m.userId, name: directory.nameOf.get(m.userId) ?? "Unnamed member", role: m.role }))
+    .map((m) => ({ userId: m.userId, name: directory.nameOf.get(m.userId) ?? "Unnamed member", role: m.role, textReady: ready.has(m.userId) }))
     .sort((a, b) => a.name.localeCompare(b.name));
-  return { alerts, members };
+  return { alerts, members, texts: { available: smsConfigured(env), quiet } };
 }
 
 export type AlertRoutesSaved = { ok: true; routes: AlertRoute[] } | { ok: false; problem: string };
