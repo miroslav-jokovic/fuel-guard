@@ -40,7 +40,6 @@ import { readFleetIdentities } from "../fleetIdentityReads.js";
  * `homeTimeState` reads it from the times against the caller's one clock (D-HT2).
  */
 
-const TABLE = "driver_time_off";
 const PROVIDER = "silvicom";
 const COLUMNS =
   "id, driver_id, vehicle_id, start_at, expected_return_at, end_at, end_reason, canceled_at, truck_disposition, created_by, created_at, updated_at";
@@ -86,7 +85,7 @@ const CLOSED: HomeTimeRefusal = { code: "conflict", message: "This home time was
  */
 export async function readLiveHomeTimes(admin: SupabaseClient, orgId: string): Promise<HomeTimeRow[]> {
   const { data, error } = await admin
-    .from(TABLE)
+    .from("driver_time_off")
     .select(COLUMNS)
     .eq("org_id", orgId)
     .eq("provider", PROVIDER)
@@ -155,7 +154,7 @@ async function hydrate(admin: SupabaseClient, orgId: string, rows: readonly Home
 }
 
 async function getRow(admin: SupabaseClient, orgId: string, id: string): Promise<HomeTimeRow | null> {
-  const { data, error } = await admin.from(TABLE).select(COLUMNS).eq("org_id", orgId).eq("provider", PROVIDER).eq("id", id).maybeSingle();
+  const { data, error } = await admin.from("driver_time_off").select(COLUMNS).eq("org_id", orgId).eq("provider", PROVIDER).eq("id", id).maybeSingle();
   if (error) throw new Error(`driver_time_off: ${error.message}`);
   return (data as unknown as HomeTimeRow | null) ?? null;
 }
@@ -179,7 +178,7 @@ export async function listHomeTimes(admin: SupabaseClient, orgId: string, now: D
   const [live, lately, settings] = await Promise.all([
     readLiveHomeTimes(admin, orgId),
     admin
-      .from(TABLE)
+      .from("driver_time_off")
       .select(COLUMNS)
       .eq("org_id", orgId)
       .eq("provider", PROVIDER)
@@ -217,7 +216,7 @@ export async function listHomeTimeDrivers(admin: SupabaseClient, orgId: string):
       .limit(1000),
     readFleetIdentities(admin, orgId),
     admin
-      .from(TABLE)
+      .from("driver_time_off")
       .select("driver_id, truck_disposition, start_at")
       .eq("org_id", orgId)
       .eq("provider", PROVIDER)
@@ -343,7 +342,7 @@ export async function changeHomeTime(
   }
 
   const { data, error } = await admin
-    .from(TABLE)
+    .from("driver_time_off")
     .update({ start_at: startAt, expected_return_at: expectedReturnAt, truck_disposition: disposition, updated_by: actorId, updated_at: now.toISOString() })
     .eq("org_id", orgId)
     .eq("provider", PROVIDER)
@@ -381,7 +380,7 @@ export async function endHomeTime(
     return { code: "invalid", message: "The end must be between the start and now." };
   }
   const { data, error } = await admin
-    .from(TABLE)
+    .from("driver_time_off")
     .update({ end_at: endAt.toISOString(), end_reason: reason, ended_by: actorId, updated_by: actorId, updated_at: now.toISOString() })
     .eq("org_id", orgId)
     .eq("provider", PROVIDER)
@@ -404,7 +403,7 @@ export async function cancelHomeTime(
   now: Date,
 ): Promise<HomeTimePeriod | HomeTimeRefusal> {
   const { data, error } = await admin
-    .from(TABLE)
+    .from("driver_time_off")
     .update({ canceled_at: now.toISOString(), canceled_by: actorId, updated_by: actorId, updated_at: now.toISOString() })
     .eq("org_id", orgId)
     .eq("provider", PROVIDER)
