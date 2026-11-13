@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppIcon, AppIconButton } from "@silvicom/ui";
+import { PinIcon, UnpinIcon } from "@silvicom/ui/icons";
 import { chatBodyParts, formatDisplayDateTime, UNIT_NOTE_KIND_LABELS, type UnitNoteSearchHit } from "@silvicom/shared";
 import MentionChip from "@/components/mentions/MentionChip.vue";
 import { useSessionStore } from "@/stores/session";
@@ -39,7 +40,7 @@ const parts = computed(() => chatBodyParts(props.note.body));
   >
     <div class="flex items-start justify-between gap-2">
       <p class="min-w-0 flex-1 pt-1 text-xs text-ink-muted">
-        <span v-if="note.pinned" class="font-medium text-ink">Pinned · </span>
+        <span v-if="note.pinned" class="inline-flex items-center gap-0.5 font-medium text-ink" data-note-pinned><AppIcon :icon="PinIcon" class="size-3" aria-hidden="true" />Pinned</span><span v-if="note.pinned"> · </span>
         <button
           v-if="showUnit"
           type="button"
@@ -49,9 +50,18 @@ const parts = computed(() => chatBodyParts(props.note.body));
         >{{ UNIT_NOTE_KIND_LABELS[note.kind] }} {{ note.subjectLabel }}</button><span v-if="showUnit"> · </span>
         <span class="text-ink-secondary">{{ note.authorName }}</span> · {{ formatDisplayDateTime(note.createdAt) }}
       </p>
-      <BaseButton class="shrink-0" size="sm" variant="ghost" :disabled="pinBusy" data-note-pin @click="emit('pin', note)">
-        {{ note.pinned ? "Unpin" : "Pin to top" }}
-      </BaseButton>
+      <!-- The sidebar's pin and chat's (SidebarNavItem, ChatMessageRow): the same two glyphs for the same act. -->
+      <AppIconButton
+        class="shrink-0"
+        size="sm"
+        variant="ghost"
+        :icon="note.pinned ? UnpinIcon : PinIcon"
+        :label="note.pinned ? 'Unpin' : 'Pin to top'"
+        :pressed="note.pinned"
+        :disabled="pinBusy"
+        data-note-pin
+        @click="emit('pin', note)"
+      />
     </div>
     <p class="mt-1 whitespace-pre-line break-words text-sm text-ink-secondary" data-note-body>
       <template v-for="(p, i) in parts" :key="i">

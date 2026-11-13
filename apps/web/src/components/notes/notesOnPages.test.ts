@@ -90,6 +90,8 @@ describe("the Vehicles list's Notes column", () => {
     expect(keys.indexOf("notes")).toBe(keys.indexOf("file") + 1);
     const cells = w.findAll("[data-notes-cell]");
     expect(cells.map((c) => c.text().replace(/\s+/g, " "))).toEqual(["3 2 d ago", "Add"]);
+    // The sidebar's Notes icon marks a truck that has notes, and only that one.
+    expect(cells.map((c) => c.find("[data-notes-cell-icon]").exists())).toEqual([true, false]);
     expect(summaryCalls()).toEqual(["/api/notes/summary?kinds=vehicle"]);
   });
 
