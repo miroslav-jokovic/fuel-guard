@@ -1,15 +1,18 @@
 import { computed, inject, nextTick, provide, ref, watch, type InjectionKey } from "vue";
 import {
+  isAsked,
   isGeneratedTask,
+  questionsForScreen,
   wizardScreenShown,
   wizardTaskScreens,
   type ApplicationSection,
+  type QuestionnaireQuestion,
   type WizardScreen,
 } from "@silvicom/shared";
 import type { ApplicationDraft } from "@/features/apply/draft";
-import { fieldId } from "@/features/apply/fieldLabels";
+import { questionnaireAnswers, type QuestionnaireAnswers } from "@/features/apply/questionnaireAnswers";
 import { validateSection, type SectionIssue } from "@/features/apply/useApplicationWizard";
-import { draftBinding, draftPath, newRow } from "./draftFields";
+import { draftBinding, draftPath, newRow, pathUnder } from "./draftFields";
 
 /**
  * A Part 2 task, one question to a screen (F4 PR 1b-1; SCREEN-MAP §1, §3, §7).
@@ -31,6 +34,16 @@ import { draftBinding, draftPath, newRow } from "./draftFields";
  * catalogue's order, and the list ends with "Any other …?" — Yes adds a row and walks it, No moves on.
  * Rows come from the gate before them (`FactAsk.gate`): Yes opens the first, No clears them. So the
  * number of screens is the driver's own history — SCREEN-MAP §6's "most screens are one tap".
+ *
+ * ── THE CARRIER'S QUESTIONS ARE THE DEFINITION'S (F4 PR 1b-2) ─────────────────────────────────
+ * After a task's catalogue screens come the carrier's questions the served definition puts on that task
+ * (`questionsForScreen`) — then the ones the carrier wrote itself, as stamped on the invitation — each
+ * asked question on a screen of its own (SCREEN-MAP 2.2–2.4, 2.27…n). A question asked only on another's
+ * answer ("If so, when?") appears and goes as that answer changes, as a conditional catalogue screen does.
+ *
+ * ── PART 1'S ANSWERS, SHOWN AND NOT ASKED ─────────────────────────────────────────────────────
+ * "About you" ends on what Part 1 already holds (the date of birth, the phone), read-only with "Something
+ * wrong? Tell us" — the section component's card (C3c2c2, Q-AW34), on a screen of its own at the end.
  */
 
 export interface WalkStep {
@@ -41,7 +54,14 @@ export interface WalkStep {
   readonly row?: number;
   /** "Any other …?" — the list this ends. */
   readonly another?: string;
+  /** One of the carrier's questions, and the answers it is stored in. */
+  readonly question?: { readonly q: QuestionnaireQuestion; readonly answers: QuestionnaireAnswers };
+  /** The task's Part 1 answers, shown with "Something wrong? Tell us" (`PART_ONE_SHOWN`). */
+  readonly partOne?: true;
 }
+
+/** The tasks that end on Part 1's answers — `ApplicantDetailsFields`' card, on a v2 link. */
+const PART_ONE_SHOWN: readonly ApplicationSection[] = ["identity"];
 
 interface WalkWizard {
   section: { value: ApplicationSection };
@@ -58,8 +78,17 @@ interface WalkHub {
 
 type Rows = Array<Record<string, unknown>>;
 
-export function useTaskWalk(draft: ApplicationDraft, wizard: WalkWizard, hub: WalkHub, v2AsOf: () => string | null) {
+export function useTaskWalk(
+  draft: ApplicationDraft,
+  wizard: WalkWizard,
+  hub: WalkHub,
+  v2AsOf: () => string | null,
+  /** Has the page Part 1's answers to show (a v2 link, once released)? */
+  hasPartOne: () => boolean = () => false,
+) {
   const binding = draftBinding(() => draft, () => wizard.issues.value);
+  /** The carrier's built-in questions, then its own stamped ones — in that order on the task's screens. */
+  const questionSources = [questionnaireAnswers(() => draft, "builtin"), questionnaireAnswers(() => draft, "carrier")];
   const doc = (): Record<string, unknown> => draft as unknown as Record<string, unknown>;
   const rowsOf = (list: string): Rows => (doc()[list] as Rows | undefined) ?? [];
 
@@ -90,6 +119,12 @@ export function useTaskWalk(draft: ApplicationDraft, wizard: WalkWizard, hub: Wa
       });
       if (rows.length > 0) out.push({ key: `${screen.list}.another`, another: screen.list });
     }
+    for (const answers of questionSources) {
+      for (const q of questionsForScreen(answers.definition(), task.value)) {
+        if (isAsked(q, answers.answers())) out.push({ key: `${answers.pathKey}.${q.id}`, question: { q, answers } });
+      }
+    }
+    if (PART_ONE_SHOWN.includes(task.value) && hasPartOne()) out.push({ key: `${task.value}.part_one`, partOne: true });
     return out;
   });
 
@@ -117,15 +152,19 @@ export function useTaskWalk(draft: ApplicationDraft, wizard: WalkWizard, hub: Wa
   // Opening a task starts at its first screen.
   watch(task, () => moveTo(0));
 
-  /** The DOM ids a step's controls carry — what the task's issues are matched to it by. */
-  const idsOf = (step: WalkStep): Set<string> =>
-    new Set(
-      (step.screen?.fields ?? []).flatMap((f) => [
-        fieldId(draftPath(f.fact.path, step.row)),
-        ...(f.ask.gate ? [fieldId([f.ask.gate])] : []),
-      ]),
-    );
-  const owns = (step: WalkStep, issue: SectionIssue): boolean => idsOf(step).has(issue.fieldId);
+  /** A gate's own refusal is reported at its list (`["accidents"]`), not under it. */
+  const atGate = (issue: SectionIssue, gate: string | undefined): boolean =>
+    gate !== undefined && issue.path.length === 1 && issue.path[0] === gate;
+  /**
+   * Does a step hold a problem the task's check found? By the problem's PATH: at or under each field's draft
+   * path (one other name's problem is the list's screen's), at a gate's list, or under a question's answer
+   * (a reference's phone is the references screen's).
+   */
+  const owns = (step: WalkStep, issue: SectionIssue): boolean => {
+    if (step.question) return pathUnder(issue.path, step.question.answers.pathOf(step.question.q));
+    return (step.screen?.fields ?? []).some((f) =>
+      pathUnder(issue.path, draftPath(f.fact.path, step.row)) || atGate(issue, f.ask.gate));
+  };
 
   /** A problem the task's check found that no screen of the task shows — said, never dropped. */
   const stray = computed<string[]>(() =>
@@ -169,10 +208,8 @@ export function useTaskWalk(draft: ApplicationDraft, wizard: WalkWizard, hub: Wa
     // ⚠ A gate answered Yes is not refused for its list being empty: the rows are the NEXT screens' to ask,
     // and a blank first row is dropped from what files, so the list rule would hold the driver on "Yes".
     // If the rows are still empty at the close, the task's check says so and opens the gate again.
-    const openedList = step.screen?.gate && binding.read(step.screen.fields[0]!.fact.path) === true
-      ? fieldId([step.screen.gate])
-      : null;
-    const found = validateSection(task.value, draft, v2AsOf()).filter((i) => owns(step, i) && i.fieldId !== openedList);
+    const openedList = step.screen?.gate && binding.read(step.screen.fields[0]!.fact.path) === true ? step.screen.gate : undefined;
+    const found = validateSection(task.value, draft, v2AsOf()).filter((i) => owns(step, i) && !atGate(i, openedList));
     wizard.setIssues(found);
     if (found.length > 0) {
       wizard.focusIssue(found[0]!);

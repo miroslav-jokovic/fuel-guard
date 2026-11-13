@@ -76,6 +76,15 @@ const choices = (f: WizardField) => {
 
 const picked = (path: FactPath): string[] => (read(path) as string[] | undefined) ?? [];
 
+/**
+ * A list of names (`other_names`, SCREEN-MAP 2.1a): a box per name, "Add a name", and a removal per box,
+ * as the section component asked it. Every change is written through the binding, the one door a
+ * generated screen writes by, never into the array it read.
+ */
+const names = (path: FactPath): string[] => (read(path) as string[] | undefined) ?? [];
+const setName = (path: FactPath, at: number, value: string): void =>
+  write(path, names(path).map((n, i) => (i === at ? value : n)));
+
 function toggle(f: WizardField, value: string, on: boolean): void {
   const chosen = new Set(picked(f.fact.path));
   if (on) chosen.add(value); else chosen.delete(value);
@@ -118,6 +127,27 @@ function toggle(f: WizardField, value: string, on: boolean): void {
           @update:model-value="toggle(f, c.value, $event)"
         />
         <p v-if="error(f.fact.path)" class="mt-1 text-sm text-danger-700" role="alert">{{ error(f.fact.path) }}</p>
+      </fieldset>
+
+      <fieldset v-else-if="f.fact.input === 'names'" :id="id(f.fact.path)" class="space-y-2">
+        <legend class="text-sm font-medium text-ink-secondary">{{ binding.copy(f.fact.path).label }}</legend>
+        <p v-if="binding.copy(f.fact.path).hint" class="text-xs text-ink-muted">{{ binding.copy(f.fact.path).hint }}</p>
+        <div v-for="(name, i) in names(f.fact.path)" :key="i" class="flex items-center gap-2">
+          <BaseInput
+            :model-value="name"
+            :aria-label="`${binding.copy(f.fact.path).label} ${i + 1}`"
+            class="flex-1"
+            autocomplete="off"
+            @update:model-value="setName(f.fact.path, i, $event)"
+          />
+          <AppButton variant="ghost" size="sm" @click="write(f.fact.path, names(f.fact.path).filter((_, j) => j !== i))">
+            {{ APPLY_COPY.identity.remove }}
+          </AppButton>
+        </div>
+        <AppButton variant="secondary" size="sm" @click="write(f.fact.path, [...names(f.fact.path), ''])">
+          {{ APPLY_COPY.identity.addOtherName }}
+        </AppButton>
+        <p v-if="error(f.fact.path)" class="text-sm text-danger-700" role="alert">{{ error(f.fact.path) }}</p>
       </fieldset>
 
       <FormField

@@ -725,3 +725,28 @@ A gate fails on a literal string in an `apply/` template.
     - All 37 e2e-apply specs pass, the new `drivingRecordWalk.spec.ts` among them.
     - Screenshots at 390×844 in EN and ES.
   - **Next:** 1b-2, "About you" and the carrier's questions.
+- 2026-11-13: **F4 PR 1b-1 merged** (#2345, `1fa0700`). CI's first two runs failed on `vue/no-mutating-props` ("Any other?" now goes through `walk.answerAnother`) and on `applicationContract.ts` at 501 lines (the hazmat comment shortened).
+- 2026-11-13: **F4 PR 1b-2: "About you" and the carrier's questions, one question to a screen** (`claude/application-wizard-about-you`, no migration).
+  - **"About you"** walks: the name (one fact typed together, D-AM3), other names, email, the SSN (its own control and save, drawn by the fact's `ssn` door), the carrier's page-1 questions, then Part 1's date of birth and phone, read-only with "Something wrong? Tell us".
+  - **"The carrier's questions"** walks each question of the served definition on its own screen: education, military service (with "If so, when?" only after a yes), other training, references, then the carrier's own stamped questions.
+    - The questions are the definition's, not the catalogue's (`askedByDefinition`), so a carrier's change needs no catalogue edit (D-APP12).
+    - A table question stays one screen, per the paper ruling above.
+  - **One control per question kind** (`QuestionField.vue`) and one set of answer rules (`questionnaireAnswers.ts`), shared by the walk and `QuestionnaireFields` until 1b-5 retires the latter.
+  - **Departures from SCREEN-MAP, each for a reason:**
+    - **2.1, other names:** one screen with the list and "Add a name" (2.1a's own wording), not a Yes/No gate first. The contract has no `declares_no_other_names`, so a No could not be stored and a returning driver would be asked again. Adding one is a contract change for an optional fact that only steers the walk.
+    - **2.3, "Company driver or owner-operator?":** always asked. The skip "when the opening says which" has nothing to read: an invitation carries no opening, and no lead→invitation link exists (checked 2026-11-13).
+    - **2.4, "How did you hear about us?":** always asked, for the same reason (no lead source reaches the invitation).
+      - Its quick picks are SCREEN-MAP's own: Indeed, Facebook, a friend or a driver, our website.
+      - Production held five drafts and no filed application on 2026-11-13, too few answers to choose picks from data.
+      - The picks are on v3's question (`QuestionnaireQuestion.quickPicks`, edited in place: how it is answered, not what is asked). A draft answered against v2 is asked by v2, which has none, so its box works without the taps.
+    - **Proof of age** is still asked: the paper decides (see the ruling above).
+  - **The walk matches a problem to its screen by PATH**, not by DOM id (`pathUnder`): one other name's problem is the list's screen's, and a reference's phone is the references screen's.
+  - **A v2 draft always holds Part 1's date of birth and phone.** The server gates every v2 draft behind the date of birth Part 1 recorded (`gatedRelease`), and the unlock lays them in, so "About you" never needs to ask them.
+  - **Proof:**
+    - shared: task screens, facts asked by the definition, picks only on text questions;
+    - web: walk (+7), binding (+2), component (+4), and two page tests moved to the walked task;
+    - 10 of 11 mutants killed. The survivor (names edited in place) is equivalent, because autosave watches the draft deeply; the comment that claimed otherwise is corrected;
+    - new `aboutYouWalk.spec.ts`. 35 of 38 e2e-apply specs pass locally. The other three are `assistantDock` on `/settings`, which fail identically on plain `origin/main` locally;
+    - screenshots at 390×844 in EN and ES.
+  - **Seen, left to U3:** the carrier's Yes/No questions use the segmented control, smaller than the driving record's big Yes/No.
+  - **Next:** 1b-3, "Where you have lived."

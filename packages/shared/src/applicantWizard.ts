@@ -12,9 +12,10 @@ import {
 
 /**
  * Part 2's tasks whose screens are generated (F4 PR 1b, plan §7 2026-11-13) — each joins with its PR.
- * A task not here is still its hand-written section component.
+ * A task not here is still its hand-written section component. `questions` has no catalogue screen: every
+ * one of its screens is a question of the served definition (`askedByDefinition`).
  */
-export const GENERATED_TASKS = ["safety"] as const satisfies readonly ApplicationSection[];
+export const GENERATED_TASKS = ["identity", "safety", "questions"] as const satisfies readonly ApplicationSection[];
 export type GeneratedTask = (typeof GENERATED_TASKS)[number];
 export const isGeneratedTask = (section: string): section is GeneratedTask =>
   (GENERATED_TASKS as readonly string[]).includes(section);
@@ -112,7 +113,20 @@ export const ASKED_BY_HAND: Readonly<Record<FactPath, string>> = {
 export const TASK_FACTS_ASKED_ELSEWHERE: Readonly<Record<FactPath, string>> = {
   "application.prior_failed_pre_employment_test":
     "asked once, in Part 1 (D-AW13, SCREEN-MAP 1.10); a v2 filing takes Part 1's answer, and the legacy wizard asks its own",
+  "application.date_of_birth":
+    "asked in Part 1 (SCREEN-MAP 1.3); \"About you\" shows Part 1's answer on its last screen, with \"Something wrong? Tell us\"",
+  "application.phone":
+    "asked in Part 1 (SCREEN-MAP 1.2); \"About you\" shows Part 1's answer on its last screen, with \"Something wrong? Tell us\"",
 };
+
+/**
+ * The carrier's questions are asked by the DEFINITION served with the link, not by the catalogue (D-APP12):
+ * which questions, in which version and on which task is the definition's to say (`questionsForScreen`),
+ * and the carrier's own are stamped per invitation (D-CQ2). So the walk asks each asked question on a
+ * screen of its own (SCREEN-MAP 2.2–2.4, 2.22–2.27), and the catalogue's entries for them only name them.
+ */
+export const askedByDefinition = (path: FactPath): boolean =>
+  path.startsWith("application.questionnaire_answers.") || path === "application.carrier_answers";
 
 /** Part 1's own pages the wizard may cut a screen from — what an id's prefix must be. */
 export const isWizardPage = (page: string): page is PartOneScreen => (PART_ONE_SCREENS as readonly string[]).includes(page);
