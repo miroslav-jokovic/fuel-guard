@@ -7,6 +7,7 @@ import {
   CLOSE_APPLICATION_PERMISSION,
   FULL_SSN_PERMISSION,
   IDENTITY_NUMBER_IMAGES_PERMISSION,
+  NOTES_MANAGE_ALL_PERMISSION,
   callerPermissions,
   effectivePermission,
   rolePermissionSetSchema,
@@ -103,22 +104,32 @@ describe("closing an application is a named switch", () => {
     expect(effectivePermission("driver", CLOSE_APPLICATION_PERMISSION, { driver: { [CLOSE_APPLICATION_PERMISSION]: true } } as never)).toBe(false);
   });
 
+  it("ships 'Edit and remove anyone's note' to the admin alone — every other role starts off (UNIT-NOTES-PLAN D-UN19)", () => {
+    for (const role of EDITABLE_ROLES) expect(shippedPermission(role, NOTES_MANAGE_ALL_PERMISSION), role).toBe(false);
+    expect(shippedPermission("admin", NOTES_MANAGE_ALL_PERMISSION)).toBe(true);
+    expect(shippedPermission("driver", NOTES_MANAGE_ALL_PERMISSION)).toBe(false);
+    expect(effectivePermission("dispatcher", NOTES_MANAGE_ALL_PERMISSION, { dispatcher: { [NOTES_MANAGE_ALL_PERMISSION]: true } })).toBe(true);
+  });
+
   it("callerPermissions answers every catalogue key from the one resolver", () => {
     const grants = { recruiter: { [IDENTITY_NUMBER_IMAGES_PERMISSION]: false } };
     expect(callerPermissions("recruiter", grants)).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: false,
       [CLOSE_APPLICATION_PERMISSION]: false,
       [FULL_SSN_PERMISSION]: false,
+      [NOTES_MANAGE_ALL_PERMISSION]: false,
     });
     expect(callerPermissions("admin", {})).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: true,
       [CLOSE_APPLICATION_PERMISSION]: true,
       [FULL_SSN_PERMISSION]: true,
+      [NOTES_MANAGE_ALL_PERMISSION]: true,
     });
     expect(callerPermissions(null, {})).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: false,
       [CLOSE_APPLICATION_PERMISSION]: false,
       [FULL_SSN_PERMISSION]: false,
+      [NOTES_MANAGE_ALL_PERMISSION]: false,
     });
   });
 });

@@ -34,6 +34,14 @@
  * driver's warnings are added per reader, after: the medical card and the CDL only for a reader the
  * org's `roster: view` admits — the DQ file's own gate — and "Random test: send to collection" only on
  * the reader's own trucks, or on every truck for a testing-record reader (Q-DBV3, `randomTestVisible`).
+ *
+ * ── AND THE NOTE CHIPS, WHICH ARE NOBODY'S TO CACHE (UNIT-NOTES-PLAN D-UN18) ────────────────────────
+ * A note that names the row's truck, a seat or its trailer, and that nobody has resolved, is a chip in
+ * the Warnings cell (`noteMentions`). It is read on every request, after the 20-second row cache, from
+ * ONE roster value (`readOpenUnitMentions`): a dispatcher who presses Resolve must see the chip go on the
+ * next poll, not twenty seconds later, and an office of ten looking at the board pays one small read
+ * each. Only for a reader who holds the `notes` screen — the chip opens a note, and a note is that
+ * screen's (D-UN4) — which the route answers (`readsNotes`).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -60,7 +68,7 @@ import {
   IN_SERVICE_VEHICLE_STATUSES,
 } from "@silvicom/shared";
 import { readHosClocks, readVehiclePositions } from "../samsara/index.js";
-import { readFleetIdentities, readTrailerAnnualInspections } from "../roster/index.js";
+import { readFleetIdentities, readOpenUnitMentions, readTrailerAnnualInspections, type OpenUnitMentions } from "../roster/index.js";
 import { readUnitMaintenance } from "../fleetpal/index.js";
 import { readTruckLoadPlans } from "../loads/index.js";
 import { readDispatchLinks } from "../mcleod/index.js";
@@ -73,8 +81,11 @@ import { createCoalescingCache } from "../../lib/coalescingCache.js";
 const inService = (status: string | null): boolean => status != null && (IN_SERVICE_VEHICLE_STATUSES as readonly string[]).includes(status);
 const IN_SHOP_VEHICLE_STATUS = "maintenance";
 
-/** Who is reading the board: what they may see of the driver depends on it (DBV4). */
-export type BoardReader = Pick<AuthContext, "userId" | "role" | "sections">;
+/**
+ * Who is reading the board: what they may see of the driver depends on it (DBV4), and whether they get
+ * the note chips on whether they hold the `notes` screen (D-UN18), which the route asks.
+ */
+export type BoardReader = Pick<AuthContext, "userId" | "role" | "sections"> & { readsNotes?: boolean };
 
 /**
  * How long one org's board rows may be served after they were built (PLATFORM-RELIABILITY-PLAN D-RLY4).
@@ -105,13 +116,14 @@ export async function readDispatchBoard(
   now: Date = new Date(),
 ): Promise<DispatchBoardResponse> {
   // The org IS the key: these reads bypass RLS, so the key is the tenancy boundary (coalescingCache.ts).
-  const [board, links] = await Promise.all([
+  const [board, links, mentions] = await Promise.all([
     rowsCache.get(orgId, async () => ({ ...(await readBoardRows(admin, orgId, now)), builtAt: now }), now.getTime()),
     readDispatchLinks(admin, orgId, reader.userId),
+    reader.readsNotes ? readOpenUnitMentions(admin, orgId) : Promise.resolve<OpenUnitMentions>(new Map()),
   ]);
   return {
     generatedAt: board.builtAt.toISOString(),
-    rows: await withDriverWarnings(admin, orgId, board.rows, links.scope, reader, board.today),
+    rows: withNoteMentions(await withDriverWarnings(admin, orgId, board.rows, links.scope, reader, board.today), mentions),
     scope: links.scope,
     fleets: links.fleets,
     dispatchers: links.dispatchers.map(({ id, name, isSystem }) => ({ id, name, isSystem })),
@@ -217,6 +229,8 @@ export async function readBoardRows(
       available: availableAt(plan.current, lastEta, position, now),
       milesLeft: lastEta?.miles ?? null,
       warnings,
+      // Per reader, after the cache (`withNoteMentions`).
+      noteMentions: [],
       flags: boardFlags({ inShop, current: plan.current, next: plan.next, onTime, hos, gpsAgeSeconds: position?.ageSeconds ?? null, warnings }),
     });
   }
@@ -271,5 +285,22 @@ async function withDriverWarnings(
       warnings: sortWarnings([...extra, ...r.warnings]),
       flags: { ...r.flags, warningUrgent: r.flags.warningUrgent || extra.some(warningIsUrgent) },
     };
+  });
+}
+
+/**
+ * Each row's open note mentions (D-UN18): its truck's, each seat's and its current trailer's, newest
+ * first. The same units the row's notes drawer holds (`boardNoteTargets` on the web), so a chip always
+ * opens a drawer that has its note in it.
+ */
+export function withNoteMentions(rows: DispatchBoardRow[], mentions: OpenUnitMentions): DispatchBoardRow[] {
+  if (mentions.size === 0) return rows;
+  return rows.map((r) => {
+    const keys = [`vehicle:${r.vehicleId}`];
+    for (const seat of [r.driver, r.coDriver]) if (seat && !keys.includes(`driver:${seat.id}`)) keys.push(`driver:${seat.id}`);
+    if (r.trailerId) keys.push(`trailer:${r.trailerId}`);
+    const found = keys.flatMap((k) => mentions.get(k) ?? []);
+    if (found.length === 0) return r;
+    return { ...r, noteMentions: found.sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || (a.noteId < b.noteId ? 1 : -1)) };
   });
 }

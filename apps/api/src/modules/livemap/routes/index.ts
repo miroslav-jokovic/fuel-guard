@@ -9,6 +9,7 @@ import { readLiveMapBoardCached } from "../liveMapBoardCache.js";
 import { readLoadRoute } from "../liveMapLoadRoute.js";
 import { readDrivenPathCached } from "../liveMapDrivenPath.js";
 import { readDispatchBoard } from "../dispatchBoard.js";
+import { holdsSurface } from "../../../middleware/requireSurface.js";
 
 /**
  * The live map's read surface (LM6).
@@ -25,6 +26,8 @@ import { readDispatchBoard } from "../dispatchBoard.js";
  * 5-second poll would be 17,000 rows a day per viewer — the same arithmetic that kept LM4's tier out
  * of the jobs ledger.
  */
+const readsNotes = holdsSurface("notes");
+
 export function liveMapRouter(): Router {
   const router = Router();
   router.use(requireAuth, requireOrg, requireModule("dispatch"));
@@ -50,7 +53,8 @@ export function liveMapRouter(): Router {
     requireSection("dispatch", "view"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const board = await readDispatchBoard(admin, req.auth!.orgId!, req.auth!);
+      // The note chips are the `notes` screen's (UNIT-NOTES-PLAN D-UN18): asked here, never assumed.
+      const board = await readDispatchBoard(admin, req.auth!.orgId!, { ...req.auth!, readsNotes: await readsNotes(req) });
       res.json({ ok: true, data: board });
     }),
   );

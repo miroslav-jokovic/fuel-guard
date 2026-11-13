@@ -47,6 +47,23 @@ export function requireNamedPermission(key: EditablePermissionKey) {
 }
 
 /**
+ * The same question as `requireNamedPermission`, as a boolean, for a route that serves the holder and
+ * the non-holder differently instead of refusing one: a unit note's author edits their own note either
+ * way, and the `notes.manage_all` holder may edit anybody's (UNIT-NOTES-PLAN D-UN19) — `holdsSurface`'s
+ * shape for chat's team acts. Closed on a failed read, the admin still on.
+ */
+export async function holdsNamedPermission(req: Request, key: EditablePermissionKey): Promise<boolean> {
+  const role = (req.auth?.role ?? null) as UserRole | null;
+  const orgId = req.auth?.orgId ?? null;
+  if (!orgId) return false;
+  try {
+    return effectivePermission(role, key, await loadPermissionGrants(getSupabaseAdmin(getAppLocals(req).env), orgId));
+  } catch {
+    return role === "admin";
+  }
+}
+
+/**
  * Every named permission for the caller, for `/api/me` — the screens hide what the gate above would
  * refuse, asked of the same resolver. Closed on any failure (the admin still holds everything): this
  * runs on the identity bootstrap, so it must never throw.

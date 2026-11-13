@@ -46,6 +46,13 @@ export interface MentionCandidate {
   name: string;
   /** Already able to read the line; false = picking them first adds them (`add`). */
   member: boolean;
+  /**
+   * What a pick sends, when it is not the person token `<@user_id>`: a unit note naming a truck, trailer
+   * or driver sends `<#kind:id>` (UNIT-NOTES-PLAN D-UN17), and its `user_id` is then only the list's key.
+   */
+  token?: string;
+  /** A word beside the name in the list — "Truck", "Trailer", "Driver" — so `@848` the truck and `@848` the trailer read apart. */
+  detail?: string;
 }
 
 export interface MentionContext {

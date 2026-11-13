@@ -9,11 +9,9 @@ import {
   type UnitNote,
 } from "@silvicom/shared";
 import { useToastStore } from "@/stores/toast";
-import { useSessionStore } from "@/stores/session";
 import MentionList from "@/components/mentions/MentionList.vue";
-import { useMentionTypeahead } from "@/components/mentions/useMentionTypeahead";
-import type { MentionCandidate } from "@/components/mentions/mentionNames";
-import { useAddUnitNote, useUnitNotePeople } from "./useUnitNotes";
+import { useAddUnitNote } from "./useUnitNotes";
+import { useNoteTypeahead } from "./useNoteTypeahead";
 import type { NotesTarget } from "./useNotesDrawer";
 
 /**
@@ -35,6 +33,9 @@ import type { NotesTarget } from "./useNotesDrawer";
  * list. While the list is open Enter, Tab, the arrows and Esc are its own — Esc closes the list, not
  * the drawer. The field reads `@Ana Ruiz`; what is sent and measured is `<@id>` (`outgoing`), so the
  * contract's schema and the counter judge the note the API will store.
+ *
+ * Since v3 the same list offers trucks, trailers and drivers (D-UN17, `useNoteTypeahead`): `@848` picked
+ * is sent as the truck's token and puts a chip on truck 848's Dispatch Board row until it is resolved.
  */
 const props = defineProps<{ targets: NotesTarget[] }>();
 const emit = defineEmits<{ added: [note: UnitNote] }>();
@@ -43,23 +44,8 @@ const add = useAddUnitNote();
 
 const draft = ref("");
 const field = ref<{ $el: HTMLTextAreaElement } | null>(null);
-const session = useSessionStore();
-// The composer only exists inside an open drawer, which asks for the same list (one cached request).
-const people = useUnitNotePeople(ref(true));
-const typeahead = useMentionTypeahead({
-  field,
-  draft,
-  idPrefix: "note-mentions",
-  mentions: {
-    candidates: computed<MentionCandidate[]>(() =>
-      (people.data.value ?? [])
-        .filter((p) => p.id.toLowerCase() !== (session.userId ?? "").toLowerCase())
-        .map((p) => ({ user_id: p.id, name: p.name, member: true })),
-    ),
-    addLabel: computed(() => null),
-    add: async () => true,
-  },
-});
+// The composer only exists inside an open drawer, which asks for the same people list (one cached request).
+const typeahead = useNoteTypeahead(field, draft, "note-mentions");
 const { outgoing, active, listId, options, listOpen, addLabel } = typeahead;
 const keyOf = (t: NotesTarget) => `${t.kind}:${t.id}`;
 const about = ref<string>("");
@@ -119,7 +105,7 @@ function onKey(e: KeyboardEvent): void {
         :rows="3"
         :maxlength="UNIT_NOTE_MAX_LENGTH"
         aria-label="Write a note"
-        placeholder="Write a note for the office · @ to mention someone"
+        placeholder="Write a note for the office · @ to mention someone or a unit"
         role="combobox"
         aria-autocomplete="list"
         :aria-expanded="listOpen"

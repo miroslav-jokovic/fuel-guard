@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { UNIT_NOTE_KIND_LABELS, chatBodyText, type UnitNote, type UnitNotePerson } from "@silvicom/shared";
+import { UNIT_NOTE_KIND_LABELS, unitNoteBodyText, type UnitNote, type UnitNotePerson } from "@silvicom/shared";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
 import { notify } from "../../messaging/index.js";
 
@@ -60,9 +60,19 @@ export async function listNotePeople(admin: SupabaseClient, orgId: string): Prom
 /**
  * Ring every person the note names, except its author. Returns how many bells rang, deduped or muted
  * ones not counted (`notify()` answers null for those).
+ *
+ * `only` (an edit, D-UN15): the people the edit ADDED. Somebody already named was told when they were
+ * named; an edit that fixes a typo must not ring them again. The dedupe key is per note and person, so
+ * a person named, taken out and named again in a later edit is told once — the first time.
  */
-export async function ringNoteMentions(admin: SupabaseClient, orgId: string, authorId: string, note: UnitNote): Promise<number> {
-  const targets = note.mentions.filter((id) => id !== authorId);
+export async function ringNoteMentions(
+  admin: SupabaseClient,
+  orgId: string,
+  authorId: string,
+  note: UnitNote,
+  only?: readonly string[],
+): Promise<number> {
+  const targets = note.mentions.filter((id) => id !== authorId && (!only || only.includes(id)));
   if (targets.length === 0) return 0;
   let names = new Map<string, string>();
   try {
@@ -71,7 +81,10 @@ export async function ringNoteMentions(admin: SupabaseClient, orgId: string, aut
   } catch {
     // Fail open: an unnamed token reads "@someone" (`chatBodyText`), and the bell still rings.
   }
-  const text = chatBodyText(note.body, (id) => names.get(id)).replace(/\s+/g, " ").trim();
+  const unitLabel = new Map(note.units.map((u) => [`${u.kind}:${u.id}`, u.label]));
+  const text = unitNoteBodyText(note.body, (id) => names.get(id), (u) => unitLabel.get(`${u.kind}:${u.id}`))
+    .replace(/\s+/g, " ")
+    .trim();
   const preview = text.length <= PREVIEW_MAX ? text : `${text.slice(0, PREVIEW_MAX - 1)}…`;
   const unit = `${UNIT_NOTE_KIND_LABELS[note.kind]} ${note.subjectLabel}`.trim();
 

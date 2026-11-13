@@ -42,7 +42,7 @@ const people = [
 ];
 const note = (id: string, o: Partial<UnitNoteSearchHit> = {}): UnitNoteSearchHit => ({
   id, kind: "vehicle", subjectId: VEH, subjectLabel: "1042", body: "Tire low", authorId: ANA, authorName: "Ana Dispatch",
-  pinned: false, createdAt: "2026-11-10T15:00:00+00:00", mentions: [], fuzzy: false, ...o,
+  pinned: false, createdAt: "2026-11-10T15:00:00+00:00", mentions: [], fuzzy: false, editedAt: null, units: [], ...o,
 });
 const ok = <T>(data: T) => ({ ok: true, status: 200, data });
 

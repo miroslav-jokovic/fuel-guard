@@ -193,6 +193,7 @@ describe("GET / — the drawer, the search and the wall", () => {
         id: NOTE_A, kind: "vehicle", subjectId: TRUCK, subjectLabel: "1042",
         body: `Brakes squeal, <@${MENTIONED}> booked it`, authorId: "u-dispatcher", authorName: "Dana Dispatch",
         pinned: false, createdAt: "2026-11-10T15:00:00.123456+00:00", mentions: [MENTIONED], fuzzy: false,
+        editedAt: null, units: [],
       }],
       fuzzy: false,
       next: null,

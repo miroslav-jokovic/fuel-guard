@@ -27,6 +27,8 @@
 // purpose: `vehicles` and `drivers` are roster's, and one question is what this answers.
 export { writeAssignmentHistory, type HistoryWrite } from "./driverVehicleAssignmentWrites.js";
 export { readFleetIdentities, readTrailerAnnualInspections, type FleetIdentity } from "./fleetIdentityReads.js";
+// The Dispatch Board's note chips (UNIT-NOTES-PLAN D-UN18): open mentions of a unit, one value per carrier.
+export { readOpenUnitMentions, type OpenUnitMentions } from "./notes/noteUnits.js";
 export { moveApplicantRosterEmail } from "./applicantRosterEmail.js";
 // The truck's TMS home fleet, written by mcleod's roster sweep (DISPATCH-BOARD-PLAN DB1).
 export { recordVehicleFleetCodes, recordVehicleWindingDown, type FleetPlacement, type WindingDownPlacement } from "./vehicleFleetCodes.js";

@@ -40,7 +40,7 @@ const N2 = "22222222-2222-4222-8222-222222222222";
 const ANA = "44444444-4444-4444-8444-444444444444";
 const hit = (id: string, o: Partial<UnitNoteSearchHit>): UnitNoteSearchHit => ({
   id, kind: "vehicle", subjectId: VEH, subjectLabel: "1042", body: "Tire low", authorId: ANA, authorName: "Ana Dispatch",
-  pinned: false, createdAt: "2026-11-11T15:00:00+00:00", mentions: [], fuzzy: false, ...o,
+  pinned: false, createdAt: "2026-11-11T15:00:00+00:00", mentions: [], fuzzy: false, editedAt: null, units: [], ...o,
 });
 const ok = <T>(data: T) => ({ ok: true, status: 200, data });
 let wall: () => unknown;

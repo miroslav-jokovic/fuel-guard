@@ -53,7 +53,7 @@ const load = { loadId: "l-1", ref: "291013", status: "in_transit", source: "tms"
   dispatcherId: null, driverName: null, trailerUnit: "3152", nextStop: null, lastStop: null, stopsLeft: 1 };
 const row = (unitNumber: string, vehicleId: string, o: Partial<DispatchBoardRow> = {}): DispatchBoardRow => ({
   vehicleId, unitNumber, inShop: false, fleetCode: "VINNIEV", driver: null, coDriver: null, trailerId: null, hos: null, position: null,
-  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", milesLeft: null, warnings: [], flags,
+  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", milesLeft: null, warnings: [], noteMentions: [], flags,
   available: { place: null, city: "Lakeland", state: "FL", postalCode: "33801", lat: 28.04, lng: -81.95, at: "2026-11-11T18:00:00Z", basis: "now" },
   ...o,
 });
@@ -188,5 +188,66 @@ describe("the Dispatch Board's Notes column", () => {
   it("opens the merged drawer from a pasted link", async () => {
     await render(`/assignments?notes=vehicle:${VEH},trailer:${TRL}`);
     expect(document.body.querySelector("[data-notes-drawer]")).not.toBeNull();
+  });
+});
+
+/**
+ * The Warnings cell's note chips (UNIT-NOTES-PLAN D-UN18, owner 2026-11-12): a note that names the row's
+ * truck, a seat or its trailer is a chip under the due items; the chip opens the row's drawer ON that
+ * note — with the unit the note was written on, when it is another — and the Resolve icon takes it off,
+ * at once here, through the API.
+ */
+describe("the Warnings cell's note chips", () => {
+  const MARCUS = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const NOTE = "99999999-9999-4999-8999-999999999999";
+  const mention = { noteId: NOTE, kind: "vehicle" as const, subjectId: VEH, at: "2026-11-11T15:00:00+00:00", authorName: "Dana",
+    noteKind: "driver" as const, noteSubjectId: MARCUS, noteLabel: "Marcus Hill" };
+  const withChip = () => {
+    const r = response();
+    r.rows[0] = { ...r.rows[0]!, noteMentions: [mention] };
+    return r;
+  };
+  const chip = () => document.body.querySelector("[data-board-note-chip]");
+
+  it("shows a chip in Warnings for a note that names the truck, and none on the row without one", async () => {
+    board.value = withChip();
+    await render();
+    const chips = [...document.body.querySelectorAll("[data-board-note-chip]")];
+    expect(chips).toHaveLength(1);
+    expect(chips[0]!.textContent!.replace(/\s+/g, " ").trim()).toBe("Note · Dana · 11/11");
+  });
+
+  it("opens the row's drawer on the note, holding the unit it was written on as well", async () => {
+    board.value = withChip();
+    await render();
+    (document.body.querySelector("[data-board-note-open]") as HTMLButtonElement).click();
+    await flushPromises();
+    expect(router.currentRoute.value.query.note).toBe(NOTE);
+    expect(String(router.currentRoute.value.query.notes)).toBe(
+      `vehicle:${VEH},driver:${ANA},driver:${BEN},trailer:${TRL},driver:${MARCUS}`,
+    );
+    // The row's own click (the truck's drawer) did not fire under it.
+    expect(document.body.querySelector("[data-test='truck-drawer']")?.textContent).toBe("closed");
+  });
+
+  it("resolves through the API for that note and unit, and the chip goes at once", async () => {
+    board.value = withChip();
+    await render();
+    (document.body.querySelector("[data-board-note-resolve]") as HTMLButtonElement).click();
+    await flushPromises();
+    const sent = apiFetch.mock.calls.find((c) => String(c[0]).endsWith("/units/resolve"));
+    expect(sent?.[0]).toBe(`/api/notes/${NOTE}/units/resolve`);
+    expect(sent?.[1]).toMatchObject({ method: "POST", body: { kind: "vehicle", subjectId: VEH } });
+    expect(chip()).toBeNull();
+  });
+
+  it("puts the chip back when the API refuses the resolve", async () => {
+    board.value = withChip();
+    await render();
+    apiFetch.mockImplementation(async (path: string) =>
+      path.endsWith("/units/resolve") ? { ok: false, status: 500, error: { code: "db_error", message: "boom" } } : { ok: true, status: 200, data: { kinds: {}, notes: [], people: [] } });
+    (document.body.querySelector("[data-board-note-resolve]") as HTMLButtonElement).click();
+    await flushPromises();
+    expect(chip()).not.toBeNull();
   });
 });

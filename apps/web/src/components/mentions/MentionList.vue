@@ -43,6 +43,7 @@ const emit = defineEmits<{
     >
       <AppAvatar :label="c.name" :identity="c.user_id" size="xs" />
       <span class="min-w-0 flex-1 truncate">{{ c.name }}</span>
+      <span v-if="c.detail" class="shrink-0 text-xs text-ink-tertiary" data-mention-detail>{{ c.detail }}</span>
       <span v-if="!c.member && addLabel" class="shrink-0 text-2xs text-ink-tertiary">{{ addLabel }}</span>
     </li>
   </ul>

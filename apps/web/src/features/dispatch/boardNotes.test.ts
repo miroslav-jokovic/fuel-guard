@@ -12,7 +12,7 @@ const load = { loadId: "l", ref: "291013", status: "in_transit", source: "tms", 
 const row = (o: Partial<DispatchBoardRow> = {}): DispatchBoardRow => ({
   vehicleId: "veh-773", unitNumber: "773", inShop: false, fleetCode: "VINNIEV", driver: null, coDriver: null, trailerId: null,
   hos: null, position: null, fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null,
-  milesLeft: null, warnings: [], flags, ...o,
+  milesLeft: null, warnings: [], noteMentions: [], flags, ...o,
 });
 const ana = { id: "drv-1", name: "Ana Ruiz" };
 const ben = { id: "drv-2", name: "Ben Okafor" };

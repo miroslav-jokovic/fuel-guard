@@ -46,7 +46,7 @@ const N3 = "33333333-3333-4333-8333-333333333333";
 const ANA = "44444444-4444-4444-8444-444444444444";
 const note = (id: string, o: Partial<UnitNoteSearchHit> = {}): UnitNoteSearchHit => ({
   id, kind: "vehicle", subjectId: VEH, subjectLabel: "1042", body: "Tire low on the left steer", authorId: ANA, authorName: "Ana Dispatch",
-  pinned: false, createdAt: "2026-11-10T15:00:00+00:00", mentions: [], fuzzy: false, ...o,
+  pinned: false, createdAt: "2026-11-10T15:00:00+00:00", mentions: [], fuzzy: false, editedAt: null, units: [], ...o,
 });
 const ok = <T>(data: T) => ({ ok: true, status: 200, data });
 const fail = { ok: false, status: 500, error: { code: "error", message: "boom" } };

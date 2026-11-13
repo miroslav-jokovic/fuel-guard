@@ -220,8 +220,11 @@ export function boardSortValue(r: DispatchBoardRow, key: string): unknown {
     case "milesLeft":
       return milesLeftOf(r);
     case "warnings":
-      // Most pressing first: an urgent item (overdue, or a random test) counts three times a due one.
-      return r.warnings.length ? r.warnings.reduce((n, w) => n + (warningIsUrgent(w) ? 3 : 1), 0) * -1 : null;
+      // Most pressing first: an urgent item (overdue, or a random test) counts three times a due one, and
+      // an open note mention (UNIT-NOTES-PLAN D-UN18) as much as a due one.
+      return r.warnings.length || r.noteMentions.length
+        ? (r.warnings.reduce((n, w) => n + (warningIsUrgent(w) ? 3 : 1), 0) + r.noteMentions.length) * -1
+        : null;
     case "status":
       return r.inShop ? 4 : !r.current ? 0 : (ON_TIME_RANK[r.onTime] ?? 3) + 0.5;
     case "hos":

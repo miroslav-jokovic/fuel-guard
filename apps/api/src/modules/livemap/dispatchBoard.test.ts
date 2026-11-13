@@ -412,3 +412,56 @@ describe("the dispatch board", () => {
   });
 });
 
+
+/**
+ * The note chips (UNIT-NOTES-PLAN D-UN18): a note naming the row's truck, a seat or its trailer, open,
+ * read from roster's one value on every request — after the row cache, so a Resolve shows on the next
+ * poll — and only for a reader who holds the `notes` screen.
+ */
+describe("the board's note chips", () => {
+  beforeEach(() => __resetDispatchBoardCaches());
+
+  const mention = (noteId: string, at: string) => ({
+    note_id: noteId, at, author_name: "Dana", note_kind: "driver", note_subject_id: "drv-1", note_label: "Ana Ruiz",
+  });
+  const open = {
+    vehicle: { "veh-773": [mention("n-truck", "2026-10-09T18:00:00Z")], "veh-other": [mention("n-elsewhere", "2026-10-09T19:00:00Z")] },
+    driver: { "drv-1": [mention("n-driver", "2026-10-09T19:30:00Z")] },
+  };
+  const withMentions = (answer: unknown) =>
+    createSupabaseRecorder({ tables: tables(), rpc: { org_module_enabled: false, unit_note_open_unit_mentions: answer } });
+
+  it("puts the row's own units' open mentions on it, newest first, naming the note's unit", async () => {
+    const rec = withMentions(open);
+    const r = (await readDispatchBoard(rec.client, ORG, { ...READER, readsNotes: true }, NOW)).rows[0]!;
+    expect(r.noteMentions.map((m) => [m.noteId, m.kind, m.subjectId])).toEqual([
+      ["n-driver", "driver", "drv-1"],
+      ["n-truck", "vehicle", "veh-773"],
+    ]);
+    expect(r.noteMentions[1]).toMatchObject({ authorName: "Dana", noteKind: "driver", noteLabel: "Ana Ruiz" });
+    expect(rec.rpcs().find((c) => c.fn === "unit_note_open_unit_mentions")?.args).toEqual({ p_org: ORG });
+  });
+
+  it("asks again on every request, past the 20-second row cache — a resolved chip goes on the next poll", async () => {
+    const first = withMentions(open);
+    expect((await readDispatchBoard(first.client, ORG, { ...READER, readsNotes: true }, NOW)).rows[0]!.noteMentions).toHaveLength(2);
+    const resolved = withMentions({ vehicle: {}, driver: {} });
+    const again = await readDispatchBoard(resolved.client, ORG, { ...READER, readsNotes: true }, new Date(NOW.getTime() + 1000));
+    expect(again.rows[0]!.noteMentions).toEqual([]);
+    expect(resolved.rpcs().some((c) => c.fn === "unit_note_open_unit_mentions")).toBe(true);
+  });
+
+  it("never reads notes for a reader without the notes screen", async () => {
+    const rec = withMentions(open);
+    const r = (await readDispatchBoard(rec.client, ORG, READER, NOW)).rows[0]!;
+    expect(r.noteMentions).toEqual([]);
+    expect(rec.rpcs().some((c) => c.fn === "unit_note_open_unit_mentions")).toBe(false);
+  });
+
+  it("answers a failed read with no chips, never a board that fails to load", async () => {
+    const rec = withMentions({ error: { message: "down" } });
+    const b = await readDispatchBoard(rec.client, ORG, { ...READER, readsNotes: true }, NOW);
+    expect(b.rows).toHaveLength(1);
+    expect(b.rows[0]!.noteMentions).toEqual([]);
+  });
+});
