@@ -281,3 +281,15 @@ VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
   schedule and posts nowhere (it needs LRC2's ingest route), and the VM's file list
   (`windows/manifest.mjs`) is regenerated on the day the VM is updated. The regenerated review file
   must go to IT before that day.
+- 2026-11-13, LRC2 — Migration 0600: `mcleod_lumper_orders`, `_charges`, `_payments`, `_bills`,
+  `_sweeps`, the `lumper_cases` table, and `lumper_sweep_apply`, which writes one sweep and removes
+  what the sweep no longer holds in one transaction. `POST /api/tms/lumper` takes the sweep
+  (`lumperContract.ts`). The state of a case is not stored: `lumperCaseState`
+  (`packages/shared/src/lumperCase.ts`) reads it from the facts each time. Two rules in it are
+  readings of the measurements and are what the silent weeks (D-LRC9) check first: the amount paid is
+  the larger of the money-code lines and the reimbursement lines, because payroll keys one lumper as
+  both; an order counts as invoiced while it has more invoices than credit memos. Flag values
+  measured for the rule: every 2026 bill has `canceled` N and `rebilled` N, and a credit memo's
+  amounts are positive. Not built yet: the connector does not post (no schedule entry, the VM is
+  unchanged), the RC file and the close action are LRC3, and Q-LRC9 is still open.
+

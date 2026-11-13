@@ -3521,6 +3521,72 @@
         "budget_rows_per_day": 5000,
         "why": "new in 0577 (2026-11-09, ADS-CREATIVE-QUALITY-PLAN CQ3); one row per live AD per hour as the platform reports it — ~20 live campaigns x 5 concepts x 2 languages x 24 h. Re-derivable from the platform; a retention rule comes with the per-preset reader once its window is known."
       }
+    },
+    "lumper_cases": {
+      "module": "mcleod",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "LUMPER-REVISED-RC-PLAN D-LRC1 (0600): one row per order with a lumper, opened by the sweep and closed only by a person. Measured on the analytics copy: 256 orders in 2026 to 10-09, under one a day; 30 leaves room for detention joining under Q-LRC7. The row carries who closed a case and why, so no window."
+      }
+    },
+    "mcleod_lumper_orders": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "LUMPER-REVISED-RC-PLAN LRC2 (0600): one row per order with a lumper, updated in place by each sweep. 87 orders in the 90 days measured, under one a day. Kept while its case is: the page reads the broker, dispatcher and delivery stop from it."
+      }
+    },
+    "mcleod_lumper_charges": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "LUMPER-REVISED-RC-PLAN LRC2 (0600): the LUM charges on those orders as they stand now; the sweep replaces them inside its 90-day window, so the table holds current rows, not history. 90 rows in the 90 days measured."
+      }
+    },
+    "mcleod_lumper_payments": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 60,
+        "why": "LUMPER-REVISED-RC-PLAN LRC2 (0600): settlement lines for the EFS money code and the driver's reimbursement, replaced by each sweep inside its window. 170 rows in the 90 days measured, about two a day."
+      }
+    },
+    "mcleod_lumper_bills": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 40,
+        "why": "LUMPER-REVISED-RC-PLAN LRC2 (0600): every invoice and credit memo of an order with a lumper, updated in place. 109 rows in the 90 days measured, just over one a day."
+      }
+    },
+    "mcleod_lumper_sweeps": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "LUMPER-REVISED-RC-PLAN LRC2 (0600): when the lumper feed last ran, one row per org and McLeod company, rewritten by every sweep; bounded by the number of companies, not by time."
+      }
     }
   }
 }
