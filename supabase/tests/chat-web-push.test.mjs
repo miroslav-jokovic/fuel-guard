@@ -214,6 +214,15 @@ ok("...and nobody it does not newly name", (await targets(E_LINE, [CLEO])).lengt
 await db.query(`select chat_activity_mark_read($1,$2,null)`, [ORG, ANA]);
 ok("...until Activity is read past it", (await targets(E_LINE, [ANA])).length === 0);
 
+// ── 0602: the two reasons a person cannot give from the device itself (D-WP9, D-WP10) ─────────────
+console.log("\n-- unused and removed (0602) --");
+const E3 = "https://fcm.googleapis.com/fcm/send/device-three";
+await subscribe(ORG, CLEO, E3);
+const stop = (endpoint, reason) => sqlstate(`update web_push_subscriptions set revoked_at = now(), revoked_reason = $2 where endpoint = $1`, [endpoint, reason]);
+ok("a device unseen for 90 days is revoked as unused", (await stop(E3, "unused")) === null && (await row(E3)).revoked_reason === "unused");
+ok("a device taken off the list from another one is revoked as removed", (await stop(E3, "removed")) === null && (await row(E3)).revoked_reason === "removed");
+ok("...and a reason nobody defined is still refused", (await stop(E3, "expired")) === "23514");
+
 // ── A browser ─────────────────────────────────────────────────────────────────────────────────────
 console.log("\n-- a browser --");
 const claims = { sub: ANA, role: "authenticated" };

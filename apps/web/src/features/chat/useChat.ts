@@ -12,6 +12,7 @@ import type {
   ChatSendResponse,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { clearChatNotifications } from "@/lib/webPush";
 import { genUuid } from "@/lib/uuid";
 import { chatLinkState } from "./transport";
 import { keepEarlierSharing, useLoadEarlier } from "./earlierPages";
@@ -184,6 +185,9 @@ export function useChatMarkRead() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { threadId: string; seq: number }) => {
+      // Read on this device: its notifications for the conversation go too (CHAT-WEB-PUSH-PLAN D-WP11). Only
+      // this device's — another device's tray is out of a page's reach (Q-WP5).
+      void clearChatNotifications(input.threadId);
       await apiFetch(`/api/chat/${input.threadId}/read`, { method: "POST", body: { seq: input.seq } });
     },
     onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: inboxKey }), qc.invalidateQueries({ queryKey: teamsKey })]),

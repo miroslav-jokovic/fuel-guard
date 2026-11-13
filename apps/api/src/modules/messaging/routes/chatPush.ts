@@ -2,8 +2,11 @@ import { Router, type Request } from "express";
 import {
   OFFICE_ROLES,
   chatPushMessage,
+  isRecordId,
   webPushSubscribeRequestSchema,
   webPushUnsubscribeRequestSchema,
+  type WebPushDevice,
+  type WebPushDevicesResponse,
   type WebPushStateResponse,
   type WebPushSubscribeRequest,
   type WebPushTestResponse,
@@ -15,7 +18,7 @@ import { requireSurface } from "../../../middleware/requireSurface.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { chatPushKeys, recordPushOutcome } from "../chatPush.js";
+import { PUSH_DEVICE_COLUMNS, chatPushKeys, liveDevices, recordPushOutcome } from "../chatPush.js";
 import { sendPush } from "../webPush.js";
 
 /**
@@ -25,6 +28,8 @@ import { sendPush } from "../webPush.js";
  *   PUT    /subscription register this browser for the caller (or refresh it: every page load does)
  *   DELETE /subscription this browser stops: turned off here, or the caller signed out of it
  *   POST   /test         a notification to every device of the caller's, to see it arrive
+ *   GET    /devices      the caller's live devices, to tell them apart (WP4)
+ *   DELETE /devices/:id  one of them stops — the lost phone, removed from another device (D-WP10)
  *
  * GATES: the chat's own (chatSearch.ts's reason — mounted ahead of the conversation router, which would read
  * `/push` as a conversation id), EXCEPT the DELETE, which needs only a signed-in member: a person signing out
@@ -78,6 +83,23 @@ export function chatPushRouter(): Router {
       if (!allowedOrigin(req, body.origin)) {
         res.status(422).json(apiError("origin_not_allowed", "Notifications can only open this app"));
         return;
+      }
+      // D-WP10: a page load does not bring back a device the person removed from another device's list —
+      // that browser still holds the subscription and the choice, and would otherwise revive the lost
+      // phone on its next load. A press of Turn on there (no `refresh`) is a new choice and is honoured.
+      if (body.refresh) {
+        const { data: prior, error: priorError } = await admin(req)
+          .from("web_push_subscriptions")
+          .select("revoked_reason")
+          .eq("org_id", req.auth!.orgId!)
+          .eq("user_id", req.auth!.userId)
+          .eq("endpoint", body.endpoint)
+          .maybeSingle();
+        if (priorError) throw new Error(priorError.message);
+        if ((prior as { revoked_reason: string | null } | null)?.revoked_reason === "removed") {
+          res.status(409).json(apiError("device_removed", "This device was removed from your notifications"));
+          return;
+        }
       }
       const { data, error } = await admin(req).rpc("web_push_subscribe", {
         p_org: req.auth!.orgId!,
@@ -133,12 +155,13 @@ export function chatPushRouter(): Router {
       lastTest.set(userId, now);
       const { data, error } = await admin(req)
         .from("web_push_subscriptions")
-        .select("id, endpoint, p256dh, auth, origin")
+        .select(PUSH_DEVICE_COLUMNS)
         .eq("org_id", orgId)
         .eq("user_id", userId)
         .is("revoked_at", null);
       if (error) throw new Error(error.message);
-      const devices = (data ?? []) as { id: string; endpoint: string; p256dh: string; auth: string; origin: string }[];
+      type Row = { id: string; endpoint: string; p256dh: string; auth: string; origin: string; last_seen_at: string };
+      const { live: devices } = await liveDevices(admin(req), orgId, (data ?? []) as Row[]);
       let sent = 0;
       await Promise.all(devices.map(async (d) => {
         const message = chatPushMessage({
@@ -156,6 +179,54 @@ export function chatPushRouter(): Router {
       }));
       const out: WebPushTestResponse = { devices: devices.length, sent };
       res.json(out);
+    }),
+  );
+
+  router.get(
+    "/devices",
+    ...gates(),
+    asyncHandler(async (req, res) => {
+      const orgId = req.auth!.orgId!;
+      const { data, error } = await admin(req)
+        .from("web_push_subscriptions")
+        .select("id, device_label, created_at, last_seen_at, last_success_at, last_failure_at")
+        .eq("org_id", orgId)
+        .eq("user_id", req.auth!.userId)
+        .is("revoked_at", null)
+        .order("last_seen_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      const { live } = await liveDevices(admin(req), orgId, (data ?? []) as WebPushDevice[]);
+      const out: WebPushDevicesResponse = { devices: live };
+      res.json(out);
+    }),
+  );
+
+  // Needs only a signed-in member, as the DELETE above does: stopping one's own phone must work even after
+  // chat was taken away. The row must be the caller's own, in this organisation — never somebody else's.
+  router.delete(
+    "/devices/:id",
+    requireAuth,
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const id = req.params.id;
+      if (typeof id !== "string" || !isRecordId(id)) {
+        res.status(400).json(apiError("invalid_request", "Not a device"));
+        return;
+      }
+      const { data, error } = await admin(req)
+        .from("web_push_subscriptions")
+        .update({ revoked_at: new Date().toISOString(), revoked_reason: "removed" })
+        .eq("id", id)
+        .eq("org_id", req.auth!.orgId!)
+        .eq("user_id", req.auth!.userId)
+        .is("revoked_at", null)
+        .select("id");
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) {
+        res.status(404).json(apiError("not_found", "No such device of yours"));
+        return;
+      }
+      res.json({ revoked: data.length });
     }),
   );
 

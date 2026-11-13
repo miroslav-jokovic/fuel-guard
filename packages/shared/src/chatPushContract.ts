@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { chatBodyText, chatTitle, type ChatConversation, type ChatMember } from "./chatContract.js";
+import { recordId } from "./recordId.js";
 
 /**
  * Office chat on the phone — Web Push (CHAT-WEB-PUSH-PLAN WP2; OFFICE-CHAT-PLAN CH10).
@@ -88,6 +89,12 @@ export const webPushSubscribeRequestSchema = z.object({
   origin: z.string().regex(/^https?:\/\/[^/]+$/),
   /** "Chrome on Android" — shown to the person, never used to decide anything. */
   device_label: z.string().trim().max(120).optional(),
+  /**
+   * A page load re-registering a device the person turned on earlier, not a press of Turn on (D-WP10). The
+   * one difference: a device the person REMOVED from another device's list is not revived by a refresh —
+   * the API answers 409 `device_removed` and the browser lets go of it.
+   */
+  refresh: z.boolean().optional(),
 });
 export type WebPushSubscribeRequest = z.infer<typeof webPushSubscribeRequestSchema>;
 
@@ -108,6 +115,33 @@ export type WebPushStateResponse = z.infer<typeof webPushStateResponseSchema>;
 /** `POST /api/chat/push/test`: how many of the caller's devices the push services accepted it for. */
 export const webPushTestResponseSchema = z.object({ devices: z.number().int().nonnegative(), sent: z.number().int().nonnegative() });
 export type WebPushTestResponse = z.infer<typeof webPushTestResponseSchema>;
+
+// ── The person's devices (WP4; D-WP9, D-WP10) ──────────────────────────────────────────────────
+
+/**
+ * A device not seen for this long stops receiving (revoked `unused`, 0602). Every signed-in page load refreshes
+ * `last_seen_at`, so 90 days without one is a phone in a drawer or a browser profile nobody opens — and a lost
+ * phone on which a lock screen keeps showing the office's chat. A device opened again after that comes back by
+ * itself: the person's choice is still stored in that browser and its next page load re-registers it.
+ */
+export const WEB_PUSH_UNUSED_DAYS = 90;
+export function isUnusedPushDevice(lastSeenAt: string, now: Date): boolean {
+  const seen = Date.parse(lastSeenAt);
+  return Number.isFinite(seen) && now.getTime() - seen > WEB_PUSH_UNUSED_DAYS * 86_400_000;
+}
+
+/** One live device of the caller's, as `GET /api/chat/push/devices` lists it. Never the endpoint or keys. */
+export const webPushDeviceSchema = z.object({
+  id: recordId(),
+  device_label: z.string().nullable(),
+  created_at: z.string(),
+  last_seen_at: z.string(),
+  last_success_at: z.string().nullable(),
+  last_failure_at: z.string().nullable(),
+});
+export type WebPushDevice = z.infer<typeof webPushDeviceSchema>;
+export const webPushDevicesResponseSchema = z.object({ devices: z.array(webPushDeviceSchema) });
+export type WebPushDevicesResponse = z.infer<typeof webPushDevicesResponseSchema>;
 
 // ── The message (Declarative Web Push, W3C Push API; D-WP4) ─────────────────────────────────────
 
@@ -154,7 +188,7 @@ export function chatPushMessage(i: ChatPushInput): ChatPushMessage {
       title: i.title,
       body: i.body,
       navigate: `${i.origin}${i.path}`,
-      tag: i.threadId ? `chat:${i.threadId}` : "chat",
+      tag: i.threadId ? chatPushTag(i.threadId) : "chat",
       renotify: true,
       silent: false,
       lang: "en-US",
@@ -165,6 +199,15 @@ export function chatPushMessage(i: ChatPushInput): ChatPushMessage {
       data: { thread_id: i.threadId, message_id: i.messageId },
     },
   };
+}
+
+/**
+ * A conversation's notification on a device: one per conversation, replaced by each new line (`renotify`), and
+ * what the web closes when that conversation is read on the same device (D-WP11). One definition, so the two
+ * can never name different notifications.
+ */
+export function chatPushTag(threadId: string): string {
+  return `chat:${threadId}`;
 }
 
 /** Where a tap opens a line: the conversation; a channel reply, its post (the /chat query CH6d uses). */

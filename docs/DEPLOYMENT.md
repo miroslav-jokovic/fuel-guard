@@ -293,6 +293,11 @@ aws ssm put-parameter --profile silvicom --region us-west-2 --type SecureString 
 Turn on → Send a test. Logs: CloudWatch `/silvicom/<env>`, `silvicom-api-*`, lines `[chat-push]`. A device the
 push service says is gone is revoked by itself (`web_push_subscriptions.revoked_reason = 'gone'`).
 
+**Watched:** `GET /api/version` → `webPush.state` (`modules/messaging/pushHealth.ts`). `key_rejected` — more
+devices refused 401/403 in the last day than still receive — turns `ok` false and `platform-health.mjs` pages
+the alert recipients: the pair in Parameter Store is not the one the devices subscribed with (changed, or the
+other environment's). `off` = no pair on this server; `degraded` = some phone failing, published, not paged.
+
 ## One-time Railway setup (makes the files above authoritative)
 
 `watchPatterns` in a config file only apply when the Railway service is pointed at that file.

@@ -8,7 +8,7 @@ import { getMaintenanceHealth, maintenanceHealthy } from "../lib/maintenanceHeal
 import { getReleaseVersion } from "../lib/releaseVersion.js";
 import { getSchedulerHealth, laneHealthy } from "../lib/schedulerHealth.js";
 import { getStorageBackupHealth, storageBackupHealthy } from "../modules/org/index.js";
-import { getRealtimeHealth, realtimeHealthy } from "../modules/messaging/index.js";
+import { getPushHealth, getRealtimeHealth, pushHealthy, realtimeHealthy } from "../modules/messaging/index.js";
 import { stepUpReadiness } from "../envAuth.js";
 
 /**
@@ -30,6 +30,8 @@ import { stepUpReadiness } from "../envAuth.js";
  * And since CHA4 (0515), whenever Supabase Realtime has stopped delivering: the quarter-hourly probe's
  * broadcast did not reach its subscriber, or the probe itself stopped (`realtime`,
  * modules/messaging/realtimeHealth.ts) — office chat's "instant" falls back to its poll without a word.
+ * And since CHAT-WEB-PUSH-PLAN WP4, whenever push services are refusing the server's key pair for more devices than
+ * still receive (`webPush`, modules/messaging/pushHealth.ts) — every phone silent, and only a person can fix it.
  * And since Q-AD41 (b) (2026-11-06), whenever "Confirm it's you" cannot work (`stepUp`: "ready", or "missing:" and the
  * setting NAMES from `stepUpMissing` in envAuth.ts). The one piece of configuration this route publishes, and only as
  * names: which settings are absent is not a secret, their values never appear. Staging ran two weeks without one of
@@ -44,12 +46,13 @@ export function versionRouter(): Router {
   const router = Router();
 
   const read = async (env: Parameters<typeof getSchemaStatus>[0] & Parameters<typeof stepUpReadiness>[0]) => {
-    const [schema, maintenance, schedulers, storageBackup, realtime, version] = await Promise.all([
+    const [schema, maintenance, schedulers, storageBackup, realtime, webPush, version] = await Promise.all([
       getSchemaStatus(env),
       getMaintenanceHealth(env),
       getSchedulerHealth(env),
       getStorageBackupHealth(env),
       getRealtimeHealth(env),
+      getPushHealth(env),
       getReleaseVersion(),
     ]);
     const stepUp = stepUpReadiness(env);
@@ -59,8 +62,9 @@ export function versionRouter(): Router {
       schedulers.every((l) => laneHealthy(l.state)) &&
       storageBackupHealthy(storageBackup.state) &&
       realtimeHealthy(realtime.state) &&
+      pushHealthy(webPush.state) &&
       stepUp === "ready";
-    return { schema, maintenance, schedulers, storageBackup, realtime, version, stepUp, ok };
+    return { schema, maintenance, schedulers, storageBackup, realtime, webPush, version, stepUp, ok };
   };
 
   router.get(
@@ -68,7 +72,7 @@ export function versionRouter(): Router {
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
       const build = getBuildInfo();
-      const { schema, maintenance, schedulers, storageBackup, realtime, version, stepUp, ok } = await read(env);
+      const { schema, maintenance, schedulers, storageBackup, realtime, webPush, version, stepUp, ok } = await read(env);
       res.setHeader("Cache-Control", "no-store");
       res.json({
         service: `${APP_NAME} API`,
@@ -86,6 +90,7 @@ export function versionRouter(): Router {
         schedulers,
         storageBackup,
         realtime,
+        webPush,
         stepUp,
         ok,
       });
@@ -96,7 +101,7 @@ export function versionRouter(): Router {
     "/ready",
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
-      const { schema, maintenance, schedulers, storageBackup, realtime, stepUp, ok } = await read(env);
+      const { schema, maintenance, schedulers, storageBackup, realtime, webPush, stepUp, ok } = await read(env);
       res.setHeader("Cache-Control", "no-store");
       // The body names what failed, for the person who opens the alert; the status is the verdict.
       res.status(ok ? 200 : 503).json({
@@ -107,6 +112,7 @@ export function versionRouter(): Router {
         schedulers: Object.fromEntries(schedulers.map((l) => [l.lane, l.state])),
         storageBackup: storageBackup.state,
         realtime: realtime.state,
+        webPush: webPush.state,
         stepUp,
       });
     }),

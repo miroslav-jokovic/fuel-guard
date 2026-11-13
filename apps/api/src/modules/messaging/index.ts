@@ -28,6 +28,7 @@ export { startChatLedgerVerifyScheduler } from "./chatLedgerVerify.js";
 export { startRealtimeProbeScheduler } from "./realtimeProbe.js";
 export { startChatExportSweeper } from "./chatExportSweeper.js";
 export { getRealtimeHealth, realtimeHealthy, type RealtimeHealth } from "./realtimeHealth.js";
+export { getPushHealth, pushHealthy, type PushHealth } from "./pushHealth.js";
 export { loginForDriver } from "./notify.js";
 export { alertRoutingRouter, myAlertsRouter } from "./routes/alertRouting.js";
 // The magic-number check on an uploaded file's first bytes. Exported for the lumper cases' revised RC

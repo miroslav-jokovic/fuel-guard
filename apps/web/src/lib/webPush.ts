@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import type { Router } from "vue-router";
-import type { WebPushStateResponse, WebPushTestResponse } from "@silvicom/shared";
+import { chatPushTag, type WebPushDevice, type WebPushDevicesResponse, type WebPushStateResponse, type WebPushTestResponse } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -28,7 +28,8 @@ const SW_URL = "/sw.js";
 
 export type PushSupport = "available" | "ios-install" | "unsupported";
 
-interface StoredChoice { userId: string; endpoint: string }
+/** `id` is the server's row for this browser (WP4): how the device list knows which entry is "this device". */
+interface StoredChoice { userId: string; endpoint: string; id?: string }
 
 function readChoice(): StoredChoice | null {
   try {
@@ -119,21 +120,27 @@ async function loadServer(): Promise<WebPushStateResponse | null> {
   return pushServer.value;
 }
 
-async function register(sub: PushSubscription, userId: string): Promise<boolean> {
+/**
+ * Tell the server this browser is the person's. `refresh` = a page load, not a press of Turn on: the server
+ * then refuses a device the person removed from another device's list (409 `device_removed`, D-WP10).
+ */
+async function register(sub: PushSubscription, userId: string, refresh = false): Promise<"on" | "removed" | "failed"> {
   const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
-  if (!json.endpoint || !json.keys?.p256dh || !json.keys.auth) return false;
-  const res = await apiFetch("/api/chat/push/subscription", {
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys.auth) return "failed";
+  const res = await apiFetch<{ id: string }>("/api/chat/push/subscription", {
     method: "PUT",
     body: {
       endpoint: json.endpoint,
       keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
       origin: window.location.origin,
       device_label: deviceLabel(navigator.userAgent),
+      ...(refresh ? { refresh: true } : {}),
     },
   });
-  if (!res.ok) return false;
-  writeChoice({ userId, endpoint: json.endpoint });
-  return true;
+  if (res.status === 409 && res.error?.code === "device_removed") return "removed";
+  if (!res.ok) return "failed";
+  writeChoice({ userId, endpoint: json.endpoint, id: res.data?.id });
+  return "on";
 }
 
 async function subscribe(reg: ServiceWorkerRegistration, key: Uint8Array): Promise<PushSubscription> {
@@ -159,7 +166,7 @@ export async function turnOnPush(): Promise<"on" | "denied" | "failed"> {
   if (!server?.available || !server.public_key) return "failed";
   try {
     const sub = await subscribe(await registration(), applicationServerKey(server.public_key));
-    pushOnHere.value = await register(sub, userId);
+    pushOnHere.value = (await register(sub, userId)) === "on";
     return pushOnHere.value ? "on" : "failed";
   } catch {
     return "failed";
@@ -213,7 +220,13 @@ export async function loadPushState(userId: string): Promise<void> {
   }
   try {
     const live = await subscribe(reg ?? (await registration()), applicationServerKey(server.public_key));
-    pushOnHere.value = await register(live, userId);
+    const answer = await register(live, userId, true);
+    if (answer === "removed") {
+      // Removed from another device's list (D-WP10): let go here too, so the browser stops holding it.
+      await live.unsubscribe().catch(() => {});
+      writeChoice(null);
+    }
+    pushOnHere.value = answer === "on";
   } catch {
     pushOnHere.value = false;
   }
@@ -229,6 +242,43 @@ export async function signOutThisDevice(): Promise<void> {
   writeChoice(null);
   pushOnHere.value = false;
   signedInUser = null;
+}
+
+// ── The person's devices (WP4) ───────────────────────────────────────────────────────────────────
+
+/** The server's id for this browser's row, when this browser is on for the signed-in person. */
+export function thisDeviceId(): string | null {
+  const c = readChoice();
+  return c && c.userId === signedInUser ? (c.id ?? null) : null;
+}
+
+export async function listPushDevices(): Promise<WebPushDevice[] | null> {
+  const res = await apiFetch<WebPushDevicesResponse>("/api/chat/push/devices");
+  return res.ok && res.data ? res.data.devices : null;
+}
+
+/** Stop one device. This browser's own row is turned off here, so the browser lets go of it as well. */
+export async function removePushDevice(id: string): Promise<boolean> {
+  if (id === thisDeviceId()) {
+    await turnOffPush();
+    return true;
+  }
+  const res = await apiFetch(`/api/chat/push/devices/${encodeURIComponent(id)}`, { method: "DELETE" });
+  return res.ok;
+}
+
+/**
+ * A conversation was read here: close its notifications on THIS device (D-WP11). Only this device — a page
+ * cannot reach another device's tray, and a push to clear one would itself have to show a notification
+ * (every push must, plan §2 rule 1), so the other devices keep theirs until tapped or dismissed (Q-WP5).
+ */
+export async function clearChatNotifications(threadId: string): Promise<void> {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration("/");
+    const shown = await reg?.getNotifications({ tag: chatPushTag(threadId) });
+    for (const n of shown ?? []) n.close();
+  } catch { /* nothing shown, or a browser without getNotifications: nothing to close */ }
 }
 
 /** A tapped notification in an open app: go there with the router, keeping what is on screen (`sw.js`). */
