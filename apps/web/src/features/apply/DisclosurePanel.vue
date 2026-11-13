@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { APPLY_COPY } from "@/features/apply/strings";
 import { computed } from "vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import type { ApplyRelease } from "@/features/apply/useApplication";
@@ -29,14 +30,9 @@ const anyDraft = computed(() => props.releases.some((r) => r.draft));
 <template>
   <section class="space-y-4">
     <div>
-      <h2 class="text-base font-semibold text-ink">What you will be asked to authorise</h2>
-      <p v-if="anyDraft" class="mt-1 text-sm text-ink-muted">
-        These are the checks a carrier runs before hiring a driver. The final wording is still being
-        prepared, so nothing here is being signed today — you will be asked to sign each one
-        separately, and each is its own document. Read them now so nothing later is a surprise.
-      </p>
-      <p v-else class="mt-1 text-sm text-ink-muted">
-        Each of these is signed separately, on its own, after you submit this application.
+      <h2 class="text-base font-semibold text-ink">{{ APPLY_COPY.disclosure.heading }}</h2>
+      <p class="mt-1 text-sm text-ink-muted">
+        {{ anyDraft ? APPLY_COPY.disclosure.draftIntro : APPLY_COPY.disclosure.finalIntro }}
       </p>
     </div>
 
@@ -47,7 +43,7 @@ const anyDraft = computed(() => props.releases.some((r) => r.draft));
     >
       <div class="flex flex-wrap items-center gap-2">
         <h3 class="text-sm font-semibold text-ink">{{ release.title }}</h3>
-        <span v-if="release.draft" :class="[BADGE_BASE, toneClass('warning')]">Not final</span>
+        <span v-if="release.draft" :class="[BADGE_BASE, toneClass('warning')]">{{ APPLY_COPY.disclosure.notFinal }}</span>
       </div>
       <p class="whitespace-pre-line text-sm text-ink-secondary">{{ release.body }}</p>
       <p class="text-sm font-medium text-ink">{{ release.intent }}</p>

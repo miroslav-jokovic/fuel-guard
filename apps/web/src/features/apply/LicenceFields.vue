@@ -69,7 +69,7 @@ const JURISDICTIONS = jurisdictionOptions();
         <BaseInput v-bind="f" v-model="draft.cdl_number" :disabled="Boolean(lockedBy)" />
       </ApplyField>
       <ApplyField v-slot="f" :path="['cdl_state']" :label="copy.state" :hint="lockedBy ? lockedHint(lockedBy) : copy.stateHint">
-        <ComboSelect v-bind="f" v-model="draft.cdl_state" :options="JURISDICTIONS" :disabled="Boolean(lockedBy)" />
+        <ComboSelect v-bind="f" v-model="draft.cdl_state" :placeholder="APPLY_COPY.placeholders.choose" :options="JURISDICTIONS" :disabled="Boolean(lockedBy)" />
       </ApplyField>
       <ApplyField v-slot="f" :path="['cdl_class']" :label="copy.class" :hint="copy.optional">
         <BaseInput v-bind="f" v-model="draft.cdl_class" maxlength="10" />
@@ -101,7 +101,7 @@ const JURISDICTIONS = jurisdictionOptions();
             <ApplyDate v-bind="f" v-model="licence.expires_at" kind="any" />
           </ApplyField>
           <ApplyField v-slot="f" :path="['additional_licences', i, 'kind']" :label="copy.otherKind" :hint="copy.otherKindHint">
-            <BaseInput v-bind="f" v-model="licence.kind" placeholder="Optional" />
+            <BaseInput v-bind="f" v-model="licence.kind" :placeholder="APPLY_COPY.placeholders.optional" />
           </ApplyField>
         </div>
         <div class="flex justify-end">

@@ -282,7 +282,7 @@ function removeJob(): void {
          laid out as FMCSA's own sample application lays it out. Either satisfies the paragraph, and
          a cross-field rule refuses a document with neither. -->
     <ApplyField v-slot="f" :path="['experience']" :label="copy.experience" :hint="copy.experienceHint">
-      <BaseInput v-bind="f" v-model="draft.experience" placeholder="Optional" />
+      <BaseInput v-bind="f" v-model="draft.experience" :placeholder="APPLY_COPY.placeholders.optional" />
     </ApplyField>
 
     <div class="space-y-3">
@@ -299,7 +299,7 @@ function removeJob(): void {
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <ApplyField v-slot="f" :path="['equipment_experience', i, 'equipment_class']" :label="copy.equipmentClass">
             <!-- The forms idiom the rest of the product uses; see `QuestionnaireFields.vue`. -->
-            <ComboSelect v-bind="f" v-model="row.equipment_class" :options="EQUIPMENT_OPTIONS" />
+            <ComboSelect v-bind="f" v-model="row.equipment_class" :placeholder="APPLY_COPY.placeholders.choose" :options="EQUIPMENT_OPTIONS" />
           </ApplyField>
           <ApplyField
             v-slot="f"

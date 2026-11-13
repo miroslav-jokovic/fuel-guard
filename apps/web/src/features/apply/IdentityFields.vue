@@ -104,7 +104,7 @@ async function send(): Promise<void> {
       </FormField>
       <FormField id="identity-state" :label="copy.state" :hint="copy.stateHint" :error="errors.cdl_state">
         <template #default="f">
-          <ComboSelect v-bind="f" v-model="form.cdl_state" :options="JURISDICTIONS" />
+          <ComboSelect v-bind="f" v-model="form.cdl_state" :placeholder="APPLY_COPY.placeholders.choose" :options="JURISDICTIONS" />
         </template>
       </FormField>
     </div>

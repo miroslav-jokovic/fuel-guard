@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { APPLY_COPY } from "@/features/apply/strings";
 import { PERMISSION_SIGNATURE_DESTINATION } from "@silvicom/shared";
 import { loadPdfDocument, type LoadedPdf } from "@/features/apply/signing/pdfDocument";
 import { signatureBoxOnPage, type BoxOnPage } from "@/features/apply/signing/signatureBox";
@@ -155,7 +156,7 @@ onBeforeUnmount(() => {
         :ref="(el) => { if (el) canvases[n - 1] = el as HTMLCanvasElement; }"
         class="block w-full"
         role="img"
-        :aria-label="`${label}, page ${n} of ${pageCount}`"
+        :aria-label="APPLY_COPY.signingWalk.documentPage(label, n, pageCount)"
       />
       <!-- Over the box the renderer drew, in percentages of this page, so it stays on the box at
            every width the page is drawn at. ⚠ Hung from the box's TOP, so a tag taller than the box

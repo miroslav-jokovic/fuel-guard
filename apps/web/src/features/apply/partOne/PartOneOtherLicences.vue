@@ -77,7 +77,7 @@ function cancel(): void {
 
       <div v-if="adding" class="space-y-4 rounded-surface bg-surface-muted p-4">
         <FormField id="p1-other-state" :label="copy.state" :error="entryErrors.state_code">
-          <template #default="f"><ComboSelect v-bind="f" v-model="entry.state_code" :options="JURISDICTIONS" /></template>
+          <template #default="f"><ComboSelect v-bind="f" v-model="entry.state_code" :placeholder="APPLY_COPY.placeholders.choose" :options="JURISDICTIONS" /></template>
         </FormField>
         <FormField id="p1-other-agency" :label="copy.agency" :error="entryErrors.agency">
           <template #default="f"><BaseInput v-bind="f" v-model="entry.agency" /></template>

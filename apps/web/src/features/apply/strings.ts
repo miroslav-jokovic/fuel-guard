@@ -13,6 +13,7 @@ import { APPLY_PERMISSIONS_COPY } from "./strings.permissions";
 import { APPLY_SMS_COPY } from "./strings.sms";
 import { APPLY_QUESTIONS_COPY } from "./strings.questions";
 import { APPLY_ISSUES_COPY } from "./strings.issues";
+import { APPLY_SCREENS_COPY } from "./strings.screens";
 import {
   APPLICATION_SECTION_LABELS,
   CMV_WINDOW_YEARS,
@@ -459,6 +460,7 @@ export const APPLY_COPY_EN = {
   ...APPLY_DOCUMENTS_COPY,
   ...APPLY_QUESTIONS_COPY,
   ...APPLY_ISSUES_COPY,
+  ...APPLY_SCREENS_COPY,
 } as const;
 
 export type ApplyCopy = Localized<typeof APPLY_COPY_EN>;

@@ -65,7 +65,13 @@ test("the back takes itself once its barcode reads, and what it read fills Part 
   const upload = stub.callsTo("PUT", /\/capture\/[^/]+$/).at(-1)!;
   expect(upload.body).toMatchObject({ slot: "cdl_back", content_type: expect.stringMatching(/^image\/(webp|jpeg)$/) });
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.locator("#p1-dob")).toHaveValue(/\/1986$/);
+  // The phone is not on a licence, so its screen says nothing about the barcode (F4 PR 1: one question
+  // to a screen); the date of birth's screen, next, holds what was read and says so.
+  await expect(page.getByText(/were read from your license/)).toHaveCount(0);
+  await page.getByLabel("Mobile phone number").fill("3125550142");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator("#p1-date_of_birth")).toHaveValue(/\/1986$/);
+  await expect(page.getByText(/were read from your license/)).toBeVisible();
 });
 
 test("a camera the phone refuses sends the driver to the camera app, and the page stops offering the scanner", async ({ page }) => {

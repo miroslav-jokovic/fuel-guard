@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { APPLY_COPY } from "@/features/apply/strings";
 import { computed, ref, watch } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import SigningPageView from "@/features/apply/signing/SigningPageView.vue";
@@ -110,7 +111,7 @@ function onLocated(places: LocatedPlaces): void {
         <SigningPageView
           :src="versionedSrc"
           :page="page"
-          :label="`${label}, page ${page}`"
+          :label="APPLY_COPY.signingWalk.labelOnPage(label, page)"
           :places="places.map((p) => p.id)"
           :tag-place-id="lookingAway ? null : currentId"
           @located="onLocated"
@@ -139,8 +140,8 @@ function onLocated(places: LocatedPlaces): void {
 
     <!-- The driver has wandered off the place being signed: said plainly, with the way back. -->
     <p v-if="lookingAway" class="text-sm text-ink-secondary">
-      You are reading page {{ page }}. The place you are signing is on page {{ pageOf(currentId) }}.
-      <BaseButton variant="ghost" size="sm" @click="lookingOverride = null">Take me back</BaseButton>
+      {{ APPLY_COPY.signingWalk.elsewhere(page, pageOf(currentId)) }}
+      <BaseButton variant="ghost" size="sm" @click="lookingOverride = null">{{ APPLY_COPY.signingWalk.takeMeBack }}</BaseButton>
     </p>
 
     <slot />

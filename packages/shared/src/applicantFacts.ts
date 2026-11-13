@@ -1,3 +1,5 @@
+import type { FactAsk } from "./applicantWizardScreens.js";
+
 /**
  * Every fact a driver gives on their application — where it is asked, what kind of answer it is,
  * which rule wants it, where the carrier's packet prints it and how the office corrects it today
@@ -22,8 +24,10 @@
  * - **The words.** A fact's label is the copy its own control renders (`apply/fieldLabels.ts` points
  *   into `APPLY_COPY`, which is typed so the Spanish cannot miss a key). A label here would be the
  *   second copy that file's header was written to remove.
- * - **The wizard screen.** The one-question-per-screen wizard (F4) does not exist; its screen ids
- *   join each entry when it does.
+ * - **Every wizard screen.** F4 PR 1 gave Stage 1's facts their `ask` (the screen that asks each,
+ *   `applicantWizardScreens.ts`), and the wizard is generated from it (`applicantWizard.ts`). Part 2's
+ *   facts get theirs with the PR that generates Part 2's screens; until then their screens are the
+ *   hand-written section components.
  *
  * ── `office` IS TODAY'S DOOR, NOT THE GOAL ─────────────────────────────────────────────────────
  * D-AM7 and the owner's Q-AM13 ruling (2026-11-10): every fact the driver ANSWERED is office-editable before signing. An entry whose
@@ -103,6 +107,11 @@ export interface ApplicantFact {
   readonly packet: FactPacket;
   readonly office: FactOffice;
   readonly rule?: FactRule;
+  /**
+   * Where the wizard asks it (SCREEN-MAP §7). A list because one fact can be asked in two places —
+   * the CDL's number on its own card, and each other licence's in the other-licences loop.
+   */
+  readonly ask?: readonly FactAsk[];
 }
 
 // ── the packet's lines that print a person's whole name ──────────────────────
@@ -146,35 +155,58 @@ const app = (
   packet: FactPacket,
   office: Door = "draft",
 ): ApplicantFact => ({ path: `application.${key}`, input, basis, packet, ...door(office) });
-const intake = (key: string, input: FactInput, basis: FactBasis, packet: FactPacket, office: Door): ApplicantFact => ({
+const intake = (
+  key: string,
+  input: FactInput,
+  basis: FactBasis,
+  packet: FactPacket,
+  office: Door,
+  ask?: FactAsk | readonly FactAsk[],
+): ApplicantFact => ({
   path: `intake.${key}`, input, basis, packet, ...door(office),
+  ...(ask ? { ask: Array.isArray(ask) ? ask : [ask as FactAsk] } : {}),
 });
+
+/** Asked only once the driver said they were in a DOT testing program in the past 30 days (1.12, 1.13). */
+const IN_PROGRAM = { fact: "intake.dot_program_30d", is: true } as const;
 
 /** The catalogue. Order is the order the driver meets the facts. */
 export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   // ── Part 1 (`applicantIntakeSchema`, `applicantIntakeLicenceSchema`) ──
-  intake("date_of_birth", "date", "391.21(b)(2)", { through: "application.date_of_birth" }, "identity"),
-  intake("phone", "us_mobile", "391.21(b)(2)", { through: "application.phone" }, "part_one"),
-  intake("address_line1", "text", "391.21(b)(3)", { through: "application.addresses[].line1" }, "part_one"),
-  intake("address_line2", "text", "391.21(b)(3)", { through: "application.addresses[].line2" }, "part_one"),
-  intake("city", "text", "391.21(b)(3)", { through: "application.addresses[].city" }, "part_one"),
-  intake("state", "us_state", "391.21(b)(3)", { through: "application.addresses[].state" }, "part_one"),
-  intake("postal_code", "zip", "391.21(b)(3)", { through: "application.addresses[].postal_code" }, "part_one"),
-  intake("cdl_class", "choice", "391.21(b)(5)", { through: "application.cdl_class" }, "part_one"),
-  intake("licences[].state_code", "jurisdiction", "391.21(b)(5)", { through: "application.cdl_state" }, "part_one"),
+  // `ask` (F4 PR 1): Part 1's typed pages, one question per screen (D-AM2), the address and the card
+  // grouped because each is one fact typed together (D-AM3). The licence columns' `ask` is the CDL's,
+  // row 0; the other licences are still `PartOneOtherLicences`' loop (`ASKED_BY_HAND`, applicantWizard.ts).
+  intake("date_of_birth", "date", "391.21(b)(2)", { through: "application.date_of_birth" }, "identity",
+    { screen: "about.date_of_birth", dates: "dob" }),
+  intake("phone", "us_mobile", "391.21(b)(2)", { through: "application.phone" }, "part_one", { screen: "about.phone" }),
+  intake("address_line1", "text", "391.21(b)(3)", { through: "application.addresses[].line1" }, "part_one", { screen: "address.home" }),
+  intake("address_line2", "text", "391.21(b)(3)", { through: "application.addresses[].line2" }, "part_one", { screen: "address.home" }),
+  intake("city", "text", "391.21(b)(3)", { through: "application.addresses[].city" }, "part_one", { screen: "address.home" }),
+  intake("state", "us_state", "391.21(b)(3)", { through: "application.addresses[].state" }, "part_one", { screen: "address.home" }),
+  intake("postal_code", "zip", "391.21(b)(3)", { through: "application.addresses[].postal_code" }, "part_one", { screen: "address.home" }),
+  intake("cdl_class", "choice", "391.21(b)(5)", { through: "application.cdl_class" }, "part_one", { screen: "licence.class" }),
+  intake("licences[].state_code", "jurisdiction", "391.21(b)(5)", { through: "application.cdl_state" }, "part_one",
+    { screen: "licence.card" }),
   intake("licences[].agency", "text", "391.21(b)(5)", { through: "application.additional_licences[].issuing_authority" }, "part_one"),
-  intake("licences[].licence_number", "text", "391.21(b)(5)", { through: "application.cdl_number" }, "part_one"),
-  intake("licences[].expires_on", "date", "391.21(b)(5)", { through: "application.cdl_expires_at" }, "part_one"),
+  intake("licences[].licence_number", "text", "391.21(b)(5)", { through: "application.cdl_number" }, "part_one",
+    { screen: "licence.card" }),
+  intake("licences[].expires_on", "date", "391.21(b)(5)", { through: "application.cdl_expires_at" }, "part_one",
+    { screen: "licence.expires", dates: "future" }),
   // P3 (0588): other licences only — the current CDL's TYPE is its class and endorsements.
   intake("licences[].kind", "choice", "391.21(b)(5)", { through: "application.additional_licences[].kind" }, "part_one"),
-  intake("endorsements[]", "multi_choice", "screening", { through: "application.cdl_endorsements[]" }, "part_one_answer"),
-  intake("prior_positive_2y", "yesno", "40.25(j)", { through: "application.prior_failed_pre_employment_test" }, STATEMENT),
-  intake("dot_program_30d", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, STATEMENT),
-  intake("dot_tested_6m", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, STATEMENT),
-  intake("dot_random_12m", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, STATEMENT),
+  intake("endorsements[]", "multi_choice", "screening", { through: "application.cdl_endorsements[]" }, "part_one_answer",
+    { screen: "licence.endorsements" }),
+  intake("prior_positive_2y", "yesno", "40.25(j)", { through: "application.prior_failed_pre_employment_test" }, STATEMENT,
+    { screen: "screening.prior_positive" }),
+  intake("dot_program_30d", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, STATEMENT,
+    { screen: "screening.program_30d" }),
+  intake("dot_tested_6m", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, STATEMENT,
+    { screen: "screening.tested_6m", when: IN_PROGRAM }),
+  intake("dot_random_12m", "yesno", "382.301(b)", { notPrinted: "a lead for the §382.301(b) exception, the employer's to verify" }, STATEMENT,
+    { screen: "screening.random_12m", when: IN_PROGRAM }),
   intake("donor_gender", "choice", "screening",
     { notPrinted: "Med-Stop's donor field; must never reach anything the person deciding the hire reads (DONOR_GENDERS)" },
-    { office: "part_one_answer", rule: "replace_only" }),
+    { office: "part_one_answer", rule: "replace_only" }, { screen: "screening.donor_gender" }),
   intake("medical_card_pending", "yesno", "screening", { notPrinted: "a state of the documents, shown on the office drawer" },
     "part_one_answer"),
 

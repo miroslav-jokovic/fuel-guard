@@ -228,7 +228,7 @@ async function signCurrent(): Promise<void> {
   <PlaceWalk
     v-else-if="ceremony.current.value"
     :src="packetSrc"
-    label="The carrier's application"
+    :label="APPLY_COPY.signingWalk.viewer"
     :places="stops"
     scope="on the application"
     :current-id="ceremony.current.value.id"

@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { PART_ONE_SCREENS } from "@silvicom/shared";
 import { shootWithScanner } from "./liveScanner";
 import { openHandbook, packetStops, partOneLink, partTwoV2Link, stubApi, TOKEN, type Stub } from "./stubApi";
 
@@ -131,7 +130,9 @@ async function chooseState(page: Page, id: string, check?: () => Promise<void>):
   await page.getByRole("option", { name: /Illinois/ }).first().click();
 }
 
-const step = (page: Page, n: number) => expect(page.getByText(`Step ${n} of ${PART_ONE_SCREENS.length}`)).toBeVisible();
+/** Part 1's steps since F4 PR 1: ten pages, the typed ones one question to a screen (offline.spec.ts counts them). */
+const PART_ONE_STEPS = 16;
+const step = (page: Page, n: number) => expect(page.getByText(`Step ${n} of ${PART_ONE_STEPS}`)).toBeVisible();
 
 for (const width of [390, 320]) {
   test.describe(`at ${width} px`, () => {
@@ -171,31 +172,44 @@ for (const width of [390, 320]) {
       await s.check("part1.cdl_back");
       await press(page, "Continue");
 
+      // F4 PR 1: the typed pages one question to a screen, each measured on its own.
       await step(page, 3);
-      await s.check("part1.about");
+      await s.check("part1.about.phone");
       await page.getByLabel("Mobile phone number").fill("3125550142");
-      // D-AM6: one box, typed the way it is written; the slashes draw themselves.
-      await page.locator("#p1-dob").fill("03071985");
       await press(page, "Continue");
-
       await step(page, 4);
-      await s.check("part1.address");
-      await page.locator("#p1-line1").fill("12 Depot Rd");
-      await page.locator("#p1-city").fill("Joliet");
-      await chooseState(page, "#p1-state", () => s.check("part1.address, state list open"));
-      await page.locator("#p1-zip").fill("60432");
+      await s.check("part1.about.date_of_birth");
+      // D-AM6: one box, typed the way it is written; the slashes draw themselves.
+      await page.locator("#p1-date_of_birth").fill("03071985");
       await press(page, "Continue");
 
       await step(page, 5);
-      await s.check("part1.licence");
-      await chooseState(page, "#p1-cdl-state");
-      await page.locator("#p1-cdl-number").fill("D12345678901");
-      await page.getByLabel("A", { exact: true }).check();
-      // D-AM6: one box, typed the way it is written; the slashes draw themselves.
-      await page.locator("#p1-cdl-expires").fill("05012029");
+      await s.check("part1.address");
+      await page.locator("#p1-address_line1").fill("12 Depot Rd");
+      await page.locator("#p1-city").fill("Joliet");
+      await chooseState(page, "#p1-state", () => s.check("part1.address, state list open"));
+      await page.locator("#p1-postal_code").fill("60432");
       await press(page, "Continue");
 
       await step(page, 6);
+      await s.check("part1.licence.card");
+      await chooseState(page, "#p1-cdl-state_code");
+      await page.locator("#p1-cdl-licence_number").fill("D12345678901");
+      await press(page, "Continue");
+      await step(page, 7);
+      await s.check("part1.licence.class");
+      await page.getByLabel("A", { exact: true }).check();
+      await press(page, "Continue");
+      await step(page, 8);
+      await s.check("part1.licence.expires");
+      // D-AM6: one box, typed the way it is written; the slashes draw themselves.
+      await page.locator("#p1-cdl-expires_on").fill("05012029");
+      await press(page, "Continue");
+      await step(page, 9);
+      await s.check("part1.licence.endorsements");
+      await press(page, "Continue");
+
+      await step(page, 10);
       await s.check("part1.other_licences");
       await page.getByLabel("Yes", { exact: true }).check();
       await press(page, "Add a license");
@@ -203,17 +217,23 @@ for (const width of [390, 320]) {
       await page.getByLabel("No", { exact: true }).check();
       await press(page, "Continue");
 
-      await step(page, 7);
-      await s.check("part1.screening");
-      const noes = page.getByLabel("No", { exact: true });
-      for (let i = 0; i < 2; i += 1) await noes.nth(i).check();
+      await step(page, 11);
+      await s.check("part1.screening.prior_positive");
+      await page.getByLabel("No", { exact: true }).check();
+      await press(page, "Continue");
+      await step(page, 12);
+      await s.check("part1.screening.program_30d");
+      await page.getByLabel("No", { exact: true }).check();
+      await press(page, "Continue");
       // UX5b (D-MSUX10): the drug test's gender — one of three, "I'd rather not say" among them.
+      await step(page, 13);
+      await s.check("part1.screening.donor_gender");
       await page.getByLabel("I'd rather not say", { exact: true }).check();
       await press(page, "Continue");
 
       // The medical card and the selfie through the scanner too (owner, 2026-09-30, Q-AW53). The medical
       // card's page shares the CDL's tips, already seen; the selfie opens on its own.
-      await step(page, 8);
+      await step(page, 14);
       await s.check("part1.medical_card");
       await page.getByLabel(/medical card yet/).check();
       await s.check("part1.medical_card, no card yet");
@@ -224,7 +244,7 @@ for (const width of [390, 320]) {
       await press(page, "Continue");
 
       // AW6: the selfie — its oval, its notice, "I can't take one" ticked, then a photo taken and sent.
-      await step(page, 9);
+      await step(page, 15);
       await s.check("part1.selfie");
       const cannot = page.getByLabel(/can't take a photo of myself/);
       await cannot.check();
@@ -240,7 +260,7 @@ for (const width of [390, 320]) {
       await expect(page.getByText("Received.")).toBeVisible();
       await press(page, "Continue");
 
-      await step(page, 10);
+      await step(page, 16);
       await s.check("part1.rights");
       await press(page, "I have read this");
 
