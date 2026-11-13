@@ -41,6 +41,8 @@ const mounted: VueWrapper[] = [];
 function render(over: Partial<InstanceType<typeof ChatRail>["$props"]> = {}) {
   const w = mount(ChatRail, {
     attachTo: document.body,
+    // Do not disturb reads the server through vue-query; it has its own test (ChatDoNotDisturb.test.ts).
+    global: { stubs: { ChatDoNotDisturb: true } },
     props: {
       conversations: [conversation({}), conversation({ thread_id: T2, kind: "group", subject: "Night dispatch", unread: 2, last_seq: 6, read_seq: 4 })],
       teams: [team()],
