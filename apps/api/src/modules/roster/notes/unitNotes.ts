@@ -13,8 +13,10 @@ import {
   type UnitNoteSearchHit,
   type UnitNoteSummary,
   type UnitNoteSubjectSummary,
+  type UnitNoteUnitRef,
 } from "@silvicom/shared";
 import { displayNameFor } from "../../../lib/memberLabels.js";
+import { labelBodyUnits, tokeniseTypedUnits } from "./noteUnits.js";
 
 /**
  * The office's notes on a driver, a truck or a trailer — `unit_notes`' only API reader and writer
@@ -22,10 +24,11 @@ import { displayNameFor } from "../../../lib/memberLabels.js";
  * subjects are roster's (D-UN2).
  *
  * ── WHAT A NOTE IS ─────────────────────────────────────────────────────────────────────────────
- * Permanent and signed (D-UN3): two writes exist and they are the only two UN1's guard lets through —
- * an INSERT, and the pin through `set_unit_note_pinned` (which unpins the unit's other note, D-UN6).
- * There is no edit and no removal on purpose (D-UN5, owner 2026-11-11: "we will see how it works and
- * add it later"); a wrong note is answered by a new note.
+ * Signed, and since the owner's v3 rulings (2026-11-12, plan §9) editable and removable by its author or
+ * a holder of `notes.manage_all` — through 0596's functions only, in `noteChanges.ts` (D-UN15, D-UN16).
+ * Here: the INSERT, the pin through `set_unit_note_pinned` (which unpins the unit's other note, D-UN6),
+ * and the reads. A removed note is never read here: every query below skips it (`deleted_at is null`),
+ * as 0596's search, counts and pin do.
  *
  * ── THE SERVICE ROLE BYPASSES RLS ─────────────────────────────────────────────────────────────
  * ⚠ UN1's table has RLS on and no client policies, so the browser cannot read a note at all and every
@@ -79,6 +82,9 @@ interface SearchRow {
   /** From `unit_note_mentions` (0592's search returns it; the insert's own select does not). */
   mentions?: string[] | null;
   fuzzy?: boolean | null;
+  edited_at?: string | null;
+  /** 0596's search: the units the note names, with their labels. */
+  unit_mentions?: UnitNoteUnitRef[] | null;
 }
 
 /**
@@ -87,7 +93,7 @@ interface SearchRow {
  * `chatMentionIds`), which is exactly what 0592's insert trigger indexes. A token naming a non-member
  * never reaches the table (UN015), so the two answers are the same set.
  */
-function toNote(row: SearchRow, labelOverride?: string): UnitNote {
+function toNote(row: SearchRow, labelOverride?: string, units?: UnitNoteUnitRef[]): UnitNote {
   return {
     id: row.id,
     kind: row.subject_kind as UnitNoteKind,
@@ -99,8 +105,12 @@ function toNote(row: SearchRow, labelOverride?: string): UnitNote {
     pinned: row.pinned === true,
     createdAt: row.created_at,
     mentions: Array.isArray(row.mentions) ? row.mentions : chatMentionIds(row.body),
+    editedAt: row.edited_at ?? null,
+    units: units ?? (Array.isArray(row.unit_mentions) ? row.unit_mentions.filter((u) => isUnitNoteKind(u.kind)) : []),
   };
 }
+
+const NOTE_COLUMNS = "id, subject_kind, subject_id, body, author_id, author_name, pinned, created_at, edited_at";
 
 /** The carrier's zone, for turning picked calendar days into instants (`calendarDay.ts`). */
 async function orgZone(admin: SupabaseClient, orgId: string): Promise<string> {
@@ -212,6 +222,7 @@ async function subjectLabel(admin: SupabaseClient, orgId: string, kind: UnitNote
 function refusalOf(code: string | undefined): NoteRefusal {
   if (code === "UN012" || code === "UN013") return { code: "not_found", message: "That unit is not on the roster." };
   if (code === "UN015") return { code: "invalid_mention", message: "A person mentioned in the note is not in this company." };
+  if (code === "UN016") return { code: "invalid_mention", message: "A unit mentioned in the note is not on the roster." };
   return { code: "db_error", message: "Could not save the note" };
 }
 
@@ -231,22 +242,24 @@ export async function addUnitNote(
   const label = await subjectLabel(admin, orgId, kind, subjectId);
   if (label === null) return { code: "not_found", message: "That unit is not on the roster." };
   const name = await displayNameFor(admin, author.userId, orgId, author.role);
+  // A typed `@848` that names exactly one truck or trailer becomes its token (D-UN17, `noteUnits.ts`).
+  const words = await tokeniseTypedUnits(admin, orgId, body);
   const { data, error } = await admin
     .from("unit_notes")
     .insert({
       org_id: orgId,
       subject_kind: kind,
       subject_id: subjectId,
-      body,
+      body: words,
       author_id: author.userId,
       // UN1 refuses a blank author; "An office user" is what every other actor fallback says.
       author_name: (name ?? author.email ?? "An office user").trim().slice(0, 200) || "An office user",
     })
-    .select("id, subject_kind, subject_id, body, author_id, author_name, pinned, created_at")
+    .select(NOTE_COLUMNS)
     .maybeSingle();
   if (error) return refusalOf((error as { code?: string }).code);
   if (!data) return { code: "db_error", message: "Could not save the note" };
-  return toNote(data as SearchRow, label);
+  return toNote(data as SearchRow, label, await labelBodyUnits(admin, orgId, words));
 }
 
 /**
@@ -257,15 +270,17 @@ export async function addUnitNote(
 export async function getUnitNote(admin: SupabaseClient, orgId: string, noteId: string): Promise<UnitNote | null | NoteRefusal> {
   const { data, error } = await admin
     .from("unit_notes")
-    .select("id, subject_kind, subject_id, body, author_id, author_name, pinned, created_at")
+    .select(NOTE_COLUMNS)
     .eq("org_id", orgId)
     .eq("id", noteId)
+    // A removed note reads as no note (D-UN16): the bell that named it opens "Note not found".
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) return { code: "db_error", message: "Could not load the note" };
   const row = data as SearchRow | null;
   if (!row || !isUnitNoteKind(row.subject_kind)) return null;
   const label = await subjectLabel(admin, orgId, row.subject_kind, row.subject_id);
-  return toNote(row, label ?? "");
+  return toNote(row, label ?? "", await labelBodyUnits(admin, orgId, row.body));
 }
 
 /**
@@ -284,6 +299,7 @@ export async function pinUnitNote(
     .select("id, subject_kind, subject_id")
     .eq("org_id", orgId)
     .eq("id", noteId)
+    .is("deleted_at", null)
     .maybeSingle();
   if (!note) return { code: "not_found", message: "Note not found" };
   const { data, error } = await admin.rpc("set_unit_note_pinned", { p_org: orgId, p_note: noteId, p_pinned: pinned });

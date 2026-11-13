@@ -57,6 +57,15 @@ export const CLOSE_APPLICATION_PERMISSION = "recruitment.close_application";
  */
 export const FULL_SSN_PERMISSION = "recruitment.full_ssn";
 
+/**
+ * Who may edit and remove ANYBODY'S unit note (UNIT-NOTES-PLAN D-UN19, owner 2026-11-12: "an admin with
+ * permission to edit notes will be able to edit and delete notes for all users and authors"). The author
+ * edits and removes their own note without it (D-UN15, D-UN16). A note is the office's own working
+ * sentence — no regulation names who corrects it — so it is the carrier's switch, here. Ships to nobody
+ * but the admin, who holds every permission; an admin hands it to a role on Settings → Permissions.
+ */
+export const NOTES_MANAGE_ALL_PERMISSION = "notes.manage_all";
+
 export const EDITABLE_PERMISSIONS = [
   {
     key: IDENTITY_NUMBER_IMAGES_PERMISSION,
@@ -81,6 +90,14 @@ export const EDITABLE_PERMISSIONS = [
       "Read all nine digits of an applicant's Social Security number and open the signed application with it printed in full. Without it the number shows as its last four and can only be replaced.",
     // Owner, Q-AM17 (2026-11-11): "admin and safety" — the admin holds every permission.
     shippedRoles: ["safety_manager"],
+  },
+  {
+    key: NOTES_MANAGE_ALL_PERMISSION,
+    label: "Edit and remove anyone's note",
+    description:
+      "Change or remove any note on a driver, truck or trailer, whoever wrote it. Without it a person edits and removes only their own notes. Every edit and removal is on the Audit page, and the old words are kept.",
+    // Owner, 2026-11-12: admin only to start — the admin holds every permission.
+    shippedRoles: [],
   },
 ] as const satisfies readonly EditablePermission[];
 

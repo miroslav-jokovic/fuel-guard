@@ -10,6 +10,9 @@ import { chatBodyParts, chatMentionToken } from "@silvicom/shared";
  * An edit goes the other way first (`toDraft`): the line's tokens become their labels so the field reads
  * as words, and a token whose person cannot be named stays a token, so saving keeps that mention.
  * Two different people of exactly the same name in one draft are one label; the last picked wins.
+ *
+ * A pick may remember a whole TOKEN instead of a person's id — a unit note's `<#vehicle:id>` (UNIT-NOTES-
+ * PLAN D-UN17, `MentionCandidate.token`). A value that starts with `<` is sent as it is.
  */
 export type MentionPicks = ReadonlyMap<string, string>;
 
@@ -23,7 +26,9 @@ function labelPattern(label: string): RegExp {
 export function fromDraft(text: string, picks: MentionPicks): string {
   // Longest first, so "@Ana Ruiz" is replaced before "@Ana" can take its first word.
   const labels = [...picks.keys()].sort((a, b) => b.length - a.length);
-  return labels.reduce((out, label) => out.replace(labelPattern(label), chatMentionToken(picks.get(label)!)), text);
+  const tokenOf = (v: string) => (v.startsWith("<") ? v : chatMentionToken(v));
+  // A function replacement, so a `$` in a token or a name is never read as a pattern reference.
+  return labels.reduce((out, label) => out.replace(labelPattern(label), () => tokenOf(picks.get(label)!)), text);
 }
 
 export function toDraft(body: string, nameOf: (id: string) => string | null): { text: string; picks: Map<string, string> } {

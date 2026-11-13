@@ -11,6 +11,9 @@ import {
   type UnitNote,
   type UnitNoteCreate,
   type UnitNoteCreateResponse,
+  type UnitNoteEditResponse,
+  type UnitNoteUnitRef,
+  type UnitNoteUnitsResponse,
   type UnitNoteKind,
   type UnitNoteListResponse,
   type UnitNotePeopleResponse,
@@ -194,6 +197,71 @@ export function usePinUnitNote() {
     mutationFn: async (v: { id: string; pinned: boolean }): Promise<boolean> =>
       (await read(apiFetch<UnitNotePinResponse>(`/api/notes/${v.id}/pin`, { method: "POST", body: { pinned: v.pinned } }), "Could not pin the note.")).pinned,
     onSuccess: () => void qc.invalidateQueries({ queryKey: [...NOTES_KEY, "list"] }),
+  });
+}
+
+// ── v3 (plan §9): edit, remove, resolve, and the units the `@` list offers ─────────────────────────
+
+/**
+ * New words for a note (D-UN15). Every notes read is refreshed — the list, the counts, and a board chip
+ * the edit may have added or taken out — so nothing on screen holds the old words.
+ */
+export function useEditUnitNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { id: string; body: string }): Promise<UnitNote> =>
+      (await read(apiFetch<UnitNoteEditResponse>(`/api/notes/${v.id}`, { method: "PATCH", body: { body: v.body } }), "Could not save the note.")).note,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: NOTES_KEY });
+      void qc.invalidateQueries({ queryKey: ["dispatch", "board"] });
+    },
+  });
+}
+
+/** Remove (hide) a note (D-UN16): it leaves every list, count and board chip. */
+export function useRemoveUnitNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      await read(apiFetch<{ removed: boolean }>(`/api/notes/${id}`, { method: "DELETE" }), "Could not remove the note.");
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: NOTES_KEY });
+      void qc.invalidateQueries({ queryKey: ["dispatch", "board"] });
+    },
+  });
+}
+
+/**
+ * Take one unit's chip for one note off the Dispatch Board, for everybody (D-UN18). The board is asked
+ * again at once: the server reads the chips past its row cache, so the answer is already current.
+ */
+export function useResolveNoteMention() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { noteId: string; kind: UnitNoteKind; subjectId: string }): Promise<void> => {
+      await read(
+        apiFetch<{ resolved: boolean }>(`/api/notes/${v.noteId}/units/resolve`, { method: "POST", body: { kind: v.kind, subjectId: v.subjectId } }),
+        "Could not resolve the note.",
+      );
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["dispatch", "board"] }),
+  });
+}
+
+/**
+ * The trucks, trailers and drivers whose number or name starts with what follows the `@` (D-UN17), for
+ * the composer's list. Asked only once something is typed, and cached a minute per query, so moving the
+ * caret back and forth asks nothing new.
+ */
+export function useUnitNoteUnits(query: Ref<string | null>) {
+  const on = useNotesAccess();
+  return useQuery({
+    queryKey: computed(() => [...NOTES_KEY, "units", query.value ?? ""] as const),
+    enabled: computed(() => on.value && !!query.value?.trim()),
+    staleTime: 60_000,
+    queryFn: async (): Promise<UnitNoteUnitRef[]> =>
+      (await read(apiFetch<UnitNoteUnitsResponse>(`/api/notes/units?q=${encodeURIComponent(query.value!.trim())}`), "Could not load the units.")).units,
   });
 }
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isCalendarDay, shiftDay } from "./calendarDay.js";
 import { isRecordId, recordId } from "./recordId.js";
+import { chatBodyParts } from "./chatContract.js";
 
 /**
  * Notes on a driver, a truck or a trailer — the office's notes on the units it runs
@@ -9,9 +10,11 @@ import { isRecordId, recordId } from "./recordId.js";
  * so a change here is the orchestrator's own PR and every track rebases on it.
  *
  * ── WHAT THE FILE HOLDS, AND WHAT IT DELIBERATELY DOES NOT ──────────────────────────────────────
- * A note is permanent and signed (D-UN3): the write surface is exactly two acts — add and pin — and
- * there is no edit or remove schema here on purpose. Removal is deferred (D-UN5, owner 2026-11-11:
- * "we will see how it works and add it later"); when it comes it is a named admin act in its own PR.
+ * The write surface was two acts — add and pin — until the owner's v3 rulings of 2026-11-12 (plan §9):
+ * an author now edits and removes their own note, a holder of `notes.manage_all` does both for every
+ * note (D-UN15, D-UN16, D-UN19), and a note may name a truck, trailer or driver by token, which shows on
+ * the Dispatch Board until somebody resolves it (D-UN17, D-UN18). Those schemas are at the end of this
+ * file; the frozen-contract rule above still holds — this is the orchestrator's change.
  *
  * The `<@user-id>` mention token is NOT restated here. Chat already keeps the one parser in shared
  * (`chatMentionIds`, `chatBodyParts`, `chatBodyText`, `chatMentionToken` in `chatContract.ts`,
@@ -222,6 +225,10 @@ export interface UnitNote {
   createdAt: string;
   /** The people the body's `<@id>` tokens name, from `unit_note_mentions` (D-UN8). */
   mentions: string[];
+  /** When the words last changed (D-UN15); null for a note never edited. */
+  editedAt: string | null;
+  /** The trucks, trailers and drivers the body's `<#kind:id>` tokens name, with what each is called (D-UN17). */
+  units: UnitNoteUnitRef[];
 }
 
 /** A row of the list or the search. `fuzzy` = found by the trigram pass, not the word pass (D-UN7). */
@@ -293,4 +300,102 @@ export function orderUnitNotes<T extends Pick<UnitNote, "pinned" | "createdAt" |
     if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
     return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
   });
+}
+
+// ── v3 (plan §9): edit, remove, and the units a note names ─────────────────────────────────────────
+
+/**
+ * A unit a note names (D-UN17): its token's kind and id and what the office calls it — a truck's or
+ * trailer's number, a driver's name. `label` is null for a token whose unit the carrier no longer has
+ * (a merged-away driver keeps its token in the author's words), which reads "a driver".
+ */
+export interface UnitNoteUnitRef {
+  kind: UnitNoteKind;
+  id: string;
+  label: string | null;
+}
+
+/**
+ * `<#vehicle:id>` · `<#trailer:id>` · `<#driver:id>` — the people token's shape (`<@id>`, D-CHAT22) with
+ * its kind, so a renumbered truck or a married name never breaks the link. 0596's
+ * `unit_note_unit_tokens` reads exactly this shape. The id is a loose 36 characters here and is then
+ * asked of the one id rule (`isRecordId`), as chat's `MENTION_SHAPE` does — never a second id regex.
+ */
+const UNIT_TOKEN_SHAPE = /<#(vehicle|trailer|driver):([0-9a-fA-F-]{36})>/g;
+
+export const unitNoteUnitToken = (kind: UnitNoteKind, id: string): string => `<#${kind}:${id.toLowerCase()}>`;
+
+/** The units a body names, each once, in the order they first appear. */
+export function unitNoteUnitTokens(body: string | null | undefined): UnitNoteSubject[] {
+  const out: UnitNoteSubject[] = [];
+  for (const m of (body ?? "").matchAll(UNIT_TOKEN_SHAPE)) {
+    if (!isRecordId(m[2])) continue;
+    const kind = m[1]!.toLowerCase() as UnitNoteKind;
+    const id = m[2]!.toLowerCase();
+    if (!out.some((u) => u.kind === kind && u.id === id)) out.push({ kind, id });
+  }
+  return out;
+}
+
+export type UnitNoteBodyPart = { text: string } | { mention: string } | { unit: UnitNoteSubject };
+
+/** A note's body cut into words, people (`<@id>`, chat's own parser) and units (`<#kind:id>`). */
+export function unitNoteBodyParts(body: string): UnitNoteBodyPart[] {
+  const parts: UnitNoteBodyPart[] = [];
+  let at = 0;
+  const words = (text: string) => parts.push(...chatBodyParts(text));
+  for (const m of body.matchAll(UNIT_TOKEN_SHAPE)) {
+    // Not an id by the one rule: it stays words, as the database's own reader leaves it (0596).
+    if (!isRecordId(m[2])) continue;
+    if (m.index > at) words(body.slice(at, m.index));
+    parts.push({ unit: { kind: m[1]!.toLowerCase() as UnitNoteKind, id: m[2]!.toLowerCase() } });
+    at = m.index + m[0].length;
+  }
+  if (at < body.length) words(body.slice(at));
+  return parts;
+}
+
+/**
+ * How a named unit reads in a line of text: `@848`, `@5310`, `@Marcus Hill` — what the writer typed.
+ * A unit nobody can name any more reads as its kind ("@a driver"), never as its id.
+ */
+export function unitNoteUnitText(unit: UnitNoteSubject, label: string | null | undefined): string {
+  const name = label?.trim();
+  return name ? `@${name}` : `@a ${UNIT_NOTE_KIND_LABELS[unit.kind].toLowerCase()}`;
+}
+
+/** A body as one line of plain text (the bell's preview, the board chip's tooltip): units by `unitNoteUnitText`. */
+export function unitNoteBodyText(
+  body: string,
+  personOf: (userId: string) => string | null | undefined,
+  unitOf: (unit: UnitNoteSubject) => string | null | undefined,
+): string {
+  return unitNoteBodyParts(body)
+    .map((p) => ("text" in p ? p.text : "mention" in p ? `@${personOf(p.mention)?.trim() || "someone"}` : unitNoteUnitText(p.unit, unitOf(p.unit))))
+    .join("");
+}
+
+/** `PATCH /api/notes/:id` — new words for a live note (D-UN15). The body rules are the add's. */
+export const unitNoteEditSchema = unitNoteCreateSchema.pick({ body: true });
+export type UnitNoteEdit = z.infer<typeof unitNoteEditSchema>;
+
+export interface UnitNoteEditResponse {
+  note: UnitNote;
+}
+
+/** `POST /api/notes/:id/units/resolve` — take one unit's chip for this note off the Dispatch Board (D-UN18). */
+export const unitNoteResolveSchema = z.object({
+  kind: z.enum(UNIT_NOTE_KINDS),
+  subjectId: recordId("Choose the unit."),
+});
+export type UnitNoteResolve = z.infer<typeof unitNoteResolveSchema>;
+
+/**
+ * `GET /api/notes/units?q=848` — the `@` list's trucks, trailers and drivers (D-UN17): units whose number
+ * starts with the words, drivers whose name has a word that does. Applicants are never offered (UN016).
+ */
+export const unitNoteUnitsQuerySchema = z.object({ q: z.string().trim().min(1).max(40) });
+export const UNIT_NOTE_UNITS_LIMIT = 8;
+export interface UnitNoteUnitsResponse {
+  units: UnitNoteUnitRef[];
 }

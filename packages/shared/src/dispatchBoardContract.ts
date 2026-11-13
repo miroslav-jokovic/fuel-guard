@@ -106,6 +106,26 @@ export const boardWarningSchema = z.object({
 });
 export type BoardWarning = z.infer<typeof boardWarningSchema>;
 
+/**
+ * A note that names one of the row's units — the truck, a seat, or the current trailer — and that nobody
+ * has resolved yet (UNIT-NOTES-PLAN D-UN18). Drawn in the Warnings cell beside the due-date warnings but
+ * NOT one of them: a warning comes due and goes when it is done; this goes when a person presses Resolve.
+ *
+ * `kind`/`subjectId` are the unit NAMED (the one whose row shows the chip); `noteKind`/`noteSubjectId`/
+ * `noteLabel` are the unit the note was WRITTEN on, which may be another one ("Marcus swaps to @848").
+ */
+export const dispatchBoardNoteMentionSchema = z.object({
+  noteId: z.string(),
+  kind: z.enum(["vehicle", "driver", "trailer"]),
+  subjectId: z.string(),
+  at: iso,
+  authorName: z.string(),
+  noteKind: z.enum(["vehicle", "driver", "trailer"]),
+  noteSubjectId: z.string(),
+  noteLabel: z.string().nullable(),
+});
+export type DispatchBoardNoteMention = z.infer<typeof dispatchBoardNoteMentionSchema>;
+
 export const dispatchBoardFlagsSchema = z.object({
   lateRisk: z.boolean(),
   noNextLoad: z.boolean(),
@@ -168,6 +188,12 @@ export const dispatchBoardRowSchema = z.object({
    * reader or on the reader's own trucks (`readDispatchBoard`).
    */
   warnings: z.array(boardWarningSchema),
+  /**
+   * Open note mentions of the row's units, newest first (D-UN18). Added per request AFTER the 20-second
+   * row cache (`readDispatchBoard`), so a Resolve shows on the next poll. Empty without the `notes`
+   * screen.
+   */
+  noteMentions: z.array(dispatchBoardNoteMentionSchema).default([]),
   flags: dispatchBoardFlagsSchema,
 });
 export type DispatchBoardRow = z.infer<typeof dispatchBoardRowSchema>;

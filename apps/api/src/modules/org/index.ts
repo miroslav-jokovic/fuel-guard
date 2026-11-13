@@ -27,7 +27,7 @@ export { auditRouter } from "./routes/audit.js";
 export { sectionAccessRouter, toOverrides } from "./routes/sectionAccess.js";
 // §15.1 (Q-WF4b): named permissions a carrier switches per role, read per request by the image gates.
 export { rolePermissionsRouter, loadPermissionGrants } from "./routes/rolePermissions.js";
-export { requireNamedPermission, callerNamedPermissions } from "./namedPermissionGate.js";
+export { requireNamedPermission, callerNamedPermissions, holdsNamedPermission } from "./namedPermissionGate.js";
 export { surfaceAccessRouter, toSurfaceOverrides, surfaceClaimFor } from "./routes/surfaceAccess.js";
 // SP10 (Q-SET10): who has access, and the access-review export — reads the two routers' tables.
 export { accessReviewRouter } from "./routes/accessReview.js";

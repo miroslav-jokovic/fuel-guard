@@ -91,6 +91,7 @@ function boardRow(t: Truck): DispatchBoardRow {
     available: { place: avail.place, city: avail.city, state: avail.state, postalCode: avail.postalCode, lat: avail.lat, lng: avail.lng, at: avail.at, basis: avail.basis },
     milesLeft: hasGps ? milesLeft : null,
     warnings: t.warnings.map((w) => ({ unit: w.unit, kind: w.kind, verdict: w.verdict, dueOn: w.dueInDays === null ? null : dayOffset(w.dueInDays), milesLeft: w.milesLeft })),
+    noteMentions: [],
     flags: {
       lateRisk: t.story === "late" || t.story === "at_risk", noNextLoad: !t.next, emptyNow: !cur,
       hosLow: !!t.driver && t.driveHoursLeft < 2, noGps: !hasGps, warningUrgent: urgent,

@@ -6,6 +6,7 @@ import {
   unitNoteListQuerySchema,
   unitNotePinSchema,
   unitNoteSummaryQuerySchema,
+  unitNoteUnitsQuerySchema,
   type UnitNoteCreate,
   type UnitNotePin,
 } from "@silvicom/shared";
@@ -17,6 +18,9 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { addUnitNote, getUnitNote, isNoteRefusal, listUnitNotes, pinUnitNote, summariseUnitNotes, type NoteRefusal } from "./unitNotes.js";
 import { listNotePeople, ringNoteMentions } from "./noteMentions.js";
+import { listNoteUnits } from "./noteUnits.js";
+import type { NoteChangeRefusal } from "./noteChanges.js";
+import { mountNoteChangeRoutes } from "./changeRoutes.js";
 
 /**
  * `/api/notes` — notes on drivers, trucks and trailers (`docs/plans/notes/UNIT-NOTES-PLAN.md` §4.3,
@@ -33,7 +37,15 @@ import { listNotePeople, ringNoteMentions } from "./noteMentions.js";
  * screen dark, admins only, while it was built (D-UN14); since UN9 the catalogue line is chat's exact
  * shape, so it is on for every office role and no longer a switch on the Permissions page.
  *
- * ⚠ The audit row says THAT a note was written or pinned and which unit it is on, never what it says.
+ * ── v3 (plan §9, owner 2026-11-12) ────────────────────────────────────────────────────────────────
+ * `PATCH /:id` edits and `DELETE /:id` removes (hides) a note: its author always, anybody else only with
+ * the named permission `notes.manage_all` (D-UN15, D-UN16, D-UN19), asked here and handed to the
+ * database, which refuses a stranger's note without it (UN025). `GET /units` is the `@` list's trucks,
+ * trailers and drivers, and `POST /:id/units/resolve` takes a unit's chip off the Dispatch Board
+ * (D-UN17, D-UN18) — anybody who reads notes may, as anybody may pin.
+ *
+ * ⚠ The audit row says THAT a note was written, pinned, edited, removed or resolved and which unit it is
+ * on — the Audit page is where admins keep track of edits and removals (Q-UN9) — never what it says.
  * The audit log is an admin's reading, and a note is the office's sentence about a person or a truck —
  * `recruiting/routes/notes.ts` keeps an applicant note's text out of its audit for the same reason.
  */
@@ -42,7 +54,9 @@ export function unitNotesRouter(): Router {
   router.use(requireAuth, requireOrg, requireRole(...OFFICE_ROLES), requireSurface("notes"));
 
   const adminOf = (req: Request) => getSupabaseAdmin(getAppLocals(req).env);
-  const status = (r: NoteRefusal) => (r.code === "not_found" ? 404 : r.code === "invalid_mention" ? 422 : 500);
+  const status = (r: NoteRefusal | NoteChangeRefusal) =>
+    r.code === "not_found" ? 404 : r.code === "invalid_mention" ? 422 : r.code === "forbidden" ? 403 : 500;
+  const actorOf = (req: Request) => ({ userId: req.auth!.userId, role: req.auth!.role ?? null, email: req.auth!.email ?? null });
 
   router.get(
     "/summary",
@@ -74,6 +88,23 @@ export function unitNotesRouter(): Router {
   );
 
   router.get(
+    "/units",
+    asyncHandler(async (req, res) => {
+      const parsed = unitNoteUnitsQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("invalid_request", parsed.error.issues[0]?.message ?? "Invalid query"));
+        return;
+      }
+      const units = await listNoteUnits(adminOf(req), req.auth!.orgId!, parsed.data.q);
+      if (!units) {
+        res.status(500).json(apiError("db_error", "Could not load the units"));
+        return;
+      }
+      res.json({ units });
+    }),
+  );
+
+  router.get(
     "/",
     asyncHandler(async (req, res) => {
       const parsed = unitNoteListQuerySchema.safeParse(req.query);
@@ -100,7 +131,7 @@ export function unitNotesRouter(): Router {
       const note = await addUnitNote(
         admin,
         orgId,
-        { userId: req.auth!.userId, role: req.auth!.role ?? null, email: req.auth!.email ?? null },
+        actorOf(req),
         body.kind,
         body.subjectId,
         body.body,
@@ -123,7 +154,7 @@ export function unitNotesRouter(): Router {
     }),
   );
 
-  // Declared after `/summary` and `/people`, which `/:id` would otherwise read as a note id.
+  // Declared after `/summary`, `/people` and `/units`, which `/:id` would otherwise read as a note id.
   router.get(
     "/:id",
     asyncHandler(async (req, res) => {
@@ -165,6 +196,9 @@ export function unitNotesRouter(): Router {
       res.json({ pinned: result.pinned });
     }),
   );
+
+  // v3: edit, remove, resolve (plan §9) — their own file, on this router so they sit behind the same gates.
+  mountNoteChangeRoutes(router);
 
   return router;
 }

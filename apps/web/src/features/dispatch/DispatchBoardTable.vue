@@ -26,6 +26,7 @@ import { BOARD_HOS_LOW_MS } from "@silvicom/shared";
 import { computed } from "vue";
 import { useUnitNoteSummaries } from "@/components/notes/useUnitNotes";
 import BoardNotesCell from "./BoardNotesCell.vue";
+import BoardNoteChips from "./BoardNoteChips.vue";
 import { boardNoteSummary, boardNoteTargets } from "./boardNotes";
 
 /**
@@ -176,7 +177,7 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
       <!-- Only what is due shows, as the dispatchers' board does it; nothing due is the table's dash.
            The chips wrap, unlike Available's: "Trailer annual overdue 10/01/2026" is wider than the
            column, and unwrapped it ran past the table's edge at 1440 px (browser pass, 2026-10-16). -->
-      <div v-if="row.warnings.length" class="flex flex-col items-start gap-0.5">
+      <div v-if="row.warnings.length || row.noteMentions.length" class="flex flex-col items-start gap-0.5">
         <span
           v-for="(w, i) in row.warnings"
           :key="i"
@@ -184,6 +185,8 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
         >
           {{ warningWords(w) }}
         </span>
+        <!-- A note that names this truck, a seat or the trailer (UNIT-NOTES-PLAN D-UN18), under the due items. -->
+        <BoardNoteChips :row="row" />
       </div>
       <span v-else class="text-ink-tertiary">—</span>
     </template>

@@ -10,6 +10,12 @@ import {
   parseNotesParam,
   parseUnitNoteCursor,
   parseUnitNoteSubjects,
+  unitNoteBodyParts,
+  unitNoteBodyText,
+  unitNoteEditSchema,
+  unitNoteResolveSchema,
+  unitNoteUnitToken,
+  unitNoteUnitTokens,
   unitNoteCreateSchema,
   unitNoteListQuerySchema,
   unitNoteSummaryQuerySchema,
@@ -149,5 +155,43 @@ describe("the order notes are shown in", () => {
       { id: "7", pinned: false, createdAt: "2026-11-11T20:00:00.000002+00:00" },
     ];
     expect(orderUnitNotes(notes).map((n) => n.id)).toEqual(["3", "4", "7", "6", "5", "1", "2"]);
+  });
+});
+
+// ── v3 (plan §9): the unit token ───────────────────────────────────────────────────────────────────
+describe("unit tokens (D-UN17)", () => {
+  const T = "77777777-7777-4777-8777-77777777AAAA";
+  const D = "66666666-6666-4666-8666-666666666666";
+  const P = "55555555-5555-4555-8555-555555555555";
+
+  it("spells a unit as <#kind:id>, lower-cased as Postgres prints it", () => {
+    expect(unitNoteUnitToken("vehicle", T)).toBe(`<#vehicle:${T.toLowerCase()}>`);
+  });
+
+  it("reads each named unit once, in the order it first appears, and nothing that is not a token", () => {
+    const body = `${unitNoteUnitToken("driver", D)} to ${unitNoteUnitToken("vehicle", T)}, then ${unitNoteUnitToken("driver", D)} <#boat:${D}> <#vehicle:nope>`;
+    expect(unitNoteUnitTokens(body)).toEqual([{ kind: "driver", id: D }, { kind: "vehicle", id: T.toLowerCase() }]);
+  });
+
+  it("cuts a body into words, people and units — chat's people parser inside the words", () => {
+    expect(unitNoteBodyParts(`Ask <@${P}> about ${unitNoteUnitToken("vehicle", T)}.`)).toEqual([
+      { text: "Ask " }, { mention: P }, { text: " about " }, { unit: { kind: "vehicle", id: T.toLowerCase() } }, { text: "." },
+    ]);
+  });
+
+  it("reads a body as one line: people by name, units by number, a gone unit by its kind", () => {
+    const body = `<@${P}> swap ${unitNoteUnitToken("vehicle", T)} with ${unitNoteUnitToken("driver", D)}`;
+    expect(unitNoteBodyText(body, () => "Ana", (u) => (u.kind === "vehicle" ? "848" : null))).toBe("@Ana swap @848 with @a driver");
+  });
+
+  it("edits with the add's own body rules", () => {
+    expect(unitNoteEditSchema.safeParse({ body: "  fixed  " })).toEqual({ success: true, data: { body: "fixed" } });
+    expect(unitNoteEditSchema.safeParse({ body: "   " }).success).toBe(false);
+    expect(unitNoteEditSchema.safeParse({ body: "x".repeat(UNIT_NOTE_MAX_LENGTH + 1) }).success).toBe(false);
+  });
+
+  it("resolves only one of the three kinds", () => {
+    expect(unitNoteResolveSchema.safeParse({ kind: "trailer", subjectId: D }).success).toBe(true);
+    expect(unitNoteResolveSchema.safeParse({ kind: "load", subjectId: D }).success).toBe(false);
   });
 });

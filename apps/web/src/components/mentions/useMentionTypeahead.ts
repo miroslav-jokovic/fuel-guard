@@ -62,7 +62,7 @@ export function useMentionTypeahead(opts: {
     const el = field.value?.$el;
     const end = at.start + 1 + at.query.length;
     draft.value = `${draft.value.slice(0, at.start)}${label} ${draft.value.slice(end)}`;
-    picks.value = new Map(picks.value).set(label, c.user_id);
+    picks.value = new Map(picks.value).set(label, c.token ?? c.user_id);
     await nextTick();
     const caret = at.start + label.length + 1;
     el?.focus();
@@ -99,6 +99,14 @@ export function useMentionTypeahead(opts: {
     picks.value = new Map();
     typed.value = null;
   }
+  /** Start from a saved line (an edit): its text with labels, and what each label stands for (`toDraft`). */
+  function load(text: string, remembered: ReadonlyMap<string, string>) {
+    draft.value = text;
+    picks.value = new Map(remembered);
+    typed.value = null;
+  }
+  /** What follows the `@` being typed, or null — for a composer that asks the server who matches (unit notes' units). */
+  const query = computed(() => typed.value?.query ?? null);
 
-  return { mentions, outgoing, active, listId, options, listOpen, addLabel, readCaret, pick, onListKey, close, reset };
+  return { mentions, outgoing, active, listId, options, listOpen, addLabel, query, readCaret, pick, onListKey, close, reset, load };
 }
