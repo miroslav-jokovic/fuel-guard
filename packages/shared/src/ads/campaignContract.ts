@@ -127,3 +127,17 @@ export const adsCreativeDecisionSchema = z.object({
   reason: z.string().trim().min(1).max(1000).nullable().optional(),
 }).refine((d) => d.decision === "approve" || Boolean(d.reason), { message: "Say why the ad is rejected.", path: ["reason"] });
 export type AdsCreativeDecision = z.infer<typeof adsCreativeDecisionSchema>;
+
+// ── Q-ADL7: a person chooses an ad's words ──────────────────────────────────────────────────────
+const copySlots = z.record(z.string().regex(/^[a-z][a-z0-9_]{1,30}$/), z.string().trim().min(1).max(500));
+/**
+ * The words a person settles on for one creative: every slot in both languages, and which offered copy it started
+ * from (an index into the creative's ranked candidates; null = the copy the ad already has). The door checks the
+ * words against the brief, the preset's slots and limits and the overlay before anything is written
+ * (`campaigns/copyChoice.ts`); the schema only says what a well-formed ask is.
+ */
+export const adsCopyChoiceSchema = z.object({
+  from_candidate: z.number().int().min(0).max(4).nullable(),
+  copy: z.object({ en: copySlots, es: copySlots }).strict(),
+}).strict();
+export type AdsCopyChoice = z.infer<typeof adsCopyChoiceSchema>;

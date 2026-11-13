@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { CRAFT_CRITERIA, CRAFT_CRITERION_LABEL, CRAFT_MAX_TOTAL, type AdCandidates } from "@silvicom/shared";
+import { AppButton } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { copyLines } from "./adsCampaignFlow";
 
@@ -9,7 +10,8 @@ import { copyLines } from "./adsCampaignFlow";
  * the others are shown so a reviewer sees why — and can disagree, which is how the judge gets calibrated (R7). When
  * no judge ranked them (switched off, or before it existed) the order is the writer's and the heading says so.
  */
-const props = defineProps<{ candidates: AdCandidates; language: string }>();
+const props = defineProps<{ candidates: AdCandidates; language: string; canChoose?: boolean }>();
+const emit = defineEmits<{ use: [index: number] }>();
 
 const ranked = computed(() => props.candidates.ranked.map((c, i) => ({ ...c, rank: i + 1, chosen: i === props.candidates.chosen })));
 const judged = computed(() => props.candidates.judge !== null);
@@ -23,7 +25,8 @@ const which = computed(() => (props.candidates.chosen === 0 ? "the first became 
   <details class="rounded-detail bg-surface-muted p-3 text-sm" data-test="copy-candidates">
     <summary class="cursor-pointer text-ink">
       {{ candidates.passed }} of {{ candidates.offered }} copies offered passed the checks<template v-if="dropped > 0">; {{ dropped }} stated something the opening does not</template>.
-      <template v-if="judged">Ranked by the craft judge; {{ which }}.</template>
+      <template v-if="candidates.chosen_by_person">{{ candidates.chosen_by_person.name }} chose the words<template v-if="candidates.chosen_by_person.edited_slots.length">, starting from #{{ candidates.chosen + 1 }} and changing {{ candidates.chosen_by_person.edited_slots.join(", ") }}</template><template v-else>: #{{ candidates.chosen + 1 }}, as offered</template>.</template>
+      <template v-else-if="judged">Ranked by the craft judge; {{ which }}.</template>
       <template v-else>Not ranked — in the writer's order; {{ which }}.</template>
     </summary>
     <ol class="mt-3 space-y-3">
@@ -34,6 +37,7 @@ const which = computed(() => (props.candidates.chosen === 0 ? "the first became 
         </p>
         <p v-if="passedOver.has(c.rank - 1)" class="text-xs text-warning-700" data-test="passed-over">Not used: it does not fit on the image ({{ passedOver.get(c.rank - 1) }}).</p>
         <p v-for="l in copyLines(c.copy, language)" :key="l.slot" class="text-ink"><span class="text-ink-muted">{{ l.slot }}: </span>{{ l.text }}</p>
+        <AppButton v-if="canChoose && !c.chosen" size="sm" :data-test="`use-${c.rank}`" @click="emit('use', c.rank - 1)">Use these words</AppButton>
         <template v-if="c.judged">
           <p class="text-xs text-ink-muted" data-test="reason">{{ c.judged.reason }}</p>
           <ul class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">

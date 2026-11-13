@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from "vue";
-import { isReplacement, type AdsCampaignMove } from "@silvicom/shared";
+import { isReplacement, type AdsCampaignMove, type AdsCopyChoice } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, QueryState } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -10,7 +10,7 @@ import AdsCampaignConcepts from "./AdsCampaignConcepts.vue";
 import AdsCampaignLaunch from "./AdsCampaignLaunch.vue";
 import AdsCreativeReview from "./AdsCreativeReview.vue";
 import { CAMPAIGN_STATE_LABEL, CAMPAIGN_STATE_TONE, canLaunchFrom, isWorking, personMoves } from "./adsCampaignFlow";
-import { useAdsCampaign, useCampaignMove, useCreativeDecision } from "./useAdsCampaigns";
+import { useAdsCampaign, useCampaignMove, useChooseWords, useCreativeDecision } from "./useAdsCampaigns";
 
 /**
  * One campaign (E3): review its ads and move it on. The moves are the machine's (`personMoves`), shown to whoever
@@ -26,6 +26,9 @@ const toast = useToastStore();
 const campaign = useAdsCampaign(toRef(props, "campaignId"));
 const move = useCampaignMove();
 const decide = useCreativeDecision();
+const words = useChooseWords();
+/** The door's last refusal of a word choice, by creative, shown in that ad's editor (`words_refused`). */
+const wordsRefusal = ref<Record<string, unknown>>({});
 
 const view = computed(() => campaign.data.value ?? null);
 const canManage = computed(() => session.can("recruitment"));
@@ -36,7 +39,7 @@ const moves = computed(() => (view.value && canManage.value ? personMoves(view.v
  */
 const launchRefused = ref(false);
 const showLaunch = computed(() => Boolean(view.value && session.admin && canLaunchFrom(view.value.state)));
-const busy = computed(() => move.isPending.value || decide.isPending.value);
+const busy = computed(() => move.isPending.value || decide.isPending.value || words.isPending.value);
 
 async function act(work: () => Promise<void>, done: string): Promise<void> {
   try {
@@ -48,6 +51,17 @@ async function act(work: () => Promise<void>, done: string): Promise<void> {
 }
 const press = (m: AdsCampaignMove, done: string) => act(() => move.mutateAsync({ id: props.campaignId, move: m }), done);
 const approve = (creativeId: string) => act(() => decide.mutateAsync({ id: props.campaignId, creativeId, decision: { decision: "approve" } }), "Ad approved");
+async function chooseWords(creativeId: string, choice: AdsCopyChoice): Promise<void> {
+  try {
+    await words.mutateAsync({ id: props.campaignId, creativeId, choice });
+    wordsRefusal.value = { ...wordsRefusal.value, [creativeId]: null };
+    toast.success("The ad is being remade with these words");
+  } catch (e) {
+    const r = e as { code?: string; detail?: unknown; message?: string };
+    if (r.code === "words_refused") wordsRefusal.value = { ...wordsRefusal.value, [creativeId]: r.detail };
+    toast.error("That did not go through", r.message);
+  }
+}
 const reject = (creativeId: string, reason: string) => act(() => decide.mutateAsync({ id: props.campaignId, creativeId, decision: { decision: "reject", reason } }), "Ad rejected");
 </script>
 
@@ -66,7 +80,8 @@ const reject = (creativeId: string, reason: string) => act(() => decide.mutateAs
         <AdsCreativeReview
           v-for="c in view.creatives" :key="c.id" :creative="c" :can-decide="canManage && (view.state === 'review' || (view.state === 'live' && isReplacement(c, view.creatives)))"
           :replaces="isReplacement(c, view.creatives)" :busy="busy"
-          @approve="approve(c.id)" @reject="(why) => reject(c.id, why)"
+          :can-choose-words="canManage && view.state === 'review'" :words-refusal="wordsRefusal[c.id]"
+          @approve="approve(c.id)" @reject="(why) => reject(c.id, why)" @words="(choice) => chooseWords(c.id, choice)"
         />
       </div>
     </QueryState>

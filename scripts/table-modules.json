@@ -3357,6 +3357,17 @@
         "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one per enabled preset per campaign (4–5) plus regenerations and copy edits; ~25 per campaign at most."
       }
     },
+    "ads_copy_choices": {
+      "module": "ads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "new in 0595 (2026-11-12, ADS-AD-LOOK-PLAN D-ADL21); one row per ad whose words a person chose on the review screen, so a handful a week; append-only evidence, RETENTION_FORBIDDEN."
+      }
+    },
     "ads_approvals": {
       "module": "ads",
       "layer": "core",

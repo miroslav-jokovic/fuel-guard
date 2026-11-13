@@ -227,6 +227,33 @@ describe("composeCreative — a creative from copy to ready (C5b)", () => {
   });
 });
 
+describe("composeCreative — a person chose the words (ADS-AD-LOOK-PLAN Q-ADL7)", () => {
+  const RANKED = { ranked: copySet.candidates.slice(0, 2).map((copy, i) => ({ copy, judged: null, total: null, offered_as: i })), chosen: 0, judge: null, offered: 3, passed: 2 };
+  const choice = { copy: copySet.candidates[1]!, from_candidate: 1, edited_slots: [] as string[], chosen_by_name: "Koni", replaced: { creativeId: "cr-0", attempt: 2, candidates: RANKED } };
+
+  it("no copywriter and no judge; the replaced creative's art and picture are asked for by their own keys, so the ledger replays them; the set says who chose", async () => {
+    const h = harness();
+    expect(await h.run({ choice })).toEqual({ kind: "ready" });
+    expect(h.tools()).not.toContain("write_copy");
+    expect(h.tools()).not.toContain("judge_copy");
+    expect(h.render.mock.calls.map((c) => [c[0].creativeId, c[0].attempt])).toEqual([["cr-0", 2]]);
+    const keys = h.rec.writtenRows("ad_generations").map((r) => r.idempotency_key);
+    expect(keys).toContain("art:cr-0:2");
+    // The words changed, so the overlay and the visual check are this creative's own.
+    expect(keys).toContain("visual:cr-1:4:5:1");
+    expect(h.creativeWrites().at(-1)!.write!.payload).toMatchObject({
+      state: "ready", copy: copySet.candidates[1], candidates: { chosen: 1, chosen_by_person: { name: "Koni", edited_slots: [] } },
+    });
+  });
+
+  it("a visual fail on the kept picture regenerates a NEW picture under this creative's own key: the person's words stay", async () => {
+    const h = harness({ visual: [failOn("no_glyphs"), pass] });
+    expect(await h.run({ choice })).toEqual({ kind: "ready" });
+    expect(h.render.mock.calls.map((c) => [c[0].creativeId, c[0].attempt])).toEqual([["cr-0", 2], ["cr-1", 2]]);
+    expect(h.creativeWrites().at(-1)!.write!.payload).toMatchObject({ state: "ready", copy: copySet.candidates[1], regenerations: 1 });
+  });
+});
+
 describe("composeCreative — only the formats an ad is shown in (Q-AD75; D-AD25)", () => {
   it("a 9:16 the kit cannot even overlay does not fail the ad: only the published format is framed, checked and stored", async () => {
     // KIT has an overlay for 4:5 alone, so a 9:16 that was still framed would refuse `no_template` — the format

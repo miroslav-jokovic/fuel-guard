@@ -78,6 +78,12 @@ export const adCandidatesSchema = z.object({
   /** How many the Copywriter offered and how many the claim and length checks let through. */
   offered: z.number().int().min(1).max(5),
   passed: z.number().int().min(1).max(5),
+  /**
+   * Set when a PERSON chose this creative's words (ADS-AD-LOOK-PLAN Q-ADL7; `ads_copy_choices`, 0595): `chosen` is
+   * then the copy they started from, and `edited_slots` the slots they changed from it (empty = picked as offered).
+   * The creative's `copy` is what they settled on. Absent = the ranking chose, as every creative before.
+   */
+  chosen_by_person: z.object({ name: z.string().min(1).max(200), edited_slots: z.array(z.string().min(1).max(40)).max(16) }).strict().optional(),
 }).strict()
   .refine((c) => c.chosen < c.ranked.length, "chosen names a candidate that is not in the list")
   .refine((c) => (c.passed_over ?? []).every((p) => p.index < c.ranked.length), "passed_over names a candidate that is not in the list");

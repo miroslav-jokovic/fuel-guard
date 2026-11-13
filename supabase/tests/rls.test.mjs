@@ -2342,6 +2342,15 @@ async function main() {
         `insert into ads_ad_spend_hourly (org_id, campaign_id, creative_id, language, meta_ad_id, hour, currency) ` +
         `select '${org}', campaign_id, id, 'en', '88' || lpad((random() * 1e9)::bigint::text, 10, '0'), '2026-11-02T14:00:00Z', 'USD' ` +
         `from ads_creatives where org_id = '${org}' order by created_at desc limit 1;`,
+      // 0595 (Q-ADL7): a person's choice of an ad's words names its campaign AND the creative it replaces by composite
+      // FK — the same chain as ads_creatives, one row further.
+      ads_copy_choices: (org) =>
+        adsCampaignSeed(org) + adsPresetSeed(org) + adsPresetVersionSeed(org) +
+        `insert into ads_creatives (org_id, campaign_id, preset_version_id) ` +
+        `select '${org}', ${adsLatest("ads_campaigns", org)}, ${adsLatest("ad_concept_preset_versions", org)};` +
+        `insert into ads_copy_choices (org_id, campaign_id, replaces_creative_id, copy, chosen_by, chosen_by_name) ` +
+        `select '${org}', campaign_id, id, '{"en":{},"es":{}}', gen_random_uuid(), 'rls' ` +
+        `from ads_creatives where org_id = '${org}' order by created_at desc limit 1;`,
       // 0539 (HW8a): a video's link is https-checked, and an attestation or an open must name this
       // driver's own invitation and a live video of this carrier (OV023/OV024) — a chain the seeder,
       // which makes every parent independently, cannot build.

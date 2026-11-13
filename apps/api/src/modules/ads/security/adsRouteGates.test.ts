@@ -66,6 +66,7 @@ const LEDGER: Record<string, string> = {
   "POST /api/ads/campaigns": MANAGE, // creating spends nothing; only Launch moves money (routes/campaigns.ts)
   "POST /api/ads/campaigns/:campaignId/moves": MANAGE,
   "POST /api/ads/campaigns/:campaignId/creatives/:creativeId/decision": MANAGE,
+  "POST /api/ads/campaigns/:campaignId/creatives/:creativeId/words": MANAGE,
   "POST /api/ads/campaigns/:campaignId/launch": SPEND,
 };
 
