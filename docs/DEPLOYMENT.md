@@ -274,8 +274,9 @@ runs the schedulers). (F02–F04 chunk 16, measured 2026-10-09.)
   (an image already in ECR is not rebuilt; `deploy-staging` redeploys it). Production: the release that ships, or — to load a change without a new
   commit — `gh workflow run aws-production.yml -f sha=<the commit production runs>` (the EFS runbook §2.1 pattern).
 - **Never change a pair casually.** A browser subscribes with the public key; a push signed by another key is
-  refused, so after a change every person turns notifications on again on every device. A public key that is not
-  the private key's half turns push OFF and logs `[chat-push] push is OFF` once.
+  refused, so after a change every person turns notifications on again on every device. A malformed key, or a public key that
+  is not the private key's half, turns push OFF and logs `[chat-push] push is OFF` once — it never stops the API
+  from starting (the keys are checked at first use, not in `env.ts`).
 - **Origins:** a device registers from the page's own origin, which must be in `ALLOWED_ORIGINS` or be
   `WEB_APP_URL`'s origin on that environment's api (production `https://360.silvicominc.com`, staging
   `https://staging-api.360.silvicominc.com`); otherwise Turn on answers "Notifications can only open this app".

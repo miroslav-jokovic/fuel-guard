@@ -1,5 +1,6 @@
 import { createDecipheriv, createECDH, createPublicKey, hkdfSync, verify } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
+import { loadEnv } from "../../env.js";
 import { encryptPushMessage, generateVapidKeys, MAX_PLAINTEXT, sendPush, vapidAuthorization, vapidKeysFrom } from "./webPush.js";
 
 /**
@@ -89,6 +90,25 @@ describe("RFC 8292 VAPID", () => {
     expect(vapidKeysFrom(env)).toEqual({ ...pair, subject: "https://360.silvicominc.com" });
     expect(vapidKeysFrom({ ...env, WEB_PUSH_VAPID_PUBLIC_KEY: undefined })).toBeNull();
     expect(() => vapidKeysFrom({ ...env, WEB_PUSH_VAPID_PUBLIC_KEY: generateVapidKeys().publicKey })).toThrow(/not the public half/);
+    expect(() => vapidKeysFrom({ ...env, WEB_PUSH_VAPID_PRIVATE_KEY: "abc" })).toThrow(/32-byte/);
+    expect(() => vapidKeysFrom({ ...env, WEB_PUSH_VAPID_PUBLIC_KEY: "not base64!" })).toThrow(/65-byte/);
+    expect(() => vapidKeysFrom({ ...env, WEB_PUSH_SUBJECT: "it@silvicominc.com" })).toThrow(/mailto: or https:/);
+  });
+
+  it("a malformed key never stops the API from starting — it only leaves push off", () => {
+    const parsed = loadEnv({
+      NODE_ENV: "test", SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+      WEB_PUSH_VAPID_PUBLIC_KEY: "pasted wrong", WEB_PUSH_VAPID_PRIVATE_KEY: "x", WEB_PUSH_SUBJECT: "nobody",
+    } as NodeJS.ProcessEnv);
+    expect(() => vapidKeysFrom(parsed)).toThrow();
+  });
+
+  it("generates pairs the server accepts, every time", () => {
+    for (let i = 0; i < 2000; i++) {
+      const p = generateVapidKeys();
+      expect(b(p.privateKey).length).toBe(32);
+      expect(b(p.publicKey).length).toBe(65);
+    }
   });
 });
 
