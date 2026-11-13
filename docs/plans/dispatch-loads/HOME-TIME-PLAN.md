@@ -1,0 +1,378 @@
+# Home time: dispatchers mark it, the board shows it, the right people are told — plan
+
+Status: **PROPOSED 2026-11-13.** Asked by the owner on 2026-11-13: a button for dispatchers to mark a
+driver who is going on home time, with the return time; notifications the office controls from Settings
+(dashboard, email, SMS, and the Dispatch board's Warnings column); alerts when home time is about to end,
+when it is overstayed, and when a truck has been at the driver's home for more than 8 days.
+
+Decision IDs `D-HT*`, open questions `Q-HT*`, steps `HT1`–`HT7`. This plan closes **Q-LA1** of
+`LOADS-ACTIVITY-PLAN.md` with its answer (b), "the office marks home time in Silvicom", and builds the
+first working part of `docs/plans/notifications/NOTIFICATION-ROUTING-PLAN.md` (D-NR2..D-NR5), which has
+been PROPOSED and unbuilt since 2026-10-02.
+
+## 1. What is true today (measured 2026-11-13, production unless said)
+
+| Fact | Value | Where it was read |
+|---|---|---|
+| `driver_time_off` rows | **0**. The table exists since migration 0068 and nothing writes it | production |
+| Its columns | `driver_id`, `start_at`, `end_at`, `kind` (comment: home_time / pto / unavailable), `provider` (default `mcleod`), `external_id`, `raw` | `supabase/schema.generated.sql` |
+| Who reads it | Only the fuel rule "fuel bought while the driver was home" (`anomalies/scoring/tmsGates.ts`): start ≤ fill + 1 day, and `end_at` null or ≥ fill − 1 day. **A null `end_at` means "still off"** | code |
+| The board for a driver who is home | "Empty", Available **"Now"** in red, as if the truck could take a load | `DispatchBoardTable.vue`, `availableAt()` |
+| Board actions | None. A row click opens the truck drawer; the drawer has only links | `DispatchTruckDrawer.vue` |
+| McLeod `driver` table | Has `next_home_date`, `last_home_date`, `home_duration`, `return_home_flag`, `home_location_id`, `pta_date` | live `lme`, `information_schema` |
+| Can we read those | **No.** The connector login (`silvicom_dispatch_ro`) is refused on each column, on `lme` and on `lme_analytics` | live probe, each column by itself |
+| Are they filled in | **Not known.** It cannot be measured with our login; see Q-HT1 | — |
+| Office accounts | admin 6, dispatcher **3**, fleet manager 1, safety manager 1, recruiter 1, technician 1 | `memberships` |
+| McLeod dispatchers | 16 active logins; **2** linked to a Silvicom account; 13 of 16 fleets linked to a dispatcher | `tms_dispatchers`, `tms_fleets` |
+| Team trucks | 4 trucks with a co-driver | `vehicles.co_driver_id` |
+| Drivers | 186 active; 185 have a home city and ZIP; `on_leave` status used by 0 | `drivers` |
+| Bell | Works; per-person mute exists; 0 people have set a preference | `notification_preferences` |
+| Email alerts | One carrier-wide list (`organizations.notification_emails`, 1 address) for every alert | code, production |
+| SMS | Telnyx toll-free number, verified 2026-09-30. Sends to applicants only. **No office phone number is stored anywhere** (`memberships`, `user_profiles` have none) | code, schema |
+| Routing | Who receives an alert is decided in fourteen places. `NOTIFICATION-ROUTING-PLAN.md` designs one matrix; none of it is built; Q-NR1..5 are unanswered | that plan §1, §6 |
+| Staff SMS on the applicant number | Ruled allowed by the owner (D-NR5, 2026-10-02) | that plan §2 |
+
+## 2. What other products do (web research, 2026-11-13)
+
+- **McLeod LoadMaster** sells a "Time-Off and Event Calendar" with home time tracking and automatic home
+  events ([McLeod driver management](https://www.mcleodsoftware.com/solutions/driver-management-software/)).
+  Its page could not be opened by our fetch (403); the summary is the search result's. Whether Silvicom's
+  McLeod has it switched on is Q-HT1.
+- **LoadOps**: Dispatch page → driver → View Details → ⋮ → "Request Time Off"; fields are previous load,
+  location, start and end. The board then shows a grey "Vacation/Time Off" block and the driver cannot be
+  assigned. Four clicks to reach the form; no return reminder
+  ([LoadOps help](https://help.loadops.com/driver-time-off-report)).
+- **An open-source logistics app (PR #531, merged 2026-10-15)**: time off is a section on the driver's
+  card; every list says "Off until Oct 20" and sorts those drivers last; one live period per driver;
+  periods are cancelled, never deleted; alerts about that truck are paused while its driver is off
+  ([pull request](https://github.com/akosiArvin081596/logistics-app/pull/531)).
+- **Planning-board advice**: home time is a locked block on the same board as hours and appointments,
+  and a promised home date deserves the weight of a delivery appointment
+  ([Scale Alpha](https://www.scalealphasi.com/blog/dispatch-software-for-trucking-companies),
+  [Transplus](https://www.transplus.io/blog/how-a-tms-can-help-with-driver-scheduling)).
+- **Telematics vendors** treat "parked at home" as normal and alert on dwell time past a limit
+  ([ERM](https://www.ermtelematics.com/post/how-to-set-up-geofence-alerts-for-fleets)). That is the
+  owner's 8-day rule.
+
+What we take from them:
+
+1. Put the action where the dispatcher already is (the truck's row), not four clicks away.
+2. Say "Home until <date>" in the place that today says "Now".
+3. One live period per driver; never delete, always record who changed what.
+4. No product found sends a return reminder. The owner's three alerts are new work, not a copy.
+5. Every forgotten "he is back" click becomes a false "overstayed" alert. The system must close a period
+   itself when McLeod shows the driver hauling again (D-HT6).
+
+## 3. The design
+
+### 3.1 The record
+
+**D-HT1 — Home time is a period on the driver, stored in `driver_time_off`.** The table already exists,
+belongs to `roster`, is already carried by a driver merge, and is already what the fuel rule reads. No
+second table. Our rows have `provider = 'silvicom'` and `kind = 'home_time'`.
+
+**D-HT2 — `end_at` stays "when it actually ended"; the promise is a new column.** The fuel rule already
+treats a null `end_at` as "still off", so the meaning must not change. New columns:
+
+| Column | Meaning |
+|---|---|
+| `expected_return_at` | when the driver is due back (the time the dispatcher enters) |
+| `truck_disposition` | `with_driver` · `at_yard` · `no_truck` |
+| `vehicle_id` | the truck the driver had when the period was marked |
+| `note` | free text, optional, shown only to people who can view Dispatch |
+| `created_by`, `created_at`, `updated_by`, `updated_at` | who marked and last changed it |
+| `ended_by`, `end_reason` | `returned` · `load_evidence` (the system, D-HT6) · `driver_left` |
+| `canceled_at`, `canceled_by` | marked by mistake; the row stays |
+
+State is **derived from the times, never stored**: *scheduled* (start in the future), *active*, *overdue*
+(active and past `expected_return_at`), *ended*, *canceled*. Nothing has to run for a scheduled period to
+become active.
+
+**D-HT3 — One live period per driver, enforced inside the write function.** `home_time_mark` locks the
+driver's row, refuses when a scheduled or active period exists, and returns that period so the screen can
+show it. Not a unique index: `merge_driver` moves these rows, and an index would make a merge of two
+drivers who are both home fail.
+
+**D-HT4 — The driver's roster status does not change.** `drivers.status` has `on_leave`, used by nobody,
+and status belongs to McLeod for linked drivers. Home time is a period, not a status; flipping status
+would drop the driver from lists that have nothing to do with a week at home.
+
+**D-HT5 — Nothing is written to McLeod** (D-LMR1 stands).
+
+**D-HT6 — The system ends a period when McLeod shows the driver working.** Evidence: a load whose
+`driver_id` or `co_driver_id` is this driver has a stop with `actual_arrival_at` or `actual_departure_at`
+later than the period's start. The alert job (D-HT13) ends the period at that time with
+`end_reason = 'load_evidence'`, writes the audit row, and shows "Ended by the system: on load 0136753" in
+the history. A dispatcher can **Reopen** it. Reason: an overstay alert about a driver who is on the road
+is the kind of false alarm that got 80% of the bell ignored (routing plan §1). McLeod's actual stop
+times are filled on 762 of 762 delivered loads (LOADS-ACTIVITY-PLAN §2). Samsara "driving" is not used
+as evidence: a driver heading home is also driving.
+
+### 3.2 Who may do what
+
+**D-HT7 — Marking is a named permission, `roster.home_time`, on by default for the roles that manage
+Dispatch** (admin, fleet manager, dispatcher — derived with `rolesThatManage("dispatch")`, never typed).
+The dispatcher role holds `roster: view` only, and the row is a roster row, so neither section alone says
+this. The codebase's answer for that case is a permission by name on the roster routes (the recruiter's
+applicant row; `notes.manage_all` in `rolePermissions.ts`). It appears on Settings → Permissions like the
+others. Reading home time needs `dispatch: view`.
+
+### 3.3 Where the dispatcher does it
+
+**D-HT8 — Three entry points, one form.**
+
+1. **The truck drawer** (click any board row): a new first section, "Home time", per seat. One primary
+   button, **Mark home time**. Two clicks from the board to the form.
+2. **A "Home time" tab on the board**, between the queues and History: everyone scheduled, home or
+   overdue — overdue first, then by return time — with a **Mark home time** button in the header that
+   starts with a driver search. This is where a dispatcher plans ahead when a driver calls, and where a
+   driver with no truck row is found.
+3. **The driver page**: the same section, for a driver without a truck.
+
+The form:
+
+| Field | Default | Rule |
+|---|---|---|
+| Driver | from the row; on a team truck, a choice of seat | required |
+| Leaves | the truck's **Available** time when it carries a load, else now | up to 30 days back |
+| Returns | empty; time prefilled 08:00, carrier time | required, after Leaves and after now |
+| Truck | the driver's answer on his previous period; empty the first time | required: *Goes home with the driver* / *Stays at the yard*. Hidden for a driver with no truck |
+| Note | empty | optional |
+
+Dates are MM/DD/YYYY on the carrier's clock, like every other date. When *with the driver* and the stay
+is longer than the limit (D-HT12), the form says so before saving; it does not refuse.
+
+After saving, the section shows the period and its actions: **Back from home time** (one click, ends it
+now), **Change return** (re-arms the alerts), **Truck is back at the yard**, **Cancel** (asks to
+confirm), and the history of changes with names and times.
+
+### 3.4 What the board shows
+
+**D-HT9 — The row carries `homeTimes`, added after the 20-second row cache**, as note chips are (D-UN18):
+one small read per request, so a mark or a "Back" shows on the next poll. Up to two entries per row, one
+per seat.
+
+**D-HT10 — Available tells the truth.**
+
+| Situation | Available | Sorts and filters as |
+|---|---|---|
+| Driver home, truck with him | neutral badge **Home until 11/18 08:00** | free at the return time, at the truck's position |
+| Driver home, truck at the yard | unchanged (the truck is free for another driver) | unchanged |
+| Team truck, one seat home | unchanged | unchanged |
+| In shop | In shop (wins, as today) | as today |
+
+`available.basis` gains `home_time`, set on the server, so State / Near / Free and the default sort need
+no special case in the browser.
+
+**D-HT11 — Warnings chips**, drawn like the note chips, each naming the seat on a team truck:
+
+| Chip | Tone | When |
+|---|---|---|
+| Home time from 11/20 | neutral | scheduled |
+| Driver home until 11/18 | neutral | active, truck at the yard or a team seat |
+| Back in 18 h | amber | inside the warning window |
+| Home time overdue 1 d 4 h | red | past the return time |
+| Truck at home 9 days | red | truck with the driver past the limit |
+
+The two red ones set a new flag `homeTimeUrgent`, which joins `needsAttention`. The Needs attention tab,
+its count and the Operations dashboard cards that link to it follow without their own change (D-FM7).
+
+The Loads **Activity** view stops saying it cannot tell home time from idle: a driver's idle days inside a
+period read "Home time" (this is Q-LA1's close).
+
+### 3.5 The three alerts
+
+**D-HT12 — Thresholds are the carrier's settings**, in a new one-row-per-org table `home_time_settings`
+(roster's), edited on Settings → Notifications beside the alerts they drive:
+
+| Alert | Fires | Default | Repeats |
+|---|---|---|---|
+| **Home time ending** (`home_time_return_due`) | this long before the return time | 24 h | once per return time |
+| **Home time overstayed** (`home_time_overdue`) | this long after the return time, period not ended | 2 h | daily, at most 7 times, until ended or the return is changed |
+| **Truck at home too long** (`home_time_truck_limit`) | truck *with the driver*, this long after the start | 8 days (8 × 24 h) | once |
+
+Dedupe keys carry the period id and the return time (or the day number for a repeat), so a changed
+return re-arms an alert and a retried job never sends twice.
+
+**D-HT13 — One new scheduler entry, `home-time`, lane `general`, every 15 minutes**, registered in
+`SCHEDULERS` (`apps/api/src/schedulers.ts`) so the lane's lease runs it in exactly one process; off with
+`HOME_TIME_ALERTS_ENABLED=false`. Each run, per org: end periods on load evidence (D-HT6), end periods of
+drivers who left the company, then plan and send the three alerts. The planning is a pure function in
+`packages/shared` (`planHomeTimeAlerts(periods, settings, now, alreadySent)`), as `planFileAlerts` is.
+
+### 3.6 Who is told, and how — the first part of the routing plan
+
+**D-HT14 — Home time is the first alert sent through the routing plan's resolver and sender**, not a
+fifteenth private audience. Built here, to that plan's design:
+
+| Routing plan piece | Built in this plan | Left to that plan |
+|---|---|---|
+| NR1 catalogue | the catalogue file, with the three home-time alerts | the existing alerts' entries, the `system` split |
+| NR2 storage | `notification_routes`, `notification_contacts`, plus `notification_deliveries` | — |
+| NR3 resolver + sender | `recipientsFor`, `sendAlert` (bell, email, SMS) | moving the fourteen existing senders |
+| NR4 settings page | the routing section, showing the alerts in the catalogue | the 30-day count for old alerts |
+| NR5, NR6 | — | all of it |
+
+**D-HT15 — Routes are alert × recipient × channel.** A recipient is a role, a person, or one of two
+relations the resolver works out per period:
+
+- **Whoever marked it** (`created_by`) — always a real account.
+- **The truck's dispatcher** — truck's fleet code → `tms_fleets` → `tms_dispatchers.user_id`. Today this
+  resolves for 2 of 16 dispatchers; the rest need linking in Settings → McLeod fleets (owner task 1).
+
+A person's own switch beats their role's (D-NR2). If an alert resolves to nobody, it goes to everyone who
+manages Dispatch and the job logs it: an alert addressed to nobody is a failure, not a quiet success.
+
+Defaults on day one (all editable):
+
+| Alert | Whoever marked it | Truck's dispatcher | Fleet manager role |
+|---|---|---|---|
+| Home time ending | bell | bell | — |
+| Home time overstayed | bell | bell | bell + email |
+| Truck at home too long | bell | bell | bell + email |
+
+SMS starts off for everyone, because nobody has a confirmed number yet.
+
+**D-HT16 — Channels.**
+
+- **Dashboard** = the bell, through `notify()`; its per-person mute still applies. Clicking opens the
+  board's Home time tab on that driver.
+- **Email** goes to the member's login email. One email per person per run listing everything new, never
+  one per driver (the DQ alerts' rule).
+- **SMS** goes to the member's confirmed mobile number. One text per person per run ("2 drivers overdue
+  from home time: J. Smith, R. Diaz"). Names and dates only; the note is never sent by email or SMS.
+- **Warnings column** is not a route: everyone who can view Dispatch sees the chips.
+
+**D-HT17 — A phone number is confirmed by its owner.** New "My alerts" item in the account menu: what I
+receive (read-only) and "Text alerts": enter a mobile number, receive a 6-digit code, type it in
+(`notification_contacts`: number, hashed code, attempts, `verified_at`, `stopped_at`). The confirmation
+is the consent record. A reply of STOP switches that person's SMS off and the Settings page shows it.
+The inbound webhook learns to look in `notification_contacts` as well as the applicants' list.
+
+**D-HT18 — Texts wait for morning.** Between 21:00 and 07:00 carrier time an SMS is held in
+`notification_deliveries` (`not_before`) and sent at 07:00; the bell and email are not held. The window
+is a setting on the same page.
+
+**D-HT19 — `notification_deliveries` is the per-channel record**: one row per alert, person and channel,
+with status (queued, sent, failed, skipped and why) and the provider's message id. It is the email and
+SMS dedupe (D-NR4), the held-SMS queue, and what the Settings page counts for "sent in the last 30 days"
+(D-NR6).
+
+### 3.7 What follows without being built for it
+
+- The fuel rule "fuel bought while the driver was home" starts answering, since the table has rows. It is
+  a supporting signal only and cannot open a case by itself. It must skip canceled rows: that filter ships
+  in HT2, one merge after the column (migration discipline).
+- The driver app may already read a driver's own rows (RLS, 0136). No driver screen is built here.
+
+## 4. Every case, and what happens
+
+| Case | Behaviour |
+|---|---|
+| Team truck, one seat goes home | Period on that driver; the truck runs; chip names him |
+| Both seats go home | Two periods; Available says "Home until" the later return |
+| Driver has no truck | Marked from the Home time tab or the driver page; no truck question; listed on the tab |
+| Driver is moved to another truck while home | The chip follows the driver's seat; the 8-day rule keeps reading `truck_disposition` until someone presses "Truck is back at the yard" |
+| Truck goes to the shop | Available says In shop; the chip stays |
+| Dispatcher forgot to mark it | Leaves may be up to 30 days back |
+| Return time already passed when typed | Refused: "that time has passed" |
+| Driver asks for more days | Change return; audit keeps old and new; alerts re-arm |
+| Driver comes back early | Back from home time |
+| Nobody presses Back | D-HT6 ends it on the first stop of his next load; until then the overstayed alert is right |
+| System ended it wrongly | Reopen (refused if a newer live period exists) |
+| Marked by mistake | Cancel; the row stays with who and when |
+| Two dispatchers mark the same driver | The second gets the first one's period back (D-HT3) |
+| Driver leaves the company while home | The job ends the period (`driver_left`); no alerts |
+| Two driver records are merged | Rows move with the merge, as today; readers take the newest live one |
+| Nobody resolves for an alert | Falls back to everyone who manages Dispatch; logged |
+| Recipient muted the bell category | Bell skipped; email and SMS follow their own switches |
+| Staff member replies STOP | SMS off for them, visible on the Settings page |
+| Org without the Dispatch module | No button, no tab, no job work |
+| Clock change (DST) | All inputs and thresholds are instants; entry and display use the carrier zone helpers |
+
+## 5. Steps (one PR each, in this order)
+
+- **HT1 — Schema, one migration.** `driver_time_off` columns and CHECKs (kind, disposition, end reason);
+  write functions `home_time_mark / change / end / cancel / reopen` (service role only);
+  `home_time_settings`; `notification_routes`, `notification_contacts`, `notification_deliveries`; the
+  three categories in the `notification_events` CHECK. With it: RLS on each new table,
+  `scripts/table-modules.json`, `supabase/schema.generated.sql`, the tenant-isolation matrix, a
+  `home-time` PGlite matrix, and the retention classification of the three new tables
+  (`dataRetentionPolicy.ts` is at 499 of 500 lines, so it is split first in the same PR). No reader ships
+  here.
+- **HT2 — Rules, contract, API.** `packages/shared`: `homeTimeContract.ts`, `homeTime.ts` (state, chips,
+  `planHomeTimeAlerts`), the board contract's `homeTimes`, `basis: home_time`, `homeTimeUrgent`.
+  `roster`: the service and routes (`GET/POST /api/roster/home-time`, change / end / cancel / reopen),
+  `roster.home_time` permission, audit actions `home_time.marked | changed | ended | canceled | reopened |
+  auto_ended`. `livemap`: the board merge. The fuel rule's canceled filter. Every service query
+  org-filtered and asserted with `expectOrgScoped`; mutation-proved tests.
+- **HT3 — Screens.** Drawer section and form, Available cell, chips, Home time tab, driver page section,
+  the Activity view's wording. Browser pass on three fixtures (solo, team, driver without a truck) at
+  1440 px; the table's column widths do not change, because nothing is added as a column.
+  **After HT3 dispatchers can use the feature.**
+- **HT4 — Alerts by bell and email.** Catalogue, `recipientsFor`, `sendAlert`, the scheduler entry,
+  D-HT6's auto-end, the three bell categories with their web destinations, default routes seeded per org.
+- **HT5 — Settings.** Settings → Notifications gains the routing section (thresholds, role columns,
+  the two relations, people, quiet window) under its existing permission (`admin.settings.notifications`);
+  save is audited as `settings.notification_routes_saved`. "My alerts" in the account menu.
+- **HT6 — SMS.** Phone confirmation, the held queue, STOP handling, sending through `sendSms`. Ends with
+  a real text to the owner's confirmed phone on production; if the carrier refuses it, staff SMS stays off
+  and the refusal code goes in §7 as a blocker with its fix. Nothing else depends on this step.
+- **HT7 — Production walk and hand-back.** Walk every row of §4 on staging, then production after the
+  release; mark Q-LA1 closed in `LOADS-ACTIVITY-PLAN.md`; record in the routing plan which of its phases
+  are now built.
+
+Deploy rules that apply: a merge reaches staging in minutes and production only in the nightly release
+the owner approves; HT1 must be released before HT2's readers.
+
+## 6. Questions for the owner (none stops HT1–HT3; each has a recommendation)
+
+- **Q-HT1 — Where do dispatchers keep home time today?** McLeod has the fields and we cannot see whether
+  they are used. *(a)* In McLeod → after this plan, ask Alex for read access to five `driver` columns and
+  prefill our form from them, so nobody types a date twice. *(b)* On the old board, a sheet or by memory →
+  nothing more to do. *The build is the same either way; only the later import depends on the answer.*
+- **Q-HT2 — Thresholds.** 24 h before, 2 h after, 8 days. *Recommend: start with these;* they are
+  settings.
+- **Q-HT3 — Who hears "overstayed" and "truck too long" besides the dispatcher?** *Recommend: the fleet
+  manager role, bell and email* (D-HT15's table).
+- **Q-HT4 — May the system end a period when McLeod shows the driver on a load?** *Recommend: yes*
+  (D-HT6). The other choice is a "looks like he is back" chip that waits for a click.
+- **Q-HT5 — Texts at night.** *Recommend: hold 21:00–07:00* (D-HT18).
+- **Q-HT6 — Other reasons** (vacation, medical, personal). *Recommend: home time only for now.* The
+  column can already hold them; a reason picker is one more field for the dispatcher on every entry.
+- **Q-HT7 — The routing plan's questions, for these alerts only.** Q-NR2: only people who can view
+  Dispatch may be chosen (*recommend yes*). Q-NR3: SMS is allowed on all three (*recommend yes; the owner
+  asked for it*). Q-NR5: each person gets "My alerts" for their phone, and no self-service muting of email
+  or SMS (*recommend yes*). Q-NR1 and Q-NR4 concern the old alerts and stay with that plan.
+
+## 7. Owner tasks, known limits, blockers
+
+Owner tasks (the feature works without them; the alerts reach fewer people until they are done):
+
+1. Link each dispatcher's Silvicom account to their McLeod login in Settings → McLeod fleets (2 of 16
+   today). Dispatchers without an account need an invitation first: only 3 dispatcher accounts exist.
+2. Each person who wants texts confirms their own number in "My alerts" (HT6).
+3. For the staging walk: the staging org has no `notifications` module, so no bell rings there
+   (UNIT-NOTES UN9 walk). It is switched on in the platform console before HT4's walk, and the tester's
+   email and phone go on staging's `OUTBOUND_ALLOWLIST`.
+
+Known limits, stated so nobody finds them later:
+
+- "Truck with the driver" is what the dispatcher said, not a GPS reading. A check of the truck's position
+  against the driver's home ZIP is possible later (185 of 186 drivers have one); it is not in this plan.
+- The toll-free number was verified with Telnyx for hiring messages. The owner ruled it may carry staff
+  alerts (D-NR5); whether carriers deliver them is proved by HT6's real text, not assumed.
+- Drivers cannot request home time from the app here.
+
+Blockers: none open.
+
+## 8. What this does NOT do
+
+No writes to McLeod. No change to a driver's status. No block on assigning a load (loads are assigned in
+McLeod). No driver-app screen. No move of the fourteen existing alert senders. No new page in the
+sidebar.
+
+## 9. Progress log
+
+- 2026-11-13 — Written. Measurements in §1 taken the same day; McLeod's home-date columns found and found
+  unreadable with the connector login.
