@@ -1285,3 +1285,42 @@ audit row is the endpoint's own.
   - **Waiting on the owner:**
     - one eval run (~$0.03) covering the six `open_view` cases;
     - Q-AI14 (an amount filter on Fuel problems).
+- 2026-11-12 — **R7 re-recorded at effort `medium`, with the six `open_view` cases: 24 of 28** (owner's go,
+  production carrier, $0.035, nothing written).
+  - `baseline.json` was the `low` run (§6, 2026-11-11). It is now this run.
+  - **Answer time:** median 6.0 s, p90 19.5 s, slowest 31.4 s (`cost-per-mile`, two finance reads).
+  - **First streamed event (Step 2d's check): median 2.5 s, p90 4.2 s. NOT under 2 s.**
+    - Measured from a laptop calling the API directly, not through Railway, so the proxy is not in it.
+    - The first event is the first tool step, which waits for the model's first round. Streaming cannot
+      shorten that; a shorter first round could. Recorded, not tuned.
+  - **Four failures:**
+    - `flagged-fills-drivers` still answers with no tool (the undeclared tool search, §6 2026-11-11).
+    - Three of the six `open_view` questions were answered with the subject's report tool instead of
+      opening the page:
+      - "Show me the open fuel problems for unit 718" → `card_holds`;
+      - the Fuel log declines → `declined_summary`;
+      - the medical-due drivers → `driver_file_expirations`.
+    - Fuel alerts and Fuel cards opened.
+  - **`card_holds` for a fuel-problems question looks like the tool search again.** `card_holds` is one of the
+    five tools that search returned on 2026-11-11, for a fuel question. The eval could not show this: it
+    recorded only our own tools. **Now it does:** `AskTrace.searches` keeps each server-side search's
+    pattern and the tools it returned, and the eval prints them under the case (`⌕`). So the next run says
+    whether `open_view` was ever shown to the model, before any prompt is tuned.
+    - Test: `askData.test.ts`, "records the API's own tool search, its pattern and the tools it returned,
+      which the request never declared (§6 2026-11-11)". Deliberate break (the search not recorded):
+      killed.
+  - **No prompt change yet**, on purpose. If the searches show `open_view` was never offered, the cause is
+    the search and a prompt cannot fix it. If it was offered and not chosen, the fix is the tool's
+    description. One run (~$0.01, the four failing cases with `--only`) tells which. It needs the
+    owner's go.
+  - **On the support message (owner, 2026-11-12: "is there a setting on the API key?"):**
+    - The model is not chosen on the key. Each request names it, and Ask AI's is
+      `AI_MODELS.assistant = "claude-haiku-5-5"` (`packages/shared/src/ai.ts`).
+    - Anthropic's tool search page (fetched 2026-11-12) describes the search as opt-in only: declare
+      `tool_search_tool_regex_20251119` in `tools` and mark tools `defer_loading`. It names no key,
+      workspace or request setting that turns it on or off.
+    - The model can raise the result count itself (`limit`, 1–10,000; default 5). We cannot set it.
+    - So what we see is undocumented, and only Anthropic can explain it. The page's own channel for
+      this is its feedback form (linked at the top of the tool search page). It is a better door than a
+      general email. The re-run above makes the message concrete: the pattern, and the five tools
+      returned.

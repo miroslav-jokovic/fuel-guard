@@ -18,6 +18,8 @@ export interface EvalVerdict {
   /** Plain reasons, empty on a pass. */
   why: string[];
   tools: string[];
+  /** The API's undeclared tool searches, as "pattern → tools found" (PLAN §6 2026-11-11). */
+  searches?: string[];
   outcome: AskTrace["outcome"];
   costMicroUsd: number;
   /**
@@ -63,7 +65,8 @@ export function scoreCase(c: AssistantEvalCase, trace: AskTrace): EvalVerdict {
     }
   }
   for (const re of c.mustMention ?? []) if (!re.test(trace.answer)) why.push(`answer does not mention ${re}`);
-  return { id: c.id, pass: why.length === 0, why, tools: called, outcome: trace.outcome, costMicroUsd: trace.usage.costMicroUsd };
+  const searches = (trace.searches ?? []).map((s) => `${JSON.stringify(s.input)} → ${s.found.join(", ") || "nothing"}`);
+  return { id: c.id, pass: why.length === 0, why, tools: called, ...(searches.length ? { searches } : {}), outcome: trace.outcome, costMicroUsd: trace.usage.costMicroUsd };
 }
 
 export interface EvalRun {

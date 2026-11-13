@@ -53,6 +53,7 @@ if (!env.ANTHROPIC_API_KEY) {
 const showAnswers = process.argv.includes("--answers");
 const run = await runAssistantEval(getSupabaseAdmin(env), env, orgId, cases, (v, answer) => {
   console.log(`${v.pass ? "✓" : "✗"} ${v.id}  [${v.tools.join(", ") || "no tool"}] ${((v.latencyMs ?? 0) / 1000).toFixed(1)}s${v.why.length ? `  — ${v.why.join("; ")}` : ""}`);
+  for (const s of v.searches ?? []) console.log(`    ⌕ the API's own tool search ${s}`);
   if (showAnswers) console.log(`${answer.replace(/^/gm, "    │ ")}\n`);
 });
 const dollars = (run.costMicroUsd / 1_000_000).toFixed(4);

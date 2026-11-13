@@ -350,6 +350,11 @@ export interface AskTrace {
   outcome: AnswerOutcome;
   /** F21 R4b: each successful tool's page link with the answer's filters, in call order (D-AI6). */
   links: AssistantAnswerLink[];
+  /**
+   * The API's own tool searches, which this request never declares but responses carry (PLAN §6,
+   * 2026-11-11): the pattern and the tools it returned, so the eval can show what the model was shown.
+   */
+  searches: Array<{ input: unknown; found: string[] }>;
 }
 
 /** Room for Haiku 5.5's adaptive thinking AND a 25-row table: thinking counts toward this cap. */
@@ -415,7 +420,8 @@ export async function askData(
   const tools: AskTrace["tools"] = [];
   const usage: AnswerUsage = { model: AI_MODELS.assistant, rounds: 0, inputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 0, costMicroUsd: 0 };
   const links: AssistantAnswerLink[] = [];
-  const done = (answer: string, outcome: AnswerOutcome): AskTrace => ({ answer, tools, usage, outcome, links });
+  const searches: AskTrace["searches"] = [];
+  const done = (answer: string, outcome: AnswerOutcome): AskTrace => ({ answer, tools, usage, outcome, links, searches });
   const textOf = (content: Anthropic.ContentBlock[]) =>
     content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("\n").trim();
 
@@ -449,6 +455,10 @@ export async function askData(
     if (resp.stop_reason === "max_tokens") {
       const partial = textOf(resp.content);
       return done(`${partial ? `${partial}\n\n` : ""}(The answer was too long and was cut off. Ask for fewer trucks or a shorter period.)`, "max_tokens");
+    }
+    for (const b of resp.content as Array<{ type: string; input?: unknown; content?: { tool_references?: Array<{ tool_name: string }> } }>) {
+      if (b.type === "server_tool_use") searches.push({ input: b.input, found: [] });
+      else if (b.type === "tool_search_tool_result" && searches.length) searches.at(-1)!.found = (b.content?.tool_references ?? []).map((r) => r.tool_name);
     }
     const toolUses = resp.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
     if (toolUses.length === 0) return done(textOf(resp.content), "answered");

@@ -56,6 +56,9 @@ describe("scoreCase", () => {
   it("fails a wrong tool, a missing unit, a failed call, and an ending that is not an answer", () => {
     const c = byId("mpg-nine-units");
     expect(scoreCase(c, trace([{ name: "fuel_ranking" }])).why).toEqual(["expected fuel_report, called fuel_ranking"]);
+    // The API's own tool search is shown beside the verdict, so a miss can be read as "never shown the tool".
+    const searched = { ...(trace([]) as object), searches: [{ input: { pattern: "fuel" }, found: ["card_holds"] }] } as never;
+    expect(scoreCase(c, searched).searches).toEqual(['{"pattern":"fuel"} → card_holds']);
     expect(scoreCase(c, trace([{ name: "fuel_report", input: { units: ["748"] } }])).why[0]).toMatch(/^fuel_report\.units was \["748"\]/);
     // A call that failed is not an answer, even with nothing else to fault.
     expect(scoreCase(byId("drivers-moving"), trace([{ name: "fleet_now", error: "timeout" }])).why).toEqual(["expected fleet_now, called fleet_now"]);

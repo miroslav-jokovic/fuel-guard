@@ -78,6 +78,18 @@ describe("askData", () => {
     expect(req.system[0].text).toMatch(/call a tool\s+again for every figure you state/);
   });
 
+  it("records the API's own tool search, its pattern and the tools it returned, which the request never declared (§6 2026-11-11)", async () => {
+    create.mockResolvedValueOnce(msg([
+      { type: "server_tool_use", id: "srv1", name: "tool_search_tool_regex", input: { pattern: "fill|fuel|flag" } },
+      { type: "tool_search_tool_result", tool_use_id: "srv1", content: { type: "tool_search_tool_search_result", tool_references: [{ type: "tool_reference", tool_name: "card_holds" }, { type: "tool_reference", tool_name: "count_signal" }] } },
+      { type: "text", text: "No tool can answer that." },
+    ]));
+    const out = await askData(rec().client, env, "org-1", "which drivers have the most flagged fills?", ALL, LATE_OCT_31_CENTRAL);
+    expect(out.searches).toEqual([{ input: { pattern: "fill|fuel|flag" }, found: ["card_holds", "count_signal"] }]);
+    // A search is not one of OUR tools: it is never listed as a tool the answer called.
+    expect(out.tools).toEqual([]);
+  });
+
   it("without a conversation the question is the only message, as before R3a", async () => {
     create.mockResolvedValueOnce(msg([{ type: "text", text: "ok" }]));
     await askData(rec().client, env, "org-1", "mpg on 748", ALL, LATE_OCT_31_CENTRAL);
