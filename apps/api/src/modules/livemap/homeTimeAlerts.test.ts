@@ -42,6 +42,9 @@ interface World {
   routes?: Record<string, unknown>[];
   settings?: Record<string, unknown>[];
   dispatchOn?: boolean;
+  /** What the carrier changed on the Permissions page: `org_section_access` and `user_section_access` rows. */
+  roleAccess?: Record<string, unknown>[];
+  userAccess?: Record<string, unknown>[];
   /** Confirmed mobile numbers, as `notification_contacts` rows. */
   contacts?: Record<string, unknown>[];
   /** Overrides on the member directory's rows, by user — a suspension. */
@@ -74,6 +77,8 @@ function world(w: World = {}): SupabaseRecorder {
       { org_id: ORG, provider: "mcleod", code: "NOBODY", dispatcher_external_id: null },
     ]),
     notification_routes: postgrestFixture(w.routes ?? []),
+    org_section_access: postgrestFixture(w.roleAccess ?? []),
+    user_section_access: postgrestFixture(w.userAccess ?? []),
     notification_contacts: postgrestFixture(w.contacts ?? []),
     notification_channel_settings: [],
     notification_deliveries: (q) => (q.write ? [] : postgrestFixture(queued)(q)),
@@ -305,6 +310,46 @@ describe("what it tells whom (D-HT12, D-HT15)", () => {
     world({ periods: [period({ driver_id: RAY, vehicle_id: T848, created_by: "90000000-0000-4000-8000-00000000dead", expected_return_at: hours(10) })] });
     await runHomeTimeOnce(rec.client, env, ORG, NOW);
     expect(new Set(bells().map((b) => b.p_user))).toEqual(new Set([DANA, IVO, FRAN]));
+  });
+
+  describe("on the carrier's own Permissions page (Q-HT8)", () => {
+    // Production, 2026-11-13: the Fleet Manager role has no Dispatch — and is the default escalation.
+    const fmNoDispatch = [{ org_id: ORG, role: "fleet_manager", section: "dispatch", access: "none" }];
+    const overdue = [period({ expected_return_at: hours(-5) })];
+
+    it("does not ring or email a role the carrier took Dispatch from; the dispatchers are still told", async () => {
+      world({ periods: overdue, roleAccess: fmNoDispatch });
+      const r = await runHomeTimeOnce(rec.client, env, ORG, NOW);
+      expect(bellTo(FRAN)).toEqual([]);
+      expect(sendEmail).not.toHaveBeenCalled();
+      expect(r.emails).toBe(0);
+      expect(bellTo(DANA)).toEqual(["home_time_overdue"]);
+      expect(bellTo(IVO)).toEqual(["home_time_overdue"]);
+      const asked = rec.forTable("org_section_access")[0]!;
+      expect(asked.filters()).toContainEqual({ col: "org_id", val: ORG });
+      expectOrgScoped(rec, ORG, EXEMPT);
+    });
+
+    it("does tell one fleet manager the carrier gave Dispatch back to by name", async () => {
+      world({ periods: overdue, roleAccess: fmNoDispatch, userAccess: [{ org_id: ORG, user_id: FRAN, section: "dispatch", access: "view" }] });
+      await runHomeTimeOnce(rec.client, env, ORG, NOW);
+      expect(bellTo(FRAN)).toEqual(["home_time_overdue"]);
+      expect(sendEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not tell one dispatcher the carrier took Dispatch from, even as whoever marked it", async () => {
+      world({ periods: overdue, userAccess: [{ org_id: ORG, user_id: DANA, section: "dispatch", access: "none" }] });
+      await runHomeTimeOnce(rec.client, env, ORG, NOW);
+      expect(bellTo(DANA)).toEqual([]);
+      expect(bellTo(IVO)).toEqual(["home_time_overdue"]);
+    });
+
+    it("an alert addressed to nobody falls back to those who MANAGE Dispatch on the carrier's answer", async () => {
+      // Marked by somebody who left, on a truck whose fleet nobody runs; the fleet manager has no Dispatch.
+      world({ periods: [period({ driver_id: RAY, vehicle_id: T848, created_by: "90000000-0000-4000-8000-00000000dead", expected_return_at: hours(10) })], roleAccess: fmNoDispatch });
+      await runHomeTimeOnce(rec.client, env, ORG, NOW);
+      expect(new Set(bells().map((b) => b.p_user))).toEqual(new Set([DANA, IVO]));
+    });
   });
 
   it("says a truck has been home too long, with the days", async () => {

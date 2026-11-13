@@ -117,7 +117,8 @@ export function alertRoutingRouter(): Router {
 
 /**
  * `/api/me/alerts` — what the caller receives (D-HT17's read-only half). Any member: it is their own
- * answer, computed from their own role by the sender's resolver, and it names nobody else.
+ * answer, computed by the sender's resolver from the carrier's directory and Permissions page, and it
+ * names nobody else.
  */
 export function myAlertsRouter(): Router {
   const router = Router();
@@ -125,7 +126,7 @@ export function myAlertsRouter(): Router {
   router.get(
     "/",
     asyncHandler(async (req, res) => {
-      res.json(await readMyAlerts(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, req.auth!.userId, req.auth!.role ?? null));
+      res.json(await readMyAlerts(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, req.auth!.userId));
     }),
   );
 
