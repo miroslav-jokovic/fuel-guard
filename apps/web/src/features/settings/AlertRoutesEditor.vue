@@ -90,7 +90,7 @@ async function onReset(): Promise<void> {
       <span v-if="alert.usesDefaults && !changed" class="text-xs text-ink-muted">On the defaults</span>
     </div>
 
-    <DataTable class="mt-3" :columns="columns" :rows="rows" row-key="id" empty-text="Nobody is listed.">
+    <DataTable class="mt-3" embedded dense :columns="columns" :rows="rows" row-key="id" empty-text="Nobody is listed.">
       <template #cell-recipient="{ row }">
         <span class="font-medium text-ink">{{ row.label }}</span>
         <span v-if="row.hint" class="block whitespace-normal text-xs font-normal text-ink-muted">{{ row.hint }}</span>

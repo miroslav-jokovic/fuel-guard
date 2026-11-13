@@ -27,6 +27,10 @@ vi.mock("@/composables/useOrgSettings", () => ({
   useSaveOrgNotifications: () => ({ mutateAsync: vi.fn(async (v: unknown) => void saved.push(v)), isPending: ref(false) }),
 }));
 
+// The routing section below the form has its own suite (`AlertRoutingSection.test.ts`); here the carrier
+// has no Dispatch module, so the page is the form alone, as it was.
+vi.mock("@/composables/useModules", () => ({ useModulesQuery: () => ({ data: ref(new Set<string>()) }) }));
+
 const NotificationsPage = (await import("@/pages/NotificationsPage.vue")).default;
 
 describe("the carrier's alert switch", () => {

@@ -150,6 +150,10 @@ export const OPEN_ROUTES = new Map<string, string>([
     "the one act a signed-in user with NO org yet must be able to perform — requireOrg would refuse the person it is for. Authorized by the invite itself: the email must match a pending invite in an allowed domain (audit M2)",
   ],
   [
+    "GET /api/me/alerts/",
+    "\"My alerts\" in the account menu (HOME-TIME-PLAN D-HT17, HT5): what the CALLER receives of the routed alerts. A read of their own answer, computed from their own role by the sender's resolver; it names nobody else and returns no row of any table. It IS section-gated per ALERT rather than per route — `readMyAlerts` lists an alert only when the caller's role can view that alert's section — and the alerts span sections, so no one static `requireSection` describes it.",
+  ],
+  [
     "POST /api/me/notifications/token/revoke",
     "a driver's own device retiring its own push token on sign-out, keyed by the caller's user id; refusing it would leave a personal phone receiving load content after the person signed out (D14/D53)",
   ],

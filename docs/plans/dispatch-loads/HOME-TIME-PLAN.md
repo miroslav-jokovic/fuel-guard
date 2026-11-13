@@ -556,3 +556,7 @@ sidebar.
     the three reads failing: no page error, nothing wider than the viewport. It found and fixed three
     things no test saw: a dash in every role's row where "Take off" stands for a person, the person
     picker reading "Select…", and the dispatcher row's explanation cut off on a phone.
+  - `pnpm ci:local` found three things before the push: the routes table stood as a card inside a card
+    (`lint:ui-adoption`; it is `embedded dense` now), the older Notifications page test mounted the new
+    section without its data layer, and `GET /api/me/alerts` needed its argument in the open-route
+    ledger (it is gated per alert, by the caller's role, inside the read).
