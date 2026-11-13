@@ -69,6 +69,34 @@ test("every table a finance statement reads is granted in the analytics part of 
   assert.deepEqual(missing, [], `the finance statements read ${missing.join(", ")} on lme_analytics without a grant`);
 });
 
+// The same check for the lumper statements, against live LME, where they will run (LRC1). Parts 4 and
+// 5 of the grant script were written before the statements existed; this ties the two together so a
+// statement that starts reading one more table cannot reach the VM without its grant line.
+test("every table a lumper statement reads is granted on LME in the grant script", () => {
+  const grants = readFileSync(new URL("./review/SILVICOM-GRANTS.sql", import.meta.url), "utf8");
+  const onLme = grants.split(/^USE\s+/m).filter((part) => part.startsWith("lme;")).join("\n");
+  const granted = new Set([...onLme.matchAll(/^GRANT SELECT ON dbo\.(\w+)[^;]*TO\s+silvicom_dispatch_ro;/gm)].map((m) => m[1]));
+  // The load-board tables were granted before this file existed (the letter's first grants), so they
+  // are named here; the file's own header lists them as already held.
+  for (const t of ["orders", "users", "stop"]) granted.add(t);
+  const read = new Set(
+    routineStatements()
+      .filter((s) => s.lumper)
+      .flatMap((s) => [...s.sql.matchAll(/\bdbo\.(\w+)/g)].map((m) => m[1])),
+  );
+  assert.ok(read.size > 0, "no lumper statement names a dbo table; the parse is broken, not the grants");
+  const missing = [...read].filter((t) => !granted.has(t)).sort();
+  assert.deepEqual(missing, [], `the lumper statements read ${missing.join(", ")} on LME without a grant`);
+});
+
+// dbo.customer is granted by COLUMN on LME (id, name, city, state_id, company_id). A lumper statement
+// that read a sixth column would be refused on the VM and pass on the analytics copy.
+test("the lumper statements read only the customer columns the login holds", () => {
+  const sql = Q.LUMPER_ORDERS;
+  const used = new Set([...sql.matchAll(/\bc\.(\w+)/g)].map((m) => m[1]));
+  for (const col of used) assert.ok(["id", "name", "city", "state_id", "company_id"].includes(col), `customer.${col} is not granted`);
+});
+
 test("the routine tells the DBA the program_name our connection actually uses", () => {
   assert.ok(routine.includes(`"${APP_NAME}"`), `the routine does not name the program_name "${APP_NAME}"`);
 });
