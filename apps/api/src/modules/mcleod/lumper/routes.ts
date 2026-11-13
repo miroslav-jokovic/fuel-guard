@@ -1,6 +1,5 @@
 import { Router, type Request, type Response } from "express";
 import {
-  LUMPER_CASES_PERMISSION,
   isRecordId,
   lumperCaseCloseSchema,
   lumperFileConfirmSchema,
@@ -14,7 +13,8 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { requireNamedPermission } from "../../org/index.js";
+import { requireModule } from "../../../middleware/requireModule.js";
+import { requireSurface } from "../../../middleware/requireSurface.js";
 import {
   closeLumperCase,
   fileRevisedRc,
@@ -30,18 +30,19 @@ import {
 /**
  * `/api/lumper-cases` — the lumper cases page (LUMPER-REVISED-RC-PLAN.md LRC3).
  *
- * ── GATED BY ONE NAMED PERMISSION, NOT A SECTION ────────────────────────────────────────────────
+ * ── GATED BY THE SCREEN, NOT A SECTION ──────────────────────────────────────────────────────────
  * Dispatch and billing work the same list, and no section holds both (D-LRC11): the dispatcher has
- * `dispatch` and no money section, the accountant has `billing` and `dispatch: none`. So every route
- * here asks `dispatch.lumper_cases` by name, which ships to whoever manages either section and which
- * an admin can hand to another role. There is deliberately no narrower "may only look": whoever sees
- * that a revised RC is missing is the person who should be able to file it.
+ * `dispatch` and no money section, the accountant has `billing` and `dispatch: none`. So the gate is
+ * the screen entitlement `dispatch.lumper-cases`: on for the roles that manage either section, and an
+ * admin turns it on for another role or for one person. Every route here serves that one screen, which
+ * is the condition `requireSurface` sets for its use. There is deliberately no narrower "may only
+ * look": whoever sees that a revised RC is missing is the person who should be able to file it.
  *
  * Every act is on the Audit page with the order number, never the file's contents.
  */
 export function lumperCasesRouter(): Router {
   const router = Router();
-  router.use(requireAuth, requireOrg, requireNamedPermission(LUMPER_CASES_PERMISSION));
+  router.use(requireAuth, requireOrg, requireModule("dispatch"), requireSurface("dispatch.lumper-cases"));
   const adminOf = (req: Request) => getSupabaseAdmin(getAppLocals(req).env);
   const refuse = (res: Response, r: LumperRefusal): void => {
     res.status(r.status).json(apiError(r.code, r.message));

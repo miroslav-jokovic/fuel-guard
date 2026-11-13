@@ -102,6 +102,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     ],
   },
   {
+    "group": "Dispatch",
+    "items": [
+      "Lumper fees → /lumper-fees",
+    ],
+  },
+  {
     "group": "Fuel",
     "items": [
       "Fuel log → /fuel-log",
@@ -145,6 +151,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Dashboard → /",
       "Notes → /notes",
+    ],
+  },
+  {
+    "group": "Dispatch",
+    "items": [
+      "Lumper fees → /lumper-fees",
     ],
   },
   {
@@ -249,6 +261,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
       "Dispatch board → /assignments",
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
+      "Lumper fees → /lumper-fees",
     ],
   },
   {
@@ -333,6 +346,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
       "Dispatch board → /assignments",
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
+      "Lumper fees → /lumper-fees",
     ],
   },
   {
@@ -715,6 +729,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
       "Dispatch board → /assignments",
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
+      "Lumper fees → /lumper-fees",
     ],
   },
   {
@@ -799,6 +814,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
       "Dispatch board → /assignments",
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
+      "Lumper fees → /lumper-fees",
     ],
   },
   {
@@ -840,6 +856,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
       "Dispatch board → /assignments",
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
+      "Lumper fees → /lumper-fees",
     ],
   },
   {
@@ -954,6 +971,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Dispatch board → /assignments",
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
+      "Lumper fees → /lumper-fees",
     ],
   },
   {
@@ -1027,6 +1045,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Dispatch board → /assignments",
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
+      "Lumper fees → /lumper-fees",
     ],
   },
   {
@@ -1525,6 +1544,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
       "Dispatch board → /assignments",
       "Fuel planning → /fuel-planning",
       "Truck stops → /truck-stops",
+      "Lumper fees → /lumper-fees",
     ],
   },
   {
@@ -1591,6 +1611,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
         "Dashboard → /",
         "Chat → /chat",
         "Notes → /notes",
+      ],
+    },
+    {
+      "group": "Dispatch",
+      "items": [
+        "Lumper fees → /lumper-fees",
       ],
     },
     {

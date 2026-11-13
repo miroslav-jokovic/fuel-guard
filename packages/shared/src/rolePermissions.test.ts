@@ -7,7 +7,6 @@ import {
   CLOSE_APPLICATION_PERMISSION,
   FULL_SSN_PERMISSION,
   HOME_TIME_PERMISSION,
-  LUMPER_CASES_PERMISSION,
   IDENTITY_NUMBER_IMAGES_PERMISSION,
   NOTES_MANAGE_ALL_PERMISSION,
   callerPermissions,
@@ -121,7 +120,6 @@ describe("closing an application is a named switch", () => {
       [FULL_SSN_PERMISSION]: false,
       [NOTES_MANAGE_ALL_PERMISSION]: false,
       [HOME_TIME_PERMISSION]: false,
-      [LUMPER_CASES_PERMISSION]: false,
     });
     expect(callerPermissions("admin", {})).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: true,
@@ -129,7 +127,6 @@ describe("closing an application is a named switch", () => {
       [FULL_SSN_PERMISSION]: true,
       [NOTES_MANAGE_ALL_PERMISSION]: true,
       [HOME_TIME_PERMISSION]: true,
-      [LUMPER_CASES_PERMISSION]: true,
     });
     expect(callerPermissions(null, {})).toEqual({
       [IDENTITY_NUMBER_IMAGES_PERMISSION]: false,
@@ -137,7 +134,6 @@ describe("closing an application is a named switch", () => {
       [FULL_SSN_PERMISSION]: false,
       [NOTES_MANAGE_ALL_PERMISSION]: false,
       [HOME_TIME_PERMISSION]: false,
-      [LUMPER_CASES_PERMISSION]: false,
     });
   });
 });
@@ -151,18 +147,5 @@ describe("reading the full SSN is a named switch", () => {
     expect(effectivePermission("admin", FULL_SSN_PERMISSION, { admin: { [FULL_SSN_PERMISSION]: false } } as never)).toBe(true);
     expect(effectivePermission("recruiter", FULL_SSN_PERMISSION, { recruiter: { [FULL_SSN_PERMISSION]: true } })).toBe(true);
     expect(effectivePermission("safety_manager", FULL_SSN_PERMISSION, { safety_manager: { [FULL_SSN_PERMISSION]: false } })).toBe(false);
-  });
-});
-
-/** D-LRC11 (owner 2026-11-13): "dispatchers and billing and other users we select" work the lumper cases. */
-describe("working the lumper cases is a named switch", () => {
-  it("ships to the roles that manage Dispatch or Billing, and to nobody else but the admin", () => {
-    expect(shippedPermission("dispatcher", LUMPER_CASES_PERMISSION)).toBe(true);
-    expect(shippedPermission("accountant", LUMPER_CASES_PERMISSION)).toBe(true);
-    expect(shippedPermission("fleet_manager", LUMPER_CASES_PERMISSION)).toBe(true);
-    expect(shippedPermission("admin", LUMPER_CASES_PERMISSION)).toBe(true);
-    for (const role of ["recruiter", "safety_manager", "auditor", "technician", "driver"] as const) {
-      expect(shippedPermission(role, LUMPER_CASES_PERMISSION)).toBe(false);
-    }
   });
 });

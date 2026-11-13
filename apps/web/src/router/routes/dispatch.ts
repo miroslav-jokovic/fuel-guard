@@ -23,6 +23,15 @@ export const dispatchRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Dispatch board" },
   },
   {
+    // Every load where we paid a lumper, and whether the revised RC is on file (LUMPER-REVISED-RC-PLAN
+    // D-LRC5). Who sees it is the `dispatch.lumper-cases` screen entitlement, not a section (D-LRC11).
+    path: "/lumper-fees",
+    name: "lumper-fees",
+    component: () => import("@/pages/LumperFeesPage.vue"),
+    meta: { requiresAuth: true, title: "Lumper fees" },
+  },
+
+  {
     path: "/loads",
     name: "loads",
     component: () => import("@/pages/DispatchLoadsPage.vue"),

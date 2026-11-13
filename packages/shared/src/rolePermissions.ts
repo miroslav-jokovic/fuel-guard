@@ -78,19 +78,6 @@ export const NOTES_MANAGE_ALL_PERMISSION = "notes.manage_all";
  */
 export const HOME_TIME_PERMISSION = "roster.home_time";
 
-/**
- * Who may open the lumper cases, file the broker's revised rate confirmation on one, and close one with
- * a reason (LUMPER-REVISED-RC-PLAN D-LRC11; owner 2026-11-13: "dispatchers and billing and other users
- * we select"). Asked by name because no section says it: the dispatcher holds `dispatch` and no money
- * section, the accountant holds `billing` and `dispatch: none`, and both must see the same list. Gating
- * it on either section would have locked the other out, and adding a section for one page is the
- * heavier answer to the same question.
- *
- * Ships to every role that manages Dispatch or Billing, DERIVED from the matrix. "Other users we
- * select" is an admin switching it on for another role on Settings → Permissions.
- */
-export const LUMPER_CASES_PERMISSION = "dispatch.lumper_cases";
-
 export const EDITABLE_PERMISSIONS = [
   {
     key: IDENTITY_NUMBER_IMAGES_PERMISSION,
@@ -131,14 +118,6 @@ export const EDITABLE_PERMISSIONS = [
       "Record that a driver is going home and when he is due back, change the return, and mark him back. Without it a person sees who is home on the Dispatch board and cannot change it.",
     // D-HT7: whoever manages Dispatch (the admin holds every permission and is not an editable role).
     shippedRoles: rolesThatManage("dispatch").filter(isEditableRole),
-  },
-  {
-    key: LUMPER_CASES_PERMISSION,
-    label: "Work the lumper cases",
-    description:
-      "See every load where we paid a lumper, what was paid and where, and whether the broker's revised rate confirmation is on file. File the revised RC on a case and close a case with a reason.",
-    // D-LRC11: whoever manages Dispatch or Billing (the admin holds every permission).
-    shippedRoles: [...new Set([...rolesThatManage("dispatch"), ...rolesThatManage("billing")])].filter(isEditableRole),
   },
 ] as const satisfies readonly EditablePermission[];
 

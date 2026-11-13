@@ -8,6 +8,7 @@ import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { postgrestFixture } from "../../../testing/postgrestFixture.js";
+import { surfaceClaims } from "../../org/surfaceClaimCache.js";
 
 /**
  * `/api/lumper-cases` through the real mount (LUMPER-REVISED-RC-PLAN LRC3): who may open the list, what a
@@ -63,12 +64,11 @@ const bill = (id: string, orderId: string, lumper: string) => ({
   org_id: ORG, company_id: "TMS", bill_id: id, order_id: orderId, bill_type: "I", bill_date: "2026-10-05T00:00:00Z", invoice_no: `INV-${id}`, lumper_amount: lumper,
 });
 
-function seed(over: { cases?: Record<string, unknown>[]; files?: Record<string, unknown>[]; stored?: Uint8Array | null; grants?: Record<string, unknown>[]; insertError?: { code: string; message: string } } = {}): SupabaseRecorder {
+function seed(over: { cases?: Record<string, unknown>[]; files?: Record<string, unknown>[]; stored?: Uint8Array | null; roleAccess?: Record<string, unknown>[]; userAccess?: Record<string, unknown>[]; module?: boolean } = {}): SupabaseRecorder {
   rec = createSupabaseRecorder({
     tables: {
-      org_role_surface_access: [],
-      user_surface_access: [],
-      org_role_permissions: postgrestFixture((over.grants ?? []).map((g) => ({ org_id: ORG, ...g }))),
+      org_role_surface_access: postgrestFixture((over.roleAccess ?? []).map((g) => ({ org_id: ORG, ...g }))),
+      user_surface_access: postgrestFixture((over.userAccess ?? []).map((g) => ({ org_id: ORG, ...g }))),
       lumper_cases: postgrestFixture(over.cases ?? [aCase(CASE_WAITING, "A"), aCase(CASE_DONE, "B"), aCase(CASE_NO_LUMPER, "C")]),
       mcleod_lumper_orders: postgrestFixture([order("A"), order("B"), order("C")]),
       mcleod_lumper_charges: postgrestFixture([
@@ -90,17 +90,21 @@ function seed(over: { cases?: Record<string, unknown>[]; files?: Record<string, 
       user_profiles: [{ user_id: DANA, full_name: "Dana Dispatch" }],
       audit_logs: [],
     },
+    rpc: (fn: string) => (fn === "org_module_enabled" ? over.module !== false : null),
     storage: {
       createSignedUploadUrl: (path: string) => ({ data: { signedUrl: `https://storage.test/upload/${path}`, token: "t", path }, error: null }),
       createSignedUrl: (path: string) => ({ data: { signedUrl: `https://storage.test/read/${path}` }, error: null }),
       download: () => (over.stored === null ? { data: null, error: { message: "not found" } } : { data: new Blob([Buffer.from(over.stored ?? PDF)]), error: null }),
     },
   });
+  // The gate caches a caller's screen answers for a few seconds; each seed is a different carrier setup.
+  surfaceClaims.forget(() => true);
   holder.client = rec.client;
   return rec;
 }
 
 const audits = () => rec.writtenRows("audit_logs") as Record<string, unknown>[];
+// `user_profiles` is keyed by the person; the screen-access tables are read by the gate, by org.
 const EXEMPT = { exempt: ["user_profiles"] };
 
 beforeAll(async () => {
@@ -131,11 +135,19 @@ describe("who works the lumper cases (D-LRC11)", () => {
     expect((await call("/", "nobody")).status).toBe(401);
   });
 
-  it("opens for another role once an admin switches it on, and closes for dispatch when switched off", async () => {
-    seed({ grants: [{ role: "recruiter", permission: "dispatch.lumper_cases", allowed: true }, { role: "dispatcher", permission: "dispatch.lumper_cases", allowed: false }] });
+  it("opens for another role, or for one person, once an admin turns the screen on, and closes for a role turned off", async () => {
+    seed({ roleAccess: [{ role: "recruiter", surface_key: "dispatch.lumper-cases", allowed: true }, { role: "dispatcher", surface_key: "dispatch.lumper-cases", allowed: false }] });
     expect((await call("/", "recruiter")).status).toBe(200);
     expect((await call("/", "dispatcher")).status).toBe(403);
     expect((await post(`/${CASE_WAITING}/close`, "dispatcher", { reason: "broker_refused", note: null })).status).toBe(403);
+    seed({ userAccess: [{ user_id: CTX.auditor!.userId, surface_key: "dispatch.lumper-cases", allowed: true }] });
+    expect((await call("/", "auditor")).status).toBe(200);
+    expect((await call("/", "recruiter")).status).toBe(403);
+  });
+
+  it("is closed to a carrier without the Dispatch module", async () => {
+    seed({ module: false });
+    expect((await call("/", "dispatcher")).status).toBe(403);
   });
 });
 
