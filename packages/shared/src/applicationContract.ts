@@ -148,11 +148,9 @@ export const applicationAccidentSchema = z.object({
   fatalities: z.coerce.number().int().min(0).max(999).default(0),
   injuries: z.coerce.number().int().min(0).max(999).default(0),
   /**
-   * The paper grid's HM SPILL column, asked as a Yes/No with nothing chosen since F4 PR 1b-1 (F1 part 2's
-   * rule: no question starts answered). It was a checkbox, so an accident nobody asked about filed "No".
-   * Null is unanswered, which `applicationPaperFilingIssues` refuses on a new filing; every payload filed
-   * before holds a boolean, and an absent one still defaults to No as it always did (the previous
-   * employer's report reuses this schema and sends a box).
+   * HM SPILL, a Yes/No with nothing chosen since F4 PR 1b-1: as a checkbox an unasked accident filed "No".
+   * Null is unanswered, refused on a new filing by `applicationPaperFilingIssues`; a filed payload holds a
+   * boolean, and an absent one defaults to No as before (the previous employer's report sends a box).
    */
   hazmat_spill: z.boolean().nullable().default(false),
   key: applicationRowKeySchema,
