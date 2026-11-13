@@ -2994,6 +2994,28 @@
         "why": "UNIT-NOTES-PLAN D-UN8 (0592): who a unit note names, derived on insert from the body's <@id> tokens; a few rows per note at most, bounded by the unit_notes budget. Lives and dies with its note (on delete cascade)."
       }
     },
+    "unit_note_unit_mentions": {
+      "module": "roster",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "UNIT-NOTES-PLAN D-UN17 (0596): which truck, trailer or driver a unit note names, derived from the body's <#kind:id> tokens; a few rows per note at most, bounded by the unit_notes budget. Lives and dies with its note (on delete cascade)."
+      }
+    },
+    "unit_note_versions": {
+      "module": "roster",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "UNIT-NOTES-PLAN D-UN15 (0596): a note's words before each edit, one row per edit, written by people one at a time; bounded by the unit_notes budget and append-only."
+      }
+    },
     "unit_notes": {
       "module": "roster",
       "layer": "core",

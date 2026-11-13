@@ -131,6 +131,14 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
    * pin wins. A missing line would not lose the notes — 0592's UN014 stops the final driver delete.
    */
   { table: "unit_notes", column: "subject_id", orgScoped: true },
+  /*
+   * The notes that NAME a driver (0596, UNIT-NOTES-PLAN D-UN17): an open "@Marcus" chip on the board follows
+   * Marcus to the surviving record. Polymorphic as above, and 0596's guard narrows it the same way (drivers
+   * only, UN012); a note that named both drivers keeps the surviving driver's row and the other is cleared
+   * with the merged-away driver. A missing line loses nothing either — the delete clears the rows — but the
+   * survivor's board would silently drop the chip.
+   */
+  { table: "unit_note_unit_mentions", column: "subject_id", orgScoped: true },
 ];
 
 /** Atomically fold a duplicate driver into the canonical one. One rpc = one transaction — the

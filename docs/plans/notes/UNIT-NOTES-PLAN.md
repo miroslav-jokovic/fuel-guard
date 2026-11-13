@@ -3,7 +3,10 @@
 **Status: BUILT 2026-11-12 (UN0–UN9). v2 on 2026-11-11 after the owner's second round of rulings (§3: no
 removal for now, no hire line, notes are office-wide and refresh by themselves); UN0 froze the contract
 and shipped the `notes` surface dark (D-UN14); UN9 switched it on for every office role on 2026-11-12.
-It reaches production with the release the owner approves. Progress: [`progress/`](progress/README.md).**
+It reaches production with the release the owner approves. Progress: [`progress/`](progress/README.md).
+**v3 ruled 2026-11-12 (§9): authors edit and remove their notes, a named permission does both for every
+note, and a note that names a truck, trailer or driver shows on that row of the Dispatch Board until
+resolved — D-UN15..D-UN19 supersede D-UN3, D-UN5 and the editing/removal half of D-UN11.**
 This document is both the plan (what and why) and the build workflow (which chat builds what, in
 which files, in what order, and how each step proves it is done). It is written so that several
 chats can build at once under one orchestrator chat (§7).
@@ -83,7 +86,7 @@ PostgreSQL full-text search.
 **D-UN2: roster owns it.** The subjects are roster's tables (M4). Code in
 `apps/api/src/modules/roster/notes/`, routes at `/api/notes`.
 
-**D-UN3: a note is permanent and signed.** No edit and no removal in this release. The database
+**D-UN3: a note is permanent and signed.** *(Superseded 2026-11-12 by D-UN15/D-UN16, §9.)* No edit and no removal in this release. The database
 guard refuses every UPDATE except pinning and the driver merge's subject move, and every DELETE.
 Text only, 1 to 4,000 characters; papers belong in Files.
 
@@ -97,7 +100,7 @@ first round's "a note follows its subject's section". Consequence, stated so nob
 recruiter can read a truck's notes and a technician a driver's. The driver app reaches nothing; no
 route is added under `modules/driver-app`.
 
-**D-UN5: no removal in this release (owner, 2026-11-11, second round: "we will see how it works and
+**D-UN5** *(superseded 2026-11-12 by D-UN16, §9)*: **no removal in this release (owner, 2026-11-11, second round: "we will see how it works and
 add it later").** No remove route, no permission, no removal columns. When it is added it is a named
 admin act (M6) in its own migration and PR. Until then a wrong note is answered by a new note.
 
@@ -364,6 +367,53 @@ Paste one per new chat. Each begins the same way:
 
 ---
 
-## 8. Progress log
+## 9. v3 — edit, remove, and units named on the board (owner, 2026-11-12)
+
+The owner's ask, the day after the office started writing: *"1. Author can edit note 2. Author can delete
+note 3. When a truck is mentioned in a note, for example @848, it will automatically display the mention in
+the Dispatch Board's Warnings column, and when clicked, the dispatcher dispatching that truck will be able
+to see this note in the sidebar that opens 4. An admin with permission to edit notes will be able to edit
+and delete notes for all users and authors."* Rulings on the five questions asked back (same day):
+Q-UN6 a **Resolve** icon takes the chip off the board; Q-UN7 trucks, trailers **and** drivers can be named;
+Q-UN8 naming a unit rings no bell; Q-UN9 no time limit on an edit, and edits and removals are on the Audit
+pages "so admins keep track — no need to overcomplicate"; Q-UN10 old words and removed notes are kept in the
+database and shown to nobody in this release.
+
+**D-UN15: the author edits, with no time limit; the old words are kept (supersedes D-UN3).** Office
+chat's rule (0511, D-CHAT13): the database copies the previous body into `unit_note_versions` in the same
+statement, so no path edits without leaving the old words. The row shows "Edited". An edit re-derives the
+people and units it names; only what it ADDS is checked (chat's rule, 0521) and only a newly named person's
+bell rings. Audit row `notes.edited` (who, which note, which unit — never the words, as `notes.added`).
+
+**D-UN16: removal hides, never deletes (supersedes D-UN5).** `deleted_at` + who, set once (UN022). A
+removed note leaves every list, count, search, pin and board chip; DELETE stays refused (UN010). Audit row
+`notes.removed`.
+
+**D-UN17: units are named by token.** `<#vehicle:uuid>`, `<#trailer:uuid>`, `<#driver:uuid>` — the
+people token's shape with its kind, so a renumbered truck never breaks the link. The composer's `@` list
+offers trucks, trailers and drivers beside people; a typed `@848` that matches exactly one unit is turned
+into its token on save. `unit_note_unit_mentions` is derived by trigger; the unit must be this carrier's and
+a driver not an applicant (UN016). The driver merge moves a driver's rows (UN012).
+
+**D-UN18: the chip lives in Warnings until resolved.** The board row's Warnings cell shows one chip per
+open mention of its truck, its driver(s) or its trailer — "Note · Dana · 11/12" — beside, not inside, the
+due-date warnings (`BoardWarning` stays the catalogue of things that come due; a note never "comes due").
+The chip opens the row's notes drawer on that note; its Resolve icon takes it off the board for everyone,
+signed (`resolved_at`/`resolved_by`, set once, UN023), audit `notes.mention_resolved`. The board reads one
+value per request (`unit_note_open_unit_mentions`, M12), after the 20-second row cache, so a resolve shows
+on the next poll rather than after the cache.
+
+**D-UN19: "Edit and remove anyone's note" is a named permission.** `notes.manage_all` in
+`EDITABLE_PERMISSIONS` (rolePermissions.ts), so it is a switch on Settings → Permissions. The admin holds
+it permanently (D-PERM7); every other role ships off. The api asks it with the permission resolver and
+passes the answer to the database (`p_any`), which still refuses a stranger's note when it is false (UN025).
+No role list is written anywhere.
+
+| Step | What | Done when |
+|---|---|---|
+| **UN10** | Migration 0596 + matrix `unit-notes-v3.test.mjs`; merge list and driver-reference set; registries | Matrix prints `RESULT`; each guard proved by mutation |
+| **UN11** | Contract, api routes (`PATCH /:id`, `DELETE /:id`, `POST /:id/units/resolve`, `GET /units`), permission, board chips, composer units, row menu | Route + component tests; browser pass; merges only after UN10 is applied on staging (`lint:migration-ordering`) |
+
+## 10. Progress log
 
 Entries live as one file each in [`progress/`](progress/README.md).
