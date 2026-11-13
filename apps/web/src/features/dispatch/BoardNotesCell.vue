@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppButton } from "@silvicom/ui";
+import { AppButton, AppIcon } from "@silvicom/ui";
+import { SURFACE_ICONS } from "@/lib/navIcons";
 import type { UnitNoteSubjectSummary } from "@silvicom/shared";
 import { noteAge, noteCount } from "@/components/notes/noteWords";
 import { useNotesDrawer, type NotesTarget } from "@/components/notes/useNotesDrawer";
 import { boardNoteUnitsWords } from "./boardNotes";
+
+// The sidebar's Notes icon, the same mark the Vehicles, Trailers and Drivers cells show (`NotesCell`).
+const notesIcon = SURFACE_ICONS.notes!;
 
 /**
  * The Dispatch Board's Notes cell (UNIT-NOTES-PLAN D-UN12): the count of every note on the row's units
@@ -35,6 +39,7 @@ const units = computed(() => boardNoteUnitsWords(props.targets));
     @click.stop="drawer.open(targets)"
   >
     <template v-if="summary">
+      <AppIcon :icon="notesIcon" class="mr-1 inline size-4 shrink-0 align-[-0.2em]" aria-hidden="true" data-notes-cell-icon />
       <!-- One line, so the space between the two stays a space: "3 2 d ago", never "32 d ago". -->
       <span class="tabular-nums">{{ summary.count }}</span> <span class="text-xs font-normal text-ink-tertiary">{{ noteAge(summary.lastAt) }}</span>
     </template>

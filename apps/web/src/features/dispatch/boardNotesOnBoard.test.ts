@@ -136,6 +136,9 @@ describe("the Dispatch Board's Notes column", () => {
     // 3 on the truck + 1 on Ben + 2 on the trailer, aged by Ben's (the newest): a day before the clock.
     expect(cellOf(w, "773").text().replace(/\s+/g, " ")).toBe("6 1 d ago");
     expect(cellOf(w, "669").text()).toBe("Add");
+    // The sidebar's Notes icon marks the row with notes, not the empty one.
+    expect(cellOf(w, "773").find("[data-notes-cell-icon]").exists()).toBe(true);
+    expect(cellOf(w, "669").find("[data-notes-cell-icon]").exists()).toBe(false);
   });
 
   it("asks for the three kinds in ONE call for the whole board", async () => {

@@ -150,6 +150,13 @@ describe("NotesDrawer", () => {
 
   it("pins a note and unpins the pinned one", async () => {
     await render(`/vehicles?notes=vehicle:${VEH}`);
+    // The sidebar's two pin glyphs, named for what they do, and the pinned note marked as pressed.
+    const pinOf = (id: string) => document.body.querySelector(`#note-${id} [data-note-pin]`) as HTMLButtonElement;
+    expect([pinOf(N1).getAttribute("aria-label"), pinOf(N1).getAttribute("aria-pressed")]).toEqual(["Unpin", "true"]);
+    expect([pinOf(N2).getAttribute("aria-label"), pinOf(N2).getAttribute("aria-pressed")]).toEqual(["Pin to top", "false"]);
+    expect(pinOf(N1).querySelector("svg")).not.toBeNull();
+    expect(document.body.querySelector(`#note-${N1} [data-note-pinned]`)?.textContent).toBe("Pinned");
+    expect(document.body.querySelector(`#note-${N2} [data-note-pinned]`)).toBeNull();
     (document.body.querySelector(`#note-${N2} [data-note-pin]`) as HTMLButtonElement).click();
     await flushPromises();
     (document.body.querySelector(`#note-${N1} [data-note-pin]`) as HTMLButtonElement).click();
