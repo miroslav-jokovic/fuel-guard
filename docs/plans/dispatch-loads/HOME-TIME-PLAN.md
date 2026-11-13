@@ -376,3 +376,32 @@ sidebar.
 
 - 2026-11-13 — Written. Measurements in §1 taken the same day; McLeod's home-date columns found and found
   unreadable with the connector login.
+- 2026-11-13 — **Rulings.** The owner answered "proceed as proposed", so every recommendation in §6 is a
+  ruling: Q-HT2 thresholds 24 h / 2 h / 8 days; Q-HT3 the fleet manager role hears overstayed and
+  truck-too-long by bell and email; Q-HT4 the system ends a period on load evidence; Q-HT5 texts are held
+  21:00–07:00; Q-HT6 home time only; Q-HT7 as recommended. **Q-HT1 stays open as a fact, not a ruling**
+  (where dispatch keeps home time today); nothing built depends on it.
+- 2026-11-13 — **HT1 the schema** (branch `claude/home-time-ht1-schema`), as two migrations so each
+  touches one module's tables: `0597_home_time.sql` (roster) and `0598_notification_routing.sql`
+  (messaging). Matrix `supabase/tests/home-time.test.mjs`, 87 cases; seven mutants of the two migrations
+  each fail it (no live check in mark, reopen ignoring a newer period, end without a reason, cancel of an
+  ended period, the driver's org check, every item counted fresh, a key without its channel).
+  Changes from §3, each for a reason found while writing the SQL:
+  - **D-HT20 — no Note field; the form links to the driver's notes.** `driver_time_off` is readable by
+    every member of the carrier and by the driver himself (the policies of 0068 and 0136), and a
+    dispatcher's remark about a driver is not his to read. Notes on a driver already exist, office-only
+    and shown on the board (`unit_notes`). This replaces the `note` column of D-HT2 and the Note row of
+    §3.3's form, and takes one field off every entry.
+  - **Only mark and reopen are database functions**, because only they need the one-live-period lock.
+    Change, end and cancel are conditional UPDATEs from the roster service, held to a consistent row by
+    the `driver_time_off_silvicom_shape` CHECK.
+  - **Default routes are derived, not seeded** (replaces "default routes seeded per org" in HT4): an
+    alert with no `notification_routes` row uses the catalogue's defaults, so the defaults are written
+    once and an org is not frozen on the day it was created.
+  - **`notification_deliveries` is not the dedupe.** `queue_notification_delivery` claims each item's
+    key in the existing ledger (`notification_dedupe_keys`, as `<channel>:<key>`) and queues only what it
+    claimed, in one transaction, so the delivery log can be pruned at 90 days without re-sending. A
+    retention rule for it ships here; `dataRetentionPolicy.ts` was already split (366 lines), so the
+    split §5 expected was not needed.
+  - The held-text window is its own one-row table, `notification_channel_settings` (messaging's), not a
+    column of `home_time_settings` (roster's): it holds every alert's texts, not only home time's.
