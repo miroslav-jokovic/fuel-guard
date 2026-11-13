@@ -1495,7 +1495,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "HOME-TIME-PLAN D-HT12 (0597): the carrier's three home-time alert thresholds, one row per org at most; bounded by the number of orgs, not by time."
+        "why": "HOME-TIME-PLAN D-HT12 (0599): the carrier's three home-time alert thresholds, one row per org at most; bounded by the number of orgs, not by time."
       }
     },
     "hos_duty_segments": {
@@ -3245,6 +3245,17 @@
         "partition": null,
         "budget_rows_per_day": 10000,
         "why": "a cache; re-fetched on demand. Measured 8,634/day. L5 proposes 400d\u219290d. D-LIFE7: NEVER partitioned \u2014 its PK is the natural key (lat_grid, lng_grid, hour_utc) and adding a time column would change dedup semantics."
+      }
+    },
+    "web_push_subscriptions": {
+      "module": "messaging",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "one row per browser endpoint of an office member (0599, CHAT-WEB-PUSH-PLAN D-WP1); the endpoint is unique and a device re-registering updates its row, so it grows with people and their devices (14 office members 2026-11-13), not with messages."
       }
     },
     "application_intakes": {

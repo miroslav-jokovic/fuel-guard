@@ -236,6 +236,11 @@ const FORMAT_PINNED = {
   // Its check's only quoted literal is the forbidden-character class '[/\\]', which the CHECK reader would seed.
   "chat_attachments.file_name": "'seed.pdf'",
   "notification_contacts.phone": "'+15555550100'", // check (phone ~ '^\+[1-9][0-9]{7,14}$') (0598)
+  // A browser's push subscription (0599): an https endpoint, unique per row; keys shaped like a browser's.
+  "web_push_subscriptions.endpoint": "('https://fcm.googleapis.com/fcm/send/' || gen_random_uuid())",
+  "web_push_subscriptions.p256dh": "('B' || repeat('a', 86))", // check (p256dh ~ '^[A-Za-z0-9_-]{86,88}$')
+  "web_push_subscriptions.auth": "repeat('c', 22)", // check (auth ~ '^[A-Za-z0-9_-]{22,24}$')
+  "web_push_subscriptions.origin": "'https://360.silvicominc.com'", // check (origin ~ '^https?://[^/]+$')
 };
 
 /**
