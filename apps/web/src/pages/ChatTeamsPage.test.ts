@@ -28,6 +28,8 @@ vi.mock("@/features/chat/teams/useChatTeamsAdmin", async () => {
 vi.mock("@/features/chat/useChat", async () => {
   const { ref } = await import("vue");
   return {
+    // useChatDnd keys its query under CHAT_KEY (Do not disturb, CHAT-WEB-PUSH-PLAN WP5).
+    CHAT_KEY: ["chat"] as const,
     useChatPeopleQuery: () => ({
       data: ref([
         { user_id: "11111111-1111-4111-8111-111111111111", name: "Me", role: "admin", suspended: false },
