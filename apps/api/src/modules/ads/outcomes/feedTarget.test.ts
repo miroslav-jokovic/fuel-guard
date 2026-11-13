@@ -6,7 +6,7 @@ import { SIMULATOR_DATASET_ID, simulatorFakeForTests, stopSimulatorForTests } fr
 import { saveSettingsVersion } from "../settings/settingsVersions.js";
 import { settingsFeedTargets } from "./feedTarget.js";
 import { runOutcomeFeed } from "./outcomeFeed.js";
-import { CONN, hoursAgo, lead, ORG, outcome, world } from "./outcomeWorld.js";
+import { CONN, lead, ORG, outcome, world } from "./outcomeWorld.js";
 
 /**
  * Q-AD40, ruled 2026-11-06: the outcome feed's switch and dataset are the settings version in force
@@ -69,10 +69,15 @@ describe("the outcome feed's target — the settings version in force (Q-AD40 (1
 });
 
 describe("the simulator runs the outcome feed only where the simulator gate allows (Q-AD40 (2))", () => {
-  const simLead = (n: number) => outcome(n, { contacted: hoursAgo(5) }, { provider: "simulator", platform_lead_ref: `99000000000${n}` });
+  // The in-process simulator keeps the real clock, as it does on staging, and applies Meta's own
+  // seven-day rule to every event it is sent. These leads are therefore dated from the real clock
+  // too. Dated from outcomeWorld's fixed NOW (2026-11-06) they passed for exactly a week and then
+  // failed on every branch from 2026-11-13, when the events turned eight days old.
+  const recently = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+  const simLead = (n: number) => outcome(n, { contacted: recently(5) }, { provider: "simulator", platform_lead_ref: `99000000000${n}`, arrived_at: recently(72) });
 
   it("on staging, a simulator connection's stages reach the simulator's own dataset, once each", async () => {
-    const w = world({ outcomes: [simLead(1), outcome(2, { contacted: hoursAgo(5) })], provider: "simulator", settings: [on(SIMULATOR_DATASET_ID)] });
+    const w = world({ outcomes: [simLead(1), outcome(2, { contacted: recently(5) }, { arrived_at: recently(72) })], provider: "simulator", settings: [on(SIMULATOR_DATASET_ID)] });
     const deps = { admin: w.rec.client, env: testEnv(), now: () => new Date(), outcomes: w.outcomes, targets: settingsFeedTargets(w.rec.client, STAGING), processEnv: STAGING };
     const r = await runOutcomeFeed(deps, ORG, CONN);
     expect(r).toMatchObject({ ran: true, sent: 1, failures: [] });
