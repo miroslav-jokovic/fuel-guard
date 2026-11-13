@@ -603,3 +603,10 @@ sidebar.
   - **Browser pass** with texting on, 1440 px and 390 px, data and failing reads, and the Text alerts
     form in its four states: no page error, nothing wider than the viewport. Two fixes: a divider drawn
     in a colour that is not a token, and "Take off" wrapping onto two lines.
+- 2026-11-13 — **HT6 merged** (PR 2346). `pnpm ci:local` caught one thing first: the Text alerts form's
+  fallback sentence did not name what failed (`lint:ui-adoption`).
+- 2026-11-13 — **HT7 hand-back, the paper half.** Q-LA1 is marked answered in `LOADS-ACTIVITY-PLAN.md`,
+  and `NOTIFICATION-ROUTING-PLAN.md`'s log says which of its phases now exist. **Still owed, and not
+  doable from a desk today:** the walk of every row of §4 on staging (the staging org has no
+  notifications module, so no bell rings there until it is switched on), the same walk on production
+  after the release that carries HT4–HT6, and HT6's real text to the owner's phone.
