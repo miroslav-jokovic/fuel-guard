@@ -1,5 +1,6 @@
 import {
   availableNear,
+  homeTimeChipUrgent,
   legalDriveMs,
   needsAttention,
   warningIsUrgent,
@@ -138,11 +139,16 @@ export function fleetCensus(rows: readonly DispatchBoardRow[]): Map<string | nul
  * Available's colour, the dispatchers' habit carried over (Q-DBV5): red when the truck is free now or
  * already should have been — it needs a load — amber within a day, green later. In the shop, or no
  * time at all, is no colour: there is nothing to plan.
+ *
+ * A truck at home with its driver (`basis: "home_time"`, HOME-TIME-PLAN D-HT10) is quiet until his
+ * return passes and red after it: before, it is planned and nobody's problem; after, it should be
+ * rolling. Never amber or green — "free on Thursday" for a truck at a house is a promise, not a plan.
  */
 export const AVAILABLE_SOON_MS = 24 * 3_600_000;
 export function availableTone(r: DispatchBoardRow, now: Date): "danger" | "warning" | "success" | "neutral" {
   if (r.inShop || !r.available?.at) return "neutral";
   const ms = Date.parse(r.available.at) - now.getTime();
+  if (r.available.basis === "home_time") return ms <= 0 ? "danger" : "neutral";
   if (ms <= 0) return "danger";
   return ms <= AVAILABLE_SOON_MS ? "warning" : "success";
 }
@@ -202,7 +208,8 @@ export const BOARD_DEFAULT_SORT = "available";
  *
  * Status sorts by what needs a dispatcher first: empty, then late, at risk, on time, no verdict, and the
  * shop last, because the reason to sort that column is to bring the trucks that need a load or will miss
- * an appointment to the top.
+ * an appointment to the top. A truck at home with its driver sorts just before the shop: like it, it
+ * cannot take a load, and unlike "empty" it does not need one.
  */
 const ON_TIME_RANK: Record<string, number> = { late: 0, at_risk: 1, on_time: 2 };
 export function boardSortValue(r: DispatchBoardRow, key: string): unknown {
@@ -221,12 +228,13 @@ export function boardSortValue(r: DispatchBoardRow, key: string): unknown {
       return milesLeftOf(r);
     case "warnings":
       // Most pressing first: an urgent item (overdue, or a random test) counts three times a due one, and
-      // an open note mention (UNIT-NOTES-PLAN D-UN18) as much as a due one.
-      return r.warnings.length || r.noteMentions.length
-        ? (r.warnings.reduce((n, w) => n + (warningIsUrgent(w) ? 3 : 1), 0) + r.noteMentions.length) * -1
+      // an open note mention (UNIT-NOTES-PLAN D-UN18) as much as a due one. A home-time chip weighs the
+      // same way: overdue or a truck past its limit as urgent, the rest as due.
+      return r.warnings.length || r.noteMentions.length || hasHomeTimeChips(r)
+        ? (r.warnings.reduce((n, w) => n + (warningIsUrgent(w) ? 3 : 1), 0) + r.noteMentions.length + homeTimeChipsOf(r).reduce((n, c) => n + (homeTimeChipUrgent(c) ? 3 : 1), 0)) * -1
         : null;
     case "status":
-      return r.inShop ? 4 : !r.current ? 0 : (ON_TIME_RANK[r.onTime] ?? 3) + 0.5;
+      return r.inShop ? 4 : r.available?.basis === "home_time" ? 3.8 : !r.current ? 0 : (ON_TIME_RANK[r.onTime] ?? 3) + 0.5;
     case "hos":
       return legalDriveLeft(r);
     case "now":
@@ -325,3 +333,10 @@ export function stopPlace(s: { city: string | null; state: string | null; name: 
 export function loadStopName(s: { location_name?: string | null; name: string | null } | null | undefined): string {
   return s ? s.location_name || s.name || "" : "";
 }
+
+/**
+ * Every home-time chip on the row, across its seats (HOME-TIME-PLAN D-HT11). `?? []` on purpose: a web
+ * bundle newer than the API it reaches gets rows without the list for the minutes of a deploy.
+ */
+export const homeTimeChipsOf = (r: DispatchBoardRow) => (r.homeTimes ?? []).flatMap((h) => h.chips);
+export const hasHomeTimeChips = (r: DispatchBoardRow): boolean => homeTimeChipsOf(r).length > 0;

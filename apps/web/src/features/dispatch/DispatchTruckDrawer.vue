@@ -8,6 +8,8 @@ import { useLoadRoute } from "@/composables/useLoadRoute";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, stopMarker, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import { offRouteWords } from "@/lib/loadRouteWords";
+import { useCanMarkHomeTime } from "@/components/homeTime/useHomeTime";
+import { useHomeTimeDrawer } from "@/components/homeTime/useHomeTimeDrawer";
 import { dispatcherLabel, durationWords, legalDriveLeft, stopPlace } from "./dispatchBoardView";
 import { useLoadDetailQuery, type DispatchStopDetail } from "./useDispatchLoads";
 
@@ -33,6 +35,12 @@ import { useLoadDetailQuery, type DispatchStopDetail } from "./useDispatchLoads"
  * "On the map" opens the Dashboard's Dispatch tab with `?truck=<unit>`, the same key this drawer's own
  * URL uses; the map selects and frames that truck, then drops the parameter. A truck with no position
  * gets no link — the map has nothing to show for it.
+ *
+ * ── HOME TIME IS THE FIRST SECTION (HOME-TIME-PLAN D-HT8) ────────────────────────────────────────
+ * One line per seat: whether that driver is home and until when, and the button that opens his
+ * home-time drawer — "Mark home time" for whoever holds the permission (D-HT7), "Open" on a period
+ * that exists, for anybody. Two clicks from a board row to the form. Pressing it closes this drawer:
+ * the board shows one dialog at a time (`useHomeTimeDrawer`).
  */
 const props = defineProps<{
   row: DispatchBoardRow | null;
@@ -42,6 +50,28 @@ const props = defineProps<{
 const emit = defineEmits<{ close: [] }>();
 
 const at = (iso: string | null | undefined) => formatDateTime(iso, "—", props.zone);
+
+const homeTime = useHomeTimeDrawer();
+const canMarkHomeTime = useCanMarkHomeTime();
+/** Each seat with its home time, if any; the words are the row's own state said at full length. */
+const seats = computed(() => {
+  const r = props.row;
+  if (!r) return [];
+  return [r.driver, r.coDriver]
+    .filter((s): s is { id: string; name: string } => s != null)
+    .map((s) => {
+      // `?? []`: a web bundle newer than the API it reaches gets rows without the list during a deploy.
+      const h = (r.homeTimes ?? []).find((x) => x.driverId === s.id) ?? null;
+      const words = !h
+        ? "Not on home time."
+        : h.state === "scheduled"
+          ? `Scheduled from ${at(h.startAt)}, back ${at(h.expectedReturnAt)}.`
+          : h.state === "overdue"
+            ? `Overdue: was due back ${at(h.expectedReturnAt)}.`
+            : `Home until ${at(h.expectedReturnAt)}.`;
+      return { ...s, home: h, words };
+    });
+});
 
 const loadId = computed(() => props.row?.current?.loadId ?? null);
 const detail = useLoadDetailQuery(loadId);
@@ -106,6 +136,20 @@ const description = computed(() => {
 <template>
   <SlideOver :open="row !== null" :title="title" :description="description" @close="emit('close')">
     <div v-if="row" class="space-y-6">
+      <section v-if="seats.length" aria-labelledby="truck-home-time-heading" class="space-y-2" data-testid="truck-home-time">
+        <h3 id="truck-home-time-heading" class="text-sm font-semibold text-ink">Home time</h3>
+        <div v-for="s in seats" :key="s.id" class="flex items-center justify-between gap-3">
+          <p class="min-w-0 text-sm" :class="s.home?.state === 'overdue' ? 'text-danger-700' : s.home ? 'text-ink' : 'text-ink-muted'">
+            <template v-if="seats.length > 1"><span class="font-medium text-ink">{{ s.name }}</span> · </template>{{ s.words }}
+          </p>
+          <div v-if="s.home || canMarkHomeTime" class="shrink-0">
+            <BaseButton :variant="s.home ? 'secondary' : 'primary'" size="sm" @click="homeTime.open(s.id)">
+              {{ s.home ? "Open" : "Mark home time" }}
+            </BaseButton>
+          </div>
+        </div>
+      </section>
+
       <section aria-labelledby="truck-hos-heading" class="space-y-2">
         <div class="flex items-center justify-between gap-2">
           <h3 id="truck-hos-heading" class="text-sm font-semibold text-ink">Hours of service</h3>

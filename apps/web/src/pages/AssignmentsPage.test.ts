@@ -7,6 +7,9 @@ import type { DispatchBoardResponse, DispatchBoardRow } from "@silvicom/shared";
 
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
 vi.mock("@/features/dispatch/AssignmentHistory.vue", () => ({ default: { template: "<div data-test='history'/>" } }));
+// Home time is mounted on this screen and is not its subject (`@/testing/fakeHomeTime`): nobody home, no button.
+vi.mock("@/components/homeTime/useHomeTime", async () => (await import("@/testing/fakeHomeTime")).fakeHomeTime());
+vi.mock("@/components/homeTime/HomeTimeDrawer.vue", () => ({ default: { template: "<div/>" } }));
 // The drawer's own reads and rendering are DispatchTruckDrawer.test.ts's; here only WHICH truck it gets.
 vi.mock("@/features/dispatch/DispatchTruckDrawer.vue", () => ({
   default: { name: "DispatchTruckDrawer", props: ["row"], emits: ["close"], template: "<div data-test='drawer'>{{ row ? row.unitNumber : 'closed' }}</div>" },
@@ -147,11 +150,12 @@ describe("the dispatch board page", () => {
     expect(w.get("[data-test=drawer]").text()).toBe("closed");
   });
 
-  it("shows two queues as tabs with their counts, and History as the last tab", async () => {
+  it("shows two queues as tabs with their counts, then Home time, and History as the last tab", async () => {
     board.value = response(true);
     const w = await mountPage();
     const tabs = w.findAll("[role=tab]").map((t) => t.text().replace(/\s+/g, " "));
-    expect(tabs).toEqual(["All trucks 2", "Needs attention 0", "History"]);
+    // Home time carries its own list's count once that list has answered (HOME-TIME-PLAN D-HT8); here it has not.
+    expect(tabs).toEqual(["All trucks 2", "Needs attention 0", "Home time", "History"]);
     await w.findAll("[role=tab]").at(-1)!.trigger("click");
     await flushPromises();
     expect(w.router.currentRoute.value.query).toEqual({ queue: "history" });

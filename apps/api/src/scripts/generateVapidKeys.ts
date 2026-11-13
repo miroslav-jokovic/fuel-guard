@@ -5,9 +5,10 @@ import { generateVapidKeys } from "../modules/messaging/webPush.js";
  *
  *   pnpm --filter @silvicom/api exec tsx src/scripts/generateVapidKeys.ts
  *
- * Prints the two variables to set — the SAME pair on `@fleetguard/api` and `@fleetguard/web` of one environment,
- * a DIFFERENT pair per environment. The private key is a secret: paste it into Railway, nowhere else. Changing a
- * pair later invalidates every device turned on with the old one (envWebPush.ts says why).
+ * Prints the two values to put in AWS Parameter Store `/silvicom/<staging|production>/api/` as SecureString —
+ * a DIFFERENT pair per environment — then redeploy that environment so `fetch-settings.sh` loads them. The
+ * private key is a secret: Parameter Store only, never a file, a chat or a commit. Changing a pair later
+ * invalidates every device turned on with the old one (envWebPush.ts says why).
  */
 const { publicKey, privateKey } = generateVapidKeys();
 console.log(`WEB_PUSH_VAPID_PUBLIC_KEY=${publicKey}`);

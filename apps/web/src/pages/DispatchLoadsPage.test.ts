@@ -8,6 +8,8 @@ import type { DispatchBoardResponse, DispatchBoardRow } from "@silvicom/shared";
 
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
 vi.mock("@/features/dispatch/DispatchLoadDrawer.vue", () => ({ default: { template: "<div/>" } }));
+// Home time is mounted on this screen and is not its subject (`@/testing/fakeHomeTime`): nobody home, no button.
+vi.mock("@/components/homeTime/useHomeTime", async () => (await import("@/testing/fakeHomeTime")).fakeHomeTime());
 
 /**
  * The Loads page beside the Dispatch board (DISPATCH-BOARD-PLAN §5.3, DB5b), mounted. The scope rule is

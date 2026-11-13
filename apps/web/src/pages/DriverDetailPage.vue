@@ -36,6 +36,7 @@ import {
 import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import NotesButton from "@/components/notes/NotesButton.vue";
+import HomeTimeButton from "@/components/homeTime/HomeTimeButton.vue";
 import NotesDrawer from "@/components/notes/NotesDrawer.vue";
 import ExportButton from "@/components/ExportButton.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
@@ -330,6 +331,7 @@ const fillColumns: DataTableColumn[] = [
       <template #actions>
         <!-- The driver's notes (UNIT-NOTES-PLAN D-UN12): the drawer the roster's Notes cell opens. -->
         <NotesButton v-if="driver" kind="driver" :id="id" :label="driver.full_name" />
+        <HomeTimeButton v-if="driver" :driver-id="id" />
         <!-- No longer gated on the qualification TAB being open: there are no tabs, and the button
              exports the §391.51 file whichever part of the page the reader has scrolled to. -->
         <ExportButton

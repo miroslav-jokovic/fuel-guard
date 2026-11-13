@@ -29,6 +29,15 @@ export function vapidKeysFrom(env: Pick<Env, "WEB_PUSH_VAPID_PUBLIC_KEY" | "WEB_
   const pub = env.WEB_PUSH_VAPID_PUBLIC_KEY;
   const priv = env.WEB_PUSH_VAPID_PRIVATE_KEY;
   if (!pub || !priv) return null;
+  // The format is checked here, not in env.ts, so a bad value turns push off instead of stopping the API (envWebPush.ts).
+  const b64url = /^[A-Za-z0-9_-]+$/;
+  if (!b64url.test(pub) || Buffer.from(pub, "base64url").length !== 65) throw new Error("WEB_PUSH_VAPID_PUBLIC_KEY is not a 65-byte base64url key");
+  if (!b64url.test(priv) || Buffer.from(priv, "base64url").length !== 32) throw new Error("WEB_PUSH_VAPID_PRIVATE_KEY is not a 32-byte base64url key");
+  // Only an explicit subject is held to Apple's rule; unset, it is WEB_APP_URL, https in every deployment.
+  if (env.WEB_PUSH_SUBJECT && !/^(mailto:\S+@\S+|https:\/\/\S+)$/.test(env.WEB_PUSH_SUBJECT)) {
+    throw new Error("WEB_PUSH_SUBJECT must be mailto: or https:");
+  }
+  const subject = env.WEB_PUSH_SUBJECT || env.WEB_APP_URL;
   // A public key pasted from another pair would sign nothing any browser accepts, silently: every push would
   // come back 403. Derive it from the private half and compare, so the mistake is loud at the first use.
   const ecdh = createECDH("prime256v1");
@@ -36,14 +45,20 @@ export function vapidKeysFrom(env: Pick<Env, "WEB_PUSH_VAPID_PUBLIC_KEY" | "WEB_
   if (!ecdh.getPublicKey().equals(Buffer.from(pub, "base64url"))) {
     throw new Error("WEB_PUSH_VAPID_PUBLIC_KEY is not the public half of WEB_PUSH_VAPID_PRIVATE_KEY");
   }
-  return { publicKey: pub, privateKey: priv, subject: env.WEB_PUSH_SUBJECT ?? env.WEB_APP_URL };
+  return { publicKey: pub, privateKey: priv, subject };
 }
 
 /** A fresh pair, for `scripts/generateVapidKeys.ts`. */
 export function generateVapidKeys(): { publicKey: string; privateKey: string } {
-  const ecdh = createECDH("prime256v1");
-  ecdh.generateKeys();
-  return { publicKey: ecdh.getPublicKey().toString("base64url"), privateKey: ecdh.getPrivateKey().toString("base64url") };
+  // A scalar with leading zero bytes can come back shorter than 32 bytes, which `vapidKeysFrom` refuses: draw
+  // again rather than hand out a pair the server will not use.
+  for (;;) {
+    const ecdh = createECDH("prime256v1");
+    ecdh.generateKeys();
+    const priv = ecdh.getPrivateKey();
+    const pub = ecdh.getPublicKey();
+    if (priv.length === 32 && pub.length === 65) return { publicKey: pub.toString("base64url"), privateKey: priv.toString("base64url") };
+  }
 }
 
 // ── RFC 8291 ──────────────────────────────────────────────────────────────────────────────────────
