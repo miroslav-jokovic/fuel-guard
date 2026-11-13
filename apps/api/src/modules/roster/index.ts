@@ -31,6 +31,8 @@ export { readFleetIdentities, readTrailerAnnualInspections, type FleetIdentity }
 export { readOpenUnitMentions, type OpenUnitMentions } from "./notes/noteUnits.js";
 // Home time (HOME-TIME-PLAN HT2): the board merges each seat's live period and the carrier's thresholds.
 export { readHomeTimeSettings, readLiveHomeTimes, type HomeTimeRow } from "./homeTime/homeTime.js";
+// …and the alert job (HT4) ends a period the driver has plainly finished, and names who it alerts about.
+export { endHomeTime, hydrateHomeTimes, isHomeTimeRefusal, readDriversOffRoster } from "./homeTime/homeTime.js";
 export { rosterHomeTimeRouter } from "./homeTime/routes.js";
 export { moveApplicantRosterEmail } from "./applicantRosterEmail.js";
 // The truck's TMS home fleet, written by mcleod's roster sweep (DISPATCH-BOARD-PLAN DB1).

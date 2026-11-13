@@ -114,6 +114,7 @@ export async function readHomeTimeSettings(admin: SupabaseClient, orgId: string)
 }
 
 /** Names for the ids a set of periods carries: drivers, trucks, and the people who marked them. */
+export const hydrateHomeTimes = hydrate;
 async function hydrate(admin: SupabaseClient, orgId: string, rows: readonly HomeTimeRow[], now: Date): Promise<HomeTimePeriod[]> {
   const driverIds = [...new Set(rows.map((r) => r.driver_id).filter((id): id is string => !!id))];
   const vehicleIds = [...new Set(rows.map((r) => r.vehicle_id).filter((id): id is string => !!id))];
@@ -249,6 +250,22 @@ export async function listHomeTimeDrivers(admin: SupabaseClient, orgId: string):
       lastDisposition: prior && (prior === "no_truck") === (truck === null) ? prior : null,
     };
   });
+}
+
+/**
+ * Of these drivers, the ones no longer on the active roster — terminated, inactive, archived or gone.
+ * The alert job ends their home time (`driver_left`): nobody is waiting for them to come back.
+ */
+export async function readDriversOffRoster(admin: SupabaseClient, orgId: string, driverIds: readonly string[]): Promise<Set<string>> {
+  const on = new Set<string>();
+  for (const ids of chunks([...new Set(driverIds)])) {
+    const { data, error } = await admin.from("drivers").select("id, status, archived_at").eq("org_id", orgId).in("id", ids);
+    if (error) throw new Error(`drivers: ${error.message}`);
+    for (const d of (data ?? []) as { id: string; status: string; archived_at: string | null }[]) {
+      if (d.archived_at === null && (DRIVER_STATUSES_THAT_HOLD_A_TRUCK as readonly string[]).includes(d.status)) on.add(d.id);
+    }
+  }
+  return new Set(driverIds.filter((id) => !on.has(id)));
 }
 
 // ── writes ────────────────────────────────────────────────────────────────────────────────────────

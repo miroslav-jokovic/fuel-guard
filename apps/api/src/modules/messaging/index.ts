@@ -20,6 +20,8 @@ export { chatRouter } from "./routes/chat.js";
 export { chatRouters } from "./routes/chatMount.js";
 export { notificationsRouter } from "./routes/notifications.js";
 export { keysAlreadySent, notify, revokePushTokens } from "./notify.js";
+// Alert routing (NOTIFICATION-ROUTING-PLAN D-NR3/D-NR4): who hears an alert, and the one sender.
+export { sendAlerts, recipientsFor, readAlertAudience, readAlertRoutes, type AlertEvent, type AlertSendResult } from "./alertRouting.js";
 export { notifyForTransaction } from "./notifications.js";
 export { startNotificationPushScheduler } from "./notificationPush.js";
 export { startChatLedgerVerifyScheduler } from "./chatLedgerVerify.js";

@@ -137,3 +137,79 @@ export function compareHomeTimes(
   if (STATE_ORDER[a.state] === 3) return Date.parse(b.startAt) - Date.parse(a.startAt);
   return Date.parse(a.expectedReturnAt) - Date.parse(b.expectedReturnAt);
 }
+
+// ── the three alerts (D-HT12, D-HT13) ─────────────────────────────────────────────────────────────
+
+/** How many times "overstayed" is said for one return time: once, then daily (plan §3.5). */
+export const HOME_TIME_OVERDUE_REPEATS = 7;
+
+export type HomeTimeAlertKind = "home_time_return_due" | "home_time_overdue" | "home_time_truck_limit";
+
+export interface HomeTimeAlert {
+  kind: HomeTimeAlertKind;
+  periodId: string;
+  /**
+   * One key per FACT. It carries the period and, for the two that follow the promise, the return time:
+   * a changed return is a new fact and alerts again, a retried job is the same fact and does not. The
+   * overstay's key also carries which repeat it is.
+   */
+  dedupeKey: string;
+  /** For `home_time_overdue`: 1 on the first alert, 2 a day later … up to `HOME_TIME_OVERDUE_REPEATS`. */
+  repeat: number | null;
+}
+
+/** The alerts that are DUE for one period at `now`, whether or not they were already sent — the caller asks the ledger. */
+export function homeTimeAlertsDue(
+  p: { id: string; startAt: string; expectedReturnAt: string; endAt: string | null; canceledAt: string | null; disposition: HomeTimeDisposition },
+  settings: HomeTimeSettings,
+  now: Date,
+): HomeTimeAlert[] {
+  const state = homeTimeState(p, now);
+  if (!isHomeNow(state)) return [];
+  const t = now.getTime();
+  const back = Date.parse(p.expectedReturnAt);
+  // The return's instant in the key, as epoch seconds: two spellings of one instant are one key.
+  const promise = Math.floor(back / 1000);
+  const out: HomeTimeAlert[] = [];
+
+  if (state === "active" && back - t <= settings.returnDueHours * HOUR_MS) {
+    out.push({ kind: "home_time_return_due", periodId: p.id, dedupeKey: `home_time:${p.id}:return_due:${promise}`, repeat: null });
+  }
+  const overdueSince = back + settings.overdueAfterHours * HOUR_MS;
+  if (state === "overdue" && t >= overdueSince) {
+    const repeat = Math.floor((t - overdueSince) / DAY_MS) + 1;
+    // Past the last repeat nothing more is said: the chip on the board stays, the alert does not nag.
+    if (repeat <= HOME_TIME_OVERDUE_REPEATS) {
+      out.push({ kind: "home_time_overdue", periodId: p.id, dedupeKey: `home_time:${p.id}:overdue:${promise}:${repeat}`, repeat });
+    }
+  }
+  if (truckPastLimit(p, state, settings, now)) {
+    out.push({ kind: "home_time_truck_limit", periodId: p.id, dedupeKey: `home_time:${p.id}:truck_limit`, repeat: null });
+  }
+  return out;
+}
+
+/** The sentence an alert says about one driver — the bell's title, and a line of the email and the text. */
+export function homeTimeAlertLine(
+  alert: Pick<HomeTimeAlert, "kind">,
+  p: { driverName: string; unitNumber: string | null; startAt: string; expectedReturnAt: string },
+  now: Date,
+  /** The return time as the carrier reads it (`formatDisplayDateTime` on the carrier's clock). */
+  returnWords: string,
+): string {
+  const truck = p.unitNumber ? ` (truck ${p.unitNumber})` : "";
+  switch (alert.kind) {
+    case "home_time_return_due":
+      return `${p.driverName}${truck} is due back from home time ${returnWords}`;
+    case "home_time_overdue":
+      return `${p.driverName}${truck} is past his home-time return of ${returnWords} and is not marked back`;
+    case "home_time_truck_limit":
+      return `Truck ${p.unitNumber ?? "(no unit number)"} has been at ${p.driverName}'s home for ${Math.floor((now.getTime() - Date.parse(p.startAt)) / DAY_MS)} days`;
+  }
+}
+
+export const HOME_TIME_ALERT_SEVERITY: Record<HomeTimeAlertKind, "info" | "warning"> = {
+  home_time_return_due: "info",
+  home_time_overdue: "warning",
+  home_time_truck_limit: "warning",
+};
