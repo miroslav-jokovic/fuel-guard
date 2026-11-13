@@ -43,6 +43,12 @@ export const WIZARD_SCREEN_IDS = [
   "screening.donor_gender",
 
   // ── Stage 2, "Your history" (SCREEN-MAP §3) — Part 2's tasks ──
+  // "About you" (F4 PR 1b-2): the name typed together (D-AM3), then one question a screen. The carrier's
+  // page-1 questions follow, one a screen, from the served definition (`useTaskWalk`, SCREEN-MAP 2.2–2.4).
+  "identity.name",
+  "identity.other_names",
+  "identity.email",
+  "identity.ssn",
   // "Your driving record" (2.18–2.21, F4 PR 1b-1). The accident and conviction screens repeat per row.
   "safety.accidents",
   "safety.accident_date",
@@ -89,6 +95,9 @@ export const QUICK_PICKS = {
   violation_offence: ["Speeding", "Logbook or hours of service", "Equipment", "Lane change or following too closely"],
   // SCREEN-MAP 2.19d. P10: the paper's PENALTY column.
   violation_penalty: ["Fine", "Points", "Suspension", "Bond forfeited"],
+  // SCREEN-MAP 2.4, its own list ("other" is the box). The carrier's channels: production held five
+  // drafts and no filed application on 2026-11-13, too few answers to choose picks from.
+  heard_from: ["Indeed", "Facebook", "A friend or a driver", "Our website"],
 } as const;
 export type QuickPickList = keyof typeof QUICK_PICKS;
 

@@ -1,4 +1,5 @@
 import type { ApplicationSection } from "./applicationSections.js";
+import type { QuickPickList } from "./applicantWizardScreens.js";
 
 /**
  * The carrier's own questions, versioned and kept OUT of the regulated contract (A9, D-APP12).
@@ -130,6 +131,8 @@ export interface QuestionnaireQuestion {
    * service). Data, like the rest, so the screen still knows no question by name.
    */
   askedWhen?: { question: string; is: boolean };
+  /** Taps that fill a text answer's box (`QUICK_PICKS`), English as filed; the box stays open for anything else. */
+  quickPicks?: QuickPickList;
 }
 
 /**
@@ -366,7 +369,9 @@ export const SILVICOM_DRIVER_V3: QuestionnaireDefinition = {
   questions: [
     { ...v2("position"), required: true },
     { ...v2(APPLYING_AS_QUESTION_ID), required: true },
-    { ...v2("heard_from"), required: true },
+    // F4 PR 1b-2: taps that fill the same box (SCREEN-MAP 2.4). HOW it is answered, never what is asked —
+    // the answer is still the applicant's words, stored as the box holds them — so v3 is edited in place.
+    { ...v2("heard_from"), required: true, quickPicks: "heard_from" },
     { ...v2("legally_work"), required: true },
     {
       ...v2("proof_of_age"),

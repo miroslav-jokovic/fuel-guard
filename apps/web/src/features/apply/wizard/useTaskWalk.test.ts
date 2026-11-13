@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { nextTick, reactive, ref } from "vue";
 import type { ApplicationSection } from "@silvicom/shared";
 import { emptyDraft, type ApplicationDraft } from "@/features/apply/draft";
 import { validateSection, type SectionIssue } from "@/features/apply/useApplicationWizard";
+import { servedCarrierQuestions } from "@/features/apply/servedForm";
 import { useTaskWalk } from "./useTaskWalk";
 
 /**
@@ -11,7 +12,7 @@ import { useTaskWalk } from "./useTaskWalk";
  */
 const AS_OF = "2026-11-13";
 
-function walkOf(section: ApplicationSection = "safety") {
+function walkOf(section: ApplicationSection = "safety", hasPartOne = false) {
   const draft = reactive<ApplicationDraft>(emptyDraft());
   const issues = ref<SectionIssue[]>([]);
   const inTask = ref(false);
@@ -31,11 +32,14 @@ function walkOf(section: ApplicationSection = "safety") {
     }),
     leave: vi.fn(() => { inTask.value = false; }),
   };
-  const walk = useTaskWalk(draft, wizard, hub, () => AS_OF);
+  const walk = useTaskWalk(draft, wizard, hub, () => AS_OF, () => hasPartOne);
   return { draft, walk, hub, issues, open: async () => { inTask.value = true; await nextTick(); } };
 }
 
-const ids = (w: ReturnType<typeof walkOf>["walk"]) => w.steps.value.map((s) => s.screen?.id ?? `another:${s.another}`);
+const ids = (w: ReturnType<typeof walkOf>["walk"]) =>
+  w.steps.value.map((s) => s.screen?.id ?? (s.question ? `q:${s.question.q.id}` : s.partOne ? "part_one" : `another:${s.another}`));
+
+afterEach(() => { servedCarrierQuestions.value = []; });
 
 describe("a task walked one question to a screen", () => {
   it("is not active outside a generated task", async () => {
@@ -169,5 +173,76 @@ describe("a task walked one question to a screen", () => {
     walk.show({ path: ["violations", 0, "state"], key: "violations", message: "", label: "", say: "", fieldId: "apply-violations-0-state", section: "safety" });
     expect(walk.current.value?.screen?.id).toBe("safety.violation_state");
     expect(walk.current.value?.row).toBe(0);
+  });
+
+  it("is not active on a task still drawn whole", async () => {
+    const { walk, open } = walkOf("licence");
+    await open();
+    expect(walk.active.value).toBe(false);
+  });
+});
+
+/**
+ * "About you" and the carrier's questions (F4 PR 1b-2): the catalogue's screens, then each question the
+ * served definition puts on the task, one to a screen, then — on "About you" — Part 1's answers.
+ */
+describe("About you and the carrier's questions, one to a screen", () => {
+  it("asks the name, other names, email and SSN, then the carrier's page-1 questions, then shows Part 1's answers", async () => {
+    const { walk, open } = walkOf("identity", true);
+    await open();
+    expect(ids(walk)).toEqual([
+      "identity.name", "identity.other_names", "identity.email", "identity.ssn",
+      "q:position", "q:applying_as", "q:heard_from", "q:legally_work", "q:proof_of_age",
+      "part_one",
+    ]);
+  });
+
+  it("shows no Part 1 screen when the page holds no Part 1 answers", async () => {
+    const { walk, open } = walkOf("identity", false);
+    await open();
+    expect(ids(walk)).not.toContain("part_one");
+  });
+
+  it("refuses a required question's screen with its own problem, and moves on once it is answered", async () => {
+    const { walk, draft, issues, open } = walkOf("identity");
+    await open();
+    Object.assign(draft, { first_name: "Ana", last_name: "Diaz", email: "ana@example.com" });
+    for (let i = 0; i < 4; i += 1) walk.next();
+    expect(walk.current.value?.question?.q.id).toBe("position");
+    walk.next();
+    expect(walk.current.value?.question?.q.id).toBe("position");
+    expect(issues.value.map((i) => i.path)).toEqual([["questionnaire_answers", "position"]]);
+    walk.current.value!.question!.answers.set("position", "Driver");
+    walk.next();
+    expect(walk.current.value?.question?.q.id).toBe("applying_as");
+  });
+
+  it("asks \"If so, when?\" only after a yes, and the carrier's own questions after the built-in ones", async () => {
+    servedCarrierQuestions.value = [
+      { id: "11111111-1111-4111-8111-111111111111", wording: "Which terminal?", hint: null, kind: "text", choices: [], required: false },
+    ];
+    const { walk, open } = walkOf("questions");
+    await open();
+    expect(ids(walk)).toEqual(["q:education", "q:military_service", "q:other_training", "q:references", "q:11111111-1111-4111-8111-111111111111"]);
+    const military = walk.steps.value[1]!.question!;
+    military.answers.set("military_service", true);
+    expect(ids(walk)).toContain("q:military_when");
+    military.answers.set("military_service", false);
+    expect(ids(walk)).not.toContain("q:military_when");
+  });
+
+  it("holds a problem under a question's answer on that question's screen — a reference's phone on the references", async () => {
+    const { walk, open } = walkOf("questions");
+    await open();
+    walk.show({ path: ["questionnaire_answers", "references", 1, "phone"], key: "questionnaire_answers", message: "", label: "", say: "", fieldId: "x", section: "questions" });
+    expect(walk.current.value?.question?.q.id).toBe("references");
+  });
+
+  it("holds one other name's problem on the other-names screen", async () => {
+    const { walk, open } = walkOf("identity");
+    await open();
+    walk.show({ path: ["other_names", 1], key: "other_names", message: "", label: "", say: "Too long", fieldId: "apply-other_names-1", section: "identity" });
+    expect(walk.current.value?.screen?.id).toBe("identity.other_names");
+    expect(walk.stray.value).toEqual([]);
   });
 });

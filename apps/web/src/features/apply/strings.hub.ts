@@ -56,6 +56,7 @@ export const APPLY_HUB_COPY = {
       "Lane change or following too closely": "Lane change or following too closely",
     },
     violation_penalty: { Fine: "Fine", Points: "Points", Suspension: "Suspension", "Bond forfeited": "Bond forfeited" },
+    heard_from: { Indeed: "Indeed", Facebook: "Facebook", "A friend or a driver": "A friend or a driver", "Our website": "Our website" },
   } satisfies { [L in QuickPickList]: Record<(typeof QUICK_PICKS)[L][number], string> },
   employerCheck: {
     heading: "Before you send: checking your past employers",

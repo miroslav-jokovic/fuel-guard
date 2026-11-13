@@ -46,7 +46,7 @@ const walk = useTaskWalkContext();
 </script>
 
 <template>
-  <TaskWalk v-if="walk && walk.active.value" :walk="walk" />
+  <TaskWalk v-if="walk && walk.active.value" v-model="draft" :walk="walk" :token="token" :part-one="partOne" />
   <ApplicantDetailsFields v-else-if="section === 'identity'" v-model="draft" :locked-by="identityLockedBy" :part-one="partOne" :token="token" />
   <AddressHistoryFields v-else-if="section === 'addresses'" v-model="draft" :as-of="asOf" :v2-as-of="v2AsOf" :part-one="partOne" />
   <LicenceFields v-else-if="section === 'licence'" v-model="draft" :locked-by="identityLockedBy" :part-one="partOne" />

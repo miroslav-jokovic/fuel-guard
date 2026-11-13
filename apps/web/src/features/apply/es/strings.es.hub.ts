@@ -35,6 +35,7 @@ export const APPLY_HUB_COPY_ES = {
       "Lane change or following too closely": "Cambio de carril o seguir muy de cerca",
     },
     violation_penalty: { Fine: "Multa", Points: "Puntos", Suspension: "Suspensión", "Bond forfeited": "Fianza perdida" },
+    heard_from: { Indeed: "Indeed", Facebook: "Facebook", "A friend or a driver": "Un amigo o un chofer", "Our website": "Nuestro sitio web" },
   },
   employerCheck: {
     heading: "Antes de enviar: la verificación de sus empleadores anteriores",
