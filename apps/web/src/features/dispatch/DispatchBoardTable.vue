@@ -15,6 +15,7 @@ import {
   dispatcherLabel,
   durationWords,
   gpsAgeWords,
+  hasHomeTimeChips,
   legalDriveLeft,
   milesLeftOf,
   milesLeftWords,
@@ -27,6 +28,7 @@ import { computed } from "vue";
 import { useUnitNoteSummaries } from "@/components/notes/useUnitNotes";
 import BoardNotesCell from "./BoardNotesCell.vue";
 import BoardNoteChips from "./BoardNoteChips.vue";
+import BoardHomeTimeChips from "./BoardHomeTimeChips.vue";
 import { boardNoteSummary, boardNoteTargets } from "./boardNotes";
 
 /**
@@ -134,6 +136,12 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
 
     <template #cell-available="{ row }">
       <span v-if="row.inShop" :class="[BADGE_BASE, toneClass('neutral')]">In shop</span>
+      <!-- Home with its driver (HOME-TIME-PLAN D-HT10): free when he is due back, not "Now". Quiet
+           until the return passes, then red like any truck that should already be free. -->
+      <template v-else-if="row.available?.basis === 'home_time'">
+        <span :class="[BADGE_BASE, toneClass(availableTone(row, now))]" data-testid="available-home-time">Home time</span>
+        <div class="text-xs text-ink-muted">until <span class="whitespace-nowrap">{{ at(row.available.at) }}</span></div>
+      </template>
       <template v-else-if="row.available?.at">
         <span :class="[BADGE_BASE, toneClass(availableTone(row, now)), 'whitespace-nowrap']">
           {{ row.current ? at(row.available.at) : "Now" }}
@@ -167,6 +175,11 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
           <template v-if="row.next"> · next {{ row.next.ref ?? "load" }}</template>
         </div>
       </template>
+      <!-- At home with its driver (HOME-TIME-PLAN D-HT10): not "Empty", which reads as "give it a load". -->
+      <template v-else-if="row.available?.basis === 'home_time'">
+        <span :class="[BADGE_BASE, toneClass('neutral')]">Home time</span>
+        <div v-if="row.next" class="text-xs text-ink-muted">next {{ row.next.ref ?? "load" }}</div>
+      </template>
       <template v-else>
         <span :class="[BADGE_BASE, toneClass('warning')]">Empty</span>
         <div v-if="row.next" class="text-xs text-ink-muted">next {{ row.next.ref ?? "load" }}</div>
@@ -177,7 +190,9 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
       <!-- Only what is due shows, as the dispatchers' board does it; nothing due is the table's dash.
            The chips wrap, unlike Available's: "Trailer annual overdue 10/01/2026" is wider than the
            column, and unwrapped it ran past the table's edge at 1440 px (browser pass, 2026-10-16). -->
-      <div v-if="row.warnings.length || row.noteMentions.length" class="flex flex-col items-start gap-0.5">
+      <div v-if="row.warnings.length || row.noteMentions.length || hasHomeTimeChips(row)" class="flex flex-col items-start gap-0.5">
+        <!-- Home time first (HOME-TIME-PLAN D-HT11): whether the driver is there at all comes before what is due. -->
+        <BoardHomeTimeChips :row="row" :now="now" :zone="zone" />
         <span
           v-for="(w, i) in row.warnings"
           :key="i"

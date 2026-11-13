@@ -56,6 +56,9 @@ vi.mock("@/lib/api", () => ({
   }),
 }));
 
+// Home time is mounted on this screen and is not its subject (`@/testing/fakeHomeTime`): nobody home, no button.
+vi.mock("@/components/homeTime/useHomeTime", async () => (await import("@/testing/fakeHomeTime")).fakeHomeTime());
+
 const SlideOverStub = {
   template: "<div v-if='open'><slot /><slot name='footer' /></div>",
   props: ["open", "title", "description"],

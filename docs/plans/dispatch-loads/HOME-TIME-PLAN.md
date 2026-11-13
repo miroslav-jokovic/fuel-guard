@@ -429,3 +429,40 @@ sidebar.
     a scheduled period, cancel without the permission, reads without the Dispatch gate, holding a loaded
     or shop truck, a held truck still empty-now, a seat not home ignored, the window's boundary, canceled
     read after ended, the fuel rule's canceled filter) each fail a test.
+- 2026-11-13 — **HT2 merged** (PR 2336, `87d2c8d`). The `driver_time_off` writer pair was added to
+  `scripts/table-writers.json`, and the service names its table literally (the table gates read
+  `.from("<literal>")`).
+- 2026-11-13 — **HT3 the screens** (branch `claude/home-time-ht3-screens`). After this step dispatchers can
+  use the feature.
+  - **One drawer, opened by the URL** (`?homeTime=<driver>` or `=new`), in `components/homeTime/`: the
+    truck's drawer, the Home time tab, the driver's page and a pasted link open the same thing. Opening it
+    takes `?truck=` out of the URL, so the board shows one dialog at a time. It shows the form (no live
+    period), or the period's facts with **Back from home time**, **Change**, **Truck is back at the
+    yard**, **Cancel** (asks first), or **Reopen** on the last ended period.
+  - **Truck drawer:** "Home time" is the first section, one line per seat, with **Mark home time** for
+    whoever holds `roster.home_time`. Two clicks from a board row to the form.
+  - **Board row:** Available reads a "Home time" badge and "until <date>" (quiet until the return passes,
+    then red; never amber or green), Status reads "Home time" instead of "Empty", and the Warnings cell
+    carries the server's chips, naming the seat on a team truck.
+  - **Home time tab**, before History: live periods in the server's order with the tab's own count, and
+    "Ended, last 60 days" one switch away.
+  - **Driver page:** a "Home time" button for whoever views Dispatch.
+  - **Loads → Activity** says "Home time until …" under a marked driver's days without a load, and under
+    a truck that home time holds (this closes Q-LA1).
+  - Changes from §3.3, each for a reason:
+    - **The Warnings chips are plain badges, not links.** A link inside a badge takes the link's colour,
+      and here the colour is the message (red = act now). The row's click opens the truck's drawer, whose
+      first section is home time.
+    - **Returns starts empty; no 08:00 default.** The shared date-time picker has no default time, and a
+      prefilled date is a promise a dispatcher could save without noticing.
+    - **No list of changes in the drawer.** It shows who marked the period and when; every change is on
+      the Audit page (`home_time.*`), where an admin keeps track, as for unit notes.
+    - **"Leaves" defaults to when the truck empties** only for a driver whose truck is carrying a load;
+      otherwise now.
+  - Tests: wording and the form's clock 11, the form 14, the board page end to end 19 (row, two clicks,
+    tab, drawer, a reader without the permission), board view 4 more. Three existing screen tests take a
+    stand-in for home time (`@/testing/fakeHomeTime`), and the tab-strip test lists the new tab.
+  - **Browser pass** on the built app behind a stubbed API, at 1440 px and 390 px, with three fixtures
+    (real data, nobody home, the home-time API failing): no page error, nothing wider than the viewport.
+    It found and fixed three things no test saw: the drawer's facts squeezed into four columns, the tab's
+    list choice wearing a filter's clear button, and a held truck still reading "Empty" in Status.
