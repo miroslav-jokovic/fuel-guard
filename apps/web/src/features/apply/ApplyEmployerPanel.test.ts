@@ -80,13 +80,14 @@ describe("a v2 link's Save", () => {
     w.unmount();
   });
 
-  it("will not save a job without its address or its reason for leaving", async () => {
+  // D-AM4: the address is the office's to complete, so it no longer holds the driver's save; the reason does.
+  it("will not save a job without its reason for leaving, and never for its address", async () => {
     const { w, press } = screen([recent()]);
     await press(copy.editJob);
     await w.find("#apply-employers-0-address_line1").setValue("");
     await w.find("#apply-employers-0-reason_for_leaving").setValue("");
     await press(copy.drawerSave);
-    expect(w.find("#apply-employers-0-address_line1").attributes("aria-invalid")).toBe("true");
+    expect(w.find("#apply-employers-0-address_line1").attributes("aria-invalid")).toBeUndefined();
     expect(w.find("#apply-employers-0-reason_for_leaving").attributes("aria-invalid")).toBe("true");
     w.unmount();
   });

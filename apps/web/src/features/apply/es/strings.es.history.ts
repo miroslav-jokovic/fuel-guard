@@ -16,7 +16,7 @@ export const APPLY_HISTORY_COPY_ES = {
     usdot: "Número USDOT",
     usdotHint: "Si lo sabe.",
     address: "Dirección",
-    addressHint: "Tenemos que registrar adónde escribimos.",
+    addressHint: "Tenemos que registrar adónde escribimos. Si no la sabe, déjela en blanco y la oficina la completará.",
     city: "Ciudad",
     state: "Estado",
     phone: "Teléfono",

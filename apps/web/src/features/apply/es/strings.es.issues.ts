@@ -19,6 +19,7 @@ export const APPLY_ISSUES_COPY_ES = {
     job_ends_before_start: () => "La fecha de fin no puede ser anterior a la fecha de inicio",
     job_saved_again: () => "Abra este empleador y guárdelo otra vez",
     job_address: () => "Indique la calle, la ciudad y el estado de este empleador",
+  address_street: () => "Indique la calle y el código postal de esta dirección",
     job_reason_for_leaving: () => "Diga por qué dejó este trabajo",
     job_fmcsr: () => "Diga si las Regulaciones Federales de Seguridad de Autotransportes (FMCSR) le aplicaban en este trabajo",
     job_drug_testing: () => "Diga si este trabajo estaba sujeto a pruebas de drogas y alcohol del DOT",

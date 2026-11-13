@@ -251,6 +251,8 @@ export const APPLY_COPY_EN = {
     city: "City",
     state: "State",
     postal_code: "ZIP",
+    /** Q-AM8 (a): under the street and the ZIP — the office completes what the driver cannot remember. */
+    officeCompletes: "If you do not remember it, leave it blank. The office will fill it in.",
     from: "From",
     fromHint: "Month and year.",
     to: "Until",

@@ -62,7 +62,7 @@ export function recruitmentApplicationReviewRouter(): Router {
           || code === "nothing_signed_yet" || code === "invitation_revoked"
           || code === "permissions_incomplete" || code === "application_not_approved"
           || code === "not_part_one" || code === "part_one_not_begun" || code === "link_changed"
-          || code === "draft_revision_conflict"
+          || code === "draft_revision_conflict" || code === "office_must_complete"
           ? 409
           : 500;
 
