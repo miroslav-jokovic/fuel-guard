@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { processSamsaraWebhook } from "../modules/samsara/index.js";
 import { handleInboundSms, recordDeliveryReceipt } from "../modules/recruiting/index.js";
+import { handleAlertInboundSms, recordAlertTextReceipt } from "../modules/messaging/index.js";
 import { parseTelnyxDeliveryReceipt, parseTelnyxInboundSms } from "../lib/sms.js";
 import { verifyTelnyxSignature } from "../lib/telnyxSignature.js";
 
@@ -80,6 +81,8 @@ export function webhooksRouter(): Router {
         // A-11 (C2d): what the carrier did with a text we sent. Answered 200 whether or not the id is
         // ours — a message sent before the outbox existed has no row, and a retry would not give it one.
         await recordDeliveryReceipt(getSupabaseAdmin(env), receipt, new Date());
+        // …and the same for an office alert text (HOME-TIME HT6): the id is on one table or the other.
+        await recordAlertTextReceipt(getSupabaseAdmin(env), receipt);
         res.json({ ok: true });
         return;
       }
@@ -92,6 +95,9 @@ export function webhooksRouter(): Router {
       }
 
       const admin = getSupabaseAdmin(env);
+      // An office person's STOP or START on their alert texts (HOME-TIME D-HT17), FIRST: it sends nothing
+      // and cannot fail on a provider, so an applicant-side error below can never cost a STOP.
+      await handleAlertInboundSms(admin, from, text);
       const { revoked, helped } = await handleInboundSms(admin, env, from, text);
       res.json({ ok: true });
       void revoked;

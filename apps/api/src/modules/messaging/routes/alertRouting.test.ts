@@ -43,12 +43,14 @@ const put = (path: string, token: string, body: unknown) => call(path, token, { 
 const row = (o: Record<string, unknown>) => ({ org_id: ORG, alert: "home_time_overdue", recipient_kind: "role", recipient_key: "fleet_manager", channel: "bell", enabled: true, ...o });
 const r = (recipientKind: AlertRoute["recipientKind"], recipientKey: string, channel: AlertRoute["channel"], enabled = true): AlertRoute => ({ recipientKind, recipientKey, channel, enabled });
 
-function seed(over: { routes?: Record<string, unknown>[]; settings?: Record<string, unknown>[] } = {}): SupabaseRecorder {
+function seed(over: { routes?: Record<string, unknown>[]; settings?: Record<string, unknown>[]; contacts?: Record<string, unknown>[]; quiet?: Record<string, unknown>[] } = {}): SupabaseRecorder {
   rec = createSupabaseRecorder({
     tables: {
       org_role_surface_access: [],
       user_surface_access: [],
       notification_routes: postgrestFixture(over.routes ?? []),
+      notification_contacts: postgrestFixture(over.contacts ?? [{ org_id: ORG, user_id: DANA, phone: "+17085550100", verified_at: "2026-11-01T00:00:00Z", stopped_at: null, code_hash: null }]),
+      notification_channel_settings: postgrestFixture(over.quiet ?? []),
       home_time_settings: postgrestFixture(over.settings ?? []),
       audit_logs: [],
     },
@@ -138,10 +140,12 @@ describe("GET /api/alert-routing", () => {
     const view = (await (await call("/api/alert-routing", "admin")).json()) as AlertRoutingView;
     // A member with no name is shown by their login email; sorted by what is shown.
     expect(view.members).toEqual([
-      { userId: ADA, name: "Ada Admin", role: "admin" },
-      { userId: DANA, name: "Dana Dispatch", role: "dispatcher" },
-      { userId: FRAN, name: "fran@x.test", role: "fleet_manager" },
+      { userId: ADA, name: "Ada Admin", role: "admin", textReady: false },
+      { userId: DANA, name: "Dana Dispatch", role: "dispatcher", textReady: true },
+      { userId: FRAN, name: "fran@x.test", role: "fleet_manager", textReady: false },
     ]);
+    // No Telnyx in the test env, and no saved window: the page is told both.
+    expect(view.texts).toEqual({ available: false, quiet: { startMin: 1260, endMin: 420 } });
   });
 });
 
@@ -277,5 +281,62 @@ describe("GET /api/me/alerts", () => {
     seed();
     expect(await mine("recruiter")).toEqual([]);
     expect((await call("/api/me/alerts", "nobody")).status).toBe(401);
+  });
+});
+
+describe("the hours a text is held (D-HT18)", () => {
+  it("is saved as one whole row by whoever holds the Notifications screen, audited with the old window beside the new", async () => {
+    seed();
+    const next = { startMin: 1320, endMin: 360 };
+    expect((await put("/api/alert-routing/text-hours", "dispatcher", next)).status).toBe(403);
+    expect((await put("/api/alert-routing/text-hours", "admin", next)).status).toBe(200);
+    expect(rec.writtenRows("notification_channel_settings")).toEqual([expect.objectContaining({ org_id: ORG, sms_quiet_start_min: 1320, sms_quiet_end_min: 360, updated_by: ADA })]);
+    expect(audits()[0]).toMatchObject({ action: "settings.alert_text_hours_saved", meta: { before: { startMin: 1260, endMin: 420 }, after: next } });
+    // "text-hours" is a path of its own, never an alert's key.
+    expect(rec.forTable("notification_routes").filter((q) => q.write)).toEqual([]);
+  });
+
+  it("refuses a window whose ends are equal, or off the clock", async () => {
+    seed();
+    expect((await put("/api/alert-routing/text-hours", "admin", { startMin: 420, endMin: 420 })).status).toBe(400);
+    expect((await put("/api/alert-routing/text-hours", "admin", { startMin: 1440, endMin: 0 })).status).toBe(400);
+    expect(rec.writtenRows("notification_channel_settings")).toEqual([]);
+  });
+});
+
+describe("/api/me/alerts/phone — the caller's own number", () => {
+  const post = (path: string, token: string, body: unknown = {}) => call(path, token, { method: "POST", body: JSON.stringify(body) });
+
+  it("answers for the caller's own row, last four digits only, to any member — and to nobody without a session", async () => {
+    seed();
+    expect(await (await call("/api/me/alerts/phone", "dispatcher")).json()).toEqual({ available: false, state: "verified", last4: "0100" });
+    expect(await (await call("/api/me/alerts/phone", "recruiter")).json()).toEqual({ available: false, state: "none", last4: null });
+    expect((await call("/api/me/alerts/phone", "nobody")).status).toBe(401);
+    const read = rec.forTable("notification_contacts")[0]!;
+    expect(read.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "user_id", val: DANA }]));
+  });
+
+  it("will not start without the agreement, and says so plainly when this server cannot text", async () => {
+    seed();
+    expect((await post("/api/me/alerts/phone", "dispatcher", { phone: "708 555 0100" })).status).toBe(400);
+    const res = await post("/api/me/alerts/phone", "dispatcher", { phone: "708 555 0100", agreed: true });
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("unavailable");
+    expect(rec.forTable("notification_contacts").filter((q) => q.write)).toEqual([]);
+  });
+
+  it("refuses a code when none was asked for, and a code that is not six digits", async () => {
+    seed();
+    expect((await post("/api/me/alerts/phone/confirm", "dispatcher", { code: "123456" })).status).toBe(422);
+    expect((await post("/api/me/alerts/phone/confirm", "dispatcher", { code: "12345" })).status).toBe(400);
+  });
+
+  it("stops the caller's own texts and nobody else's, and audits it", async () => {
+    seed();
+    expect((await post("/api/me/alerts/phone/stop", "dispatcher")).status).toBe(200);
+    const up = rec.forTable("notification_contacts").find((q) => q.write?.method === "update")!;
+    expect(up.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "user_id", val: DANA }]));
+    expect(audits()[0]).toMatchObject({ action: "alerts.text_stopped", actor_id: DANA, meta: { by: "page" } });
+    expectOrgScoped(rec, ORG);
   });
 });

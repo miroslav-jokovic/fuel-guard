@@ -548,8 +548,15 @@
   "messages": [
     "apps/api/src/modules/messaging/messages.ts"
   ],
+  "notification_channel_settings": [
+    "apps/api/src/modules/messaging/alertTexts.ts"
+  ],
+  "notification_contacts": [
+    "apps/api/src/modules/messaging/alertContacts.ts"
+  ],
   "notification_deliveries": [
-    "apps/api/src/modules/messaging/alertRouting.ts"
+    "apps/api/src/modules/messaging/alertRouting.ts",
+    "apps/api/src/modules/messaging/alertTexts.ts"
   ],
   "notification_events": [
     "apps/api/src/modules/messaging/notify.ts"

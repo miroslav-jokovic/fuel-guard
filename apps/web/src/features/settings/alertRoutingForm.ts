@@ -4,9 +4,10 @@ import { alertsForMember, type AlertChannel, type AlertKey, type AlertRoute, typ
  * The routing section's form, as plain data (HOME-TIME-PLAN HT5): one row per recipient with a switch
  * per channel, built from the server's routes and turned back into the set a save sends.
  *
- * ── THE PAGE EDITS TWO CHANNELS ─────────────────────────────────────────────────────────────────
- * Dashboard and Email. A text route the carrier already holds is carried through a save untouched
- * (`toRoutes`), so this page cannot delete what the text step (HT6) writes.
+ * ── THE PAGE EDITS THE CHANNELS IT SHOWS ────────────────────────────────────────────────────────
+ * Dashboard and Email always; Text only on a server that can send one (`texts.available`). A route on a
+ * channel the page is not showing is carried through a save untouched (`toRoutes`), so a page without
+ * the Text column cannot delete the carrier's text routes.
  *
  * ── A PERSON WHO LEFT IS DROPPED ────────────────────────────────────────────────────────────────
  * A saved row naming somebody who is no longer an active member reaches nobody and the API refuses to
@@ -14,8 +15,9 @@ import { alertsForMember, type AlertChannel, type AlertKey, type AlertRoute, typ
  */
 export type RoutingAlert = AlertRoutingView["alerts"][number];
 export type RoutingMember = AlertRoutingView["members"][number];
-export const EDITED_CHANNELS = ["bell", "email"] as const satisfies readonly AlertChannel[];
-export type EditedChannel = (typeof EDITED_CHANNELS)[number];
+export type EditedChannel = AlertChannel;
+/** The channels the page shows switches for. */
+export const editedChannels = (textsAvailable: boolean): EditedChannel[] => (textsAvailable ? ["bell", "email", "sms"] : ["bell", "email"]);
 
 export interface RecipientRow {
   /** `kind:key`, the row's identity in the table. */
@@ -27,6 +29,9 @@ export interface RecipientRow {
   hint: string;
   bell: boolean;
   email: boolean;
+  sms: boolean;
+  /** Under the Text switch: how many of the people this row reaches can be texted today, when not all can. */
+  textHint: string;
 }
 
 const isOn = (routes: readonly AlertRoute[], kind: AlertRoute["recipientKind"], key: string, channel: AlertChannel): boolean =>
@@ -39,6 +44,17 @@ const RELATION_HINTS: Record<string, string> = {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
+/**
+ * A Text switch reaches only people who confirmed a mobile number under My alerts, and the page must not
+ * let an admin believe otherwise: a role says how many of its people have, a person says when they have not.
+ */
+export function textHint(kind: AlertRoute["recipientKind"], key: string, members: readonly RoutingMember[]): string {
+  if (kind === "relation") return "If they confirmed a number";
+  if (kind === "user") return members.find((m) => m.userId === key)?.textReady ? "" : "No confirmed number";
+  const inRole = members.filter((m) => m.role === key);
+  return inRole.length === 0 ? "" : `${inRole.filter((m) => m.textReady).length} of ${inRole.length} confirmed`;
+}
+
 export function recipientRows(alert: RoutingAlert, members: readonly RoutingMember[]): RecipientRow[] {
   const row = (kind: AlertRoute["recipientKind"], key: string, label: string, hint: string): RecipientRow => ({
     id: `${kind}:${key}`,
@@ -48,6 +64,8 @@ export function recipientRows(alert: RoutingAlert, members: readonly RoutingMemb
     hint,
     bell: isOn(alert.routes, kind, key, "bell"),
     email: isOn(alert.routes, kind, key, "email"),
+    sms: isOn(alert.routes, kind, key, "sms"),
+    textHint: textHint(kind, key, members),
   });
   const people = [...new Set(alert.routes.filter((r) => r.recipientKind === "user").map((r) => r.recipientKey))]
     .map((id) => members.find((m) => m.userId === id))
@@ -67,7 +85,18 @@ export const PERSON_HINT = "This person's own switches. They win over the role's
  */
 export function personRow(alertKey: AlertKey, rows: readonly RecipientRow[], member: RoutingMember): RecipientRow {
   const always = alertsForMember(alertKey, toRoutes(rows, []), { userId: member.userId, role: member.role as UserRole }).always;
-  return { id: `user:${member.userId}`, kind: "user", key: member.userId, label: member.name, hint: PERSON_HINT, bell: always.includes("bell") || !always.includes("email"), email: always.includes("email") };
+  return {
+    id: `user:${member.userId}`,
+    kind: "user",
+    key: member.userId,
+    label: member.name,
+    hint: PERSON_HINT,
+    // On the dashboard at least: a person added with every switch off would be a row that does nothing.
+    bell: always.includes("bell") || always.length === 0,
+    email: always.includes("email"),
+    sms: always.includes("sms"),
+    textHint: textHint("user", member.userId, [member]),
+  };
 }
 
 /** The members who can still be added as a person: not already a row. */
@@ -76,16 +105,16 @@ export const addablePeople = (rows: readonly RecipientRow[], members: readonly R
   return members.filter((m) => !listed.has(m.userId));
 };
 
-/** The set a save sends: both edited channels of every row, plus the untouched text routes of rows still listed. */
-export function toRoutes(rows: readonly RecipientRow[], original: readonly AlertRoute[]): AlertRoute[] {
+/** The set a save sends: every shown channel of every row, plus the untouched routes of a channel not shown, for rows still listed. */
+export function toRoutes(rows: readonly RecipientRow[], original: readonly AlertRoute[], channels: readonly EditedChannel[] = editedChannels(true)): AlertRoute[] {
   const listed = new Set(rows.map((r) => r.id));
-  const edited = rows.flatMap((r) => EDITED_CHANNELS.map((channel): AlertRoute => ({ recipientKind: r.kind, recipientKey: r.key, channel, enabled: r[channel] })));
-  const carried = original.filter((r) => !(EDITED_CHANNELS as readonly string[]).includes(r.channel) && listed.has(`${r.recipientKind}:${r.recipientKey}`));
+  const edited = rows.flatMap((r) => channels.map((channel): AlertRoute => ({ recipientKind: r.kind, recipientKey: r.key, channel, enabled: r[channel] })));
+  const carried = original.filter((r) => !channels.includes(r.channel) && listed.has(`${r.recipientKind}:${r.recipientKey}`));
   return [...edited, ...carried];
 }
 
 /** Has the form moved from what the server holds? Compared as what would be ON, so row order does not count. */
 export function routesChanged(rows: readonly RecipientRow[], alert: RoutingAlert, members: readonly RoutingMember[]): boolean {
-  const sig = (list: readonly RecipientRow[]) => list.map((r) => `${r.id}:${r.bell ? 1 : 0}${r.email ? 1 : 0}`).sort().join("|");
+  const sig = (list: readonly RecipientRow[]) => list.map((r) => `${r.id}:${r.bell ? 1 : 0}${r.email ? 1 : 0}${r.sms ? 1 : 0}`).sort().join("|");
   return sig(rows) !== sig(recipientRows(alert, members));
 }

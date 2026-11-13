@@ -564,4 +564,42 @@ sidebar.
     lumper mount and this step's three met. The thresholds are now served under the home-time mount
     (`/api/roster/home-time/settings`, mounted ahead of the board's router with its own gate) instead
     of a mount of their own. **`app.ts` is at exactly 500**: the next mount anybody adds needs a split.
-
+- 2026-11-13 — **HT5 merged** (PR 2344, `18daab0`).
+- 2026-11-13 — **HT6 texts** (branch `claude/home-time-ht6-sms`). Built and tested; **the real text to
+  the owner's phone on production is still owed** and is the step's last line (§5).
+  - **A person confirms their own number** under My alerts → Text alerts: a mobile number, the consent's
+    words above the button, a 6-digit code by text, typed back. Only the code's hash is stored (bound to
+    the person), it lives 10 minutes, five wrong tries spend it, and a new one can be asked for once a
+    minute. Asking for a code un-confirms the row, so no alert goes to a number nobody has proved.
+    "Stop text alerts" and a reply of STOP set the same column; START lifts a STOP on a confirmed number.
+    `POST /api/me/alerts/phone`, `/phone/confirm`, `/phone/stop`, `GET /phone` — the caller's own row only.
+  - **The sender** (`messaging/alertTexts.ts`): ONE text per person per run, queued through
+    `queue_notification_delivery` so a fact is texted once, sent at once by day and held until the
+    quiet window ends at night. The drain runs on the home-time job's tick (no new scheduler): it sends
+    held texts whose morning has come and any a dead run left queued, and asks again at the door — still
+    this person's confirmed number, not stopped, not still night. Otherwise the row is `skipped` with the
+    reason. A carrier's refusal after acceptance (Telnyx `message.finalized`) marks the row `failed`.
+  - **Settings → Notifications**, only where the server can text: a Text column (a role's switch says
+    "1 of 2 confirmed", a person's "No confirmed number") and "Quiet hours for texts"
+    (`PUT /api/alert-routing/text-hours`, audited). The `notification_channel_settings` waiver is gone.
+  - Decisions, each for a reason:
+    - **The consent wording is ours, ahead of counsel** (`ALERT_TEXT_CONSENT`, version
+      `staff-alerts-2026-11-13`), as the applicants' was (D-SMS10). It is stored with each confirmation.
+    - **The number is never deleted by the page.** Stopping keeps the row: it is the record that the
+      person agreed, and when they stopped.
+    - **The inbound STOP is not org-scoped**, on purpose: a text carries a number and no carrier.
+    - **"stop" anywhere in a reply counts**, by the product's one rule (`isStopMessage`, G-2).
+    - **A text that fails is not retried.** The dashboard already told the person; a second attempt at
+      a number a carrier refused is how a sender gets blocked.
+  - **Known risk, not yet measured:** the toll-free number was verified with Telnyx for "HR / Staffing"
+    (applicant texts). Office alert texts are a different message on the same number. The production
+    text to the owner's phone is where a refusal would show, as `failed` with the carrier's code on the
+    delivery row; §7 takes it as a blocker with its fix if so.
+  - Tests: shared 12 (the window on the carrier's clock, the words, the code's rules); API 15 for the
+    number, 17 for the sender and drain, 4 through the whole job, 6 route tests; web 14 more. Mutation
+    run: 16 deliberate breakages, 14 caught at first; the two survivors were the "confirmed and not
+    stopped" filters, invisible because the stand-in database ignores a negated filter — both now
+    asserted on the query itself and seen to fail.
+  - **Browser pass** with texting on, 1440 px and 390 px, data and failing reads, and the Text alerts
+    form in its four states: no page error, nothing wider than the viewport. Two fixes: a divider drawn
+    in a colour that is not a token, and "Take off" wrapping onto two lines.

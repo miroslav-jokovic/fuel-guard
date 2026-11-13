@@ -63,8 +63,10 @@ export const smsConfigured = (env: Env): boolean =>
  *
  * ⚠ It does NOT check consent, quiet hours or opt-out state. That is not an omission: those checks
  * need the database and the clock, they are the entire risk surface, and burying them behind a
- * transport function would make them untestable without a provider. `applicationSms.ts` owns them and
- * is the only caller.
+ * transport function would make them untestable without a provider. Each caller owns them for its own
+ * kind of text: `applicationSms.ts` for applicants (consent, suppression, the applicant's civil hour),
+ * `messaging/alertContacts.ts` and `messaging/alertTexts.ts` for office alert texts (a number the person
+ * confirmed by code and has not stopped, the carrier's quiet window).
  */
 export async function sendSms(env: Env, message: OutgoingSms): Promise<SmsResult> {
   // Staging guard (outboundAllowlist.ts): a no-op in production, where the variable is unset.

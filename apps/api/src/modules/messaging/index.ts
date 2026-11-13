@@ -33,3 +33,5 @@ export { alertRoutingRouter, myAlertsRouter } from "./routes/alertRouting.js";
 // The magic-number check on an uploaded file's first bytes. Exported for the lumper cases' revised RC
 // (LUMPER-REVISED-RC-PLAN LRC3), so "is this really a PDF" has one definition.
 export { bytesAreKind } from "./chatFiles.js";
+export { drainAlertTexts, recordAlertTextReceipt, type AlertTextClock, type AlertTextDrain } from "./alertTexts.js";
+export { handleAlertInboundSms } from "./alertContacts.js";

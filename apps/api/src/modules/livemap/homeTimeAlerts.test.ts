@@ -10,6 +10,8 @@ import { postgrestFixture } from "../../testing/postgrestFixture.js";
  */
 const sendEmail = vi.hoisted(() => vi.fn());
 vi.mock("../../lib/mailer.js", () => ({ sendEmail }));
+const sendSms = vi.hoisted(() => vi.fn());
+vi.mock("../../lib/sms.js", async (orig) => ({ ...(await orig<object>()), sendSms }));
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const OTHER_ORG = "99999999-0000-4000-8000-000000000000";
@@ -40,6 +42,8 @@ interface World {
   routes?: Record<string, unknown>[];
   settings?: Record<string, unknown>[];
   dispatchOn?: boolean;
+  /** Confirmed mobile numbers, as `notification_contacts` rows. */
+  contacts?: Record<string, unknown>[];
   /** Overrides on the member directory's rows, by user — a suspension. */
   members?: Record<string, Record<string, unknown>>;
   /** Keys the ledger already holds, as `<user>|<key>` — a second run. */
@@ -70,7 +74,8 @@ function world(w: World = {}): SupabaseRecorder {
       { org_id: ORG, provider: "mcleod", code: "NOBODY", dispatcher_external_id: null },
     ]),
     notification_routes: postgrestFixture(w.routes ?? []),
-    notification_contacts: postgrestFixture([]),
+    notification_contacts: postgrestFixture(w.contacts ?? []),
+    notification_channel_settings: [],
     notification_deliveries: (q) => (q.write ? [] : postgrestFixture(queued)(q)),
     driver_app_features: [],
     user_profiles: [],
@@ -95,11 +100,12 @@ function world(w: World = {}): SupabaseRecorder {
         return "evt";
       }
       if (fn === "queue_notification_delivery") {
-        const fresh = (a.p_items as { key: string; line: string }[]).filter((i) => !sent.has(`${String(a.p_user)}|email:${i.key}`));
+        const claim = (i: { key: string }) => `${String(a.p_user)}|${String(a.p_channel)}:${i.key}`;
+        const fresh = (a.p_items as { key: string; line: string }[]).filter((i) => !sent.has(claim(i)));
         if (fresh.length === 0) return null;
-        for (const i of fresh) sent.add(`${String(a.p_user)}|email:${i.key}`);
+        for (const i of fresh) sent.add(claim(i));
         const id = `60000000-0000-4000-8000-${String(queued.length + 1).padStart(12, "0")}`;
-        queued.push({ id, org_id: ORG, items: fresh });
+        queued.push({ id, org_id: ORG, user_id: a.p_user, destination: a.p_destination, title: a.p_title, items: fresh, not_before: a.p_not_before });
         return id;
       }
       return null;
@@ -115,6 +121,8 @@ const audits = () => rec.writtenRows("audit_logs") as Record<string, unknown>[];
 const EXEMPT = { exempt: ["user_profiles"] };
 
 beforeEach(() => {
+  sendSms.mockReset();
+  sendSms.mockResolvedValue({ ok: true, provider: "telnyx", messageId: "tx-1" });
   sendEmail.mockReset();
   sendEmail.mockResolvedValue({ ok: true, provider: "resend" });
 });
@@ -122,20 +130,20 @@ beforeEach(() => {
 describe("a quiet carrier", () => {
   it("costs one read when nobody is on home time", async () => {
     world({ periods: [] });
-    expect(await runHomeTimeOnce(rec.client, env, ORG, NOW)).toEqual({ endedLeft: 0, endedOnLoad: 0, bells: 0, emails: 0 });
+    expect(await runHomeTimeOnce(rec.client, env, ORG, NOW)).toEqual({ endedLeft: 0, endedOnLoad: 0, bells: 0, emails: 0, texts: 0 });
     expect(rec.queries.map((q) => q.table)).toEqual(["driver_time_off"]);
   });
 
   it("says nothing about a period that is neither near its return nor past it", async () => {
     world();
-    expect(await runHomeTimeOnce(rec.client, env, ORG, NOW)).toEqual({ endedLeft: 0, endedOnLoad: 0, bells: 0, emails: 0 });
+    expect(await runHomeTimeOnce(rec.client, env, ORG, NOW)).toEqual({ endedLeft: 0, endedOnLoad: 0, bells: 0, emails: 0, texts: 0 });
     expect(bells()).toEqual([]);
     expectOrgScoped(rec, ORG, EXEMPT);
   });
 
   it("does nothing for a carrier without the Dispatch module", async () => {
     world({ periods: [period({ expected_return_at: hours(-5) })], dispatchOn: false });
-    expect(await runHomeTimeOnce(rec.client, env, ORG, NOW)).toEqual({ endedLeft: 0, endedOnLoad: 0, bells: 0, emails: 0 });
+    expect(await runHomeTimeOnce(rec.client, env, ORG, NOW)).toEqual({ endedLeft: 0, endedOnLoad: 0, bells: 0, emails: 0, texts: 0 });
     expect(ends()).toEqual([]);
     expect(bells()).toEqual([]);
   });
@@ -208,7 +216,7 @@ describe("what it closes by itself (D-HT6)", () => {
 
   it("leaves a scheduled period alone, whatever its driver hauls before it starts", async () => {
     world({ periods: [period({ start_at: hours(20), expected_return_at: hours(200) })], pickups: [pickup(hours(-3))], loads: [load()] });
-    expect(await runHomeTimeOnce(rec.client, env, ORG, NOW)).toEqual({ endedLeft: 0, endedOnLoad: 0, bells: 0, emails: 0 });
+    expect(await runHomeTimeOnce(rec.client, env, ORG, NOW)).toEqual({ endedLeft: 0, endedOnLoad: 0, bells: 0, emails: 0, texts: 0 });
     expect(rec.forTable("load_stops")).toEqual([]);
   });
 
@@ -315,6 +323,67 @@ describe("what it tells whom (D-HT12, D-HT15)", () => {
     await runHomeTimeOnce(rec.client, env, ORG, NOW);
     expect(bells().map((b) => [b.p_user, b.p_category])).toEqual([[FRAN, "home_time_return_due"]]);
     expect(rec.forTable("notification_routes")[0]!.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "alert", val: "home_time_return_due" }]));
+  });
+
+  describe("by text (HT6)", () => {
+    const FRAN_PHONE = "+17085550100";
+    const textFran = [
+      { org_id: ORG, alert: "home_time_overdue", recipient_kind: "role", recipient_key: "fleet_manager", channel: "bell", enabled: true },
+      { org_id: ORG, alert: "home_time_overdue", recipient_kind: "role", recipient_key: "fleet_manager", channel: "sms", enabled: true },
+    ];
+    const confirmed = (o: Record<string, unknown> = {}) => ({ org_id: ORG, user_id: FRAN, phone: FRAN_PHONE, verified_at: hours(-100), stopped_at: null, ...o });
+    const overdueTwo = [period({ expected_return_at: hours(-5) }), period({ id: P2, driver_id: RAY, vehicle_id: T848, expected_return_at: hours(-9) })];
+
+    it("sends ONE text naming every overstayed driver to the number the person confirmed", async () => {
+      world({ periods: overdueTwo, routes: textFran, contacts: [confirmed()] });
+      const r = await runHomeTimeOnce(rec.client, env, ORG, NOW);
+      expect(r.texts).toBe(1);
+      expect(sendSms).toHaveBeenCalledTimes(1);
+      const text = sendSms.mock.calls[0]![1] as { to: string; body: string };
+      expect(text.to).toBe(FRAN_PHONE);
+      expect(text.body).toMatch(/^Silvicom 360: Home time overstayed\. /);
+      expect(text.body).toContain("Marcus Hill (truck 702)");
+      expect(text.body).toContain("Ray Diaz (truck 848)");
+      expect(text.body.endsWith("Reply STOP to end.")).toBe(true);
+      expectOrgScoped(rec, ORG, EXEMPT);
+    });
+
+    it("texts nobody without a confirmed number, nobody who said STOP, and nobody still typing their code", async () => {
+      for (const contacts of [[], [confirmed({ stopped_at: hours(-1) })], [confirmed({ verified_at: null })]]) {
+        world({ periods: overdueTwo, routes: textFran, contacts });
+        const r = await runHomeTimeOnce(rec.client, env, ORG, NOW);
+        expect(r.texts).toBe(0);
+        // Still told on the dashboard.
+        expect(bellTo(FRAN).length).toBe(2);
+      }
+      expect(sendSms).not.toHaveBeenCalled();
+      // Who can be texted is asked of the database as "confirmed and not stopped" — read from the query,
+      // because the stand-in database does not apply a negated filter (the sender's check at the door is
+      // what kept the cases above silent).
+      const asked = rec.forTable("notification_contacts").find((q) => !q.write && q.ops.some((o) => o.method === "select" && String(o.args[0]).includes("user_id, phone")))!;
+      expect(asked.ops.filter((o) => o.method === "not").map((o) => o.args)).toContainEqual(["verified_at", "is", null]);
+      expect(asked.filters()).toContainEqual({ col: "stopped_at", val: null });
+    });
+
+    it("holds the text at night until 07:00 on the carrier's clock, while the dashboard is told at once", async () => {
+      const night = new Date("2026-11-14T04:30:00.000Z"); // 22:30 Central
+      world({ periods: [period({ expected_return_at: hours(-5) })], routes: textFran, contacts: [confirmed()] });
+      const r = await runHomeTimeOnce(rec.client, env, ORG, night);
+      expect(r.texts).toBe(0);
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(bellTo(FRAN)).toEqual(["home_time_overdue"]);
+      const queuedText = rec.rpcs().find((q) => q.fn === "queue_notification_delivery")!.args as Record<string, unknown>;
+      expect(queuedText).toMatchObject({ p_channel: "sms", p_destination: FRAN_PHONE, p_not_before: "2026-11-14T13:00:00.000Z" });
+    });
+
+    it("texts a fact once: the next run fifteen minutes later sends no second text", async () => {
+      const sent = new Set<string>();
+      world({ periods: overdueTwo, routes: textFran, contacts: [confirmed()], sent });
+      await runHomeTimeOnce(rec.client, env, ORG, NOW);
+      world({ periods: overdueTwo, routes: textFran, contacts: [confirmed()], sent });
+      expect((await runHomeTimeOnce(rec.client, env, ORG, new Date(NOW.getTime() + 15 * 60_000))).texts).toBe(0);
+      expect(sendSms).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("says a fact once: a second run fifteen minutes later rings and emails nobody", async () => {

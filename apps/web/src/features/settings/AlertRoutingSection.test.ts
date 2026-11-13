@@ -12,6 +12,10 @@ import { ALERT_CATALOGUE, ALERT_RELATION_LABELS, HOME_TIME_DEFAULTS, type AlertR
 const state = vi.hoisted(() => ({
   routingFail: false,
   thresholdsFail: false,
+  texts: false,
+  contact: { available: true, state: "none", last4: null } as { available: boolean; state: string; last4: string | null },
+  contactStep: vi.fn(),
+  saveHours: vi.fn(),
   routes: null as null | Record<string, unknown[]>,
   mine: [] as unknown[],
   saveRoutes: vi.fn(),
@@ -22,8 +26,8 @@ const state = vi.hoisted(() => ({
 }));
 
 const MEMBERS = [
-  { userId: "u-dana", name: "Dana Dispatch", role: "dispatcher" },
-  { userId: "u-fran", name: "Fran Fleet", role: "fleet_manager" },
+  { userId: "u-dana", name: "Dana Dispatch", role: "dispatcher", textReady: false },
+  { userId: "u-fran", name: "Fran Fleet", role: "fleet_manager", textReady: true },
 ];
 const view = (): AlertRoutingView => ({
   alerts: ALERT_CATALOGUE.map((a) => ({
@@ -39,6 +43,7 @@ const view = (): AlertRoutingView => ({
     usesDefaults: !state.routes?.[a.key],
   })),
   members: MEMBERS,
+  texts: { available: state.texts, quiet: { startMin: 1260, endMin: 420 } },
 });
 const query = <T,>(fail: boolean, data: T) => ({ data: ref(fail ? undefined : data), isLoading: ref(false), isError: ref(fail), error: ref(fail ? new Error("502") : null), isFetching: ref(false), refetch: state.refetch });
 const mutation = (fn: (v: unknown) => unknown) => () => ({ mutateAsync: fn, isPending: ref(false) });
@@ -52,6 +57,11 @@ vi.mock("./useAlertRouting", () => ({
   useResetAlertRoutes: mutation((v) => state.resetRoutes(v)),
   useSaveHomeTimeThresholds: mutation((v) => state.saveThresholds(v)),
   useMyAlerts: () => query(false, { alerts: state.mine } as MyAlerts),
+  useSaveAlertTextHours: mutation((v) => state.saveHours(v)),
+  useMyAlertContact: () => query(false, state.contact),
+  useStartAlertPhone: mutation((v) => state.contactStep("start", v)),
+  useConfirmAlertPhone: mutation((v) => state.contactStep("confirm", v)),
+  useStopAlertTexts: mutation(() => state.contactStep("stop")),
 }));
 
 async function mountSection() {
@@ -67,8 +77,8 @@ const DISP = "Everyone with the role Dispatcher";
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  Object.assign(state, { routingFail: false, thresholdsFail: false, routes: null, mine: [] });
-  for (const f of [state.saveRoutes, state.resetRoutes, state.saveThresholds, state.confirm, state.refetch]) f.mockReset();
+  Object.assign(state, { routingFail: false, thresholdsFail: false, routes: null, mine: [], texts: false, contact: { available: true, state: "none", last4: null } });
+  for (const f of [state.saveRoutes, state.resetRoutes, state.saveThresholds, state.confirm, state.refetch, state.contactStep, state.saveHours]) f.mockReset();
   document.body.innerHTML = "";
 });
 
@@ -201,5 +211,105 @@ describe("My alerts", () => {
   it("says so when no routed alert is about a page the person can open", async () => {
     await openPanel();
     expect(document.body.querySelector('[data-testid="my-alerts-empty"]')).not.toBeNull();
+  });
+});
+
+describe("texts (HT6)", () => {
+  it("shows no Text column and no quiet hours on a server that cannot text", async () => {
+    const w = await mountSection();
+    expect(toggle(card(w), `${FM}: text`).exists()).toBe(false);
+    expect(w.find('[data-testid="alert-text-hours"]').exists()).toBe(false);
+  });
+
+  it("with texting on: a Text switch per recipient, saved with the rest, saying how many of the role confirmed a number", async () => {
+    state.texts = true;
+    const w = await mountSection();
+    const c = card(w);
+    expect(c.text()).not.toContain("1 of 1 confirmed");
+    await toggle(c, `${FM}: text`).trigger("click");
+    expect(c.text()).toContain("1 of 1 confirmed");
+    await button(c, "Save")!.trigger("click");
+    const sent = state.saveRoutes.mock.calls[0]![0] as { routes: AlertRoute[] };
+    expect(sent.routes).toContainEqual({ recipientKind: "role", recipientKey: "fleet_manager", channel: "sms", enabled: true });
+    // 4 rows × 3 channels.
+    expect(sent.routes).toHaveLength(12);
+  });
+
+  it("saves the quiet hours as minutes of the day, says the window in words, and refuses equal ends", async () => {
+    state.texts = true;
+    const w = await mountSection();
+    const form = w.find('[data-testid="alert-text-hours"]');
+    expect(form.text()).toContain("A text due between 9:00 PM and 7:00 AM is sent at 7:00 AM.");
+    const [from, until] = form.findAll("input");
+    await from!.setValue("22:00");
+    await form.trigger("submit");
+    expect(state.saveHours).toHaveBeenCalledWith({ startMin: 1320, endMin: 420 });
+    await until!.setValue("22:00");
+    expect(form.find('[role="alert"]').text()).toBe("Choose two different times.");
+    await form.trigger("submit");
+    expect(state.saveHours).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Text alerts under My alerts (D-HT17)", () => {
+  async function mountTexts() {
+    const { useMyAlertsPanel } = await import("./useMyAlertsPanel");
+    useMyAlertsPanel().show();
+    const w = mount((await import("./MyTextAlerts.vue")).default, { attachTo: document.body });
+    await flushPromises();
+    return w;
+  }
+
+  it("will not ask for a code without a real number AND the agreement, whose words are on the page", async () => {
+    const w = await mountTexts();
+    expect(w.text()).toContain("Reply STOP to end, HELP for help.");
+    const send = () => button(w, "Text me a code")!;
+    expect(send().attributes("disabled")).toBeDefined();
+    await w.find('input[type="tel"]').setValue("708 555 0100");
+    expect(send().attributes("disabled")).toBeDefined();
+    await w.find('input[type="checkbox"]').setValue(true);
+    expect(send().attributes("disabled")).toBeUndefined();
+    await w.find('input[type="tel"]').setValue("555");
+    expect(send().attributes("disabled")).toBeDefined();
+    await w.find('input[type="tel"]').setValue("708 555 0100");
+    await w.find("form").trigger("submit");
+    expect(state.contactStep).toHaveBeenCalledWith("start", { phone: "708 555 0100" });
+  });
+
+  it("asks for the code once one is out, sends six digits only, and shows the server's refusal beside it", async () => {
+    state.contact = { available: true, state: "pending", last4: "0100" };
+    state.contactStep.mockRejectedValueOnce(new Error("That is not the code. 4 tries left."));
+    const w = await mountTexts();
+    expect(w.text()).toContain("number ending in 0100");
+    await w.find('input[autocomplete="one-time-code"]').setValue("12345");
+    expect(button(w, "Confirm")!.attributes("disabled")).toBeDefined();
+    await w.find('input[autocomplete="one-time-code"]').setValue("123456");
+    await w.find("form").trigger("submit");
+    await flushPromises();
+    expect(state.contactStep).toHaveBeenCalledWith("confirm", { code: "123456" });
+    expect(w.find('[role="alert"]').text()).toBe("That is not the code. 4 tries left.");
+  });
+
+  it("when on: says where texts go and offers to stop them", async () => {
+    state.contact = { available: true, state: "verified", last4: "0100" };
+    const w = await mountTexts();
+    expect(w.text()).toContain("number ending in 0100");
+    await button(w, "Stop text alerts")!.trigger("click");
+    expect(state.contactStep).toHaveBeenCalledWith("stop");
+  });
+
+  it("when stopped: says so, names START, and leads back to confirming a number", async () => {
+    state.contact = { available: true, state: "stopped", last4: "0100" };
+    const w = await mountTexts();
+    expect(w.text()).toContain("text START");
+    await button(w, "Confirm a number")!.trigger("click");
+    expect(w.find('input[type="tel"]').exists()).toBe(true);
+  });
+
+  it("offers nothing on a server that cannot text", async () => {
+    state.contact = { available: false, state: "none", last4: null };
+    const w = await mountTexts();
+    expect(w.text()).toContain("Text alerts are not set up yet.");
+    expect(w.find("form").exists()).toBe(false);
   });
 });
