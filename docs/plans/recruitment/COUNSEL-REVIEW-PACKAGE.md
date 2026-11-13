@@ -46,6 +46,8 @@ for that applicant**. That is why we are asking now.
    questions** (Part D, §7) — the fifth, Q18, added on September 28, 2026: may the fines the
    packet and the handbook set be deducted from what a driver is paid? The sixth, Q19, added on
    October 16, 2026: may a dispatcher be told that one of their drivers must go for a random test?
+   Q20, added on November 13, 2026, is printed after them and is an instrument for approval: the
+   consent wording for work alert texts to the carrier's own office staff.
 
 **What a response looks like** (§9): for each question, *approve*, *approve with changes* (with a
 redline), or *reject* (with your replacement text or instruction). Any change to a signed instrument
@@ -58,7 +60,7 @@ shows which text each person signed.
 |---|---|---|
 | **1 — before the first packet is signed** | Q1 page 4 · Q2 certification · Q3 electronic use of pages 15/20/22 · Q4 page 15 and the blanket-release rule · Q5 page 22 · Q6 page 19 | Applicants sign these today, and a signed packet cannot be amended afterwards |
 | **2 — before the first decline based on a report** | Q7 PSP status · Q8 remote-application exception · Q9 notice text | The carrier's signed PSP form already promises these notices |
-| **3 — approve the drafted instruments** | Q10 Clearinghouse · Q11 e-sign consent · Q12 SMS consent · Q13 §40.25 letter | Q12 and Q13 are unused until approved; Q10 and Q11 are in use now |
+| **3 — approve the drafted instruments** | Q10 Clearinghouse · Q11 e-sign consent · Q12 SMS consent · Q13 §40.25 letter · Q20 staff text consent | Q12 and Q13 are unused until approved; Q10 and Q11 are in use now; Q20 is built and sends nothing until its phone number is verified |
 | **4 — structural** | Q14 employee vs. owner-operator · Q15 owner-operator agreement · Q16 §391.23(i) rights · Q17 smaller items · Q18 fines and deductions · Q19 random test on the dispatch board | Affects how the packet may need to be split, not whether it works today. Q18 must be answered before any fine is deducted. Q19 is live once released; the carrier withdraws it if you object |
 
 ---
@@ -656,6 +658,53 @@ nothing about a later period is shown.
 
 **What we need.** May the carrier show this line to the dispatcher of the driver's own truck? If not,
 the carrier withdraws it and the employer representative calls the dispatcher instead.
+
+### Q20. Text-message consent for the carrier's own office staff · **Priority 3** *(added November 13, 2026)*
+
+**Facts.** This is a second text programme, separate from the applicant texts of Q12: a different
+audience, a different phone number, and a different consent record. The platform can text an office
+employee (a dispatcher or a manager) an operational alert about the carrier's own trucks and drivers,
+for example that a driver is past the day he was due back from home time. Nothing is texted to an
+applicant or a driver in this programme, and nothing is marketing.
+
+An employee receives these texts only if they sign in, enter their own mobile number, tick an unticked
+box, and type back a 6-digit code the platform texts to that number. The platform stores the number,
+the wording agreed to and its version, and the time the code was typed. It does not store the internet
+address or browser. Every alert is also shown in the application and can be sent by email, so an
+employee who never agrees misses nothing. Texts are held overnight (9 p.m. to 7 a.m. on the carrier's
+clock by default; the carrier can change the hours). STOP, the other revocation words listed in
+47 CFR §64.1200(a)(10), and a switch in the application each end the texts; the record is kept,
+marked as stopped.
+
+**Status.** Built, **not sending**: no text leaves until the carrier's second toll-free number is
+verified by the mobile carriers. The wording below is version `staff-alerts-2026-11-13`, published
+ahead of your review on the owner's decision, as Q12's was.
+
+**Text shown beside the box:**
+
+> Text me work alerts from Silvicom 360 at this number. Message frequency varies. Message and data
+> rates may apply. Reply STOP to end, HELP for help.
+
+**Law.** 47 U.S.C. 227 and 47 CFR §64.1200(a)(1)(iii): an autodialed call or text to a wireless number
+needs the called party's prior express consent; §64.1200(a)(2) requires prior express *written*
+consent only for advertising or telemarketing; §64.1200(a)(10) governs revocation. Checked against
+the text on Cornell LII on November 13, 2026, which notes a pending amendment (91 FR 67219).
+
+**Our reading.** These are informational texts, so prior express consent is enough, and a number the
+employee typed and then proved by code is a record of it. We have **not** checked the two employment
+questions below against any text, and offer no reading of them.
+
+**What we need.**
+(a) Approve or redline the wording.
+(b) Confirm that the code confirmation is a sufficient record of consent, or say what else to store.
+(c) The carrier is the employer. Is consent given to an employer for work texts voluntary enough to
+    rely on, given that agreeing is optional, is not a condition of the job, and every alert is
+    available without it? Should the wording say so, as the applicant wording does?
+(d) Some recipients may be paid hourly. Does a work alert texted outside their working hours create
+    compensable time, and should the carrier restrict who may receive texts, or at what hours?
+(e) The texts go to the employee's personal phone. Does Illinois's expense-reimbursement provision
+    (we believe 820 ILCS 115/9.5; we could not open the official text to confirm the citation) reach
+    an optional programme of this kind?
 
 ---
 
