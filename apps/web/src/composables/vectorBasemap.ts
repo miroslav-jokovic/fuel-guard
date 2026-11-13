@@ -145,6 +145,11 @@ function iconBesideName(icon: string | ExpressionSpecification) {
   } as Record<string, unknown>;
 }
 
+/** A tunnelled road's width at one zoom stop, by the kind of road it is. */
+function tunnelWidth(highway: number, major: number, minor: number): ExpressionSpecification {
+  return ["match", ["get", "kind"], "highway", highway, "major_road", major, minor] as ExpressionSpecification;
+}
+
 /** Zoom → value, interpolated linearly; the only curve shape these layers use. */
 function byZoom(...stops: number[]): ExpressionSpecification {
   return ["interpolate", ["linear"], ["zoom"], ...stops] as ExpressionSpecification;
@@ -258,6 +263,44 @@ export function vectorBasemapLayers(c: MapPalette, sourceId: string, prefix: str
       filter: ["match", ["get", "kind"], ["country", "region"], true, false],
       paint: { "line-color": c.boundary, "line-width": byZoom(3, 0.6, 10, 1.4), "line-dasharray": [3, 2] },
     },
+    {
+      /**
+       * Rail lines: a yard or an intermodal ramp is a landmark a dispatcher places a truck by, and
+       * the style drew none. HERE carries them in `roads` as `kind=rail`, from zoom 10 (read with
+       * our key 2026-11-12: 2 in a zoom-10 tile, 2 at 12, 1 at 14 over Chicago).
+       */
+      id: id("rail"),
+      type: "line",
+      ...src,
+      "source-layer": "roads",
+      minzoom: 10,
+      filter: ["==", ["get", "kind"], "rail"],
+      paint: { "line-color": c["road-casing"], "line-width": byZoom(10, 0.6, 14, 1.2, 18, 3), "line-dasharray": [4, 2] },
+    } as LayerSpecification,
+    {
+      /**
+       * Roads in a tunnel, faint and dashed under everything on the surface. Until 2026-11-12 every
+       * road layer filtered `is_tunnel` out and nothing drew it, so a tunnelled road was a GAP in
+       * the map: 11 of the roads in one zoom-12 tile over Chicago, 3 at zoom 10 (same reading). A
+       * truck inside one sat on blank land. Minor roads join at 13, where their surface lines do.
+       */
+      id: id("tunnel"),
+      type: "line",
+      ...src,
+      "source-layer": "roads",
+      minzoom: 5,
+      filter: [
+        "all",
+        ["==", ["get", "is_tunnel"], true],
+        ["any", ["match", ["get", "kind"], ["highway", "major_road"], true, false], ["all", ["==", ["get", "kind"], "minor_road"], [">=", ["zoom"], 13]]],
+      ],
+      paint: {
+        "line-color": c["highway-casing"],
+        "line-opacity": 0.55,
+        "line-dasharray": [2, 1.5],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 5, tunnelWidth(1.2, 0.6, 0.5), 14, tunnelWidth(6, 4, 2), 18, tunnelWidth(26, 22, 16)],
+      },
+    } as LayerSpecification,
     // Casings first, then fills, so a road's edge line never crosses the road above it.
     line("minor-casing", roadKinds.minor, c["road-casing"], byZoom(13, 0, 14, 3, 16, 9, 18, 22), 13),
     line("major-casing", roadKinds.major, c["road-casing"], byZoom(11, 0, 12, 4, 16, 14, 18, 30), 11),

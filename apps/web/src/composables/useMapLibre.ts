@@ -429,7 +429,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
    *                              · last repaint still at ~400–440 ms
    *
    * ⚠ **The second line is why the fix is not the one the queue assumed.** The handoff read this as a
-   * network cost; `Cache-Control: public, max-age=86400` on the proxy had already solved that half.
+   * network cost; `Cache-Control: max-age=86400` on the proxy had already solved that half.
    * What is left is maplibre re-requesting, re-decoding and re-uploading nine textures it had a
    * moment ago — ~0.4 s of work to show a picture the GPU has already been given. A fix aimed at the
    * bytes would have moved a number that was already zero.

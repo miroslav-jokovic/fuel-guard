@@ -483,6 +483,23 @@ Cropping to a fixed band at build time would have to be redone at every breakpoi
   back on any `error` event. Recommendation: (a), with its thresholds measured on staging under
   the cold-start rig before it ships; (c) is refused. Until ruled, (b) is what ships, which is today.
 
+- **Q-DR38 — does our HERE plan allow a map of tracked trucks at all? (owner, HERE console; decides
+  whether Q-DR35 is an option or the road.)** HERE's pricing page lists "Asset Management" among the
+  use cases "excluded from the Limited and Base Plans", defined as locating, tracking or displaying
+  a vehicle on a map, or calculating routes for one, and says to contact HERE for them (read
+  2026-11-12, here.com/get-started/pricing/rps-limits-excluded-use-cases; no date on the page).
+  `SMART-FUELING-PLAN.md` recorded the same clause for routing and
+  `NAVIGATION-PROGRAMME-PLAN-V2.md` left HERE over it; the live map plan never carried it. Not
+  known: which plan this account is on. No HERE command-line tool or account credential exists on
+  the development machine, only `HERE_API_KEY`, and a key reads tiles, not the plan, the usage
+  count or the per-second limit (a tile response carries no rate-limit header, read the same day).
+  Candidates: (a) the owner reads the plan name and the month's usage in the HERE console; if it is
+  Base, HERE is asked for the price of the excluded use, and §8's cost table is not the price until
+  it answers; (b) leave HERE's tiles for self-hosted OpenStreetMap tiles (Q-DR35), which has no
+  such clause, and keep HERE for nothing the clause names; (c) carry on unasked. Recommendation:
+  (a) today, it is two minutes in the console, and start Q-DR35's spike beside it rather than
+  after it, because the driver app already commits to the same PMTiles basemap. (c) is refused.
+
 ---
 
 ## 7. Progress log
@@ -1674,3 +1691,17 @@ conflict every time (`plan-progress-log-not-table-rows`).
   quiet load are the measurement; the fifth would have been the same build on the same machine.
   What this does not say: anything about an office PC. That is the owner's check, now unblocked,
   with `OFFICE-PC-CHECK-2026-11-12.md` and the counter from #2289.
+
+- **2026-11-12 (evening) — the plan and the build re-read end to end with outside research; two
+  style gaps fixed, the tile cache header corrected, Q-DR38 opened.** Read with our key: HERE's
+  `roads` layer carries `is_tunnel` (11 roads in one zoom-12 tile over Chicago, 3 at zoom 10) and
+  `kind=rail` (from zoom 10). Every road layer filtered tunnels out and nothing drew them, so a
+  tunnelled road was a gap in the vector map; rail was not drawn at all. Both are now layers under
+  the surface roads (`vectorBasemap.ts`, `tunnel` and `rail`), in existing tokens, the style
+  validated against the installed style spec, three mutants of the rules each failing the new test.
+  The tile proxy's `Cache-Control` is `private` instead of `public`: HERE's caching guidance allows
+  a tile kept per client and forbids one request serving several end users; no shared cache sits in
+  front of the route today, so readers see no change. Outside research, for Q-DR35: Protomaps' own
+  calculator prices 10 million tiles a month at about $120 on S3 + CloudFront (84% of it egress)
+  and about $11 on Cloudflare R2; OpenFreeMap serves the planet from plain nginx with no tile
+  server. Not done: the staging still of a tunnel, owed after this merges.

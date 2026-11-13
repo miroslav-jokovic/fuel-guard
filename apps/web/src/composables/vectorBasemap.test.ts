@@ -171,6 +171,25 @@ describe("the vector road map's layers", () => {
     expect(at(9, num, { kind: "highway", network: "US:I", shield_text: "80" })).toBe(true);
   });
 
+/**
+   * Read with our key 2026-11-12: `roads` carries `is_tunnel` and `kind=rail`, and the style drew
+   * neither, so a tunnelled road was a gap. Evaluated on features, like the rule above.
+   */
+  it("draws a tunnelled road once, faint under the surface roads, and rail lines from zoom 10", () => {
+    const layer = (n: string) => layers.find((l) => l.id === `here-4:${n}`) as { filter: unknown; minzoom?: number };
+    const drawnBy = (props: Record<string, unknown>, zoom: number) =>
+      ["tunnel", "highway", "major", "minor", "rail"].filter((n) => (layer(n).minzoom ?? 0) <= zoom && matches(layer(n).filter, props, zoom));
+    expect(drawnBy({ kind: "highway", is_tunnel: true }, 10)).toEqual(["tunnel"]);
+    expect(drawnBy({ kind: "highway" }, 10)).toEqual(["highway"]);
+    expect(drawnBy({ kind: "minor_road", is_tunnel: true }, 12)).toEqual([]);
+    expect(drawnBy({ kind: "minor_road", is_tunnel: true }, 13)).toEqual(["tunnel"]);
+    expect(drawnBy({ kind: "rail" }, 10)).toEqual(["rail"]);
+    expect(drawnBy({ kind: "rail" }, 9)).toEqual([]);
+    expect(drawnBy({ kind: "path", is_tunnel: true }, 16)).toEqual([]);
+    const ids = layers.map((l) => l.id);
+    expect(ids.indexOf("here-4:tunnel")).toBeLessThan(ids.indexOf("here-4:minor-casing"));
+  });
+
   it("does not draw traffic lights and bus stops as places", () => {
     const place = layers.find((l) => l.id === "here-4:place") as { filter: unknown };
     expect(JSON.stringify(place.filter)).toContain("traffic_signals");
