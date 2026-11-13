@@ -39,6 +39,9 @@ const IRREGULAR: Record<string, string> = {
   // so "drivers" would be wrong for some of them; "1 people" is what the rules would say.
   people: "person",
   "trucks and trailers": "truck or trailer",
+  // `-ses → -s` is right for "buses" and wrong here: the stem ends in a silent e, and "1 cas" is what
+  // the rules would say. The Lumper fees page counts these (LUMPER-REVISED-RC-PLAN D-LRC1).
+  cases: "case",
 };
 
 /** Words that end in `s` and are already singular — dropping the `s` would maim them. */

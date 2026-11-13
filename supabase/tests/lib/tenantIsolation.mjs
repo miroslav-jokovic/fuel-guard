@@ -235,6 +235,9 @@ const FORMAT_PINNED = {
   "paper_intake_parts.stack_pages": "'{1}'::integer[]", // check (cardinality(stack_pages) between 1 and 10) (0572)
   // Its check's only quoted literal is the forbidden-character class '[/\\]', which the CHECK reader would seed.
   "chat_attachments.file_name": "'seed.pdf'",
+  "lumper_case_files.file_name": "'seed.pdf'", // check: 1 to 200 characters, no slash (0601)
+  "lumper_case_files.sha256": "repeat('a', 64)", // check (sha256 ~ '^[0-9a-f]{64}$') (0601)
+  "lumper_case_files.mime": "'application/pdf'", // check (mime in PDF, JPEG, PNG) (0601)
   "notification_contacts.phone": "'+15555550100'", // check (phone ~ '^\+[1-9][0-9]{7,14}$') (0598)
   // A browser's push subscription (0599): an https endpoint, unique per row; keys shaped like a browser's.
   "web_push_subscriptions.endpoint": "('https://fcm.googleapis.com/fcm/send/' || gen_random_uuid())",

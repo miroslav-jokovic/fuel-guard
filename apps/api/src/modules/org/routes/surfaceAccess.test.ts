@@ -144,10 +144,11 @@ describe("GET /api/surface-access", () => {
     expect(keys.every((k) => !k.endsWith(".detail"))).toBe(true);
     expect(body.editableRoles).not.toContain("admin");
     expect(body.editableRoles).not.toContain("driver");
-    // Every offered screen names the section it can never reach past (D-SURF2) — but two STAFF screens
+    // Every offered screen names the section it can never reach past (D-SURF2) — but three STAFF screens
     // whose ceiling is "office role" rather than a section: Chat teams (D-CHAT21), and Ask AI, whose data
-    // is gated per tool by the section matrix instead (F21 R5, D-AI1).
-    expect(body.surfaces.filter((s) => s.section === null).map((s) => s.key).sort()).toEqual(["ask-ai", "chat.teams"]);
+    // is gated per tool by the section matrix instead (F21 R5, D-AI1). Lumper fees is the third: dispatch
+    // and billing share it and no section holds both (LUMPER-REVISED-RC-PLAN D-LRC11).
+    expect(body.surfaces.filter((s) => s.section === null).map((s) => s.key).sort()).toEqual(["ask-ai", "chat.teams", "dispatch.lumper-cases"]);
   });
 
   /**
