@@ -11,6 +11,7 @@ import { useColorScheme, type ColorScheme } from "@/composables/useColorScheme";
 import { USER_ROLE_LABELS, type UserRole } from "@silvicom/shared";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { useServedRelease } from "@/composables/useServedRelease";
+import { useMyAlertsPanel } from "@/features/settings/useMyAlertsPanel";
 
 const props = defineProps<{
   email: string | null;
@@ -46,6 +47,12 @@ const SCHEME_OPTIONS: { value: ColorScheme; label: string; icon: typeof SchemeSy
  * says "it still looks the same", one click from anywhere. Hidden until it is known.
  */
 const release = useServedRelease();
+
+/**
+ * "My alerts" (HOME-TIME-PLAN D-HT17): what this person is told, and how. Here and not in Settings
+ * because it is the person's own answer — a dispatcher has no Settings to open.
+ */
+const myAlerts = useMyAlertsPanel();
 
 const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "Signed in"));
 /** What the trigger and the menu head say first: the name if there is one, else the email. */
@@ -114,6 +121,7 @@ const subline = computed(() => (props.name && props.email ? `${props.email} · $
       </button>
     </div>
     <div class="sidebar-divider mb-1 border-t" />
+    <button type="button" class="sidebar-account-item" @click="myAlerts.show()">My alerts</button>
     <button
       type="button"
       class="sidebar-account-item text-danger-700 hover:text-danger-800"
