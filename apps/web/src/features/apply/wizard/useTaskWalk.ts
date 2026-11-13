@@ -206,6 +206,12 @@ export function useTaskWalk(draft: ApplicationDraft, wizard: WalkWizard, hub: Wa
     }
   }
 
+  /** "Any other …?" answered — through the walk, so the screen that draws it never writes its prop. */
+  function answerAnother(value: boolean | null): void {
+    another.value = value;
+    anotherRefused.value = false;
+  }
+
   /** Open the screen an issue is about — the send summary's entries land on their box (D-AX3). */
   function show(issue: SectionIssue): void {
     const i = steps.value.findIndex((s) => owns(s, issue));
@@ -225,6 +231,7 @@ export function useTaskWalk(draft: ApplicationDraft, wizard: WalkWizard, hub: Wa
     stray,
     another,
     anotherRefused,
+    answerAnother,
     next,
     back,
     removeRow,

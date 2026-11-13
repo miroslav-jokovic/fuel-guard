@@ -40,7 +40,7 @@ const words = computed(() => {
       :model-value="walk.another.value"
       :legend="words.another"
       :error="walk.anotherRefused.value ? APPLY_COPY.hub.chooseYesOrNo : undefined"
-      @update:model-value="walk.another.value = $event"
+      @update:model-value="walk.answerAnother($event)"
     />
     <WizardScreen v-else-if="step.screen" :key="step.key" :screen="step.screen" :row="step.row" :binding="walk.binding" />
 
