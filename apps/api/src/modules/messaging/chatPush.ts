@@ -95,6 +95,23 @@ export async function recordPushOutcome(admin: SupabaseClient, orgId: string, de
   if (error) console.error(`[chat-push] could not record ${outcome.kind} for device ${device.id}: ${error.message}`);
 }
 
+/**
+ * One of the caller's own devices stops: removed from another device's "Your devices" list (D-WP10). The row
+ * must be the caller's, in this organisation, and still live; the answer is how many rows that was (0 or 1).
+ */
+export async function removeOwnPushDevice(admin: SupabaseClient, orgId: string, userId: string, id: string): Promise<number> {
+  const { data, error } = await admin
+    .from("web_push_subscriptions")
+    .update({ revoked_at: new Date().toISOString(), revoked_reason: "removed" })
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .is("revoked_at", null)
+    .select("id");
+  if (error) throw new Error(error.message);
+  return (data ?? []).length;
+}
+
 /** The words of a line as the push gives them: its body, or for a line that is only files, what the bell says. */
 async function lineText(admin: SupabaseClient, orgId: string, messageId: string, body: string | null): Promise<string> {
   if (body?.trim()) return body;

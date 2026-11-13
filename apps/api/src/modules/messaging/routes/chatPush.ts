@@ -18,7 +18,7 @@ import { requireSurface } from "../../../middleware/requireSurface.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { PUSH_DEVICE_COLUMNS, chatPushKeys, liveDevices, recordPushOutcome } from "../chatPush.js";
+import { PUSH_DEVICE_COLUMNS, chatPushKeys, liveDevices, recordPushOutcome, removeOwnPushDevice } from "../chatPush.js";
 import { sendPush } from "../webPush.js";
 
 /**
@@ -213,20 +213,12 @@ export function chatPushRouter(): Router {
         res.status(400).json(apiError("invalid_request", "Not a device"));
         return;
       }
-      const { data, error } = await admin(req)
-        .from("web_push_subscriptions")
-        .update({ revoked_at: new Date().toISOString(), revoked_reason: "removed" })
-        .eq("id", id)
-        .eq("org_id", req.auth!.orgId!)
-        .eq("user_id", req.auth!.userId)
-        .is("revoked_at", null)
-        .select("id");
-      if (error) throw new Error(error.message);
-      if (!data || data.length === 0) {
+      const revoked = await removeOwnPushDevice(admin(req), req.auth!.orgId!, req.auth!.userId, id);
+      if (revoked === 0) {
         res.status(404).json(apiError("not_found", "No such device of yours"));
         return;
       }
-      res.json({ revoked: data.length });
+      res.json({ revoked });
     }),
   );
 
