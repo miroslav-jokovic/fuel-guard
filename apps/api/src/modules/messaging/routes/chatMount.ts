@@ -7,6 +7,7 @@ import { chatFilesRouter } from "./chatFiles.js";
 import { chatAboutRouter } from "./chatAbout.js";
 import { chatSearchRouter } from "./chatSearch.js";
 import { chatCatchupRouter } from "./chatCatchup.js";
+import { chatPushRouter } from "./chatPush.js";
 
 /**
  * Everything under `/api/chat`: the compliance console FIRST, at `/api/chat/compliance`, then the chat
@@ -36,6 +37,8 @@ export function chatRouters(): Router {
   router.use("/", chatSearchRouter());
   // CH12: "Catch me up", with its own module gate (D-CHAT37) on top of the chat's.
   router.use("/", chatCatchupRouter());
+  // CH10: this device's notifications — `/push` would otherwise be read as a conversation id.
+  router.use("/push", chatPushRouter());
   router.use("/", chatRouter());
   return router;
 }

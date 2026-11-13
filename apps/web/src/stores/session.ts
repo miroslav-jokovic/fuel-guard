@@ -17,6 +17,7 @@ import { supabase, DEV_BYPASS } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { decodeClaims } from "@/lib/jwt";
 import { clearStepUp } from "@/lib/stepUp";
+import { signOutThisDevice } from "@/lib/webPush";
 
 /** Builds a fake-but-structurally-valid session for local UI development (VITE_DEV_BYPASS=true).
  *  The JWT payload is not signed — frontend only decodes it (never verifies) per decodeClaims(). */
@@ -228,6 +229,10 @@ export const useSessionStore = defineStore("session", () => {
     session.value = null;
     // A step-up token must never outlive the session that earned it (audit P0-4).
     clearStepUp();
+    // This device stops getting chat notifications (CHAT-WEB-PUSH-PLAN D-WP1). Before the Supabase sign-out
+    // because the request needs the token the client still holds; bounded at 3 s inside, so a dead network
+    // never holds a sign-out hostage. The guards already see "signed out" (the line above clears the store).
+    await signOutThisDevice();
     try {
       // `local` scope clears the stored tokens without a server round-trip that can hang/stall.
       await supabase.auth.signOut({ scope: "local" });

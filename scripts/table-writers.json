@@ -775,5 +775,8 @@
   "weather_cache": [
     "apps/api/src/modules/idle/idleSessionWeather.ts",
     "apps/api/src/modules/idle/weatherBackfill.ts"
+  ],
+  "web_push_subscriptions": [
+    "apps/api/src/modules/messaging/chatPush.ts"
   ]
 }

@@ -6,6 +6,7 @@ import { inspectionsEnvFields } from "./envInspections.js";
 import { schedulingEnvFields } from "./envScheduling.js";
 import { unitFilesEnvFields } from "./envUnitFiles.js";
 import { storageBackupEnvFields } from "./envStorageBackup.js";
+import { webPushEnvFields } from "./envWebPush.js";
 import { outboundEnvFields } from "./lib/outboundAllowlist.js";
 import { authEnvFields, applyAnonKeyFallback } from "./envAuth.js";
 import { samsaraEnvFields } from "./envSamsara.js";
@@ -33,6 +34,7 @@ const EnvSchema = z.object({
   ...schedulingEnvFields, // which process runs which schedulers (PLATFORM-RELIABILITY-PLAN D-RLY2)
   ...unitFilesEnvFields, // reading uploaded papers (UNIT-FILES-PLAN UF7b2)
   ...storageBackupEnvFields, // the nightly off-provider copy of every evidence bucket (storageBackup.ts)
+  ...webPushEnvFields, // office chat on the phone: the VAPID pair (CHAT-WEB-PUSH-PLAN D-WP7)
   // Split by concern on 2026-11-06 (ads Track G env-split), so this file holds only the process's own
   // settings and `loadEnv`. Every key, default and parse moved unchanged — `envSplit.test.ts`.
   ...authEnvFields, // Supabase + the sealing key (step-up signs with a subkey of it)

@@ -259,6 +259,25 @@ EFS feed card, for the last delivery and any gap; then `railway logs` on `@fleet
 `efs_soap_posted`. It is the only WEX-whitelisted host, so nothing polls if it is down or its `RUN_SCHEDULERS_IN_PROCESS` became `false` (§ Exactly one service
 runs the schedulers). (F02–F04 chunk 16, measured 2026-10-09.)
 
+## Office chat on the phone: the Web Push key pair (2026-11-13)
+
+`WEB_PUSH_VAPID_PUBLIC_KEY` and `WEB_PUSH_VAPID_PRIVATE_KEY` (`apps/api/src/envWebPush.ts`,
+`docs/plans/messaging/CHAT-WEB-PUSH-PLAN.md`) are this server's identity to the browsers' push services.
+**Unset, chat notifications are simply off** — the chat rail offers the in-tab desktop alerts instead.
+
+- **Both services of an environment carry the SAME pair.** The office SPA calls `@fleetguard/api`, so that is
+  where pushes are sent from today; `@fleetguard/web` runs the same API and must agree with it.
+- **A different pair per environment** (staging `uat`, production). A pair is not a secret to share around.
+- **Never change a pair casually.** A browser subscribes with the public key; a push signed by another key is
+  refused, so after a change every person turns notifications on again on every device. A mismatched pair (a
+  public key from another pair) turns push OFF and logs `[chat-push] push is OFF` once, rather than failing every
+  send.
+- Generate with `pnpm --filter @silvicom/api exec tsx src/scripts/generateVapidKeys.ts`.
+
+**Check it works:** `GET /api/chat/push` (signed in) answers `{"available":true,…}`; in the app, Chat → the
+rail's foot → Turn on → Send a test. A device the push service says is gone is revoked by itself
+(`web_push_subscriptions.revoked_reason = 'gone'`); a refused key is logged as `[chat-push] device …: 403`.
+
 ## One-time Railway setup (makes the files above authoritative)
 
 `watchPatterns` in a config file only apply when the Railway service is pointed at that file.

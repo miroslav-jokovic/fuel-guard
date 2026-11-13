@@ -245,6 +245,29 @@ describe("ChatPage", () => {
     expect(w.findComponent({ name: "ChatConversationStage" }).props("firstUnreadSeq")).toBe(6);
   });
 
+  it("reads nothing in a hidden tab, and reads the conversation the moment the tab is seen (CHAT-WEB-PUSH-PLAN D-WP6)", async () => {
+    // A hidden tab that marked lines read would say "Seen" for words nobody saw, and hold back the phone's push.
+    const setVisibility = (v: "hidden" | "visible") => {
+      Object.defineProperty(document, "visibilityState", { value: v, configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    setVisibility("hidden");
+    try {
+      state.detail = {
+        conversation: { thread_id: T, kind: "direct", subject: null, title_members: [], member_count: 2, unread: 2, last_seq: 7, read_seq: 5 },
+        members: [], messages: [], before_seq: null,
+      };
+      await render(`/chat?c=${T}`);
+      expect(state.markRead).not.toHaveBeenCalled();
+      setVisibility("visible");
+      await flushPromises();
+      expect(state.markRead).toHaveBeenCalledWith({ threadId: T, seq: 7 });
+    } finally {
+      // @ts-expect-error — back to jsdom's own getter
+      delete document.visibilityState;
+    }
+  });
+
   it("asks what a group is about and hands its header the link; a direct conversation asks nothing (CH11b)", async () => {
     state.aboutAsked = [];
     const detail = (kind: "group" | "direct") => ({

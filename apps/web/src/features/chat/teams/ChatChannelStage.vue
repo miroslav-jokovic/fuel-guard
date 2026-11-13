@@ -8,6 +8,7 @@ import { useToastStore } from "@/stores/toast";
 import { useChatFollow } from "../chatRealtime";
 import { firstUnreadSeqOf } from "../chatGrouping";
 import { useChatMarkRead, useChatMembersQuery, useChatMessageActions, useChatSend, useChatSetMute, type PendingLine } from "../useChat";
+import { usePageVisible } from "../usePageVisible";
 import { provideMentions, type MentionCandidate } from "@/components/mentions/mentionNames";
 import ChatChannelPane from "./ChatChannelPane.vue";
 import ChatRepliesPane from "./ChatRepliesPane.vue";
@@ -79,12 +80,14 @@ useChatFollow(joinedId);
 const unreadMarks = ref(new Map<string, number | null>());
 const firstUnreadSeq = computed(() => (channelId.value ? (unreadMarks.value.get(channelId.value) ?? null) : null));
 const markRead = useChatMarkRead();
+// Read only on a visible screen, and on becoming visible (D-WP6, usePageVisible.ts).
+const pageVisible = usePageVisible();
 watch(
-  () => found.value?.channel,
-  (c) => {
+  () => [found.value?.channel, pageVisible.value] as const,
+  ([c, visible]) => {
     if (!c?.joined) return;
     if (!unreadMarks.value.has(c.thread_id)) unreadMarks.value.set(c.thread_id, firstUnreadSeqOf(c));
-    if (c.unread > 0) markRead.mutate({ threadId: c.thread_id, seq: c.last_seq });
+    if (c.unread > 0 && visible) markRead.mutate({ threadId: c.thread_id, seq: c.last_seq });
   },
   { immediate: true },
 );

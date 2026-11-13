@@ -42,7 +42,8 @@ import {
   type ChatResult,
 } from "../chat.js";
 import { chatActivity, chatActivityMarkRead, chatActivityUnread, chatSetMute } from "../chatActivity.js";
-import { chatLineBeforeEdit, chatNotifyEdited, chatNotifySent } from "../chatNotify.js";
+import { chatLineBeforeEdit, chatNotifyEdited, chatNotifySent, newlyNamed } from "../chatNotify.js";
+import { scheduleChatPush } from "../chatPush.js";
 import { chatPin, chatPins, chatReact, chatSave, chatSavedLines } from "../chatLineActs.js";
 import { chatSendFiles, filesForBell, verifyChatFiles } from "../chatFiles.js";
 
@@ -211,7 +212,12 @@ export function chatRouter(): Router {
       const { orgId, userId } = ctx(req);
       const before = await chatLineBeforeEdit(admin(req), orgId, messageId, body.body);
       const result = await chatEdit(admin(req), orgId, userId, messageId, body.body);
-      if (result.ok) await chatNotifyEdited(admin(req), orgId, userId, messageId, body.body, before);
+      if (result.ok) {
+        await chatNotifyEdited(admin(req), orgId, userId, messageId, body.body, before);
+        // The phone hears of an edit only through the people it newly names (D-WP2); nobody new, no push.
+        const named = newlyNamed(before, body.body);
+        if (named.length) scheduleChatPush(admin(req), getAppLocals(req).env, orgId, userId, messageId, named);
+      }
       send(res, result, (rev) => ({ rev }));
     }),
   );
@@ -338,7 +344,10 @@ export function chatRouter(): Router {
         ? (await verifyChatFiles(admin(req), orgId, id, body.files))
           ?? await chatSendFiles(admin(req), orgId, userId, id, { message_id: body.message_id, parent_id: null, body: body.body, files: body.files })
         : await chatSend(admin(req), orgId, userId, id, body.message_id, body.body);
-      if (result.ok && !result.value.duplicate) await chatNotifySent(admin(req), orgId, userId, id, body.message_id, filesForBell(body.body, body.files));
+      if (result.ok && !result.value.duplicate) {
+        await chatNotifySent(admin(req), orgId, userId, id, body.message_id, filesForBell(body.body, body.files));
+        scheduleChatPush(admin(req), getAppLocals(req).env, orgId, userId, body.message_id); // CH10, D-WP3: held, then pushed
+      }
       // 201 for a new message, 200 for a retry the database recognised — the client treats both as sent.
       send(res, result, (v) => v, result.ok && !result.value.duplicate ? 201 : 200);
     }),
