@@ -32,7 +32,8 @@ function withNames(component: Component, props: Record<string, unknown>) {
       return () => h(component, props);
     },
   });
-  return mount(Host, { attachTo: document.body });
+  // The rail's Do not disturb reads the server through vue-query; it has its own test.
+  return mount(Host, { attachTo: document.body, global: { stubs: { ChatDoNotDisturb: true } } });
 }
 
 describe("a mention in a line", () => {

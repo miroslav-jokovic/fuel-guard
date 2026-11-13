@@ -2,28 +2,37 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick, reactive, ref } from "vue";
 import { AppButton } from "@silvicom/ui";
-import type { ApplicationSection } from "@silvicom/shared";
+import type { ApplicationSection, PartOneFactsView } from "@silvicom/shared";
 import { emptyDraft, type ApplicationDraft } from "@/features/apply/draft";
 import { setApplyLanguage } from "@/features/apply/language";
 import { APPLY_COPY } from "@/features/apply/strings";
 import type { SectionIssue } from "@/features/apply/useApplicationWizard";
+import SsnField from "@/features/apply/SsnField.vue";
 import TaskWalk from "./TaskWalk.vue";
 import { useTaskWalk } from "./useTaskWalk";
 
 /** The open task drawn one screen at a time (F4 PR 1b-1): where the driver is, whose row, and its removal. */
-async function walking() {
+async function walking(section: ApplicationSection = "safety", partOne: PartOneFactsView | null = null) {
   const draft = reactive<ApplicationDraft>(emptyDraft());
   const inTask = ref(false);
   const issues = ref<SectionIssue[]>([]);
   const walk = useTaskWalk(
     draft,
-    { section: ref<ApplicationSection>("safety"), issues, setIssues: (v) => { issues.value = v; }, focusIssue: vi.fn() },
+    { section: ref<ApplicationSection>(section), issues, setIssues: (v) => { issues.value = v; }, focusIssue: vi.fn() },
     { inTask, finish: vi.fn(), leave: vi.fn() },
     () => "2026-11-13",
+    () => partOne !== null,
   );
   inTask.value = true;
   await nextTick();
-  return { draft, walk, w: mount(TaskWalk, { props: { walk } }) };
+  return { draft, walk, w: mount(TaskWalk, { props: { walk, token: "tok", modelValue: draft, partOne } }) };
+}
+
+/** Continue until the step with this key is on show. */
+async function walkTo(walk: Awaited<ReturnType<typeof walking>>["walk"], key: string) {
+  for (let i = 0; i < 20 && walk.current.value?.key !== key; i += 1) walk.next();
+  await nextTick();
+  expect(walk.current.value?.key).toBe(key);
 }
 
 afterEach(() => setApplyLanguage("en"));
@@ -79,5 +88,61 @@ describe("the open task, one screen at a time", () => {
     await nextTick();
     expect(w.text()).toContain(APPLY_COPY.safety.walk.anotherAccident);
     expect(w.text()).toContain(APPLY_COPY.hub.chooseYesOrNo);
+  });
+});
+
+/** "About you" (F4 PR 1b-2): the screens that are not the binding's, and the list of other names. */
+describe("About you, one screen at a time", () => {
+  const PART_ONE = {
+    intake: { phone: "+13125550142" },
+    licences: [],
+    asOf: "2026-11-13",
+  } as unknown as PartOneFactsView;
+
+  it("keeps other names as a list: a box per name, added and removed on the one screen", async () => {
+    const { w, walk, draft } = await walking("identity");
+    Object.assign(draft, { first_name: "Ana", last_name: "Diaz" });
+    walk.next();
+    await nextTick();
+    const add = w.findAllComponents(AppButton).find((b) => b.text() === APPLY_COPY.identity.addOtherName)!;
+    await add.trigger("click");
+    await add.trigger("click");
+    const boxes = w.findAll("input");
+    expect(boxes).toHaveLength(2);
+    await boxes[1]!.setValue("Ana Lopez");
+    expect(draft.other_names).toEqual(["", "Ana Lopez"]);
+    await w.findAllComponents(AppButton).find((b) => b.text() === APPLY_COPY.identity.remove)!.trigger("click");
+    expect(draft.other_names).toEqual(["Ana Lopez"]);
+  });
+
+  it("asks the SSN with its own control and its own save, never through the draft's answers", async () => {
+    const { w, walk, draft } = await walking("identity");
+    Object.assign(draft, { first_name: "Ana", last_name: "Diaz", email: "ana@example.com" });
+    await walkTo(walk, "identity.ssn");
+    expect(w.findComponent(SsnField).exists()).toBe(true);
+    expect(w.findComponent(SsnField).props("token")).toBe("tok");
+  });
+
+  it("offers how-did-you-hear quick picks in the page's language, filing the English words", async () => {
+    setApplyLanguage("es");
+    const { w, walk, draft } = await walking("identity");
+    Object.assign(draft, { first_name: "Ana", last_name: "Diaz", email: "ana@example.com" });
+    draft.questionnaire = { position: "Chofer", applying_as: "company_driver" };
+    await walkTo(walk, "questionnaire_answers.heard_from");
+    const pick = w.findAllComponents(AppButton).find((b) => b.text() === "Un amigo o un chofer");
+    expect(pick).toBeDefined();
+    await pick!.trigger("click");
+    expect(draft.questionnaire.heard_from).toBe("A friend or a driver");
+    expect((w.find("input").element as HTMLInputElement).value).toBe("Un amigo o un chofer");
+  });
+
+  it("ends on Part 1's answers, read-only with \"Something wrong? Tell us\"", async () => {
+    const { w, walk, draft } = await walking("identity", PART_ONE);
+    draft.date_of_birth = "1980-04-01";
+    Object.assign(draft, { first_name: "Ana", last_name: "Diaz", email: "ana@example.com" });
+    draft.questionnaire = { position: "Driver", applying_as: "company_driver", heard_from: "Indeed", legally_work: true, proof_of_age: true };
+    await walkTo(walk, "identity.part_one");
+    expect(w.find("[data-part-one-facts]").text()).toContain("(312) 555-0142");
+    expect(walk.atEnd.value).toBe(true);
   });
 });

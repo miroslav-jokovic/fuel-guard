@@ -114,11 +114,12 @@ export const applicationEquipmentSchema = z.object({
 export type ApplicationEquipment = z.infer<typeof applicationEquipmentSchema>;
 
 export const applicationAddressSchema = z.object({
-  line1: z.string().min(1).max(200),
+  // Q-AM8 (a): street and ZIP may be left for the office; filing refuses without them (`OFFICE_COMPLETES`).
+  line1: z.string().max(200),
   line2: z.string().max(200).nullish(),
   city: z.string().min(1).max(120),
   state: z.string().min(2).max(40),
-  postal_code: z.string().min(3).max(20),
+  postal_code: z.union([z.literal(""), z.string().min(3).max(20)]),
   from: z.string().regex(/^\d{4}-\d{2}$/, "Expected a month as YYYY-MM"),
   /** null = current address. */
   to: z.preprocess(

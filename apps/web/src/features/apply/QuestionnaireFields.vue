@@ -1,22 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import {
-  AppCheckbox as BaseCheckbox,
-  AppCombobox as ComboSelect,
-  AppInput as BaseInput,
-  AppSegmentedControl,
-  AppTextarea as BaseTextarea,
-} from "@silvicom/ui";
-import {
-  isAsked,
-  questionsForScreen,
-  type ApplicationSection,
-  type QuestionnaireQuestion,
-} from "@silvicom/shared";
-import ApplyField from "@/features/apply/ApplyField.vue";
-import QuestionnaireTable from "@/features/apply/QuestionnaireTable.vue";
-import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "@/features/apply/questionnaireCopy";
-import { APPLY_COPY } from "@/features/apply/strings";
+import { isAsked, questionsForScreen, type ApplicationSection } from "@silvicom/shared";
+import QuestionField from "@/features/apply/QuestionField.vue";
+import { questionnaireAnswers } from "@/features/apply/questionnaireAnswers";
 import type { ApplicationDraft } from "@/features/apply/draft";
 
 /**
@@ -64,72 +50,16 @@ const props = withDefaults(
   }>(),
   { section: "questions", source: "builtin" },
 );
+// The rules for reading and writing an answer are the walk's too (`questionnaireAnswers`, F4 PR 1b-2).
+// The definition is read once at setup: the screen chain is remounted on a language switch (`ApplyPage`).
+const answers = questionnaireAnswers(() => draft.value, props.source);
+const definition = answers.definition();
 const carrier = props.source === "carrier";
-/** Where this instance's answers live in the draft, and the contract key a refusal names. */
-const ANSWERS_KEY = carrier ? "carrier_answers" : "questionnaire";
-const PATH_KEY = carrier ? "carrier_answers" : "questionnaire_answers";
-
-// The definition this draft's answers are being given against (§9 P8): v2 for a draft started before v3.
-const definition = carrier ? applicantCarrierQuestionnaire() : applicantQuestionnaire(draft.value.questionnaire_version);
-
-const answers = (): Record<string, unknown> => draft.value[ANSWERS_KEY];
-const answer = (id: string): unknown => answers()[id];
-/**
- * Set one answer — and clear any question asked only on the answer this one had (AF-6): a "When?"
- * typed after a "yes" that is then changed to "no" is an answer to a question no longer asked.
- */
-const set = (id: string, value: unknown): void => {
-  const next: Record<string, unknown> = { ...answers(), [id]: value };
-  for (const q of definition.questions) {
-    if (q.askedWhen?.question === id && !isAsked(q, next)) delete next[q.id];
-  }
-  draft.value[ANSWERS_KEY] = next;
-};
-
-/**
- * Yes/no as two buttons (AF-6), and three facts rather than two: yes, no, and not answered. "May we
- * contact your previous employers?" left blank is a different fact from answered no, and a recruiter
- * reading the rendered application needs to tell them apart. A segmented control rather than the
- * dropdown it was: one tap, both answers visible. An optional one's skip is the box under it, as on
- * every other kind — a third segment would not fit "Prefiero no decirlo" at 390px.
- */
-const YES_NO = [
-  { value: "yes", label: APPLY_COPY.carrierQuestions.yes },
-  { value: "no", label: APPLY_COPY.carrierQuestions.no },
-];
-const boolValue = (id: string): string => {
-  const v = answer(id);
-  return v === true ? "yes" : v === false ? "no" : "";
-};
-const setBool = (id: string, raw: string): void => set(id, raw === "yes" ? true : raw === "no" ? false : null);
-
-/** An optional question the applicant has chosen not to answer — its box is put away (§9 P8). */
-const skipped = (question: QuestionnaireQuestion): boolean =>
-  Boolean(question.skip) && answer(question.id) === question.skip!.value;
-const setSkipped = (question: QuestionnaireQuestion, on: boolean): void =>
-  set(question.id, on ? question.skip!.value : null);
-
-const rowsFor = (id: string): Record<string, unknown>[] => {
-  const v = answer(id);
-  return Array.isArray(v) ? (v as Record<string, unknown>[]) : [];
-};
 
 /** This screen's questions that are asked, given the answers so far (`askedWhen`). */
 const questions = computed(() =>
-  questionsForScreen(definition, props.section).filter((q) => isAsked(q, answers())),
+  questionsForScreen(definition, props.section).filter((q) => isAsked(q, answers.answers())),
 );
-
-/** The contract path of one answer — what a refusal names and what `ApplyField` derives its id from. */
-const pathOf = (question: QuestionnaireQuestion): [string, string] => [PATH_KEY, question.id];
-
-/**
- * A `select`'s options. A keyed question (`choices`, Q-HM14's `applying_as`) stores the KEY and shows
- * the label; every other `select` stores and shows its option's own words.
- */
-const selectOptions = (question: QuestionnaireQuestion): Array<{ value: string; label: string }> =>
-  question.choices
-    ? question.choices.map((c) => ({ ...c }))
-    : (question.options ?? []).map((o) => ({ value: o, label: o }));
 </script>
 
 <template>
@@ -146,65 +76,13 @@ const selectOptions = (question: QuestionnaireQuestion): Array<{ value: string; 
          whole width, because those answers are paragraphs and grids and a half-width box invites a
          one-line answer to a question that wanted more. -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div
+      <QuestionField
         v-for="question in questions"
         :key="question.id"
-        :class="['space-y-2', (question.kind === 'longtext' || question.kind === 'table') && 'sm:col-span-2']"
-      >
-        <!-- `ApplyField` and not the bare `AppFormField` this used (§9 P8): the contract path gives the
-             box the id a refusal focuses and the error under it, and `required` marks the label. -->
-        <ApplyField v-slot="f" :path="pathOf(question)" :label="question.label" :hint="question.hint" :required="question.required">
-        <template v-if="!skipped(question)">
-        <AppSegmentedControl
-          v-if="question.kind === 'boolean'"
-          :id="f.id"
-          :model-value="boolValue(question.id)"
-          :options="YES_NO"
-          :label="question.label"
-          @update:model-value="setBool(question.id, $event)"
-        />
-        <BaseTextarea
-          v-else-if="question.kind === 'longtext'"
-          v-bind="f"
-          :model-value="(answer(question.id) as string) ?? ''"
-          :rows="3"
-          @update:model-value="set(question.id, $event)"
-        />
-        <!-- ⚠ `ComboSelect`, not the native `AppSelect` this carried until 2026-09-11: the forms idiom
-             the rest of the product answers a choice with (`apps/web/CLAUDE.md`). -->
-        <ComboSelect
-          v-else-if="question.kind === 'select'"
-          v-bind="f"
-          :model-value="(answer(question.id) as string) ?? ''"
-          :placeholder="APPLY_COPY.placeholders.choose"
-          :options="selectOptions(question)"
-          @update:model-value="set(question.id, $event)"
-        />
-        <QuestionnaireTable
-          v-else-if="question.kind === 'table'"
-          :question="question"
-          :rows="rowsFor(question.id)"
-          @update="set(question.id, $event)"
-        />
-        <BaseInput
-          v-else
-          v-bind="f"
-          :model-value="(answer(question.id) as string) ?? ''"
-          :inputmode="question.kind === 'number' ? 'numeric' : undefined"
-          @update:model-value="set(question.id, $event)"
-        />
-        </template>
-        </ApplyField>
-        <!-- An optional question's stored skip. Ticked, the box is put away: an answer and a skip
-             cannot both be on file. -->
-        <BaseCheckbox
-          v-if="question.skip"
-          :model-value="skipped(question)"
-          @update:model-value="setSkipped(question, $event)"
-        >
-          {{ question.skip.label }}
-        </BaseCheckbox>
-      </div>
+        :question="question"
+        :answers="answers"
+        :class="(question.kind === 'longtext' || question.kind === 'table') && 'sm:col-span-2'"
+      />
     </div>
   </div>
 </template>

@@ -170,6 +170,7 @@ export const APPLY_COPY_ES = {
     city: "Ciudad",
     state: "Estado",
     postal_code: "Código postal (ZIP)",
+    officeCompletes: "Si no lo recuerda, déjelo en blanco. La oficina lo completará.",
     from: "Desde",
     fromHint: "Mes y año.",
     to: "Hasta",

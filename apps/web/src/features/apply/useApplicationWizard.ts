@@ -5,6 +5,7 @@ import {
   APPLICATION_SECTION_KEYS,
   applicationV2FilingIssues,
   applicationPaperFilingIssues,
+  driverMustAnswer,
   carrierAnswerIssues,
   applicationLegacyFilingIssues,
   unansweredEmployerQuestions,
@@ -95,7 +96,10 @@ export function v2FilingIssues(draft: ApplicationDraft, asOf: string | null): Se
     & Parameters<typeof applicationPaperFilingIssues>[0];
   // F2c: what the carrier's paper asks of EVERY filing — question B, each conviction's state and
   // penalty — is asked on a legacy link too; the v2 rules only on a v2 one.
-  const found = [...applicationPaperFilingIssues(candidate), ...(asOf ? applicationV2FilingIssues(candidate, asOf) : [])];
+  // D-AM4, Q-AM8 (a): an employer's address and a home's street are the office's to complete, so the
+  // driver's checks skip them; the office's Send for signing and filing still refuse without them.
+  const found = [...applicationPaperFilingIssues(candidate), ...(asOf ? applicationV2FilingIssues(candidate, asOf) : [])]
+    .filter(driverMustAnswer);
   return found.map((issue) => {
     const path = issue.path.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : p)) as FieldPath;
     return toSectionIssue({ code: "custom", message: issue.message, path, issueKey: issue.issueKey, params: issue.params }, sectionOwningPath(path), candidate);

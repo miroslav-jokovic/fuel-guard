@@ -33,12 +33,20 @@ const NEW_ROW: Readonly<Record<string, () => Record<string, unknown>>> = {
   violations: () => ({ ...emptyViolation() }),
 };
 
-/** The draft path of a fact on a row (or the whole fact, off a row) — the path issues are reported at. */
+/**
+ * The draft path of a fact on a row (or the whole fact, off a row) — the path issues are reported at. A
+ * whole list (`application.other_names[]`) is its key; the SSN (`ssn`, its own route) is the draft's
+ * `ssn`, the typed digits `SsnField` holds until it saves them.
+ */
 export function draftPath(path: FactPath, row?: number): FieldPath {
   const list = rowListOf(path);
   if (list !== undefined) return [list, row ?? 0, path.slice(`application.${list}[].`.length)];
-  return [path.slice("application.".length)];
+  return [path.replace(/^application\./, "").replace(/\[\]$/, "")];
 }
+
+/** Is `path` at or under `prefix`? A problem with one other name (`other_names.1`) is the list's screen's. */
+export const pathUnder = (path: readonly (string | number)[], prefix: readonly (string | number)[]): boolean =>
+  prefix.length <= path.length && prefix.every((p, i) => path[i] === p);
 
 /** The gate a fact is asked as, if any — `declares_no_accidents` → `accidents`. */
 const gateOf = (path: FactPath): string | undefined =>
@@ -53,7 +61,15 @@ const emptyOf = (current: unknown): unknown => (typeof current === "boolean" || 
 const fieldCopy = (): Record<FactPath, FieldCopy> => {
   const safety = APPLY_COPY.safety;
   const walk = safety.walk;
+  const you = APPLY_COPY.identity;
   return {
+    // "About you" (F4 PR 1b-2), in the section component's words.
+    "application.first_name": { label: you.first_name, autocomplete: "given-name" },
+    "application.middle_name": { label: you.middle_name, hint: you.optional, autocomplete: "additional-name" },
+    "application.last_name": { label: you.last_name, autocomplete: "family-name" },
+    "application.other_names[]": { label: you.otherNames, hint: you.otherNamesHint },
+    "application.email": { label: you.email, autocomplete: "email" },
+    ssn: { label: you.ssn, hint: you.ssnHint },
     "application.declares_no_accidents": { label: safety.accidentsQuestion },
     "application.accidents[].occurred_on": { label: walk.accidentDate },
     "application.accidents[].nature": { label: walk.accidentNature, hint: walk.accidentNatureHint },
@@ -124,10 +140,11 @@ export function draftBinding(draft: () => ApplicationDraft, issues: () => readon
       return found;
     },
     error: (path, row) => {
-      // A gate's own refusal ("list every accident, or say there were none") is reported at the LIST.
+      // A gate's own refusal ("list every accident, or say there were none") is reported at the LIST; a
+      // whole list's (one other name too long) under the list.
       const gate = gateOf(path);
-      const ids = new Set([fieldId(draftPath(path, row)), ...(gate ? [fieldId([gate])] : [])]);
-      return issues().find((i) => ids.has(i.fieldId))?.say;
+      const own = draftPath(path, row);
+      return issues().find((i) => (gate !== undefined && i.path.length === 1 && i.path[0] === gate) || pathUnder(i.path, own))?.say;
     },
     // A gate takes the list's id: that is where the send summary's cross-field entry moves focus.
     id: (path, row) => {

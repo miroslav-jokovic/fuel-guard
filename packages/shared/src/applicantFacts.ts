@@ -215,12 +215,16 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
     "part_one_answer"),
 
   // ── (b)(2) identity ──
-  app("first_name", "text", "391.21(b)(2)", ["p01.name#1", "p12.identity#1", ...PACKET_FULL_NAME_LINES]),
-  app("middle_name", "text", "391.21(b)(2)", ["p01.name#2", ...PACKET_FULL_NAME_LINES]),
-  app("last_name", "text", "391.21(b)(2)", ["p01.name#0", "p12.identity#0", ...PACKET_FULL_NAME_LINES]),
+  // `ask` (F4 PR 1b-2): the name is one fact typed together (D-AM3); other names one screen with its list
+  // (SCREEN-MAP 2.1a — 2.1's yes/no would store nothing, the contract holds no "none" for this list).
+  app("first_name", "text", "391.21(b)(2)", ["p01.name#1", "p12.identity#1", ...PACKET_FULL_NAME_LINES], "draft",
+    { screen: "identity.name" }),
+  app("middle_name", "text", "391.21(b)(2)", ["p01.name#2", ...PACKET_FULL_NAME_LINES], "draft", { screen: "identity.name" }),
+  app("last_name", "text", "391.21(b)(2)", ["p01.name#0", "p12.identity#0", ...PACKET_FULL_NAME_LINES], "draft",
+    { screen: "identity.name" }),
   app("date_of_birth", "date", "391.21(b)(2)", ["p01.dob", "p12.identity#3", "p15.dob"], "identity"),
-  app("other_names[]", "names", "391.23(a)(2)", ["p12.identity#2"]),
-  app("email", "email", "391.21(b)(2)", ADDENDUM("email")),
+  app("other_names[]", "names", "391.23(a)(2)", ["p12.identity#2"], "draft", { screen: "identity.other_names" }),
+  app("email", "email", "391.21(b)(2)", ADDENDUM("email"), "draft", { screen: "identity.email" }),
   app("phone", "phone", "391.21(b)(2)", ["p01.phone"], "part_one"),
 
   // ── (b)(3) residence ──
@@ -333,6 +337,8 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
     // Q-AM3/Q-AM17: asked in the form and held sealed before signing (application_ssns, 0589); replaced by the
     // office, read whole only with "See the full SSN".
     office: "ssn",
+    // Its own control and its own save (`SsnField`): the walk draws it by this door, never the binding.
+    ask: [{ screen: "identity.ssn" }],
   },
 ];
 

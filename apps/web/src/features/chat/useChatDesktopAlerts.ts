@@ -7,6 +7,7 @@ import { loadPushState, pushOnHere } from "@/lib/webPush";
 import { useSessionStore } from "@/stores/session";
 import { activityAlerts, inboxAlerts, type DesktopAlert, type OnScreen } from "./chatDesktopAlerts";
 import { activityKey, CHAT_KEY } from "./useChat";
+import { useChatDnd } from "./useChatDnd";
 
 /**
  * Desktop alerts for office chat (OFFICE-CHAT-PLAN CH6d; Q-CHAT4 (a): while the tab is open; Q-CHAT18 (a)).
@@ -82,6 +83,9 @@ export function useChatDesktopAlerts(enabled: Ref<boolean>, inbox: Ref<ChatConve
   // With Web Push on in this browser (CH10, D-WP5) the push shows every line, open tab or not; ringing here
   // too would show each line twice on this PC.
   const live = computed(() => enabled.value && on.value && !pushOnHere.value);
+  // Do not disturb (CHAT-WEB-PUSH-PLAN WP5) holds the PC's alerts as the server holds the phone's pushes. A line
+  // that arrives during it is counted as rung, so it does not ring when the quiet ends — the inbox has it.
+  const dnd = useChatDnd(live);
 
   // This device's push registration, refreshed once per signed-in person while chat is open to them
   // (a rotated endpoint re-registers; a subscription left by somebody else is let go — lib/webPush.ts).
@@ -111,6 +115,7 @@ export function useChatDesktopAlerts(enabled: Ref<boolean>, inbox: Ref<ChatConve
     for (const a of alerts) {
       if (rung.has(a.messageId)) continue;
       rung.add(a.messageId);
+      if (dnd.quietNow()) continue;
       try {
         const n = new Notification(a.title, { body: a.body, tag: `chat:${a.threadId}` });
         n.onclick = () => {

@@ -270,7 +270,7 @@ const { isPartOneLink, partOneNeeded, partOneInputs, refreshPartOne, partOneFini
 // C3c2a (§6.4, D-AW11): a v2 link's Part 2 is a task list over the same screens; a legacy link keeps the wizard.
 const hub = useTaskHub(wizard, isPartOneLink);
 // F4 PR 1b: inside a generated task the buttons step its screens; the last Continue closes the task.
-const walk = provideTaskWalk(useTaskWalk(draft, wizard, hub, v2AsOf));
+const walk = provideTaskWalk(useTaskWalk(draft, wizard, hub, v2AsOf, () => partOneFacts.value !== null));
 const identityNeeded = computed(
   () => ceremonyNeeded.value && !isPartOneLink.value && !identityComplete.value && !identityDone.value,
 );

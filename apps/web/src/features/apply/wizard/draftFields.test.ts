@@ -29,6 +29,15 @@ describe("Part 2's draft, for the generated screens", () => {
   it("finds a row's column at the contract's own path, so the task's issues land on its box", () => {
     expect(draftPath("application.accidents[].nature", 2)).toEqual(["accidents", 2, "nature"]);
     expect(draftPath("application.licence_suspended")).toEqual(["licence_suspended"]);
+    // A whole list is its key; the SSN (its own route) the draft's typed digits.
+    expect(draftPath("application.other_names[]")).toEqual(["other_names"]);
+    expect(draftPath("ssn")).toEqual(["ssn"]);
+  });
+
+  it("shows a problem with one of a list's entries under the list (one other name)", () => {
+    const { b } = bound([issueAt(["other_names", 1], "Keep it under 100 letters")]);
+    expect(b.error("application.other_names[]")).toBe("Keep it under 100 letters");
+    expect(b.error("application.email")).toBeUndefined();
   });
 
   it("reads and writes the row the screen is about", () => {

@@ -267,6 +267,20 @@ describe("a v2 link's filing rules, on the page", () => {
     expect(validateSection("identity", draft, AS_OF)).toEqual([]);
   });
 
+  // D-AM4, Q-AM8 (a): what the office completes never holds the driver — filing and Send for signing do.
+  it("lets the driver leave an old home's street and ZIP, and an employer's address, for the office", () => {
+    const draft = complete();
+    draft.addresses = [
+      { ...draft.addresses[0]!, from: "2024-01" },
+      { ...draft.addresses[0]!, key: "00000000-0000-4000-8000-000000000018", line1: "", postal_code: "", city: "Gary", state: "IN", from: "2019-01", to: "2023-12" },
+    ];
+    draft.employers[0]!.address_line1 = "";
+    draft.employment_gaps = [{ from: "2025-06-30", to: "2026-09-26", explanation: "Looking for work" }];
+    expect(validateSection("addresses", draft, AS_OF)).toEqual([]);
+    expect(validateSection("employment", draft, AS_OF)).toEqual([]);
+    expect(v2FilingIssues(draft, AS_OF)).toEqual([]);
+  });
+
   it("names a missing reason for leaving on that employer's own field", () => {
     const draft = complete();
     draft.employers[0]!.reason_for_leaving = "";
