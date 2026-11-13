@@ -295,7 +295,7 @@ describe("the tile proxy streams the body through intact (B2)", () => {
     expect(body[0]).toBe(1);
     expect(body[total - 1]).toBe(8);
     expect(res.headers.get("content-type")).toBe("image/png");
-    expect(res.headers.get("cache-control")).toBe("public, max-age=86400");
+    expect(res.headers.get("cache-control")).toBe("private, max-age=86400");
   });
 
   it("passes the upstream's content-length through rather than re-chunking the tile", async () => {
@@ -310,7 +310,7 @@ describe("the tile proxy streams the body through intact (B2)", () => {
    *
    * Once bytes are flowing the status line is gone, so a body that dies mid-flight cannot be reported
    * as 504 or 502 — but ending the response cleanly would be worse than either: the browser would
-   * receive a SHORT PNG that looks complete, under the `Cache-Control: public, max-age=86400` this
+   * receive a SHORT PNG that looks complete, under the `Cache-Control: private, max-age=86400` this
    * route sets, and keep that corrupt tile for a day. Destroying the socket makes it a network error
    * instead, and maplibre re-asks on the next pan.
    *

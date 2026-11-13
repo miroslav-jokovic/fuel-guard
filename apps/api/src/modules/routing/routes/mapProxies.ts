@@ -180,7 +180,14 @@ export function registerMapRoutes(router: Router): void {
         return;
       }
       res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "image/png");
-      res.setHeader("Cache-Control", "public, max-age=86400");
+      /**
+       * `private`, not `public` (2026-11-12): this tile was served to ONE signed-in reader, and
+       * HERE's caching guidance allows a tile to be kept per client and forbids "scaling one request
+       * to serve multiple end users". No shared cache sits in front of this route today (Caddy does
+       * not cache), so nothing changes for a reader; the header now says what the licence means, and
+       * a CDN added later cannot hand one reader's tile to another. A day is HERE's own `max-age`.
+       */
+      res.setHeader("Cache-Control", "private, max-age=86400");
       /**
        * Passed through so the browser gets a determinate body rather than a chunked one — and so a
        * truncated tile is a truncated tile to the browser rather than a short-but-valid one.
@@ -230,7 +237,7 @@ export function registerMapRoutes(router: Router): void {
        * assumed, with a probe in this block: `headersSent=true destroyed=true writableEnded=false`.
        * That teardown is what the browser sees as a network error, and it is the outcome we want:
        * ending the response cleanly instead would hand it a SHORT PNG that looks complete, which
-       * `Cache-Control: public, max-age=86400` above would then keep on the reader's disk for a day.
+       * `Cache-Control: private, max-age=86400` above would then keep on the reader's disk for a day.
        * maplibre re-asks for a failed tile on the next pan, the same cheap recovery the 8 s deadline
        * is priced against.
        *
