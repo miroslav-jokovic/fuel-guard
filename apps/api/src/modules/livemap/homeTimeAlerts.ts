@@ -105,9 +105,13 @@ export async function runHomeTimeOnce(admin: SupabaseClient, env: Env, orgId: st
     const pickups = await readDriverPickupsSince(admin, orgId, earliest);
     for (const r of started) {
       const startMs = Date.parse(r.start_at);
-      // The first pickup of his after the period began, and not one McLeod has keyed ahead of the clock.
+      // The first pickup of his after the period began. The read reaches back to the EARLIEST live
+      // period, so an older pickup of his can be in it; stopping on that one would be refused and leave
+      // a hauling driver "home". A pickup McLeod has keyed ahead of the clock is not filtered here:
+      // `endHomeTime` owns "the end is between the start and now" and refuses it, and it sorts after
+      // every real one, so it can never hide a pickup that has happened.
       const first = pickups
-        .filter((p) => (p.driverId === r.driver_id || p.coDriverId === r.driver_id) && Date.parse(p.at) > startMs && Date.parse(p.at) <= now.getTime())
+        .filter((p) => (p.driverId === r.driver_id || p.coDriverId === r.driver_id) && Date.parse(p.at) > startMs)
         .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0];
       if (!first) continue;
       const ended = await endHomeTime(admin, orgId, null, r.id, "load_evidence", new Date(first.at), now);

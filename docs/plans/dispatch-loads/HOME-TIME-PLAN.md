@@ -466,3 +466,41 @@ sidebar.
     (real data, nobody home, the home-time API failing): no page error, nothing wider than the viewport.
     It found and fixed three things no test saw: the drawer's facts squeezed into four columns, the tab's
     list choice wearing a filter's clear button, and a held truck still reading "Empty" in Status.
+- 2026-11-13 — **HT4 the alerts, by bell and email** (branch `claude/home-time-ht4-alerts`). After this
+  step the office is told, without anybody looking: home time is ending, a driver has overstayed, a
+  truck has been at a driver's home too long.
+  - **Shared** (`packages/shared`): `alertRouting.ts` holds the alert catalogue, each alert's default
+    routes and `resolveAlertRecipients`; `homeTime.ts` gains the pure planner `homeTimeAlertsDue` and the
+    sentence `homeTimeAlertLine`.
+  - **API:** `messaging/alertRouting.ts` is the one resolver and the one sender (`recipientsFor`,
+    `sendAlerts`): a bell item per event through `notify()`, ONE email per person listing everything new,
+    queued with `queue_notification_delivery` and its outcome written back. `loads/driverPickups.ts` reads
+    the pickups; `livemap/homeTimeAlerts.ts` is the job (`runHomeTimeOnce`), registered in `SCHEDULERS`
+    as `home-time`. The bell opens the driver's home time on the Dispatch board (`notificationRoute`).
+  - Changes from §3, each for a reason:
+    - **D-HT6 refined: the evidence is a PICKUP's actual arrival after the period started, not any
+      stop.** A delivery after the mark is the OLD load ending — the driver was marked while still
+      carrying it — and ending on it would close every period marked ahead of the last drop.
+    - **The job lives in `livemap`, not `roster`.** `loads -> roster` exists, so `roster -> loads` would
+      close a cycle. It composes the board's own four owners (roster, loads, mcleod, org) and hands the
+      result to messaging; the new edge `livemap -> messaging` is in `scripts/check-feature-boundaries.mjs`.
+    - **D-HT13's switch is `HOME_TIME_ALERT_MINUTES` (default 15, 0 = off)**, not
+      `HOME_TIME_ALERTS_ENABLED`: one setting carries both the cadence and the off state, as the other
+      schedulers' do.
+    - **The planner takes no `alreadySent` list** (D-HT13 named `planHomeTimeAlerts(…, alreadySent)`).
+      `notify()` and `queue_notification_delivery` each claim the key in the dedupe ledger, so a prefilter
+      would be a second copy of a rule the database already owns.
+    - **A pickup McLeod has keyed ahead of the clock is refused by `endHomeTime`, not filtered by the
+      job.** `endHomeTime` owns "the end is between the start and now"; the job's own copy of that check
+      changed no outcome under mutation and was removed. A future pickup sorts after every real one, so
+      it cannot hide a pickup that has happened.
+    - **`notification_channel_settings` keeps its schema-only waiver until HT6** (only a text is ever
+      held, so its reader ships with texting); the waivers of `notification_routes` and
+      `notification_contacts` are gone, both now read.
+  - Tests: shared 53; the job 23 (what it closes, whom it tells, saying a fact once, every query the
+    carrier's); the bell's destination 14. Mutation run: 16 deliberate breakages, 13 caught at first;
+    two got tests (a pickup from before a LATER period's start when two drivers are home; a suspended
+    member is told nothing), and the third was the redundant clock check above.
+  - Until the owner links dispatchers to their McLeod logins (2 of 16 today), "the truck's dispatcher"
+    resolves to nobody for most trucks and the alert reaches whoever marked the period; when that is
+    nobody either, everyone who manages Dispatch.

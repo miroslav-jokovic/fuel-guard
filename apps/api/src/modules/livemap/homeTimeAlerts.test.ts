@@ -40,6 +40,8 @@ interface World {
   routes?: Record<string, unknown>[];
   settings?: Record<string, unknown>[];
   dispatchOn?: boolean;
+  /** Overrides on the member directory's rows, by user — a suspension. */
+  members?: Record<string, Record<string, unknown>>;
   /** Keys the ledger already holds, as `<user>|<key>` — a second run. */
   sent?: Set<string>;
 }
@@ -84,7 +86,7 @@ function world(w: World = {}): SupabaseRecorder {
           { user_id: DANA, email: "dana@x.test", full_name: "Dana Dispatch", role: "dispatcher", suspended_at: null },
           { user_id: IVO, email: "ivo@x.test", full_name: "Ivo K", role: "dispatcher", suspended_at: null },
           { user_id: FRAN, email: "fran@x.test", full_name: "Fran Fleet", role: "fleet_manager", suspended_at: null },
-        ];
+        ].map((m) => ({ ...m, ...w.members?.[m.user_id] }));
       }
       if (fn === "emit_notification") {
         const key = `${String(a.p_user)}|${String(a.p_dedupe_key)}`;
@@ -176,6 +178,27 @@ describe("what it closes by itself (D-HT6)", () => {
     expect(ends()).toEqual([]);
   });
 
+  it("ends at the pickup that has happened when McLeod has also keyed one ahead of the clock", async () => {
+    world({ pickups: [pickup(hours(5), "l-2"), pickup(hours(-3))], loads: [load(), load({ id: "l-2", ref: "0136790" })] });
+    expect((await runHomeTimeOnce(rec.client, env, ORG, NOW)).endedOnLoad).toBe(1);
+    expect(ends()[0]!.write!.payload).toMatchObject({ end_at: hours(-3) });
+  });
+
+  it("with two drivers home, skips a pickup from before the LATER period began and ends it at the one after", async () => {
+    // The read reaches back to the EARLIEST live period, so Ray's old pickup comes back with it. Ending
+    // on it would be refused (before his start), and stopping there would leave a hauling driver "home".
+    world({
+      periods: [period({ start_at: hours(-100) }), period({ id: P2, driver_id: RAY, vehicle_id: T848, start_at: hours(-20) })],
+      pickups: [pickup(hours(-40)), pickup(hours(-3), "l-2")],
+      loads: [load({ driver_id: RAY }), load({ id: "l-2", ref: "0136790", driver_id: RAY })],
+    });
+    expect((await runHomeTimeOnce(rec.client, env, ORG, NOW)).endedOnLoad).toBe(1);
+    expect(ends()).toHaveLength(1);
+    expect(ends()[0]!.write!.payload).toMatchObject({ end_at: hours(-3), end_reason: "load_evidence" });
+    expect(ends()[0]!.filters()).toContainEqual({ col: "id", val: P2 });
+    expect(audits()[0]).toMatchObject({ entity_id: P2, meta: { driverId: RAY, loadRef: "0136790" } });
+  });
+
   it("asks only for PICKUPS since the earliest live period began — a delivery after the mark is the old load ending", async () => {
     world({ periods: [period({ start_at: hours(-100) }), period({ id: P2, driver_id: RAY, vehicle_id: T848, start_at: hours(-20) })] });
     await runHomeTimeOnce(rec.client, env, ORG, NOW);
@@ -244,6 +267,22 @@ describe("what it tells whom (D-HT12, D-HT15)", () => {
     expect(r).toMatchObject({ emails: 0 });
     expect(r.bells).toBeGreaterThan(0);
     expect(rec.forTable("notification_deliveries").find((q) => q.write?.method === "update")!.write!.payload).toMatchObject({ status: "failed", last_error: "rate limited" });
+  });
+
+  it("tells no suspended member — not by a role's route, not by dashboard, not by email", async () => {
+    world({ periods: [period({ expected_return_at: hours(-5) })], members: { [FRAN]: { suspended_at: hours(-24) } } });
+    const r = await runHomeTimeOnce(rec.client, env, ORG, NOW);
+    expect(bellTo(FRAN)).toEqual([]);
+    expect(bellTo(DANA)).toEqual(["home_time_overdue"]);
+    expect(r.emails).toBe(0);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("tells no suspended member who marked the period either", async () => {
+    world({ periods: [period({ expected_return_at: hours(10) })], members: { [DANA]: { suspended_at: hours(-24) } } });
+    await runHomeTimeOnce(rec.client, env, ORG, NOW);
+    expect(bellTo(DANA)).toEqual([]);
+    expect(bellTo(IVO)).toEqual(["home_time_return_due"]);
   });
 
   it("names nobody as the truck's dispatcher when the fleet has no linked dispatcher, and still tells who marked it", async () => {
