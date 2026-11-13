@@ -53,6 +53,14 @@
 -- truck's in-service and out-of-service date and owner, so a month's lease and insurance can be
 -- shared over the days each truck was in service. No personal data. One line, marked below in
 -- Part 2.
+--
+-- 2026-11-13 - WAITING TO BE RUN: Part 4 and Part 5, both on LME only.
+--   Part 4 is the step Part 2 always promised: the same finance tables on LME, so the nightly
+--   finance read uses the books as they are today and no longer waits for a restore of the
+--   analytics copy. Checked 2026-11-13 under the connector's login: on LME it reads none of them.
+--   Part 5 is three tables for lumper fees: the charges on an order, the charges on an invoice,
+--   and the settlement deductions not yet paid. No statement reads them yet; the statements come
+--   for review before they run. No personal data beyond a driver id on a settlement line.
 -- ========================================================================================
 
 
@@ -138,6 +146,48 @@ GO
 
 
 -- ----------------------------------------------------------------------------------------
+-- PART 4 - FINANCE ON LME (added 2026-11-13, NOT YET RUN)
+-- The finance tables of Part 2, on the live database. The five movement tables and tractor are
+-- already granted on LME. The last four lines repeat Part 3; running them twice is harmless.
+-- ----------------------------------------------------------------------------------------
+USE lme;
+GO
+
+GRANT SELECT ON dbo.gl_ledger        TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.gl_ledger_hist   TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.gl_account       TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.billing_history  TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.drs_settle_hist  TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.drs_deduct_hist  TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.voucher          TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.voucher_hist     TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.fuel_detail      TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.fuel_detail_hist TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.equipment_item   TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.fuel_tax_history TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.voucher_dist     TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.gl_control       TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.fiscal_year_dtl  TO silvicom_dispatch_ro;
+GO
+
+
+-- ----------------------------------------------------------------------------------------
+-- PART 5 - LUMPER FEES ON LME (added 2026-11-13, NOT YET RUN)
+-- other_charge       the accessorial charges on an order (we read the lumper code, LUM)
+-- other_charge_hist  the same charges as they went out on an invoice
+-- drs_pending_deduct settlement lines not yet paid (the lumper advance and its reimbursement)
+-- The paid settlement lines (drs_deduct_hist) and the invoices (billing_history) are in Part 4.
+-- ----------------------------------------------------------------------------------------
+USE lme;
+GO
+
+GRANT SELECT ON dbo.other_charge       TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.other_charge_hist  TO silvicom_dispatch_ro;
+GRANT SELECT ON dbo.drs_pending_deduct TO silvicom_dispatch_ro;
+GO
+
+
+-- ----------------------------------------------------------------------------------------
 -- CHECK (optional) - run in each database after its part. Each table from that part should
 -- show 1 (the finance tables show 0 on LME until Part 2 is run there), and the last line 0:
 -- the login can read, and cannot write.
@@ -150,7 +200,8 @@ SELECT t.name AS table_name,
                   'billing_history', 'drs_settle_hist', 'drs_deduct_hist', 'voucher',
                   'voucher_hist', 'fuel_detail', 'fuel_detail_hist', 'equipment_item',
                   'movement', 'movement_order', 'orders', 'stop', 'users', 'fuel_tax_history',
-                  'voucher_dist', 'gl_control', 'fiscal_year_dtl');
+                  'voucher_dist', 'gl_control', 'fiscal_year_dtl', 'tractor',
+                  'other_charge', 'other_charge_hist', 'drs_pending_deduct');
 -- customer is granted by column, so it is checked by column: all five should show 1.
 SELECT HAS_PERMS_BY_NAME('dbo.customer', 'OBJECT', 'SELECT', 'company_id', 'COLUMN') AS customer_company_id,
        HAS_PERMS_BY_NAME('dbo.customer', 'OBJECT', 'SELECT', 'id', 'COLUMN')       AS customer_id,

@@ -35,9 +35,9 @@ The audit log covers 61 lumper charge rows keyed between 2026-09-09 and 2026-10-
   order number is.
 - No charge was keyed after the bill date.
 
-### 1.3 Where the revised RC is recorded in McLeod: nowhere
+### 1.3 Where the revised RC is recorded in McLeod: nowhere, except in A/R's notes after a short pay
 
-Four places were checked; all four are empty of it.
+Six places were checked. Five are empty of it; the sixth mentions it only after the money is short.
 
 | Place | Finding |
 |---|---|
@@ -45,9 +45,17 @@ Four places were checked; all four are empty of it.
 | Attachments (`comments`) | 41,571 rows: driver expenses, truck and trailer papers, accident files, customer notes. No order paperwork. "Rate confirmation and BOL" was last used in 2022 (30 files in total). |
 | Stop notes on 2026 orders | 0 mention a lumper, a revised confirmation or a rate confirmation. |
 | Rebill reasons | Mention lumpers in 2014, 2015 and 2018 only. |
+| Order history (`order_post_hist`, checked on the second pass) | 119,245 rows in 2026, all written by McLeod itself (settlement paid, freight bill printed, loaded, empty). 0 attachments since 2021, 0 mentions. |
+| Collections call notes (`ar_call_record`, second pass) | **This is where it shows up, as free text, after the broker short-pays.** Of 7,839 notes in 2026, 28 mention a lumper and 16 a revised RC: "$310 SHORT PAY. LUMPER NOT REIMBURSED. NO REVISED RC." (10/08), "INVOICED FOR $150 W/O REVISED RC" (10/06). One file attached all year. |
+
+A second pass also listed every table that holds a file (33) and every table with an order number
+(59). None of the others holds order paperwork.
 
 McLeod imaging is not set up (0 images). So **McLeod can say a lumper was paid and whether it was
 billed. It cannot say the revised RC arrived.** That fact has to be recorded in 360.
+
+The collections notes are not a usable signal: they are free text, written weeks later, and only
+when something already went wrong. They are the evidence of what a missing revised RC costs.
 
 ### 1.4 What goes wrong today, in numbers (2026 to 10-09)
 
@@ -70,9 +78,11 @@ hand checking the owner described, which the database cannot measure.
 - **The dispatcher.** `orders.operations_user` names one person per order. On the audited rows the
   person who keyed the charge was usually that same user.
 - **Only 2 of 18 McLeod dispatchers are linked to a 360 user** (production, 2026-11-12).
-- **The connector cannot read any of this yet.** Its login on live LME has no grant on
-  `other_charge`, `other_charge_hist`, the two settlement deduction tables or `billing_history`
-  (`tools/mcleod-agent/review/SILVICOM-GRANTS.sql`; the finance grants exist on the analytics copy only).
+- **The connector cannot read any of this yet.** Checked on live LME under the connector's own
+  login on 2026-11-13: it reads the nine load-board and roster tables plus `reference_number` and
+  five `customer` columns, and **none** of the finance tables, `other_charge`, `other_charge_hist`
+  or the settlement deduction tables. The grant lines are Parts 4 and 5 of
+  `tools/mcleod-agent/review/SILVICOM-GRANTS.sql`, not yet run.
 - **Routing alerts to chosen people by bell, email and SMS does not exist yet.** It is designed in
   `docs/plans/notifications/NOTIFICATION-ROUTING-PLAN.md` (PROPOSED 2026-10-02, nothing built). No
   office user has a phone number stored.
@@ -221,3 +231,8 @@ the same day the money code is used, before anyone keys anything in McLeod.
 - 2026-11-13 — Sandbox research done from the office (analytics copy, restore of 2026-10-09). Found
   the three traces of a lumper, that billing re-keys the dispatcher's charge, that McLeod records the
   revised RC nowhere, and the sizes in 1.4. Plan written. Nothing built.
+- 2026-11-13, second pass — Checked every table that holds a file or an order number. Order history
+  holds no paperwork. Collections call notes mention a missing revised RC after a short pay (16 notes
+  in 2026). Checked the connector's login on live LME: no finance or lumper table is granted. Grant
+  lines added as Parts 4 and 5 of `SILVICOM-GRANTS.sql`; request to Alex drafted in
+  `tools/mcleod-agent/review/REQUEST-TO-ALEX-2026-11-13-FINANCE-ON-LME-AND-LUMPER.md`.
