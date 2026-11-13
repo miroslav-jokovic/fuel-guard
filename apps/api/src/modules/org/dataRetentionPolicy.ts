@@ -361,6 +361,19 @@ export const RETENTION_RULES: RetentionRule[] = [
     orgScoped: true,
     why: "Q-AI4 (F21 PLAN.md §5): Ask AI's per-answer cost rows, no text; 13 months for the year-over-year cost view, and the audit row keeps who asked what",
   },
+  {
+    // 0598 (HOME-TIME-PLAN D-HT19). One row per alert email or text queued for an office person: the
+    // address or number it went to, the lines it carried, the outcome. Prunable for the reason the inbox
+    // is: `queue_notification_delivery` claims each item's key in `notification_dedupe_keys`
+    // (RETENTION_FORBIDDEN), so a pruned delivery re-sends nothing. 90 days, the inbox's own window —
+    // the Settings page counts 30, and a held text waits one night, never ninety.
+    table: "notification_deliveries",
+    timeColumn: "created_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "D-HT19 (HOME-TIME-PLAN): the delivery log of alert emails and texts — destination, lines, status; the dedupe keys live in notification_dedupe_keys, so a pruned row re-sends nothing",
+  },
 ];
 
 export { RETENTION_FORBIDDEN } from "./dataRetentionForbidden.js";

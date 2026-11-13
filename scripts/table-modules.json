@@ -1487,6 +1487,17 @@
         "why": "new in 0553 (2026-11-03); at most one row per lead, a fraction of leads; evidence, removed only by the applicant purge."
       }
     },
+    "home_time_settings": {
+      "module": "roster",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "HOME-TIME-PLAN D-HT12 (0597): the carrier's three home-time alert thresholds, one row per org at most; bounded by the number of orgs, not by time."
+      }
+    },
     "hos_duty_segments": {
       "module": "samsara",
       "layer": "raw",
@@ -2301,6 +2312,39 @@
         "why": "idempotency ledger for notify() (0432, DATA-LIFECYCLE-PLAN Q11): a deleted key re-arms its alert, so no window. One narrow row per keyed emit, ~70/day measured 2026-10-05 (3,182 since 08-09); the budget matches notification_events."
       }
     },
+    "notification_channel_settings": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "HOME-TIME-PLAN D-HT18 (0598): the hours alert texts are held, one row per org at most; bounded by the number of orgs, not by time."
+      }
+    },
+    "notification_contacts": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "NOTIFICATION-ROUTING-PLAN D-NR5 (0598): an office person's confirmed mobile number, one row per member at most; bounded by office headcount. The row is the consent record, so no window."
+      }
+    },
+    "notification_deliveries": {
+      "module": "messaging",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "HOME-TIME-PLAN D-HT19 (0598): one row per alert email or text queued for a person. 90 days, the inbox's window: the dedupe keys live in notification_dedupe_keys, so a pruned row re-sends nothing. The budget matches notification_events; the home-time alerts add a handful a day."
+      }
+    },
     "notification_events": {
       "module": "messaging",
       "layer": "derived",
@@ -2310,6 +2354,17 @@
         "partition": null,
         "budget_rows_per_day": 500,
         "why": "the bell's inbox and the Expo Push delivery queue. 90 days (DATA-LIFECYCLE-PLAN Q11, ruled 2026-10-05): prunable since 0432 moved the dedupe keys to notification_dedupe_keys."
+      }
+    },
+    "notification_routes": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "NOTIFICATION-ROUTING-PLAN D-NR2 (0598): alert x recipient x channel switches, rewritten in place when an admin saves; bounded by alerts x roles and people x three channels, not by time."
       }
     },
     "notification_preferences": {
