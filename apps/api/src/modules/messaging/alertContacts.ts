@@ -7,14 +7,24 @@ import {
   ALERT_TEXT_CONSENT,
   alertContactState,
   alertPhoneCodeText,
+  alertTextHelpReply,
+  isHelpMessage,
   isStartMessage,
   isStopMessage,
   normalisePhone,
+  siteHostOf,
   type MyAlertContact,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { writeAudit } from "../../lib/audit.js";
-import { redactNumber, sendSms, smsConfigured } from "../../lib/sms.js";
+import { redactNumber, sendSms, smsConfigured, type SmsLine } from "../../lib/sms.js";
+
+/**
+ * Every alert text leaves on this line, and "can this server text an alert" is asked of this line
+ * only: the applicant number is verified for applicant texts and nothing else (`lib/sms.ts` SMS_LINES).
+ */
+export const ALERT_TEXT_LINE: SmsLine = "staff_alerts";
+export const alertTextsAvailable = (env: Env): boolean => smsConfigured(env, ALERT_TEXT_LINE);
 
 /**
  * A person's mobile number for alert texts (HOME-TIME-PLAN D-HT17, HT6; `notification_contacts`, 0598).
@@ -34,6 +44,10 @@ import { redactNumber, sendSms, smsConfigured } from "../../lib/sms.js";
  * has a number and no org. START clears it. The page's "Stop text alerts" sets the same column, so
  * there is one meaning of stopped. Confirming a number again clears it — and if the mobile carrier is
  * still blocking us after a STOP, the code never arrives, so that cannot overrule a STOP.
+ *
+ * ── HELP ────────────────────────────────────────────────────────────────────────────────────────
+ * A reply of HELP is answered from the alert number with `alertTextHelpReply`, to anybody: the mobile
+ * carriers require it of the number, whether or not the sender is somebody we text.
  *
  * Every office query filters on `org_id` and `user_id`: the service role bypasses RLS.
  */
@@ -60,7 +74,7 @@ async function readRow(admin: SupabaseClient, orgId: string, userId: string): Pr
   return (data as ContactRow | null) ?? null;
 }
 
-const view = (env: Env, row: ContactRow | null): MyAlertContact => ({ available: smsConfigured(env), state: alertContactState(row), last4: row ? row.phone.slice(-4) : null });
+const view = (env: Env, row: ContactRow | null): MyAlertContact => ({ available: alertTextsAvailable(env), state: alertContactState(row), last4: row ? row.phone.slice(-4) : null });
 
 export async function readMyAlertContact(admin: SupabaseClient, env: Env, orgId: string, userId: string): Promise<MyAlertContact> {
   return view(env, await readRow(admin, orgId, userId));
@@ -68,7 +82,7 @@ export async function readMyAlertContact(admin: SupabaseClient, env: Env, orgId:
 
 /** Text a code to the number. The row is written first: a code that arrives must be one we can check. */
 export async function startAlertPhone(admin: SupabaseClient, env: Env, orgId: string, userId: string, rawPhone: string, now: Date): Promise<MyAlertContact | AlertContactRefusal> {
-  if (!smsConfigured(env)) return { code: "unavailable", message: "Text alerts are not set up on this server yet." };
+  if (!alertTextsAvailable(env)) return { code: "unavailable", message: "Text alerts are not set up on this server yet." };
   const phone = normalisePhone(rawPhone);
   if (!phone) return { code: "invalid", message: "That is not a mobile number we can text. Use a 10-digit US number." };
 
@@ -97,7 +111,7 @@ export async function startAlertPhone(admin: SupabaseClient, env: Env, orgId: st
   const { error } = await admin.from("notification_contacts").upsert(row, { onConflict: "org_id,user_id" });
   if (error) return { code: "db_error", message: "Could not save the number." };
 
-  const sent = await sendSms(env, { to: phone, body: alertPhoneCodeText(code) });
+  const sent = await sendSms(env, { to: phone, body: alertPhoneCodeText(code), line: ALERT_TEXT_LINE });
   if (!sent.ok) {
     console.error(`[alert-texts] code not sent to=${redactNumber(phone)}: ${sent.detail ?? "send failed"}`);
     return { code: "send_failed", message: "We could not text that number. Check it, and if you once replied STOP, text START to the number our texts come from, then try again." };
@@ -157,14 +171,20 @@ export async function stopAlertTexts(admin: SupabaseClient, env: Env, orgId: str
 }
 
 /**
- * An inbound text from a number: STOP switches alert texts off on every row holding it, START back on.
+ * An inbound text to the ALERT number (the webhook sends only those here — `inboundSmsLine`): STOP
+ * switches alert texts off on every row holding the sender's number, START back on, HELP is answered.
  * No org filter ON PURPOSE — the message carries a number and nothing else, and a person who says STOP
  * means it for every carrier that texts them. Returns the rows changed.
  */
-export async function handleAlertInboundSms(admin: SupabaseClient, from: string, body: string, now: Date = new Date()): Promise<{ stopped: number; resumed: number }> {
-  const none = { stopped: 0, resumed: 0 };
+export async function handleAlertInboundSms(admin: SupabaseClient, env: Env, from: string, body: string, now: Date = new Date()): Promise<{ stopped: number; resumed: number; helped: boolean }> {
+  const none = { stopped: 0, resumed: 0, helped: false };
   const phone = normalisePhone(from);
   if (!phone) return none;
+  if (isHelpMessage(body)) {
+    const sent = await sendSms(env, { to: phone, body: alertTextHelpReply(siteHostOf(env.WEB_APP_URL)), line: ALERT_TEXT_LINE });
+    if (!sent.ok) console.error(`[alert-texts] HELP reply not sent to=${redactNumber(phone)}: ${sent.detail ?? "send failed"}`);
+    return { ...none, helped: sent.ok };
+  }
   if (isStopMessage(body)) {
     const { data, error } = await admin.from("notification_contacts").update({ stopped_at: now.toISOString(), updated_at: now.toISOString() }).eq("phone", phone).is("stopped_at", null).select("org_id, user_id");
     if (error) throw new Error(`notification_contacts: ${error.message}`);

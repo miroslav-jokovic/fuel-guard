@@ -33,6 +33,12 @@ export const mailEnvFields = {
   // from a pool; either identifies the sender, and one of them must be set for a send to happen.
   TELNYX_FROM: z.string().optional(),
   TELNYX_MESSAGING_PROFILE_ID: z.string().optional(),
+  // The SECOND line: office alert texts (HOME-TIME HT6). A toll-free number is verified for one use,
+  // and the one above is filed as "HR / Staffing" for applicants, so staff alerts leave from their own
+  // number or profile. Unset = alert texts are not offered anywhere; there is no fallback to the
+  // applicant sender (`lib/sms.ts` SMS_LINES has the reason). Same account, key and webhook.
+  TELNYX_ALERTS_FROM: z.string().optional(),
+  TELNYX_ALERTS_MESSAGING_PROFILE_ID: z.string().optional(),
 
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   // Auto-detected: if RESEND_API_KEY or BREVO_API_KEY is set and MAIL_PROVIDER is not explicitly

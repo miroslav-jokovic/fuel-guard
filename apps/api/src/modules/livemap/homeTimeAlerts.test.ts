@@ -17,7 +17,8 @@ const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const OTHER_ORG = "99999999-0000-4000-8000-000000000000";
 const NOW = new Date("2026-11-13T15:00:00.000Z"); // 09:00 Central
 const hours = (n: number) => new Date(NOW.getTime() + n * 3_600_000).toISOString();
-const env = loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv);
+// The alert line's own sender is set: with only the applicant number, nobody is texted (pinned below).
+const env = loadEnv({ NODE_ENV: "test", SMS_PROVIDER: "telnyx", TELNYX_API_KEY: "KEY-test", TELNYX_ALERTS_FROM: "+15550002222" } as NodeJS.ProcessEnv);
 
 const MARCUS = "d0000000-0000-4000-8000-000000000001";
 const RAY = "d0000000-0000-4000-8000-000000000002";
@@ -391,6 +392,16 @@ describe("what it tells whom (D-HT12, D-HT15)", () => {
       expect(text.body).toContain("Ray Diaz (truck 848)");
       expect(text.body.endsWith("Reply STOP to end.")).toBe(true);
       expectOrgScoped(rec, ORG, EXEMPT);
+    });
+
+    it("texts nobody while this server has only the recruiting number: nothing is queued, and the dashboard is still told", async () => {
+      const applicantsOnly = loadEnv({ NODE_ENV: "test", SMS_PROVIDER: "telnyx", TELNYX_API_KEY: "KEY-test", TELNYX_FROM: "+15550001111" } as NodeJS.ProcessEnv);
+      world({ periods: overdueTwo, routes: textFran, contacts: [confirmed()] });
+      const r = await runHomeTimeOnce(rec.client, applicantsOnly, ORG, NOW);
+      expect(r.texts).toBe(0);
+      expect(rec.rpcs().filter((q) => q.fn === "queue_notification_delivery" && (q.args as { p_channel: string }).p_channel === "sms")).toEqual([]);
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(bellTo(FRAN).length).toBe(2);
     });
 
     it("texts nobody without a confirmed number, nobody who said STOP, and nobody still typing their code", async () => {

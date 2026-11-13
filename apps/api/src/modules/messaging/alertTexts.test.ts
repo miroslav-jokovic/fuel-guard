@@ -61,7 +61,7 @@ describe("one text for a person", () => {
     expect(await text(DAY)).toBe("sent");
     expect(queuedArgs[0]).toMatchObject({ p_org: ORG, p_user: FRAN, p_channel: "sms", p_destination: PHONE, p_title: "Home time overstayed", p_not_before: null });
     expect(sms.send).toHaveBeenCalledTimes(1);
-    expect(sms.send.mock.calls[0]![1]).toEqual({ to: PHONE, body: "Silvicom 360: Home time overstayed. Marcus Hill (truck 702) is past his return. Reply STOP to end." });
+    expect(sms.send.mock.calls[0]![1]).toEqual({ line: "staff_alerts", to: PHONE, body: "Silvicom 360: Home time overstayed. Marcus Hill (truck 702) is past his return. Reply STOP to end." });
     expect(outcome()).toMatchObject({ status: "sent", sent_at: DAY.toISOString(), provider_message_id: "tx-9" });
     // Written once: only a row still queued takes an outcome.
     expect(outcomes()[0]!.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "status", val: "queued" }]));

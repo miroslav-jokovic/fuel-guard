@@ -5,7 +5,7 @@ import { getAppLocals } from "../lib/appLocals.js";
 import { processSamsaraWebhook } from "../modules/samsara/index.js";
 import { handleInboundSms, recordDeliveryReceipt } from "../modules/recruiting/index.js";
 import { handleAlertInboundSms, recordAlertTextReceipt } from "../modules/messaging/index.js";
-import { parseTelnyxDeliveryReceipt, parseTelnyxInboundSms } from "../lib/sms.js";
+import { inboundSmsLine, parseTelnyxDeliveryReceipt, parseTelnyxInboundSms } from "../lib/sms.js";
 import { verifyTelnyxSignature } from "../lib/telnyxSignature.js";
 
 /** Inbound integration webhooks. No user auth — authenticated by provider signature instead. */
@@ -87,7 +87,8 @@ export function webhooksRouter(): Router {
         return;
       }
 
-      const { from, text, isInbound } = parseTelnyxInboundSms(req.body);
+      const inbound = parseTelnyxInboundSms(req.body);
+      const { from, text, isInbound } = inbound;
       if (!isInbound) {
         // A profile event (`message.sent`), not a message. Accepted so it is not retried.
         res.json({ ok: true, ignored: true });
@@ -95,13 +96,12 @@ export function webhooksRouter(): Router {
       }
 
       const admin = getSupabaseAdmin(env);
-      // An office person's STOP or START on their alert texts (HOME-TIME D-HT17), FIRST: it sends nothing
-      // and cannot fail on a provider, so an applicant-side error below can never cost a STOP.
-      await handleAlertInboundSms(admin, from, text);
-      const { revoked, helped } = await handleInboundSms(admin, env, from, text);
+      // Two numbers share this webhook, and a reply is about the number it was sent to (`inboundSmsLine`):
+      // an office person's STOP, START or HELP on the alert number (HOME-TIME D-HT17) never touches an
+      // applicant's consent, and an applicant's STOP on the recruiting number never touches alert texts.
+      if (inboundSmsLine(env, inbound) === "staff_alerts") await handleAlertInboundSms(admin, env, from, text);
+      else await handleInboundSms(admin, env, from, text);
       res.json({ ok: true });
-      void revoked;
-      void helped;
     }),
   );
 

@@ -111,6 +111,14 @@ export const ALERT_TEXT_CONSENT = {
 
 export const alertPhoneCodeText = (code: string): string => `${SENDER} code: ${code}. It expires in ${ALERT_PHONE_CODE_MINUTES} minutes. If you did not ask for it, ignore this text.`;
 
+/**
+ * The answer to HELP on the alert number, which the mobile carriers require as they require STOP. It
+ * names the programme, where the terms are, and how to stop; the host is passed in (`WEB_APP_URL`) for
+ * the reason `smsHelpReply` gives. One message part: under 160 GSM-7 characters on the production host.
+ */
+export const alertTextHelpReply = (siteHost: string): string =>
+  `${SENDER} work alerts for office staff. Help: ${siteHost}/sms-terms. Msg & data rates may apply. ${OPT_OUT}`;
+
 /** `POST /api/me/alerts/phone` — text a code to this number. `agreed` is the consent above, as a literal. */
 export const alertPhoneStartSchema = z.object({ phone: z.string().min(7).max(24), agreed: z.literal(true) });
 export type AlertPhoneStart = z.infer<typeof alertPhoneStartSchema>;

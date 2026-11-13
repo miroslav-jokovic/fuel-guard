@@ -25,10 +25,29 @@ import { outboundAllowed, WITHHELD_DETAIL } from "./outboundAllowlist.js";
  * the wire — stated here rather than discovered by whoever turns it on.
  */
 
+/**
+ * Which programme a text belongs to, and therefore which number it leaves from.
+ *
+ * ── TWO LINES BECAUSE A NUMBER IS VERIFIED FOR ONE USE (2026-11-13) ───────────────────────────
+ * The toll-free number behind `TELNYX_FROM` is verified with the mobile carriers as "HR / Staffing",
+ * and its filing describes applicant texts only. Telnyx allows one use case per number, and filing a
+ * new one un-verifies the number until it is approved — about a week in which no applicant could be
+ * texted. So office alert texts (HOME-TIME-PLAN HT6) leave from a number of their own, verified for
+ * what they are, and never from the recruiting one: a text outside a number's filed use is what gets
+ * the number blocked for everybody on it.
+ *
+ * There is NO fallback from `staff_alerts` to the applicant sender, on purpose. Unset means alert
+ * texts are not offered at all (`smsConfigured(env, "staff_alerts")` is what the pages ask).
+ */
+export const SMS_LINES = ["applicants", "staff_alerts"] as const;
+export type SmsLine = (typeof SMS_LINES)[number];
+
 export interface OutgoingSms {
   to: string;
   /** The whole message, INCLUDING the sender identification carriers require. */
   body: string;
+  /** The line it leaves on. Absent means `applicants` — every caller that predates the second line. */
+  line?: SmsLine;
 }
 
 export interface SmsResult {
@@ -43,20 +62,21 @@ export interface SmsResult {
 // A sender is a number OR a messaging profile — Telnyx accepts either, and a profile picks a number
 // from its pool. Requiring one of the two rather than the number specifically is what lets the account
 // move to a pool later without this file changing.
-const senderOf = (env: Env): { from: string } | { messaging_profile_id: string } | null =>
-  env.TELNYX_FROM
-    ? { from: env.TELNYX_FROM }
-    : env.TELNYX_MESSAGING_PROFILE_ID
-      ? { messaging_profile_id: env.TELNYX_MESSAGING_PROFILE_ID }
-      : null;
+type Sender = { from: string } | { messaging_profile_id: string };
+const senderOf = (env: Env, line: SmsLine): Sender | null => {
+  const [from, profile] =
+    line === "staff_alerts" ? [env.TELNYX_ALERTS_FROM, env.TELNYX_ALERTS_MESSAGING_PROFILE_ID] : [env.TELNYX_FROM, env.TELNYX_MESSAGING_PROFILE_ID];
+  return from ? { from } : profile ? { messaging_profile_id: profile } : null;
+};
 
 /**
  * Whether a message COULD leave at all — a provider, its key, and something to send from. The one
  * definition `sendSms` itself sends on, exported so a caller that must record "not configured" before
- * asking anything else (a load dispatch, LR-D2) reads the same answer rather than restating it.
+ * asking anything else (a load dispatch, LR-D2) reads the same answer rather than restating it. Asked
+ * per line: the applicant number being set says nothing about whether an office alert can be texted.
  */
-export const smsConfigured = (env: Env): boolean =>
-  env.SMS_PROVIDER === "telnyx" && Boolean(env.TELNYX_API_KEY) && senderOf(env) !== null;
+export const smsConfigured = (env: Env, line: SmsLine = "applicants"): boolean =>
+  env.SMS_PROVIDER === "telnyx" && Boolean(env.TELNYX_API_KEY) && senderOf(env, line) !== null;
 
 /**
  * Send one message.
@@ -75,8 +95,9 @@ export async function sendSms(env: Env, message: OutgoingSms): Promise<SmsResult
     return { ok: false, provider: "none", detail: WITHHELD_DETAIL };
   }
   try {
-    const sender = senderOf(env);
-    if (smsConfigured(env) && sender) {
+    const line = message.line ?? "applicants";
+    const sender = senderOf(env, line);
+    if (smsConfigured(env, line) && sender) {
       const r = await fetch("https://api.telnyx.com/v2/messages", {
         method: "POST",
         headers: {
@@ -135,16 +156,45 @@ export interface ParsedInboundSms {
   /** E.164 as the carrier gave it; `normalisePhone` in `applicationSms.ts` owns the canonical form. */
   from: string;
   text: string;
+  /** OUR number the person texted, and the messaging profile it sits on: which line the reply is about. */
+  to: string;
+  messagingProfileId: string;
 }
 
 export function parseTelnyxInboundSms(body: unknown): ParsedInboundSms {
   const data = (body as { data?: Record<string, unknown> } | null)?.data;
-  const payload = data?.payload as { from?: { phone_number?: unknown }; text?: unknown } | undefined;
+  const payload = data?.payload as
+    | { from?: { phone_number?: unknown }; to?: Array<{ phone_number?: unknown }>; messaging_profile_id?: unknown; text?: unknown }
+    | undefined;
   const from = typeof payload?.from?.phone_number === "string" ? payload.from.phone_number : "";
   const text = typeof payload?.text === "string" ? payload.text : "";
+  const firstTo = Array.isArray(payload?.to) ? payload.to[0]?.phone_number : undefined;
+  const to = typeof firstTo === "string" ? firstTo : "";
+  const messagingProfileId = typeof payload?.messaging_profile_id === "string" ? payload.messaging_profile_id : "";
   // The event type is the gate, not the presence of a `from`: `message.sent` carries one too, and
   // treating our OWN outbound message as an inbound STOP would revoke the consent we just used.
-  return { isInbound: data?.event_type === "message.received" && from !== "", from, text };
+  return { isInbound: data?.event_type === "message.received" && from !== "", from, text, to, messagingProfileId };
+}
+
+const digitsOf = (phone: string): string => phone.replace(/\D/g, "");
+
+/**
+ * Which line an inbound text is a reply on: the staff-alert line when it was sent to that line's
+ * number (or arrived on that line's messaging profile), the applicant line otherwise.
+ *
+ * A reply belongs to the number it was sent to. STOP to the alert number stops alert texts and leaves
+ * an applicant's consent alone, and the reverse — the mobile carriers block per number too, so a START
+ * honoured across lines would switch on texts the carrier is still refusing. Anything unrecognised is
+ * the applicant line: it was the only line for the first two months, and its handler is the one that
+ * must never miss a STOP.
+ */
+export function inboundSmsLine(env: Env, inbound: Pick<ParsedInboundSms, "to" | "messagingProfileId">): SmsLine {
+  const number = env.TELNYX_ALERTS_FROM ? digitsOf(env.TELNYX_ALERTS_FROM) : "";
+  if (number && digitsOf(inbound.to) === number) return "staff_alerts";
+  const profile = env.TELNYX_ALERTS_MESSAGING_PROFILE_ID;
+  // The profile decides only when it is the alert line's OWN: two numbers on one shared profile are told apart by number.
+  if (profile && profile !== env.TELNYX_MESSAGING_PROFILE_ID && inbound.messagingProfileId === profile) return "staff_alerts";
+  return "applicants";
 }
 
 /**

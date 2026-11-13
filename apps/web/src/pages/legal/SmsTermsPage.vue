@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { SMS_STOP_KEYWORDS, smsHelpReply } from "@silvicom/shared";
+import { ALERT_TEXT_QUIET_DEFAULT, SMS_STOP_KEYWORDS, alertTextClock, alertTextHelpReply, smsHelpReply } from "@silvicom/shared";
 import LegalDocument from "@/features/legal/LegalDocument.vue";
 import LegalSection from "@/features/legal/LegalSection.vue";
 import { COMPANY_ADDRESS, COMPANY_NAME, PRODUCT_NAME, supportEmail } from "@/features/legal/legalMeta";
-import { SMS_PRIVACY_PATH } from "@/lib/legalPaths";
+import { SMS_PRIVACY_PATH, SMS_STAFF_ALERTS_ANCHOR } from "@/lib/legalPaths";
 
 /**
  * The text-message programme's terms (SMS-OPT-IN-PLAN SMS3, D-SMS4). Public, unauthenticated,
@@ -32,6 +32,16 @@ const email = computed(() => supportEmail());
 const stopWords = SMS_STOP_KEYWORDS.map((k) => k.toUpperCase());
 // The host this page is served from is the host the webhook's reply names — `WEB_APP_URL` there.
 const helpReply = computed(() => smsHelpReply(typeof window === "undefined" ? "" : window.location.host));
+
+/**
+ * ── THE SECOND PROGRAMME: WORK ALERTS TO OFFICE STAFF (HOME-TIME HT6, 2026-11-13) ─────────────────
+ * A different number, a different audience and a different consent (a code typed back under My alerts),
+ * so it has a section of its own rather than sentences mixed into the applicant ones — the reviewer of
+ * each number's verification must find that number's programme whole. Its HELP answer and its default
+ * quiet hours are read from `alertTexts.ts`, for the reason the applicant ones are.
+ */
+const alertHelpReply = computed(() => alertTextHelpReply(typeof window === "undefined" ? "" : window.location.host));
+const alertQuiet = `${alertTextClock(ALERT_TEXT_QUIET_DEFAULT.startMin)} to ${alertTextClock(ALERT_TEXT_QUIET_DEFAULT.endMin)}`;
 </script>
 
 <template>
@@ -123,10 +133,44 @@ const helpReply = computed(() => smsHelpReply(typeof window === "undefined" ? ""
       </p>
     </LegalSection>
 
+    <LegalSection :id="SMS_STAFF_ALERTS_ANCHOR" title="Work alert texts for office staff">
+      <p>
+        <span class="text-ink">Silvicom 360 work alerts</span> are a separate programme, sent from a
+        separate number, to people who work in the office of a trucking company that uses
+        {{ PRODUCT_NAME }}. They are operational alerts about that company's own trucks and drivers, for
+        example that a driver is past the day they were due back from home. Applicants and drivers do
+        not receive them. They are not marketing, and carry no third-party content.
+      </p>
+      <p>
+        You receive them only if you sign in, open My alerts, enter your own mobile number, agree to the
+        text shown there, and type back the 6-digit code we text to that number. Agreeing is optional and
+        is not a condition of your work: every alert is also shown in {{ PRODUCT_NAME }} and can be sent
+        by email.
+      </p>
+      <p>
+        Message frequency varies with what happens in your fleet. Texts are held overnight, from
+        {{ alertQuiet }} on your company's clock unless your company set other hours, and sent in the
+        morning. Message and data rates may apply. Mobile carriers are not liable for delayed or
+        undelivered messages.
+      </p>
+      <p>
+        Reply <span class="font-semibold text-ink">STOP</span> to any work alert to end them, or switch
+        them off under My alerts. Reply <span class="font-semibold text-ink">START</span> to that number
+        to turn them back on. Reply <span class="font-semibold text-ink">HELP</span> for help; the answer
+        is:
+      </p>
+      <p class="rounded-surface bg-surface-muted p-3">{{ alertHelpReply }}</p>
+      <p>
+        We do not sell your mobile number or share it, or your consent to these texts, with third parties
+        or affiliates for their marketing or promotional purposes.
+      </p>
+    </LegalSection>
+
     <LegalSection id="who-we-are" title="Who we are">
       <p>
         {{ COMPANY_NAME }}, {{ COMPANY_ADDRESS }}. {{ PRODUCT_NAME }} is our driver
-        compliance software, and these terms cover its driver application text messages only.
+        compliance software. These terms cover its driver application text messages and, in their own
+        section above, its work alert texts to office staff.
       </p>
     </LegalSection>
   </LegalDocument>

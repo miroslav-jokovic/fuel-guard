@@ -376,11 +376,68 @@ Known limits, stated so nobody finds them later:
 
 - "Truck with the driver" is what the dispatcher said, not a GPS reading. A check of the truck's position
   against the driver's home ZIP is possible later (185 of 186 drivers have one); it is not in this plan.
-- The toll-free number was verified with Telnyx for hiring messages. The owner ruled it may carry staff
-  alerts (D-NR5); whether carriers deliver them is proved by HT6's real text, not assumed.
+- The toll-free number +1 833 352 1766 is verified with Telnyx as "HR / Staffing", for applicant texts
+  only. **Staff alerts do not use it** (2026-11-13, §7.1): they leave from a second number of their own,
+  and until that number is set on the server no alert text is offered or sent. This replaces the earlier
+  reading of D-NR5 that the recruiting number could carry them.
 - Drivers cannot request home time from the app here.
 
-Blockers: none open.
+Blockers:
+
+- **Alert texts are off until the second number exists and is verified** (§7.1). Bell and email are not
+  affected. Owner acts: confirm the second-number route, then the number is bought and its verification
+  submitted; about 5 to 10 business days of carrier review follow.
+
+### 7.1 The second number, for staff alert texts (2026-11-13)
+
+**Why.** Telnyx verifies a toll-free number for one use case. The recruiting number's filing
+(`14c37df3-…`, Verified 2026-09-30) describes applicant texts and nothing else. Sending staff alerts on
+it is traffic outside its filed use, which is what gets a number blocked — for applicants too. Changing
+its filing sends it back to review, and applicant texts stop meanwhile.
+
+**What the code does** (`lib/sms.ts` `SMS_LINES`): two lines, `applicants` and `staff_alerts`. Alert
+texts, the 6-digit code and the HELP answer leave on `staff_alerts`, whose sender is
+`TELNYX_ALERTS_FROM` (a number) or `TELNYX_ALERTS_MESSAGING_PROFILE_ID`. There is no fallback to the
+recruiting number. With neither set: no Text column, no quiet-hours form, "Text alerts are not set up
+yet" under My alerts, and the sender queues no text. An inbound reply is handled by the line whose
+number it was sent to (`inboundSmsLine`): STOP to the alert number stops alert texts and leaves an
+applicant's consent alone, and the reverse.
+
+**Setting it up, in order.**
+
+1. Buy a toll-free number on the same Telnyx account (about $1 once and $1 a month) and put it on the
+   existing messaging profile `4001a077-…` ("Silvicom 360 - driver SMS"). That profile's webhook is
+   already `https://360.silvicominc.com/api/webhooks/sms` (API version 2), so STOP, START, HELP and
+   delivery receipts for the new number arrive with no further setup. Orders go to
+   `POST /v2/number_orders`; the CLI's `number order` is broken.
+2. Submit the verification below (`POST /v2/messaging_tollfree/verification/requests`).
+3. Only when it reads **Verified**: set `TELNYX_ALERTS_FROM` to the number in E.164 on the api and web
+   services of staging and production (`docs/DEPLOYMENT.md`), then send one real alert text (HT7).
+   Setting it earlier would offer a form whose code text the carriers refuse (error 40329).
+
+**The verification, field by field.** Same business fields as the recruiting number's request (read
+them from it with `GET …/requests/14c37df3-1df5-57e2-b612-8127014e609e`; the EIN is Silvicom's). The
+fields that differ:
+
+| Field | Value |
+|---|---|
+| phoneNumbers | the new number |
+| useCase | `App Notifications` (in Telnyx's `UseCaseCategories` enum, read from their published API spec 2026-11-13; `System Alerts` is the second choice. "Account Notifications" is NOT in the enum.) |
+| messageVolume | `1,000` (the lowest option; real volume is tens a month) |
+| useCaseSummary | Silvicom Inc, a trucking carrier, sends operational alert texts from its own fleet software, Silvicom 360, to its own office staff (dispatchers and managers) about the company's trucks and drivers, for example that a driver is past the day he was due back from home time. Only staff who sign in, enter their own mobile number, agree to the disclosure and type back a 6-digit code receive them. No applicants, drivers, customers or marketing. Texts are held overnight. |
+| productionMessageContent | Silvicom 360: Home time overstayed. Marcus Hill (truck 702) was due back from home time on 11/12 and has not left. Reply STOP to end.<br><br>Silvicom 360 code: 482913. It expires in 10 minutes. If you did not ask for it, ignore this text. |
+| optInWorkflow | Digital opt-in inside the signed-in application. A staff member opens their account menu, chooses My alerts, and under "Text alerts" enters their own mobile number and ticks an unchecked box that reads: "Text me work alerts from Silvicom 360 at this number. Message frequency varies. Message and data rates may apply. Reply STOP to end, HELP for help." Links to the SMS terms and privacy policy are beside it. We text a 6-digit code to that number, and alerts start only after the person types the code back. The page is behind a login, so screenshots are provided. |
+| optInWorkflowImageURLs | ⚠ to make: three screenshots of My alerts → Text alerts (the form, the box ticked, the code step), published under `apps/web/public/compliance/staff-alerts-opt-in/` as the applicant ones are. Retake them if the form or `ALERT_TEXT_CONSENT` changes. |
+| optInConfirmationResponse | Silvicom 360 code: 482913. It expires in 10 minutes. If you did not ask for it, ignore this text. (The code text is the only message sent at opt-in; nothing is sent after the code is typed.) |
+| helpMessageResponse | Silvicom 360 work alerts for office staff. Help: 360.silvicominc.com/sms-terms. Msg & data rates may apply. Reply STOP to end. |
+| privacyPolicyURL | https://360.silvicominc.com/privacy#text-messages |
+| termsAndConditionURL | https://360.silvicominc.com/sms-terms#staff-alerts |
+| additionalInformation | Silvicom 360 is Silvicom Inc's own fleet software, served at 360.silvicominc.com on the company's domain. Recipients are the company's own employees. Opt-in is optional and not a condition of employment; every alert is also shown in the application and by email. STOP, START and HELP are handled automatically. This number is separate from our verified applicant number +18333521766 (HR / Staffing) and carries no applicant messages. |
+
+Every free-text field caps at 500 characters, and `doingBusinessAs` is required (both learned on the
+first request). **The terms and privacy URLs must be live on production before the request is
+submitted** — they ship with the release that carries this change — or the reviewer opens a page with
+no staff section.
 
 ## 8. What this does NOT do
 
@@ -639,3 +696,18 @@ sidebar.
   - Tests: shared 9 more (taken from a role, given to a role, a person both ways, the two locked
     roles, the fallback, the save rule, the shown set); the job 4 more, with production's own case;
     routes 4 more; web 1. Mutation run: 11 deliberate breakages, 11 caught.
+- 2026-11-13 — **Staff alert texts get a sender of their own** (branch `claude/staff-alert-sender`), so
+  the release that first carries home time cannot text an alert from the recruiting number.
+  - **Found after HT6 merged:** the Text column and the "Text alerts" form appeared wherever the
+    applicant sender was configured, which is true on production; the first confirmed number would
+    have been texted its code from +1 833 352 1766, a number verified for applicant texts only.
+  - **Built:** two lines in `lib/sms.ts` (§7.1). "Available" for alert texts is asked of the alert
+    line only; the sender queues nothing without it (`readTextable`), so a number confirmed on staging
+    with the old behaviour is not texted either. Replies are split by the number they were sent to;
+    before, one STOP was applied to both programmes. HELP on the alert number gets its own answer
+    (`alertTextHelpReply`) — it was answered with the applicant words.
+  - **Public pages:** the text message terms gain a "Work alert texts for office staff" section, the
+    privacy policy a paragraph, and the consent form links to both. Legal version 1.2.
+  - **Not done here, and why:** no number is bought and nothing is submitted to Telnyx — both wait for
+    the owner to confirm the second-number route. The opt-in screenshots are still to make.
+  - Tests: api 9 more, web 2 more, shared 1 more. Mutation run: 7 deliberate breakages, 7 caught.

@@ -18,6 +18,7 @@ import {
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { sendEmail } from "../../lib/mailer.js";
+import { alertTextsAvailable } from "./alertContacts.js";
 import { notify } from "./notify.js";
 import { readAlertTextQuiet, textOne, type AlertTextClock } from "./alertTexts.js";
 
@@ -140,8 +141,13 @@ export async function readAlertRoutes(admin: SupabaseClient, orgId: string, aler
   }));
 }
 
-/** The members who can be texted, with the number: one they confirmed and have not stopped (D-NR5). */
-async function readTextable(admin: SupabaseClient, orgId: string): Promise<Map<string, string>> {
+/**
+ * The members who can be texted, with the number: one they confirmed and have not stopped (D-NR5).
+ * Nobody, when this server has no alert sender: a number confirmed while one was set is still on its
+ * row, and a text queued for it could only fail.
+ */
+async function readTextable(admin: SupabaseClient, env: Env, orgId: string): Promise<Map<string, string>> {
+  if (!alertTextsAvailable(env)) return new Map();
   const { data, error } = await admin
     .from("notification_contacts")
     .select("user_id, phone")
@@ -159,8 +165,8 @@ export interface AlertAudience {
 }
 
 /** Everything `recipientsFor` needs for one alert, read once per run and reused for every event. */
-export async function readAlertAudience(admin: SupabaseClient, orgId: string, alert: AlertKey): Promise<AlertAudience> {
-  const [routes, directory, textable] = await Promise.all([readAlertRoutes(admin, orgId, alert), readDirectory(admin, orgId), readTextable(admin, orgId)]);
+export async function readAlertAudience(admin: SupabaseClient, env: Env, orgId: string, alert: AlertKey): Promise<AlertAudience> {
+  const [routes, directory, textable] = await Promise.all([readAlertRoutes(admin, orgId, alert), readDirectory(admin, orgId), readTextable(admin, env, orgId)]);
   return { routes, directory, textable };
 }
 
@@ -189,7 +195,7 @@ export async function sendAlerts(admin: SupabaseClient, env: Env, orgId: string,
   const result: AlertSendResult = { bells: 0, emails: 0, texts: 0, textsHeld: 0, fellBack: 0 };
   if (events.length === 0) return result;
   const def = alertDefinition(alert);
-  const audience = await readAlertAudience(admin, orgId, alert);
+  const audience = await readAlertAudience(admin, env, orgId, alert);
   const fallback = audience.directory.members.filter((m) => alertMemberCanManage(m, def.section)).map((m) => m.userId);
 
   /** Per person, the events to email them about, and to text them about. */

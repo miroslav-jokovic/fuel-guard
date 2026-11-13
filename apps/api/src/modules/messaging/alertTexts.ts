@@ -9,6 +9,7 @@ import {
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { redactNumber, sendSms } from "../../lib/sms.js";
+import { ALERT_TEXT_LINE } from "./alertContacts.js";
 
 /**
  * Alert texts: queued, held overnight, sent, and their outcome recorded (HOME-TIME-PLAN HT6, D-HT16,
@@ -80,7 +81,7 @@ async function sendQueuedText(admin: SupabaseClient, env: Env, orgId: string, ro
     return "skipped";
   }
 
-  const sent = await sendSms(env, { to: row.destination, body: alertTextBody(row.title, row.items.map((i) => i.line)) });
+  const sent = await sendSms(env, { to: row.destination, body: alertTextBody(row.title, row.items.map((i) => i.line)), line: ALERT_TEXT_LINE });
   if (sent.ok) {
     await settle({ status: "sent", sent_at: now.toISOString(), attempts: 1, provider_message_id: sent.messageId ?? null });
     return "sent";

@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { ALERT_TEXT_CONSENT, alertPhoneConfirmSchema, normalisePhone } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCheckbox as BaseCheckbox, AppFormField as FormField, AppInput as BaseInput, QueryState } from "@silvicom/ui";
+import { SMS_PRIVACY_PATH, SMS_STAFF_ALERTS_TERMS_PATH } from "@/lib/legalPaths";
 import { useToastStore } from "@/stores/toast";
 import { useConfirmAlertPhone, useMyAlertContact, useStartAlertPhone, useStopAlertTexts } from "./useAlertRouting";
 import { useMyAlertsPanel } from "./useMyAlertsPanel";
@@ -13,6 +14,11 @@ import { useMyAlertsPanel } from "./useMyAlertsPanel";
  * The four states are the server's (`alertContactState`). The refusals are shown in the server's words —
  * "2 tries left", "wait a minute" — beside the field, because they are what the person must act on.
  * Nothing is offered on a server that cannot send a text.
+ *
+ * The two links under the box are the programme's public terms and the privacy policy. They are beside
+ * the consent, not inside it (`ALERT_TEXT_CONSENT` is stored word for word), and they open in a new tab
+ * so a half-typed number is not lost. A mobile carrier reviewing the alert number's verification looks
+ * for exactly these on the screen where a person agrees.
  */
 const panel = useMyAlertsPanel();
 const contact = useMyAlertContact(panel.open);
@@ -116,6 +122,11 @@ function change(): void {
             <BaseInput :id="id" v-model="phone" type="tel" inputmode="tel" autocomplete="tel" class="max-w-60" />
           </FormField>
           <BaseCheckbox v-model="agreed">{{ ALERT_TEXT_CONSENT.text }}</BaseCheckbox>
+          <p class="text-xs text-ink-muted">
+            <a :href="SMS_STAFF_ALERTS_TERMS_PATH" target="_blank" rel="noopener" class="text-link hover:text-link-hover">Text message terms</a>
+            and
+            <a :href="SMS_PRIVACY_PATH" target="_blank" rel="noopener" class="text-link hover:text-link-hover">privacy policy</a>.
+          </p>
           <div class="flex flex-wrap gap-3">
             <BaseButton variant="primary" type="submit" :disabled="!phoneOk || !agreed || busy">{{ start.isPending.value ? "Sending…" : "Text me a code" }}</BaseButton>
             <BaseButton v-if="state !== 'none'" variant="link" :disabled="busy" @click="changing = false">Cancel</BaseButton>
