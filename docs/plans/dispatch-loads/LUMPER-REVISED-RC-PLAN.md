@@ -1,6 +1,6 @@
 # Lumper fees — track the revised rate confirmation until the lumper is billed
 
-Status: **PROPOSED 2026-11-13. Research done, nothing built.** Asked for by the owner on 2026-11-12:
+Status: **APPROVED 2026-11-13 ("proceed as recommended, start building"). LRC1's statements are written and dry-run on the analytics copy; nothing runs on the VM until IT grants the tables.** Asked for by the owner on 2026-11-12:
 when we pay a lumper fee, the broker owes it to us, and the proof is a revised rate confirmation (RC)
 from the broker. Today dispatchers and accounting check each load by hand. 360 should track every
 lumper, know whether the revised RC is in, and remind the right people every day until it is.
@@ -129,8 +129,9 @@ hand checking the owner described, which the database cannot measure.
 - **D-LRC10. The case answers "where and what did we pay" on one line** (owner, 2026-11-13): the
   amount paid, the day, the EFS reference, the driver, the broker, and the stop where the lumper was
   paid. The list page shows the same fields for every open case, with "Revised RC: yes / no" as its
-  own column, to everyone the owner gives the page to. Which McLeod column names the stop of a lumper
-  is not yet confirmed; LRC1 checks it, and until then the case shows the order's delivery stops.
+  own column, to everyone the owner gives the page to. McLeod does not say at which stop a lumper was
+  paid: `other_charge.stop_id` is empty on all 285 `LUM` rows of 2026 (measured in LRC1). So "where"
+  is the order's consignee stop, read with the order.
 - **D-LRC9. Two weeks of silent running before the first reminder.** The cases are built and shown
   to admins only; each day's list is compared with what billing actually did. Reminders are switched
   on when the list has had no false case for a week.
@@ -236,6 +237,19 @@ the owner says otherwise.
 **Q-LRC8 — may we check whether the EFS feed shows lumper money codes?** If it does, a case can open
 the same day the money code is used, before anyone keys anything in McLeod.
 
+**Q-LRC9 — a case older than the sweep's 90 days.** A case now stays open until the revised RC is
+filed, so it can outlive the window, and the feed then stops refreshing its paid and billed facts.
+- **(a) Recommended: the ingest answer names the open cases the sweep did not return, and the feed
+  looks those orders up by number** (the pattern the loads close read uses). One more statement for
+  IT to review; built with LRC2, before any reminder is sent.
+- (b) Widen the window to a year. Simpler, but reads about four times the rows every hour.
+
+**Rulings, 2026-11-13.** The owner answered "proceed as recommended": Q-LRC3 (every `LUM` row),
+Q-LRC5 (the order's `operations_user`), Q-LRC7 (lumper only, case keyed by charge code) and Q-LRC2
+(08:00 Central, Monday to Friday) and Q-LRC4 (no exempt customers on day one) stand as recommended.
+Q-LRC1 is (b), from his statement of the purpose the same day. Q-LRC6: new SQL goes to IT before the
+VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
+
 ## 6. Progress log
 
 - 2026-11-13 — Sandbox research done from the office (analytics copy, restore of 2026-10-09). Found
@@ -257,3 +271,13 @@ the same day the money code is used, before anyone keys anything in McLeod.
   pieces. What can be built before IT grants the tables: the feed's statements and dry run on the
   copy (LRC1), the tables and ingest route (LRC2), the rules, and the page (LRC3). Only the VM
   reading live LME waits.
+- 2026-11-13, LRC1 statements — Four statements in `queries.mjs` (`LUMPER_ORDERS`, `LUMPER_CHARGES`,
+  `LUMPER_PAYMENTS`, `LUMPER_BILLS`), the reader `tools/mcleod-agent/lumper.mjs`, and Part 7 of the
+  review file (33 statements now). Dry run on the analytics copy, 90 days to 2026-10-09: 87 orders,
+  90 charges ($25,490.56), 170 settlement lines (87 money codes $24,879.33, all with an EFS
+  reference; 9 pending; 1 voided; 3 with no order number), 109 bills of 85 orders (12 credit memos);
+  7 orders paid with no `LUM` charge and 7 billed with no lumper line; 0 rows outside the order
+  list; about 0.7 seconds for all four. Not done in LRC1 yet: the feed is not on the service's
+  schedule and posts nowhere (it needs LRC2's ingest route), and the VM's file list
+  (`windows/manifest.mjs`) is regenerated on the day the VM is updated. The regenerated review file
+  must go to IT before that day.
