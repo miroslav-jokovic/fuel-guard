@@ -132,6 +132,18 @@ hand checking the owner described, which the database cannot measure.
   own column, to everyone the owner gives the page to. McLeod does not say at which stop a lumper was
   paid: `other_charge.stop_id` is empty on all 285 `LUM` rows of 2026 (measured in LRC1). So "where"
   is the order's consignee stop, read with the order.
+- **D-LRC11. Who works the cases is the screen entitlement `dispatch.lumper-cases`**, not a section.
+  Dispatch and billing work the same list and no section holds both: the dispatcher has no money
+  section and the accountant has no Dispatch. The screen starts on for every role that manages
+  Dispatch or Billing, and an admin turns it on for another role **or for one person** on Settings →
+  Permissions, which is "other users we select". `/api/lumper-cases` asks for the same screen. There
+  is no separate "may only look": whoever sees that an RC is missing can file it. (First built as a
+  named permission the same day and replaced before it merged: the screen entitlement already
+  answers per role and per person, and a second switch for the same question would have been a copy.)
+- **D-LRC12. A filed revised RC is never changed or deleted; a wrong paper is removed with a reason.**
+  The row stays, with who removed it and why, and stops counting. PDF, JPEG or PNG, up to 25 MB, and
+  the API checks the stored bytes before the paper counts. An email is saved as a PDF first; taking
+  the email itself is LRC6.
 - **D-LRC9. Two weeks of silent running before the first reminder.** The cases are built and shown
   to admins only; each day's list is compared with what billing actually did. Reminders are switched
   on when the list has had no false case for a week.
@@ -292,4 +304,19 @@ VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
   measured for the rule: every 2026 bill has `canceled` N and `rebilled` N, and a credit memo's
   amounts are positive. Not built yet: the connector does not post (no schedule entry, the VM is
   unchanged), the RC file and the close action are LRC3, and Q-LRC9 is still open.
+- 2026-11-13, LRC3 server side — Migration 0601 (`lumper_case_files`, the private `lumper-files`
+  bucket) and `/api/lumper-cases`: the list (open by default, `?scope=all` for every case) with where
+  and what we paid, the settlement lines that name no order, and the time of the last sweep; filing
+  the revised RC in two steps (a place to upload, then the bytes are checked and the paper is on the
+  case); a link to open it; removing a wrong paper; closing with a reason; reopening. Every act is
+  on the Audit page. D-LRC11 and D-LRC12 added. Next: the web page.
+- 2026-11-13, LRC3 page — `/lumper-fees` ("Lumper fees", under Dispatch): open cases oldest first
+  with broker, delivery place, dispatcher, what was paid, "Revised RC: on file / missing", status
+  and days; search, status, "show closed", the page and the open case in the URL. The case drawer
+  shows where and what we paid, says what the state asks for, and files the RC, removes a wrong
+  paper with a reason, closes with a reason and reopens. Settlement lines with no order number are
+  listed under "Lumper paid, order unknown". The page says when McLeod was last read, and says so
+  plainly while the connector's lumper read is not switched on. An amount the dispatcher keyed that
+  payroll has not paid yet is shown and labelled "keyed". Not done: the case on the load page
+  (the list is the door for now), and a browser pass on staging once the tables hold data.
 

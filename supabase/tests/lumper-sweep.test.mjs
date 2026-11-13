@@ -1,7 +1,7 @@
 // LUMPER-REVISED-RC-PLAN step LRC2, migration 0600: one lumper sweep applied in one transaction. What the
 // sweep carries is written, what it no longer carries is removed inside its own window and nowhere else,
 // a case is opened once per order and never reopened or closed by a sweep, and another carrier's rows are
-// never touched.
+// never touched. Then 0601: the revised RC filed on a case is fixed once filed, and removed, never deleted.
 //
 // Run:  node supabase/tests/lumper-sweep.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -147,7 +147,31 @@ ok("a case cannot be half closed", (await sqlstate(`update lumper_cases set clos
 ok("a close reason outside the list is refused", (await sqlstate(`update lumper_cases set closed_at = now(), closed_by = $2, close_reason = 'because' where org_id = $1 and order_id = 'A'`, [ORG, closer])) === "23514");
 ok("a settlement state outside paid and pending is refused", (await sqlstate(`insert into mcleod_lumper_payments (org_id, company_id, settlement_state, payment_id, deduct_code, amount) values ($1, 'TMS', 'maybe', 'X', 'UNL', 1)`, [ORG])) === "23514");
 
-for (const t of ["mcleod_lumper_orders", "mcleod_lumper_charges", "mcleod_lumper_payments", "mcleod_lumper_bills", "mcleod_lumper_sweeps", "lumper_cases"]) {
+// ── the revised RC on a case (0601) ───────────────────────────────────────────────────────────
+console.log("revised RC files");
+const CASE_A = (await one(`select id from lumper_cases where org_id = $1 and order_id = 'A'`, [ORG])).id;
+const THEIR_CASE = (await one(`select id from lumper_cases where org_id = $1 limit 1`, [OTHER])).id;
+const file = (o, c, over = {}) => {
+  const f = { id: crypto.randomUUID(), name: "revised-rc.pdf", mime: "application/pdf", size: 1200, sha: "a".repeat(64), ...over };
+  return outcome(
+    `insert into lumper_case_files (id, org_id, case_id, file_name, mime, byte_size, sha256, storage_path, uploaded_by) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [f.id, o, c, f.name, f.mime, f.size, f.sha, `${o}/${c}/${f.id}`, closer]).then((e) => ({ e, id: f.id }));
+};
+const filed = await file(ORG, CASE_A);
+ok("a revised RC is filed on a case", filed.e === null, JSON.stringify(filed.e));
+ok("a file cannot be put on another carrier's case (LR004)", (await file(ORG, THEIR_CASE)).e?.code === "LR004");
+ok("a file type outside PDF, JPEG and PNG is refused", (await file(ORG, CASE_A, { mime: "application/zip" })).e?.code === "23514");
+ok("a file name with a path in it is refused", (await file(ORG, CASE_A, { name: "../rc.pdf" })).e?.code === "23514");
+ok("a filed paper is never changed (LR002)", (await sqlstate(`update lumper_case_files set file_name = 'other.pdf' where id = $1`, [filed.id])) === "LR002");
+ok("a filed paper is never deleted (LR001)", (await sqlstate(`delete from lumper_case_files where id = $1`, [filed.id])) === "LR001");
+ok("removing needs who and why together", (await sqlstate(`update lumper_case_files set removed_at = now() where id = $1`, [filed.id])) === "23514");
+ok("it is removed with a person and a reason", (await sqlstate(`update lumper_case_files set removed_at = now(), removed_by = $2, remove_reason = 'wrong load' where id = $1`, [filed.id, closer])) === null);
+ok("a removed file is not removed twice (LR003)", (await sqlstate(`update lumper_case_files set remove_reason = 'again, differently' where id = $1`, [filed.id])) === "LR003");
+ok("the row is still there after removal", (await all(`select 1 from lumper_case_files where id = $1`, [filed.id])).length === 1);
+await db.query(`delete from organizations where id = $1`, [OTHER]);
+ok("an organisation that goes takes its cases and files with it", (await count("lumper_cases", OTHER)) === 0);
+
+for (const t of ["lumper_case_files", "mcleod_lumper_orders", "mcleod_lumper_charges", "mcleod_lumper_payments", "mcleod_lumper_bills", "mcleod_lumper_sweeps", "lumper_cases"]) {
   const row = await one(`select c.relrowsecurity rls, (select count(*) from pg_policies p where p.tablename = c.relname) n from pg_class c where c.relname = $1`, [t]);
   ok(`${t}: row level security on, no client policy`, row.rls === true && Number(row.n) === 0, JSON.stringify(row));
 }

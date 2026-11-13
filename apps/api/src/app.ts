@@ -35,7 +35,7 @@ import { tagsRouter } from "./tags/routes.js";
 import { registerTagResolvers } from "./tags/resolvers.js";
 import { auditRouter } from "./modules/org/index.js";
 import { integrationsRouter } from "./routes/integrations.js";
-import { dispatchLinksRouter, tmsIngestRouter, tmsRosterMasterRouter } from "./modules/mcleod/index.js";
+import { dispatchLinksRouter, lumperCasesRouter, tmsIngestRouter, tmsRosterMasterRouter } from "./modules/mcleod/index.js";
 import { fuelingRouter } from "./routes/fueling.js";
 import { fuelCardCapabilityRouter } from "./modules/efs/router.js";
 import { fuelCardEchoScanRouter } from "./modules/efs/routes/echoScan.js";
@@ -238,6 +238,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/notes", unitNotesRouter()); // notes on drivers, trucks, trailers — office-wide (UNIT-NOTES D-UN4)
   app.use("/api/roster/home-time", rosterHomeTimeRouter()); // a driver's home time and return, marked by dispatch (HOME-TIME D-HT7)
   app.use("/api/roster/home-time-settings", rosterHomeTimeSettingsRouter()); // the three alert thresholds, saved from Settings › Notifications (HOME-TIME D-HT12)
+  app.use("/api/lumper-cases", lumperCasesRouter()); // every load where we paid a lumper, and whether the revised RC is on file (LUMPER-REVISED-RC LRC3)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/card-fraud-incidents", cardFraudIncidentsRouter());
