@@ -51,6 +51,8 @@ vi.mock("@/features/chat/useChat", async () => {
   const { ref, watch } = await import("vue");
   const qs = (data: unknown) => ({ data: ref(data), isPending: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() });
   return {
+    // useChatDnd keys its query under CHAT_KEY (Do not disturb, CHAT-WEB-PUSH-PLAN WP5).
+    CHAT_KEY: ["chat"] as const,
     mergeLines: () => [],
     useChatInboxQuery: (_enabled: unknown, kinds?: string[]) => {
       state.inboxKinds = kinds ?? null;
@@ -186,7 +188,8 @@ async function render(path = "/chat") {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/chat", component: { template: "<div/>" }, meta: { title: "Chat" } }] });
   await router.push(path);
   await router.isReady();
-  const w = mount(ChatPage, { global: { plugins: [router] }, attachTo: document.body });
+  // Do not disturb reads the server through vue-query; it has its own test (ChatDoNotDisturb.test.ts).
+  const w = mount(ChatPage, { global: { plugins: [router], stubs: { ChatDoNotDisturb: true } }, attachTo: document.body });
   await flushPromises();
   return { w, router };
 }
