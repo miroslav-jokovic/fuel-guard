@@ -118,8 +118,9 @@ const WAIVERS = new Map([
   ["phone_lookups", "ADS-LEAD-INTAKE-PLAN.md LQ8b — recruiting/leads/phoneLookup.ts writes it from the lead_new ring job (schema-only, 0583; leaves in LQ8b's merge)"],
   // HOME-TIME-PLAN.md HT1 (0597, 0598) ships schema-only: a migration and its first reader never share a
   // merge. `notification_deliveries` needs no entry — 0598's own `queue_notification_delivery` inserts it.
-  // Each of the four leaves in the merge of the step named, which ships the code that reads or writes it.
-  ["home_time_settings", "HOME-TIME-PLAN.md HT2 — roster/homeTime reads the carrier's alert thresholds for the board's chips, and HT5's Settings page saves them (schema-only, 0597; leaves in HT2's merge)"],
+  // Each leaves in the merge of the step named, which ships the code that reads or writes it.
+  // home_time_settings left on 2026-11-13 in HT2: roster/homeTime/homeTime.ts reads the carrier's thresholds
+  // for the board's chips and the Home time tab (a read is producer evidence here); HT5's Settings page saves them.
   ["notification_routes", "HOME-TIME-PLAN.md HT4 — messaging's recipientsFor reads an alert's routes, and HT5's Settings page saves them (schema-only, 0598; leaves in HT4's merge)"],
   ["notification_channel_settings", "HOME-TIME-PLAN.md HT4 — messaging's sendAlert reads the hours a text is held, and HT5's Settings page saves them (schema-only, 0598; leaves in HT4's merge)"],
   ["notification_contacts", "HOME-TIME-PLAN.md HT4 — messaging's recipientsFor reads a person's confirmed number to decide whether SMS can reach them; HT6's \"My alerts\" writes it (schema-only, 0598; leaves in HT4's merge)"],
