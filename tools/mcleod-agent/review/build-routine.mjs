@@ -19,6 +19,7 @@ import { dirname, join } from "node:path";
 import * as Q from "../queries.mjs";
 import { SESSION_SETTINGS, STATEMENT_HINT, APP_NAME, STATEMENT_TIMEOUT_MS } from "../connection.mjs";
 import { JOBS } from "../schedule.mjs";
+import { LUMPER_WINDOW_DAYS } from "../lumper.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const ROUTINE_PATH = join(here, "SILVICOM-READ-ROUTINE.sql");
@@ -152,6 +153,28 @@ const PARTS = [
       ["STOPS OF THOSE MOVEMENTS", "Same columns as statement 2.", Q.DISPATCH_LOAD_STOPS_DELIVERED],
     ],
   },
+  {
+    title: "PART 7 - LUMPER FEES (added 2026-11-13; not on the schedule yet)",
+    intro: [
+      "Every load where we paid a lumper, so Silvicom 360 can list them and show which ones still",
+      "wait for the broker's revised rate confirmation. An order is read when it carries a LUM",
+      "charge and was ordered in the last 90 days, or when payroll keyed a lumper (deduction code",
+      "UNL or LUM) against it in the last 90 days. Measured on the analytics copy for the 90 days",
+      "to 2026-10-09: 87 orders, 90 charges, 170 settlement lines and 109 bills, about 0.7 seconds",
+      "for all four on one core. These need Part 5 of the grants file (other_charge,",
+      "other_charge_hist, drs_pending_deduct) and two tables of Part 4 (drs_deduct_hist,",
+      "billing_history); until then this part stops with a permission error under the connector's",
+      "login. No schedule runs it today. When it goes on the schedule the plan is once an hour, and",
+      "a new version of this file will say so first.",
+    ],
+    lumper: true,
+    statements: [
+      ["ORDERS WITH A LUMPER", "One row per order: the customer, the dispatcher and the delivery stop. Customer is read on the columns already granted (id, name, company_id).", Q.LUMPER_ORDERS],
+      ["LUMPER CHARGES ON THOSE ORDERS", "The LUM rows of other_charge as they stand now.", Q.LUMPER_CHARGES],
+      ["WHAT WE PAID", "Settlement lines with code UNL (the EFS money code) or LUM (the driver's reimbursement), paid and pending. No other deduction code is read.", Q.LUMPER_PAYMENTS],
+      ["INVOICES OF THOSE ORDERS", "Each bill of those orders with the lumper amount on it, summed from other_charge_hist.", Q.LUMPER_BILLS],
+    ],
+  },
 ];
 
 export function statementCount() {
@@ -160,7 +183,7 @@ export function statementCount() {
 
 /** Every statement in the file, in order — `review.test.mjs` checks each against the code. */
 export function routineStatements() {
-  return PARTS.flatMap((p) => p.statements.map(([title, , sql]) => ({ title, sql, finance: Boolean(p.finance) })));
+  return PARTS.flatMap((p) => p.statements.map(([title, , sql]) => ({ title, sql, finance: Boolean(p.finance), lumper: Boolean(p.lumper) })));
 }
 
 const wrapText = (text, width = 86) => {
@@ -220,6 +243,7 @@ export function buildRoutine() {
     "DECLARE @staleBefore datetime    = DATEADD(day, -30, GETDATE());",
     "DECLARE @windowStart varchar(32) = CONVERT(varchar(10), DATEADD(day, -75, GETDATE()), 23);",
     "DECLARE @windowEnd   varchar(32) = CONVERT(varchar(10), DATEADD(day, 1, GETDATE()), 23);",
+    `DECLARE @lumperSince varchar(32) = CONVERT(varchar(10), DATEADD(day, -${LUMPER_WINDOW_DAYS}, GETDATE()), 23);`,
     ...SAMPLE_CLOSE_IDS.map((id, i) => `DECLARE @id${i}         varchar(32) = '${id}';`),
     "",
   );
