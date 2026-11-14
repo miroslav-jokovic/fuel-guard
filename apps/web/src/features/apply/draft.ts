@@ -425,6 +425,7 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
       dot_regulated: answer(e.dot_regulated),
       subject_to_fmcsr: answer(e.subject_to_fmcsr),
       safety_sensitive: answer(e.safety_sensitive),
+      ...(e.dot_not_sure === true ? { dot_not_sure: true } : {}),
     })),
     declares_no_employment: bool("declares_no_employment"),
     // Only rows whose three fields are strings: a gap row is dates the form computed plus words, and

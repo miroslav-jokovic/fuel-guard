@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { APPLICANT_FACTS, type ApplicantFact, type FactPath } from "./applicantFacts.js";
+import { EQUIPMENT_CLASSES } from "./applicationContract.js";
 import { applicantIntakeLicenceSchema, applicantIntakeSchema } from "./applicantScreeningContract.js";
 import { PART_ONE_SCREENS, type PartOneScreen } from "./applicationScreens.js";
 import type { ApplicationSection } from "./applicationSections.js";
@@ -16,7 +17,7 @@ import {
  * A task not here is still its hand-written section component. `questions` has no catalogue screen: every
  * one of its screens is a question of the served definition (`askedByDefinition`).
  */
-export const GENERATED_TASKS = ["identity", "addresses", "safety", "questions"] as const satisfies readonly ApplicationSection[];
+export const GENERATED_TASKS = ["identity", "addresses", "employment", "safety", "questions"] as const satisfies readonly ApplicationSection[];
 export type GeneratedTask = (typeof GENERATED_TASKS)[number];
 export const isGeneratedTask = (section: string): section is GeneratedTask =>
   (GENERATED_TASKS as readonly string[]).includes(section);
@@ -73,7 +74,8 @@ export const WIZARD_SCREENS: readonly WizardScreen[] = WIZARD_SCREEN_IDS.map((id
   const gate = fields[0]?.ask.gate;
   const rows = fields[0]?.ask.rows;
   const lists = new Set(fields.map((f) => rowListOf(f.fact.path)));
-  const list = lists.size === 1 ? [...lists][0] : undefined;
+  // A screen that PICKS its list's rows is asked once, of the whole list (`FactAsk.picksRows`).
+  const list = lists.size === 1 && !fields.some((f) => f.ask.picksRows) ? [...lists][0] : undefined;
   const page = pageOf(id);
   return {
     id,
@@ -115,7 +117,18 @@ export const ASKED_BY_HAND: Readonly<Record<FactPath, string>> = {
  * Facts a generated task owns (`APPLICATION_SECTION_KEYS`) that its walk does not ask, each with where
  * they ARE asked. The catalogue test holds every fact of a generated task to an `ask` or a line here.
  */
+const ONE_DOT_QUESTION = "answered by the one DOT question (Q-AM9 (a), `employment.job_dot`), which sets the three DOT answers together";
+const OFFICE_COMPLETES_JOB = "not asked of the driver (D-AM4, SCREEN-MAP 2.9): the office completes it on the one employer form";
+
 export const TASK_FACTS_ASKED_ELSEWHERE: Readonly<Record<FactPath, string>> = {
+  "application.employers[].subject_to_fmcsr": ONE_DOT_QUESTION,
+  "application.employers[].safety_sensitive": ONE_DOT_QUESTION,
+  "application.employers[].address_line1": OFFICE_COMPLETES_JOB,
+  "application.employers[].phone": OFFICE_COMPLETES_JOB,
+  "application.employers[].email": OFFICE_COMPLETES_JOB,
+  "application.employers[].usdot_number": OFFICE_COMPLETES_JOB,
+  "application.employment_gaps[].from": "computed from the jobs' dates (`applicationEmploymentGaps`), never typed; the gap's screen shows them",
+  "application.employment_gaps[].to": "computed from the jobs' dates (`applicationEmploymentGaps`), never typed; the gap's screen shows them",
   "application.prior_failed_pre_employment_test":
     "asked once, in Part 1 (D-AW13, SCREEN-MAP 1.10); a v2 filing takes Part 1's answer, and the legacy wizard asks its own",
   "application.date_of_birth":
@@ -154,6 +167,8 @@ function bare(schema: z.ZodType): z.ZodType {
  * is not a Part 1 choice.
  */
 export function factChoices(path: FactPath): readonly string[] | undefined {
+  // The one application choice a screen asks: the classes of equipment (SCREEN-MAP 2.16), the contract's own list.
+  if (path === "application.equipment_experience[].equipment_class") return EQUIPMENT_CLASSES;
   const m = /^intake\.(licences\[\]\.)?([a-z_0-9]+)(\[\])?$/.exec(path);
   if (!m) return undefined;
   const shape = (m[1] ? applicantIntakeLicenceSchema : applicantIntakeSchema).shape as Record<string, z.ZodType>;

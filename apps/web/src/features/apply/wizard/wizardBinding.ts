@@ -41,4 +41,10 @@ export interface WizardBinding {
    * the row the walk has on show: that one was asked for, and Continue must not pass it blank.
    */
   rowIssues?(list: string, row: number): SectionIssue[];
+  /** Where a fact's problem is reported, when that is not simply where its answer lives. */
+  path?(path: FactPath, row?: number): readonly (string | number)[];
+  /** Bring derived rows up to date with the answers (the gaps a job's dates leave). Idempotent. */
+  settle?(): void;
+  /** A task is being opened: put its answers in the state the walk starts from. */
+  open?(task: string): void;
 }

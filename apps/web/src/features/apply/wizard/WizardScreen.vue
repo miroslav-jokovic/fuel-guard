@@ -78,6 +78,13 @@ const choices = (f: WizardField) => {
   return (factChoices(f.fact.path) ?? []).map((value) => ({ value, label: options?.[value] ?? value }));
 };
 
+/** The one DOT question's three answers (`FactAsk.notSure`); the binding stores the third beside the fact. */
+const THREE_WAY = ["yes", "no", "not_sure"] as const;
+const threeWay = (path: FactPath): string => {
+  const v = read(path);
+  return v === true ? "yes" : v === false ? "no" : v === "not_sure" ? "not_sure" : "";
+};
+
 const picked = (path: FactPath): string[] => (read(path) as string[] | undefined) ?? [];
 
 /**
@@ -109,8 +116,20 @@ function toggle(f: WizardField, value: string, on: boolean): void {
 <template>
   <div class="space-y-4">
     <template v-for="f in screen.fields" :key="f.fact.path">
+      <!-- Q-AM9 (a): a yes/no the driver may not know — three answers, the third the office's to resolve. -->
+      <div v-if="f.ask.notSure" :id="id(f.fact.path)">
+        <AppRadioGroup
+          :model-value="threeWay(f.fact.path)"
+          :legend="words(f).label"
+          :options="THREE_WAY.map((value) => ({ value, label: words(f).options?.[value] ?? value }))"
+          @update:model-value="write(f.fact.path, $event === 'yes' ? true : $event === 'no' ? false : $event)"
+        />
+        <p v-if="words(f).hint" class="mt-1 text-xs text-ink-muted">{{ words(f).hint }}</p>
+        <p v-if="error(f.fact.path)" class="mt-1 text-sm text-danger-700" role="alert">{{ error(f.fact.path) }}</p>
+      </div>
+
       <YesNoField
-        v-if="f.fact.input === 'yesno'"
+        v-else-if="f.fact.input === 'yesno'"
         :id="id(f.fact.path)"
         :model-value="yesNo(f.fact.path)"
         :legend="words(f).label"
@@ -119,7 +138,7 @@ function toggle(f: WizardField, value: string, on: boolean): void {
         @update:model-value="write(f.fact.path, $event)"
       />
 
-      <div v-else-if="f.fact.input === 'choice'" :id="id(f.fact.path)">
+      <div v-else-if="f.fact.input === 'choice' && !f.ask.picksRows" :id="id(f.fact.path)">
         <AppRadioGroup
           :model-value="text(f.fact.path)"
           :legend="words(f).label"
@@ -130,8 +149,10 @@ function toggle(f: WizardField, value: string, on: boolean): void {
         <p v-if="error(f.fact.path)" class="mt-1 text-sm text-danger-700" role="alert">{{ error(f.fact.path) }}</p>
       </div>
 
-      <fieldset v-else-if="f.fact.input === 'multi_choice'" :id="id(f.fact.path)">
+      <!-- Several answers: a set (the endorsements), or the rows a list is to have (`FactAsk.picksRows`). -->
+      <fieldset v-else-if="f.fact.input === 'multi_choice' || f.ask.picksRows" :id="id(f.fact.path)" tabindex="-1">
         <legend class="text-sm font-medium text-ink-secondary">{{ words(f).label }}</legend>
+        <p v-if="words(f).hint" class="mt-1 text-xs text-ink-muted">{{ words(f).hint }}</p>
         <AppCheckbox
           v-for="c in choices(f)"
           :key="c.value"
@@ -188,12 +209,13 @@ function toggle(f: WizardField, value: string, on: boolean): void {
             :options="f.fact.input === 'us_state' ? US_STATES : JURISDICTIONS"
             @update:model-value="write(f.fact.path, $event)"
           />
+          <!-- With quick picks, a pick reads in the page's language and files English, as in a one-line box. -->
           <AppTextarea
             v-else-if="f.fact.input === 'longtext'"
             v-bind="field"
-            :model-value="text(f.fact.path)"
+            :model-value="f.ask.quickPicks ? shown(f) : text(f.fact.path)"
             :rows="3"
-            @update:model-value="write(f.fact.path, $event)"
+            @update:model-value="f.ask.quickPicks ? typed(f, $event) : write(f.fact.path, $event)"
           />
           <BaseInput
             v-else-if="f.ask.quickPicks"

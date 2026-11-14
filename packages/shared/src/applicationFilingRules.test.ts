@@ -9,6 +9,7 @@ import {
   PRIOR_TEST_UNANSWERED,
   SUSPENSION_UNANSWERED,
 } from "./applicationFilingRules.js";
+import { unansweredEmployerQuestions } from "./applicationEmployerContract.js";
 import { applicationEmployerSchema, driverApplicationObject } from "./applicationContract.js";
 import type { ApplicationEmployer } from "./applicationEmployerContract.js";
 
@@ -221,7 +222,8 @@ describe("what the carrier's paper asks of every new filing (F2c)", () => {
 
 describe("the answers the office completes (D-AM4, Q-AM8 (a))", () => {
   it("are an employer's address and a home's street, and nothing the driver alone can give", () => {
-    expect([...OFFICE_COMPLETES].sort()).toEqual(["address_street", "job_address"]);
+    expect([...OFFICE_COMPLETES].sort()).toEqual(["address_street", "job_address", "job_dot_unsure"]);
+    expect(driverMustAnswer({ issueKey: "job_dot_unsure" })).toBe(false);
     expect(driverMustAnswer({ issueKey: "address_street" })).toBe(false);
     expect(driverMustAnswer({ issueKey: "job_address" })).toBe(false);
     expect(driverMustAnswer({ issueKey: "job_reason_for_leaving" })).toBe(true);
@@ -231,6 +233,30 @@ describe("the answers the office completes (D-AM4, Q-AM8 (a))", () => {
   it("are still refused at filing: the v2 rules name a job's missing address", () => {
     const issues = applicationV2FilingIssues({ employers: [employer({ address_line1: "", city: "", state: "" })], employment_gaps: [], addresses: HOME }, AS_OF);
     expect(issues.filter((i) => !driverMustAnswer(i)).map((i) => i.issueKey)).toEqual(["job_address"]);
+  });
+});
+
+describe("\"Not sure\" to the one DOT question (Q-AM9 (a))", () => {
+  const unsure = employer({ dot_regulated: null, subject_to_fmcsr: null, safety_sensitive: null, dot_not_sure: true });
+  const run = (e: ApplicationEmployer) => applicationV2FilingIssues({ employers: [e], employment_gaps: [], addresses: HOME }, AS_OF);
+
+  it("is one refusal at the question, the office's to answer, and never the three the driver was not asked", () => {
+    expect(run(unsure).map((i) => [i.path, i.issueKey])).toEqual([["employers.0.dot_regulated", "job_dot_unsure"]]);
+    expect(run(unsure).filter(driverMustAnswer)).toEqual([]);
+    // The hand-off does not hold the driver to a Yes or No they said they could not give.
+    expect(unansweredEmployerQuestions([unsure])).toEqual([]);
+  });
+
+  it("is a question nobody answered when the driver never said \"Not sure\"", () => {
+    const blank = employer({ dot_regulated: null, subject_to_fmcsr: null, safety_sensitive: null });
+    expect(unansweredEmployerQuestions([blank]).map((i) => i.issueKey)).toEqual(["job_dot_regulated"]);
+    expect(run(blank).map((i) => i.issueKey)).toEqual(["job_fmcsr", "job_drug_testing"]);
+  });
+
+  it("stops being \"Not sure\" once the question is answered: the rest is asked as of any job", () => {
+    const answered = { ...unsure, dot_regulated: true };
+    expect(unansweredEmployerQuestions([answered])).toEqual([]);
+    expect(run(answered).map((i) => i.issueKey)).toEqual(["job_fmcsr", "job_drug_testing"]);
   });
 });
 

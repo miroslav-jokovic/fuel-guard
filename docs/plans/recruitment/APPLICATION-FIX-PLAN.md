@@ -794,3 +794,30 @@ A gate fails on a literal string in an `apply/` template.
   - **Not built here:** "Question n of m" counts the screens known so far, so it grows as homes are added. U1's three-stage bar replaces it.
   - **Proof:** shared (the rule, the meter's arithmetic, the grouped screens); web walk (+7), drawing (+3), Part 1 composition (+2), the card's controls; 13 of 13 mutants killed; new `addressWalk.spec.ts` in a real browser, and the tap-target sweep passes at 390 and 320 px. Screens looked at in 390 px screenshots.
   - **Next:** 1b-4, "Where you have worked".
+- 2026-11-14: **F4 PR 1b-3 merged** (#2362).
+- 2026-11-14: **F4 PR 1b-4: "Where you have worked", one question to a screen** (`claude/application-wizard-employment`, no migration; SCREEN-MAP 2.8–2.17).
+  - **The walk:**
+    1. "Have you had a job in the last 3 years, or driven a truck for anyone in the last 10?", with nothing chosen.
+    2. Each job: the company's name; where it was (optional, D-AM4); when (the exact day, Q-AM11); "Did you drive a truck?"; the job's title only if not; the one DOT question; why they left, with quick picks; then "another job?", with how much of the three years is accounted for.
+    3. Each gap the jobs leave, on a screen of its own, with quick picks.
+    4. "What have you driven?", every kind tapped, then one screen for each kind picked; then the optional narrative.
+    5. The carrier's question on this task ("May we contact your employers?") and the close.
+  - **Q-AM9 (a), "Not sure":** the three DOT answers are one question, "Was it a DOT job?", with Yes, No and Not sure.
+    - Yes or No sets all three (`dot_regulated`, `subject_to_fmcsr`, `safety_sensitive`).
+    - Not sure leaves all three unanswered and stores `dot_not_sure` on the job (the draft's and the contract's; no migration).
+    - The driver's own checks let it through. The office's **Send for signing refuses**, naming the job ("whether Old Carrier was a DOT job (the driver was not sure)"), and filing still refuses (`job_dot_unsure`, in `OFFICE_COMPLETES`).
+    - The office answers it on the one employer form; answering the DOT question clears "Not sure". It is never a column of a hired driver's employment record.
+  - **Departures from SCREEN-MAP, each for a reason:**
+    - **2.12, the DOT question is asked of every job**, not only where the driver drove a truck. A mechanic's or a dispatcher's job can be DOT-regulated, and skipping the question would leave three answers on the application that nobody gave.
+    - **2.13, "Why did you leave?" is asked of a current job too.** Filing requires a reason on every job (`job_reason_for_leaving`); the hint says what to write when they still work there.
+    - **2.7, "May we contact your employers?" comes last**, with the carrier's other questions (the definition's place for it on this task), not first.
+    - **2.14, the ten-year question is one question** ("another job in the last 3 years, or a truck-driving job in the last 10?") rather than two that change at the three-year line.
+  - **The engine, three additions:** a yes/no with a third answer (`FactAsk.notSure`); a screen that picks which rows its list has (`FactAsk.picksRows`); and rows the answers derive (the gaps, `WizardBinding.settle`). A problem is matched to its screen by where it is REPORTED (`WizardBinding.path`): a gap's is keyed by its start date.
+  - **Found in the build, fixed:**
+    - **The office's form showed a pre-chosen Yes on a question nobody answered.** `employerFields` read a stored `null` as Yes for "drove a truck" and "DOT-regulated". Only a row that never had the key reads as Yes now.
+    - **A new draft's blank job read as "Yes, I had a job".** Opening the task drops jobs nothing was typed in.
+    - **A blank gap passed Continue**, because the task's check reaches the filing's rules only once the contract's are satisfied. The gap on show is judged by the filing's own rule.
+    - **A driving job's "Driver" stayed after the answer changed to No.** It is cleared, and the title asked.
+  - **The employer's state is any jurisdiction** in the catalogue now, as the one employer form always offered.
+  - **Proof:** shared (the Not-sure rule, the generated screens); web walk (+9), the stored job row (+4), the hired record (+1); API (Send for signing names the job, and sends once answered); 18 of 18 mutants killed, one only after its test was tightened; new `employmentWalk.spec.ts` in a real browser. Screens looked at in 390 px screenshots.
+  - **Next:** 1b-5, retire the legacy Part 2 path and the section components the walk replaced.

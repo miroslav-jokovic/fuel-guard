@@ -54,6 +54,20 @@ export const WIZARD_SCREEN_IDS = [
   "addresses.moved_in",
   "addresses.home",
   "addresses.dates",
+  // "Where you have worked" (2.8–2.17, F4 PR 1b-4). The job's screens repeat per job, then each gap the
+  // jobs leave, then what the driver has driven and one screen for each class picked.
+  "employment.any",
+  "employment.job_name",
+  "employment.job_place",
+  "employment.job_dates",
+  "employment.job_drove",
+  "employment.job_position",
+  "employment.job_dot",
+  "employment.job_reason",
+  "employment.gap",
+  "employment.equipment",
+  "employment.equipment_detail",
+  "employment.experience",
   // "Your driving record" (2.18–2.21, F4 PR 1b-1). The accident and conviction screens repeat per row.
   "safety.accidents",
   "safety.accident_date",
@@ -103,6 +117,10 @@ export const QUICK_PICKS = {
   // SCREEN-MAP 2.4, its own list ("other" is the box). The carrier's channels: production held five
   // drafts and no filed application on 2026-11-13, too few answers to choose picks from.
   heard_from: ["Indeed", "Facebook", "A friend or a driver", "Our website"],
+  // SCREEN-MAP 2.13.
+  reason_for_leaving: ["Better pay or miles", "Laid off", "Company closed", "Home time or family", "Moved", "Let go"],
+  // SCREEN-MAP 2.15.
+  gap_explanation: ["Looking for work", "School or training", "Family", "Health", "Own business"],
 } as const;
 export type QuickPickList = keyof typeof QUICK_PICKS;
 
@@ -126,6 +144,17 @@ export interface FactAsk {
    * thing asked is the month they moved in), and each EARLIER home, asked whole. Absent: every row.
    */
   readonly rows?: RowKind;
+  /**
+   * A yes/no the driver may answer "Not sure" (Q-AM9 (a), F4 PR 1b-4): the one DOT question. The page's
+   * binding reads and writes the third answer (`"not_sure"`); the fact itself stays a yes/no.
+   */
+  readonly notSure?: true;
+  /**
+   * The screen picks which ROWS its list has, by this column (SCREEN-MAP 2.16: "What have you driven?",
+   * a multi-pick of equipment classes). It is one screen for the whole list, never repeated per row, and
+   * each pick is a row the list's own screens then ask about.
+   */
+  readonly picksRows?: true;
 }
 
 /** A row's kind within its list — the page's binding says which a row is (`WizardBinding.rowKind`). */

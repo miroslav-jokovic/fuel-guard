@@ -15,7 +15,7 @@ import ApplyPage from "@/pages/ApplyPage.vue";
 import { toDraftPayload, fromDraftPayload } from "@/features/apply/draft";
 import { DRAFT_COPY_VERSION, readDraftCopy, writeDraftCopy } from "@/features/apply/draftLocal";
 import { keepPhoto, readKeptPhoto } from "@/features/apply/capture/photoLocal";
-import ApplyEmploymentFields from "@/features/apply/ApplyEmploymentFields.vue";
+import TaskWalk from "@/features/apply/wizard/TaskWalk.vue";
 import ApplySection from "@/features/apply/ApplySection.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 import { CARRIER_ANSWERS } from "@/testing/carrierAnswers";
@@ -865,7 +865,8 @@ describe("the applicant's page", () => {
     await settle(w);
     await w.findAll("button").find((b) => b.text().includes("Where you have worked"))!.trigger("click");
     await flushPromises();
-    expect(w.findComponent(ApplyEmploymentFields).props("v2AsOf")).toBe("2026-09-26");
+    // F4 PR 1b-4: the task is walked, and the walk counts its years from the same day.
+    expect(w.findComponent(TaskWalk).props("asOf")).toBe("2026-09-26");
   });
 
   /**

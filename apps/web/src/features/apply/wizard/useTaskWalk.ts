@@ -99,7 +99,7 @@ export function useTaskWalk(
   /** Has the page Part 1's answers to show (a v2 link, once released)? */
   hasPartOne: () => boolean = () => false,
 ) {
-  const binding = draftBinding(() => draft, () => wizard.issues.value);
+  const binding = draftBinding(() => draft, () => wizard.issues.value, v2AsOf);
   /** The carrier's built-in questions, then its own stamped ones — in that order on the task's screens. */
   const questionSources = [questionnaireAnswers(() => draft, "builtin"), questionnaireAnswers(() => draft, "carrier")];
   const doc = (): Record<string, unknown> => draft as unknown as Record<string, unknown>;
@@ -172,7 +172,13 @@ export function useTaskWalk(
   }
 
   // Opening a task starts at its first screen.
-  watch(task, () => moveTo(0));
+  watch(task, () => {
+    if (task.value) {
+      binding.open?.(task.value);
+      binding.settle?.();
+    }
+    moveTo(0);
+  });
 
   /**
    * The gateless list that still needs a row: the open step is the list's LAST screen, and the task's own
@@ -199,8 +205,12 @@ export function useTaskWalk(
    */
   const owns = (step: WalkStep, issue: SectionIssue): boolean => {
     if (step.question) return pathUnder(issue.path, step.question.answers.pathOf(step.question.q));
-    return (step.screen?.fields ?? []).some((f) =>
-      pathUnder(issue.path, draftPath(f.fact.path, step.row)) || atGate(issue, f.ask.gate));
+    return (step.screen?.fields ?? []).some((f) => {
+      const at = binding.path?.(f.fact.path, step.row) ?? draftPath(f.fact.path, step.row);
+      // A screen that picks its list's rows holds the LIST's problem only; a row's is its own screen's.
+      const held = f.ask.picksRows ? issue.path.length === at.length && pathUnder(issue.path, at) : pathUnder(issue.path, at);
+      return held || atGate(issue, f.ask.gate);
+    });
   };
 
   /** A problem the task's check found that no screen of the task shows — said, never dropped. */
@@ -217,8 +227,11 @@ export function useTaskWalk(
     // The row on show is judged by its own schema too (`rowIssues`): the task's check drops a blank row.
     const ofRow = step.screen?.list !== undefined && step.row !== undefined ? binding.rowIssues?.(step.screen.list, step.row) ?? [] : [];
     const ofTask = validateSection(task.value, draft, v2AsOf());
+    // ⚠ A screen of picks is not refused for picking none, as an opened gate is not: "what have you driven"
+    // may be answered in words on the next screen instead, and the close asks if neither was.
+    const picks = step.screen?.fields.some((f) => f.ask.picksRows) ?? false;
     return [...ofTask, ...ofRow.filter((r) => !ofTask.some((t) => t.fieldId === r.fieldId))]
-      .filter((i) => owns(step, i) && !atGate(i, openedList));
+      .filter((i) => owns(step, i) && !atGate(i, openedList) && !picks);
   }
 
   /**
@@ -227,6 +240,7 @@ export function useTaskWalk(
    * is still found by Continue, so nothing is flagged while it is being typed.
    */
   watch(() => draft, () => {
+    if (task.value) binding.settle?.();
     const step = current.value;
     if (wizard.issues.value.length === 0 || !step?.screen) return;
     const still = new Set(problemsOn(step).map((i) => i.fieldId));

@@ -43,7 +43,7 @@ afterEach(() => { servedCarrierQuestions.value = []; });
 
 describe("a task walked one question to a screen", () => {
   it("is not active outside a generated task", async () => {
-    const { walk, open } = walkOf("employment");
+    const { walk, open } = walkOf("documents");
     await open();
     expect(walk.active.value).toBe(false);
     expect(walk.steps.value).toEqual([]);
@@ -365,5 +365,174 @@ describe("the address walk", () => {
     expect(draft.addresses).toHaveLength(1);
     expect(walk.current.value?.screen?.id).toBe("addresses.moved_in");
     expect(walk.atEnd.value).toBe(false);
+  });
+});
+
+/**
+ * "Where you have worked" (F4 PR 1b-4, SCREEN-MAP 2.8–2.17). `AS_OF` 2026-11-13: the three years open on
+ * 2023-11-13.
+ */
+describe("the employment walk", () => {
+  const J = "application.employers[].";
+  async function atWork() {
+    const made = walkOf("employment");
+    await made.open();
+    return made;
+  }
+  const answer = (walk: ReturnType<typeof walkOf>["walk"], column: string, value: unknown) =>
+    walk.binding.write(`${J}${column}`, value, walk.current.value!.row);
+  /** One job, start to "any other?", as a driver who drove there since before the three years. */
+  function job(walk: ReturnType<typeof walkOf>["walk"], over: { from?: string; to?: string; dot?: unknown } = {}) {
+    answer(walk, "employer_name", "Midwest Freight");
+    walk.next();
+    walk.next(); // the place is optional
+    answer(walk, "started_on", over.from ?? "2020-01-01");
+    answer(walk, "ended_on", over.to ?? "");
+    walk.next();
+    answer(walk, "operated_cmv", true);
+    walk.next();
+    answer(walk, "dot_regulated", over.dot ?? true);
+    walk.next();
+    answer(walk, "reason_for_leaving", "Better pay or miles");
+    walk.next();
+  }
+
+  it("asks whether there was a job with nothing chosen, though a new draft holds a blank one", async () => {
+    const { walk, draft } = await atWork();
+    expect(draft.employers).toEqual([]);
+    expect(walk.current.value?.screen?.id).toBe("employment.any");
+    expect(walk.binding.read("application.declares_no_employment")).toBeNull();
+  });
+
+  it("walks a job a question at a time, files a driving job as Driver, and never asks its title", async () => {
+    const { walk, draft } = await atWork();
+    walk.binding.write("application.declares_no_employment", true);
+    walk.next();
+    expect(walk.current.value?.screen?.id).toBe("employment.job_name");
+    job(walk);
+    expect(walk.current.value?.another).toBe("employers");
+    expect(ids(walk).filter((id) => id.startsWith("employment.job_"))).toEqual([
+      "employment.job_name", "employment.job_place", "employment.job_dates", "employment.job_drove", "employment.job_dot", "employment.job_reason",
+    ]);
+    expect(draft.employers[0]).toMatchObject({
+      employer_name: "Midwest Freight", position_held: "Driver", operated_cmv: true,
+      dot_regulated: true, subject_to_fmcsr: true, safety_sensitive: true, reason_for_leaving: "Better pay or miles",
+    });
+  });
+
+  it("asks the job's title only when the driver did not drive there", async () => {
+    const { walk, draft } = await atWork();
+    walk.binding.write("application.declares_no_employment", true);
+    walk.next();
+    answer(walk, "employer_name", "Warehouse Co");
+    walk.next();
+    walk.next();
+    answer(walk, "started_on", "2020-01-01");
+    walk.next();
+    answer(walk, "operated_cmv", true);
+    answer(walk, "operated_cmv", false);
+    expect(draft.employers[0]!.position_held).toBe("");
+    walk.next();
+    expect(walk.current.value?.screen?.id).toBe("employment.job_position");
+  });
+
+  it("refuses a job with no name on its own screen, and a blank start date on its own", async () => {
+    const { walk, issues } = await atWork();
+    walk.binding.write("application.declares_no_employment", true);
+    walk.next();
+    walk.next();
+    expect(walk.current.value?.screen?.id).toBe("employment.job_name");
+    expect(issues.value.map((i) => i.path.join("."))).toEqual(["employers.0.employer_name"]);
+    answer(walk, "employer_name", "Midwest Freight");
+    walk.next();
+    walk.next();
+    walk.next();
+    expect(walk.current.value?.screen?.id).toBe("employment.job_dates");
+    expect(issues.value.map((i) => i.path.join("."))).toEqual(["employers.0.started_on"]);
+  });
+
+  it("takes Not sure as an answer: the three DOT answers stay open for the office, and the driver moves on", async () => {
+    const { walk, draft, issues } = await atWork();
+    walk.binding.write("application.declares_no_employment", true);
+    walk.next();
+    job(walk, { dot: "not_sure" });
+    expect(issues.value).toEqual([]);
+    expect(walk.current.value?.another).toBe("employers");
+    expect(draft.employers[0]).toMatchObject({ dot_regulated: null, subject_to_fmcsr: null, safety_sensitive: null, dot_not_sure: true });
+    expect(walk.binding.read(`${J}dot_regulated`, 0)).toBe("not_sure");
+    // Answering it after all is the answer, and no longer "Not sure".
+    walk.binding.write(`${J}dot_regulated`, false, 0);
+    expect(draft.employers[0]).toMatchObject({ dot_regulated: false, subject_to_fmcsr: false, safety_sensitive: false, dot_not_sure: false });
+  });
+
+  it("will not pass the DOT question unanswered", async () => {
+    const { walk, issues } = await atWork();
+    walk.binding.write("application.declares_no_employment", true);
+    walk.next();
+    answer(walk, "employer_name", "Midwest Freight");
+    walk.next();
+    walk.next();
+    answer(walk, "started_on", "2020-01-01");
+    walk.next();
+    answer(walk, "operated_cmv", true);
+    walk.next();
+    walk.next();
+    expect(walk.current.value?.screen?.id).toBe("employment.job_dot");
+    expect(issues.value.map((i) => i.path.join("."))).toContain("employers.0.dot_regulated");
+  });
+
+  it("asks what the driver was doing in each gap the jobs leave, on a screen of its own", async () => {
+    const { walk, draft } = await atWork();
+    walk.binding.write("application.declares_no_employment", true);
+    walk.next();
+    job(walk, { from: "2025-06-01" });
+    await nextTick();
+    // 2023-11-13 → 2025-05-31 has no job: one gap, asked after the jobs.
+    expect(draft.employment_gaps).toHaveLength(1);
+    expect(ids(walk)).toContain("employment.gap");
+    walk.answerAnother(false);
+    walk.next();
+    expect(walk.current.value?.screen?.id).toBe("employment.gap");
+    walk.next();
+    expect(walk.current.value?.screen?.id).toBe("employment.gap");
+    walk.binding.write("application.employment_gaps[].explanation", "School or training", 0);
+    walk.next();
+    expect(walk.current.value?.screen?.id).toBe("employment.equipment");
+  });
+
+  it("makes a row of each class picked, keeps what was typed on a kept pick, and asks each on its own screen", async () => {
+    const { walk, draft } = await atWork();
+    walk.binding.write("application.declares_no_employment", false);
+    await nextTick();
+    const CLASS = "application.equipment_experience[].equipment_class";
+    const [first, second] = ["tractor_semitrailer", "straight_truck"];
+    walk.binding.write(CLASS, [first]);
+    draft.equipment_experience[0]!.approx_miles = "100000";
+    walk.binding.write(CLASS, [first, second]);
+    expect(draft.equipment_experience.map((r) => [r.equipment_class, r.approx_miles])).toEqual([[first, "100000"], [second, ""]]);
+    expect(walk.binding.read(CLASS)).toEqual([first, second]);
+    expect(ids(walk).filter((id) => id === "employment.equipment_detail")).toHaveLength(2);
+    walk.binding.write(CLASS, [second]);
+    expect(draft.equipment_experience.map((r) => r.equipment_class)).toEqual([second]);
+  });
+
+  it("does not refuse the picks for being empty, and the close asks for the experience if neither was given", async () => {
+    const { walk, hub, issues, draft } = await atWork();
+    walk.binding.write("application.declares_no_employment", false);
+    // The carrier's own question on this task, answered: it is not what this test is about.
+    (draft.questionnaire as Record<string, unknown>).may_contact_employers = true;
+    await nextTick();
+    // No job at all is three years with none: one gap, explained.
+    expect(draft.employment_gaps).toHaveLength(1);
+    draft.employment_gaps[0]!.explanation = "Family";
+    for (let i = 0; i < 12 && walk.current.value?.screen?.id !== "employment.equipment"; i += 1) walk.next();
+    expect(walk.current.value?.screen?.id).toBe("employment.equipment");
+    walk.next();
+    expect(issues.value).toEqual([]);
+    expect(walk.current.value?.screen?.id).toBe("employment.experience");
+    // Nothing picked and nothing written: the task's close refuses, and opens the picks.
+    for (let i = 0; i < 6 && hub.inTask.value && walk.current.value?.screen?.id !== "employment.equipment"; i += 1) walk.next();
+    expect(hub.inTask.value).toBe(true);
+    expect(walk.current.value?.screen?.id).toBe("employment.equipment");
   });
 });

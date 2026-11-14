@@ -48,7 +48,8 @@ export function historyToFields(r: EmploymentHistory): EmployerFields {
 
 /** The form's answers as record columns — through `employerRecord`, the one mapper every surface uses. */
 export function fieldsToColumns(f: EmployerFields): Record<string, unknown> {
-  const { key: _key, ...record } = employerRecord(f);
+  // `dot_not_sure` is the APPLICATION's (Q-AM9): a hired driver's record has a Yes or a No, and no such column.
+  const { key: _key, dot_not_sure: _unsure, ...record } = employerRecord(f) as Record<string, unknown>;
   return Object.fromEntries(Object.entries(record).map(([field, v]) => [COLUMN[field as keyof EmployerFields] ?? field, v]));
 }
 

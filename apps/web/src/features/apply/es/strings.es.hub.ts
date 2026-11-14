@@ -36,6 +36,14 @@ export const APPLY_HUB_COPY_ES = {
     },
     violation_penalty: { Fine: "Multa", Points: "Puntos", Suspension: "Suspensión", "Bond forfeited": "Fianza perdida" },
     heard_from: { Indeed: "Indeed", Facebook: "Facebook", "A friend or a driver": "Un amigo o un chofer", "Our website": "Nuestro sitio web" },
+    reason_for_leaving: {
+      "Better pay or miles": "Mejor pago o más millas", "Laid off": "Recorte de personal", "Company closed": "La empresa cerró",
+      "Home time or family": "Tiempo en casa o familia", Moved: "Me mudé", "Let go": "Me despidieron",
+    },
+    gap_explanation: {
+      "Looking for work": "Buscando trabajo", "School or training": "Estudios o capacitación", Family: "Familia",
+      Health: "Salud", "Own business": "Negocio propio",
+    },
   },
   employerCheck: {
     heading: "Antes de enviar: la verificación de sus empleadores anteriores",

@@ -24,6 +24,7 @@ export const APPLY_ISSUES_COPY_ES = {
     job_reason_for_leaving: () => "Diga por qué dejó este trabajo",
     job_fmcsr: () => "Diga si las Regulaciones Federales de Seguridad de Autotransportes (FMCSR) le aplicaban en este trabajo",
     job_drug_testing: () => "Diga si este trabajo estaba sujeto a pruebas de drogas y alcohol del DOT",
+    job_dot_unsure: () => "Indique si este fue un trabajo regulado por el DOT: el conductor no estaba seguro",
     address_gap_month: (p: { month: string }) => `Díganos dónde vivió en ${p.month}`,
     address_gap: (p: { from: string; to: string }) => `Díganos dónde vivió del ${p.from} al ${p.to}`,
     employment_gap: (p: { from: string; to: string }) => `Díganos qué hacía del ${p.from} al ${p.to}`,

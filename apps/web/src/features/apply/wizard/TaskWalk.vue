@@ -2,6 +2,8 @@
 import { computed } from "vue";
 import { AppButton } from "@silvicom/ui";
 import {
+  EMPLOYMENT_WINDOW_YEARS,
+  EQUIPMENT_CLASS_LABELS,
   addressCoverage,
   formatDisplayMonth,
   residenceMonthsCovered,
@@ -11,6 +13,7 @@ import {
 } from "@silvicom/shared";
 import { toApplication, type ApplicationDraft } from "@/features/apply/draft";
 import CorrectionNote from "@/features/apply/CorrectionNote.vue";
+import { employmentProgress, monthName } from "@/features/apply/employmentProgress";
 import PartOneFactsCard from "@/features/apply/PartOneFactsCard.vue";
 import { aboutYouRows } from "@/features/apply/partOneFacts";
 import QuestionField from "@/features/apply/QuestionField.vue";
@@ -49,16 +52,21 @@ const draft = defineModel<ApplicationDraft>({ required: true });
 const LIST_WORDS = (): Record<string, { row: (n: number) => string; another?: string; remove: string }> => {
   const w = APPLY_COPY.safety.walk;
   const home = APPLY_COPY.addresses.walk;
+  const job = APPLY_COPY.employment.walk;
   return {
     // No "any other?": the list ends when the three years are covered (`useTaskWalk`).
     addresses: { row: home.earlierRow, remove: home.remove },
+    employers: { row: job.jobRow, another: job.another, remove: job.removeJob },
     accidents: { row: w.accidentRow, another: w.anotherAccident, remove: w.removeAccident },
     violations: { row: w.violationRow, another: w.anotherViolation, remove: w.removeViolation },
   };
 };
 
 /** What a screen says above its boxes, where the boxes' own labels do not ask the question. */
-const SCREEN_INTRO = (): Partial<Record<WizardScreenId, string>> => ({ "addresses.home": APPLY_COPY.addresses.walk.homeIntro });
+const SCREEN_INTRO = (): Partial<Record<WizardScreenId, string>> => ({
+  "addresses.home": APPLY_COPY.addresses.walk.homeIntro,
+  "employment.job_place": APPLY_COPY.employment.walk.placeIntro,
+});
 
 const step = computed(() => props.walk.current.value);
 /** The home lived in now: shown, never asked, and not the driver's to remove. */
@@ -66,6 +74,32 @@ const isCurrentHome = computed(() => step.value?.screen?.rows === "current");
 const currentHome = computed(() => {
   const a = isCurrentHome.value ? draft.value.addresses[step.value!.row ?? 0] : undefined;
   return a ? [a.line1, a.line2, [a.city, [a.state, a.postal_code].filter((p) => p.trim()).join(" ")].filter((p) => p.trim()).join(", ")].filter((p) => p.trim()) : [];
+});
+/**
+ * Whose row a loop screen is about, in the driver's own words where they have given them: the company
+ * once it is named, the months of a gap (computed, so they are the row), the class of equipment picked.
+ */
+const rowTitle = computed<string | null>(() => {
+  const s = step.value;
+  const list = s?.screen?.list;
+  if (!s || list === undefined || s.row === undefined || isCurrentHome.value) return null;
+  if (list === "employers") return draft.value.employers[s.row]?.employer_name.trim() || APPLY_COPY.employment.walk.jobRow(s.ordinal ?? s.row + 1);
+  if (list === "employment_gaps") {
+    const gap = draft.value.employment_gaps[s.row];
+    return gap ? APPLY_COPY.employment.walk.gapRow(monthName(gap.from), monthName(gap.to)) : null;
+  }
+  if (list === "equipment_experience") {
+    const picked = draft.value.equipment_experience[s.row]?.equipment_class;
+    return picked ? EQUIPMENT_CLASS_LABELS[picked] : null;
+  }
+  return words.value ? words.value.row(s.ordinal ?? s.row + 1) : null;
+});
+/** The three years of jobs, shown where the driver decides whether there was another (SCREEN-MAP 2.14). */
+const jobsCovered = computed(() => {
+  if (step.value?.another !== "employers") return null;
+  const progress = employmentProgress(draft.value.employers, props.asOf);
+  const copy = APPLY_COPY.employment;
+  return progress.percent >= 100 ? copy.coverageComplete(EMPLOYMENT_WINDOW_YEARS) : copy.coverage(progress.percent, EMPLOYMENT_WINDOW_YEARS);
 });
 const coverage = computed(() =>
   step.value?.screen?.list === "addresses"
@@ -85,9 +119,7 @@ const words = computed(() => {
 <template>
   <div v-if="step" class="space-y-4">
     <p class="text-xs font-medium text-ink-tertiary">{{ APPLY_COPY.hub.question(walk.step.value, walk.count.value) }}</p>
-    <p v-if="words && step.row !== undefined && !isCurrentHome" class="text-sm font-semibold text-ink">
-      {{ words.row(step.ordinal ?? step.row + 1) }}
-    </p>
+    <p v-if="rowTitle" class="text-sm font-semibold text-ink">{{ rowTitle }}</p>
     <div v-if="isCurrentHome && currentHome.length" class="space-y-1 rounded-surface bg-surface-muted p-4" data-current-home>
       <p class="text-xs text-ink-muted">{{ APPLY_COPY.partOneFacts.currentAddress }}</p>
       <p v-for="line in currentHome" :key="line" class="text-sm text-ink">{{ line }}</p>
@@ -106,6 +138,8 @@ const words = computed(() => {
     <WizardScreen v-else-if="step.screen" :key="step.key" :screen="step.screen" :row="step.row" :binding="walk.binding" />
     <QuestionField v-else-if="step.question" :key="step.key" :question="step.question.q" :answers="step.question.answers" />
     <PartOneFactsCard v-else-if="step.partOne && partOne" v-model="draft" :rows="aboutYouRows(draft, partOne)" />
+
+    <p v-if="jobsCovered" class="text-sm text-ink-secondary" aria-live="polite" data-jobs-coverage>{{ jobsCovered }}</p>
 
     <p v-for="problem in walk.stray.value" :key="problem" class="text-sm text-danger-700" role="alert">{{ problem }}</p>
 
