@@ -57,6 +57,14 @@ export const APPLY_HUB_COPY = {
     },
     violation_penalty: { Fine: "Fine", Points: "Points", Suspension: "Suspension", "Bond forfeited": "Bond forfeited" },
     heard_from: { Indeed: "Indeed", Facebook: "Facebook", "A friend or a driver": "A friend or a driver", "Our website": "Our website" },
+    reason_for_leaving: {
+      "Better pay or miles": "Better pay or miles", "Laid off": "Laid off", "Company closed": "Company closed",
+      "Home time or family": "Home time or family", Moved: "Moved", "Let go": "Let go",
+    },
+    gap_explanation: {
+      "Looking for work": "Looking for work", "School or training": "School or training", Family: "Family",
+      Health: "Health", "Own business": "Own business",
+    },
   } satisfies { [L in QuickPickList]: Record<(typeof QUICK_PICKS)[L][number], string> },
   employerCheck: {
     heading: "Before you send: checking your past employers",

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { APPLICANT_FACTS } from "./applicantFacts.js";
 import { DONOR_GENDERS, LICENCE_KINDS } from "./applicantScreeningContract.js";
 import { CDL_CLASSES, ENDORSEMENT_CODES } from "./rosterContract.js";
+import { EQUIPMENT_CLASSES } from "./applicationContract.js";
 import { PART_ONE_SCREENS } from "./applicationScreens.js";
 import { APPLICATION_FILLING_SECTIONS, APPLICATION_SECTION_KEYS } from "./applicationSections.js";
 import { WIZARD_SCREEN_IDS } from "./applicantWizardScreens.js";
@@ -65,7 +66,9 @@ describe("the wizard generated from the catalogue", () => {
     expect(wizardTaskScreens("identity").map((s) => s.id)).toEqual(["identity.name", "identity.other_names", "identity.email", "identity.ssn"]);
     // The carrier's questions are the served definition's screens, not the catalogue's (`askedByDefinition`).
     expect(wizardTaskScreens("questions")).toEqual([]);
-    expect(wizardTaskScreens("employment")).toEqual([]);
+    // F4 PR 1b-4: the gate, a job's seven screens, a gap's, the equipment's two and the narrative.
+    expect(wizardTaskScreens("employment")).toHaveLength(12);
+    expect(wizardTaskScreens("documents")).toEqual([]);
   });
 
   it("asks every fact a generated task owns, or names where it is asked instead", () => {
@@ -92,10 +95,13 @@ describe("the wizard generated from the catalogue", () => {
   it("makes a loop of exactly the screens that ask one list's columns, each list behind its gate", () => {
     for (const s of STAGE_TWO) {
       const lists = new Set(s.fields.map((f) => rowListOf(f.fact.path)));
-      expect(s.list, s.id).toBe(lists.size === 1 ? [...lists][0] : undefined);
+      // A screen that PICKS its list's rows is asked once, of the whole list (`FactAsk.picksRows`).
+      const picks = s.fields.some((f) => f.ask.picksRows);
+      expect(s.list, s.id).toBe(lists.size === 1 && !picks ? [...lists][0] : undefined);
     }
+    expect(STAGE_TWO.filter((s) => s.fields.some((f) => f.ask.picksRows)).map((s) => s.id)).toEqual(["employment.equipment"]);
     const order = WIZARD_SCREENS.map((s) => s.id);
-    for (const list of ["accidents", "violations"]) {
+    for (const list of ["employers", "accidents", "violations"]) {
       const gate = STAGE_TWO.find((s) => s.gate === list);
       const rows = STAGE_TWO.filter((s) => s.list === list);
       expect(gate, list).toBeDefined();
@@ -109,8 +115,12 @@ describe("the wizard generated from the catalogue", () => {
 
   it("offers quick picks only for an answer typed as text", () => {
     const withPicks = STAGE_TWO.flatMap((s) => s.fields).filter((f) => f.ask.quickPicks);
-    expect(withPicks.map((f) => f.fact.path)).toEqual(["application.violations[].offence", "application.violations[].penalty"]);
-    for (const f of withPicks) expect(f.fact.input, f.fact.path).toBe("text");
+    expect(withPicks.map((f) => f.fact.path)).toEqual([
+      "application.employers[].reason_for_leaving", "application.employment_gaps[].explanation",
+      "application.violations[].offence", "application.violations[].penalty",
+    ]);
+    // A box of words, short or long (F4 PR 1b-4: why a job ended, what a gap was).
+    for (const f of withPicks) expect(["text", "longtext"], f.fact.path).toContain(f.fact.input);
     // And on the served definition, only on a question answered in a text box.
     const questionPicks = questionnaireForApplicant().questions.filter((q) => q.quickPicks);
     expect(questionPicks.map((q) => q.id)).toEqual(["heard_from"]);
@@ -122,7 +132,11 @@ describe("the wizard generated from the catalogue", () => {
     // The address, the licence card, and an accident's dead and hurt (SCREEN-MAP 2.18c); everything
     // else is one question to a screen (D-AM2).
     // F4 PR 1b-3: an earlier home's address, and the two months it was lived in.
-    expect(groups).toEqual(["address.home", "licence.card", "identity.name", "addresses.home", "addresses.dates", "safety.accident_casualties"]);
+    // F4 PR 1b-4: a job's place, its two dates, and one class of equipment's experience.
+    expect(groups).toEqual([
+      "address.home", "licence.card", "identity.name", "addresses.home", "addresses.dates",
+      "employment.job_place", "employment.job_dates", "employment.equipment_detail", "safety.accident_casualties",
+    ]);
     expect(wizardScreensOf("about").map((s) => s.id)).toEqual(["about.phone", "about.date_of_birth"]);
     expect(wizardScreensOf("rights")).toEqual([]);
   });
@@ -147,6 +161,8 @@ describe("the wizard generated from the catalogue", () => {
   it("asks a denial's or suspension's story only after a yes (SCREEN-MAP 2.20a, 2.21a)", () => {
     const conditional = STAGE_TWO.filter((s) => s.when).map((s) => [s.id, s.when]);
     expect(conditional).toEqual([
+      // SCREEN-MAP 2.11a: the job's title only when the driver did not drive a truck there.
+      ["employment.job_position", { fact: "application.employers[].operated_cmv", is: false }],
       ["safety.denied_detail", { fact: "application.licence_ever_denied", is: true }],
       ["safety.suspended_detail", { fact: "application.licence_suspended", is: true }],
     ]);
@@ -175,6 +191,7 @@ describe("a choice's answers, read from the contract", () => {
     expect(factChoices("intake.endorsements[]")).toEqual(ENDORSEMENT_CODES);
     expect(factChoices("intake.donor_gender")).toEqual(DONOR_GENDERS);
     expect(factChoices("intake.licences[].kind")).toEqual(LICENCE_KINDS);
+    expect(factChoices("application.equipment_experience[].equipment_class")).toEqual(EQUIPMENT_CLASSES);
   });
 
   it("has answers for every choice a screen asks, and none for what is not a choice", () => {

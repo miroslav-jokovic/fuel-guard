@@ -36,7 +36,10 @@ function describe(issue: ApplicationFilingIssue, application: Record<string, unk
   const [list, at] = issue.path.split(".");
   const row = (((application[list ?? ""] as unknown[]) ?? [])[Number(at)] ?? {}) as Record<string, unknown>;
   const text = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
-  if (list === "employers") return `the address of ${text(row.employer_name) || `job ${Number(at) + 1}`}`;
+  const job = text(row.employer_name) || `job ${Number(at) + 1}`;
+  // Q-AM9 (a): the driver said "Not sure", so the Yes or No is the office's to give on the job's form.
+  if (issue.issueKey === "job_dot_unsure") return `whether ${job} was a DOT job (the driver was not sure)`;
+  if (list === "employers") return `the address of ${job}`;
   const place = [text(row.city), text(row.state)].filter(Boolean).join(", ");
   return `the street and ZIP of the address ${place ? `in ${place}` : Number(at) + 1}`;
 }

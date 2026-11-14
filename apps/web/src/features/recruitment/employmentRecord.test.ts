@@ -68,3 +68,13 @@ describe("a change to a row (EM-6)", () => {
     expect(historyToFields(ROW).address_line1).toBe("12 Depot Rd");
   });
 });
+
+describe("the application's Not sure (Q-AM9) on a hired driver's record", () => {
+  it("is never sent as a column: the record holds a Yes or a No", () => {
+    const fields = { ...blankEmployer(), employer_name: "Midwest Freight", started_on: "2024-01-01", address_line1: "1 Main St", dot_not_sure: true };
+    const { body, errors } = historyWrite(fields, "", DRIVER, null);
+    // Neither sent, nor refused as a column the record does not have.
+    expect(JSON.stringify(errors)).not.toContain("dot_not_sure");
+    expect(Object.keys(body ?? {})).not.toContain("dot_not_sure");
+  });
+});

@@ -69,6 +69,45 @@ export const APPLY_HISTORY_COPY = {
     /** The review's heading over the explanations (C3c1). */
     gapsHeading: "Time between jobs",
     gapExplanationHint: "For example: looking for work, school, medical leave, caring for family.",
+    /**
+     * The task walked one question to a screen (F4 PR 1b-4, SCREEN-MAP 2.8–2.17). The form's labels above
+     * stay the office's and the review's; on a screen of its own a label IS the question.
+     */
+    walk: {
+      any: `Have you had a job in the last ${EMPLOYMENT_WINDOW_YEARS} years, or driven a truck for anyone in the last ${CMV_WINDOW_YEARS}?`,
+      anyHint: "Start with your current or most recent job. You will be asked about each one in turn.",
+      name: "What was the company's name?",
+      city: "City",
+      state: "State",
+      /** D-AM4: the office completes what the driver does not know — here the whole place is optional. */
+      placeIntro: "Where was the company based?",
+      placeHint: "If you do not know it, leave it blank. The office will fill it in.",
+      from: "When did you start?",
+      to: "When did you leave?",
+      toHint: "Leave blank if you still work there.",
+      drove: "Did you drive a truck in this job?",
+      position: "What was your job there?",
+      /** Q-AM9 (a): the three DOT answers as one question, with a third answer for the office. */
+      dot: "Was it a DOT job?",
+      dotHint: "A job with DOT drug tests, a logbook or ELD, or a DOT medical card.",
+      notSure: "Not sure",
+      reason: "Why did you leave?",
+      reasonHint: "If you still work there, say why you are looking. Tap one, or type your own.",
+      another: `Did you have another job in the last ${EMPLOYMENT_WINDOW_YEARS} years, or a truck-driving job in the last ${CMV_WINDOW_YEARS}?`,
+      jobRow: (n: number): string => `Job ${n}`,
+      removeJob: "Remove this job",
+      gapRow: (from: string, to: string): string => `No job from ${from} to ${to}`,
+      gap: "What were you doing then?",
+      gapHint: "If you were working, go back and add that job. Tap one, or type your own.",
+      equipment: "What have you driven?",
+      equipmentHint: "Tap every kind you have driven.",
+      equipmentType: "What type?",
+      equipmentFrom: "When did you start driving it?",
+      equipmentTo: "When did you stop?",
+      equipmentMiles: "About how many miles?",
+      experience: "Anything else about your driving we should know?",
+      experienceHint: "Optional. Routes, loads, years.",
+    },
   },
 
   safety: {

@@ -81,6 +81,16 @@ export const applicationEmployerSchema = z
      * subject to 49 CFR part 40 alcohol and controlled-substances testing.
      */
     safety_sensitive: z.boolean().nullish(),
+    /**
+     * The driver answered "Not sure" to the one DOT question (Q-AM9 (a), owner 2026-11-11; F4 PR 1b-4).
+     *
+     * The driver's form asks the three DOT answers above as ONE question — "Was it a DOT job?" — and a
+     * driver who cannot say taps "Not sure". That is an answer, and it must be told from a question nobody
+     * was asked: with it, the three stay `null`, the driver's own checks let the job through, and the
+     * OFFICE resolves it before Send for signing (`OFFICE_COMPLETES`, `job_dot_unsure`). Filing still
+     * refuses a job whose answers are missing, so no filed row holds `true` here.
+     */
+    dot_not_sure: z.boolean().nullish(),
   })
   .strict()
   .refine((v) => typeof v.ended_on !== "string" || v.ended_on >= v.started_on, {
@@ -100,12 +110,19 @@ export const UNANSWERED_EMPLOYER_KEYS = {
   dot_regulated: "job_dot_regulated",
 } as const satisfies Record<string, ApplicantIssueKey>;
 
+/** The driver said "Not sure" to the DOT question and nobody has answered it since (Q-AM9). */
+export const dotLeftToTheOffice = (e: Pick<ApplicationEmployer, "dot_regulated" | "dot_not_sure">): boolean =>
+  e.dot_not_sure === true && typeof e.dot_regulated !== "boolean";
+
 export function unansweredEmployerQuestions(
-  employers: readonly Pick<ApplicationEmployer, "operated_cmv" | "dot_regulated">[] | null | undefined,
+  employers: readonly Pick<ApplicationEmployer, "operated_cmv" | "dot_regulated" | "dot_not_sure">[] | null | undefined,
 ): Array<{ path: (string | number)[] } & ApplicantIssueText> {
   const out: Array<{ path: (string | number)[] } & ApplicantIssueText> = [];
   (employers ?? []).forEach((e, i) => {
     for (const field of ["operated_cmv", "dot_regulated"] as const) {
+      // "Not sure" (Q-AM9) is the driver's answer to the DOT question; the office owes the Yes or No
+      // (`dotLeftToTheOffice`, refused at Send for signing and at filing by `applicationV2FilingIssues`).
+      if (field === "dot_regulated" && dotLeftToTheOffice(e)) continue;
       if (typeof e[field] !== "boolean") out.push({ path: ["employers", i, field], ...applicantIssue(UNANSWERED_EMPLOYER_KEYS[field]) });
     }
   });

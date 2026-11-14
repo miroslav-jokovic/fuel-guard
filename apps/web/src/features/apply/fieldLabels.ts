@@ -142,6 +142,8 @@ const rowLabels = (): Record<string, { noun: string; columns: Record<string, str
       // Not a control: the stable id the form mints for an employer (AW1), which the office's phone
       // verification is filed under. A driver sees it only if it is missing, as "this employer".
       key: fields.employerRecord,
+      // Q-AM9: not a control of its own — the DOT question's third answer, said as that question.
+      dot_not_sure: employment.walk.dot,
       employer_name: employment.employer,
       usdot_number: employment.usdot,
       address_line1: employment.address,

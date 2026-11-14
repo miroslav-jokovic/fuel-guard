@@ -52,6 +52,8 @@ const seed = (over: {
   /** The carrier's own link lifetime (Q-AW41). Absent: no row, the product's defaults. */
   settings?: Record<string, unknown>;
   draftPayload?: Record<string, unknown>;
+  /** A v2 link's Part 1 row. Absent: a legacy link, which filing judges by the paper's rules alone. */
+  intake?: Record<string, unknown>;
   /** How many rows the pre-mint UPDATE matched — 0 is an invitation that changed under the office. */
   startMatches?: number;
 } = {}): SupabaseRecorder =>
@@ -60,6 +62,8 @@ const seed = (over: {
       application_invitations: (q: RecordedQuery) =>
         over.invitation === null || (q.write && over.startMatches === 0) ? [] : [invitation(over.invitation)],
       recruiting_settings: over.settings ? [over.settings] : [],
+      application_intakes: over.intake ? [{ invitation_id: INV, org_id: ORG, ...over.intake }] : [],
+      application_intake_licences: [],
       organizations: [{ name: "Silvicom Inc" }],
       drivers: [{ id: DRIVER, org_id: ORG, hire_date: null, date_of_birth: "1980-04-01", cdl_number: "D1", cdl_state: "IL" }],
       driver_authorizations: [],
@@ -247,6 +251,28 @@ describe("the office completes what the driver left, before it sends", () => {
     expect(rec.rpcs().some((r) => r.fn === "open_packet_signing")).toBe(false);
     expect(mail.fn).not.toHaveBeenCalled();
     expectOrgScoped(rec, ORG);
+  });
+
+  /** Q-AM9 (a): the driver's "Not sure" to the one DOT question is the office's to answer, like an address. */
+  it("refuses while a job's DOT question is the driver's Not sure, and sends once the office has answered it", async () => {
+    const WORK = { ...JOB, address_line1: "1 Main St", city: "Joliet", state: "IL" };
+    const unsure = { ...WORK, ended_on: null, dot_regulated: null, subject_to_fmcsr: null, safety_sensitive: null, dot_not_sure: true };
+    // A v2 link: the job's own answers are the v2 filing's rules, judged on the carrier's day.
+    const intake = {
+      phone: "+13125550142", prior_positive_2y: false, cdl_class: "A", endorsements: [],
+      address_line1: "1 Road", address_line2: null, city: "Joliet", state: "IL", postal_code: "60432",
+    };
+    holder.client = seed({ intake, draftPayload: { first_name: "Susan", addresses: [HOME], employers: [unsure] } }).client;
+    const res = await open();
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("office_must_complete");
+    expect(body.error.message).toContain("whether Old Carrier was a DOT job (the driver was not sure)");
+    expect(body.error.message).not.toContain("the address of");
+
+    const answered = { ...WORK, ended_on: null, subject_to_fmcsr: true, safety_sensitive: true };
+    holder.client = seed({ intake, draftPayload: { first_name: "Susan", addresses: [{ ...HOME, from: "2020-01" }], employers: [answered] } }).client;
+    expect((await open()).status).toBe(201);
   });
 
   it("sends once the office has completed them", async () => {

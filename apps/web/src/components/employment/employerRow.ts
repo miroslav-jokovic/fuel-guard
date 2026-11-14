@@ -51,6 +51,12 @@ export interface EmployerFields {
    */
   subject_to_fmcsr: boolean | null;
   safety_sensitive: boolean | null;
+  /**
+   * The driver tapped "Not sure" on the one DOT question (Q-AM9 (a), F4 PR 1b-4): the three answers
+   * above stay unanswered, and the office gives them before Send for signing. Cleared by answering the
+   * DOT question (`employerRecord`).
+   */
+  dot_not_sure?: boolean;
 }
 
 /** A field the form shows — everything but the key, which nobody types. */
@@ -110,6 +116,10 @@ export function employerRecord(e: EmployerFields): Record<string, unknown> {
     reason_for_leaving: text(e.reason_for_leaving),
     subject_to_fmcsr: e.subject_to_fmcsr,
     safety_sensitive: e.safety_sensitive,
+    // "Not sure" lasts only while the question is unanswered: whoever answers it — the office on this
+    // same form — has resolved it, and no separate act is asked of them.
+    // Written only when it holds: every other row is the row it always was.
+    ...(e.dot_not_sure === true && e.dot_regulated === null ? { dot_not_sure: true } : {}),
   };
 }
 
@@ -118,8 +128,12 @@ const yesNo = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null
 
 /**
  * A stored row (the draft's, the filed application's) back into the form's shape. A missing answer
- * stays unanswered; `operated_cmv` / `dot_regulated` fall back to the defaults only when the row
- * never had them, which is what an applicant's own form would have shown.
+ * stays unanswered; `operated_cmv` / `dot_regulated` fall back to Yes only when the row NEVER HAD the
+ * key, which is what the applicant's own form showed when it wrote such a row (before F1 part 2).
+ *
+ * ⚠ A stored `null` is not "never had it" (F4 PR 1b-4): since F1 part 2 the form writes `null` for a
+ * question nobody answered, and since Q-AM9 for a driver's "Not sure". Reading that as Yes put a
+ * pre-chosen Yes in front of the office, on the very question it was being asked to answer.
  */
 export function employerFields(row: Record<string, unknown>): EmployerFields {
   return {
@@ -135,11 +149,12 @@ export function employerFields(row: Record<string, unknown>): EmployerFields {
     position_held: str(row.position_held),
     started_on: str(row.started_on),
     ended_on: str(row.ended_on),
-    operated_cmv: typeof row.operated_cmv === "boolean" ? row.operated_cmv : true,
-    dot_regulated: typeof row.dot_regulated === "boolean" ? row.dot_regulated : true,
+    operated_cmv: row.operated_cmv === undefined ? true : yesNo(row.operated_cmv),
+    dot_regulated: row.dot_regulated === undefined ? true : yesNo(row.dot_regulated),
     reason_for_leaving: str(row.reason_for_leaving),
     subject_to_fmcsr: yesNo(row.subject_to_fmcsr),
     safety_sensitive: yesNo(row.safety_sensitive),
+    ...(row.dot_not_sure === true ? { dot_not_sure: true } : {}),
   };
 }
 

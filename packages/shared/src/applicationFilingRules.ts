@@ -1,6 +1,6 @@
 import { APPLICANT_ISSUE_TEXT, applicantIssue, type ApplicantIssueKey, type ApplicantIssueText } from "./applicantIssues.js";
 import type { DriverApplicationFields } from "./applicationContract.js";
-import { employmentSegments, type ApplicationEmployer } from "./applicationEmployerContract.js";
+import { employmentSegments, type ApplicationEmployer, dotLeftToTheOffice } from "./applicationEmployerContract.js";
 import { addressCoverage } from "./addressCoverage.js";
 import { employmentCoverage, type EmploymentGap, type EmploymentPeriod } from "./employmentCoverage.js";
 import { formatDisplayDate, formatDisplayMonth } from "./displayDate.js";
@@ -85,6 +85,12 @@ export function applicationV2FilingIssues(
     // (b)(10)(iii) and (b)(11): "the reason for leaving such employment".
     if (blank(e.reason_for_leaving)) {
       issues.push({ path: at("reason_for_leaving"), ...applicantIssue("job_reason_for_leaving") });
+    }
+    // Q-AM9 (a): "Not sure" to the one DOT question. The office answers it before Send for signing
+    // (`OFFICE_COMPLETES`), so it is ONE refusal, at the question, and the driver's checks skip it.
+    if (dotLeftToTheOffice(e)) {
+      issues.push({ path: at("dot_regulated"), ...applicantIssue("job_dot_unsure") });
+      return;
     }
     // (b)(10)(iv)(A)/(B) are (b)(10)'s alone — the three years, not the seven before them.
     if (employmentSegments(e, asOf).includes("b10")) {
@@ -232,7 +238,7 @@ export function sevenDayStatementIssues(
  *   driver is never sent to sign a document that cannot be filed;
  * - **filing** still refuses without them, as it always has (`applicationSubmit.ts`).
  */
-export const OFFICE_COMPLETES: ReadonlySet<ApplicantIssueKey> = new Set<ApplicantIssueKey>(["job_address", "address_street"]);
+export const OFFICE_COMPLETES: ReadonlySet<ApplicantIssueKey> = new Set<ApplicantIssueKey>(["job_address", "address_street", "job_dot_unsure"]);
 
 /** Is this an issue the driver must answer, or one the office completes? */
 export const driverMustAnswer = (issue: { issueKey?: ApplicantIssueKey }): boolean =>

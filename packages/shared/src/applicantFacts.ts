@@ -174,6 +174,9 @@ const intake = (
 /** Asked only once the driver said they were in a DOT testing program in the past 30 days (1.12, 1.13). */
 const IN_PROGRAM = { fact: "intake.dot_program_30d", is: true } as const;
 
+/** One class of equipment's experience, typed together (SCREEN-MAP 2.16a). */
+const EQUIPMENT_DETAIL = { screen: "employment.equipment_detail" } as const;
+
 /** An earlier home's address, typed together on one screen (SCREEN-MAP 2.6). */
 const EARLIER_HOME = { screen: "addresses.home", rows: "earlier" } as const;
 
@@ -263,13 +266,14 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("additional_licences[].expires_at", "date", "391.21(b)(5)", ["p02.licences#3"], "part_one"),
 
   // ── (b)(6) experience ──
-  app("experience", "longtext", "391.21(b)(6)", ADDENDUM("experience")),
+  app("experience", "longtext", "391.21(b)(6)", ADDENDUM("experience"), "draft", { screen: "employment.experience" }),
   // The class picks the ROW: the carrier printed the four class names in column 0, which is never written.
-  app("equipment_experience[].equipment_class", "choice", "391.21(b)(6)", ["p02.experience"]),
-  app("equipment_experience[].equipment_type", "text", "391.21(b)(6)", ["p02.experience#1"]),
-  app("equipment_experience[].from", "month", "391.21(b)(6)", ["p02.experience#2"]),
-  app("equipment_experience[].to", "month", "391.21(b)(6)", ["p02.experience#3"]),
-  app("equipment_experience[].approx_miles", "miles", "391.21(b)(6)", ["p02.experience#4"]),
+  app("equipment_experience[].equipment_class", "choice", "391.21(b)(6)", ["p02.experience"], "draft",
+    { screen: "employment.equipment", picksRows: true }),
+  app("equipment_experience[].equipment_type", "text", "391.21(b)(6)", ["p02.experience#1"], "draft", EQUIPMENT_DETAIL),
+  app("equipment_experience[].from", "month", "391.21(b)(6)", ["p02.experience#2"], "draft", { ...EQUIPMENT_DETAIL, dates: "month" }),
+  app("equipment_experience[].to", "month", "391.21(b)(6)", ["p02.experience#3"], "draft", { ...EQUIPMENT_DETAIL, dates: "month" }),
+  app("equipment_experience[].approx_miles", "miles", "391.21(b)(6)", ["p02.experience#4"], "draft", EQUIPMENT_DETAIL),
 
   // ── (b)(7) accidents, (b)(8) convictions, (b)(9) denials ──
   // `ask` (F4 PR 1b-1, SCREEN-MAP 2.18–2.21): each list behind its yes/no gate, each row's screens
@@ -297,25 +301,29 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("prior_failed_pre_employment_test", "yesno", "40.25(j)", ["p26.prior_test.yes", "p26.prior_test.no"], STATEMENT),
 
   // ── (b)(10)/(b)(11) employers ──
-  app("declares_no_employment", "yesno", "391.21(b)(10)", EMPTY_GRID),
-  app("employers[].employer_name", "text", "391.21(b)(10)", ["p12.employment#1"]),
+  app("declares_no_employment", "yesno", "391.21(b)(10)", EMPTY_GRID, "draft", { screen: "employment.any", gate: "employers" }),
+  app("employers[].employer_name", "text", "391.21(b)(10)", ["p12.employment#1"], "draft", { screen: "employment.job_name" }),
   app("employers[].usdot_number", "usdot", "391.23(a)(2)", ADDENDUM("employers#usdot_number")),
   app("employers[].address_line1", "text", "391.21(b)(10)", ["p12.employment#2"]),
-  app("employers[].city", "text", "391.21(b)(10)", ["p12.employment#2"]),
-  app("employers[].state", "us_state", "391.21(b)(10)", ["p12.employment#2"]),
+  app("employers[].city", "text", "391.21(b)(10)", ["p12.employment#2"], "draft", { screen: "employment.job_place" }),
+  // `jurisdiction`: the contract takes any state or province, and the one employer form always offered them.
+  app("employers[].state", "jurisdiction", "391.21(b)(10)", ["p12.employment#2"], "draft", { screen: "employment.job_place" }),
   app("employers[].phone", "phone", "391.23(a)(2)", ["p12.employment#4"]),
   app("employers[].email", "email", "391.23(a)(2)", ADDENDUM("employers#email")),
-  app("employers[].position_held", "text", "391.21(b)(10)", ["p12.employment#3"]),
-  app("employers[].started_on", "date", "391.21(b)(10)", ["p12.employment#0"]),
-  app("employers[].ended_on", "date", "391.21(b)(10)", ["p12.employment#0"]),
-  app("employers[].operated_cmv", "yesno", "391.21(b)(11)", ADDENDUM("employers#operated_cmv")),
-  app("employers[].dot_regulated", "yesno", "391.23(a)(2)", ADDENDUM("employers#dot_regulated")),
-  app("employers[].reason_for_leaving", "longtext", "391.21(b)(10)", ADDENDUM("employers#reason_for_leaving")),
+  app("employers[].position_held", "text", "391.21(b)(10)", ["p12.employment#3"], "draft",
+    { screen: "employment.job_position", when: { fact: "application.employers[].operated_cmv", is: false } }),
+  app("employers[].started_on", "date", "391.21(b)(10)", ["p12.employment#0"], "draft", { screen: "employment.job_dates", dates: "past" }),
+  app("employers[].ended_on", "date", "391.21(b)(10)", ["p12.employment#0"], "draft", { screen: "employment.job_dates", dates: "past" }),
+  app("employers[].operated_cmv", "yesno", "391.21(b)(11)", ADDENDUM("employers#operated_cmv"), "draft", { screen: "employment.job_drove" }),
+  app("employers[].dot_regulated", "yesno", "391.23(a)(2)", ADDENDUM("employers#dot_regulated"), "draft", { screen: "employment.job_dot", notSure: true }),
+  app("employers[].reason_for_leaving", "longtext", "391.21(b)(10)", ADDENDUM("employers#reason_for_leaving"), "draft",
+    { screen: "employment.job_reason", quickPicks: "reason_for_leaving" }),
   app("employers[].subject_to_fmcsr", "yesno", "391.21(b)(10)", ADDENDUM("employers#subject_to_fmcsr")),
   app("employers[].safety_sensitive", "yesno", "391.21(b)(10)", ADDENDUM("employers#safety_sensitive")),
   app("employment_gaps[].from", "date", "391.21(b)(10)", ADDENDUM("gaps#from")),
   app("employment_gaps[].to", "date", "391.21(b)(10)", ADDENDUM("gaps#to")),
-  app("employment_gaps[].explanation", "longtext", "391.21(b)(10)", ADDENDUM("gaps#explanation")),
+  app("employment_gaps[].explanation", "longtext", "391.21(b)(10)", ADDENDUM("gaps#explanation"), "draft",
+    { screen: "employment.gap", quickPicks: "gap_explanation" }),
 
   // ── the carrier's questionnaire (`questionnaireContract.ts`) ──
   app("questionnaire_answers.position", "text", "carrier", ["p01.position"]),
@@ -363,6 +371,7 @@ export const NOT_APPLICANT_FACTS: Readonly<Record<FactPath, string>> = {
   "application.certified": "the §391.21(b) certification is an act the driver performs, never an answer",
   "application.signed_name": "the signature of record (D-APP8), an act",
   "application.employers[].key": "the row's stable id (AW1, D-AW8), minted by the form",
+  "application.employers[].dot_not_sure": "the driver's \"Not sure\" to the one DOT question (Q-AM9); the office answers the question itself, which clears it",
   "application.addresses[].key": "the row's stable id (Q-AM15), minted by the form; addresses a draft row, never an answer",
   "application.additional_licences[].key": "the row's stable id (Q-AM15), minted by the form; addresses a draft row, never an answer",
   "application.equipment_experience[].key": "the row's stable id (Q-AM15), minted by the form; addresses a draft row, never an answer",
