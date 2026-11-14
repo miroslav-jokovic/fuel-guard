@@ -73,8 +73,13 @@ export interface DataTableColumn {
    * lines a row on the shop's lists at 390 px (proposal §1.2); everything past three facts belongs on
    * the row's own page. Marking any column switches the table's cards to that shape, and an unmarked
    * column of a marked table is `none`. `lint:ui-adoption` refuses an unmarked column on a shop page.
+   *
+   * Since SMALL-SCREENS-PLAN.md D-SM2 (2026-11-14) three more places, for the office lists whose
+   * rows have no page of their own to hold "everything else": the row's `status` badge on the top
+   * line, up to three `figure`s a reader compares down the list, and `detail` — behind the card's
+   * disclosure. A table that marks nothing is derived from its column order (D-SM3).
    */
-  card?: "title" | "sentence" | "meta" | "none";
+  card?: "title" | "sentence" | "meta" | "status" | "figure" | "detail" | "none";
 }
 
 /**
@@ -190,8 +195,6 @@ const emit = defineEmits<{
 /** A touched shop page draws cards at any width (contract §9): a tablet in a bay is above `md`. */
 const touch = useTouchTargets();
 
-// A toolbar above this table prints its count only once the table has an answer (F15).
-reportToWorkspace(() => ({ loading: props.loading, failed: !!props.error }));
 
 const slots = useSlots();
 const hasActions = computed(() => !!slots.actions);
@@ -296,6 +299,16 @@ const isExpanded = (row: Row) => props.expanded?.has(keyOf(row)) ?? false;
  * weight bug, and on the pages that carry these tables the row count is exactly what is large.
  */
 const isWide = useMediaQuery("(min-width: 768px)");
+const asCards = computed(() => !props.loading && !props.error && props.rows.length > 0 && (!isWide.value || touch.value));
+
+// A toolbar above this table prints its count only once the table has an answer (F15), and gives up
+// the shared surface while the rows are cards (D-SM5).
+const inWorkspace = reportToWorkspace(() => ({ loading: props.loading, failed: !!props.error, cards: asCards.value }));
+/**
+ * Cards get their own edges when THIS table, or the workspace around it, owns the surface they sit
+ * on. `embedded` anywhere else means a host card is drawing one, and rows stay flat inside it.
+ */
+const boxed = computed(() => asCards.value && (!props.embedded || inWorkspace));
 
 </script>
 
@@ -303,6 +316,8 @@ const isWide = useMediaQuery("(min-width: 768px)");
   <component
     :is="embedded ? 'div' : BaseCard"
     :padding="embedded ? undefined : 'none'"
+    :variant="embedded ? undefined : boxed ? 'flat' : 'bordered'"
+    :data-card-list="boxed ? '' : undefined"
     :class="fill ? 'h-full' : ''"
   >
     <TableSkeleton v-if="loading" :cols="skeletonCols" />
@@ -311,7 +326,8 @@ const isWide = useMediaQuery("(min-width: 768px)");
       <slot name="empty">{{ emptyText }}</slot>
     </div>
     <DataTableCards
-      v-else-if="!isWide || touch"
+      v-else-if="asCards"
+      :boxed="boxed"
       :columns="columns"
       :rows="rows"
       :key-of="keyOf"

@@ -1,67 +1,75 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`DataTable rendering, pinned across the R3b extraction > renders the narrow card list unchanged 1`] = `
-"<div class="rounded-surface overflow-hidden bg-surface shadow-card ring-1 ring-edge-subtle">
+"<div class="rounded-surface bg-transparent" data-card-list="">
   <!--Narrow: one card per row. Same slots, same data, no table.-->
-  <div class="flex items-center gap-2 border-b border-edge-subtle px-4 py-2.5"><label class="text-2xs font-medium uppercase tracking-wide text-ink-muted" for="dt-test-sort"> Sort </label><select id="dt-test-sort" class="min-w-0 flex-1 rounded-control bg-surface px-2 py-1.5 text-sm text-ink-secondary ring-1 ring-inset ring-edge-control" value="unit">
+  <!--The sort is one compact control at the list's edge, not a bar across it (D-SM7): the bar read as a second toolbar under the first, and its select stretched to the screen for a five-word option.-->
+  <div class="flex items-center justify-end gap-2 pb-2"><label class="text-xs font-medium text-ink-muted" for="dt-test-sort">Sort</label><select id="dt-test-sort" class="max-w-[60%] rounded-control bg-surface py-1.5 pr-7 pl-2 text-sm text-ink-secondary ring-1 ring-inset ring-edge-control" value="unit">
       <option value="">Default order</option>
       <option value="unit">Unit</option>
       <option value="gallons">Gallons</option>
-    </select><button type="button" class="rounded-control px-2 py-1.5 text-sm font-medium text-ink-secondary ring-1 ring-inset ring-edge-control" aria-label="Sorted ascending, switch to descending">↑</button></div>
-  <ul class="divide-y divide-edge-subtle">
-    <!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- the table row's own click, which has no key handler either; a link in a cell is the keyboard's way in-->
-    <li class="px-4 py-3.5">
-      <div class="flex items-start gap-3"><input type="checkbox" class="mt-0.5 size-4 shrink-0 rounded-control border-edge-control accent-brand-600" checked="" aria-label="Select Unit 204">
-        <div class="min-w-0 flex-1">
-          <!--Identifier and status share the top line: the two things a scan is looking for.-->
-          <div class="flex items-center gap-2">
-            <div class="min-w-0 flex-1 truncate text-sm font-semibold text-ink">Unit 204</div>
-            <div class="shrink-0"><span data-testid="status-slot">ok</span></div>
-          </div>
-          <!--Quantities first, as a row of stacked label-over-value blocks: on a phone they are compared against each other, and a two-column grid puts them too far apart.-->
-          <div class="mt-2.5 flex flex-wrap gap-x-5 gap-y-2">
-            <div class="min-w-0">
-              <div class="text-2xs uppercase tracking-wide text-ink-muted">Gallons</div>
-              <div class="mt-0.5 text-sm font-medium tabular-nums text-ink">118.4</div>
+    </select><button type="button" class="rounded-control bg-surface px-2 py-1.5 text-sm font-medium text-ink-secondary ring-1 ring-inset ring-edge-control" aria-label="Sorted ascending, switch to descending">↑</button></div>
+  <!--Two-up once the LIST has 40rem, whatever the window is (D-SM6): phone landscape and the bay's tablet get two columns, a 390 px phone and a narrow drawer get one. Only boxed cards pair up — two columns of flat rows share their hairlines and read as a broken table.-->
+  <div class="@container">
+    <ul class="grid grid-cols-1 items-start gap-2 @[40rem]:grid-cols-2">
+      <!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- the table row's own click, which has no key handler either; a link in a cell is the keyboard's way in-->
+      <li class="rounded-surface p-4 bg-surface shadow-card ring-1 ring-edge-subtle relative" data-card="">
+        <div class="flex items-start gap-3">
+          <!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- stops the card's click; the checkbox inside is the control--><label class="-my-3 -ml-3 flex shrink-0 items-center justify-center [&amp;_a]:relative [&amp;_a]:z-raised [&amp;_button]:relative [&amp;_button]:z-raised [&amp;_input]:relative [&amp;_input]:z-raised size-10"><input type="checkbox" class="size-4 rounded-control border-edge-control accent-brand-600" checked="" aria-label="Select Unit 204"></label>
+          <div class="min-w-0 flex-1">
+            <!--Identifier, its one date or amount, and the status share the top line: the things a scan is looking for. The identifier gives way (truncates); the others never wrap.-->
+            <div class="flex items-center gap-2">
+              <div class="min-w-0 flex-1 truncate text-base font-semibold text-ink">Unit 204</div>
+              <div class="[&amp;_a]:relative [&amp;_a]:z-raised [&amp;_button]:relative [&amp;_button]:z-raised [&amp;_input]:relative [&amp;_input]:z-raised shrink-0"><span data-testid="status-slot">ok</span></div><!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- a control column is its own button; this only keeps its click off the card-->
             </div>
-          </div>
-          <dl class="mt-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-t border-edge-subtle pt-2.5">
-            <dt class="truncate text-2xs uppercase tracking-wide text-ink-muted">Driver</dt>
-            <dd class="min-w-0 text-sm text-ink-secondary">Marcus Reyes</dd>
-          </dl>
-          <div class="mt-2.5">
-            <div data-testid="expanded">detail</div>
-          </div>
-        </div><!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- stops the card's click; the menu inside is its own button-->
-        <div class="shrink-0"><button type="button" data-testid="row-actions">Actions</button></div>
-      </div>
-    </li>
-    <li class="px-4 py-3.5">
-      <div class="flex items-start gap-3"><input type="checkbox" class="mt-0.5 size-4 shrink-0 rounded-control border-edge-control accent-brand-600" aria-label="Select Unit 991">
-        <div class="min-w-0 flex-1">
-          <!--Identifier and status share the top line: the two things a scan is looking for.-->
-          <div class="flex items-center gap-2">
-            <div class="min-w-0 flex-1 truncate text-sm font-semibold text-ink">Unit 991</div>
-            <div class="shrink-0"><span data-testid="status-slot">none</span></div>
-          </div>
-          <!--Quantities first, as a row of stacked label-over-value blocks: on a phone they are compared against each other, and a two-column grid puts them too far apart.-->
-          <div class="mt-2.5 flex flex-wrap gap-x-5 gap-y-2">
-            <div class="min-w-0">
-              <div class="text-2xs uppercase tracking-wide text-ink-muted">Gallons</div>
-              <div class="mt-0.5 text-sm font-medium tabular-nums text-ink">—</div>
+            <!--One line of context, its parts joined by a dot: "Driving · 733 · Indianapolis, IN". A line each is what made a card a form; the shop's single sentence is the same markup with nothing to join.-->
+            <!--v-if-->
+          </div><!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- stops the card's click; the menu inside is its own button-->
+          <div class="[&amp;_a]:relative [&amp;_a]:z-raised [&amp;_button]:relative [&amp;_button]:z-raised [&amp;_input]:relative [&amp;_input]:z-raised relative z-raised -my-1 shrink-0"><button type="button" data-testid="row-actions">Actions</button></div>
+        </div>
+        <!--Under the top row and the card's FULL width — beside a checkbox and a menu the grid lost a quarter of the card and clipped a badge (browser pass, 2026-11-14). A fixed three-column grid, never a wrapping row: the wrapping row is what left the sixth figure alone on a line. Labels fill one grid row and values the next, so a label that takes two lines ("Medical expires" at 390 px) cannot push its own value below its neighbours'.-->
+        <dl class="mt-3 grid auto-cols-fr grid-flow-col grid-rows-[auto_auto] gap-x-3 border-t border-edge-subtle pt-3 [&amp;_a]:relative [&amp;_a]:z-raised [&amp;_button]:relative [&amp;_button]:z-raised [&amp;_input]:relative [&amp;_input]:z-raised" data-card-figures="">
+          <dt class="min-w-0 self-end text-2xs uppercase tracking-wide text-ink-muted [overflow-wrap:anywhere]">Driver</dt>
+          <dd class="mt-0.5 min-w-0 text-sm font-medium text-ink [overflow-wrap:anywhere]">Marcus Reyes</dd>
+          <dt class="min-w-0 self-end text-2xs uppercase tracking-wide text-ink-muted [overflow-wrap:anywhere]">Gallons</dt>
+          <dd class="mt-0.5 min-w-0 text-sm font-medium text-ink [overflow-wrap:anywhere] tabular-nums">118.4</dd>
+        </dl>
+        <div class="[&amp;_a]:relative [&amp;_a]:z-raised [&amp;_button]:relative [&amp;_button]:z-raised [&amp;_input]:relative [&amp;_input]:z-raised mt-2.5">
+          <div data-testid="expanded">detail</div>
+        </div>
+        <!--The rest (D-SM4). Hidden, not absent: find-in-page, a screen reader's cursor and the page tests all read it here. The label column is FIXED, so values start at one x on every card of every list.-->
+        <!--v-if-->
+      </li>
+      <li class="rounded-surface p-4 bg-surface shadow-card ring-1 ring-edge-subtle relative" data-card="">
+        <div class="flex items-start gap-3">
+          <!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- stops the card's click; the checkbox inside is the control--><label class="-my-3 -ml-3 flex shrink-0 items-center justify-center [&amp;_a]:relative [&amp;_a]:z-raised [&amp;_button]:relative [&amp;_button]:z-raised [&amp;_input]:relative [&amp;_input]:z-raised size-10"><input type="checkbox" class="size-4 rounded-control border-edge-control accent-brand-600" aria-label="Select Unit 991"></label>
+          <div class="min-w-0 flex-1">
+            <!--Identifier, its one date or amount, and the status share the top line: the things a scan is looking for. The identifier gives way (truncates); the others never wrap.-->
+            <div class="flex items-center gap-2">
+              <div class="min-w-0 flex-1 truncate text-base font-semibold text-ink">Unit 991</div>
+              <div class="[&amp;_a]:relative [&amp;_a]:z-raised [&amp;_button]:relative [&amp;_button]:z-raised [&amp;_input]:relative [&amp;_input]:z-raised shrink-0"><span data-testid="status-slot">none</span></div><!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- a control column is its own button; this only keeps its click off the card-->
             </div>
-          </div>
-          <dl class="mt-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-t border-edge-subtle pt-2.5">
-            <dt class="truncate text-2xs uppercase tracking-wide text-ink-muted">Driver</dt>
-            <dd class="min-w-0 text-sm text-ink-secondary">—</dd>
-          </dl>
-          <!--v-if-->
-        </div><!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- stops the card's click; the menu inside is its own button-->
-        <div class="shrink-0"><button type="button" data-testid="row-actions">Actions</button></div>
-      </div>
-    </li>
-  </ul>
-  <div data-testid="footer">pagination</div>
+            <!--One line of context, its parts joined by a dot: "Driving · 733 · Indianapolis, IN". A line each is what made a card a form; the shop's single sentence is the same markup with nothing to join.-->
+            <!--v-if-->
+          </div><!--eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -- stops the card's click; the menu inside is its own button-->
+          <div class="[&amp;_a]:relative [&amp;_a]:z-raised [&amp;_button]:relative [&amp;_button]:z-raised [&amp;_input]:relative [&amp;_input]:z-raised relative z-raised -my-1 shrink-0"><button type="button" data-testid="row-actions">Actions</button></div>
+        </div>
+        <!--Under the top row and the card's FULL width — beside a checkbox and a menu the grid lost a quarter of the card and clipped a badge (browser pass, 2026-11-14). A fixed three-column grid, never a wrapping row: the wrapping row is what left the sixth figure alone on a line. Labels fill one grid row and values the next, so a label that takes two lines ("Medical expires" at 390 px) cannot push its own value below its neighbours'.-->
+        <dl class="mt-3 grid auto-cols-fr grid-flow-col grid-rows-[auto_auto] gap-x-3 border-t border-edge-subtle pt-3 [&amp;_a]:relative [&amp;_a]:z-raised [&amp;_button]:relative [&amp;_button]:z-raised [&amp;_input]:relative [&amp;_input]:z-raised" data-card-figures="">
+          <dt class="min-w-0 self-end text-2xs uppercase tracking-wide text-ink-muted [overflow-wrap:anywhere]">Driver</dt>
+          <dd class="mt-0.5 min-w-0 text-sm font-medium text-ink [overflow-wrap:anywhere]">—</dd>
+          <dt class="min-w-0 self-end text-2xs uppercase tracking-wide text-ink-muted [overflow-wrap:anywhere]">Gallons</dt>
+          <dd class="mt-0.5 min-w-0 text-sm font-medium text-ink [overflow-wrap:anywhere] tabular-nums">—</dd>
+        </dl>
+        <!--v-if-->
+        <!--The rest (D-SM4). Hidden, not absent: find-in-page, a screen reader's cursor and the page tests all read it here. The label column is FIXED, so values start at one x on every card of every list.-->
+        <!--v-if-->
+      </li>
+    </ul>
+  </div><!--The pager is a row of the table's card at a desk; on the canvas it needs a surface of its own.-->
+  <div class="rounded-surface overflow-hidden bg-surface shadow-card ring-1 ring-edge-subtle mt-2">
+    <div data-testid="footer">pagination</div>
+  </div>
 </div>"
 `;
 

@@ -48,4 +48,13 @@ describe("the cell's words", () => {
     expect(noteCount(1)).toBe("1 note");
     expect(noteCount(3)).toBe("3 notes");
   });
+
+  // SMALL-SCREENS-PLAN.md D-SM2: an unmarked column of a marked table is not drawn on a card at all.
+  it("joins a marked table as a detail, and an unmarked one bare so it stays unmarked", () => {
+    const marked = withNotesColumn([{ key: "unit", label: "Unit", card: "title" }, { key: "file", label: "File", card: "detail" }], true, "file");
+    expect(marked.map((c) => [c.key, c.card])).toEqual([["unit", "title"], ["file", "detail"], ["notes", "detail"]]);
+    const bare = withNotesColumn([{ key: "unit", label: "Unit" }, { key: "file", label: "File" }], true, "file");
+    expect(bare.some((c) => c.card !== undefined)).toBe(false);
+    expect(bare.map((c) => c.key)).toEqual(["unit", "file", "notes"]);
+  });
 });

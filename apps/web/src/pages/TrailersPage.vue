@@ -142,13 +142,19 @@ const onLoads = useTrailersOnLoadsQuery();
 const vehUnit = (id: string | null) =>
   id ? (vehicles.value?.find((v) => v.id === id)?.unit_number ?? "—") : "—";
 
+/*
+ * `card:` — where each column stands on a phone (SMALL-SCREENS-PLAN.md D-SM2, A3, 2026-11-14). Chosen
+ * with this list open, not derived: the derived card leads with the first three columns, which here
+ * are not the three a reader compares down the list.
+ */
 const columns: DataTableColumn[] = [
-  { key: "unit_number", label: "Unit", sortable: true, cellClass: "font-medium text-ink" },
-  { key: "file", label: "File" },
-  { key: "trailer", label: "Make / Model", cellClass: "text-ink-secondary" },
-  { key: "trailer_type", label: "Type", sortable: true },
+  { key: "unit_number", label: "Unit", sortable: true, cellClass: "font-medium text-ink", card: "title" },
+  { key: "file", label: "File", card: "detail" },
+  { key: "trailer", label: "Make / Model", cellClass: "text-ink-secondary", card: "sentence" },
+  { key: "trailer_type", label: "Type", sortable: true, card: "sentence" },
   {
     key: "reefer_tank_capacity_gal",
+    card: "detail",
     label: "Reefer tank",
     sortable: true,
     numeric: true,
@@ -157,10 +163,10 @@ const columns: DataTableColumn[] = [
   // Two sources, two columns (TRAILER-LINK-PLAN D-TL1): the load McLeod put the trailer on, and the
   // truck the GPS last saw it with. They are different questions and disagree often, so neither stands in
   // for the other.
-  { key: "on_load", label: "On load (McLeod)", cellClass: "text-ink-secondary" },
-  { key: "assigned_vehicle_id", label: "GPS pairing", cellClass: "text-ink-secondary" },
-  { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true },
-  { key: "status", label: "Status", sortable: true },
+  { key: "on_load", label: "On load (McLeod)", cellClass: "text-ink-secondary", card: "figure" },
+  { key: "assigned_vehicle_id", label: "GPS pairing", cellClass: "text-ink-secondary", card: "figure" },
+  { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true, card: "figure" },
+  { key: "status", label: "Status", sortable: true, card: "status" },
 ];
 const shownColumns = computed(() => withNotesColumn(columns, notes.on.value, "file"));
 const { sort, onSort } = useUrlSort(

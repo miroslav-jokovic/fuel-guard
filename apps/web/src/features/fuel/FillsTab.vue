@@ -316,22 +316,28 @@ const fmtNum = (n: number, dec = 0) => n.toLocaleString("en-US", { minimumFracti
 const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
 // Vehicle leads (sticky on small screens, like the source-records table); Driver follows.
+/*
+ * `card:` — where each column stands on a phone (SMALL-SCREENS-PLAN.md D-SM2, A3, 2026-11-14). Chosen
+ * with this list open, not derived: the derived card leads with the first three columns, which here
+ * are not the three a reader compares down the list.
+ */
 const columns: DataTableColumn[] = [
   {
     key: "vehicle_id",
+    card: "title",
     label: "Vehicle",
     width: "md",
   },
-  { key: "fueled_at", label: "When", sortable: true, width: "lg", cellClass: "text-ink-secondary" },
-  { key: "driver", label: "Driver", width: "lg", cellClass: "text-ink-secondary" },
-  { key: "odometer", label: "Odometer", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
-  { key: "miles_since_last", label: "Miles", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
-  { key: "gallons", label: "Gallons", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
-  { key: "price_per_gal", label: "$/gal", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
+  { key: "fueled_at", label: "When", sortable: true, width: "lg", cellClass: "text-ink-secondary", card: "sentence" },
+  { key: "driver", label: "Driver", width: "lg", cellClass: "text-ink-secondary", card: "sentence" },
+  { key: "odometer", label: "Odometer", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary", card: "detail" },
+  { key: "miles_since_last", label: "Miles", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary", card: "detail" },
+  { key: "gallons", label: "Gallons", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary", card: "figure" },
+  { key: "price_per_gal", label: "$/gal", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary", card: "detail" },
   // N6: what the fill cost, as EFS billed it — before this the only dollar figure was the range's total.
-  { key: "total_cost", label: "Amount", sortable: true, numeric: true, width: "md" },
-  { key: "computed_mpg", label: "MPG", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
-  { key: "status", label: "Status", width: "lg" },
+  { key: "total_cost", label: "Amount", sortable: true, numeric: true, width: "md", card: "figure" },
+  { key: "computed_mpg", label: "MPG", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary", card: "figure" },
+  { key: "status", label: "Status", width: "lg", card: "status" },
 ];
 </script>
 

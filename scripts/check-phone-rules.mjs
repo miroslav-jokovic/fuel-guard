@@ -82,7 +82,7 @@ export function unmarkedColumns(relativePath, source) {
     const array = balanced(code, start);
     for (const object of array.matchAll(/\{\s*key:/g)) {
       const at = start + object.index;
-      if (!/\bcard:\s*"(?:title|sentence|meta|none)"/.test(balanced(code, at))) found.push(`${relativePath}:${lineOf(code, at)}`);
+      if (!/\bcard:\s*"(?:title|sentence|meta|status|figure|detail|none)"/.test(balanced(code, at))) found.push(`${relativePath}:${lineOf(code, at)}`);
     }
   }
   return found;

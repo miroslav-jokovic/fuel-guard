@@ -17,6 +17,17 @@
   .kebab-item-danger {
     @apply !text-danger-600;
   }
+  /* A DataWorkspace whose table is drawing its rows as cards (SMALL-SCREENS-PLAN.md D-SM5). The
+     workspace stops being the one surface, so each thing in it that is NOT the card list — the
+     toolbar, a note, a stat strip, the bulk bar — carries the surface itself. Here rather than in
+     each of those: sixty-seven pages put fourteen kinds of thing in a workspace (counted
+     2026-11-14), and the first build, which taught only FilterBar, left the Fuel log's stat strip
+     on the bare canvas. `:has` keeps a page's own wrapper around its table (DriverRosterTable,
+     DispatchBoardTable) from being boxed with the cards inside it. A component layer rule, so the
+     bulk bar's own tint — a utility — still wins over the surface colour. */
+  .workspace-cards > :not([data-card-list]):not(:has([data-card-list])) {
+    @apply rounded-surface bg-surface shadow-card ring-1 ring-edge-subtle;
+  }
 }
 
 /* ── VueDatePicker theme (@vuepic/vue-datepicker) ─────────────────────────

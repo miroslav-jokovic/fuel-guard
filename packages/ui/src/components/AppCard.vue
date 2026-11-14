@@ -13,6 +13,11 @@ withDefaults(
   },
 );
 const PAD: Record<string, string> = { none: "overflow-hidden", sm: "p-4", md: "p-5" };
+/*
+ * `none` clips to the surface's rounded corners. A `flat` card has no surface to clip to, and
+ * clipping there cuts the rings of whatever it holds (DataWorkspace over boxed cards,
+ * SMALL-SCREENS-PLAN.md D-SM5) — so the template leaves it off for that one pair.
+ */
 const VARIANT: Record<string, string> = {
   flat: "bg-transparent",
   bordered: "bg-surface shadow-card ring-1 ring-edge-subtle",
@@ -21,7 +26,7 @@ const VARIANT: Record<string, string> = {
 </script>
 
 <template>
-  <component :is="as" class="rounded-surface" :class="[PAD[padding], VARIANT[variant]]">
+  <component :is="as" class="rounded-surface" :class="[variant === 'flat' && padding === 'none' ? '' : PAD[padding], VARIANT[variant]]">
     <slot />
   </component>
 </template>
