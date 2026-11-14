@@ -55,3 +55,20 @@ test("a clean record with one accident is walked a question at a time and closes
   expect(saved.payload).toMatchObject({ declares_no_violations: true, licence_ever_denied: false, licence_suspended: false });
   expect(stub.state.unstubbed).toEqual([]);
 });
+
+test("arrow keys choose an answer without moving on; only a tap or Continue does (U3)", async ({ page }) => {
+  await stubApi(page, partTwoV2Link());
+  await page.goto(url);
+  await page.getByRole("button", { name: /Your driving record/ }).click();
+  await expect(page.getByText("Question 1 of 4")).toBeVisible();
+
+  await page.getByRole("radio", { name: /^Yes$/ }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("radio", { name: /^No$/ })).toBeChecked();
+  await page.keyboard.press("Space");
+  // Still the first question: the keyboard answered it, and Continue is the keyboard's way on.
+  await expect(page.getByText("Question 1 of 4")).toBeVisible();
+  await expect(page.getByText(/were you involved in any motor vehicle accident/)).toBeVisible();
+  await next(page);
+  await expect(page.getByText("Question 2 of 4")).toBeVisible();
+});

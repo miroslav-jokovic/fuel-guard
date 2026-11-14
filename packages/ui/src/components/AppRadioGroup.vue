@@ -40,21 +40,24 @@ const props = withDefaults(
 const emit = defineEmits<{
   "update:modelValue": [value: RadioValue];
   /**
-   * A choice was TAPPED or clicked — not arrowed to. For a page that moves on when a question is answered
-   * (U3): arrowing through the choices with a keyboard must never do that, and a browser reports an arrow
-   * key as a click with `detail` 0. Fired after the model has changed, once per tap (a tap on the label is
-   * reported twice, on the label and on its radio). Tapping the choice already chosen fires it too.
+   * A choice was TAPPED or clicked — not reached with the keyboard. For a page that moves on when a
+   * question is answered (U3): arrowing through the choices must never do that, and a browser reports an
+   * arrow key (and Space) on a radio as a click on it. So the radio remembers a key going down and its
+   * click is then not a pick. Listened for on the radio itself, which a tap on its label also clicks.
+   * Fired after the model has changed. Tapping the choice already chosen fires it too.
    */
   pick: [value: RadioValue];
 }>();
-let picking = false;
-function tapped(event: MouseEvent, option: RadioOption): void {
-  if (event.detail === 0 || picking || option.disabled || props.disabled) return;
-  picking = true;
-  setTimeout(() => {
-    picking = false;
-    emit("pick", option.value);
-  }, 0);
+/**
+ * ⚠ Cleared on key UP, never on blur: an arrow key moves focus to the next radio BEFORE the browser
+ * clicks it, so a blur would forget the key just in time to call the click a tap.
+ */
+const keys = { down: false };
+const keyDown = (): void => { keys.down = true; };
+const keyUp = (): void => { keys.down = false; };
+function tapped(option: RadioOption): void {
+  if (keys.down || option.disabled || props.disabled) return;
+  setTimeout(() => emit("pick", option.value), 0);
 }
 const generatedName = `radio-${useId()}`;
 /** Inside a thumb-pressed layout (`touchTargets.ts`) every choice is `touch`, asked or not. */
@@ -76,7 +79,6 @@ const touch = computed(() => touchTargets.value || props.size === "touch");
           : ['items-start text-ink-secondary', touch ? 'min-h-12 py-3.5' : 'min-h-9'],
         option.disabled && 'cursor-not-allowed opacity-60',
       ]"
-      @click="tapped($event, option)"
     >
       <input
         type="radio"
@@ -87,6 +89,9 @@ const touch = computed(() => touchTargets.value || props.size === "touch");
         :class="variant === 'cards' ? '' : 'mt-0.5'"
         class="size-4 border-edge-control accent-action-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         @change="emit('update:modelValue', option.value)"
+        @keydown="keyDown"
+        @keyup="keyUp"
+        @click="tapped(option)"
       />
       <span>
         <span class="block">{{ option.label }}</span>

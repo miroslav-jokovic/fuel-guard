@@ -4,39 +4,51 @@ import AppRadioGroup from "./AppRadioGroup.vue";
 
 /**
  * `pick`: a choice TAPPED, which a page may move on at (APPLICATION-FIX-PLAN U3) — and never a choice
- * arrowed to, which a browser also reports as a click, with `detail` 0.
+ * reached with the keyboard, which a browser also reports as a click on the radio.
  */
 const OPTIONS = [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }];
-const group = (props: Record<string, unknown> = {}) => mount(AppRadioGroup, { props: { legend: "Any?", options: OPTIONS, ...props } });
-const tap = (el: Element, detail: number) => el.dispatchEvent(new MouseEvent("click", { bubbles: true, detail }));
+const group = ({ attachTo, ...props }: Record<string, unknown> = {}) =>
+  mount(AppRadioGroup, { props: { legend: "Any?", options: OPTIONS, ...props }, ...(attachTo ? { attachTo: attachTo as HTMLElement } : {}) });
+const tap = (el: Element) => el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+const key = (el: Element, type: "keydown" | "keyup") => el.dispatchEvent(new KeyboardEvent(type, { bubbles: true, key: "ArrowDown" }));
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 describe("a choice that was tapped", () => {
-  it("says so once, though a tap on the label is reported on the label and again on its radio", () => {
-    const w = group();
-    const label = w.findAll("label")[0]!.element;
-    tap(label, 1);
-    tap(label.querySelector("input")!, 1);
+  it("says so once, whether the radio or its label was tapped", () => {
+    const w = group({ attachTo: document.body });
+    tap(w.findAll("input")[0]!.element);
     vi.runAllTimers();
     expect(w.emitted("pick")).toEqual([["yes"]]);
+    // A tap on the label is the browser clicking its radio.
+    w.findAll("label")[1]!.element.click();
+    vi.runAllTimers();
+    expect(w.emitted("pick")).toEqual([["yes"], ["no"]]);
+    w.unmount();
   });
 
-  it("says nothing for a choice arrowed to with the keyboard", () => {
+  it("says nothing for a choice reached with the keyboard, and hears a tap again once the key is up", () => {
     const w = group();
-    tap(w.findAll("input")[1]!.element, 0);
+    const [first, second] = w.findAll("input").map((i) => i.element);
+    // An arrow key: the key goes down on the radio in focus, and the browser clicks the next one.
+    key(first!, "keydown");
+    tap(second!);
     vi.runAllTimers();
     expect(w.emitted("pick")).toBeUndefined();
+    key(second!, "keyup");
+    tap(second!);
+    vi.runAllTimers();
+    expect(w.emitted("pick")).toEqual([["no"]]);
   });
 
   it("says so again for the choice already chosen, and never for a disabled one", () => {
     const w = group({ modelValue: "yes" });
-    tap(w.findAll("label")[0]!.element, 1);
+    tap(w.findAll("input")[0]!.element);
     vi.runAllTimers();
     expect(w.emitted("pick")).toEqual([["yes"]]);
-    const off = group({ disabled: true });
-    tap(off.findAll("label")[0]!.element, 1);
+    const off = group({ options: [{ ...OPTIONS[0]!, disabled: true }, OPTIONS[1]!] });
+    tap(off.findAll("input")[0]!.element);
     vi.runAllTimers();
     expect(off.emitted("pick")).toBeUndefined();
   });

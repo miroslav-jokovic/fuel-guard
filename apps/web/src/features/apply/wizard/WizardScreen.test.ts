@@ -91,19 +91,21 @@ describe("a generated screen", () => {
  * moves on at the tap; a group, or an answer arrowed to with a keyboard, waits for Continue.
  */
 describe("a tap that answers the whole screen", () => {
-  const tap = (el: Element, detail: number) => el.dispatchEvent(new MouseEvent("click", { bubbles: true, detail }));
+  const tap = (el: Element) => el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   const settle = () => new Promise((r) => setTimeout(r, 5));
 
   it("moves on from a single yes/no", async () => {
     const { w } = mountScreen("screening.prior_positive");
-    tap(w.findAll("label")[0]!.element, 1);
+    tap(w.findAll("input[type=radio]")[0]!.element);
     await settle();
     expect(w.emitted("advance")).toHaveLength(1);
   });
 
-  it("waits for Continue when the answer was arrowed to", async () => {
+  it("waits for Continue when the answer was reached with the keyboard", async () => {
     const { w } = mountScreen("screening.prior_positive");
-    tap(w.findAll("input[type=radio]")[0]!.element, 0);
+    const radios = w.findAll("input[type=radio]");
+    radios[0]!.element.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" }));
+    tap(radios[1]!.element);
     await settle();
     expect(w.emitted("advance")).toBeUndefined();
   });
