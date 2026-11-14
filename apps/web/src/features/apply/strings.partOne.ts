@@ -295,6 +295,9 @@ export const APPLY_PART_ONE_COPY = {
         failed: "The text did not go. Scan the QR code instead.",
         orHere: "Or, on this computer:",
       },
+      /** U8 (0605): the card is not at hand. The license is then typed, and the photos come later. */
+      noCdl: "I don't have my CDL with me",
+      noCdlHint: "You can carry on. You will type your license details, and send the photos later or bring the card with you.",
       noMedicalCard: "I don't have a medical card yet",
       noMedicalCardHint: "You can carry on. You will need one before you travel.",
     },

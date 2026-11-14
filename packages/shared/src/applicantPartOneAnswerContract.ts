@@ -35,6 +35,7 @@ export const partOneAnswerSchema = z.discriminatedUnion("key", [
   z.object({ key: z.literal("dot_tested_6m"), value: z.boolean(), note }).strict(),
   z.object({ key: z.literal("dot_random_12m"), value: z.boolean(), note }).strict(),
   z.object({ key: z.literal("medical_card_pending"), value: z.boolean() }).strict(),
+  z.object({ key: z.literal("cdl_photo_pending"), value: z.boolean() }).strict(),
   z.object({ key: z.literal("donor_gender"), value: z.enum(DONOR_GENDERS) }).strict(),
   z.object({ key: z.literal("endorsements"), value: z.array(z.enum(ENDORSEMENT_CODES)).max(ENDORSEMENT_CODES.length) }).strict(),
 ]);
@@ -52,6 +53,8 @@ export interface PartOneAnswersView {
   dot_tested_6m: boolean | null;
   dot_random_12m: boolean | null;
   medical_card_pending: boolean;
+  /** U8 (0605). */
+  cdl_photo_pending: boolean;
   endorsements: string[];
   donorGenderGiven: boolean;
 }

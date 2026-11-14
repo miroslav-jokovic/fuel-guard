@@ -218,6 +218,8 @@ export function usePartOne(
       await postIntake(t, screeningPayload(answers));
     } else if (s === "medical_card") {
       await postIntake(t, { medical_card_pending: answers.medical_card_pending });
+    } else if (s === "cdl_front" || s === "cdl_back") {
+      await postIntake(t, { cdl_photo_pending: answers.cdl_photo_pending });
     }
     // Fill-only (D-AF8): said once, before moving on, never what the carrier holds.
     if (keptNow.length > 0 && !kept.value) kept.value = true;
@@ -241,6 +243,8 @@ export function usePartOne(
         // The capture landed through its own two calls; the bundle is where it is recorded.
         const fresh = (await refresh()) ?? inputs.value;
         if (s === "medical_card" && begun.value) await save(s);
+        // U8: on a begun link the answer can be written at once; before it, the first write carries it.
+        if ((s === "cdl_front" || s === "cdl_back") && begun.value && answers.cdl_photo_pending) await save(s);
         if (!photoDone(s, fresh.captures, answers)) {
           const copy = APPLY_COPY.partOne.photo;
           errors.value = { photo: s === "selfie" ? copy.selfie.required : copy.required };
@@ -252,7 +256,10 @@ export function usePartOne(
       } finally {
         working.value = false;
       }
-      return advance();
+      advance();
+      // "I don't have my CDL with me" answers the back too: its screen has nothing left to ask.
+      if (s === "cdl_front" && answers.cdl_photo_pending && !inputs.value.captures.some((c) => c.slot === "cdl_front")) advance();
+      return;
     }
 
     if (s === "rights") return finish();

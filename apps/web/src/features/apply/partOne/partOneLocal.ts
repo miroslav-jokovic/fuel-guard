@@ -41,6 +41,7 @@ const WRITE_DEBOUNCE_MS = 300;
 export type HeldAnswers = Pick<
   PartOneAnswers,
   "phone" | "date_of_birth" | "address_line1" | "address_line2" | "city" | "state" | "postal_code" | "cdl" | "otherHeld" | "others"
+  | "cdl_photo_pending"
 >;
 
 export interface HeldCopy {
@@ -68,6 +69,7 @@ export function heldPart(a: PartOneAnswers): HeldAnswers {
       phone: a.phone, date_of_birth: a.date_of_birth,
       address_line1: a.address_line1, address_line2: a.address_line2, city: a.city, state: a.state,
       postal_code: a.postal_code, cdl: a.cdl, otherHeld: a.otherHeld, others: a.others,
+      cdl_photo_pending: a.cdl_photo_pending,
     }),
   ) as HeldAnswers;
 }
@@ -80,6 +82,7 @@ export function typedAny(h: HeldAnswers): boolean {
     [c.state_code, c.licence_number, c.cdl_class, c.expires_on].some((v) => v.trim() !== "") ||
     c.endorsements.length > 0 ||
     h.otherHeld !== null ||
+    h.cdl_photo_pending === true ||
     h.others.length > 0
   );
 }
@@ -159,16 +162,24 @@ export function useHeldCopy(opts: {
     if (scanConfirmed && Array.isArray(copy.scanConfirmed)) {
       scanConfirmed.value = SCAN_FACT_ORDER.filter((f) => copy.scanConfirmed!.includes(f));
     }
-    if (screen.value === "about") goTo(resumeHeld(copy.passed));
+    // U8: a driver who said the CDL is not with them resumes past its two photo screens too — the server
+    // cannot know yet (nothing is written before screen 7), so only this copy can say so.
+    const pastPhotos = answers.cdl_photo_pending && (screen.value === "cdl_front" || screen.value === "cdl_back");
+    if (screen.value === "about" || pastPhotos) goTo(resumeHeld(copy.passed));
     return true;
   }
 
   /** A screen passed is written at once; a keystroke waits for the next pause (`debouncedCopy`). */
   let heldSize = held.size;
+  let cdlLater = answers.cdl_photo_pending;
   function save(): void {
     writer.cancel();
-    const passedOne = held.size > heldSize;
+    // U8: "I don't have my CDL with me" is written at once too. It is what lets the walk leave the photo
+    // screens, and a tick lost to a reload inside the debounce sent the driver back to the photograph
+    // (found by `noCdlAtHand.spec.ts`, the first time the walk was reloaded in a real browser).
+    const passedOne = held.size > heldSize || answers.cdl_photo_pending !== cdlLater;
     heldSize = held.size;
+    cdlLater = answers.cdl_photo_pending;
     if (restoring || begun.value) return;
     if (passedOne) writer.now();
     else writer.schedule();

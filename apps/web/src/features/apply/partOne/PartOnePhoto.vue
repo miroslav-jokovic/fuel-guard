@@ -199,6 +199,11 @@ const barcodeNote = computed(() => {
     </div>
 
     <p v-if="barcodeNote" class="text-sm text-ink-muted" aria-live="polite">{{ barcodeNote }}</p>
+    <!-- U8 (0605): one answer for both sides, shown on each until that side is photographed. -->
+    <div v-if="(photo === 'cdl_front' || photo === 'cdl_back') && slot.state !== 'done'" data-no-cdl>
+      <AppCheckbox v-model="answers.cdl_photo_pending" :label="copy.noCdl" />
+      <p v-if="answers.cdl_photo_pending" class="mt-1 text-xs text-ink-tertiary">{{ copy.noCdlHint }}</p>
+    </div>
     <div v-if="photo === 'medical_card'">
       <AppCheckbox v-model="answers.medical_card_pending" :label="copy.noMedicalCard" />
       <p v-if="answers.medical_card_pending" class="mt-1 text-xs text-ink-tertiary">{{ copy.noMedicalCardHint }}</p>

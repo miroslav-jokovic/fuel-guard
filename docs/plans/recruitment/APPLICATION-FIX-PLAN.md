@@ -892,3 +892,13 @@ A gate fails on a literal string in an `apply/` template.
   - Both functions are redefined from their current definitions (0588's and 0376's) with the same signatures; the bodies differ by the key only.
   - **Proof:** matrix `application-intake-v2` (+10, 85 of 85); 5 of 5 mutants of the migration killed.
   - **Next, in a second merge:** the screen's "I don't have it with me", the typed license in place of the scan, "CDL photo pending" on the office's drawer and the documents screen asking for it.
+- 2026-11-14: **U8 step 1 merged** (#2375, migration 0605).
+- 2026-11-14: **U8, step 2: "I don't have my CDL with me"** (`claude/application-bring-my-cdl`, no migration; the reader of 0605; SCREEN-MAP 1.2, Q-AM5).
+  - **The screen:** both CDL photo screens have one tick, "I don't have my CDL with me". Ticked, Continue passes both and goes to the first question. There is no scan, so no "Is this right?": the license is typed as on any link whose barcode did not read.
+  - **Where the answer travels:** nothing can be written before §40.25(j) (0376), and these screens come before it. So the answer is held, rides the first write, and until then lives in the phone's copy. On a link already begun it is written at once.
+  - **The office** sees it on the Applicant facts card, in the driver's words, under Documents, and can change it (`part_one_answer`, as the medical card's). The Part 2 documents list already asks for the CDL's two sides when they are not on file.
+  - **Found by the browser test, fixed:** the phone's copy is written 300 ms after a change. A tick, Continue and a reload inside that window lost the tick and sent the driver back to the photograph. The tick is now written at once, as a passed screen is.
+  - **Not built:** the drawer does not say "CDL photo pending" as a status line of its own; it is a row of the card. The owner's wording was "the office sees CDL photo pending"; if a badge on the applicant's row in the list is wanted, that is the Recruiting list's column, not this form.
+  - **Proof:** rules (+3), the walk (+6), the device copy (+2), the photo screen (+3); 12 of 12 mutants killed; new `noCdlAtHand.spec.ts` in a real browser across a reload; the tap-target sweep passes at 390 and 320 px. One of seven local browser runs failed two tests with this Mac at load 35 and was not reproduced in the next four; CI is the authority.
+  - **Not looked at in a faithful screenshot:** Playwright's full-page capture flips the pointer media query and drew the computer's hand-off panel. The sweep measures the phone layout.
+  - **Next:** phone or email (with the Med-Stop skip made visible), then F5.
