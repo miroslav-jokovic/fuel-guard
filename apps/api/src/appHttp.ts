@@ -1,9 +1,15 @@
-import express, { type Express, type Request, type Response } from "express";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import type { Env } from "./env.js";
-import { apiError } from "./lib/http.js";
+import { APP_NAME } from "@silvicom/shared";
+import { apiError, asyncHandler } from "./lib/http.js";
+import { getBuildInfo } from "./lib/buildInfo.js";
+import { getSchemaStatus } from "./lib/schemaVersion.js";
 import {
   apiRateLimitKey,
   apiAddressKey,
@@ -289,4 +295,69 @@ export function refuseEfsRoute(_req: Request, res: Response): void {
  */
 export function mountEfsSoapIntegrationGuard(app: Express, env: Env): void {
   if (!env.EFS_ROUTES_ENABLED) app.use("/api/integrations/efs-soap", refuseEfsRoute);
+}
+
+/**
+ * `/healthz`, and the built web SPA — the two things `createApp` serves that are not an `/api` router.
+ * Lifted out of `app.ts` unchanged on 2026-11-13, when that file stood at 499 of its 500 lines; every
+ * `app.use("/api/…", …Router())` mount stays there, because `routeAuth.test.ts` and `routeGates.test.ts`
+ * discover routers by reading that file as text.
+ */
+export function mountHealthz(app: Express, env: Env): void {
+  // Liveness for Railway AND a one-glance answer to "is this deploy whole?". Always 200 — a schema
+  // that is merely behind is a degraded deploy, not a dead process, and failing the healthcheck
+  // would make Railway roll back the very build that is waiting on the migration. Detail lives in
+  // GET /api/version; the schema read behind this is cached for 30s (lib/schemaVersion.ts).
+  app.get(
+    "/healthz",
+    asyncHandler(async (_req: Request, res: Response) => {
+      const schema = await getSchemaStatus(env);
+      res.json({
+        status: schema.drift ? "degraded" : "ok",
+        service: `${APP_NAME} API`,
+        env: env.NODE_ENV,
+        commit: getBuildInfo().commitShort,
+        schema: schema.state,
+      });
+    }),
+  );
+}
+
+/** Mounted AFTER every `/api` router: the history fallback answers any navigation path nothing else did. */
+export function mountWebSpa(app: Express, env: Env): void {
+  // ── Serve the built web SPA (single-service deploy) ─────────────────────────────────────────
+  // Only when the build output exists, so API-only/dev runs and tests are unaffected.
+  const here = path.dirname(fileURLToPath(import.meta.url)); // apps/api/src
+  const webDist = env.WEB_DIST ?? path.resolve(here, "../../web/dist");
+  if (fs.existsSync(path.join(webDist, "index.html"))) {
+    // Hashed asset files are immutable → cache hard. index.html is served separately (below) with
+    // no-cache, so a new deploy's entry point is never stale relative to its asset hashes.
+    app.use(
+      express.static(webDist, {
+        index: false,
+        setHeaders: (res, filePath) => {
+          if (path.basename(filePath) === "sw.js" || path.basename(filePath) === "manifest.webmanifest") {
+            // The service worker and the manifest are not hashed and must reach a browser the deploy they
+            // change (CHAT-WEB-PUSH-PLAN WP2): a cached sw.js would keep an old push handler for a day.
+            res.setHeader("Cache-Control", "no-cache");
+          } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          } else if (filePath.includes(`${path.sep}fonts${path.sep}glyphs${path.sep}`)) {
+            // D-DR40: the vector map's label glyphs, ~74 KB a character range, asked for on every map
+            // load; HERE's relay sent no caching header (Q-DR33). Not hashed, so a week rather than
+            // immutable: a rebuilt font reaches a reader within a week of its deploy.
+            res.setHeader("Cache-Control", "public, max-age=604800");
+          }
+        },
+      }),
+    );
+    // SPA history fallback: only for navigation paths (no file extension). A request for a missing
+    // asset (…/foo.js, …/bar.css) must 404 — never fall back to index.html, or the browser rejects
+    // the HTML as the wrong MIME type. Keeps deploy hash-mismatches from silently breaking the app.
+    app.get(/^\/(?!api\/|healthz).*/, (req: Request, res: Response, next: NextFunction) => {
+      if (path.extname(req.path)) return next(); // asset-like but not found → real 404
+      res.setHeader("Cache-Control", "no-cache");
+      res.sendFile(path.join(webDist, "index.html"));
+    });
+  }
 }

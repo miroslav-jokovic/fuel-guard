@@ -1,27 +1,18 @@
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import express, { type Express, type Request, type Response, type NextFunction, type RequestHandler } from "express";
+import express, { type Express, type RequestHandler } from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import * as Sentry from "@sentry/node";
-import { APP_NAME, type UserRole, type SurfaceClaim } from "@silvicom/shared";
 import type { Env } from "./env.js";
 import { assistantLimiter } from "./middleware/apiRateLimit.js";
-import { securityMiddleware, mountBodyParsers, mountCompression, mountGeneralRateLimits, mountEfsSoapIntegrationGuard, refuseEfsRoute } from "./appHttp.js";
+import { securityMiddleware, mountBodyParsers, mountCompression, mountGeneralRateLimits, mountEfsSoapIntegrationGuard, mountHealthz, mountWebSpa, refuseEfsRoute } from "./appHttp.js";
 import { setAppLocals } from "./lib/appLocals.js";
-import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
-import { asyncHandler } from "./lib/http.js";
-import { getBuildInfo } from "./lib/buildInfo.js";
-import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
 import { requestMetrics } from "./middleware/requestMetrics.js";
 import { applicationIntakeLimiter, isApplicationLink, packetCeremonyLimiter } from "./middleware/applicationLimits.js";
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
 import { drainKindNow } from "./queue/inprocessDrain.js";
-import { accessReviewRouter, invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, callerNamedPermissions, rolePermissionsRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
-import { displayNameFor } from "./lib/memberLabels.js";
+import { accessReviewRouter, invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, rolePermissionsRouter, sectionAccessRouter, surfaceAccessRouter } from "./modules/org/index.js";
 import { membersRouter } from "./modules/org/index.js";
 import { dashboardLayoutRouter, orgSettingsRouter, pageViewsRouter, savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
@@ -71,6 +62,7 @@ import { unitNotesRouter } from "./modules/roster/notes/routes.js";
 import { authRouter } from "./routes/auth.js";
 import { authStepUpRouter } from "./routes/authStepUp.js";
 import { versionRouter } from "./routes/version.js";
+import { mePrincipalHandler } from "./routes/mePrincipal.js";
 import { stepUpBootWarning } from "./envAuth.js";
 
 /**
@@ -377,116 +369,13 @@ export function createApp(env: Env): Express {
   app.use("/api/ai", assistantLimiter()); // per person, not per office (apiRateLimit.ts)
   app.use("/api/public", calcLimiter); // M7 public calculator — unauthenticated, tighter limit
 
-  // Liveness for Railway AND a one-glance answer to "is this deploy whole?". Always 200 — a schema
-  // that is merely behind is a degraded deploy, not a dead process, and failing the healthcheck
-  // would make Railway roll back the very build that is waiting on the migration. Detail lives in
-  // GET /api/version; the schema read behind this is cached for 30s (lib/schemaVersion.ts).
-  app.get(
-    "/healthz",
-    asyncHandler(async (_req: Request, res: Response) => {
-      const schema = await getSchemaStatus(env);
-      res.json({
-        status: schema.drift ? "degraded" : "ok",
-        service: `${APP_NAME} API`,
-        env: env.NODE_ENV,
-        commit: getBuildInfo().commitShort,
-        schema: schema.state,
-      });
-    }),
-  );
-
-  /**
-   * Current principal from the verified JWT (org/role may be null until membership exists), plus the
-   * org's SCREEN entitlements for this caller's role.
-   *
-   * ⚠ Why the surfaces travel here and NOT in the token, when sections do (D-SURF4). Sections must be
-   * a claim: RLS reads them per row, and `auth_section()` has to inline — this repo has the measured
-   * number for breaking that, 128x, and the outage it caused. Nothing in RLS reads a SURFACE, so
-   * putting them in the token would buy nothing and cost the one thing the claim costs: a permission
-   * change that lands up to an hour later, when `jwt_expiry` is 3600. Served from here, a screen
-   * change lands on the next page load.
-   *
-   * The web calls this in `session.init()`, which the router guard already awaits, so the guard reads
-   * the answer synchronously and there is no window where a route resolves against a stale one.
-   */
-  app.get("/api/me", requireAuth, asyncHandler(async (req: Request, res: Response) => {
-    const orgId = req.auth!.orgId;
-    /**
-     * ⚠ The screen answers must NEVER be able to break this endpoint. `/api/me` is the identity the
-     * web bootstraps from, and it answered before surfaces existed; a Supabase-admin misconfiguration
-     * turning it into a 500 would take the whole app down for a permissions refinement. That is not
-     * hypothetical: written without this guard, it broke
-     * "/api/me returns the principal for a valid token" in `middleware/auth.test.ts` immediately.
-     *
-     * Falling back to `{}` is the same fail-OPEN `surfaceClaimFor` documents, applied one layer out
-     * where `getSupabaseAdmin` itself can throw. It is safe for the same reason: a surface answer may
-     * only NARROW within a section (D-SURF2), so no answer is the shipped catalogue and never more.
-     */
-    let surfaces: SurfaceClaim = {};
-    if (orgId) {
-      try {
-        surfaces = await surfaceClaimFor(
-          getSupabaseAdmin(env),
-          orgId,
-          req.auth!.role as UserRole | null,
-          req.auth!.userId,
-        );
-      } catch {
-        surfaces = {};
-      }
-    }
-    // The caller's display name (0301), fail-open for the reason `displayNameFor` states: a courtesy
-    // on the bootstrap path must never be the thing that takes sign-in down. The try is around the
-    // CLIENT too — `getSupabaseAdmin` itself can throw, and the first draft left it outside and broke
-    // "/api/me returns the principal for a valid token" exactly as the surfaces guard above predicted.
-    let fullName: string | null;
-    try {
-      fullName = await displayNameFor(getSupabaseAdmin(env), req.auth!.userId, orgId, req.auth!.role);
-    } catch {
-      fullName = null;
-    }
-    // Named permissions (§15.1), so a screen hides what `requireNamedPermission` refuses; never throws.
-    const permissions = await callerNamedPermissions(req, orgId ?? null, req.auth!.role as UserRole | null);
-    res.json({ userId: req.auth!.userId, email: req.auth!.email, fullName, orgId, role: req.auth!.role, surfaces, permissions });
-  }));
+  mountHealthz(app, env);
+  // The principal the web bootstraps from, with its screen entitlements: routes/mePrincipal.ts.
+  app.get("/api/me", requireAuth, mePrincipalHandler(env));
 
   mountApiRouters(app, env);
 
-  // ── Serve the built web SPA (single-service deploy) ─────────────────────────────────────────
-  // Only when the build output exists, so API-only/dev runs and tests are unaffected.
-  const here = path.dirname(fileURLToPath(import.meta.url)); // apps/api/src
-  const webDist = env.WEB_DIST ?? path.resolve(here, "../../web/dist");
-  if (fs.existsSync(path.join(webDist, "index.html"))) {
-    // Hashed asset files are immutable → cache hard. index.html is served separately (below) with
-    // no-cache, so a new deploy's entry point is never stale relative to its asset hashes.
-    app.use(
-      express.static(webDist, {
-        index: false,
-        setHeaders: (res, filePath) => {
-          if (path.basename(filePath) === "sw.js" || path.basename(filePath) === "manifest.webmanifest") {
-            // The service worker and the manifest are not hashed and must reach a browser the deploy they
-            // change (CHAT-WEB-PUSH-PLAN WP2): a cached sw.js would keep an old push handler for a day.
-            res.setHeader("Cache-Control", "no-cache");
-          } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
-            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-          } else if (filePath.includes(`${path.sep}fonts${path.sep}glyphs${path.sep}`)) {
-            // D-DR40: the vector map's label glyphs, ~74 KB a character range, asked for on every map
-            // load; HERE's relay sent no caching header (Q-DR33). Not hashed, so a week rather than
-            // immutable: a rebuilt font reaches a reader within a week of its deploy.
-            res.setHeader("Cache-Control", "public, max-age=604800");
-          }
-        },
-      }),
-    );
-    // SPA history fallback: only for navigation paths (no file extension). A request for a missing
-    // asset (…/foo.js, …/bar.css) must 404 — never fall back to index.html, or the browser rejects
-    // the HTML as the wrong MIME type. Keeps deploy hash-mismatches from silently breaking the app.
-    app.get(/^\/(?!api\/|healthz).*/, (req: Request, res: Response, next: NextFunction) => {
-      if (path.extname(req.path)) return next(); // asset-like but not found → real 404
-      res.setHeader("Cache-Control", "no-cache");
-      res.sendFile(path.join(webDist, "index.html"));
-    });
-  }
+  mountWebSpa(app, env);
 
   // Sentry captures unhandled route errors here (no-op unless SENTRY_DSN is set), before our own
   // handler formats the client response. Must be after all routes, before the error responder.
