@@ -24,7 +24,7 @@ afterEach(() => setApplyLanguage("en"));
 
 describe("a generated screen", () => {
   it("has words for every field the catalogue puts on Part 1's screens, and none for a field it does not", () => {
-    const asked = WIZARD_SCREENS.flatMap((s) => s.fields.map((f) => f.fact.path)).sort();
+    const asked = WIZARD_SCREENS.filter((s) => s.stage === 1).flatMap((s) => s.fields.map((f) => f.fact.path)).sort();
     expect([...PART_ONE_BOUND_PATHS()].sort()).toEqual(asked);
   });
 

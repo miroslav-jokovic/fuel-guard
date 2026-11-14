@@ -20,6 +20,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import type { ChatResult } from "../chat.js";
 import { chatNotifySent } from "../chatNotify.js";
+import { scheduleChatPush } from "../chatPush.js";
 import { chatSendFiles, filesForBell, verifyChatFiles } from "../chatFiles.js";
 import {
   chatChannelAddMembers,
@@ -346,7 +347,10 @@ export function chatChannelsRouter(): Router {
           ?? await chatSendFiles(admin(req), orgId, userId, id, { message_id: body.message_id, parent_id: postId, body: body.body, files: body.files })
         : await chatSendReply(admin(req), orgId, userId, id, postId, body.message_id, body.body);
       // The post's author and its earlier repliers hear of it, as D-CHAT23 says and 0521 decides (chatNotify.ts).
-      if (result.ok && !result.value.duplicate) await chatNotifySent(admin(req), orgId, userId, id, body.message_id, filesForBell(body.body, body.files));
+      if (result.ok && !result.value.duplicate) {
+        await chatNotifySent(admin(req), orgId, userId, id, body.message_id, filesForBell(body.body, body.files));
+        scheduleChatPush(admin(req), getAppLocals(req).env, orgId, userId, body.message_id); // CH10, D-WP3: held, then pushed
+      }
       // 201 for a new reply, 200 for a retry the database recognised — the client treats both as sent.
       send(res, result, (v) => v, result.ok && !result.value.duplicate ? 201 : 200);
     }),

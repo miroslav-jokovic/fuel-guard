@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ChatActivityItem, ChatConversation } from "@silvicom/shared";
-import { ALERT_TEXT_MAX, activityAlerts, alertText, inboxAlerts } from "./chatDesktopAlerts";
+import { CHAT_ALERT_TEXT_MAX as ALERT_TEXT_MAX, chatAlertText as alertText, type ChatActivityItem, type ChatConversation } from "@silvicom/shared";
+import { activityAlerts, inboxAlerts } from "./chatDesktopAlerts";
 
 /**
  * CH6d's rules (Q-CHAT18 (a)), as a person meets them: a new direct or group line from somebody else

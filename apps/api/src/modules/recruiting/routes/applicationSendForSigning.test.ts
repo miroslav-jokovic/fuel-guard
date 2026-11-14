@@ -221,6 +221,41 @@ const isStart = (q: RecordedQuery) =>
   q.table === "application_invitations" && q.write !== null
   && JSON.stringify(q.write.payload).includes("sign_link_expires_at");
 
+/**
+ * D-AM4, Q-AM8 (a): the driver may leave an employer's address or an old home's street for the office, and
+ * filing refuses without them — so Send for signing refuses while any is missing, naming each, and sends
+ * nothing (`applicationOfficeCompletes.ts`). The one refusal on what is outstanding; the rest only warn.
+ */
+describe("the office completes what the driver left, before it sends", () => {
+  const HOME = { line1: "1 Road", city: "Joliet", state: "IL", postal_code: "60432", from: "2024-01", to: null };
+  const OLD_HOME = { line1: "", city: "Gary", state: "IN", postal_code: "", from: "2020-01", to: "2023-12" };
+  const JOB = {
+    employer_name: "Old Carrier", address_line1: "", city: "", state: "", started_on: "2021-01-01", ended_on: "2023-06-30",
+    reason_for_leaving: "Moved", operated_cmv: true, dot_regulated: true,
+  };
+
+  it("refuses with each missing answer named, and mints, writes and sends nothing", async () => {
+    mail.fn.mockClear();
+    const rec = seed({ draftPayload: { first_name: "Susan", addresses: [HOME, OLD_HOME], employers: [JOB] } });
+    holder.client = rec.client;
+    const res = await open();
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("office_must_complete");
+    expect(body.error.message).toContain("the street and ZIP of the address in Gary, IN");
+    expect(rec.writtenRows("application_invitations")).toEqual([]);
+    expect(rec.rpcs().some((r) => r.fn === "open_packet_signing")).toBe(false);
+    expect(mail.fn).not.toHaveBeenCalled();
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("sends once the office has completed them", async () => {
+    const rec = seed({ draftPayload: { first_name: "Susan", addresses: [HOME, { ...OLD_HOME, line1: "9 Elm St", postal_code: "46402" }] } });
+    holder.client = rec.client;
+    expect((await open()).status).toBe(201);
+  });
+});
+
 describe("the office sends it for signing", () => {
   it("extends the invitation by the carrier's own lifetime (Q-AW41)", async () => {
     const rec = seed({ settings: { invite_ttl_days: 5, reminders_enabled: true, reminder_after_hours: 48, updated_at: "2026-09-28T00:00:00Z" } });

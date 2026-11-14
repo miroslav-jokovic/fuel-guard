@@ -95,7 +95,13 @@ the confirmation when an applicant agrees to texts, "Text me the link" on a desk
 configured"* (4 of the 5 `consent_confirm` rows in production's `sms_outbox`; nothing retries a
 `failed` row). The office's texts never hit it, because the office SPA calls the api host. **So
 `SMS_PROVIDER`, `TELNYX_API_KEY`, `TELNYX_FROM`, `TELNYX_MESSAGING_PROFILE_ID` and `TELNYX_PUBLIC_KEY`
-are set on BOTH `@fleetguard/api` and `@fleetguard/web`** (copied 2026-10-21), and a key rotation
+are set on BOTH `@fleetguard/api` and `@fleetguard/web`** (copied 2026-10-21) — and so is
+`TELNYX_ALERTS_FROM` (or `TELNYX_ALERTS_MESSAGING_PROFILE_ID`), the SECOND sender, for office alert
+texts, once its number is verified: the recruiting number is verified for applicant texts only, so
+alert texts never leave from it and are not offered at all until this is set
+(`docs/plans/dispatch-loads/HOME-TIME-PLAN.md` §7.1). It goes on every service that answers
+`/api/webhooks/sms` too, because that is how a STOP sent to the alert number is told from one sent to
+the recruiting number. A key rotation
 changes them in both services and in the release-notify secrets above — three places. A Railway
 variable change stages until the service is redeployed; check `last_error` on the next
 `consent_confirm` row after a rotation. Check that both carry them:
@@ -258,6 +264,45 @@ so a 2-hour gap can go unannounced for up to 6 more hours. **Check:** Settings �
 EFS feed card, for the last delivery and any gap; then `railway logs` on `@fleetguard/api` for
 `efs_soap_posted`. It is the only WEX-whitelisted host, so nothing polls if it is down or its `RUN_SCHEDULERS_IN_PROCESS` became `false` (§ Exactly one service
 runs the schedulers). (F02–F04 chunk 16, measured 2026-10-09.)
+
+## Office chat on the phone: the Web Push key pair (2026-11-13, AWS)
+
+`WEB_PUSH_VAPID_PUBLIC_KEY` and `WEB_PUSH_VAPID_PRIVATE_KEY` (`apps/api/src/envWebPush.ts`,
+`docs/plans/messaging/CHAT-WEB-PUSH-PLAN.md`) are this server's identity to the browsers' push services.
+**Unset, chat notifications are simply off** — the chat rail offers the in-tab desktop alerts instead.
+
+- **Where:** AWS Parameter Store, `SecureString`, under **`/silvicom/<staging|production>/api/`** only. Caddy
+  sends every `/api/*` request on the app's host to the `api` replicas (`infra/server/Caddyfile`, D-AWS17), so
+  the `web` container never serves a push route and needs no copy.
+- **A different pair per environment.** Never the same pair on staging and production.
+- **Loaded at deploy, not live:** `fetch-settings.sh` reads Parameter Store when `deploy.sh` runs, and the
+  settings-hash label recreates only the containers whose settings moved. Staging: `gh workflow run image.yml --ref main`
+  (an image already in ECR is not rebuilt; `deploy-staging` redeploys it). Production: the release that ships, or — to load a change without a new
+  commit — `gh workflow run aws-production.yml -f sha=<the commit production runs>` (the EFS runbook §2.1 pattern).
+- **Never change a pair casually.** A browser subscribes with the public key; a push signed by another key is
+  refused, so after a change every person turns notifications on again on every device. A malformed key, or a public key that
+  is not the private key's half, turns push OFF and logs `[chat-push] push is OFF` once — it never stops the API
+  from starting (the keys are checked at first use, not in `env.ts`).
+- **Origins:** a device registers from the page's own origin, which must be in `ALLOWED_ORIGINS` or be
+  `WEB_APP_URL`'s origin on that environment's api (production `https://360.silvicominc.com`, staging
+  `https://staging-api.360.silvicominc.com`); otherwise Turn on answers "Notifications can only open this app".
+
+```bash
+pnpm --filter @silvicom/api exec tsx src/scripts/generateVapidKeys.ts   # prints the two values
+aws ssm put-parameter --profile silvicom --region us-west-2 --type SecureString \
+  --name /silvicom/<env>/api/WEB_PUSH_VAPID_PUBLIC_KEY --value <public>
+aws ssm put-parameter --profile silvicom --region us-west-2 --type SecureString \
+  --name /silvicom/<env>/api/WEB_PUSH_VAPID_PRIVATE_KEY --value <private>
+```
+
+**Check it works:** signed in, `GET /api/chat/push` answers `{"available":true,…}`; Chat → the rail's foot →
+Turn on → Send a test. Logs: CloudWatch `/silvicom/<env>`, `silvicom-api-*`, lines `[chat-push]`. A device the
+push service says is gone is revoked by itself (`web_push_subscriptions.revoked_reason = 'gone'`).
+
+**Watched:** `GET /api/version` → `webPush.state` (`modules/messaging/pushHealth.ts`). `key_rejected` — more
+devices refused 401/403 in the last day than still receive — turns `ok` false and `platform-health.mjs` pages
+the alert recipients: the pair in Parameter Store is not the one the devices subscribed with (changed, or the
+other environment's). `off` = no pair on this server; `degraded` = some phone failing, published, not paged.
 
 ## One-time Railway setup (makes the files above authoritative)
 

@@ -13,7 +13,7 @@
      login        silvicom_dispatch_ro - read only, no insert/update/delete anywhere
      runs on      the Board VM, one program, one connection, sending data out over HTTPS
      shows up as  program_name "Silvicom 360 connector" in sys.dm_exec_sessions
-     statements   29, in six parts, never two at the same time
+     statements   33, in seven parts, never two at the same time
    ====================================================================================== */
 
 -- ========================================================================================
@@ -33,6 +33,7 @@ DECLARE @companyId   varchar(32) = 'TMS';
 DECLARE @staleBefore datetime    = DATEADD(day, -30, GETDATE());
 DECLARE @windowStart varchar(32) = CONVERT(varchar(10), DATEADD(day, -75, GETDATE()), 23);
 DECLARE @windowEnd   varchar(32) = CONVERT(varchar(10), DATEADD(day, 1, GETDATE()), 23);
+DECLARE @lumperSince varchar(32) = CONVERT(varchar(10), DATEADD(day, -90, GETDATE()), 23);
 DECLARE @id0         varchar(32) = '291013';
 DECLARE @id1         varchar(32) = '290837';
 DECLARE @id2         varchar(32) = '291386';
@@ -45,7 +46,7 @@ DECLARE @id2         varchar(32) = '291386';
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 1 of 29: OPEN LOADS
+-- STATEMENT 1 of 33: OPEN LOADS
 --
 -- Movements with status P or A that have a stop scheduled in the last 30 days, with the
 -- customer's name (added 2026-09-29).
@@ -110,7 +111,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 2 of 29: THE STOPS OF THOSE LOADS
+-- STATEMENT 2 of 33: THE STOPS OF THOSE LOADS
 --
 -- LME stores longitudes as positive numbers; the connector flips the sign.
 -- ----------------------------------------------------------------------------------------
@@ -152,7 +153,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 3 of 29: THE DISPATCHERS ON THOSE LOADS
+-- STATEMENT 3 of 33: THE DISPATCHERS ON THOSE LOADS
 --
 -- Only users with an open load right now, not the whole users table.
 -- ----------------------------------------------------------------------------------------
@@ -180,7 +181,7 @@ OPTION (MAXDOP 1);
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 4 of 29: CURRENT STATE OF LOADS THAT LEFT THE BOARD
+-- STATEMENT 4 of 33: CURRENT STATE OF LOADS THAT LEFT THE BOARD
 --
 -- Same columns as statement 1, looked up by id.
 -- ----------------------------------------------------------------------------------------
@@ -239,7 +240,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 5 of 29: STOPS OF THOSE LOADS
+-- STATEMENT 5 of 33: STOPS OF THOSE LOADS
 --
 -- Same columns as statement 2.
 -- ----------------------------------------------------------------------------------------
@@ -284,7 +285,7 @@ OPTION (MAXDOP 1);
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 6 of 29: ACTIVE DRIVERS
+-- STATEMENT 6 of 33: ACTIVE DRIVERS
 --
 -- Names, licence and medical card expiry, hire date and address. The driver's email is
 -- read from name_of_spouse, because that is where our team keeps it.
@@ -321,7 +322,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 7 of 29: ACTIVE TRUCKS
+-- STATEMENT 7 of 33: ACTIVE TRUCKS
 --
 -- Tractors that are in service, including the ones in the shop.
 -- ----------------------------------------------------------------------------------------
@@ -363,7 +364,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 8 of 29: ACTIVE TRAILERS
+-- STATEMENT 8 of 33: ACTIVE TRAILERS
 --
 -- Trailers that are in service.
 -- ----------------------------------------------------------------------------------------
@@ -405,7 +406,7 @@ OPTION (MAXDOP 1);
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 9 of 29: DRIVER SETTLEMENTS
+-- STATEMENT 9 of 33: DRIVER SETTLEMENTS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(s.id))                            AS external_id,
@@ -439,7 +440,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 10 of 29: SETTLEMENT LEDGER LINES
+-- STATEMENT 10 of 33: SETTLEMENT LEDGER LINES
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(g.post_key))  AS post_key,
@@ -459,7 +460,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 11 of 29: SETTLEMENT DEDUCTIONS
+-- STATEMENT 11 of 33: SETTLEMENT DEDUCTIONS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(d.id))                            AS external_id,
@@ -483,7 +484,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 12 of 29: FUEL PURCHASES
+-- STATEMENT 12 of 33: FUEL PURCHASES
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(f.id))                            AS external_id,
@@ -540,7 +541,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 13 of 29: FUEL LEDGER LINES
+-- STATEMENT 13 of 33: FUEL LEDGER LINES
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(g.post_key))  AS post_key,
@@ -557,7 +558,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 14 of 29: AP VOUCHERS
+-- STATEMENT 14 of 33: AP VOUCHERS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(v.id))                            AS external_id,
@@ -613,7 +614,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 15 of 29: SETTLED MOVEMENTS
+-- STATEMENT 15 of 33: SETTLED MOVEMENTS
 --
 -- Every lookup is matched on company_id as well as the id (fixed 2026-09-24).
 -- ----------------------------------------------------------------------------------------
@@ -658,7 +659,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 16 of 29: STOPS OF THOSE MOVEMENTS
+-- STATEMENT 16 of 33: STOPS OF THOSE MOVEMENTS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(s.movement_id))                   AS movement_id,
@@ -681,7 +682,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 17 of 29: MOVEMENT TOTALS, TO CHECK THE ROWS ABOVE
+-- STATEMENT 17 of 33: MOVEMENT TOTALS, TO CHECK THE ROWS ABOVE
 -- ----------------------------------------------------------------------------------------
 SELECT
       COUNT(*)                                        AS movements,
@@ -699,7 +700,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 18 of 29: BILLING HISTORY
+-- STATEMENT 18 of 33: BILLING HISTORY
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(b.id))                             AS external_id,
@@ -756,7 +757,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 19 of 29: CHART OF ACCOUNTS
+-- STATEMENT 19 of 33: CHART OF ACCOUNTS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(a.id))                       AS glid,
@@ -767,7 +768,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 20 of 29: OPEN ACCOUNTING PERIOD
+-- STATEMENT 20 of 33: OPEN ACCOUNTING PERIOD
 --
 -- One row: the period McLeod is posting into, and whether earlier periods are locked.
 -- Tells us which months are final.
@@ -788,7 +789,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 21 of 29: TRUCK SERVICE DATES AND OWNERS
+-- STATEMENT 21 of 33: TRUCK SERVICE DATES AND OWNERS
 --
 -- Every truck's in-service and out-of-service date and who owns it, so a month's lease
 -- is shared over the days each truck was in service.
@@ -809,7 +810,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 22 of 29: GENERAL LEDGER TOTALS BY DAY AND ACCOUNT
+-- STATEMENT 22 of 33: GENERAL LEDGER TOTALS BY DAY AND ACCOUNT
 -- ----------------------------------------------------------------------------------------
 SELECT
       CONVERT(char(10), combined.transaction_date, 23)   AS txn_date,
@@ -835,7 +836,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 23 of 29: OFFICE PAYROLL LINES
+-- STATEMENT 23 of 33: OFFICE PAYROLL LINES
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(g.id))                            AS external_id,
@@ -870,7 +871,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 24 of 29: FUEL RECEIPTS KEYED BY HAND
+-- STATEMENT 24 of 33: FUEL RECEIPTS KEYED BY HAND
 --
 -- Source F of the fuel-tax history only: cash and own-card receipts. Read over two years
 -- each night (about 70 rows a quarter).
@@ -900,7 +901,7 @@ OPTION (MAXDOP 1);
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 25 of 29: INACTIVE DRIVERS
+-- STATEMENT 25 of 33: INACTIVE DRIVERS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(d.id))                           AS external_id,
@@ -913,7 +914,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 26 of 29: RETIRED TRUCKS
+-- STATEMENT 26 of 33: RETIRED TRUCKS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(t.id))                           AS external_id,
@@ -925,7 +926,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 27 of 29: RETIRED TRAILERS
+-- STATEMENT 27 of 33: RETIRED TRAILERS
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(r.id))                           AS external_id,
@@ -951,7 +952,7 @@ OPTION (MAXDOP 1);
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 28 of 29: DELIVERED MOVEMENTS IN THE WINDOW
+-- STATEMENT 28 of 33: DELIVERED MOVEMENTS IN THE WINDOW
 --
 -- Same columns as statement 1, loaded legs only. The window is on the stop's actual
 -- departure, so the 2215 sentinel date is never read.
@@ -1018,7 +1019,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 29 of 29: STOPS OF THOSE MOVEMENTS
+-- STATEMENT 29 of 33: STOPS OF THOSE MOVEMENTS
 --
 -- Same columns as statement 2.
 -- ----------------------------------------------------------------------------------------
@@ -1062,5 +1063,225 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ========================================================================================
--- END - 29 statements. That is everything the connector reads.
+-- PART 7 - LUMPER FEES (added 2026-11-13; every 60 minutes once switched on, and switched off today)
+--
+-- Every load where we paid a lumper, so Silvicom 360 can list them and show which ones still
+-- wait for the broker's revised rate confirmation. An order is read when it carries a LUM
+-- charge and was ordered in the last 90 days, or when payroll keyed a lumper (deduction code
+-- UNL or LUM) against it in the last 90 days. Measured on the analytics copy for the 90 days
+-- to 2026-10-09: 87 orders, 90 charges, 170 settlement lines and 109 bills, about 0.7 seconds
+-- for all four on one core. These need Part 5 of the grants file (other_charge,
+-- other_charge_hist, drs_pending_deduct) and two tables of Part 4 (drs_deduct_hist,
+-- billing_history); until then this part stops with a permission error under the connector's
+-- login. The connector runs these four once an hour, one after another, only when its settings
+-- file on the VM says LUMPER_FEED=on. That line is not there today, so nothing runs them, and it
+-- is added only after you have reviewed this part. To watch one read first, this command runs
+-- the four statements once, prints counts and timings, and sends nothing:
+--   node --env-file=connector.env agent.mjs --lumper --dry-run
+-- ========================================================================================
+
+-- ----------------------------------------------------------------------------------------
+-- STATEMENT 30 of 33: ORDERS WITH A LUMPER
+--
+-- One row per order: the customer, the dispatcher and the delivery stop. Customer is
+-- read on the columns already granted (id, name, company_id).
+-- ----------------------------------------------------------------------------------------
+SELECT
+      LTRIM(RTRIM(o.id))                              AS order_external_id,
+      LTRIM(RTRIM(o.company_id))                      AS company_id,
+      NULLIF(LTRIM(RTRIM(o.status)), '')              AS order_status,
+      CONVERT(varchar(19), o.ordered_date, 126)       AS ordered_at,
+      CONVERT(varchar(19), o.bill_date, 126)          AS bill_date,
+      NULLIF(LTRIM(RTRIM(o.customer_id)), '')         AS customer_id,
+      NULLIF(LTRIM(RTRIM(c.name)), '')                AS customer_name,
+      NULLIF(LTRIM(RTRIM(o.operations_user)), '')     AS dispatcher_user_id,
+      NULLIF(LTRIM(RTRIM(usr.name)), '')              AS dispatcher_name,
+      NULLIF(LTRIM(RTRIM(o.curr_movement_id)), '')    AS movement_external_id,
+      NULLIF(LTRIM(RTRIM(cs.location_name)), '')      AS consignee_name,
+      NULLIF(LTRIM(RTRIM(cs.city_name)), '')          AS consignee_city,
+      NULLIF(LTRIM(RTRIM(cs.state)), '')              AS consignee_state,
+      CONVERT(varchar(19), cs.actual_arrival, 126)    AS consignee_arrived_at,
+      CONVERT(varchar(19), cs.actual_departure, 126)  AS consignee_departed_at
+      FROM dbo.orders AS o
+      LEFT JOIN dbo.customer AS c
+             ON c.company_id = o.company_id
+            AND c.id         = o.customer_id
+      LEFT JOIN dbo.users AS usr
+             ON usr.company_id = o.company_id
+            AND usr.id         = o.operations_user
+      LEFT JOIN dbo.stop AS cs
+             ON cs.company_id = o.company_id
+            AND cs.id         = o.consignee_stop_id
+     WHERE o.company_id = @companyId
+       AND o.id IN (
+        SELECT oc.order_id
+          FROM dbo.other_charge AS oc
+          JOIN dbo.orders AS so
+            ON so.company_id = oc.company_id
+           AND so.id         = oc.order_id
+         WHERE oc.company_id = @companyId
+           AND oc.charge_id  = 'LUM'
+           AND so.ordered_date >= @lumperSince
+        UNION
+        SELECT dh.order_id
+          FROM dbo.drs_deduct_hist AS dh
+         WHERE dh.company_id = @companyId
+           AND dh.deduct_code_id IN ('UNL', 'LUM')
+           AND dh.transaction_date >= @lumperSince
+           AND dh.order_id IS NOT NULL
+        UNION
+        SELECT dp.order_id
+          FROM dbo.drs_pending_deduct AS dp
+         WHERE dp.company_id = @companyId
+           AND dp.deduct_code_id IN ('UNL', 'LUM')
+           AND dp.transaction_date >= @lumperSince
+           AND dp.order_id IS NOT NULL)
+     ORDER BY o.id
+OPTION (MAXDOP 1);
+
+-- ----------------------------------------------------------------------------------------
+-- STATEMENT 31 of 33: LUMPER CHARGES ON THOSE ORDERS
+--
+-- The LUM rows of other_charge as they stand now.
+-- ----------------------------------------------------------------------------------------
+SELECT
+      LTRIM(RTRIM(oc.id))                             AS external_id,
+      LTRIM(RTRIM(oc.company_id))                     AS company_id,
+      LTRIM(RTRIM(oc.order_id))                       AS order_external_id,
+      LTRIM(RTRIM(oc.charge_id))                      AS charge_code,
+      NULLIF(LTRIM(RTRIM(oc.descr)), '')              AS descr,
+      oc.amount                                       AS amount,
+      oc.sequence                                     AS sequence
+      FROM dbo.other_charge AS oc
+     WHERE oc.company_id = @companyId
+       AND oc.charge_id  = 'LUM'
+       AND oc.order_id IN (
+        SELECT oc.order_id
+          FROM dbo.other_charge AS oc
+          JOIN dbo.orders AS so
+            ON so.company_id = oc.company_id
+           AND so.id         = oc.order_id
+         WHERE oc.company_id = @companyId
+           AND oc.charge_id  = 'LUM'
+           AND so.ordered_date >= @lumperSince
+        UNION
+        SELECT dh.order_id
+          FROM dbo.drs_deduct_hist AS dh
+         WHERE dh.company_id = @companyId
+           AND dh.deduct_code_id IN ('UNL', 'LUM')
+           AND dh.transaction_date >= @lumperSince
+           AND dh.order_id IS NOT NULL
+        UNION
+        SELECT dp.order_id
+          FROM dbo.drs_pending_deduct AS dp
+         WHERE dp.company_id = @companyId
+           AND dp.deduct_code_id IN ('UNL', 'LUM')
+           AND dp.transaction_date >= @lumperSince
+           AND dp.order_id IS NOT NULL)
+     ORDER BY oc.order_id, oc.sequence
+OPTION (MAXDOP 1);
+
+-- ----------------------------------------------------------------------------------------
+-- STATEMENT 32 of 33: WHAT WE PAID
+--
+-- Settlement lines with code UNL (the EFS money code) or LUM (the driver's
+-- reimbursement), paid and pending. No other deduction code is read.
+-- ----------------------------------------------------------------------------------------
+SELECT
+      LTRIM(RTRIM(d.id))                              AS external_id,
+      LTRIM(RTRIM(d.company_id))                      AS company_id,
+      'paid'                                          AS settlement_state,
+      NULLIF(LTRIM(RTRIM(d.order_id)), '')            AS order_external_id,
+      NULLIF(LTRIM(RTRIM(d.movement_id)), '')         AS movement_external_id,
+      LTRIM(RTRIM(d.deduct_code_id))                  AS deduct_code,
+      NULLIF(LTRIM(RTRIM(d.deduction_type)), '')      AS deduction_type,
+      d.amount                                        AS amount,
+      CONVERT(varchar(19), d.transaction_date, 126)   AS transacted_at,
+      NULLIF(LTRIM(RTRIM(d.reference_no)), '')        AS reference_no,
+      NULLIF(LTRIM(RTRIM(d.driver_id)), '')           AS driver_external_id,
+      NULLIF(LTRIM(RTRIM(d.payee_id)), '')            AS payee_id,
+      NULLIF(LTRIM(RTRIM(d.tractor_id)), '')          AS tractor_unit,
+      CASE WHEN d.is_void = 'Y' THEN 1 ELSE 0 END     AS is_void
+      FROM dbo.drs_deduct_hist AS d
+     WHERE d.company_id = @companyId
+       AND d.deduct_code_id IN ('UNL', 'LUM')
+       AND d.transaction_date >= @lumperSince
+    UNION ALL
+    SELECT
+      LTRIM(RTRIM(p.id))                              AS external_id,
+      LTRIM(RTRIM(p.company_id))                      AS company_id,
+      'pending'                                       AS settlement_state,
+      NULLIF(LTRIM(RTRIM(p.order_id)), '')            AS order_external_id,
+      NULLIF(LTRIM(RTRIM(p.movement_id)), '')         AS movement_external_id,
+      LTRIM(RTRIM(p.deduct_code_id))                  AS deduct_code,
+      NULLIF(LTRIM(RTRIM(p.deduction_type)), '')      AS deduction_type,
+      p.amount                                        AS amount,
+      CONVERT(varchar(19), p.transaction_date, 126)   AS transacted_at,
+      NULLIF(LTRIM(RTRIM(p.reference_no)), '')        AS reference_no,
+      NULLIF(LTRIM(RTRIM(p.driver_id)), '')           AS driver_external_id,
+      NULLIF(LTRIM(RTRIM(p.payee_id)), '')            AS payee_id,
+      NULLIF(LTRIM(RTRIM(p.tractor_id)), '')          AS tractor_unit,
+      0                                               AS is_void
+      FROM dbo.drs_pending_deduct AS p
+     WHERE p.company_id = @companyId
+       AND p.deduct_code_id IN ('UNL', 'LUM')
+       AND p.transaction_date >= @lumperSince
+OPTION (MAXDOP 1);
+
+-- ----------------------------------------------------------------------------------------
+-- STATEMENT 33 of 33: INVOICES OF THOSE ORDERS
+--
+-- Each bill of those orders with the lumper amount on it, summed from other_charge_hist.
+-- ----------------------------------------------------------------------------------------
+SELECT
+      LTRIM(RTRIM(b.id))                              AS external_id,
+      LTRIM(RTRIM(b.company_id))                      AS company_id,
+      LTRIM(RTRIM(b.order_id))                        AS order_external_id,
+      b.invoice_no                                    AS invoice_no,
+      CONVERT(varchar(19), b.bill_date, 126)          AS bill_date,
+      NULLIF(LTRIM(RTRIM(b.bill_type)), '')           AS bill_type,
+      NULLIF(LTRIM(RTRIM(b.canceled)), '')            AS canceled,
+      NULLIF(LTRIM(RTRIM(b.rebilled)), '')            AS rebilled,
+      b.total_charges                                 AS total_charges,
+      COALESCE(l.lumper_amount, 0)                    AS lumper_amount,
+      COALESCE(l.lumper_lines, 0)                     AS lumper_lines
+      FROM dbo.billing_history AS b
+      LEFT JOIN (
+        SELECT h.company_id, h.invoice_id, SUM(h.amount) AS lumper_amount, COUNT(*) AS lumper_lines
+          FROM dbo.other_charge_hist AS h
+         WHERE h.company_id = @companyId
+           AND h.charge_id  = 'LUM'
+         GROUP BY h.company_id, h.invoice_id
+      ) AS l
+             ON l.company_id = b.company_id
+            AND l.invoice_id = b.id
+     WHERE b.company_id = @companyId
+       AND b.order_id IN (
+        SELECT oc.order_id
+          FROM dbo.other_charge AS oc
+          JOIN dbo.orders AS so
+            ON so.company_id = oc.company_id
+           AND so.id         = oc.order_id
+         WHERE oc.company_id = @companyId
+           AND oc.charge_id  = 'LUM'
+           AND so.ordered_date >= @lumperSince
+        UNION
+        SELECT dh.order_id
+          FROM dbo.drs_deduct_hist AS dh
+         WHERE dh.company_id = @companyId
+           AND dh.deduct_code_id IN ('UNL', 'LUM')
+           AND dh.transaction_date >= @lumperSince
+           AND dh.order_id IS NOT NULL
+        UNION
+        SELECT dp.order_id
+          FROM dbo.drs_pending_deduct AS dp
+         WHERE dp.company_id = @companyId
+           AND dp.deduct_code_id IN ('UNL', 'LUM')
+           AND dp.transaction_date >= @lumperSince
+           AND dp.order_id IS NOT NULL)
+     ORDER BY b.order_id, b.bill_date
+OPTION (MAXDOP 1);
+
+-- ========================================================================================
+-- END - 33 statements. That is everything the connector reads.
 -- ========================================================================================

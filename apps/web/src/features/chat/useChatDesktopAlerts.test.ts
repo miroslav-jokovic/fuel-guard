@@ -10,9 +10,12 @@ import type { ChatConversation } from "@silvicom/shared";
  * answer; a ringing line is an alert with its words; clicking it opens the line; and nothing rings
  * while the person has not turned alerts on.
  */
+/** The person's Do not disturb as the server answers it; a test sets it (CHAT-WEB-PUSH-PLAN WP5). */
+const quiet = vi.hoisted(() => ({ state: null as null | Record<string, unknown> }));
 const apiFetch = vi.hoisted(() => vi.fn(async (path: string) => ({
   ok: true,
-  data: path.includes("/unread") ? { unread: 0 } : path.includes("/people") ? { people: [] } : { items: [], next: null, unread: 0 },
+  data: path.includes("/push/quiet") && quiet.state ? quiet.state
+    : path.includes("/unread") ? { unread: 0 } : path.includes("/people") ? { people: [] } : { items: [], next: null, unread: 0 },
 })));
 vi.mock("@/lib/api", () => ({ apiFetch }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ userId: "11111111-1111-4111-8111-111111111111" }) }));
@@ -105,6 +108,28 @@ describe("desktop alerts in a tab", () => {
     await nextTick();
     expect(FakeNotification.shown).toHaveLength(1);
     w.unmount();
+  });
+
+  it("keeps Do not disturb: a line during a pause never rings, not even when the pause ends; the next one does", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-13T20:00:00Z"));
+    quiet.state = { paused_until: "2026-11-13T21:00:00Z", quiet_start: null, quiet_end: null, timezone: "UTC", quiet_now: true };
+    const { w, inbox, control } = await setup();
+    await control().turnOn();
+    await flushPromises();
+    inbox.value = [conv(4)];
+    await nextTick();
+    expect(FakeNotification.shown).toEqual([]);
+    vi.setSystemTime(new Date("2026-11-13T21:00:01Z"));
+    inbox.value = [conv(4)];
+    await nextTick();
+    expect(FakeNotification.shown).toEqual([]);
+    inbox.value = [conv(5)];
+    await nextTick();
+    expect(FakeNotification.shown.map((n) => n.options.body)).toEqual(["line 5"]);
+    w.unmount();
+    quiet.state = null;
+    vi.useRealTimers();
   });
 
   it("opens the line where it lives when the alert is clicked", async () => {

@@ -308,6 +308,8 @@ audit row is the endpoint's own.
 
   **Recommend (a):** an office sorting a queue by "is this worth chasing" needs it with or without
   Ask AI.
+  - **Ruled 2026-11-12: (a)** (owner: "proceed as recommended"). Built as the next page PR (§6, the entry
+    "Fuel problems gains a minimum amount").
 
 
 ## 6. Log
@@ -1324,3 +1326,37 @@ audit row is the endpoint's own.
       this is its feedback form (linked at the top of the tool search page). It is a better door than a
       general email. The re-run above makes the message concrete: the pattern, and the five tools
       returned.
+- 2026-11-12 — **Fuel problems gains a minimum amount (Q-AI14 (a)), and Step 5's acceptance question is met.**
+  - **The page.** A secondary "Amount" filter: $50, $100, $200, $500 or $1,000 or more. These are steps,
+    not any number. The control is a `FilterSelect` (design contract §5.5 rule 4), so a link may only name
+    a value the control can show.
+  - **What it means.** Money identified, i.e. `fuel_exceptions.amount`. A fill case or a card-fraud
+    incident has no amount, so with a minimum set they leave the list. The chip says
+    "$200 or more · billing findings only", because the chip is what stays visible after the popover
+    closes.
+  - **One definition, three readers.** `fuelProblemsLinkContract.ts` holds the key (`min`), the steps and
+    `parseFuelProblemsMinAmount`. All three readers use it:
+    - the page;
+    - the queue route (`readFindings` bounds the ledger read on `amount` and skips both case sources);
+    - the CSV export route, which takes the same bound, so the file holds what is on screen.
+    The bound is in the query, not a filter after the read, so `READ_CAP`'s truncation stays honest.
+  - **Ask AI.** `fuel_problems` gains `min_amount`, one of the same steps. "Show me open findings over
+    $200 for unit 718" now opens the page filtered: the acceptance question. "Over $250" is refused, and
+    the refusal names the steps.
+  - **Tests:**
+    - `assistantViews.test.ts`: "Fuel problems: a minimum amount is one of the page's steps, so \"over
+      $200\" opens and \"over $250\" is refused naming them (Q-AI14)".
+    - `openAssistantView.test.ts`: the acceptance question's link.
+    - `findingsRead.test.ts`: "with a minimum amount reads only the ledger, bounded on `amount`, and no
+      case source at all".
+    - `fuelExceptionExport.test.ts`: "bounds the file by the page's minimum amount".
+    - `FuelProblemsPage.test.ts`: "narrows the list and the export to a minimum amount, says the cases
+      drop out, and ignores an amount it has no step for".
+    - `useExceptions.test.ts`: the export query carries `min`.
+  - **Deliberate breaks, each killed:**
+    - the queue still reading the case sources;
+    - the export unbounded;
+    - the page reading another key.
+  - **Found while testing:** the first place for the note was inside the "Filters" popover, which is not
+    on screen once it closes. It moved to the chip.
+

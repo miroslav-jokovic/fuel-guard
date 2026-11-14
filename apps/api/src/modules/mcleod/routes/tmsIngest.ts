@@ -1,5 +1,6 @@
 import { Router, json } from "express";
 import { registerTmsFinancialRoutes } from "./tmsFinancial.js";
+import { registerTmsLumperRoutes } from "./tmsLumper.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -120,6 +121,9 @@ export function tmsIngestRouter(): Router {
 
   // ── financial staging (P3.2): settlements + AP vouchers ──────────────────────────────────────
   registerTmsFinancialRoutes(router);
+
+  // ── lumper fees (LUMPER-REVISED-RC-PLAN LRC2): one sweep, one request ─────────────────────────
+  registerTmsLumperRoutes(router);
 
   // ── roster (M3, link-only) ────────────────────────────────────────────────────────────────────
   //

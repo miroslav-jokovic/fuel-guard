@@ -14,6 +14,10 @@ export const dispatchBoardEnvFields = {
   // can be scored against the arrival. Hourly, because the error by hours-out is the question and an
   // hour is that axis's resolution; ~2,900 rows a day. No vendor call. 0 disables it.
   DISPATCH_BOARD_ETA_RECORD_MINUTES: z.coerce.number().min(0).default(60),
+  // Home time's job (HOME-TIME-PLAN D-HT13): ends the periods of drivers who are plainly back on a
+  // load or gone, then sends the ending / overstayed / truck-at-home alerts. Fifteen minutes, because the
+  // alerts are judged to the hour; one read per org when nobody is home. No vendor call. 0 disables it.
+  HOME_TIME_ALERT_MINUTES: z.coerce.number().min(0).default(15),
   // Trailer ↔ truck pairing by GPS co-location (TRAILER-LINK-PLAN Q-TL2). Until 2026-10-19 it ran only
   // when someone pressed the trailer sync, last on 2026-08-04, so every pairing was two months old. Daily:
   // the match looks back five days, so a skipped day still finds every trailer. One run reads five days of

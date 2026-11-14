@@ -60,6 +60,8 @@ export const ASSISTANT_EVAL_SET: AssistantEvalCase[] = [
   { id: "card-holds", kind: "tool", role: "fleet_manager", source: "card_holds", question: "Which fuel cards are on hold or on a fraud hold right now?", expectTools: ["card_holds"] },
   // F21 Step 5: a navigation, not a figure. The model must open the page, not read and recite a list.
   { id: "show-open-fuel-problems", kind: "tool", role: "fleet_manager", source: "open_view", question: "Show me the open fuel problems for unit 718", expectTools: ["open_view"], expectInput: { view: "fuel_problems" } },
+  // Step 5's acceptance question, answerable since Q-AI14 (a) gave the page a minimum amount.
+  { id: "show-findings-over-200", kind: "tool", role: "fleet_manager", source: "open_view", question: "Show me open findings over $200 for unit 718", expectTools: ["open_view"], expectInput: { view: "fuel_problems" } },
   { id: "show-declines-fuel-log", kind: "tool", role: "dispatcher", source: "open_view", question: "Show me the declined card swipes for unit 718 in the last 7 days", expectTools: ["open_view"], expectInput: { view: "fuel_log" } },
   { id: "show-critical-alerts", kind: "tool", role: "safety_manager", source: "open_view", question: "Show me the critical fuel alerts for unit 718", expectTools: ["open_view"], expectInput: { view: "fuel_alerts" } },
   { id: "show-cards-with-override", kind: "tool", role: "fleet_manager", source: "open_view", question: "Show me the fuel cards that have an active override", expectTools: ["open_view"], expectInput: { view: "fuel_cards" } },

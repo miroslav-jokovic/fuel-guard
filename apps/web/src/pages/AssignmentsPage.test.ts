@@ -7,6 +7,9 @@ import type { DispatchBoardResponse, DispatchBoardRow } from "@silvicom/shared";
 
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
 vi.mock("@/features/dispatch/AssignmentHistory.vue", () => ({ default: { template: "<div data-test='history'/>" } }));
+// Home time is mounted on this screen and is not its subject (`@/testing/fakeHomeTime`): nobody home, no button.
+vi.mock("@/components/homeTime/useHomeTime", async () => (await import("@/testing/fakeHomeTime")).fakeHomeTime());
+vi.mock("@/components/homeTime/HomeTimeDrawer.vue", () => ({ default: { template: "<div/>" } }));
 // The drawer's own reads and rendering are DispatchTruckDrawer.test.ts's; here only WHICH truck it gets.
 vi.mock("@/features/dispatch/DispatchTruckDrawer.vue", () => ({
   default: { name: "DispatchTruckDrawer", props: ["row"], emits: ["close"], template: "<div data-test='drawer'>{{ row ? row.unitNumber : 'closed' }}</div>" },
@@ -18,12 +21,12 @@ vi.mock("@/features/dispatch/DispatchTruckDrawer.vue", () => ({
  * for a linked dispatcher and on All — saying why — for anyone else, and the uncovered loads are a link
  * to the Loads page rather than a second list (D-DB5).
  */
-const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false };
+const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false, homeTimeUrgent: false };
 const NOW = Date.parse("2026-10-09T20:00:00Z");
 /** An empty truck, free now where it stands — or, with `hours`, free that many hours from the board's clock. */
 const row = (unitNumber: string, fleetCode: string, o: { hours?: number; state?: string } = {}): DispatchBoardRow => ({
   vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode, driver: null, coDriver: null, trailerId: null, hos: null, position: null,
-  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", milesLeft: null, warnings: [], noteMentions: [], flags: { ...flags, emptyNow: true },
+  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", milesLeft: null, warnings: [], noteMentions: [], homeTimes: [], flags: { ...flags, emptyNow: true },
   available: {
     place: null, ...(o.state === "GA" ? { city: "Savannah", state: "GA", postalCode: "31401", lat: 32.08, lng: -81.09 } : { city: "Lakeland", state: "FL", postalCode: "33801", lat: 28.04, lng: -81.95 }),
     at: new Date(NOW + (o.hours ?? 0) * 3_600_000).toISOString(), basis: o.hours ? "appointment" : "now",
@@ -147,11 +150,12 @@ describe("the dispatch board page", () => {
     expect(w.get("[data-test=drawer]").text()).toBe("closed");
   });
 
-  it("shows two queues as tabs with their counts, and History as the last tab", async () => {
+  it("shows two queues as tabs with their counts, then Home time, and History as the last tab", async () => {
     board.value = response(true);
     const w = await mountPage();
     const tabs = w.findAll("[role=tab]").map((t) => t.text().replace(/\s+/g, " "));
-    expect(tabs).toEqual(["All trucks 2", "Needs attention 0", "History"]);
+    // Home time carries its own list's count once that list has answered (HOME-TIME-PLAN D-HT8); here it has not.
+    expect(tabs).toEqual(["All trucks 2", "Needs attention 0", "Home time", "History"]);
     await w.findAll("[role=tab]").at(-1)!.trigger("click");
     await flushPromises();
     expect(w.router.currentRoute.value.query).toEqual({ queue: "history" });

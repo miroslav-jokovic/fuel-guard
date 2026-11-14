@@ -1487,6 +1487,17 @@
         "why": "new in 0553 (2026-11-03); at most one row per lead, a fraction of leads; evidence, removed only by the applicant purge."
       }
     },
+    "home_time_settings": {
+      "module": "roster",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "HOME-TIME-PLAN D-HT12 (0599): the carrier's three home-time alert thresholds, one row per org at most; bounded by the number of orgs, not by time."
+      }
+    },
     "hos_duty_segments": {
       "module": "samsara",
       "layer": "raw",
@@ -2301,6 +2312,39 @@
         "why": "idempotency ledger for notify() (0432, DATA-LIFECYCLE-PLAN Q11): a deleted key re-arms its alert, so no window. One narrow row per keyed emit, ~70/day measured 2026-10-05 (3,182 since 08-09); the budget matches notification_events."
       }
     },
+    "notification_channel_settings": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "HOME-TIME-PLAN D-HT18 (0598): the hours alert texts are held, one row per org at most; bounded by the number of orgs, not by time."
+      }
+    },
+    "notification_contacts": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "NOTIFICATION-ROUTING-PLAN D-NR5 (0598): an office person's confirmed mobile number, one row per member at most; bounded by office headcount. The row is the consent record, so no window."
+      }
+    },
+    "notification_deliveries": {
+      "module": "messaging",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "HOME-TIME-PLAN D-HT19 (0598): one row per alert email or text queued for a person. 90 days, the inbox's window: the dedupe keys live in notification_dedupe_keys, so a pruned row re-sends nothing. The budget matches notification_events; the home-time alerts add a handful a day."
+      }
+    },
     "notification_events": {
       "module": "messaging",
       "layer": "derived",
@@ -2310,6 +2354,17 @@
         "partition": null,
         "budget_rows_per_day": 500,
         "why": "the bell's inbox and the Expo Push delivery queue. 90 days (DATA-LIFECYCLE-PLAN Q11, ruled 2026-10-05): prunable since 0432 moved the dedupe keys to notification_dedupe_keys."
+      }
+    },
+    "notification_routes": {
+      "module": "messaging",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "NOTIFICATION-ROUTING-PLAN D-NR2 (0598): alert x recipient x channel switches, rewritten in place when an admin saves; bounded by alerts x roles and people x three channels, not by time."
       }
     },
     "notification_preferences": {
@@ -3192,6 +3247,17 @@
         "why": "a cache; re-fetched on demand. Measured 8,634/day. L5 proposes 400d\u219290d. D-LIFE7: NEVER partitioned \u2014 its PK is the natural key (lat_grid, lng_grid, hour_utc) and adding a time column would change dedup semantics."
       }
     },
+    "web_push_subscriptions": {
+      "module": "messaging",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "one row per browser endpoint of an office member (0599, CHAT-WEB-PUSH-PLAN D-WP1); the endpoint is unique and a device re-registering updates its row, so it grows with people and their devices (14 office members 2026-11-13), not with messages."
+      }
+    },
     "application_intakes": {
       "module": "recruiting",
       "layer": "core",
@@ -3454,6 +3520,83 @@
         "partition": null,
         "budget_rows_per_day": 5000,
         "why": "new in 0577 (2026-11-09, ADS-CREATIVE-QUALITY-PLAN CQ3); one row per live AD per hour as the platform reports it — ~20 live campaigns x 5 concepts x 2 languages x 24 h. Re-derivable from the platform; a retention rule comes with the per-preset reader once its window is known."
+      }
+    },
+    "lumper_cases": {
+      "module": "mcleod",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "LUMPER-REVISED-RC-PLAN D-LRC1 (0600): one row per order with a lumper, opened by the sweep and closed only by a person. Measured on the analytics copy: 256 orders in 2026 to 10-09, under one a day; 30 leaves room for detention joining under Q-LRC7. The row carries who closed a case and why, so no window."
+      }
+    },
+    "mcleod_lumper_orders": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "LUMPER-REVISED-RC-PLAN LRC2 (0600): one row per order with a lumper, updated in place by each sweep. 87 orders in the 90 days measured, under one a day. Kept while its case is: the page reads the broker, dispatcher and delivery stop from it."
+      }
+    },
+    "mcleod_lumper_charges": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "LUMPER-REVISED-RC-PLAN LRC2 (0600): the LUM charges on those orders as they stand now; the sweep replaces them inside its 90-day window, so the table holds current rows, not history. 90 rows in the 90 days measured."
+      }
+    },
+    "mcleod_lumper_payments": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 60,
+        "why": "LUMPER-REVISED-RC-PLAN LRC2 (0600): settlement lines for the EFS money code and the driver's reimbursement, replaced by each sweep inside its window. 170 rows in the 90 days measured, about two a day."
+      }
+    },
+    "mcleod_lumper_bills": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 40,
+        "why": "LUMPER-REVISED-RC-PLAN LRC2 (0600): every invoice and credit memo of an order with a lumper, updated in place. 109 rows in the 90 days measured, just over one a day."
+      }
+    },
+    "mcleod_lumper_sweeps": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "LUMPER-REVISED-RC-PLAN LRC2 (0600): when the lumper feed last ran, one row per org and McLeod company, rewritten by every sweep; bounded by the number of companies, not by time."
+      }
+    },
+    "lumper_case_files": {
+      "module": "mcleod",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "LUMPER-REVISED-RC-PLAN D-LRC3 (0601): the broker's revised rate confirmation filed on a lumper case, one or two papers a case and under one case a day (256 orders in 2026 to 10-09). The row is the record that the RC arrived, so it is never deleted and has no window; a wrong paper is marked removed."
       }
     }
   }

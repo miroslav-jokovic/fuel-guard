@@ -20,10 +20,19 @@ export { chatRouter } from "./routes/chat.js";
 export { chatRouters } from "./routes/chatMount.js";
 export { notificationsRouter } from "./routes/notifications.js";
 export { keysAlreadySent, notify, revokePushTokens } from "./notify.js";
+// Alert routing (NOTIFICATION-ROUTING-PLAN D-NR3/D-NR4): who hears an alert, and the one sender.
+export { sendAlerts, recipientsFor, readAlertAudience, readAlertRoutes, type AlertEvent, type AlertSendResult } from "./alertRouting.js";
 export { notifyForTransaction } from "./notifications.js";
 export { startNotificationPushScheduler } from "./notificationPush.js";
 export { startChatLedgerVerifyScheduler } from "./chatLedgerVerify.js";
 export { startRealtimeProbeScheduler } from "./realtimeProbe.js";
 export { startChatExportSweeper } from "./chatExportSweeper.js";
 export { getRealtimeHealth, realtimeHealthy, type RealtimeHealth } from "./realtimeHealth.js";
+export { getPushHealth, pushHealthy, type PushHealth } from "./pushHealth.js";
 export { loginForDriver } from "./notify.js";
+export { alertRoutingRouter, myAlertsRouter } from "./routes/alertRouting.js";
+// The magic-number check on an uploaded file's first bytes. Exported for the lumper cases' revised RC
+// (LUMPER-REVISED-RC-PLAN LRC3), so "is this really a PDF" has one definition.
+export { bytesAreKind } from "./chatFiles.js";
+export { drainAlertTexts, recordAlertTextReceipt, type AlertTextClock, type AlertTextDrain } from "./alertTexts.js";
+export { handleAlertInboundSms } from "./alertContacts.js";

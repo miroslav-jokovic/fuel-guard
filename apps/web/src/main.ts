@@ -6,11 +6,14 @@ import { VueQueryPlugin } from "@tanstack/vue-query";
 import { QUERY_DEFAULTS } from "@silvicom/ui";
 import App from "@/App.vue";
 import { router } from "@/router";
+import { listenForNotificationTaps } from "@/lib/webPush";
 import "@vuepic/vue-datepicker/dist/main.css";
 import "@/style.css"; // after the datepicker CSS so token overrides win
 
 // Replay the stored colour-scheme override before first paint (D-DS2b).
 initColorScheme();
+// A tapped chat notification while the app is open goes there through the router (public/sw.js, CH10).
+listenForNotificationTaps(router);
 
 const app = createApp(App);
 

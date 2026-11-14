@@ -9,9 +9,21 @@ import { SAMSARA_WEBHOOK_PATH } from "../modules/samsara/index.js";
 
 // C2d: the receipt's write is `smsOutbox.test.ts`'s to prove; here only that a signed receipt reaches it.
 const receipts = vi.hoisted(() => ({ fn: vi.fn(async () => true) }));
+// HOME-TIME HT6: the same receipt is offered to the office alert texts, whose write is
+// `messaging/alertTexts.test.ts`'s to prove.
+const alertReceipts = vi.hoisted(() => ({ fn: vi.fn(async () => false) }));
+// What each line's handler DOES with a reply is `applicationSms.test.ts`'s and `alertContacts.test.ts`'s
+// to prove; here only which of the two a signed reply reaches.
+const replies = vi.hoisted(() => ({ applicant: vi.fn(async () => ({ revoked: 0, helped: false, resumed: 0 })), alert: vi.fn(async () => ({ stopped: 0, resumed: 0, helped: false })) }));
 vi.mock("../modules/recruiting/index.js", async (orig) => ({
   ...(await orig<object>()),
   recordDeliveryReceipt: receipts.fn,
+  handleInboundSms: replies.applicant,
+}));
+vi.mock("../modules/messaging/index.js", async (orig) => ({
+  ...(await orig<object>()),
+  recordAlertTextReceipt: alertReceipts.fn,
+  handleAlertInboundSms: replies.alert,
 }));
 
 /**
@@ -43,6 +55,9 @@ function signTelnyx(body: string, timestamp: string): string {
   );
 }
 
+const RECRUITING_NUMBER = "+15550001111";
+const ALERT_NUMBER = "+15550002222";
+
 beforeAll(async () => {
   // Dummy Supabase credentials so the service-role client can be constructed; nothing here queries,
   // because an unsigned delivery is refused before any read.
@@ -52,6 +67,8 @@ beforeAll(async () => {
     SUPABASE_SERVICE_ROLE_KEY: "test-key",
     SUPABASE_JWT_SECRET: "test-secret-test-secret-test-secret!!",
     TELNYX_PUBLIC_KEY,
+    TELNYX_FROM: RECRUITING_NUMBER,
+    TELNYX_ALERTS_FROM: ALERT_NUMBER,
   } as NodeJS.ProcessEnv);
   const app = createApp(env);
   await new Promise<void>((resolve) => {
@@ -139,6 +156,32 @@ describe("the inbound SMS receiver", () => {
     });
     expect(res.status).toBe(200);
     expect(receipts.fn).toHaveBeenCalledWith(expect.anything(), { messageId: "tx-1", status: "delivery_failed" }, expect.any(Date));
+    expect(alertReceipts.fn).toHaveBeenCalledWith(expect.anything(), { messageId: "tx-1", status: "delivery_failed" });
+  });
+
+  // Two numbers, one webhook (2026-11-13): a reply is about the number it was sent to. An office
+  // person's STOP on the alert number must not revoke an applicant's consent, and an applicant's STOP
+  // on the recruiting number must not be read as anything about alert texts.
+  it("hands a signed reply to the line whose number it was sent to, and to that line only", async () => {
+    const reply = async (to: string, text: string) => {
+      const body = JSON.stringify({ data: { event_type: "message.received", payload: { from: { phone_number: "+17085550100" }, to: [{ phone_number: to }], text } } });
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const res = await fetch(`${baseUrl}/api/webhooks/sms`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "telnyx-timestamp": timestamp, "telnyx-signature-ed25519": signTelnyx(body, timestamp) },
+        body,
+      });
+      expect(res.status).toBe(200);
+    };
+
+    await reply(ALERT_NUMBER, "STOP");
+    expect(replies.alert).toHaveBeenCalledWith(expect.anything(), expect.anything(), "+17085550100", "STOP");
+    expect(replies.applicant).not.toHaveBeenCalled();
+
+    replies.alert.mockClear();
+    await reply(RECRUITING_NUMBER, "STOP");
+    expect(replies.applicant).toHaveBeenCalledWith(expect.anything(), expect.anything(), "+17085550100", "STOP");
+    expect(replies.alert).not.toHaveBeenCalled();
   });
 
   // Telnyx posts JSON. The `express.urlencoded` mount this route used to sit behind was for Twilio,

@@ -114,11 +114,12 @@ export const applicationEquipmentSchema = z.object({
 export type ApplicationEquipment = z.infer<typeof applicationEquipmentSchema>;
 
 export const applicationAddressSchema = z.object({
-  line1: z.string().min(1).max(200),
+  // Q-AM8 (a): street and ZIP may be left for the office; filing refuses without them (`OFFICE_COMPLETES`).
+  line1: z.string().max(200),
   line2: z.string().max(200).nullish(),
   city: z.string().min(1).max(120),
   state: z.string().min(2).max(40),
-  postal_code: z.string().min(3).max(20),
+  postal_code: z.union([z.literal(""), z.string().min(3).max(20)]),
   from: z.string().regex(/^\d{4}-\d{2}$/, "Expected a month as YYYY-MM"),
   /** null = current address. */
   to: z.preprocess(
@@ -147,7 +148,12 @@ export const applicationAccidentSchema = z.object({
   nature: z.string().min(1).max(500),
   fatalities: z.coerce.number().int().min(0).max(999).default(0),
   injuries: z.coerce.number().int().min(0).max(999).default(0),
-  hazmat_spill: z.boolean().default(false),
+  /**
+   * HM SPILL, a Yes/No with nothing chosen since F4 PR 1b-1: as a checkbox an unasked accident filed "No".
+   * Null is unanswered, refused on a new filing by `applicationPaperFilingIssues`; a filed payload holds a
+   * boolean, and an absent one defaults to No as before (the previous employer's report sends a box).
+   */
+  hazmat_spill: z.boolean().nullable().default(false),
   key: applicationRowKeySchema,
 }).strict();
 export type ApplicationAccident = z.infer<typeof applicationAccidentSchema>;

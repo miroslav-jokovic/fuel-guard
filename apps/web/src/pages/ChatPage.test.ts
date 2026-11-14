@@ -51,6 +51,8 @@ vi.mock("@/features/chat/useChat", async () => {
   const { ref, watch } = await import("vue");
   const qs = (data: unknown) => ({ data: ref(data), isPending: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() });
   return {
+    // useChatDnd keys its query under CHAT_KEY (Do not disturb, CHAT-WEB-PUSH-PLAN WP5).
+    CHAT_KEY: ["chat"] as const,
     mergeLines: () => [],
     useChatInboxQuery: (_enabled: unknown, kinds?: string[]) => {
       state.inboxKinds = kinds ?? null;
@@ -186,7 +188,8 @@ async function render(path = "/chat") {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/chat", component: { template: "<div/>" }, meta: { title: "Chat" } }] });
   await router.push(path);
   await router.isReady();
-  const w = mount(ChatPage, { global: { plugins: [router] }, attachTo: document.body });
+  // Do not disturb reads the server through vue-query; it has its own test (ChatDoNotDisturb.test.ts).
+  const w = mount(ChatPage, { global: { plugins: [router], stubs: { ChatDoNotDisturb: true } }, attachTo: document.body });
   await flushPromises();
   return { w, router };
 }
@@ -243,6 +246,29 @@ describe("ChatPage", () => {
     const { w } = await render(`/chat?c=${T}`);
     expect(state.markRead).toHaveBeenCalledWith({ threadId: T, seq: 7 });
     expect(w.findComponent({ name: "ChatConversationStage" }).props("firstUnreadSeq")).toBe(6);
+  });
+
+  it("reads nothing in a hidden tab, and reads the conversation the moment the tab is seen (CHAT-WEB-PUSH-PLAN D-WP6)", async () => {
+    // A hidden tab that marked lines read would say "Seen" for words nobody saw, and hold back the phone's push.
+    const setVisibility = (v: "hidden" | "visible") => {
+      Object.defineProperty(document, "visibilityState", { value: v, configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    setVisibility("hidden");
+    try {
+      state.detail = {
+        conversation: { thread_id: T, kind: "direct", subject: null, title_members: [], member_count: 2, unread: 2, last_seq: 7, read_seq: 5 },
+        members: [], messages: [], before_seq: null,
+      };
+      await render(`/chat?c=${T}`);
+      expect(state.markRead).not.toHaveBeenCalled();
+      setVisibility("visible");
+      await flushPromises();
+      expect(state.markRead).toHaveBeenCalledWith({ threadId: T, seq: 7 });
+    } finally {
+      // @ts-expect-error — back to jsdom's own getter
+      delete document.visibilityState;
+    }
   });
 
   it("asks what a group is about and hands its header the link; a direct conversation asks nothing (CH11b)", async () => {

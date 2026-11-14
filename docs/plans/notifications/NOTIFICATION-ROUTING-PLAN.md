@@ -174,3 +174,23 @@ matrix: they go to the one driver they concern.
 
 - 2026-10-02 — Plan written from the production measurements in §1 and an inventory of every sender.
   Nothing built.
+- 2026-11-13 — **Built first for home time** (`docs/plans/dispatch-loads/HOME-TIME-PLAN.md` HT4–HT6,
+  PRs 2342, 2344, 2346). What exists, and what is still this plan's:
+  - **NR1 catalogue:** `packages/shared/src/alertRouting.ts` (`ALERT_CATALOGUE`), holding the three
+    home-time alerts with their default routes. *Left:* the existing alerts' entries and the `system` split.
+  - **NR2 storage:** `notification_routes`, `notification_contacts`, `notification_deliveries`,
+    `notification_channel_settings` (0598). Nothing left.
+  - **NR3 resolver and sender:** `resolveAlertRecipients` (shared), `recipientsFor` and `sendAlerts`
+    (`apps/api/src/modules/messaging/alertRouting.ts`) for bell, email and text. *Left:* moving the
+    fourteen existing senders onto them.
+  - **NR4 settings page:** Settings → Notifications lists every alert in the catalogue with Dashboard,
+    Email and Text switches per relation, role and person, the thresholds and the texts' quiet hours;
+    "My alerts" in the account menu, with phone confirmation. *Left:* the last-30-day count (D-NR6).
+  - **NR5, NR6:** not started.
+  - Rulings taken for these alerts only: Q-NR2 (only people who can view the alert's section), and
+    Q-NR3 is still open for the old alerts — the home-time alerts may be texted because the owner approved
+    that plan as proposed (its D-HT16), with Text off for everyone until an admin switches it on.
+  - Carried here from that plan as its Q-HT8: every background audience, the resolver included, reads
+    the DEFAULT role matrix, not a carrier's own section changes. It belongs with NR3's move of the senders.
+  - Not yet proven: an office alert text reaching a phone through the toll-free number (verified for
+    "HR / Staffing"). The first production text is HT6's last line.

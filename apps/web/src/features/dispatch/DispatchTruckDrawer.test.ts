@@ -56,6 +56,9 @@ vi.mock("@/lib/api", () => ({
   }),
 }));
 
+// Home time is mounted on this screen and is not its subject (`@/testing/fakeHomeTime`): nobody home, no button.
+vi.mock("@/components/homeTime/useHomeTime", async () => (await import("@/testing/fakeHomeTime")).fakeHomeTime());
+
 const SlideOverStub = {
   template: "<div v-if='open'><slot /><slot name='footer' /></div>",
   props: ["open", "title", "description"],
@@ -73,8 +76,8 @@ const loaded: DispatchBoardRow = {
   current: { loadId: LOAD, ref: "0012345", status: "in_transit", source: "mcleod", externalStatus: "P", customerName: "Kroger", dispatcherId: "vinniev", driverName: null, trailerUnit: null, nextStop: stop, lastStop: stop, stopsLeft: 1 },
   next: null,
   eta: { at: "2026-10-11T11:30:00Z", miles: 512, restAdded: true },
-  onTime: "on_time", available: { place: "Indianapolis, IN", city: "Indianapolis", state: "IN", postalCode: "46241", lat: 39.77, lng: -86.16, at: "2026-10-11T13:00:00Z", basis: "appointment" }, milesLeft: 180, warnings: [], noteMentions: [],
-  flags: { lateRisk: false, noNextLoad: true, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false },
+  onTime: "on_time", available: { place: "Indianapolis, IN", city: "Indianapolis", state: "IN", postalCode: "46241", lat: 39.77, lng: -86.16, at: "2026-10-11T13:00:00Z", basis: "appointment" }, milesLeft: 180, warnings: [], noteMentions: [], homeTimes: [],
+  flags: { lateRisk: false, noNextLoad: true, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false, homeTimeUrgent: false },
 };
 const empty: DispatchBoardRow = { ...loaded, current: null, eta: null, onTime: "unknown", available: null, milesLeft: null };
 

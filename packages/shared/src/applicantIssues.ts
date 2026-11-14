@@ -36,6 +36,8 @@ export const APPLICANT_ISSUE_TEXT = {
   job_reason_for_leaving: () => "Say why you left this job",
   job_fmcsr: () => "Say whether the Federal Motor Carrier Safety Regulations applied to you in this job",
   job_drug_testing: () => "Say whether this job was subject to DOT drug and alcohol testing",
+  // Q-AM8 (a): an address's street and ZIP — asked, and completed by the office when left (`OFFICE_COMPLETES`).
+  address_street: () => "Give the street and ZIP of this address",
   // ── the years covered (`applicationV2FilingIssues`) ──
   address_gap_month: (p: { month: string }) => `Tell us where you lived in ${p.month}`,
   address_gap: (p: { from: string; to: string }) => `Tell us where you lived from ${p.from} to ${p.to}`,
@@ -46,6 +48,8 @@ export const APPLICANT_ISSUE_TEXT = {
   suspension_answered: () => "Say whether a license, permit or privilege of yours has ever been suspended or revoked",
   violation_state: () => "Give the state where it happened",
   violation_penalty: () => "Give the penalty — a fine, points, a suspension",
+  // F4 PR 1b-1: the grid's HM SPILL column, asked as a Yes/No with nothing chosen.
+  accident_hazmat: () => "Say whether hazardous materials were spilled",
   // ── page 21 (`sevenDayStatementIssues`) ──
   seven_day_hours: () => "Give your hours on duty for each of the last seven days — 0 for a day you did not work",
   last_relieved_at: () => "Give the date and time you were last off duty",

@@ -116,6 +116,16 @@ const WAIVERS = new Map([
   // recruiting_carrier_questions (0567, §15.3 CQ1) shipped schema-only and left on 2026-11-04 in CQ2:
   // Settings → Recruiting's "Your own questions" writes it (recruiting/carrierQuestions.ts).
   ["phone_lookups", "ADS-LEAD-INTAKE-PLAN.md LQ8b — recruiting/leads/phoneLookup.ts writes it from the lead_new ring job (schema-only, 0583; leaves in LQ8b's merge)"],
+  // HOME-TIME-PLAN.md HT1 (0597, 0598) ships schema-only: a migration and its first reader never share a
+  // merge. `notification_deliveries` needs no entry — 0598's own `queue_notification_delivery` inserts it.
+  // Each leaves in the merge of the step named, which ships the code that reads or writes it.
+  // home_time_settings left on 2026-11-13 in HT2: roster/homeTime/homeTime.ts reads the carrier's thresholds
+  // for the board's chips and the Home time tab (a read is producer evidence here); HT5's Settings page saves them.
+  // notification_routes and notification_contacts left on 2026-11-13 in HT4: messaging/alertRouting.ts reads an
+  // alert's routes and who has a confirmed number (reads are producer evidence here); HT5 saves the routes and
+  // HT6's "My alerts" writes the numbers.
+  // notification_channel_settings left on 2026-11-13 in HT6: messaging/alertTexts.ts reads the hours a text is
+  // held and the Settings page saves them.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

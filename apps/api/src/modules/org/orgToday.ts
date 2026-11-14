@@ -26,3 +26,12 @@ export async function orgToday(admin: SupabaseClient, orgId: string, now: Date =
   const { data } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
   return todayInZone(now, organizationTimezone((data as { operating_hours?: unknown } | null)?.operating_hours as object | null));
 }
+
+/**
+ * The carrier's zone itself, for a caller that words an INSTANT on the carrier's clock (an alert that
+ * says "due back 11/14/2026 8:00 AM") — the same one read `orgToday` makes, without cutting a day from it.
+ */
+export async function orgTimezone(admin: SupabaseClient, orgId: string): Promise<string> {
+  const { data } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
+  return organizationTimezone((data as { operating_hours?: unknown } | null)?.operating_hours as object | null);
+}

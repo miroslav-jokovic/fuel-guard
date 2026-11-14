@@ -150,6 +150,26 @@ export const OPEN_ROUTES = new Map<string, string>([
     "the one act a signed-in user with NO org yet must be able to perform — requireOrg would refuse the person it is for. Authorized by the invite itself: the email must match a pending invite in an allowed domain (audit M2)",
   ],
   [
+    "GET /api/me/alerts/phone",
+    "the caller's OWN mobile number for alert texts (HOME-TIME-PLAN D-HT17, HT6): where their text alerts stand, with the last four digits only. Any signed-in member of the org, by design — being texted is the person's own consent, not a role's permission — and the row is keyed by the token's user id, never by anything in the request, so no member can read or set another's.",
+  ],
+  [
+    "POST /api/me/alerts/phone",
+    "the caller's OWN mobile number for alert texts (HOME-TIME-PLAN D-HT17, HT6): text a confirmation code to a number they typed; refused more than once a minute. Any signed-in member of the org, by design — being texted is the person's own consent, not a role's permission — and the row is keyed by the token's user id, never by anything in the request, so no member can read or set another's.",
+  ],
+  [
+    "POST /api/me/alerts/phone/confirm",
+    "the caller's OWN mobile number for alert texts (HOME-TIME-PLAN D-HT17, HT6): the six digits typed back, five tries per code. Any signed-in member of the org, by design — being texted is the person's own consent, not a role's permission — and the row is keyed by the token's user id, never by anything in the request, so no member can read or set another's.",
+  ],
+  [
+    "POST /api/me/alerts/phone/stop",
+    "the caller's OWN mobile number for alert texts (HOME-TIME-PLAN D-HT17, HT6): switch their own text alerts off. Any signed-in member of the org, by design — being texted is the person's own consent, not a role's permission — and the row is keyed by the token's user id, never by anything in the request, so no member can read or set another's.",
+  ],
+  [
+    "GET /api/me/alerts/",
+    "\"My alerts\" in the account menu (HOME-TIME-PLAN D-HT17, HT5): what the CALLER receives of the routed alerts. A read of their own answer, computed from their own role by the sender's resolver; it names nobody else and returns no row of any table. It IS section-gated per ALERT rather than per route — `readMyAlerts` lists an alert only when the caller's role can view that alert's section — and the alerts span sections, so no one static `requireSection` describes it.",
+  ],
+  [
     "POST /api/me/notifications/token/revoke",
     "a driver's own device retiring its own push token on sign-out, keyed by the caller's user id; refusing it would leave a personal phone receiving load content after the person signed out (D14/D53)",
   ],

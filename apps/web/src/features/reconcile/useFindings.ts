@@ -1,6 +1,7 @@
 import { type Ref } from "vue";
 import { keepPreviousData, useQuery } from "@tanstack/vue-query";
 import type { FindingQueueState, FindingRow, FindingKind } from "@silvicom/shared";
+import { FUEL_PROBLEMS_QUERY_KEYS } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -24,6 +25,8 @@ export interface FindingsQuery {
   assignedTo: string | null;
   from: string;
   to: string;
+  /** Money identified at least this many dollars (Q-AI14 (a)); null = any amount, and every source. */
+  minAmount: number | null;
   page: number;
   pageSize: number;
 }
@@ -43,6 +46,7 @@ export function findingsQs(q: FindingsQuery): string {
   if (q.assignedTo) p.set("assignedTo", q.assignedTo);
   if (q.from) p.set("from", q.from);
   if (q.to) p.set("to", q.to);
+  if (q.minAmount) p.set(FUEL_PROBLEMS_QUERY_KEYS.minAmount, String(q.minAmount));
   p.set("limit", String(q.pageSize));
   p.set("offset", String((q.page - 1) * q.pageSize));
   return p.toString();

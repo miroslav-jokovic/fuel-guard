@@ -20,9 +20,12 @@
  * the posting rules — §40.25(j) first, the licence list replaced whole (0376) — are unchanged by
  * how many screens the page is cut into.
  *
- * ⚠ Stage 2 (Part 2's history) is not here yet. Its screens join this list with the PR that
- * generates them (F4 PR 1b, the loops), and so do `loop` and `quickPicks`: a field nothing reads
- * would be a promise nothing checks.
+ * ── STAGE 2 IS `<task>.<question>` ────────────────────────────────────────────────────────────
+ * Part 2 is a task list (D-AW11), and a task is what saves there: the draft autosaves as it is typed,
+ * and "Save and continue" closes a task on the task's own check (`validateSection`). So a Stage 2 id's
+ * prefix is the task's section (`APPLICATION_FILLING_SECTIONS`), and its screens are walked inside the
+ * open task (`useTaskWalk`). Each task joins this list with the PR that generates it (F4 PR 1b-1…1b-4,
+ * plan §7 2026-11-13); until then its screens are the hand-written section component.
  */
 export const WIZARD_SCREEN_IDS = [
   // ── Stage 1, "Today" (SCREEN-MAP §2) — Part 1's typed pages ──
@@ -38,6 +41,29 @@ export const WIZARD_SCREEN_IDS = [
   "screening.tested_6m",
   "screening.random_12m",
   "screening.donor_gender",
+
+  // ── Stage 2, "Your history" (SCREEN-MAP §3) — Part 2's tasks ──
+  // "About you" (F4 PR 1b-2): the name typed together (D-AM3), then one question a screen. The carrier's
+  // page-1 questions follow, one a screen, from the served definition (`useTaskWalk`, SCREEN-MAP 2.2–2.4).
+  "identity.name",
+  "identity.other_names",
+  "identity.email",
+  "identity.ssn",
+  // "Your driving record" (2.18–2.21, F4 PR 1b-1). The accident and conviction screens repeat per row.
+  "safety.accidents",
+  "safety.accident_date",
+  "safety.accident_nature",
+  "safety.accident_casualties",
+  "safety.accident_hazmat",
+  "safety.violations",
+  "safety.violation_date",
+  "safety.violation_offence",
+  "safety.violation_state",
+  "safety.violation_penalty",
+  "safety.denied",
+  "safety.denied_detail",
+  "safety.suspended",
+  "safety.suspended_detail",
 ] as const;
 
 export type WizardScreenId = (typeof WIZARD_SCREEN_IDS)[number];
@@ -55,9 +81,38 @@ export interface WizardCondition {
   readonly is: boolean | string;
 }
 
+/**
+ * Answers a driver can tap instead of typing (SCREEN-MAP §1, "quick-pick answers where answers
+ * repeat"). The box stays: a pick fills it, and anything else is typed.
+ *
+ * ⚠ The values are the ENGLISH words, because they are what is filed and printed — the packet is the
+ * carrier's English paper (Q-AW11), the same reason a licence kind prints as `CDL` whatever language
+ * the form was read in (`licenceKindWords`). The button shows each in the page's language
+ * (`APPLY_COPY.quickPicks`, typed so every value has its words).
+ */
+export const QUICK_PICKS = {
+  // SCREEN-MAP 2.19b.
+  violation_offence: ["Speeding", "Logbook or hours of service", "Equipment", "Lane change or following too closely"],
+  // SCREEN-MAP 2.19d. P10: the paper's PENALTY column.
+  violation_penalty: ["Fine", "Points", "Suspension", "Bond forfeited"],
+  // SCREEN-MAP 2.4, its own list ("other" is the box). The carrier's channels: production held five
+  // drafts and no filed application on 2026-11-13, too few answers to choose picks from.
+  heard_from: ["Indeed", "Facebook", "A friend or a driver", "Our website"],
+} as const;
+export type QuickPickList = keyof typeof QUICK_PICKS;
+
 /** One place a fact is asked: its screen, and what that screen needs to know about it there. */
 export interface FactAsk {
   readonly screen: WizardScreenId;
   readonly when?: WizardCondition;
   readonly dates?: WizardDates;
+  /**
+   * This yes/no answers whether a list has rows — "In the last 3 years, were you in any accident?" over
+   * `accidents` (SCREEN-MAP §1: "yes/no gates first; loops only on Yes"). The fact stored is the
+   * list's "none" declaration (`declares_no_accidents`), so the question is its inverse: No declares
+   * none and clears the list, Yes opens the list's first row (`SafetyHistoryFields`' rule since
+   * C3c2c1, kept). Unanswered is "not declared none, and no rows".
+   */
+  readonly gate?: string;
+  readonly quickPicks?: QuickPickList;
 }

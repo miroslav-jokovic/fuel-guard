@@ -164,6 +164,8 @@ export const SURFACES: readonly Surface[] = [
   { key: "dispatch.assignments", label: "Dispatch board", path: "/assignments", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
   { key: "dispatch.fuel-planning", label: "Fuel planning", path: "/fuel-planning", group: "dispatch", gate: manage("dispatch") },
   { key: "dispatch.truck-stops", label: "Truck stops", path: "/truck-stops", group: "dispatch", gate: section("dispatch") },
+  // D-LRC11: STAFF + startsOnFor, since dispatch and billing share it and no section holds both; `lumperSurface.test.ts` ties the roles to the matrix.
+  { key: "dispatch.lumper-cases", label: "Lumper fees", path: "/lumper-fees", group: "dispatch", gate: STAFF, module: "dispatch", startsOnFor: ["fleet_manager", "dispatcher", "accountant"] },
 
   // ── safety ────────────────────────────────────────────────────────────────────────────────────
   { key: "safety.driver-performance", label: "Driver performance", path: "/driver-performance", group: "safety", gate: section("safety") },

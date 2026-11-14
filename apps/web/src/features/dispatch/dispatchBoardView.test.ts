@@ -9,6 +9,8 @@ import {
   fleetCensus,
   durationWords,
   gpsAgeWords,
+  hasHomeTimeChips,
+  homeTimeChipsOf,
   milesLeftOf,
   milesLeftWords,
   rowsBeforeScope,
@@ -19,10 +21,10 @@ import {
   type BoardFilter,
 } from "./dispatchBoardView";
 
-const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false };
+const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false, homeTimeUrgent: false };
 const row = (unitNumber: string, o: Partial<DispatchBoardRow> = {}): DispatchBoardRow => ({
   vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode: "VINNIEV", driver: null, coDriver: null, trailerId: null, hos: null, position: null,
-  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null, milesLeft: null, warnings: [], noteMentions: [], flags, ...o,
+  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", available: null, milesLeft: null, warnings: [], noteMentions: [], homeTimes: [], flags, ...o,
 });
 const load = (dispatcherId: string | null) => ({
   loadId: "l", ref: "291013", status: "in_transit", source: "tms", externalStatus: "P", customerName: "Viking Packing",
@@ -222,5 +224,45 @@ describe("boardSortValue", () => {
     // A random test is urgent though it is only "due": it weighs as much as an overdue item.
     const drawn = row("drawn", { warnings: [{ unit: "driver", kind: "random_test", verdict: "due", dueOn: null, milesLeft: null }] });
     expect(sorted([rows[2]!, drawn], "warnings")).toEqual(["drawn", "two-due"]);
+  });
+});
+
+describe("home time on a row (HOME-TIME-PLAN D-HT10, D-HT11)", () => {
+  const NOW = new Date("2026-11-13T15:00:00Z");
+  const held = (at: string) => row("702", { available: { place: null, city: "Joliet", state: "IL", postalCode: null, lat: null, lng: null, at, basis: "home_time" } });
+  const seat = (chips: Array<"scheduled" | "home" | "return_due" | "overdue" | "truck_limit">) => ({
+    periodId: "p", driverId: "d", driverName: "Ana Ruiz", state: "active" as const, startAt: "2026-11-11T15:00:00Z", expectedReturnAt: "2026-11-18T14:00:00Z", disposition: "with_driver" as const, chips,
+  });
+
+  it("keeps Available quiet until the return passes and red after it — never amber or green", () => {
+    expect(availableTone(held("2026-11-18T14:00:00Z"), NOW)).toBe("neutral");
+    // Inside a day, where a truck with a load would be amber.
+    expect(availableTone(held("2026-11-13T20:00:00Z"), NOW)).toBe("neutral");
+    expect(availableTone(held("2026-11-12T14:00:00Z"), NOW)).toBe("danger");
+  });
+
+  it("sorts a held truck's Status beside the shop, after every truck that can take a load", () => {
+    const rows = [row("411", { inShop: true }), held("2026-11-18T14:00:00Z"), row("900"), row("512", { current: load("vinniev"), onTime: "on_time" })];
+    expect(units(sortRows(rows, { key: "status", dir: "asc" }, boardSortValue))).toEqual(["900", "512", "702", "411"]);
+  });
+
+  it("weighs an urgent home-time chip like an overdue warning in the Warnings sort", () => {
+    const rows = [
+      row("a", { homeTimes: [seat(["home"])] }),
+      row("b", { homeTimes: [seat(["overdue", "truck_limit"])] }),
+      row("c"),
+      row("d", { warnings: [{ unit: "truck", kind: "oil", verdict: "due", dueOn: null, milesLeft: 900 }] }),
+    ];
+    const sorted = units(sortRows(rows, { key: "warnings", dir: "asc" }, boardSortValue));
+    expect(sorted[0]).toBe("b");
+    expect(sorted.at(-1)).toBe("c");
+  });
+
+  it("reads a row from an API that predates home time as having none, instead of throwing", () => {
+    const old = { ...row("x") } as Partial<DispatchBoardRow>;
+    delete old.homeTimes;
+    expect(homeTimeChipsOf(old as DispatchBoardRow)).toEqual([]);
+    expect(hasHomeTimeChips(old as DispatchBoardRow)).toBe(false);
+    expect(boardSortValue(old as DispatchBoardRow, "warnings")).toBeNull();
   });
 });

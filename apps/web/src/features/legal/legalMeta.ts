@@ -24,8 +24,10 @@
  * both say the stores need the URL rather than the sign-off, so these publish now and are marked as
  * what they are (`UNDER_REVIEW`) rather than held back until a lawyer has time.
  */
-export const LEGAL_VERSION = "1.1";
-export const LEGAL_EFFECTIVE = "25 September 2026";
+// 1.2 (2026-11-16): the office work-alert texts are a second programme on its own number — a section
+// of the text message terms and a paragraph of the privacy policy (HOME-TIME HT6).
+export const LEGAL_VERSION = "1.2";
+export const LEGAL_EFFECTIVE = "16 November 2026";
 
 /**
  * Whether the documents still carry the counsel-review notice. Flipped to `false` in the PR that

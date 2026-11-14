@@ -48,12 +48,12 @@ const VEH = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ANA = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const BEN = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const TRL = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
-const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false };
+const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false, warningUrgent: false, homeTimeUrgent: false };
 const load = { loadId: "l-1", ref: "291013", status: "in_transit", source: "tms", externalStatus: "P", customerName: null,
   dispatcherId: null, driverName: null, trailerUnit: "3152", nextStop: null, lastStop: null, stopsLeft: 1 };
 const row = (unitNumber: string, vehicleId: string, o: Partial<DispatchBoardRow> = {}): DispatchBoardRow => ({
   vehicleId, unitNumber, inShop: false, fleetCode: "VINNIEV", driver: null, coDriver: null, trailerId: null, hos: null, position: null,
-  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", milesLeft: null, warnings: [], noteMentions: [], flags,
+  fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", milesLeft: null, warnings: [], noteMentions: [], homeTimes: [], flags,
   available: { place: null, city: "Lakeland", state: "FL", postalCode: "33801", lat: 28.04, lng: -81.95, at: "2026-11-11T18:00:00Z", basis: "now" },
   ...o,
 });

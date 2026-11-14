@@ -36,6 +36,7 @@ import {
   useChatSetMute,
   type PendingLine,
 } from "@/features/chat/useChat";
+import { usePageVisible } from "@/features/chat/usePageVisible";
 import { useChatFollow } from "@/features/chat/chatRealtime";
 import { useChatTeamsQuery } from "@/features/chat/teams/useChatTeams";
 import { useChatRailActions } from "@/features/chat/teams/useChatRailActions";
@@ -149,13 +150,15 @@ const unreadMarks = ref(new Map<string, number | null>());
 const firstUnreadSeq = computed(() => (selectedId.value ? (unreadMarks.value.get(selectedId.value) ?? null) : null));
 const markRead = useChatMarkRead();
 // `immediate`: a conversation opened from the cache already has its data, so a watcher that waits for
-// a change would never read it.
+// a change would never read it. Read only on a visible screen, and on becoming visible (CHAT-WEB-PUSH-PLAN
+// D-WP6): a hidden tab that read every line would say "Seen" for words nobody saw, and hold back the phone.
+const pageVisible = usePageVisible();
 watch(
-  () => conversation.data.value?.conversation,
-  (c) => {
+  () => [conversation.data.value?.conversation, pageVisible.value] as const,
+  ([c, visible]) => {
     if (!c) return;
     if (!unreadMarks.value.has(c.thread_id)) unreadMarks.value.set(c.thread_id, firstUnreadSeqOf(c));
-    if (c.unread > 0) markRead.mutate({ threadId: c.thread_id, seq: c.last_seq });
+    if (c.unread > 0 && visible) markRead.mutate({ threadId: c.thread_id, seq: c.last_seq });
   },
   { immediate: true },
 );

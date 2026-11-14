@@ -75,6 +75,17 @@ describe("notificationRoute", () => {
     expect(notificationRoute("unit_note_mention", "unit_note", id, (to) => !to.startsWith("/notes"))).toBeNull();
   });
 
+  it("a home-time alert opens the Dispatch board's Home time tab with that driver's drawer on it (HOME-TIME D-HT16)", () => {
+    const id = "66666666-6666-4666-8666-666666666666";
+    for (const category of ["home_time_return_due", "home_time_overdue", "home_time_truck_limit"]) {
+      expect(notificationRoute(category, "driver", id)).toBe(`/assignments?queue=home-time&homeTime=${id}`);
+    }
+    expect(notificationRoute("home_time_overdue", "driver", null)).toBeNull();
+    expect(notificationRoute("home_time_overdue", "vehicle", id)).toBeNull();
+    // A reader who cannot open the board is informed, not sent to a refusal.
+    expect(notificationRoute("home_time_overdue", "driver", id, (to) => !to.startsWith("/assignments"))).toBeNull();
+  });
+
   it("returns null for a destination the reader's guard would refuse (SP5)", () => {
     const opens = (to: string) => !to.startsWith("/hazmat");
     expect(notificationRoute("hazmat_review", "load", "L1", opens)).toBeNull();

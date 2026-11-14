@@ -1244,3 +1244,205 @@ export const DISPATCH_DISPATCHERS = `
             AND m.company_id = u.company_id
             AND m.status IN ('P', 'A'))
      ORDER BY u.id`;
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// Lumper fees — LRC1 (docs/plans/dispatch-loads/LUMPER-REVISED-RC-PLAN.md, D-LRC1, D-LRC8)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Which orders the lumper feed reads: an order is in scope when it carries a `LUM` charge and was
+ * ordered since `@lumperSince`, or when payroll keyed a lumper against it since that day.
+ *
+ * Two independent ways in, on purpose (D-LRC1). The dispatcher keys the `LUM` charge around
+ * delivery; payroll keys the EFS money code (`UNL`, a deduction) and the driver's reimbursement
+ * (`LUM`, type R) 9 to 88 hours later. A lumper the dispatcher forgot is still caught by the second.
+ *
+ * A bounded sweep, never change tracking: billing DELETES the dispatcher's charge row and keys it
+ * again on the bill date (879 inserts and 489 deletions on `other_charge` in one audited month), so a
+ * charge row's id is not stable and "what changed" would report every billed lumper as removed. The
+ * order number is the only stable key, and every statement below is keyed on it.
+ *
+ * `other_charge` has no date of its own, which is why the charge side is bounded by the order's
+ * `ordered_date`. The settlement side is bounded by its own `transaction_date`.
+ *
+ * Measured on the analytics copy (restore of 2026-10-09), 90 days to that date: see the plan's
+ * progress log for the row counts and timings of the four statements.
+ */
+const LUMPER_ORDER_SCOPE = `
+        SELECT oc.order_id
+          FROM dbo.other_charge AS oc
+          JOIN dbo.orders AS so
+            ON so.company_id = oc.company_id
+           AND so.id         = oc.order_id
+         WHERE oc.company_id = @companyId
+           AND oc.charge_id  = 'LUM'
+           AND so.ordered_date >= @lumperSince
+        UNION
+        SELECT dh.order_id
+          FROM dbo.drs_deduct_hist AS dh
+         WHERE dh.company_id = @companyId
+           AND dh.deduct_code_id IN ('UNL', 'LUM')
+           AND dh.transaction_date >= @lumperSince
+           AND dh.order_id IS NOT NULL
+        UNION
+        SELECT dp.order_id
+          FROM dbo.drs_pending_deduct AS dp
+         WHERE dp.company_id = @companyId
+           AND dp.deduct_code_id IN ('UNL', 'LUM')
+           AND dp.transaction_date >= @lumperSince
+           AND dp.order_id IS NOT NULL`;
+
+/**
+ * One row per order in scope: who the broker is, who the dispatcher is, and where it delivered.
+ *
+ * "Where" is the order's consignee stop, because McLeod does not say at which stop a lumper was paid:
+ * `other_charge.stop_id` is empty on all 285 `LUM` rows of 2026 (measured 2026-11-13). The dispatcher
+ * is the order's `operations_user`, one person per order, for the reason `BILLING_HISTORY` gives: the
+ * route through `movement.dispatcher_user_id` fans out.
+ *
+ * `customer` is read on the five columns the connector's login already holds, no others.
+ */
+export const LUMPER_ORDERS = `
+    SELECT
+      LTRIM(RTRIM(o.id))                              AS order_external_id,
+      LTRIM(RTRIM(o.company_id))                      AS company_id,
+      NULLIF(LTRIM(RTRIM(o.status)), '')              AS order_status,
+      CONVERT(varchar(19), o.ordered_date, 126)       AS ordered_at,
+      CONVERT(varchar(19), o.bill_date, 126)          AS bill_date,
+      NULLIF(LTRIM(RTRIM(o.customer_id)), '')         AS customer_id,
+      NULLIF(LTRIM(RTRIM(c.name)), '')                AS customer_name,
+      NULLIF(LTRIM(RTRIM(o.operations_user)), '')     AS dispatcher_user_id,
+      NULLIF(LTRIM(RTRIM(usr.name)), '')              AS dispatcher_name,
+      NULLIF(LTRIM(RTRIM(o.curr_movement_id)), '')    AS movement_external_id,
+      NULLIF(LTRIM(RTRIM(cs.location_name)), '')      AS consignee_name,
+      NULLIF(LTRIM(RTRIM(cs.city_name)), '')          AS consignee_city,
+      NULLIF(LTRIM(RTRIM(cs.state)), '')              AS consignee_state,
+      CONVERT(varchar(19), cs.actual_arrival, 126)    AS consignee_arrived_at,
+      CONVERT(varchar(19), cs.actual_departure, 126)  AS consignee_departed_at
+      FROM dbo.orders AS o
+      LEFT JOIN dbo.customer AS c
+             ON c.company_id = o.company_id
+            AND c.id         = o.customer_id
+      LEFT JOIN dbo.users AS usr
+             ON usr.company_id = o.company_id
+            AND usr.id         = o.operations_user
+      LEFT JOIN dbo.stop AS cs
+             ON cs.company_id = o.company_id
+            AND cs.id         = o.consignee_stop_id
+     WHERE o.company_id = @companyId
+       AND o.id IN (${LUMPER_ORDER_SCOPE})
+     ORDER BY o.id`;
+
+/**
+ * The `LUM` charges on those orders as they stand now: what somebody intends to bill the broker.
+ *
+ * Every `LUM` row, whatever its text (Q-LRC3, ruled 2026-11-13): about 7% are a late fee, a pallet
+ * jack or a washout paid for the broker, and those need the same proof. `descr` is sent so a person
+ * can tell them apart. The row id is sent for display only; it changes when billing re-keys the charge.
+ */
+export const LUMPER_CHARGES = `
+    SELECT
+      LTRIM(RTRIM(oc.id))                             AS external_id,
+      LTRIM(RTRIM(oc.company_id))                     AS company_id,
+      LTRIM(RTRIM(oc.order_id))                       AS order_external_id,
+      LTRIM(RTRIM(oc.charge_id))                      AS charge_code,
+      NULLIF(LTRIM(RTRIM(oc.descr)), '')              AS descr,
+      oc.amount                                       AS amount,
+      oc.sequence                                     AS sequence
+      FROM dbo.other_charge AS oc
+     WHERE oc.company_id = @companyId
+       AND oc.charge_id  = 'LUM'
+       AND oc.order_id IN (${LUMPER_ORDER_SCOPE})
+     ORDER BY oc.order_id, oc.sequence`;
+
+/**
+ * What we paid: the settlement lines for the EFS money code (`UNL`) and the driver's reimbursement
+ * (`LUM`), paid (`drs_deduct_hist`) and not yet paid (`drs_pending_deduct`).
+ *
+ * Read by date, not through the order scope, so a line with NO order number still arrives: 20 of 269
+ * reimbursement rows in 2026 carry none, and the page lists them as "lumper paid, order unknown" for
+ * a person to match. `reference_no` on a `UNL` row is the EFS reference (262 of 263).
+ *
+ * Voided rows are sent with their flag, not filtered (D-FIN5): a payment that was reversed must be
+ * able to take a case's "paid" away. The pending table has no void column; a pending row that is
+ * removed is simply absent from the next sweep.
+ */
+export const LUMPER_PAYMENTS = `
+    SELECT
+      LTRIM(RTRIM(d.id))                              AS external_id,
+      LTRIM(RTRIM(d.company_id))                      AS company_id,
+      'paid'                                          AS settlement_state,
+      NULLIF(LTRIM(RTRIM(d.order_id)), '')            AS order_external_id,
+      NULLIF(LTRIM(RTRIM(d.movement_id)), '')         AS movement_external_id,
+      LTRIM(RTRIM(d.deduct_code_id))                  AS deduct_code,
+      NULLIF(LTRIM(RTRIM(d.deduction_type)), '')      AS deduction_type,
+      d.amount                                        AS amount,
+      CONVERT(varchar(19), d.transaction_date, 126)   AS transacted_at,
+      NULLIF(LTRIM(RTRIM(d.reference_no)), '')        AS reference_no,
+      NULLIF(LTRIM(RTRIM(d.driver_id)), '')           AS driver_external_id,
+      NULLIF(LTRIM(RTRIM(d.payee_id)), '')            AS payee_id,
+      NULLIF(LTRIM(RTRIM(d.tractor_id)), '')          AS tractor_unit,
+      CASE WHEN d.is_void = 'Y' THEN 1 ELSE 0 END     AS is_void
+      FROM dbo.drs_deduct_hist AS d
+     WHERE d.company_id = @companyId
+       AND d.deduct_code_id IN ('UNL', 'LUM')
+       AND d.transaction_date >= @lumperSince
+    UNION ALL
+    SELECT
+      LTRIM(RTRIM(p.id))                              AS external_id,
+      LTRIM(RTRIM(p.company_id))                      AS company_id,
+      'pending'                                       AS settlement_state,
+      NULLIF(LTRIM(RTRIM(p.order_id)), '')            AS order_external_id,
+      NULLIF(LTRIM(RTRIM(p.movement_id)), '')         AS movement_external_id,
+      LTRIM(RTRIM(p.deduct_code_id))                  AS deduct_code,
+      NULLIF(LTRIM(RTRIM(p.deduction_type)), '')      AS deduction_type,
+      p.amount                                        AS amount,
+      CONVERT(varchar(19), p.transaction_date, 126)   AS transacted_at,
+      NULLIF(LTRIM(RTRIM(p.reference_no)), '')        AS reference_no,
+      NULLIF(LTRIM(RTRIM(p.driver_id)), '')           AS driver_external_id,
+      NULLIF(LTRIM(RTRIM(p.payee_id)), '')            AS payee_id,
+      NULLIF(LTRIM(RTRIM(p.tractor_id)), '')          AS tractor_unit,
+      0                                               AS is_void
+      FROM dbo.drs_pending_deduct AS p
+     WHERE p.company_id = @companyId
+       AND p.deduct_code_id IN ('UNL', 'LUM')
+       AND p.transaction_date >= @lumperSince`;
+
+/**
+ * Every invoice and credit memo of those orders, each with the lumper amount it carries.
+ *
+ * ALL the order's bills, not only the ones with a lumper line: "billed without the lumper" (10
+ * orders, $2,912.24 in 2026) is an invoice whose `lumper_lines` is 0, and it cannot be seen by a
+ * statement that starts from the lumper lines. The lines are summed per invoice here because the
+ * case needs one number per bill; `other_charge_hist` ties to its bill on `invoice_id` (344 of 344).
+ *
+ * `bill_type` (I invoice, C credit memo), `canceled` and `rebilled` are sent as McLeod holds them: a
+ * lumper added on a re-bill arrives as a credit memo and a second invoice (25 orders in 2026), and
+ * netting them is the case rule's job, not this statement's.
+ */
+export const LUMPER_BILLS = `
+    SELECT
+      LTRIM(RTRIM(b.id))                              AS external_id,
+      LTRIM(RTRIM(b.company_id))                      AS company_id,
+      LTRIM(RTRIM(b.order_id))                        AS order_external_id,
+      b.invoice_no                                    AS invoice_no,
+      CONVERT(varchar(19), b.bill_date, 126)          AS bill_date,
+      NULLIF(LTRIM(RTRIM(b.bill_type)), '')           AS bill_type,
+      NULLIF(LTRIM(RTRIM(b.canceled)), '')            AS canceled,
+      NULLIF(LTRIM(RTRIM(b.rebilled)), '')            AS rebilled,
+      b.total_charges                                 AS total_charges,
+      COALESCE(l.lumper_amount, 0)                    AS lumper_amount,
+      COALESCE(l.lumper_lines, 0)                     AS lumper_lines
+      FROM dbo.billing_history AS b
+      LEFT JOIN (
+        SELECT h.company_id, h.invoice_id, SUM(h.amount) AS lumper_amount, COUNT(*) AS lumper_lines
+          FROM dbo.other_charge_hist AS h
+         WHERE h.company_id = @companyId
+           AND h.charge_id  = 'LUM'
+         GROUP BY h.company_id, h.invoice_id
+      ) AS l
+             ON l.company_id = b.company_id
+            AND l.invoice_id = b.id
+     WHERE b.company_id = @companyId
+       AND b.order_id IN (${LUMPER_ORDER_SCOPE})
+     ORDER BY b.order_id, b.bill_date`;

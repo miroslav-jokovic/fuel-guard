@@ -166,6 +166,16 @@ export const NOTIFICATION_CATEGORIES = [
    * writes it until UN3.
    */
   "unit_note_mention",
+  /**
+   * Home time (HOME-TIME-PLAN D-HT12): a driver is due back within the carrier's warning window; a
+   * driver is past his return time and nobody has ended the period; a truck has been at its driver's
+   * home past the carrier's limit. Office-facing and mutable; who receives each is a route on
+   * Settings › Notifications (D-HT15), not a role list. Mirrored in the CHECK (0598); nothing writes
+   * them until HT4.
+   */
+  "home_time_return_due",
+  "home_time_overdue",
+  "home_time_truck_limit",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -220,6 +230,9 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   ai_assistant_budget: "Ask AI is near or at this month's spending cap",
   ads_creative_refresh: "A new ad awaits approval on a running campaign",
   unit_note_mention: "Mentions in unit notes",
+  home_time_return_due: "Home time ending",
+  home_time_overdue: "Home time overstayed",
+  home_time_truck_limit: "Truck at home too long",
 };
 
 /**

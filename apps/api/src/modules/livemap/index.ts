@@ -15,6 +15,7 @@ export { liveMapRouter } from "./routes/index.js";
 /** Ask AI's `fleet_now` (F21 R6b): the live map's board, counted by its own truck states. */
 export { assistantFleetNow, FLEET_NOW_STATES, MAX_FLEET_NOW_TRUCKS } from "./assistantFleetNow.js";
 export { startBoardEtaRecorder } from "./boardEtaRecorder.js";
+export { startHomeTimeScheduler, runHomeTimeOnce } from "./homeTimeAlerts.js";
 export { readLiveMapBoard, FLEET_WIDE_SCOPE_REASON } from "./liveMapBoard.js";
 export { readLiveMapBoardCached, BOARD_CACHE_TTL_MS } from "./liveMapBoardCache.js";
 export { readDriverDispatch } from "./driverDispatch.js";

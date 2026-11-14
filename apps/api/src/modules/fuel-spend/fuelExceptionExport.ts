@@ -80,6 +80,7 @@ export async function exportExceptions(admin: SupabaseClient, input: LedgerExpor
     if (f.unitNumbers) q = q.in("unit_number", f.unitNumbers);
     if (f.from) q = q.gte("occurred_on", f.from);
     if (f.to) q = q.lte("occurred_on", f.to);
+    if (f.minAmount) q = q.gte("amount", f.minAmount);
     // The screen's order — newest first, biggest first within a day — plus `id`, because two findings
     // on one day for one amount are a tie, and a tied sort is not a total order to page through.
     return q

@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { APPLY_COPY } from "@/features/apply/strings";
 import {
+  AppButton,
   AppCheckbox,
   AppCombobox as ComboSelect,
   AppFormField as FormField,
   AppInput as BaseInput,
   AppRadioGroup,
+  AppTextarea,
 } from "@silvicom/ui";
 import {
+  QUICK_PICKS,
   US_JURISDICTION_CODES,
   factChoices,
   jurisdictionOptions,
@@ -32,16 +35,38 @@ import type { WizardBinding } from "./wizardBinding";
  * are the ones the page's Continue found — what the screen shows and what the walk checks cannot
  * disagree.
  */
-const props = defineProps<{ screen: WizardScreen; binding: WizardBinding }>();
+/** `row`: the row a loop screen asks about (Stage 2, F4 PR 1b-1) — every read and write is that row's. */
+const props = defineProps<{ screen: WizardScreen; binding: WizardBinding; row?: number }>();
 
 const US_STATES = jurisdictionOptions().filter((o) => US_JURISDICTION_CODES.has(o.value));
 const JURISDICTIONS = jurisdictionOptions();
 
 /** Phone keypads for numbers, the browser's text keyboard for the rest (U3 refines the rest). */
-const INPUT_MODE: Partial<Record<WizardField["fact"]["input"], string>> = { us_mobile: "tel", phone: "tel", zip: "numeric" };
+const INPUT_MODE: Partial<Record<WizardField["fact"]["input"], string>> = {
+  us_mobile: "tel", phone: "tel", zip: "numeric", count: "numeric", miles: "numeric",
+};
 const TYPE: Partial<Record<WizardField["fact"]["input"], string>> = { us_mobile: "tel", phone: "tel", email: "email" };
 
-const read = (path: FactPath) => props.binding.read(path);
+const read = (path: FactPath) => props.binding.read(path, props.row);
+const write = (path: FactPath, value: unknown) => props.binding.write(path, value, props.row);
+const id = (path: FactPath) => props.binding.id(path, props.row);
+const error = (path: FactPath) => props.binding.error(path, props.row);
+/** A fact's quick picks (`FactAsk.quickPicks`): the English value filed, the words in the page's language. */
+const picks = (f: WizardField) =>
+  f.ask.quickPicks
+    ? QUICK_PICKS[f.ask.quickPicks].map((value) => ({
+        value,
+        label: (APPLY_COPY.quickPicks[f.ask.quickPicks!] as Record<string, string>)[value] ?? value,
+      }))
+    : [];
+/**
+ * A quick-picked answer reads in the page's language in its box, and is FILED in English (`QUICK_PICKS`):
+ * the Spanish page showed "Speeding" in its own box after a tap (U7). Typing a pick's words files the pick
+ * too, so the same answer is never filed in two languages.
+ */
+const shown = (f: WizardField): string => picks(f).find((p) => p.value === text(f.fact.path))?.label ?? text(f.fact.path);
+const typed = (f: WizardField, value: string): void =>
+  write(f.fact.path, picks(f).find((p) => p.label.trim().toLowerCase() === value.trim().toLowerCase())?.value ?? value);
 const text = (path: FactPath): string => String(read(path) ?? "");
 const yesNo = (path: FactPath): boolean | null => (read(path) as boolean | null | undefined) ?? null;
 const choices = (f: WizardField) => {
@@ -51,11 +76,20 @@ const choices = (f: WizardField) => {
 
 const picked = (path: FactPath): string[] => (read(path) as string[] | undefined) ?? [];
 
+/**
+ * A list of names (`other_names`, SCREEN-MAP 2.1a): a box per name, "Add a name", and a removal per box,
+ * as the section component asked it. Every change is written through the binding, the one door a
+ * generated screen writes by, never into the array it read.
+ */
+const names = (path: FactPath): string[] => (read(path) as string[] | undefined) ?? [];
+const setName = (path: FactPath, at: number, value: string): void =>
+  write(path, names(path).map((n, i) => (i === at ? value : n)));
+
 function toggle(f: WizardField, value: string, on: boolean): void {
   const chosen = new Set(picked(f.fact.path));
   if (on) chosen.add(value); else chosen.delete(value);
   // In the contract's order, whatever order they were ticked in.
-  props.binding.write(f.fact.path, (factChoices(f.fact.path) ?? []).filter((v) => chosen.has(v)));
+  write(f.fact.path, (factChoices(f.fact.path) ?? []).filter((v) => chosen.has(v)));
 }
 </script>
 
@@ -64,26 +98,26 @@ function toggle(f: WizardField, value: string, on: boolean): void {
     <template v-for="f in screen.fields" :key="f.fact.path">
       <YesNoField
         v-if="f.fact.input === 'yesno'"
-        :id="binding.id(f.fact.path)"
+        :id="id(f.fact.path)"
         :model-value="yesNo(f.fact.path)"
         :legend="binding.copy(f.fact.path).label"
         :hint="binding.copy(f.fact.path).hint"
-        :error="binding.error(f.fact.path)"
-        @update:model-value="binding.write(f.fact.path, $event)"
+        :error="error(f.fact.path)"
+        @update:model-value="write(f.fact.path, $event)"
       />
 
-      <div v-else-if="f.fact.input === 'choice'" :id="binding.id(f.fact.path)">
+      <div v-else-if="f.fact.input === 'choice'" :id="id(f.fact.path)">
         <AppRadioGroup
           :model-value="text(f.fact.path)"
           :legend="binding.copy(f.fact.path).label"
           :options="choices(f)"
-          @update:model-value="binding.write(f.fact.path, $event)"
+          @update:model-value="write(f.fact.path, $event)"
         />
         <p v-if="binding.copy(f.fact.path).hint" class="mt-1 text-xs text-ink-muted">{{ binding.copy(f.fact.path).hint }}</p>
-        <p v-if="binding.error(f.fact.path)" class="mt-1 text-sm text-danger-700" role="alert">{{ binding.error(f.fact.path) }}</p>
+        <p v-if="error(f.fact.path)" class="mt-1 text-sm text-danger-700" role="alert">{{ error(f.fact.path) }}</p>
       </div>
 
-      <fieldset v-else-if="f.fact.input === 'multi_choice'" :id="binding.id(f.fact.path)">
+      <fieldset v-else-if="f.fact.input === 'multi_choice'" :id="id(f.fact.path)">
         <legend class="text-sm font-medium text-ink-secondary">{{ binding.copy(f.fact.path).label }}</legend>
         <AppCheckbox
           v-for="c in choices(f)"
@@ -92,15 +126,36 @@ function toggle(f: WizardField, value: string, on: boolean): void {
           :label="c.label"
           @update:model-value="toggle(f, c.value, $event)"
         />
-        <p v-if="binding.error(f.fact.path)" class="mt-1 text-sm text-danger-700" role="alert">{{ binding.error(f.fact.path) }}</p>
+        <p v-if="error(f.fact.path)" class="mt-1 text-sm text-danger-700" role="alert">{{ error(f.fact.path) }}</p>
+      </fieldset>
+
+      <fieldset v-else-if="f.fact.input === 'names'" :id="id(f.fact.path)" class="space-y-2">
+        <legend class="text-sm font-medium text-ink-secondary">{{ binding.copy(f.fact.path).label }}</legend>
+        <p v-if="binding.copy(f.fact.path).hint" class="text-xs text-ink-muted">{{ binding.copy(f.fact.path).hint }}</p>
+        <div v-for="(name, i) in names(f.fact.path)" :key="i" class="flex items-center gap-2">
+          <BaseInput
+            :model-value="name"
+            :aria-label="`${binding.copy(f.fact.path).label} ${i + 1}`"
+            class="flex-1"
+            autocomplete="off"
+            @update:model-value="setName(f.fact.path, i, $event)"
+          />
+          <AppButton variant="ghost" size="sm" @click="write(f.fact.path, names(f.fact.path).filter((_, j) => j !== i))">
+            {{ APPLY_COPY.identity.remove }}
+          </AppButton>
+        </div>
+        <AppButton variant="secondary" size="sm" @click="write(f.fact.path, [...names(f.fact.path), ''])">
+          {{ APPLY_COPY.identity.addOtherName }}
+        </AppButton>
+        <p v-if="error(f.fact.path)" class="text-sm text-danger-700" role="alert">{{ error(f.fact.path) }}</p>
       </fieldset>
 
       <FormField
         v-else
-        :id="binding.id(f.fact.path)"
+        :id="id(f.fact.path)"
         :label="binding.copy(f.fact.path).label"
         :hint="binding.copy(f.fact.path).hint"
-        :error="binding.error(f.fact.path)"
+        :error="error(f.fact.path)"
       >
         <template #default="field">
           <ApplyDate
@@ -109,8 +164,8 @@ function toggle(f: WizardField, value: string, on: boolean): void {
             :model-value="text(f.fact.path)"
             :kind="f.ask.dates"
             :autocomplete="binding.copy(f.fact.path).autocomplete"
-            :invalid="Boolean(binding.error(f.fact.path))"
-            @update:model-value="binding.write(f.fact.path, $event)"
+            :invalid="Boolean(error(f.fact.path))"
+            @update:model-value="write(f.fact.path, $event)"
           />
           <ComboSelect
             v-else-if="f.fact.input === 'us_state' || f.fact.input === 'jurisdiction'"
@@ -118,7 +173,20 @@ function toggle(f: WizardField, value: string, on: boolean): void {
             :model-value="text(f.fact.path)"
             :placeholder="APPLY_COPY.placeholders.choose"
             :options="f.fact.input === 'us_state' ? US_STATES : JURISDICTIONS"
-            @update:model-value="binding.write(f.fact.path, $event)"
+            @update:model-value="write(f.fact.path, $event)"
+          />
+          <AppTextarea
+            v-else-if="f.fact.input === 'longtext'"
+            v-bind="field"
+            :model-value="text(f.fact.path)"
+            :rows="3"
+            @update:model-value="write(f.fact.path, $event)"
+          />
+          <BaseInput
+            v-else-if="f.ask.quickPicks"
+            v-bind="field"
+            :model-value="shown(f)"
+            @update:model-value="typed(f, $event)"
           />
           <BaseInput
             v-else
@@ -128,10 +196,23 @@ function toggle(f: WizardField, value: string, on: boolean): void {
             :inputmode="INPUT_MODE[f.fact.input]"
             :maxlength="f.fact.input === 'zip' ? 5 : undefined"
             :autocomplete="binding.copy(f.fact.path).autocomplete"
-            @update:model-value="binding.write(f.fact.path, $event)"
+            @update:model-value="write(f.fact.path, $event)"
           />
         </template>
       </FormField>
+      <!-- Quick picks (SCREEN-MAP §1): a tap fills the box, which stays open for anything else. -->
+      <div v-if="picks(f).length" class="-mt-2 flex flex-wrap gap-2">
+        <AppButton
+          v-for="p in picks(f)"
+          :key="p.value"
+          variant="secondary"
+          size="sm"
+          :aria-pressed="text(f.fact.path) === p.value"
+          @click="write(f.fact.path, p.value)"
+        >
+          {{ p.label }}
+        </AppButton>
+      </div>
     </template>
   </div>
 </template>

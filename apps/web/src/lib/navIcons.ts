@@ -1,4 +1,5 @@
 import {
+  ArchiveBoxIcon,
   BeakerIcon,
   MicroscopeIcon,
   CurrencyDollarIcon,
@@ -78,6 +79,7 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   "dispatch.assignments": ClipboardDocumentCheckIcon,
   "dispatch.fuel-planning": MapIcon,
   "dispatch.truck-stops": TruckStopIcon,
+  "dispatch.lumper-cases": ArchiveBoxIcon, // freight coming off the trailer; no other item uses the box
 
   "safety.alerts": ExclamationTriangleIcon,
   "safety.driver-performance": TrophyIcon,

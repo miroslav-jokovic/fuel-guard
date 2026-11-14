@@ -39,6 +39,12 @@ regexes = [
   # because the variable name contains "API". Anchored to the whole match being one of our host
   # names, so a key that merely sits next to one is still caught.
   '''^[a-z0-9-]+(\.[a-z0-9-]+)*\.silvicominc\.com$''',
+  # RFC 8291 §5's published test vectors (Message Encryption for Web Push, 2026-11-13, CHAT-WEB-PUSH-PLAN):
+  # the worked example's auth secret and application-server PUBLIC key, printed in the RFC itself, so
+  # public by definition. apps/api/.../webPush.test.ts reproduces the RFC's ciphertext from them, and
+  # apps/web/src/lib/webPush.test.ts uses the public key as a server key. Anchored to the two exact strings,
+  # so any other value of that shape is still caught.
+  '''^(BTBZMqHH6r4Tts7J_aSIgg|BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8)$''',
 ]
 
 # EFS fuel-card numbers (audit 2026-10-15). A card number is cardholder data: it belongs sealed in

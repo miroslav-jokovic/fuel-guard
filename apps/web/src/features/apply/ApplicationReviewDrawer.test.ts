@@ -372,7 +372,9 @@ async function fillJob(w: ReturnType<typeof drawer>, over: { street?: boolean; t
 }
 
 describe("adding a job the applicant left out (HW5b, the one form)", () => {
-  it("EM-3: will not add a job without its street on a v2 application, and says so under the box", async () => {
+  // EM-3 refused a job without its street here. D-AM4 (owner 2026-11-09) moved that to Send for signing:
+  // the office may add what it knows now and complete the address before the driver is sent to sign.
+  it("adds a job without its street on a v2 application — the address is completed before Send for signing (D-AM4)", async () => {
     apiFetch.mockResolvedValue({ ok: true, data: review({ partOne: PART_ONE }) });
     const w = drawer();
     await settle(w);
@@ -381,8 +383,7 @@ describe("adding a job the applicant left out (HW5b, the one form)", () => {
     await fillJob(w, { street: false });
     await button(w, "Save this job")!.trigger("click");
     await settle(w);
-    expect(patches()).toHaveLength(0);
-    expect(field(w, "address_line1").attributes("aria-invalid")).toBe("true");
+    expect(patches()).toHaveLength(1);
   });
 
   it("will not add a job in the last three years until both (b)(10)(iv) questions are answered", async () => {

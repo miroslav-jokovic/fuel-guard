@@ -116,12 +116,18 @@ export async function chatLineBeforeEdit(
   }
 }
 
+/** Who an edit newly names — the bell's and the phone's one answer (D-CHAT22, CHAT-WEB-PUSH-PLAN D-WP2). */
+export function newlyNamed(before: ChatLineBefore | null, body: string): string[] {
+  if (!before) return [];
+  return [...new Set(chatMentionIds(body).filter((id) => !before.mentioned.includes(id)))];
+}
+
 /** After an edit: a mention item for each person the edit newly names, and nobody else. */
 export async function chatNotifyEdited(
   admin: SupabaseClient, orgId: string, senderId: string, messageId: string, body: string, before: ChatLineBefore | null,
 ): Promise<number> {
   if (!before) return 0;
-  const added = new Set(chatMentionIds(body).filter((id) => !before.mentioned.includes(id)));
+  const added = new Set(newlyNamed(before, body));
   if (added.size === 0) return 0;
   try {
     // A person the line names is always a `chat_mention` row (0521 prefers it over a reply), so the

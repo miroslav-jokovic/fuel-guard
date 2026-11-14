@@ -18,6 +18,7 @@
     "settlements": "node --env-file=.env settlements.mjs",
     "ledger": "node --env-file=.env ledger.mjs",
     "billing": "node --env-file=.env billing.mjs",
+    "lumper": "node --env-file=.env lumper.mjs",
     "service": "node --env-file=connector.env agent.mjs --service",
     "check": "node --env-file=connector.env agent.mjs --loads --dry-run",
     "loads:backfill": "node --env-file=connector.env agent.mjs --loads-backfill",

@@ -9,6 +9,7 @@
 import { computed, type Ref } from "vue";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { DisputeTotals, FuelExceptionKind, FuelExceptionStatus } from "@silvicom/shared";
+import { FUEL_PROBLEMS_QUERY_KEYS } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 export interface FuelException {
@@ -74,6 +75,8 @@ export interface ExceptionQuery {
   assignedTo: string | null;
   from: string;
   to: string;
+  /** Money identified at least this many dollars (Q-AI14 (a)); the export route reads it as `min`. */
+  minAmount?: number | null;
   page: number;
   pageSize: number;
 }
@@ -84,6 +87,7 @@ const qs = (q: ExceptionQuery): string => {
   if (q.kind.length) p.set("kind", q.kind.join(","));
   if (q.vehicleIds.length) p.set("vehicles", q.vehicleIds.join(","));
   if (q.assignedTo) p.set("assignedTo", q.assignedTo);
+  if (q.minAmount) p.set(FUEL_PROBLEMS_QUERY_KEYS.minAmount, String(q.minAmount));
   return p.toString();
 };
 

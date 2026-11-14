@@ -62,6 +62,12 @@ function destination(category: string, entityType: string | null, entityId: stri
   // `notes` surface, which every office role holds since UN9 (D-UN4); for a reader `opens` would still
   // refuse — the surface turned off for them — the entry informs without navigating.
   if (category === "unit_note_mention" && entityType === "unit_note" && entityId) return `/notes?note=${encodeURIComponent(entityId)}`;
+  // HOME-TIME-PLAN D-HT16: the three home-time alerts name the DRIVER, and open the Dispatch board's Home
+  // time tab with his drawer on it (`?homeTime=<driver>`, `useHomeTimeDrawer`) — where the period is
+  // changed or ended. The board is a dispatch surface; a reader who cannot open it is informed and stays.
+  if (category.startsWith("home_time_") && entityType === "driver" && entityId) {
+    return `/assignments?queue=home-time&homeTime=${encodeURIComponent(entityId)}`;
+  }
   // A10. The applicant board IS the queue for a stalled application — there is no per-applicant page
   // to land on, and "an alert that cannot deep-link to its queue is half an alert".
   if (category === "application_stalled") return "/recruitment";

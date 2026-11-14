@@ -240,7 +240,8 @@ function page2(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
           blank(x.nature),
           String(x.fatalities ?? 0),
           String(x.injuries ?? 0),
-          x.hazmat_spill ? "Yes" : "No",
+          // F4 PR 1b-1: unanswered (a draft's preview) prints nothing, never an invented "No".
+          x.hazmat_spill == null ? "" : x.hazmat_spill ? "Yes" : "No",
         ]),
     into,
     over,

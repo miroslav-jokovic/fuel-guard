@@ -835,7 +835,8 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain(APPLY_COPY.hub.heading);
     expect(w.text()).toContain(APPLY_COPY.hub.beforeYouSend);
 
-    await press("About you");
+    // A task still drawn whole (F4 PR 1b: "Your license" is not walked yet).
+    await press("Your license");
     expect(w.text()).not.toContain(APPLY_COPY.hub.intro);
     expect(w.text()).toContain(APPLY_COPY.hub.saveAndContinue);
     await press(APPLY_COPY.hub.backToList);
@@ -843,7 +844,7 @@ describe("the applicant's page", () => {
 
     // "Save and continue" on a task that passes closes it back to the LIST — not on to the next screen,
     // which is what the linear wizard's Next would do.
-    await press("About you");
+    await press("Your license");
     await press(APPLY_COPY.hub.saveAndContinue);
     expect(w.text()).toContain(APPLY_COPY.hub.intro);
   });
@@ -906,6 +907,11 @@ describe("the applicant's page", () => {
 
     await w.findAll("button").find((b) => b.text().includes("About you"))!.trigger("click");
     await flushPromises();
+    // "About you" is walked (F4 PR 1b-2) and ends on Part 1's answers: Continue to its last screen.
+    for (let i = 0; i < 15 && !w.find("[data-part-one-facts]").exists(); i += 1) {
+      await w.findAll("button").find((b) => b.text() === APPLY_COPY.hub.next)!.trigger("click");
+      await flushPromises();
+    }
     expect(w.find("[data-part-one-facts]").text()).toContain("(312) 555-0142");
     expect(w.find("#apply-phone").exists()).toBe(false);
     // The draft is Part 1's now — the phone typed long ago replaced — so every screen, the review and

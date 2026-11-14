@@ -156,7 +156,7 @@ export function page2(doc: PDFKit.PDFDocument, a: DriverApplication): void {
           { text: blank(x.nature) },
           { text: String(x.fatalities ?? 0) },
           { text: String(x.injuries ?? 0) },
-          { text: x.hazmat_spill ? "Yes" : "No" },
+          { text: x.hazmat_spill == null ? "" : x.hazmat_spill ? "Yes" : "No" },
         ]),
     3,
   );

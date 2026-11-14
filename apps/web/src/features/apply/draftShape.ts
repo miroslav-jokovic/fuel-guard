@@ -47,7 +47,11 @@ export interface DraftAccident {
   nature: string;
   fatalities: string;
   injuries: string;
-  hazmat_spill: boolean;
+  /**
+   * Null until the driver answers (F4 PR 1b-1): asked as a Yes/No with nothing chosen. A draft saved
+   * before keeps the box it held — the driver saw it unticked and moved on, which is the answer it filed.
+   */
+  hazmat_spill: boolean | null;
   /**
    * The row's stable id (Q-AM15): an office correction names the row by it, so deleting or reordering
    * rows here never moves a correction onto another row. Minted when the row is made (`newRowKey`) or,
@@ -228,8 +232,12 @@ export { newEmployerKey };
 /** A new job with the applicant's defaults — `blankEmployer`, which every surface shares (EM-5). */
 export const emptyEmployer = (): DraftEmployer => blankEmployer();
 
+/**
+ * Nothing answered (F4 PR 1b-1). The two counts started at "0", which filed "nobody hurt, nobody killed"
+ * for a driver who never reached the boxes; blank is not 0 (F0), so the casualties screen asks.
+ */
 export const emptyAccident = (): DraftAccident => ({
-  occurred_on: "", nature: "", fatalities: "0", injuries: "0", hazmat_spill: false, key: newRowKey(),
+  occurred_on: "", nature: "", fatalities: "", injuries: "", hazmat_spill: null, key: newRowKey(),
 });
 
 export const emptyViolation = (): DraftViolation => ({

@@ -3,7 +3,6 @@ import { computed, ref } from "vue";
 import ApplyDate from "@/features/apply/ApplyDate.vue";
 import {
   AppButton as BaseButton,
-  AppCheckbox as BaseCheckbox,
   AppInput as BaseInput,
 } from "@silvicom/ui";
 import { emptyAccident, emptyViolation, type ApplicationDraft } from "@/features/apply/draft";
@@ -117,7 +116,13 @@ const everSuspended = computed<boolean | null>({
               <BaseInput v-bind="f" v-model="accident.injuries" inputmode="numeric" />
             </ApplyField>
           </div>
-          <BaseCheckbox v-model="accident.hazmat_spill" size="touch">{{ copy.hazmatSpill }}</BaseCheckbox>
+          <!-- F4 PR 1b-1: a Yes/No with nothing chosen — the box filed "No" for an accident nobody asked about. -->
+          <YesNoField
+            :id="idFor(['accidents', i, 'hazmat_spill'])"
+            v-model="accident.hazmat_spill"
+            :legend="copy.walk.hazmatSpill"
+            :error="errorFor(['accidents', i, 'hazmat_spill'])"
+          />
           <div class="flex justify-end">
             <BaseButton variant="ghost" size="touch" @click="draft.accidents.splice(i, 1)">{{ copy.remove }}</BaseButton>
           </div>

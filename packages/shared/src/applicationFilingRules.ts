@@ -1,4 +1,4 @@
-import { APPLICANT_ISSUE_TEXT, applicantIssue, type ApplicantIssueText } from "./applicantIssues.js";
+import { APPLICANT_ISSUE_TEXT, applicantIssue, type ApplicantIssueKey, type ApplicantIssueText } from "./applicantIssues.js";
 import type { DriverApplicationFields } from "./applicationContract.js";
 import { employmentSegments, type ApplicationEmployer } from "./applicationEmployerContract.js";
 import { addressCoverage } from "./addressCoverage.js";
@@ -154,14 +154,21 @@ export function applicationLegacyFilingIssues(
  *   apart from A (denied) since F2c (P4).
  * - Page 2's conviction grid: `STATE OF VIOLATION` and `PENALTY` are columns of every row (P10). They were
  *   optional on the form, so a conviction printed with two empty cells.
+ * - Page 2's accident grid: `HM SPILL` on every row (F4 PR 1b-1), a Yes/No that no longer starts at No.
+ * - Page 1's residency lines: "Street, City, State, Zip" for every address (Q-AM8 (a)). The driver may
+ *   leave a street or ZIP; the office completes it before signing (`OFFICE_COMPLETES`).
  */
 // US spelling, as the question it answers (Q-AM6, and the carrier's own page 2).
 export const SUSPENSION_UNANSWERED = APPLICANT_ISSUE_TEXT.suspension_answered();
 
 export function applicationPaperFilingIssues(
-  application: Pick<DriverApplicationFields, "licence_suspended" | "violations" | "declares_no_violations">,
+  application: Pick<DriverApplicationFields, "licence_suspended" | "violations" | "declares_no_violations">
+    & Partial<Pick<DriverApplicationFields, "accidents" | "declares_no_accidents" | "addresses">>,
 ): ApplicationFilingIssue[] {
   const issues: ApplicationFilingIssue[] = [];
+  (application.addresses ?? []).forEach((a, i) => {
+    if (blank(a.line1) || blank(a.postal_code)) issues.push({ path: `addresses.${i}.line1`, ...applicantIssue("address_street") });
+  });
   if (typeof application.licence_suspended !== "boolean") {
     issues.push({ path: "licence_suspended", ...applicantIssue("suspension_answered") });
   }
@@ -169,6 +176,14 @@ export function applicationPaperFilingIssues(
     (application.violations ?? []).forEach((v, i) => {
       if (blank(v.state)) issues.push({ path: `violations.${i}.state`, ...applicantIssue("violation_state") });
       if (blank(v.penalty)) issues.push({ path: `violations.${i}.penalty`, ...applicantIssue("violation_penalty") });
+    });
+  }
+  // Page 2's accident grid: HM SPILL is a column of every row (F4 PR 1b-1). Null is "not answered".
+  if (!application.declares_no_accidents) {
+    (application.accidents ?? []).forEach((a, i) => {
+      if (typeof a.hazmat_spill !== "boolean") {
+        issues.push({ path: `accidents.${i}.hazmat_spill`, ...applicantIssue("accident_hazmat") });
+      }
     });
   }
   return issues;
@@ -192,3 +207,20 @@ export function sevenDayStatementIssues(
   }
   return issues;
 }
+
+/**
+ * The answers the OFFICE completes when the driver leaves them (D-AM4, Q-AM8 (a); owner 2026-11-09 and
+ * 2026-11-11): an employer's address and a home's street and ZIP. A driver often does not know the street
+ * of a job or a flat from years ago, and the office can find it.
+ *
+ * So each of these is judged at three points, differently:
+ * - **the driver's hand-off** does not ask for them (`driverMustAnswer`): the page's checks skip them;
+ * - **the office's Send for signing** refuses while any remains (`applicationSendForSigning.ts`) — the
+ *   driver is never sent to sign a document that cannot be filed;
+ * - **filing** still refuses without them, as it always has (`applicationSubmit.ts`).
+ */
+export const OFFICE_COMPLETES: ReadonlySet<ApplicantIssueKey> = new Set<ApplicantIssueKey>(["job_address", "address_street"]);
+
+/** Is this an issue the driver must answer, or one the office completes? */
+export const driverMustAnswer = (issue: { issueKey?: ApplicantIssueKey }): boolean =>
+  issue.issueKey === undefined || !OFFICE_COMPLETES.has(issue.issueKey);

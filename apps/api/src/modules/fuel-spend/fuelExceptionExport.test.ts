@@ -59,6 +59,13 @@ describe("the ledger export covers what the screen covers", () => {
     );
   });
 
+  // Q-AI14 (a): the page's minimum amount, so the file holds the findings on screen.
+  it("bounds the file by the page's minimum amount", async () => {
+    const rec = seed([finding()]);
+    await exportExceptions(rec.client, { orgId: ORG, filters: { minAmount: 500 }, scope: SCOPE });
+    expect(rec.forTable("fuel_exceptions")[0]!.ops).toContainEqual({ method: "gte", args: ["amount", 500] });
+  });
+
   /**
    * ⚠ Two findings on one day for one amount are a tie, and a tied sort is not a total order — a page
    * boundary between them repeats one and drops the other. `id` last is what makes the paging safe.

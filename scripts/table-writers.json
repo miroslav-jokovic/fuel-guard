@@ -183,7 +183,8 @@
     "apps/api/src/modules/performance/driverScoreSync.ts"
   ],
   "driver_time_off": [
-    "apps/api/src/modules/mcleod/tmsIngest.ts"
+    "apps/api/src/modules/mcleod/tmsIngest.ts",
+    "apps/api/src/modules/roster/homeTime/homeTime.ts"
   ],
   "driver_vehicle_assignments": [
     "apps/api/src/modules/idle/idleSync.ts",
@@ -369,6 +370,9 @@
   "hiring_carrier_steps": [
     "apps/api/src/modules/recruiting/carrierSteps.ts"
   ],
+  "home_time_settings": [
+    "apps/api/src/modules/roster/homeTime/settingsRoutes.ts"
+  ],
   "hos_duty_segments": [
     "apps/api/src/modules/samsara/hosSync.ts"
   ],
@@ -473,6 +477,12 @@
     "apps/api/src/modules/loads/mirrorLoads.ts",
     "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts"
   ],
+  "lumper_case_files": [
+    "apps/api/src/modules/mcleod/lumper/lumperCases.ts"
+  ],
+  "lumper_cases": [
+    "apps/api/src/modules/mcleod/lumper/lumperCases.ts"
+  ],
   "maintenance_inspectors": [
     "apps/api/src/modules/maintenance/inspections/inspectors.ts"
   ],
@@ -538,6 +548,16 @@
   "messages": [
     "apps/api/src/modules/messaging/messages.ts"
   ],
+  "notification_channel_settings": [
+    "apps/api/src/modules/messaging/alertTexts.ts"
+  ],
+  "notification_contacts": [
+    "apps/api/src/modules/messaging/alertContacts.ts"
+  ],
+  "notification_deliveries": [
+    "apps/api/src/modules/messaging/alertRouting.ts",
+    "apps/api/src/modules/messaging/alertTexts.ts"
+  ],
   "notification_events": [
     "apps/api/src/modules/messaging/notify.ts"
   ],
@@ -546,6 +566,9 @@
   ],
   "notification_reads": [
     "apps/api/src/modules/messaging/routes/notifications.ts"
+  ],
+  "notification_routes": [
+    "apps/api/src/modules/messaging/alertRoutingSettings.ts"
   ],
   "org_disclosures": [
     "apps/api/src/modules/recruiting/carrierWording.ts"
@@ -774,5 +797,8 @@
   "weather_cache": [
     "apps/api/src/modules/idle/idleSessionWeather.ts",
     "apps/api/src/modules/idle/weatherBackfill.ts"
+  ],
+  "web_push_subscriptions": [
+    "apps/api/src/modules/messaging/chatPush.ts"
   ]
 }

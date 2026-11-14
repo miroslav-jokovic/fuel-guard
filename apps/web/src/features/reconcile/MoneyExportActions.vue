@@ -37,6 +37,8 @@ const props = defineProps<{
   assignedTo: string | null;
   from: string;
   to: string;
+  /** The page's minimum amount (Q-AI14 (a)), so the file holds the findings on screen. */
+  minAmount?: number | null;
   /** The money findings currently on screen — what the export and the packet actually cover. */
   moneyIds: string[];
 }>();
@@ -54,6 +56,7 @@ const ledgerQuery = computed<ExceptionQuery>(() => ({
   assignedTo: props.assignedTo,
   from: props.from,
   to: props.to,
+  minAmount: props.minAmount ?? null,
   // Paging is dropped by `exceptionExportQuery`: the file is the whole filtered set.
   page: 1,
   pageSize: 1,

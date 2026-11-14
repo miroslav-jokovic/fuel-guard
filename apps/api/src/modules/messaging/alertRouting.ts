@@ -1,0 +1,307 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  USER_ROLES,
+  alertDefinition,
+  alertMemberCanManage,
+  alertMemberSections,
+  resolveAlertRecipients,
+  type AlertChannel,
+  type AlertKey,
+  type AlertMember,
+  type AlertRelation,
+  type AlertRoute,
+  type NotificationSeverity,
+  type SectionAccess,
+  type SectionClaim,
+  type SectionOverrides,
+  type UserRole,
+} from "@silvicom/shared";
+import type { Env } from "../../env.js";
+import { sendEmail } from "../../lib/mailer.js";
+import { alertTextsAvailable } from "./alertContacts.js";
+import { notify } from "./notify.js";
+import { readAlertTextQuiet, textOne, type AlertTextClock } from "./alertTexts.js";
+
+/**
+ * Alert routing's server half (NOTIFICATION-ROUTING-PLAN D-NR3, D-NR4; HOME-TIME-PLAN §3.6, D-HT14):
+ * read a carrier's routes, resolve who hears an alert, and send it on each person's channels.
+ *
+ * ── ONE RESOLVER, ONE SENDER ────────────────────────────────────────────────────────────────────
+ * `recipientsFor` is the shared rule (`resolveAlertRecipients`) over three reads: the saved routes,
+ * the active members, and each member's confirmed mobile number. `sendAlerts` then takes a batch of
+ * events for ONE alert and sends each person:
+ *   · a bell item per event, through `notify()` — its own dedupe, mutes and quiet hours apply;
+ *   · ONE email listing everything new for them, never one per driver (the DQ alerts' rule): queued
+ *     with `queue_notification_delivery` (0598), which claims each line's key in the dedupe ledger and
+ *     queues only the lines it claimed, then sent, and the outcome written back on the row.
+ *   · ONE text listing everything new for them (HT6), to the mobile number they confirmed and have not
+ *     stopped: queued the same way and sent at once, or held until the quiet window ends
+ *     (`alertTexts.ts`).
+ *
+ * ── AN ALERT ADDRESSED TO NOBODY IS A FAILURE ───────────────────────────────────────────────────
+ * When the routes resolve to nobody for an event — the truck's fleet has no linked dispatcher, the
+ * person who marked it left — the bell goes to everyone who manages the alert's section, and the run
+ * says so in the log. A carrier that switched every route off on purpose still gets this: the page
+ * says an alert cannot be sent to nobody (HT5).
+ *
+ * Every query filters on `org_id`: the service role bypasses RLS.
+ */
+
+export interface AlertEvent {
+  /** One key per fact; the bell, the email and the text each claim it for their own channel. */
+  dedupeKey: string;
+  /** The sentence about this event: the bell's title and a line of the email. */
+  line: string;
+  severity: NotificationSeverity;
+  entityType: string;
+  entityId: string;
+  /** Who each relation resolves to for THIS event; absent or null when nobody. */
+  relations: Partial<Record<AlertRelation, string | null>>;
+}
+
+export interface AlertSendResult {
+  /** Bell items actually made (a deduped or muted one is not). */
+  bells: number;
+  emails: number;
+  /** Texts that left now; one held for the morning is `textsHeld`, and is sent by the drain. */
+  texts: number;
+  textsHeld: number;
+  /** Events whose routes resolved to nobody, sent to the section's managers instead. */
+  fellBack: number;
+}
+
+export interface Directory {
+  members: AlertMember[];
+  emailOf: Map<string, string>;
+  /** The name the Settings page shows; the login email when no name was ever entered. */
+  nameOf: Map<string, string>;
+  /** The carrier's role-level section changes, for "which roles can receive this alert" (`alertRolesFor`). */
+  roleChanges: SectionOverrides;
+}
+
+/**
+ * What the carrier changed on the Permissions page: section access per role (`org_section_access`,
+ * 0291) and per person (`user_section_access`, 0299). Two sparse reads — tens of rows — and a THROW on
+ * a failed one: answering from the shipped matrix instead would send an alert to somebody the carrier
+ * took the section from, which is the defect this exists to end (Q-HT8).
+ */
+export interface SectionChanges {
+  roles: SectionOverrides;
+  users: Map<string, SectionClaim>;
+}
+export async function readSectionChanges(admin: SupabaseClient, orgId: string): Promise<SectionChanges> {
+  const [byRole, byUser] = await Promise.all([
+    admin.from("org_section_access").select("role, section, access").eq("org_id", orgId),
+    admin.from("user_section_access").select("user_id, section, access").eq("org_id", orgId),
+  ]);
+  if (byRole.error) throw new Error(`org_section_access: ${byRole.error.message}`);
+  if (byUser.error) throw new Error(`user_section_access: ${byUser.error.message}`);
+  const roles: Record<string, Record<string, SectionAccess>> = {};
+  for (const r of (byRole.data ?? []) as { role: string; section: string; access: SectionAccess }[]) (roles[r.role] ??= {})[r.section] = r.access;
+  const users = new Map<string, Record<string, SectionAccess>>();
+  for (const r of (byUser.data ?? []) as { user_id: string; section: string; access: SectionAccess }[]) users.set(r.user_id, { ...(users.get(r.user_id) ?? {}), [r.section]: r.access });
+  return { roles: roles as SectionOverrides, users: users as Map<string, SectionClaim> };
+}
+
+/**
+ * The carrier's active members with their login email — `org_member_directory` (0301, 0393) — each
+ * carrying the section claim their own token would (`alertMemberSections`), so "who can open the page
+ * this alert is about" is the carrier's answer everywhere a member is asked it.
+ */
+export async function readDirectory(admin: SupabaseClient, orgId: string): Promise<Directory> {
+  const [{ data, error }, changes] = await Promise.all([admin.rpc("org_member_directory", { p_org_id: orgId }), readSectionChanges(admin, orgId)]);
+  if (error) throw new Error(`org_member_directory: ${error.message}`);
+  const rows = (data ?? []) as Array<{ user_id: string; email: string | null; full_name?: string | null; role: string; suspended_at: string | null }>;
+  const members: AlertMember[] = [];
+  const emailOf = new Map<string, string>();
+  const nameOf = new Map<string, string>();
+  for (const r of rows) {
+    if (r.suspended_at !== null || !(USER_ROLES as readonly string[]).includes(r.role)) continue;
+    const role = r.role as UserRole;
+    members.push({ userId: r.user_id, role, sections: alertMemberSections(role, changes.roles, changes.users.get(r.user_id)) });
+    if (r.email) emailOf.set(r.user_id, r.email);
+    nameOf.set(r.user_id, r.full_name?.trim() || r.email || "Unnamed member");
+  }
+  return { members, emailOf, nameOf, roleChanges: changes.roles };
+}
+
+/** The carrier's saved routes for one alert; empty means "the catalogue's defaults" (`routesInForce`). */
+export async function readAlertRoutes(admin: SupabaseClient, orgId: string, alert: AlertKey): Promise<AlertRoute[]> {
+  const { data, error } = await admin
+    .from("notification_routes")
+    .select("recipient_kind, recipient_key, channel, enabled")
+    .eq("org_id", orgId)
+    .eq("alert", alert);
+  if (error) throw new Error(`notification_routes: ${error.message}`);
+  return ((data ?? []) as Array<{ recipient_kind: AlertRoute["recipientKind"]; recipient_key: string; channel: AlertChannel; enabled: boolean }>).map((r) => ({
+    recipientKind: r.recipient_kind,
+    recipientKey: r.recipient_key,
+    channel: r.channel,
+    enabled: r.enabled,
+  }));
+}
+
+/**
+ * The members who can be texted, with the number: one they confirmed and have not stopped (D-NR5).
+ * Nobody, when this server has no alert sender: a number confirmed while one was set is still on its
+ * row, and a text queued for it could only fail.
+ */
+async function readTextable(admin: SupabaseClient, env: Env, orgId: string): Promise<Map<string, string>> {
+  if (!alertTextsAvailable(env)) return new Map();
+  const { data, error } = await admin
+    .from("notification_contacts")
+    .select("user_id, phone")
+    .eq("org_id", orgId)
+    .not("verified_at", "is", null)
+    .is("stopped_at", null);
+  if (error) throw new Error(`notification_contacts: ${error.message}`);
+  return new Map(((data ?? []) as { user_id: string; phone: string }[]).map((r) => [r.user_id, r.phone]));
+}
+
+export interface AlertAudience {
+  routes: AlertRoute[];
+  directory: Directory;
+  textable: Map<string, string>;
+}
+
+/** Everything `recipientsFor` needs for one alert, read once per run and reused for every event. */
+export async function readAlertAudience(admin: SupabaseClient, env: Env, orgId: string, alert: AlertKey): Promise<AlertAudience> {
+  const [routes, directory, textable] = await Promise.all([readAlertRoutes(admin, orgId, alert), readDirectory(admin, orgId), readTextable(admin, env, orgId)]);
+  return { routes, directory, textable };
+}
+
+/**
+ * Who hears this event, and how. A channel a person cannot be reached on is dropped here, so the
+ * sender never queues what cannot leave: email needs a login address, a text needs a confirmed number.
+ */
+export function recipientsFor(alert: AlertKey, audience: AlertAudience, relations: AlertEvent["relations"]): Map<string, Set<AlertChannel>> {
+  const out = resolveAlertRecipients(alert, audience.routes, audience.directory.members, relations);
+  for (const [userId, channels] of out) {
+    if (!audience.directory.emailOf.has(userId)) channels.delete("email");
+    if (!audience.textable.has(userId)) channels.delete("sms");
+    if (channels.size === 0) out.delete(userId);
+  }
+  return out;
+}
+
+const escapeHtml = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * Send a batch of events of one alert. Never throws for one person's failure: the rest are still told.
+ * `clock` is the carrier's zone and the run's instant — the caller already holds both, and a text is
+ * held or sent on that clock.
+ */
+export async function sendAlerts(admin: SupabaseClient, env: Env, orgId: string, alert: AlertKey, events: readonly AlertEvent[], clock: AlertTextClock): Promise<AlertSendResult> {
+  const result: AlertSendResult = { bells: 0, emails: 0, texts: 0, textsHeld: 0, fellBack: 0 };
+  if (events.length === 0) return result;
+  const def = alertDefinition(alert);
+  const audience = await readAlertAudience(admin, env, orgId, alert);
+  const fallback = audience.directory.members.filter((m) => alertMemberCanManage(m, def.section)).map((m) => m.userId);
+
+  /** Per person, the events to email them about, and to text them about. */
+  const emailFor = new Map<string, AlertEvent[]>();
+  const textFor = new Map<string, AlertEvent[]>();
+  for (const event of events) {
+    let recipients = recipientsFor(alert, audience, event.relations);
+    if (recipients.size === 0) {
+      result.fellBack += 1;
+      recipients = new Map(fallback.map((userId) => [userId, new Set<AlertChannel>(["bell"])]));
+      if (recipients.size === 0) console.error(`[alerts] org ${orgId}: ${alert} has nobody to tell — no active member manages ${def.section}`);
+    }
+    for (const [userId, channels] of recipients) {
+      if (channels.has("bell")) {
+        const id = await notify(admin, {
+          orgId,
+          userId,
+          category: alert,
+          title: event.line,
+          severity: event.severity,
+          entityType: event.entityType,
+          entityId: event.entityId,
+          dedupeKey: event.dedupeKey,
+        });
+        if (id) result.bells += 1;
+      }
+      if (channels.has("email")) emailFor.set(userId, [...(emailFor.get(userId) ?? []), event]);
+      if (channels.has("sms")) textFor.set(userId, [...(textFor.get(userId) ?? []), event]);
+    }
+  }
+  if (result.fellBack > 0) console.warn(`[alerts] org ${orgId}: ${result.fellBack} ${alert} event(s) resolved to nobody and went to who manages ${def.section}`);
+
+  for (const [userId, mine] of emailFor) {
+    const to = audience.directory.emailOf.get(userId);
+    if (!to) continue;
+    try {
+      if (await emailOne(admin, env, orgId, alert, def, userId, to, mine)) result.emails += 1;
+    } catch (e) {
+      console.error(`[alerts] org ${orgId}: email of ${alert} failed for one recipient:`, e instanceof Error ? e.message : e);
+    }
+  }
+
+  if (textFor.size > 0) {
+    const quiet = await readAlertTextQuiet(admin, orgId);
+    for (const [userId, mine] of textFor) {
+      const phone = audience.textable.get(userId);
+      if (!phone) continue;
+      try {
+        const items = mine.map((e) => ({ key: e.dedupeKey, line: e.line }));
+        const outcome = await textOne(admin, env, orgId, alert, def.label, userId, phone, items, quiet, clock);
+        if (outcome === "sent") result.texts += 1;
+        else if (outcome === "held") result.textsHeld += 1;
+      } catch (e) {
+        console.error(`[alerts] org ${orgId}: text of ${alert} failed for one recipient:`, e instanceof Error ? e.message : e);
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * Queue one person's email — the database claims each line's key and keeps only the new ones — then
+ * send it and write the outcome on the row. Returns whether an email left.
+ */
+async function emailOne(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  alert: AlertKey,
+  def: { label: string; action: string },
+  userId: string,
+  to: string,
+  events: readonly AlertEvent[],
+): Promise<boolean> {
+  const { data: deliveryId, error } = await admin.rpc("queue_notification_delivery", {
+    p_org: orgId,
+    p_user: userId,
+    p_alert: alert,
+    p_channel: "email",
+    p_destination: to,
+    p_title: def.label,
+    p_items: events.map((e) => ({ key: e.dedupeKey, line: e.line })),
+    p_not_before: null,
+  });
+  if (error) throw new Error(`queue_notification_delivery: ${error.message}`);
+  // Null: every line had already gone to this person by email.
+  if (!deliveryId) return false;
+
+  const { data: row, error: readError } = await admin.from("notification_deliveries").select("items").eq("org_id", orgId).eq("id", deliveryId).maybeSingle();
+  if (readError) throw new Error(`notification_deliveries: ${readError.message}`);
+  const lines = ((row as { items?: { line: string }[] } | null)?.items ?? []).map((i) => i.line);
+  if (lines.length === 0) return false;
+
+  const subject = lines.length === 1 ? `${def.label}: ${lines[0]}` : `${def.label}: ${lines.length} drivers`;
+  const open = def.action;
+  const sent = await sendEmail(env, {
+    to: [to],
+    subject: subject.slice(0, 200),
+    text: [...lines.map((l) => `  • ${l}`), "", open].join("\n"),
+    html: [`<ul>`, ...lines.map((l) => `<li>${escapeHtml(l)}</li>`), `</ul>`, `<p>${open}</p>`].join("\n"),
+  });
+  const { error: writeError } = await admin
+    .from("notification_deliveries")
+    .update(sent.ok ? { status: "sent", sent_at: new Date().toISOString(), attempts: 1 } : { status: "failed", attempts: 1, last_error: (sent.detail ?? "send failed").slice(0, 500) })
+    .eq("org_id", orgId)
+    .eq("id", deliveryId);
+  if (writeError) console.error(`[alerts] org ${orgId}: could not record the email's outcome: ${writeError.message}`);
+  return sent.ok;
+}

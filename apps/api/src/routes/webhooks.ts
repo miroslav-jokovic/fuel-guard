@@ -4,7 +4,8 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { processSamsaraWebhook } from "../modules/samsara/index.js";
 import { handleInboundSms, recordDeliveryReceipt } from "../modules/recruiting/index.js";
-import { parseTelnyxDeliveryReceipt, parseTelnyxInboundSms } from "../lib/sms.js";
+import { handleAlertInboundSms, recordAlertTextReceipt } from "../modules/messaging/index.js";
+import { inboundSmsLine, parseTelnyxDeliveryReceipt, parseTelnyxInboundSms } from "../lib/sms.js";
 import { verifyTelnyxSignature } from "../lib/telnyxSignature.js";
 
 /** Inbound integration webhooks. No user auth — authenticated by provider signature instead. */
@@ -80,11 +81,14 @@ export function webhooksRouter(): Router {
         // A-11 (C2d): what the carrier did with a text we sent. Answered 200 whether or not the id is
         // ours — a message sent before the outbox existed has no row, and a retry would not give it one.
         await recordDeliveryReceipt(getSupabaseAdmin(env), receipt, new Date());
+        // …and the same for an office alert text (HOME-TIME HT6): the id is on one table or the other.
+        await recordAlertTextReceipt(getSupabaseAdmin(env), receipt);
         res.json({ ok: true });
         return;
       }
 
-      const { from, text, isInbound } = parseTelnyxInboundSms(req.body);
+      const inbound = parseTelnyxInboundSms(req.body);
+      const { from, text, isInbound } = inbound;
       if (!isInbound) {
         // A profile event (`message.sent`), not a message. Accepted so it is not retried.
         res.json({ ok: true, ignored: true });
@@ -92,10 +96,12 @@ export function webhooksRouter(): Router {
       }
 
       const admin = getSupabaseAdmin(env);
-      const { revoked, helped } = await handleInboundSms(admin, env, from, text);
+      // Two numbers share this webhook, and a reply is about the number it was sent to (`inboundSmsLine`):
+      // an office person's STOP, START or HELP on the alert number (HOME-TIME D-HT17) never touches an
+      // applicant's consent, and an applicant's STOP on the recruiting number never touches alert texts.
+      if (inboundSmsLine(env, inbound) === "staff_alerts") await handleAlertInboundSms(admin, env, from, text);
+      else await handleInboundSms(admin, env, from, text);
       res.json({ ok: true });
-      void revoked;
-      void helped;
     }),
   );
 

@@ -4,6 +4,8 @@ import {
   applicationPaperFilingIssues,
   sevenDayStatementIssues,
   applicationV2FilingIssues,
+  driverMustAnswer,
+  OFFICE_COMPLETES,
   PRIOR_TEST_UNANSWERED,
   SUSPENSION_UNANSWERED,
 } from "./applicationFilingRules.js";
@@ -174,6 +176,53 @@ describe("what the carrier's paper asks of every new filing (F2c)", () => {
     expect(applicationPaperFilingIssues({
       licence_suspended: false, declares_no_violations: true, violations: [{ ...conviction, state: null, penalty: null }],
     })).toEqual([]);
+  });
+
+  /** F4 PR 1b-1: the accident grid's HM SPILL, a Yes/No that no longer starts at No. */
+  it("asks each accident whether hazardous materials were spilled, and takes No as an answer", () => {
+    const accident = { occurred_on: "2025-03-01", nature: "Rear-ended", fatalities: 0, injuries: 0, key: null };
+    const answered = { licence_suspended: false, violations: [], declares_no_violations: true };
+    const issues = applicationPaperFilingIssues({
+      ...answered, declares_no_accidents: false,
+      accidents: [{ ...accident, hazmat_spill: false }, { ...accident, hazmat_spill: null }, { ...accident, hazmat_spill: true }],
+    });
+    expect(issues).toMatchObject([{ path: "accidents.1.hazmat_spill", issueKey: "accident_hazmat" }]);
+    // A declared none files no rows, so nothing is asked of a row left behind.
+    expect(applicationPaperFilingIssues({
+      ...answered, declares_no_accidents: true, accidents: [{ ...accident, hazmat_spill: null }],
+    })).toEqual([]);
+  });
+
+  /** Q-AM8 (a): every address's street and ZIP, which the office completes when the driver leaves them. */
+  it("asks every address for its street and ZIP, and the contract lets the driver leave them", () => {
+    const answered = { licence_suspended: false, violations: [], declares_no_violations: true };
+    const home = { line1: "1 Road", city: "Joliet", state: "IL", postal_code: "60432", from: "2019-01", to: null, key: null };
+    const issues = applicationPaperFilingIssues({
+      ...answered,
+      addresses: [home, { ...home, line1: " ", to: "2018-12" }, { ...home, postal_code: "", to: "2017-12" }],
+    });
+    expect(issues).toMatchObject([
+      { path: "addresses.1.line1", issueKey: "address_street" },
+      { path: "addresses.2.line1", issueKey: "address_street" },
+    ]);
+    // The driver may save it so: the contract takes a blank street and ZIP, and still refuses a short ZIP.
+    expect(driverApplicationObject.shape.addresses.element.safeParse({ ...home, line1: "", postal_code: "" }).success).toBe(true);
+    expect(driverApplicationObject.shape.addresses.element.safeParse({ ...home, postal_code: "60" }).success).toBe(false);
+  });
+});
+
+describe("the answers the office completes (D-AM4, Q-AM8 (a))", () => {
+  it("are an employer's address and a home's street, and nothing the driver alone can give", () => {
+    expect([...OFFICE_COMPLETES].sort()).toEqual(["address_street", "job_address"]);
+    expect(driverMustAnswer({ issueKey: "address_street" })).toBe(false);
+    expect(driverMustAnswer({ issueKey: "job_address" })).toBe(false);
+    expect(driverMustAnswer({ issueKey: "job_reason_for_leaving" })).toBe(true);
+    expect(driverMustAnswer({})).toBe(true);
+  });
+
+  it("are still refused at filing: the v2 rules name a job's missing address", () => {
+    const issues = applicationV2FilingIssues({ employers: [employer({ address_line1: "", city: "", state: "" })], employment_gaps: [], addresses: HOME }, AS_OF);
+    expect(issues.filter((i) => !driverMustAnswer(i)).map((i) => i.issueKey)).toEqual(["job_address"]);
   });
 });
 
