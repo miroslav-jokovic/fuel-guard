@@ -9,5 +9,8 @@
  * internals its own.
  */
 export const SMS_TERMS_PATH = "/sms-terms";
+/** The office work-alert programme's own section of that page — what "My alerts" links to. */
+export const SMS_STAFF_ALERTS_ANCHOR = "staff-alerts";
+export const SMS_STAFF_ALERTS_TERMS_PATH = `${SMS_TERMS_PATH}#${SMS_STAFF_ALERTS_ANCHOR}`;
 export const SMS_PRIVACY_ANCHOR = "text-messages";
 export const SMS_PRIVACY_PATH = `/privacy#${SMS_PRIVACY_ANCHOR}`;

@@ -19,7 +19,7 @@ import {
   type MyAlerts,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
-import { smsConfigured } from "../../lib/sms.js";
+import { alertTextsAvailable } from "./alertContacts.js";
 import { readDirectory } from "./alertRouting.js";
 import { readAlertTextQuiet } from "./alertTexts.js";
 
@@ -100,7 +100,7 @@ export async function readAlertRoutingView(admin: SupabaseClient, env: Env, orgI
     .filter((m) => listed.has(m.userId))
     .map((m) => ({ userId: m.userId, name: directory.nameOf.get(m.userId) ?? "Unnamed member", role: m.role, textReady: ready.has(m.userId) }))
     .sort((a, b) => a.name.localeCompare(b.name));
-  return { alerts, members, texts: { available: smsConfigured(env), quiet } };
+  return { alerts, members, texts: { available: alertTextsAvailable(env), quiet } };
 }
 
 export type AlertRoutesSaved = { ok: true; routes: AlertRoute[] } | { ok: false; problem: string };

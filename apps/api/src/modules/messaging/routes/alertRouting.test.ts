@@ -79,7 +79,10 @@ const conflictOf = (q: RecordedQuery) => (q.ops.find((o) => o.method === "upsert
 const audits = () => rec.writtenRows("audit_logs") as Record<string, unknown>[];
 
 beforeAll(async () => {
-  const app = createApp(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv));
+  // The RECRUITING number is set and the alert line's is not — production's state until the second
+  // number is verified. Every `available: false` and the 503 below are read against that: the applicant
+  // sender must never make an alert text look possible.
+  const app = createApp(loadEnv({ NODE_ENV: "test", SMS_PROVIDER: "telnyx", TELNYX_API_KEY: "KEY-test", TELNYX_FROM: "+15550001111" } as NodeJS.ProcessEnv));
   app.locals.verifyToken = async (t: string): Promise<AuthContext> => {
     const found = CTX[t];
     if (!found) throw new Error("bad token");

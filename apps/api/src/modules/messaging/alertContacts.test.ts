@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ALERT_TEXT_CONSENT } from "@silvicom/shared";
+import { ALERT_TEXT_CONSENT, alertTextHelpReply } from "@silvicom/shared";
 import { confirmAlertPhone, handleAlertInboundSms, isAlertContactRefusal, readMyAlertContact, startAlertPhone, stopAlertTexts } from "./alertContacts.js";
 import { loadEnv } from "../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
@@ -10,7 +10,9 @@ import { postgrestFixture } from "../../testing/postgrestFixture.js";
  * number they have not proved is theirs, a code is checked without being stored, and STOP means stop.
  */
 const sms = vi.hoisted(() => ({ send: vi.fn(), configured: true }));
-vi.mock("../../lib/sms.js", async (orig) => ({ ...(await orig<object>()), sendSms: sms.send, smsConfigured: () => sms.configured }));
+vi.mock("../../lib/sms.js", async (orig) => ({ ...(await orig<object>()), sendSms: sms.send, smsConfigured: (_env: unknown, line?: string) => line === "staff_alerts" && sms.configured }));
+// ↑ `configured` is the ALERT line's answer. The applicant line reads false here on purpose: code that
+// asked it instead would find every test below "not set up".
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const DANA = "90000000-0000-4000-8000-0000000000a0";
@@ -82,6 +84,11 @@ describe("asking for a code", () => {
     expect(sms.send).not.toHaveBeenCalled();
     seed([pending]);
     expect(isAlertContactRefusal(await startAlertPhone(rec.client, env, ORG, DANA, PHONE, new Date(NOW.getTime() + 61_000)))).toBe(false);
+  });
+
+  it("texts the code on the staff-alert line, never the applicant one", async () => {
+    await started();
+    expect((sms.send.mock.calls[0]![1] as { line?: string }).line).toBe("staff_alerts");
   });
 
   it("says so when the text could not be sent, and names START for a number that once said STOP", async () => {
@@ -163,7 +170,7 @@ describe("a reply to our number", () => {
 
   it("STOP stops every row holding that number, whatever its carrier, and each is audited as the person's own act", async () => {
     seed([contact({ verified_at: "t" })]);
-    expect(await handleAlertInboundSms(rec.client, "+1 708 555 0100", " Stop ", NOW)).toEqual({ stopped: 1, resumed: 0 });
+    expect(await handleAlertInboundSms(rec.client, env, "+1 708 555 0100", " Stop ", NOW)).toEqual({ stopped: 1, resumed: 0, helped: false });
     const up = writes("update")[0]!;
     expect(payload(up)).toMatchObject({ stopped_at: NOW.toISOString() });
     expect(up.filters()).toContainEqual({ col: "phone", val: PHONE });
@@ -173,20 +180,28 @@ describe("a reply to our number", () => {
 
   it("reads STOP by the product's one rule: the word anywhere in the message counts (`isStopMessage`, G-2)", async () => {
     seed([contact({ verified_at: "t" })]);
-    expect((await handleAlertInboundSms(rec.client, PHONE, "please stop texting me", NOW)).stopped).toBe(1);
+    expect((await handleAlertInboundSms(rec.client, env, PHONE, "please stop texting me", NOW)).stopped).toBe(1);
   });
 
   it("START lifts a stop, and an ordinary message changes nothing", async () => {
     seed([contact({ verified_at: "t", stopped_at: "t" })]);
-    expect(await handleAlertInboundSms(rec.client, PHONE, "START", NOW)).toEqual({ stopped: 0, resumed: 1 });
+    expect(await handleAlertInboundSms(rec.client, env, PHONE, "START", NOW)).toEqual({ stopped: 0, resumed: 1, helped: false });
     expect(payload(writes("update")[0]!)).toMatchObject({ stopped_at: null });
     // START is not a way to confirm a number: only a row that was confirmed and then stopped is lifted.
     // Read from the query itself — the stand-in database does not apply a negated filter.
     const nots = writes("update")[0]!.ops.filter((o) => o.method === "not").map((o) => o.args);
     expect(nots).toEqual(expect.arrayContaining([["stopped_at", "is", null], ["verified_at", "is", null]]));
     seed([contact({ verified_at: "t" })]);
-    expect(await handleAlertInboundSms(rec.client, PHONE, "ok, see you Monday", NOW)).toEqual({ stopped: 0, resumed: 0 });
-    expect(await handleAlertInboundSms(rec.client, "not a number", "STOP", NOW)).toEqual({ stopped: 0, resumed: 0 });
+    expect(await handleAlertInboundSms(rec.client, env, PHONE, "ok, see you Monday", NOW)).toEqual({ stopped: 0, resumed: 0, helped: false });
+    expect(await handleAlertInboundSms(rec.client, env, "not a number", "STOP", NOW)).toEqual({ stopped: 0, resumed: 0, helped: false });
+    expect(rec.writes()).toEqual([]);
+    expect(sms.send).not.toHaveBeenCalled();
+  });
+
+  it("HELP is answered from the alert number with the staff words, to anybody, and changes no row", async () => {
+    seed();
+    expect(await handleAlertInboundSms(rec.client, env, PHONE, " help ", NOW)).toEqual({ stopped: 0, resumed: 0, helped: true });
+    expect(sms.send.mock.calls[0]![1]).toEqual({ to: PHONE, body: alertTextHelpReply("localhost:5173"), line: "staff_alerts" });
     expect(rec.writes()).toEqual([]);
   });
 });

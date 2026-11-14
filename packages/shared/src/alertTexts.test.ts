@@ -9,6 +9,7 @@ import {
   alertTextClock,
   alertTextClockMinutes,
   alertTextClockValue,
+  alertTextHelpReply,
   alertTextNotBefore,
   alertTextQuietSchema,
   inAlertTextQuiet,
@@ -92,6 +93,14 @@ describe("the words of a text (D-HT16)", () => {
     const body = alertTextBody("X", ["y".repeat(400)]);
     expect(body).toContain("y".repeat(400));
     expect(body).not.toContain("more.");
+  });
+});
+
+describe("the HELP answer on the alert number", () => {
+  it("names the programme, the terms page and STOP, in one message part on the production host", () => {
+    const reply = alertTextHelpReply("360.silvicominc.com");
+    expect(reply).toBe("Silvicom 360 work alerts for office staff. Help: 360.silvicominc.com/sms-terms. Msg & data rates may apply. Reply STOP to end.");
+    expect(reply.length).toBeLessThanOrEqual(160);
   });
 });
 

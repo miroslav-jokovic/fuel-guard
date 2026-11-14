@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { mount, RouterLinkStub } from "@vue/test-utils";
-import { SMS_STOP_KEYWORDS, smsHelpReply } from "@silvicom/shared";
+import { SMS_STOP_KEYWORDS, alertTextHelpReply, smsHelpReply } from "@silvicom/shared";
 import SmsTermsPage from "@/pages/legal/SmsTermsPage.vue";
 import PrivacyPolicyPage from "@/pages/legal/PrivacyPolicyPage.vue";
-import { SMS_PRIVACY_ANCHOR, SMS_PRIVACY_PATH } from "@/lib/legalPaths";
+import { SMS_PRIVACY_ANCHOR, SMS_PRIVACY_PATH, SMS_STAFF_ALERTS_ANCHOR } from "@/lib/legalPaths";
 
 /**
  * The two pages a toll-free verification reviewer opens from the opt-in screenshot (SMS-OPT-IN-PLAN
@@ -21,6 +21,19 @@ describe("the text message terms", () => {
     const text = mountPage(SmsTermsPage).text();
     for (const k of SMS_STOP_KEYWORDS) expect(text).toContain(k.toUpperCase());
     expect(text).toContain(smsHelpReply(window.location.host));
+  });
+
+  // The second number's verification reviewer reads this section and nothing else (HOME-TIME HT6).
+  it("gives office work alerts a section of their own: who gets them, the code, the hours, STOP and the exact HELP answer", () => {
+    const page = mountPage(SmsTermsPage);
+    expect(page.find(`#${SMS_STAFF_ALERTS_ANCHOR}`).text()).toBe("Work alert texts for office staff");
+    const text = page.text().replace(/\s+/g, " ");
+    expect(text).toContain("Silvicom 360 work alerts");
+    expect(text).toContain("Applicants and drivers do not receive them");
+    expect(text).toContain("6-digit code");
+    expect(text).toContain("9:00 PM to 7:00 AM");
+    expect(text).toContain("Reply STOP to any work alert");
+    expect(text).toContain(alertTextHelpReply(window.location.host));
   });
 
   it("says agreeing is optional, and names rates and frequency", () => {

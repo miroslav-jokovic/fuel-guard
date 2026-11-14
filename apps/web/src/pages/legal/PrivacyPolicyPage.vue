@@ -231,6 +231,17 @@ const email = computed(() => supportEmail());
         office, and we stop. The record of your agreement is kept, marked as stopped, because it is
         the evidence of what you did and did not agree to.
       </p>
+      <!-- HOME-TIME HT6: the office programme, on its own number. What is listed is what
+           `notification_contacts` holds — no internet address or browser is recorded for it. -->
+      <p>
+        <span class="text-ink">Work alert texts for office staff.</span> If you work in a carrier's
+        office and confirm your own mobile number under My alerts, we keep that number, the exact
+        wording you agreed to and its version, when you confirmed it by typing the code we texted, and,
+        if you stop the texts, when. We use the number only to text you the work alerts your company
+        routes to you. The two sentences above about sharing apply to it in full. Reply STOP to any
+        work alert or switch them off under My alerts, and we stop; the record is kept, marked as
+        stopped.
+      </p>
     </LegalSection>
 
     <LegalSection id="changes" title="Changes to this policy">

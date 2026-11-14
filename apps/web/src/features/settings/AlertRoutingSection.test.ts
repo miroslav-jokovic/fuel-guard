@@ -263,6 +263,8 @@ describe("Text alerts under My alerts (D-HT17)", () => {
   it("will not ask for a code without a real number AND the agreement, whose words are on the page", async () => {
     const w = await mountTexts();
     expect(w.text()).toContain("Reply STOP to end, HELP for help.");
+    // Beside the agreement: the alert programme's own terms section, and the privacy policy.
+    expect(w.findAll("form a").map((a) => a.attributes("href"))).toEqual(["/sms-terms#staff-alerts", "/privacy#text-messages"]);
     const send = () => button(w, "Text me a code")!;
     expect(send().attributes("disabled")).toBeDefined();
     await w.find('input[type="tel"]').setValue("708 555 0100");

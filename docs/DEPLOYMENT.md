@@ -95,7 +95,13 @@ the confirmation when an applicant agrees to texts, "Text me the link" on a desk
 configured"* (4 of the 5 `consent_confirm` rows in production's `sms_outbox`; nothing retries a
 `failed` row). The office's texts never hit it, because the office SPA calls the api host. **So
 `SMS_PROVIDER`, `TELNYX_API_KEY`, `TELNYX_FROM`, `TELNYX_MESSAGING_PROFILE_ID` and `TELNYX_PUBLIC_KEY`
-are set on BOTH `@fleetguard/api` and `@fleetguard/web`** (copied 2026-10-21), and a key rotation
+are set on BOTH `@fleetguard/api` and `@fleetguard/web`** (copied 2026-10-21) — and so is
+`TELNYX_ALERTS_FROM` (or `TELNYX_ALERTS_MESSAGING_PROFILE_ID`), the SECOND sender, for office alert
+texts, once its number is verified: the recruiting number is verified for applicant texts only, so
+alert texts never leave from it and are not offered at all until this is set
+(`docs/plans/dispatch-loads/HOME-TIME-PLAN.md` §7.1). It goes on every service that answers
+`/api/webhooks/sms` too, because that is how a STOP sent to the alert number is told from one sent to
+the recruiting number. A key rotation
 changes them in both services and in the release-notify secrets above — three places. A Railway
 variable change stages until the service is redeployed; check `last_error` on the next
 `consent_confirm` row after a rotation. Check that both carry them:
