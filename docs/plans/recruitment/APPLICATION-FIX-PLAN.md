@@ -902,3 +902,11 @@ A gate fails on a literal string in an `apply/` template.
   - **Proof:** rules (+3), the walk (+6), the device copy (+2), the photo screen (+3); 12 of 12 mutants killed; new `noCdlAtHand.spec.ts` in a real browser across a reload; the tap-target sweep passes at 390 and 320 px. One of seven local browser runs failed two tests with this Mac at load 35 and was not reproduced in the next four; CI is the authority.
   - **Not looked at in a faithful screenshot:** Playwright's full-page capture flips the pointer media query and drew the computer's hand-off panel. The sweep measures the phone layout.
   - **Next:** phone or email (with the Med-Stop skip made visible), then F5.
+- 2026-11-14: **U8 step 2 merged** (#2378).
+- 2026-11-14: **Before phone-or-email: the office is told why an applicant was not sent to Med-Stop** (`claude/medstop-skip-visible`, no migration).
+  - **What was found:** every skip was silent, not only a missing phone. `medstopApplicantSkip` held sentences for a declined gender and a non-US license, and its comment said "the step shows it". Nothing did: the sweep counted the skip, the hiring step read only `medstop_applicant_creates`, and the applicant simply never appeared in Med-Stop.
+  - **Now:** the drug-test step says "Not sent to Med-Stop from Part 1." and the reason. The reason is derived on each read from the facts and the rule the sweep itself uses (`partOneSkipForMedstop`), never stored, so it goes when the office corrects the answer.
+  - **A missing required answer is named**, all of them in one sentence ("Part 1 does not have their ZIP code, license class…"). One mapping (`medstopApplicantOurs`) feeds the create and the reason, and a test holds them to the same verdict.
+  - **Not said** once Med-Stop holds the person, once a create was attempted (that line is Med-Stop's own answer), or while Med-Stop is not connected.
+  - **Proof:** shared (+2), API (+7), the card (+2); 9 of 9 mutants killed, one only after its test was added (the reason was dropped exactly where Med-Stop holds nobody, the case the line exists for).
+  - **Next:** phone or email (Q-AM5), now that a driver with no phone produces a line the office can read.

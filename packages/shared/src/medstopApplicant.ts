@@ -57,14 +57,69 @@ export interface MedstopApplicantFacts {
 }
 
 /**
+ * What we put in Med-Stop's form for this applicant, keyed as the form keys them. One mapping for the
+ * create (`fillMedstopApplicantForm`) and for the reason an applicant is not sent (`medstopApplicantSkip`),
+ * so the two cannot disagree about what is missing.
+ */
+function medstopApplicantOurs(f: MedstopApplicantFacts): Record<string, unknown> {
+  return {
+    fname: text(f.firstName),
+    mname: text(f.middleName),
+    lname: text(f.lastName),
+    birthdate: medstopDate(f.birthDate),
+    gender: f.gender === "male" || f.gender === "female" ? f.gender.toUpperCase() : "",
+    status: "APPLICANT",
+    category: "DRIVER",
+    drivingtype: "NON-EXCEPTED INTERSTATE",
+    idclass: "CDL",
+    startdate: null,
+    address: text(f.addressLine1),
+    address1: text(f.addressLine2),
+    city: text(f.city),
+    state: text(f.state).toUpperCase(),
+    zip: text(f.postalCode),
+    phone1: medstopPhone(f.phone) ?? "",
+    license: text(f.licenceNumber),
+    licensestate: text(f.licenceState).toUpperCase(),
+    licenseclass: text(f.cdlClass).toUpperCase(),
+    licenseexpiration: medstopDate(f.licenceExpiresOn),
+    idnumber: text(f.licenceNumber),
+  };
+}
+
+/**
+ * The required answers that come from Part 1, in the office's words. `gender` is not here: its two
+ * empty cases have sentences of their own. `idnumber` is the license number again.
+ */
+const PART_ONE_WORDS: Readonly<Record<string, string>> = {
+  fname: "first name", lname: "last name", birthdate: "date of birth",
+  address: "street address", city: "city", state: "state", zip: "ZIP code", phone1: "US mobile number",
+  license: "license number", licensestate: "license state", licenseclass: "license class",
+  licenseexpiration: "license expiration date",
+};
+
+/**
  * Why an applicant is NOT created in Med-Stop, in the office's words — or null to go ahead. The step
- * shows it, so the office knows to add the person by hand.
+ * shows it (`MedstopPersonTests.applicantSkip`, `MedstopTestCard`), so the office knows to add the
+ * person by hand.
+ *
+ * ⚠ Until 2026-11-14 that sentence was not true: the sweep counted a skip and wrote nothing, the step
+ * read only `medstop_applicant_creates`, and an applicant who declined the gender question — or whose
+ * Part 1 lacked a required answer — simply never appeared in Med-Stop, with no word to the office. The
+ * reason is now derived on every read from the same facts the sweep reads, so it goes away by itself
+ * once the office corrects the answer.
  */
 export function medstopApplicantSkip(f: MedstopApplicantFacts): string | null {
   if (f.gender === "declined") return "They chose not to give a gender, so add them in Med-Stop yourself.";
   if (f.gender === null) return "Part 1 did not ask their gender (it started before the question existed), so add them in Med-Stop yourself.";
   if (f.licenceState && !US_JURISDICTION_CODES.has(f.licenceState.toUpperCase()))
     return "Their licence is not from a US state, so add them in Med-Stop yourself.";
+  // A required answer Part 1 does not hold: Med-Stop's form marks each of these required (`E_VALID_REQ`).
+  const ours = medstopApplicantOurs(f);
+  const lacking = Object.keys(PART_ONE_WORDS).filter((k) => ours[k] === null || ours[k] === undefined || ours[k] === "");
+  if (lacking.length > 0) {
+    return `Part 1 does not have their ${lacking.map((k) => PART_ONE_WORDS[k]).join(", ")}, so add them in Med-Stop yourself.`;
+  }
   return null;
 }
 
@@ -89,29 +144,7 @@ export function fillMedstopApplicantForm(
   form: Readonly<Record<string, unknown>>,
   f: MedstopApplicantFacts,
 ): { form: Record<string, unknown> } | { missing: string[] } {
-  const ours: Record<string, unknown> = {
-    fname: text(f.firstName),
-    mname: text(f.middleName),
-    lname: text(f.lastName),
-    birthdate: medstopDate(f.birthDate),
-    gender: f.gender === "male" || f.gender === "female" ? f.gender.toUpperCase() : "",
-    status: "APPLICANT",
-    category: "DRIVER",
-    drivingtype: "NON-EXCEPTED INTERSTATE",
-    idclass: "CDL",
-    startdate: null,
-    address: text(f.addressLine1),
-    address1: text(f.addressLine2),
-    city: text(f.city),
-    state: text(f.state).toUpperCase(),
-    zip: text(f.postalCode),
-    phone1: medstopPhone(f.phone) ?? "",
-    license: text(f.licenceNumber),
-    licensestate: text(f.licenceState).toUpperCase(),
-    licenseclass: text(f.cdlClass).toUpperCase(),
-    licenseexpiration: medstopDate(f.licenceExpiresOn),
-    idnumber: text(f.licenceNumber),
-  };
+  const ours = medstopApplicantOurs(f);
   const out: Record<string, unknown> = { ...form };
   for (const [key, value] of Object.entries(ours)) if (key in form) out[key] = value;
   const missing = MEDSTOP_APPLICANT_REQUIRED.filter(

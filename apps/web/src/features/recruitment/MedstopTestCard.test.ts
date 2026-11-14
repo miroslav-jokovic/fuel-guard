@@ -26,7 +26,7 @@ vi.mock("@/stores/session", () => ({ useSessionStore: () => who }));
 const tests = (outcome: "negative" | null): MedstopStepTests => ({
   connected: true,
   matched: true,
-  applicantMedstopId: null, applicantCreate: null,
+  applicantMedstopId: null, applicantCreate: null, applicantSkip: null,
   homeZip: "60601",
   outcomesVisible: outcome !== null,
   orders: [{ requestId: "r3", kind: "drug", reason: "PRE-EMPLOYMENT", requestedOn: "2026-10-12", status: "OPEN", site: null, goBy: null }],
@@ -70,17 +70,36 @@ describe("MedstopTestCard", () => {
   });
 
   it("renders nothing for a carrier that has not connected Med-Stop", async () => {
-    answer.value = { connected: false, matched: false, applicantMedstopId: null, applicantCreate: null, homeZip: null, orders: [], tests: [], outcomesVisible: false };
+    answer.value = { connected: false, matched: false, applicantMedstopId: null, applicantCreate: null, applicantSkip: null, homeZip: null, orders: [], tests: [], outcomesVisible: false };
     const w = await render();
     expect(w.text()).toBe("");
   });
 
   it("says why there is nothing when Med-Stop has no matched record", async () => {
-    answer.value = { connected: true, matched: false, applicantMedstopId: null, applicantCreate: null, orders: [], tests: [], outcomesVisible: false };
+    answer.value = { connected: true, matched: false, applicantMedstopId: null, applicantCreate: null, applicantSkip: null, orders: [], tests: [], outcomesVisible: false };
     const w = await render();
     expect(w.text()).toContain("no record matched to this applicant");
     expect(w.text()).toContain("Add this applicant in Med-Stop first");
     expect(w.find("a").attributes("href")).toBe(MEDSTOP_PORTAL_URL);
+  });
+
+  /** Connected, and Med-Stop holds nobody matched to this applicant: where "never sent" is said. */
+  const unmatched = {
+    connected: true, matched: false, applicantMedstopId: null, applicantCreate: null, applicantSkip: null, orders: [], tests: [], outcomesVisible: false,
+  };
+
+  /** Silent until 2026-11-14: a skip was counted by the sweep and shown to nobody. */
+  it("⚠ says why an applicant was never sent to Med-Stop, so the office adds them by hand", async () => {
+    answer.value = { ...unmatched, applicantSkip: "Part 1 does not have their US mobile number, so add them in Med-Stop yourself." };
+    const w = await render();
+    expect(w.text()).toContain("Not sent to Med-Stop from Part 1. Part 1 does not have their US mobile number, so add them in Med-Stop yourself.");
+  });
+
+  it("says nothing about a skip once Med-Stop holds the person, or once a create was attempted", async () => {
+    answer.value = { ...unmatched, matched: true, applicantSkip: "They chose not to give a gender, so add them in Med-Stop yourself." };
+    expect((await render()).text()).not.toContain("Not sent to Med-Stop");
+    answer.value = { ...unmatched, applicantSkip: "x", applicantCreate: { outcome: "created", message: null, at: "2026-10-13T12:00:00Z" } };
+    expect((await render()).text()).not.toContain("Not sent to Med-Stop");
   });
 
   it("says what creating the applicant in Med-Stop from Part 1 came to, until Med-Stop's roster shows them (UX5c)", async () => {
@@ -147,7 +166,7 @@ describe("MedstopTestCard", () => {
     who.role = "dispatcher";
     answer.value = { ...tests(null), applicantMedstopId: "EE-APP" };
     expect((await render()).text()).not.toContain("Order pre-employment test");
-    answer.value = { connected: true, matched: false, applicantMedstopId: null, applicantCreate: null, orders: [], tests: [], outcomesVisible: false };
+    answer.value = { connected: true, matched: false, applicantMedstopId: null, applicantCreate: null, applicantSkip: null, orders: [], tests: [], outcomesVisible: false };
     expect((await render()).text()).not.toContain("Add this applicant in Med-Stop first");
   });
 

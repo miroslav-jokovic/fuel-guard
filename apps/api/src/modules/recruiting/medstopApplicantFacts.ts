@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DONOR_GENDERS, type DonorGender, type MedstopApplicantFacts } from "@silvicom/shared";
+import { DONOR_GENDERS, medstopApplicantSkip, type DonorGender, type MedstopApplicantFacts } from "@silvicom/shared";
 import { readLiveInvitation } from "./applicantChecklist.js";
 
 /**
@@ -40,14 +40,19 @@ async function inChunks<T>(ids: string[], read: (chunk: string[]) => Promise<T[]
 
 const gender = (v: string | null): DonorGender | null => ((DONOR_GENDERS as readonly string[]).includes(v ?? "") ? (v as DonorGender) : null);
 
-export async function partOneFactsForMedstop(admin: SupabaseClient, orgId: string): Promise<MedstopApplicantFacts[]> {
-  const { data: inv, error: invErr } = await admin
+export async function partOneFactsForMedstop(
+  admin: SupabaseClient,
+  orgId: string,
+  /** One applicant only — the hiring step's "why were they not sent" (`partOneSkipForMedstop`). */
+  driverId?: string,
+): Promise<MedstopApplicantFacts[]> {
+  const finished = admin
     .from("application_invitations")
     .select("id, driver_id")
     .eq("org_id", orgId)
     .not("intake_completed_at", "is", null)
-    .is("revoked_at", null)
-    .limit(1000);
+    .is("revoked_at", null);
+  const { data: inv, error: invErr } = await (driverId ? finished.eq("driver_id", driverId) : finished).limit(1000);
   if (invErr) throw new Error(`application_invitations read failed: ${invErr.message}`);
   const invitations = (inv ?? []) as InvitationRow[];
   if (invitations.length === 0) return [];
@@ -126,6 +131,21 @@ export async function partOneFactsForMedstop(admin: SupabaseClient, orgId: strin
 }
 
 /** The invitations of one driver — the hiring step asks Med-Stop's record of their create attempts by these. */
+/**
+ * Why this applicant's Part 1 is NOT sent to Med-Stop, in the office's words — or null: nothing stops
+ * it, or there is no finished Part 1 to send. The same facts and the same rule the sweep uses
+ * (`partOneFactsForMedstop`, `medstopApplicantSkip`), read for one driver, so the step can never say
+ * something other than what the sweep did.
+ */
+export async function partOneSkipForMedstop(admin: SupabaseClient, orgId: string, driverId: string): Promise<string | null> {
+  const facts = await partOneFactsForMedstop(admin, orgId, driverId);
+  for (const f of facts) {
+    const reason = medstopApplicantSkip(f);
+    if (reason) return reason;
+  }
+  return null;
+}
+
 export async function invitationIdsOf(admin: SupabaseClient, orgId: string, driverId: string): Promise<string[]> {
   const { data, error } = await admin.from("application_invitations").select("id").eq("org_id", orgId).eq("driver_id", driverId);
   if (error) throw new Error(`application_invitations read failed: ${error.message}`);
