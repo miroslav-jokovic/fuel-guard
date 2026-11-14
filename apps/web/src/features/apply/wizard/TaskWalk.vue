@@ -133,9 +133,10 @@ const words = computed(() => {
       :legend="words.another"
       :error="walk.anotherRefused.value ? APPLY_COPY.hub.chooseYesOrNo : undefined"
       @update:model-value="walk.answerAnother($event)"
+      @pick="walk.next()"
     />
     <SsnField v-else-if="asksSsn" id="identity-ssn" v-model="draft" :token="token" />
-    <WizardScreen v-else-if="step.screen" :key="step.key" :screen="step.screen" :row="step.row" :binding="walk.binding" />
+    <WizardScreen v-else-if="step.screen" :key="step.key" :screen="step.screen" :row="step.row" :binding="walk.binding" @advance="walk.next()" />
     <QuestionField v-else-if="step.question" :key="step.key" :question="step.question.q" :answers="step.question.answers" />
     <PartOneFactsCard v-else-if="step.partOne && partOne" v-model="draft" :rows="aboutYouRows(draft, partOne)" />
 

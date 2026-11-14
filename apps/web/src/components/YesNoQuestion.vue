@@ -23,9 +23,13 @@ withDefaults(
     error?: string;
     id?: string;
     size?: "default" | "touch";
+    /** `cards`: two big answers side by side — the applicant's page (U3). The office keeps the list. */
+    variant?: "list" | "cards";
   }>(),
-  { hint: undefined, error: undefined, id: undefined, size: "touch" },
+  { hint: undefined, error: undefined, id: undefined, size: "touch", variant: "list" },
 );
+/** The answer was tapped, not arrowed to (`AppRadioGroup`'s `pick`) — what a page may move on at. */
+const emit = defineEmits<{ pick: [] }>();
 const model = defineModel<boolean | null>({ required: true });
 const radio = computed({
   get: () => (model.value === null ? undefined : model.value ? "yes" : "no"),
@@ -41,8 +45,11 @@ const radio = computed({
       :tabindex="id ? -1 : undefined"
       :aria-invalid="error ? 'true' : undefined"
       :size="size"
+      :variant="variant"
+      :columns="2"
       :legend="legend"
       :options="[{ value: 'yes', label: yes }, { value: 'no', label: no }]"
+      @pick="emit('pick')"
     />
     <!-- The hint stays when the error appears: on the employer questions it is what explains the term
          the person is being told to answer, and a refusal is the moment they most need it. -->

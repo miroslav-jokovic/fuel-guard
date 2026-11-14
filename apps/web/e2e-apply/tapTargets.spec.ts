@@ -219,12 +219,13 @@ for (const width of [390, 320]) {
 
       await step(page, 11);
       await s.check("part1.screening.prior_positive");
-      await page.getByLabel("No", { exact: true }).check();
-      await press(page, "Continue");
+      // U3: a tap on a one-question Yes/No moves on by itself. `click`, not `check` — the radio is gone
+      // with its screen, and `check` then waits for a state nothing can show; and no Continue after it,
+      // which would land on the next question.
+      await page.getByLabel("No", { exact: true }).click();
       await step(page, 12);
       await s.check("part1.screening.program_30d");
-      await page.getByLabel("No", { exact: true }).check();
-      await press(page, "Continue");
+      await page.getByLabel("No", { exact: true }).click();
       // UX5b (D-MSUX10): the drug test's gender — one of three, "I'd rather not say" among them.
       await step(page, 13);
       await s.check("part1.screening.donor_gender");

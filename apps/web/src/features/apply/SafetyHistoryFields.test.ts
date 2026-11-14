@@ -198,8 +198,8 @@ describe("the gates", () => {
     expect(w.text()).not.toContain("say violations");
   });
 
-  it("makes every choice a 48 px row", () => {
+  it("makes every choice a 56 px block, the whole of it the target (U3)", () => {
     const { w } = mountScreen();
-    for (const label of w.findAll("fieldset label")) expect(label.classes()).toContain("min-h-12");
+    for (const label of w.findAll("fieldset label")) expect(label.classes()).toContain("min-h-14");
   });
 });

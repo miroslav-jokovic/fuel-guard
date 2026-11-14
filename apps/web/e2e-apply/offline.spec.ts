@@ -63,10 +63,12 @@ async function typeHeldScreens(page: Page): Promise<void> {
  * after a reload — the drug test's gender too (UX5b, D-MSUX10). Ends on the gender, before its Continue.
  */
 async function answerScreening(page: Page): Promise<void> {
-  for (let i = 0; i < 2; i += 1) {
-    await page.getByLabel("No", { exact: true }).check();
-    await continueButton(page).click();
+  // U3: a tap on a one-question Yes/No moves on by itself, so each is tapped and its next screen awaited.
+  for (const at of [11, 12]) {
+    await expect(page.getByText(step(at))).toBeVisible();
+    await page.getByLabel("No", { exact: true }).click();
   }
+  await expect(page.getByText(step(13))).toBeVisible();
   await page.getByLabel("I'd rather not say", { exact: true }).check();
 }
 

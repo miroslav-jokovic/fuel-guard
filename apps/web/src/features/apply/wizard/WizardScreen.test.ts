@@ -85,3 +85,37 @@ describe("a generated screen", () => {
     expect(w.text()).not.toContain("Gender, for your drug test");
   });
 });
+
+/**
+ * U3 (SCREEN-MAP §1: "Yes/No as two big buttons that also advance"): a screen that is one yes/no question
+ * moves on at the tap; a group, or an answer arrowed to with a keyboard, waits for Continue.
+ */
+describe("a tap that answers the whole screen", () => {
+  const tap = (el: Element) => el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  const settle = () => new Promise((r) => setTimeout(r, 5));
+
+  it("moves on from a single yes/no", async () => {
+    const { w } = mountScreen("screening.prior_positive");
+    tap(w.findAll("input[type=radio]")[0]!.element);
+    await settle();
+    expect(w.emitted("advance")).toHaveLength(1);
+  });
+
+  it("waits for Continue when the answer was reached with the keyboard", async () => {
+    const { w } = mountScreen("screening.prior_positive");
+    const radios = w.findAll("input[type=radio]");
+    radios[0]!.element.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" }));
+    tap(radios[1]!.element);
+    await settle();
+    expect(w.emitted("advance")).toBeUndefined();
+  });
+
+  it("draws the yes/no as two blocks, and tells the keyboard how a licence number is typed", () => {
+    const yesNo = mountScreen("screening.prior_positive").w;
+    for (const label of yesNo.findAll("label")) expect(label.classes()).toContain("min-h-14");
+    const card = mountScreen("licence.card").w;
+    const number = card.findAll("input").find((i) => i.attributes("autocapitalize") === "characters");
+    expect(number).toBeDefined();
+    expect(number!.attributes("autocorrect")).toBe("off");
+  });
+});

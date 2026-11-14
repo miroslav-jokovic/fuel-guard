@@ -45,11 +45,11 @@ const fieldCopy = (): Record<FactPath, FieldCopy> => {
     "intake.date_of_birth": { label: about.dateOfBirth, hint: about.dateOfBirthHint, autocomplete: "bday" },
     "intake.address_line1": { label: address.line1, autocomplete: "address-line1" },
     "intake.address_line2": { label: address.line2, autocomplete: "address-line2" },
-    "intake.city": { label: address.city, autocomplete: "address-level2" },
+    "intake.city": { label: address.city, autocomplete: "address-level2", capitalize: "words" },
     "intake.state": { label: address.state },
     "intake.postal_code": { label: address.postalCode, autocomplete: "postal-code" },
     "intake.licences[].state_code": { label: licence.state, hint: licence.stateHint },
-    "intake.licences[].licence_number": { label: licence.number, autocomplete: "off" },
+    "intake.licences[].licence_number": { label: licence.number, autocomplete: "off", capitalize: "characters" },
     // A class is its own letter, in every language.
     "intake.cdl_class": { label: licence.cdlClass },
     "intake.licences[].expires_on": { label: licence.expiresOn },

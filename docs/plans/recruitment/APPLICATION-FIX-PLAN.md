@@ -833,3 +833,12 @@ A gate fails on a literal string in an `apply/` template.
   - **The estimates are estimates.** `APPLICATION_STAGE_MINUTES`: Your history is the task list's own sum (30); Today (10) and Signing (5) are SCREEN-MAP's figures. Nobody has measured any of them; the timed walk replaces them.
   - **Proof:** stage logic and the bar (+5), the first screen (rewritten, 9), 6 of 6 mutants killed, new `stages.spec.ts` in a real browser, the tap-target sweep at 390 and 320 px, and both screens looked at in screenshots.
   - **Next:** U3 (the Yes/No that every question uses, and keyboards), then U6 (one review page with the office's changes).
+- 2026-11-14: **U1 merged** (#2366).
+- 2026-11-14: **U3: Yes and No are two big answers, and a tap moves on** (`claude/application-thumb-controls`, no migration; SCREEN-MAP §1).
+  - **The answers** are 56 px blocks, side by side, the whole block the target, filled when chosen. Still radios underneath (`AppRadioGroup`'s new `cards` variant), so a keyboard and a screen reader read them as before. The office's forms keep the list.
+  - **A tap on a screen that is one yes/no question moves on**, through the page's own Continue and its own check. That is the gates, "any other?", "did you drive a truck?", the DOT question's three answers, and the first visit's screening questions.
+  - **Only a tap.** An answer arrowed to with a keyboard waits for Continue: a browser reports an arrow key as a click, so the control tells them apart (`pick`) and a keyboard user is never moved by passing over an answer. A screen of several fields, a typed answer, and the carrier's own questions (a different control, with a skip beside it) wait for Continue too.
+  - **Keyboards:** a licence number is typed in capitals with autocorrect off; names, cities and company names capitalize each word.
+  - **Not done here:** "errors on blur" (U4's second half). A message already goes as its answer is given (1b-3); raising one before Continue was not built.
+  - **Proof:** the control (+5), the generated screen (+3), 7 of 7 mutants killed; the driving-record and employment browser walks now rely on the tap moving on, and pass twice in a row; the tap-target sweep passes at 390 and 320 px; looked at in a 390 px screenshot.
+  - **Next:** U6, one review page with the office's changes.
