@@ -100,7 +100,14 @@ self.addEventListener("push", (event) => {
     data: { navigate: sameSite(n.navigate) || sameSite("/chat"), ...(n.data && typeof n.data === "object" ? n.data : {}) },
   };
   const title = typeof n.title === "string" && n.title ? n.title : FALLBACK_TITLE;
-  event.waitUntil(self.registration.showNotification(title, options));
+  // The icon's number travels in the push (INSTALLED-APP-PLAN IA-U1b), so it is right with the app closed.
+  // Safari applies `app_badge` itself; here it is set for the browsers that hand the push to this worker.
+  // Only a positive whole number is taken, and a browser without the Badging API is simply not asked.
+  const count = typeof n.app_badge === "string" && /^[0-9]{1,6}$/.test(n.app_badge) ? Number(n.app_badge) : 0;
+  const badge = count > 0 && self.navigator && typeof self.navigator.setAppBadge === "function"
+    ? self.navigator.setAppBadge(count).catch(() => {})
+    : Promise.resolve();
+  event.waitUntil(Promise.all([self.registration.showNotification(title, options), badge]));
 });
 
 self.addEventListener("notificationclick", (event) => {

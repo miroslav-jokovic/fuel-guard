@@ -236,3 +236,43 @@ describe("scheduleChatPush", () => {
     expect(posted).toHaveLength(2);
   });
 });
+
+describe("the icon's number (INSTALLED-APP-PLAN IA-U1b)", () => {
+  /** Each person's own inbox: the recorder answers `chat_inbox` by who asked. */
+  const inboxes = (byUser: Record<string, unknown[] | Error>) => {
+    rec = createSupabaseRecorder({
+      rpc: (fn, args) => {
+        const a = args as { p_user?: string; p_thread?: string };
+        // `conversationRow` asks for ONE thread as the sender; the icon's number asks for a person's inbox.
+        if (fn !== "chat_inbox" || a.p_thread) return rpc[fn];
+        const answer = byUser[a.p_user ?? ""];
+        if (answer instanceof Error) throw answer;
+        return answer ?? [];
+      },
+      tables: tables as never,
+    });
+  };
+
+  it("is each recipient's own unread total, muted conversations left out, as the sidebar counts it", async () => {
+    inboxes({
+      [BEN]: [conversation({ unread: 2 }), conversation({ thread_id: "44444444-4444-4444-8444-444444444444", unread: 5 }), conversation({ thread_id: "55555555-5555-4555-8555-555555555555", unread: 9, muted: "all" })],
+      [CARA]: [conversation({ unread: 1 })],
+    });
+    await deliverChatPush(rec.client, keys, ORG, ANA, MSG, null, fetcher);
+    expect(sentTo(BEN_PHONE.endpoint, benPhone).notification.app_badge).toBe("7");
+    expect(sentTo(CARA_PC.endpoint, caraPc).notification.app_badge).toBe("1");
+    // Asked for the recipients, in their own company, never for the sender.
+    const asked = rec.rpcs().filter((c) => c.fn === "chat_inbox" && !(c.args as { p_thread?: string }).p_thread).map((c) => c.args as { p_org: string; p_user: string });
+    expect(asked.map((a) => a.p_user).sort()).toEqual([BEN, CARA].sort());
+    expect(asked.every((a) => a.p_org === ORG)).toBe(true);
+  });
+
+  it("sends the push without a number when a person's total cannot be read or is nothing", async () => {
+    inboxes({ [BEN]: new Error("inbox down"), [CARA]: [conversation({ unread: 0 })] });
+    const r = await deliverChatPush(rec.client, keys, ORG, ANA, MSG, null, fetcher);
+    expect(r.sent).toBe(2);
+    expect(sentTo(BEN_PHONE.endpoint, benPhone).notification).not.toHaveProperty("app_badge");
+    expect(sentTo(CARA_PC.endpoint, caraPc).notification).not.toHaveProperty("app_badge");
+  });
+});
+

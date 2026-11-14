@@ -24,6 +24,7 @@ function worker(windows: Array<{ url: string; focus: ReturnType<typeof vi.fn>; p
   const cached = new Map<string, string>();
   const cacheNames = ["silvicom-offline-v0", "silvicom-offline-v1", "somebody-elses"];
   const net = { down: false };
+  const setAppBadge = vi.fn(async (_n: number) => {});
   const self = {
     location: { origin: ORIGIN },
     registration: {
@@ -37,6 +38,7 @@ function worker(windows: Array<{ url: string; focus: ReturnType<typeof vi.fn>; p
       openWindow: vi.fn(async (url: string) => { opened.push(url); }),
     },
     skipWaiting: vi.fn(),
+    navigator: { setAppBadge },
     addEventListener: (type: string, fn: Listener) => { listeners[type] = fn; },
     // The one cache (INSTALLED-APP-PLAN D-IA2) and the network, both the test's to control.
     caches: {
@@ -60,7 +62,7 @@ function worker(windows: Array<{ url: string; focus: ReturnType<typeof vi.fn>; p
     listeners.fetch!({ request: { method: "GET", ...request }, respondWith: (p: Promise<unknown>) => { answer = p; } });
     return answer === undefined ? undefined : await answer;
   }
-  return { fire, fetchOf, shown, opened, self, net, cacheNames };
+  return { fire, fetchOf, shown, opened, self, net, cacheNames, setAppBadge };
 }
 
 const pushOf = (payload: unknown) => ({ data: { json: () => (typeof payload === "string" ? JSON.parse(payload) : payload) } });
@@ -169,5 +171,30 @@ describe("no connection (INSTALLED-APP-PLAN D-IA2)", () => {
     const w = worker();
     await w.fire("activate", {});
     expect(w.cacheNames).toEqual(["silvicom-offline-v1", "somebody-elses"]);
+  });
+});
+
+describe("the icon's number in a push (INSTALLED-APP-PLAN IA-U1b)", () => {
+  const push = (unread: number | null) => pushOf(chatPushMessage({
+    origin: ORIGIN, title: "Ana", body: "hi", path: `/chat?c=${T}`, threadId: T, messageId: "m1", at: new Date("2026-11-14T15:00:00Z"), unread,
+  }));
+
+  it("sets the icon to the count the server sent, and still shows the notification", async () => {
+    const w = worker();
+    await w.fire("push", push(4));
+    expect(w.setAppBadge).toHaveBeenCalledWith(4);
+    expect(w.shown).toHaveLength(1);
+  });
+
+  it("leaves the icon alone when the push carries no count, zero, or something that is not a count", async () => {
+    const w = worker();
+    await w.fire("push", push(null));
+    await w.fire("push", push(0));
+    const odd = chatPushMessage({ origin: ORIGIN, title: "Ana", body: "hi", path: "/chat", threadId: T, messageId: "m1", at: new Date() });
+    await w.fire("push", pushOf({ ...odd, notification: { ...odd.notification, app_badge: "-3" } }));
+    await w.fire("push", pushOf({ ...odd, notification: { ...odd.notification, app_badge: 7 } }));
+    await w.fire("push", pushOf({ ...odd, notification: { ...odd.notification, app_badge: "2.5" } }));
+    expect(w.setAppBadge).not.toHaveBeenCalled();
+    expect(w.shown).toHaveLength(5);
   });
 });
