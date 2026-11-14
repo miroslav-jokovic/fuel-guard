@@ -178,6 +178,29 @@ describe("AppTabs keeps the selected tab on screen", () => {
     restore();
   });
 
+  // SMALL-SCREENS-PLAN.md M10: Idling's third tab was cut mid-word at 390 px with nothing to say why.
+  it("fades the edge it continues past, and no edge when it fits", async () => {
+    const { w, restore } = laidOut("drivers");
+    const strip = w.get('[role="tablist"]');
+    const el = strip.element as HTMLElement;
+    Object.defineProperty(el, "scrollWidth", { configurable: true, get: () => 300 });
+    el.scrollLeft = 0;
+    await strip.trigger("scroll");
+    expect(el.className).toContain("linear-gradient(to_right,black_calc(100%-2.5rem),transparent)");
+    el.scrollLeft = 150;
+    await strip.trigger("scroll");
+    expect(el.className).toContain("linear-gradient(to_left,");
+    el.scrollLeft = 70;
+    await strip.trigger("scroll");
+    expect(el.className).toContain("linear-gradient(to_right,transparent,black_2.5rem");
+    // A strip as wide as its tabs has nothing past either edge.
+    Object.defineProperty(el, "scrollWidth", { configurable: true, get: () => 150 });
+    el.scrollLeft = 0;
+    await strip.trigger("scroll");
+    expect(el.className).not.toContain("mask-image");
+    restore();
+  });
+
   it("scrolls only as far as the selected tab needs, not to its start", async () => {
     const { w, restore } = laidOut("drivers");
     const strip = w.get('[role="tablist"]').element as HTMLElement;

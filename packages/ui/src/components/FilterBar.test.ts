@@ -85,3 +85,66 @@ describe("FilterBar's Clear filters", () => {
     expect(clearButtons(w).map((b) => b.text())).toEqual(["Clear filters"]);
   });
 });
+
+/**
+ * The phone sheet (SMALL-SCREENS-PLAN.md D-SM8). Below `md` the bar is the search and ONE "Filters"
+ * button; the page's filters open in a sheet. Which of the two a reader sees is CSS (`md:hidden`,
+ * `max-md:`), so these pin what CSS cannot say: what is in the document, and when.
+ */
+describe("FilterBar's phone sheet", () => {
+  const more = '<button data-test="secondary">Card</button>';
+  const mountBar = (props = {}) =>
+    mount(FilterBar, { props: { search: "", count: 12, countLabel: "drivers", ...props }, slots: { filters: marker, more }, attachTo: document.body });
+
+  it("offers one Filters button, counting the filters that are set and not the search", () => {
+    const w = mountBar({ search: "reyes", activeCount: 3 });
+    expect(w.get("[data-filter-sheet-open]").text()).toBe("Filters 2");
+    expect(mountBar({ activeCount: 0 }).get("[data-filter-sheet-open]").text()).toBe("Filters");
+  });
+
+  it("offers no Filters button to a bar with no filters to open", () => {
+    const w = mount(FilterBar, { props: { search: "" } });
+    expect(w.find("[data-filter-sheet-open]").exists()).toBe(false);
+  });
+
+  it("keeps the page's filters in ONE place, and adds its own header and close only while open", async () => {
+    const w = mountBar({ activeCount: 1 });
+    const sheet = w.get("[data-filter-sheet]");
+    expect(sheet.attributes("role")).toBeUndefined();
+    expect(sheet.classes()).toContain("max-md:hidden");
+    // Closed: the secondary filters are not in the sheet (their home is the desk popover).
+    expect(w.findAll('[data-test="control"]')).toHaveLength(1);
+    expect(sheet.find('[data-test="secondary"]').exists()).toBe(false);
+    expect(w.find("[data-filter-sheet-close]").exists()).toBe(false);
+
+    await w.get("[data-filter-sheet-open]").trigger("click");
+    expect(sheet.attributes("role")).toBe("dialog");
+    expect(sheet.classes()).toContain("max-md:fixed");
+    expect(w.findAll('[data-test="control"]')).toHaveLength(1);
+    expect(sheet.find('[data-test="secondary"]').exists()).toBe(true);
+    expect(w.get("[data-filter-sheet-close]").text()).toBe("Show 12 drivers");
+  });
+
+  it("closes from its button, from the scrim and from Escape", async () => {
+    const w = mountBar();
+    const open = () => w.get("[data-filter-sheet-open]").trigger("click");
+    const isOpen = () => w.get("[data-filter-sheet]").attributes("role") === "dialog";
+    await open();
+    await w.get("[data-filter-sheet-close]").trigger("click");
+    expect(isOpen()).toBe(false);
+    await open();
+    await w.get('button[aria-label="Close filters"]').trigger("click");
+    expect(isOpen()).toBe(false);
+    await open();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await w.vm.$nextTick();
+    expect(isOpen()).toBe(false);
+  });
+
+  it("clears from inside the sheet with the page's own clear-all", async () => {
+    const w = mountBar({ activeCount: 2 });
+    await w.get("[data-filter-sheet-open]").trigger("click");
+    await w.get("[data-filter-sheet]").findAll("button").find((b) => b.text() === "Clear filters")!.trigger("click");
+    expect(w.emitted("clear-all")).toHaveLength(1);
+  });
+});

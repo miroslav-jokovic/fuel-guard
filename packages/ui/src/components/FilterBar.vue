@@ -5,12 +5,14 @@ import {
   XMarkIcon,
 } from "../icons";
 import { computed, ref } from "vue";
+import { useEventListener, useMediaQuery } from "@vueuse/core";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
 import SearchInput from "./AppSearchField.vue";
 import BaseCard from "./AppCard.vue";
 import BaseButton from "./AppButton.vue";
 import { countLabelFor } from "../lists/plural";
 import { useWorkspaceTable } from "../lists/workspaceTable";
+import { provideFilterStack } from "../lists/filterStack";
 
 /**
  * The standard table toolbar (see docs/DESIGN-SYSTEM-CONTRACT.md). One card:
@@ -29,6 +31,21 @@ import { useWorkspaceTable } from "../lists/workspaceTable";
  *   above zero the bar shows ONE "Clear filters" button, which emits `clear-all`.
  * - count — always-visible result feedback ("1,204 transactions", "1 transaction").
  * - #actions — page-level buttons that belong to the table (Export, Rescore…).
+ *
+ * ── BELOW `md`: THE SEARCH AND ONE "Filters" BUTTON (SMALL-SCREENS-PLAN.md D-SM8, 2026-11-14) ────
+ * The owner's audit measured Drivers at 390 px: four filter triggers, two clear buttons, Views and
+ * Columns on three lines above the list. So on a phone the page's filters — `#filters` and `#more`
+ * alike, a phone has no "secondary" — open in a sheet docked to the bottom, stacked, and the button
+ * carries how many are set.
+ *
+ * ⚠ The sheet is the SAME element the filters sit in at a desk, restyled by `max-md:` classes — not
+ * a second copy and not a Teleport. A slot rendered in two places is two sets of controls with two
+ * sets of open popovers; and a Teleport would take the filters out of the page's own subtree, where
+ * every page test finds them (jsdom has no `matchMedia`, so every test renders the phone branch of
+ * anything decided in script). Decided in CSS, the desk markup is untouched and a test sees one DOM.
+ *
+ * It is this bar's own panel and not `SlideOver`: that lives in `apps/web`, and the list kit cannot
+ * import an app (Q-SM2).
  */
 export interface FilterChip {
   key: string;
@@ -83,6 +100,16 @@ const emit = defineEmits<{
 const table = useWorkspaceTable();
 const shownCount = computed(() => (table && (table.loading || table.failed) ? null : props.count));
 
+/* The phone sheet (see the header). `stacked` tells the controls in it to fill the line. */
+const isWide = useMediaQuery("(min-width: 768px)");
+provideFilterStack(() => !isWide.value);
+const sheetOpen = ref(false);
+useEventListener("keydown", (e: KeyboardEvent) => {
+  if (e.key === "Escape") sheetOpen.value = false;
+});
+/** Filters set, the search apart — the search is on screen beside the button and needs no count. */
+const filterCount = computed(() => Math.max(0, props.activeCount - (props.search?.trim() ? 1 : 0)));
+
 /* "Filters" popover (same floating recipe as KebabMenu) */
 const moreOpen = ref(false);
 const triggerRef = ref<HTMLElement | null>(null);
@@ -101,19 +128,77 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
          still right-aligned, instead of squeezing the filters onto two or three lines beside it.
          Seen in the browser 2026-10-12 on Fuel costs and Fuel problems at 1440px. -->
     <div class="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
-      <div v-if="search !== undefined" class="w-full lg:w-64 lg:shrink-0">
-        <SearchInput
-          :model-value="search"
-          :placeholder="searchPlaceholder"
-          @update:model-value="emit('update:search', $event)"
-        />
+      <!-- `lg:contents`: from `lg` the search is a child of the row above, as it always was; below
+           it this line is the search and, under `md`, the one Filters button beside it. -->
+      <div v-if="search !== undefined || $slots.filters || $slots.more" class="flex items-center gap-2 lg:contents">
+        <div v-if="search !== undefined" class="min-w-0 flex-1 lg:w-64 lg:flex-none lg:shrink-0">
+          <SearchInput
+            :model-value="search"
+            :placeholder="searchPlaceholder"
+            @update:model-value="emit('update:search', $event)"
+          />
+        </div>
+        <BaseButton
+          v-if="$slots.filters || $slots.more"
+          variant="secondary"
+          class="shrink-0 md:hidden"
+          aria-haspopup="dialog"
+          :aria-expanded="sheetOpen"
+          data-filter-sheet-open
+          @click="sheetOpen = true"
+        >
+          <AppIcon :icon="FunnelIcon" class="size-4 text-ink-tertiary" aria-hidden="true" />
+          Filters
+          <span
+            v-if="filterCount"
+            class="rounded-full bg-brand-50 px-1.5 text-xs font-semibold text-brand-700 ring-1 ring-inset ring-brand-600/20"
+            >{{ filterCount }}</span
+          >
+        </BaseButton>
       </div>
 
-      <div v-if="$slots.filters" class="flex flex-wrap items-center gap-2">
-        <slot name="filters" />
+      <button
+        v-if="sheetOpen"
+        type="button"
+        class="fixed inset-0 z-scrim bg-scrim/60 md:hidden"
+        aria-label="Close filters"
+        @click="sheetOpen = false"
+      />
+      <!-- The filters. A toolbar line from `md` (`md:contents` — the wrapper is not there); below it
+           hidden until asked for, then a sheet on the bottom edge. -->
+      <div
+        v-if="$slots.filters || $slots.more"
+        class="md:contents"
+        :class="
+          sheetOpen
+            ? 'max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-popover max-md:max-h-[85vh] max-md:overflow-y-auto max-md:rounded-t-surface max-md:bg-surface max-md:p-4 max-md:pb-[max(1rem,env(safe-area-inset-bottom))] max-md:shadow-dialog'
+            : 'max-md:hidden'
+        "
+        :role="sheetOpen ? 'dialog' : undefined"
+        :aria-label="sheetOpen ? 'Filters' : undefined"
+        data-filter-sheet
+      >
+        <!-- The sheet's own chrome exists only while it is open: closed, the bar's DOM is the desk's
+             plus one button, and there is one "Clear filters" in the document, not two. -->
+        <div v-if="sheetOpen" class="mb-4 flex items-center justify-between gap-3 md:hidden">
+          <h2 class="text-sm font-semibold text-ink">Filters</h2>
+          <BaseButton v-if="activeCount > 0" variant="ghost" size="sm" @click="emit('clear-all')">Clear filters</BaseButton>
+        </div>
+        <div v-if="$slots.filters" class="flex flex-wrap items-center gap-2 max-md:flex-col max-md:flex-nowrap max-md:items-stretch max-md:gap-3">
+          <slot name="filters" />
+        </div>
+        <!-- `#more` joins the sheet only while it is open: the desk popover below is the slot's other
+             home, and a slot drawn twice is two sets of controls. -->
+        <div v-if="$slots.more && sheetOpen" class="mt-3 space-y-3 md:hidden">
+          <slot name="more" />
+        </div>
+        <BaseButton v-if="sheetOpen" variant="primary" class="mt-4 w-full md:hidden" data-filter-sheet-close @click="sheetOpen = false">
+          <template v-if="shownCount != null">Show {{ shownCount.toLocaleString() }} {{ countLabelFor(shownCount, countLabel) }}</template>
+          <template v-else>Done</template>
+        </BaseButton>
       </div>
 
-      <div v-if="$slots.more">
+      <div v-if="$slots.more" class="max-md:hidden">
         <button
           ref="triggerRef"
           type="button"

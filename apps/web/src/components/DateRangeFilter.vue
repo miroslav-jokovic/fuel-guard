@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon, useTouchTargets } from "@silvicom/ui";
+import { AppIcon, useFilterStack, useTouchTargets } from "@silvicom/ui";
 import {
   CalendarIcon,
   XMarkIcon,
@@ -101,10 +101,12 @@ function clear() {
 }
 /** The chip and its clear button at 48 px, 8 apart, under the touch floor (contract §9 rule 1) — as `FilterSelect`'s. */
 const touch = useTouchTargets();
+// Fills the line in a toolbar's phone sheet, as `FilterSelect` does (SMALL-SCREENS-PLAN.md D-SM8).
+const stacked = useFilterStack();
 </script>
 
 <template>
-  <div class="inline-flex items-center" :class="touch ? 'gap-2' : 'gap-1'">
+  <div class="items-center" :class="[stacked ? 'flex w-full' : 'inline-flex', touch ? 'gap-2' : 'gap-1']">
     <!-- `time-config`, not `enable-time-picker`: v14 regrouped the flat props, and a stale one is
          accepted as a plain HTML attribute rather than refused — this carried the pre-bump name,
          which landed on the root div and did nothing. Same class of silent break as the `--dp-*`
@@ -118,6 +120,7 @@ const touch = useTouchTargets();
       :max-date="maxDate || undefined"
       auto-apply
       teleport
+      :class="stacked ? 'min-w-0 flex-1' : ''"
       :aria-labels="{ input: 'Filter by date range' }"
     >
       <template #trigger>
@@ -127,6 +130,7 @@ const touch = useTouchTargets();
           :class="[
             display ? 'bg-brand-50/60 text-brand-800 ring-edge hover:bg-brand-50' : 'bg-surface text-ink-secondary ring-edge hover:bg-surface-subtle',
             touch ? 'h-12' : 'h-8',
+            stacked ? 'w-full' : '',
           ]"
           :aria-label="display ? `Date filter: ${display}` : 'Filter by date range'"
         >
