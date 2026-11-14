@@ -240,7 +240,12 @@ export function rowText(value: Record<string, unknown>): string {
     .join(", ");
 }
 
-export function describeField(path: FieldPath): string {
+/**
+ * @param rowName What the caller knows the row as — the company's name, for a job named by its key. A
+ *   key is a reference and says nothing to a reader, and a driver with two jobs cannot tell from
+ *   "Employer · Street address" which of them the office corrected (U6 browser walk, 2026-11-14).
+ */
+export function describeField(path: FieldPath, rowName?: string | null): string {
   const [head, index, column] = path;
   const key = String(head ?? "");
   const row = rowLabels()[key];
@@ -253,8 +258,9 @@ export function describeField(path: FieldPath): string {
   // §9 P5 (Q-AX7): an employer named by its key rather than its position. The key is a reference, not
   // words, so the row is named by its noun alone; a screen that holds the row names it better.
   if (row && typeof index === "string") {
-    if (column === undefined) return row.noun;
-    return `${row.noun} · ${row.columns[String(column)] ?? String(column)}`;
+    const named = rowName?.trim() || row.noun;
+    if (column === undefined) return named;
+    return `${named} · ${row.columns[String(column)] ?? String(column)}`;
   }
   // §9 P8: one carrier question, named by its own label in the page's language — the words printed
   // above its box — rather than "The carrier's own questions" for all eleven.

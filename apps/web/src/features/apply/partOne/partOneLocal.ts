@@ -1,6 +1,6 @@
 import { watch, type Ref } from "vue";
 import { copyExpiry, debouncedCopy, deleteCopy, isLive, putCopy, readCopy, type LocalCopySpec } from "../deviceCopies";
-import { HELD_UNTIL_SCREENING, type PartOneAnswers, type PartOneScreen, type PrefilledField } from "./partOneScreens";
+import { HELD_UNTIL_SCREENING, SCAN_FACT_ORDER, type PartOneAnswers, type PartOneScreen, type PrefilledField, type ScanFact } from "./partOneScreens";
 
 export type { LocalCopySpec } from "../deviceCopies";
 
@@ -51,6 +51,12 @@ export interface HeldCopy {
   passed: PartOneScreen[];
   /** What the barcode filled, so the screen still says "from your licence — check it". */
   fromLicence: PrefilledField[];
+  /**
+   * The scanned facts the driver confirmed (U2), or null before "Is this right?" was answered.
+   * ⚠ Optional, and the version is NOT bumped for it: a bump deletes every copy on every phone, which
+   * is a driver's typing lost mid-application. A copy written before reads as "not answered yet".
+   */
+  scanConfirmed?: ScanFact[] | null;
   savedAt: string;
   expiresAt: string;
 }
@@ -110,12 +116,14 @@ export function useHeldCopy(opts: {
   answers: PartOneAnswers;
   held: Set<PartOneScreen>;
   fromLicence: Ref<PrefilledField[]>;
+  /** Absent for a caller that confirms nothing (the tests of the copy alone). */
+  scanConfirmed?: Ref<ScanFact[] | null>;
   begun: Ref<boolean>;
   screen: Ref<PartOneScreen>;
   goTo: (s: PartOneScreen) => void;
   now?: () => Date;
 }): { ready: Promise<boolean> } {
-  const { spec, answers, held, fromLicence, begun, screen, goTo } = opts;
+  const { spec, answers, held, fromLicence, scanConfirmed, begun, screen, goTo } = opts;
   const now = opts.now ?? (() => new Date());
   if (!spec) return { ready: Promise.resolve(false) };
 
@@ -130,6 +138,7 @@ export function useHeldCopy(opts: {
       answers: part,
       passed: HELD_UNTIL_SCREENING.filter((s) => held.has(s)),
       fromLicence: [...fromLicence.value],
+      scanConfirmed: scanConfirmed?.value ? [...scanConfirmed.value] : null,
       savedAt: now().toISOString(),
       expiresAt: heldExpiry(now(), spec.linkExpiresAt),
     });
@@ -146,6 +155,10 @@ export function useHeldCopy(opts: {
     Object.assign(answers, JSON.parse(JSON.stringify(copy.answers)) as HeldAnswers);
     for (const s of copy.passed) if (HELD_UNTIL_SCREENING.includes(s)) held.add(s);
     fromLicence.value = [...copy.fromLicence];
+    // Only facts this build knows: a copy is data from another session, and is read as such.
+    if (scanConfirmed && Array.isArray(copy.scanConfirmed)) {
+      scanConfirmed.value = SCAN_FACT_ORDER.filter((f) => copy.scanConfirmed!.includes(f));
+    }
     if (screen.value === "about") goTo(resumeHeld(copy.passed));
     return true;
   }
@@ -161,7 +174,7 @@ export function useHeldCopy(opts: {
     else writer.schedule();
   }
 
-  watch(() => [heldPart(answers), [...held], fromLicence.value], save, { deep: true });
+  watch(() => [heldPart(answers), [...held], fromLicence.value, scanConfirmed?.value], save, { deep: true });
   watch(begun, (isBegun) => {
     if (!isBegun) return;
     writer.cancel();

@@ -30,6 +30,20 @@ export const APPLY_PART_ONE_COPY = {
     onFile: "You have already given these. Leave them blank to keep them, or type them again to change them.",
     /** A screen some of whose boxes were filled from the licence's barcode (AW5) — the driver confirms them. */
     fromLicence: "Some answers below were read from your license. Check them, and change anything that is wrong.",
+    /**
+     * "Is this right?" (U2, SCREEN-MAP 1.4): what the barcode read, confirmed on one screen. The button
+     * names what it changes, so a screen reader hears four different buttons and not "Change" four times.
+     */
+    scan: {
+      heading: "Is this right?",
+      intro: "We read this from your license. If it is right, you will not be asked for it again.",
+      yes: "Yes, that's right",
+      change: "Change",
+      changeNamed: (what: string): string => `Change ${what.toLowerCase()}`,
+      keep: "Keep",
+      keepNamed: (what: string): string => `Keep ${what.toLowerCase()} as read`,
+      willAsk: "You will type this on the next screens.",
+    },
     kept: (carrier: string): string =>
       `${sentenceCase(carrier)} already had some of these on file, so those were kept. If anything is wrong, tell ${carrier}.`,
     yes: "Yes",

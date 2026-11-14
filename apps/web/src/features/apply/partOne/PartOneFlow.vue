@@ -4,6 +4,7 @@ import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import PartOneOtherLicences from "./PartOneOtherLicences.vue";
 import PartOnePhoto from "./PartOnePhoto.vue";
 import PartOneRights from "./PartOneRights.vue";
+import PartOneScanConfirm from "./PartOneScanConfirm.vue";
 import { isPhotoScreen, photoDone, type PartOneScreen, type PhotoScreen } from "./partOneScreens";
 import { useHandoffPoll, useIsDesktop } from "./useDesktopHandoff";
 import { usePartOne, type PartOneInputs } from "./usePartOne";
@@ -62,10 +63,13 @@ const HEADINGS: Record<Exclude<PartOneScreen, PhotoScreen>, string> = {
   rights: copy.rights.heading,
 };
 const heading = computed(() => {
+  // U2: the scan's confirmation is asked before the page it opens, under its own words.
+  if (wizard.confirming.value) return copy.scan.heading;
   const s = flow.screen.value;
   return isPhotoScreen(s) ? copy.photo[s].heading : HEADINGS[s];
 });
 const intro = computed(() => {
+  if (wizard.confirming.value) return copy.scan.intro;
   switch (flow.screen.value) {
     case "about": return copy.about.intro(props.carrier);
     case "address": return copy.address.intro;
@@ -75,7 +79,11 @@ const intro = computed(() => {
     default: return null;
   }
 });
-const action = computed(() => (flow.screen.value === "rights" ? copy.rights.acknowledge : copy.next));
+const action = computed(() => {
+  // "Yes, that's right" while every fact stands as read; once one is marked, the button only moves on.
+  if (wizard.confirming.value) return wizard.fixing.value.length === 0 ? copy.scan.yes : copy.next;
+  return flow.screen.value === "rights" ? copy.rights.acknowledge : copy.next;
+});
 
 /**
  * A photograph taken and not yet sent (§6.6.1: nothing uploads before "Use this photo"). Continue would
@@ -158,10 +166,17 @@ function onContinue(): void {
     <!-- Answers on file that this page cannot re-post whole (the licence list, see `usePartOne`). -->
     <AppCallout v-if="flow.locked.value" tone="info">{{ APPLY_COPY.identityStep.lockedHint(carrier) }}</AppCallout>
     <template v-else>
-      <AppCallout v-if="flow.onFile.value" tone="info">{{ copy.onFile }}</AppCallout>
+      <AppCallout v-if="flow.onFile.value && !wizard.confirming.value" tone="info">{{ copy.onFile }}</AppCallout>
       <AppCallout v-if="wizard.prefilledHere.value" tone="info">{{ copy.fromLicence }}</AppCallout>
+      <PartOneScanConfirm
+        v-if="wizard.confirming.value"
+        :answers="answers"
+        :offered="wizard.offered.value"
+        :fixing="wizard.fixing.value"
+        @toggle="wizard.toggleFix"
+      />
       <PartOneOtherLicences
-        v-if="flow.screen.value === 'otherLicences'"
+        v-else-if="flow.screen.value === 'otherLicences'"
         v-model:answers="answers"
         :errors="flow.errors.value"
       />
