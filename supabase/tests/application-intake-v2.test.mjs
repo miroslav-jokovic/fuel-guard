@@ -342,6 +342,34 @@ ok("a handbook filing for one invitation cannot be recorded twice (A-10)",
   ok("…and the refused call left the list as it was (one transaction)", (await kinds()) === "0:null,1:other");
 }
 
+// ── 0605: "I don't have my CDL with me" (U8) ─────────────────────────────────────────────────────
+// The answer stands in for BOTH CDL photographs, as medical_card_pending stands in for that one; one
+// side photographed and the other not is still refused; and an absent key is 0376's rule unchanged.
+{
+  const D5 = await driver(ORG);
+  const I5 = await invite(ORG, D5);
+  await intake(ORG, I5, D5, { ...INTAKE, medical_card_pending: true, fcra_summary_version: "fcra-2023" }, LICENCES, null, false);
+  ok("0605: an intake that never sent the key holds false", (await one(`select cdl_photo_pending p from application_intakes where invitation_id = $1`, [I5])).p === false);
+  ok("0605: without the answer, no CDL photographs is still AI007", (await completeCode(I5, D5, [])) === "AI007");
+  await intake(ORG, I5, D5, { cdl_photo_pending: true }, null, null, false);
+  ok("0605: the answer is stored", (await one(`select cdl_photo_pending p from application_intakes where invitation_id = $1`, [I5])).p === true);
+  ok("0605: a later write without the key leaves it", (await intake(ORG, I5, D5, { city: "Chicago" }, null, null, false))
+    && (await one(`select cdl_photo_pending p from application_intakes where invitation_id = $1`, [I5])).p === true);
+  await intake(ORG, I5, D5, { cdl_photo_pending: false }, null, null, false);
+  ok("0605: taken back, it is AI007 again", (await completeCode(I5, D5, [])) === "AI007");
+  await stage(I5, D5, "cdl_front");
+  ok("0605: one side photographed and nothing declared is AI007", (await completeCode(I5, D5, [])) === "AI007");
+  await intake(ORG, I5, D5, { cdl_photo_pending: true }, null, null, false);
+  ok("0605: with the answer, Part 1 finishes without both sides", (await completeCode(I5, D5, [])) === null);
+  ok("0605: …and the invitation is stamped", (await one(`select intake_completed_at is not null c from application_invitations where id = $1`, [I5])).c === true);
+
+  const D6 = await driver(ORG);
+  const I6 = await invite(ORG, D6);
+  await intake(ORG, I6, D6, { ...INTAKE, cdl_photo_pending: true, fcra_summary_version: "fcra-2023" }, LICENCES, null, false);
+  ok("0605: the answer on the FIRST write is stored (the insert's column)", (await one(`select cdl_photo_pending p from application_intakes where invitation_id = $1`, [I6])).p === true);
+  ok("0605: it does not waive the medical card", (await completeCode(I6, D6, [])) === "AI007");
+}
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exitCode = fail === 0 ? 0 : 1;
