@@ -39,8 +39,12 @@ withDefaults(
 </script>
 
 <template>
-  <BaseCard>
-    <div class="mb-4 flex items-start justify-between gap-3">
+  <!-- `@container`: the header reads the CARD's width. Under 24rem its control goes under the title
+       instead of beside it (SMALL-SCREENS-PLAN.md D-SM10) — "Where open cases concentrate" took three
+       lines beside its Vehicles / Drivers switch at 390, 768 and 1024 px, and Fleet MPG's door printed
+       over its title. A title never shares a line it does not fit on. -->
+  <BaseCard class="@container">
+    <div class="mb-4 flex flex-col gap-2 @sm:flex-row @sm:items-start @sm:justify-between @sm:gap-3">
       <div class="flex min-w-0 items-start gap-3">
         <!-- `size="sm"` — the 32px chip §4.3 measures off the comps, one step down from the hero
              tile's. A card title is not a KPI and its chip should not out-weigh one. -->
@@ -50,7 +54,7 @@ withDefaults(
           <p v-if="subtitle" class="mt-0.5 text-xs text-ink-muted">{{ subtitle }}</p>
         </div>
       </div>
-      <div class="shrink-0"><slot name="meta" /></div>
+      <div v-if="$slots.meta" class="shrink-0"><slot name="meta" /></div>
     </div>
 
     <!--

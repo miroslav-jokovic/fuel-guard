@@ -414,6 +414,10 @@ export function trendOptions({
           font: FONT,
           maxRotation: 0,
           autoSkip: true,
+          // Chart.js skips ticks until they stop overlapping, and "not overlapping" is 3 px apart by
+          // default: on a 210 px Fleet MPG card five dates read as one string, "10/15 10/19 10/26…"
+          // (SMALL-SCREENS-PLAN.md M6). Sixteen is a word space at this size.
+          autoSkipPadding: 16,
           maxTicksLimit: 7,
           callback(value) {
             const label = this.getLabelForValue(Number(value));

@@ -65,7 +65,10 @@ const truckFacts = (row: Parameters<typeof trkDetail>[0]): Fact[] => [
          Each money card carries its own coverage and pricing lines (design verdict, move 4). The dollars are
          plain ink, as on Fuel Costs (Q-FSV15 ruling 2, extended here 2026-10-04): a total says how much, not
          whether it is good news — avoidable idle is a coaching queue and "Needs an APU" an investment case. -->
-    <div v-if="fleet" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <!-- Four across only when the ROW has 72rem (SMALL-SCREENS-PLAN.md M12): at a 1024 px window
+         beside the sidebar four tiles were 165 px each and the first broke its own figure —
+         "49,947.5 engine-" / "on h". -->
+    <div v-if="fleet" class="@container"><div class="grid grid-cols-1 gap-4 @xl:grid-cols-2 @6xl:grid-cols-4">
       <StatCard
         label="Fleet running time"
         :value="fleet.engineOnH.toLocaleString()"
@@ -91,7 +94,7 @@ const truckFacts = (row: Parameters<typeof trkDetail>[0]): Fact[] => [
         <p data-testid="reducible-coverage">{{ estimate?.reducibleCoverage }}</p>
         <p v-if="estimate?.reduciblePricing" data-testid="reducible-pricing">{{ estimate.reduciblePricing }}</p>
       </StatCard>
-    </div>
+    </div></div>
 
     <!-- Tab strip + the two disclosures. The strip was hand-rolled buttons with no tab semantics and the
          disclosures announced no state; `AppTabs` and `aria-expanded` are what a keyboard and a screen
