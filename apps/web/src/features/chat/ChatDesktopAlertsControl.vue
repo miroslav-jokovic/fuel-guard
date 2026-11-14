@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import { BellIcon } from "@silvicom/ui/icons";
 import { pushOnHere, pushPermission, pushServer, pushSupport, sendTestPush, turnOffPush, turnOnPush } from "@/lib/webPush";
+import { IOS_INSTALL_STEPS } from "@/lib/installApp";
 import { useChatDesktopAlertsChoice } from "./useChatDesktopAlerts";
 import ChatPushDevicesDialog from "./ChatPushDevicesDialog.vue";
 
@@ -89,8 +90,7 @@ async function test() {
     <AppCallout tone="info" :icon="BellIcon">
       <p class="text-xs">To get chat notifications on this {{ device }}:</p>
       <ol class="mt-1 list-decimal pl-4 text-xs">
-        <li>Tap Share, then Add to Home Screen.</li>
-        <li>Open Silvicom from your Home Screen and sign in.</li>
+        <li v-for="step in IOS_INSTALL_STEPS" :key="step">{{ step }}</li>
         <li>Open Chat and turn notifications on there.</li>
       </ol>
       <div class="mt-2">
