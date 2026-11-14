@@ -2351,6 +2351,14 @@ async function main() {
         `insert into ads_copy_choices (org_id, campaign_id, replaces_creative_id, copy, chosen_by, chosen_by_name) ` +
         `select '${org}', campaign_id, id, '{"en":{},"es":{}}', gen_random_uuid(), 'rls' ` +
         `from ads_creatives where org_id = '${org}' order by created_at desc limit 1;`,
+      // 0606 (V2): a plan names its campaign by composite FK, and an agent's version the model call that wrote it.
+      ads_campaign_plans: (org) =>
+        adsCampaignSeed(org) +
+        `insert into ad_generations (org_id, agent, provider, idempotency_key) values ('${org}', 'copywriter', 'anthropic', gen_random_uuid()::text);` +
+        `insert into ads_campaign_plans (org_id, campaign_id, version, plan, evidence, author_kind, generation_id) ` +
+        `select '${org}', ${adsLatest("ads_campaigns", org)}, 1, '{}', '[]', 'agent', ` +
+        // ad_generations has no created_at (its clock is started_at), so `adsLatest` cannot order it.
+        `(select id from ad_generations where org_id = '${org}' order by started_at desc limit 1);`,
       // 0539 (HW8a): a video's link is https-checked, and an attestation or an open must name this
       // driver's own invitation and a live video of this carrier (OV023/OV024) — a chain the seeder,
       // which makes every parent independently, cannot build.
@@ -2415,6 +2423,13 @@ async function main() {
         `select '${org}', id, md5(gen_random_uuid()::text), now() + interval '1 day' from d returning id) ` +
         `insert into application_unlock_codes (org_id, invitation_id, channel, code_hash, expires_at) ` +
         `select '${org}', i.id, 'email', repeat('a', 64), now() + interval '10 minutes' from i`,
+      // 0604 (U2): a remembered device hangs on an invitation the same way; the hash is 64 hex characters.
+      application_trusted_devices: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'rls ' || gen_random_uuid()) returning id), ` +
+        `i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +
+        `select '${org}', id, md5(gen_random_uuid()::text), now() + interval '1 day' from d returning id) ` +
+        `insert into application_trusted_devices (org_id, invitation_id, token_hash, earned_by, expires_at) ` +
+        `select '${org}', i.id, repeat('b', 64), 'date_of_birth', now() + interval '30 days' from i`,
       phone_lookups: (org) =>
         `insert into phone_lookups (org_id, phone_e164, provider, line_type) values ('${org}', '+17082360042', 'telnyx', 'unknown')`,
       recruiting_lead_closures: (org) =>

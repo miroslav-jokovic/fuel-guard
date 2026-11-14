@@ -219,6 +219,9 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
     { office: "part_one_answer", rule: "replace_only" }, { screen: "screening.donor_gender" }),
   intake("medical_card_pending", "yesno", "screening", { notPrinted: "a state of the documents, shown on the office drawer" },
     "part_one_answer"),
+  // U8 (0605): "I don't have my CDL with me" — the photo screens' own alternative, as the line above.
+  intake("cdl_photo_pending", "yesno", "screening", { notPrinted: "a state of documents, shown on the office drawer" },
+    "part_one_answer"),
 
   // ── (b)(2) identity ──
   // `ask` (F4 PR 1b-2): the name is one fact typed together (D-AM3); other names one screen with its list

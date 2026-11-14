@@ -235,9 +235,9 @@ export function publicApplicationRouter(): Router {
     validateBody(applicationDraftUnlockSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const body = res.locals.body as ApplicationDraftUnlock;
       const result = await unlockDraft(
-        admin, String(req.params.token ?? ""),
-        (res.locals.body as ApplicationDraftUnlock).date_of_birth, new Date(),
+        admin, String(req.params.token ?? ""), body.date_of_birth, new Date(), body.remember_device === true,
       );
       if (isIntakeError(result)) {
         const status = result.code === "invalid_link" ? 404 : result.code === "sign_link_locked" ? 410 : 500;

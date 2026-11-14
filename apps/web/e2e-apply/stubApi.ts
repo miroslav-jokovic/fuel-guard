@@ -211,6 +211,9 @@ export function partTwoV2Link(over: Json = {}): Json {
   };
 }
 
+/** The token the stub hands a device that asked to be remembered (U2) — 43 characters, as the API's. */
+export const STUB_DEVICE_TOKEN = "d".repeat(43);
+
 /** The packet's driver stops as the server serves them — nothing signed yet. */
 export const packetStops = (): Json[] => driverPlacements(null).map((p) => ({ ...p, signedAt: null }));
 
@@ -341,6 +344,14 @@ export async function stubApi(page: Page, bundle: Json): Promise<Stub> {
     if (method === "POST" && rest === "/mark") return json(route, 201, { signedCount: 1, complete: false });
     if (method === "POST" && rest === "/handbook/mark") return json(route, 201, { ok: true });
     if (method === "POST" && rest === "/unlock") {
+      // U2 (0604): a right answer that asked to be remembered leaves a device token, as the API does.
+      const remembered = (body as { remember_device?: boolean } | null)?.remember_device === true ? { deviceToken: STUB_DEVICE_TOKEN } : {};
+      return json(route, 200, { draft: { ...(state.bundle.draft as Json), locked: false, payload: state.draft.payload ?? {}, revision: state.draft.revision, ...remembered } });
+    }
+    if (method === "POST" && rest === "/unlock-device") {
+      if ((body as { device_token?: string } | null)?.device_token !== STUB_DEVICE_TOKEN) {
+        return json(route, 422, { error: { code: "device_not_known", message: "This device is not remembered for this application. Enter your date of birth." } });
+      }
       return json(route, 200, { draft: { ...(state.bundle.draft as Json), locked: false, payload: state.draft.payload ?? {}, revision: state.draft.revision } });
     }
     if (method === "GET" && rest === "/sms-consent") {

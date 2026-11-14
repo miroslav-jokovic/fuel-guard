@@ -58,10 +58,20 @@ const summary = computed(() =>
 // Q-AM15: a keyed correction is looked up in the driver's own draft, so deleting or reordering a row on
 // this phone after the office corrected it moves the correction with its row.
 const currentPaths = computed(() => currentEditPaths(props.edits, toDraftPayload(draft.value)));
+/**
+ * A job is named by its key, never by its place in the list, so it is named here by its company: with
+ * two jobs on the application, "Employer · Street address" does not say which one the office corrected.
+ * A job the driver has since removed has no name left to give, and reads as "Employer".
+ */
+const jobName = (path: readonly (string | number)[]): string | null =>
+  path[0] === "employers" && typeof path[1] === "string"
+    ? (draft.value.employers.find((e) => e.key === path[1])?.employer_name ?? null)
+    : null;
+
 function editLabel(i: number): string {
   const now = currentPaths.value[i];
-  if (!now) return describeField(props.edits[i]!.path);
-  const label = describeField(now.path);
+  if (!now) return describeField(props.edits[i]!.path, jobName(props.edits[i]!.path));
+  const label = describeField(now.path, jobName(now.path));
   return now.gone && !now.removal ? `${label} (${copy.removedLater})` : label;
 }
 

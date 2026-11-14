@@ -162,17 +162,17 @@
   "recorded": {
     "source": "model",
     "prompt_version": "analyst@6",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T16:13:31.507Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:25:00.141Z",
     "output": {
-      "headline": "Both campaigns ran on November 3, 2026, delivering 9 leads at $33.61 cost per lead on $302.50 spent across 14,640 impressions.",
+      "headline": "On 2026-11-03, 2 campaigns spent $302.50 and brought in 9 leads at $33.61 per lead, with a 1.4% click rate.",
       "points": [
-        "Regional Class A — Joliet led the day: $214.50 spent, 10,230 impressions, 152 clicks at 1.5%, 7 leads at $30.64 each. Dedicated night runs added $88.00 spent, 4,410 impressions, 51 clicks at 1.2%, 2 leads at $44.00 each.",
-        "November 2026 has 27 days left; Meta spend so far this month is $605.00.",
-        "The 4 mature cohorts show steady conversion: the 2026-10-05 week leads with a 34.6% conversion rate and 9.6% hired rate from 52 leads. The 2026-09-28 week is the softest mature cohort at 22.2% converted and 3.7% hired from 27 leads.",
-        "The 3 immature cohorts — 2026-10-12 (38 leads, 10 converted, 5 applied), 2026-10-19 (41 leads, 9 converted, 3 applied), and 2026-10-26 (29 leads, 4 converted, 1 applied) — are still moving and too young to judge on rates.",
-        "The 2026-11-02 cohort is very new: 12 leads, 5 contacted, none converted yet — too young to judge.",
-        "No lead quality data was available for the 14-day window; no campaigns had data to report."
+        "Regional Class A — Joliet brought in most of the day's leads: 7 leads on $214.50, at $30.64 per lead with a 1.5% click rate.",
+        "Dedicated night runs brought in 2 leads on $88.00, at $44.00 per lead. That is a higher cost per lead than Joliet, and its click rate was lower at 1.2%.",
+        "Of the mature cohorts, the week of 2026-10-05 did best: 52 leads, 34.6% made applicants and 9.6% hired. The week of 2026-09-28 was weakest, with 22.2% made applicants and 3.7% hired.",
+        "The weeks of 2026-09-14 and 2026-09-21 hired 9.7% and 9.1% of their leads. No leads in any cohort have been marked qualified, so recruiters may not be using that stage.",
+        "The newer cohorts are too young to judge. The week of 2026-10-12 has 10 made applicants and 5 applied so far, and the week of 2026-11-02 has 12 leads with 5 contacted.",
+        "Meta spend for November 2026 is $605.00 so far, with 27 days left. The sheet has no call results for the last 14 days, so there is nothing to report on lead quality."
       ]
     }
   }

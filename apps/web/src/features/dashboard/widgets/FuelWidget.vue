@@ -119,9 +119,10 @@ const slices = computed(() => {
       </ul>
       <!-- The wrapper is `sr-only`, not the table: a table sizes to its content and ignores the
            1 px box, so this one stood 541 px wide inside a 390 px phone and the whole Fleet overview
-           scrolled sideways (SMALL-SCREENS-PLAN.md M4, measured 2026-11-14). -->
+           scrolled sideways (SMALL-SCREENS-PLAN.md M4, measured 2026-11-14). The table keeps the
+           class as well: it is how `lint:ui-adoption` tells a reader's table from a visible one. -->
       <div class="sr-only">
-        <table>
+        <table class="sr-only">
           <caption>Fuel spend by day, this period and the same day of the previous period</caption>
           <thead><tr><th scope="col">Day</th><th scope="col">Spend</th><th scope="col">Previous period</th></tr></thead>
           <tbody>

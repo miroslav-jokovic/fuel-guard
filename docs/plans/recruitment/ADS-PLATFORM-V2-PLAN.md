@@ -72,9 +72,12 @@ Days are estimates, not measurements. **Order: V1 → V2 → V3 → V4 → V6 �
 
 ### V1 · The AI rail takes any current model (~3 days + recordings)
 
-- `callForcedTool` becomes a structured-output call (`output_config.format` from the same Zod schema, validated as
-  today). `stop_reason: "refusal"` becomes a named outcome on the ledger row, with the server-side fallback on.
-- One table, `AGENT_MODELS`, names model and effort per agent; a carrier does not see it.
+- `callForcedTool` asks by the model's profile (`AI_MODEL_PROFILES`): a forced tool where the model accepts one,
+  `tool_choice: auto` with one fixed sentence naming the tool where it does not. **Corrected 2026-11-14 (V1a):**
+  not `output_config.format` — strict outputs refuse the `minLength` / `maximum` keywords the workers' schemas
+  use. `stop_reason: "refusal"` is a named outcome that fails the ledger row; **no server-side fallback**, since a
+  row names one model and a second model's answer would be recorded as the first's.
+- One table, `AD_AGENT_MODELS`, names model and effort per agent; a carrier does not see it. **V1a built.**
 - **A model change ships only when that agent's recorded baseline is met or beaten on the new model**
   (`pnpm ads:eval`, twice). Each recording runs on the owner's key and is asked for first, as before.
 - Starting assignment, to be confirmed by those evals and not before: Strategist and Researcher on
@@ -246,14 +249,24 @@ answer for this carrier is measured in its first month instead of taken from a v
 Not researched. Candidates to compare on price, accuracy on cab noise, Spanish, and where audio is kept. Nothing
 in V4's motion lane waits on it.
 
+## 5a. Ruled
+
+**2026-11-14, the owner, to the four proposals above and to the request to record the agents on his Anthropic
+key: *"ok proceed as proposed."*** Taken as:
+
+- **Q-APX1 RULED (b).** Levels A, B and C as written. Q-AD2 ("a person launches") is reversed for Level B only,
+  and only after the canary; Level C stays locked in code behind its certification record.
+- **Q-APX2 RULED (a).** Fable's 30-day retention accepted; the contact-field boundary test is owed with V2.
+- **Q-APX3 RULED (a).** The gold set is made from ordinary approvals and rejections, 50 labels, κ ≥ 0.8.
+- **Q-APX4 RULED (c).** Both kinds of video, motion first.
+- **Recordings approved** for the six agents' move to the newer models (V1b). Any later recording is asked for
+  again, as before.
+
 ## 6. Open, in one place
 
 | Id | Question | Recommendation | Who |
 |---|---|---|---|
-| Q-APX1 | Automation with no person in between | (b) Levels A, B, C | owner |
-| Q-APX2 | Fable's 30-day retention | (a) accept; contact-field boundary test | owner |
-| Q-APX3 | The judge's ground truth | (a) labels from ordinary approvals, 50, κ ≥ 0.8 | owner |
-| Q-APX4 | Which video first | (c) both, motion first | owner |
+| Q-APX1–4 | — | **ruled 2026-11-14, §5a** | — |
 | Q-APX5 | Speech-to-text provider | research owed | Claude |
 | — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 

@@ -28,7 +28,7 @@ const INV = "11111111-2222-4333-8444-555555555555";
 
 const INTAKE = {
   invitation_id: INV, prior_positive_2y: false, dot_program_30d: true, dot_tested_6m: false, dot_random_12m: true,
-  medical_card_pending: false, endorsements: ["N", "H"], donor_gender: "female",
+  medical_card_pending: false, cdl_photo_pending: false, endorsements: ["N", "H"], donor_gender: "female",
 };
 
 const seed = (over: { intake?: Record<string, unknown> | null; marks?: number; submitted?: string | null; edits?: unknown; written?: unknown } = {}): SupabaseRecorder =>

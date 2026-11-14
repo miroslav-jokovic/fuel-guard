@@ -61,8 +61,30 @@ describe("readMedstopTestsForDriver", () => {
 
   it("a person Med-Stop does not hold is 'not matched', not an empty history", async () => {
     const r = createSupabaseRecorder({ tables: { medstop_credentials: [], medstop_employees: [] } });
-    expect(await readMedstopTestsForDriver(r.client, ORG, DRIVER, "admin")).toEqual({ connected: false, matched: false, applicantMedstopId: null, applicantCreate: null, orders: [], tests: [], outcomesVisible: true });
+    expect(await readMedstopTestsForDriver(r.client, ORG, DRIVER, "admin")).toEqual({ connected: false, matched: false, applicantMedstopId: null, applicantCreate: null, applicantSkip: null, orders: [], tests: [], outcomesVisible: true });
     expect(r.forTable("medstop_tests")).toHaveLength(0);
+  });
+});
+
+describe("why an applicant was not sent to Med-Stop", () => {
+  it("is handed on to the step while Med-Stop is connected", async () => {
+    const view = await readMedstopTestsForDriver(db().client, ORG, DRIVER, "recruiter", [], "They chose not to give a gender, so add them in Med-Stop yourself.");
+    expect(view.applicantSkip).toMatch(/chose not to give a gender/);
+  });
+
+  /** The case the line exists for: Med-Stop holds nobody for this applicant, because they were never sent. */
+  it("⚠ is handed on when Med-Stop holds nobody matched to the applicant", async () => {
+    const r = createSupabaseRecorder({ tables: {
+      medstop_credentials: [{ base_url: "https://api.med-stop.com", enabled: true, api_key_sealed: "sealed", key_expires_on: null, last_synced_at: null, last_error: null }],
+      medstop_employees: [],
+    } });
+    const view = await readMedstopTestsForDriver(r.client, ORG, DRIVER, "recruiter", [], "Part 1 does not have their US mobile number, so add them in Med-Stop yourself.");
+    expect(view).toMatchObject({ connected: true, matched: false, applicantSkip: "Part 1 does not have their US mobile number, so add them in Med-Stop yourself." });
+  });
+
+  it("is not said while Med-Stop is not connected: there is no sweep to have skipped them", async () => {
+    const r = createSupabaseRecorder({ tables: { medstop_credentials: [], medstop_employees: [] } });
+    expect((await readMedstopTestsForDriver(r.client, ORG, DRIVER, "recruiter", [], "x")).applicantSkip).toBeNull();
   });
 });
 

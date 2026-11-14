@@ -29,25 +29,25 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:32:51.395Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:23:19.258Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A straight road through open wheat fields at sunset is instantly recognizable as a road-ahead scene at any phone size.",
+          "reason": "A straight two-lane road running through golden wheat fields toward a low sun reads instantly, clean and uncluttered.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The headline 'Regional runs through farm country' is literally illustrated by the road cutting through golden farmland, making a tight, single story.",
+          "reason": "The headline about regional runs through farm country sits over an open road cutting through grain fields, which is exactly the same story.",
           "score": 5
         },
         "hierarchy_reads": {
-          "reason": "The large bold headline sits on a solid dark-blue panel at the top, the outlined button sits clearly below it, and the photo occupies the lower half without competing with the text.",
-          "score": 5
+          "reason": "The large white headline on dark sky is read first and the white button second, though the vivid sunset pulls some attention and the bottom band sits empty.",
+          "score": 4
         },
         "looks_like_kit": {
-          "reason": "The deep navy (#1F3A5F) dominates the top panel and footer, white type and button border are on-brand, but no company logo appears anywhere in the ad.",
-          "score": 3
+          "reason": "The navy footer band, navy button lettering and white headline and button match the brand colours, but nothing on the ad names the carrier.",
+          "score": 4
         }
       }
     }

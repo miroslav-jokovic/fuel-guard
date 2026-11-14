@@ -188,38 +188,38 @@
   "recorded": {
     "source": "model",
     "prompt_version": "craftJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:32:21.450Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:24:29.900Z",
     "output": {
       "scores": [
         {
-          "reason": "Candidate 1 leads with pay figures that are not in the facts (no per-mile rate is given; facts show annual ranges and a $1,500 bonus). The card_get and headline invent a $0.72/mile and $5,000 sign-on that don't exist in the facts. Beyond the factual issue, it ignores team, dedicated, dry van, coast-to-coast, and home schedule entirely. Spanish is natural and mirrors the English well, but the core specifics are fabricated.",
+          "reason": "card_get leads with pay per mile and a bonus in plain, short words, and the Spanish reads naturally. But it never names the carrier, the dry van freight, the coast-to-coast lanes, the home time, or that this is a team job. card_apply and \"this seat is open\" are a little generic.",
           "scores": {
-            "hook": 2,
-            "specific": 1,
-            "plain": 3,
+            "hook": 4,
+            "specific": 2,
+            "plain": 4,
             "spanish": 4,
             "no_filler": 4
           }
         },
         {
-          "reason": "Candidate 2 is built almost entirely from filler: 'dynamic team,' 'competitive pay,' 'great freight,' 'family atmosphere,' 'exciting opportunity,' 'truly value our drivers.' The card_need and card_apply slots appear to be copies of card_get, which is a structural failure. The headline 'Great pay, great team' is pure filler. Spanish mirrors the English filler word for word.",
+          "reason": "card_get, card_need and card_apply all repeat the same filler line, so the three-card formula is not followed, and card_apply and primary_text are cut off mid-word. It is built of \"dynamic team\", \"competitive pay\" and \"exciting opportunity\", with only the $95,000 as a real detail. The Spanish is a word-for-word copy of the same filler.",
           "scores": {
             "hook": 1,
             "specific": 1,
-            "plain": 2,
+            "plain": 1,
             "spanish": 2,
             "no_filler": 1
           }
         },
         {
-          "reason": "Candidate 3 uses all three cards correctly and leads with real figures ($95K–$110K, drop and hook, late-model). card_need lists every stated requirement. The primary_text names Silvicom Inc, the lane (coast to coast), the team policy, and the $1,500 referral bonus. Spanish is natural, uses 'drop and hook' as trade term, and keeps miles in the correct unit. Minor weakness: 'steady lane' is slightly vague, but everything else is checkable.",
+          "reason": "card_get opens with the pay range, drop and hook and equipment; card_need lists the requirements; card_apply names Silvicom Inc. primary_text gives dedicated dry van, coast to coast and the no-split promise, but leaves out home time, and \"more miles and a steady lane\" is a bit of pitch. Spanish is natural, though \"equipo\" for both equipment and team blurs the headline.",
           "scores": {
             "hook": 5,
-            "specific": 5,
-            "plain": 5,
-            "spanish": 5,
-            "no_filler": 5
+            "specific": 4,
+            "plain": 4,
+            "spanish": 4,
+            "no_filler": 4
           }
         }
       ]

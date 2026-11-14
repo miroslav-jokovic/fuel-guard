@@ -26,6 +26,7 @@ import {
   validateScreening,
   type PartOneScreen,
   type PrefilledField,
+  type ScanFact,
   type ScreenErrors,
 } from "./partOneScreens";
 
@@ -111,6 +112,12 @@ export function usePartOne(
   const barcode = ref<BarcodeState>("idle");
   const fromLicence = ref<PrefilledField[]>([]);
   /**
+   * The scanned facts the driver said are right on "Is this right?" (U2) — their screens are not asked
+   * again. Null until that screen is answered. Held here, beside what the barcode filled, because the
+   * device copy keeps both: a reload must not ask a driver to confirm twice (`partOneLocal.ts`).
+   */
+  const scanConfirmed = ref<ScanFact[] | null>(null);
+  /**
    * Read the barcode only while it can fill something: before §40.25(j) is on file, nothing of screens
    * 3–6 has been written, so a box is blank because the driver has not reached it. After it, the answers
    * are on the server and the boxes are blank because the bare link never reads them back (D-APP16) —
@@ -145,6 +152,7 @@ export function usePartOne(
     answers,
     held,
     fromLicence,
+    scanConfirmed,
     begun,
     screen,
     goTo: (s) => {
@@ -210,6 +218,8 @@ export function usePartOne(
       await postIntake(t, screeningPayload(answers));
     } else if (s === "medical_card") {
       await postIntake(t, { medical_card_pending: answers.medical_card_pending });
+    } else if (s === "cdl_front" || s === "cdl_back") {
+      await postIntake(t, { cdl_photo_pending: answers.cdl_photo_pending });
     }
     // Fill-only (D-AF8): said once, before moving on, never what the carrier holds.
     if (keptNow.length > 0 && !kept.value) kept.value = true;
@@ -233,6 +243,8 @@ export function usePartOne(
         // The capture landed through its own two calls; the bundle is where it is recorded.
         const fresh = (await refresh()) ?? inputs.value;
         if (s === "medical_card" && begun.value) await save(s);
+        // U8: on a begun link the answer can be written at once; before it, the first write carries it.
+        if ((s === "cdl_front" || s === "cdl_back") && begun.value && answers.cdl_photo_pending) await save(s);
         if (!photoDone(s, fresh.captures, answers)) {
           const copy = APPLY_COPY.partOne.photo;
           errors.value = { photo: s === "selfie" ? copy.selfie.required : copy.required };
@@ -244,7 +256,10 @@ export function usePartOne(
       } finally {
         working.value = false;
       }
-      return advance();
+      advance();
+      // "I don't have my CDL with me" answers the back too: its screen has nothing left to ask.
+      if (s === "cdl_front" && answers.cdl_photo_pending && !inputs.value.captures.some((c) => c.slot === "cdl_front")) advance();
+      return;
     }
 
     if (s === "rights") return finish();
@@ -308,6 +323,7 @@ export function usePartOne(
     prefilledHere,
     /** The answers the barcode filled, by `PREFILL_FIELDS` key — the wizard says so on the screen that shows them. */
     fromLicence,
+    scanConfirmed,
     skippable,
     /** The page's own check, without showing it — the wizard asks one screen's share of it (F4 PR 1). */
     pageErrors: (): ScreenErrors => check(screen.value),

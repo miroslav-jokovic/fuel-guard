@@ -91,6 +91,27 @@ describe("medstopApplicantSkip", () => {
     expect(medstopApplicantSkip({ ...facts, gender: null })).toMatch(/did not ask/);
     expect(medstopApplicantSkip({ ...facts, licenceState: "ON" })).toMatch(/not from a US state/);
   });
+
+  /**
+   * Silent until 2026-11-14: Med-Stop's form requires each of these, the sweep skipped an applicant
+   * without one, and nothing told the office. Named in the office's words, all at once.
+   */
+  it("⚠ names every required Part 1 answer that is missing, in one sentence", () => {
+    expect(medstopApplicantSkip({ ...facts, phone: null }))
+      .toBe("Part 1 does not have their US mobile number, so add them in Med-Stop yourself.");
+    expect(medstopApplicantSkip({ ...facts, phone: "+442071234567" })).toMatch(/US mobile number/);
+    expect(medstopApplicantSkip({ ...facts, postalCode: null, cdlClass: " " }))
+      .toBe("Part 1 does not have their ZIP code, license class, so add them in Med-Stop yourself.");
+    expect(medstopApplicantSkip({ ...facts, birthDate: "03/07/1985" })).toMatch(/date of birth/);
+  });
+
+  it("⚠ agrees with the create: whoever it lets through has nothing of ours missing, and whoever it stops is not sent", () => {
+    for (const over of [{}, { phone: null }, { addressLine1: "" }, { licenceExpiresOn: null }, { lastName: null }] as Partial<MedstopApplicantFacts>[]) {
+      const f = { ...facts, ...over };
+      const filled = fillMedstopApplicantForm(FORM, f);
+      expect(medstopApplicantSkip(f) === null).toBe("form" in filled);
+    }
+  });
 });
 
 describe("shapes", () => {

@@ -247,6 +247,12 @@ export const APPLY_FLOW_COPY = {
     body: (carrier: string): string =>
       `You have already started this application for ${carrier}. Confirm your date of birth and your answers come back.`,
     label: "Your date of birth",
+    /**
+     * U2 (0604): offered on a phone only. "This is my phone" is the question — a driver borrowing
+     * somebody's phone, or at the office's computer, should leave it or never sees it.
+     */
+    remember: "This is my phone. Don't ask me again on it.",
+    opening: "Opening your application…",
     failed: "That does not match this application. Try again, or ask the carrier for a new link and start fresh.",
     /**
      * D-AW14, C3s3a: only a link the office SENT for signing counts wrong answers, so only it says how

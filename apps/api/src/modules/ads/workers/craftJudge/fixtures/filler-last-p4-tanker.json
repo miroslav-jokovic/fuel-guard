@@ -153,12 +153,12 @@
   "recorded": {
     "source": "model",
     "prompt_version": "craftJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:32:09.780Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:24:13.674Z",
     "output": {
       "scores": [
         {
-          "reason": "The hook ignores the concept entirely — it leads with vague praise, not equipment or rate. Primary_text is packed with filler ('exciting opportunity,' 'dynamic team,' 'competitive pay,' 'family atmosphere,' 'truly value our drivers'). Region, endorsements, age, and experience requirements are all missing. Spanish is a word-for-word translation with no trade voice.",
+          "reason": "The hook slot \"Great pay, great team\" names no equipment and no fact, so it ignores the concept. The primary_text is built almost entirely of stock phrases (\"exciting opportunity\", \"dynamic team\", \"competitive pay\", \"value our drivers\"); only $0.75/mile is checkable, and it never says tanker, region or schedule. The Spanish is a word-for-word copy of the same filler.",
           "scores": {
             "hook": 1,
             "specific": 1,
@@ -168,21 +168,21 @@
           }
         },
         {
-          "reason": "Hook nails the concept: equipment first, strongest fact second. Primary_text covers region (IL/IN/WI), pay, weekly pay, home weekends, pet policy, endorsements, age, and experience — every fact is present. Plain, dispatcher-style sentences. Spanish uses 'tráiler,' 'rutas,' 'endoso,' distances in miles, and reads naturally; headline is correctly adapted rather than translated literally.",
+          "reason": "The hook slot leads with the tanker and then the pay rate, exactly as the concept asks. The primary_text gives the region, three states, weekly pay, home weekends and the requirements, all checkable; \"Pet policy available\" is a little stiff. The Spanish reads naturally with trade words (rutas, endoso, hazmat, milla) and the same facts.",
           "scores": {
             "hook": 5,
             "specific": 5,
-            "plain": 5,
+            "plain": 4,
             "spanish": 5,
             "no_filler": 5
           }
         },
         {
-          "reason": "Hook matches the concept well. Primary_text states the rate and CDL/experience requirements, but drops the region (IL/IN/WI), home weekends, weekly pay, pet policy, hazmat/tanker endorsements, and age minimum — most facts are missing. 'Let's talk' and 'if you have the miles behind you' are mild filler. Spanish omits the same facts and 'únete al equipo' is soft filler.",
+          "reason": "The hook slot is right: tanker, then $0.75 per mile. The primary_text leaves out the states, the regional runs, home weekends and weekly pay, uses future tense, and ends on a soft line (\"let's talk\"). The Spanish adds \"únete al equipo hoy\", which is filler and not in the English, and its headline drops the tanker.",
           "scores": {
             "hook": 5,
-            "specific": 2,
-            "plain": 4,
+            "specific": 3,
+            "plain": 3,
             "spanish": 3,
             "no_filler": 3
           }

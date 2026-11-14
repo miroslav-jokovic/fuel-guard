@@ -1,9 +1,9 @@
 /*
  * Silvicom 360 — the service worker (docs/plans/messaging/CHAT-WEB-PUSH-PLAN.md WP2, D-WP4).
  *
- * It does ONE thing: show a chat push and open it when tapped. No fetch handler and no cache — the app is
- * served fresh every time (index.html is no-cache, assets are hashed), and an offline cache would be a second
- * copy of the app that could go stale. Plain JavaScript, served as it is from /sw.js so its scope is the whole
+ * It shows a chat push and opens it when tapped, and it answers a page load that has no network with the
+ * "no connection" page (see THE ONE CACHE below). It holds no copy of the app — that is served fresh every
+ * time (index.html is no-cache, assets are hashed), and a cached app would be a second copy that could go stale. Plain JavaScript, served as it is from /sw.js so its scope is the whole
  * site; `src/lib/webPush.ts` registers it, and `serviceWorker.test.ts` runs this file against a fake worker.
  *
  * THE MESSAGE is Declarative Web Push (`chatPushMessage` in @silvicom/shared): `{ web_push: 8030, notification }`.
@@ -16,13 +16,52 @@
 const FALLBACK_TITLE = "Silvicom 360";
 const FALLBACK_BODY = "You have a new message.";
 
-self.addEventListener("install", () => {
-  // A new worker takes over at once: it holds no cache that a running page could disagree with.
+/*
+ * THE ONE CACHE (INSTALLED-APP-PLAN.md D-IA2): the "no connection" page and its picture, nothing of the app.
+ * A page navigation that gets no answer from the network shows it instead of the browser's own error — which,
+ * in an installed window with no address bar, is a dead end. Everything else — every API call, every asset,
+ * every navigation that does get an answer, an error answer included — goes to the network untouched.
+ */
+const OFFLINE_CACHE = "silvicom-offline-v1";
+const OFFLINE_PAGE = "/offline.html";
+const OFFLINE_FILES = [OFFLINE_PAGE, "/icons/icon-192.png"];
+
+self.addEventListener("install", (event) => {
+  // A new worker takes over at once: it holds no copy of the app that a running page could disagree with.
   self.skipWaiting();
+  // Fetched fresh at every install. A failure here must not stop the worker installing — notifications
+  // matter more than the offline page — so it is swallowed and the browser's own error page stays.
+  event.waitUntil((async () => {
+    try {
+      const cache = await self.caches.open(OFFLINE_CACHE);
+      await cache.addAll(OFFLINE_FILES.map((url) => new self.Request(url, { cache: "reload" })));
+    } catch { /* no offline page this time */ }
+  })());
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil((async () => {
+    const names = await self.caches.keys();
+    await Promise.all(names.filter((n) => n.startsWith("silvicom-offline-") && n !== OFFLINE_CACHE).map((n) => self.caches.delete(n)));
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  // Not ours: leaving without `respondWith` lets the browser fetch exactly as if this handler did not exist.
+  if (request.mode !== "navigate") {
+    // The offline page's own picture, when there is no network to get it from.
+    if (request.method === "GET" && OFFLINE_FILES.includes(new URL(request.url).pathname) && new URL(request.url).pathname !== OFFLINE_PAGE) {
+      event.respondWith(self.fetch(request).catch(async () => (await self.caches.match(request, { ignoreSearch: true })) || Response.error()));
+    }
+    return;
+  }
+  event.respondWith(self.fetch(request).catch(async () => {
+    const page = await self.caches.match(OFFLINE_PAGE);
+    // No cached page (its install fetch failed): the failure the browser would have shown anyway.
+    return page || Response.error();
+  }));
 });
 
 function readMessage(event) {
@@ -61,7 +100,14 @@ self.addEventListener("push", (event) => {
     data: { navigate: sameSite(n.navigate) || sameSite("/chat"), ...(n.data && typeof n.data === "object" ? n.data : {}) },
   };
   const title = typeof n.title === "string" && n.title ? n.title : FALLBACK_TITLE;
-  event.waitUntil(self.registration.showNotification(title, options));
+  // The icon's number travels in the push (INSTALLED-APP-PLAN IA-U1b), so it is right with the app closed.
+  // Safari applies `app_badge` itself; here it is set for the browsers that hand the push to this worker.
+  // Only a positive whole number is taken, and a browser without the Badging API is simply not asked.
+  const count = typeof n.app_badge === "string" && /^[0-9]{1,6}$/.test(n.app_badge) ? Number(n.app_badge) : 0;
+  const badge = count > 0 && self.navigator && typeof self.navigator.setAppBadge === "function"
+    ? self.navigator.setAppBadge(count).catch(() => {})
+    : Promise.resolve();
+  event.waitUntil(Promise.all([self.registration.showNotification(title, options), badge]));
 });
 
 self.addEventListener("notificationclick", (event) => {

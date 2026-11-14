@@ -209,6 +209,11 @@ export type ApplicationDraftSave = z.infer<typeof applicationDraftSaveSchema>;
  */
 export const applicationDraftUnlockSchema = z.object({
   date_of_birth: z.string().min(1).max(32),
+  /**
+   * U2 (0604): "remember this phone". A right answer then also returns a device token, and the next
+   * visit on that device is not asked (`applicationTrustedDeviceContract.ts`). Absent means no.
+   */
+  remember_device: z.boolean().optional(),
 });
 export type ApplicationDraftUnlock = z.infer<typeof applicationDraftUnlockSchema>;
 

@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { ADS_SETTINGS_UNSET, type AdsSettings } from "@silvicom/shared";
-import { MAX_IMAGE_BYTES, type ForcedTool, type MessagesClient } from "../../../lib/anthropic.js";
+import { ADS_SETTINGS_UNSET, AI_MODEL_PROFILES, canonicalJson, type AdsSettings } from "@silvicom/shared";
+import { MAX_IMAGE_BYTES, toolInputSchema, toolInstruction, type ForcedTool, type MessagesClient } from "../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { generateWithClaude, type ClaudeGenerationRequest } from "./claudeGeneration.js";
 import type { GenerationRow } from "./generationLedger.js";
@@ -193,6 +193,55 @@ describe("generateWithClaude — the call and its provenance", () => {
     const rec = world();
     await run(rec, claude().client);
     expectOrgScoped(rec, ORG);
+  });
+});
+
+describe("generateWithClaude — the row records what was sent (V1)", () => {
+  const runWith = (rec: ReturnType<typeof world>, client: MessagesClient, over: Partial<typeof req>) =>
+    generateWithClaude({ admin: rec.client, client, now: () => NOW }, { ...req, ...over });
+
+  it("on a forced-tool model the stored request and its hash are what they were before V1", async () => {
+    const rec = world();
+    await run(rec, claude().client);
+    const before = {
+      model: "claude-sonnet-4-6", system: "You fill copy slots.", user: "brief",
+      tool: { name: tool.name, description: tool.description, input_schema: toolInputSchema(tool) }, max_tokens: 800,
+    };
+    const [started] = inserts(rec);
+    expect(started!.request).toEqual(before);
+    expect(started!.input_hash).toBe(createHash("sha256").update(canonicalJson(before)).digest("hex"));
+  });
+
+  it("on a model that refuses a forced tool the row holds the sentence added, the larger limit and the effort", async () => {
+    const rec = world();
+    const { client, create } = claude();
+    await runWith(rec, client, { model: "claude-opus-5-5", effort: "high" });
+    const body = create.mock.calls[0]![0] as { system: string; max_tokens: number; output_config?: unknown };
+    expect(body.output_config).toEqual({ effort: "high" });
+    const [started] = inserts(rec);
+    expect(started!.request).toMatchObject({
+      model: "claude-opus-5-5", system: `You fill copy slots.\n\n${toolInstruction("write_copy")}`,
+      max_tokens: 800 + AI_MODEL_PROFILES["claude-opus-5-5"]!.thinkingHeadroom, tool_choice: "auto", effort: "high",
+    });
+    expect(started!.request).toMatchObject({ system: body.system, max_tokens: body.max_tokens });
+  });
+
+  it("a provider refusal fails the row as refused and keeps the category", async () => {
+    const rec = world();
+    const { client, create } = claude();
+    create.mockResolvedValueOnce({ id: "msg_r", stop_reason: "refusal", stop_details: { type: "refusal", category: "general_harms", explanation: "x" }, content: [], usage: { input_tokens: 40, output_tokens: 0 } } as never);
+    expect(await run(rec, client)).toEqual({ kind: "failed", generationId: "gen-new", errorCode: "refused", replayed: false });
+    const update = rec.forTable("ad_generations").find((q) => q.write?.method === "update")!;
+    expect(update.write!.payload).toMatchObject({ status: "failed", error_code: "refused", output: { stop_reason: "refusal", category: "general_harms" }, cost_units: 40 });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("a model with no profile is refused before any row or call", async () => {
+    const rec = world();
+    const { client, create } = claude();
+    await expect(runWith(rec, client, { model: "claude-unknown-9" })).rejects.toThrow(/no profile/);
+    expect(inserts(rec)).toEqual([]);
+    expect(create).not.toHaveBeenCalled();
   });
 });
 

@@ -38,7 +38,7 @@ export const isPartOneAnswerError = (v: object): v is PartOneAnswerError => "cod
 const NOT_FOUND: PartOneAnswerError = { code: "application_not_found", message: "That application is not in this organization." };
 
 /** The intake row's own columns for these answers. `endorsements` is a text[]; the rest are scalars. */
-const COLUMNS = "dot_program_30d, dot_tested_6m, dot_random_12m, prior_positive_2y, medical_card_pending, endorsements, donor_gender";
+const COLUMNS = "dot_program_30d, dot_tested_6m, dot_random_12m, prior_positive_2y, medical_card_pending, cdl_photo_pending, endorsements, donor_gender";
 
 interface IntakeAnswers {
   prior_positive_2y: boolean | null;
@@ -46,6 +46,7 @@ interface IntakeAnswers {
   dot_tested_6m: boolean | null;
   dot_random_12m: boolean | null;
   medical_card_pending: boolean | null;
+  cdl_photo_pending: boolean | null;
   endorsements: string[] | null;
   donor_gender: string | null;
 }
@@ -76,6 +77,7 @@ export async function partOneAnswersView(
     dot_tested_6m: row.dot_tested_6m,
     dot_random_12m: row.dot_random_12m,
     medical_card_pending: row.medical_card_pending === true,
+    cdl_photo_pending: row.cdl_photo_pending === true,
     endorsements: [...(row.endorsements ?? [])],
     donorGenderGiven: row.donor_gender !== null && row.donor_gender !== "",
   };

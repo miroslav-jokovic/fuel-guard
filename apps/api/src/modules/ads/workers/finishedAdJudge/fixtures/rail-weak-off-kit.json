@@ -29,24 +29,24 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:32:57.638Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:23:25.361Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A white semi-truck and trailer rolling down a highway at sunset is immediately clear at a glance.",
+          "reason": "A white tractor and trailer on an open highway at sunset reads instantly, sharp and uncluttered.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "A pay-per-mile OTR headline sits over a truck on an open road, which is a natural and coherent pairing.",
+          "reason": "A per-mile pay and OTR headline sits over a long-haul rig on an open road, so words and picture tell one story.",
           "score": 5
         },
         "hierarchy_reads": {
-          "reason": "The large bold headline dominates, the outlined button sits cleanly below it, and the magenta panel separates text from image so nothing competes.",
-          "score": 5
+          "reason": "The big white headline reads first and the white button second, with the truck kept clear above; the lower band is a little empty.",
+          "score": 4
         },
         "looks_like_kit": {
-          "reason": "The dominant color is a vivid magenta/hot pink, which is nowhere near the brand's declared colors of dark green (#0B3D2E) and white, making this look like the wrong carrier's kit entirely.",
+          "reason": "The plate, button text and footer are hot magenta, far from the carrier's dark green, with only white matching and no logo shown.",
           "score": 1
         }
       }

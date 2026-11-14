@@ -11,7 +11,7 @@ import {
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { trackJob } from "../../lib/shutdown.js";
-import { conversationRow, rpc } from "./chat.js";
+import { chatInbox, conversationRow, rpc } from "./chat.js";
 import { filesForBell } from "./chatFiles.js";
 import { sendPush, vapidKeysFrom, type PushOutcome, type VapidKeys } from "./webPush.js";
 
@@ -168,11 +168,18 @@ export async function deliverChatPush(
   // its hyphens is 32 hex characters, inside the topic's 32 base64url characters.
   const topic = line.thread_id.replace(/-/g, "");
 
+  // The icon's number (INSTALLED-APP-PLAN IA-U1b): each recipient's OWN inbox total, by the function the
+  // sidebar's badge is — `chatInbox` — so the icon and the sidebar are one definition. Asked now, after the
+  // hold, so it counts this line. A person whose total cannot be read still gets the push, without a number.
+  const unread = new Map(await Promise.all([...new Set(devices.map((d) => d.user_id))].map(async (userId) =>
+    [userId, await chatInbox(admin, orgId, userId, {}).then((i) => i.unread_total, () => null)] as const)));
+
   const result: ChatPushResult = { targets: people.length, devices: devices.length, sent: 0, gone: 0, failed: 0, unused };
   await Promise.all(devices.map(async (device) => {
     const title = chatAlertTitle(sender, chatAlertPlace(conversation, members, device.user_id));
     const message = chatPushMessage({
       origin: device.origin, title, body, path, threadId: line.thread_id, messageId, at: new Date(line.created_at),
+      unread: unread.get(device.user_id),
     });
     const outcome = await sendPush(device, JSON.stringify(message), keys, { ttl: PUSH_TTL_SECONDS, urgency: "high", topic }, fetcher);
     if (outcome.kind === "sent") result.sent += 1;

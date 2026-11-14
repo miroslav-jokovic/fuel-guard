@@ -88,12 +88,12 @@
   "recorded": {
     "source": "model",
     "prompt_version": "artDirector@5",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T22:55:12.488Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:23:55.665Z",
     "output": {
       "slots": {
-        "time_of_day": "pre-dawn, with a deep blue sky fading to amber on the horizon",
-        "weather": "clear and dry, light desert air"
+        "time_of_day": "first light, low sun rising over open plains ahead",
+        "weather": "clear dry morning, thin pink clouds low on the horizon, long shadows"
       },
       "reference_photo": null,
       "focal_subject": "road_ahead",

@@ -66,7 +66,7 @@ const PART_ONE: PartOneFactsView = {
 };
 
 const ANSWERS = {
-  dot_program_30d: true, dot_tested_6m: false, dot_random_12m: null, medical_card_pending: false,
+  dot_program_30d: true, dot_tested_6m: false, dot_random_12m: null, medical_card_pending: false, cdl_photo_pending: false,
   endorsements: ["N", "H"], donorGenderGiven: true,
 };
 const rows = (over: {

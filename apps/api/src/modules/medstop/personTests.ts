@@ -41,12 +41,14 @@ export async function readMedstopTestsForDriver(
   role: UserRole | null,
   /** The applicant's invitations (recruiting's), for the UX5c create attempt. */
   invitationIds: string[] = [],
+  /** Why Part 1 cannot be sent to Med-Stop (recruiting's facts, `medstopApplicantSkip`), or null. */
+  applicantSkip: string | null = null,
 ): Promise<MedstopPersonTests> {
   const outcomesVisible = canReadTestingRecords(role);
   const credential = await getCredential(admin, orgId);
   const connected = credential?.hasKey === true && credential.enabled;
   const applicantCreate = connected ? await readApplicantCreate(admin, orgId, invitationIds) : null;
-  const empty: MedstopPersonTests = { connected, matched: false, applicantMedstopId: null, applicantCreate, orders: [], tests: [], outcomesVisible };
+  const empty: MedstopPersonTests = { connected, matched: false, applicantMedstopId: null, applicantCreate, applicantSkip: connected ? applicantSkip : null, orders: [], tests: [], outcomesVisible };
 
   const { data: people, error: pErr } = await admin
     .from("medstop_employees")
@@ -88,6 +90,7 @@ export async function readMedstopTestsForDriver(
     // roster, the match and our applicant again before anything is sent.
     applicantMedstopId: rows.find((p) => p.roster === "applicant")?.medstop_id ?? null,
     applicantCreate,
+    applicantSkip: connected ? applicantSkip : null,
     orders: ((ordersRes.data ?? []) as OrderRow[])
       .filter((o) => o.test_medstop_id === null && medstopOrderOpen(o.status))
       .map((o) => ({

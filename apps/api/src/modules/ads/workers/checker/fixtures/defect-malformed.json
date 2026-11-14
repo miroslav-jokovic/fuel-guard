@@ -30,39 +30,39 @@
   },
   "expect": "refused",
   "expect_findings": [
-    "equipment_matches_reference",
     "no_malformed_people_or_vehicles",
+    "people_policy_met",
     "safe_zone_clear"
   ],
   "recorded": {
     "source": "model",
     "prompt_version": "checker@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T15:33:07.995Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:23:34.120Z",
     "output": {
       "checks": {
         "no_glyphs": {
-          "reason": "No readable letters, numbers, digits, or text-like shapes are visible anywhere in the generated image.",
+          "reason": "I can't see any letters, numbers, plates or text-like shapes anywhere in the scene. The only mark is a small badge on the grille.",
           "verdict": "pass"
         },
         "no_foreign_logos": {
-          "reason": "No company names, emblems, or branding (including ACME Logistics) appear on the trailer, cab, or anywhere else in the image.",
+          "reason": "There is no company name, emblem or branding on the cab, the trailer or the background, and nothing that looks like ACME Logistics.",
           "verdict": "pass"
         },
         "equipment_matches_reference": {
-          "reason": "Image 2 shows a white long-nose conventional sleeper tractor-trailer. Image 1 shows a flat-front cab-over style truck, which is a different cab style entirely.",
-          "verdict": "fail"
+          "reason": "The truck is a white conventional sleeper with a hood, which is the same type as the reference tractor. Pulling a trailer doesn't change the type.",
+          "verdict": "pass"
         },
         "no_malformed_people_or_vehicles": {
-          "reason": "The truck's body is visibly melted and distorted — the cab and trailer sides show warped, dripping, and merged surfaces, and the wheel/axle arrangement is physically implausible with extra fused wheels.",
+          "reason": "Three front wheels are stacked on top of each other on the cab side. The body and trailer look melted and smeared into the road, and the trailer is bent.",
           "verdict": "fail"
         },
         "people_policy_met": {
-          "reason": "People are not allowed and no person or recognisable body part is visible anywhere in the image, including cab windows.",
-          "verdict": "pass"
+          "reason": "There are dark, unclear shapes behind the windshield and side window that could be a person in the cab. I can't rule that out, so this goes to review.",
+          "verdict": "fail"
         },
         "safe_zone_clear": {
-          "reason": "Image 3 shows the truck's front wheels, bumper, and lower cab body clearly occupying the text band, not plain background.",
+          "reason": "Image 3 shows the truck's front bumper, a headlight, a front wheel and the smeared lower body in the left and upper part of the band.",
           "verdict": "fail"
         }
       }

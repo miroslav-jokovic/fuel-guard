@@ -259,3 +259,32 @@ describe("what the licence's barcode fills in (AW5)", () => {
     expect(a).toMatchObject({ city: "", state: "", postal_code: "" });
   });
 });
+
+/** U8 (0605): "I don't have my CDL with me" stands in for both CDL photographs. */
+describe("a CDL that is not at hand", () => {
+  const STATUS: PartOneStatus = {
+    completedAt: null, contact: false, address: false, licences: false, screening: false, medicalCardPending: false, rights: false,
+  };
+  it("satisfies both CDL photo screens, and no other", () => {
+    for (const side of ["cdl_front", "cdl_back"] as const) {
+      expect(photoDone(side, [], {})).toBe(false);
+      expect(photoDone(side, [], { cdl_photo_pending: true })).toBe(true);
+    }
+    expect(photoDone("medical_card", [], { cdl_photo_pending: true })).toBe(false);
+    expect(photoDone("selfie", [], { cdl_photo_pending: true })).toBe(false);
+  });
+
+  it("resumes past the photo screens once the server holds the answer, and on the front until then", () => {
+    expect(resumeScreen(STATUS, false, [])).toBe("cdl_front");
+    expect(resumeScreen({ ...STATUS, cdlPhotoPending: true }, false, [])).toBe("about");
+  });
+
+  it("⚠ rides the first write, where §40.25(j) is, and is not sent when it was not said", () => {
+    const a = { ...emptyPartOneAnswers(), prior_positive_2y: false, dot_program_30d: false, phone: "7082365732" };
+    Object.assign(a.cdl, { state_code: "IL", licence_number: "D123", cdl_class: "A", expires_on: "2029-01-01" });
+    Object.assign(a, { address_line1: "1 Main St", city: "Joliet", state: "IL", postal_code: "60432", otherHeld: false });
+    expect(firstWrite(a)[0]!.body).not.toHaveProperty("cdl_photo_pending");
+    expect(firstWrite({ ...a, cdl_photo_pending: true })[0]!.body).toMatchObject({ cdl_photo_pending: true, prior_positive_2y: false });
+  });
+});
+

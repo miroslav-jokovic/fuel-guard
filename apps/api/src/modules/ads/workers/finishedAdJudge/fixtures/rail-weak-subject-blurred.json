@@ -29,24 +29,24 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:33:04.511Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:23:30.039Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "The tractor and trailer are so heavily blurred and dark that the subject is essentially unrecognizable as a truck at a glance — only a vague dark mass is visible.",
+          "reason": "The picture is a dark, heavily blurred smear; no truck or trailer can be made out at a glance.",
           "score": 1
         },
         "words_match_picture": {
-          "reason": "The headline touts OTR trucking pay but the indistinct, blurred vehicle photo adds nothing to reinforce the equipment or the open-road promise of an OTR role.",
+          "reason": "A pay-per-mile OTR headline sits over an unrecognisable blur, so the picture adds nothing to the story about the equipment or road.",
           "score": 2
         },
         "hierarchy_reads": {
-          "reason": "The large bold headline and clearly outlined button are easy to read and sit in a calm dark-green zone, giving a clear eye path from headline to button.",
-          "score": 4
+          "reason": "The large white headline is read first, the white Apply Today button second, and nothing in the dim picture competes with them.",
+          "score": 5
         },
         "looks_like_kit": {
-          "reason": "The deep dark-green background (#0B3D2E) and white text and button match the brand colours exactly, though no logo is present to further reinforce identity.",
+          "reason": "The dark green plate and footer with white type and button match the brand colours; no logo was supplied, so none is missing.",
           "score": 4
         }
       }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { partOneFactsForMedstop } from "./medstopApplicantFacts.js";
+import { partOneFactsForMedstop, partOneSkipForMedstop } from "./medstopApplicantFacts.js";
 
 /**
  * Who Med-Stop is told about (UX5c, D-MS1): a finished Part 1, for somebody we may still hire. The
@@ -67,3 +67,42 @@ describe("partOneFactsForMedstop", () => {
     expect((await partOneFactsForMedstop(rec.client as unknown as SupabaseClient, ORG))[0]?.gender).toBeNull();
   });
 });
+
+/** Why one applicant was not sent — the hiring step's line, from the sweep's own facts and rule. */
+describe("partOneSkipForMedstop", () => {
+  const one = (over: object = {}) =>
+    createSupabaseRecorder({
+      tables: {
+        application_invitations: [{ id: "inv-ok", driver_id: "d-ok" }],
+        application_intakes: [intake("inv-ok", over)],
+        application_intake_licences: [{ invitation_id: "inv-ok", state_code: "IL", licence_number: "D1", expires_on: "2029-01-31" }],
+        drivers: [driver("d-ok")],
+        applicant_dispositions: [],
+      },
+    });
+
+  it("says nothing for an applicant the sweep sends", async () => {
+    expect(await partOneSkipForMedstop(one().client as unknown as SupabaseClient, ORG, "d-ok")).toBeNull();
+  });
+
+  it("⚠ says which answer is missing for one it does not", async () => {
+    expect(await partOneSkipForMedstop(one({ phone: null }).client as unknown as SupabaseClient, ORG, "d-ok"))
+      .toBe("Part 1 does not have their US mobile number, so add them in Med-Stop yourself.");
+    expect(await partOneSkipForMedstop(one({ donor_gender: "declined" }).client as unknown as SupabaseClient, ORG, "d-ok"))
+      .toMatch(/chose not to give a gender/);
+  });
+
+  it("reads this driver's invitations only, inside the org", async () => {
+    const rec = one();
+    await partOneSkipForMedstop(rec.client as unknown as SupabaseClient, ORG, "d-ok");
+    const inv = rec.forTable("application_invitations")[0]!;
+    expect(inv.ops.map((o) => `${o.method}:${String(o.args[0])}:${String(o.args[1])}`)).toEqual(expect.arrayContaining(["eq:driver_id:d-ok"]));
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("says nothing when there is no finished Part 1 to send", async () => {
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [] } });
+    expect(await partOneSkipForMedstop(rec.client as unknown as SupabaseClient, ORG, "d-ok")).toBeNull();
+  });
+});
+

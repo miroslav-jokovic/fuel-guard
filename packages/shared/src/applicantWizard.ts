@@ -110,6 +110,7 @@ export const wizardScreenShown = (screen: WizardScreen, answer: (path: FactPath)
 export const ASKED_BY_HAND: Readonly<Record<FactPath, string>> = {
   "intake.licences[].agency": "asked per other licence in the other-licences loop (PartOneOtherLicences) until F4 PR 1b generates the loops",
   "intake.licences[].kind": "asked per other licence in the other-licences loop (PartOneOtherLicences) until F4 PR 1b generates the loops",
+  "intake.cdl_photo_pending": "the CDL photo screens' own \"I don't have my CDL with me\" (PartOnePhoto) — a photo's alternative, not a question",
   "intake.medical_card_pending": "the medical-card photo screen's own \"I don't have one yet\" (PartOnePhoto) — a photo's alternative, not a question",
 };
 

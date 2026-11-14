@@ -65,6 +65,18 @@ test("the back takes itself once its barcode reads, and what it read fills Part 
   const upload = stub.callsTo("PUT", /\/capture\/[^/]+$/).at(-1)!;
   expect(upload.body).toMatchObject({ slot: "cdl_back", content_type: expect.stringMatching(/^image\/(webp|jpeg)$/) });
   await page.getByRole("button", { name: "Continue" }).click();
+
+  // U2 (SCREEN-MAP 1.4): what was read is confirmed on ONE screen, each fact as it will be filed.
+  await expect(page.getByRole("heading", { name: "Is this right?" })).toBeVisible();
+  for (const fact of ["date_of_birth", "address", "licence", "expires_on"]) {
+    await expect(page.locator(`[data-scan-fact="${fact}"]`)).toBeVisible();
+  }
+  await expect(page.locator('[data-scan-fact="date_of_birth"]')).toContainText("06/06/1986");
+  // This driver says the date is wrong: it is asked on its own screen; the rest stands as read.
+  await page.getByRole("button", { name: "Change date of birth" }).click();
+  await expect(page.getByText("You will type this on the next screens.")).toBeVisible();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+
   // The phone is not on a licence, so its screen says nothing about the barcode (F4 PR 1: one question
   // to a screen); the date of birth's screen, next, holds what was read and says so.
   await expect(page.getByText(/were read from your license/)).toHaveCount(0);
@@ -72,6 +84,13 @@ test("the back takes itself once its barcode reads, and what it read fills Part 
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.locator("#p1-date_of_birth")).toHaveValue(/\/1986$/);
   await expect(page.getByText(/were read from your license/)).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  // The home address, the CDL's card and its expiration were confirmed: the next question is the class.
+  await expect(page.getByRole("heading", { name: "Your CDL" })).toBeVisible();
+  await expect(page.locator("#p1-cdl-cdl_class")).toBeVisible();
+  await expect(page.locator("#p1-cdl-licence_number")).toHaveCount(0);
+  expect(stub.state.unstubbed).toEqual([]);
 });
 
 test("a camera the phone refuses sends the driver to the camera app, and the page stops offering the scanner", async ({ page }) => {
