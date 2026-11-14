@@ -8,6 +8,10 @@
   "display": "standalone",
   "background_color": "#18274d",
   "theme_color": "#18274d",
+  "launch_handler": { "client_mode": ["navigate-existing", "auto"] },
+  "shortcuts": [
+    { "name": "Chat", "url": "/chat", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ],
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

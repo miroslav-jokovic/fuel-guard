@@ -21,6 +21,9 @@ function worker(windows: Array<{ url: string; focus: ReturnType<typeof vi.fn>; p
   const listeners: Record<string, Listener> = {};
   const shown: Array<{ title: string; options: Record<string, unknown> }> = [];
   const opened: string[] = [];
+  const cached = new Map<string, string>();
+  const cacheNames = ["silvicom-offline-v0", "silvicom-offline-v1", "somebody-elses"];
+  const net = { down: false };
   const self = {
     location: { origin: ORIGIN },
     registration: {
@@ -35,14 +38,29 @@ function worker(windows: Array<{ url: string; focus: ReturnType<typeof vi.fn>; p
     },
     skipWaiting: vi.fn(),
     addEventListener: (type: string, fn: Listener) => { listeners[type] = fn; },
+    // The one cache (INSTALLED-APP-PLAN D-IA2) and the network, both the test's to control.
+    caches: {
+      open: vi.fn(async (name: string) => ({ addAll: vi.fn(async (reqs: Array<{ url: string }>) => { if (net.down) throw new Error("offline"); for (const r of reqs) cached.set(r.url, `${name}:${r.url}`); }) })),
+      match: vi.fn(async (req: string | { url: string }) => cached.get(typeof req === "string" ? req : new URL(req.url).pathname)),
+      keys: vi.fn(async () => cacheNames),
+      delete: vi.fn(async (n: string) => { cacheNames.splice(cacheNames.indexOf(n), 1); return true; }),
+    },
+    Request: class { url: string; constructor(url: string) { this.url = url; } },
+    fetch: vi.fn(async (req: { url: string }) => { if (net.down) throw new TypeError("Failed to fetch"); return `network:${req.url}`; }),
   };
-  runInNewContext(SW, { self, URL, Date, console });
+  runInNewContext(SW, { self, URL, Date, console, Promise, Response: { error: () => "network-error" } });
   async function fire(type: string, event: Record<string, unknown>) {
     let waited: Promise<unknown> = Promise.resolve();
     listeners[type]!({ ...event, waitUntil: (p: Promise<unknown>) => { waited = p; } });
     await waited;
   }
-  return { fire, shown, opened, self };
+  /** A `fetch` event: what the worker answered with, or `undefined` when it left the request to the browser. */
+  async function fetchOf(request: { url: string; mode: string; method?: string }) {
+    let answer: Promise<unknown> | undefined;
+    listeners.fetch!({ request: { method: "GET", ...request }, respondWith: (p: Promise<unknown>) => { answer = p; } });
+    return answer === undefined ? undefined : await answer;
+  }
+  return { fire, fetchOf, shown, opened, self, net, cacheNames };
 }
 
 const pushOf = (payload: unknown) => ({ data: { json: () => (typeof payload === "string" ? JSON.parse(payload) : payload) } });
@@ -111,5 +129,45 @@ describe("a replaced subscription", () => {
     const key = new Uint8Array([4, 1, 2]).buffer;
     await w.fire("pushsubscriptionchange", { oldSubscription: { options: { applicationServerKey: key } } });
     expect(w.self.registration.pushManager.subscribe).toHaveBeenCalledWith({ userVisibleOnly: true, applicationServerKey: key });
+  });
+});
+
+describe("no connection (INSTALLED-APP-PLAN D-IA2)", () => {
+  const PAGE = { url: `${ORIGIN}/drivers`, mode: "navigate" };
+
+  it("a page load with a network is the network's answer, untouched", async () => {
+    const w = worker();
+    await w.fire("install", {});
+    expect(await w.fetchOf(PAGE)).toBe(`network:${PAGE.url}`);
+  });
+
+  it("a page load with no network shows the no-connection page cached at install", async () => {
+    const w = worker();
+    await w.fire("install", {});
+    w.net.down = true;
+    expect(await w.fetchOf(PAGE)).toBe("silvicom-offline-v1:/offline.html");
+  });
+
+  it("never answers an API call or an asset — offline they fail as they always did", async () => {
+    const w = worker();
+    await w.fire("install", {});
+    w.net.down = true;
+    expect(await w.fetchOf({ url: `${ORIGIN}/api/chat`, mode: "cors" })).toBeUndefined();
+    expect(await w.fetchOf({ url: `${ORIGIN}/assets/index-abc.js`, mode: "no-cors" })).toBeUndefined();
+    expect(await w.fetchOf({ url: `${ORIGIN}/api/chat/lines`, mode: "cors", method: "POST" })).toBeUndefined();
+  });
+
+  it("installs even when the no-connection page cannot be fetched, and then fails as the browser would", async () => {
+    const w = worker();
+    w.net.down = true;
+    await w.fire("install", {});
+    expect(w.self.skipWaiting).toHaveBeenCalled();
+    expect(await w.fetchOf(PAGE)).toBe("network-error");
+  });
+
+  it("on activation drops its own older caches and nobody else's", async () => {
+    const w = worker();
+    await w.fire("activate", {});
+    expect(w.cacheNames).toEqual(["silvicom-offline-v1", "somebody-elses"]);
   });
 });
