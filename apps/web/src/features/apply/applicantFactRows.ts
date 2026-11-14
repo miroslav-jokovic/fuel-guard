@@ -195,6 +195,18 @@ function documentOf(payload: Record<string, unknown>, partOne: PartOneFactsView 
   return { ...payload, ...(application as Record<string, unknown>), additional_licences: others };
 }
 
+/**
+ * The control a Part 1 correction offers: Part 1's own fact's, where the two differ. The current home is
+ * Part 1's (`intake.state`, a US state; `intake.postal_code`, a five-digit ZIP — 0376's CHECKs), while an
+ * earlier home is the draft's and may be anywhere, so the application fact is the wider of the two.
+ * Only the address: a licence's columns are corrected in the application's own shape (`partOneLicencesWith`).
+ */
+function partOneInput(fact: ApplicantFact): ApplicantFact["input"] {
+  if (!fact.path.startsWith(`${APP}addresses[]`)) return fact.input;
+  const twin = APPLICANT_FACTS.find((f) => "through" in f.packet && f.packet.through === fact.path && f.path.startsWith("intake."));
+  return twin?.input ?? fact.input;
+}
+
 /** The door the catalogue names, resolved for this application and this row. */
 function doorOf(fact: ApplicantFact, partOne: boolean, row: number | null, current: number): FactDoor | null {
   const office = fact.office;
@@ -234,7 +246,7 @@ export function applicantFactRows({ payload, partOne, edits, questionnaire, part
     const { label, choices, ...more } = extra;
     const options = choices ?? CHOICES()[column];
     out.push({
-      key, path, value: value ?? null, door, input: fact.input,
+      key, path, value: value ?? null, door, input: door === "part_one" ? partOneInput(fact) : fact.input,
       label: label ?? describeField(path),
       corrected: corrected(key),
       section: PART_ONE_SECTION[key]

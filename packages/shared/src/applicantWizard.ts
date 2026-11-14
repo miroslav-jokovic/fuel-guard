@@ -6,6 +6,7 @@ import type { ApplicationSection } from "./applicationSections.js";
 import {
   WIZARD_SCREEN_IDS,
   type FactAsk,
+  type RowKind,
   type WizardCondition,
   type WizardScreenId,
 } from "./applicantWizardScreens.js";
@@ -15,7 +16,7 @@ import {
  * A task not here is still its hand-written section component. `questions` has no catalogue screen: every
  * one of its screens is a question of the served definition (`askedByDefinition`).
  */
-export const GENERATED_TASKS = ["identity", "safety", "questions"] as const satisfies readonly ApplicationSection[];
+export const GENERATED_TASKS = ["identity", "addresses", "safety", "questions"] as const satisfies readonly ApplicationSection[];
 export type GeneratedTask = (typeof GENERATED_TASKS)[number];
 export const isGeneratedTask = (section: string): section is GeneratedTask =>
   (GENERATED_TASKS as readonly string[]).includes(section);
@@ -54,6 +55,8 @@ export interface WizardScreen {
   readonly list?: string;
   /** The list this screen's yes/no opens or closes (`FactAsk.gate`). */
   readonly gate?: string;
+  /** The rows of its list it is asked for (`FactAsk.rows`). Every field of a screen asks the same rows. */
+  readonly rows?: RowKind;
 }
 
 const pageOf = (id: WizardScreenId): PartOneScreen | GeneratedTask =>
@@ -68,6 +71,7 @@ export const WIZARD_SCREENS: readonly WizardScreen[] = WIZARD_SCREEN_IDS.map((id
     (fact.ask ?? []).filter((a) => a.screen === id).map((ask) => ({ fact, ask })));
   const when = fields[0]?.ask.when;
   const gate = fields[0]?.ask.gate;
+  const rows = fields[0]?.ask.rows;
   const lists = new Set(fields.map((f) => rowListOf(f.fact.path)));
   const list = lists.size === 1 ? [...lists][0] : undefined;
   const page = pageOf(id);
@@ -80,6 +84,7 @@ export const WIZARD_SCREENS: readonly WizardScreen[] = WIZARD_SCREEN_IDS.map((id
     ...(when ? { when } : {}),
     ...(list ? { list } : {}),
     ...(gate ? { gate } : {}),
+    ...(rows ? { rows } : {}),
   } satisfies WizardScreen;
 });
 

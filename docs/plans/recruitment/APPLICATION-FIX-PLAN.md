@@ -776,3 +776,21 @@ A gate fails on a literal string in an `apply/` template.
   - **What did not:** the Spanish words, their type (`Localized`, which fails `vue-tsc` on a missing key), the U7 gate on literal strings and the rule that shared code returns a message key. New screens still get their Spanish twin, because the type requires it. Offering Spanish again is adding `"es"` to that list.
   - **Tests:** the language and layout tests pin both states (offered and not). The two browser specs that walked a Spanish page are gone; one now proves a phone that chose Spanish opens in English with no switch. The Spanish wording itself stays covered by the unit tests that set the language directly.
   - **For the remaining F4 work:** the timed walk and the owner's phone walk are English only.
+- 2026-11-14: **F4 PR 1b-3: "Where you have lived", one question to a screen** (`claude/application-wizard-addresses`, no migration; SCREEN-MAP 2.5–2.6a).
+  - **The walk:**
+    1. The home Part 1 holds is shown, with "Something wrong? Tell us", and asked one thing: the month the driver moved in (D-AM5).
+    2. Each earlier home is its address typed together (D-AM3), then its two months. The month they moved out is already filled in: it is the month the home after it began.
+    3. Continue asks for the home before until the three years are covered, then closes the task. A meter counts the years as the months are typed and names the months still missing.
+  - **The engine, two additions:**
+    - **A screen may be asked of one kind of row** (`FactAsk.rows`, `WizardBinding.rowKind`). The addresses hold the home lived in now and the earlier ones; the first is Part 1's and only shown.
+    - **A list with no gate ends on the task's own check.** While `validateSection` still has a complaint about the list itself (`["addresses"]`, a month nobody accounted for), Continue adds the next row. The walk counts no months of its own. A list with a gate still ends on "Any other?".
+  - **Found in the build, fixed:**
+    - **A blank row passed Continue.** The task's check drops a row nothing was typed in, so the screen in front of the driver was never judged. The row on show is now checked by its own schema too (`rowIssues`).
+    - **A second address with no end month printed the current home twice.** Composition lays Part 1's street over every such row. New filing rule `address_moved_out` (v2): one home is lived in now, and any other is asked when the driver moved out.
+    - **A draft with no current home filed without it.** The old address panel let every address take an end month. `applyPartOne` now puts the current home on such a draft, with its month blank and asked.
+    - **A message stayed under a box after it was filled** (seen in the 390 px screenshot). It now goes as its answer is given (U4); only Continue raises a new one.
+  - **The catalogue says what the contract says:** an earlier home's state is any jurisdiction and its postal code is free text of 3 to 20 characters, as the driver's form always allowed. The office card gives the CURRENT home Part 1's own controls (a US state, a five-digit ZIP), because that row is Part 1's.
+  - **Still US-only, recorded and not worked around:** the home lived in now. F1's unified rules (a non-US ZIP and state, the CLP class, any phone) are Part 1's and need 0376's CHECKs widened by a migration first. They are not built.
+  - **Not built here:** "Question n of m" counts the screens known so far, so it grows as homes are added. U1's three-stage bar replaces it.
+  - **Proof:** shared (the rule, the meter's arithmetic, the grouped screens); web walk (+7), drawing (+3), Part 1 composition (+2), the card's controls; 13 of 13 mutants killed; new `addressWalk.spec.ts` in a real browser, and the tap-target sweep passes at 390 and 320 px. Screens looked at in 390 px screenshots.
+  - **Next:** 1b-4, "Where you have worked".

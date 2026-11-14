@@ -117,6 +117,14 @@ describe("applicationV2FilingIssues — the three years of addresses, (b)(3)", (
     ]);
   });
 
+  it("lets one home be the current one: a second address with no end month is asked when they moved out", () => {
+    expect(run([addr("2024-05", null), addr("2020-01", null)])).toMatchObject([
+      { path: "addresses.1.to", message: "Give the month you moved out of this address", issueKey: "address_moved_out" },
+    ]);
+    // One current home, wherever it sits on the list, is the ordinary case.
+    expect(run([addr("2020-01", "2024-05"), addr("2024-05", null)])).toEqual([]);
+  });
+
   it("asks for today's address when the newest one has ended", () => {
     expect(run([addr("2020-01", "2026-06")])).toMatchObject([
       { path: "addresses", message: "Tell us where you lived from 07/2026 to 09/2026" },

@@ -278,6 +278,25 @@ export const APPLY_COPY_EN = {
     drawerIntro: "One address at a time. You can change it later.",
     drawerSave: "Save this address",
     drawerCancel: "Cancel",
+    // ── F4 PR 1b-3: one question to a screen (SCREEN-MAP 2.5–2.6a) ─────────────────────────────────
+    walk: {
+      movedIn: "When did you move in?",
+      /** Above an earlier home's address boxes. */
+      homeIntro: "Where did you live before that?",
+      from: "When did you move in?",
+      to: "When did you move out?",
+      earlierRow: (n: number): string => `Earlier address ${n}`,
+      remove: "Remove this address",
+      /** The meter: how much of the three years has an address (`residenceMonthsCovered`). */
+      covered: (years: number, months: number): string => {
+        const parts = [
+          years > 0 ? `${years} ${years === 1 ? "year" : "years"}` : "",
+          months > 0 || years === 0 ? `${months} ${months === 1 ? "month" : "months"}` : "",
+        ].filter(Boolean);
+        return `${parts.join(" ")} of ${EMPLOYMENT_WINDOW_YEARS} years covered`;
+      },
+      coveredAll: `All ${EMPLOYMENT_WINDOW_YEARS} years are covered.`,
+    },
   },
 
   /**

@@ -25,7 +25,7 @@ async function walking(section: ApplicationSection = "safety", partOne: PartOneF
   );
   inTask.value = true;
   await nextTick();
-  return { draft, walk, w: mount(TaskWalk, { props: { walk, token: "tok", modelValue: draft, partOne } }) };
+  return { draft, walk, w: mount(TaskWalk, { props: { walk, token: "tok", modelValue: draft, partOne, asOf: "2026-11-13" } }) };
 }
 
 /** Continue until the step with this key is on show. */
@@ -148,5 +148,47 @@ describe("About you, one screen at a time", () => {
     await walkTo(walk, "identity.part_one");
     expect(w.find("[data-part-one-facts]").text()).toContain("(312) 555-0142");
     expect(walk.atEnd.value).toBe(true);
+  });
+});
+
+describe("where you have lived, drawn", () => {
+  const PART_ONE = { intake: {}, licences: [], asOf: "2026-11-13" } as unknown as PartOneFactsView;
+  async function atHome(movedIn: string) {
+    const made = await walking("addresses", PART_ONE);
+    made.draft.addresses = [{ ...made.draft.addresses[0]!, line1: "1 Road", city: "Joliet", state: "IL", postal_code: "60432", from: movedIn }];
+    await nextTick();
+    return made;
+  }
+
+  it("shows the home Part 1 holds above the one question asked about it, with no removal and a way to say it is wrong", async () => {
+    const { w } = await atHome("");
+    const home = w.find("[data-current-home]");
+    expect(home.text()).toContain("1 Road");
+    expect(home.text()).toContain("Joliet, IL 60432");
+    expect(w.text()).toContain(APPLY_COPY.addresses.walk.movedIn);
+    expect(w.text()).toContain(APPLY_COPY.partOneFacts.tellUs);
+    expect(w.text()).not.toContain(APPLY_COPY.addresses.walk.remove);
+  });
+
+  it("meters the three years as the months are given, and names what is missing", async () => {
+    const { w, walk } = await atHome("2025-02");
+    const meter = () => w.find("[data-address-coverage]").text();
+    // 2023-11 → 2025-01 is 15 months missing of 36.
+    expect(meter()).toContain(APPLY_COPY.addresses.walk.covered(1, 9));
+    expect(meter()).toContain("11/2023");
+    walk.binding.write("application.addresses[].from", "2020-01", 0);
+    await nextTick();
+    expect(meter()).toBe(APPLY_COPY.addresses.walk.coveredAll);
+  });
+
+  it("numbers an earlier home from one, asks where it was, and offers its removal", async () => {
+    const { w, walk } = await atHome("2025-02");
+    walk.next();
+    await nextTick();
+    expect(w.text()).toContain(APPLY_COPY.addresses.walk.earlierRow(1));
+    expect(w.text()).toContain(APPLY_COPY.addresses.walk.homeIntro);
+    expect(w.find("[data-current-home]").exists()).toBe(false);
+    const remove = w.findAllComponents(AppButton).find((b) => b.text() === APPLY_COPY.addresses.walk.remove);
+    expect(remove).toBeDefined();
   });
 });

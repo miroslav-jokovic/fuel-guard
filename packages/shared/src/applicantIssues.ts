@@ -38,6 +38,7 @@ export const APPLICANT_ISSUE_TEXT = {
   job_drug_testing: () => "Say whether this job was subject to DOT drug and alcohol testing",
   // Q-AM8 (a): an address's street and ZIP — asked, and completed by the office when left (`OFFICE_COMPLETES`).
   address_street: () => "Give the street and ZIP of this address",
+  address_moved_out: () => "Give the month you moved out of this address",
   // ── the years covered (`applicationV2FilingIssues`) ──
   address_gap_month: (p: { month: string }) => `Tell us where you lived in ${p.month}`,
   address_gap: (p: { from: string; to: string }) => `Tell us where you lived from ${p.from} to ${p.to}`,

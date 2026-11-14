@@ -230,6 +230,9 @@ describe("on a v2 link, each answer is corrected where filing takes it from", ()
     expect(row(list, "addresses.1.line1")).toMatchObject({ value: "1 Main St", door: "part_one" });
     expect(row(list, "addresses.0.line1")).toMatchObject({ value: "9 Old Rd", door: "draft" });
     expect(row(list, "addresses.1.from")).toMatchObject({ value: "2023-01", door: "draft" });
+    // The current home is Part 1's, a US address (0376); an earlier home may be anywhere, as the driver's form allows.
+    expect([row(list, "addresses.1.state")!.input, row(list, "addresses.1.postal_code")!.input]).toEqual(["us_state", "zip"]);
+    expect([row(list, "addresses.0.state")!.input, row(list, "addresses.0.postal_code")!.input]).toEqual(["jurisdiction", "text"]);
   });
 
   it("shows every licence Part 1 holds — the expired one too — and its type, which Part 1 asks since P3", () => {

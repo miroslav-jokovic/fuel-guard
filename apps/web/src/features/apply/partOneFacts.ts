@@ -1,6 +1,6 @@
 import { composeFiledApplication, jurisdictionName, type PartOneFactsView, type PartOneLicence } from "@silvicom/shared";
 import { formatPhone } from "@/lib/format";
-import type { ApplicationDraft, DraftAddress, DraftLicence } from "./draft";
+import { emptyAddress, type ApplicationDraft, type DraftAddress, type DraftLicence } from "./draft";
 import { showDate } from "./reviewSummary";
 import { APPLY_COPY } from "./strings";
 
@@ -22,10 +22,17 @@ import { APPLY_COPY } from "./strings";
  * the one thing this adds; everything it lays over is composition's decision.
  */
 export function applyPartOne(draft: ApplicationDraft, facts: PartOneFactsView): void {
+  /**
+   * The home lived in NOW is always on the list (F4 PR 1b-3). Part 1 recorded where the driver lives,
+   * and composition lays that street over the row with no end month — so a draft whose every address was
+   * given one (the old address panel allowed it) had nowhere for it to go, and filed without the current
+   * home. The row added holds no month: when they moved in is theirs to say, and the walk asks it.
+   */
+  const addresses = draft.addresses.some(isCurrentAddress) ? draft.addresses : [emptyAddress(), ...draft.addresses];
   const { application } = composeFiledApplication(
     {
       phone: draft.phone,
-      addresses: draft.addresses,
+      addresses,
       cdl_number: draft.cdl_number,
       cdl_state: draft.cdl_state,
       cdl_class: draft.cdl_class,

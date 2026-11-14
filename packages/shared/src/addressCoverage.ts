@@ -76,3 +76,24 @@ export function addressCoverage(addresses: readonly ResidencePeriod[], asOf: str
 
   return { start: monthOf(start), end: monthOf(end), gaps, covered: gaps.length === 0 };
 }
+
+/**
+ * How much of the three years the addresses cover, in whole months out of 36 — the meter beside the
+ * address walk ("2 years 4 months of 3 covered", SCREEN-MAP 2.6a).
+ *
+ * ⚠ The window is 37 months long (the month three years back through this one, both counted), so the
+ * meter counts what is still MISSING against 36 rather than what is covered against 37: one uncovered
+ * month reads "2 years 11 months", never "3 years" beside a refusal. Complete is `coverage.covered`.
+ */
+export const RESIDENCE_WINDOW_MONTHS = RESIDENCE_WINDOW_YEARS * 12;
+
+export function residenceMonthsCovered(coverage: AddressCoverage): number {
+  const missing = coverage.gaps.reduce((n, g) => n + (monthIndex(g.to) - monthIndex(g.from) + 1), 0);
+  return coverage.covered ? RESIDENCE_WINDOW_MONTHS : Math.max(0, Math.min(RESIDENCE_WINDOW_MONTHS - 1, RESIDENCE_WINDOW_MONTHS - missing));
+}
+
+/** The month before the earliest one any address starts in — where the next earlier home's "until" begins. */
+export function earliestResidenceMonth(addresses: readonly ResidencePeriod[]): string | null {
+  const starts = addresses.map((a) => monthIndex(a.from)).filter(Number.isFinite);
+  return starts.length === 0 ? null : monthOf(Math.min(...starts));
+}

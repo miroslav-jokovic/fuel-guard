@@ -174,6 +174,9 @@ const intake = (
 /** Asked only once the driver said they were in a DOT testing program in the past 30 days (1.12, 1.13). */
 const IN_PROGRAM = { fact: "intake.dot_program_30d", is: true } as const;
 
+/** An earlier home's address, typed together on one screen (SCREEN-MAP 2.6). */
+const EARLIER_HOME = { screen: "addresses.home", rows: "earlier" } as const;
+
 /** The catalogue. Order is the order the driver meets the facts. */
 export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   // ── Part 1 (`applicantIntakeSchema`, `applicantIntakeLicenceSchema`) ──
@@ -228,13 +231,23 @@ export const APPLICANT_FACTS: readonly ApplicantFact[] = [
   app("phone", "phone", "391.21(b)(2)", ["p01.phone"], "part_one"),
 
   // ── (b)(3) residence ──
-  app("addresses[].line1", "text", "391.21(b)(3)", ["p01.address#0", ...both("address")], "part_one"),
-  app("addresses[].line2", "text", "391.21(b)(3)", ["p01.address#0", ...both("address")], "part_one"),
-  app("addresses[].city", "text", "391.21(b)(3)", ["p01.address#1", ...both("city")], "part_one"),
-  app("addresses[].state", "us_state", "391.21(b)(3)", ["p01.address#2", ...both("state")], "part_one"),
-  app("addresses[].postal_code", "zip", "391.21(b)(3)", ["p01.address#3", ...both("zip")], "part_one"),
-  app("addresses[].from", "month", "391.21(b)(3)", ADDENDUM("addresses#from")),
-  app("addresses[].to", "month", "391.21(b)(3)", ADDENDUM("addresses#to")),
+  // `ask` (F4 PR 1b-3, SCREEN-MAP 2.5–2.6a): the home lived in NOW is Part 1's (`intake.address_*`, asked
+  // there and laid over this list's current row), so here it is asked only the month the driver moved in;
+  // each EARLIER home is one address typed together (D-AM3), then its months.
+  // ⚠ `jurisdiction` and `text`, not `us_state` and `zip`: the contract takes any state or province and a
+  // postal code of 3 to 20 characters for a home (`applicationAddressSchema`), and the driver's form always
+  // offered them. Only the CURRENT home is US-only, because it is Part 1's (`intake.state`, 0376's CHECK).
+  app("addresses[].line1", "text", "391.21(b)(3)", ["p01.address#0", ...both("address")], "part_one", EARLIER_HOME),
+  app("addresses[].line2", "text", "391.21(b)(3)", ["p01.address#0", ...both("address")], "part_one", EARLIER_HOME),
+  app("addresses[].city", "text", "391.21(b)(3)", ["p01.address#1", ...both("city")], "part_one", EARLIER_HOME),
+  app("addresses[].state", "jurisdiction", "391.21(b)(3)", ["p01.address#2", ...both("state")], "part_one", EARLIER_HOME),
+  app("addresses[].postal_code", "text", "391.21(b)(3)", ["p01.address#3", ...both("zip")], "part_one", EARLIER_HOME),
+  app("addresses[].from", "month", "391.21(b)(3)", ADDENDUM("addresses#from"), "draft", [
+    { screen: "addresses.moved_in", dates: "month", rows: "current" },
+    { screen: "addresses.dates", dates: "month", rows: "earlier" },
+  ]),
+  app("addresses[].to", "month", "391.21(b)(3)", ADDENDUM("addresses#to"), "draft",
+    { screen: "addresses.dates", dates: "month", rows: "earlier" }),
 
   // ── (b)(5) licences ──
   app("cdl_number", "text", "391.21(b)(5)", ["p01.cdl", "p02.licences#1", ...both("cdl")], "identity"),
