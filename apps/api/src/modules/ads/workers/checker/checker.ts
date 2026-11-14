@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import sharp from "sharp";
 import { z } from "zod";
-import { AD_VISUAL_CHECKS, AI_MODELS, type AdBrandKit, type AdPresetRecipe, type AdVisualCheck } from "@silvicom/shared";
+import { AD_VISUAL_CHECKS, AD_AGENT_MODELS, type AdBrandKit, type AdPresetRecipe, type AdVisualCheck } from "@silvicom/shared";
 import { MAX_IMAGE_BYTES, type ForcedTool, type ImageFormat, type UserPart } from "../../../../lib/anthropic.js";
 import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOutcome } from "../../generations/claudeGeneration.js";
 
@@ -111,7 +111,7 @@ export function visualUserParts(s: PreparedSubject): UserPart[] {
 }
 
 export function buildVisualRequest(s: PreparedSubject) {
-  return { model: AI_MODELS.deep, system: PROMPT, user: visualUserParts(s), tool: visualTool(applicableChecks(s.scene)), maxTokens: MAX_TOKENS };
+  return { ...AD_AGENT_MODELS.checker, system: PROMPT, user: visualUserParts(s), tool: visualTool(applicableChecks(s.scene)), maxTokens: MAX_TOKENS };
 }
 
 /** Every checklist item, in order: the model's answer where it was asked, ours where it was not. Pure. */

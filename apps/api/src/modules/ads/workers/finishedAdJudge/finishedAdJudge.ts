@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 import {
-  AI_MODELS, FINISHED_AD_CRITERIA, finishedAdScoresSchema,
+  AD_AGENT_MODELS, FINISHED_AD_CRITERIA, finishedAdScoresSchema,
   type AdBrandKit, type AdFormat, type FinishedAdCheck, type FinishedAdScores,
 } from "@silvicom/shared";
 import type { ForcedTool, UserPart } from "../../../../lib/anthropic.js";
@@ -62,7 +62,7 @@ export function finishedAdUserParts(s: FinishedAdSubject): UserPart[] {
 
 export async function buildFinishedAdRequest(s: FinishedAdSubject) {
   const fitted = { ...s, image: await fitForVision(s.image), logo: s.logo ? await fitForVision(s.logo) : null };
-  return { model: AI_MODELS.deep, system: PROMPT, user: finishedAdUserParts(fitted), tool: finishedAdTool, maxTokens: MAX_TOKENS };
+  return { ...AD_AGENT_MODELS.finished_ad_judge, system: PROMPT, user: finishedAdUserParts(fitted), tool: finishedAdTool, maxTokens: MAX_TOKENS };
 }
 
 export interface JudgeFinishedAdsInput {

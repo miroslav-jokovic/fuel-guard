@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
-import { AI_MODELS, checkClaims, overlaySlotList, type AdBrief, type AdClaim, type AdPresetRecipe, type ClaimFinding } from "@silvicom/shared";
+import { AD_AGENT_MODELS, checkClaims, overlaySlotList, type AdBrief, type AdClaim, type AdPresetRecipe, type ClaimFinding } from "@silvicom/shared";
 import type { ForcedTool } from "../../../../lib/anthropic.js";
 import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOutcome } from "../../generations/claudeGeneration.js";
 
@@ -125,7 +125,7 @@ export function copyUserMessage(brief: Pick<AdBrief, "subject" | "claims" | "sub
 }
 
 export function buildCopyRequest(brief: Pick<AdBrief, "subject" | "claims" | "subject_matter">, recipe: AdPresetRecipe, ctx: CopyContext = NO_CONTEXT) {
-  return { model: AI_MODELS.deep, system: PROMPT, user: copyUserMessage(brief, recipe, ctx), tool: copyTool(recipe, kOf(ctx)), maxTokens: MAX_TOKENS };
+  return { ...AD_AGENT_MODELS.copywriter, system: PROMPT, user: copyUserMessage(brief, recipe, ctx), tool: copyTool(recipe, kOf(ctx)), maxTokens: MAX_TOKENS };
 }
 
 type Located = { language: (typeof COPY_LANGUAGES)[number]; slot: string };
@@ -177,7 +177,7 @@ export function buildFitRequest(brief: Pick<AdBrief, "subject" | "claims" | "sub
     ? { candidate: offered_as, language: f.language, slot: f.slot, problem: `${f.length} characters; the most allowed is ${toldLimit(f.max_chars)} — cut words, keep the facts` }
     : { candidate: offered_as, language: f.language, slot: f.slot, problem: `"${f.text}" is not a unit a US driver uses; say it in miles or leave the distance out` }));
   const user = JSON.stringify({ ...JSON.parse(copyUserMessage(brief, recipe, ctx)), previous_answer: previous, must_fix, instruction: "Return all the candidates again, in the same order, with ONLY the slots in must_fix changed (candidate is the 0-based index), each fixed as its problem says. Every other slot of every candidate is returned exactly as it was." }, null, 2);
-  return { model: AI_MODELS.deep, system: PROMPT, user, tool: copyTool(recipe, kOf(ctx)), maxTokens: MAX_TOKENS };
+  return { ...AD_AGENT_MODELS.copywriter, system: PROMPT, user, tool: copyTool(recipe, kOf(ctx)), maxTokens: MAX_TOKENS };
 }
 
 /**

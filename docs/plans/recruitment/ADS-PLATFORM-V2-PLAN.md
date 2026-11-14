@@ -72,9 +72,12 @@ Days are estimates, not measurements. **Order: V1 → V2 → V3 → V4 → V6 �
 
 ### V1 · The AI rail takes any current model (~3 days + recordings)
 
-- `callForcedTool` becomes a structured-output call (`output_config.format` from the same Zod schema, validated as
-  today). `stop_reason: "refusal"` becomes a named outcome on the ledger row, with the server-side fallback on.
-- One table, `AGENT_MODELS`, names model and effort per agent; a carrier does not see it.
+- `callForcedTool` asks by the model's profile (`AI_MODEL_PROFILES`): a forced tool where the model accepts one,
+  `tool_choice: auto` with one fixed sentence naming the tool where it does not. **Corrected 2026-11-14 (V1a):**
+  not `output_config.format` — strict outputs refuse the `minLength` / `maximum` keywords the workers' schemas
+  use. `stop_reason: "refusal"` is a named outcome that fails the ledger row; **no server-side fallback**, since a
+  row names one model and a second model's answer would be recorded as the first's.
+- One table, `AD_AGENT_MODELS`, names model and effort per agent; a carrier does not see it. **V1a built.**
 - **A model change ships only when that agent's recorded baseline is met or beaten on the new model**
   (`pnpm ads:eval`, twice). Each recording runs on the owner's key and is asked for first, as before.
 - Starting assignment, to be confirmed by those evals and not before: Strategist and Researcher on
