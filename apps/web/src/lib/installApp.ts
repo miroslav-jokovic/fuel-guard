@@ -25,7 +25,8 @@ const DISMISSED_KEY = "fg.install.dismissed";
 
 /** Chromium's event; not in lib.dom. */
 interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<unknown>;
+  // A property, not a method signature: `lint:ui-adoption` reads a bare `prompt(` as the browser's dialog.
+  prompt: () => Promise<unknown>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
