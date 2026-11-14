@@ -88,12 +88,12 @@
   "recorded": {
     "source": "model",
     "prompt_version": "artDirector@5",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T22:54:57.965Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:23:29.923Z",
     "output": {
       "slots": {
-        "time_of_day": "pre-dawn, dock lights and amber overhead lamps casting warm pools on wet concrete",
-        "setting": "urban Chicago grocery distribution dock, early winter, bare concrete pillars and dock levelers"
+        "time_of_day": "first light, low sun under a pale sky, dock lights still glowing",
+        "setting": "brick grocery store receiving dock on a city side street, wide empty wet pavement apron"
       },
       "reference_photo": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "focal_subject": "trailer",

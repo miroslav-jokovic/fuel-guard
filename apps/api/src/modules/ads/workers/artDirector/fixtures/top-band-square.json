@@ -89,13 +89,13 @@
   "recorded": {
     "source": "model",
     "prompt_version": "artDirector@5",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T22:55:06.753Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:23:44.622Z",
     "output": {
       "slots": {
-        "time_of_day": "late afternoon golden hour",
-        "light": "low sun from the side, long shadows across the asphalt, warm amber sky",
-        "viewpoint": "low angle from road shoulder, slightly ahead and to the driver's side, looking up at the cab"
+        "time_of_day": "first light on a high sagebrush plateau in early autumn, mountains on the far horizon",
+        "light": "low golden sun raking across the road, long shadows, clear pale sky",
+        "viewpoint": "low on the gravel shoulder ahead of the cab, looking slightly up"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "focal_subject": "tractor",

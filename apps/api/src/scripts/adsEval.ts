@@ -49,6 +49,8 @@ async function run<F, T>(name: string, w: EvalWorker<F, T>, record: boolean, jso
   if (only && asked.length === 0) throw new Error(`--only ${only}: no model fixture's name starts with it`);
   let agreed = 0;
   let model = "";
+  // The most output tokens any one call was billed (thinking included): what `thinkingHeadroom` has to cover.
+  let peakOutput = 0;
   for (const { file, fixture } of asked) {
     const req = await w.request(fixture);
     model = req.model;
@@ -62,7 +64,13 @@ async function run<F, T>(name: string, w: EvalWorker<F, T>, record: boolean, jso
       output = out.kind === "ok" ? out.value : out.kind === "off_schema" ? out.raw : null;
       fitted = true;
     }
-    const { verdict, findings } = out.kind === "no_tool_use" ? { verdict: "off_schema", findings: [] } : w.judge(fixture, output);
+    // No answer in the tool's shape — the model answered in words, ran out of tokens, or the provider declined — is
+    // counted against the model as `off_schema`, and the reason is printed: under `tool_choice: auto` (V1) it is the
+    // one failure a forced tool could not have, and `max_tokens` here means the profile's thinking headroom is too small.
+    const unanswered = out.kind === "no_tool_use" ? `no tool call (${out.stopReason})` : out.kind === "refused" ? `provider refusal (${out.category})` : null;
+    if (unanswered && !json) console.log(`  ↳ ${unanswered}, ${out.usage.output} output tokens`);
+    peakOutput = Math.max(peakOutput, out.usage.output);
+    const { verdict, findings } = unanswered ? { verdict: "off_schema", findings: [] } : w.judge(fixture, output);
     const right = w.agrees ? w.agrees(fixture, verdict, findings) : verdict === "ready";
     if (right) agreed += 1;
     if (!json) console.log(`${right ? "✓" : "✗"} ${w.name(fixture)}  ${verdict}${findings.length ? ` (${findings.join(", ")})` : ""}${fitted ? "  [after the fit pass]" : ""}`);
@@ -87,6 +95,7 @@ async function run<F, T>(name: string, w: EvalWorker<F, T>, record: boolean, jso
     writeFileSync(baselineFile, `${JSON.stringify(body, null, 2)}\n`);
   }
   console.log(JSON.stringify(summary));
+  if (!json) console.log(`peak output tokens in one call: ${peakOutput}`);
   return summary;
 }
 

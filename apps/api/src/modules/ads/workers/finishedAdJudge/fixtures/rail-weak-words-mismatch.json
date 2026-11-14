@@ -29,25 +29,25 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:33:11.818Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:23:35.376Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "The open road stretching to the horizon under a vivid sunset is instantly recognisable at a glance — no clutter, no ambiguity.",
+          "reason": "A straight open road through golden fields toward a setting sun reads instantly and cleanly at phone size.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The headline promises a brand-new truck but the picture shows an empty road with no truck visible, creating a disconnect between the claim and the visual.",
+          "reason": "The headline promises a brand-new truck, but the picture shows only an empty road with no truck anywhere.",
           "score": 2
         },
         "hierarchy_reads": {
-          "reason": "The bold white headline dominates the lower half and the outlined 'Apply Today' button sits clearly beneath it, giving a clean and readable reading order on a phone.",
+          "reason": "The large white headline on dark asphalt reads first and the white button second, though the yellow lane line cuts through the word NEW.",
           "score": 4
         },
         "looks_like_kit": {
-          "reason": "The dark green footer and button border match the primary brand colour (#0B3D2E) and white text is used consistently, but no company logo appears anywhere in the ad.",
-          "score": 3
+          "reason": "The dark green footer band and the white button with green lettering match the brand colours; no logo was supplied, though the carrier's name appears nowhere.",
+          "score": 4
         }
       }
     }

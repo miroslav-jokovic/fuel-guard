@@ -36,32 +36,32 @@
   "recorded": {
     "source": "model",
     "prompt_version": "checker@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T15:32:58.862Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:23:25.789Z",
     "output": {
       "checks": {
         "no_glyphs": {
-          "reason": "The trailer side displays large readable text: 'NOW HIRING CDL DRIVERS 0.68 PER MILE CALL TODAY'. Numbers '7294' and '5327' also appear on the cab and trailer. This is clearly legible writing.",
+          "reason": "The trailer side has large lettering reading \"NOW HIRING CDL DRIVERS 0.68 PER MILE CALL TODAY\". There are also numbers: 5327 on the trailer front and 7284 on the cab door.",
           "verdict": "fail"
         },
         "no_foreign_logos": {
-          "reason": "No competitor or third-party company branding is visible. The truck appears unbranded aside from the hiring text. No marks resembling any forbidden name are present.",
+          "reason": "The only emblem is the truck maker's small grille badge. The trailer text is hiring copy, not another company's name or logo, and nothing resembles ACME Logistics.",
           "verdict": "pass"
         },
         "equipment_matches_reference": {
-          "reason": "Image 1 shows a white long-nose conventional sleeper tractor pulling a trailer, matching the type in Image 2 (white conventional sleeper tractor-trailer). Cab style and colour are consistent.",
+          "reason": "Image 1 shows a white long-nose conventional sleeper tractor pulling a trailer. That is the same type as the white conventional sleeper tractor in image 2.",
           "verdict": "pass"
         },
         "no_malformed_people_or_vehicles": {
-          "reason": "The truck and trailer appear physically plausible with normal wheel count, proportions, and no melted or duplicated parts visible.",
+          "reason": "The tractor has a steer axle and tandem drive axles, and the trailer has a rear tandem. All wheels sit in sensible places, with no melted or merged parts visible.",
           "verdict": "pass"
         },
         "people_policy_met": {
-          "reason": "People are not allowed per policy. No person or recognisable body part is visible anywhere in the image, including the cab windows.",
+          "reason": "No person or part of a person is visible anywhere, and the cab windows look empty.",
           "verdict": "pass"
         },
         "safe_zone_clear": {
-          "reason": "Image 3 shows the top-left corner contains wheels and the undercarriage/chassis of the truck and trailer, which are vehicle parts intruding into the text safe zone.",
+          "reason": "Along the top edge of image 3, the truck's bumper, front wheel and tandem wheels are visible.",
           "verdict": "fail"
         }
       }

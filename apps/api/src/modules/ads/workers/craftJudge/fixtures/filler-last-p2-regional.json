@@ -159,37 +159,37 @@
   "recorded": {
     "source": "model",
     "prompt_version": "craftJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:31:49.856Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:23:48.343Z",
     "output": {
       "scores": [
         {
-          "reason": "The pay slot opens correctly, but the primary_text is built almost entirely of filler: 'exciting opportunity,' 'dynamic team,' 'competitive pay,' 'family atmosphere,' 'truly value our drivers,' 'take your career to the next level.' No route, no schedule detail beyond the pay figure, no company name. Spanish mirrors the same filler word-for-word.",
+          "reason": "The pay slot gives the figure, but primary_text opens with \"Exciting opportunity\" and the headline is \"Great pay, great team\". Nothing says reefer, Chicago to Texas, home weekly or Silvicom. The Spanish is a word-for-word copy of the same brochure lines.",
           "scores": {
-            "hook": 3,
+            "hook": 2,
             "specific": 1,
-            "plain": 2,
+            "plain": 1,
             "spanish": 2,
             "no_filler": 1
           }
         },
         {
-          "reason": "This candidate advertises flatbed and home weekends — neither is a fact in the brief, which calls for reefer, regional, and home weekly. The pay figure ($450/load) also does not appear in the facts. While the Spanish is natural and the copy is clean, it describes a completely different job.",
+          "reason": "The pay slot and the opening of primary_text lead with a figure and then who it is for, in plain talk. But it describes flatbed and home weekends, not the reefer subject, and names no route and no carrier. \"Join our team\" is filler, and the Spanish drops it, adds \"con experiencia\" and uses the odd \"fines en casa\".",
           "scores": {
-            "hook": 2,
-            "specific": 1,
+            "hook": 4,
+            "specific": 2,
             "plain": 4,
-            "spanish": 4,
-            "no_filler": 4
+            "spanish": 3,
+            "no_filler": 3
           }
         },
         {
-          "reason": "Opens with the higher pay figure as the hook, then delivers every checkable fact: route (Chicago to Texas), freight type (reefer, no-touch), schedule (home weekly, weekly pay), pay range ($0.62–$0.70/mile), requirements (23+, 2 years), and company name. Spanish is natural, uses 'tráiler refrigerado,' 'rutas,' 'carga,' and keeps miles in miles — closest to how a dispatcher would actually talk.",
+          "reason": "The pay slot leads with the figure and the headline says who it is for, though primary_text holds the pay to the end. It names reefer, Chicago to Texas and back, home weekly, no-touch and Silvicom, with no filler. The Spanish uses trade words, but \"Comenzando en... llegando hasta\" is stiff and the es headline and primary_text run long.",
           "scores": {
-            "hook": 5,
+            "hook": 4,
             "specific": 5,
             "plain": 4,
-            "spanish": 5,
+            "spanish": 4,
             "no_filler": 5
           }
         }

@@ -29,24 +29,24 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:33:31.733Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:23:51.553Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A straight road cutting through golden farm fields at sunset is instantly recognizable at a glance — no clutter, no ambiguity.",
+          "reason": "A straight two-lane road running to a sunset between wheat fields reads instantly at phone size.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The headline 'Regional runs through farm country' is perfectly echoed by a road stretching through open farmland, making headline and image one unified message.",
+          "reason": "The headline about regional runs through farm country sits over an open road flanked by grain fields, telling one story.",
           "score": 5
         },
         "hierarchy_reads": {
-          "reason": "The bold white headline dominates the dark blue top panel, the pill-shaped button sits cleanly beneath it, and the scenic photo doesn't compete with either element.",
-          "score": 5
+          "reason": "The large white headline on dark sky leads and the white pill button follows, though the vivid orange sunset pulls some attention.",
+          "score": 4
         },
         "looks_like_kit": {
-          "reason": "The deep navy (#1F3A5F) fills the top panel and the button outline, white is used for the headline and button text, and no off-brand colours appear, though no logo is present to reinforce the carrier identity further.",
+          "reason": "White headline and a white button with navy lettering over a navy-toned sky match the brand colours; no logo was supplied or shown.",
           "score": 4
         }
       }

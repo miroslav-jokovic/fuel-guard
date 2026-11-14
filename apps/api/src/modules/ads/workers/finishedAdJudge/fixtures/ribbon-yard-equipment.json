@@ -29,24 +29,24 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:33:38.406Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:23:56.201Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A white semi-truck cab is clearly visible at a fuel stop, instantly readable as a tractor at a glance.",
+          "reason": "A white sleeper tractor under a lit fuel canopy stands out sharply against the dark night and reads instantly as a truck.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The headline calls for OTR drivers and the picture shows a semi-truck at a fuel stop — a quintessential OTR scene that reinforces the message well.",
-          "score": 5
+          "reason": "A call for Class A OTR drivers sits over a sleeper tractor at a fuel stop, which fits over-the-road work without adding a more specific story.",
+          "score": 4
         },
         "hierarchy_reads": {
-          "reason": "The bold white headline dominates immediately, the pill-shaped 'Apply Now' button reads clearly beneath it, and the green overlay keeps the truck from competing with the text.",
+          "reason": "The large white headline dominates, the white pill button below clearly reads as a button, and the truck sits above without fighting the text.",
           "score": 5
         },
         "looks_like_kit": {
-          "reason": "The deep green overlay and white text match the two stated brand colours exactly, though no logo is present to reinforce the carrier identity further.",
+          "reason": "The dark green wash and white type and button match the two brand colours, and no logo was supplied, though nothing else marks the carrier.",
           "score": 4
         }
       }
