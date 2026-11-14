@@ -14,7 +14,7 @@ import {
   type FactInput,
 } from "@silvicom/shared";
 import { CHOICES, currentAddressIndex, pathKey, type FactChoice, type FactRow } from "./applicantFactRows";
-import { emptyAccident, emptyAddress, emptyEquipment, emptyLicence, emptyViolation } from "./draftShape";
+import { emptyAccident, emptyAddress, emptyEquipment, emptyLicence, emptyViolation, newRowKey } from "./draftShape";
 import { FIELD_LABEL_KEYS, describeField } from "./fieldLabels";
 
 /**
@@ -43,7 +43,7 @@ export interface RowColumn {
 /** The driver's own blank row for each list — the shape their phone saves. */
 const BLANK: Readonly<Record<ApplicationRowList, () => unknown>> = {
   addresses: emptyAddress,
-  other_names: () => "",
+  other_names: () => ({ name: "", key: newRowKey() }),
   additional_licences: emptyLicence,
   equipment_experience: emptyEquipment,
   accidents: emptyAccident,
@@ -54,8 +54,6 @@ export const blankRow = (list: ApplicationRowList): unknown => {
   return typeof row === "object" && row !== null ? { ...row } : row;
 };
 
-/** A list of plain strings: its one "column" is the row itself. */
-export const isStringList = (list: ApplicationRowList): boolean => list === "other_names";
 
 /**
  * Which writer holds a list's rows. On a v2 link the other licences are Part 1's whole list (filing
@@ -67,7 +65,8 @@ export const listDoor = (list: ApplicationRowList, v2: boolean): "draft" | "part
 
 /** The add form's questions: the catalogue's columns for the list, in its order, as the card asks them. */
 export function rowColumns(list: ApplicationRowList, index: number): RowColumn[] {
-  if (isStringList(list)) return [{ column: "", input: "text", label: describeField([list, index]) }];
+  // Q-AM22 (b): an other name is the draft row `{ name, key }`; its one question is the name.
+  if (list === "other_names") return [{ column: "name", input: "text", label: describeField([list, index, "name"]) }];
   const prefix = `application.${list}[].`;
   // P3 (F2c part 2): Part 1 now asks an other licence's `kind`, so a v2 licence row asks it too — the
   // card's columns are the catalogue's on either door.
@@ -83,7 +82,7 @@ export const rowNoun = (list: ApplicationRowList): string => FIELD_LABEL_KEYS.RO
 
 /** Where the list sits on the card: the section its answers belong to. */
 export const listSection = (list: ApplicationRowList): ApplicationSection =>
-  sectionOwningPath(isStringList(list) ? [list, 0] : [list, 0, rowColumns(list, 0)[0]!.column]) ?? "review";
+  sectionOwningPath([list, 0, rowColumns(list, 0)[0]!.column]) ?? "review";
 
 /**
  * The lists the office may add to and remove from now, in `APPLICATION_ROW_LISTS` order: each list's
@@ -135,7 +134,7 @@ export function rowChange(
     : { problem: parsed.error.issues[0]?.message ?? "That licence could not be saved." };
 }
 
-/** Q-AM15: a keyed row is removed by its key; a keyless one (or an other name) by its place. */
+/** Q-AM15: a keyed row is removed by its key; a keyless one (a draft saved before keys) by its place. */
 function removeByKeyOrPlace(list: ApplicationRowList, index: number, ctx: RowChangeContext): ApplicationEdit {
   const [, named] = keyedEditPath([list, index], ctx.payload);
   return typeof named === "string"

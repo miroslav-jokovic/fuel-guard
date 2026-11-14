@@ -1,4 +1,6 @@
 import {
+  filedOtherNames,
+  otherNameText,
   QUESTIONNAIRE_BEFORE_DRAFTS_REMEMBERED,
   questionnaireByRef,
   toJurisdictionCode,
@@ -115,7 +117,7 @@ export function toApplication(draft: ApplicationDraft): unknown {
     middle_name: text(draft.middle_name),
     last_name: draft.last_name.trim(),
     // Blank rows dropped, like every other repeated field on this form.
-    other_names: draft.other_names.map((n) => n.trim()).filter((n) => n !== ""),
+    other_names: filedOtherNames(draft.other_names),
     date_of_birth: draft.date_of_birth,
     email: draft.email.trim(),
     phone: draft.phone.trim(),
@@ -378,8 +380,11 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     first_name: str("first_name"),
     middle_name: str("middle_name"),
     last_name: str("last_name"),
+    // Q-AM22 (b): a name saved as a plain string becomes its keyed row, like a keyless row of any list.
     other_names: Array.isArray(payload.other_names)
-      ? (payload.other_names as unknown[]).filter((n): n is string => typeof n === "string")
+      ? keyed((payload.other_names as unknown[])
+        .filter((n) => typeof n === "string" || (Boolean(n) && typeof n === "object"))
+        .map((n) => ({ name: otherNameText(n), key: (n as { key?: unknown })?.key as string })))
       : base.other_names,
     date_of_birth: str("date_of_birth"),
     email: str("email"),

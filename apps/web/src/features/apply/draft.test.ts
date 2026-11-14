@@ -55,7 +55,7 @@ const everything = (): ApplicationDraft => ({
   // state is the job of the D-AX5 test below, and a round-trip test that also normalises would be
   // unable to tell a lost answer from a corrected one.
   cdl_state: "PA",
-  other_names: ["Susan Bellweather"],
+  other_names: [{ name: "Susan Bellweather", key: "00000000-0000-4000-8000-0000000000a1" }],
   addresses: [
     { key: "00000000-0000-4000-8000-000000000002", line1: "1 Road", line2: "Apt 4", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" },
     { key: "00000000-0000-4000-8000-000000000003", line1: "9 Old Way", line2: "", city: "Gary", state: "IN", postal_code: "46402", from: "2017-03", to: "2019-12" },
@@ -110,6 +110,17 @@ describe("what the form sends", () => {
     const sent = toApplication(draft) as { employers: unknown[]; addresses: unknown[] };
     expect(sent.employers).toHaveLength(1);
     expect(sent.addresses).toHaveLength(1);
+  });
+
+  // Q-AM22 (b): the draft keys its other names; the application files the names alone, trimmed, blanks dropped.
+  it("files the other names as names — never the draft's keys, never a blank box", () => {
+    const draft = complete();
+    draft.other_names = [
+      { name: "  Sue Miller ", key: "00000000-0000-4000-8000-0000000000a1" },
+      { name: " ", key: "00000000-0000-4000-8000-0000000000a2" },
+    ];
+    expect((toApplication(draft) as { other_names: unknown }).other_names).toEqual(["Sue Miller"]);
+    expect(fromDraftPayload({ other_names: ["Sue Trent"] }).other_names).toEqual([{ name: "Sue Trent", key: expect.stringMatching(/^[0-9a-f-]{36}$/) }]);
   });
 
   /**

@@ -3,6 +3,7 @@ import {
   applicationPaperFilingIssues,
   applicationV2FilingIssues,
   driverMustAnswer,
+  otherNamesAsFiled,
   type ApplicationFilingIssue,
 } from "@silvicom/shared";
 import { applicationAsFiled } from "./applicationAsFiled.js";
@@ -54,9 +55,10 @@ export async function officeMustComplete(
   const payload = (data as { payload?: Record<string, unknown> } | null)?.payload ?? null;
   if (!payload) return null;
 
-  // ⚠ Cast, as the preview casts (`applicationPdf/preview.ts`): a stored draft, judged on what it holds.
+  // ⚠ Cast, as the preview casts (`applicationPdf/preview.ts`): a stored draft, judged on what it holds,
+  // its other names handed on as names (Q-AM22 (b): the draft keys them, the document does not).
   const composed = await applicationAsFiled(
-    admin, invitation, { ...payload, addresses: Array.isArray(payload.addresses) ? payload.addresses : [] } as never, now,
+    admin, invitation, { ...otherNamesAsFiled(payload), addresses: Array.isArray(payload.addresses) ? payload.addresses : [] } as never, now,
   );
   const application = composed.application as unknown as Parameters<typeof applicationV2FilingIssues>[0]
     & Parameters<typeof applicationPaperFilingIssues>[0];

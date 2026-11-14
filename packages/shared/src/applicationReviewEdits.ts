@@ -24,8 +24,8 @@ import { questionnaireForApplicant, type QuestionnaireQuestion } from "./questio
  * write, a correction is logged as `[list, "<key>", column]`, and `add_row` / `remove_row` name the row
  * by key. Before, those rows were named by position, and when the DRIVER deleted or reordered one on
  * their phone after a correction, nothing was logged, so the card and 3.1 pointed it at the wrong row.
- * The other names are plain strings with nowhere to hold a key, so they stay positional and replayed
- * (`currentEditPaths`) — APPLICATION-FIX-PLAN Q-AM22.
+ * The other names, plain strings until then, are keyed in the draft too since Q-AM22 (b) (owner 2026-11-13,
+ * `draftOtherNames.ts`): a correction is `["other_names", "<key>", "name"]`.
  */
 
 export interface AppliedEdit {
@@ -58,17 +58,23 @@ export function withEmployerKeys(payload: Record<string, unknown>, mint: () => s
   return { ...payload, [EMPLOYERS]: employers };
 }
 
-/** The lists whose rows are objects and so carry a `key` (Q-AM15). `other_names` is a list of strings. */
-export const KEYED_ROW_LISTS: readonly ApplicationRowList[] = APPLICATION_ROW_LISTS.filter((l) => l !== "other_names");
+/**
+ * The lists whose rows carry a `key` (Q-AM15) — every row list since Q-AM22 (b) keyed the other names in the
+ * draft (`draftOtherNames.ts`). A correction to one is `[list, "<key>", column]`; an other name's column is `name`.
+ */
+export const KEYED_ROW_LISTS: readonly ApplicationRowList[] = APPLICATION_ROW_LISTS;
 const KEYED = new Set<string>(KEYED_ROW_LISTS);
 export const isKeyedRowList = (list: unknown): list is ApplicationRowList => KEYED.has(String(list));
+
+/** An other name saved as a plain string before Q-AM22 is the row `{ name }`, keyless until keyed. */
+const asRow = (list: string, r: unknown): unknown => (list === "other_names" && typeof r === "string" ? { name: r } : r);
 
 /** Every row of every keyed list with a key — a missing one minted by `mint`. A copy; the input is untouched. */
 export function withRowKeys(payload: Record<string, unknown>, mint: () => string): Record<string, unknown> {
   let out = payload;
   for (const list of KEYED_ROW_LISTS) {
     if (!Array.isArray(payload[list])) continue;
-    const rows = rowsOf(payload, list);
+    const rows = (payload[list] as unknown[]).map((r) => asRow(list, r)) as Row[];
     if (rows.every((r) => !r || typeof r !== "object" || r.key)) continue;
     out = { ...out, [list]: rows.map((r) => (r && typeof r === "object" && !r.key ? { ...r, key: mint() } : r)) };
   }

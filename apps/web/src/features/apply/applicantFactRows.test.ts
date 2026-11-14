@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  APPLICANT_FACTS, RATHER_NOT_SAY, carrierQuestionnaire, questionnaireForApplicant, type CarrierQuestionStamp, type PartOneFactsView,
+  APPLICANT_FACTS, RATHER_NOT_SAY, carrierQuestionnaire, keyedEditPath, questionnaireForApplicant, type CarrierQuestionStamp, type PartOneFactsView,
 } from "@silvicom/shared";
 import { fromDraftPayload } from "./draft";
 import { buildReviewSummary } from "./reviewSummary";
@@ -78,6 +78,27 @@ const rows = (over: {
     carrier: over.carrier ?? STAMP,
   });
 const row = (list: FactRow[], key: string) => list.find((r) => r.key === key);
+
+/**
+ * Q-AM22 (b), owner 2026-11-13: the other names are keyed in the draft, so the card corrects one at its
+ * name, and the request names the row by its key — a name the driver deletes after does not move it.
+ */
+describe("an other name on the card", () => {
+  const KEY = "66666666-6666-4666-8666-666666666666";
+  const of = (payload: Record<string, unknown>) =>
+    applicantFactRows({ payload, partOne: null, edits: [], questionnaire: questionnaireForApplicant() });
+
+  it("is corrected at its name, keyed or saved as a plain string", () => {
+    const keyed = row(of({ ...PAYLOAD, other_names: [{ name: "Sue Miller", key: KEY }] }), "other_names.0.name");
+    expect(keyed).toMatchObject({ path: ["other_names", 0, "name"], value: "Sue Miller", input: "names" });
+    expect(row(of(PAYLOAD), "other_names.0.name")?.value).toBe("Susan Smith");
+  });
+
+  it("is sent by its key", () => {
+    const payload = { ...PAYLOAD, other_names: [{ name: "Sue Miller", key: KEY }] };
+    expect(keyedEditPath(["other_names", 0, "name"], payload)).toEqual(["other_names", KEY, "name"]);
+  });
+});
 
 describe("the card is the catalogue", () => {
   it("offers every application fact that has a door, with the catalogue's own input kind", () => {

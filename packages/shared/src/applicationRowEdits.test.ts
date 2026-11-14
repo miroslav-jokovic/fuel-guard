@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { filedOtherNames } from "./draftOtherNames.js";
 import { applicationEditSchema } from "./applicationReviewContract.js";
 import { applyApplicationEdit, isEditRefusal, type AppliedEdit } from "./applicationReviewEdits.js";
 import { currentEditPaths } from "./applicationEditReplay.js";
@@ -24,10 +25,12 @@ describe("adding a row", () => {
     expect(done).toMatchObject({ logPath: ["addresses", "k-new"], before: null, after: { ...row, key: "k-new" } });
   });
 
-  it("adds a plain string to a list of strings", () => {
-    const done = apply({ op: "add_row", list: "other_names", row: "Susan G", revision: 3 }) as AppliedEdit;
-    expect(done.payload.other_names).toEqual(["Sue Smith", "Susan G"]);
-    expect(done.logPath).toEqual(["other_names", 1]);
+  // Q-AM22 (b): an other name is a keyed row in the draft; one saved as a string is keyed on the way.
+  it("adds an other name as a keyed row", () => {
+    const done = apply({ op: "add_row", list: "other_names", row: { name: "Susan G" }, revision: 3 }) as AppliedEdit;
+    expect(filedOtherNames(done.payload.other_names)).toEqual(["Sue Smith", "Susan G"]);
+    expect(done.logPath[0]).toBe("other_names");
+    expect(typeof done.logPath[1]).toBe("string");
   });
 
   it("⚠ refuses an accident while the applicant's answer is still that they had none", () => {

@@ -35,7 +35,8 @@ describe("the lists' rows", () => {
     // accident's hazmat Yes/No, unanswered since F4 PR 1b-1 rather than a "No" nobody gave.
     const accident = Object.entries(blankRow("accidents") as Record<string, unknown>);
     expect(accident.filter(([, v]) => v === null).map(([k]) => k)).toEqual(["hazmat_spill"]);
-    expect(blankRow("other_names")).toBe("");
+    // Q-AM22 (b): an other name is a keyed row too, its key minted by the form like every list's.
+    expect(blankRow("other_names")).toEqual({ name: "", key: expect.stringMatching(/^[0-9a-f-]{36}$/) });
   });
 
   it("⚠ never offers the current home for removal, wherever it sits", () => {
@@ -168,7 +169,9 @@ describe("adding and removing on the card", () => {
     await w.find("[data-fact-adder='other_names'] input").setValue("Susan Smith");
     await w.find("[data-fact-adder='other_names']").findAll("button").find((b) => b.text() === "Add")!.trigger("click");
     await settle(w);
-    expect(sent()).toContainEqual({ op: "add_row", list: "other_names", row: "Susan Smith", revision: 7 });
+    expect(sent()).toContainEqual({
+      op: "add_row", list: "other_names", row: { name: "Susan Smith", key: expect.stringMatching(/^[0-9a-f-]{36}$/) }, revision: 7,
+    });
   });
 
   it("⚠ sends a new address in the driver's own shape — every blank \"\", never null", async () => {

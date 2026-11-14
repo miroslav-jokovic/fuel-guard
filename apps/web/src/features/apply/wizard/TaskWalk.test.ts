@@ -109,10 +109,14 @@ describe("About you, one screen at a time", () => {
     await add.trigger("click");
     const boxes = w.findAll("input");
     expect(boxes).toHaveLength(2);
-    await boxes[1]!.setValue("Ana Lopez");
-    expect(draft.other_names).toEqual(["", "Ana Lopez"]);
-    await w.findAllComponents(AppButton).find((b) => b.text() === APPLY_COPY.identity.remove)!.trigger("click");
-    expect(draft.other_names).toEqual(["Ana Lopez"]);
+    await boxes[0]!.setValue("Ana Lopez");
+    await boxes[1]!.setValue("Ana Ruiz");
+    expect(draft.other_names.map((n) => n.name)).toEqual(["Ana Lopez", "Ana Ruiz"]);
+    const kept = draft.other_names[0]!.key;
+    // The second name's own Remove takes that name, and no other.
+    await w.findAllComponents(AppButton).filter((b) => b.text() === APPLY_COPY.identity.remove)[1]!.trigger("click");
+    // Q-AM22 (b): each name keeps its own key — an office correction follows the name, not the place.
+    expect(draft.other_names).toEqual([{ name: "Ana Lopez", key: kept }]);
   });
 
   it("asks the SSN with its own control and its own save, never through the draft's answers", async () => {

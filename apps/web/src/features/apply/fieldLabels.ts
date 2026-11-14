@@ -108,7 +108,8 @@ const rowLabels = (): Record<string, { noun: string; columns: Record<string, str
   const { addresses, licence, employment, safety, fields } = APPLY_COPY;
   const noun = fields.nouns;
   return {
-  other_names: { noun: noun.other_names, columns: {} },
+  // Q-AM22 (b): a draft row `{ name, key }`; the name is the answer, said as the list's own words.
+  other_names: { noun: noun.other_names, columns: { name: APPLY_COPY.identity.otherNames, key: fields.rowRecord } },
   addresses: {
     noun: noun.addresses,
     columns: {

@@ -1,4 +1,5 @@
 import {
+  filedOtherNames,
   formatDisplayMonth,
   APPLICATION_CAPTURE_REQUESTED,
   EQUIPMENT_CLASS_LABELS,
@@ -151,8 +152,8 @@ export function buildReviewSummary({ draft, questionnaire, carrier, captures }: 
         { label: "Name", value: text([draft.first_name, draft.middle_name, draft.last_name].filter((p) => p.trim()).join(" ")) },
         {
           label: c.identity.otherNames,
-          value: draft.other_names.filter((n) => n.trim()).join(", ") || copy.none,
-          muted: draft.other_names.filter((n) => n.trim()).length === 0,
+          value: filedOtherNames(draft.other_names).join(", ") || copy.none,
+          muted: filedOtherNames(draft.other_names).length === 0,
         },
         { label: c.identity.date_of_birth, value: showDate(draft.date_of_birth) || copy.empty },
         { label: c.identity.email, value: text(draft.email) },
