@@ -37,10 +37,31 @@ export const APPLY_LANGUAGE_KEY = "silvicom-apply-language";
 export const isApplyLanguage = (v: unknown): v is ApplyLanguage =>
   typeof v === "string" && (APPLY_LANGUAGES as readonly string[]).includes(v);
 
-/** What the page opens in: this device's last choice, else the browser's language, else English. */
-export function initialApplyLanguage(stored: string | null | undefined, browser: string | null | undefined): ApplyLanguage {
-  if (isApplyLanguage(stored)) return stored;
-  return (browser ?? "").toLowerCase().startsWith("es") ? "es" : "en";
+/**
+ * The languages the applicant's page is OFFERED in — English only, for now (owner 2026-11-12, repeated
+ * 2026-11-13: "English only for now"; the hiring messages took the same ruling as D-MT8).
+ *
+ * ── WHY A LIST, AND WHY THE SPANISH STAYS ─────────────────────────────────────────────────────
+ * The Spanish is a draft the owner has not reviewed, and a page half-reviewed is worse than a page in
+ * one language. So the page stops OFFERING it: no switch in the header, and a phone set to Spanish, or
+ * one that chose Spanish before this, opens in English. The words, their type (`Localized`, which fails
+ * `vue-tsc` on a missing key) and the view below are untouched, so offering Spanish again is adding
+ * `"es"` here and nothing else.
+ */
+export const APPLY_LANGUAGES_OFFERED: readonly ApplyLanguage[] = ["en"];
+
+/** Is there a choice to offer? The header's switch is drawn only then. */
+export const offersLanguageChoice = (offered: readonly ApplyLanguage[] = APPLY_LANGUAGES_OFFERED): boolean =>
+  offered.length > 1;
+
+/** What the page opens in: this device's last choice, else the browser's language, else English — among those offered. */
+export function initialApplyLanguage(
+  stored: string | null | undefined,
+  browser: string | null | undefined,
+  offered: readonly ApplyLanguage[] = APPLY_LANGUAGES_OFFERED,
+): ApplyLanguage {
+  if (isApplyLanguage(stored) && offered.includes(stored)) return stored;
+  return (browser ?? "").toLowerCase().startsWith("es") && offered.includes("es") ? "es" : "en";
 }
 
 /** English until the applicant's layout mounts; see the header. */
