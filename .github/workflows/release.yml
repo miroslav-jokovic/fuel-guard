@@ -24,7 +24,7 @@ name: Release
 #
 # ── ORDER (D-REL6), each step gating the next ────────────────────────────────────────────────────
 #   CI green for the commit → migrations → production fast-forwarded (Railway deploys) → both hosts
-#   verified at that commit and schema → smoke → driver OTA if the driver changed → tag + GitHub
+#   verified at that commit and schema → smoke → tag + GitHub
 #   release with the notes. Migrations go FIRST, so for the deploy minutes new schema serves old
 #   code, never the reverse — the direction every migration is already written to survive.
 #   The same commit goes to the AWS production server (job aws-production, AWS7). While Railway
@@ -111,7 +111,6 @@ jobs:
       sha: ${{ steps.plan.outputs.sha }}
       before: ${{ steps.plan.outputs.before }}
       tag: ${{ steps.plan.outputs.tag }}
-      driver: ${{ steps.plan.outputs.driver }}
       reason: ${{ steps.plan.outputs.reason }}
       notify_skip: ${{ steps.plan.outputs.notify_skip }}
       host: ${{ steps.host.outputs.host }}
@@ -185,7 +184,7 @@ jobs:
             else
               say "Initialise \`production\` at \`${sha::7}\`, the commit both hosts serve."
             fi
-            out sha "$sha"; out before "$before"; out tag ""; out driver no; out ship true; exit 0
+            out sha "$sha"; out before "$before"; out tag ""; out ship true; exit 0
           fi
 
           if [ "$MODE" = "nightly" ]; then
@@ -238,7 +237,6 @@ jobs:
           tag=""
           if [ "$MODE" != "rollback" ]; then mapfile -t tags < <(git tag -l 'v*'); tag=$(node scripts/release-train.mjs tag "${tags[@]}"); fi
           out sha "$sha"; out before "$before"; out tag "$tag"
-          out driver "$(node scripts/release-train.mjs driver-changed "$before" "$sha")"
           say "**${MODE}** → \`${sha::7}\`${tag:+ as \`$tag\`}${REASON:+ — $REASON}"
           out ship true
 
@@ -423,12 +421,6 @@ jobs:
         if: needs.plan.outputs.mode != 'rollback'
         with:
           name: release-notes
-
-      # driver-ota.yml, run from the production branch, is the one driver lane: it publishes the JS
-      # update and dispatches the APK build itself when the native fingerprint moved.
-      - name: Driver app update
-        if: needs.plan.outputs.driver == 'yes' && needs.plan.outputs.mode != 'rollback'
-        run: gh workflow run driver-ota.yml --ref production -f message="${TAG}"
 
       - name: Tag and publish the release
         if: needs.plan.outputs.mode != 'rollback'

@@ -54,7 +54,7 @@ export function isReleaseNight(now) {
   return !["Sat", "Sun"].includes(day);
 }
 
-/** What the driver app ships: its own tree and the workspace packages it bundles (driver-ota.yml's paths). */
+/** What the driver app ships: its own tree and the workspace packages it bundles (what a driver build bundles). */
 export const DRIVER_PATHS = ["apps/driver/", "packages/"];
 export const driverChanged = (files) => files.some((f) => DRIVER_PATHS.some((p) => f.startsWith(p)));
 export const migrationsIn = (files) =>
@@ -91,7 +91,7 @@ export const AREAS = [
     plans: ["financial", "mcleod"] },
   { id: "reports", title: "Reports and dashboard", api: ["insights"], web: ["reports", "dashboard"] },
   { id: "driver-app", title: "Driver app",
-    api: ["driver-app"], apps: ["driver", "driver-dist"], packages: ["capture-engine"], plans: ["drivers-app"] },
+    api: ["driver-app"], apps: ["driver"], packages: ["capture-engine"], plans: ["drivers-app"] },
   // Everything a person does not see as a feature: org and permissions, settings, the admin console,
   // shared UI and contracts, CI, scripts. Also where an unmapped file lands.
   { id: "platform", title: "Platform",
@@ -152,7 +152,7 @@ export function renderNotes({ before, after, prs, migrations, driver }) {
     for (const m of migrations) lines.push(`- \`${m}\``);
     lines.push("");
   }
-  lines.push(driver ? "**Driver app:** changed — an OTA update (or an APK, if native code moved) follows the deploy." : "**Driver app:** unchanged.", "");
+  lines.push(driver ? "**Driver app:** changed — reaches drivers with the next store build (driver-store.yml); there is no over-the-air lane (AWS-MIGRATION-PLAN D-AWS16)." : "**Driver app:** unchanged.", "");
   if (!prs.length) lines.push("**Merged:**", "- (none — direct commits only)");
   for (const area of AREAS) {
     const these = prs.filter((p) => (p.area ?? "platform") === area.id);

@@ -77,7 +77,7 @@ describe('app.config.ts — identity (D-PR1, D-PR2)', () => {
   });
 
   it('takes the marketing version from package.json rather than restating it', () => {
-    // driver-android.yml names the published APK from the package.json copy. Two values that must
+    // The retired driver-android.yml named its APK from the package.json copy, and the stores read it. Two values that must
     // agree, with nothing checking that they did, until this became one value.
     expect(config.version).toBe(packageJson.version);
     expect(config.version).toBe('1.0.0');
