@@ -15,7 +15,7 @@ import {
 } from "../applicantDrugTest.js";
 import { sendDrugTestToDriver } from "../applicantDrugTestSend.js";
 import { readMedstopTestsForDriver } from "../../medstop/index.js";
-import { invitationIdsOf, partOneHomeZip } from "../medstopApplicantFacts.js";
+import { invitationIdsOf, partOneHomeZip, partOneSkipForMedstop } from "../medstopApplicantFacts.js";
 
 /**
  * The drug test's appointment (D-AW6, APPLICATION-FLOW-V2-PLAN §8.4). `applicantDrugTest.ts` carries
@@ -67,7 +67,11 @@ export function recruitmentDrugTestRouter(): Router {
       const orgId = req.auth!.orgId!;
       const driverId = String(req.params.driverId ?? "");
       const [data, homeZip] = await Promise.all([
-        readMedstopTestsForDriver(admin, orgId, driverId, req.auth!.role ?? null, await invitationIdsOf(admin, orgId, driverId)),
+        readMedstopTestsForDriver(
+          admin, orgId, driverId, req.auth!.role ?? null, await invitationIdsOf(admin, orgId, driverId),
+          // Why Part 1 was not sent to Med-Stop, if it was not: silent until 2026-11-14 (`medstopApplicantSkip`).
+          await partOneSkipForMedstop(admin, orgId, driverId),
+        ),
         // MSO1 (D-MSO2): the order drawer's site search starts at the applicant's home ZIP.
         partOneHomeZip(admin, orgId, driverId),
       ]);

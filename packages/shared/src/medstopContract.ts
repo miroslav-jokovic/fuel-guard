@@ -177,6 +177,11 @@ export interface MedstopPersonTests {
    * attempted. A refusal carries Med-Stop's own sentence, so the office knows to add them by hand.
    */
   applicantCreate: MedstopApplicantCreateView | null;
+  /**
+   * Why this applicant is NOT sent to Med-Stop from Part 1 (`medstopApplicantSkip`), in the office's
+   * words — null when nothing stops it, or Part 1 is not finished. Derived on each read, never stored.
+   */
+  applicantSkip: string | null;
   orders: MedstopOrderView[];
   tests: MedstopTestView[];
   outcomesVisible: boolean;

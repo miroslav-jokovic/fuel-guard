@@ -42,7 +42,10 @@ const data = computed(() => q.data.value);
 const reasonText = (reason: string | null) => (reason ? reason.toLowerCase() : "");
 const createText = computed(() => {
   const c = data.value?.applicantCreate;
-  if (!c || data.value?.matched) return null;
+  if (data.value?.matched) return null;
+  // Never sent, and why: Part 1 lacks something Med-Stop requires, or the applicant declined the gender
+  // question. Said here so the office adds them by hand instead of waiting for them to appear.
+  if (!c) return data.value?.applicantSkip ? `Not sent to Med-Stop from Part 1. ${data.value.applicantSkip}` : null;
   if (c.outcome === "created") return "Added to Med-Stop from Part 1. It shows here after Med-Stop's next read, within the hour.";
   if (c.outcome === "unknown") return c.message ?? "Med-Stop did not answer when this applicant was sent. Check Med-Stop before adding them.";
   return `Med-Stop did not accept this applicant from Part 1: ${c.message ?? "no reason given"}. Add them in Med-Stop yourself.`;
