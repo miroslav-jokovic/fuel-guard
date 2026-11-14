@@ -6,8 +6,7 @@ import {
   campaignEventsFrom,
   isTerminalCampaignState,
   stepCampaign,
-  type CampaignActor,
-} from "./campaignMachine.js";
+  type CampaignActor, CAMPAIGN_STATES_AWAITING_ENTRY } from "./campaignMachine.js";
 
 /**
  * The machine is finite, so it is enumerated, not sampled (workflow §4R: no fast-check, and none
@@ -40,7 +39,13 @@ describe("campaignMachine — the table is well formed", () => {
         if (reached.has(t.from) && !reached.has(t.to)) { reached.add(t.to); grew = true; }
       }
     }
-    expect([...reached].sort()).toEqual([...CAMPAIGN_STATES].sort());
+    expect([...reached].sort()).toEqual(CAMPAIGN_STATES.filter((st) => !CAMPAIGN_STATES_AWAITING_ENTRY.includes(st)).sort());
+  });
+
+  it("a state is listed as awaiting entry exactly while no row enters it from another state", () => {
+    const entered = new Set(CAMPAIGN_TRANSITIONS.filter((t) => t.from !== t.to).map((t) => t.to));
+    const unentered = CAMPAIGN_STATES.filter((st) => st !== "draft" && !entered.has(st));
+    expect([...CAMPAIGN_STATES_AWAITING_ENTRY].sort()).toEqual(unentered.sort());
   });
 
   it("archived is the only end, and every other state can still reach it", () => {

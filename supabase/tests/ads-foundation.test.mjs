@@ -327,6 +327,51 @@ ok("the category CHECK carries ads_lead_quality (0575) and ads_creative_retired 
 ok("the category CHECK carries ads_creative_refresh (0587) and keeps ai_assistant_budget (0584)",
   ["ads_creative_refresh", "ai_assistant_budget", "ads_creative_retired"].every((c) => check.includes(`'${c}'`)), check);
 
+// ── 0606: a campaign is planned before any ad is made (ADS-PLATFORM-V2-PLAN_V1 V2) ──────────────────────────
+const planGen = async (o) => (await one(
+  `insert into ad_generations (org_id, agent, provider, idempotency_key) values ($1, 'copywriter', 'anthropic', gen_random_uuid()::text) returning id`, [o])).id;
+const planRow = `insert into ads_campaign_plans (org_id, campaign_id, version, plan, evidence, author_kind, generation_id)`;
+const CAMP_PLANNED = await campaign(ORG, CONN, SV1);
+const CAMP_BARE = await campaign(ORG, CONN, SV1);
+const PLAN_GEN = await planGen(ORG);
+const PLAN_V1 = (await one(`${planRow} values ($1, $2, 1, '{"angles": []}', '[]', 'agent', $3) returning id`, [ORG, CAMP_PLANNED, PLAN_GEN])).id;
+
+ok("a campaign may be planning, and may wait on its plan's review (0606)",
+  (await sqlstate(`update ads_campaigns set state = 'planning' where id = $1`, [CAMP_PLANNED])) === null
+  && (await sqlstate(`update ads_campaigns set state = 'plan_review' where id = $1`, [CAMP_PLANNED])) === null);
+ok("a state the machine does not have is still refused (0606)",
+  (await sqlstate(`update ads_campaigns set state = 'thinking' where id = $1`, [CAMP_BARE])) === "23514");
+ok("a person's version names the person and no model call (0606)",
+  (await sqlstate(`insert into ads_campaign_plans (org_id, campaign_id, version, plan, evidence, author_kind, author_id, author_name) values ($1, $2, 2, '{}', '[]', 'person', $3, 'Owner')`, [ORG, CAMP_PLANNED, PERSON])) === null);
+ok("an agent's version with no model call is refused (0606)",
+  (await sqlstate(`insert into ads_campaign_plans (org_id, campaign_id, version, plan, evidence, author_kind) values ($1, $2, 3, '{}', '[]', 'agent')`, [ORG, CAMP_PLANNED])) === "23514");
+ok("a person's version that also names a model call is refused (0606)",
+  (await sqlstate(`insert into ads_campaign_plans (org_id, campaign_id, version, plan, evidence, author_kind, generation_id, author_id, author_name) values ($1, $2, 3, '{}', '[]', 'person', $3, $4, 'Owner')`, [ORG, CAMP_PLANNED, PLAN_GEN, PERSON])) === "23514");
+ok("a campaign has one plan per version number (0606)",
+  (await sqlstate(`${planRow} values ($1, $2, 1, '{}', '[]', 'agent', $3)`, [ORG, CAMP_PLANNED, PLAN_GEN])) === "23505");
+ok("a plan's evidence is a list and its plan an object (0606)",
+  (await sqlstate(`${planRow} values ($1, $2, 4, '{}', '{}', 'agent', $3)`, [ORG, CAMP_PLANNED, PLAN_GEN])) === "23514"
+  && (await sqlstate(`${planRow} values ($1, $2, 4, '[]', '[]', 'agent', $3)`, [ORG, CAMP_PLANNED, PLAN_GEN])) === "23514");
+ok("a plan is never changed or deleted (AX010, 0606)",
+  (await sqlstate(`update ads_campaign_plans set plan = '{"angles": [1]}' where id = $1`, [PLAN_V1])) === "AX010"
+  && (await sqlstate(`delete from ads_campaign_plans where id = $1`, [PLAN_V1])) === "AX010");
+ok("a plan cannot cite another carrier's campaign or model call (0606)",
+  (await sqlstate(`${planRow} values ($1, $2, 1, '{}', '[]', 'agent', $3)`, [ORG, CAMP_OTHER, PLAN_GEN])) === "23503"
+  && (await sqlstate(`${planRow} values ($1, $2, 5, '{}', '[]', 'agent', $3)`, [ORG, CAMP_PLANNED, await planGen(OTHER)])) === "23503");
+ok("a campaign leaves plan review for composing only with its plan named (AX032)",
+  (await sqlstate(`update ads_campaigns set state = 'composing' where id = $1`, [CAMP_PLANNED])) === "AX032");
+ok("a campaign cannot name another campaign's plan (AX032)",
+  (await sqlstate(`update ads_campaigns set plan_id = $2 where id = $1`, [CAMP_BARE, PLAN_V1])) === "AX032");
+ok("with its own plan named, the campaign goes on to composing (0606)",
+  (await sqlstate(`update ads_campaigns set state = 'composing', plan_id = $2 where id = $1`, [CAMP_PLANNED, PLAN_V1])) === null
+  && (await one(`select plan_id from ads_campaigns where id = $1`, [CAMP_PLANNED])).plan_id === PLAN_V1);
+ok("today's road, draft straight to composing with no plan, stays open for the code still serving (0606)",
+  (await sqlstate(`update ads_campaigns set state = 'composing' where id = $1`, [CAMP_BARE])) === null);
+ok("ads_campaign_plans has row level security and no client policy (0606)",
+  (await one(`select relrowsecurity from pg_class where relname = 'ads_campaign_plans'`)).relrowsecurity === true
+  && Number((await one(`select count(*) n from pg_policies where tablename = 'ads_campaign_plans'`)).n) === 0);
+
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exitCode = fail === 0 ? 0 : 1;
