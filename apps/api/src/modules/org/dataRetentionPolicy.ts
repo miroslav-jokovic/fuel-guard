@@ -45,6 +45,19 @@ export interface RetentionRule {
 export const RETENTION_RULES: RetentionRule[] = [
   {
     /**
+     * U2 (0604): a device an applicant asked to be remembered. The token is dead thirty days after it
+     * was made (`TRUSTED_DEVICE_TTL_DAYS`) and is only ever checked on a link that still resolves, so a
+     * row older than ninety days opens nothing. `audit_logs` keeps the record that it was remembered.
+     */
+    table: "application_trusted_devices",
+    timeColumn: "created_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "A remembered device is dead after thirty days and checked only on a live link; audit_logs keeps the record that it was remembered.",
+  },
+  {
+    /**
      * F0b (0585): one-time codes that open a saved application when the date of birth on file will not. A
      * code is dead ten minutes after it is sent; the row's `used_at` is the office's prompt that the date on
      * file did not match, which matters while the application is under review — the 90-day draft prune

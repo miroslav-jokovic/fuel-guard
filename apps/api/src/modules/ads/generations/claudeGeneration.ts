@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { APIError } from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { aiGate, canonicalJson, type AdAiAgent, type AiGateRefusal } from "@silvicom/shared";
-import { callForcedTool, describeUserContent, toolInputSchema, type ForcedTool, type MessagesClient, type UserContent } from "../../../lib/anthropic.js";
+import { aiGate, canonicalJson, type AdAiAgent, type AiEffort, type AiGateRefusal } from "@silvicom/shared";
+import { callForcedTool, describeUserContent, toolInputSchema, wireShape, type ForcedTool, type MessagesClient, type UserContent } from "../../../lib/anthropic.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 import {
   anthropicTokensThisMonth,
@@ -50,6 +50,8 @@ export interface ClaudeGenerationRequest<T> {
   user: UserContent;
   tool: ForcedTool<T>;
   maxTokens: number;
+  /** From `AD_AGENT_MODELS`, beside `model`. */
+  effort?: AiEffort;
 }
 
 export interface ClaudeGenerationDeps {
@@ -76,14 +78,21 @@ export async function generateWithClaude<T>(deps: ClaudeGenerationDeps, req: Cla
   const gate = aiGate(settings, req.agent, await anthropicTokensThisMonth(admin, orgId, now));
   if (!gate.open && gate.refusal === "agent_off") return { kind: "agent_off" };
 
+  // What is SENT, not what the worker asked for (`wireShape`): on a model that refuses a forced tool the
+  // system prompt gains a sentence and `max_tokens` the thinking headroom, and the row must say so. On a
+  // forced-tool model the two are the same and the object is, key for key, what it was before V1 — so
+  // no stored hash moved. Thrown before any row for a model with no profile.
+  const wire = wireShape(req);
   const request = {
     model: req.model,
-    system: req.system,
+    system: wire.system,
     // Images go in as their sha256 and size (`describeUserContent`), so the hash names the exact
     // bytes shown and the row holds no base64.
     user: describeUserContent(req.user),
     tool: { name: req.tool.name, description: req.tool.description, input_schema: toolInputSchema(req.tool) },
-    max_tokens: req.maxTokens,
+    max_tokens: wire.maxTokens,
+    ...(wire.forced ? {} : { tool_choice: "auto" as const }),
+    ...(wire.effort ? { effort: wire.effort } : {}),
   };
   const row = {
     org_id: orgId,
@@ -121,7 +130,7 @@ export async function generateWithClaude<T>(deps: ClaudeGenerationDeps, req: Cla
 
   let result;
   try {
-    result = await callForcedTool(deps.client, { model: req.model, system: req.system, user: req.user, tool: req.tool, maxTokens: req.maxTokens });
+    result = await callForcedTool(deps.client, { model: req.model, system: req.system, user: req.user, tool: req.tool, maxTokens: req.maxTokens, effort: req.effort });
   } catch (err) {
     const errorCode = err instanceof APIError && err.status ? `provider_${err.status}` : "provider_error";
     await finish("failed", { errorCode });
@@ -133,7 +142,12 @@ export async function generateWithClaude<T>(deps: ClaudeGenerationDeps, req: Cla
     return { kind: "succeeded", generationId: ins.id, value: result.value, replayed: false };
   }
   // Kept as evidence of what the model said, never handed on: `output` on a failed row is not a value.
-  const output = result.kind === "off_schema" ? { raw: result.raw, issues: result.issues } : { stop_reason: result.stopReason };
+  // A provider refusal is a failed row with its own code: it is not retried on another model here, because
+  // the row names ONE model and an answer from a second would be recorded as the first's.
+  const output =
+    result.kind === "off_schema" ? { raw: result.raw, issues: result.issues }
+    : result.kind === "refused" ? { stop_reason: "refusal", category: result.category }
+    : { stop_reason: result.stopReason };
   await finish("failed", { output, requestId: result.requestId, tokens, errorCode: result.kind });
   return { kind: "failed", generationId: ins.id, errorCode: result.kind, replayed: false };
 }

@@ -216,6 +216,7 @@ export * from "./applicantWizard.js";
 export * from "./applicantFactEdits.js";
 export * from "./applicantPartOneAnswerContract.js";
 export * from "./applicationUnlockCodeContract.js";
+export * from "./applicationTrustedDeviceContract.js";
 export * from "./sevenDayStatement.js";
 export * from "./applicationCaptureContract.js";
 // §9 P9: the applicant's papers on their record, and the office's upload beside them.

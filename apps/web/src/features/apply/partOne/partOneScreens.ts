@@ -84,6 +84,12 @@ export interface PartOneAnswers {
   donor_gender: DonorGender | "";
   medical_card_pending: boolean;
   /**
+   * U8 (0605): "I don't have my CDL with me". Stands in for BOTH CDL photographs, and the license is then
+   * typed, since there is no barcode to read. Held with screens 3–6 and posted by the first write: nothing
+   * can be written before §40.25(j) (see the header), and these two screens come before it.
+   */
+  cdl_photo_pending: boolean;
+  /**
    * "I can't take a photo of myself" (AW6, §6.7: a selfie is "never a hard block" — the office checks
    * the driver against their licence in person instead). Held in the page only: nothing on the server
    * records it, because the missing photo already says it, and the office's drawer reads a Part 1
@@ -109,6 +115,7 @@ export const emptyPartOneAnswers = (): PartOneAnswers => ({
   dot_random_12m: null,
   donor_gender: "",
   medical_card_pending: false,
+  cdl_photo_pending: false,
   selfie_skipped: false,
 });
 
@@ -271,7 +278,11 @@ export function firstWrite(a: PartOneAnswers): PartOneWrite[] {
   return [
     {
       kind: "intake",
-      body: { ...screeningPayload(a), phone: a.phone.trim(), ...addressPayload(a), ...cdlPayload(a) },
+      // The CDL's "not with me" rides the first write: its screens come before §40.25(j) can be written.
+      body: {
+        ...screeningPayload(a), phone: a.phone.trim(), ...addressPayload(a), ...cdlPayload(a),
+        ...(a.cdl_photo_pending ? { cdl_photo_pending: true } : {}),
+      },
     },
     { kind: "licences", body: licenceList(a) },
     { kind: "intake", body: { date_of_birth: a.date_of_birth } },
@@ -286,6 +297,7 @@ const hasCapture = (captures: readonly ApplicationCaptureView[], slot: string): 
 /** What a photo screen accepts in place of the photo: "I don't have one yet", "I can't take one". */
 export interface PhotoDeclarations {
   medical_card_pending?: boolean;
+  cdl_photo_pending?: boolean;
   selfie_skipped?: boolean;
 }
 
@@ -296,6 +308,8 @@ export function photoDone(
   declared: PhotoDeclarations,
 ): boolean {
   if (hasCapture(captures, screen)) return true;
+  // One answer for both sides: a card not at hand has neither (0605 refuses one side without the other).
+  if (screen === "cdl_front" || screen === "cdl_back") return declared.cdl_photo_pending === true;
   if (screen === "medical_card") return declared.medical_card_pending === true;
   if (screen === "selfie") return declared.selfie_skipped === true;
   return false;
@@ -311,7 +325,9 @@ export function resumeScreen(
   identityComplete: boolean,
   captures: readonly ApplicationCaptureView[],
 ): PartOneScreen {
-  const declared: PhotoDeclarations = { medical_card_pending: status.medicalCardPending };
+  const declared: PhotoDeclarations = {
+    medical_card_pending: status.medicalCardPending, cdl_photo_pending: status.cdlPhotoPending === true,
+  };
   for (const screen of ["cdl_front", "cdl_back"] as const) {
     if (!photoDone(screen, captures, declared)) return screen;
   }
@@ -375,4 +391,48 @@ export function prefillFromLicence(a: PartOneAnswers, l: AamvaLicence): Prefille
     if (cdl.expires_on) filled.push("cdl.expires_on");
   }
   return filled;
+}
+
+// ── "Is this right?" — the scan, confirmed on one screen (U2, SCREEN-MAP 1.4) ─────────────────
+
+/**
+ * What the barcode read, as the facts a driver confirms — each one fact typed together (D-AM3), in the
+ * order the walk would have asked them. The keys are `PREFILL_FIELDS`'s; nothing is listed twice.
+ *
+ * `optional` is the one box a fact may leave empty: most homes have no apartment line, and the barcode
+ * of one that has says so.
+ */
+export const SCAN_FACTS = {
+  date_of_birth: { fields: PREFILL_FIELDS.about, optional: [] },
+  address: { fields: PREFILL_FIELDS.address, optional: ["address_line2"] },
+  licence: { fields: ["cdl.state_code", "cdl.licence_number"], optional: [] },
+  expires_on: { fields: ["cdl.expires_on"], optional: [] },
+} as const satisfies Record<string, { fields: readonly PrefilledField[]; optional: readonly PrefilledField[] }>;
+export type ScanFact = keyof typeof SCAN_FACTS;
+export const SCAN_FACT_ORDER = Object.keys(SCAN_FACTS) as ScanFact[];
+
+/**
+ * The facts the confirmation can offer: every box of the fact was filled by the barcode. A fact the
+ * barcode half-read (a number with no issuing state) is not offered and is asked on its own screen, as
+ * before — a driver cannot confirm what is not there.
+ */
+export function scannedFacts(filled: readonly PrefilledField[]): ScanFact[] {
+  return SCAN_FACT_ORDER.filter((fact) => {
+    const { fields, optional } = SCAN_FACTS[fact];
+    return fields.every((f) => filled.includes(f) || (optional as readonly string[]).includes(f));
+  });
+}
+
+/** Every answer key the confirmed facts hold — a screen made only of these is not asked again. */
+export const confirmedKeys = (confirmed: readonly ScanFact[]): Set<string> =>
+  new Set(confirmed.flatMap((fact) => [...SCAN_FACTS[fact].fields]));
+
+/**
+ * The confirmed facts a check still has a complaint about, taken back: a barcode can read a date the
+ * contract refuses (an applicant under 18, a ZIP of the wrong length), and the driver must then be
+ * shown the box the message is about. `problems` are the page check's own keys (`validateAbout` …),
+ * which are each field's last part.
+ */
+export function stillConfirmed(confirmed: readonly ScanFact[], problems: ReadonlySet<string>): ScanFact[] {
+  return confirmed.filter((fact) => !SCAN_FACTS[fact].fields.some((f) => problems.has(f.split(".").pop()!)));
 }

@@ -30,6 +30,20 @@ export const APPLY_PART_ONE_COPY = {
     onFile: "You have already given these. Leave them blank to keep them, or type them again to change them.",
     /** A screen some of whose boxes were filled from the licence's barcode (AW5) — the driver confirms them. */
     fromLicence: "Some answers below were read from your license. Check them, and change anything that is wrong.",
+    /**
+     * "Is this right?" (U2, SCREEN-MAP 1.4): what the barcode read, confirmed on one screen. The button
+     * names what it changes, so a screen reader hears four different buttons and not "Change" four times.
+     */
+    scan: {
+      heading: "Is this right?",
+      intro: "We read this from your license. If it is right, you will not be asked for it again.",
+      yes: "Yes, that's right",
+      change: "Change",
+      changeNamed: (what: string): string => `Change ${what.toLowerCase()}`,
+      keep: "Keep",
+      keepNamed: (what: string): string => `Keep ${what.toLowerCase()} as read`,
+      willAsk: "You will type this on the next screens.",
+    },
     kept: (carrier: string): string =>
       `${sentenceCase(carrier)} already had some of these on file, so those were kept. If anything is wrong, tell ${carrier}.`,
     yes: "Yes",
@@ -281,6 +295,9 @@ export const APPLY_PART_ONE_COPY = {
         failed: "The text did not go. Scan the QR code instead.",
         orHere: "Or, on this computer:",
       },
+      /** U8 (0605): the card is not at hand. The license is then typed, and the photos come later. */
+      noCdl: "I don't have my CDL with me",
+      noCdlHint: "You can carry on. You will type your license details, and send the photos later or bring the card with you.",
       noMedicalCard: "I don't have a medical card yet",
       noMedicalCardHint: "You can carry on. You will need one before you travel.",
     },

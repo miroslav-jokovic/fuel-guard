@@ -52,4 +52,20 @@ describe("what the carrier changed", () => {
     expect(labels[2]).toBe("Address 1");
     expect(w.text()).toContain("9 Old Rd, Gary");
   });
+
+  /** U6 browser walk, 2026-11-14: with two jobs, "Employer · Street address" did not say which. */
+  it("names a corrected job by its company, and falls back to the noun once the driver removed it", () => {
+    const draft = emptyDraft();
+    draft.employers = [
+      { ...draft.employers[0]!, key: "job-a", employer_name: "Old Carrier" },
+      { ...draft.employers[0]!, key: "job-b", employer_name: "Newer Freight" },
+    ];
+    const w = mount(SignOffFields, { props: { token: "t", carrier: "Silvicom", captures: [], modelValue: draft, edits: [
+      { path: ["employers", "job-b", "address_line1"], before: "", after: "400 Broadway", editedAt: "2026-11-10T10:00:00Z" },
+      { path: ["employers", "job-gone", "city"], before: "", after: "Gary", editedAt: "2026-11-10T10:01:00Z" },
+    ] as never } });
+    const labels = w.findAll("li p.font-medium").map((p) => p.text());
+    expect(labels[0]).toBe("Newer Freight · Street address");
+    expect(labels[1]).toMatch(/^Employer · /);
+  });
 });

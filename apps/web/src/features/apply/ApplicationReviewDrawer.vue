@@ -134,7 +134,7 @@ function changeLabel(row: { path: ApplicationPath; before: unknown; after: unkno
     const named = (index >= 0 ? employers.value[index] : (row.before ?? row.after)) as Record<string, unknown> | null;
     const job = named ? employerName(named) : "A job";
     if (row.path.length === 2) return row.after === null ? `${job} removed` : `${job} added`;
-    return `${job} · ${describeField(["employers", 0, row.path[2]!]).split(" · ")[1] ?? String(row.path[2])}`;
+    return describeField(row.path, job);
   }
   if (head === "employment_gaps") return `Gap from ${formatDisplayDate(String(ref))}`;
   // Step 5: one of the carrier's own questions, by the wording on THIS applicant's stamp — the office's

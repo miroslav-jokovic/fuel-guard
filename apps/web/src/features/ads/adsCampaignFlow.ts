@@ -11,13 +11,13 @@ import {
  * (`ADS_PERSON_DOOR_EXCLUDED`: the kill switch and Launch), so a button cannot disagree with what the door allows.
  */
 export const CAMPAIGN_STATE_LABEL: Record<CampaignState, string> = {
-  draft: "Starting", composing: "Making the ads", review: "Waiting for review", approved: "Approved",
+  draft: "Starting", planning: "Planning", plan_review: "Plan waiting for review", composing: "Making the ads", review: "Waiting for review", approved: "Approved",
   creating: "Creating on the platform", paused: "Paused", launching: "Launching", live: "Live",
   pausing: "Pausing", archived: "Archived", failed: "Stopped",
 };
 
 export const CAMPAIGN_STATE_TONE: Record<CampaignState, string> = {
-  draft: "neutral", composing: "info", review: "warning", approved: "info", creating: "info", paused: "neutral",
+  draft: "neutral", planning: "info", plan_review: "warning", composing: "info", review: "warning", approved: "info", creating: "info", paused: "neutral",
   launching: "info", live: "success", pausing: "info", archived: "neutral", failed: "danger",
 };
 

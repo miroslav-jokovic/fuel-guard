@@ -49,11 +49,49 @@ const systemQuery = typeof window !== "undefined" ? window.matchMedia?.("(prefer
 const systemDark = ref(systemQuery?.matches === true);
 systemQuery?.addEventListener?.("change", (e) => {
   systemDark.value = e.matches;
+  syncThemeColor();
 });
+
+/**
+ * The browser's own chrome — an installed window's title bar, Android's status bar — in the page's canvas
+ * (INSTALLED-APP-PLAN.md D-IA3). `index.html` ships a light/dark pair keyed to the OPERATING SYSTEM's scheme,
+ * which is wrong the moment a person picks the other one here; so once the app runs there is one tag, and it
+ * holds whatever `<html>`'s background actually resolved to. Read, never restated: the colour is `--canvas`.
+ */
+/**
+ * The computed background comes back in the token's own notation (`oklch(…)`, measured in Chromium
+ * 2026-11-14). Whether every browser's CHROME reads that from a meta tag is not something this can check, so
+ * the tag is given plain sRGB: one pixel painted and read back. Where there is no canvas the value passes as is.
+ */
+function asSrgb(colour: string): string {
+  try {
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) return colour;
+    ctx.fillStyle = colour;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+    return `#${[r, g, b].map((v) => v!.toString(16).padStart(2, "0")).join("")}`;
+  } catch {
+    return colour;
+  }
+}
+
+export function syncThemeColor() {
+  if (typeof document === "undefined") return;
+  const colour = getComputedStyle(document.documentElement).backgroundColor;
+  // jsdom, or a stylesheet that has not arrived: leave `index.html`'s pair alone instead of writing nothing.
+  if (!colour || colour === "transparent" || colour === "rgba(0, 0, 0, 0)") return;
+  const tags = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')];
+  const tag = tags[0] ?? document.head.appendChild(Object.assign(document.createElement("meta"), { name: "theme-color" }));
+  for (const extra of tags.slice(1)) extra.remove();
+  tag.removeAttribute("media");
+  tag.content = asSrgb(colour);
+}
 
 function paint(value: ColorScheme) {
   const root = document.documentElement;
   root.style.colorScheme = value === "system" ? "light dark" : value;
+  syncThemeColor();
 }
 
 /**

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
-import { effectScope, ref } from "vue";
+import { effectScope, nextTick, ref } from "vue";
 import type { ApplicationCaptureView, FcraSummary, PartOneStatus } from "@silvicom/shared";
 import { usePartOne, type PartOneInputs } from "./usePartOne";
 import { readHeld } from "./partOneLocal";
@@ -73,6 +73,62 @@ describe("a reload before screen 7", () => {
     expect(second.flow.answers.cdl.licence_number).toBe("D123");
     expect(second.flow.answers.city).toBe("Joliet");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  /** U2: "Is this right?" is answered once — a reload must not ask the driver to confirm again. */
+  it("brings back what the driver confirmed of the scan, so the confirmation is not asked twice", async () => {
+    const first = page();
+    await first.flow.restored;
+    typeScreens3to6(first.flow);
+    first.flow.fromLicence.value = ["date_of_birth"];
+    first.flow.scanConfirmed.value = ["date_of_birth"];
+    await settle();
+    first.close();
+
+    const second = page();
+    expect(second.flow.scanConfirmed.value).toBeNull();
+    expect(await second.flow.restored).toBe(true);
+    expect(second.flow.scanConfirmed.value).toEqual(["date_of_birth"]);
+  });
+
+  it("reads a copy written before the confirmation existed as not answered yet", async () => {
+    const first = page();
+    await first.flow.restored;
+    typeScreens3to6(first.flow);
+    await settle();
+    first.close();
+    const second = page();
+    expect(await second.flow.restored).toBe(true);
+    expect(second.flow.scanConfirmed.value).toBeNull();
+  });
+
+  /** U8: the server cannot know before screen 7, so only the phone's copy can say the photos are not owed. */
+  it("⚠ reopens past the CDL's photo screens for a driver who said the card is not with them", async () => {
+    const first = page({ captures: [] });
+    await first.flow.restored;
+    first.flow.answers.cdl_photo_pending = true;
+    await first.flow.next();
+    expect(first.flow.screen.value).toBe("about");
+    // No waiting out the debounce: the tick is written at once, as a passed screen is.
+    await nextTick();
+    first.close();
+
+    const second = page({ captures: [] });
+    expect(second.flow.screen.value).toBe("cdl_front");
+    expect(await second.flow.restored).toBe(true);
+    expect(second.flow.answers.cdl_photo_pending).toBe(true);
+    expect(second.flow.screen.value).toBe("about");
+  });
+
+  it("leaves a driver who owes the photographs on the photo screen, with the answers waiting behind it", async () => {
+    const first = page();
+    await first.flow.restored;
+    typeScreens3to6(first.flow);
+    await settle();
+    first.close();
+    const second = page({ captures: [] });
+    expect(await second.flow.restored).toBe(true);
+    expect(second.flow.screen.value).toBe("cdl_front");
   });
 
   it("still knows the screens passed before the first reload after a second one", async () => {

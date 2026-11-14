@@ -31,8 +31,14 @@ export type AdPlatform = (typeof AD_PLATFORMS)[number];
 export const OUTCOME_PROVIDERS = AD_PLATFORMS;
 export type OutcomeProvider = AdPlatform;
 
+/**
+ * `planning` and `plan_review` (0606, ADS-PLATFORM-V2-PLAN V2) are in the list — the database's CHECK and this
+ * list are held equal by `adsSchemaParity.test.ts` — but NO transition enters them yet: the machine's table
+ * gains its planning moves in the merge after the migration (`lint:migration-ordering`). Until then a campaign
+ * cannot be in either, and the only moves out of them are the kill switch's no-op and `archive`.
+ */
 export const CAMPAIGN_STATES = [
-  "draft", "composing", "review", "approved", "creating", "paused",
+  "draft", "planning", "plan_review", "composing", "review", "approved", "creating", "paused",
   "launching", "live", "pausing", "archived", "failed",
 ] as const;
 export type CampaignState = (typeof CAMPAIGN_STATES)[number];

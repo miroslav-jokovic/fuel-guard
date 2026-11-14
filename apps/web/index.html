@@ -9,7 +9,11 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="Silvicom" />
-    <meta name="theme-color" content="#18274d" />
+    <!-- The window's title bar continues the page: the canvas, per colour scheme, until the app has run
+         and `useColorScheme` takes it over for the scheme the person chose (INSTALLED-APP-PLAN.md D-IA3).
+         The two values are `--canvas`'s light and dark sides as sRGB. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f7f8" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121214" />
     <title>Silvicom 360</title>
   </head>
   <body class="h-full">

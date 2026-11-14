@@ -112,6 +112,17 @@
         "why": "new in 0585 (2026-11-10, F0b); one row per code SENT, bounded by unlockCodeLimiter (3 per link per hour) and only asked for after a failed date of birth; pruned at 90 days from created_at."
       }
     },
+    "application_trusted_devices": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "new in 0604 (2026-11-14, U2); one row per device an applicant asked to be remembered after a right date of birth or code, capped at 5 live per application (TRUSTED_DEVICE_MAX) and minted only behind unlockLimiter; dead at 30 days, pruned at 90 days from created_at."
+      }
+    },
     "application_invitations": {
       "module": "recruiting",
       "layer": "core",
@@ -3443,6 +3454,17 @@
         "partition": null,
         "budget_rows_per_day": 100,
         "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one per enabled preset per campaign (4–5) plus regenerations and copy edits; ~25 per campaign at most."
+      }
+    },
+    "ads_campaign_plans": {
+      "module": "ads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "new in 0606 (2026-11-14, ADS-PLATFORM-V2-PLAN V2); one row per version of a campaign's plan — the Strategist's and each edit a person saves — so a handful per campaign; append-only evidence, RETENTION_FORBIDDEN."
       }
     },
     "ads_copy_choices": {

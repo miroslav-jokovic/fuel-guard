@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 import {
-  AD_CAMERA_DISTANCES, AD_FOCAL_SUBJECTS, AI_MODELS, FRAME_CLAUSE, QUIET_REGION, artDirection, artPrecheck, judgeArt, publishedFormats,
+  AD_CAMERA_DISTANCES, AD_FOCAL_SUBJECTS, AD_AGENT_MODELS, FRAME_CLAUSE, QUIET_REGION, artDirection, artPrecheck, judgeArt, publishedFormats,
   type AdBrandKit, type AdPresetRecipe, type ArtAnswer, type ArtDirection, type ArtFinding, type ArtRefusal,
 } from "@silvicom/shared";
 import type { ForcedTool } from "../../../../lib/anthropic.js";
@@ -79,7 +79,7 @@ export function artUserMessage(recipe: Recipe, kit: Kit, context: ArtContext = [
 }
 
 export function buildArtRequest(recipe: Recipe, kit: Kit, context: ArtContext = [], headline: string | null = null) {
-  return { model: AI_MODELS.deep, system: PROMPT, user: artUserMessage(recipe, kit, context, headline), tool: artTool(recipe), maxTokens: MAX_TOKENS };
+  return { ...AD_AGENT_MODELS.art_director, system: PROMPT, user: artUserMessage(recipe, kit, context, headline), tool: artTool(recipe), maxTokens: MAX_TOKENS };
 }
 
 export interface DirectArtInput {

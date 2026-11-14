@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
-import { AI_MODELS, briefFacts, checkNarration, type BriefFacts, type BriefFold, type NarrationFinding } from "@silvicom/shared";
+import { AD_AGENT_MODELS, briefFacts, checkNarration, type BriefFacts, type BriefFold, type NarrationFinding } from "@silvicom/shared";
 import type { ForcedTool } from "../../../../lib/anthropic.js";
 import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOutcome } from "../../generations/claudeGeneration.js";
 
@@ -40,7 +40,7 @@ export const briefTool: ForcedTool<BriefAnswer> = {
 };
 
 export function buildBriefRequest(fold: BriefFold) {
-  return { model: AI_MODELS.deep, system: PROMPT, user: JSON.stringify(briefFacts(fold), null, 2), tool: briefTool, maxTokens: MAX_TOKENS };
+  return { ...AD_AGENT_MODELS.analyst, system: PROMPT, user: JSON.stringify(briefFacts(fold), null, 2), tool: briefTool, maxTokens: MAX_TOKENS };
 }
 
 /** Which sentence a finding is in: the headline, or a point by its index. */
