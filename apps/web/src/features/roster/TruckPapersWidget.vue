@@ -21,9 +21,10 @@
  * every paper check, and a zero printed then would be a claim, so the row reads "—" (CountList).
  */
 import { computed } from "vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import { DocumentTextIcon } from "@silvicom/ui/icons";
 import { matchesVehicleCheck, type VehicleCheck } from "@silvicom/shared";
-import { PAPERS, PAPER_STATES, paperCheck, paperStateLabel } from "./truckPapersGrid";
+import { PAPERS, PAPER_STATES, paperCheck, paperStateLabel, type Paper } from "./truckPapersGrid";
 import ChartCard from "@/components/ui/ChartCard.vue";
 import DoorLink from "@/components/ui/DoorLink.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -47,37 +48,37 @@ const grid = computed(() =>
   PAPER_STATES.map((state) => ({
     state,
     label: paperStateLabel(PAPERS[0], state),
-    cells: PAPERS.map((paper) => {
-      const check = paperCheck(paper, state);
-      return { check, paper: paper.label, value: count(check), to: `/vehicles?check=${check}`, alarm: state === "overdue" };
-    }),
+    cells: Object.fromEntries(
+      PAPERS.map((paper) => {
+        const check = paperCheck(paper, state);
+        return [paper.key, { check, value: count(check), to: `/vehicles?check=${check}`, alarm: state === "overdue" }];
+      }),
+    ) as Record<Paper["key"], { check: VehicleCheck; value: number | null; to: string; alarm: boolean }>,
   })),
 );
+const COLUMNS: DataTableColumn[] = [
+  { key: "label", label: "State", cellClass: "text-ink-secondary" },
+  ...PAPERS.map((paper) => ({ key: paper.key, label: paper.label, numeric: true })),
+];
 const fmt = (n: number | null) => (n == null ? "—" : n.toLocaleString("en-US"));
 </script>
 
 <template>
   <ChartCard title="Truck paperwork" subtitle="Active trucks — annual inspection and registration" :icon="DocumentTextIcon" tone="warning" class="h-full">
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="text-2xs uppercase tracking-wide text-ink-muted">
-          <th scope="col" class="pb-2 text-left font-medium"><span class="sr-only">State</span></th>
-          <th v-for="paper in PAPERS" :key="paper.key" scope="col" class="w-24 pb-2 pl-3 text-right align-bottom font-medium">{{ paper.label }}</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-edge-subtle">
-        <tr v-for="r in grid" :key="r.state">
-          <th scope="row" class="py-2 text-left font-normal text-ink-secondary">{{ r.label }}</th>
-          <td v-for="c in r.cells" :key="c.check" class="py-2 pl-3 text-right whitespace-nowrap">
-            <span
-              class="tabular-nums"
-              :class="c.value === 0 ? 'font-medium text-ink-tertiary' : c.alarm && (c.value ?? 0) > 0 ? 'text-base font-bold text-danger-text' : 'text-base font-bold text-ink'"
-              :data-test="`count-${c.check}`"
-            >{{ fmt(c.value) }}</span>
-            <DoorLink :to="c.to"><span class="sr-only">Trucks: {{ c.paper }}, {{ r.label.toLowerCase() }}</span></DoorLink>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <!-- The one data table, embedded in this card: a hand-written table is refused by
+         `lint:ui-adoption`, and below `md` this one becomes the shared card rows for free. -->
+    <!-- ui-adoption: never-empty — four fixed states, whatever the fleet holds -->
+    <DataTable :columns="COLUMNS" :rows="grid" row-key="state" embedded dense :sticky-header="false" :nowrap="false">
+      <template v-for="paper in PAPERS" :key="paper.key" #[`cell-${paper.key}`]="{ row }">
+        <span class="whitespace-nowrap">
+          <span
+            class="tabular-nums"
+            :class="row.cells[paper.key].value === 0 ? 'font-medium text-ink-tertiary' : row.cells[paper.key].alarm && (row.cells[paper.key].value ?? 0) > 0 ? 'text-base font-bold text-danger-text' : 'text-base font-bold text-ink'"
+            :data-test="`count-${row.cells[paper.key].check}`"
+          >{{ fmt(row.cells[paper.key].value) }}</span>
+          <DoorLink :to="row.cells[paper.key].to"><span class="sr-only">Trucks: {{ paper.label }}, {{ row.label.toLowerCase() }}</span></DoorLink>
+        </span>
+      </template>
+    </DataTable>
   </ChartCard>
 </template>

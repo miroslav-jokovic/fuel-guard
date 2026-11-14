@@ -241,8 +241,9 @@ Table layout at desk widths. New data on any card.
     columns, each card as tall as its content. Decided from the spans, so Fleet overview is untouched.
   - **Truck paperwork** is one 4 × 2 grid, its row names derived from `VEHICLE_CHECK_LABELS`
     (`truckPapersGrid.ts`); each of the eight figures is still its own door.
-  - Measured on staging's data: Operations is 1,335 px tall at 1440 (was 2,219), 1,859 at 1024, and
-    3,245 at 390 (was 4,454). The picture's "about 1,150 px on a phone" assumed folded zeros.
+  - Measured on staging's data: Operations is 1,399 px tall at 1440 (was 2,219) and 3,619 at
+    390 (was 4,454). The paperwork grid is the shared `DataTable`, embedded — `lint:ui-adoption`
+    refuses a hand-written table — so on a phone it is four flat card rows. The picture's "about 1,150 px on a phone" assumed folded zeros.
   - **C2, not built: the fleet strip and the "Needs action" card.** Q-SM3 is half answered —
     `lib/dashboardWidgets.ts` already imports every feature's widget, so `lib/` may compose them —
     but each of the ten cards computes its rows inside its own `.vue`. C2 first moves each card's
