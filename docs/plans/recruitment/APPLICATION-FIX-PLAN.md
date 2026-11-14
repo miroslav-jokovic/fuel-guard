@@ -770,3 +770,9 @@ A gate fails on a literal string in an `apply/` template.
   - **The office card** shows each name at `[list, i, "name"]`, and its add form mints the new row's key, as the other lists do.
   - **Proof:** shared (row edits, row keys), web (draft, card rows, row lists, labels, review summary, walk), API (the preview prints keyed names as names). Nine of nine mutants killed; the first run left two alive (blank names dropped at filing, and Remove taking the right name), and each got its test.
   - **Next:** the applicant page in English only (owner 2026-11-13), then 1b-3, the address walk.
+- 2026-11-14: **The applicant's page is English only, for now** (owner 2026-11-12 and again 2026-11-13: "English only for now"; `claude/apply-english-only`, no migration).
+  - **This overrules U7's Spanish half and SCREEN-MAP §1's "the language switch in the header"** until the owner reviews the Spanish draft. D-MT8 already ruled the hiring messages English only.
+  - **What changed:** `APPLY_LANGUAGES_OFFERED` is `["en"]` (`language.ts`). The header's switch is drawn only while more than one language is offered, and a phone set to Spanish, or one that chose Spanish before, opens in English.
+  - **What did not:** the Spanish words, their type (`Localized`, which fails `vue-tsc` on a missing key), the U7 gate on literal strings and the rule that shared code returns a message key. New screens still get their Spanish twin, because the type requires it. Offering Spanish again is adding `"es"` to that list.
+  - **Tests:** the language and layout tests pin both states (offered and not). The two browser specs that walked a Spanish page are gone; one now proves a phone that chose Spanish opens in English with no switch. The Spanish wording itself stays covered by the unit tests that set the language directly.
+  - **For the remaining F4 work:** the timed walk and the owner's phone walk are English only.

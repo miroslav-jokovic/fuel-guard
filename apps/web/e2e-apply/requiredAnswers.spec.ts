@@ -7,7 +7,7 @@ import { CARRIER, partTwoLink, stubApi, TOKEN } from "./stubApi";
  *   · The review counts what is missing and lists it, one link per answer; Send is refused with the
  *     required ones, nothing reaches the office, and once they are answered Send goes through.
  *   · A job cannot be saved blank, and a half-filled one is listed as unfinished — never a blank row.
- *   · The same list, in Spanish, for an applicant reading the page in Spanish.
+ *   · English only (owner 2026-11-13): a phone that chose Spanish before opens in English, with no switch.
  *
  * A legacy link (no Part 1), resumed at the review screen with everything answered but the carrier's
  * `position` (required) and `references` (optional) — so the list holds exactly one of each kind.
@@ -99,10 +99,11 @@ test("a job cannot be saved blank, and a half-filled one is listed as unfinished
   await expect(row.getByRole("button", { name: "Finish" })).toBeVisible();
 });
 
-test("the missing list reads in Spanish on a page read in Spanish", async ({ page }) => {
+test("a phone that chose Spanish before opens in English, with no language switch", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("silvicom-apply-language", "es"));
   await stubApi(page, atReview());
   await page.goto(url);
-  await expect(page.getByText("Faltan 2 respuestas")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Puesto que solicita" })).toBeVisible();
+  await expect(page.getByText("2 answers missing")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Position you are applying for" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Change this page's language" })).toHaveCount(0);
 });

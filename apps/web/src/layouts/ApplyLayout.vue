@@ -2,7 +2,7 @@
 import { onBeforeUnmount } from "vue";
 import { AppButton as BaseButton, provideTouchTargets } from "@silvicom/ui";
 import AppLogo from "@/components/AppLogo.vue";
-import { applyLanguage, enterApplyLanguage, leaveApplyLanguage, setApplyLanguage } from "@/features/apply/language";
+import { applyLanguage, enterApplyLanguage, leaveApplyLanguage, offersLanguageChoice, setApplyLanguage } from "@/features/apply/language";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -51,7 +51,11 @@ provideTouchTargets();
  * Put down when the layout goes, so an office screen sharing this copy stays English. The switch is in
  * the header because it must be reachable on every screen, the dead-link card included, and the header
  * is the one thing every screen has. Its label is the OTHER language's name, in that language.
+ *
+ * ⚠ Drawn only while more than one language is offered (`APPLY_LANGUAGES_OFFERED`): the page is English
+ * only for now (owner 2026-11-13), and a switch with one language is a button that does nothing.
  */
+const languageChoice = offersLanguageChoice();
 enterApplyLanguage();
 onBeforeUnmount(leaveApplyLanguage);
 const switchLanguage = (): void => setApplyLanguage(applyLanguage.value === "es" ? "en" : "es");
@@ -63,7 +67,7 @@ const switchLanguage = (): void => setApplyLanguage(applyLanguage.value === "es"
       <div class="mx-auto flex items-center gap-x-3 px-6 py-4" :class="wide ? 'max-w-6xl' : 'max-w-3xl'">
         <AppLogo class="size-8" />
         <span class="text-sm font-semibold text-ink">{{ carrier ?? APPLY_COPY.layout.untitled }}</span>
-        <BaseButton variant="ghost" size="sm" class="ml-auto" :aria-label="APPLY_COPY.layout.switchLabel" :lang="applyLanguage === 'es' ? 'en' : 'es'" @click="switchLanguage">
+        <BaseButton v-if="languageChoice" variant="ghost" size="sm" class="ml-auto" :aria-label="APPLY_COPY.layout.switchLabel" :lang="applyLanguage === 'es' ? 'en' : 'es'" @click="switchLanguage">
           {{ APPLY_COPY.layout.switchTo }}
         </BaseButton>
       </div>

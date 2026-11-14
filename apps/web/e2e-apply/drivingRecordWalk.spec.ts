@@ -7,11 +7,10 @@ import { partTwoV2Link, stubApi, TOKEN } from "./stubApi";
  *   · Each gate is asked with nothing chosen; Yes walks the row's screens, then "Any other?".
  *   · Continue refuses the screen in front of the driver only, under its own box.
  *   · The last Continue closes the task, which the list then shows as Completed.
- *   · On a page read in Spanish the questions and the quick picks are Spanish, and a pick files English.
  */
 const url = `/apply/${TOKEN}`;
 
-const yes = (page: Page) => page.getByRole("radio", { name: /^(Yes|Sí)$/ }).click();
+const yes = (page: Page) => page.getByRole("radio", { name: /^Yes$/ }).click();
 const no = (page: Page) => page.getByRole("radio", { name: /^No$/ }).click();
 const next = (page: Page, name = "Continue") => page.getByRole("button", { name, exact: true }).click();
 
@@ -57,26 +56,4 @@ test("a clean record with one accident is walked a question at a time and closes
   expect(saved.payload.accidents).toMatchObject([{ occurred_on: "2025-04-02", nature: "Rear-ended at a light", fatalities: "0", injuries: "1", hazmat_spill: false }]);
   expect(saved.payload).toMatchObject({ declares_no_violations: true, licence_ever_denied: false, licence_suspended: false });
   expect(stub.state.unstubbed).toEqual([]);
-});
-
-test("the Spanish page asks in Spanish, and a quick pick files the English word", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("silvicom-apply-language", "es"));
-  const stub = await stubApi(page, partTwoV2Link());
-  await page.goto(url);
-  await page.getByRole("button", { name: /Su historial de manejo|historial/i }).first().click();
-
-  await no(page);
-  await next(page, "Continuar");
-  await yes(page);
-  await next(page, "Continuar");
-  await expect(page.getByText("Condena 1")).toBeVisible();
-  await page.getByLabel("¿Cuándo lo condenaron?").fill("01102025");
-  await next(page, "Continuar");
-  await page.getByRole("button", { name: "Exceso de velocidad" }).click();
-  // Shown in Spanish, filed in English (U7).
-  await expect(page.getByLabel("¿Por qué fue?")).toHaveValue("Exceso de velocidad");
-  await expect.poll(() => {
-    const last = stub.callsTo("PUT", /\/draft$/).at(-1)?.body as { payload?: { violations?: Array<{ offence: string }> } } | undefined;
-    return last?.payload?.violations?.[0]?.offence;
-  }).toBe("Speeding");
 });

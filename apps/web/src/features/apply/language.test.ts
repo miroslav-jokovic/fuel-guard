@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { computed, nextTick, watchEffect } from "vue";
 import {
   APPLY_LANGUAGE_KEY,
+  APPLY_LANGUAGES_OFFERED,
   applyLanguage,
   enterApplyLanguage,
   initialApplyLanguage,
   leaveApplyLanguage,
   localized,
+  offersLanguageChoice,
   setApplyLanguage,
 } from "./language";
 
@@ -40,25 +42,36 @@ beforeEach(() => {
 afterEach(() => leaveApplyLanguage());
 
 describe("which language the page opens in", () => {
-  it("is the device's last choice first, then the browser's, then English", () => {
-    expect(initialApplyLanguage("es", "en-US")).toBe("es");
-    expect(initialApplyLanguage("en", "es-MX")).toBe("en");
-    expect(initialApplyLanguage(null, "es-419")).toBe("es");
-    expect(initialApplyLanguage(null, "ES")).toBe("es");
-    expect(initialApplyLanguage(null, "en-GB")).toBe("en");
-    expect(initialApplyLanguage("fr", "fr-FR")).toBe("en");
-    expect(initialApplyLanguage(undefined, undefined)).toBe("en");
+  it("is the device's last choice first, then the browser's, then English, when both are offered", () => {
+    const both = ["en", "es"] as const;
+    expect(initialApplyLanguage("es", "en-US", both)).toBe("es");
+    expect(initialApplyLanguage("en", "es-MX", both)).toBe("en");
+    expect(initialApplyLanguage(null, "es-419", both)).toBe("es");
+    expect(initialApplyLanguage(null, "ES", both)).toBe("es");
+    expect(initialApplyLanguage(null, "en-GB", both)).toBe("en");
+    expect(initialApplyLanguage("fr", "fr-FR", both)).toBe("en");
+    expect(initialApplyLanguage(undefined, undefined, both)).toBe("en");
   });
 
-  it("keeps the choice on the device and on the document, and puts it down when the layout goes", () => {
+  it("is English only for now: a phone in Spanish, or one that chose Spanish before, opens in English", () => {
+    expect(APPLY_LANGUAGES_OFFERED).toEqual(["en"]);
+    expect(offersLanguageChoice()).toBe(false);
+    expect(offersLanguageChoice(["en", "es"])).toBe(true);
+    expect(initialApplyLanguage("es", "es-MX")).toBe("en");
+    expect(initialApplyLanguage(null, "es-419")).toBe("en");
+    expect(initialApplyLanguage("en", "en-US")).toBe("en");
+  });
+
+  it("keeps a choice on the device and on the document, and puts it down when the layout goes", () => {
     setApplyLanguage("es");
     expect(localStorage.getItem(APPLY_LANGUAGE_KEY)).toBe("es");
     expect(document.documentElement.lang).toBe("es");
     leaveApplyLanguage();
     expect(applyLanguage.value).toBe("en");
     expect(document.documentElement.lang).toBe("en");
+    // Taken up again only if it is offered: the remembered Spanish opens in English.
     enterApplyLanguage();
-    expect(applyLanguage.value).toBe("es");
+    expect(applyLanguage.value).toBe("en");
   });
 });
 
