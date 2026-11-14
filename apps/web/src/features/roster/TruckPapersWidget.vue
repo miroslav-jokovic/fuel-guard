@@ -22,9 +22,10 @@
  */
 import { computed } from "vue";
 import { DocumentTextIcon } from "@silvicom/ui/icons";
-import { matchesVehicleCheck, VEHICLE_CHECK_LABELS, type VehicleCheck } from "@silvicom/shared";
+import { matchesVehicleCheck, type VehicleCheck } from "@silvicom/shared";
+import { PAPERS, PAPER_STATES, paperCheck, paperStateLabel } from "./truckPapersGrid";
 import ChartCard from "@/components/ui/ChartCard.vue";
-import CountList, { type CountRow } from "@/components/ui/CountList.vue";
+import DoorLink from "@/components/ui/DoorLink.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useUnitFilesQuery } from "@/composables/useCompliance";
 
@@ -40,36 +41,43 @@ const count = (check: VehicleCheck) => {
   return vehicles.value.filter((v) => v.status === "active" && matchesVehicleCheck(v, check, files.get(v.id))).length;
 };
 /** One caption per kind of answer — the label already says which paper. */
-const CAPTION: Record<string, string> = {
-  overdue: "past its date",
-  due: "lapses soon",
-  date_only: "McLeod's date, no paper filed",
-  missing: "nothing on file",
-};
-const row = (check: VehicleCheck, alarm = false): CountRow => ({
-  key: check,
-  label: VEHICLE_CHECK_LABELS[check],
-  value: count(check),
-  caption: CAPTION[check.slice(check.indexOf("_") + 1)],
-  to: `/vehicles?check=${check}`,
-  door: "Trucks",
-  alarm,
-});
-
-const rows = computed<CountRow[]>(() => [
-  row("inspection_overdue", true),
-  row("inspection_due"),
-  row("inspection_date_only"),
-  row("inspection_missing"),
-  row("registration_overdue", true),
-  row("registration_due"),
-  row("registration_date_only"),
-  row("registration_missing"),
-]);
+// One grid, four states by two papers — see `truckPapersGrid.ts` for why, and for where the row
+// names come from. Every figure is still its own door (D-FM9), to the same filtered list as before.
+const grid = computed(() =>
+  PAPER_STATES.map((state) => ({
+    state,
+    label: paperStateLabel(PAPERS[0], state),
+    cells: PAPERS.map((paper) => {
+      const check = paperCheck(paper, state);
+      return { check, paper: paper.label, value: count(check), to: `/vehicles?check=${check}`, alarm: state === "overdue" };
+    }),
+  })),
+);
+const fmt = (n: number | null) => (n == null ? "—" : n.toLocaleString("en-US"));
 </script>
 
 <template>
   <ChartCard title="Truck paperwork" subtitle="Active trucks — annual inspection and registration" :icon="DocumentTextIcon" tone="warning" class="h-full">
-    <CountList :rows="rows" />
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-2xs uppercase tracking-wide text-ink-muted">
+          <th scope="col" class="pb-2 text-left font-medium"><span class="sr-only">State</span></th>
+          <th v-for="paper in PAPERS" :key="paper.key" scope="col" class="w-24 pb-2 pl-3 text-right align-bottom font-medium">{{ paper.label }}</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-edge-subtle">
+        <tr v-for="r in grid" :key="r.state">
+          <th scope="row" class="py-2 text-left font-normal text-ink-secondary">{{ r.label }}</th>
+          <td v-for="c in r.cells" :key="c.check" class="py-2 pl-3 text-right whitespace-nowrap">
+            <span
+              class="tabular-nums"
+              :class="c.value === 0 ? 'font-medium text-ink-tertiary' : c.alarm && (c.value ?? 0) > 0 ? 'text-base font-bold text-danger-text' : 'text-base font-bold text-ink'"
+              :data-test="`count-${c.check}`"
+            >{{ fmt(c.value) }}</span>
+            <DoorLink :to="c.to"><span class="sr-only">Trucks: {{ c.paper }}, {{ r.label.toLowerCase() }}</span></DoorLink>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </ChartCard>
 </template>

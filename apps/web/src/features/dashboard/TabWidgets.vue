@@ -47,6 +47,7 @@ import { WIDGET_COMPONENTS, WIDGETS_TAKING_RANGE } from "@/lib/dashboardWidgets"
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { AdjustmentsHorizontalIcon } from "@silvicom/ui/icons";
 import DashboardLayoutEditor from "@/features/dashboard/DashboardLayoutEditor.vue";
+import { packedSpanOf } from "@/features/dashboard/packing";
 
 const props = defineProps<{
   tab: string;
@@ -128,6 +129,26 @@ const SPAN_CLASS: Record<number, string> = {
   5: "@2xl:col-span-12 @5xl:col-span-5",
   6: "@2xl:col-span-6 @5xl:col-span-6",
   12: "@2xl:col-span-12 @5xl:col-span-12",
+};
+
+/**
+ * ── A TAB OF EQUAL CARDS IS PACKED, NOT GRIDDED (SMALL-SCREENS-PLAN.md D-SM12, 2026-11-14) ─────────
+ * A grid row is as tall as its tallest card. Operations is ten cards of one span and very different
+ * lengths (Shop three rows, Truck paperwork eight), so every row but one ended in white: the audit
+ * measured Seats stopping 250 px above its own bottom edge. When every card on a tab has the SAME
+ * span there are no rows to keep — nothing is wider than anything else — so the cards flow down
+ * columns and each is as tall as its content.
+ *
+ * Decided from the spans, never from the tab's name: Fleet overview mixes 5 / 4 / 3 / 12 / 6 and is
+ * still a grid, and a tab somebody arranges into equal cards tomorrow packs without a line here.
+ * The order a person saved still reads top to bottom, then across — down a column, not along a row.
+ */
+const packedSpan = computed<number | null>(() => packedSpanOf(drawable.value));
+/** Columns for a span — the same two steps `SPAN_CLASS` takes, as column counts. */
+const PACK_CLASS: Record<number, string> = {
+  3: "@2xl:columns-2 @5xl:columns-4",
+  4: "@2xl:columns-2 @5xl:columns-3",
+  6: "@2xl:columns-2",
 };
 
 /**
@@ -235,7 +256,12 @@ const workspaceWidget = computed(() =>
       Your saved arrangement referred to cards that no longer exist, so the default is shown. Customize to set a new one.
     </p>
     <div v-if="!nothingAvailable && !emptyByChoice" class="@container">
-    <div class="grid grid-cols-1 gap-6 @2xl:grid-cols-12">
+    <div v-if="packedSpan !== null && PACK_CLASS[packedSpan]" class="gap-6" :class="PACK_CLASS[packedSpan]" data-test="packed">
+      <div v-for="w in drawable" :key="w.key" :data-test="`widget-${w.key}`" class="mb-6 break-inside-avoid">
+        <component :is="WIDGET_COMPONENTS[w.key]" v-bind="WIDGETS_TAKING_RANGE.has(w.key) ? { range } : {}" />
+      </div>
+    </div>
+    <div v-else class="grid grid-cols-1 gap-6 @2xl:grid-cols-12">
       <!--
         Twelve columns, and a card's `span` is how many it takes (Q-FO3). D-DT5: a narrower grid
         collapses SPANS, never restyles a widget — so under 64rem of grid anything narrower than

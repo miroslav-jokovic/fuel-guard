@@ -232,3 +232,20 @@ Table layout at desk widths. New data on any card.
     moving it is the assistant's own plan, not this one.
   - Checked and not a fault: the Fuel-spend plot's canvas is exactly its parent's width at 390, 1024
     and 1440 (318 / 648 / 406 px), 20 px inside the card.
+- **2026-11-14, C1 built** (branch `claude/operations-quiet-rows`, stacked on B) — the three parts of
+  D-SM12 that need nothing from another feature.
+  - **Q-SM1 built as (a)**, the written ruling: a zero row still renders, on one line, figure in the
+    tertiary ink, its door kept as the arrow (`CountList`). The folded "✓ 4 clear" of the picture is
+    NOT built. A rate of nothing (value 0, printed "—") is an unknown and keeps its sentence.
+  - **Packing** (`features/dashboard/packing.ts`): a tab whose cards all take one span flows down
+    columns, each card as tall as its content. Decided from the spans, so Fleet overview is untouched.
+  - **Truck paperwork** is one 4 × 2 grid, its row names derived from `VEHICLE_CHECK_LABELS`
+    (`truckPapersGrid.ts`); each of the eight figures is still its own door.
+  - Measured on staging's data: Operations is 1,335 px tall at 1440 (was 2,219), 1,859 at 1024, and
+    3,245 at 390 (was 4,454). The picture's "about 1,150 px on a phone" assumed folded zeros.
+  - **C2, not built: the fleet strip and the "Needs action" card.** Q-SM3 is half answered —
+    `lib/dashboardWidgets.ts` already imports every feature's widget, so `lib/` may compose them —
+    but each of the ten cards computes its rows inside its own `.vue`. C2 first moves each card's
+    rows into a composable beside it (ten small moves, no behaviour change), then adds one catalogue
+    entry that reads them. Its own PR, with its own gate (`ops.needs-action` must respect each
+    source card's section gate, D-FM4).
