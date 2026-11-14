@@ -86,6 +86,9 @@
   "application_ssns": [
     "apps/api/src/modules/recruiting/applicantSsn.ts"
   ],
+  "application_trusted_devices": [
+    "apps/api/src/modules/recruiting/applicationTrustedDevice.ts"
+  ],
   "application_unlock_codes": [
     "apps/api/src/modules/recruiting/applicationUnlockCode.ts"
   ],

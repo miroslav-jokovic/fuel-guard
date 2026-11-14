@@ -2415,6 +2415,13 @@ async function main() {
         `select '${org}', id, md5(gen_random_uuid()::text), now() + interval '1 day' from d returning id) ` +
         `insert into application_unlock_codes (org_id, invitation_id, channel, code_hash, expires_at) ` +
         `select '${org}', i.id, 'email', repeat('a', 64), now() + interval '10 minutes' from i`,
+      // 0604 (U2): a remembered device hangs on an invitation the same way; the hash is 64 hex characters.
+      application_trusted_devices: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'rls ' || gen_random_uuid()) returning id), ` +
+        `i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +
+        `select '${org}', id, md5(gen_random_uuid()::text), now() + interval '1 day' from d returning id) ` +
+        `insert into application_trusted_devices (org_id, invitation_id, token_hash, earned_by, expires_at) ` +
+        `select '${org}', i.id, repeat('b', 64), 'date_of_birth', now() + interval '30 days' from i`,
       phone_lookups: (org) =>
         `insert into phone_lookups (org_id, phone_e164, provider, line_type) values ('${org}', '+17082360042', 'telnyx', 'unknown')`,
       recruiting_lead_closures: (org) =>

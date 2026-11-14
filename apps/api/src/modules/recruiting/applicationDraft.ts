@@ -21,6 +21,7 @@ import { identityOnRecord } from "./applicantIdentity.js";
 import { partOneFactsView } from "./applicantIntake.js";
 import { ssnOnFile } from "./applicantSsn.js";
 import { SIGN_LINK_LOCKED, countWrongUnlock } from "./signLinkUnlock.js";
+import { deviceIsRemembered, rememberDevice } from "./applicationTrustedDevice.js";
 
 /**
  * The applicant's saved draft (A2) — the other half of what 0225 started.
@@ -83,6 +84,11 @@ export interface DraftView {
    * so a returning applicant sees it is on file. Never the number; absent when none is on file.
    */
   ssnLast4?: string;
+  /**
+   * U2 (0604): the token this device keeps so it is not asked again — only on the answer to a RIGHT date
+   * of birth or code that asked to be remembered, and only when a row was written for it.
+   */
+  deviceToken?: string;
 }
 
 const EMPTY_VIEW: DraftView = { locked: false, payload: null, furthestSection: null, updatedAt: null, revision: 0 };
@@ -232,6 +238,8 @@ export async function unlockDraft(
   token: string,
   dateOfBirth: string,
   now: Date,
+  /** U2: the applicant ticked "remember this phone" — a right answer then leaves a device token. */
+  remember = false,
 ): Promise<DraftView | IntakeError> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
@@ -251,6 +259,37 @@ export async function unlockDraft(
       ...(counted === null ? {} : { attemptsLeft: counted }),
     };
   }
+  // ⚠ Only past a MATCH. The no-op above mints nothing: a token given before a date of birth exists
+  // would open the application once one does.
+  const deviceToken = remember ? await rememberDevice(admin, invitation, "date_of_birth", now) : null;
+  return { ...releasedView(row, partOne, ssnLast4), ...(deviceToken ? { deviceToken } : {}) };
+}
+
+/** A device token the invitation does not hold live. One answer for unknown, expired and another link's. */
+export const DEVICE_NOT_KNOWN: IntakeError = {
+  code: "device_not_known",
+  message: "This device is not remembered for this application. Enter your date of birth.",
+};
+
+/**
+ * The third way in (U2, 0604): the token a right answer left on this device. The same release as the
+ * other two (`gatedRelease`, `releasedView`), so the three cannot release different things.
+ *
+ * ⚠ A wrong token is NOT counted against a sent sign link's five tries: it is not a guess at the date
+ * of birth, and a phone whose token ran out must fall back to the date with all five tries left. The
+ * route's limiter (`unlockLimiter`, ten per link per ten minutes) is the bound on trying tokens, and a
+ * token is 256 random bits.
+ */
+export async function unlockWithDevice(
+  admin: SupabaseClient,
+  token: string,
+  deviceToken: string,
+  now: Date,
+): Promise<DraftView | IntakeError> {
+  const invitation = await resolveInvitation(admin, token, now);
+  if (isIntakeError(invitation)) return invitation;
+  if (!(await deviceIsRemembered(admin, invitation, deviceToken, now))) return DEVICE_NOT_KNOWN;
+  const { row, partOne, ssnLast4 } = await gatedRelease(admin, invitation, now);
   return releasedView(row, partOne, ssnLast4);
 }
 

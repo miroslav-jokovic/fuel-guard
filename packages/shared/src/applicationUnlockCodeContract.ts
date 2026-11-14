@@ -47,6 +47,8 @@ export const unlockCodeVerifySchema = z
       .string()
       .transform((v) => v.replace(/[\s-]/g, ""))
       .pipe(z.string().regex(/^\d{6}$/, "Enter the six digits from the message")),
+    /** U2 (0604): "remember this phone" — a right code then also returns a device token. */
+    remember_device: z.boolean().optional(),
   })
   .strict();
 export type UnlockCodeVerify = z.infer<typeof unlockCodeVerifySchema>;

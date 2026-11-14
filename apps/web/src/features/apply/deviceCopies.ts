@@ -23,14 +23,15 @@ import { computed, getCurrentInstance, inject, onScopeDispose, provide, type Inj
 
 const DB_NAME = "silvicom-apply";
 /**
- * 2: C3d2 added `photos`. 3: Q-AW56 (e) added `links` (`linkMemo.ts`). The upgrade creates whichever
+ * 2: C3d2 added `photos`. 3: Q-AW56 (e) added `links` (`linkMemo.ts`). 4: U2 added `devices`
+ * (`deviceMemory.ts`). The upgrade creates whichever
  * stores are missing, so an older database keeps every copy it had.
  */
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const RETIRED_DB = "silvicom-part-one";
 
-export type CopyStore = "partOne" | "partTwo" | "photos" | "links";
-const STORES: readonly CopyStore[] = ["partOne", "partTwo", "photos", "links"];
+export type CopyStore = "partOne" | "partTwo" | "photos" | "links" | "devices";
+const STORES: readonly CopyStore[] = ["partOne", "partTwo", "photos", "links", "devices"];
 
 /** Every row carries its key and the moment it stops being readable. */
 export interface CopyRow {

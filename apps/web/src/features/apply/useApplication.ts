@@ -120,6 +120,8 @@ export interface ApplyDraft {
   attemptsLeft?: number;
   /** Q-AM3 (0589): the last four of the SSN on file, on the unlock's answer only. */
   ssnLast4?: string;
+  /** U2 (0604): on a right answer that asked to be remembered — the token this device keeps (`deviceMemory.ts`). */
+  deviceToken?: string;
 }
 
 /**
@@ -389,13 +391,6 @@ export const saveApplicationDraft = (
   publicFetch<{ updatedAt: string; revision?: number | null }>(`/${token}/draft`, {
     method: "PUT",
     body: JSON.stringify({ payload, section, revision }),
-  });
-
-/** Release a gated draft with the date of birth that is in it (D-APP16). */
-export const unlockApplicationDraft = (token: string, dateOfBirth: string): Promise<{ draft: ApplyDraft }> =>
-  publicFetch<{ draft: ApplyDraft }>(`/${token}/unlock`, {
-    method: "POST",
-    body: JSON.stringify({ date_of_birth: dateOfBirth }),
   });
 
 
