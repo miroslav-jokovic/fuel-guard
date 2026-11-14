@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { AD_AGENT_MODELS, AI_MODEL_PROFILES } from "@silvicom/shared";
+import { AD_AGENT_MODELS, AI_MODELS, AI_MODEL_PROFILES } from "@silvicom/shared";
 import { callForcedTool, toolInputSchema, toolInstruction, wireShape, type ForcedTool, type MessagesClient } from "./anthropic.js";
 
 const tool: ForcedTool<{ headline: string; lines: string[] }> = {
@@ -91,6 +91,14 @@ describe("the request shape follows the model's profile", () => {
     await expect(callForcedTool(client, { ...req, model: "claude-unknown-9" })).rejects.toThrow(/no profile/);
     expect(create).not.toHaveBeenCalled();
     expect(() => wireShape({ ...req, model: "claude-unknown-9" })).toThrow(/no profile/);
+  });
+
+  it("every model the product names has a profile, so no caller of this function can be refused in production", () => {
+    for (const [use, model] of Object.entries(AI_MODELS)) expect(AI_MODEL_PROFILES[model], use).toBeDefined();
+  });
+
+  it("a forced-tool profile adds nothing to the request", () => {
+    for (const [model, p] of Object.entries(AI_MODEL_PROFILES)) if (p.forcedTool) expect(p.thinkingHeadroom, model).toBe(0);
   });
 
   it("every ads agent names a model that has a profile", () => {

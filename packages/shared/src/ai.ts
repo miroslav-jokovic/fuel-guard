@@ -37,6 +37,9 @@ export interface AiModelProfile {
 export const AI_MODEL_PROFILES: Readonly<Record<string, AiModelProfile>> = {
   "claude-haiku-4-5": { forcedTool: true, thinkingHeadroom: 0 },
   "claude-sonnet-4-6": { forcedTool: true, thinkingHeadroom: 0 },
+  // Chat catch-up (CH12) asks Haiku 5.5 with a forced tool, which it accepts; it thinks by default and
+  // was sized with that, so no headroom is added and its request is what it was before V1.
+  "claude-haiku-5-5": { forcedTool: true, thinkingHeadroom: 0 },
   "claude-sonnet-5-5": { forcedTool: false, thinkingHeadroom: 8000 },
   "claude-opus-5-5": { forcedTool: false, thinkingHeadroom: 8000 },
   "claude-fable-5-2": { forcedTool: false, thinkingHeadroom: 8000 },
