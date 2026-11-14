@@ -166,6 +166,12 @@ export interface ChatPushMessage {
     badge: string;
     timestamp: number;
     data: { thread_id: string | null; message_id: string | null };
+    /**
+     * The recipient's unread chats, for the installed app's icon (INSTALLED-APP-PLAN IA-U1b). A STRING, and
+     * inside `notification`: that is the member as WebKit documents it ("Meet Declarative Web Push"), which
+     * Safari applies by itself; the service worker reads the same field for Chromium. Absent when unknown.
+     */
+    app_badge?: string;
   };
 }
 
@@ -179,6 +185,8 @@ export interface ChatPushInput {
   threadId: string | null;
   messageId: string | null;
   at: Date;
+  /** The recipient's unread total as their sidebar would show it; omitted when it could not be read. */
+  unread?: number | null;
 }
 
 export function chatPushMessage(i: ChatPushInput): ChatPushMessage {
@@ -197,6 +205,7 @@ export function chatPushMessage(i: ChatPushInput): ChatPushMessage {
       badge: `${i.origin}/icons/badge-96.png`,
       timestamp: i.at.getTime(),
       data: { thread_id: i.threadId, message_id: i.messageId },
+      ...(typeof i.unread === "number" && Number.isInteger(i.unread) && i.unread > 0 ? { app_badge: String(i.unread) } : {}),
     },
   };
 }
