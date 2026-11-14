@@ -114,6 +114,18 @@ describe("previewing an application before it is signed", () => {
     expect(result.filename).toContain("preview");
   });
 
+  // Q-AM22 (b): the draft keys its other names; the paper prints the names, never "[object Object]".
+  it("prints a draft's keyed other names as the names, and one saved as a plain string the same", async () => {
+    const key = "66666666-6666-4666-8666-666666666666";
+    const result = await applicationPreviewPdf(
+      seed({ payload: { ...PAYLOAD, other_names: [{ name: "Susan Miller", key }, "Sue Trent", { name: "", key }] } }).client, ORG, INV,
+    );
+    if (isPreviewError(result)) throw new Error(result.message);
+    const text = await textOf(result.pdf);
+    expect(text).toContain("Susan Miller, Sue Trent");
+    expect(text).not.toContain("object Object");
+  });
+
   /**
    * ⚠ **The assertion A2 exists for** (§1.1, and the step's own done-when).
    *

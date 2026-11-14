@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { applicationRowKeySchema } from "./applicationRowKey.js";
+import { draftOtherNameSchema } from "./draftOtherNames.js";
 export { applicationRowKeySchema };
 import { ENDORSEMENT_CODES, endorsementCodeSchema, isoDateSchema, requiredDateOfBirthSchema } from "./rosterContract.js";
 // ⚠ The rules that span fields live in their own module since 2026-09-11 (the 500-line budget), and
@@ -409,8 +410,7 @@ export const APPLICATION_CORRECTION_NOTE_MAX = 1000;
  *
  * ── WHY THIS IS NOT `driverApplicationObject.partial()` ───────────────────────────────────────
  * ⚠ It was, on the API's edit path, and that refused EVERY correction an office could make. Two
- * differences, and the first one alone is fatal:
- *
+ * differences (and since Q-AM22 a third, the keyed other names), the first one alone fatal:
  *   1. The draft carries `questionnaire` — the carrier's own answers, keyed by question id, as the
  *      form holds them while the driver types. The certified document carries `questionnaire_version`
  *      and `questionnaire_answers` instead, written at submit. `driverApplicationObject` is
@@ -423,11 +423,11 @@ export const APPLICATION_CORRECTION_NOTE_MAX = 1000;
  *
  * ── WHAT IT STILL CHECKS, WHICH IS THE POINT ──────────────────────────────────────────────────
  * Every field that IS present must be a legal value of its own type, nested rows included — so an
- * office cannot put the draft into a state the driver would then be unable to certify. That is the
- * one thing the edit path needs from a schema, and a draft-shaped schema is the only one that can
- * check it without refusing the ordinary case.
+ * office cannot put the draft into a state the driver would then be unable to certify — which only a
+ * draft-shaped schema can check without refusing the ordinary case.
  */
 export const applicationDraftPayloadSchema = driverApplicationObject.partial().extend({
+  other_names: z.array(draftOtherNameSchema).optional(), // Q-AM22 (b): keyed in the draft only (`draftOtherNames.ts`)
   questionnaire: z.record(z.string(), z.unknown()).nullish(),
   /**
    * "Something wrong? Tell us" (C3c2c2, Q-AW34): a v2 applicant's message to the office about a Part 1

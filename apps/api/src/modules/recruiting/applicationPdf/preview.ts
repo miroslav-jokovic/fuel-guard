@@ -5,7 +5,7 @@ import { carrierToday } from "../carrierClock.js";
 import { applicationAsFiled } from "../applicationAsFiled.js";
 import { identityOnRecord } from "../applicantIdentity.js";
 import { ssnLast4View } from "../applicantSsn.js";
-import { maskSsn } from "@silvicom/shared";
+import { maskSsn, otherNamesAsFiled } from "@silvicom/shared";
 
 /** The last four on file, masked (Q-AM17), or null. What every preview prints unless told it may print more. */
 const maskedSsnOnFile = async (admin: SupabaseClient, orgId: string, invitationId: string): Promise<string | null> => {
@@ -203,8 +203,9 @@ export async function applicationPreviewPdf(
    * since, and every endorsement, never reached the copy the office reviews before sending it to sign.
    * ⚠ `addresses` defaulted only for composition's walk: a draft saved before the address screen has none.
    */
+  // Q-AM22 (b): the draft keys its other names (`{ name, key }`); the document prints the names.
   const composed = await applicationAsFiled(
-    admin, invitation, { ...payload, addresses: Array.isArray(payload.addresses) ? payload.addresses : [] } as never, now,
+    admin, invitation, { ...otherNamesAsFiled(payload), addresses: Array.isArray(payload.addresses) ? payload.addresses : [] } as never, now,
   );
   const asFiled = {
     ...(composed.application as Record<string, unknown>),

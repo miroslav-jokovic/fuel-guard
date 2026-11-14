@@ -5,7 +5,7 @@ import type { ApplicationRowList, PartOneFactsView } from "@silvicom/shared";
 import { useToastStore } from "@/stores/toast";
 import FactEditor from "./FactEditor.vue";
 import { fieldId } from "./fieldLabels";
-import { blankRow, isStringList, rowChange, rowColumns, rowNoun } from "./factRowLists";
+import { blankRow, rowChange, rowColumns, rowNoun } from "./factRowLists";
 import { useCorrectPartOne, useEditApplicationAnswer } from "./useApplicationReview";
 
 /**
@@ -37,9 +37,7 @@ type Cell = string | boolean | null | readonly string[];
 /** The driver's own blank row, one value per question. */
 const blank = blankRow(props.list);
 const values = ref<Record<string, Cell>>(
-  isStringList(props.list)
-    ? { "": "" }
-    : Object.fromEntries(Object.entries(blank as Record<string, unknown>).map(([k, v]) => [k, v as Cell])),
+  Object.fromEntries(Object.entries(blank as Record<string, unknown>).map(([k, v]) => [k, v as Cell])),
 );
 const problem = ref<string | null>(null);
 
@@ -47,10 +45,7 @@ const problem = ref<string | null>(null);
 const stored = (v: Cell): unknown => (v === null ? "" : v);
 
 const row = computed<unknown>(() =>
-  isStringList(props.list)
-    ? String(stored(values.value[""] ?? "")).trim()
-    : { ...(blank as Record<string, unknown>), ...Object.fromEntries(Object.entries(values.value).map(([k, v]) => [k, stored(v)])) },
-);
+  ({ ...(blank as Record<string, unknown>), ...Object.fromEntries(Object.entries(values.value).map(([k, v]) => [k, stored(v)])) }));
 
 async function save(): Promise<void> {
   problem.value = null;

@@ -9,6 +9,7 @@ import {
   carrierQuestionnaire,
   composeFiledApplication,
   currentEditPaths,
+  otherNameText,
   partOneCorrectionWith,
   sectionOwningPath,
   type ApplicantFact,
@@ -319,7 +320,8 @@ export function applicantFactRows({ payload, partOne, edits, questionnaire, part
     rows.forEach((row, i) => {
       const door = doorOf(fact, Boolean(partOne), i, current);
       if (!door) return;
-      if (column === undefined) push(fact, [list!, i], row, door); // a list of plain strings (other names)
+      // Q-AM22 (b): an other name is the draft row `{ name, key }` (or a string saved before), corrected at its name.
+      if (column === undefined) push(fact, [list!, i, "name"], otherNameText(row), door);
       else if (isRecord(row)) push(fact, [name, i, column], row[column], door);
     });
   }

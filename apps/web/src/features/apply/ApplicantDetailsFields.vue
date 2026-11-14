@@ -3,7 +3,7 @@ import { computed } from "vue";
 import ApplyDate from "@/features/apply/ApplyDate.vue";
 import { AppButton as BaseButton, AppInput as BaseInput } from "@silvicom/ui";
 import type { PartOneFactsView } from "@silvicom/shared";
-import type { ApplicationDraft } from "@/features/apply/draft";
+import { newRowKey, type ApplicationDraft } from "@/features/apply/draft";
 import ApplyField from "@/features/apply/ApplyField.vue";
 import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
 import SsnField from "@/features/apply/SsnField.vue";
@@ -68,13 +68,13 @@ const lockedHint = APPLY_COPY.identityStep.lockedHint;
     <div class="space-y-2">
       <p class="text-sm text-ink">{{ copy.otherNames }}</p>
       <p class="text-xs text-ink-muted">{{ copy.otherNamesHint }}</p>
-      <div v-for="(_, i) in draft.other_names" :key="i" class="flex items-center gap-2">
-        <BaseInput v-model="draft.other_names[i]" class="flex-1" autocomplete="off" />
+      <div v-for="(row, i) in draft.other_names" :key="row.key" class="flex items-center gap-2">
+        <BaseInput v-model="row.name" class="flex-1" autocomplete="off" />
         <BaseButton variant="ghost" size="sm" @click="draft.other_names.splice(i, 1)">
           {{ copy.remove }}
         </BaseButton>
       </div>
-      <BaseButton variant="secondary" size="sm" @click="draft.other_names.push('')">
+      <BaseButton variant="secondary" size="sm" @click="draft.other_names.push({ name: '', key: newRowKey() })">
         {{ copy.addOtherName }}
       </BaseButton>
     </div>

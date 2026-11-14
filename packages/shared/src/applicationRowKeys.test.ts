@@ -16,7 +16,9 @@ const K3 = "33333333-3333-4333-8333-333333333333";
 const HOME = { line1: "1 Main St", line2: "", city: "Joliet", state: "IL", postal_code: "60431", from: "2023-01", to: "", key: K1 };
 const OLD = { line1: "9 Old Rd", line2: "", city: "Gary", state: "IN", postal_code: "46401", from: "2019-01", to: "2022-12", key: K2 };
 const OLDER = { ...OLD, city: "Hammond", from: "2015-01", to: "2018-12", key: K3 };
-const KEYED = { addresses: [HOME, OLD, OLDER], other_names: ["Sue Smith"] };
+const N1 = "66666666-6666-4666-8666-666666666666";
+const N2 = "77777777-7777-4777-8777-777777777777";
+const KEYED = { addresses: [HOME, OLD, OLDER], other_names: [{ name: "Sue Smith", key: N1 }, { name: "Sue Miller", key: N2 }] };
 
 let minted = 0;
 const mint = () => `minted-${++minted}`;
@@ -25,7 +27,7 @@ const apply = (edit: unknown, payload: Record<string, unknown> = KEYED) =>
 const strip = ({ key: _key, ...row }: Record<string, unknown>) => row;
 
 describe("withRowKeys", () => {
-  it("keys every keyless row of the five object lists, and leaves the rest alone", () => {
+  it("keys every keyless row of the six lists, and leaves the rest alone", () => {
     const before = {
       addresses: [strip(HOME), OLD],
       accidents: [{ occurred_on: "2024-01-02", nature: "Backed into a pole" }],
@@ -35,8 +37,8 @@ describe("withRowKeys", () => {
     const keyed = withRowKeys(before, () => "fresh");
     expect((keyed.addresses as Array<{ key: string }>).map((a) => a.key)).toEqual(["fresh", K2]);
     expect((keyed.accidents as Array<{ key: string }>)[0]!.key).toBe("fresh");
-    // The other names are strings (Q-AM22); the employers have their own minting (`withEmployerKeys`).
-    expect(keyed.other_names).toEqual(["Sue Smith"]);
+    // Q-AM22 (b): an other name saved as a string becomes its row, keyed; the employers have their own minting.
+    expect(keyed.other_names).toEqual([{ name: "Sue Smith", key: "fresh" }]);
     expect(keyed.employers).toEqual([{ name: "Acme" }]);
     expect((before.addresses[0] as Record<string, unknown>).key).toBeUndefined();
   });
@@ -94,9 +96,44 @@ describe("adding and removing a keyed row", () => {
     expect(isEditRefusal(apply({ op: "add_row", list: "accidents", row: "a crash", revision: 1 }, { declares_no_accidents: false }))).toBe(true);
   });
 
-  it("still names an other name by its place — a list of strings has nowhere to hold a key (Q-AM22)", () => {
-    const done = apply({ op: "remove_row", list: "other_names", index: 0, revision: 1 }) as AppliedEdit;
-    expect(done.logPath).toEqual(["other_names", 0]);
+});
+
+/**
+ * Q-AM22 (b), owner 2026-11-13: the other names are keyed in the draft, so the case Q-AM15 closed for the
+ * object lists is closed for them too — the driver deletes a name on the phone after the office corrected
+ * a later one, and the correction stays on its own name.
+ */
+describe("an other name, keyed in the draft", () => {
+  it("is corrected by its key, at its name", () => {
+    const done = apply({ path: ["other_names", N2, "name"], value: "Susan Miller", revision: 1 }) as AppliedEdit;
+    expect(done.payload.other_names).toEqual([{ name: "Sue Smith", key: N1 }, { name: "Susan Miller", key: N2 }]);
+    expect(done).toMatchObject({ logPath: ["other_names", N2, "name"], before: "Sue Miller", after: "Susan Miller" });
+  });
+
+  it("is removed by its key, and an added one is a keyed row", () => {
+    expect(apply({ op: "remove_row", list: "other_names", key: N1, revision: 1 })).toMatchObject({ logPath: ["other_names", N1] });
+    const added = apply({ op: "add_row", list: "other_names", row: { name: "S. G." }, revision: 1 }) as AppliedEdit;
+    expect((added.payload.other_names as unknown[])[2]).toEqual({ name: "S. G.", key: added.logPath[1] });
+    expect(isEditRefusal(apply({ op: "add_row", list: "other_names", row: "S. G.", revision: 1 }))).toBe(true);
+  });
+
+  it("⚠ keeps a correction on its own name when the driver deletes an earlier one", () => {
+    const corrected = { path: ["other_names", N2, "name"] as ["other_names", string, string], before: "Sue Miller", after: "Susan Miller" };
+    const now = currentEditPaths([corrected], { other_names: [{ name: "Susan Miller", key: N2 }] });
+    expect(now).toEqual([{ path: ["other_names", 0, "name"], gone: false, removal: false }]);
+  });
+
+  it("reaches a name saved as a plain string by its place, and logs it under the key it was just given", () => {
+    const legacy = { other_names: ["Sue Smith", "Sue Miller"] };
+    const done = apply({ path: ["other_names", 1, "name"], value: "Susan Miller", revision: 1 }, legacy) as AppliedEdit;
+    expect(String(done.logPath[1])).toMatch(/^minted-/);
+    expect((done.payload.other_names as Array<{ name: string }>).map((n) => n.name)).toEqual(["Sue Smith", "Susan Miller"]);
+  });
+
+  it("is a draft the schema takes in either shape, and never a filed one", () => {
+    expect(applicationDraftPayloadSchema.safeParse({ other_names: ["Sue", { name: "", key: N1 }] }).success).toBe(true);
+    expect(applicationDraftPayloadSchema.safeParse({ other_names: [{ name: "Sue", key: N1, extra: 1 }] }).success).toBe(false);
+    expect(driverApplicationObject.shape.other_names.safeParse([{ name: "Sue", key: N1 }]).success).toBe(false);
   });
 });
 

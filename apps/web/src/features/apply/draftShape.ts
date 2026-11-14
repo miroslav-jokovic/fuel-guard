@@ -122,12 +122,21 @@ export interface DraftGap {
   explanation: string;
 }
 
+/** One other name in the draft: the words, and the row's stable id (Q-AM22 (b)). Never filed with its key. */
+export interface DraftOtherNameRow {
+  name: string;
+  key: string;
+}
+
 export interface ApplicationDraft {
   first_name: string;
   middle_name: string;
   last_name: string;
-  /** §391.23(a)(2) — the names a previous employer would know them by. Not a (b)(2) field. */
-  other_names: string[];
+  /**
+   * §391.23(a)(2) — the names a previous employer would know them by. Not a (b)(2) field. Keyed in the
+   * draft (Q-AM22 (b), `draftOtherNames.ts`) so an office correction stays on its own name; filed as names.
+   */
+  other_names: DraftOtherNameRow[];
   date_of_birth: string;
   email: string;
   phone: string;

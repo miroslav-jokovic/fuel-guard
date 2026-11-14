@@ -33,7 +33,7 @@ function filled(): ApplicationDraft {
   d.first_name = "Susan";
   d.middle_name = "Marie";
   d.last_name = "Godfrey";
-  d.other_names = ["Susan Trent"];
+  d.other_names = [{ name: "Susan Trent", key: "00000000-0000-4000-8000-0000000000a1" }];
   d.date_of_birth = "1980-04-01";
   d.email = "susan@example.test";
   d.phone = "555-0111";

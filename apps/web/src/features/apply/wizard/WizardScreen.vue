@@ -18,6 +18,8 @@ import {
   type WizardField,
   type WizardScreen,
 } from "@silvicom/shared";
+import { nextTick } from "vue";
+import { newRowKey } from "@/features/apply/draft";
 import YesNoField from "@/features/apply/YesNoField.vue";
 import ApplyDate from "@/features/apply/ApplyDate.vue";
 import type { WizardBinding } from "./wizardBinding";
@@ -81,9 +83,18 @@ const picked = (path: FactPath): string[] => (read(path) as string[] | undefined
  * as the section component asked it. Every change is written through the binding, the one door a
  * generated screen writes by, never into the array it read.
  */
-const names = (path: FactPath): string[] => (read(path) as string[] | undefined) ?? [];
-const setName = (path: FactPath, at: number, value: string): void =>
-  write(path, names(path).map((n, i) => (i === at ? value : n)));
+type NameRow = { name: string; key: string };
+const names = (path: FactPath): NameRow[] => (read(path) as NameRow[] | undefined) ?? [];
+/** Q-AM22 (b): each name is its keyed row, so the box, its removal and an office correction follow the name. */
+const setName = (path: FactPath, key: string, value: string): void =>
+  write(path, names(path).map((n) => (n.key === key ? { ...n, name: value } : n)));
+/** A new box is where the driver is about to type, so it takes the cursor. */
+async function addName(path: FactPath): Promise<void> {
+  write(path, [...names(path), { name: "", key: newRowKey() }]);
+  await nextTick();
+  const boxes = document.getElementById(id(path))?.querySelectorAll("input");
+  boxes?.[boxes.length - 1]?.focus();
+}
 
 function toggle(f: WizardField, value: string, on: boolean): void {
   const chosen = new Set(picked(f.fact.path));
@@ -132,19 +143,19 @@ function toggle(f: WizardField, value: string, on: boolean): void {
       <fieldset v-else-if="f.fact.input === 'names'" :id="id(f.fact.path)" class="space-y-2">
         <legend class="text-sm font-medium text-ink-secondary">{{ binding.copy(f.fact.path).label }}</legend>
         <p v-if="binding.copy(f.fact.path).hint" class="text-xs text-ink-muted">{{ binding.copy(f.fact.path).hint }}</p>
-        <div v-for="(name, i) in names(f.fact.path)" :key="i" class="flex items-center gap-2">
+        <div v-for="(row, i) in names(f.fact.path)" :key="row.key" class="flex items-center gap-2">
           <BaseInput
-            :model-value="name"
+            :model-value="row.name"
             :aria-label="`${binding.copy(f.fact.path).label} ${i + 1}`"
             class="flex-1"
             autocomplete="off"
-            @update:model-value="setName(f.fact.path, i, $event)"
+            @update:model-value="setName(f.fact.path, row.key, $event)"
           />
-          <AppButton variant="ghost" size="sm" @click="write(f.fact.path, names(f.fact.path).filter((_, j) => j !== i))">
+          <AppButton variant="ghost" size="touch" @click="write(f.fact.path, names(f.fact.path).filter((n) => n.key !== row.key))">
             {{ APPLY_COPY.identity.remove }}
           </AppButton>
         </div>
-        <AppButton variant="secondary" size="sm" @click="write(f.fact.path, [...names(f.fact.path), ''])">
+        <AppButton variant="secondary" size="touch" @click="addName(f.fact.path)">
           {{ APPLY_COPY.identity.addOtherName }}
         </AppButton>
         <p v-if="error(f.fact.path)" class="text-sm text-danger-700" role="alert">{{ error(f.fact.path) }}</p>
