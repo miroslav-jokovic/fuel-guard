@@ -558,7 +558,7 @@ describe("correcting one answer", () => {
 describe("the owner's two exceptions", () => {
   const V2 = {
     partOne: PART_ONE,
-    partOneAnswers: { dot_program_30d: true, dot_tested_6m: false, dot_random_12m: true, medical_card_pending: false, endorsements: [], donorGenderGiven: true },
+    partOneAnswers: { dot_program_30d: true, dot_tested_6m: false, dot_random_12m: true, medical_card_pending: false, cdl_photo_pending: false, endorsements: [], donorGenderGiven: true },
   };
 
   it("keeps Save off on a drug-test statement until the office gives its reason, then sends it", async () => {

@@ -290,3 +290,60 @@ describe("the licence's barcode (AW5)", () => {
     expect(flow.barcode.value).toBe("idle");
   });
 });
+
+/** U8 (0605): "I don't have my CDL with me" — Part 1 goes on without the two CDL photographs. */
+describe("a CDL that is not at hand", () => {
+  it("does not move past the front of the CDL with no photograph and no answer", async () => {
+    const { flow } = walk();
+    await flow.next();
+    expect(flow.screen.value).toBe("cdl_front");
+    expect(flow.errors.value).toHaveProperty("photo");
+  });
+
+  it("⚠ passes both photo screens on the one answer, and writes nothing before screen 7", async () => {
+    const { flow } = walk();
+    flow.answers.cdl_photo_pending = true;
+    await flow.next();
+    expect(flow.screen.value).toBe("about");
+    expect(paths()).toEqual([]);
+  });
+
+  it("still asks for the back when the front was photographed before the answer was given", async () => {
+    const front = [cap("cdl_front")];
+    const { flow } = walk({ captures: front }, front);
+    expect(flow.screen.value).toBe("cdl_back");
+    flow.answers.cdl_photo_pending = true;
+    await flow.next();
+    // Passed in the page; the database refuses one side without the other only when it is NOT declared.
+    expect(flow.screen.value).toBe("about");
+  });
+
+  it("⚠ sends the answer with the first write, and the license is typed as on any link", async () => {
+    const { flow } = walk();
+    flow.answers.cdl_photo_pending = true;
+    fill(flow);
+    while (flow.screen.value !== "medical_card") await flow.next();
+    expect(paths()).toEqual(["/intake", "/intake/licences", "/intake"]);
+    expect(bodies()[0]).toMatchObject({ cdl_photo_pending: true, prior_positive_2y: false });
+    expect(bodies()[1]).toEqual({ licences: [{ state_code: "IL", licence_number: "D123", expires_on: "2029-01-01" }] });
+  });
+
+  it("does not read a barcode there is no photograph of", async () => {
+    const read = vi.fn(async () => null);
+    const { flow } = walk({}, [], read);
+    flow.answers.cdl_photo_pending = true;
+    await flow.next();
+    expect(read).not.toHaveBeenCalled();
+    expect(flow.barcode.value).toBe("idle");
+  });
+
+  it("writes the answer at once on a link that has begun", async () => {
+    const { flow } = walk({ status: status({ screening: true, contact: true, address: true, licences: true }), identityComplete: true });
+    expect(flow.screen.value).toBe("cdl_front");
+    flow.answers.cdl_photo_pending = true;
+    await flow.next();
+    expect(paths()).toEqual(["/intake"]);
+    expect(bodies()[0]).toEqual({ cdl_photo_pending: true });
+  });
+});
+

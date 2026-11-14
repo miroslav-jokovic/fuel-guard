@@ -155,6 +155,7 @@ const PART_ONE_SECTION: Readonly<Record<string, ApplicationSection>> = {
   dot_random_12m: "safety",
   donor_gender: "identity",
   medical_card_pending: "documents",
+  cdl_photo_pending: "documents",
 };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => Boolean(v) && typeof v === "object" && !Array.isArray(v);

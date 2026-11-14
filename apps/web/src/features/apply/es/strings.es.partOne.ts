@@ -234,6 +234,8 @@ export const APPLY_PART_ONE_COPY_ES = {
         failed: "El mensaje no se envió. Escanee el código QR.",
         orHere: "O, en esta computadora:",
       },
+      noCdl: "No tengo mi CDL conmigo",
+      noCdlHint: "Puede continuar. Escribirá los datos de su licencia, y enviará las fotos después o traerá la tarjeta.",
       noMedicalCard: "Todavía no tengo tarjeta médica",
       noMedicalCardHint: "Puede continuar. Necesitará una antes de viajar.",
     },

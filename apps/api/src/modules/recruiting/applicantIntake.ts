@@ -331,7 +331,7 @@ export async function partOneStatus(
 ): Promise<PartOneStatus | null> {
   const { data } = await admin
     .from("application_intakes")
-    .select("phone, postal_code, prior_positive_2y, medical_card_pending, fcra_summary_version")
+    .select("phone, postal_code, prior_positive_2y, medical_card_pending, cdl_photo_pending, fcra_summary_version")
     .eq("org_id", orgId)
     .eq("invitation_id", invitation.id)
     .maybeSingle();
@@ -341,6 +341,7 @@ export async function partOneStatus(
     postal_code: string | null;
     prior_positive_2y: boolean | null;
     medical_card_pending: boolean | null;
+    cdl_photo_pending: boolean | null;
     fcra_summary_version: string | null;
   };
   const { count } = await admin
@@ -355,6 +356,7 @@ export async function partOneStatus(
     licences: (count ?? 0) > 0,
     screening: row.prior_positive_2y !== null,
     medicalCardPending: row.medical_card_pending === true,
+    cdlPhotoPending: row.cdl_photo_pending === true,
     rights: row.fcra_summary_version === FCRA_SUMMARY_VERSION,
   };
 }

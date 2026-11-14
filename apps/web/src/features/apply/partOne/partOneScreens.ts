@@ -84,6 +84,12 @@ export interface PartOneAnswers {
   donor_gender: DonorGender | "";
   medical_card_pending: boolean;
   /**
+   * U8 (0605): "I don't have my CDL with me". Stands in for BOTH CDL photographs, and the license is then
+   * typed, since there is no barcode to read. Held with screens 3–6 and posted by the first write: nothing
+   * can be written before §40.25(j) (see the header), and these two screens come before it.
+   */
+  cdl_photo_pending: boolean;
+  /**
    * "I can't take a photo of myself" (AW6, §6.7: a selfie is "never a hard block" — the office checks
    * the driver against their licence in person instead). Held in the page only: nothing on the server
    * records it, because the missing photo already says it, and the office's drawer reads a Part 1
@@ -109,6 +115,7 @@ export const emptyPartOneAnswers = (): PartOneAnswers => ({
   dot_random_12m: null,
   donor_gender: "",
   medical_card_pending: false,
+  cdl_photo_pending: false,
   selfie_skipped: false,
 });
 
@@ -271,7 +278,11 @@ export function firstWrite(a: PartOneAnswers): PartOneWrite[] {
   return [
     {
       kind: "intake",
-      body: { ...screeningPayload(a), phone: a.phone.trim(), ...addressPayload(a), ...cdlPayload(a) },
+      // The CDL's "not with me" rides the first write: its screens come before §40.25(j) can be written.
+      body: {
+        ...screeningPayload(a), phone: a.phone.trim(), ...addressPayload(a), ...cdlPayload(a),
+        ...(a.cdl_photo_pending ? { cdl_photo_pending: true } : {}),
+      },
     },
     { kind: "licences", body: licenceList(a) },
     { kind: "intake", body: { date_of_birth: a.date_of_birth } },
@@ -286,6 +297,7 @@ const hasCapture = (captures: readonly ApplicationCaptureView[], slot: string): 
 /** What a photo screen accepts in place of the photo: "I don't have one yet", "I can't take one". */
 export interface PhotoDeclarations {
   medical_card_pending?: boolean;
+  cdl_photo_pending?: boolean;
   selfie_skipped?: boolean;
 }
 
@@ -296,6 +308,8 @@ export function photoDone(
   declared: PhotoDeclarations,
 ): boolean {
   if (hasCapture(captures, screen)) return true;
+  // One answer for both sides: a card not at hand has neither (0605 refuses one side without the other).
+  if (screen === "cdl_front" || screen === "cdl_back") return declared.cdl_photo_pending === true;
   if (screen === "medical_card") return declared.medical_card_pending === true;
   if (screen === "selfie") return declared.selfie_skipped === true;
   return false;
@@ -311,7 +325,9 @@ export function resumeScreen(
   identityComplete: boolean,
   captures: readonly ApplicationCaptureView[],
 ): PartOneScreen {
-  const declared: PhotoDeclarations = { medical_card_pending: status.medicalCardPending };
+  const declared: PhotoDeclarations = {
+    medical_card_pending: status.medicalCardPending, cdl_photo_pending: status.cdlPhotoPending === true,
+  };
   for (const screen of ["cdl_front", "cdl_back"] as const) {
     if (!photoDone(screen, captures, declared)) return screen;
   }

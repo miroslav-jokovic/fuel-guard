@@ -487,7 +487,7 @@ describe("opening the link", () => {
     const body = (await res.json()) as { partOne: unknown; fcraSummary: { version: string; title: string } | null };
     expect(body.partOne).toEqual({
       completedAt: null, contact: true, address: true, licences: true, screening: true,
-      medicalCardPending: true, rights: false,
+      medicalCardPending: true, cdlPhotoPending: false, rights: false,
     });
     expect(body.fcraSummary).toMatchObject({ version: FCRA_SUMMARY_VERSION, title: FCRA_SUMMARY.title });
     const text = JSON.stringify(body.partOne);

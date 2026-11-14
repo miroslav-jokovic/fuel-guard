@@ -139,6 +139,8 @@ export const applicantIntakeSchema = z
     dot_random_12m: z.boolean().optional(),
     /** D-AW4: "I don't have a medical card yet" is an answer, and lets Part 1 finish without one. */
     medical_card_pending: z.boolean().optional(),
+    /** U8 (0605): "I don't have my CDL with me" — Part 1 may then finish without its two photographs. */
+    cdl_photo_pending: z.boolean().optional(),
     /** Screen 7, beside the testing questions. See `DONOR_GENDERS`. */
     donor_gender: z.enum(DONOR_GENDERS).optional(),
     /**
@@ -276,6 +278,11 @@ export interface PartOneStatus {
   /** §40.25(j) answered — the first write, so this is also "Part 1 has begun" (AI009). */
   screening: boolean;
   medicalCardPending: boolean;
+  /**
+   * U8 (0605): the applicant said the CDL is not at hand, so its two photographs are not owed to finish
+   * Part 1. Optional: a bundle served or cached before the reader shipped has no such key, and reads as no.
+   */
+  cdlPhotoPending?: boolean;
   /** The CURRENT summary was shown; one read under an older version is read again. */
   rights: boolean;
 }
