@@ -165,6 +165,8 @@ describe("runCampaignStep — the kill switch, in every state", () => {
     }
     expect(after).toEqual({
       // composing and creating spend no ad money: the switch stops delivery, not the drafting.
+      // planning and plan_review (0606): no row of the machine leaves them yet but archive, so the runner has no step.
+      planning: "planning", plan_review: "plan_review",
       draft: "composing", composing: "review", review: "review", approved: "creating", creating: "paused",
       paused: "paused", launching: "pausing", live: "pausing", pausing: "paused", archived: "archived", failed: "failed",
     });
@@ -236,6 +238,7 @@ describe("runCampaignStep — the brake (ADS_ENABLED off) only pauses", () => {
       if (state === "launching" || state === "live") expect(w.transitions()[0]).toMatchObject({ cause: "kill switch: ADS_ENABLED is off" });
     }
     expect(after).toEqual({
+      planning: "planning", plan_review: "plan_review",
       draft: "draft", composing: "composing", review: "review", approved: "approved", creating: "creating",
       paused: "paused", launching: "pausing", live: "pausing", pausing: "paused", archived: "archived", failed: "failed",
     });

@@ -57,7 +57,7 @@ const PLATFORM = ["platform"] as const;
 const CAN_DELIVER: readonly CampaignState[] = ["launching", "live"];
 /** States the kill switch leaves where they are: nothing is delivering, and nothing launches while it is on. */
 const KILL_NO_OP: readonly CampaignState[] = [
-  "draft", "composing", "review", "approved", "creating", "paused", "pausing", "archived", "failed",
+  "draft", "planning", "plan_review", "composing", "review", "approved", "creating", "paused", "pausing", "archived", "failed",
 ];
 
 export const CAMPAIGN_TRANSITIONS: readonly CampaignTransition[] = [
@@ -88,11 +88,24 @@ export const CAMPAIGN_TRANSITIONS: readonly CampaignTransition[] = [
   T("launching", "platform_rejected", "paused", PLATFORM),
   T("live", "platform_rejected", "paused", PLATFORM),
   // the only end
-  ...(["draft", "review", "approved", "paused", "failed"] as const).map((s) => T(s, "archive", "archived", EITHER)),
+  // `planning` like `draft`: nothing has been made or spent, so a person may stop there.
+  ...(["draft", "planning", "plan_review", "review", "approved", "paused", "failed"] as const).map((s) => T(s, "archive", "archived", EITHER)),
   // leaving a failure is a person's act; the runner resumes idempotently (every vendor call is keyed)
   T("failed", "resume_compose", "composing", PERSON),
   T("failed", "resume_create", "creating", PERSON),
 ];
+
+/**
+ * States the database accepts and no row of the table enters yet (0606, ADS-PLATFORM-V2-PLAN V2).
+ *
+ * This list exists for ONE merge. The CHECK that allows a state has to be applied before any code writes
+ * it (docs/MIGRATION-DISCIPLINE.md §the-deploy-window), and `adsSchemaParity.test.ts` holds
+ * `CAMPAIGN_STATES` equal to that CHECK — so for the merge that carries the migration the list names two
+ * states the machine cannot reach. `campaignMachine.test.ts` requires every state to be reachable from
+ * `draft` EXCEPT these, and requires each of these to have no row entering it: the merge that adds the
+ * planning moves fails that second test until this list is emptied.
+ */
+export const CAMPAIGN_STATES_AWAITING_ENTRY: readonly CampaignState[] = ["planning", "plan_review"];
 
 const TABLE = new Map<string, CampaignTransition>(CAMPAIGN_TRANSITIONS.map((t) => [`${t.from}|${t.event}`, t]));
 

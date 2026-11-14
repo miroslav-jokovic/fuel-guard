@@ -328,7 +328,10 @@ export const RETENTION_FORBIDDEN = [
    * role too (AX010–AX012); this pins them against a prune by age as well. `ads_copy_choices` (0595,
    * 2026-11-12) joined them: a person's choice of an ad's words, which is what the ad that ran said and who
    * decided it — an employment-advertising complaint asks for exactly that — and is append-only by the same guard.
+   * `ads_campaign_plans` (0606, 2026-11-14) joined them: the plan an ad was made from and the evidence it cited,
+   * version by version, with who wrote each — why the ad said what it said, which the ad itself does not record.
    */
+  "ads_campaign_plans",
   "ads_copy_choices",
   "ads_actions",
   "ads_approvals",

@@ -3456,6 +3456,17 @@
         "why": "new in 0537 (2026-11-01, ADS-AGENT-BUILD-WORKFLOW A2); one per enabled preset per campaign (4–5) plus regenerations and copy edits; ~25 per campaign at most."
       }
     },
+    "ads_campaign_plans": {
+      "module": "ads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "new in 0606 (2026-11-14, ADS-PLATFORM-V2-PLAN V2); one row per version of a campaign's plan — the Strategist's and each edit a person saves — so a handful per campaign; append-only evidence, RETENTION_FORBIDDEN."
+      }
+    },
     "ads_copy_choices": {
       "module": "ads",
       "layer": "core",
