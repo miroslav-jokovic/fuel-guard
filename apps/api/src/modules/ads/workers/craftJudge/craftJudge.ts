@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
-import { AI_MODELS, CRAFT_CRITERIA, craftScoreSchema, fnv1a32, type AdBrief, type AdPresetRecipe, type CraftScore } from "@silvicom/shared";
+import { AD_AGENT_MODELS, CRAFT_CRITERIA, craftScoreSchema, fnv1a32, type AdBrief, type AdPresetRecipe, type CraftScore } from "@silvicom/shared";
 import type { ForcedTool } from "../../../../lib/anthropic.js";
 import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOutcome } from "../../generations/claudeGeneration.js";
 import { copyUserMessage, type AdCopy, type CopyContext } from "../copywriter/copywriter.js";
@@ -65,7 +65,7 @@ export function judgeUserMessage(brief: Pick<AdBrief, "subject" | "claims" | "su
 }
 
 export function buildJudgeRequest(brief: Pick<AdBrief, "subject" | "claims" | "subject_matter">, recipe: AdPresetRecipe, candidates: readonly AdCopy[], ctx: CopyContext, presented: readonly number[]) {
-  return { model: AI_MODELS.deep, system: PROMPT, user: judgeUserMessage(brief, recipe, candidates, ctx, presented), tool: judgeTool(candidates.length), maxTokens: MAX_TOKENS };
+  return { ...AD_AGENT_MODELS.craft_judge, system: PROMPT, user: judgeUserMessage(brief, recipe, candidates, ctx, presented), tool: judgeTool(candidates.length), maxTokens: MAX_TOKENS };
 }
 
 /** The scores back in the Copywriter's order: `scores[k]` is the score of candidate k. */

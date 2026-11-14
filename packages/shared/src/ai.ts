@@ -19,6 +19,36 @@ export const AI_MODELS = {
   assistant: "claude-haiku-5-5",
 } as const;
 
+/**
+ * What a model needs from a tool-answer call (ADS-PLATFORM-V2-PLAN V1, 2026-11-14). `lib/anthropic.ts`
+ * reads it and refuses a model that is not listed, so a model name cannot reach the Messages API with
+ * the wrong request shape: read from the claude-api skill's table of 2026-11-03.
+ *
+ *   · `forcedTool` — the model accepts `tool_choice: {type: "tool"}`. Opus 5.5, Sonnet 5.5 and Fable 5.2
+ *     answer it with a 400; they are asked with `auto` and told in the system prompt to call the tool.
+ *   · `thinkingHeadroom` — tokens added to the caller's `max_tokens`. Thinking cannot be switched off on
+ *     the three newer models and is counted inside `max_tokens`, so a worker's 600-token answer would be
+ *     cut short by the reasoning in front of it.
+ */
+export interface AiModelProfile {
+  forcedTool: boolean;
+  thinkingHeadroom: number;
+}
+export const AI_MODEL_PROFILES: Readonly<Record<string, AiModelProfile>> = {
+  "claude-haiku-4-5": { forcedTool: true, thinkingHeadroom: 0 },
+  "claude-sonnet-4-6": { forcedTool: true, thinkingHeadroom: 0 },
+  // Chat catch-up (CH12) asks Haiku 5.5 with a forced tool, which it accepts; it thinks by default and
+  // was sized with that, so no headroom is added and its request is what it was before V1.
+  "claude-haiku-5-5": { forcedTool: true, thinkingHeadroom: 0 },
+  "claude-sonnet-5-5": { forcedTool: false, thinkingHeadroom: 8000 },
+  "claude-opus-5-5": { forcedTool: false, thinkingHeadroom: 8000 },
+  "claude-fable-5-2": { forcedTool: false, thinkingHeadroom: 8000 },
+};
+
+/** `output_config.effort`. Sent only when an agent names one, so a request that names none is unchanged. */
+export const AI_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+export type AiEffort = (typeof AI_EFFORTS)[number];
+
 export const RECOMMENDED_ACTIONS = [
   "monitor",
   "investigate",

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
+import { AI_MODEL_PROFILES, type AiEffort, type AiModelProfile } from "@silvicom/shared";
 import { z } from "zod";
 import type { Env } from "../env.js";
 
@@ -27,10 +28,18 @@ export const anthropicClient = getClient;
  * there was nothing to keep compatible, and keeping it beside this would have left two ways to force
  * a tool, one of them unvalidated. `callClaudeText` stays: the weekly digest calls it.
  *
- * Not strict structured outputs: a forced tool accepts ordinary JSON-schema keywords, so this does not
- * need the document reader's `toWireSchema` refusals. Budget, provenance and replay are NOT here —
- * they belong to the caller's module (ads: `modules/ads/generations/`), which decides whether this
- * call may happen at all and records that it did.
+ * Not strict structured outputs: a tool accepts ordinary JSON-schema keywords (`minLength`, `maximum`),
+ * which strict outputs refuse, so this does not need the document reader's `toWireSchema` refusals and no
+ * worker's schema had to be weakened to move model. Budget, provenance and replay are NOT here — they
+ * belong to the caller's module (ads: `modules/ads/generations/`), which decides whether this call may
+ * happen at all and records that it did.
+ *
+ * TWO REQUEST SHAPES, CHOSEN BY THE MODEL'S PROFILE (ADS-PLATFORM-V2-PLAN V1, 2026-11-14). A model whose
+ * profile says `forcedTool` is asked exactly as before. One that refuses a forced tool (Opus 5.5, Sonnet
+ * 5.5, Fable 5.2: a 400) is asked with `tool_choice: auto`, at most one call, and one fixed sentence at
+ * the end of the system prompt naming the tool. `auto` does not guarantee a call, so `no_tool_use` is a
+ * real outcome there and not only a refusal; the answer is validated by the same Zod schema either way.
+ * `wireShape` is the one place the difference is decided, and the ads ledger stores what it returns.
  */
 export interface ForcedTool<T> {
   name: string;
@@ -47,8 +56,13 @@ export type ForcedToolResult<T> =
   | { kind: "ok"; value: T; usage: ToolUsage; requestId: string }
   /** The model answered, but not in the tool's shape. `raw` is kept as evidence, never as a value. */
   | { kind: "off_schema"; raw: unknown; issues: string[]; usage: ToolUsage; requestId: string }
-  /** No tool_use block at all (a refusal, or max_tokens hit first). */
-  | { kind: "no_tool_use"; stopReason: string | null; usage: ToolUsage; requestId: string };
+  /** No tool_use block at all (max_tokens hit first, or under `auto` the model answered in words). */
+  | { kind: "no_tool_use"; stopReason: string | null; usage: ToolUsage; requestId: string }
+  /**
+   * The provider's safety classifiers declined (`stop_reason: "refusal"`, HTTP 200). Its own kind, so a
+   * caller cannot read it as a model that forgot the tool and ask again. `category` is the provider's.
+   */
+  | { kind: "refused"; category: string | null; usage: ToolUsage; requestId: string };
 
 /** The one method used, so a test can hand in a fake without an SDK instance. */
 export type MessagesClient = { messages: Pick<Anthropic["messages"], "create"> };
@@ -62,10 +76,7 @@ export type MessagesClient = { messages: Pick<Anthropic["messages"], "create"> }
  * computed here from the bytes rather than taken from the caller, so a row cannot name one image while
  * the model was shown another, and no row carries megabytes of base64.
  *
- * ⚠ The rail forces its tool (`tool_choice: {type: "tool"}`). `AI_MODELS.deep` is claude-sonnet-4-6, which
- * accepts that, with images. Claude Opus 5.5, Sonnet 5.5 and Fable 5.1 answer a forced tool_choice with a
- * 400 (claude-api skill, read 2026-11-04): moving `AI_MODELS` to one of them is a change to this function
- * (auto + strict tool), not a model-name edit.
+ * Images are accepted by every model in `AI_MODEL_PROFILES`, under either request shape (`wireShape`).
  */
 export type UserPart =
   | { type: "text"; text: string }
@@ -109,6 +120,35 @@ export interface ForcedToolRequest<T> {
   user: UserContent;
   tool: ForcedTool<T>;
   maxTokens: number;
+  /** `output_config.effort`; absent sends nothing (`AD_AGENT_MODELS`). */
+  effort?: AiEffort;
+}
+
+/** The sentence that replaces a forced tool on a model that refuses one. Fixed: it is part of every such request's hash. */
+export function toolInstruction(toolName: string): string {
+  return `Answer by calling the \`${toolName}\` tool exactly once. Do not answer in words.`;
+}
+
+export interface WireShape {
+  forced: boolean;
+  system: string;
+  maxTokens: number;
+  effort: AiEffort | null;
+}
+
+/**
+ * What is actually sent for `req`. A model with no profile throws before any call or ledger row: its
+ * request shape is unknown, and guessing one is how a model name edit became a production 400.
+ */
+export function wireShape(req: Pick<ForcedToolRequest<unknown>, "model" | "system" | "maxTokens" | "tool" | "effort">): WireShape {
+  const profile: AiModelProfile | undefined = AI_MODEL_PROFILES[req.model];
+  if (!profile) throw new Error(`model ${req.model} has no profile in AI_MODEL_PROFILES`);
+  return {
+    forced: profile.forcedTool,
+    system: profile.forcedTool ? req.system : `${req.system}\n\n${toolInstruction(req.tool.name)}`,
+    maxTokens: req.maxTokens + profile.thinkingHeadroom,
+    effort: req.effort ?? null,
+  };
 }
 
 /** The input_schema sent for `tool` — exported so a caller can hash exactly what the model saw. */
@@ -118,15 +158,18 @@ export function toolInputSchema(tool: ForcedTool<unknown>): Anthropic.Tool.Input
 }
 
 export async function callForcedTool<T>(client: MessagesClient, req: ForcedToolRequest<T>): Promise<ForcedToolResult<T>> {
+  const wire = wireShape(req);
   const resp = await client.messages.create({
     model: req.model,
-    max_tokens: req.maxTokens,
-    system: req.system,
+    max_tokens: wire.maxTokens,
+    system: wire.system,
     tools: [{ name: req.tool.name, description: req.tool.description, input_schema: toolInputSchema(req.tool) }],
-    tool_choice: { type: "tool", name: req.tool.name },
+    tool_choice: wire.forced ? { type: "tool", name: req.tool.name } : { type: "auto", disable_parallel_tool_use: true },
+    ...(wire.effort ? { output_config: { effort: wire.effort } } : {}),
     messages: [{ role: "user", content: messageContent(req.user) }],
   });
   const usage = { input: resp.usage.input_tokens, output: resp.usage.output_tokens };
+  if (resp.stop_reason === "refusal") return { kind: "refused", category: resp.stop_details?.category ?? null, usage, requestId: resp.id };
   const block = resp.content.find((b) => b.type === "tool_use" && b.name === req.tool.name);
   if (!block || block.type !== "tool_use") return { kind: "no_tool_use", stopReason: resp.stop_reason ?? null, usage, requestId: resp.id };
   const parsed = req.tool.schema.safeParse(block.input);
