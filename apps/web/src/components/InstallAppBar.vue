@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import { IOS_INSTALL_STEPS, dismissInstall, installApp, installStripShown, installWay } from "@/lib/installApp";
+import { IOS_INSTALL_STEPS, dismissInstall, installApp, installStripShown, installWay, installedOnThisKindOfDevice } from "@/lib/installApp";
+import { listPushDevices } from "@/lib/webPush";
 
 /**
  * "Install Silvicom 360" — the offer no phone makes on its own (CHAT-WEB-PUSH-PLAN.md WP6, D-WP15;
@@ -16,6 +17,19 @@ import { IOS_INSTALL_STEPS, dismissInstall, installApp, installStripShown, insta
  */
 const busy = ref(false);
 
+/**
+ * An iPhone tab is asked once per load whether the person already has the app (`installedOnThisKindOfDevice`)
+ * and shows nothing until it knows — a strip that appears and then leaves is worse than one a moment late.
+ * Android and a PC need no question: the browser stops offering an install the moment there is one.
+ */
+const asking = ref(installWay.value === "ios-steps" && installStripShown.value);
+onMounted(async () => {
+  if (!asking.value) return;
+  const devices = await listPushDevices();
+  if (devices && installedOnThisKindOfDevice(devices.map((d) => d.device_label))) dismissInstall();
+  asking.value = false;
+});
+
 async function install() {
   if (busy.value) return;
   busy.value = true;
@@ -26,7 +40,7 @@ async function install() {
 
 <template>
   <div
-    v-if="installStripShown"
+    v-if="installStripShown && !asking"
     class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-info-50 px-4 py-1.5 text-xs text-info-800 ring-1 ring-info-200 ring-inset"
     role="status"
     data-testid="install-app-bar"
@@ -41,6 +55,7 @@ async function install() {
         <li v-for="step in IOS_INSTALL_STEPS" :key="step">{{ step }}</li>
       </ol>
     </template>
-    <BaseButton size="sm" variant="ghost" @click="dismissInstall">Not now</BaseButton>
+    <!-- On an iPhone the strip cannot always tell the steps were followed, so the way out says both. -->
+    <BaseButton size="sm" variant="ghost" @click="dismissInstall">{{ installWay === "prompt" ? "Not now" : "Close" }}</BaseButton>
   </div>
 </template>

@@ -65,7 +65,9 @@ export function pushSupport(): PushSupport {
   return isIosDevice() && !isStandalone() ? "ios-install" : "unsupported";
 }
 
-/** "Chrome on Android" — so a person can tell their devices apart. Never used to decide anything. */
+/**
+ * "Chrome on Android" — so a person can tell their devices apart. Decides one thing only: its " on iPhone" / " on iPad"
+ * ending is how an iPhone tab learns the app is already on a Home Screen (`installedOnThisKindOfDevice`). */
 export function deviceLabel(ua: string): string {
   const browser = /SamsungBrowser/.test(ua) ? "Samsung Internet"
     : /Edg\//.test(ua) ? "Edge"

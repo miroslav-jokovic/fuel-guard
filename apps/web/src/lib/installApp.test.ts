@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
+import { flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 
 /**
@@ -7,6 +8,14 @@ import { nextTick } from "vue";
  * offered, that the browser's event is prompted once and from a press, that "Not now" is final for the strip
  * and not for the account menu, and that an installed app is offered nothing.
  */
+/** What `GET /api/chat/push/devices` answers: the person's notification devices, or — null — a refusal. */
+let deviceLabels: string[] | null = [];
+vi.mock("@/lib/api", () => ({
+  apiFetch: vi.fn(async () => deviceLabels === null
+    ? { ok: false, status: 403, error: { code: "module_disabled", message: "" } }
+    : { ok: true, status: 200, data: { devices: deviceLabels.map((device_label, i) => ({ id: String(i), device_label, created_at: "", last_seen_at: "", last_success_at: null, last_failure_at: null })) } }),
+}));
+
 const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1";
 const WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -48,6 +57,7 @@ Object.defineProperty(globalThis, "localStorage", {
 
 beforeEach(async () => {
   standalone = false;
+  deviceLabels = [];
   localStorage.clear();
   const lib = await import("@/lib/installApp");
   if (!(globalThis as { __installListening?: boolean }).__installListening) {
@@ -158,15 +168,42 @@ describe("InstallAppBar", () => {
     expect(e.prompt).toHaveBeenCalledTimes(1);
   });
 
-  it("on an iPhone shows the Home Screen steps and no Install button, and Not now removes it", async () => {
+  it("on an iPhone shows the Home Screen steps and no Install button, and Close removes it", async () => {
     device(IPHONE);
     const lib = await load();
     const Bar = (await import("@/components/InstallAppBar.vue")).default;
     const w = mount(Bar);
+    expect(w.find("[data-testid='install-app-bar']").exists()).toBe(false); // nothing until the server has answered
+    await flushPromises();
     for (const step of lib.IOS_INSTALL_STEPS) expect(w.text()).toContain(step);
-    expect(w.findAll("button").map((b) => b.text())).toEqual(["Not now"]);
+    expect(w.findAll("button").map((b) => b.text())).toEqual(["Close"]);
     await w.find("button").trigger("click");
     await nextTick();
     expect(w.find("[data-testid='install-app-bar']").exists()).toBe(false);
+  });
+
+  it("on an iPhone whose owner already gets notifications on an iPhone, the strip never shows and stays away", async () => {
+    device(IPHONE);
+    deviceLabels = ["Chrome on Windows", "Safari on iPhone"];
+    const lib = await load();
+    const Bar = (await import("@/components/InstallAppBar.vue")).default;
+    const w = mount(Bar);
+    await flushPromises();
+    expect(w.find("[data-testid='install-app-bar']").exists()).toBe(false);
+    expect((await load()).installStripShown.value).toBe(false); // a later load does not ask again
+    expect(lib.installWay.value).toBe("ios-steps"); // the account menu can still show the steps
+  });
+
+  it("another kind of device, or a server that will not say, leaves the steps showing", async () => {
+    device(IPHONE);
+    const Bar = (await import("@/components/InstallAppBar.vue")).default;
+    for (const labels of [["Safari on iPad", "Chrome on Android", "Safari on Mac"], null]) {
+      deviceLabels = labels;
+      await load();
+      const w = mount(Bar);
+      await flushPromises();
+      expect(w.find("[data-testid='install-app-bar']").exists()).toBe(true);
+      w.unmount();
+    }
   });
 });
