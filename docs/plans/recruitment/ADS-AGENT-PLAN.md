@@ -708,6 +708,12 @@ rate, and Higgsfield credits per approved creative.
 
 ## 9. Open questions (owner unless marked)
 
+> **2026-11-14 — the second version has its own plan and its own question series.** The owner's audit of
+> 2026-11-14 (no research before an ad, stills only, a confusing settings page, an old model, automation he
+> cannot set) is answered in [`ADS-PLATFORM-V2-PLAN.md`](ADS-PLATFORM-V2-PLAN.md): steps V1–V8 and questions
+> **Q-APX1–5**. Q-APX1 asks to reverse **Q-AD2** for one case (a launch inside an approved envelope, of ads a
+> person approved); until it is ruled, Q-AD2 stands as written below.
+
 - **Q-AD1 · Scope of "all social media" for the five days.** Candidates: (a) Meta (Facebook +
   Instagram) only; (b) + Google Ads; (c) + TikTok/LinkedIn. **Recommendation (a):** Meta is where
   the owner already runs ads (Q-RA7f), and each extra platform needs its own employment-policy
