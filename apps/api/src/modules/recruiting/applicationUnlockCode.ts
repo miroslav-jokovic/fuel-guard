@@ -17,6 +17,7 @@ import { carrierName, deliverApplicationMail } from "./applicationMail.js";
 import { sendApplicationSms, smsConsentStatus } from "./applicationSms.js";
 import { isIntakeError, resolveInvitation, type IntakeError } from "./applicationIntake.js";
 import { gatedRelease, releasedView, type DraftView } from "./applicationDraft.js";
+import { rememberDevice } from "./applicationTrustedDevice.js";
 
 /**
  * A one-time code in place of the date of birth (APPLICATION-FIX-PLAN.md F0b; 0585).
@@ -155,6 +156,8 @@ export async function unlockWithCode(
   token: string,
   code: string,
   now: Date,
+  /** U2: "remember this phone" — a right code then leaves a device token, as a right date of birth does. */
+  remember = false,
 ): Promise<DraftView | IntakeError> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
@@ -203,7 +206,9 @@ export async function unlockWithCode(
     meta: { driverId: invitation.driver_id },
   });
   const { row, partOne, ssnLast4 } = await gatedRelease(admin, invitation, now);
-  return releasedView(row, partOne, ssnLast4);
+  // The driver whose date on file is wrong is the one who most needs not to be asked it again.
+  const deviceToken = remember ? await rememberDevice(admin, invitation, "code", now) : null;
+  return { ...releasedView(row, partOne, ssnLast4), ...(deviceToken ? { deviceToken } : {}) };
 }
 
 /**

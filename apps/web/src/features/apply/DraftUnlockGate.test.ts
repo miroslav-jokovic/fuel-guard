@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 
 const unlock = vi.hoisted(() => vi.fn());
-const code = vi.hoisted(() => ({ request: vi.fn(), verify: vi.fn() }));
-vi.mock("./useApplication", async (orig) => ({
-  ...(await orig<typeof import("./useApplication")>()),
-  unlockApplicationDraft: unlock,
+const code = vi.hoisted(() => ({ request: vi.fn(), verify: vi.fn(), device: vi.fn() }));
+const memory = vi.hoisted(() => ({ read: vi.fn(async (): Promise<string | null> => null), keep: vi.fn(async () => {}), forget: vi.fn(async () => {}) }));
+vi.mock("./unlockCode", () => ({
+  unlockApplicationDraft: unlock, requestUnlockCode: code.request, unlockWithCode: code.verify, unlockWithDevice: code.device,
 }));
-vi.mock("./unlockCode", () => ({ requestUnlockCode: code.request, unlockWithCode: code.verify }));
+vi.mock("./deviceMemory", () => ({ readDeviceToken: memory.read, keepDeviceToken: memory.keep, forgetDeviceToken: memory.forget }));
 const DraftUnlockGate = (await import("./DraftUnlockGate.vue")).default;
 const { APPLY_COPY } = await import("./strings");
 
@@ -43,7 +43,8 @@ describe("the unlock gate", () => {
     expect(w.text()).toContain("April 1, 1980");
     await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.trigger("click");
     await flushPromises();
-    expect(unlock).toHaveBeenLastCalledWith("t", "1980-04-01");
+    // No device store was provided (a bundle with no `localKey`): nothing can be remembered, so nothing is asked.
+    expect(unlock).toHaveBeenLastCalledWith("t", "1980-04-01", false);
   });
 
   it("hands up the body and Part 1's facts together", async () => {
@@ -136,7 +137,7 @@ describe("a code in place of the date of birth (F0b)", () => {
     await w.find("[data-unlock-code] input").setValue("042917");
     await button(w, APPLY_COPY.unlock.codeAction).trigger("click");
     await flushPromises();
-    expect(code.verify).toHaveBeenCalledWith("t", "042917");
+    expect(code.verify).toHaveBeenCalledWith("t", "042917", false);
     expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: { first_name: "Susan" }, partOne: null, revision: 4, ssnLast4: null });
   });
 
@@ -160,6 +161,112 @@ describe("a code in place of the date of birth (F0b)", () => {
     await flushPromises();
     expect(w.text()).toContain(APPLY_COPY.unlock.codeRefused);
     expect(w.emitted("unlocked")).toBeUndefined();
+  });
+});
+
+/**
+ * U2 (0604): the date of birth is asked once per phone. A right answer with "This is my phone" ticked
+ * leaves a token on the device; the next visit sends it before asking anything.
+ */
+describe("a remembered phone", () => {
+  const SPEC = { key: "k".repeat(64), linkExpiresAt: "2099-01-01T00:00:00Z" };
+  const RELEASED = { locked: false, payload: { first_name: "Susan" }, revision: 2 };
+  const atDesk = (desktop: boolean) =>
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: desktop, media: q, addEventListener: () => {}, removeEventListener: () => {} }));
+  /** `device` scripts the token's try: set here, after the reset, so no test's script is wiped by the next mount. */
+  async function gate(opts: { held?: string | null; desktop?: boolean; spec?: typeof SPEC | null; device?: () => unknown } = {}) {
+    for (const f of [unlock, code.verify, code.device, memory.read, memory.keep, memory.forget]) f.mockReset();
+    memory.read.mockResolvedValue(opts.held ?? null);
+    if (opts.device) code.device.mockImplementation(opts.device);
+    atDesk(opts.desktop ?? false);
+    const { ref } = await import("vue");
+    const { APPLY_LOCAL_COPY } = await import("./deviceCopies");
+    const w = mount(DraftUnlockGate, {
+      props: { token: "t", carrier: "Silvicom Inc" },
+      global: { provide: { [APPLY_LOCAL_COPY as symbol]: ref(opts.spec === undefined ? SPEC : opts.spec) } },
+    });
+    await flushPromises();
+    return w;
+  }
+  const typeDate = async (w: Awaited<ReturnType<typeof gate>>) => {
+    await w.find("input[inputmode='numeric']").setValue("04011980");
+    await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.trigger("click");
+    await flushPromises();
+  };
+
+  it("⚠ opens with this phone's token before asking anything, and never draws the date box", async () => {
+    const w = await gate({ held: "tok", device: async () => ({ draft: RELEASED }) });
+    expect(code.device).toHaveBeenCalledWith("t", "tok");
+    expect(w.emitted("unlocked")![0]![0]).toMatchObject({ payload: { first_name: "Susan" }, revision: 2 });
+    expect(unlock).not.toHaveBeenCalled();
+  });
+
+  it("says it is opening while the token is tried, not a date-of-birth question", async () => {
+    const w = await gate({ held: "tok", device: () => new Promise(() => {}) });
+    expect(w.find("[data-unlock-opening]").text()).toBe(APPLY_COPY.unlock.opening);
+    expect(w.find("input[inputmode='numeric']").exists()).toBe(false);
+  });
+
+  it("⚠ forgets a token the server no longer knows, and asks the date of birth", async () => {
+    const w = await gate({ held: "tok", device: () => Promise.reject({ code: "device_not_known" }) });
+    expect(memory.forget).toHaveBeenCalledWith(SPEC);
+    expect(w.find("input[inputmode='numeric']").exists()).toBe(true);
+    expect(w.emitted("unlocked")).toBeUndefined();
+  });
+
+  it("⚠ keeps the token when the try only failed to reach the server", async () => {
+    const w = await gate({ held: "tok", device: () => Promise.reject(new Error("Failed to fetch")) });
+    expect(memory.forget).not.toHaveBeenCalled();
+    expect(w.find("input[inputmode='numeric']").exists()).toBe(true);
+  });
+
+  it("on a phone, asks to be remembered by default and keeps the token a right answer returns", async () => {
+    const w = await gate();
+    expect(w.find("[data-unlock-remember]").text()).toContain(APPLY_COPY.unlock.remember);
+    unlock.mockResolvedValue({ draft: { ...RELEASED, deviceToken: "new-token" } });
+    await typeDate(w);
+    expect(unlock).toHaveBeenLastCalledWith("t", "1980-04-01", true);
+    expect(memory.keep).toHaveBeenCalledWith(SPEC, "new-token");
+  });
+
+  it("does not ask to be remembered once the driver unticks it", async () => {
+    const w = await gate();
+    await w.find("[data-unlock-remember] input[type='checkbox']").setValue(false);
+    unlock.mockResolvedValue({ draft: RELEASED });
+    await typeDate(w);
+    expect(unlock).toHaveBeenLastCalledWith("t", "1980-04-01", false);
+    expect(memory.keep).not.toHaveBeenCalled();
+  });
+
+  it("⚠ never offers it on a computer, and never asks the server for it there", async () => {
+    const w = await gate({ desktop: true });
+    expect(w.find("[data-unlock-remember]").exists()).toBe(false);
+    unlock.mockResolvedValue({ draft: RELEASED });
+    await typeDate(w);
+    expect(unlock).toHaveBeenLastCalledWith("t", "1980-04-01", false);
+  });
+
+  it("keeps nothing a wrong answer returned", async () => {
+    const w = await gate();
+    unlock.mockResolvedValue({ draft: { locked: true, payload: null, revision: 2 } });
+    await typeDate(w);
+    expect(memory.keep).not.toHaveBeenCalled();
+    expect(w.emitted("unlocked")).toBeUndefined();
+  });
+
+  it("asks a right code to remember the phone too", async () => {
+    const w = await gate();
+    unlock.mockResolvedValue({ draft: { locked: true, payload: null, revision: 2 } });
+    await typeDate(w);
+    code.request.mockResolvedValue({ outcome: "sent", channel: "email", to: "s•••@example.test", expiresInMinutes: 10 });
+    await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.codeByEmail))!.trigger("click");
+    await flushPromises();
+    await w.find("input[autocomplete='one-time-code']").setValue("123456");
+    code.verify.mockResolvedValue({ draft: { ...RELEASED, deviceToken: "code-token" } });
+    await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.codeAction))!.trigger("click");
+    await flushPromises();
+    expect(code.verify).toHaveBeenLastCalledWith("t", "123456", true);
+    expect(memory.keep).toHaveBeenCalledWith(SPEC, "code-token");
   });
 });
 

@@ -862,3 +862,21 @@ A gate fails on a literal string in an `apply/` template.
     - **SCREEN-MAP 1.4a/1.4c's suffix, mononym and country** are Part 1's and wait on 0376's CHECKs (the migration recorded on 2026-11-14).
   - **Proof:** the walk (+11), the confirmation's drawing (+3), the device copy (+2), the sign-off's job name (+1); 14 of 14 mutants killed; `scanner.spec.ts` reads a real barcode in Chromium, changes one fact and lands on the class; looked at in a 390 px screenshot, where the four facts fit one phone screen.
   - **Next:** U2's second half, the date-of-birth unlock asked once per device. It needs a new table (a remembered-device token, stored hashed), so it is its own PR.
+- 2026-11-14: **U2's first half merged** (#2370). Its first CI run failed on `matrices (3)`: `loads-mirror-columns` printed nothing at all in CI and passes 36 of 36 locally, so the job was re-run and passed. Not this work's; noted in case it recurs.
+- 2026-11-14: **U2, second half: the date of birth is asked once per phone** (`claude/application-remembered-device`; **migration 0604**, a new table, so its writer ships in the same merge).
+  - **Before:** the saved application asked the date of birth on every visit (D-APP16): for the history, and again for the signing — of the driver, on the phone that typed it.
+  - **Now:** the gate has one tick, "This is my phone. Don't ask me again on it." A right answer (the date, or F0b's code) with it ticked leaves a random token on the phone. The next visit on that phone sends the token first; the driver sees "Opening your application…" and never the question. That covers the signing visit too.
+  - **What keeps D-APP16 whole:**
+    - **The token is never a way in by itself.** It is checked only on a link that resolves, and its hash is salted by the invitation. A forwarded or gateway-scanned link still gets nothing.
+    - **Only a RIGHT answer mints one**, and only when asked. An unlock on a link with nothing gated yet mints nothing: a token from before a date of birth exists would open the application once one does.
+    - **Never on a computer.** The tick is offered on a phone only. A computer is where a link is opened for somebody else (the desktop hand-off), and its history holds the link.
+    - **Thirty days, five devices** (`TRUSTED_DEVICE_TTL_DAYS`, `TRUSTED_DEVICE_MAX`), the link's own expiry first. The phone sweeps its token at the same age.
+  - **My decisions, each with its reason:**
+    - **A wrong token is not one of a sent sign link's five tries** (D-AW14). It is not a guess at the date of birth, and a phone whose token ran out must fall back to the date with all five left. The unlock's own limiter (ten per link per ten minutes) bounds it.
+    - **A dropped signal does not cost the token.** The phone forgets it only on the server's own "not known".
+    - **Remembering never fails an unlock.** If the row cannot be written (the table not there yet in a deploy window, the cap reached), the application opens and the date is asked next time, as today.
+    - **Not minted in Part 1.** The date typed on the first visit could remember the phone and spare even the first question. It is a second writer on the intake's first write (0376's three-call order) for one question saved; left out, and recorded here rather than built halfway.
+  - **Not built:** the office cannot see or revoke a remembered phone. A new application (a re-sent, revoked invitation) starts with none, and that is the only reset. If the office needs one, it is a line on the review drawer and a delete by invitation.
+  - **Registered:** `table-modules.json` (time growth, 90 days), `table-writers.json`, `RETENTION_RULES` (90 days from `created_at`), the RLS matrix's seed, the purge matrix's seed (it leaves with the invitation).
+  - **Proof:** API (+15: the mint's four refusals, the cap, fail-soft, the three ways a token opens nothing, org scope); web (the gate +9, the device store +5); matrix `recruiting-trusted-devices` (14); 17 of 17 mutants killed; new `rememberedPhone.spec.ts` in a real browser with real IndexedDB across a reload; the tap-target sweep passes at 390 and 320 px with the tick; looked at in a 390 px screenshot.
+  - **Next:** U8 (phone or email, "I'll bring my CDL"), which starts with the migration that widens 0376's CHECKs.

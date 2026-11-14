@@ -132,6 +132,8 @@ export const APPLY_FLOW_COPY_ES = {
     body: (carrier: string): string =>
       `Usted ya empezó esta solicitud para ${carrier}. Confirme su fecha de nacimiento y sus respuestas vuelven.`,
     label: "Su fecha de nacimiento",
+    remember: "Este es mi teléfono. No me lo pregunte otra vez en él.",
+    opening: "Abriendo su solicitud…",
     failed: "Eso no coincide con esta solicitud. Inténtelo de nuevo, o pida a la empresa un enlace nuevo y empiece de cero.",
     attemptsLeft: (n: number): string =>
       `Eso no coincide con esta solicitud. ${n === 1 ? "Una respuesta equivocada más" : `${n} respuestas equivocadas más`} y este enlace dejará de funcionar.`,

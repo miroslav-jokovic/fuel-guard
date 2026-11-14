@@ -1,15 +1,19 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import type { UnlockCodeChannel } from "@silvicom/shared";
 import ApplyDate from "@/features/apply/ApplyDate.vue";
 import {
   AppButton as BaseButton,
   AppCard as BaseCard,
+  AppCheckbox as BaseCheckbox,
   AppFormField as FormField,
   AppInput as BaseInput,
 } from "@silvicom/ui";
-import { unlockApplicationDraft, type ApplyDraft, type Released } from "./useApplication";
-import { requestUnlockCode, unlockWithCode } from "./unlockCode";
+import type { ApplyDraft, Released } from "./useApplication";
+import { requestUnlockCode, unlockApplicationDraft, unlockWithCode, unlockWithDevice } from "./unlockCode";
+import { injectLocalCopy } from "./deviceCopies";
+import { forgetDeviceToken, keepDeviceToken, readDeviceToken } from "./deviceMemory";
+import { useIsDesktop } from "./partOne/useDesktopHandoff";
 import { applyLanguage } from "./language";
 import { APPLY_COPY } from "./strings";
 
@@ -36,6 +40,13 @@ import { APPLY_COPY } from "./strings";
  * names a channel and never an address — the server sends it where the link went — and a right code
  * releases what the date of birth would. The office is told the date did not match.
  *
+ * ⚠ **And once per phone (U2, 0604).** The gate is for a link that travelled; the driver's own phone on
+ * its second and third visit is not that. A right answer — the date or the code — with "This is my
+ * phone" ticked leaves a token here, and the next visit sends the token before asking anything: this
+ * screen then shows "Opening your application…" and is never seen. A token the server no longer knows
+ * is forgotten and the date is asked, as before. The tick is offered on a phone only: a computer is
+ * where a link is opened for somebody else (the desktop hand-off), and its history holds the link.
+ *
  * Split out of `ApplyPage.vue` on 2026-09-11 (the 500-line budget), and it owns its own flags rather
  * than reporting them upward — the page needs the payload, not the attempt.
  */
@@ -57,7 +68,31 @@ const codeSent = ref(false);
 const codeRefused = ref(false);
 const codeWorking = ref(false);
 
+// ── U2: this phone, remembered ──
+const local = injectLocalCopy();
+const desktop = useIsDesktop();
+/** Ticked by default on a phone: it is theirs far more often than not, and the tick is the question. */
+const remember = ref(true);
+/** True while this device's token is being tried — the gate is not drawn until it has failed. */
+const opening = ref(false);
+const wantsRemembering = (): boolean => !desktop.value && remember.value && Boolean(local?.value);
+
+onMounted(async () => {
+  const spec = local?.value ?? null;
+  const held = await readDeviceToken(spec);
+  if (!held) return;
+  opening.value = true;
+  try {
+    released((await unlockWithDevice(props.token, held)).draft);
+  } catch (e) {
+    // Only the server's own "not known" forgets it: a dropped signal must not cost the driver the token.
+    if ((e as { code?: string }).code === "device_not_known") await forgetDeviceToken(spec);
+    opening.value = false;
+  }
+});
+
 function released(draft: ApplyDraft): void {
+  if (draft.deviceToken) void keepDeviceToken(local?.value ?? null, draft.deviceToken);
   emit("unlocked", {
     payload: draft.payload ?? {}, partOne: draft.partOne ?? null, revision: draft.revision, ssnLast4: draft.ssnLast4 ?? null,
   });
@@ -87,7 +122,7 @@ async function useCode(): Promise<void> {
   codeWorking.value = true;
   codeRefused.value = false;
   try {
-    released((await unlockWithCode(props.token, code.value)).draft);
+    released((await unlockWithCode(props.token, code.value, wantsRemembering())).draft);
   } catch (e) {
     if ((e as { code?: string }).code === "sign_link_locked") stopped.value = true;
     else codeRefused.value = true;
@@ -101,7 +136,7 @@ async function unlock(): Promise<void> {
   working.value = true;
   failed.value = false;
   try {
-    const res = await unlockApplicationDraft(props.token, dateOfBirth.value);
+    const res = await unlockApplicationDraft(props.token, dateOfBirth.value, wantsRemembering());
     if (res.draft.locked) {
       failed.value = true;
       attemptsLeft.value = res.draft.attemptsLeft ?? null;
@@ -120,6 +155,9 @@ async function unlock(): Promise<void> {
     <h1 class="text-lg font-semibold text-ink">{{ APPLY_COPY.unlock.heading }}</h1>
     <p class="mt-2 text-sm text-ink-muted" role="alert">{{ APPLY_COPY.unlock.lockedOut(carrier) }}</p>
   </BaseCard>
+  <BaseCard v-else-if="opening">
+    <p class="text-sm text-ink-muted" role="status" data-unlock-opening>{{ APPLY_COPY.unlock.opening }}</p>
+  </BaseCard>
   <BaseCard v-else>
     <h1 class="text-lg font-semibold text-ink">{{ APPLY_COPY.unlock.heading }}</h1>
     <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.unlock.body(carrier) }}</p>
@@ -127,6 +165,10 @@ async function unlock(): Promise<void> {
       <FormField v-slot="{ id }" :label="APPLY_COPY.unlock.label">
         <ApplyDate :id="id" v-model="dateOfBirth" kind="dob" autocomplete="bday" />
       </FormField>
+    </div>
+    <!-- U2: a phone only, and only where the device can keep anything (`injectLocalCopy`). -->
+    <div v-if="!desktop && local" class="mt-4" data-unlock-remember>
+      <BaseCheckbox v-model="remember" size="touch" :label="APPLY_COPY.unlock.remember" />
     </div>
     <p v-if="failed" class="mt-2 text-sm text-ink-secondary" role="alert">
       {{ attemptsLeft === null ? APPLY_COPY.unlock.failed : APPLY_COPY.unlock.attemptsLeft(attemptsLeft) }}
