@@ -7,6 +7,7 @@ import { QUERY_DEFAULTS } from "@silvicom/ui";
 import App from "@/App.vue";
 import { router } from "@/router";
 import { listenForNotificationTaps } from "@/lib/webPush";
+import { listenForInstallOffer } from "@/lib/installApp";
 import "@vuepic/vue-datepicker/dist/main.css";
 import "@/style.css"; // after the datepicker CSS so token overrides win
 
@@ -14,6 +15,8 @@ import "@/style.css"; // after the datepicker CSS so token overrides win
 initColorScheme();
 // A tapped chat notification while the app is open goes there through the router (public/sw.js, CH10).
 listenForNotificationTaps(router);
+// Before the app mounts: the browser offers an install once per load, early (lib/installApp.ts, D-WP15).
+listenForInstallOffer();
 
 const app = createApp(App);
 

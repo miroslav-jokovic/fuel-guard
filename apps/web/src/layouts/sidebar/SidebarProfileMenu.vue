@@ -12,6 +12,7 @@ import { USER_ROLE_LABELS, type UserRole } from "@silvicom/shared";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { useServedRelease } from "@/composables/useServedRelease";
 import { useMyAlertsPanel } from "@/features/settings/useMyAlertsPanel";
+import { askToInstall, installWay } from "@/lib/installApp";
 
 const props = defineProps<{
   email: string | null;
@@ -122,6 +123,10 @@ const subline = computed(() => (props.name && props.email ? `${props.email} · $
     </div>
     <div class="sidebar-divider mb-1 border-t" />
     <button type="button" class="sidebar-account-item" @click="myAlerts.show()">My alerts</button>
+    <!-- Only while this browser can still install it (D-WP15): gone once installed, never a dead item. -->
+    <button v-if="installWay" type="button" class="sidebar-account-item" data-testid="install-app-item" @click="askToInstall()">
+      Install app
+    </button>
     <button
       type="button"
       class="sidebar-account-item text-danger-700 hover:text-danger-800"
