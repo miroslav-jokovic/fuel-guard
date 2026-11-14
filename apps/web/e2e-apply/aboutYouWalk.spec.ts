@@ -68,7 +68,8 @@ test("About you is walked a question at a time, the carrier's questions among th
   // The draft keeps the carrier's answers under `questionnaire` (`toDraftPayload`); filing names them `questionnaire_answers`.
   await expect.poll(() => (lastSave()?.payload.questionnaire as Record<string, unknown> | undefined)?.proof_of_age).toBe(true);
   expect(lastSave()!.payload).toMatchObject({
-    other_names: ["Susan Miller"],
+    // Q-AM22 (b): a name is a keyed row in the draft; the key never reaches the filed application.
+    other_names: [{ name: "Susan Miller", key: expect.any(String) }],
     email: "susan@example.test",
     questionnaire: { position: "Company driver", applying_as: "company_driver", heard_from: "A friend or a driver", legally_work: true },
   });
