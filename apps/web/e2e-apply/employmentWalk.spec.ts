@@ -8,6 +8,7 @@ import { partTwoV2Link, stubApi, TOKEN } from "./stubApi";
  *   · The DOT question takes "Not sure", and the driver moves on: the office answers it.
  *   · A gap the jobs leave is asked about on its own screen, with quick picks.
  *   · Equipment is picked, each pick a screen; the last Continue closes the task Completed.
+ *   · A tap on a one-question Yes/No moves on by itself (U3); typed answers and picks wait for Continue.
  *
  * The stub serves the carrier's day as 2026-09-28 (`carrierToday`), so the three years open on 09/28/2023.
  */
@@ -30,7 +31,6 @@ test("a job is walked a question at a time, Not sure is an answer, the gap is ex
   await expect(page.getByText(/Have you had a job in the last 3 years/)).toBeVisible();
   await expect(page.getByRole("radio", { name: "Yes", exact: true })).not.toBeChecked();
   await pick(page, "Yes");
-  await next(page);
 
   await next(page);
   await expect(page.locator("#apply-employers-0-employer_name")).toBeFocused();
@@ -46,14 +46,12 @@ test("a job is walked a question at a time, Not sure is an answer, the gap is ex
   await next(page);
   await expect(page.getByText("Did you drive a truck in this job?")).toBeVisible();
   await pick(page, "Yes");
-  await next(page);
 
   await expect(page.getByText("Was it a DOT job?")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("1-dot.png"), fullPage: true });
   await next(page);
   await expect(page.getByRole("alert")).toBeVisible();
   await pick(page, "Not sure");
-  await next(page);
 
   await page.getByRole("button", { name: "Better pay or miles" }).click();
   await expect(page.getByLabel("Why did you leave?")).toHaveValue("Better pay or miles");
@@ -62,7 +60,6 @@ test("a job is walked a question at a time, Not sure is an answer, the gap is ex
   await expect(page.locator("[data-jobs-coverage]")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("2-another.png"), fullPage: true });
   await pick(page, "No");
-  await next(page);
 
   // 09/28/2023 → 05/31/2025 has no job.
   await expect(page.getByText(/^No job from/)).toBeVisible();

@@ -17,6 +17,11 @@ export interface FieldCopy {
   /** The browser's autofill name for it — `address-line1`, `bday`, `off` for a licence number. */
   readonly autocomplete?: string;
   readonly placeholder?: string;
+  /**
+   * How a phone's keyboard capitalizes it (U3): `words` for a name or a city, `characters` for a licence
+   * number — which also turns autocorrect off, since a licence number is not a word to be corrected.
+   */
+  readonly capitalize?: "words" | "characters";
 }
 
 /**

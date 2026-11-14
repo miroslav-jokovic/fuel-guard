@@ -182,7 +182,7 @@ function onContinue(): void {
       />
       <PartOneRights v-else-if="flow.screen.value === 'rights' && inputs.summary" :summary="inputs.summary" />
       <template v-else-if="wizard.current.value">
-        <WizardScreen :key="wizard.current.value.id" :screen="wizard.current.value" :binding="wizard.binding" />
+        <WizardScreen :key="wizard.current.value.id" :screen="wizard.current.value" :binding="wizard.binding" @advance="onContinue" />
         <p v-for="problem in wizard.stray.value" :key="problem" class="text-sm text-danger-700" role="alert">{{ problem }}</p>
       </template>
     </template>

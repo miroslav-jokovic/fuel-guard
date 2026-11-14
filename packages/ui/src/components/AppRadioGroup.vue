@@ -26,10 +26,36 @@ const props = withDefaults(
      * at 390px: `min-h-11` alone left each radio at the top of its row with 24px of nothing under it.
      */
     size?: "default" | "touch";
+    /**
+     * `cards` draws each choice as a bordered block the whole of which is the target, filled when chosen
+     * — the applicant's Yes and No (APPLICATION-FIX-PLAN U3: "two big buttons, never a checkbox"). Still
+     * radios underneath, so the keyboard, a screen reader and a form read it exactly as the list.
+     */
+    variant?: "list" | "cards";
+    /** `cards` side by side — two short answers share a phone's width. */
+    columns?: 1 | 2;
   }>(),
-  { modelValue: undefined, name: undefined, disabled: false, size: "default" },
+  { modelValue: undefined, name: undefined, disabled: false, size: "default", variant: "list", columns: 1 },
 );
-const emit = defineEmits<{ "update:modelValue": [value: RadioValue] }>();
+const emit = defineEmits<{
+  "update:modelValue": [value: RadioValue];
+  /**
+   * A choice was TAPPED or clicked — not arrowed to. For a page that moves on when a question is answered
+   * (U3): arrowing through the choices with a keyboard must never do that, and a browser reports an arrow
+   * key as a click with `detail` 0. Fired after the model has changed, once per tap (a tap on the label is
+   * reported twice, on the label and on its radio). Tapping the choice already chosen fires it too.
+   */
+  pick: [value: RadioValue];
+}>();
+let picking = false;
+function tapped(event: MouseEvent, option: RadioOption): void {
+  if (event.detail === 0 || picking || option.disabled || props.disabled) return;
+  picking = true;
+  setTimeout(() => {
+    picking = false;
+    emit("pick", option.value);
+  }, 0);
+}
 const generatedName = `radio-${useId()}`;
 /** Inside a thumb-pressed layout (`touchTargets.ts`) every choice is `touch`, asked or not. */
 const touchTargets = useTouchTargets();
@@ -39,11 +65,18 @@ const touch = computed(() => touchTargets.value || props.size === "touch");
 <template>
   <fieldset class="space-y-1.5" :disabled="disabled">
     <legend class="text-sm font-medium text-ink-secondary">{{ legend }}</legend>
+    <div :class="variant === 'cards' ? ['grid gap-3', columns === 2 ? 'grid-cols-2' : 'grid-cols-1'] : 'space-y-1.5'">
     <label
       v-for="option in options"
       :key="String(option.value)"
-      class="flex items-start gap-2 text-sm text-ink-secondary"
-      :class="[touch ? 'min-h-12 py-3.5' : 'min-h-9', option.disabled && 'cursor-not-allowed opacity-60']"
+      class="flex gap-2 text-sm"
+      :class="[
+        variant === 'cards'
+          ? 'min-h-14 cursor-pointer items-center rounded-surface bg-surface px-4 py-3 text-base font-medium text-ink ring-1 ring-inset ring-edge-control has-[:checked]:bg-surface-muted has-[:checked]:ring-2 has-[:checked]:ring-action-primary'
+          : ['items-start text-ink-secondary', touch ? 'min-h-12 py-3.5' : 'min-h-9'],
+        option.disabled && 'cursor-not-allowed opacity-60',
+      ]"
+      @click="tapped($event, option)"
     >
       <input
         type="radio"
@@ -51,7 +84,8 @@ const touch = computed(() => touchTargets.value || props.size === "touch");
         :value="String(option.value)"
         :checked="modelValue === option.value"
         :disabled="option.disabled"
-        class="mt-0.5 size-4 border-edge-control accent-action-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        :class="variant === 'cards' ? '' : 'mt-0.5'"
+        class="size-4 border-edge-control accent-action-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         @change="emit('update:modelValue', option.value)"
       />
       <span>
@@ -61,5 +95,6 @@ const touch = computed(() => touchTargets.value || props.size === "touch");
         }}</span>
       </span>
     </label>
+    </div>
   </fieldset>
 </template>

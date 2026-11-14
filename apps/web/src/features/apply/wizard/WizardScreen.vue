@@ -40,6 +40,16 @@ import type { WizardBinding } from "./wizardBinding";
 /** `row`: the row a loop screen asks about (Stage 2, F4 PR 1b-1) — every read and write is that row's. */
 const props = defineProps<{ screen: WizardScreen; binding: WizardBinding; row?: number }>();
 
+/**
+ * U3 (SCREEN-MAP §1: "Yes/No as two big buttons that also advance"). A screen that is ONE yes/no question
+ * is answered by its tap, so the tap moves on — the page's own Continue, with its own check. Only a tap:
+ * an answer arrowed to with a keyboard waits for Continue (`AppRadioGroup`'s `pick`).
+ */
+const emit = defineEmits<{ advance: [] }>();
+const picked1 = (): void => {
+  if (props.screen.fields.length === 1) emit("advance");
+};
+
 const US_STATES = jurisdictionOptions().filter((o) => US_JURISDICTION_CODES.has(o.value));
 const JURISDICTIONS = jurisdictionOptions();
 
@@ -122,6 +132,8 @@ function toggle(f: WizardField, value: string, on: boolean): void {
           :model-value="threeWay(f.fact.path)"
           :legend="words(f).label"
           :options="THREE_WAY.map((value) => ({ value, label: words(f).options?.[value] ?? value }))"
+          variant="cards"
+          @pick="picked1"
           @update:model-value="write(f.fact.path, $event === 'yes' ? true : $event === 'no' ? false : $event)"
         />
         <p v-if="words(f).hint" class="mt-1 text-xs text-ink-muted">{{ words(f).hint }}</p>
@@ -136,6 +148,7 @@ function toggle(f: WizardField, value: string, on: boolean): void {
         :hint="words(f).hint"
         :error="error(f.fact.path)"
         @update:model-value="write(f.fact.path, $event)"
+        @pick="picked1"
       />
 
       <div v-else-if="f.fact.input === 'choice' && !f.ask.picksRows" :id="id(f.fact.path)">
@@ -232,6 +245,9 @@ function toggle(f: WizardField, value: string, on: boolean): void {
             :maxlength="f.fact.input === 'zip' ? 5 : undefined"
             :autocomplete="words(f).autocomplete"
             :placeholder="words(f).placeholder"
+            :autocapitalize="words(f).capitalize"
+            :autocorrect="words(f).capitalize === 'characters' ? 'off' : undefined"
+            :spellcheck="words(f).capitalize === 'characters' ? false : undefined"
             @update:model-value="write(f.fact.path, $event)"
           />
         </template>

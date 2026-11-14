@@ -11,6 +11,8 @@ import { APPLY_COPY } from "@/features/apply/strings";
 defineProps<{ legend: string; hint?: string; error?: string; id?: string }>();
 const model = defineModel<boolean | null>({ required: true });
 const copy = APPLY_COPY.partOne;
+/** Tapped (never arrowed to): a screen that is this one question moves on at it (U3). */
+const emit = defineEmits<{ pick: [] }>();
 </script>
 
 <template>
@@ -22,5 +24,7 @@ const copy = APPLY_COPY.partOne;
     :error="error"
     :yes="copy.yes"
     :no="copy.no"
+    variant="cards"
+    @pick="emit('pick')"
   />
 </template>
