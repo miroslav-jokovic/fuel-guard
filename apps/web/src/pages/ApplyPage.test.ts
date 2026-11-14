@@ -598,7 +598,8 @@ describe("the applicant's page", () => {
     }));
     const first = mountPage();
     await settle(first);
-    expect(first.text()).toContain("About you");
+    // U1: it says what the three stages are, and asks nothing.
+    expect(first.text()).toContain("What this involves");
     expect(first.text()).not.toContain("Social Security number");
   });
 

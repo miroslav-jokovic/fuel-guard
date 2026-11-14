@@ -14,16 +14,15 @@ import { APPLY_SMS_COPY } from "./strings.sms";
 import { APPLY_QUESTIONS_COPY } from "./strings.questions";
 import { APPLY_ISSUES_COPY } from "./strings.issues";
 import { APPLY_SCREENS_COPY } from "./strings.screens";
+import { APPLY_STAGES_COPY } from "./strings.stages";
 import {
   APPLICATION_SECTION_LABELS,
-  CMV_WINDOW_YEARS,
   EMPLOYMENT_WINDOW_YEARS,
   MVR_LOOKBACK_YEARS,
   APPLICATION_CAPTURE_SLOT_LABELS,
   type ApplicationCaptureSlot,
   type ApplicationSection,
 } from "@silvicom/shared";
-import { sentenceCase } from "./sentenceCase";
 
 /**
  * Every word the applicant reads, in one place (A3).
@@ -115,74 +114,6 @@ export const APPLY_COPY_EN = {
      * sentence and wraps the row on a phone.
      */
     minutes: (n: number): string => `${n} min`,
-  },
-
-  /**
-   * What the applicant is told before they start (B7).
-   *
-   * ── WHY THERE IS A SCREEN HERE AT ALL ─────────────────────────────────────────────────────────
-   * Because the length of this application was previously discovered by walking it. A driver who
-   * opens the link in a queue at a shipper with four minutes to spare, starts, and meets the
-   * employment screen's ten years of history is a driver who abandons it — and the answers they did
-   * type are worth nothing to anybody. The finding this is built on is not ours (NN/g on setting
-   * expectations before a long form, and every carrier ATS that has measured its own abandonment):
-   * the length and the list of what to have to hand are what a person needs in order to decide
-   * whether to start NOW or this evening, and both answers are fine. Neither of them is "start, and
-   * find out".
-   *
-   * ⚠ The estimate itself is not typed here. It comes from `APPLICATION_SECTION_MINUTES` in shared,
-   * so this file states no fact about the form that the form does not own — see the catalogue.
-   */
-  expectations: {
-    /**
-     * ⚠ Not "Before you start", which is the 7001(c) consent's heading and stays its heading. Two
-     * screens in a row under the same words would read as the page repeating itself, and the consent
-     * has the better claim to it: it is the last thing before the application, and this is the thing
-     * before all of it.
-     */
-    heading: "What this involves",
-    /** The carrier is a fact, so it is an argument rather than a template a translator cannot move. */
-    lead: (carrier: string): string => `This is ${carrier}'s driver application.`,
-    /**
-     * ⚠ Rounded to the nearest five minutes on the way out. The catalogue's total is a sum of eight
-     * estimates nobody has measured; printing it to the minute would dress a judgement up as a
-     * stopwatch, and a driver who takes 34 minutes against a promised 31 has been misled by a
-     * precision we never had.
-     */
-    howLong: (screens: number, minutes: number): string =>
-      `${screens} screens, about ${Math.round(minutes / 5) * 5} minutes in all.`,
-    stepsHeading: "The screens",
-    needHeading: "What to have with you",
-    needs: [
-      `Every address you have lived at in the last ${EMPLOYMENT_WINDOW_YEARS} years.`,
-      `Every job you have held in the last ${EMPLOYMENT_WINDOW_YEARS} years, and every driving job in the last ${CMV_WINDOW_YEARS} — with dates, addresses and phone numbers.`,
-      `Your license, and every other license or permit you hold or have held in the last ${MVR_LOOKBACK_YEARS} years.`,
-    ],
-    /** Introduces the photographs, which are named from the capture catalogue rather than retyped. */
-    photographHeading: "And these, to photograph:",
-    /**
-     * Said here because it is the part of the process nobody expects: the driver signs the carrier's
-     * permission forms BEFORE the form itself (D-APP4), and then signs the application itself on a
-     * second visit after the office has read it (F4). Both are shown only when they will actually
-     * happen — the permissions are skipped while the wording is still draft, and a screen promising
-     * a step the page then skips is worse than saying nothing.
-     */
-    /**
-     * ⚠ Since AF4 the application does NOT follow on the same visit: the permissions (and the licence
-     * details, AF3) come first, the carrier checks the driver's record, and only then sends the form.
-     * A driver told "the application follows" would sit on the waiting screen wondering what broke.
-     */
-    signFirst: (carrier: string): string =>
-      `${sentenceCase(carrier)} asks for your license details and a few signed permissions first. After checking your record, they send you the application itself — we will email you the link.`,
-    /**
-     * ⚠ AF5 (D-AF3): the signing is no longer a visit to this link. It happens in the carrier's
-     * office, on the same visit as the road test — and saying "we will send you the link" would
-     * promise an email that never comes.
-     */
-    afterwards: (carrier: string): string =>
-      `When you send it, ${carrier} reads it. You sign it in their office, when you come in for your road test.`,
-    savesItself: "Your answers save as you go, so you can stop part-way and open your link again later.",
-    start: "Start",
   },
 
   nav: {
@@ -473,6 +404,7 @@ export const APPLY_COPY_EN = {
   ...APPLY_IDENTITY_COPY,
   ...APPLY_PART_ONE_COPY,
   ...APPLY_HUB_COPY,
+  ...APPLY_STAGES_COPY,
   ...APPLY_PERMISSIONS_COPY,
   ...APPLY_SMS_COPY,
   ...APPLY_HANDBOOK_COPY,

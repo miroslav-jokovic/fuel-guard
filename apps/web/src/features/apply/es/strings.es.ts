@@ -1,12 +1,10 @@
 import {
-  CMV_WINDOW_YEARS,
   EMPLOYMENT_WINDOW_YEARS,
   MVR_LOOKBACK_YEARS,
   type ApplicationCaptureSlot,
   type ApplicationSection,
 } from "@silvicom/shared";
 import type { ApplyCopy } from "../strings";
-import { sentenceCase } from "../sentenceCase";
 import { APPLY_FLOW_COPY_ES } from "./strings.es.flow";
 import { APPLY_HANDBOOK_COPY_ES } from "./strings.es.handbook";
 import { APPLY_VIDEOS_COPY_ES } from "./strings.es.videos";
@@ -21,6 +19,7 @@ import { APPLY_SMS_COPY_ES } from "./strings.es.sms";
 import { APPLY_QUESTIONS_COPY_ES } from "./strings.es.questions";
 import { APPLY_ISSUES_COPY_ES } from "./strings.es.issues";
 import { APPLY_SCREENS_COPY_ES } from "./strings.es.screens";
+import { APPLY_STAGES_COPY_ES } from "./strings.es.stages";
 
 /**
  * Every word the applicant reads, in Spanish (APPLICATION-FLOW-V2-PLAN Q-AW11 ruled EN+ES; AW13, C4).
@@ -86,27 +85,6 @@ export const APPLY_COPY_ES = {
     savesItself: "Sus respuestas se guardan a medida que avanza",
     comeBack: "Puede cerrar esta página y volver a abrir su enlace más tarde.",
     minutes: (n: number): string => `${n} min`,
-  },
-
-  expectations: {
-    heading: "En qué consiste",
-    lead: (carrier: string): string => `Esta es la solicitud de conductor de ${carrier}.`,
-    howLong: (screens: number, minutes: number): string =>
-      `${screens} pantallas, unos ${Math.round(minutes / 5) * 5} minutos en total.`,
-    stepsHeading: "Las pantallas",
-    needHeading: "Qué tener a la mano",
-    needs: [
-      `Todas las direcciones en las que ha vivido en los últimos ${EMPLOYMENT_WINDOW_YEARS} años.`,
-      `Todos los trabajos que ha tenido en los últimos ${EMPLOYMENT_WINDOW_YEARS} años, y todos los trabajos de manejo de los últimos ${CMV_WINDOW_YEARS}, con fechas, direcciones y números de teléfono.`,
-      `Su licencia, y cualquier otra licencia o permiso que tenga o haya tenido en los últimos ${MVR_LOOKBACK_YEARS} años.`,
-    ],
-    photographHeading: "Y esto, para fotografiar:",
-    signFirst: (carrier: string): string =>
-      `${sentenceCase(carrier)} le pide primero los datos de su licencia y unas cuantas autorizaciones firmadas. Después de revisar su historial, le envía la solicitud en sí; le enviaremos el enlace por correo electrónico.`,
-    afterwards: (carrier: string): string =>
-      `Cuando la envíe, ${carrier} la lee. La firmará en su oficina, cuando vaya a su prueba de manejo.`,
-    savesItself: "Sus respuestas se guardan a medida que avanza, así que puede parar a la mitad y volver a abrir su enlace más tarde.",
-    start: "Empezar",
   },
 
   nav: {
@@ -332,6 +310,7 @@ export const APPLY_COPY_ES = {
   ...APPLY_IDENTITY_COPY_ES,
   ...APPLY_PART_ONE_COPY_ES,
   ...APPLY_HUB_COPY_ES,
+  ...APPLY_STAGES_COPY_ES,
   ...APPLY_PERMISSIONS_COPY_ES,
   ...APPLY_SMS_COPY_ES,
   ...APPLY_HANDBOOK_COPY_ES,
