@@ -131,6 +131,28 @@ export const APPLICATION_FILLING_MINUTES = APPLICATION_FILLING_SECTIONS.reduce(
 );
 
 /**
+ * The application as the driver lives it: three visits to one link (APPLICATION-SCREEN-MAP §2–§4, U1).
+ *
+ * ── WHY THE DRIVER IS TOLD THREE STAGES ───────────────────────────────────────────────────────
+ * The owner's 2026-11-09 walk found the page promising "8 screens, about 30 minutes" — the middle
+ * visit's task list — to a driver who then met the license photographs, six permissions, a wait for the
+ * office, the application itself, a second wait, and the signing. Each stage ends on a wait the driver
+ * does not control, so they are what the page can honestly count: where you are, and what is next.
+ *
+ * ⚠ The minutes are ESTIMATES, and say so wherever they are printed ("about"). `history` is the sum of
+ * the task list's own (`APPLICATION_FILLING_MINUTES`). `today` and `signing` are SCREEN-MAP's figures,
+ * which the owner approved and nobody has measured: the timed walk at 390×844 (APPLICATION-FIX-PLAN §4,
+ * "How we prove U1–U9") is what replaces them.
+ */
+export const APPLICATION_STAGES = ["today", "history", "signing"] as const;
+export type ApplicationStage = (typeof APPLICATION_STAGES)[number];
+export const APPLICATION_STAGE_MINUTES: Record<ApplicationStage, number> = {
+  today: 10,
+  history: APPLICATION_FILLING_MINUTES,
+  signing: 5,
+};
+
+/**
  * The §391.21(b) paragraph each screen discharges — **for the printed application and for anyone
  * auditing us, and no longer for the driver.**
  *

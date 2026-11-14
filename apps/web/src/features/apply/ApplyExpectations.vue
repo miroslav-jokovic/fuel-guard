@@ -1,12 +1,7 @@
 <script setup lang="ts">
-import {
-  APPLICATION_CAPTURE_REQUESTED,
-  APPLICATION_FILLING_MINUTES,
-  APPLICATION_FILLING_SECTIONS,
-  APPLICATION_SECTION_MINUTES,
-} from "@silvicom/shared";
+import { APPLICATION_CAPTURE_REQUESTED, APPLICATION_STAGES, APPLICATION_STAGE_MINUTES } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import { APPLY_CAPTURE_TITLES, APPLY_COPY, APPLY_SECTION_TITLES } from "@/features/apply/strings";
+import { APPLY_CAPTURE_TITLES, APPLY_COPY } from "@/features/apply/strings";
 
 /**
  * What the whole thing involves, before any of it is asked (B7).
@@ -36,10 +31,13 @@ import { APPLY_CAPTURE_TITLES, APPLY_COPY, APPLY_SECTION_TITLES } from "@/featur
  * same thing, that this person has started — so somebody who opens the link twice without doing
  * anything is told the same thing twice, which is the right answer to having done nothing.
  *
- * Every number on this screen is the catalogue's: the screens and their estimates come from
- * `APPLICATION_SECTION_MINUTES`, and the documents from `APPLICATION_CAPTURE_REQUESTED` — the same
- * lists the wizard and the capture screen render, so this cannot promise a screen that is not there
- * or a photograph nobody is asked for.
+ * ── THREE STAGES, NOT EIGHT SCREENS (U1, owner's walk of 2026-11-09) ──────────────────────────
+ * It listed the middle visit's eight tasks and their thirty minutes, to a driver whose first visit is
+ * the license and the permissions, and whose application then arrives days later. So it now says what
+ * the driver will live: three stages on one link, how long each takes, and what each waits for. The
+ * stages and their estimates are shared's (`APPLICATION_STAGES`, `APPLICATION_STAGE_MINUTES`), the same
+ * three the bar on every screen draws (`ApplyStages`); the documents are `APPLICATION_CAPTURE_REQUESTED`,
+ * the list the capture screen renders.
  */
 defineProps<{
   carrier: string;
@@ -56,13 +54,9 @@ defineProps<{
 const emit = defineEmits<{ start: [] }>();
 
 const copy = APPLY_COPY.expectations;
-const minutesOf = APPLY_COPY.progress.minutes;
-
-const steps = APPLICATION_FILLING_SECTIONS.map((section) => ({
-  section,
-  label: APPLY_SECTION_TITLES[section],
-  minutes: APPLICATION_SECTION_MINUTES[section],
-}));
+const names = APPLY_COPY.stages.names;
+const when = (text: string | ((carrier: string) => string), carrier: string): string =>
+  (typeof text === "function" ? text(carrier) : text);
 // §9 P9: every paper on the documents list, less "Anything else" — a thing to have to hand is named.
 const photographs = APPLICATION_CAPTURE_REQUESTED.filter((slot) => slot !== "other").map((slot) => APPLY_CAPTURE_TITLES[slot]);
 </script>
@@ -75,26 +69,20 @@ const photographs = APPLICATION_CAPTURE_REQUESTED.filter((slot) => slot !== "oth
     </div>
 
     <!-- The one sentence this screen exists for, so it is the thing that is read if nothing else is. -->
-    <p class="text-base font-semibold text-ink">
-      {{ copy.howLong(steps.length, APPLICATION_FILLING_MINUTES) }}
-    </p>
+    <p class="text-base font-semibold text-ink">{{ copy.howLong }}</p>
 
-    <div class="space-y-2">
-      <h2 class="text-sm font-semibold text-ink">{{ copy.stepsHeading }}</h2>
-      <!-- The same eight rows the progress list shows, with the same estimates, before they mean
-           anything to the driver yet. Not buttons: there is nowhere to go from here except forward,
-           and a row that looks tappable and is not is worse than a row that does not. -->
-      <ul class="divide-y divide-edge rounded-surface ring-1 ring-inset ring-edge">
-        <li
-          v-for="step in steps"
-          :key="step.section"
-          class="flex items-baseline justify-between gap-3 px-3 py-2"
-        >
-          <span class="text-sm text-ink">{{ step.label }}</span>
-          <span class="shrink-0 text-2xs tabular-nums text-ink-muted">{{ minutesOf(step.minutes) }}</span>
-        </li>
-      </ul>
-    </div>
+    <!-- Not buttons: there is nowhere to go from here except forward, and a row that looks tappable and
+         is not is worse than a row that does not. -->
+    <ol class="divide-y divide-edge rounded-surface ring-1 ring-inset ring-edge" data-stages>
+      <li v-for="(stage, i) in APPLICATION_STAGES" :key="stage" class="space-y-1 px-3 py-3">
+        <div class="flex items-baseline justify-between gap-3">
+          <span class="text-sm font-semibold text-ink">{{ i + 1 }}. {{ names[stage] }}</span>
+          <span class="shrink-0 text-xs tabular-nums text-ink-muted">{{ copy.minutes(APPLICATION_STAGE_MINUTES[stage]) }}</span>
+        </div>
+        <p class="text-sm text-ink-secondary">{{ copy.stage[stage].what }}</p>
+        <p class="text-xs text-ink-muted">{{ when(copy.stage[stage].when, carrier) }}</p>
+      </li>
+    </ol>
 
     <div class="space-y-2">
       <h2 class="text-sm font-semibold text-ink">{{ copy.needHeading }}</h2>
@@ -111,7 +99,6 @@ const photographs = APPLICATION_CAPTURE_REQUESTED.filter((slot) => slot !== "oth
 
     <div class="space-y-2 text-sm text-ink-secondary">
       <p v-if="signFirst">{{ copy.signFirst(carrier) }}</p>
-      <p>{{ copy.afterwards(carrier) }}</p>
       <p>{{ copy.savesItself }}</p>
     </div>
 

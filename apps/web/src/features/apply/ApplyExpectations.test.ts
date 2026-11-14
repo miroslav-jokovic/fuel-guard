@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import {
   APPLICATION_CAPTURE_SLOT_LABELS,
-  APPLICATION_FILLING_SECTIONS,
-  APPLICATION_SECTION_LABELS,
-  APPLICATION_SECTION_MINUTES,
+  APPLICATION_FILLING_MINUTES,
+  APPLICATION_STAGES,
+  APPLICATION_STAGE_MINUTES,
 } from "@silvicom/shared";
 import ApplyExpectations from "./ApplyExpectations.vue";
 import { APPLY_COPY } from "./strings";
@@ -21,10 +21,9 @@ const screen = (props: Partial<{ carrier: string; signFirst: boolean }> = {}) =>
   mount(ApplyExpectations, { props: { carrier: "Silvicom Inc", signFirst: false, ...props } });
 
 describe("the decision it is asking for", () => {
-  it("says how many screens and roughly how long, before anything is asked", () => {
+  it("says it is three stages on one link, before anything is asked", () => {
     const w = screen();
-    expect(w.text()).toContain(`${APPLICATION_FILLING_SECTIONS.length} screens`);
-    expect(w.text()).toMatch(/about \d+ minutes/);
+    expect(w.text()).toContain(APPLY_COPY.expectations.howLong);
     // Nothing is asked here, which is what lets the screen sit ahead of the 7001(c) consent: A4's
     // ruling is that nothing is asked and nothing is written before it.
     expect(w.findAll("input")).toHaveLength(0);
@@ -32,11 +31,10 @@ describe("the decision it is asking for", () => {
     expect(w.findAll("textarea")).toHaveLength(0);
   });
 
-  it("rounds the estimate, rather than dressing eight guesses up as a stopwatch", () => {
-    // Exercised on the copy itself, because today's total happens to be round and a component
-    // assertion would pass whether or not the rounding is there at all.
-    expect(APPLY_COPY.expectations.howLong(8, 31)).toContain("about 30 minutes");
-    expect(APPLY_COPY.expectations.howLong(8, 33)).toContain("about 35 minutes");
+  it("rounds an estimate, rather than dressing a guess up as a stopwatch", () => {
+    expect(APPLY_COPY.expectations.minutes(31)).toBe("about 30 minutes");
+    expect(APPLY_COPY.expectations.minutes(33)).toBe("about 35 minutes");
+    expect(APPLY_COPY.expectations.minutes(2)).toBe("about 5 minutes");
   });
 
   it("starts when it is told to, and does nothing else", () => {
@@ -47,19 +45,24 @@ describe("the decision it is asking for", () => {
   });
 });
 
-describe("what it says the form involves", () => {
-  it("names every screen of the first visit, with the catalogue's estimate", () => {
-    const w = screen();
-    for (const section of APPLICATION_FILLING_SECTIONS) {
-      expect(w.text()).toContain(APPLICATION_SECTION_LABELS[section]);
-      expect(w.text()).toContain(`${APPLICATION_SECTION_MINUTES[section]} min`);
-    }
+describe("what it says the application involves", () => {
+  it("names the three stages in order, each with shared's estimate and what it waits for", () => {
+    const rows = screen().findAll("[data-stages] li");
+    expect(rows).toHaveLength(APPLICATION_STAGES.length);
+    APPLICATION_STAGES.forEach((stage, i) => {
+      expect(rows[i]!.text()).toContain(`${i + 1}. ${APPLY_COPY.stages.names[stage]}`);
+      expect(rows[i]!.text()).toContain(APPLY_COPY.expectations.minutes(APPLICATION_STAGE_MINUTES[stage]));
+      expect(rows[i]!.text()).toContain(APPLY_COPY.expectations.stage[stage].what);
+    });
+    // The middle visit's own estimate is the task list's sum, not a second number.
+    expect(APPLICATION_STAGE_MINUTES.history).toBe(APPLICATION_FILLING_MINUTES);
   });
 
-  it("leaves the certification out, because it is a second visit on another day", () => {
-    // Same reason the progress list stops at "Check your answers" (F4): the office reads the
-    // application before anybody signs it, so the signature is not on the clock this screen quotes.
-    expect(screen().text()).not.toContain(APPLICATION_SECTION_LABELS.certify);
+  it("says the signing is on the driver's own phone, from a link the office sends (D-AW14)", () => {
+    const signing = APPLY_COPY.expectations.stage.signing.when("Silvicom Inc");
+    expect(screen().text()).toContain(signing);
+    expect(signing).toContain("sign on your phone");
+    expect(screen().text()).not.toMatch(/in their office|road test/);
   });
 
   it("names the documents the capture screen actually asks for, and no others", () => {
@@ -67,8 +70,6 @@ describe("what it says the form involves", () => {
     expect(w.text()).toContain(APPLICATION_CAPTURE_SLOT_LABELS.medical_card);
     expect(w.text()).toContain(APPLICATION_CAPTURE_SLOT_LABELS.cdl_front);
     // `signature_mark` and `other` are in the vocabulary and not in `APPLICATION_CAPTURE_REQUESTED`.
-    // Listing them would send a driver to find a document nobody will ever ask them for — which is
-    // what reading the slot list instead of the requested list would do.
     expect(w.text()).not.toContain(APPLICATION_CAPTURE_SLOT_LABELS.signature_mark);
     expect(w.text()).not.toContain(APPLICATION_CAPTURE_SLOT_LABELS.other);
   });
@@ -87,16 +88,5 @@ describe("the parts of the process nobody expects", () => {
     expect(screen({ signFirst: false }).text()).not.toContain(
       APPLY_COPY.expectations.signFirst("Silvicom Inc"),
     );
-  });
-
-  /**
-   * ⚠ AF5 (D-AF3): the last signature is given in the carrier's office, not on a second visit to this
-   * link — and a promise of "we will send you the link" would be an email that never comes.
-   */
-  it("says the last signature is given in the office, so finishing the form is not the end", () => {
-    const afterwards = APPLY_COPY.expectations.afterwards("Silvicom Inc");
-    expect(screen().text()).toContain(afterwards);
-    expect(afterwards).toContain("in their office");
-    expect(afterwards).not.toMatch(/second, short visit|send you the link/);
   });
 });

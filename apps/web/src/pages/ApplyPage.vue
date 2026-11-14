@@ -17,6 +17,7 @@ import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
 import ApplyProgress from "@/features/apply/ApplyProgress.vue";
 import ApplyIssueList from "@/features/apply/ApplyIssueList.vue";
 import ApplyPhaseRouter from "@/features/apply/ApplyPhaseRouter.vue";
+import ApplyStages from "@/features/apply/ApplyStages.vue";
 import { applyLanguage } from "@/features/apply/language";
 import { emptyDraft, fromDraftPayload, type ApplicationDraft } from "@/features/apply/draft";
 import { linkHasBeenUsed, useApplyInvitationQuery, type Released } from "@/features/apply/useApplication";
@@ -281,6 +282,12 @@ const waitingForApplication = computed(() => {
   const phases = invitation.data.value?.phases;
   return phases?.applicationSentAt === null && Boolean(phases.releasesCompletedAt || ceremonyDone.value);
 });
+/** U1: the stage the bar marks, from the phases the link serves (`stages.ts`). */
+const stageFacts = computed(() => ({
+  applicationSent: Boolean(invitation.data.value?.phases?.applicationSentAt),
+  approved: approved.value,
+  submitted: submitted.value,
+}));
 function identityRecorded(): void {
   [identityDone.value, restored.value, autosaveEnabled.value] = [true, false, false];
   void invitation.refetch();
@@ -314,6 +321,9 @@ watch(
 <template>
   <!-- Keyed by language (C4): a switch remounts the screen chain so a word captured at setup follows it;
        every state the chain reads is held here, above the key. -->
+  <div class="space-y-6">
+  <!-- U1: where the driver is among the three visits, on every screen of a live link. -->
+  <ApplyStages v-if="invitation.data.value && isPartOneLink" :facts="stageFacts" />
   <ApplyPhaseRouter
     :key="applyLanguage"
     v-model:draft="draft"
@@ -470,4 +480,5 @@ watch(
       </template>
     </div>
   </ApplyPhaseRouter>
+  </div>
 </template>
