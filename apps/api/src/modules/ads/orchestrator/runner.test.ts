@@ -27,6 +27,7 @@ function fakes(w: AdsWorld, opts: { launch?: PlatformOutcome | Error; pause?: Pl
   const compose = vi.fn(async (_c: CampaignRow, _key: string): Promise<WorkerResult> => ({ ok: true }));
   const createPaused = vi.fn(async (): Promise<PlatformOutcome> => ({ ok: true, platform_refs: { meta_campaign: "m-1" } }));
   const workers: CampaignWorkers = {
+    plan: null,
     compose,
     createPaused,
     refresh: null,
@@ -314,3 +315,69 @@ describe("runCampaignStep — failure is a visible state", () => {
     expect(new Set(keys).size).toBe(2);
   });
 });
+
+describe("runCampaignStep — a campaign is planned when this host plans (V2)", () => {
+  const planning = (w: AdsWorld, result: WorkerResult | Error) => {
+    const f = fakes(w);
+    const plan = vi.fn(async (_c: CampaignRow, _key: string): Promise<WorkerResult> => {
+      if (result instanceof Error) throw result;
+      return result;
+    });
+    return { ...f, plan, workers: { ...f.workers, plan } };
+  };
+
+  it("a draft goes to planning, not composing, and nothing is composed", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "draft")] });
+    const f = planning(w, { ok: true });
+    expect(await step(w, f.workers)).toMatchObject({ kind: "stepped", event: "plan" });
+    expect(w.byId("c1").state).toBe("planning");
+    expect(f.compose).not.toHaveBeenCalled();
+  });
+
+  it("with no planner a draft still goes straight to composing", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "draft")] });
+    expect(await step(w, fakes(w).workers)).toMatchObject({ kind: "stepped", event: "compose" });
+    expect(w.byId("c1").state).toBe("composing");
+  });
+
+  it("a finished plan waits for a person: plan_review, where the agent has no work", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "planning")] });
+    const f = planning(w, { ok: true });
+    expect(await step(w, f.workers)).toMatchObject({ kind: "stepped", event: "plan_ready" });
+    expect(w.byId("c1").state).toBe("plan_review");
+    expect(f.plan).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }), expect.stringMatching(/^c1:/));
+    expect(await step(w, f.workers)).toEqual({ kind: "idle", state: "plan_review", reason: "no_agent_work" });
+    expect(f.compose).not.toHaveBeenCalled();
+  });
+
+  it("a plan still being written moves nothing and records nothing", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "planning")] });
+    expect(await step(w, planning(w, { ok: false, pending: true, why: "strategist in flight" }).workers)).toEqual({ kind: "idle", state: "planning", reason: "pending: strategist in flight" });
+    expect(w.transitions()).toEqual([]);
+  });
+
+  it.each([
+    [{ ok: false, error: "plan refused: angle 2 cites no fact of the job" } as WorkerResult, "plan refused: angle 2 cites no fact of the job"],
+    [new Error("boom"), "boom"],
+  ])("a plan that failed stops the campaign with the reason", async (result, reason) => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "planning")] });
+    expect(await step(w, planning(w, result).workers)).toMatchObject({ kind: "stepped", event: "plan_failed" });
+    expect(w.byId("c1")).toMatchObject({ state: "failed", last_error: reason });
+  });
+
+  it("planning with no planner on this host is left alone", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "planning")] });
+    expect(await step(w, fakes(w).workers)).toEqual({ kind: "idle", state: "planning", reason: "no_agent_work" });
+  });
+
+  it("under the brake nothing is planned", async () => {
+    for (const state of ["draft", "planning"] as const) {
+      const w = createAdsWorld({ campaigns: [campaign("c1", state)] });
+      const f = planning(w, { ok: true });
+      await runCampaignStep({ admin: w.admin, now: w.now, workers: f.workers, brake: "ADS_ENABLED is off" }, ORG, "c1");
+      expect(f.plan, state).not.toHaveBeenCalled();
+      expect(w.byId("c1").state).toBe(state);
+    }
+  });
+});
+

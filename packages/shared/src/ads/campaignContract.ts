@@ -106,7 +106,11 @@ export interface AdsCampaignView extends AdsCampaignSummary {
  * `launch` is not here either: it spends, so it is the approver's door below. Whether an event is
  * legal from the campaign's state, and whether a person may cause it, is still the machine's to say.
  */
-export const ADS_PERSON_DOOR_EXCLUDED: readonly CampaignEvent[] = ["kill", "launch"];
+/**
+ * `plan_approved` is excluded too (V2): it must name the plan version the person approved, which the general
+ * door has no field for, so it has its own door with the plan store. Until that door exists nothing can send it.
+ */
+export const ADS_PERSON_DOOR_EXCLUDED: readonly CampaignEvent[] = ["kill", "launch", "plan_approved"];
 export const adsCampaignMoveSchema = z.object({
   event: z.enum(CAMPAIGN_EVENTS),
   reason: z.string().trim().min(1).max(500).nullable().optional(),

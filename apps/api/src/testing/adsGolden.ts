@@ -145,6 +145,7 @@ export async function runGolden(s: GoldenScenario, file = s.name): Promise<Golde
 
   const workers: CampaignWorkers = {
     refresh: null,
+    plan: null,
     compose: s.vendor.compose[0] === "absent" ? null : async (_c, key) => {
       vendor.compose += 1;
       composeKeys.add(key);
