@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { defineComponent, h } from "vue";
+import { defineComponent, h, nextTick } from "vue";
 import { enableAutoUnmount, mount } from "@vue/test-utils";
 import DataTable, { type DataTableColumn } from "./DataTable.vue";
+import DataWorkspace from "./DataWorkspace.vue";
+import FilterBar from "./FilterBar.vue";
 import { provideTouchTargets } from "../touchTargets";
 
 /**
@@ -102,7 +104,7 @@ describe("the three-fact card", () => {
     expect(mountTable({ touch: false }).find("table").exists()).toBe(true);
   });
 
-  it("keeps the full card for a table whose page has marked nothing", () => {
+  it("derives a card for a table whose page has marked nothing", () => {
     setViewport(false);
     const unmarked = MARKED.map(({ card: _card, ...col }) => col);
     const w = mountTable({ columns: unmarked });
@@ -124,5 +126,139 @@ describe("the three-fact card", () => {
     await w.find(".kebab").trigger("click");
     await w.find('input[type="checkbox"]').trigger("click");
     expect(w.emitted("row-click")).toHaveLength(1);
+  });
+});
+
+/**
+ * The one anatomy (SMALL-SCREENS-PLAN.md D-SM1…D-SM6, 2026-11-14). The owner's audit measured the
+ * card these replace: twelve stacked fields a driver, a sixth figure alone on its own line, and rows
+ * with no edge between them.
+ */
+const WIDE: DataTableColumn[] = [
+  { key: "unit", label: "Unit" },
+  { key: "odometer", label: "Odometer", numeric: true },
+  { key: "miles", label: "Miles", numeric: true },
+  { key: "gallons", label: "Gallons", numeric: true },
+  { key: "price", label: "Price", numeric: true },
+  { key: "driver", label: "Driver" },
+  { key: "status", label: "Status" },
+];
+const WIDE_ROW = { id: "f1", unit: "T-101", odometer: 196728, miles: 695, gallons: 105, price: 3.799, driver: "Marcus Reyes", status: "Clear" };
+
+function mountWide(opts: { columns?: DataTableColumn[]; embedded?: boolean; workspace?: boolean; rows?: unknown[] } = {}) {
+  const Host = defineComponent({
+    emits: ["row-click"],
+    setup(_, { emit }) {
+      const table = () =>
+        h(DataTable, {
+          columns: opts.columns ?? WIDE,
+          rows: (opts.rows ?? [WIDE_ROW]) as (typeof WIDE_ROW)[],
+          embedded: opts.embedded ?? false,
+          onRowClick: (row: unknown) => emit("row-click", row),
+        });
+      return () =>
+        opts.workspace ? h(DataWorkspace, null, { default: () => [h(FilterBar, { embedded: true, count: 1 }), table()] }) : table();
+    },
+  });
+  return mount(Host, { attachTo: document.body });
+}
+
+describe("the record card", () => {
+  it("draws three figures and folds the rest away, on a table that marked nothing", () => {
+    setViewport(false);
+    const w = mountWide();
+    expect(w.findAll("[data-card-figures] dt").map((dt) => dt.text())).toEqual(["Odometer", "Miles", "Gallons"]);
+    expect(w.findAll("[data-card-details] dt").map((dt) => dt.text())).toEqual(["Price", "Driver"]);
+    // The status is on the top line, in neither grid.
+    expect(w.text()).toContain("Clear");
+    expect(w.findAll("dt").map((dt) => dt.text())).not.toContain("Status");
+  });
+
+  it("keeps the folded details in the document, hidden, and says what is in them", () => {
+    setViewport(false);
+    const w = mountWide();
+    const details = w.get("[data-card-details]");
+    expect(details.attributes("hidden")).toBeDefined();
+    expect(details.text()).toContain("Marcus Reyes");
+    const toggle = w.get("[data-card-details-toggle]");
+    expect(toggle.attributes("aria-expanded")).toBe("false");
+    expect(toggle.attributes("aria-controls")).toBe(details.attributes("id"));
+    expect(toggle.text()).toBe("Price, Driver");
+  });
+
+  it("opens the details from their own button without opening the row", async () => {
+    setViewport(false);
+    const w = mountWide();
+    await w.get("[data-card-details-toggle]").trigger("click");
+    expect(w.get("[data-card-details]").attributes("hidden")).toBeUndefined();
+    expect(w.get("[data-card-details-toggle]").attributes("aria-expanded")).toBe("true");
+    expect(w.get("[data-card-details-toggle]").text()).toBe("Hide details");
+    expect(w.emitted("row-click")).toBeUndefined();
+  });
+
+  it("reads a page's own marks instead of its column order, and holds a fourth figure back", () => {
+    setViewport(false);
+    const marked: DataTableColumn[] = [
+      { key: "unit", label: "Unit", card: "title" },
+      { key: "odometer", label: "Odometer", card: "detail" },
+      { key: "miles", label: "Miles", card: "figure" },
+      { key: "gallons", label: "Gallons", card: "figure" },
+      { key: "price", label: "Price", card: "figure" },
+      { key: "driver", label: "Driver", card: "figure" },
+      { key: "status", label: "Status", card: "status" },
+    ];
+    const w = mountWide({ columns: marked });
+    expect(w.findAll("[data-card-figures] dt").map((dt) => dt.text())).toEqual(["Miles", "Gallons", "Price"]);
+    expect(w.findAll("[data-card-details] dt").map((dt) => dt.text())).toEqual(["Driver", "Odometer"]);
+    expect(w.findAll("dt").map((dt) => dt.text())).not.toContain("Status");
+    expect(w.text()).toContain("Clear");
+  });
+
+  it("gives each row its own card when the table owns its surface, and takes the outer one away", () => {
+    setViewport(false);
+    const w = mountWide();
+    const card = w.get("[data-card]");
+    expect(card.element.tagName).toBe("LI");
+    expect(card.classes()).toContain("ring-1");
+    // The table's own card is still the root — flat, so the row cards are not a card inside a card.
+    expect(w.element.className).not.toContain("ring-1");
+    expect(w.element.className).not.toContain("overflow-hidden");
+  });
+
+  it("keeps flat divided rows for a table embedded in somebody else's card", () => {
+    setViewport(false);
+    const w = mountWide({ embedded: true });
+    expect(w.get("[data-card]").classes()).not.toContain("ring-1");
+    expect(w.get("ul").classes()).toContain("divide-y");
+  });
+
+  it("boxes the cards of a table embedded in a workspace, and marks the list so the rest gets a surface", async () => {
+    setViewport(false);
+    const w = mountWide({ embedded: true, workspace: true });
+    // The table reports from its own setup, a tick after the workspace first rendered around it.
+    await nextTick();
+    expect(w.get("[data-card]").classes()).toContain("ring-1");
+    // The workspace is no longer the surface…
+    expect(w.get("section").classes()).not.toContain("ring-1");
+    expect(w.get("section").classes()).not.toContain("divide-y");
+    // …and says so, with the card list marked: `.workspace-cards` gives a surface to every child that
+    // is not, or does not hold, `[data-card-list]` (the toolbar here). CSS, so the browser pass sees it.
+    expect(w.get("section").classes()).toContain("workspace-cards");
+    const [toolbar, list] = [...w.get("section").element.children];
+    expect(toolbar!.hasAttribute("data-card-list")).toBe(false);
+    expect(list!.hasAttribute("data-card-list")).toBe(true);
+  });
+
+  it("leaves the workspace one surface at a desk, and while the list has nothing to draw", async () => {
+    setViewport(true);
+    const desk = mountWide({ embedded: true, workspace: true });
+    await nextTick();
+    expect(desk.get("section").classes()).toContain("ring-1");
+    expect(desk.get("section").classes()).not.toContain("workspace-cards");
+    expect(desk.find("[data-card-list]").exists()).toBe(false);
+    setViewport(false);
+    const empty = mountWide({ embedded: true, workspace: true, rows: [] });
+    await nextTick();
+    expect(empty.get("section").classes()).toContain("ring-1");
   });
 });

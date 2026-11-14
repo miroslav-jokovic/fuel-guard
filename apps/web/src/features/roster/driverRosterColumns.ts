@@ -11,10 +11,15 @@ import { NOTES_COLUMN } from "@/components/notes/notesColumn";
  *
  * ⚠ The FIRST entry is the identifier: `useTableColumns` refuses to hide it and `DataTableCards`
  * makes it the card heading. Reordering this array is therefore a product decision, not a tidy-up.
+ *
+ * `card:` is where each column stands on a phone (SMALL-SCREENS-PLAN.md D-SM2, A3, 2026-11-14): the
+ * name, the duty line under it (HOS, truck, place), the three expiry dates a reader compares down the
+ * roster, and the rest behind the card's disclosure. Until then a driver was twelve stacked fields.
  */
 export const DRIVER_ROSTER_COLUMNS: DataTableColumn[] = [
   {
     key: "full_name",
+    card: "title",
     label: "Name",
     sortable: true,
     width: "xl",
@@ -22,26 +27,29 @@ export const DRIVER_ROSTER_COLUMNS: DataTableColumn[] = [
   },
   {
     key: "samsara_username",
+    card: "detail",
     label: "Driver ID",
     sortable: true,
     width: "md",
     cellClass: "text-ink-secondary",
   },
-  { key: "current_hos_status", label: "HOS status", sortable: true, width: "md" },
+  { key: "current_hos_status", label: "HOS status", sortable: true, width: "md", card: "sentence" },
   {
     key: "current_hos_vehicle",
+    card: "sentence",
     label: "Current truck",
     width: "md",
     cellClass: "text-ink-secondary",
   },
   {
     key: "current_location",
+    card: "sentence",
     label: "Location",
     sortable: true,
     width: "lg",
     cellClass: "text-ink-secondary",
   },
-  { key: "app_access", label: "App access", width: "md" },
+  { key: "app_access", label: "App access", width: "md", card: "detail" },
   /**
    * The §391.51 file in one cell (UNIT-FILES-PLAN UF4b, D-UF7): the state chip, the newest scans,
    * "+N". It REPLACES two columns this catalogue carried until 2026-10-20 — `qualification` (the
@@ -57,7 +65,7 @@ export const DRIVER_ROSTER_COLUMNS: DataTableColumn[] = [
    * what it finds in this list and ignores the rest.
    */
   // Sortable since DQ-INTO-DRIVERS-PLAN DD1: worst file first, then soonest due (`sortRoster`).
-  { key: "file", label: "File", width: "lg", sortable: true },
+  { key: "file", label: "File", width: "lg", sortable: true, card: "detail" },
   /**
    * The office's notes on the driver (UNIT-NOTES-PLAN D-UN12): count and age, a click opens the drawer.
    * Shown by default — a hidden-list (`useTableColumns`) means every reader gets it, and a saved view
@@ -77,20 +85,22 @@ export const DRIVER_ROSTER_COLUMNS: DataTableColumn[] = [
    * Pinned by "counts days to expiry the same way the queue does, so the two cannot disagree" in
    * packages/shared/src/dqFile.test.ts.
    */
-  { key: "cdl_expiry", label: "CDL expires", width: "md", sortable: true },
-  { key: "medical_expiry", label: "Medical expires", width: "md", sortable: true },
-  { key: "hazmat_expiry", label: "Hazmat expires", width: "md", sortable: true },
+  { key: "cdl_expiry", label: "CDL expires", width: "md", sortable: true, card: "figure" },
+  { key: "medical_expiry", label: "Medical expires", width: "md", sortable: true, card: "figure" },
+  { key: "hazmat_expiry", label: "Hazmat expires", width: "md", sortable: true, card: "figure" },
   {
     key: "phone",
+    card: "detail",
     label: "Phone",
     width: "lg",
     cellClass: "text-ink-secondary tabular-nums",
   },
   {
     key: "vehicles",
+    card: "detail",
     label: "Vehicles",
     width: "lg",
     cellClass: "text-ink-secondary",
   },
-  { key: "status", label: "Status", sortable: true, width: "sm" },
+  { key: "status", label: "Status", sortable: true, width: "sm", card: "status" },
 ];

@@ -125,21 +125,26 @@ const getVal = (v: Vehicle, key: string): unknown => {
 };
 const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
 
+/*
+ * `card:` — where each column stands on a phone (SMALL-SCREENS-PLAN.md D-SM2, A3, 2026-11-14). Chosen
+ * with this list open, not derived: the derived card leads with the first three columns, which here
+ * are not the three a reader compares down the list.
+ */
 const columns: DataTableColumn[] = [
-  { key: "unit_number", label: "Unit", sortable: true, width: "sm" },
-  { key: "file", label: "File", width: "lg" },
-  { key: "vehicle", label: "Vehicle", width: "lg", cellClass: "text-ink-secondary" },
-  { key: "fuel_type", label: "Fuel", width: "sm", cellClass: "capitalize text-ink-secondary" },
-  { key: "tank_capacity_gal", label: "Tank", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
-  { key: "baseline_mpg", label: "Baseline MPG", sortable: true, numeric: true, width: "lg", cellClass: "text-ink-secondary" },
-  { key: "samsara_fuel_percent", label: "Fuel level", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
-  { key: "current_odometer", label: "Odometer", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
-  { key: "assigned_driver_id", label: "Driver", width: "md", cellClass: "text-ink-secondary" },
-  { key: "has_apu", label: "APU", sortable: true, width: "sm" },
-  { key: "has_optimized_idle", label: "Optimized idle", sortable: true, width: "md" },
-  { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true, width: "md" },
-  { key: "registration_expires_at", label: "Registration", sortable: true, width: "md" },
-  { key: "status", label: "Status", sortable: true, width: "sm" },
+  { key: "unit_number", label: "Unit", sortable: true, width: "sm", card: "title" },
+  { key: "file", label: "File", width: "lg", card: "detail" },
+  { key: "vehicle", label: "Vehicle", width: "lg", cellClass: "text-ink-secondary", card: "sentence" },
+  { key: "fuel_type", label: "Fuel", width: "sm", cellClass: "capitalize text-ink-secondary", card: "detail" },
+  { key: "tank_capacity_gal", label: "Tank", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary", card: "detail" },
+  { key: "baseline_mpg", label: "Baseline MPG", sortable: true, numeric: true, width: "lg", cellClass: "text-ink-secondary", card: "detail" },
+  { key: "samsara_fuel_percent", label: "Fuel level", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary", card: "detail" },
+  { key: "current_odometer", label: "Odometer", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary", card: "detail" },
+  { key: "assigned_driver_id", label: "Driver", width: "md", cellClass: "text-ink-secondary", card: "figure" },
+  { key: "has_apu", label: "APU", sortable: true, width: "sm", card: "detail" },
+  { key: "has_optimized_idle", label: "Optimized idle", sortable: true, width: "md", card: "detail" },
+  { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true, width: "md", card: "figure" },
+  { key: "registration_expires_at", label: "Registration", sortable: true, width: "md", card: "figure" },
+  { key: "status", label: "Status", sortable: true, width: "sm", card: "status" },
 ];
 const shownColumns = computed(() => withNotesColumn(columns, notes.on.value, "file"));
 const { sort, onSort } = useUrlSort(

@@ -148,13 +148,15 @@ describe("DataTable narrow-screen card view", () => {
     expect(wrapper.findAll("li")).toHaveLength(rows.length);
   });
 
-  it("makes the first column the card heading, and keeps words in the labelled list", () => {
+  it("makes the first column the card heading, and the next three its figures, in the page's order", () => {
     const card = mountNarrow().findAll("li")[0]!;
-    expect(card.text()).toContain("Unit 204");
-    // Quantities are pulled out of the <dl> into their own row — on a phone they are compared
-    // against each other, and a two-column grid puts them too far apart to compare.
-    expect(card.findAll("dt").map((dt) => dt.text())).toEqual(["Driver"]);
+    expect(card.get(".font-semibold").text()).toBe("Unit 204");
+    // SMALL-SCREENS-PLAN.md D-SM3: column order is the one statement of importance a page has made.
+    // Until 2026-11-14 the numbers were pulled out into a wrapping row and the words into a grid.
+    expect(card.findAll("[data-card-figures] dt").map((dt) => dt.text())).toEqual(["Driver", "Gallons"]);
     expect(card.text()).toContain("118.4");
+    // Two columns past the heading is nothing to fold away, so there is no disclosure.
+    expect(card.find("[data-card-details-toggle]").exists()).toBe(false);
   });
 
   it("promotes a status column to the heading row, where a scan looks for it", () => {
@@ -183,7 +185,7 @@ describe("DataTable narrow-screen card view", () => {
     expect(heading.text()).toBe("Unit 204");
     // The chevron shares the heading's line, and is not a labelled row with an empty label.
     expect(heading.element.parentElement!.querySelector("button")?.textContent).toBe("›");
-    expect(card.findAll("dt").map((dt) => dt.text())).toEqual(["Driver"]);
+    expect(card.findAll("dt").map((dt) => dt.text())).toEqual(["Driver", "Gallons"]);
     expect(card.findAll("button")).toHaveLength(1);
   });
 

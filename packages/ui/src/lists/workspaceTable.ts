@@ -18,24 +18,36 @@ import { inject, onBeforeUnmount, provide, reactive, watchEffect, type Injection
 export interface WorkspaceTableState {
   loading: boolean;
   failed: boolean;
+  /**
+   * The table is drawing its rows as cards with their own edges (SMALL-SCREENS-PLAN.md D-SM5). The
+   * workspace then stops being one surface — a card of cards is the nesting contract §5.2 forbids —
+   * and everything else in it is handed one (`.workspace-cards`). False while the table is loading, failed or empty: those states
+   * are one panel and still want the one surface.
+   */
+  cards: boolean;
 }
 
 const KEY: InjectionKey<WorkspaceTableState | null> = Symbol("workspace-table");
 
 /** `DataWorkspace` — opens the record its table and toolbar share. */
 export function provideWorkspaceTable(): WorkspaceTableState {
-  const state = reactive<WorkspaceTableState>({ loading: false, failed: false });
+  const state = reactive<WorkspaceTableState>({ loading: false, failed: false, cards: false });
   provide(KEY, state);
   return state;
 }
 
-/** `DataTable` — reports its own state to the workspace it sits in, if any. */
-export function reportToWorkspace(read: () => WorkspaceTableState): void {
+/**
+ * `DataTable` — reports its own state to the workspace it sits in, if any. Answers whether there is
+ * one: a table that is `embedded` in a workspace may draw boxed cards, one embedded anywhere else
+ * may not (D-SM5), and this is the only place that can tell the two apart.
+ */
+export function reportToWorkspace(read: () => WorkspaceTableState): boolean {
   const state = inject(KEY, null);
   provide(KEY, null);
-  if (!state) return;
+  if (!state) return false;
   watchEffect(() => Object.assign(state, read()));
-  onBeforeUnmount(() => Object.assign(state, { loading: false, failed: false }));
+  onBeforeUnmount(() => Object.assign(state, { loading: false, failed: false, cards: false }));
+  return true;
 }
 
 /** `FilterBar` — the workspace's table state, or null outside a workspace (a report's bar). */
