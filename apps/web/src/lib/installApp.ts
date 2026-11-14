@@ -125,6 +125,22 @@ export function dismissInstall(): void {
   } catch { /* the strip stays hidden for this load; the next one asks once more */ }
 }
 
+/**
+ * Does one of the person's notification devices show this iPhone or iPad already has the app?
+ *
+ * An iPhone tab cannot see its own Home Screen: the installed copy is a separate browser with separate
+ * storage, and Safari has no "is it installed" question to ask. What the server does hold is the person's
+ * notification devices, and an iPhone or iPad can only have become one from the Home Screen app (D-WP5) —
+ * so a device of this kind there means the steps were followed. ⚠ This is the one signal there is, not a
+ * full answer: somebody who added the app and never turned notifications on keeps the strip until they
+ * close it, and two iPhones of one person read as one. The honest fix is the server knowing a person's
+ * installed apps (a column and its writer); recorded as Q-WP7.
+ */
+export function installedOnThisKindOfDevice(labels: ReadonlyArray<string | null>, nav: Pick<Navigator, "userAgent"> = navigator): boolean {
+  const kind = /iPhone|iPod/.test(nav.userAgent) ? "iPhone" : /iPad/.test(nav.userAgent) ? "iPad" : null;
+  return kind !== null && labels.some((l) => l?.endsWith(` on ${kind}`) === true);
+}
+
 /** From the account menu: the strip, with its button or its steps, whatever was dismissed before. */
 export function askToInstall(): void {
   asked.value = true;

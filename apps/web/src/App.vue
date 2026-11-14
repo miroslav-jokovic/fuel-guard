@@ -15,6 +15,7 @@ import SkipLink from "@/components/SkipLink.vue";
 import AssistantLauncher from "@/components/assistant/AssistantLauncher.vue";
 import ScannerRelayBar from "@/components/ScannerRelayBar.vue";
 import InstallAppBar from "@/components/InstallAppBar.vue";
+import PullToRefresh from "@/components/PullToRefresh.vue";
 import { useSessionStore } from "@/stores/session";
 import { resolveLayout } from "@/lib/layout";
 import { useOpens } from "@/composables/useOpens";
@@ -98,6 +99,9 @@ const isShellLayout = computed(() => layout.value === undefined);
        an applicant filling in a form, or somebody reading the sign-in page, is never asked to install. -->
 
   <InstallAppBar v-if="(isShellLayout || isShopLayout) && session.isAuthenticated" />
+  <!-- Pull down to refresh in the installed app, which has no browser button to do it (D-WP17). The office
+       shell only: the shop's screens must never reload in the middle of a count (`ShopLayout`). -->
+  <PullToRefresh v-if="isShellLayout && session.isAuthenticated" />
   <template v-if="layout === null" />
   <RouterView v-else-if="isLabLayout" />
   <AuthLayout v-else-if="isAuthLayout">
