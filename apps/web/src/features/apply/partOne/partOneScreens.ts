@@ -376,3 +376,47 @@ export function prefillFromLicence(a: PartOneAnswers, l: AamvaLicence): Prefille
   }
   return filled;
 }
+
+// ── "Is this right?" — the scan, confirmed on one screen (U2, SCREEN-MAP 1.4) ─────────────────
+
+/**
+ * What the barcode read, as the facts a driver confirms — each one fact typed together (D-AM3), in the
+ * order the walk would have asked them. The keys are `PREFILL_FIELDS`'s; nothing is listed twice.
+ *
+ * `optional` is the one box a fact may leave empty: most homes have no apartment line, and the barcode
+ * of one that has says so.
+ */
+export const SCAN_FACTS = {
+  date_of_birth: { fields: PREFILL_FIELDS.about, optional: [] },
+  address: { fields: PREFILL_FIELDS.address, optional: ["address_line2"] },
+  licence: { fields: ["cdl.state_code", "cdl.licence_number"], optional: [] },
+  expires_on: { fields: ["cdl.expires_on"], optional: [] },
+} as const satisfies Record<string, { fields: readonly PrefilledField[]; optional: readonly PrefilledField[] }>;
+export type ScanFact = keyof typeof SCAN_FACTS;
+export const SCAN_FACT_ORDER = Object.keys(SCAN_FACTS) as ScanFact[];
+
+/**
+ * The facts the confirmation can offer: every box of the fact was filled by the barcode. A fact the
+ * barcode half-read (a number with no issuing state) is not offered and is asked on its own screen, as
+ * before — a driver cannot confirm what is not there.
+ */
+export function scannedFacts(filled: readonly PrefilledField[]): ScanFact[] {
+  return SCAN_FACT_ORDER.filter((fact) => {
+    const { fields, optional } = SCAN_FACTS[fact];
+    return fields.every((f) => filled.includes(f) || (optional as readonly string[]).includes(f));
+  });
+}
+
+/** Every answer key the confirmed facts hold — a screen made only of these is not asked again. */
+export const confirmedKeys = (confirmed: readonly ScanFact[]): Set<string> =>
+  new Set(confirmed.flatMap((fact) => [...SCAN_FACTS[fact].fields]));
+
+/**
+ * The confirmed facts a check still has a complaint about, taken back: a barcode can read a date the
+ * contract refuses (an applicant under 18, a ZIP of the wrong length), and the driver must then be
+ * shown the box the message is about. `problems` are the page check's own keys (`validateAbout` …),
+ * which are each field's last part.
+ */
+export function stillConfirmed(confirmed: readonly ScanFact[], problems: ReadonlySet<string>): ScanFact[] {
+  return confirmed.filter((fact) => !SCAN_FACTS[fact].fields.some((f) => problems.has(f.split(".").pop()!)));
+}

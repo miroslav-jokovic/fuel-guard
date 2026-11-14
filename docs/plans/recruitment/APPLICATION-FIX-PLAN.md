@@ -842,3 +842,23 @@ A gate fails on a literal string in an `apply/` template.
   - **Not done here:** "errors on blur" (U4's second half). A message already goes as its answer is given (1b-3); raising one before Continue was not built.
   - **Proof:** the control (+5), the generated screen (+3), 7 of 7 mutants killed; the driving-record and employment browser walks now rely on the tap moving on, and pass twice in a row; the tap-target sweep passes at 390 and 320 px; looked at in a 390 px screenshot.
   - **Next:** U6, one review page with the office's changes.
+- 2026-11-14: **U3 merged** (#2368).
+- 2026-11-14: **U6 was already built; walked in a browser and closed, with one fix** (`claude/application-scan-confirm`, no migration).
+  - **What exists:** `ReviewFields.vue` ("Before you send") lists every answer in the task list's groups, each group with "Go to this section", and counts what is missing with a link to each box. `SignOffFields.vue` (3.1) lists every office change as "You put / It now says", with the office's reason and "replaced" for a withheld answer, above the whole document and the signature.
+  - **Walked 2026-11-14, Chromium, 390 px, the built app against the stubbed API:** the review of a complete draft; "Go to this section" lands on the task's first question; the sign-off with four office changes (a ZIP, a job's street, a job's DOT answer with a note, a withheld answer).
+  - **Found and fixed: a corrected job was not named.** A job is named by its key, so 3.1 read "Employer · Street address" for every job; a driver with two jobs could not tell which the office corrected. It now reads "Old Carrier · Street address" (`describeField`'s `rowName`; the office's "What you changed" uses the same call in place of splitting a label).
+  - **Not changed, recorded:** the way back is per group, not per answer, and opens the task at its first question. The §391.23(i) notice stands above the answers on the review, about one and a half screens of it; it is the regulation's own text and was left.
+- 2026-11-14: **U2, first half: "Is this right?" — the scan is confirmed on one screen** (`claude/application-scan-confirm`, no migration; SCREEN-MAP 1.4, D-AM5).
+  - **Before:** the barcode's answers were put in their boxes and the driver walked each screen to press Continue on what they had just photographed.
+  - **Now:** after the CDL's two photographs, one screen reads back what was read: date of birth, home address, license state and number, expiration. Each has one button, "Change". "Yes, that's right" leaves out every confirmed screen: a full read is the phone, then the class and the endorsements (4 screens fewer, and the home-address page is passed through its own Continue).
+  - **Rules:**
+    - **Only a fact read whole is offered** (`scannedFacts`): a number with no issuing state is asked as before.
+    - **Confirmed is not valid.** When a page's own check refuses a confirmed fact (an applicant under 18, a ZIP of the wrong length), the fact is taken back and its screen returns with the message under the box (`stillConfirmed`).
+    - **Asked once.** What was confirmed is kept in Part 1's device copy, without bumping its version (a bump deletes every driver's held typing).
+    - **Back** from the first question is the confirmation as it was left; Back from it is the photograph.
+  - **Not built, each for a reason:**
+    - **The name is not listed.** Part 1 has no name box; the name is the invitation's and is asked in "About you". The screen confirms what Part 1 would have asked.
+    - **E13's phone pre-fill.** The bare link reads no answer back (D-APP16): serving the office's phone number on it would show a leaked link's holder a person's number. It stays typed.
+    - **SCREEN-MAP 1.4a/1.4c's suffix, mononym and country** are Part 1's and wait on 0376's CHECKs (the migration recorded on 2026-11-14).
+  - **Proof:** the walk (+11), the confirmation's drawing (+3), the device copy (+2), the sign-off's job name (+1); 14 of 14 mutants killed; `scanner.spec.ts` reads a real barcode in Chromium, changes one fact and lands on the class; looked at in a 390 px screenshot, where the four facts fit one phone screen.
+  - **Next:** U2's second half, the date-of-birth unlock asked once per device. It needs a new table (a remembered-device token, stored hashed), so it is its own PR.

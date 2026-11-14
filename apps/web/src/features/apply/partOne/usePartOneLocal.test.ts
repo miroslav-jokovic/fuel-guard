@@ -75,6 +75,33 @@ describe("a reload before screen 7", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  /** U2: "Is this right?" is answered once — a reload must not ask the driver to confirm again. */
+  it("brings back what the driver confirmed of the scan, so the confirmation is not asked twice", async () => {
+    const first = page();
+    await first.flow.restored;
+    typeScreens3to6(first.flow);
+    first.flow.fromLicence.value = ["date_of_birth"];
+    first.flow.scanConfirmed.value = ["date_of_birth"];
+    await settle();
+    first.close();
+
+    const second = page();
+    expect(second.flow.scanConfirmed.value).toBeNull();
+    expect(await second.flow.restored).toBe(true);
+    expect(second.flow.scanConfirmed.value).toEqual(["date_of_birth"]);
+  });
+
+  it("reads a copy written before the confirmation existed as not answered yet", async () => {
+    const first = page();
+    await first.flow.restored;
+    typeScreens3to6(first.flow);
+    await settle();
+    first.close();
+    const second = page();
+    expect(await second.flow.restored).toBe(true);
+    expect(second.flow.scanConfirmed.value).toBeNull();
+  });
+
   it("still knows the screens passed before the first reload after a second one", async () => {
     const first = page();
     await first.flow.restored;

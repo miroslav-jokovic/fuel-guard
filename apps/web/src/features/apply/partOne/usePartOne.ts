@@ -26,6 +26,7 @@ import {
   validateScreening,
   type PartOneScreen,
   type PrefilledField,
+  type ScanFact,
   type ScreenErrors,
 } from "./partOneScreens";
 
@@ -111,6 +112,12 @@ export function usePartOne(
   const barcode = ref<BarcodeState>("idle");
   const fromLicence = ref<PrefilledField[]>([]);
   /**
+   * The scanned facts the driver said are right on "Is this right?" (U2) — their screens are not asked
+   * again. Null until that screen is answered. Held here, beside what the barcode filled, because the
+   * device copy keeps both: a reload must not ask a driver to confirm twice (`partOneLocal.ts`).
+   */
+  const scanConfirmed = ref<ScanFact[] | null>(null);
+  /**
    * Read the barcode only while it can fill something: before §40.25(j) is on file, nothing of screens
    * 3–6 has been written, so a box is blank because the driver has not reached it. After it, the answers
    * are on the server and the boxes are blank because the bare link never reads them back (D-APP16) —
@@ -145,6 +152,7 @@ export function usePartOne(
     answers,
     held,
     fromLicence,
+    scanConfirmed,
     begun,
     screen,
     goTo: (s) => {
@@ -308,6 +316,7 @@ export function usePartOne(
     prefilledHere,
     /** The answers the barcode filled, by `PREFILL_FIELDS` key — the wizard says so on the screen that shows them. */
     fromLicence,
+    scanConfirmed,
     skippable,
     /** The page's own check, without showing it — the wizard asks one screen's share of it (F4 PR 1). */
     pageErrors: (): ScreenErrors => check(screen.value),
