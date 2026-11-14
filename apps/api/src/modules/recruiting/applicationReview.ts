@@ -30,6 +30,7 @@ import type { Env } from "../../env.js";
 import { notifyApplicationApproved, type ApprovalNotice } from "./applicationApprovalNotice.js";
 import { partOneFactsView, partOneForFiling } from "./applicantIntake.js";
 import { listCaptures } from "./applicationCapture.js";
+import { openAskAgainCount } from "./applicationAskAgain.js";
 import { editRowsRefusal, editsParam, signingStarted, SIGNING_STARTED } from "./applicationEditLog.js";
 import { partOneAnswersView } from "./applicantPartOneAnswer.js";
 import { ssnLast4View } from "./applicantSsn.js";
@@ -434,6 +435,15 @@ export async function approveApplication(
   // double-click, and a driver told twice in one second that their application is ready to sign
   // learns nothing the first message did not already say — it just reads as a system that stutters.
   if (inv.approved_at) return { approvedAt: inv.approved_at, notice: ALREADY_TOLD };
+  // F5 (0607): a question still with the driver means the office is waiting for an answer. Approving
+  // over it would send to signing a document the office itself said was not settled.
+  const waiting = await openAskAgainCount(admin, orgId, invitationId);
+  if (waiting > 0) {
+    return {
+      code: "questions_open",
+      message: `${waiting === 1 ? "A question is" : `${waiting} questions are`} still waiting for the applicant's answer. Wait for it, or take the question back, before approving.`,
+    };
+  }
 
   const approvedAt = now.toISOString();
   const { error } = await admin

@@ -64,6 +64,9 @@
   "applicant_travel": [
     "apps/api/src/modules/recruiting/applicantTravel.ts"
   ],
+  "application_ask_agains": [
+    "apps/api/src/modules/recruiting/applicationAskAgain.ts"
+  ],
   "application_intakes": [
     "apps/api/src/modules/recruiting/applicantIntake.ts",
     "apps/api/src/modules/recruiting/applicantSelfie.ts"

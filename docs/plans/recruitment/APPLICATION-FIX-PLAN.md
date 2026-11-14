@@ -918,9 +918,18 @@ A gate fails on a literal string in an `apply/` template.
   - **What "ask again" is:** the office marks one answer on the Applicant facts card and writes one line to the driver ("Which month did you leave Old Carrier?"). The driver's link then opens on "Silvicom has a question" instead of the wait screen, with the office's words and a button that opens that one question's screen. Their answer saves as any answer does; "Send my answer" closes the question and tells the office.
   - **The record:** a new table, one row per question asked: the answer's path (as `application_edits` names it), the office's words, who asked and when, and when it was answered or withdrawn. Audited both ways.
   - **Rules:**
-    - **Window:** from the driver's Send until signing starts — the office's own editing window (Q-AM2).
+    - **Window:** from the driver's Send until the office approves. Approval sends the document to signing, and waits on open questions.
     - **Approval waits:** the office cannot approve while a question is open; it withdraws it or waits.
     - **Part 2 answers only, at first.** Part 1's answers are frozen to the driver once the first visit ends (0376, AI008), so a question about one would open a screen that cannot save. The office corrects those itself, as today.
     - **The driver is told** by the same e-mail and text the application's other steps use.
   - **Stages:** (1) the table and the office's ask, withdraw and list, with approval's refusal; (2) the driver's screen and answer; (3) the e-mail and text.
+- 2026-11-14: **F5, stage 1: the office can ask, take back and list; approval waits** (`claude/application-ask-again`; **migration 0607**, a new table, so its writer ships with it). Nothing is shown to anybody yet: no office button and no driver screen.
+  - **The table** `application_ask_agains`: the answer's path, the office's words (1 to 500 characters), who and when, answered or taken back. One OPEN question per answer (a partial unique index), at most five open per application.
+  - **The API** (`applicationAskAgain.ts`): `GET`, `POST …/ask-again`, `POST …/ask-again/:id/withdraw` on the office's review routes; view to read, manage to ask, as corrections are.
+  - **What may be asked** is read from where Part 1's and the identity's keys are defined (`canAskAgain`), not listed again: those are frozen to the driver after the first visit, and the office corrects them itself.
+  - **Approval refuses while a question is open** ("2 questions are still waiting for the applicant's answer…").
+  - **Removed while building:** a "has signing started" check on asking. It could never be reached (a packet mark cannot exist before an approval, and approval already ends the window); a mutant of it survived for that reason.
+  - **Registered:** `table-modules.json`, `table-writers.json`, the RLS and purge matrices' seeds. No retention rule: it is kept with the application, like `application_edits`.
+  - **Proof:** API (+15), matrix `application-ask-agains` (18), 13 of 13 reachable mutants killed.
+  - **Next:** stage 2, the driver's screen and answer, and the office's button on the facts card.
 
