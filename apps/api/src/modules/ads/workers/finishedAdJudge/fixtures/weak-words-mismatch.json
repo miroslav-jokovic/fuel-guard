@@ -29,24 +29,24 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:34:05.402Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:24:16.806Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "The open road stretching to the horizon under a vivid sunset is instantly recognisable at a glance.",
+          "reason": "A sharp, empty two-lane road running to a sunset between wheat fields reads instantly at phone size.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The headline promises a brand-new truck but the picture shows only an empty road with no truck in sight, creating a disconnect.",
+          "reason": "The headline promises a brand-new truck, but the picture shows only an empty road with no truck anywhere.",
           "score": 2
         },
         "hierarchy_reads": {
-          "reason": "The dark green panel anchors the headline in large bold white text, with the button label clearly beneath it, giving a clean read order on a phone.",
-          "score": 4
+          "reason": "The white headline on the green plate is large and read first, but \"Apply today\" is plain bold text with no button shape.",
+          "score": 3
         },
         "looks_like_kit": {
-          "reason": "The dark green panel matches the primary brand colour (#0B3D2E) exactly and white text aligns with the second brand colour, though no logo is present.",
+          "reason": "The plate is the carrier's dark green with white lettering, and no logo was supplied to be shown.",
           "score": 4
         }
       }

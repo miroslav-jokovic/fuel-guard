@@ -77,17 +77,17 @@
   "recorded": {
     "source": "model",
     "prompt_version": "analyst@6",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T16:14:41.637Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:26:13.017Z",
     "output": {
-      "headline": "Regional Class A — Joliet was the only campaign running on November 2, 2026, spending $110.90 for 2 leads at $55.45 each.",
+      "headline": "On November 2, 2026, 1 campaign ran, spending $110.90 for 2 leads at $55.45 per lead.",
       "points": [
-        "Regional Class A — Joliet delivered 6,015 impressions, 70 clicks at a 1.2% click rate, and 2 leads on $110.90 in spend — all figures match day totals since it was the only campaign running.",
-        "November 2026 has 29 days left; Meta spend so far this month is $198.00.",
-        "The 2026-09-21 cohort (38 leads) is mature: 33 contacted, 17 converted, 10 applied, 4 hired, and 8 lost after conversion.",
-        "The 2026-09-28 cohort (40 leads) is mature: 36 contacted, 20 converted, 12 applied, 5 hired, and 9 lost after conversion.",
-        "The 2026-10-26 cohort has 12 leads, with 9 contacted, 3 converted, 1 applied, and 1 lost after conversion — it is too young to judge rates.",
-        "No lead quality data was available for the 14-day window; nothing to flag on wrong numbers or missed hard requirements."
+        "Regional Class A — Joliet spent $110.90 on 6,015 impressions and 70 clicks, a 1.2% click rate, and brought in 2 leads at $55.45 per lead.",
+        "Spend so far in 2026-11 is $198.00 on Meta, with 29 days left in the month.",
+        "The 2026-09-28 cohort had 40 leads: 36 contacted, 20 converted, 12 applied and 5 hired. Its hire rate was 12.5%, and 9 applications ended without a hire.",
+        "The 2026-09-21 cohort had 38 leads: 33 contacted, 17 converted, 10 applied and 4 hired. Its hire rate was 10.5%, a bit lower than the next week's, and 8 applications ended without a hire.",
+        "Recruiters marked none of the leads in either mature cohort as qualified, and closed none as not qualified, so those stages may not be getting recorded.",
+        "The 2026-10-26 cohort is too young to judge: so far it has 12 leads, 9 contacted, 3 converted, 1 applied and no hires yet. The sheet has no lead-quality figures from calls for the last 14 days."
       ]
     }
   }

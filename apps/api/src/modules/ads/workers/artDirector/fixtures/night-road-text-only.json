@@ -84,12 +84,12 @@
   "recorded": {
     "source": "model",
     "prompt_version": "artDirector@5",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T22:54:51.307Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:23:19.202Z",
     "output": {
       "slots": {
-        "weather": "clear and cold, stars sharp overhead",
-        "light": "twin headlight beams cutting the dark, faint amber from a distant town on the horizon"
+        "weather": "a clear sky after rain, thin cloud lit by a rising moon",
+        "light": "cool moonlight on wet asphalt, a distant warm glow of town at the horizon"
       },
       "reference_photo": null,
       "focal_subject": "road_ahead",

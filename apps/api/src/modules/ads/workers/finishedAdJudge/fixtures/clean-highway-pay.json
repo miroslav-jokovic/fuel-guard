@@ -29,25 +29,25 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:32:23.700Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:22:53.249Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A white semi-truck and trailer on an open highway at sunset is immediately recognizable at a glance.",
+          "reason": "A white tractor and trailer on an open two-lane highway at sunset reads instantly, sharp and uncluttered.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "An OTR pay-per-mile headline sits over a classic long-haul truck on an open road, telling exactly one consistent story.",
-          "score": 5
-        },
-        "hierarchy_reads": {
-          "reason": "The dark green panel anchors the bottom, making the large headline unmissable first and the bold 'Apply today' button clearly second, with no picture element competing.",
+          "reason": "A per-mile pay and OTR headline sits over a long-haul truck on an open road, which tells the same over-the-road story.",
           "score": 4
         },
-        "looks_like_kit": {
-          "reason": "The deep dark-green panel (#0B3D2E) and white text match the brand colours exactly, though no logo is present to reinforce the carrier identity.",
+        "hierarchy_reads": {
+          "reason": "The white headline on the green plate is large and read first, but 'Apply today' is plain bold text with no button shape.",
           "score": 3
+        },
+        "looks_like_kit": {
+          "reason": "The plate is the carrier's dark green with white lettering, matching both brand colours; no logo was supplied or shown.",
+          "score": 4
         }
       }
     }

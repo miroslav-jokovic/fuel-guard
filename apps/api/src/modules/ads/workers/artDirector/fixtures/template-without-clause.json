@@ -83,11 +83,11 @@
   "recorded": {
     "source": "model",
     "prompt_version": "artDirector@5",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T22:55:03.316Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:23:38.918Z",
     "output": {
       "slots": {
-        "time_of_day": "early morning golden hour, low sun casting long shadows across the bridge deck"
+        "time_of_day": "golden hour, low sun raking across the bridge, warm lit sky over calm water"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "focal_subject": "tractor",

@@ -66,15 +66,17 @@
   "recorded": {
     "source": "model",
     "prompt_version": "analyst@6",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T16:14:24.523Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:25:57.024Z",
     "output": {
-      "headline": "No campaigns ran on November 3, 2026 — $0.00 spend and no leads for the day.",
+      "headline": "No campaigns ran on November 3, 2026, so spend was $0.00 and there were no leads.",
       "points": [
-        "No campaigns ran on November 3, 2026: $0.00 spent, 0 impressions, 0 clicks, and no leads. The only spend in November 2026 so far is $400.00 on Meta, with 28 days left in the month.",
-        "The 2026-09-21 cohort (38 leads) is mature: 33 contacted, 17 converted, 10 applied, 4 hired, and 8 lost after conversion.",
-        "The 2026-09-28 cohort (40 leads) is mature: 36 contacted, 20 converted, 12 applied, 5 hired, and 9 lost after conversion.",
-        "The 2026-10-26 cohort (12 leads) is too young to judge: 9 contacted, 3 converted, 1 applied, and 1 lost after conversion so far."
+        "Campaigns ran on 2026-11-03: 0. Spend was $0.00 with 0 impressions, 0 clicks and no leads, so there is no cost per lead and no click rate for the day.",
+        "Spend so far in November 2026 is $400.00 on Meta, with 28 days left in the month.",
+        "The 2026-09-28 cohort had 40 leads: 20 converted (50.0%), 12 applied (30.0%) and 5 hired (12.5%). 9 applications ended without a hire.",
+        "The 2026-09-21 cohort had 38 leads: 17 converted (44.7%), 10 applied (26.3%) and 4 hired (10.5%). It did a little worse at each of these stages than the 2026-09-28 cohort.",
+        "The 2026-10-26 cohort is too young to judge: of its 12 leads, 9 were contacted, 3 converted and 1 applied, with no hires yet.",
+        "There are no lead-quality figures from calls for any campaign over the last 14 days."
       ]
     }
   }

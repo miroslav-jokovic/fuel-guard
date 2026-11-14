@@ -29,25 +29,25 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:33:45.688Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:24:00.659Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A white semi-truck and trailer rolling down an open highway at sunset is immediately identifiable at a glance.",
+          "reason": "A white tractor and trailer on an open highway at sunset reads instantly, sharp and uncluttered.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The headline touts pay-per-mile for OTR driving while the image shows a classic OTR tractor-trailer on the open road — a direct match — but the headline is rendered in tiny text at the bottom corner, making the connection nearly invisible at phone size.",
-          "score": 3
+          "reason": "A per-mile OTR pay headline sits over a long-haul truck on an open plains highway, which is one story.",
+          "score": 4
         },
         "hierarchy_reads": {
-          "reason": "The APPLY button dominates the entire ad in large bold text while the actual headline ($0.65 per mile, Class A OTR.) is relegated to tiny fine print in the bottom corner, completely inverting the intended hierarchy.",
-          "score": 2
+          "reason": "The huge APPLY button dominates the centre while the headline is tiny caption text in the bottom corner, nearly unreadable on a phone.",
+          "score": 1
         },
         "looks_like_kit": {
-          "reason": "The deep forest-green button matches the brand's primary color (#0B3D2E) and white text matches the secondary color, but there is no logo present anywhere in the ad.",
-          "score": 3
+          "reason": "The button is the brand dark green with white lettering, matching the given colours; no logo was supplied so none is missing.",
+          "score": 4
         }
       }
     }

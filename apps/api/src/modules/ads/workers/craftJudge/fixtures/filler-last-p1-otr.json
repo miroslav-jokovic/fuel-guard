@@ -176,35 +176,35 @@
   "recorded": {
     "source": "model",
     "prompt_version": "craftJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:31:39.799Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:23:31.263Z",
     "output": {
       "scores": [
         {
-          "reason": "Hook lands the driver in the cab at dawn and immediately hits the rate — exactly what the concept asks. Primary_text is specific: carrier name, flatbed OTR, Midwest-to-Southeast, both mileage rates, sign-on bonus, benefits, age, and schedule. Spanish uses 'milla', 'plataforma', 'rutas OTR' — natural trade language, no kilómetros. No filler at all; every sentence is checkable.",
+          "reason": "The hook opens at dawn with the flatbed and the pay rate, though it never says \"you\" and \"$0.68\" lacks \"per mile\". The primary_text names the carrier, the freight, the lanes and the days out, but leaves off the 3 days home. The Spanish reads naturally, uses miles and matches the English.",
           "scores": {
-            "hook": 5,
+            "hook": 4,
             "specific": 5,
-            "plain": 5,
-            "spanish": 5,
+            "plain": 4,
+            "spanish": 4,
             "no_filler": 5
           }
         },
         {
-          "reason": "Hook ignores the concept entirely — no dawn, no driver's seat, just pure filler. Primary_text is built almost entirely of phrases any carrier could use: 'exciting opportunity', 'dynamic team', 'competitive pay', 'family atmosphere', 'truly value our drivers'. Only one real fact ($0.68/mile) survives. Spanish is a word-for-word mirror of the English filler, nothing trade-specific.",
+          "reason": "The hook and headline are \"Great pay, great team\": no dawn, no driver's seat, no fact. The primary_text is built from stock phrases (exciting opportunity, dynamic team, competitive pay, value our drivers) with no carrier name, freight, lanes or schedule; only $0.68/mile is concrete. The Spanish is a word-for-word copy of the same filler.",
           "scores": {
             "hook": 1,
             "specific": 1,
-            "plain": 2,
+            "plain": 1,
             "spanish": 2,
             "no_filler": 1
           }
         },
         {
-          "reason": "Hook puts the reader in the cab at dawn and leads with a rate — good concept execution — but the rate ($0.72/mile) and bonus ($5,000) are not in the facts, making both figures fabricated. Primary_text is extremely thin: no carrier name, no route, no schedule, no benefits listed. Spanish is otherwise serviceable with 'milla' and trade terms, but the false figures carry through.",
+          "reason": "The hook fits the formula best in form: dawn, second person, present tense, then pay. But $0.72 and $5,000 are not in the supplied facts ($0.68/$0.74, $3,000), so recheck before use; I did not score on that. The primary_text names no carrier, flatbed, lanes or schedule. The Spanish adds \"desde el primer día\" and \"Únete al equipo\", absent from the English.",
           "scores": {
             "hook": 4,
-            "specific": 1,
+            "specific": 2,
             "plain": 4,
             "spanish": 3,
             "no_filler": 3

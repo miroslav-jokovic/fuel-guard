@@ -32,37 +32,38 @@
   "expect_findings": [
     "no_foreign_logos",
     "no_glyphs",
+    "people_policy_met",
     "safe_zone_clear"
   ],
   "recorded": {
     "source": "model",
     "prompt_version": "checker@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T15:32:49.768Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:23:18.632Z",
     "output": {
       "checks": {
         "no_glyphs": {
-          "reason": "The trailer displays 'ACME LOGISTICS' in large letters, and the cab shows a number '7294' and a readable licence plate. Multiple instances of text are clearly visible.",
+          "reason": "The trailer side reads \"ACME LOGISTICS\", the front plate shows a readable number like \"P8E3352\", and the cab door shows the number \"7294\".",
           "verdict": "fail"
         },
         "no_foreign_logos": {
-          "reason": "'ACME LOGISTICS' with its red circular emblem appears prominently on the trailer side. This is listed in forbidden_marks and constitutes a foreign logo/branding.",
+          "reason": "The trailer carries a red circular \"A\" emblem and the name \"ACME LOGISTICS\", which is on the forbidden marks list.",
           "verdict": "fail"
         },
         "equipment_matches_reference": {
-          "reason": "Image 1 shows a white long-nose conventional sleeper tractor pulling a trailer, matching the type in image 2 (white conventional sleeper tractor-trailer). Cab style and colour align.",
+          "reason": "Image 1 shows a white long-nose conventional sleeper tractor, which is the same type as the white conventional sleeper tractor in image 2. It is pulling a trailer, and image 2 does not require one.",
           "verdict": "pass"
         },
         "no_malformed_people_or_vehicles": {
-          "reason": "The truck and trailer appear physically plausible with normal wheel count, axle placement, and no merged or distorted parts visible.",
+          "reason": "The tractor has a steer axle and tandem drive axles, and the trailer has a rear tandem. The wheels, mirrors and other parts are in sensible places, with nothing melted or duplicated.",
           "verdict": "pass"
         },
         "people_policy_met": {
-          "reason": "People are not allowed per policy. No person or recognisable body part is visible anywhere in the image, including cab windows.",
-          "verdict": "pass"
+          "reason": "People are not allowed, and the dark cab windshield and side window may show a driver's shape. I can't rule out a person in the cab.",
+          "verdict": "fail"
         },
         "safe_zone_clear": {
-          "reason": "Image 3 shows the lower portion of the truck including wheels, tyres, chassis undercarriage, and bumper on the left side — vehicle parts clearly occupy the text band.",
+          "reason": "Image 3 contains the truck's front bumper, licence plate, front wheel, fuel tank and drive and trailer wheels along its top edge.",
           "verdict": "fail"
         }
       }

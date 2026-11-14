@@ -88,15 +88,15 @@
   "recorded": {
     "source": "model",
     "prompt_version": "artDirector@5",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T22:54:54.508Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:23:25.884Z",
     "output": {
       "slots": {
-        "time_of_day": "pre-dawn, amber overhead canopy lights casting warm pools on wet concrete",
-        "activity": "driver fueling the tractor, hose in hand, standing beside the fuel island"
+        "time_of_day": "dusk, low orange sun over flat harvested cornfields, long shadows",
+        "activity": "driver fueling at the pump with a phone to one ear, low angle from the curb"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "focal_subject": "person_at_work",
+      "focal_subject": "tractor",
       "camera_distance": "medium"
     }
   }

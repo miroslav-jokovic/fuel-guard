@@ -32,32 +32,32 @@
   "recorded": {
     "source": "model",
     "prompt_version": "checker@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-04T15:32:32.303Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:23:00.995Z",
     "output": {
       "checks": {
         "no_glyphs": {
-          "reason": "No letters, numbers, digits, or text-like shapes are visible anywhere in the image. The trailer and cab surfaces are plain and unmarked.",
+          "reason": "The trailer sides, cab doors and road are plain, with no letters, numbers, signs or readable plates. The only mark on the front is the grille area, which has no text on it.",
           "verdict": "pass"
         },
         "no_foreign_logos": {
-          "reason": "No company names, emblems, or logos appear on the trailer, cab, or any other element. The trailer is completely blank white. No forbidden marks are present.",
+          "reason": "The trailer, cab and surroundings are blank white or natural scenery. There is no company name, emblem or anything like ACME Logistics.",
           "verdict": "pass"
         },
         "equipment_matches_reference": {
-          "reason": "Image 1 shows a white long-nose conventional sleeper tractor pulling a dry-van trailer, matching the reference type: white conventional sleeper tractor-trailer. Cab style and colour align.",
+          "reason": "Image 1 shows a white long-nose conventional sleeper tractor pulling a trailer. That is the same type as the white conventional sleeper tractor in image 2.",
           "verdict": "pass"
         },
         "no_malformed_people_or_vehicles": {
-          "reason": "The truck appears physically plausible with correct wheel placement, normal proportions on cab and trailer, and no merged, duplicated, or distorted parts visible.",
+          "reason": "The tractor has a steer axle and tandem drive axles, and the trailer has a rear tandem. Wheels, cab, fairings and trailer all look whole and plausible, with no merged or duplicated parts.",
           "verdict": "pass"
         },
         "people_policy_met": {
-          "reason": "People are not allowed and no person or recognisable body part is visible anywhere in the image, including in the cab windows.",
+          "reason": "No person appears anywhere. The cab windshield and side window look dark and empty, and nobody is on the road or in the field.",
           "verdict": "pass"
         },
         "safe_zone_clear": {
-          "reason": "Image 3 shows only roadside grass, ground vegetation, and a small strip of road/white line. No vehicle parts or people are present in this band.",
+          "reason": "Image 3 holds only grass and a small strip of road shoulder with its white edge line in the top-left. No part of a vehicle or person is in it.",
           "verdict": "pass"
         }
       }

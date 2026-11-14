@@ -160,37 +160,37 @@
   "recorded": {
     "source": "model",
     "prompt_version": "craftJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-09T20:31:29.263Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:23:08.145Z",
     "output": {
       "scores": [
         {
-          "reason": "The hook ignores the concept entirely — no dawn, no driver's seat, just generic slogans. Primary text is a wall of filler ('exciting opportunity', 'dynamic team', 'competitive pay', 'family atmosphere', 'truly value our drivers', 'take your career to the next level'). No route, no freight type, no schedule detail beyond one pay rate. Spanish is a word-for-word translation with no trade voice.",
+          "reason": "The hook slot says \"Great pay, great team\": no driver's seat, no dawn, no fact. The primary_text is built of stock phrases (exciting opportunity, dynamic team, competitive pay, value our drivers) and only $0.64/mile is concrete. The Spanish copies the same brochure lines word for word.",
           "scores": {
             "hook": 1,
             "specific": 1,
-            "plain": 2,
+            "plain": 1,
             "spanish": 2,
             "no_filler": 1
           }
         },
         {
-          "reason": "Hook puts the driver at dawn with a pay figure — good concept fit — but the rate ($0.66/mile) is not in the facts, which is a problem for credibility even though truth-checking is out of scope here. Primary text is admirably short but says 'home weekends' instead of the stated 'home weekly', and omits freight type, route, and company name. Spanish is natural and uses trade words well.",
+          "reason": "The hook slot opens at sunrise and goes straight to the pay, though it never says \"you\" and runs past the 29-character limit. The primary_text is short and plain but names no carrier, no reefer and no Chicago-to-Texas lane. The Spanish reads easily, but \"ruedas al piso\" is literal and \"Únete hoy\" does not match \"Apply today\".",
           "scores": {
             "hook": 4,
             "specific": 2,
-            "plain": 4,
-            "spanish": 4,
+            "plain": 5,
+            "spanish": 3,
             "no_filler": 4
           }
         },
         {
-          "reason": "Hook nails the concept — second person, present tense, dawn moment, strongest fact ($0.72/mile) — all within the char limit. Primary text names the carrier, the freight (reefer), the lane (Chicago to Texas), both pay rates, weekly pay, home weekly, no-touch freight, age and experience requirements, and Spanish dispatch — every checkable fact from the brief. Spanish is natural, uses 'carga refrigerada', 'rutas regionales', 'despacho', distances in miles, no filler.",
+          "reason": "The hook slot puts \"you\" on the road at dawn and then gives $0.72/mile, as the concept asks, though it runs past 29 characters. The primary_text names Silvicom, reefer, Chicago to Texas, weekly pay and home weekly, with one long sentence. The Spanish uses carga, rutas and despacho, but \"Carga sin toque\" and \"A casa semanal\" are stiff.",
           "scores": {
             "hook": 5,
             "specific": 5,
-            "plain": 5,
-            "spanish": 5,
+            "plain": 4,
+            "spanish": 4,
             "no_filler": 5
           }
         }

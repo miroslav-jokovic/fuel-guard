@@ -87,16 +87,17 @@
   "recorded": {
     "source": "model",
     "prompt_version": "analyst@6",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T16:14:52.371Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:26:26.532Z",
     "output": {
-      "headline": "2 campaigns ran on November 3, 2026, spending $42.10 across 2,300 impressions and 19 clicks, but no leads came in.",
+      "headline": "On November 3, 2026, 2 campaigns ran and spent $42.10 for 2,300 impressions and 19 clicks, but brought in no leads.",
       "points": [
-        "Dedicated night runs took all of the day's activity: $42.10 spent, 2,300 impressions, 19 clicks, and a 0.8% click rate, with no leads. Regional Class A — Joliet had no spend, impressions, or clicks.",
-        "November 2026 has 28 days left. All spend so far this month — $42.10 — is on Meta.",
-        "The 2026-09-21 cohort (38 leads) is mature: 33 were contacted, 17 made applicants, 10 applied, 4 hired, and 8 lost after conversion.",
-        "The 2026-09-28 cohort (40 leads) is mature: 36 were contacted, 20 made applicants, 12 applied, 5 hired, and 9 lost after conversion.",
-        "The 2026-10-26 cohort has 12 leads and is too young to judge: 9 were contacted, 3 made applicants, 1 applied, and 1 lost after conversion."
+        "Dedicated night runs accounted for all of the day's spend: $42.10, 2,300 impressions, 19 clicks and a 0.8% click rate. It brought no leads, so there is no cost per lead.",
+        "Regional Class A — Joliet spent $0.00 and showed no impressions or clicks, so it has no click rate and no cost per lead. Check whether it is meant to be running.",
+        "Spend so far in November 2026 is $42.10, all on Meta, with 28 days left in the month.",
+        "The week of 2026-09-28 had 40 leads. Of those, 20 were converted (50.0%), 12 applied and 5 were hired (12.5%). The week of 2026-09-21 had 38 leads, with 17 converted (44.7%), 10 applied and 4 hired (10.5%).",
+        "The week of 2026-10-26 is too young to judge. So far it has 12 leads, with 9 contacted, 3 converted and 1 applied.",
+        "There are no lead-quality call results for any campaign over the last 14 days."
       ]
     }
   }

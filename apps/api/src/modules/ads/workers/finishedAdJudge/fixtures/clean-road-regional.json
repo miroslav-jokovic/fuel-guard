@@ -29,25 +29,25 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:32:30.422Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:22:58.301Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A straight road through open farmland at sunset is immediately clear at a glance — strong perspective line and golden fields make it unmistakable.",
+          "reason": "A straight two-lane road running to a sunset between golden wheat fields reads instantly, sharp and uncluttered.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The headline 'Regional runs through farm country' is perfectly echoed by a road cutting through flat agricultural fields, telling one unified story.",
+          "reason": "The headline about regional runs through farm country sits over an open road flanked by crop fields, telling one story.",
           "score": 5
         },
         "hierarchy_reads": {
-          "reason": "The dark navy panel behind the headline gives it strong contrast and clear priority, but 'Apply today' sits in the same panel as plain bold text with no button shape or visual distinction to make it read as a clickable button.",
+          "reason": "The white headline on the navy plate is large and read first, but 'Apply today' is plain bold text with no button shape.",
           "score": 3
         },
         "looks_like_kit": {
-          "reason": "The navy panel (#1F3A5F) matches the primary brand colour and white text matches the secondary colour, but there is no logo present and no visible button element using brand colours.",
-          "score": 3
+          "reason": "The plate is the brand navy with white lettering and no off-brand colours are added, though nothing names the carrier.",
+          "score": 4
         }
       }
     }

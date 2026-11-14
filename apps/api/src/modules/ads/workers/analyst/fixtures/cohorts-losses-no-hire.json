@@ -77,16 +77,17 @@
   "recorded": {
     "source": "model",
     "prompt_version": "analyst@6",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-10T16:13:23.217Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T22:24:55.413Z",
     "output": {
-      "headline": "Regional Class A — Joliet was the only campaign running on November 3, 2026, spending $214.50 for 7 leads at $30.64 each.",
+      "headline": "On November 3, 2026, 1 campaign ran, Regional Class A — Joliet, spending $214.50 for 7 leads at $30.64 per lead.",
       "points": [
-        "Regional Class A — Joliet delivered 7 leads from 10,230 impressions and 152 clicks at a 1.5% click rate. It accounts for all of November 2026's spend so far: $214.50 on Meta with 27 days left in the month.",
-        "The 2026-10-05 cohort (19 leads) is mature: 15 were contacted, 5 made applicants, 3 applied, and 4 were lost after conversion. None were closed as not qualified and none were hired yet.",
-        "The 2026-10-19 cohort has 23 leads and is too young to judge rates. So far 17 were contacted, 6 were made applicants, 2 applied, and 1 was lost after conversion.",
-        "The 2026-11-02 cohort has 7 leads and is too young to judge rates. Only 3 have been contacted so far and none have moved further — worth watching to make sure outreach continues.",
-        "No lead quality data is available for the 14-day window; the campaign list is empty."
+        "Regional Class A — Joliet had 10,230 impressions and 152 clicks, a 1.5% click rate, and brought in 7 leads at $30.64 per lead.",
+        "Spend so far in November 2026 is $214.50, all on Meta, with 27 days left in the month.",
+        "The 2026-10-05 cohort of 19 leads: 15 contacted, 5 converted (26.3%), 3 applied (15.8%) and no hires yet. 4 had their application end without a hire (21.1%).",
+        "The 2026-10-19 cohort of 23 leads is too young to judge: 17 contacted, 6 converted, 2 applied, and 1 application ended without a hire.",
+        "The 2026-11-02 cohort has 7 leads so far, 3 contacted and none converted yet. It is too young to judge.",
+        "The sheet has no call results for any campaign over the last 14 days, so there is nothing to report on wrong numbers or missed hard requirements."
       ]
     }
   }

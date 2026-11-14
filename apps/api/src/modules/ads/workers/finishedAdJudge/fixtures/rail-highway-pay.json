@@ -29,24 +29,24 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:32:44.812Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:23:12.961Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A crisp white semi-truck and trailer dominates the frame against a vivid sunset sky, instantly readable as a tractor-trailer at a glance.",
+          "reason": "A white tractor and trailer in full side profile on an open highway at sunset reads instantly at phone size.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The headline touts per-mile OTR pay and the picture shows an OTR tractor-trailer rolling down an open highway — a direct, cohesive match.",
-          "score": 5
+          "reason": "A per-mile pay and OTR headline sits over a long-haul truck on an open highway, which fits the story though pay itself is not pictured.",
+          "score": 4
         },
         "hierarchy_reads": {
-          "reason": "The bold white headline commands the lower half, the outlined 'Apply Today' button sits clearly beneath it, and the truck photo above doesn't compete with the text.",
+          "reason": "The big white headline on the green wash leads and the white button follows clearly, with only a faint road line behind the text and an empty footer band.",
           "score": 4
         },
         "looks_like_kit": {
-          "reason": "The deep forest-green (#0B3D2E) appears in the bottom bar and the button outline, and white is used throughout, fully matching the two supplied brand colours; no logo is present but none was provided.",
+          "reason": "The dark green overlay, footer band and button text with white lettering match the brand colours, but no logo was supplied and no carrier name appears.",
           "score": 4
         }
       }

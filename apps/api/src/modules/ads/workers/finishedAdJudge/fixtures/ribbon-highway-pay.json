@@ -29,25 +29,25 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:33:25.272Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:23:45.903Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "A white semi-truck and trailer rolling down an open highway at sunset is immediately recognizable at a glance.",
+          "reason": "A white tractor and trailer sits sharp and side-on on an open highway under a sunset sky, readable instantly at phone size.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "A pay-per-mile OTR headline sits over a classic OTR tractor-trailer on the open road, perfectly reinforcing the message.",
-          "score": 5
+          "reason": "A per-mile OTR pay headline sits over a long-haul rig on an open rural highway, so words and picture tell the same over-the-road story.",
+          "score": 4
         },
         "hierarchy_reads": {
-          "reason": "The bold white headline dominates the lower half, the pill-shaped button sits cleanly below it, and the truck photo above does not compete with the text.",
+          "reason": "The big white headline on the dark green wash reads first, the white pill button second, and the truck sits calmly above without fighting them.",
           "score": 5
         },
         "looks_like_kit": {
-          "reason": "The deep dark-green background panel matches the primary brand color (#0B3D2E) and white is used for headline and button text, but no logo is present to anchor the carrier identity.",
-          "score": 3
+          "reason": "The dark green overlay, white headline and white button with green lettering match the two brand colours; no logo was supplied and none appears.",
+          "score": 4
         }
       }
     }

@@ -1,11 +1,11 @@
 {
   "worker": "checker",
   "prompt_version": "checker@1",
-  "model": "claude-sonnet-4-6",
+  "model": "claude-opus-5-5",
   "fixtures": 13,
   "asked": 10,
   "agreed": 10,
   "agreement": 1,
   "planted_skipped": 3,
-  "recorded_at": "2026-11-04T15:33:46.317Z"
+  "recorded_at": "2026-11-14T22:24:02.207Z"
 }

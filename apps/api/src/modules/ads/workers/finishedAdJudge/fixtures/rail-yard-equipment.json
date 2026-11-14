@@ -29,24 +29,24 @@
   "recorded": {
     "source": "model",
     "prompt_version": "finishedAdJudge@1",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T14:33:18.845Z",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-14T22:23:40.808Z",
     "output": {
       "scores": {
         "subject_legible": {
-          "reason": "The white Freightliner semi-truck is clearly visible at a fuel stop, instantly recognizable as a tractor at a glance.",
+          "reason": "A white sleeper tractor under bright fuel-canopy lights stands out sharply against the dark night and reads instantly as a truck.",
           "score": 5
         },
         "words_match_picture": {
-          "reason": "The headline calls for OTR drivers and the picture shows a long-haul tractor at a truck stop, telling a perfectly unified story.",
-          "score": 5
+          "reason": "A general call for Class A OTR drivers sits over a sleeper tractor at a fuel stop at night, which fits over-the-road work well.",
+          "score": 4
         },
         "hierarchy_reads": {
-          "reason": "The bold white headline dominates the lower half, the outlined 'Apply Now' button sits cleanly below it, and the dark green overlay prevents the photo from competing with the text.",
-          "score": 5
+          "reason": "The big white headline on the green wash is read first, the white Apply Now button second, and the truck sits above without fighting the words.",
+          "score": 4
         },
         "looks_like_kit": {
-          "reason": "The deep dark-green (#0B3D2E) tints the photo overlay, fills the footer bar, and frames the button, with white used for all text, matching both brand colours perfectly; no logo is provided to check.",
+          "reason": "The dark green wash, green footer band and white button and type match the brand colours exactly, though no carrier name or logo appears.",
           "score": 4
         }
       }
