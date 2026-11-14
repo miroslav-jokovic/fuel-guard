@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon, AppInput, useTouchTargets } from "@silvicom/ui";
+import { AppIcon, AppInput, useFilterStack, useTouchTargets } from "@silvicom/ui";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -173,11 +173,15 @@ function clear() {
  * repeated small target there. The office keeps 32 — the floor holds only where a thumb presses.
  */
 const touch = useTouchTargets();
+// In a toolbar's phone sheet every filter fills the line (SMALL-SCREENS-PLAN.md D-SM8) — the bar says
+// so once, instead of 121 call sites each remembering `block`.
+const stacked = useFilterStack();
+const fill = computed(() => props.block || stacked.value);
 </script>
 
 <template>
-  <div :class="block ? 'w-full' : 'inline-block'">
-    <div class="flex items-center" :class="[block ? 'w-full' : '', touch ? 'gap-2' : 'gap-1']">
+  <div :class="fill ? 'w-full' : 'inline-block'">
+    <div class="flex items-center" :class="[fill ? 'w-full' : '', touch ? 'gap-2' : 'gap-1']">
       <button
         ref="triggerRef"
         type="button"
@@ -187,7 +191,7 @@ const touch = useTouchTargets();
           active
             ? 'bg-brand-50/60 text-brand-800 ring-edge hover:bg-brand-50'
             : 'bg-surface text-ink-secondary ring-edge hover:bg-surface-subtle',
-          block ? 'min-w-0 flex-1 justify-between' : '',
+          fill ? 'min-w-0 flex-1 justify-between' : '',
           touch ? 'h-12' : 'h-8',
         ]"
         :aria-expanded="open"
@@ -195,7 +199,7 @@ const touch = useTouchTargets();
         @click.stop="open = !open"
         @keydown="onTriggerKeydown"
       >
-        <span class="truncate" :class="block ? '' : 'max-w-[14rem]'">
+        <span class="truncate" :class="fill ? '' : 'max-w-[14rem]'">
           {{ label }}<template v-if="summary">: {{ summary }}</template>
         </span>
         <AppIcon :icon="ChevronDownIcon" class="size-4 shrink-0 text-ink-tertiary" aria-hidden="true" />

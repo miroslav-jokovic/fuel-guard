@@ -280,12 +280,36 @@ function reveal(jump = false): void {
   else box.scrollLeft = left;
 }
 
+/**
+ * ── A STRIP THAT GOES ON SAYS SO (SMALL-SCREENS-PLAN.md M10, 2026-11-14) ──────────────────────────
+ * The strip scrolls, and nothing showed that it did: on Idling at 390 px "Truck capability" was cut
+ * mid-word at the well's edge, which reads as a rendering fault rather than as "there is more". So
+ * the edge the strip continues past fades out, and only that edge — a strip that fits has no fade,
+ * and one scrolled to its end fades on the left alone.
+ */
+const more = ref({ before: false, after: false });
+function measureEdges(): void {
+  const box = strip.value;
+  if (!box || props.orientation === "vertical") return;
+  // One pixel of slack: a fractional layout width leaves `scrollLeft` a hair short of the end.
+  more.value = { before: box.scrollLeft > 1, after: box.scrollLeft + box.clientWidth < box.scrollWidth - 1 };
+}
+const FADE = {
+  after: "[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)]",
+  before: "[mask-image:linear-gradient(to_left,black_calc(100%-2.5rem),transparent)]",
+  both: "[mask-image:linear-gradient(to_right,transparent,black_2.5rem,black_calc(100%-2.5rem),transparent)]",
+};
+const fade = computed(() =>
+  more.value.before && more.value.after ? FADE.both : more.value.after ? FADE.after : more.value.before ? FADE.before : "",
+);
+
 watch(
   () => [props.modelValue, props.tabs.length, props.orientation],
   () =>
     void nextTick(() => {
       settle();
       reveal();
+      measureEdges();
     }),
 );
 
@@ -294,12 +318,16 @@ onMounted(() => {
   void nextTick(() => {
     settle(true);
     reveal(true);
+    measureEdges();
   });
   // The strip's own width decides where every tab starts, so a container change moves the target
   // without any state changing. ⚠ Guarded: jsdom has no ResizeObserver, and this component is
   // mounted in tests that have nothing to do with the pill.
   if (typeof ResizeObserver === "function" && strip.value) {
-    observer = new ResizeObserver(() => settle(true));
+    observer = new ResizeObserver(() => {
+      settle(true);
+      measureEdges();
+    });
     observer.observe(strip.value);
   }
 });
@@ -335,11 +363,13 @@ const touch = useTouchTargets();
        * Whether tabs outrun the reader's screen is not something the calling page can know.
        */
       orientation === 'vertical' ? 'flex-col gap-0.5' : `w-fit max-w-full gap-1 overflow-x-auto p-1 ${SEGMENTED_WELL}`,
+      fade,
     ]"
     role="tablist"
     :aria-label="label"
     :aria-orientation="orientation === 'vertical' ? 'vertical' : undefined"
     @keydown="onKey"
+    @scroll.passive="measureEdges"
   >
     <!--
       Scenery, not state: the selection is `aria-selected` on the tab, which is what a screen reader

@@ -141,6 +141,12 @@ Read before the build, and each one changed the design:
   `lib/` (which may import features) composes them. To verify against `check-feature-boundaries`
   at C1; if `lib/` may not, this is a blocker to bring back, not to route around.
 
+- **Q-SM4 — four verbs in a page header on a phone.** Drivers carries Audit binders, Reconcile with
+  Samsara, Upload scanned files and New driver; at 390 px they take two lines. (a) Leave them: two
+  lines of whole, unwrapped buttons is legible. (b) Keep the primary verb and fold the rest into one
+  "More" menu below `md`, drawn by `PageHeader` for every page. **Recommendation: (b)**, as its own
+  small PR after B — it touches every page's header and deserves its own browser pass.
+
 ## 6. Phases
 
 Each phase is one PR to `main`, lands on staging on merge, and ends with a browser pass at 390,
@@ -186,3 +192,21 @@ Table layout at desk widths. New data on any card.
   - Left as it reads, noted: a context line whose parts are blank prints "— · —" (a parked driver
     with no truck and no position). The dashes are the page's own cells; whether a blank part
     should drop out is a wording decision for A3's remaining lists, not a layout one.
+- **2026-11-14, A2 built** (branch `claude/phone-filter-sheet`, stacked on A1).
+  - **Q-SM2 answered, by the import direction:** neither candidate. `SlideOver` lives in `apps/web`
+    and `FilterBar` in `@silvicom/ui`, which cannot import an app. The sheet is the bar's own filter
+    group, docked to the bottom by `max-md:` classes.
+  - **Decided in CSS, not in script, and that is load-bearing.** jsdom has no `matchMedia`, so a
+    script branch would have handed every page test the phone toolbar — its filters inside a closed
+    sheet. The filters stay in ONE place in the document at every width; closed, the bar's DOM is
+    the desk's plus one button. `#more` joins the sheet only while it is open, because the desk
+    popover is that slot's other home.
+  - `provideFilterStack` / `useFilterStack` (`lists/filterStack.ts`): the bar says "stacked" once and
+    `FilterSelect` and `DateRangeFilter` fill the line — 140 controls in 54 pages' slots, none of
+    which had to change.
+  - M10: a tab strip fades the edge it continues past (`AppTabs`), and only that edge.
+  - Seen in a browser at 390 px on Drivers, Fuel log, Fuel costs and Idling (closed and open). The
+    Ask AI launcher sits under the sheet's scrim while it is open.
+  - Not done here: `PageHeader`'s action buttons still wrap to two lines on Drivers at 390 px (four
+    buttons). That is a page with four header verbs, which contract §9 rule 2 answers for the shop
+    with a bottom bar; whether the office pages take the same rule is a product question — Q-SM4.

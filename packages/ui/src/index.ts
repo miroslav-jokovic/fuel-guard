@@ -68,6 +68,7 @@ export type { SortState } from "./lists/sort";
 export { countLabelFor } from "./lists/plural";
 export { isBlank, columnsWithData } from "./lists/dataTable";
 export { provideWorkspaceTable, reportToWorkspace, useWorkspaceTable } from "./lists/workspaceTable";
+export { provideFilterStack, useFilterStack } from "./lists/filterStack";
 export { NotFoundError, isNotFound, retryUnlessNotFound, QUERY_DEFAULTS, recordOrThrow } from "./lists/notFound";
 export { provideRouteOpens } from "./lists/routeOpens";
 // "Are you sure?" (D-US7) and the dialog it draws in, moved with the list kit so the admin console

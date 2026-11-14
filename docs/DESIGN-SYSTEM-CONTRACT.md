@@ -630,6 +630,8 @@ Rules encoded in the component and honoured by the good pages:
 7. Filters apply live, per-filter. No Apply button. `page` resets to 1 via `watch`.
 8. Never ship a filter no query consumes.
 
+**Below `md`** (`docs/plans/design-system/SMALL-SCREENS-PLAN.md` D-SM8, 2026-11-14): the bar is the search and ONE "Filters" button carrying the number of filters set; `#filters` and `#more` open together in a sheet on the bottom edge, stacked, each control the sheet's width (`provideFilterStack` — `FilterSelect` and `DateRangeFilter` read it; a new filter control must too). The sheet is the same element restyled by `max-md:` classes, so a page writes nothing for it and its tests see one DOM. A horizontal `AppTabs` strip fades the edge it scrolls past.
+
 ### 5.6 Row actions
 
 ```html
