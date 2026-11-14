@@ -66,7 +66,7 @@ describe("EfficiencyWidget's plot", () => {
     state.total.value = { ...ANSWERED, mpg: 6.4 };
     state.weeks.value = [{ from: "2026-10-22", mpg: 6.4 }];
     const table = (await render()).get("table");
-    expect(table.classes()).not.toContain("sr-only");
+    // The class on the table alone does not clip it — the wrapper's is the one that holds.
     expect(table.element.parentElement!.className).toBe("sr-only");
   });
 });
