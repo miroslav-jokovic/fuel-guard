@@ -1,6 +1,9 @@
-import { rowListOf, WIZARD_SCREENS, type FactPath } from "@silvicom/shared";
-import { emptyAccident, emptyViolation, type ApplicationDraft } from "@/features/apply/draft";
-import { fieldId, type FieldPath } from "@/features/apply/fieldLabels";
+import {
+  applicationAddressSchema, earliestResidenceMonth, rowListOf, WIZARD_SCREENS,
+  type FactPath, type RowKind, type WizardScreenId,
+} from "@silvicom/shared";
+import { emptyAccident, emptyAddress, emptyViolation, toAddressPayload, type ApplicationDraft, type DraftAddress } from "@/features/apply/draft";
+import { describeField, fieldId, messageFor, valueAt, type FieldPath } from "@/features/apply/fieldLabels";
 import { APPLY_COPY } from "@/features/apply/strings";
 import type { SectionIssue } from "@/features/apply/useApplicationWizard";
 import type { FieldCopy, WizardBinding } from "./wizardBinding";
@@ -27,11 +30,27 @@ import type { FieldCopy, WizardBinding } from "./wizardBinding";
  * summary focuses (`fieldId`). So what a screen shows and what "Save and continue" refuses are one list.
  */
 
-/** A list's blank row, as the section components made it — so a new row is the same row either way. */
-const NEW_ROW: Readonly<Record<string, () => Record<string, unknown>>> = {
+/**
+ * A list's blank row, as the section components made it — so a new row is the same row either way.
+ *
+ * ⚠ An earlier home begins where the homes already given end (F4 PR 1b-3): its "until" is the earliest
+ * month any of them starts in, because that is the month the driver moved out of it. So the driver types
+ * one month per home, not two, and the months cannot leave a gap by a slip of the hand. It is an answer
+ * like any other on the screen, and theirs to change.
+ */
+const NEW_ROW: Readonly<Record<string, (rows: readonly Record<string, unknown>[]) => Record<string, unknown>>> = {
   accidents: () => ({ ...emptyAccident() }),
   violations: () => ({ ...emptyViolation() }),
+  addresses: (rows) => ({ ...emptyAddress(), to: earliestResidenceMonth(rows as unknown as DraftAddress[]) ?? "" }),
 };
+
+/**
+ * Which address is the home lived in NOW: the first with no end month — composition's own test
+ * (`composeFiledApplication` lays Part 1's street over a row with no `to`), so the row the walk shows
+ * and does not ask is exactly the row filing replaces. Every other row is an earlier home.
+ */
+export const currentAddressRow = (addresses: readonly { to?: string | null }[]): number =>
+  addresses.findIndex((a) => (a.to ?? "").trim() === "");
 
 /**
  * The draft path of a fact on a row (or the whole fact, off a row) — the path issues are reported at. A
@@ -62,7 +81,17 @@ const fieldCopy = (): Record<FactPath, FieldCopy> => {
   const safety = APPLY_COPY.safety;
   const walk = safety.walk;
   const you = APPLY_COPY.identity;
+  const home = APPLY_COPY.addresses;
   return {
+    // "Where you have lived" (F4 PR 1b-3), in the section component's words. Q-AM8 (a): the street and
+    // the ZIP say the office completes them.
+    "application.addresses[].line1": { label: home.line1, hint: home.officeCompletes, autocomplete: "off" },
+    "application.addresses[].line2": { label: home.line2, hint: home.optional, autocomplete: "off" },
+    "application.addresses[].city": { label: home.city, autocomplete: "off" },
+    "application.addresses[].state": { label: home.state },
+    "application.addresses[].postal_code": { label: home.postal_code, hint: home.officeCompletes, autocomplete: "off" },
+    "application.addresses[].from": { label: home.walk.from, hint: home.fromHint },
+    "application.addresses[].to": { label: home.walk.to, hint: home.fromHint },
     // "About you" (F4 PR 1b-2), in the section component's words.
     "application.first_name": { label: you.first_name, autocomplete: "given-name" },
     "application.middle_name": { label: you.middle_name, hint: you.optional, autocomplete: "additional-name" },
@@ -87,6 +116,13 @@ const fieldCopy = (): Record<FactPath, FieldCopy> => {
     "application.licence_suspension_detail": { label: safety.suspensionDetail, hint: safety.suspensionDetailHint },
   };
 };
+
+/** A fact's words where one screen asks it differently from another (`WizardBinding.copy`). */
+const screenCopy = (): Partial<Record<WizardScreenId, Record<FactPath, FieldCopy>>> => ({
+  "addresses.moved_in": {
+    "application.addresses[].from": { label: APPLY_COPY.addresses.walk.movedIn, hint: APPLY_COPY.addresses.fromHint },
+  },
+});
 
 /** The paths Part 2's page can answer — what the binding test holds the catalogue's Stage 2 screens to. */
 export const DRAFT_BOUND_PATHS = (): FactPath[] => Object.keys(fieldCopy());
@@ -116,7 +152,7 @@ export function draftBinding(draft: () => ApplicationDraft, issues: () => readon
       const yes = value === true;
       doc()[path.slice("application.".length)] = value === false;
       if (value === false) doc()[gate] = [];
-      else if (yes && rows(gate).length === 0) doc()[gate] = [NEW_ROW[gate]!()];
+      else if (yes && rows(gate).length === 0) doc()[gate] = [NEW_ROW[gate]!([])];
       return;
     }
     const [key, at, column] = draftPath(path, row);
@@ -134,8 +170,8 @@ export function draftBinding(draft: () => ApplicationDraft, issues: () => readon
   return {
     read,
     write,
-    copy: (path) => {
-      const found = fieldCopy()[path];
+    copy: (path, screen) => {
+      const found = (screen && screenCopy()[screen]?.[path]) ?? fieldCopy()[path];
       if (!found) throw new Error(`No words for ${path} on Part 2's page — add it to draftFields.ts.`);
       return found;
     },
@@ -151,12 +187,29 @@ export function draftBinding(draft: () => ApplicationDraft, issues: () => readon
       const gate = gateOf(path);
       return fieldId(gate ? [gate] : draftPath(path, row));
     },
+    // One address, by the server's own row schema, with the paths the page's own (`AddressDrawer`'s rule).
+    rowIssues: (list, row) => {
+      const address = list === "addresses" ? (rows(list)[row] as unknown as DraftAddress | undefined) : undefined;
+      if (!address) return [];
+      const candidate = toAddressPayload(address);
+      const parsed = applicationAddressSchema.safeParse(candidate);
+      return parsed.success ? [] : parsed.error.issues.map((issue) => {
+        const path = ["addresses", row, ...(issue.path as (string | number)[])];
+        return {
+          path, key: "addresses", message: issue.message, label: describeField(path),
+          say: messageFor({ ...issue, path }, valueAt(candidate, issue.path as (string | number)[])),
+          fieldId: fieldId(path), section: "addresses" as const,
+        };
+      });
+    },
+    rowKind: (list, row): RowKind =>
+      list === "addresses" && currentAddressRow(rows(list) as unknown as DraftAddress[]) === row ? "current" : "earlier",
   };
 }
 
 /** A new row for a list the walk loops over — the same blank row the section component added. */
-export function newRow(list: string): Record<string, unknown> {
+export function newRow(list: string, rows: readonly Record<string, unknown>[] = []): Record<string, unknown> {
   const make = NEW_ROW[list];
   if (!make) throw new Error(`No blank row for ${list} — add it to draftFields.ts.`);
-  return make();
+  return make(rows);
 }

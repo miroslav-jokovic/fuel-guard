@@ -104,6 +104,19 @@ export function applicationV2FilingIssues(
    * base contract asks for one address and nothing checked the three years (plan §4), so this is the
    * rule, for new filings only, for the reason the employer fields are.
    */
+  /**
+   * One home is lived in NOW (F4 PR 1b-3). An address with no end month is the current one, and filing
+   * lays Part 1's street over EVERY such row (`composeFiledApplication`) — so a second one would print
+   * the current home twice, over whatever the driver typed for the earlier one, and cover every month
+   * after it as well. The earlier home is asked when they moved out.
+   */
+  let current = false;
+  (application.addresses ?? []).forEach((a, i) => {
+    if (!blank(a.to)) return;
+    if (current) issues.push({ path: `addresses.${i}.to`, ...applicantIssue("address_moved_out") });
+    current = true;
+  });
+
   for (const gap of addressCoverage(application.addresses ?? [], asOf).gaps) {
     issues.push({
       path: "addresses",

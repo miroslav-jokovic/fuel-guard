@@ -37,6 +37,22 @@ const typed = (): ApplicationDraft => ({
 });
 
 describe("laying Part 1 over the draft", () => {
+  it("puts the home lived in now on a draft whose every address was given an end month, with no month of its own", () => {
+    const draft = typed();
+    draft.addresses[1]!.to = "2025-01";
+    applyPartOne(draft, facts());
+    expect(draft.addresses).toHaveLength(3);
+    // Part 1's street, first; when they moved in is theirs to say, so it is blank and asked.
+    expect(draft.addresses[0]).toMatchObject({ line1: "1 Main St", city: "Joliet", state: "IL", postal_code: "60431", from: "", to: "" });
+    expect(draft.addresses.slice(1).map((a) => a.line1)).toEqual(["9 Old Rd", "typed"]);
+  });
+
+  it("adds no second current home to a draft that has one", () => {
+    const draft = typed();
+    applyPartOne(draft, facts());
+    expect(draft.addresses).toHaveLength(2);
+  });
+
   it("takes the phone, the current street, the CDL and its class, the unexpired licences and §40.25(j) from Part 1", () => {
     const draft = typed();
     applyPartOne(draft, facts());

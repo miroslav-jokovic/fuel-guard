@@ -49,6 +49,8 @@ const INPUT_MODE: Partial<Record<WizardField["fact"]["input"], string>> = {
 };
 const TYPE: Partial<Record<WizardField["fact"]["input"], string>> = { us_mobile: "tel", phone: "tel", email: "email" };
 
+/** The fact's words on THIS screen (`WizardBinding.copy`). */
+const words = (f: WizardField) => props.binding.copy(f.fact.path, props.screen.id);
 const read = (path: FactPath) => props.binding.read(path, props.row);
 const write = (path: FactPath, value: unknown) => props.binding.write(path, value, props.row);
 const id = (path: FactPath) => props.binding.id(path, props.row);
@@ -72,8 +74,8 @@ const typed = (f: WizardField, value: string): void =>
 const text = (path: FactPath): string => String(read(path) ?? "");
 const yesNo = (path: FactPath): boolean | null => (read(path) as boolean | null | undefined) ?? null;
 const choices = (f: WizardField) => {
-  const words = props.binding.copy(f.fact.path).options;
-  return (factChoices(f.fact.path) ?? []).map((value) => ({ value, label: words?.[value] ?? value }));
+  const options = words(f).options;
+  return (factChoices(f.fact.path) ?? []).map((value) => ({ value, label: options?.[value] ?? value }));
 };
 
 const picked = (path: FactPath): string[] => (read(path) as string[] | undefined) ?? [];
@@ -111,8 +113,8 @@ function toggle(f: WizardField, value: string, on: boolean): void {
         v-if="f.fact.input === 'yesno'"
         :id="id(f.fact.path)"
         :model-value="yesNo(f.fact.path)"
-        :legend="binding.copy(f.fact.path).label"
-        :hint="binding.copy(f.fact.path).hint"
+        :legend="words(f).label"
+        :hint="words(f).hint"
         :error="error(f.fact.path)"
         @update:model-value="write(f.fact.path, $event)"
       />
@@ -120,16 +122,16 @@ function toggle(f: WizardField, value: string, on: boolean): void {
       <div v-else-if="f.fact.input === 'choice'" :id="id(f.fact.path)">
         <AppRadioGroup
           :model-value="text(f.fact.path)"
-          :legend="binding.copy(f.fact.path).label"
+          :legend="words(f).label"
           :options="choices(f)"
           @update:model-value="write(f.fact.path, $event)"
         />
-        <p v-if="binding.copy(f.fact.path).hint" class="mt-1 text-xs text-ink-muted">{{ binding.copy(f.fact.path).hint }}</p>
+        <p v-if="words(f).hint" class="mt-1 text-xs text-ink-muted">{{ words(f).hint }}</p>
         <p v-if="error(f.fact.path)" class="mt-1 text-sm text-danger-700" role="alert">{{ error(f.fact.path) }}</p>
       </div>
 
       <fieldset v-else-if="f.fact.input === 'multi_choice'" :id="id(f.fact.path)">
-        <legend class="text-sm font-medium text-ink-secondary">{{ binding.copy(f.fact.path).label }}</legend>
+        <legend class="text-sm font-medium text-ink-secondary">{{ words(f).label }}</legend>
         <AppCheckbox
           v-for="c in choices(f)"
           :key="c.value"
@@ -141,12 +143,12 @@ function toggle(f: WizardField, value: string, on: boolean): void {
       </fieldset>
 
       <fieldset v-else-if="f.fact.input === 'names'" :id="id(f.fact.path)" class="space-y-2">
-        <legend class="text-sm font-medium text-ink-secondary">{{ binding.copy(f.fact.path).label }}</legend>
-        <p v-if="binding.copy(f.fact.path).hint" class="text-xs text-ink-muted">{{ binding.copy(f.fact.path).hint }}</p>
+        <legend class="text-sm font-medium text-ink-secondary">{{ words(f).label }}</legend>
+        <p v-if="words(f).hint" class="text-xs text-ink-muted">{{ words(f).hint }}</p>
         <div v-for="(row, i) in names(f.fact.path)" :key="row.key" class="flex items-center gap-2">
           <BaseInput
             :model-value="row.name"
-            :aria-label="`${binding.copy(f.fact.path).label} ${i + 1}`"
+            :aria-label="`${words(f).label} ${i + 1}`"
             class="flex-1"
             autocomplete="off"
             @update:model-value="setName(f.fact.path, row.key, $event)"
@@ -164,8 +166,8 @@ function toggle(f: WizardField, value: string, on: boolean): void {
       <FormField
         v-else
         :id="id(f.fact.path)"
-        :label="binding.copy(f.fact.path).label"
-        :hint="binding.copy(f.fact.path).hint"
+        :label="words(f).label"
+        :hint="words(f).hint"
         :error="error(f.fact.path)"
       >
         <template #default="field">
@@ -174,7 +176,7 @@ function toggle(f: WizardField, value: string, on: boolean): void {
             v-bind="field"
             :model-value="text(f.fact.path)"
             :kind="f.ask.dates"
-            :autocomplete="binding.copy(f.fact.path).autocomplete"
+            :autocomplete="words(f).autocomplete"
             :invalid="Boolean(error(f.fact.path))"
             @update:model-value="write(f.fact.path, $event)"
           />
@@ -206,7 +208,8 @@ function toggle(f: WizardField, value: string, on: boolean): void {
             :type="TYPE[f.fact.input]"
             :inputmode="INPUT_MODE[f.fact.input]"
             :maxlength="f.fact.input === 'zip' ? 5 : undefined"
-            :autocomplete="binding.copy(f.fact.path).autocomplete"
+            :autocomplete="words(f).autocomplete"
+            :placeholder="words(f).placeholder"
             @update:model-value="write(f.fact.path, $event)"
           />
         </template>

@@ -49,6 +49,11 @@ export const WIZARD_SCREEN_IDS = [
   "identity.other_names",
   "identity.email",
   "identity.ssn",
+  // "Where you have lived" (2.5–2.6a, F4 PR 1b-3). The month the driver moved to the home Part 1 holds,
+  // then each earlier home — its address, then its months — until the three years are covered.
+  "addresses.moved_in",
+  "addresses.home",
+  "addresses.dates",
   // "Your driving record" (2.18–2.21, F4 PR 1b-1). The accident and conviction screens repeat per row.
   "safety.accidents",
   "safety.accident_date",
@@ -115,4 +120,13 @@ export interface FactAsk {
    */
   readonly gate?: string;
   readonly quickPicks?: QuickPickList;
+  /**
+   * Which rows of its list the screen is asked for (F4 PR 1b-3). The addresses are one list holding two
+   * kinds of row: the home the driver lives in NOW, whose street is Part 1's and is only shown (so the one
+   * thing asked is the month they moved in), and each EARLIER home, asked whole. Absent: every row.
+   */
+  readonly rows?: RowKind;
 }
+
+/** A row's kind within its list — the page's binding says which a row is (`WizardBinding.rowKind`). */
+export type RowKind = "current" | "earlier";

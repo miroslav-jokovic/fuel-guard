@@ -35,6 +35,17 @@ import { draftBinding, draftPath, newRow, pathUnder } from "./draftFields";
  * Rows come from the gate before them (`FactAsk.gate`): Yes opens the first, No clears them. So the
  * number of screens is the driver's own history — SCREEN-MAP §6's "most screens are one tap".
  *
+ * ── A LIST WITH NO GATE ENDS WHEN THE TASK'S CHECK IS SATISFIED (F4 PR 1b-3) ──────────────────
+ * The addresses have no "were there any?" — everyone has lived somewhere — and no "any other?": the
+ * regulation says how many are needed, three years of them (§391.21(b)(3)). So while the task's own check
+ * still has a complaint about the LIST (`["addresses"]`, a month nobody accounted for), Continue on the
+ * list's last screen adds the home before and walks it (SCREEN-MAP 2.6a: "the loop ends when 3 years are
+ * covered"). The walk never counts months itself: it asks the same check that closes the task.
+ *
+ * A screen may be asked of one KIND of row only (`FactAsk.rows`): the home lived in now is asked the
+ * month the driver moved in, an earlier home its address and its months. Rows of the kind asked first
+ * are walked first, whatever order the draft holds them in.
+ *
  * ── THE CARRIER'S QUESTIONS ARE THE DEFINITION'S (F4 PR 1b-2) ─────────────────────────────────
  * After a task's catalogue screens come the carrier's questions the served definition puts on that task
  * (`questionsForScreen`) — then the ones the carrier wrote itself, as stamped on the invitation — each
@@ -52,6 +63,8 @@ export interface WalkStep {
   readonly screen?: WizardScreen;
   /** The row a loop screen asks about. */
   readonly row?: number;
+  /** Which of its kind the row is, from 1 — "Accident 2", "Earlier address 1" (the home lived in now is no earlier one). */
+  readonly ordinal?: number;
   /** "Any other …?" — the list this ends. */
   readonly another?: string;
   /** One of the carrier's questions, and the answers it is stored in. */
@@ -109,15 +122,24 @@ export function useTaskWalk(
       }
       const run: WizardScreen[] = [];
       while (i < screens.length && screens[i]!.list === screen.list) run.push(screens[i++]!);
-      const rows = rowsOf(screen.list);
-      rows.forEach((row, r) => {
-        for (const s of run) {
-          if (wizardScreenShown(s, (p) => binding.read(p, r))) {
-            out.push({ key: `${s.id}#${String(row.key ?? r)}`, screen: s, row: r });
+      const list = screen.list;
+      const rows = rowsOf(list);
+      // The kinds the run asks, in the order it asks them; a run that names none asks every row alike.
+      const kinds = [...new Set(run.map((s) => s.rows))];
+      for (const kind of kinds) {
+        let ordinal = 0;
+        rows.forEach((row, r) => {
+          if (kind !== undefined && binding.rowKind?.(list, r) !== kind) return;
+          ordinal += 1;
+          for (const s of run) {
+            if (s.rows === kind && wizardScreenShown(s, (p) => binding.read(p, r))) {
+              out.push({ key: `${s.id}#${String(row.key ?? r)}`, screen: s, row: r, ordinal });
+            }
           }
-        }
-      });
-      if (rows.length > 0) out.push({ key: `${screen.list}.another`, another: screen.list });
+        });
+      }
+      // "Any other …?" ends a list its gate opened; a list with no gate ends on the task's check (`needsRow`).
+      if (rows.length > 0 && screens.some((s) => s.gate === list)) out.push({ key: `${list}.another`, another: list });
     }
     for (const answers of questionSources) {
       for (const q of questionsForScreen(answers.definition(), task.value)) {
@@ -152,6 +174,21 @@ export function useTaskWalk(
   // Opening a task starts at its first screen.
   watch(task, () => moveTo(0));
 
+  /**
+   * The gateless list that still needs a row: the open step is the list's LAST screen, and the task's own
+   * check has a complaint about the list itself. Null otherwise — and whenever a box is still wrong, since
+   * the check counts the years only once every address parses (`validateSection`).
+   */
+  const needsRow = computed<string | null>(() => {
+    const step = current.value;
+    const list = step?.screen?.list;
+    if (!task.value || !step || list === undefined || step.another) return null;
+    if (wizardTaskScreens(task.value).some((s) => s.gate === list)) return null;
+    const lastOfList = steps.value.findLastIndex((s) => s.screen?.list === list);
+    if (lastOfList !== index.value) return null;
+    return validateSection(task.value, draft, v2AsOf()).some((i) => i.path.length === 1 && i.path[0] === list) ? list : null;
+  });
+
   /** A gate's own refusal is reported at its list (`["accidents"]`), not under it. */
   const atGate = (issue: SectionIssue, gate: string | undefined): boolean =>
     gate !== undefined && issue.path.length === 1 && issue.path[0] === gate;
@@ -169,6 +206,33 @@ export function useTaskWalk(
   /** A problem the task's check found that no screen of the task shows — said, never dropped. */
   const stray = computed<string[]>(() =>
     wizard.issues.value.filter((i) => !steps.value.some((s) => owns(s, i))).map((i) => i.say));
+
+  /** What is wrong on one screen: its share of the task's check, and of the row it shows. */
+  function problemsOn(step: WalkStep): SectionIssue[] {
+    if (!task.value) return [];
+    // ⚠ A gate answered Yes is not refused for its list being empty: the rows are the NEXT screens' to ask,
+    // and a blank first row is dropped from what files, so the list rule would hold the driver on "Yes".
+    // If the rows are still empty at the close, the task's check says so and opens the gate again.
+    const openedList = step.screen?.gate && binding.read(step.screen.fields[0]!.fact.path) === true ? step.screen.gate : undefined;
+    // The row on show is judged by its own schema too (`rowIssues`): the task's check drops a blank row.
+    const ofRow = step.screen?.list !== undefined && step.row !== undefined ? binding.rowIssues?.(step.screen.list, step.row) ?? [] : [];
+    const ofTask = validateSection(task.value, draft, v2AsOf());
+    return [...ofTask, ...ofRow.filter((r) => !ofTask.some((t) => t.fieldId === r.fieldId))]
+      .filter((i) => owns(step, i) && !atGate(i, openedList));
+  }
+
+  /**
+   * A message goes when its answer is given (U4), not at the next Continue: "This is needed." under a box
+   * the driver has just filled reads as the page not having heard them. Only ever REMOVES — a new problem
+   * is still found by Continue, so nothing is flagged while it is being typed.
+   */
+  watch(() => draft, () => {
+    const step = current.value;
+    if (wizard.issues.value.length === 0 || !step?.screen) return;
+    const still = new Set(problemsOn(step).map((i) => i.fieldId));
+    const kept = wizard.issues.value.filter((i) => !owns(step, i) || still.has(i.fieldId));
+    if (kept.length !== wizard.issues.value.length) wizard.setIssues(kept);
+  }, { deep: true });
 
   function finish(): void {
     hub.finish();
@@ -195,7 +259,7 @@ export function useTaskWalk(
       }
       if (another.value) {
         const list = step.another;
-        doc()[list] = [...rowsOf(list), newRow(list)];
+        doc()[list] = [...rowsOf(list), newRow(list, rowsOf(list))];
         // The new row's first screen sits where "Any other?" was, right after the row before it.
         const firstOfNew = steps.value.findIndex((s) => s.screen?.list === list && s.row === rowsOf(list).length - 1);
         if (firstOfNew >= 0) moveTo(firstOfNew);
@@ -205,14 +269,18 @@ export function useTaskWalk(
       else finish();
       return;
     }
-    // ⚠ A gate answered Yes is not refused for its list being empty: the rows are the NEXT screens' to ask,
-    // and a blank first row is dropped from what files, so the list rule would hold the driver on "Yes".
-    // If the rows are still empty at the close, the task's check says so and opens the gate again.
-    const openedList = step.screen?.gate && binding.read(step.screen.fields[0]!.fact.path) === true ? step.screen.gate : undefined;
-    const found = validateSection(task.value, draft, v2AsOf()).filter((i) => owns(step, i) && !atGate(i, openedList));
+    const found = problemsOn(step);
     wizard.setIssues(found);
     if (found.length > 0) {
       wizard.focusIssue(found[0]!);
+      return;
+    }
+    // A list the check still finds short gets its next row, and the driver is walked through it.
+    const list = needsRow.value;
+    if (list) {
+      doc()[list] = [...rowsOf(list), newRow(list, rowsOf(list))];
+      const firstOfNew = steps.value.findIndex((s) => s.screen?.list === list && s.row === rowsOf(list).length - 1);
+      if (firstOfNew >= 0) moveTo(firstOfNew);
       return;
     }
     if (index.value < steps.value.length - 1) moveTo(index.value + 1);
@@ -264,7 +332,8 @@ export function useTaskWalk(
     step: computed(() => index.value + 1),
     count: computed(() => steps.value.length),
     atStart: computed(() => index.value === 0),
-    atEnd: computed(() => index.value >= steps.value.length - 1),
+    /** The last screen — unless Continue is about to add a row the check still needs. */
+    atEnd: computed(() => index.value >= steps.value.length - 1 && needsRow.value === null),
     stray,
     another,
     anotherRefused,

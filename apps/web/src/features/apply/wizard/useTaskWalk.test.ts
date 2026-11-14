@@ -246,3 +246,124 @@ describe("About you and the carrier's questions, one to a screen", () => {
     expect(walk.stray.value).toEqual([]);
   });
 });
+
+/**
+ * "Where you have lived" (F4 PR 1b-3, SCREEN-MAP 2.5–2.6a). `AS_OF` 2026-11-13 opens the three years in
+ * 2023-11. The draft's first address is the home Part 1 holds, as the unlock lays it in (`applyPartOne`).
+ */
+describe("the address walk", () => {
+  const HOME = { line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432" };
+  async function atAddresses(movedIn = "") {
+    const made = walkOf("addresses");
+    made.draft.addresses = [{ ...made.draft.addresses[0]!, ...HOME, from: movedIn, to: "" }];
+    await made.open();
+    return made;
+  }
+  const write = (walk: ReturnType<typeof walkOf>["walk"], column: string, value: string) =>
+    walk.binding.write(`application.addresses[].${column}`, value, walk.current.value!.row);
+
+  it("asks only when the driver moved to the home Part 1 holds, and closes when that covers the three years", async () => {
+    const { walk, draft, hub } = await atAddresses();
+    expect(ids(walk)).toEqual(["addresses.moved_in"]);
+    write(walk, "from", "2020-01");
+    expect(walk.atEnd.value).toBe(true);
+    walk.next();
+    expect(hub.inTask.value).toBe(false);
+    expect(draft.addresses).toHaveLength(1);
+  });
+
+  it("refuses a blank month on its own screen, and adds no home for it", async () => {
+    const { walk, draft, issues } = await atAddresses();
+    walk.next();
+    expect(issues.value.map((i) => i.path)).toEqual([["addresses", 0, "from"]]);
+    expect(draft.addresses).toHaveLength(1);
+    expect(walk.current.value?.screen?.id).toBe("addresses.moved_in");
+  });
+
+  it("walks the home before, and the one before that, until the three years are covered", async () => {
+    const { walk, draft, hub } = await atAddresses("2025-02");
+    // Short of three years: Continue is not the task's close, it asks for the home before.
+    expect(walk.atEnd.value).toBe(false);
+    walk.next();
+    expect(walk.current.value).toMatchObject({ screen: { id: "addresses.home" }, row: 1, ordinal: 1 });
+    // It ends the month the home after it begins, so the driver types one month a home.
+    expect(draft.addresses[1]).toMatchObject({ to: "2025-02", from: "", city: "" });
+
+    write(walk, "city", "Gary");
+    write(walk, "state", "IN");
+    walk.next();
+    expect(walk.current.value?.screen?.id).toBe("addresses.dates");
+    write(walk, "from", "2024-01");
+    expect(walk.atEnd.value).toBe(false);
+    walk.next();
+    expect(walk.current.value).toMatchObject({ screen: { id: "addresses.home" }, row: 2, ordinal: 2 });
+    expect(draft.addresses[2]!.to).toBe("2024-01");
+
+    write(walk, "city", "Dayton");
+    write(walk, "state", "OH");
+    walk.next();
+    write(walk, "from", "2023-11");
+    expect(walk.atEnd.value).toBe(true);
+    walk.next();
+    expect(hub.inTask.value).toBe(false);
+    expect(draft.addresses).toHaveLength(3);
+  });
+
+  it("lets an earlier home's street and ZIP be left for the office, but not its city", async () => {
+    const { walk, issues } = await atAddresses("2025-02");
+    walk.next();
+    walk.next();
+    expect(issues.value.map((i) => i.path.join("."))).toContain("addresses.1.city");
+    expect(walk.current.value?.screen?.id).toBe("addresses.home");
+    // A message goes as its own answer is given; the other stays until its box is filled too.
+    write(walk, "city", "Gary");
+    await nextTick();
+    expect(issues.value.map((i) => i.path.join("."))).toEqual(["addresses.1.state"]);
+    write(walk, "state", "IN");
+    await nextTick();
+    expect(issues.value).toEqual([]);
+    walk.next();
+    expect(walk.current.value?.screen?.id).toBe("addresses.dates");
+  });
+
+  it("asks the home lived in now first, whatever order the draft holds the homes in", async () => {
+    const { walk, draft } = await atAddresses("2025-02");
+    draft.addresses = [
+      { ...draft.addresses[0]!, ...HOME, city: "Gary", state: "IN", from: "2023-11", to: "2025-02", key: "k-earlier" },
+      { ...draft.addresses[0]!, key: "k-now" },
+    ];
+    await nextTick();
+    expect(walk.steps.value.map((s) => [s.screen?.id, s.row, s.ordinal])).toEqual([
+      ["addresses.moved_in", 1, 1],
+      ["addresses.home", 0, 1],
+      ["addresses.dates", 0, 1],
+    ]);
+  });
+
+  it("asks a second home with no end month when the driver moved out, as an earlier home", async () => {
+    const { walk, draft, issues } = await atAddresses("2020-01");
+    draft.addresses = [...draft.addresses, { ...draft.addresses[0]!, city: "Gary", state: "IN", from: "2018-01", to: "", key: "k-second" }];
+    await nextTick();
+    expect(ids(walk)).toEqual(["addresses.moved_in", "addresses.home", "addresses.dates"]);
+    walk.next();
+    walk.next();
+    walk.next();
+    expect(walk.current.value?.screen?.id).toBe("addresses.dates");
+    expect(issues.value.map((i) => [i.path.join("."), i.say])).toEqual([["addresses.1.to", "Give the month you moved out of this address"]]);
+  });
+
+  it("removes an earlier home and asks again for the months it covered", async () => {
+    const { walk, draft } = await atAddresses("2025-02");
+    walk.next();
+    write(walk, "city", "Gary");
+    write(walk, "state", "IN");
+    walk.next();
+    write(walk, "from", "2023-11");
+    expect(walk.atEnd.value).toBe(true);
+    walk.removeRow();
+    await nextTick();
+    expect(draft.addresses).toHaveLength(1);
+    expect(walk.current.value?.screen?.id).toBe("addresses.moved_in");
+    expect(walk.atEnd.value).toBe(false);
+  });
+});

@@ -121,7 +121,8 @@ describe("the wizard generated from the catalogue", () => {
     const groups = WIZARD_SCREENS.filter((s) => s.kind === "group").map((s) => s.id);
     // The address, the licence card, and an accident's dead and hurt (SCREEN-MAP 2.18c); everything
     // else is one question to a screen (D-AM2).
-    expect(groups).toEqual(["address.home", "licence.card", "identity.name", "safety.accident_casualties"]);
+    // F4 PR 1b-3: an earlier home's address, and the two months it was lived in.
+    expect(groups).toEqual(["address.home", "licence.card", "identity.name", "addresses.home", "addresses.dates", "safety.accident_casualties"]);
     expect(wizardScreensOf("about").map((s) => s.id)).toEqual(["about.phone", "about.date_of_birth"]);
     expect(wizardScreensOf("rights")).toEqual([]);
   });

@@ -192,6 +192,22 @@ export const APPLY_COPY_ES = {
     drawerIntro: "Una dirección a la vez. Puede cambiarla después.",
     drawerSave: "Guardar esta dirección",
     drawerCancel: "Cancelar",
+    walk: {
+      movedIn: "¿Cuándo se mudó allí?",
+      homeIntro: "¿Dónde vivió antes de eso?",
+      from: "¿Cuándo se mudó allí?",
+      to: "¿Cuándo se mudó de allí?",
+      earlierRow: (n: number): string => `Dirección anterior ${n}`,
+      remove: "Quitar esta dirección",
+      covered: (years: number, months: number): string => {
+        const parts = [
+          years > 0 ? `${years} ${years === 1 ? "año" : "años"}` : "",
+          months > 0 || years === 0 ? `${months} ${months === 1 ? "mes" : "meses"}` : "",
+        ].filter(Boolean);
+        return `${parts.join(" ")} de ${EMPLOYMENT_WINDOW_YEARS} años cubiertos`;
+      },
+      coveredAll: `Los ${EMPLOYMENT_WINDOW_YEARS} años están cubiertos.`,
+    },
   },
 
   partOneFacts: {

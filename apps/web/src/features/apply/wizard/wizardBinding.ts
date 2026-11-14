@@ -1,4 +1,5 @@
-import type { FactPath } from "@silvicom/shared";
+import type { FactPath, RowKind, WizardScreenId } from "@silvicom/shared";
+import type { SectionIssue } from "@/features/apply/useApplicationWizard";
 
 /**
  * What a generated screen needs from the page it is on (F4 PR 1): how to read and write a fact's
@@ -15,6 +16,7 @@ export interface FieldCopy {
   readonly options?: Readonly<Record<string, string>>;
   /** The browser's autofill name for it — `address-line1`, `bday`, `off` for a licence number. */
   readonly autocomplete?: string;
+  readonly placeholder?: string;
 }
 
 /**
@@ -24,7 +26,19 @@ export interface FieldCopy {
 export interface WizardBinding {
   read(path: FactPath, row?: number): unknown;
   write(path: FactPath, value: unknown, row?: number): void;
-  copy(path: FactPath): FieldCopy;
+  /**
+   * `screen`: where it is asked. One fact asked on two screens has each screen's own words — the month a
+   * home begins is "When did you move in?" for the home lived in now and "From" for an earlier one.
+   */
+  copy(path: FactPath, screen?: WizardScreenId): FieldCopy;
   error(path: FactPath, row?: number): string | undefined;
   id(path: FactPath, row?: number): string;
+  /** Which kind a list's row is (`FactAsk.rows`). Absent on a page whose lists hold one kind of row. */
+  rowKind?(list: string, row: number): RowKind;
+  /**
+   * What is wrong with ONE row, judged alone by its own schema. The task's check drops a row nothing was
+   * typed in (an accidental "Add another" is not a declaration), which is right for a list and wrong for
+   * the row the walk has on show: that one was asked for, and Continue must not pass it blank.
+   */
+  rowIssues?(list: string, row: number): SectionIssue[];
 }
