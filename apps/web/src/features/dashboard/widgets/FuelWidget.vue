@@ -117,17 +117,22 @@ const slices = computed(() => {
         <li class="flex items-center gap-1.5"><span class="size-2 rounded-detail" :style="{ backgroundColor: viz.spend }" /> This period</li> <!-- token-check-disable-line: token-resolved chart color -->
         <li class="flex items-center gap-1.5"><span class="size-2 rounded-detail bg-surface-muted" /> Previous period, same day</li>
       </ul>
-      <table class="sr-only">
-        <caption>Fuel spend by day, this period and the same day of the previous period</caption>
-        <thead><tr><th scope="col">Day</th><th scope="col">Spend</th><th scope="col">Previous period</th></tr></thead>
-        <tbody>
-          <tr v-for="(p, i) in points" :key="p.date">
-            <th scope="row">{{ fmtDay(p.date) }}</th>
-            <td>{{ p.value == null ? "no data" : fmtMoney(p.value) }}</td>
-            <td>{{ ghost[i]?.value == null ? "no data" : fmtMoney(ghost[i]!.value!) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- The wrapper is `sr-only`, not the table: a table sizes to its content and ignores the
+           1 px box, so this one stood 541 px wide inside a 390 px phone and the whole Fleet overview
+           scrolled sideways (SMALL-SCREENS-PLAN.md M4, measured 2026-11-14). -->
+      <div class="sr-only">
+        <table>
+          <caption>Fuel spend by day, this period and the same day of the previous period</caption>
+          <thead><tr><th scope="col">Day</th><th scope="col">Spend</th><th scope="col">Previous period</th></tr></thead>
+          <tbody>
+            <tr v-for="(p, i) in points" :key="p.date">
+              <th scope="row">{{ fmtDay(p.date) }}</th>
+              <td>{{ p.value == null ? "no data" : fmtMoney(p.value) }}</td>
+              <td>{{ ghost[i]?.value == null ? "no data" : fmtMoney(ghost[i]!.value!) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </template>
 
     <ShareBar class="mt-4" :items="slices" :name="canSeeMoney ? 'Where fuel dollars go' : 'Where fuel goes'" />
