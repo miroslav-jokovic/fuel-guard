@@ -8,10 +8,9 @@ import type { PartOneInputs } from "./usePartOne";
  * places the screen, after the consent and before the permissions.
  *
  * ── WHICH LINKS WALK IT ───────────────────────────────────────────────────────────────────────
- * A v2 link — one the server serves a `partOne` for, which is every link created since C3a (plan §7:
- * the row is minted with the invitation). A legacy link gets `null`, and an API from before C3a sends
- * nothing; both keep the identity screen they always had, so the eight links already in production
- * walk exactly what they walked before.
+ * Every link: the server serves a `partOne` for every invitation created since C3a (plan §7: the row
+ * is minted with the invitation) and answers one without it as a dead link (1b-5, 2026-11-15). A
+ * bundle with none is therefore not expected; it is read as "nothing to walk", never as a crash.
  */
 export function usePartOneStep(
   invitation: ReturnType<typeof useApplyInvitationQuery>,
@@ -51,5 +50,5 @@ export function usePartOneStep(
     void invitation.refetch();
   }
 
-  return { isPartOneLink, partOneNeeded, partOneInputs, refreshPartOne, partOneFinished };
+  return { partOneNeeded, partOneInputs, refreshPartOne, partOneFinished };
 }

@@ -16,7 +16,6 @@ import AskAgainBanner from "@/features/apply/AskAgainBanner.vue";
 import { useAskAgain } from "@/features/apply/askAgain";
 import { useTaskHub } from "@/features/apply/useTaskHub";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
-import ApplyProgress from "@/features/apply/ApplyProgress.vue";
 import ApplyIssueList from "@/features/apply/ApplyIssueList.vue";
 import ApplyPhaseRouter from "@/features/apply/ApplyPhaseRouter.vue";
 import ApplyStages from "@/features/apply/ApplyStages.vue";
@@ -51,9 +50,10 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * them swear the entries are true and complete, and nobody can swear to what they cannot see.
  *
  * ── WHICH SCREEN, IN WHAT ORDER (B7, A4, A5) ─────────────────────────────────────────────────
- * The expectations screen, the 7001(c) consent, Part 1 (a v2 link, C3a) or the identity step (a legacy
- * one), the permissions and the waiting screens come before the form, in an order `ApplyPhaseRouter.vue` holds and explains since C1
- * (2026-09-26). This page computes every condition that chain reads and performs every act it
+ * The expectations screen, the 7001(c) consent, Part 1, the permissions and the waiting screens come
+ * before the form, in an order `ApplyPhaseRouter.vue` holds and explains since C1 (2026-09-26).
+ * ⚠ Every link has a Part 1 since 1b-5 (2026-11-15): the server answers an invitation without one as
+ * a dead link, so the linear wizard and its identity screen are gone and the form is always the task list. This page computes every condition that chain reads and performs every act it
  * reports; the router only chooses.
  * ── THE PHOTOGRAPHS ARE STAGED, NOT SAVED (A8, D-APP10) ───────────────────────────────────────
  * The documents screen writes to `application_captures` against the invitation, not into the draft:
@@ -129,15 +129,15 @@ const autosaveEnabled = ref(false);
 const furthestSection = ref<string | null>(null);
 
 /**
- * C3c1: on a v2 link, the carrier's day, so the form runs filing's own rules (`v2FilingIssues`) and judges
- * the three-year windows on the day filing does. Read lazily — `isPartOneLink` is set up further down.
+ * C3c1: the carrier's day, so the form runs filing's own rules (`v2FilingIssues`) and judges the
+ * three-year windows on the day filing does.
  * ⚠ A bundle from an API older than C3c1 (the deploy window) has none: then the zone every carrier with no
  * `operating_hours` runs on, as the server would — never this device's, which is the viewer's day.
  */
 const carrierToday = computed(
   () => invitation.data.value?.carrierToday ?? todayInZone(new Date(), DEFAULT_ORG_TIMEZONE),
 );
-const v2AsOf = (): string | null => (isPartOneLink.value ? carrierToday.value : null);
+const v2AsOf = (): string => carrierToday.value;
 const wizard = useApplicationWizard(draft, furthestSection, v2AsOf);
 /**
  * The two acts that end an application, and the validation in front of each (`useApplicationSending`).
@@ -160,16 +160,15 @@ provideApplyIssues(wizard.issues);
  */
 async function showIssue(issue: SectionIssue): Promise<void> {
   if (issue.section && (issue.section !== wizard.section.value || hub.showList.value)) {
-    if (hub.inTask.value || hub.showList.value) hub.open(issue.section, true);
-    else wizard.goTo(issue.section, true);
+    hub.open(issue.section, true);
     await nextTick();
   }
   walk.show(issue);
   await nextTick();
   wizard.focusIssue(issue);
 }
-/** A "Fix" on the review screen: a task in Part 2's list, a screen in the legacy wizard. */
-const goToSection = (section: ApplicationSection): void => (hub.inTask.value ? hub.open(section) : wizard.goTo(section));
+/** A "Fix" on the review screen opens that task. */
+const goToSection = (section: ApplicationSection): void => hub.open(section);
 
 /** C3d1b: the revision saves are checked against, taken with the body it describes — never from a later refetch. */
 const draftRevision = ref<number | null>(null);
@@ -260,23 +259,17 @@ const ceremonyNeeded = computed(
     && !invitation.data.value?.phases?.releasesCompletedAt
     && !ceremonyDone.value,
 );
-// AF3/D-AF1: identity before the first permission (the server refuses a release without it); on the
-// form the three are shown, not retyped (D-AF8). Once given, the draft holds a date of birth
-// (D-APP16), so it is re-read through the unlock like any resumed draft.
-const identityDone = ref(false);
+// D-AF8: once the identity is on file the license is shown on the form, not retyped.
 const identityComplete = computed(() => Boolean(invitation.data.value?.identityComplete));
-// ── Part 1 (C3a, §6.2) — a v2 link's identity, address, licences, photographs and rights summary, before
-// the permissions. The server refuses a v2 link's permissions until it is finished, so on a v2 link the
-// legacy identity screen never shows: Part 1 is what writes the identity now (D-AW3).
-const { isPartOneLink, partOneNeeded, partOneInputs, refreshPartOne, partOneFinished } =
+// ── Part 1 (C3a, §6.2) — the identity, address, licences, photographs and rights summary, before the
+// permissions. The server refuses the permissions until it is finished; Part 1 is what writes the
+// identity (D-AW3).
+const { partOneNeeded, partOneInputs, refreshPartOne, partOneFinished } =
   usePartOneStep(invitation, consentNeeded);
-// C3c2a (§6.4, D-AW11): a v2 link's Part 2 is a task list over the same screens; a legacy link keeps the wizard.
-const hub = useTaskHub(wizard, isPartOneLink);
+// C3c2a (§6.4, D-AW11): Part 2 is a task list over the form's screens.
+const hub = useTaskHub(wizard);
 // F4 PR 1b: inside a generated task the buttons step its screens; the last Continue closes the task.
 const walk = provideTaskWalk(useTaskWalk(draft, wizard, hub, v2AsOf, () => partOneFacts.value !== null));
-const identityNeeded = computed(
-  () => ceremonyNeeded.value && !isPartOneLink.value && !identityComplete.value && !identityDone.value,
-);
 const identityLockedBy = computed(() => (identityComplete.value ? invitation.data.value!.carrier : null));
 // AF4: the permissions are in and the office has not sent the form. Only an explicit null counts —
 // see `ApplyPhases.applicationSentAt` — and a ceremony just finished in this tab counts as "in".
@@ -293,13 +286,9 @@ const stageFacts = computed(() => ({
 // F5 (0607): while the office waits on an answer, the wait screen is its questions (`askAgain.ts`).
 const ask = useAskAgain({
   token, draft, awaitingReview, formReady: autosaveEnabled, atList: hub.showList, showIssue,
-  questions: () => (isPartOneLink.value ? invitation.data.value?.askAgain : undefined),
+  questions: () => invitation.data.value?.askAgain,
   flush: () => autosave.flushNow(), refetch: () => invitation.refetch(),
 });
-function identityRecorded(): void {
-  [identityDone.value, restored.value, autosaveEnabled.value] = [true, false, false];
-  void invitation.refetch();
-}
 
 
 /**
@@ -331,7 +320,7 @@ watch(
        every state the chain reads is held here, above the key. -->
   <div class="space-y-6">
   <!-- U1: where the driver is among the three visits, on every screen of a live link. -->
-  <ApplyStages v-if="invitation.data.value && isPartOneLink" :facts="stageFacts" />
+  <ApplyStages v-if="invitation.data.value" :facts="stageFacts" />
   <ApplyPhaseRouter
     :key="applyLanguage"
     v-model:draft="draft"
@@ -349,8 +338,6 @@ watch(
     :part-one-needed="partOneNeeded"
     :part-one-inputs="partOneInputs"
     :refresh-part-one="refreshPartOne"
-    :is-part-one-link="isPartOneLink"
-    :identity-needed="identityNeeded"
     :ceremony-needed="ceremonyNeeded"
     :releases="releases"
     :waiting-for-application="waitingForApplication"
@@ -365,7 +352,6 @@ watch(
     @begin="begun = true"
     @agree="agree"
     @part-one-done="partOneFinished"
-    @identity-recorded="identityRecorded"
     @ceremony-done="ceremonyDone = true"
     @unlocked="released = $event"
     @send="send"
@@ -395,7 +381,7 @@ watch(
       <p v-if="invitation.data.value.carrierAddress" class="text-sm text-ink-muted">
         {{ APPLY_COPY.page.employingCarrier(invitation.data.value.carrier, invitation.data.value.carrierAddress) }}
       </p>
-      <!-- C3c2a: a v2 link's Part 2 opens on its task list (§6.4), on every return. -->
+      <!-- C3c2a: Part 2 opens on its task list (§6.4), on every return. -->
       <ApplyTaskHub
         v-if="hub.showList.value"
         :draft="draft"
@@ -405,16 +391,8 @@ watch(
         @open="hub.open"
       />
       <template v-else>
-        <ApplyProgress
-          v-if="!hub.inTask.value"
-          :index="wizard.index.value"
-          :furthest="wizard.furthestIndex.value"
-          :save-status="saveStatus"
-          :save-trouble="autosave.state.value === 'failed' || autosave.state.value === 'conflict'"
-          @go-to="wizard.goTo"
-        />
-        <!-- Inside a task too: until 2026-11-14 only the list and the legacy bar said a save had failed. -->
-        <p v-else-if="saveStatus" class="text-xs" :class="autosave.state.value === 'failed' || autosave.state.value === 'conflict' ? 'text-danger-700' : 'text-ink-secondary'" aria-live="polite" data-task-save-status>{{ saveStatus }}</p>
+        <!-- Inside a task too: until 2026-11-14 only the list said a save had failed. -->
+        <p v-if="saveStatus" class="text-xs" :class="autosave.state.value === 'failed' || autosave.state.value === 'conflict' ? 'text-danger-700' : 'text-ink-secondary'" aria-live="polite" data-task-save-status>{{ saveStatus }}</p>
 
         <!-- A walked task says each problem under its own box, one screen at a time (`TaskWalk`). -->
         <ApplyIssueList
@@ -456,17 +434,13 @@ watch(
         <!-- Stacked on a phone, the forward act on top: side by side at 44 px (C3d3b2) the two need 380 px
              of a 342 px column, and at 320 px they overflowed even at 36. -->
         <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <BaseButton v-if="hub.inTask.value" variant="ghost" @click="walk.back">
+          <BaseButton variant="ghost" @click="walk.back">
             {{ walk.active.value && !walk.atStart.value ? APPLY_COPY.nav.back : APPLY_COPY.hub.backToList }}
           </BaseButton>
-          <BaseButton v-else-if="!wizard.isFirst.value" variant="ghost" @click="wizard.back">
-            {{ APPLY_COPY.nav.back }}
-          </BaseButton>
-          <span v-else class="hidden sm:block" />
           <BaseButton
             variant="primary"
             :disabled="handingOver || (wizard.isLast.value && wordingNotFinal)"
-            @click="wizard.isLast.value ? sendForReview() : hub.inTask.value ? walk.next() : wizard.next()"
+            @click="wizard.isLast.value ? sendForReview() : walk.next()"
           >
             <template v-if="wizard.isLast.value">
               <!-- Disabled rather than hidden: the driver has reached the end of their application and
@@ -481,11 +455,8 @@ watch(
                   ? APPLY_COPY.handoff.sending
                   : APPLY_COPY.handoff.send(invitation.data.value.carrier) }}
             </template>
-            <template v-else-if="hub.inTask.value">
-              {{ walk.active.value && !walk.atEnd.value ? APPLY_COPY.hub.next : APPLY_COPY.hub.saveAndContinue }}
-            </template>
             <template v-else>
-              {{ wizard.section.value === 'documents' ? APPLY_COPY.nav.review : APPLY_COPY.nav.next }}
+              {{ walk.active.value && !walk.atEnd.value ? APPLY_COPY.hub.next : APPLY_COPY.hub.saveAndContinue }}
             </template>
           </BaseButton>
         </div>

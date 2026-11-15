@@ -17,7 +17,7 @@ const invitation = { isLoading: ref(false), isError: ref(false), data: ref({ car
 const OFF = {
   submitted: false, awaitingReview: false, expectationsNeeded: false, ceremonyAvailable: false, esignConsent: null,
   consentNeeded: false, consenting: false, consentFailed: false, partOneNeeded: false, partOneInputs: null,
-  refreshPartOne: async () => null, isPartOneLink: false, identityNeeded: false, ceremonyNeeded: false, releases: [],
+  refreshPartOne: async () => null, ceremonyNeeded: false, releases: [],
   waitingForApplication: false, awaitingOffice: false, locked: false, awaitingSignature: false, packetStops: [],
   packetAdopted: null, sending: false, sendError: null, sendIssues: [],
   // F5: no question from the office is open, which is nearly every application.
