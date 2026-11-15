@@ -144,7 +144,7 @@ const wizard = useApplicationWizard(draft, furthestSection, v2AsOf);
  * It takes the wizard because a refused document has to land on the screen that owns the field.
  */
 const { sendError, justSent, handedOver, sending, handingOver, sendForReview, send } =
-  useApplicationSending(token, draft, wizard, v2AsOf);
+  useApplicationSending(token, draft, wizard, v2AsOf, () => autosave.settle());
 /**
  * Every control on every screen reads this to mark itself (D-AX3). Provided once here rather than
  * threaded through seven components as a prop — see `issues.ts` for why.

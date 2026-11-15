@@ -61,6 +61,8 @@ export const APPLY_FLOW_COPY = {
     send: (carrier: string): string => `Send it to ${carrier}`,
     sending: "Sending…",
     failed: "That did not send. Check your signal and try again — nothing you typed is lost.",
+    /** The answers could not be saved, so nothing was handed over (`useApplicationDraft.settle`). */
+    notSaved: "Your last answers could not be saved, so nothing was sent. Check your signal and press Send again — they are still on this page.",
     waitingHeading: "They have your application",
     waitingBody: (carrier: string): string =>
       `${sentenceCase(carrier)} is reading it now. When they are done, they will contact you about coming to their office, where you sign it.`,

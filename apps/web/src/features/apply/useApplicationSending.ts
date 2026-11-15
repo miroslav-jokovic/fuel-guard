@@ -45,6 +45,11 @@ export function useApplicationSending(
   wizard: { setIssues: (issues: SectionIssue[]) => void },
   /** The carrier's day on a v2 link, null on a legacy one (C3c1) — filing's own rules run before either act. */
   v2AsOf: () => string | null = () => null,
+  /**
+   * Does the server hold what is on the screen? (`useApplicationDraft.settle`.) The hand-over carries no
+   * answers, so it waits for this — and does not happen when the answer is no.
+   */
+  saved: () => Promise<boolean> = async () => true,
 ): ApplicationSending {
   const submit = useSubmitApplication(token);
   const handOff = useRequestReview(token);
@@ -52,6 +57,8 @@ export function useApplicationSending(
   const sendError = ref<string | null>(null);
   const justSent = ref(false);
   const handedOver = ref(false);
+  /** The last answers are on their way to the server, ahead of the hand-over. */
+  const saving = ref(false);
 
   /**
    * The whole document, through the server's own schema — not the union of the per-screen checks.
@@ -94,6 +101,15 @@ export function useApplicationSending(
   async function sendForReview(): Promise<void> {
     sendError.value = null;
     if (!documentIsComplete()) return;
+    // ⚠ The answers first. What the office opens is the SAVED draft, and the last thing typed can be up
+    // to five seconds from saved. A hand-over ahead of it tells the driver "they have your application"
+    // about an application the server does not have yet.
+    saving.value = true;
+    const held = await saved().catch(() => false).finally(() => { saving.value = false; });
+    if (!held) {
+      sendError.value = APPLY_COPY.handoff.notSaved;
+      return;
+    }
     try {
       await handOff.mutateAsync();
       handedOver.value = true;
@@ -127,7 +143,7 @@ export function useApplicationSending(
     justSent,
     handedOver,
     sending: computed(() => submit.isPending.value),
-    handingOver: computed(() => handOff.isPending.value),
+    handingOver: computed(() => saving.value || handOff.isPending.value),
     sendForReview,
     send,
   };

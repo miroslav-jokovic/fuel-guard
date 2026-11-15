@@ -33,6 +33,7 @@ export const APPLY_FLOW_COPY_ES = {
     send: (carrier: string): string => `Enviar a ${carrier}`,
     sending: "Enviando…",
     failed: "No se envió. Revise su señal e inténtelo de nuevo; nada de lo que escribió se pierde.",
+    notSaved: "No se pudieron guardar sus últimas respuestas, así que no se envió nada. Revise su señal y oprima Enviar otra vez; siguen en esta página.",
     waitingHeading: "Tienen su solicitud",
     waitingBody: (carrier: string): string =>
       `${sentenceCase(carrier)} la está leyendo. Cuando terminen, se comunicarán con usted para que vaya a su oficina, donde la firmará.`,

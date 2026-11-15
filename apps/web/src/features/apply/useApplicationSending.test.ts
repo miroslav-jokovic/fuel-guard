@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { emptyDraft, type ApplicationDraft } from "./draft";
 import type { SectionIssue } from "./useApplicationWizard";
 import { useApplicationSending } from "./useApplicationSending";
+import { APPLY_COPY } from "./strings";
 import { CARRIER_ANSWERS } from "@/testing/carrierAnswers";
 
 /**
@@ -40,9 +41,9 @@ const complete = (): ApplicationDraft => ({
   certified: true, signed_name: "Susan Godfrey",
 });
 
-function setUp(draft: ApplicationDraft, asOf: string | null) {
+function setUp(draft: ApplicationDraft, asOf: string | null, saved?: () => Promise<boolean>) {
   const shown: SectionIssue[][] = [];
-  const sending = useApplicationSending(ref("t"), draft, { setIssues: (v) => shown.push(v) }, () => asOf);
+  const sending = useApplicationSending(ref("t"), draft, { setIssues: (v) => shown.push(v) }, () => asOf, saved);
   return { sending, shown };
 }
 
@@ -84,5 +85,56 @@ describe("before the hand-off and the certification, on a v2 link", () => {
     const { sending } = setUp(complete(), null);
     await sending.sendForReview();
     expect(acts.handOff).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * 2026-11-15: the hand-over carries no answers — the office opens the SAVED draft — so it waits for the
+ * last answers to be saved, and does not happen when they cannot be. Before this a driver who pressed
+ * Send inside the autosave's five seconds was told the carrier had an application the server did not.
+ */
+describe("the hand-over waits for the answers to be saved", () => {
+  const sendable = (): ApplicationDraft => ({
+    ...complete(),
+    employers: [{ ...complete().employers[0]!, ended_on: "" }],
+  });
+
+  it("saves first, then hands over", async () => {
+    const order: string[] = [];
+    acts.handOff.mockImplementation(async () => { order.push("hand-over"); return {}; });
+    const { sending } = setUp(sendable(), AS_OF, async () => { order.push("saved"); return true; });
+    await sending.sendForReview();
+    expect(order).toEqual(["saved", "hand-over"]);
+    expect(sending.handedOver.value).toBe(true);
+  });
+
+  it("hands nothing over when the answers could not be saved, and says so", async () => {
+    for (const saved of [async () => false, async () => { throw new Error("offline"); }]) {
+      acts.handOff.mockClear();
+      const { sending } = setUp(sendable(), AS_OF, saved);
+      await sending.sendForReview();
+      expect(acts.handOff).not.toHaveBeenCalled();
+      expect(sending.handedOver.value).toBe(false);
+      expect(sending.sendError.value).toBe(APPLY_COPY.handoff.notSaved);
+    }
+  });
+
+  it("keeps the Send button busy while the answers are on their way", async () => {
+    let land!: (v: boolean) => void;
+    const { sending } = setUp(sendable(), AS_OF, () => new Promise<boolean>((resolve) => { land = resolve; }));
+    const pressed = sending.sendForReview();
+    await Promise.resolve();
+    expect(sending.handingOver.value).toBe(true);
+    expect(acts.handOff).not.toHaveBeenCalled();
+    land(true);
+    await pressed;
+    expect(acts.handOff).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not ask for a save when the document is incomplete: the refusal comes first", async () => {
+    const saved = vi.fn(async () => true);
+    const { sending } = setUp(complete(), AS_OF, saved);
+    await sending.sendForReview();
+    expect(saved).not.toHaveBeenCalled();
   });
 });
