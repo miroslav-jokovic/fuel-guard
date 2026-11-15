@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEVICE_TOKEN_PATTERN, TRUSTED_DEVICE_MAX } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { hashInvitationToken, isIntakeError } from "./applicationIntake.js";
 import { unlockDraft, unlockWithDevice } from "./applicationDraft.js";
 import { hashUnlockCode, unlockWithCode } from "./applicationUnlockCode.js";
@@ -40,7 +41,7 @@ const seed = (opts: { draft?: unknown[]; devices?: unknown[]; insertFails?: bool
     tables: {
       application_invitations: opts.inv ?? [invitation],
       application_drafts: opts.draft ?? [LOCKED_DRAFT],
-      application_intakes: [],
+      application_intakes: [PART_ONE_ROW],
       application_intake_licences: [],
       application_ssns: [],
       drivers: [],
