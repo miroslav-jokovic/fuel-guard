@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import express from "express";
 import { securityMiddleware } from "./appHttp.js";
+import { PERMISSIONS_POLICY } from "./permissionsPolicy.js";
 import { closeTestServer } from "./testing/httpServer.js";
 import { testEnv } from "./testing/testEnv.js";
 
@@ -91,3 +92,48 @@ describe("the page's own content-security-policy", () => {
     expect(csp["script-src"]).not.toContain("'unsafe-eval'");
   });
 });
+
+/**
+ * `Permissions-Policy` (security audit 2026-11-15, finding 6), read off a real response for the same reason
+ * as the CSP above: vite does not send it, so only a server that mounts `securityMiddleware` can show it.
+ */
+describe("which device features a page may ask for", () => {
+  async function policy(): Promise<Record<string, string>> {
+    const app = express();
+    app.use(securityMiddleware(testEnv()));
+    app.get("/", (_req, res) => res.send("ok"));
+    const server = app.listen(0);
+    try {
+      const port = (server.address() as { port: number }).port;
+      const res = await fetch(`http://127.0.0.1:${port}/`);
+      // The helmet half must still be there: one mount installs both.
+      expect(res.headers.get("content-security-policy") ?? "").not.toBe("");
+      const header = res.headers.get("permissions-policy") ?? "";
+      expect(header).not.toBe("");
+      return Object.fromEntries(header.split(",").map((part) => part.trim().split("=") as [string, string]));
+    } finally {
+      await closeTestServer(server);
+    }
+  }
+
+  it("keeps the camera, the wake lock and copying to this origin, which the scanning screens need", async () => {
+    const p = await policy();
+    expect(p.camera).toBe("(self)");
+    expect(p["screen-wake-lock"]).toBe("(self)");
+    expect(p["clipboard-write"]).toBe("(self)");
+  });
+
+  it("turns off what the app never uses", async () => {
+    const p = await policy();
+    for (const feature of ["microphone", "geolocation", "display-capture", "payment", "usb", "serial", "bluetooth", "hid", "midi"]) {
+      expect(p[feature], feature).toBe("()");
+    }
+  });
+
+  it("names nothing twice and allows no other origin", async () => {
+    const p = await policy();
+    expect(Object.keys(p).sort()).toEqual(Object.keys(PERMISSIONS_POLICY).sort());
+    expect(Object.values(p).every((v) => v === "()" || v === "(self)")).toBe(true);
+  });
+});
+

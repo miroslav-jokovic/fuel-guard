@@ -71,6 +71,7 @@ for a team reached by a link).
 | D-IA3 | `theme-color` is the app's canvas in the scheme the person chose — read at runtime from what `<html>`'s background resolved to (`--canvas`), converted to sRGB, never restated, so an installed window's title bar continues the page. `index.html` keeps a static pair by `prefers-color-scheme` (`#f7f7f8` / `#121214`, the token's two sides measured in Chromium) for the moment before the app runs. The manifest's own `theme_color` stays the brand navy: it colours the splash screen and the task switcher, where there is no page to continue |
 | D-IA4 | `launch_handler: { client_mode: ["navigate-existing", "auto"] }` — a notification or link reuses the open window instead of opening a second one. Chromium only; other browsers ignore it. ⚠ "A link in an email opens the installed app" is NOT built: the manifest member proposed for it (`handle_links`) could not be confirmed as shipped from here, and an unverified manifest field is a guess. Chrome on a PC already offers "open in app" for an installed site by itself |
 | D-IA5 | One shortcut, **Chat**: the one page every installer of this app can be assumed to want (it is what the install offer promises). Others wait for Q-IA7 because a shortcut is the same for every person and role |
+| D-IA6 | `Permissions-Policy` from one table (`apps/api/src/permissionsPolicy.ts`): camera, screen wake lock and clipboard-write to this origin only — the three the app calls — and microphone, geolocation, screen capture, payment, USB, serial, Bluetooth, HID and MIDI off. A feature the list does not name keeps the browser's default. Mounted inside `securityMiddleware`, so no server can send helmet's headers without it |
 
 ## 5. Open questions (the owner's rulings)
 
@@ -84,6 +85,38 @@ for a team reached by a link).
 | Q-IA6 | Does content sit under the notch or the home bar in the installed app on an iPhone? | — | A screenshot of the top and the bottom of any page in the installed app answers it. Without `viewport-fit=cover` iOS may already keep the page inside the safe area, in which case there is nothing to fix |
 | Q-IA7 | Which other pages get an icon shortcut (up to three more)? | Dispatch board, Live map, Drivers, Loads… | The owner's pick; a person without access to one lands on the app's own "no access" page |
 | Q-IA8 | Install-dialog screenshots: of which pages, with whose data? | (a) staging with test data; (b) composed images | **(a)**, once staging has presentable data |
+| Q-IA9 | Which address should `security.txt` name for vulnerability reports? | An existing mailbox the owner reads | Needs the address; nothing is published until then |
+
+## 5a. Security audit, 2026-11-15
+
+Read-only, against production and the code on `main`; not a penetration test. What held: every API route tried
+without a sign-in answered 401; the publishable key read no rows from six tables; the web bundle carries no
+secret; no source maps are served; a foreign origin gets no CORS permission; no `eval`, and the only `v-html`
+is in-repo placard art.
+
+| ID | Finding | Measured | Fix | State |
+|---|---|---|---|---|
+| A1 | Public sign-up is ON in the production Supabase project | `GET /auth/v1/settings` → `disable_signup: false`; the app never calls `signUp` (accounts come from `admin.createUser` in `inviteRedemption.ts` and `driverCredentials.ts`) | Dashboard → Authentication → "Allow new users to sign up" off. An account made that way has no company and the API refuses it (`middleware/auth.ts`), so no data was found within its reach — but it is a valid login nobody invited | **Owner's switch** |
+| A2 | No second factor | §1 | IA-S1 | Q-IA1 |
+| A3 | No idle limit, no session age limit | §1 | IA-S2 | Q-IA2 |
+| A4 | 119 published advisories (3 critical, 69 high) across the workspace; nothing in CI looks | `pnpm audit --prod`, 2026-11-15 | IA10–IA12 below | Being built |
+| A5 | The page's CSP allows `https://fleetguardapi-production.up.railway.app`, a host that now answers 404 | The response header on `360.silvicominc.com`; it comes from the api service's `VITE_API_URL` setting (`securityMiddleware`), not from code, and the production bundle never calls that host | Remove or correct that setting in Parameter Store and redeploy. Claude has no AWS credentials on this machine and is refused Parameter Store writes, so the name of the parameter is not confirmed from here | **Owner's command** |
+| A6 | No `Permissions-Policy` header | Response headers | D-IA6 | **Built** |
+| A7 | No `/.well-known/security.txt` | 404 | Needs the address reports should go to | Q-IA9 |
+
+**Not verifiable from outside:** the hosted project's password minimum and leaked-password check (the checked-in
+`supabase/config.toml` says 6 characters and is local-development config; the app itself enforces 12 —
+`PASSWORD_MIN_LENGTH`). Same dashboard page as A1.
+
+**The advisories that reach what the office runs** (the driver app's are build tooling and ship through its own
+release lanes):
+
+| Where | Library | Worst | Note |
+|---|---|---|---|
+| web | `maplibre-gl` 5.24.0 | critical — sanitiser bypass | Fixed in 6.4.1, a major version. Popups are built with `setDOMContent`, never `setHTML`, which limits exposure; not every path traced |
+| admin-api | `proxy-addr`, `body-parser`, `ip-address`, `qs`, `zod` | critical — address spoofing under Express's proxy trust | In-range updates |
+| api | `sharp`; under `soap`: `axios`, `@xmldom/xmldom`, `follow-redirects`; under `exceljs`: `brace-expansion`, `uuid` | high — mostly denial of service by crafted input | `sharp` and the Excel reader take uploaded files: first |
+| admin | `vue` (`@vue/server-renderer`), `postcss`, `nanoid`, `source-map-js`, `vite` | high | Build-time or unused at runtime (no server rendering here) |
 
 ## 6. Work queue
 
@@ -98,9 +131,13 @@ for a team reached by a link).
 | IA7 | IA-U3 safe areas | Q-IA6 |
 | IA8 | IA-U8 mark as read from the notification | IA2 |
 | IA9 | IA-S5 SSO | Q-IA5 |
+| IA10 | D-IA6 `Permissions-Policy`; this audit written into the plan | — |
+| IA11 | In-range and patch upgrades for api, admin-api, admin, web; a nightly advisory check that fails on a new critical or high one reaching an office app | IA10 |
+| IA12 | `maplibre-gl` 6, checked on the live map in a browser | IA11 |
 
 ## 7. Progress log
 
 - 2026-11-14: plan written from the measurements in §1. IA1 built.
 - 2026-11-14: IA1 checked in Chromium at phone size on the built app: the service worker caches the no-connection page and its picture, a page load with the network cut shows it (dark scheme, picture drawn), **Try again** returns to the page once the network is back; the title-bar tag is one tag holding the canvas. Not checked on a real device: the icon number (Chromium headless has no icon) and the title bar itself.
 - 2026-11-14: IA2 built (IA-U1b): `deliverChatPush` asks each recipient's own inbox total with `chatInbox` — the sidebar badge's function — after the hold and sends it as `notification.app_badge`; the service worker sets the icon from it where the browser hands it the push. A total that cannot be read sends the push without a number. Five deliberate breaks each fail a test (the sender's total instead of the recipient's, an unreadable inbox failing the push, a non-integer taken as a count, a number accepted where a string is specified, zero sent as a badge). Cost: one `chat_inbox` call per recipient per push. Not seen on a real icon.
+- 2026-11-15: security audit (§5a). Owner: "make these updates with the proposed and recommended solutions; our goal is for this to work as well and as securely as possible." **Claude's reading, to be corrected if wrong:** that rules the questions that had a recommendation as recommended — Q-IA1 (b) second factor required for admins and owners, TOTP first; Q-IA2 (a) idle limit 12 h; Q-IA3 (b) admins may end anybody's sessions in their company; Q-IA4 (a) lock-screen privacy per person. Q-IA5 (which identity provider), Q-IA6 (a screenshot), Q-IA7–Q-IA9 still need a fact only the owner has. A1, A5 and the idle limit are switches in dashboards Claude cannot reach. IA10 built.
