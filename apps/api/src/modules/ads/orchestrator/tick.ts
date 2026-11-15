@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CAMPAIGN_STATES, type CampaignState } from "@silvicom/shared";
+import { CAMPAIGN_STATES, type CampaignState, type LeadQuality } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
@@ -74,7 +74,12 @@ export function adsStepEnqueue(admin: SupabaseClient, env: Env): Enqueue {
   };
 }
 
-export function startAdsOrchestrator(env: Env): void {
+/**
+ * `leadQualityFor` is recruiting's, handed in by `schedulers.ts` (D-AD17). The tick runs no worker and reads no
+ * lead; it needs it only so its workers are the SAME set the job handler builds (`queue/handlers/adsStep.ts`):
+ * `agentHasWork` asks whether a planner exists, and a tick with none would never queue a `planning` campaign.
+ */
+export function startAdsOrchestrator(env: Env, leadQualityFor?: (admin: SupabaseClient) => LeadQuality): void {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
   const brake = brakeFor(env);
   let running = false;
@@ -83,7 +88,7 @@ export function startAdsOrchestrator(env: Env): void {
     running = true;
     try {
       const admin = getSupabaseAdmin(env);
-      const r = await orchestratorTick(admin, adsWorkers({ admin, env, now: () => new Date() }), adsStepEnqueue(admin, env), brake);
+      const r = await orchestratorTick(admin, adsWorkers({ admin, env, now: () => new Date(), leadQuality: leadQualityFor?.(admin) }), adsStepEnqueue(admin, env), brake);
       if (r.queued > 0) console.log(`[ads-orchestrator] ${r.queued} step(s) queued of ${r.campaigns} campaign(s) not at rest${brake ? ` (brake: ${brake})` : ""}`);
     } catch (error) {
       console.error(`[ads-orchestrator] tick failed — ${error instanceof Error ? error.message : String(error)}`);

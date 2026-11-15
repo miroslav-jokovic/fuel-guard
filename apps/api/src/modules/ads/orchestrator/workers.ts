@@ -1,4 +1,4 @@
-import type { CampaignState } from "@silvicom/shared";
+import type { CampaignState, LeadQuality } from "@silvicom/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../../env.js";
 import { guardPlatform, type GuardedPlatform } from "../guard/guardedPlatform.js";
@@ -15,6 +15,8 @@ import { HIGGSFIELD_CREDIT_PRICES } from "../creative/higgsfield/prices.js";
 import { renderChoiceFor } from "../creative/higgsfield/simulatedRender.js";
 import { renderStatus, type RenderInput, type RenderOutcome } from "../creative/higgsfield/render.js";
 import { pgQueueDriver } from "../../../queue/pgDriver.js";
+import { planCampaign } from "../plan/planCampaign.js";
+import { settingsInForce } from "../settings/settingsVersions.js";
 import type { QueueDriver } from "../../../queue/types.js";
 
 /**
@@ -34,6 +36,11 @@ export interface CampaignWorkers {
    * version 1 (`ads_campaign_plans`). Null = this host does not plan, and a draft goes straight to compose.
    */
   plan: ((campaign: CampaignRow, key: string) => Promise<WorkerResult>) | null;
+  /**
+   * Whether THIS carrier's campaigns are planned (Q-APX6): its Strategist switch is on. Asked once, at `draft`.
+   * Absent = every draft is planned when `plan` exists (the runner's own tests, and a host with no settings).
+   */
+  plansFor?: (campaign: CampaignRow) => Promise<boolean>;
   /** C1–C5: copy, art direction, render and checks, one creative per preset. */
   compose: ((campaign: CampaignRow, key: string) => Promise<WorkerResult>) | null;
   /** B2 (the publisher): put the campaign on its platform, paused. Returns the platform's ids. */
@@ -71,9 +78,16 @@ export type WorkerResult = { ok: true } | { ok: false; error: string } | { ok: f
  * B2c2 (2026-11-04) taught lead intake every form id, then filled `createPaused`.
  */
 export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
+  const quality = deps.leadQuality ?? null;
   return {
-    // V2: null until the plan store and the Strategist land (`modules/ads/plan/`). No host plans yet.
-    plan: null,
+    // V2c (2026-11-15): the evidence pack, the Strategist's plan from it, stored as the campaign's next version
+    // (`plan/planCampaign.ts`). Recruiting's lead counts are handed in by the composition root (D-AD17).
+    // A host that was not handed the counts does not plan: null, and its drafts take the road before planning.
+    plan: quality ? (campaign, key) => planCampaign({ admin: deps.admin, client: anthropicClient(deps.env), now: deps.now, quality }, campaign, key) : null,
+    // Q-APX6: planned only where the carrier switched the Strategist on. Every agent starts off (D-RA9), so
+    // with planning unconditional every new campaign would stop at "the Strategist is switched off" the day
+    // this shipped. Off = the road campaigns took before planning existed, unchanged.
+    plansFor: async (campaign) => (await settingsInForce(deps.admin, campaign.org_id)).settings.budgets.agents_enabled.strategist === true,
     // C5b2: the presets drawn, one creative per preset in the batch, each through copy → art → render →
     // overlay → the three checks (`compose/`). The render itself is NOT done here: see `queuedRender`.
     // Which model draws it follows the campaign's connection: a simulator campaign draws in the simulator.
@@ -143,6 +157,8 @@ export interface WorkerDeps {
   admin: SupabaseClient;
   env: Env;
   now: () => Date;
+  /** Recruiting's counts of what ad leads turned out to be, for the plan's evidence (D-AD17: injected, never imported). */
+  leadQuality?: LeadQuality;
 }
 
 /**

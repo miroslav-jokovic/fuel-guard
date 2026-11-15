@@ -65,6 +65,64 @@ export const ADS_CAMPAIGN_WORKERS: Readonly<Record<string, readonly AdsCampaignW
       "worker": "Security (all)",
       "platform": null
     }
+  ],
+  "meta:plannedstill": [
+    {
+      "worker": "Orchestrator",
+      "platform": null
+    },
+    {
+      "worker": "Budget guard",
+      "platform": null
+    },
+    {
+      "worker": "Publisher (per adapter)",
+      "platform": "meta"
+    },
+    {
+      "worker": "Monitor",
+      "platform": null
+    },
+    {
+      "worker": "Lead intake",
+      "platform": null
+    },
+    {
+      "worker": "Copywriter",
+      "platform": null
+    },
+    {
+      "worker": "Art director",
+      "platform": null
+    },
+    {
+      "worker": "Checker",
+      "platform": null
+    },
+    {
+      "worker": "Renderer / Higgsfield client",
+      "platform": null
+    },
+    {
+      "worker": "Analyst",
+      "platform": null
+    },
+    {
+      "worker": "Craft judge",
+      "platform": null
+    },
+    {
+      "worker": "Finished-ad judge",
+      "platform": null
+    },
+    {
+      "worker": "Security (all)",
+      "platform": null
+    },
+    {
+      "worker": "Strategist",
+      "platform": null
+    }
   ]
 };
 
