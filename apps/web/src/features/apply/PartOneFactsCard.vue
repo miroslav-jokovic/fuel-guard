@@ -5,7 +5,7 @@ import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
  * Part 1's facts on a Part 2 screen, read-only, with "Something wrong? Tell us" under them (C3c2c2,
- * Q-AW34). The screens decide WHICH facts (`ApplicantDetailsFields`, `LicenceFields`); this is how they
+ * Q-AW34). The screens decide WHICH facts (`TaskWalk` for "About you", `LicenceFields`); this is how they
  * look, once, so the two screens cannot drift into two presentations of the same kind of fact.
  */
 defineProps<{ rows: ReadonlyArray<{ label: string; value: string }> }>();

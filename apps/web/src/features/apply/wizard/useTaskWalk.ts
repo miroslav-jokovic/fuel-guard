@@ -73,7 +73,7 @@ export interface WalkStep {
   readonly partOne?: true;
 }
 
-/** The tasks that end on Part 1's answers — `ApplicantDetailsFields`' card, on a v2 link. */
+/** The tasks that end on Part 1's answers — `PartOneFactsCard`, on a screen of its own. */
 const PART_ONE_SHOWN: readonly ApplicationSection[] = ["identity"];
 
 interface WalkWizard {

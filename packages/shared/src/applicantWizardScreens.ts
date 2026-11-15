@@ -133,7 +133,7 @@ export interface FactAsk {
    * This yes/no answers whether a list has rows — "In the last 3 years, were you in any accident?" over
    * `accidents` (SCREEN-MAP §1: "yes/no gates first; loops only on Yes"). The fact stored is the
    * list's "none" declaration (`declares_no_accidents`), so the question is its inverse: No declares
-   * none and clears the list, Yes opens the list's first row (`SafetyHistoryFields`' rule since
+   * none and clears the list, Yes opens the list's first row (the legacy driving-record screen's rule since
    * C3c2c1, kept). Unanswered is "not declared none, and no rows".
    */
   readonly gate?: string;

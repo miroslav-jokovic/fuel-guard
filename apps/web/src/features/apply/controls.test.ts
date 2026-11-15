@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import { createPinia } from "pinia";
 import { reactive } from "vue";
 import { questionnaireForApplicant } from "@silvicom/shared";
 import { QuestionList } from "@/features/apply/questionListHarness";
-import ApplyEmploymentFields from "./ApplyEmploymentFields.vue";
-import { emptyDraft, emptyEquipment, type ApplicationDraft } from "./draft";
+import { emptyDraft } from "./draft";
 
 /**
  * The applicant's form is built from the SAME controls as the rest of the product.
@@ -95,29 +93,5 @@ describe("the carrier's own questions", () => {
     const onQuestions = questionnaire.questions.filter((q) => (q.screen ?? "questions") === "questions" && !q.askedWhen);
     const text = screen("questions").text();
     for (const q of onQuestions) expect(text).toContain(q.label);
-  });
-});
-
-describe("the equipment grid", () => {
-  const withRow = (): ApplicationDraft => {
-    const d = emptyDraft();
-    d.equipment_experience = [{ ...emptyEquipment(), equipment_class: "tractor_semi_trailer" }];
-    return d;
-  };
-
-  const SlideOverStub = {
-    template: "<div v-if='open'><slot /><slot name='footer' /></div>",
-    props: ["open", "title", "size", "description"],
-  };
-
-  it("chooses a class of equipment with the forms control", () => {
-    const w = mount(ApplyEmploymentFields, {
-      props: { modelValue: withRow(), asOf: "2026-09-26" },
-      // The employer panel's Remove asks through `useConfirm`, a pinia store (HW5b).
-      global: { plugins: [createPinia()], stubs: { SlideOver: SlideOverStub } },
-    });
-    expect(w.findAll("select")).toHaveLength(0);
-    // And it shows the choice back as its label, not as the stored token.
-    expect(w.text()).not.toContain("tractor_semi_trailer");
   });
 });

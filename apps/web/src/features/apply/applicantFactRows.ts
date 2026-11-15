@@ -366,7 +366,7 @@ function byRow(rows: FactRow[]): FactRow[] {
 
 /**
  * The card's control for one of the carrier's own questions: the one the applicant's form answered it
- * with (`QuestionnaireFields`). ⚠ A date and a number are typed into a plain box there and stored as typed,
+ * with (`QuestionField`). ⚠ A date and a number are typed into a plain box there and stored as typed,
  * so they are here too — a date picker would write a different string than the one the applicant's form
  * reads back, and the two would stop matching (D-AM7).
  */

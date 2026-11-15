@@ -33,7 +33,7 @@ const props = defineProps<{
   dateKind?: TypedDateKind;
   /**
    * An optional question's stored skip ("I'd rather not say"). Ticked, the control is put away and the
-   * answer IS the skip's words — the applicant's form does exactly this (`QuestionnaireFields`), so an
+   * answer IS the skip's words — the applicant's form does exactly this (`QuestionField`), so an
    * answer and a skip are never both on file. Unticked, the answer starts empty.
    */
   skip?: FactChoice;

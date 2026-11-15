@@ -24,7 +24,7 @@ import type { FieldCopy, WizardBinding } from "./wizardBinding";
  *
  * ── TWO RULES, BOTH READ FROM THE CATALOGUE ───────────────────────────────────────────────────
  * - **A gate** (`FactAsk.gate`) answers whether its list has rows, and stores the list's "none"
- *   declaration: No declares none and clears the list; Yes opens the first row. `SafetyHistoryFields`'
+ *   declaration: No declares none and clears the list; Yes opens the first row. the legacy driving-record screen's
  *   rule since C3c2c1, kept — a hidden row that still files beside "there were none" is the worse defect.
  * - **An answer that closes a conditional screen clears it.** A screen asked `when` another answer is X
  *   is emptied when that answer stops being X — "No" to "ever denied?" empties the description, as the
@@ -65,7 +65,7 @@ export const DRIVER_POSITION = "Driver";
 
 /**
  * The gaps a filing asks about, as the draft's rows — re-keyed whenever a job's dates move, so the walk's
- * gap screens are exactly the gaps `applicationV2FilingIssues` refuses on (`ApplyEmploymentFields`' watch,
+ * gap screens are exactly the gaps `applicationV2FilingIssues` refuses on (the legacy job list's watch,
  * moved here with the task). Writes only when something changed, so opening the task dirties nothing.
  */
 export function settleEmploymentGaps(draft: ApplicationDraft, asOf: string | null): void {
@@ -293,7 +293,7 @@ export function draftBinding(
       const jobs = draft().employers;
       if (jobs.some(employerIsBlank)) draft().employers = jobs.filter((e) => !employerIsBlank(e));
     },
-    // One address, by the server's own row schema, with the paths the page's own (`AddressDrawer`'s rule).
+    // One address, by the server's own row schema, with the paths the page's own (the legacy address panel's rule).
     rowIssues: (list, row) => {
       // One gap, by the filing's own rule. Asked here because the task's check reaches the filing's rules
       // only once the contract's are satisfied, and a gap's screen comes before the task can be.
