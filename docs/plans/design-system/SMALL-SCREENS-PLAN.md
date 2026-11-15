@@ -349,3 +349,32 @@ Table layout at desk widths. New data on any card.
     assistant's own plan); `/chat` for an org without the module is a white page, not the canvas.
   - Still not looked at: drawers and forms while open, the shop on a real tablet, the admin
     console, the failed and empty fixtures, dark mode.
+- **2026-11-15, the remaining audits** (owner: "proceed with the remaining audits"; branch
+  `claude/small-screens-audit-fixes`). All on staging as the staging admin unless said.
+  - **Every read failing**, 103 routes at 390 px (data reads answered 500, the session and the
+    shell's reads left alone, 7 s settle): no page scrolls sideways. Not a layout finding, noted for
+    whoever owns it: Fuel alerts was still on its loading skeleton after 9 s.
+  - **Dark mode**, 103 routes at 390 px: no page scrolls sideways; the record cards, the strip and
+    the Needs action card read correctly on the eight pages looked at.
+  - **The shop under the touch floor** (a coarse pointer at 1024 and 820 px), 13 routes: nothing
+    leaves the screen. Staging holds no shop rows, so this is layout, not data; a real tablet in
+    the bay is still the owner's to hold.
+  - **Empty state:** staging itself is the empty fixture for Fuel cards, Loads, Applicants,
+    Declines, Defects and Work orders; each draws its sentence inside its card. A stubbed
+    every-read-empty pass was not built: a blank answer has a different shape per endpoint.
+  - **Drawers, forms and menus open at 390 px**, 16 of them (New driver, New vehicle, Reconcile,
+    Audit binders, Home time, Notes on a driver and a truck, Invite an applicant, the board's truck
+    drawer, Correct mileage, Customize, the sidebar, the bell, Ask AI, the filter sheet, a row
+    menu): none overflows. Two faults, fixed here:
+    1. Reconcile with Samsara — the driver's name on each "link by hand" row truncated to nothing
+       beside its picker, six pickers with nobody named. The row wraps and the name has a floor.
+    2. Correct mileage — its two footer buttons sat bare at the left edge, touching. It now draws
+       the footer the other drawers draw. (41 drawers write that same wrapper by hand; a footer
+       layout owned by `SlideOver` would be the one definition. Not done here.)
+  - **The live map** at 390 px: draws, its fleet chip and controls inside the screen.
+  - **The platform console** — viewed for the first time: built locally and opened with a made-up
+    local session over a stubbed API (it needs a platform login with a second factor), at 390 and
+    768 px. Overview, Customers, a customer and Settings take the card kit and nothing overflows.
+    One fault, fixed here: the alert-recipients card was titled "Email" and broke the address
+    mid-word in a third of the card; the address is now the title.
+  - Seen and left, as before: the Ask AI launcher over a control mid-page (M9).
