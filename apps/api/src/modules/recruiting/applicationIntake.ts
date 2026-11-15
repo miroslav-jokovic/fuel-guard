@@ -138,7 +138,7 @@ interface InvitationRow {
 }
 
 /** `invite` = `token_hash`, `sign` = `sign_token_hash`, `text` = `sms_token_hash` (0378). */
-export type InvitationDoor = "invite" | "sign" | "text";
+export type InvitationDoor = "invite" | "sign" | "text" | "documents";
 
 /**
  * Did this token come through a door the office's Send for signing governs? (D-AW14, C3s3a)
@@ -305,6 +305,43 @@ export async function resolveInvitation(
   const resolved = { ...row, door };
   if (isSentSignDoor(resolved) && sentLinkLapsed(resolved, now)) return dead;
   return resolved;
+}
+
+/**
+ * Resolve a DOCUMENTS-ONLY link's token (Q-AM19, 0608) — a resolver of its own, on purpose.
+ *
+ * ── WHY NOT A FOURTH BRANCH OF `resolveInvitation` ────────────────────────────────────────────
+ * That function is what every route on the link calls, so a token it accepts can read a draft, answer
+ * the date-of-birth question, sign a permission and mark the packet. This link must do none of those:
+ * it is sent after the application's own link has lapsed, and it lives on its OWN end
+ * (`docs_link_expires_at`), not the invitation's. A token that outlives the application and could do
+ * everything the application's link does would undo the reason the application's link lapses. So the
+ * token is known here and nowhere else, and only the photograph routes and the bundle call this.
+ *
+ * Same refusal as every dead link, for the same reason: expired, revoked and never-existed are one
+ * answer. ⚠ The invitation's own `expires_at` is deliberately NOT read.
+ */
+export async function resolveDocumentsLink(
+  admin: SupabaseClient,
+  token: string,
+  now: Date,
+): Promise<(InvitationRow & { docs_link_expires_at: string }) | IntakeError> {
+  const hash = hashInvitationToken(token);
+  const dead = { code: "invalid_link", message: "This application link is not valid. Ask for a new one." };
+  const { data } = await admin
+    .from("application_invitations")
+    .select(
+      "id, org_id, driver_id, docs_token_hash, docs_link_expires_at, revoked_at, consented_at, intake_completed_at, "
+      + "releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at",
+    )
+    .eq("docs_token_hash", hash)
+    .maybeSingle();
+  const row = data as (InvitationRow & { docs_token_hash?: string | null; docs_link_expires_at?: string | null }) | null;
+  // Compared again in constant time, and only a real digest may reach the compare (`presentedTokenMatches`).
+  if (!row || !isHash(row.docs_token_hash) || !hashEquals(row.docs_token_hash, hash)) return dead;
+  if (row.revoked_at) return dead;
+  if (!row.docs_link_expires_at || Date.parse(row.docs_link_expires_at) <= now.getTime()) return dead;
+  return { ...row, docs_link_expires_at: row.docs_link_expires_at, door: "documents" };
 }
 
 /**

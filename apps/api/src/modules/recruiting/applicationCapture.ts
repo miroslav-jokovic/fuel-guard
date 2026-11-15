@@ -24,6 +24,7 @@ import {
   APPLICATION_NOT_SENT,
   isIntakeError,
   requireEsignConsent,
+  resolveDocumentsLink,
   resolveInvitation,
   type IntakeError,
 } from "./applicationIntake.js";
@@ -83,7 +84,10 @@ async function openSession(
   now: Date,
   slot: ApplicationCaptureSlot,
 ): Promise<{ id: string; org_id: string; driver_id: string } | IntakeError> {
-  const invitation = await resolveInvitation(admin, token, now);
+  // Q-AM19 (0608): a photograph may also arrive on the documents-only link, whose token only its own
+  // resolver knows. Tried second, so the application's own links cost no extra read.
+  const onApplication = await resolveInvitation(admin, token, now);
+  const invitation = isIntakeError(onApplication) ? await resolveDocumentsLink(admin, token, now) : onApplication;
   if (isIntakeError(invitation)) return invitation;
   // The carrier's published wording, not the code's placeholders — see `requireEsignConsent`, whose
   // default made this line a no-op from A4 until 2026-09-13.

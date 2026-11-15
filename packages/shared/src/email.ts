@@ -313,6 +313,33 @@ export function renderApplicationQuestionEmail(carrier: string): RenderedEmail {
 }
 
 /**
+ * "Send us your documents" — the documents-only link (Q-AM19, 0608).
+ *
+ * ⚠ This one DOES carry a link, where the question and approval notices cannot: its token is minted by
+ * the send that mails it, so the plaintext exists at this moment and at no other. The link opens the
+ * photo list and nothing else (`applicationDocumentsLinkContract.ts`), which is why it is safe to mail.
+ */
+export function renderDocumentsLinkEmail(carrier: string, link: string, expiresInDays: number): RenderedEmail {
+  const subject = `${carrier} needs photos of your documents`;
+  const days = `${expiresInDays} ${expiresInDays === 1 ? "day" : "days"}`;
+  const html =
+    `<div style="font-family:system-ui,sans-serif;color:#111">`
+    + `<h2 style="margin:0 0 8px">${esc(carrier)} needs photos of your documents</h2>`
+    + `<p style="color:#555">Open this link on your phone and photograph the ones you have. `
+    + `It opens only the photo list: no questions, and nothing to sign.</p>`
+    + `<p style="margin:20px 0"><a href="${esc(link)}" style="background:#4f46e5;color:#fff;`
+    + `padding:10px 16px;border-radius:6px;text-decoration:none">Send my documents →</a></p>`
+    + `<p style="color:#888;font-size:12px">The link works for ${days}. If it stops working, ask ${esc(carrier)} to send it again.</p>`
+    + `</div>`;
+  const text =
+    `${carrier} needs photos of your documents.\n\n`
+    + `Open this link on your phone and photograph the ones you have. It opens only the photo list: no `
+    + `questions, and nothing to sign.\n\n${link}\n\n`
+    + `The link works for ${days}. If it stops working, ask ${carrier} to send it again.`;
+  return { subject, html, text };
+}
+
+/**
  * The sign link, sent by the office while the driver is there (D-AW14, C3s3a).
  *
  * A fourth sibling, because it says a fourth thing: *sign it now, on this phone, and this link is short-

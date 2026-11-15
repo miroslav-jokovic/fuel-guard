@@ -8,12 +8,13 @@ import { applicantVisibleEdits } from "../applicationHandoff.js";
 import { loadCarrierWording } from "../carrierWording.js";
 import { loadDraft } from "../applicationDraft.js";
 import { esignConsentForApplicant } from "../esignConsent.js";
-import { isIntakeError, phasesOf, resolveInvitation } from "../applicationIntake.js";
+import { isIntakeError, phasesOf, resolveDocumentsLink, resolveInvitation } from "../applicationIntake.js";
 import { releasesForApplicant, signedReleases } from "../applicationReleases.js";
 import { adoptedPacketMarks, packetStops } from "../applicationPacketMarks.js";
 import { identityOnFile } from "../applicantIdentity.js";
 import { partOneStatus } from "../applicantIntake.js";
 import { openAskAgainsForApplicant } from "../applicationAskAgain.js";
+import { documentsLinkBundle } from "../applicationDocumentsLink.js";
 import { FCRA_SUMMARY } from "../fcraSummary.js";
 import { latestRoadTestCertificate } from "../applicationRoadTestCopy.js";
 import { linkHandbookStatus } from "../handbookCeremony.js";
@@ -55,7 +56,15 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
   const admin = getSupabaseAdmin(getAppLocals(req).env);
   const invitation = await resolveInvitation(admin, String(req.params.token ?? ""), new Date());
   if (isIntakeError(invitation)) {
-    res.status(404).json(apiError(invitation.code, invitation.message));
+    // Q-AM19 (0608): not one of the application's links — is it a documents-only link? That bundle is
+    // its own, small shape: the carrier, the list, what is already photographed. Never a phase, an
+    // answer or an instrument, because nothing on that link may act on them.
+    const documents = await resolveDocumentsLink(admin, String(req.params.token ?? ""), new Date());
+    if (isIntakeError(documents)) {
+      res.status(404).json(apiError(invitation.code, invitation.message));
+      return;
+    }
+    res.json(await documentsLinkBundle(admin, documents, localCopyKey(documents.id)));
     return;
   }
 
