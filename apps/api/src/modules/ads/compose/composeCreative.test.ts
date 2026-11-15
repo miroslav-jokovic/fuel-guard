@@ -127,6 +127,30 @@ function harness(opts: { settings?: AdsSettings; judge?: (n: number) => unknown;
 }
 
 describe("composeCreative — a creative from copy to ready (C5b)", () => {
+  it("a planned campaign's idea reaches the Copywriter with its proof and the Art director without it; the craft judge and the checker are not told", async () => {
+    const sentTo = (h: ReturnType<typeof harness>) => Object.fromEntries(h.create.mock.calls.map((c) => {
+      const body = c[0] as unknown as { tools: Array<{ name: string }>; messages: Array<{ content: string | Array<{ type: string; text?: string }> }> };
+      const content = body.messages[0]!.content;
+      return [body.tools[0]!.name, typeof content === "string" ? content : content.map((b) => b.text ?? "").join("")];
+    }));
+    const h = harness();
+    expect(await h.run({ angle: { idea: "Lead with being home every week.", proof: "The opening lists home weekly." } })).toEqual({ kind: "ready" });
+    const sent = sentTo(h);
+    expect((JSON.parse(sent.write_copy!) as { plan: unknown }).plan).toEqual({ idea: "Lead with being home every week.", proof: "The opening lists home weekly." });
+    expect((JSON.parse(sent.direct_art!) as { idea: unknown }).idea).toBe("Lead with being home every week.");
+    expect(sent.direct_art).not.toContain("The opening lists home weekly.");
+    // Every other model asked on the way — the craft judge and the visual check here — is sent nothing of the plan.
+    const others = Object.keys(sent).filter((tool) => tool !== "write_copy" && tool !== "direct_art");
+    expect(others.sort()).toEqual(["judge_copy", "report_checks"]);
+    for (const tool of others) expect(sent[tool], tool).not.toMatch(/Lead with being home|The opening lists home weekly/);
+
+    // Not planned: both writers are told there is no idea, in so many words.
+    const plain = harness();
+    await plain.run();
+    expect((JSON.parse(sentTo(plain).write_copy!) as { plan: unknown }).plan).toBeNull();
+    expect((JSON.parse(sentTo(plain).direct_art!) as { idea: unknown }).idea).toBeNull();
+  });
+
   it("a render still drawing answers pending and ends nothing; when it is stored the creative is ready with every format and language", async () => {
     let drawn = false;
     const h = harness({ render: (i) => (drawn ? { kind: "stored", generationId: "r", assets: [RENDERED], replayed: false } : { kind: "pending", generationId: "r", retryAfterSeconds: 5, why: `queued ${i.attempt}` }) });

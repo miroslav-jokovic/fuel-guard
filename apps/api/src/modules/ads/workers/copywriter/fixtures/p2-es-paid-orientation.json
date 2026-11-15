@@ -79,56 +79,57 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:44:42.854Z",
+    "recorded_at": "2026-11-15T21:03:45.575Z",
     "output": {
       "candidates": [
         {
           "en": {
             "pay": "$12,000 per week",
             "cta": "Apply today",
-            "primary_text": "$12,000 per week, for drivers with a new Class A license. Orientation is paid, and your pay comes every week. Apply today.",
-            "headline": "New Class A license?"
+            "primary_text": "$12,000 per week. This job is for you if you just got your Class A CDL. Orientation is paid, and pay comes every week. Apply today and talk to our team.",
+            "headline": "New Class A drivers"
           },
           "es": {
             "pay": "$12,000 por semana",
             "cta": "Aplica hoy",
-            "primary_text": "$12,000 por semana, si acabas de sacar tu licencia Clase A. La orientación es pagada y te pagan cada semana. Aplica hoy.",
-            "headline": "¿Licencia Clase A nueva?"
-          }
-        },
-        {
-          "en": {
-            "pay": "$12,000 a week",
-            "cta": "Start here",
-            "primary_text": "Just got your Class A? Orientation is paid. After that, you make $12,000 per week, and you get paid every week.",
-            "headline": "Paid orientation"
-          },
-          "es": {
-            "pay": "$12,000 a la semana",
-            "cta": "Empieza aquí",
-            "primary_text": "¿Acabas de sacar tu Clase A? La orientación es pagada. Después ganas $12,000 por semana y te pagan cada semana.",
-            "headline": "Orientación pagada"
+            "primary_text": "$12,000 por semana. Este trabajo es para ti si acabas de sacar tu licencia Clase A. La orientación es pagada y el pago llega cada semana. Aplica hoy y habla con nuestro equipo.",
+            "headline": "Licencia Clase A nueva"
           }
         },
         {
           "en": {
             "pay": "$12,000 per week",
             "cta": "Apply now",
-            "primary_text": "Here is the deal. You have a new Class A license. We pay you through orientation. Then you make $12,000 per week, paid weekly. Send your application.",
-            "headline": "Pay every week"
+            "primary_text": "You get paid every week, starting with a paid orientation. The rate is $12,000 per week, and the job is open to drivers with a new Class A CDL. Send your application and we will call you.",
+            "headline": "Paid every week"
           },
           "es": {
             "pay": "$12,000 por semana",
             "cta": "Aplica ya",
-            "primary_text": "Así de claro. Tienes tu Clase A recién sacada. Te pagamos la orientación. Luego ganas $12,000 por semana, con pago semanal. Manda tu solicitud.",
+            "primary_text": "Cobras cada semana, empezando con la orientación, que también es pagada. Son $12,000 por semana, y el puesto es para quien acaba de sacar su licencia Clase A. Manda tu solicitud y te llamamos.",
             "headline": "Pago cada semana"
+          }
+        },
+        {
+          "en": {
+            "pay": "$12,000 per week",
+            "cta": "Apply here",
+            "primary_text": "Just got your Class A license? Your first days are orientation, and you are paid for them. After that it is $12,000 per week, paid weekly. Fill out the application and we will go over the rest.",
+            "headline": "Orientation is paid"
+          },
+          "es": {
+            "pay": "$12,000 por semana",
+            "cta": "Aplica aquí",
+            "primary_text": "¿Acabas de sacar tu licencia Clase A? Tus primeros días son de orientación y se pagan. Después son $12,000 por semana, con pago semanal. Llena la solicitud y vemos lo demás.",
+            "headline": "Orientación pagada"
           }
         }
       ]

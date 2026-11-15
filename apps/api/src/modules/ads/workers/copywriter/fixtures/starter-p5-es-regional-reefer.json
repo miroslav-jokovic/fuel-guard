@@ -117,61 +117,62 @@
       "scene_family": "equipment_on_road"
     },
     "company_name": "Silvicom Inc",
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T00:17:52.841Z",
+    "recorded_at": "2026-11-15T21:38:59.492Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$0.64 to $0.72 per mile",
             "cta": "Apply today",
-            "primary_text": "Regional reefer runs from Chicago to Texas. $0.64 to $0.72 per mile, weekly pay, and you are home weekly. Dispatch speaks Spanish. Apply with Silvicom Inc today.",
-            "headline": "Reefer, Chicago to Texas",
+            "primary_text": "Silvicom Inc pays $0.64 to $0.72 per mile on regional reefer runs, Chicago to Texas. No-touch freight and weekly pay. Our dispatch speaks Spanish.",
+            "headline": "Class A reefer, regional",
             "second_line": "Home weekly"
           },
           "es": {
             "hook": "$0.64 a $0.72 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Rutas regionales de refrigerado, de Chicago a Texas. De $0.64 a $0.72 por milla, pago semanal y en casa cada semana. El despacho habla español. Aplica hoy con Silvicom Inc.",
-            "headline": "Reefer de Chicago a Texas",
+            "primary_text": "Silvicom Inc paga de $0.64 a $0.72 por milla en rutas regionales de reefer, de Chicago a Texas. Carga sin tocar y pago semanal. Nuestro despacho habla español.",
+            "headline": "Reefer Clase A, regional",
             "second_line": "Casa cada semana"
           }
         },
         {
           "en": {
-            "hook": "Home weekly",
+            "hook": "Up to $0.72 per mile",
             "cta": "Apply now",
-            "primary_text": "You are home weekly and paid weekly. Regional reefer runs, Chicago to Texas, at $0.64 to $0.72 per mile. Dispatch at Silvicom Inc speaks Spanish. Class A drivers, apply now.",
-            "headline": "Paid weekly, Class A reefer",
-            "second_line": "$0.64-$0.72/mile"
+            "primary_text": "You are home weekly. Regional reefer runs between Chicago and Texas, $0.64 to $0.72 per mile, paid every week by Silvicom Inc. Our dispatch speaks Spanish.",
+            "headline": "Home weekly on reefer runs",
+            "second_line": "Weekly pay"
           },
           "es": {
-            "hook": "En casa cada semana",
+            "hook": "Hasta $0.72 por milla",
             "cta": "Aplica ya",
-            "primary_text": "Estás en casa cada semana y cobras cada semana. Rutas regionales de refrigerado, de Chicago a Texas, de $0.64 a $0.72 por milla. En Silvicom Inc el despacho habla español. Aplica ya.",
-            "headline": "Pago semanal, refrigerado",
-            "second_line": "$0.64-$0.72/milla"
+            "primary_text": "Estás en casa cada semana. Rutas regionales de reefer entre Chicago y Texas, de $0.64 a $0.72 por milla, con pago semanal en Silvicom Inc. Nuestro despacho habla español.",
+            "headline": "En casa cada semana",
+            "second_line": "Pago semanal"
           }
         },
         {
           "en": {
-            "hook": "Chicago to Texas, reefer",
-            "cta": "Apply now",
-            "primary_text": "Reefer, regional, Chicago to Texas. No-touch freight at $0.64 to $0.72 per mile. Our dispatch speaks Spanish. You need a Class A and to be 23+. Apply with Silvicom Inc.",
-            "headline": "Class A reefer, regional",
+            "hook": "Reefer, up to $0.72/mile",
+            "cta": "Join our team",
+            "primary_text": "Reefer freight from Chicago to Texas on regional runs. No-touch freight: you drive, you don't unload. Silvicom Inc pays $0.64 to $0.72 per mile. Age 23+. Our dispatch speaks Spanish.",
+            "headline": "Chicago to Texas reefer",
             "second_line": "No-touch freight"
           },
           "es": {
-            "hook": "Reefer, Chicago a Texas",
-            "cta": "Aplica ahora",
-            "primary_text": "Refrigerado regional, de Chicago a Texas. Carga sin tocar, de $0.64 a $0.72 por milla. Nuestro despacho habla español. Necesitas Clase A y ser mayor de 23 años. Aplica con Silvicom Inc.",
-            "headline": "Clase A regional, reefer",
+            "hook": "Hasta $0.72/milla, reefer",
+            "cta": "Únete al equipo",
+            "primary_text": "Carga refrigerada de Chicago a Texas, en rutas regionales. Carga sin tocar: tú manejas, no descargas. Silvicom Inc paga de $0.64 a $0.72 por milla. Mayores de 23. Despacho en español.",
+            "headline": "Reefer de Chicago a Texas",
             "second_line": "Carga sin tocar"
           }
         }

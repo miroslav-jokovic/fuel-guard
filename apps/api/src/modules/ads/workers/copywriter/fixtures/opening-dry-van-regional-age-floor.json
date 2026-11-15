@@ -104,55 +104,56 @@
       }
     },
     "company_name": "Silvicom Inc",
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:33:48.719Z",
+    "recorded_at": "2026-11-15T20:52:21.729Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Dry van, up to $1,900",
+            "hook": "Dry van, $1,600 a week",
             "cta": "Apply today",
-            "primary_text": "Drive a dry van on regional Midwest runs with Silvicom Inc. Pay runs $1,600 to $1,900 per week, and you are home weekly. Health insurance is included. Age 23+.",
-            "headline": "$1,600 to $1,900 per week"
+            "primary_text": "Drive a dry van on regional runs across the Midwest. Pay runs $1,600 to $1,900 per week, and you are home weekly. Class A, 23+. Apply with Silvicom Inc.",
+            "headline": "$1,600 to $1,900 a week"
           },
           "es": {
-            "hook": "Dry van, hasta $1,900",
+            "hook": "Dry van, $1,600 semanal",
             "cta": "Aplica hoy",
-            "primary_text": "Maneja dry van en rutas regionales del Medio Oeste con Silvicom Inc. Ganas de $1,600 a $1,900 por semana y estás en casa cada semana. Incluye seguro médico. Mayores de 23.",
+            "primary_text": "Maneja caja seca en rutas regionales por el Medio Oeste. Pagamos de $1,600 a $1,900 por semana y estás en casa cada semana. Clase A, mayores de 23.",
             "headline": "$1,600 a $1,900 por semana"
           }
         },
         {
           "en": {
             "hook": "Dry van, home weekly",
-            "cta": "Apply now",
-            "primary_text": "Regional dry van runs across the Midwest, and you are home weekly. Earn $1,600 to $1,900 per week with Silvicom Inc. Health insurance, plus dental and vision. Age 23+.",
+            "cta": "Apply today",
+            "primary_text": "Regional dry van runs in the Midwest, and you are home weekly. Pay is $1,600 to $1,900 per week, with health insurance plus dental and vision. Class A, 23+.",
             "headline": "Home weekly, Midwest runs"
           },
           "es": {
             "hook": "Dry van, en casa semanal",
-            "cta": "Aplica ahora",
-            "primary_text": "Rutas regionales de dry van en el Medio Oeste, y estás en casa cada semana. Gana de $1,600 a $1,900 por semana con Silvicom Inc. Seguro médico, dental y visión. Mayores de 23.",
+            "cta": "Aplica hoy",
+            "primary_text": "Rutas regionales en caja seca por el Medio Oeste, y estás en casa cada semana. Pagamos de $1,600 a $1,900 por semana, con seguro médico, dental y de visión. Clase A, mayores de 23.",
             "headline": "En casa cada semana"
           }
         },
         {
           "en": {
-            "hook": "Dry van, Midwest lanes",
-            "cta": "Apply today",
-            "primary_text": "Here is the job. You run a dry van on regional Midwest lanes for Silvicom Inc. You are home weekly. Pay is $1,600 to $1,900 per week, with dental and vision. Age 23+.",
+            "hook": "Dry van up to $1,900/wk",
+            "cta": "Call us",
+            "primary_text": "Silvicom Inc runs dry van freight on regional lanes across the Midwest. You haul it, you're home weekly, and you earn up to $1,900 per week. Class A, 23+. Call us.",
             "headline": "Silvicom Inc is hiring"
           },
           "es": {
-            "hook": "Dry van, Medio Oeste",
-            "cta": "Aplica hoy",
-            "primary_text": "Manejas dry van en rutas regionales del Medio Oeste para Silvicom Inc. Estás en casa cada semana. Pago de $1,600 a $1,900 por semana, con dental y visión. Mayores de 23.",
+            "hook": "Dry van, hasta $1,900",
+            "cta": "Llámanos",
+            "primary_text": "Silvicom Inc mueve carga en caja seca por rutas regionales del Medio Oeste. Tú la llevas, estás en casa cada semana y ganas hasta $1,900 por semana. Clase A, mayores de 23.",
             "headline": "Silvicom Inc contrata"
           }
         }

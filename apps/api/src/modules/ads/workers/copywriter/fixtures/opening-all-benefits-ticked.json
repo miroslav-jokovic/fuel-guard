@@ -152,56 +152,57 @@
       }
     },
     "company_name": "Silvicom Inc",
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:32:54.888Z",
+    "recorded_at": "2026-11-15T20:51:35.120Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "$0.70–$0.76 per mile",
+            "hook": "Dry van, $0.70/mile",
             "cta": "Apply today",
-            "primary_text": "Drive a late-model automatic on regional dry van runs in the Midwest. You earn $0.70 to $0.76 per mile, with weekly pay. Drop and hook freight.",
-            "headline": "Silvicom Inc is hiring"
+            "primary_text": "Drive a late-model automatic on regional dry van runs across the Midwest. Earn $0.70 to $0.76 per mile, paid weekly. Home weekly. Class A, 23+.",
+            "headline": "$0.70 to $0.76 per mile"
           },
           "es": {
-            "hook": "$0.70–$0.76 por milla",
+            "hook": "Caja seca, $0.70/milla",
             "cta": "Aplica hoy",
-            "primary_text": "Maneja un automático de modelo reciente en rutas regionales de caja seca en el Medio Oeste. Ganas de $0.70 a $0.76 por milla, con pago semanal.",
-            "headline": "Silvicom Inc contrata"
+            "primary_text": "Camión automático reciente, caja seca, rutas regionales del Medio Oeste. De $0.70 a $0.76 por milla, pago semanal. En casa cada semana. Clase A, mayores de 23.",
+            "headline": "$0.70 a $0.76 por milla"
           }
         },
         {
           "en": {
             "hook": "Dry van, home weekly",
             "cta": "Apply now",
-            "primary_text": "Regional dry van runs across the Midwest, and you are home weekly. Dedicated freight, drop and hook. Paid time off and a rider policy too.",
-            "headline": "Class A drivers, 23+"
+            "primary_text": "Regional dry van runs across the Midwest, and you're home weekly. Drop and hook, no-touch freight. $0.70 to $0.76 per mile with weekly pay. Join Silvicom Inc.",
+            "headline": "Home weekly, Midwest runs"
           },
           "es": {
-            "hook": "En casa cada semana",
+            "hook": "Dry van, en casa semanal",
             "cta": "Aplica ya",
-            "primary_text": "Rutas regionales de caja seca en el Medio Oeste. Estás en casa cada semana. Carga dedicada con drop and hook. Tiempo libre pagado.",
-            "headline": "Clase A, mayores de 23"
+            "primary_text": "Rutas regionales de caja seca en el Medio Oeste, y estás en casa cada semana. Drop and hook, carga sin tocar. De $0.70 a $0.76 por milla, pago semanal. Únete a Silvicom Inc.",
+            "headline": "En casa cada semana"
           }
         },
         {
           "en": {
             "hook": "Late-model automatics",
-            "cta": "Get started",
-            "primary_text": "You drive a late-model automatic, haul no-touch dry van freight and run regional in the Midwest. Paid orientation, guaranteed pay and health insurance.",
-            "headline": "Dry van with Silvicom Inc"
+            "cta": "Apply today",
+            "primary_text": "You get a late-model automatic and dry van loads on regional Midwest runs. No-touch freight, drop and hook. Guaranteed pay, health, dental and vision, and a 401k.",
+            "headline": "Silvicom Inc is hiring"
           },
           "es": {
-            "hook": "Camión automático",
-            "cta": "Empieza hoy",
-            "primary_text": "Manejas un automático de modelo reciente, carga de caja seca sin tocar, rutas regionales en el Medio Oeste. Orientación pagada, pago garantizado y seguro médico.",
-            "headline": "Caja seca con Silvicom Inc"
+            "hook": "Automáticos recientes",
+            "cta": "Aplica hoy",
+            "primary_text": "Manejas un automático reciente con caja seca en rutas regionales del Medio Oeste. Carga sin tocar, drop and hook. Pago garantizado, seguro médico, dental y visión, 401k.",
+            "headline": "Silvicom Inc contrata"
           }
         }
       ]

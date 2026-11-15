@@ -76,56 +76,57 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:42:22.489Z",
+    "recorded_at": "2026-11-15T21:01:07.019Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Sunrise. $2,500 per week.",
+            "hook": "Sunrise. $2,500 a week",
             "cta": "Apply today",
-            "primary_text": "You take the wheel at first light and your co-driver rests. Class A team driving pays $2,500 per week, and you get paid every week. Apply today.",
+            "primary_text": "You take the wheel at first light while your co-driver rests. Class A team driving pays $2,500 per week, and the pay lands every week. Apply today.",
             "headline": "Class A teams: $2,500/week"
           },
           "es": {
-            "hook": "Amanece. $2,500 por semana.",
+            "hook": "Amanece. $2,500 por semana",
             "cta": "Aplica hoy",
-            "primary_text": "Agarras el volante al amanecer y tu compañero descansa. Manejo en equipo Clase A: $2,500 por semana, con pago semanal. Aplica hoy.",
+            "primary_text": "Tomas el volante al amanecer mientras tu compañero descansa. Manejando en equipo Clase A ganas $2,500 por semana, con pago semanal. Aplica hoy.",
             "headline": "$2,500 por semana en equipo"
           }
         },
         {
           "en": {
-            "hook": "Dawn. Paid every week.",
+            "hook": "Dawn run, paid every week",
             "cta": "Get started",
-            "primary_text": "You roll out at dawn with your team partner. Pay comes every week: $2,500 per week for Class A team drivers. No waiting on a paycheck.",
+            "primary_text": "You roll out at dawn with your co-driver and the miles add up. Your check comes every week: $2,500 per week for Class A team drivers. Apply today.",
             "headline": "Weekly pay, Class A teams"
           },
           "es": {
-            "hook": "Amanece. Pago cada semana.",
-            "cta": "Empieza aquí",
-            "primary_text": "Sales al amanecer con tu compañero de equipo. Te pagan cada semana: $2,500 por semana para choferes Clase A en equipo. Sin esperar el cheque.",
+            "hook": "Al amanecer, pago semanal",
+            "cta": "Empieza hoy",
+            "primary_text": "Sales al amanecer con tu compañero y las millas se suman. Tu cheque llega cada semana: $2,500 por semana para conductores en equipo Clase A. Aplica hoy.",
             "headline": "Pago semanal en equipo"
           }
         },
         {
           "en": {
-            "hook": "Sun's up. Team seat open.",
+            "hook": "Coffee at dawn, $2,500/week",
             "cta": "Apply now",
-            "primary_text": "Straight talk: we need Class A team drivers. You run as a team, the pay is $2,500 per week, and it's paid weekly. Apply now and we'll talk.",
-            "headline": "Class A team drivers wanted"
+            "primary_text": "Here's the deal, driver. You and your co-driver run as a Class A team. You make $2,500 per week, and you get paid weekly. No guesswork on the check. Apply now.",
+            "headline": "Team up. $2,500 a week"
           },
           "es": {
-            "hook": "Amanece. Buscamos equipos.",
+            "hook": "Café al alba: $2,500/semana",
             "cta": "Aplica ya",
-            "primary_text": "Sin rodeos: buscamos choferes Clase A para manejar en equipo. Son $2,500 por semana y se paga cada semana. Aplica ya y hablamos.",
-            "headline": "Choferes Clase A en equipo"
+            "primary_text": "Te lo digo claro: corres en equipo Clase A con tu compañero. Ganas $2,500 por semana y cobras cada semana. Sin vueltas con el cheque. Aplica ya.",
+            "headline": "En equipo, $2,500 semanal"
           }
         }
       ]

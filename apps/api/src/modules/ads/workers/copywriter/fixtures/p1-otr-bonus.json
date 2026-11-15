@@ -81,56 +81,57 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:43:10.123Z",
+    "recorded_at": "2026-11-15T21:01:52.089Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Sunrise. $0.72 a mile.",
+            "hook": "Your dawn: $0.72 a mile",
             "cta": "Apply today",
-            "primary_text": "You pull out as the sun comes up, and every mile pays $0.72. This is over-the-road work for Class A drivers, with a $5,000 sign-on bonus to start. Apply today and we'll talk you through it.",
+            "primary_text": "You're in the seat as the sun comes up, Class A, over the road. You earn $0.72 per mile, and you start with a $5,000 sign-on bonus. Apply today.",
+            "headline": "OTR Class A, $0.72/mile"
+          },
+          "es": {
+            "hook": "Amanece: $0.72 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Estás al volante cuando sale el sol, Clase A, en rutas de larga distancia. Ganas $0.72 por milla y empiezas con un bono de contratación de $5,000. Aplica hoy.",
+            "headline": "Clase A OTR: $0.72/milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Dawn. $5,000 sign-on bonus",
+            "cta": "Apply now",
+            "primary_text": "The sun comes up over the hood and the road is open. You start with a $5,000 sign-on bonus and earn $0.72 per mile as a Class A over-the-road driver.",
             "headline": "$5,000 sign-on bonus"
           },
           "es": {
-            "hook": "Amanece. $0.72 por milla.",
-            "cta": "Aplica hoy",
-            "primary_text": "Sales con el sol y cada milla te paga $0.72. Es trabajo OTR para choferes con licencia Clase A, con un bono de $5,000 al firmar. Aplica hoy y te explicamos todo.",
-            "headline": "Bono de $5,000 al firmar"
-          }
-        },
-        {
-          "en": {
-            "hook": "Dawn. $5,000 to sign on.",
-            "cta": "Apply now",
-            "primary_text": "First light, open road, and a $5,000 sign-on bonus when you join. Over-the-road runs for Class A drivers at $0.72 per mile. Apply now.",
-            "headline": "$0.72 per mile, OTR"
-          },
-          "es": {
-            "hook": "Amanece. $5,000 al firmar.",
+            "hook": "Amanece. Bono de $5,000",
             "cta": "Aplica ya",
-            "primary_text": "Primera luz, carretera abierta y un bono de $5,000 al firmar. Rutas OTR para choferes Clase A a $0.72 por milla. Aplica ya.",
-            "headline": "$0.72 por milla, OTR"
+            "primary_text": "El sol sale sobre el cofre y la carretera está abierta. Empiezas con un bono de contratación de $5,000 y ganas $0.72 por milla como chofer Clase A de larga distancia.",
+            "headline": "Bono de entrada de $5,000"
           }
         },
         {
           "en": {
-            "hook": "Sun's up. Class A, OTR.",
-            "cta": "Call us",
-            "primary_text": "Here's the job. Class A, over-the-road. Pay is $0.72 per mile. There's a $5,000 sign-on bonus. Call us or apply, and we'll go over the details.",
-            "headline": "$0.72/mile, $5,000 to sign"
+            "hook": "Out at dawn, $0.72 a mile",
+            "cta": "Get on the road",
+            "primary_text": "Here's the job: Class A, over the road, long miles. It pays $0.72 per mile, and there's a $5,000 sign-on bonus. If you're up before the sun anyway, apply today.",
+            "headline": "OTR miles, $0.72 each"
           },
           "es": {
-            "hook": "Sale el sol. Clase A, OTR.",
-            "cta": "Llámanos",
-            "primary_text": "Este es el trabajo. Clase A, OTR. El pago es $0.72 por milla. Hay un bono de $5,000 al firmar. Llámanos o aplica, y te explicamos los detalles.",
-            "headline": "$0.72/milla, bono $5,000"
+            "hook": "Al alba: $0.72 por milla",
+            "cta": "Súbete hoy",
+            "primary_text": "Así es el trabajo: Clase A, por carretera, millas largas. Paga $0.72 por milla y hay un bono de contratación de $5,000. Si ya te levantas antes que el sol, aplica hoy.",
+            "headline": "Millas OTR a $0.72 cada una"
           }
         }
       ]

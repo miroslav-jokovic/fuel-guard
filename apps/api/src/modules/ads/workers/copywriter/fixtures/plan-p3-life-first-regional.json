@@ -1,0 +1,167 @@
+{
+  "name": "plan-p3-life-first-regional",
+  "about": "A planned campaign (V2c, prompt v5): the P3 starter preset written from the idea the Strategist recorded for \"first-campaign-regional\" — being home weekly. Every candidate should lead with the idea and state only the brief's facts.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A regional truck driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 68,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "quantity",
+          "value": 1,
+          "unit": "year"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 150,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [
+          "flatbed",
+          "Midwest lanes",
+          "assigned truck"
+        ],
+        "in_our_words": "A small fleet where dispatch knows your name"
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "recipe": {
+      "name": "Home on time",
+      "hook_formula": "Lead with being home: the home time the brief states (every night, weekends, so many days a month), in the reader's words. If the brief states no home time, lead with the schedule or the area that keeps the driver near home. The one fact that makes it believable goes on the second line, in a few words.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 40
+        },
+        {
+          "name": "cta",
+          "max_chars": 24
+        },
+        {
+          "name": "primary_text",
+          "max_chars": 260
+        },
+        {
+          "name": "headline",
+          "max_chars": 40
+        },
+        {
+          "name": "second_line",
+          "max_chars": 28
+        }
+      ],
+      "image_prompt_template": "Our truck parked on a quiet {street} at {time_of_day}, a porch light on, {season}, {viewpoint}, no people, no text, no logos, no lettering",
+      "image_slots": [
+        "street",
+        "time_of_day",
+        "season",
+        "viewpoint"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "top_band",
+      "look": "photo",
+      "formats": [
+        "4:5",
+        "1:1"
+      ],
+      "overlay_slots": {
+        "headline": "hook",
+        "cta": "cta",
+        "subline": "second_line"
+      },
+      "platform_slots": {
+        "primary_text": "primary_text",
+        "headline": "headline"
+      },
+      "hook_family": "life_first",
+      "scene_family": "home_street"
+    },
+    "company_name": "Silvicom Inc",
+    "candidates": 3,
+    "angle": {
+      "idea": "Lead with being home weekly, shown as a quiet home street at the end of a regional run.",
+      "proof": "The opening offers home weekly, and the job is regional on Midwest lanes."
+    }
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "copywriter@5",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-15T21:12:34.790Z",
+    "output": {
+      "candidates": [
+        {
+          "en": {
+            "hook": "Home weekly",
+            "cta": "Apply today",
+            "primary_text": "Run flatbed on Midwest lanes in an assigned truck, and be home weekly. $0.68 per mile plus a 401k. At Silvicom Inc, a small fleet, dispatch knows you by name.",
+            "headline": "Flatbed, Midwest lanes",
+            "second_line": "$0.68 per mile"
+          },
+          "es": {
+            "hook": "En casa cada semana",
+            "cta": "Aplica hoy",
+            "primary_text": "Flatbed en rutas del Medio Oeste, con camión asignado y en casa cada semana. $0.68 por milla y plan 401k. En Silvicom Inc somos una flota pequeña: despacho sabe tu nombre.",
+            "headline": "Flatbed en el Medio Oeste",
+            "second_line": "$0.68 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Run the week, then home",
+            "cta": "Apply now",
+            "primary_text": "Your week: flatbed loads across the Midwest in the same assigned truck, then home. Home weekly, $0.68 per mile and a 401k. Silvicom Inc is small enough that dispatch knows your name.",
+            "headline": "Silvicom Inc: home weekly",
+            "second_line": "$0.68 a mile"
+          },
+          "es": {
+            "hook": "Rueda la semana y a casa",
+            "cta": "Aplica ya",
+            "primary_text": "Tu semana: cargas de flatbed por el Medio Oeste en tu camión asignado, y luego a casa. En casa cada semana, $0.68 por milla y 401k. En Silvicom Inc, despacho sabe tu nombre.",
+            "headline": "A casa cada semana",
+            "second_line": "$0.68 la milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "We get you home weekly",
+            "cta": "Apply here",
+            "primary_text": "Flatbed on Midwest lanes, regional runs that bring you home weekly. Same assigned truck, $0.68 per mile and a 401k. Silvicom Inc is a small fleet, and dispatch knows your name.",
+            "headline": "Flatbed, assigned truck",
+            "second_line": "401k included"
+          },
+          "es": {
+            "hook": "Cada semana, a casa",
+            "cta": "Aplica aquí",
+            "primary_text": "Flatbed en rutas regionales del Medio Oeste, y en casa cada semana. Camión asignado, $0.68 por milla y 401k. Silvicom Inc es una flota pequeña: despacho te conoce por nombre.",
+            "headline": "Flatbed y camión asignado",
+            "second_line": "Con plan 401k"
+          }
+        }
+      ]
+    }
+  }
+}

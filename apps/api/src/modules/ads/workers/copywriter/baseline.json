@@ -1,11 +1,11 @@
 {
   "worker": "copywriter",
-  "prompt_version": "copywriter@4",
+  "prompt_version": "copywriter@5",
   "model": "claude-opus-5-5",
-  "fixtures": 129,
-  "asked": 124,
-  "agreed": 124,
-  "agreement": 1,
+  "fixtures": 136,
+  "asked": 131,
+  "agreed": 130,
+  "agreement": 0.992,
   "planted_skipped": 5,
-  "recorded_at": "2026-11-15T00:22:51.313Z"
+  "recorded_at": "2026-11-15T21:44:06.182Z"
 }

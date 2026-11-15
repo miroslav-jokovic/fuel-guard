@@ -101,56 +101,57 @@
       }
     },
     "company_name": "360 Logistics",
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:33:22.447Z",
+    "recorded_at": "2026-11-15T20:51:57.241Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "pay": "$0.65–$0.71/mile",
+            "pay": "$0.65-$0.71 a mile",
             "cta": "Apply today",
-            "primary_text": "$0.65 to $0.71 per mile for Class A regional drivers. You haul dry van and reefer freight across the Midwest. Pay comes every week. You must be 23+. Apply with 360 Logistics today.",
-            "headline": "360 Logistics is hiring"
+            "primary_text": "$0.65 to $0.71 a mile for Class A regional drivers. You haul dry van and reefer freight across the Midwest, get paid weekly and get home weekly. Drive with 360 Logistics.",
+            "headline": "Class A regional, Midwest"
           },
           "es": {
-            "pay": "$0.65–$0.71/milla",
+            "pay": "$0.65-$0.71/milla",
             "cta": "Aplica hoy",
-            "primary_text": "De $0.65 a $0.71 por milla para choferes Clase A regionales. Llevas carga dry van y reefer por el Medio Oeste. El pago es semanal. Mayores de 23. Aplica hoy con 360 Logistics.",
-            "headline": "360 Logistics contrata"
+            "primary_text": "De $0.65 a $0.71 por milla para choferes Clase A regionales. Llevas carga seca y refrigerada por el Medio Oeste, cobras cada semana y estás en casa cada semana. Maneja con 360 Logistics.",
+            "headline": "Clase A, ruta Medio Oeste"
           }
         },
         {
           "en": {
-            "pay": "Up to $0.71/mile",
+            "pay": "Up to $0.71 a mile",
             "cta": "Apply now",
-            "primary_text": "Home weekly. You run regional Class A freight in the Midwest, dry van and reefer, and you're back home every week. Up to $0.71 per mile. Drivers 23+. 360 Logistics is hiring.",
+            "primary_text": "Home weekly. Class A regional runs in the Midwest, dry van and reefer, up to $0.71 a mile. You need to be 23+ with 2 years of experience. 360 Logistics is hiring.",
             "headline": "Home weekly, Midwest runs"
           },
           "es": {
             "pay": "Hasta $0.71/milla",
             "cta": "Aplica ya",
-            "primary_text": "En casa cada semana. Rutas regionales Clase A en el Medio Oeste, con carga dry van y reefer. Hasta $0.71 por milla. Choferes mayores de 23. 360 Logistics está contratando.",
+            "primary_text": "En casa cada semana. Rutas regionales Clase A en el Medio Oeste, carga seca y refrigerada, hasta $0.71 por milla. Mayores de 23 con 2 años de experiencia. 360 Logistics está contratando.",
             "headline": "En casa cada semana"
           }
         },
         {
           "en": {
-            "pay": "$0.65–$0.71 a mile",
+            "pay": "$0.71 a mile",
             "cta": "Get started",
-            "primary_text": "Here's the job. Dry van and reefer, regional lanes in the Midwest. You make $0.65 to $0.71 a mile, paid weekly, and you're home weekly. Class A drivers, 23+. Apply with 360 Logistics.",
-            "headline": "Dry van and reefer, Midwest"
+            "primary_text": "Dry van and reefer, Midwest regional. Class A drivers make $0.65 to $0.71 a mile, paid every week. Age 23 with 2 years of experience. Apply with 360 Logistics and we will get you rolling.",
+            "headline": "Dry van, reefer, Midwest"
           },
           "es": {
-            "pay": "$0.65–$0.71/milla",
-            "cta": "Empieza aquí",
-            "primary_text": "Así es el trabajo: dry van y reefer, rutas regionales en el Medio Oeste. Ganas de $0.65 a $0.71 por milla, con pago semanal, y estás en casa cada semana. Choferes Clase A mayores de 23. Aplica con 360 Logistics.",
-            "headline": "Dry van y reefer regional"
+            "pay": "$0.71 por milla",
+            "cta": "Empieza hoy",
+            "primary_text": "Carga seca y refrigerada, rutas regionales en el Medio Oeste. Choferes Clase A ganan de $0.65 a $0.71 por milla, con pago semanal. Mayores de 23 con 2 años de experiencia. Aplica con 360 Logistics.",
+            "headline": "Carga seca y refrigerada"
           }
         }
       ]

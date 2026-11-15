@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adBriefSchema, adCandidatesSchema, drawPresets, nextPresetBatch, planDraw, type AdBrandKit, type AdPresetRecipe, type CreativeState, type PresetDraw } from "@silvicom/shared";
+import { adBriefSchema, adCandidatesSchema, drawPresets, nextPresetBatch, planDraw, writerAngle, type AdBrandKit, type AdPresetRecipe, type CampaignPlan, type CreativeState, type PresetDraw } from "@silvicom/shared";
 import { listBrandKits, listPresets } from "../creative/kitVersions.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 import { storePresetDraw, type CampaignRow } from "../orchestrator/transitions.js";
@@ -31,6 +31,10 @@ import { composeCreative, type ComposeDeps, type CreativeRow, type PersonChoice 
  *      comparison of the database's clock with ours. A newest row that ended badly (`check_failed`,
  *      `rejected`) in an EARLIER stint — a person pressed Resume or Regenerate — is superseded by this
  *      stint's row (`supersedes_id`); anything else is kept, so a re-run never redoes finished work.
+ *      A planned campaign's creative is handed the idea of the plan's angle its preset was drawn for
+ *      (`writerAngle`: the angle with the preset's hook and scene), which the Copywriter and the Art director
+ *      work from. The plan is read by the campaign's `plan_id` on every run — an approved plan is never
+ *      edited (a person's edit is a new version, and approval names one), so every run reads the same idea.
  *   4. EACH CREATIVE MOVED (`composeCreative`). Any still under way → `pending`, the campaign stays; the
  *      others in the window keep moving in the same run, so one slow render never idles the rest.
  *   5. THE VERDICT, once nothing is under way and nothing is left to enter. At least one `ready` →
@@ -68,8 +72,12 @@ export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow)
   if (!kitOf.ok) return { ok: false, error: kitOf.error };
   const kit = kitOf.kit;
 
+  // The plan a person approved, when the campaign was planned: it decides the draw, and each creative's idea.
+  const approved = campaign.plan_id ? await planById(admin, c.org_id, c.id, campaign.plan_id) : null;
+  if (campaign.plan_id && !approved) return { ok: false, error: "the campaign's approved plan was not found" };
+
   const presets = (await listPresets(admin, c.org_id)).filter((p) => !p.archived_at && p.current);
-  const drawn = await campaignDraw(admin, c, campaign, presets);
+  const drawn = await campaignDraw(admin, c, campaign, presets, approved);
   if (!drawn.ok) return drawn;
   const draw = drawn.draw;
   const recipes = new Map(presets.map((p) => [p.current!.id, p.current!.body]));
@@ -84,7 +92,9 @@ export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow)
     const creative = await creativeForStint(admin, c, presetId, kit.id, rows);
     // A person chose the words of the creative this one replaces (Q-ADL7): built from them, on that picture.
     const choice = creative.supersedes_id ? await choiceFor(admin, c.org_id, creative.supersedes_id) : null;
-    const out = await composeCreative(deps, { creative, brief: brief.data, recipe: recipes.get(presetId)!, kit: kit.body, maxRegenerations: settings.budgets.max_regenerations, candidates: settings.budgets.candidates_per_creative, ...(choice ? { choice } : {}) });
+    const recipe = recipes.get(presetId)!;
+    const angle = approved ? writerAngle(approved.plan, recipe) : null;
+    const out = await composeCreative(deps, { creative, brief: brief.data, recipe, kit: kit.body, maxRegenerations: settings.budgets.max_regenerations, candidates: settings.budgets.candidates_per_creative, angle, ...(choice ? { choice } : {}) });
     if (out.kind === "pending") { tally.pending.push(`creative ${creative.id}: ${out.why}`); return; }
     const state = out.kind === "done" ? out.state : out.kind === "ready" ? "ready" : "check_failed";
     if (state === "ready" || state === "approved") tally.ready += 1;
@@ -113,21 +123,20 @@ export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow)
  * The presets this campaign's ads are made from, drawn once and kept (`ads_campaigns.preset_draw`). A campaign
  * whose plan a person approved is made from that plan — its angles, in its order (`planDraw`, V2c) — and not
  * from the seeded draw; one with no plan (planning off for this carrier, Q-APX6) draws by seed as before.
- * Both leave out a preset a campaign for the same brief already runs (D-AD11).
+ * Both leave out a preset a campaign for the same brief already runs (D-AD11). `approved` is the plan of the
+ * campaign's `plan_id`, read by the caller, which hands each creative its idea from the same row.
  */
 export async function campaignDraw(
   admin: SupabaseClient, c: CampaignRow, campaign: Pick<CampaignExtra, "brief_ref" | "preset_draw" | "plan_id">,
   presets: Array<{ id: string; key: string; current: { id: string; enabled: boolean; body: Pick<AdPresetRecipe, "hook_family" | "scene_family"> } | null }>,
+  approved: { id: string; plan: Pick<CampaignPlan, "angles"> } | null,
 ): Promise<{ ok: true; draw: PresetDraw } | { ok: false; error: string }> {
   let draw = campaign.preset_draw;
   if (!draw) {
     const candidates = presets.map((p) => ({ version_id: p.current!.id, key: p.key, enabled: p.current!.enabled, hook_family: p.current!.body.hook_family ?? null, scene_family: p.current!.body.scene_family ?? null }));
     const live = await liveKeys(admin, c, campaign.brief_ref, presets);
-    if (campaign.plan_id) {
-      const approved = await planById(admin, c.org_id, c.id, campaign.plan_id);
-      if (!approved) return { ok: false, error: "the campaign's approved plan was not found" };
-      draw = await storePresetDraw(admin, c, planDraw(approved.id, approved.plan, candidates, live));
-    } else draw = await storePresetDraw(admin, c, drawPresets(c.id, candidates, live));
+    if (approved) draw = await storePresetDraw(admin, c, planDraw(approved.id, approved.plan, candidates, live));
+    else draw = await storePresetDraw(admin, c, drawPresets(c.id, candidates, live));
   }
   if (draw.exhausted) {
     return { ok: false, error: campaign.plan_id

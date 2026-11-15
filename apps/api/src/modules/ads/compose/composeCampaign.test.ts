@@ -10,11 +10,11 @@ import type { ComposeOutcome } from "./composeCreative.js";
  * `composeCreative` is replaced — its own suite proves one creative — so these tests see only the campaign's part.
  */
 const outcomes = new Map<string, ComposeOutcome>();
-const composed: Array<{ id: string; preset: string; maxRegenerations: number; choice?: unknown }> = [];
+const composed: Array<{ id: string; preset: string; maxRegenerations: number; choice?: unknown; angle: unknown }> = [];
 vi.mock("./composeCreative.js", async (orig) => ({
   ...(await orig<object>()),
-  composeCreative: vi.fn(async (_deps: unknown, input: { creative: { id: string; preset_version_id: string }; maxRegenerations: number; choice?: unknown }) => {
-    composed.push({ id: input.creative.id, preset: input.creative.preset_version_id, maxRegenerations: input.maxRegenerations, ...(input.choice ? { choice: input.choice } : {}) });
+  composeCreative: vi.fn(async (_deps: unknown, input: { creative: { id: string; preset_version_id: string }; maxRegenerations: number; choice?: unknown; angle?: unknown }) => {
+    composed.push({ id: input.creative.id, preset: input.creative.preset_version_id, maxRegenerations: input.maxRegenerations, angle: input.angle, ...(input.choice ? { choice: input.choice } : {}) });
     return outcomes.get(input.creative.preset_version_id) ?? { kind: "ready" };
   }),
 }));
@@ -33,14 +33,15 @@ const PRESETS = ["P1", "P2", "P3"].map((key, i) => ({ id: `p-${i}`, key, version
 const isWrite = (q: RecordedQuery) => q.write !== null;
 const has = (q: RecordedQuery, col: string) => q.filters().some((f) => f.col === col);
 
-function world(opts: { choices?: unknown[]; draw?: unknown; kits?: number; kitId?: string | null; archived?: boolean; creatives?: unknown[]; liveCampaigns?: string[]; liveCreatives?: unknown[]; insertError?: unknown; enabled?: boolean } = {}) {
+function world(opts: { planId?: string; plans?: unknown[]; concepts?: Array<[string, string]>; choices?: unknown[]; draw?: unknown; kits?: number; kitId?: string | null; archived?: boolean; creatives?: unknown[]; liveCampaigns?: string[]; liveCreatives?: unknown[]; insertError?: unknown; enabled?: boolean } = {}) {
   const rec = createSupabaseRecorder({
     tables: {
       ads_campaigns: (q) => {
         if (q.write) return [{ preset_draw: (q.write.payload as { preset_draw: unknown }).preset_draw }];
         if (has(q, "brief_ref")) return (opts.liveCampaigns ?? []).map((id) => ({ id }));
-        return [{ brief_ref: "fixture-opening@v1", brief_snapshot: copyFx.input.brief, preset_draw: opts.draw ?? null, brand_kit_id: opts.kitId === undefined ? "k-1" : opts.kitId }];
+        return [{ brief_ref: "fixture-opening@v1", brief_snapshot: copyFx.input.brief, preset_draw: opts.draw ?? null, brand_kit_id: opts.kitId === undefined ? "k-1" : opts.kitId, plan_id: opts.planId ?? null }];
       },
+      ads_campaign_plans: opts.plans ?? [],
       ad_brand_kits: Array.from({ length: opts.kits ?? 2 }, (_, i) => ({ id: `k-${i}`, name: "Kit", archived_at: opts.archived && i === 1 ? NOW.toISOString() : null })),
       ad_brand_kit_versions: (q) => {
         const ids = (q.filters().find((f) => f.col === "kit_id")?.val ?? []) as string[];
@@ -48,7 +49,8 @@ function world(opts: { choices?: unknown[]; draw?: unknown; kits?: number; kitId
       },
       ad_concept_presets: PRESETS.map((p) => ({ id: p.id, key: p.key, archived_at: null })),
       ad_concept_preset_versions: (q) => {
-        if (has(q, "preset_id")) return PRESETS.map((p) => ({ id: p.version, preset_id: p.id, version: 1, recipe, enabled: opts.enabled ?? true, created_at: NOW.toISOString(), created_by_name: "X" }));
+        // `concepts[i]` gives preset i its own hook and scene, for a planned campaign; without it all three share the fixture's.
+        if (has(q, "preset_id")) return PRESETS.map((p, i) => ({ id: p.version, preset_id: p.id, version: 1, recipe: opts.concepts ? { ...recipe, hook_family: opts.concepts[i]![0], scene_family: opts.concepts[i]![1] } : recipe, enabled: opts.enabled ?? true, created_at: NOW.toISOString(), created_by_name: "X" }));
         const asked = (q.filters().find((f) => f.col === "id")?.val ?? []) as string[];
         return PRESETS.filter((p) => asked.includes(p.version)).map((p) => ({ id: p.version, preset_id: p.id }));
       },
@@ -119,6 +121,55 @@ describe("composeCampaign — the draw and the batch (D-AD11)", () => {
     expect(await composeCampaign(deps(world({ kitId: null })), campaign)).toEqual({ ok: false, error: "the campaign names no brand kit (Q-AD28)" });
     expect(await composeCampaign(deps(world({ kits: 1 })), campaign)).toEqual({ ok: false, error: "the campaign's brand kit no longer exists" });
     expect(await composeCampaign(deps(world({ archived: true })), campaign)).toEqual({ ok: false, error: "the campaign's brand kit is archived" });
+    expect(composed).toEqual([]);
+  });
+});
+
+describe("composeCampaign — a planned campaign's ads are written from the plan (V2c)", () => {
+  const PLAN_ID = "71000000-0000-4000-8000-000000000001";
+  const CONCEPTS: Array<[string, string]> = [["pay_first", "equipment_on_road"], ["life_first", "home_street"], ["straight_talk", "cab_pov"]];
+  const angle = (hook_family: string, scene_family: string, idea: string, proof: string) => ({ hook_family, scene_family, format: "still", idea, proof, why: "Because of the evidence on the sheet.", evidence: ["job:subject"] });
+  /** The plan's order is not the presets' order, and each idea names its own concept, so a swapped idea is visible. */
+  const plan = { audience: "Regional drivers who want a steady week.", audience_evidence: ["job:subject"], angles: [
+    angle("straight_talk", "cab_pov", "Say plainly what the week looks like.", "The opening describes the runs."),
+    angle("pay_first", "equipment_on_road", "Lead with the pay per mile.", "The opening states the rate."),
+  ] };
+  const planned = (over: Parameters<typeof world>[0] = {}) => world({ planId: PLAN_ID, concepts: CONCEPTS, plans: [{ id: PLAN_ID, campaign_id: "c-1", version: 2, plan, evidence: [], author_kind: "person" }], ...over });
+
+  it("each creative is handed the idea and the proof of the plan's angle its preset was drawn for, and nothing else of it", async () => {
+    const rec = planned();
+    expect(await composeCampaign(deps(rec), campaign)).toEqual({ ok: true });
+    expect(composed.map((c) => [c.preset, c.angle])).toEqual([
+      ["pv-2", { idea: "Say plainly what the week looks like.", proof: "The opening describes the runs." }],
+      ["pv-0", { idea: "Lead with the pay per mile.", proof: "The opening states the rate." }],
+    ]);
+    // The plan is read as this campaign's and this org's.
+    expect(rec.forTable("ads_campaign_plans")[0]!.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "campaign_id", val: "c-1" }, { col: "id", val: PLAN_ID }]));
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("a later run, with the draw already stored, still hands each creative its idea", async () => {
+    const stored = { seed: `plan:${PLAN_ID}`, eligible: ["pv-0", "pv-2"], excluded_live: [], order: ["pv-2", "pv-0"], exhausted: false };
+    await composeCampaign(deps(planned({ draw: stored })), campaign);
+    expect(composed.map((c) => (c.angle as { idea: string }).idea)).toEqual(["Say plainly what the week looks like.", "Lead with the pay per mile."]);
+  });
+
+  it("a drawn preset the plan holds no angle for is written from the preset alone", async () => {
+    // pv-1 (life_first, home_street) is in a stored draw, and the plan names no such angle.
+    const stored = { seed: `plan:${PLAN_ID}`, eligible: ["pv-0", "pv-1"], excluded_live: [], order: ["pv-1", "pv-0"], exhausted: false };
+    await composeCampaign(deps(planned({ draw: stored })), campaign);
+    expect(composed.map((c) => [c.preset, c.angle])).toEqual([["pv-1", null], ["pv-0", { idea: "Lead with the pay per mile.", proof: "The opening states the rate." }]]);
+  });
+
+  it("a campaign that was not planned hands no idea to any creative, and reads no plan", async () => {
+    const rec = world({ concepts: CONCEPTS });
+    await composeCampaign(deps(rec), campaign);
+    expect(composed.map((c) => c.angle)).toEqual([null, null, null]);
+    expect(rec.forTable("ads_campaign_plans")).toEqual([]);
+  });
+
+  it("stops before any creative when the campaign's approved plan is gone", async () => {
+    expect(await composeCampaign(deps(planned({ plans: [] })), campaign)).toEqual({ ok: false, error: "the campaign's approved plan was not found" });
     expect(composed).toEqual([]);
   });
 });

@@ -80,27 +80,28 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:46:44.805Z",
+    "recorded_at": "2026-11-15T21:06:03.062Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$0.72 per mile",
             "cta": "Apply today",
-            "primary_text": "Class A over-the-road drivers earn $0.72 per mile here. You also get a $5,000 sign-on bonus when you join. Apply today and talk with us.",
+            "primary_text": "Class A over-the-road driving at $0.72 per mile, plus a $5,000 sign-on bonus when you join. Apply today to get started.",
             "headline": "$5,000 sign-on bonus"
           },
           "es": {
             "hook": "$0.72 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Choferes Clase A de ruta larga: aquí ganas $0.72 por milla. Además, recibes un bono de contratación de $5,000. Aplica hoy y hablamos.",
+            "primary_text": "Manejo de larga distancia con licencia Clase A a $0.72 por milla, más un bono de $5,000 al firmar. Aplica hoy para empezar.",
             "headline": "Bono de $5,000 al firmar"
           }
         },
@@ -108,28 +109,28 @@
           "en": {
             "hook": "$5,000 sign-on bonus",
             "cta": "Apply now",
-            "primary_text": "Start your next over-the-road job with a $5,000 sign-on bonus. Class A drivers earn $0.72 per mile. Apply now.",
-            "headline": "OTR at $0.72 per mile"
+            "primary_text": "Start with a $5,000 sign-on bonus. Then run over-the-road with your Class A at $0.72 per mile. If you have your CDL and want the road, apply now.",
+            "headline": "Class A OTR at $0.72/mile"
           },
           "es": {
             "hook": "Bono de $5,000 al firmar",
             "cta": "Aplica ya",
-            "primary_text": "Empieza tu próximo trabajo de ruta larga con un bono de contratación de $5,000. Los choferes Clase A ganan $0.72 por milla. Aplica ya.",
-            "headline": "OTR a $0.72 por milla"
+            "primary_text": "Empieza con un bono de $5,000 al firmar. Luego corre larga distancia con tu Clase A a $0.72 por milla. Si tienes tu CDL y quieres la carretera, aplica ya.",
+            "headline": "Clase A OTR a $0.72/milla"
           }
         },
         {
           "en": {
-            "hook": "Class A OTR drivers",
-            "cta": "Get started",
-            "primary_text": "Here is the deal. You drive over the road with your Class A. You get $0.72 per mile. You get a $5,000 sign-on bonus. Apply and we will talk.",
-            "headline": "$5,000 to sign on"
+            "hook": "Over-the-road, Class A",
+            "cta": "Apply here",
+            "primary_text": "Here is the deal. You run over-the-road with your Class A. You make $0.72 per mile. You pick up a $5,000 sign-on bonus when you sign on. Apply here and we will talk.",
+            "headline": "$0.72/mile, $5,000 bonus"
           },
           "es": {
-            "hook": "Choferes Clase A OTR",
-            "cta": "Empieza ya",
-            "primary_text": "Así de claro: manejas ruta larga con tu Clase A. Ganas $0.72 por milla. Recibes un bono de $5,000 al firmar. Aplica y hablamos.",
-            "headline": "Bono de $5,000 al firmar"
+            "hook": "Clase A, larga distancia",
+            "cta": "Aplica aquí",
+            "primary_text": "Así es la cosa. Corres larga distancia con tu Clase A. Ganas $0.72 por milla. Y te llevas un bono de $5,000 al firmar. Aplica aquí y hablamos.",
+            "headline": "$0.72/milla, bono $5,000"
           }
         }
       ]

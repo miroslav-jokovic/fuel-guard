@@ -885,7 +885,7 @@ export const READINESS = [
             "every leftover digit is reported, so a figure cannot hide inside an unrecognised shape",
           ] }],
         },
-        { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "the 60 starter sets (12 opening briefs, 4 written in Spanish, × the five STARTER_PRESETS; D-AD30) recorded under prompt v4 on 2026-11-12: 58 of 60 have at least one candidate pass the claim and length checks after the one fit pass (pnpm ads:eval copywriter --only starter-, baseline.json parts); the owner rates them on the rating page (D-AD31, ADS-CREATIVE-QUALITY-PLAN §8) and the share of sets with a candidate run as is is recorded here (D-AD32)" },
+        { need: "a human-rated approve-without-edit rate recorded as the baseline", gap: "the 60 starter sets (12 opening briefs, 4 written in Spanish, × the five STARTER_PRESETS; D-AD30) recorded under prompt v4 on 2026-11-12: 58 of 60 have at least one candidate pass the claim and length checks after the one fit pass, and those are the words on the rating page; re-recorded with every other fixture under prompt v5 on 2026-11-15 (V2c, the plan's idea; these sets carry no plan): 59 of 60, the one refused a Spanish headline that wrote a count with no unit (pnpm ads:eval copywriter, baseline.json) — so the page's words are v4's until it is rebuilt; the owner rates them on the rating page (D-AD31, ADS-CREATIVE-QUALITY-PLAN §8) and the share of sets with a candidate run as is is recorded here (D-AD32)" },
       ],
       // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
       // evaluation set alone (ADS-AGENT-PLAN §9). The run below was written by us from the ruling and CONFIRMED BY THE OWNER 2026-11-06.
@@ -930,7 +930,7 @@ export const READINESS = [
           ] }],
         },
       ],
-      L3: [{ need: "the evaluation set at its bar: every prompt ends with the clause and starts from a reference photo when the preset shows equipment", gap: "C2 measured 10 of 10; CQ2 (2026-11-09, prompt v2 with the job as context) 11 of 12, the one refused a slot of 125 characters; AG3 (2026-11-10, prompt v3 directing the composition) 14 of 14 on two consecutive runs, after a first wording scored 7 of 14 by restating the layout inside its slots (pnpm ads:eval artDirector, baseline.json) on fixture presets; §4R sets no set size — it is re-run on P1–P5 once the owner approves them (Q-AD12)" }],
+      L3: [{ need: "the evaluation set at its bar: every prompt ends with the clause and starts from a reference photo when the preset shows equipment", gap: "C2 measured 10 of 10; CQ2 (2026-11-09, prompt v2 with the job as context) 11 of 12, the one refused a slot of 125 characters; AG3 (2026-11-10, prompt v3 directing the composition) 14 of 14 on two consecutive runs, after a first wording scored 7 of 14 by restating the layout inside its slots (pnpm ads:eval artDirector, baseline.json) on fixture presets; V2c (2026-11-15, prompt v6, also handed the idea of the approved plan's angle) 19 of 19 on two consecutive runs, five of them with an idea and one of those an instruction to paint a figure on the trailer; §4R sets no set size — it is re-run on P1–P5 once the owner approves them (Q-AD12)" }],
       // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
       // evaluation set alone (ADS-AGENT-PLAN §9). The run below was written by us from the ruling and CONFIRMED BY THE OWNER 2026-11-06.
       L4: [{ need: "its live prompts rendered by the real Higgsfield API, from the kit photo where the preset shows equipment, each picture passing the no-lettering check", gap: STAGE2 }],
@@ -1256,7 +1256,7 @@ export const READINESS = [
           ] }],
         },
         {
-          need: "an approved plan is what the ads are made from: its ideas are kinds of ad the carrier can make, and compose draws them in the plan's order",
+          need: "an approved plan is what the ads are made from: its ideas are kinds of ad the carrier can make, compose draws them in the plan's order, and each ad's writers are handed its idea",
           tests: [
             { file: PLAN_CAMPAIGN, titles: [
               "sends the carrier's concepts on the sheet and stores a plan held to them",
@@ -1265,7 +1265,17 @@ export const READINESS = [
             { file: "apps/api/src/modules/ads/compose/campaignDraw.test.ts", titles: [
               "is made from the plan's ideas in the plan's order, and stores that as the campaign's draw",
               "is not the seeded draw: the same campaign with no plan draws every enabled preset by its seed",
-              "fails with a reason a person can act on when none of the plan's ideas can be made, or the plan is gone",
+              "fails with a reason a person can act on when none of the plan's ideas can be made",
+            ] },
+            // V2c-8: the plan is read once by the campaign's compose step, which hands it to the draw and hands each
+            // creative its idea — so "the plan is gone" and "the idea reaches the writers" are that step's tests.
+            { file: "apps/api/src/modules/ads/compose/composeCampaign.test.ts", titles: [
+              "stops before any creative when the campaign's approved plan is gone",
+              "each creative is handed the idea and the proof of the plan's angle its preset was drawn for, and nothing else of it",
+              "a campaign that was not planned hands no idea to any creative, and reads no plan",
+            ] },
+            { file: "apps/api/src/modules/ads/compose/composeCreative.test.ts", titles: [
+              "a planned campaign's idea reaches the Copywriter with its proof and the Art director without it; the craft judge and the checker are not told",
             ] },
           ],
         },

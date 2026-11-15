@@ -68,49 +68,50 @@
       "overlay_slots": null
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T00:22:51.312Z",
+    "recorded_at": "2026-11-15T21:44:06.182Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "$1,500 a week for Class A local drivers",
-            "body": "You make $1,500 per week driving local with a Class A. The work is drop and hook. You are home daily.",
+            "hook": "$1,500 a week. Class A local drivers.",
+            "body": "Local Class A work at $1,500 per week. The loads are drop and hook, and you sleep in your own bed. Home daily.",
             "cta": "Apply today"
           },
           "es": {
-            "hook": "$1,500 por semana, Clase A local",
-            "body": "Ganas $1,500 por semana manejando local con licencia Clase A. El trabajo es drop and hook. Llegas a casa todos los días.",
+            "hook": "$1,500 por semana. Local, Clase A.",
+            "body": "Trabajo local con licencia Clase A, $1,500 por semana. Las cargas son drop and hook y regresas a casa todos los días.",
             "cta": "Aplica hoy"
           }
         },
         {
           "en": {
-            "hook": "$1,500 a week, Class A local",
-            "body": "Home daily. You run local, end each day at home, and earn $1,500 per week. Loads are drop and hook.",
+            "hook": "$1,500 a week for local Class A drivers",
+            "body": "Home daily. You run local, drop the trailer, hook the next one and head home when the shift is done. The pay is $1,500 per week.",
             "cta": "Apply now"
           },
           "es": {
-            "hook": "$1,500 semanal, Clase A local",
-            "body": "En casa todos los días. Haces rutas locales, terminas el día en casa y ganas $1,500 por semana. Las cargas son drop and hook.",
-            "cta": "Aplica ahora"
+            "hook": "$1,500 semanales. Choferes Clase A.",
+            "body": "Estás en casa todos los días. Trabajas local, dejas el tráiler, enganchas el siguiente y al terminar el turno vuelves a casa. El pago es de $1,500 por semana.",
+            "cta": "Aplica ya"
           }
         },
         {
           "en": {
-            "hook": "$1,500 per week. Class A, local.",
-            "body": "Straight talk: it's drop and hook, local work, and you're home daily. Pay is $1,500 per week. You need a Class A.",
-            "cta": "Talk to us"
+            "hook": "$1,500 per week, Class A local",
+            "body": "Here is the job: Class A, local, drop and hook. You hook the trailer, deliver it, and you are home daily. $1,500 per week.",
+            "cta": "Talk to us today"
           },
           "es": {
-            "hook": "$1,500 por semana. Clase A, local.",
-            "body": "Te lo digo claro: es drop and hook, trabajo local y estás en casa todos los días. El pago es $1,500 por semana. Necesitas licencia Clase A.",
+            "hook": "$1,500 por semana, Clase A local",
+            "body": "Así es el trabajo: Clase A, local, drop and hook. Enganchas el tráiler, lo entregas y estás en casa todos los días. $1,500 por semana.",
             "cta": "Habla con nosotros"
           }
         }

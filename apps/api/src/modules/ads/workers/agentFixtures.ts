@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { z } from "zod";
-import { AD_FORMATS, AD_HOOK_FAMILIES, AD_PEOPLE_POLICIES, AD_SCENE_FAMILIES, AD_VISUAL_CHECKS, FINISHED_AD_CRITERIA, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, evidencePackSchema, jobEvidence, judgeArt, type CampaignPlan, type EvidencePack, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
+import { AD_FORMATS, AD_HOOK_FAMILIES, AD_PEOPLE_POLICIES, AD_SCENE_FAMILIES, AD_VISUAL_CHECKS, FINISHED_AD_CRITERIA, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, evidencePackSchema, jobEvidence, judgeArt, planAngleSchema, type CampaignPlan, type EvidencePack, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
 import type { ForcedToolRequest } from "../../../lib/anthropic.js";
 import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, buildFitRequest, fittable, judgeSet, type CopySet } from "./copywriter/copywriter.js";
 import { CRAFT_JUDGE_PROMPT_VERSION, buildJudgeRequest, judgeAnswer, presentationOrder, type JudgeAnswer } from "./craftJudge/craftJudge.js";
@@ -36,6 +36,9 @@ export const recordingSchema = z.object({
   output: z.unknown(),
 });
 
+/** A plan angle's two sentences for the writers, under the plan contract's own limits (`WriterAngle`). */
+const writerAngleSchema = planAngleSchema.pick({ idea: true, proof: true }).strict();
+
 export const copywriterFixtureSchema = z.object({
   name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,60}$/),
   about: z.string().min(10),
@@ -43,6 +46,8 @@ export const copywriterFixtureSchema = z.object({
     brief: adBriefSchema, recipe: adPresetRecipeSchema, company_name: z.string().trim().min(1).max(120).nullable().default(null),
     /** How many copies the fixture asks for (CQ4). A planted answer may hold one. */
     candidates: z.number().int().min(1).max(5).default(3),
+    /** The approved plan's idea for this preset (V2c, prompt v5); null = a campaign that was not planned. */
+    angle: writerAngleSchema.nullable().default(null),
   }),
   /** What the worker must answer for the RECORDED output: `ready` = at least one candidate passed every check. */
   expect: z.enum(["ready", "refused", "off_schema"]),
@@ -101,7 +106,7 @@ export const COPYWRITER_EVAL: EvalWorker<CopywriterFixture, CopySet> = {
   withRecording: (f, recorded) => ({ ...f, recorded }),
 };
 
-const ctxOf = (f: CopywriterFixture) => ({ company_name: f.input.company_name, candidates: f.input.candidates });
+const ctxOf = (f: CopywriterFixture) => ({ company_name: f.input.company_name, candidates: f.input.candidates, angle: f.input.angle });
 
 /**
  * The craft judge's fixtures (CQ4): a set of candidates that all passed the claim check, one of them PLANTED — written
@@ -156,6 +161,8 @@ export const artDirectorFixtureSchema = z.object({
     recipe: adPresetRecipeSchema, kit: adBrandKitSchema, context: z.array(z.string().min(2).max(120)).max(12).default([]),
     /** The headline the overlay will draw (AG3); null = a caller with none. */
     headline: z.string().trim().min(1).max(120).nullable().default(null),
+    /** The idea of the approved plan's angle for this preset (V2c, prompt v6); null = a campaign that was not planned. */
+    idea: writerAngleSchema.shape.idea.nullable().default(null),
   }),
   expect: z.enum(["ready", "refused", "off_schema"]),
   expect_findings: z.array(z.string()).optional(),
@@ -169,7 +176,7 @@ export const ART_DIRECTOR_EVAL: EvalWorker<ArtDirectorFixture, ArtAnswer> = {
   parse: (raw) => artDirectorFixtureSchema.parse(raw),
   name: (f) => f.name,
   source: (f) => f.recorded.source,
-  request: (f) => buildArtRequest(f.input.recipe, f.input.kit, f.input.context, f.input.headline),
+  request: (f) => buildArtRequest(f.input.recipe, f.input.kit, f.input.context, f.input.headline, f.input.idea),
   judge: (f, output) => {
     const parsed = buildArtRequest(f.input.recipe, f.input.kit).tool.schema.safeParse(output);
     if (!parsed.success) return { verdict: "off_schema", findings: [] };

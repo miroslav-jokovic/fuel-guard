@@ -93,80 +93,81 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:32:11.593Z",
+    "recorded_at": "2026-11-15T20:50:52.819Z",
     "output": {
       "candidates": [
         {
           "en": {
             "card_get": "$0.66 per mile",
-            "card_need": "A Class A CDL for regional runs.",
-            "card_apply": "Tap Apply and send your info.",
-            "cta": "Apply today",
-            "primary_text": "Class A regional driving at $0.66 per mile, and you are home weekends. Send your info and talk to us.",
-            "headline": "$0.66 per mile, Class A",
+            "card_need": "You need a Class A CDL.",
+            "card_apply": "Tap Apply and send your details.",
+            "cta": "Apply now",
+            "primary_text": "Class A regional driving at $0.66 per mile, and you are home weekends. You need a Class A CDL. Tap Apply to send your details.",
+            "headline": "$0.66/mile, home weekends",
             "kicker": "Class A regional",
             "second_line": "Home weekends"
           },
           "es": {
             "card_get": "$0.66 por milla",
-            "card_need": "Licencia CDL Clase A para rutas regionales.",
+            "card_need": "Necesitas tu CDL Clase A.",
             "card_apply": "Toca Aplicar y manda tus datos.",
-            "cta": "Aplica hoy",
-            "primary_text": "Manejo regional Clase A a $0.66 por milla, y estás en casa los fines de semana. Manda tus datos y hablamos.",
-            "headline": "$0.66 por milla, Clase A",
+            "cta": "Aplica ahora",
+            "primary_text": "Manejo regional Clase A a $0.66 por milla, y estás en casa los fines de semana. Necesitas tu CDL Clase A. Toca Aplicar y manda tus datos.",
+            "headline": "$0.66 la milla, regional",
             "kicker": "Clase A regional",
-            "second_line": "En casa los findes"
+            "second_line": "Findes en casa"
           }
         },
         {
           "en": {
             "card_get": "Home weekends",
-            "card_need": "Class A drivers who want regional work.",
-            "card_apply": "Fill out the form and hit Apply.",
-            "cta": "Apply now",
-            "primary_text": "Run regional during the week and be home weekends. Class A, $0.66 per mile. Apply now and talk to us.",
-            "headline": "Home weekends, regional",
-            "kicker": "Now hiring Class A",
+            "card_need": "A Class A CDL and you are ready for regional runs.",
+            "card_apply": "Fill out the form below.",
+            "cta": "Apply today",
+            "primary_text": "Your weekends are at home. During the week you run regional, Class A, at $0.66 per mile. Bring your Class A CDL and apply today.",
+            "headline": "Home weekends, $0.66/mile",
+            "kicker": "Class A regional",
             "second_line": "$0.66 per mile"
           },
           "es": {
             "card_get": "En casa los fines de semana",
-            "card_need": "Choferes Clase A que buscan rutas regionales.",
-            "card_apply": "Llena la forma y dale a Aplicar.",
-            "cta": "Aplica ya",
-            "primary_text": "Maneja rutas regionales en la semana y estás en casa los fines de semana. Clase A, $0.66 por milla. Aplica ya.",
-            "headline": "En casa los fines de semana",
-            "kicker": "Buscamos Clase A",
+            "card_need": "Con tu CDL Clase A, ya puedes hacer rutas regionales.",
+            "card_apply": "Llena la solicitud aquí abajo.",
+            "cta": "Aplica hoy",
+            "primary_text": "Tus fines de semana son en casa. Entre semana manejas regional, Clase A, a $0.66 por milla. Trae tu CDL Clase A y aplica hoy.",
+            "headline": "Fines de semana en casa",
+            "kicker": "Regional Clase A",
             "second_line": "$0.66 por milla"
           }
         },
         {
           "en": {
-            "card_get": "Regional runs, Class A",
-            "card_need": "Your Class A CDL. That is what we need.",
-            "card_apply": "Apply here and we talk.",
-            "cta": "Get started",
-            "primary_text": "Here is the deal: regional runs, $0.66 per mile, home weekends. You need a Class A. Apply and we talk.",
-            "headline": "$0.66/mile, home weekends",
-            "kicker": "Now hiring",
+            "card_get": "Regional runs at $0.66 a mile",
+            "card_need": "Got your Class A CDL? That is what we ask.",
+            "card_apply": "Hit Apply. We take it from there.",
+            "cta": "Apply now",
+            "primary_text": "Straight answer: Class A regional, $0.66 a mile, home weekends. If you hold a Class A CDL, hit Apply and send your details.",
+            "headline": "Regional, $0.66 a mile",
+            "kicker": "Now hiring: Class A",
             "second_line": "Home weekends"
           },
           "es": {
-            "card_get": "Rutas regionales, Clase A",
-            "card_need": "Tu licencia CDL Clase A. Eso es lo que pedimos.",
-            "card_apply": "Aplica aquí y hablamos.",
-            "cta": "Empieza hoy",
-            "primary_text": "Así de claro: rutas regionales, $0.66 por milla y en casa los fines de semana. Necesitas Clase A. Aplica y hablamos.",
-            "headline": "$0.66/milla, finde en casa",
-            "kicker": "Contratando",
-            "second_line": "En casa los findes"
+            "card_get": "Regional a $0.66 la milla",
+            "card_need": "¿Tienes tu CDL Clase A? Eso pedimos.",
+            "card_apply": "Dale a Aplicar y seguimos nosotros.",
+            "cta": "Aplica ya",
+            "primary_text": "Te lo digo claro: regional Clase A, $0.66 la milla y en casa los fines de semana. Si tienes CDL Clase A, dale a Aplicar y manda tus datos.",
+            "headline": "Regional, $0.66 la milla",
+            "kicker": "Contratamos Clase A",
+            "second_line": "Findes en casa"
           }
         }
       ]
