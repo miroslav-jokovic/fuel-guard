@@ -955,4 +955,15 @@ A gate fails on a literal string in an `apply/` template.
   - **Met again:** the new line was first put between a row's `v-if` and its `v-else` chain, which rebinds the chain (the PR 2221 trap). Four drawer tests caught it; it sits after the chain, and a test now pins that the editor still opens.
   - **Proof:** the row component (+11), the drawer (+1); 11 of 11 mutants killed, one only after its fixture was reordered (the other row's question had been listed second, so "the first open question" passed).
   - **Next:** stage 3, the e-mail and text; then "Ask" on a job.
+- 2026-11-14: **F5 stage 2b merged** (#2387). Ask-again is usable on staging.
+- 2026-11-14: **F5, stage 3: the applicant is e-mailed that a question is waiting** (`claude/application-ask-again-notice`, no migration).
+  - **What goes:** an e-mail to the invitation's address, "{carrier} has a question about your application", sending them to the application link they already have.
+  - **What it does not carry, on purpose:**
+    - **Not the office's words.** They are about one answer on a §391.21 application, and an e-mail is forwarded and read on shared screens. The words wait on the applicant's own link.
+    - **Not a link.** Only a hash of the link is stored, and rotating it to mail a new one would break the link the applicant was told to keep (Q-AX4's reasoning for the approval notice). The e-mail says to ask the carrier to send it again if they cannot find it.
+  - **One notice for a round:** sent when a question is asked and none was already waiting. Three questions in a minute are one e-mail.
+  - **A refused send never loses the question.** It is stored and audited first; the office's row then says what became of the notice: e-mailed and to where, or not, and then to text or call. The hint that said the applicant was not told is gone.
+  - **Not built: a text message.** A new kind of text needs its wording in the SMS programme's own catalogue and the consent it is sent under (SMS-OPT-IN-PLAN §6). The office's form says no text is sent.
+  - **Proof:** API (+6), the row (+3), 8 of 8 mutants killed (one re-run after its first pattern did not apply).
+  - **F5 is built except for the text message and "Ask" on a job.** Next: "Ask" on a job, then the documents-only link.
 

@@ -351,16 +351,17 @@ export function recruitmentApplicationReviewRouter(): Router {
     canManage,
     validateBody(askAgainSchema),
     asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const { env } = getAppLocals(req);
+      const admin = getSupabaseAdmin(env);
       const result = await askAgain(
-        admin, req.auth!.orgId!, String(req.params.invitationId ?? ""), res.locals.body as AskAgain,
+        admin, env, req.auth!.orgId!, String(req.params.invitationId ?? ""), res.locals.body as AskAgain,
         { actorId: req.auth!.userId }, new Date(),
       );
       if (isAskAgainError(result)) {
         res.status(status(result.code)).json(apiError(result.code, result.message));
         return;
       }
-      res.status(201).json({ ok: true, question: result });
+      res.status(201).json({ ok: true, ...result });
     }),
   );
 

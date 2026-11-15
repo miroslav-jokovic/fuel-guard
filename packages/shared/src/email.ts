@@ -282,6 +282,37 @@ export function renderApplicationApprovedEmail(carrier: string): RenderedEmail {
 }
 
 /**
+ * "The carrier has a question about your application" (APPLICATION-FIX-PLAN.md F5; 0607).
+ *
+ * ── WHAT IT DOES NOT CARRY, ON PURPOSE ────────────────────────────────────────────────────────
+ * **Not the question.** The office writes it about one answer on a §391.21 application — a date, a
+ * job, an accident — and an e-mail is forwarded and read on shared screens. The words wait on the
+ * applicant's own link, which is the thing the date-of-birth gate guards.
+ * **Not a link.** Only a hash of the link is stored (0220), and rotating it to mail a new one would
+ * break the link the applicant was told to keep (`renderApplicationApprovedEmail`'s reasoning, Q-AX4).
+ * So it sends them back to the link they have, and says what to do if they cannot find it.
+ */
+export function renderApplicationQuestionEmail(carrier: string): RenderedEmail {
+  const subject = `${carrier} has a question about your application`;
+  const html =
+    `<div style="font-family:system-ui,sans-serif;color:#111">`
+    + `<h2 style="margin:0 0 8px">${esc(carrier)} has a question about your application</h2>`
+    + `<p style="color:#555">They are reading it and need one thing from you before they can go on. `
+    + `Open your application link — the one you filled it in on — to read the question and answer it. `
+    + `It takes a minute.</p>`
+    + `<p style="color:#555">Nothing you filled in has been lost.</p>`
+    + `<p style="color:#aaa;font-size:12px">Cannot find your link? Ask ${esc(carrier)} to send it again.</p>`
+    + `</div>`;
+  const text =
+    `${carrier} has a question about your application.\n\n`
+    + `They are reading it and need one thing from you before they can go on. Open your application link — `
+    + `the one you filled it in on — to read the question and answer it. It takes a minute.\n\n`
+    + `Nothing you filled in has been lost.\n\n`
+    + `Cannot find your link? Ask ${carrier} to send it again.`;
+  return { subject, html, text };
+}
+
+/**
  * The sign link, sent by the office while the driver is there (D-AW14, C3s3a).
  *
  * A fourth sibling, because it says a fourth thing: *sign it now, on this phone, and this link is short-

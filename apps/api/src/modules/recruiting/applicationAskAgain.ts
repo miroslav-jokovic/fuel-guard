@@ -8,7 +8,9 @@ import {
   type AskAgainView,
   type ApplicationPath,
 } from "@silvicom/shared";
+import type { Env } from "../../env.js";
 import { writeAudit } from "../../lib/audit.js";
+import { notifyAskAgain, type AskAgainNotice } from "./applicationAskAgainNotice.js";
 import { ALREADY_SUBMITTED, isIntakeError, resolveInvitation, type IntakeError } from "./applicationIntake.js";
 
 /**
@@ -31,7 +33,17 @@ export interface AskAgainError {
   message: string;
 }
 export const isAskAgainError = (v: unknown): v is AskAgainError =>
-  typeof v === "object" && v !== null && "code" in v && "message" in v && !("id" in v);
+  typeof v === "object" && v !== null && "code" in v && "message" in v && !("id" in v) && !("question" in v);
+
+/**
+ * A question asked: the row, and what became of telling the applicant. `notice` is null when nothing
+ * was sent BY DESIGN — a question was already waiting (one notice for a round), or this was a second
+ * click on the same answer.
+ */
+export interface AskedAgain {
+  question: AskAgainView;
+  notice: AskAgainNotice | null;
+}
 
 const NOT_FOUND: AskAgainError = { code: "application_not_found", message: "There is no application on this invitation." };
 const NOT_SENT_YET: AskAgainError = {
@@ -87,20 +99,21 @@ const samePath = (a: ApplicationPath, b: ApplicationPath): boolean => JSON.strin
 
 export async function askAgain(
   admin: SupabaseClient,
+  env: Env,
   orgId: string,
   invitationId: string,
   body: AskAgain,
   ctx: { actorId: string },
   now: Date,
-): Promise<AskAgainView | AskAgainError> {
+): Promise<AskedAgain | AskAgainError> {
   const { data: inv } = await admin
     .from("application_invitations")
-    .select("id, driver_id, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at")
+    .select("id, driver_id, email, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at")
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .maybeSingle();
   const row = inv as {
-    id: string; driver_id: string; application_sent_at: string | null; review_requested_at: string | null;
+    id: string; driver_id: string; email: string | null; application_sent_at: string | null; review_requested_at: string | null;
     approved_at: string | null; signing_opened_at: string | null; submitted_at: string | null;
   } | null;
   if (!row) return NOT_FOUND;
@@ -116,7 +129,7 @@ export async function askAgain(
   const open = asked.filter(askAgainIsOpen);
   // Asked twice about the same answer is a double-click: the question already waiting is the answer.
   const already = open.find((q) => samePath(q.path, body.path));
-  if (already) return already;
+  if (already) return { question: already, notice: null };
   if (open.length >= ASK_AGAIN_MAX_OPEN) return TOO_MANY;
 
   const { data: made, error } = await admin
@@ -140,7 +153,9 @@ export async function askAgain(
     // Which answer and whose application. The office's words are on the row, not copied here.
     meta: { driverId: row.driver_id, questionId: inserted.id, path: body.path },
   });
-  return view(inserted);
+  // ⚠ AFTER the row and the audit, and never able to undo either (`applicationAskAgainNotice.ts`).
+  const notice = open.length === 0 ? await notifyAskAgain(admin, env, orgId, row.email) : null;
+  return { question: view(inserted), notice };
 }
 
 /** The office takes a question back: it found the answer another way, or asked in error. */
