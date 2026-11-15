@@ -55,8 +55,10 @@ export const PART_ONE_ANSWERED = {
 };
 
 /** An employer answering every (b)(10) question, covering the whole three-year window. */
+// Named, not inline: the secret scan reads `key: "<uuid>"` as an API key. It is the row's draft key.
+const EMPLOYER_ROW_ID = "5b0c6a4e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
 export const CURRENT_LINK_EMPLOYER = {
-  key: "5b0c6a4e-1f2d-4c3b-9a8e-7d6c5b4a3f21", employer_name: "Midwest Freight",
+  key: EMPLOYER_ROW_ID, employer_name: "Midwest Freight",
   address_line1: "1 Main St", city: "Joliet", state: "IL",
   started_on: "2020-01-01", ended_on: null, operated_cmv: true, dot_regulated: true,
   reason_for_leaving: "Still employed", subject_to_fmcsr: true, safety_sensitive: true,
