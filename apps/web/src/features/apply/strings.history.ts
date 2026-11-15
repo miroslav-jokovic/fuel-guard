@@ -26,16 +26,12 @@ export const APPLY_HISTORY_COPY = {
     none: "I have not been employed during this period",
     operatedCmv: "I drove a commercial vehicle in this job",
     dotRegulated: "This employer was DOT-regulated",
-    /** A job on the list with an answer still missing (v2): the answers are inside, so the row says so. */
-    jobNeedsAnswers: "Some answers are missing. Choose Change to finish them.",
     add: "Add another employer",
     remove: "Remove",
     experience: "Driving experience",
     experienceHint: "Optional — equipment, routes, years.",
     /** §391.21(b)(6)'s second half, laid out as FMCSA's own sample application lays it out. */
     equipmentHeading: "Equipment you have driven",
-    equipmentIntro:
-      "Which types of vehicle you have operated. Add a line for each — or describe it above instead, whichever is easier.",
     equipmentClass: "Class of equipment",
     equipmentType: "Type",
     equipmentTypeHint: "Van, tank, flat, and so on.",
@@ -45,30 +41,20 @@ export const APPLY_HISTORY_COPY = {
     equipmentToHint: "Blank if you still drive it.",
     equipmentMiles: "Approximate total miles",
     equipmentMilesHint: "A rough number is fine.",
-    addEquipment: "Add equipment",
 
     // ── X5: one job at a time ────────────────────────────────────────────────────────────────
-    /** The hub's own instruction, replacing the one that introduced a screen of ninety controls. */
-    jobsHeading: "Your jobs",
-    addFirstJob: "Add your first job",
     addJob: "Add another job",
-    coverageHeading: "How much you have accounted for",
     coverage: (percent: number, years: number): string =>
       `${percent}% of the last ${years} years is accounted for.`,
     coverageComplete: (years: number): string => `The last ${years} years are accounted for.`,
-    coverageEmpty: (years: number): string =>
-      `Nothing yet. Add the jobs you have had over the last ${years} years.`,
     /**
-     * A stretch with no job, and the box beside it (C3c1, AW1). The earlier wording said "the carrier
-     * may ask you about it" because the form had no box; now it has one, so the line asks here. A job
-     * the driver forgot is still the first thing it suggests — adding it closes the gap and the box goes.
+     * A stretch with no job (C3c1, AW1). A job the driver forgot is the first thing it suggests — adding
+     * it closes the gap. The question about the stretch itself is the walk's (`walk.gap`).
      */
     gap: (from: string, to: string): string =>
       `${from} to ${to} is not covered. If you were working then, add that job. If not, say what you were doing.`,
-    gapExplanation: "What were you doing then?",
     /** The review's heading over the explanations (C3c1). */
     gapsHeading: "Time between jobs",
-    gapExplanationHint: "For example: looking for work, school, medical leave, caring for family.",
     /**
      * The task walked one question to a screen (F4 PR 1b-4, SCREEN-MAP 2.8–2.17). The form's labels above
      * stay the office's and the review's; on a screen of its own a label IS the question.
@@ -144,10 +130,7 @@ export const APPLY_HISTORY_COPY = {
     violationDate: "Date",
     offence: "Offence",
     violationState: "State where it happened",
-    violationStateHint: "Two letters are enough — IL, IN, WI.",
     penalty: "Penalty",
-    penaltyHint: "A fine, points, a suspension — what the court gave.",
-    addViolation: "Add a conviction",
     licenceHeading: "License history",
     everDenied: "Denied a license, permit or privilege to drive",
     everSuspended: "A license, permit or privilege suspended or revoked",
@@ -156,19 +139,11 @@ export const APPLY_HISTORY_COPY = {
     suspensionDetail: "Why it was suspended or revoked",
     suspensionDetailHint: "When, and the reason.",
     /**
-     * §40.25(j)'s two-year question (P8). ⚠ No citation in the copy — D-UI9 — and the voice rule
-     * applies with force here: this is the most resented question on the form, so it says why it is
-     * asked in the same breath, and it says what a yes actually means. A driver who reads "yes ends
-     * this" answers no.
+     * §40.25(j)'s two-year question (P8), as the review and the office's card label its answer. The
+     * question itself is Part 1's (`strings.partOne.ts`); this form has not asked it since the legacy
+     * wizard went, so only the heading is left here. ⚠ No citation in the copy — D-UI9.
      */
     priorTestHeading: "Drug and alcohol tests",
-    priorTestIntro:
-      "Every carrier has to ask this one, and a yes does not end your application. It means we have "
-      + "to see the paperwork showing you finished the return-to-duty process before you can drive.",
-    priorTest:
-      "In the last two years, did you apply for a driving job you did not get, and test positive or "
-      + "refuse a test as part of that application?",
-    priorTestHint: "This is about jobs you applied for, not jobs you had.",
     remove: "Remove",
     /**
      * The task walked one question to a screen (F4 PR 1b-1, SCREEN-MAP 2.18–2.21). The section's labels

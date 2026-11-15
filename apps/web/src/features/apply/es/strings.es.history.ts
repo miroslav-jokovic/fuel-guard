@@ -75,14 +75,11 @@ export const APPLY_HISTORY_COPY_ES = {
     none: "No he tenido empleo durante este periodo",
     operatedCmv: "En este trabajo manejé un vehículo comercial",
     dotRegulated: "Este empleador estaba regulado por el DOT",
-    jobNeedsAnswers: "Faltan algunas respuestas. Elija Cambiar para completarlas.",
     add: "Agregar otro empleador",
     remove: "Quitar",
     experience: "Experiencia de manejo",
     experienceHint: "Opcional: equipo, rutas, años.",
     equipmentHeading: "Equipo que ha manejado",
-    equipmentIntro:
-      "Qué tipos de vehículo ha operado. Agregue una línea por cada uno, o descríbalo arriba, lo que le sea más fácil.",
     equipmentClass: "Clase de equipo",
     equipmentType: "Tipo",
     equipmentTypeHint: "Caja seca, cisterna, plataforma, etcétera.",
@@ -92,22 +89,14 @@ export const APPLY_HISTORY_COPY_ES = {
     equipmentToHint: "En blanco si todavía lo maneja.",
     equipmentMiles: "Millas totales aproximadas",
     equipmentMilesHint: "Un número aproximado está bien.",
-    addEquipment: "Agregar equipo",
 
-    jobsHeading: "Sus trabajos",
-    addFirstJob: "Agregue su primer trabajo",
     addJob: "Agregar otro trabajo",
-    coverageHeading: "Cuánto tiene cubierto",
     coverage: (percent: number, years: number): string =>
       `Tiene cubierto el ${percent}% de los últimos ${years} años.`,
     coverageComplete: (years: number): string => `Los últimos ${years} años están cubiertos.`,
-    coverageEmpty: (years: number): string =>
-      `Todavía nada. Agregue los trabajos que ha tenido en los últimos ${years} años.`,
     gap: (from: string, to: string): string =>
       `De ${from} a ${to} no está cubierto. Si trabajaba entonces, agregue ese trabajo. Si no, diga qué hacía.`,
-    gapExplanation: "¿Qué hacía en ese tiempo?",
     gapsHeading: "Tiempo entre trabajos",
-    gapExplanationHint: "Por ejemplo: buscando trabajo, estudiando, licencia médica, cuidando a la familia.",
     walk: {
       any: `¿Ha tenido un trabajo en los últimos ${EMPLOYMENT_WINDOW_YEARS} años, o ha manejado un camión para alguien en los últimos ${CMV_WINDOW_YEARS}?`,
       anyHint: "Empiece por su trabajo actual o el más reciente. Le preguntaremos por cada uno.",
@@ -164,10 +153,7 @@ export const APPLY_HISTORY_COPY_ES = {
     violationDate: "Fecha",
     offence: "Infracción",
     violationState: "Estado donde ocurrió",
-    violationStateHint: "Basta con dos letras: IL, IN, WI.",
     penalty: "Sanción",
-    penaltyHint: "Una multa, puntos, una suspensión: lo que dio el tribunal.",
-    addViolation: "Agregar una condena",
     licenceHeading: "Historial de licencias",
     everDenied: "Me negaron una licencia, un permiso o un privilegio de manejar",
     everSuspended: "Me suspendieron o revocaron una licencia, un permiso o un privilegio",
@@ -176,13 +162,6 @@ export const APPLY_HISTORY_COPY_ES = {
     suspensionDetail: "Por qué se lo suspendieron o revocaron",
     suspensionDetailHint: "Cuándo, y el motivo.",
     priorTestHeading: "Pruebas de drogas y alcohol",
-    priorTestIntro:
-      "Todas las empresas tienen que hacer esta pregunta, y un sí no termina su solicitud. Significa que tenemos "
-      + "que ver los papeles que muestren que completó el proceso de regreso al trabajo (return-to-duty) antes de que pueda manejar.",
-    priorTest:
-      "En los últimos dos años, ¿solicitó un trabajo de conductor que no obtuvo, y dio positivo o "
-      + "se negó a una prueba como parte de esa solicitud?",
-    priorTestHint: "Esto es sobre trabajos que solicitó, no sobre trabajos que tuvo.",
     remove: "Quitar",
     walk: {
       accidentDate: "¿Cuándo fue el accidente?",

@@ -128,11 +128,11 @@ const ok = (body: unknown) => {
 /** Where Part 1 stands on a link nobody has walked, and on one that has finished it — as the server serves it. */
 const PART_ONE_NEW = {
   completedAt: null, contact: false, address: false, licences: false, screening: false,
-  medicalCardPending: false, rights: false,
+  medicalCardPending: false, cdlPhotoPending: false, rights: false,
 };
 const PART_ONE_DONE = {
   completedAt: "2026-08-21T09:05:00Z", contact: true, address: true, licences: true, screening: true,
-  medicalCardPending: false, rights: true,
+  medicalCardPending: false, cdlPhotoPending: false, rights: true,
 };
 const dead = () => ({ ok: false, json: async () => ({ error: { code: "invalid_link", message: "This application link is not valid. Ask for a new one." } }) });
 
@@ -648,7 +648,7 @@ describe("the applicant's page", () => {
     captures: [],
     partOne: {
       completedAt: null, contact: false, address: false, licences: false, screening: false,
-      medicalCardPending: false, rights: false, ...partOne,
+      medicalCardPending: false, cdlPhotoPending: false, rights: false, ...partOne,
     },
     fcraSummary: null,
     ...extra,
