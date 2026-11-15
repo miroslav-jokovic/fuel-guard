@@ -17,7 +17,7 @@
  * unit-tested in jsdom. Everything it is asked to decide — which icon a truck gets, which colour a
  * state is — lives in `liveMapLayer.ts` instead, where a test can hold it still.
  */
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { tokenColor } from "@/composables/useMapLibre";
 import { STATE_COLOR_CLASS, iconId } from "./liveMapLayer";
 import { GLYPHS, GLYPH_NAMES, glyphState, type Glyph } from "./liveMapGlyphs";

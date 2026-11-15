@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { useMapLibre, tokenColor } from "@/composables/useMapLibre";
 import type { PlanResult, PlanStopView } from "./useFuelPlan";

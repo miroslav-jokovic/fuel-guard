@@ -20,7 +20,15 @@
  * screen of 401s. Do not "tidy" that into a non-blocking fetch.
  */
 import { onBeforeUnmount, onMounted, shallowRef, toValue, watch, type Ref } from "vue";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+/**
+ * maplibre 6 no longer inlines its worker: it loads `maplibre-gl-worker.mjs` from beside its own module
+ * file. A bundler moves that module into a hashed chunk and leaves the worker behind — the first build of
+ * the upgrade (2026-11-15) had no worker file in `dist/assets` at all, which is a map that never draws a
+ * tile, in production only. `?url` makes Vite emit the file and hand back its address.
+ * `e2e-apply/liveMap.spec.ts` is the test that fails without it.
+ */
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { HERE_MAX_TILE_ZOOM, HERE_MAX_VECTOR_ZOOM, TILE_CSS_PX, TRUCK_PLACES_ZOOM, TILE_REQUEST } from "@silvicom/shared";
 import { GLYPHS_PATH, MAP_PALETTE_KEYS, TRUCK_PLACES_TILES_TEMPLATE, isVectorTemplate, truckPlacesSourceId, vectorBasemapLayers, type MapPalette } from "./vectorBasemap";
@@ -296,6 +304,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
       accessToken = session?.access_token ?? null;
     }).data.subscription;
 
+    maplibregl.setWorkerUrl(maplibreWorkerUrl);
     maplibregl.setMaxParallelImageRequests(MAX_PARALLEL_TILE_REQUESTS);
     // A map can open on either kind of basemap; the first one is declared in the style either way.
     const first = tileUrl();

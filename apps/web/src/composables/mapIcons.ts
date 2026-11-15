@@ -110,7 +110,12 @@ export async function rasteriseMapIcons(disc: string, glyph: string): Promise<Ma
 
 /** The part of a maplibre map the icons touch, so a test can stand in for it. */
 export interface IconMap {
-  on(type: "styleimagemissing", listener: (e: { id: string }) => void): unknown;
+  /**
+   * maplibre 6: the ONE function the map asks for an image its style names and it does not have. Before 6
+   * this was a `styleimagemissing` listener; that event still fires, but only to report, and an image added
+   * from it arrives too late for the request that fired it.
+   */
+  setMissingStyleImageResolver(resolver: (id: string) => void): unknown;
   hasImage(id: string): boolean;
   addImage(id: string, image: MapIconImage, options: { pixelRatio: number }): unknown;
   updateImage(id: string, image: MapIconImage): unknown;
@@ -122,7 +127,7 @@ export interface IconMap {
  */
 export function installMapIcons(map: IconMap, initial: Map<string, MapIconImage>): (next: Map<string, MapIconImage>) => void {
   let icons = initial;
-  map.on("styleimagemissing", ({ id }) => {
+  map.setMissingStyleImageResolver((id) => {
     const img = icons.get(id);
     if (img && !map.hasImage(id)) map.addImage(id, img, { pixelRatio: ICON_PIXEL_RATIO });
   });
