@@ -1,12 +1,6 @@
 {
-  "//": "Critical and high advisories that reach the office app and are accepted FOR NOW, each for the packages named and with a reason somebody can check (scripts/check-advisories.mjs, INSTALLED-APP-PLAN §5a A4). This list may only shrink: the check fails on an entry that no longer describes anything, so the upgrade that closes an advisory removes its line in the same PR. All seven were measured on 2026-11-15, and every one has a fix inside the range its dependent already asks for — none is here because it cannot be fixed, only because each upgrade is its own tested step.",
+  "//": "Critical and high advisories that reach the office app and are accepted FOR NOW, each for the packages named and with a reason somebody can check (scripts/check-advisories.mjs, INSTALLED-APP-PLAN §5a A4). This list may only shrink: the check fails on an entry that no longer describes anything, so the upgrade that closes an advisory removes its line in the same PR. Measured on 2026-11-15; every one has a fix inside the range its dependent already asks for — none is here because it cannot be fixed, only because each upgrade is its own tested step.",
   "accepted": [
-    {
-      "id": "GHSA-mrhx-c7xc-m3w5",
-      "library": "zod",
-      "reaches": ["@silvicom/web", "@silvicom/api", "@silvicom/admin", "@silvicom/admin-api"],
-      "reason": "zod 4.4.3 is pinned in nine package.json files and validates every request the API takes; fixed in 4.6.6. The upgrade is the next step in the plan and gets its own PR and full test run rather than riding in with this check."
-    },
     {
       "id": "GHSA-g2v6-rqmx-r4w6",
       "library": "@vue/server-renderer",
