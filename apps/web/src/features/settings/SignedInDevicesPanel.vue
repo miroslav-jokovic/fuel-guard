@@ -45,11 +45,14 @@ async function act(fn: () => Promise<unknown>, done: string) {
       error-text="Could not load your devices."
       @retry="list.refetch()"
     >
-      <SignedInDeviceList :devices="devices" :busy="busy" @end="(d) => act(() => endOne.mutateAsync(d.id), `${d.device} is signed out.`)" />
-      <p v-if="devices.length > 0 && others.length === 0" class="mt-2 text-sm text-ink-muted">You are signed in on this device only.</p>
+      <!-- Above the list, not under it: on staging one login had 160 sign-ins, which put this button and the
+           answer to a press 13,000 px down (browser pass, 2026-11-15). -->
+      <p class="text-sm text-ink-secondary" data-testid="signed-in-devices-summary">
+        {{ others.length === 0 ? "You are signed in on this device only." : `You are signed in on this device and ${others.length} other${others.length === 1 ? "" : "s"}.` }}
+      </p>
       <BaseButton
         v-if="others.length > 1"
-        class="mt-4"
+        class="mt-3"
         size="sm"
         variant="secondary"
         :disabled="busy"
@@ -58,11 +61,12 @@ async function act(fn: () => Promise<unknown>, done: string) {
         Sign out of all {{ others.length }} other devices
       </BaseButton>
       <p v-if="note" class="mt-3 text-sm text-ink-secondary" role="status">{{ note }}</p>
-      <p class="mt-6 text-xs text-ink-muted">
+      <p class="mb-2 mt-3 text-xs text-ink-muted">
         A device you sign out here cannot sign back in without your password. If it is open right now, it can keep
         working for up to an hour. If you think somebody else has your password, sign out and use “Forgot password?” on
         the sign-in page: a new password signs out every device.
       </p>
+      <SignedInDeviceList :devices="devices" :busy="busy" @end="(d) => act(() => endOne.mutateAsync(d.id), `${d.device} is signed out.`)" />
     </QueryState>
   </SlideOver>
 </template>

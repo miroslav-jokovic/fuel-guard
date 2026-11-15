@@ -121,6 +121,18 @@ describe("Signed-in devices", () => {
     expect(rows()).toHaveLength(3);
   });
 
+  it("keeps the count, the all-others button and the answer to a press ABOVE the list, however long it is", async () => {
+    await openPanel();
+    const listEl = document.body.querySelector('[data-testid="signed-in-devices"]')!;
+    const before = (el: Element | null) => !!el && !!(el.compareDocumentPosition(listEl) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(document.body.querySelector('[data-testid="signed-in-devices-summary"]')!.textContent!.trim()).toBe("You are signed in on this device and 2 others.");
+    expect(before(document.body.querySelector('[data-testid="signed-in-devices-summary"]'))).toBe(true);
+    expect(before([...document.body.querySelectorAll("button")].find((b) => b.textContent!.includes("Sign out of all"))!)).toBe(true);
+    await press("Sign out Safari on iPhone");
+    expect(before(document.body.querySelector("[role=status]"))).toBe(true);
+    expect(document.body.querySelector('[data-testid="signed-in-devices-summary"]')!.textContent!.trim()).toBe("You are signed in on this device and 1 other.");
+  });
+
   it("says what signed out does not mean: an open device keeps working for up to an hour", async () => {
     await openPanel();
     expect(text()).toContain("it can keep working for up to an hour");
