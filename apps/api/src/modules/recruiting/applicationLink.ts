@@ -10,7 +10,7 @@ import {
 import type { Env } from "../../env.js";
 import { writeAudit } from "../../lib/audit.js";
 import { mintInvitationToken } from "./applicationIntake.js";
-import { mintIntakeRow } from "./applicantIntake.js";
+import { intakeState, mintIntakeRow } from "./applicantIntake.js";
 import { inviteByText } from "./applicationInviteText.js";
 import { carrierName, deliverApplicationMail, type ApplicationInviteDelivery } from "./applicationMail.js";
 import { recruitingSettings } from "./recruitingSettings.js";
@@ -31,6 +31,7 @@ import { messageInputs } from "./messageWording.js";
  * filed) it REPLACES that invitation's token — same invitation, everything they did kept, the old link
  * dead. Otherwise it opens a new invitation: a fresh, empty application (owner, 2026-09-27). The rule
  * lives here rather than in the button, so the card, the board's drawer and a later caller agree.
+ * ⚠ A LEGACY invitation (no Part 1 row) counts as "cannot be used" since 1b-5: its link opens nothing.
  *
  * ⚠ Every query org-filters itself: the service role bypasses RLS. And the audit carries the ids and
  * the expiry, never the token or its hash — an audit log is the last place a credential should be
@@ -269,7 +270,11 @@ export async function sendApplicationLinkAgain(
   type Row = { id: string; driver_id: string; email: string | null; expires_at: string; revoked_at: string | null; handbook_filed_at: string | null };
   const rows = (data ?? []) as Row[];
   const current = rows.find((r) => r.revoked_at === null) ?? null;
-  if (current && canResendApplicationLink(current)) {
+  // 1b-5: a LEGACY invitation (no Part 1 row) is never re-sent. Its link opens nothing since the legacy
+  // wizard was retired (`applicationBundleHandler`), and re-sending moves its end date forward, so the
+  // applicant would be mailed a dead link and told to ask for another. It gets a new invitation, like
+  // a revoked one. ⚠ Read only when a re-send is otherwise about to happen.
+  if (current && canResendApplicationLink(current) && (await intakeState(admin, input.orgId, current.id)).v2) {
     return resendOnInvitation(admin, env, { orgId: input.orgId, userId: input.userId, invitation: current }, now);
   }
   const email = rows.find((r) => r.email)?.email ?? applicant.email;

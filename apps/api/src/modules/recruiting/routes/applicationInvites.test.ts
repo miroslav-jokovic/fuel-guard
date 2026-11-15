@@ -61,6 +61,8 @@ const seed = (status = "applicant"): SupabaseRecorder =>
     tables: {
       drivers: [{ id: DRIVER, status }],
       application_invitations: [{ id: "inv-1", driver_id: DRIVER, expires_at: "2099-01-01T00:00:00Z", revoked_at: null, handbook_filed_at: null }],
+      // The invitation's Part 1 row: without one it is a legacy invitation, which is never re-sent (1b-5).
+      application_intakes: [{ id: "intake-1" }],
       audit_logs: [],
     },
   });
