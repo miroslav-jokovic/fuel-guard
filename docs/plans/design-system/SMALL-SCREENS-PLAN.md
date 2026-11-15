@@ -141,11 +141,25 @@ Read before the build, and each one changed the design:
   `lib/` (which may import features) composes them. To verify against `check-feature-boundaries`
   at C1; if `lib/` may not, this is a blocker to bring back, not to route around.
 
+  **Answered 2026-11-15 (C2): `lib/` may, and does.** Each card's rows are a composable beside the
+  card; `lib/opsRowSources.ts` names all ten and `lib/NeedsActionWidget.vue` reads them.
 - **Q-SM4 — four verbs in a page header on a phone.** Drivers carries Audit binders, Reconcile with
   Samsara, Upload scanned files and New driver; at 390 px they take two lines. (a) Leave them: two
   lines of whole, unwrapped buttons is legible. (b) Keep the primary verb and fold the rest into one
   "More" menu below `md`, drawn by `PageHeader` for every page. **Recommendation: (b)**, as its own
   small PR after B — it touches every page's header and deserves its own browser pass.
+
+- **Q-SM5 — which rows "need action" (raised by C2's browser pass, 2026-11-15).** D-SM12 says the
+  ALARM rows, and C2 builds exactly that: a row its own card already draws in the danger ink (late
+  risk, HOS low, trucks without a driver, expired driver files, overdue truck papers, open defects,
+  hazmat to review, roadside hazmat out-of-service and needs-action). The approved picture lists
+  more: No GPS, driver files not started, drivers without a truck, and truck papers with no paper and
+  no date. On staging that is the difference between one row (85 trucks without a driver) and six.
+  (a) Keep the alarm rows — the card stays short and means "wrong". (b) Mark those four rows as
+  alarms on their own cards, which lists them here and also turns their figures red there — one word
+  per row, no change to this card. **Recommendation: (a) until the owner says which of the four he
+  acts on**; the picture's 259 / 259 / 192 on staging are a test fleet with no papers filed, and on
+  the real fleet "no paper, no date" was 51 trucks that nobody can clear in a day.
 
 ## 6. Phases
 
@@ -250,3 +264,30 @@ Table layout at desk widths. New data on any card.
     rows into a composable beside it (ten small moves, no behaviour change), then adds one catalogue
     entry that reads them. Its own PR, with its own gate (`ops.needs-action` must respect each
     source card's section gate, D-FM4).
+- **2026-11-15 — B and C1 merged.** B is PR #2382 (`50e9704`), C1 is PR #2383 (`b15a032`); with A1
+  (#2376) and A2 (#2377) all four phases are on main and on staging, none in production. The four
+  worktrees are removed.
+- **2026-11-15, C2 built** (branch `claude/operations-needs-action`) — the rest of D-SM12.
+  - **Rows out of the cards.** Each of the ten Operations cards computed its rows inside its own
+    `.vue`; each now reads them from a composable beside it (`use…Rows.ts`), no figure changed.
+    Seats' roster line keeps its gate inside the composable, so every reader of the rows gets it.
+  - **The fleet strip.** `ops.fleet-now` is `span: 12` and draws four shared `StatCard` tiles, two-up
+    under 48rem of strip. The total opens the board and Empty opens its queue; a tile is a link only
+    where the page opens for the reader.
+  - **"Needs action"** is a new catalogue card, `ops.needs-action`, in `lib/` (Q-SM3). It lists each
+    alarm row above zero, largest first, under the name of its card, with that card's own door. Each
+    source is mounted only if its own card's gate admits the reader (D-FM4), so a refused section is
+    never asked. A rate (the two out-of-service percentages) stays on its card: the list is ordered
+    by counts. A check that has not answered is counted apart and never called clear.
+  - **Layout.** Packing is decided per RUN, cut at full-width cards (`layoutSegments`), so the strip
+    sits on the grid and the ten cards under it still pack. A run packs only once it wraps; Fleet
+    overview is still one grid.
+  - **"Needs a hand now" is now "On the road"** (key unchanged), as in the picture: two cards named
+    for needing somebody could not be told apart. FLEET-MANAGER-HOME-PLAN §4 card 2 is that card.
+  - Seen in a browser on staging's data, fleet manager and admin, 390 / 768 / 1024 / 1440: no page
+    scrolls sideways. Operations is 1,465 px tall at 1440 (1,399 before this card was added) and
+    3,720 at 390 (3,619). On staging "Needs action" holds one row — 85 trucks without a driver — and
+    eight clear checks; the picture's six rows include four that are not alarms: Q-SM5.
+  - Not built: the picture's header sentence above the strip ("6 things need a person, 28 checks are
+    clear") — the same sentence is the card's own readout. The phone picture's folded area list
+    waits on Q-SM1.

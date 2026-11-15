@@ -14,18 +14,12 @@
 import { computed } from "vue";
 import { GaugeIcon } from "@silvicom/ui/icons";
 import { AppDelta } from "@silvicom/ui";
-import { deltaLabel, deltaTone, shiftDay, todayInZone } from "@silvicom/shared";
+import { deltaLabel, deltaTone } from "@silvicom/shared";
 import ChartCard from "@/components/ui/ChartCard.vue";
-import CountList, { type CountRow } from "@/components/ui/CountList.vue";
-import { useOrgTimezone } from "@/composables/useOrgTimezone";
-import { useFleetWidgetData } from "../fleetWidgetData";
+import CountList from "@/components/ui/CountList.vue";
+import { useOpsFuelRows } from "./useOpsFuelRows";
 
-const { zone } = useOrgTimezone();
-const range = computed(() => {
-  const today = todayInZone(new Date(), zone.value);
-  return { from: shiftDay(today, -30), to: today };
-});
-const { s, mpgTotal, mpgPrevious, deltas, previousLabel, previousPhrase, rangeLabel } = useFleetWidgetData(range);
+const { mpgTotal, mpgPrevious, deltas, previousLabel, previousPhrase, rangeLabel, rows } = useOpsFuelRows();
 
 const readout = computed(() => (mpgTotal.value?.mpg != null ? `${mpgTotal.value.mpg} MPG` : "—"));
 const delta = computed(() => {
@@ -35,11 +29,6 @@ const delta = computed(() => {
 const caption = computed(() =>
   mpgPrevious.value?.mpg != null ? `fleet MPG · vs ${mpgPrevious.value.mpg} ${previousPhrase.value}` : "fleet MPG",
 );
-
-const rows = computed<CountRow[]>(() => [
-  { key: "cases", label: "Open fuel cases", value: s.value?.openAnomalies ?? null, caption: "open now", to: "/anomalies", door: "Cases" },
-  { key: "idle", label: "Idle hours", value: s.value?.idleHours ?? null, caption: rangeLabel.value, to: "/idling", door: "Idling" },
-]);
 </script>
 
 <template>
