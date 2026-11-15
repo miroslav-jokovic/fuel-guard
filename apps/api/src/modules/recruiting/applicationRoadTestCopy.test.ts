@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { hashInvitationToken } from "./applicationIntake.js";
 import { APPLICANT_COPY_TTL_SEC } from "./applicationCopy.js";
 import {
@@ -55,6 +56,7 @@ const seed = (over: { invitation?: Record<string, unknown> | null; records?: unk
   createSupabaseRecorder({
     tables: {
       application_invitations: over.invitation === null ? [] : [over.invitation ?? invitationRow()],
+      application_intakes: [PART_ONE_ROW],
       qualification_records: certificateFixture(
         over.records ?? [{ id: RECORD, document_id: CERTIFICATE, occurred_on: "2026-09-25" }],
       ),
