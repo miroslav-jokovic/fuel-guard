@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ADS_SETTINGS_UNSET, type AdsSettings, type CampaignPlan, type LeadQuality } from "@silvicom/shared";
 import type { MessagesClient } from "../../../lib/anthropic.js";
+import { presetRows } from "../../../testing/adsPresetRows.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { STRATEGIST_EVAL, loadFixtures } from "../workers/agentFixtures.js";
 import { benchmarkEvidence } from "./evidencePack.js";
@@ -13,6 +14,8 @@ const NOW = new Date("2026-11-15T18:20:00Z");
 
 const fixtures = loadFixtures(STRATEGIST_EVAL);
 const fx = (name: string) => fixtures.find((f) => f.fixture.name === name)!.fixture;
+/** The carrier can make the starter five kinds of ad, as the fixture says. */
+const concepts = fx("planted-sound").input.concepts;
 const brief = fx("planted-sound").input.brief;
 const sound = fx("planted-sound").recorded.output as CampaignPlan;
 const invented = fx("planted-invented-figure").recorded.output as CampaignPlan;
@@ -22,12 +25,13 @@ function settingsWith(over: Partial<AdsSettings["budgets"]>): AdsSettings {
   return { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, anthropic_tokens_monthly: 1_000_000, agents_enabled: { strategist: true }, ...over } };
 }
 
-function world(opts: { settings?: AdsSettings; generations?: unknown[]; snapshot?: unknown } = {}) {
+function world(opts: { settings?: AdsSettings; generations?: unknown[]; snapshot?: unknown; concepts?: typeof concepts } = {}) {
   let made = 0;
   return createSupabaseRecorder({
     tables: {
       ads_campaigns: [{ brief_snapshot: opts.snapshot ?? brief }],
       ads_ad_spend_hourly: [],
+      ...presetRows(ORG, opts.concepts ?? concepts),
       ads_settings_versions: [{ id: "v1", org_id: ORG, version: 1, settings: opts.settings ?? settingsWith({}), kill_switch: false, kill_reason: null, created_at: NOW.toISOString(), created_by_name: "X" }],
       ad_generations: (q) => (q.write?.method === "insert" ? [{ id: `gen-${(made += 1)}` }] : (opts.generations ?? [])),
       ads_campaign_plans: (q) => (q.write?.method === "insert" ? [{ id: "p-1", ...(q.write.payload as object) }] : []),
@@ -107,6 +111,31 @@ describe("planCampaign", () => {
     expect(unset).toEqual({ ok: false, error: "no monthly AI budget is set in the ads settings" });
     const short = await run(world(), answering({ ...sound, angles: sound.angles.slice(0, 2) }).client);
     expect(short).toEqual({ ok: false, error: "the Strategist's answer could not be used (off_schema)" });
+  });
+
+  it("sends the carrier's concepts on the sheet and stores a plan held to them", async () => {
+    const { client, create } = answering(sound);
+    await run(world(), client);
+    const sent = JSON.parse((create.mock.calls[0]![0] as { messages: Array<{ content: string }> }).messages[0]!.content) as { concepts: Array<Record<string, string>> };
+    expect(sent.concepts.map(({ hook_family, scene_family }) => ({ hook_family, scene_family }))).toEqual(concepts);
+    expect(sent.concepts[0]).toHaveProperty("leads_with");
+  });
+
+  it("a plan naming a kind of ad the carrier cannot make is refused and asked for again, like any finding", async () => {
+    // The carrier has four kinds; the sound plan's third idea is the one it lacks.
+    const four = concepts.filter((c) => !(c.hook_family === sound.angles[2]!.hook_family && c.scene_family === sound.angles[2]!.scene_family));
+    const { client, create } = answering(sound, sound);
+    const out = await run(world({ concepts: four }), client);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(out).toMatchObject({ ok: false, error: expect.stringContaining("angle 3 uses a hook and scene that is not one of the concepts on the sheet.") });
+  });
+
+  it("with fewer than three kinds of ad enabled no plan can pass: the model is not asked and the reason says what to do", async () => {
+    const { client, create } = answering(sound);
+    const out = await run(world({ concepts: concepts.slice(0, 2) }), client);
+    expect(out).toEqual({ ok: false, error: "a plan needs at least 3 different kinds of ad, and 2 are enabled: enable more ad presets in Settings, each with its own lead and picture" });
+    expect(create).not.toHaveBeenCalled();
+    expect(await run(world({ concepts: concepts.slice(0, 1) }), client)).toMatchObject({ error: expect.stringContaining("and 1 is enabled") });
   });
 
   it("asks no model when the campaign's brief does not parse", async () => {

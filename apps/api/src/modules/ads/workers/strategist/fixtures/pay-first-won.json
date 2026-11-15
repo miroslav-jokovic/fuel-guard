@@ -69,30 +69,52 @@
         "text": "Of 31 of our ad leads in the last 28 days, 29 were called and 22 were reached.",
         "source": null
       }
+    ],
+    "concepts": [
+      {
+        "hook_family": "pay_first",
+        "scene_family": "equipment_on_road"
+      },
+      {
+        "hook_family": "life_first",
+        "scene_family": "home_street"
+      },
+      {
+        "hook_family": "equipment_first",
+        "scene_family": "equipment_at_rest"
+      },
+      {
+        "hook_family": "straight_talk",
+        "scene_family": "cab_pov"
+      },
+      {
+        "hook_family": "proof",
+        "scene_family": "abstract_plate"
+      }
     ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "strategist@2",
+    "prompt_version": "strategist@3",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-15T17:06:10.809Z",
+    "recorded_at": "2026-11-15T19:28:12.089Z",
     "output": {
-      "audience": "Class A drivers who meet the experience requirement and run flatbed, or want to, on Midwest lanes. Many likely get home less often now or drive for a large fleet. A plain pay per mile, home weekly and an assigned truck would make them stop.",
+      "audience": "Class A drivers who meet the experience requirement and want flatbed work on Midwest regional lanes. They are likely driving now and comparing offers. The pay per mile, home weekly and an assigned truck at a small fleet are what would make them stop.",
       "audience_evidence": [
         "job:subject",
         "job:claim_3",
-        "job:detail_1",
-        "job:claim_2"
+        "job:detail_2",
+        "our_result:pay_first_equipment_on_road"
       ],
       "angles": [
         {
           "hook_family": "pay_first",
           "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with the pay per mile, over a loaded flatbed running a Midwest highway.",
-          "proof": "The opening states its pay per mile, and the work is flatbed on Midwest lanes.",
-          "why": "This hook and scene brought a fair number of leads at a cost per lead well under the benchmark's pause level. It is the best-measured pairing we have, so keep it running.",
+          "idea": "Lead with the pay per mile over a loaded flatbed running a Midwest highway.",
+          "proof": "The opening states the pay per mile for flatbed work on Midwest lanes.",
+          "why": "This pairing brought all the earlier leads at a cost per lead well under the benchmark pause line, and recruiters reached most of them. It is the base to build on.",
           "evidence": [
             "job:claim_1",
             "job:detail_1",
@@ -102,11 +124,11 @@
         },
         {
           "hook_family": "straight_talk",
-          "scene_family": "abstract_plate",
+          "scene_family": "cab_pov",
           "format": "still",
-          "idea": "Say plainly who the job is for: Class A, the experience requirement, flatbed work, Midwest lanes.",
-          "proof": "The opening is Class A regional flatbed on Midwest lanes and states an experience requirement.",
-          "why": "The lead outcomes show how many leads were reached but not who qualified. Stating the requirement and the lanes up front screens before a recruiter calls. Untested here.",
+          "idea": "Say plainly from the driver's seat who the job is for: Class A, the experience requirement, Midwest regional lanes.",
+          "proof": "The opening is a Class A regional job that states an experience requirement and runs Midwest lanes.",
+          "why": "Untested pairing. The lead outcomes show who was reached, not who qualified, so an ad that states the requirement and the area plainly helps recruiter calls count.",
           "evidence": [
             "job:subject",
             "job:claim_3",
@@ -116,41 +138,28 @@
         },
         {
           "hook_family": "equipment_first",
-          "scene_family": "cab_pov",
+          "scene_family": "equipment_at_rest",
           "format": "still",
-          "idea": "Lead with the assigned truck, seen from the driver's seat with the flatbed in the mirror.",
-          "proof": "The opening comes with an assigned truck and the work is flatbed.",
-          "why": "An assigned truck is a concrete fact that experienced drivers weigh. No earlier ad of ours led with equipment, so nothing has been measured for this hook.",
+          "idea": "Lead with the assigned truck, shown parked and ready with a flatbed trailer behind it.",
+          "proof": "The opening lists an assigned truck and flatbed freight.",
+          "why": "Nothing has been measured for this pairing. The assigned truck is a concrete fact the pay ads do not carry, and it speaks to drivers who care what they drive.",
           "evidence": [
             "job:detail_3",
             "job:detail_1"
           ]
         },
         {
-          "hook_family": "life_first",
-          "scene_family": "equipment_at_rest",
-          "format": "still",
-          "idea": "Lead with home weekly, shown as the truck parked with the week's work done.",
-          "proof": "The opening offers home weekly on regional lanes.",
-          "why": "Life first on a home street spent past the benchmark's no-lead pause level and brought nothing. Home weekly is still a core fact, so try it with the truck in frame rather than drop it.",
-          "evidence": [
-            "job:claim_2",
-            "job:subject",
-            "our_result:life_first_home_street",
-            "benchmark:cost_per_lead"
-          ]
-        },
-        {
           "hook_family": "proof",
           "scene_family": "abstract_plate",
           "format": "still",
-          "idea": "Lead with the small fleet where dispatch knows your name, backed by the terms listed plainly.",
-          "proof": "The carrier describes itself as a small fleet where dispatch knows your name, and offers an assigned truck and a retirement plan.",
-          "why": "The fleet's own description sets it apart from large carriers, and the listed terms give it substance. No earlier ad used a proof hook, so this is a test.",
+          "idea": "Open on the small fleet where dispatch knows your name, then list home weekly and the retirement plan as plain text.",
+          "proof": "The carrier describes itself this way, and the opening lists home weekly and the retirement plan.",
+          "why": "Nothing measured for this pairing. Home weekly is carried here as a stated term because the home street ads spent and brought no lead.",
           "evidence": [
             "job:in_our_words",
-            "job:detail_3",
-            "job:claim_4"
+            "job:claim_2",
+            "job:claim_4",
+            "our_result:life_first_home_street"
           ]
         }
       ]

@@ -72,30 +72,73 @@
         "text": "Our ads with hook equipment_first (equipment first) and scene equipment_at_rest (truck at rest) spent $402.10 in the last 28 days over 30100 impressions and brought 14 leads, $28.72 per lead.",
         "source": null
       }
+    ],
+    "concepts": [
+      {
+        "hook_family": "pay_first",
+        "scene_family": "equipment_on_road"
+      },
+      {
+        "hook_family": "life_first",
+        "scene_family": "home_street"
+      },
+      {
+        "hook_family": "equipment_first",
+        "scene_family": "equipment_at_rest"
+      },
+      {
+        "hook_family": "straight_talk",
+        "scene_family": "cab_pov"
+      },
+      {
+        "hook_family": "proof",
+        "scene_family": "abstract_plate"
+      },
+      {
+        "hook_family": "pay_first",
+        "scene_family": "abstract_plate"
+      },
+      {
+        "hook_family": "life_first",
+        "scene_family": "cab_pov"
+      }
     ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "strategist@2",
+    "prompt_version": "strategist@3",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-15T17:05:20.504Z",
+    "recorded_at": "2026-11-15T19:27:26.178Z",
     "output": {
-      "audience": "Experienced Class A over-the-road drivers who meet the experience requirement and will run reefer across the full operating area. They hold an OTR seat now. The pay per mile, a newer truck and a pet in the cab would make them stop.",
+      "audience": "Experienced Class A over-the-road drivers running long lanes, reefer or similar. They may now drive older trucks or handle freight by hand. A plain pay per mile, a newer truck, freight they do not unload and a pet in the cab would make them stop.",
       "audience_evidence": [
         "job:subject",
-        "job:claim_3",
-        "job:claim_7",
-        "job:detail_1"
+        "job:claim_1",
+        "job:detail_2",
+        "job:detail_3"
       ],
       "angles": [
+        {
+          "hook_family": "pay_first",
+          "scene_family": "equipment_on_road",
+          "format": "still",
+          "idea": "Lead with the pay per mile, shown over a reefer truck rolling on an open highway.",
+          "proof": "The opening states its pay per mile and the states its lanes cover.",
+          "why": "Pay is the clearest fact on the sheet, and long lanes make a per-mile rate matter. This hook has not been measured here yet.",
+          "evidence": [
+            "job:claim_1",
+            "job:claim_7",
+            "job:detail_1"
+          ]
+        },
         {
           "hook_family": "equipment_first",
           "scene_family": "equipment_at_rest",
           "format": "still",
-          "idea": "Lead with the newer truck itself, parked and clean, and name it as a reefer seat.",
-          "proof": "The job lists newer trucks and reefer equipment.",
-          "why": "This hook and scene is the only combination measured, and its cost per lead sits under the benchmark pause line. The lead count is modest, so treat it as a lean, not proof.",
+          "idea": "Lead with the newer truck, parked and clean with the reefer trailer hooked up.",
+          "proof": "The job lists newer trucks and reefer freight.",
+          "why": "Our earlier ads with this hook and scene brought leads at a cost per lead under the benchmark pause line. The lead count is modest, so treat it as a good sign, not proof.",
           "evidence": [
             "job:detail_2",
             "job:detail_1",
@@ -104,26 +147,12 @@
           ]
         },
         {
-          "hook_family": "pay_first",
-          "scene_family": "abstract_plate",
-          "format": "still",
-          "idea": "Lead with the pay per mile in plain type, with health insurance, retirement plan and paid time off beneath it.",
-          "proof": "The job states the pay per mile and offers health insurance, a retirement plan and paid time off.",
-          "why": "Pay is the fact an OTR driver compares most readily, and a plain background keeps it readable. No pay-led ad has been measured here yet.",
-          "evidence": [
-            "job:claim_1",
-            "job:claim_4",
-            "job:claim_5",
-            "job:claim_6"
-          ]
-        },
-        {
           "hook_family": "straight_talk",
-          "scene_family": "equipment_on_road",
+          "scene_family": "cab_pov",
           "format": "still",
-          "idea": "Say plainly who this is for: Class A, the stated experience, reefer, all the states the job covers, the stated weeks.",
+          "idea": "From the driver's seat, state plainly what the job asks: Class A, over-the-road reefer, and the years and weeks figures.",
           "proof": "The job states the licence class, a years figure, a weeks figure and the states covered.",
-          "why": "Stating requirements filters out drivers who cannot qualify. The years and weeks items are unlabelled on the sheet, so the office should confirm what each means before writing.",
+          "why": "No lead outcomes have been measured, so stating requirements up front guards against unfit leads. The office should confirm what the years and weeks figures mean before writing.",
           "evidence": [
             "job:subject",
             "job:claim_3",
@@ -133,26 +162,28 @@
         },
         {
           "hook_family": "life_first",
-          "scene_family": "cab_pov",
+          "scene_family": "home_street",
           "format": "still",
-          "idea": "Lead with life in the cab: a pet riding along on a long run, with the job's freight-handling detail beneath.",
-          "proof": "The job allows pets, and its freight-handling detail is on the sheet for the writer to use as written.",
-          "why": "Long-haul work is easier with company in the cab, and the view from the cab can show that. Nothing has been measured on this hook.",
+          "idea": "Lead with what the driver comes back to: a quiet home street, with the benefits that cover life off the truck.",
+          "proof": "The job lists health insurance, a retirement plan and paid time off.",
+          "why": "Benefits matter most to drivers thinking past the next load, and this scene carries them without promising a schedule. Nothing has been measured for this hook.",
           "evidence": [
-            "job:detail_4",
-            "job:detail_3"
+            "job:claim_5",
+            "job:claim_4",
+            "job:claim_6"
           ]
         },
         {
           "hook_family": "proof",
-          "scene_family": "equipment_at_rest",
+          "scene_family": "abstract_plate",
           "format": "still",
-          "idea": "Lead with the carrier's own words: family owned, and the owner still drives.",
-          "proof": "The job's own description says the carrier is family owned and the owner still drives.",
-          "why": "An owner who drives is a claim a driver can check, and it sets this carrier apart. It reuses the scene that has brought leads, with a hook that has not been measured.",
+          "idea": "On a plain plate, lead with the owner who still drives, then name the daily details of the work as facts.",
+          "proof": "The carrier is family owned and the owner still drives; the job's details cover a pet in the cab and freight the driver does not unload.",
+          "why": "An owner who drives is a claim drivers can check, and it sets this carrier apart from larger fleets. Untested here, so judge it on early results.",
           "evidence": [
             "job:in_our_words",
-            "our_result:equipment_first_equipment_at_rest"
+            "job:detail_4",
+            "job:detail_3"
           ]
         }
       ]

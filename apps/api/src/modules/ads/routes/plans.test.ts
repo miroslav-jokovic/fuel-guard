@@ -6,6 +6,7 @@ import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { ORG, campaign, createAdsWorld, type AdsWorld } from "../../../testing/adsWorld.js";
+import { presetRows } from "../../../testing/adsPresetRows.js";
 import { STRATEGIST_EVAL, loadFixtures, strategistPack } from "../workers/agentFixtures.js";
 
 /**
@@ -44,7 +45,7 @@ beforeAll(async () => {
 afterAll(async () => closeTestServer(server));
 beforeEach(() => {
   caller = as(RECRUITER);
-  w = createAdsWorld({ campaigns: [campaign(C, "plan_review", { brief_snapshot: fx.input.brief })], extraTables: { ads_campaign_plans: plans } });
+  w = createAdsWorld({ campaigns: [campaign(C, "plan_review", { brief_snapshot: fx.input.brief })], extraTables: { ads_campaign_plans: plans, ...presetRows(ORG, fx.input.concepts) } });
   holder.client = w.admin;
 });
 
@@ -60,6 +61,7 @@ describe("the plan doors over HTTP", () => {
     expect(body.plan).toMatchObject({ id: P1, version: 1, plan: sound, author_kind: "agent" });
     expect(body.plan).not.toHaveProperty("author_id");
     expect(body.plan).not.toHaveProperty("generation_id");
+    expect((body as unknown as { concepts: unknown }).concepts).toEqual(fx.input.concepts);
   });
 
   it("approving the plan answers the campaign's new state", async () => {
