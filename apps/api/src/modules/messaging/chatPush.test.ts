@@ -276,3 +276,49 @@ describe("the icon's number (INSTALLED-APP-PLAN IA-U1b)", () => {
   });
 });
 
+describe("message text kept off the lock screen (INSTALLED-APP-PLAN IA-S4)", () => {
+  it("tells a person who hides only who wrote, and everybody else the line as before", async () => {
+    rpc.chat_push_text_hidden_for = [{ user_id: BEN }];
+    await deliverChatPush(rec.client, keys, ORG, ANA, MSG, null, fetcher);
+    const toBen = sentTo(BEN_PHONE.endpoint, benPhone);
+    const toCara = sentTo(CARA_PC.endpoint, caraPc);
+    expect(toBen.notification.title).toBe("New message from Ana Petrović");
+    expect(toBen.notification.body).toBe("");
+    // Not a word of the line, and not the conversation's name, anywhere in what the phone receives.
+    expect(JSON.stringify(toBen)).not.toMatch(/4417|sign|Cara/);
+    // It still opens the line, replaces the conversation's earlier alert, and buzzes.
+    expect(toBen.notification).toMatchObject({ navigate: `${ORIGIN}/chat?c=${THREAD}`, tag: `chat:${THREAD}`, renotify: true, silent: false });
+    expect(toCara.notification.title).toBe("Ana Petrović in Ana Petrović, Ben Admin");
+    expect(toCara.notification.body).toBe("@Cara Safety can you sign 4417?");
+  });
+
+  it("asks once, about the people it is about to push, in their own company", async () => {
+    await deliverChatPush(rec.client, keys, ORG, ANA, MSG, null, fetcher);
+    const asked = rec.rpcs().filter((c) => c.fn === "chat_push_text_hidden_for").map((c) => c.args as { p_org: string; p_users: string[] });
+    expect(asked).toHaveLength(1);
+    expect(asked[0]!.p_org).toBe(ORG);
+    expect([...asked[0]!.p_users].sort()).toEqual([BEN, CARA].sort());
+  });
+
+  it("hides the channel's name too, and a file's name", async () => {
+    rpc.chat_inbox = [conversation({ kind: "channel", subject: "Loads" })];
+    rpc.chat_push_text_hidden_for = [{ user_id: BEN }];
+    tables.messages = [{ thread_id: THREAD, parent_id: MSG, body: "", created_at: "2026-11-13T15:00:00Z" }];
+    tables.chat_attachments = [{ file_name: "BOL-4417.pdf" }];
+    rec = createSupabaseRecorder({ rpc: (fn) => rpc[fn], tables: tables as never });
+    await deliverChatPush(rec.client, keys, ORG, ANA, MSG, null, fetcher);
+    const toBen = sentTo(BEN_PHONE.endpoint, benPhone);
+    expect(toBen.notification.title).toBe("New message from Ana Petrović");
+    expect(JSON.stringify(toBen)).not.toMatch(/Loads|BOL/);
+  });
+
+  it("still pushes, with the text hidden for everybody, when who hides cannot be read", async () => {
+    rpc.chat_push_text_hidden_for = { error: { code: "PGRST202", message: "function not found" } };
+    const r = await deliverChatPush(rec.client, keys, ORG, ANA, MSG, null, fetcher);
+    expect(r.sent).toBe(2);
+    for (const m of [sentTo(BEN_PHONE.endpoint, benPhone), sentTo(CARA_PC.endpoint, caraPc)]) {
+      expect(m.notification.title).toBe("New message from Ana Petrović");
+      expect(m.notification.body).toBe("");
+    }
+  });
+});

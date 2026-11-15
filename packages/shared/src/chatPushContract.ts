@@ -56,6 +56,33 @@ export function chatAlertPlace(
   });
 }
 
+// ── Message text kept off the lock screen (INSTALLED-APP-PLAN IA-S4; Q-IA4 (a); migration 0614) ──
+
+/**
+ * What an alert says, in full, to one recipient. For a person who hides message text it is "New message from
+ * Ana" and nothing else: no line, and no conversation name either — a group's name is typed by people and can
+ * say as much as a line ("Ana in Letting Marko go" is not private). Who wrote stays, because an alert that
+ * does not say who is one a dispatcher has to open every time. ONE function for the phone's push (api) and the
+ * in-tab alert (web), so the two cannot hide differently.
+ */
+export function chatAlertWords(
+  hideText: boolean,
+  sender: string | null,
+  place: string | null,
+  text: string,
+): { title: string; body: string } {
+  if (!hideText) return { title: chatAlertTitle(sender, place), body: text };
+  const who = sender?.trim();
+  return { title: who ? `New message from ${who}` : "New message", body: "" };
+}
+
+/**
+ * `GET` and `PUT /api/chat/push/privacy`: the caller's own switch. Per PERSON, like Do not disturb: turned on
+ * at the PC, it holds on the phone — which is where it matters and not where settings get changed.
+ */
+export const chatPushPrivacySchema = z.object({ hide_text: z.boolean() });
+export type ChatPushPrivacy = z.infer<typeof chatPushPrivacySchema>;
+
 // ── The subscription (D-WP1, D-WP7) ─────────────────────────────────────────────────────────────
 
 /**

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   chatAlertPlace,
   chatAlertTitle,
+  chatAlertWords,
   chatPushMessage,
   chatPushPath,
+  chatPushPrivacySchema,
   isPushServiceEndpoint,
   webPushSubscribeRequestSchema,
 } from "./chatPushContract.js";
@@ -78,6 +80,40 @@ describe("what a push says (Q-CHAT18 (a), D-WP4)", () => {
     expect(chatAlertTitle("Ana Petrović", null)).toBe("Ana Petrović");
     expect(chatAlertTitle("Ana Petrović", "# Loads")).toBe("Ana Petrović in # Loads");
     expect(chatAlertTitle("  ", "Night desk")).toBe("Someone in Night desk");
+  });
+});
+
+describe("message text kept off the lock screen (INSTALLED-APP-PLAN IA-S4)", () => {
+  it("says exactly what it always said for a person who does not hide", () => {
+    expect(chatAlertWords(false, "Ana Petrović", "# Loads", "can you take 4417?")).toEqual({ title: "Ana Petrović in # Loads", body: "can you take 4417?" });
+    expect(chatAlertWords(false, "Ana Petrović", null, "hi")).toEqual({ title: chatAlertTitle("Ana Petrović", null), body: "hi" });
+  });
+
+  it("says only who wrote for a person who hides: no line, and not the conversation's name", () => {
+    expect(chatAlertWords(true, "Ana Petrović", "Letting Marko go", "he signs tomorrow")).toEqual({ title: "New message from Ana Petrović", body: "" });
+    expect(chatAlertWords(true, "Ana Petrović", null, "hi")).toEqual({ title: "New message from Ana Petrović", body: "" });
+  });
+
+  it("still says a message came when the sender has no name", () => {
+    expect(chatAlertWords(true, null, "# Loads", "x")).toEqual({ title: "New message", body: "" });
+    expect(chatAlertWords(true, "  ", null, "x")).toEqual({ title: "New message", body: "" });
+  });
+
+  it("a hidden push is still a whole push: it opens the line and replaces the conversation's earlier one", () => {
+    const m = chatPushMessage({
+      origin: "https://360.silvicominc.com", ...chatAlertWords(true, "Ana Petrović", "# Loads", "can you take 4417?"),
+      path: `/chat?ch=${T}`, threadId: T, messageId: POST, at: new Date("2026-11-15T15:00:00Z"), unread: 3,
+    });
+    expect(m.notification).toMatchObject({
+      title: "New message from Ana Petrović", body: "", navigate: `https://360.silvicominc.com/chat?ch=${T}`,
+      tag: `chat:${T}`, renotify: true, silent: false, app_badge: "3", data: { thread_id: T, message_id: POST },
+    });
+    expect(JSON.stringify(m)).not.toMatch(/4417|Loads/);
+  });
+
+  it("the switch's request is true or false and nothing else", () => {
+    expect(chatPushPrivacySchema.safeParse({ hide_text: true }).success).toBe(true);
+    for (const bad of [{}, { hide_text: null }, { hide_text: "true" }, { hide_text: 1 }]) expect(chatPushPrivacySchema.safeParse(bad).success).toBe(false);
   });
 });
 
