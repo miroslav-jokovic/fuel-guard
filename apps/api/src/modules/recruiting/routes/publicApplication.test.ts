@@ -149,6 +149,18 @@ const IDENTITY_TABLES = {
   application_drafts: [{ payload: { date_of_birth: "1980-04-01", cdl_number: "PA334554", cdl_state: "PA" } }],
 };
 
+/**
+ * The Part 1 row every invitation has had since C3a (`mintIntakeRow`), with nothing answered yet. It is
+ * what makes a link a CURRENT one: the bundle, the permissions and the filing all read "has a row".
+ */
+const PART_ONE_ROW = { phone: null, postal_code: null, prior_positive_2y: null, medical_card_pending: null, fcra_summary_version: null };
+/**
+ * ⚠ A LEGACY invitation — no Part 1 row — passed as `extra` by the tests that are about the server's
+ * legacy rules themselves (signing gated on the identity screen, filing by the paper's rules alone).
+ * No driver is sent one; they go with the legacy path (APPLICATION-FIX-PLAN §7, 1b-5).
+ */
+const LEGACY_INVITATION = { application_intakes: [] };
+
 const seed = (
   over: Record<string, unknown> | null = {},
   extra: Record<string, unknown> = {},
@@ -188,6 +200,7 @@ const seed = (
        * already one the office has approved. A test ABOUT that gate overrides this.
        */
       application_packet_marks: signedPacket(),
+      application_intakes: [PART_ONE_ROW],
       // Last, so a fixture's own `drivers`/`application_drafts` win over the defaults above.
       ...extra,
     },
@@ -211,6 +224,7 @@ const seedWithDraft = (payload: Record<string, unknown>): SupabaseRecorder =>
       }],
       organizations: [{ name: "Silvicom Inc" }],
       application_drafts: [{ payload, furthest_section: "identity", updated_at: "2026-08-21T09:00:00Z" }],
+      application_intakes: [PART_ONE_ROW],
     },
     rpc: { save_application_draft: { draft_id: "d-1", updated_at: "2026-08-21T09:05:00Z" } },
   });
@@ -453,6 +467,7 @@ describe("opening the link", () => {
           submitted_at: null,
         }],
         organizations: [{ name: "Silvicom Inc" }],
+        application_intakes: [PART_ONE_ROW],
         application_edits: [{
           path: ["employers", 0, "city"], before: "Jolliet", after: "Joliet",
           edited_at: "2026-09-11T08:00:00Z", edited_by: "cccccccc-dddd-4eee-8fff-000000000000",
@@ -516,7 +531,7 @@ describe("opening the link", () => {
     expect(done.partOne).toMatchObject({ completedAt: "2026-09-27T10:00:00Z", rights: true });
     expect(done.fcraSummary).toBeNull();
 
-    holder.client = seed().client;
+    holder.client = seed({}, LEGACY_INVITATION).client;
     const legacy = (await (await call(`/${TOKEN}`)).json()) as { partOne: unknown; fcraSummary: unknown };
     expect(legacy.partOne).toBeNull();
     expect(legacy.fcraSummary).toBeNull();
@@ -537,7 +552,7 @@ describe("opening the link", () => {
     expect(await read({ intake_completed_at: "2026-09-27T10:00:00Z" }, { application_intakes: [intake] }))
       .toMatchObject({ locked: true, payload: null });
     expect(await read({}, { application_intakes: [intake] })).toMatchObject({ locked: false, payload: { first_name: "Susan" } });
-    expect(await read({ intake_completed_at: "2026-09-27T10:00:00Z" }, {})).toMatchObject({ locked: false, payload: { first_name: "Susan" } });
+    expect(await read({ intake_completed_at: "2026-09-27T10:00:00Z" }, LEGACY_INVITATION)).toMatchObject({ locked: false, payload: { first_name: "Susan" } });
   });
 
   it("tells an anonymous caller nothing about who exists", async () => {
@@ -629,7 +644,11 @@ describe("submitting", () => {
   it("accepts a certified application without any credential", async () => {
     // ⚠ No `publishAll()` any more — the shipped catalogue is already final (D-WORD1), which is
     // the whole change: a carrier that has done nothing at all can take a signed application.
-    const rec = seed({ consented_at: "2026-08-21T09:00:00Z" });
+    // ⚠ Still a legacy invitation: a current link's filing is composed from Part 1's answers, which this
+    // file's fixtures do not hold (`applicationFiling.test.ts` files one). What this test pins — no
+    // credential, and no id handed back — is every link's, so it MOVES with the legacy filing path
+    // (APPLICATION-FIX-PLAN §7, 1b-5 step 4); it is not dropped with it.
+    const rec = seed({ consented_at: "2026-08-21T09:00:00Z" }, LEGACY_INVITATION);
     holder.client = rec.client;
     const res = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
     expect(res.status).toBe(201);
@@ -948,7 +967,8 @@ describe("the link survives its own submission", () => {
   });
 
   it("still reaches the signing endpoint after submission", async () => {
-    holder.client = seed({ submitted_at: "2026-08-01T00:00:00Z" }, IDENTITY_TABLES).client;
+    // Part 1 finished: a current link's permissions are refused until it is.
+    holder.client = seed({ submitted_at: "2026-08-01T00:00:00Z", intake_completed_at: "2026-09-13T09:00:00Z" }, IDENTITY_TABLES).client;
     const res = await call(`/${TOKEN}/release`, {
       method: "POST",
       body: JSON.stringify({ purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }),
@@ -967,7 +987,7 @@ describe("the link survives its own submission", () => {
    */
   it("tells the office when the last permission lands, and not before", async () => {
     const office = { ...IDENTITY_TABLES, memberships: [{ user_id: "u-recruiter", role: "recruiter" }] };
-    const sixth = seed({}, office, {
+    const sixth = seed({ intake_completed_at: "2026-09-13T09:00:00Z" }, office, {
       record_driver_release: { authorization_id: "auth-6", signed_count: 6, completed: true },
       emit_notification: "n-1",
     });
@@ -986,7 +1006,7 @@ describe("the link survives its own submission", () => {
     expect(args.p_category).toBe("application_ready_to_screen");
     expect(args.p_dedupe_key).toBe("application_ready_to_screen:inv-1");
 
-    const fifth = seed({}, office, {
+    const fifth = seed({ intake_completed_at: "2026-09-13T09:00:00Z" }, office, {
       record_driver_release: { authorization_id: "auth-5", signed_count: 5, completed: false },
       emit_notification: "n-1",
     });
@@ -1015,7 +1035,7 @@ describe("signing a release", () => {
   withDraftWording();
 
   it("refuses while the disclosure is draft, with a message aimed at the carrier", async () => {
-    const rec = seed({}, IDENTITY_TABLES);
+    const rec = seed({ intake_completed_at: "2026-09-13T09:00:00Z" }, IDENTITY_TABLES);
     holder.client = rec.client;
     const res = await call(`/${TOKEN}/release`, {
       method: "POST",
@@ -1324,6 +1344,7 @@ describe("what the applicant is served once the carrier has published", () => {
           consented_at: "2026-09-13T11:00:00Z", releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z", submitted_at: null,
         }],
         organizations: [{ name: "Silvicom Inc" }],
+        application_intakes: [PART_ONE_ROW],
         org_disclosures: LIVE,
         application_drafts: [],
       },
@@ -1376,7 +1397,7 @@ describe("what the applicant is served once the carrier has published", () => {
      * instrument gets their words for that one and FMCSA's or their packet's for the other five.
      * Partial publishing can no longer half-break an applicant, which is exactly what it used to do.
      */
-    holder.client = createSupabaseRecorder({
+    const link = (intakes: unknown[]) => createSupabaseRecorder({
       tables: {
         application_invitations: [{
           id: "inv-1", org_id: ORG, driver_id: DRIVER,
@@ -1386,6 +1407,7 @@ describe("what the applicant is served once the carrier has published", () => {
           review_requested_at: "2026-09-10T09:00:00Z", approved_at: "2026-09-11T09:00:00Z",
         }],
         organizations: [{ name: "Silvicom Inc" }],
+        application_intakes: intakes,
         org_disclosures: [{
           instrument: "drug_alcohol", version: "v1", title: "Our own testing consent",
           body: "The carrier's replacement wording.", clauses: null, intent: "I agree.",
@@ -1397,6 +1419,7 @@ describe("what the applicant is served once the carrier has published", () => {
       },
       rpc: { submit_driver_application: { application_id: "app-1" } },
     }).client;
+    holder.client = link([PART_ONE_ROW]);
 
     const res = await call(`/${TOKEN}`);
     const { releases } = (await res.json()) as { releases: Array<{ purpose: string; version: string; body: string; draft: boolean }> };
@@ -1408,6 +1431,9 @@ describe("what the applicant is served once the carrier has published", () => {
     expect(missingPspParagraphs(releases.find((r) => r.purpose === "psp")!.body)).toEqual([]);
 
     // Which means the submission goes through rather than meeting `disclosure_not_final`.
+    // ⚠ Filed on a legacy invitation, for the reason "accepts a certified application without any
+    // credential" gives: this file's fixtures hold no Part 1 answers to compose a current filing from.
+    holder.client = link([]);
     const sent = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
     expect(sent.status).toBe(201);
   });
