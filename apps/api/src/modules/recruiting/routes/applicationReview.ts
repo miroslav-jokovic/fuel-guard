@@ -32,6 +32,7 @@ import { correctApplicantPartOne, isPartOneCorrectionError } from "../applicantP
 import { correctPartOneAnswer, isPartOneAnswerError } from "../applicantPartOneAnswer.js";
 import { isApplicationSendError, sendApplication } from "../applicationSend.js";
 import { askAgain, isAskAgainError, listAskAgains, withdrawAskAgain } from "../applicationAskAgain.js";
+import { isDocumentsLinkError, sendDocumentsLink } from "../applicationDocumentsLink.js";
 import { isSendForSigningError, sendForSigning } from "../applicationSendForSigning.js";
 
 /**
@@ -66,6 +67,7 @@ export function recruitmentApplicationReviewRouter(): Router {
           || code === "permissions_incomplete" || code === "application_not_approved"
           || code === "not_part_one" || code === "part_one_not_begun" || code === "link_changed"
           || code === "draft_revision_conflict" || code === "office_must_complete"
+          || code === "not_consented"
           || code === "questions_open" || code === "not_askable" || code === "too_many_questions" || code === "question_not_open"
           ? 409
           : 500;
@@ -381,6 +383,28 @@ export function recruitmentApplicationReviewRouter(): Router {
         return;
       }
       res.json({ ok: true, question: result });
+    }),
+  );
+
+  /**
+   * Q-AM19 (0608): send the applicant a link that opens only their documents list. `canManage`: it mints
+   * a link and mails the applicant, as sending the application does.
+   */
+  router.post(
+    "/applications/:invitationId/documents-link",
+    requireOrg,
+    canManage,
+    asyncHandler(async (req, res) => {
+      const { env } = getAppLocals(req);
+      const result = await sendDocumentsLink(
+        getSupabaseAdmin(env), env, req.auth!.orgId!, String(req.params.invitationId ?? ""),
+        { actorId: req.auth!.userId }, new Date(),
+      );
+      if (isDocumentsLinkError(result)) {
+        res.status(status(result.code)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(201).json({ ok: true, ...result });
     }),
   );
 
