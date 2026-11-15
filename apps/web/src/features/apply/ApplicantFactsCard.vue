@@ -13,6 +13,7 @@ import {
 import { formatPhone } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
 import FactEditor from "./FactEditor.vue";
+import FactAskAgain from "./FactAskAgain.vue";
 import TableRowEditor from "./TableRowEditor.vue";
 import { emptyQuestionRow } from "./draft";
 import { addableTables, tableRowText } from "./tableAnswer";
@@ -395,6 +396,8 @@ function shown(row: FactRow): string {
               <BaseButton size="sm" variant="primary" :disabled="pending || !ready(row)" @click="save(row)">Save</BaseButton>
             </div>
           </div>
+          <!-- F5. ⚠ After the whole v-if/v-else chain above, never inside it (the PR 2221 trap, met again here). -->
+          <FactAskAgain v-if="open !== row.key && row.door === 'draft'" :invitation-id="invitationId" :path="row.path" :label="row.label" :state="review.state" :payload="review.payload" :can-ask="draftOpen" />
         </li>
         <li v-if="endsItem(group.rows, at)" class="py-2" :data-fact-remove="endsItem(group.rows, at)!.key">
           <div v-if="removing !== endsItem(group.rows, at)!.key" class="flex justify-end">

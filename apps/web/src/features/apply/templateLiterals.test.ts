@@ -25,6 +25,7 @@ const OFFICE: Readonly<Record<string, string>> = {
   "ApplicantFactsCard.vue": "the office's Applicant facts card (F3)",
   "ApplicantSsnRow.vue": "the office's SSN row on that card (Q-AM17)",
   "ApplicationReviewDrawer.vue": "the office's review drawer",
+  "FactAskAgain.vue": "the office card's \"Ask the applicant\" under one answer (F5)",
   "FactEditor.vue": "the office card's one-answer editor",
   "FactRowAdder.vue": "the office card's add-a-row control",
   "OfficeJobsSection.vue": "the office card's employment section",
