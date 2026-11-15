@@ -6,8 +6,8 @@ import { isSecretBoxConfigured, seal, secretAad } from "../../lib/secretBox.js";
 
 /**
  * What every dead link is told, whatever killed it (see `resolveInvitation`): the token never existed,
- * it was revoked, its time ran out — or, since 1b-5, its invitation is a legacy one with no Part 1
- * (`applicationBundleHandler`). One sentence for all of them, because telling them apart is a probe.
+ * it was revoked, its time ran out — or, since 1b-5, its invitation is a legacy one with no Part 1.
+ * One sentence for all of them, because telling them apart is a probe.
  */
 export const DEAD_LINK = { code: "invalid_link", message: "This application link is not valid. Ask for a new one." } as const;
 
@@ -311,6 +311,17 @@ export async function resolveInvitation(
   if (Date.parse(row.expires_at) <= now.getTime()) return dead;
   const resolved = { ...row, door };
   if (isSentSignDoor(resolved) && sentLinkLapsed(resolved, now)) return dead;
+  // 1b-5 step 4 (APPLICATION-FIX-PLAN §7): an invitation with no Part 1 row is a LEGACY one, from before
+  // C3a. Its form is retired and nobody is sent one, so it is a dead link on EVERY route, not only the
+  // page's first read: a token that opened no page could otherwise still save a draft, sign a permission
+  // and file. Read last, so a token that is dead for any other reason costs one query, as before.
+  const { data: partOne } = await admin
+    .from("application_intakes")
+    .select("id")
+    .eq("org_id", row.org_id)
+    .eq("invitation_id", row.id)
+    .maybeSingle();
+  if (!partOne) return dead;
   return resolved;
 }
 

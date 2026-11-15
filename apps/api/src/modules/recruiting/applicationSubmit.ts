@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   applicationAwaitsSignature,
-  applicationLegacyFilingIssues,
   applicationPaperFilingIssues,
   sevenDayStatementIssues,
   applicationV2FilingIssues,
@@ -25,6 +24,7 @@ import { promoteCaptures } from "./applicationCapture.js";
 import { ensureApplicationPdf } from "./applicationPdf/file.js";
 import {
   ALREADY_SUBMITTED,
+  DEAD_LINK,
   isIntakeError,
   phasesOf,
   requireEsignConsent,
@@ -301,32 +301,28 @@ export async function submitApplication(
    * — an applicant from before AF3 — leave what they typed alone, for the 0231 projection to file.
    */
   /**
-   * D-AW3 / AW2 (C2c): a v2 invitation files the certified application with Part 1's facts laid over
-   * it (`composeFiledApplication`), and must meet AW1's rules on that COMPOSED document — the one that
-   * is filed, so the rules and the file cannot judge two different texts. A legacy invitation (no Part
-   * 1 row) is asked nothing new and files what it certified, as before — except §40.25(j), which it
-   * must now answer rather than file an unticked box as No (`applicationLegacyFilingIssues`, F1 part 2).
+   * D-AW3 / AW2 (C2c): the certified application is filed with Part 1's facts laid over it
+   * (`composeFiledApplication`), and must meet AW1's rules on that COMPOSED document — the one that
+   * is filed, so the rules and the file cannot judge two different texts.
+   *
+   * ⚠ There is no other kind of filing since 1b-5 step 4. A legacy invitation (no Part 1 row) never
+   * reaches here: `resolveInvitation` refuses it. `asOf` is null only if the Part 1 row vanished between
+   * that read and this one, and then the link is as dead as the resolver would have called it.
    */
   const { stamped, unanswered } = withInvitationStamps(body.application, invitation);
   if (unanswered.length > 0) return applicationIncomplete(unanswered);
 
-  let certified: ApplicationSubmit["application"] = stamped;
   const composed = await applicationAsFiled(admin, invitation, stamped, now);
-  if (composed.asOf) {
-    const issues = [
-      ...composed.issues,
-      ...applicationV2FilingIssues(composed.application, composed.asOf),
-      ...applicationPaperFilingIssues(composed.application),
-      ...sevenDayStatementIssues(composed.application),
-    ];
-    if (issues.length > 0) return applicationIncomplete(issues);
-    certified = composed.application;
-  } else {
-    // F1 part 2: a legacy link asks §40.25(j) on its own safety screen, and a new filing must answer it.
-    // F2c: and what the carrier's paper asks of every filing (question B, each conviction's state and penalty).
-    const issues = [...applicationLegacyFilingIssues(stamped), ...applicationPaperFilingIssues(stamped), ...sevenDayStatementIssues(stamped)];
-    if (issues.length > 0) return applicationIncomplete(issues);
-  }
+  if (!composed.asOf) return DEAD_LINK;
+  const issues = [
+    ...composed.issues,
+    ...applicationV2FilingIssues(composed.application, composed.asOf),
+    // F2c: what the carrier's paper asks of every filing (question B, each conviction's state and penalty).
+    ...applicationPaperFilingIssues(composed.application),
+    ...sevenDayStatementIssues(composed.application),
+  ];
+  if (issues.length > 0) return applicationIncomplete(issues);
+  const certified: ApplicationSubmit["application"] = composed.application;
 
   const application = {
     ...certified,

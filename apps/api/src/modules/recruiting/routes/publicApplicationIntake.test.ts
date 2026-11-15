@@ -284,13 +284,4 @@ describe("the permissions wait for Part 1 on a v2 link", () => {
     expect(res.status).toBe(409);
     expect((await read(res)).error?.code).toBe("intake_incomplete");
   });
-
-  it("lets a legacy link (no Part 1 row) past this check to its old rules", async () => {
-    // ⚠ The one fixture here with NO Part 1 row, on purpose: this is the legacy rule's own test, and it
-    // goes with that rule (APPLICATION-FIX-PLAN §7, 1b-5 step 4).
-    holder.client = seed({ intake: [] }).client;
-    const res = await sign();
-    // It stops at the identity rule it always had — the point is that it is NOT `intake_incomplete`.
-    expect((await read(res)).error?.code).toBe("identity_missing");
-  });
 });

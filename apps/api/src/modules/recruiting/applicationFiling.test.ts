@@ -59,11 +59,6 @@ const APPLICATION = (over: Record<string, unknown> = {}) => ({
 }) as unknown as Parameters<typeof submitApplication>[3];
 
 const PART_ONE = PART_ONE_ANSWERED;
-/**
- * ⚠ A LEGACY invitation — no Part 1 row — for the two tests below that are the legacy filing rule's own.
- * No driver is sent one; they go with that rule (APPLICATION-FIX-PLAN §7, 1b-5 step 4).
- */
-const LEGACY_INVITATION = { application_intakes: [], application_intake_licences: [] };
 
 const seed = (opts: { marks?: unknown[]; tables?: Record<string, unknown> } = {}) =>
   createSupabaseRecorder({
@@ -214,7 +209,8 @@ describe("a v2 invitation files the composed application (D-AW3, AW1)", () => {
     expect((filed.addresses as Array<Record<string, unknown>>)[0]).toMatchObject({ line1: "1 Main St", city: "Joliet", from: "2019-02" });
     expect([filed.cdl_number, filed.cdl_state, filed.cdl_expires_at]).toEqual(["IL123", "IL", "2029-03-01"]);
     expect(filed.prior_failed_pre_employment_test).toBe(false);
-    expect(rec.forTable("application_intakes")).toHaveLength(1);
+    // Two reads of Part 1, each scoped to the org: the resolver's "is this a current link?" and the filing's.
+    expect(rec.forTable("application_intakes")).toHaveLength(2);
     expect(rec.forTable("application_intake_licences")).toHaveLength(1);
     // The token lookup is what FINDS the org, so it is the one read that cannot filter on it.
     expectOrgScoped(rec, ORG, { exempt: ["application_invitations"] });
@@ -251,36 +247,9 @@ describe("a v2 invitation files the composed application (D-AW3, AW1)", () => {
     expect(rec.rpcs()).toHaveLength(0);
   });
 
-  it("asks a legacy invitation nothing new but §40.25(j), and files what it certified", async () => {
-    publish();
-    const rec = seed({ tables: LEGACY_INVITATION });
-    const result = await submitApplication(
-      rec.client, env(), TOKEN,
-      APPLICATION({ employers: [{ ...EMPLOYER, reason_for_leaving: null }], prior_failed_pre_employment_test: false }), CTX, NOW,
-    );
-    expect(isIntakeError(result)).toBe(false);
-    const filed = filedPayload(rec)!;
-    expect([filed.phone, filed.cdl_number]).toEqual(["555-0111", "TYPED1"]);
-    expect(rec.forTable("application_intake_licences")).toHaveLength(0);
-  });
-
-  /**
-   * F1 part 2 (audit finding 13): a legacy link asked §40.25(j) as an unticked box, so a skipped box
-   * filed as No. It is a Yes/No now, and a filing with neither is refused in words, filing nothing.
-   * A v2 link never meets this: Part 1 refuses an intake without the answer (AI009).
-   */
-  it("refuses a legacy filing that never answered §40.25(j), and files nothing", async () => {
-    publish();
-    const rec = seed({ tables: LEGACY_INVITATION });
-    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION({ prior_failed_pre_employment_test: null }), CTX, NOW);
-    expect(isIntakeError(result) && result.code).toBe("application_incomplete");
-    expect(isIntakeError(result) && result.message).toContain("tested positive or refused a test");
-    expect(rec.rpcs()).toHaveLength(0);
-  });
-
   /**
    * F2c: the carrier's page 2 asks question B (suspended or revoked) apart from A, and gives every
-   * conviction a state and a penalty. A filing without them is refused in words, on either kind of link.
+   * conviction a state and a penalty. A filing without them is refused in words.
    */
   it("refuses a filing that never answered question B, or a conviction with no state or penalty, and files nothing", async () => {
     publish();

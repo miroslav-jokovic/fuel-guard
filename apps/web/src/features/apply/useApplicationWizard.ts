@@ -7,7 +7,6 @@ import {
   applicationPaperFilingIssues,
   driverMustAnswer,
   carrierAnswerIssues,
-  applicationLegacyFilingIssues,
   unansweredEmployerQuestions,
   driverApplicationObject,
   isApplicationSection,
@@ -157,12 +156,8 @@ export function validateSection(
     }
   }
   // F1 part 2: each job's two questions, answered — the refinement the filing runs, which a `.pick()`
-  // never reaches. And on a legacy link, §40.25(j) (a v2 link asked it in Part 1).
-  const later = [
-    ...unansweredEmployerQuestions(candidateFields.employers),
-    ...(v2AsOf ? [] : applicationLegacyFilingIssues(candidateFields).map((i) => ({ ...i, path: [i.path] }))),
-  ];
-  for (const issue of later) {
+  // never reaches. (§40.25(j) is Part 1's question; the form has not asked it since the legacy wizard went.)
+  for (const issue of unansweredEmployerQuestions(candidateFields.employers)) {
     if (sectionOwningPath(issue.path) === section) {
       issues.push(toSectionIssue({ code: "custom", message: issue.message, path: issue.path, issueKey: issue.issueKey, params: issue.params }, section, candidate));
     }

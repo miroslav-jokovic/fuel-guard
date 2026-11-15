@@ -28,8 +28,6 @@ export const APPLY_ISSUES_COPY_ES = {
     address_gap_month: (p: { month: string }) => `Díganos dónde vivió en ${p.month}`,
     address_gap: (p: { from: string; to: string }) => `Díganos dónde vivió del ${p.from} al ${p.to}`,
     employment_gap: (p: { from: string; to: string }) => `Díganos qué hacía del ${p.from} al ${p.to}`,
-    prior_test_answered: () =>
-      "Diga si en los últimos dos años dio positivo o se negó a una prueba para un trabajo de manejo que solicitó",
     suspension_answered: () => "Diga si alguna vez le suspendieron o revocaron una licencia, permiso o privilegio",
     violation_state: () => "Indique el estado donde ocurrió",
     violation_penalty: () => "Indique la sanción: una multa, puntos, una suspensión",

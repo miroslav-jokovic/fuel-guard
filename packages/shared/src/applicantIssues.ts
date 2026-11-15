@@ -44,9 +44,7 @@ export const APPLICANT_ISSUE_TEXT = {
   address_gap_month: (p: { month: string }) => `Tell us where you lived in ${p.month}`,
   address_gap: (p: { from: string; to: string }) => `Tell us where you lived from ${p.from} to ${p.to}`,
   employment_gap: (p: { from: string; to: string }) => `Tell us what you were doing from ${p.from} to ${p.to}`,
-  // ── the carrier's paper (`applicationPaperFilingIssues`, `applicationLegacyFilingIssues`) ──
-  prior_test_answered: () =>
-    "Say whether, in the last two years, you tested positive or refused a test for a driving job you applied for",
+  // ── the carrier's paper (`applicationPaperFilingIssues`) ──
   suspension_answered: () => "Say whether a license, permit or privilege of yours has ever been suspended or revoked",
   violation_state: () => "Give the state where it happened",
   violation_penalty: () => "Give the penalty — a fine, points, a suspension",
