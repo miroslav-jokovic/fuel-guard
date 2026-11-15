@@ -8,9 +8,11 @@ import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import AdsCampaignConcepts from "./AdsCampaignConcepts.vue";
 import AdsCampaignLaunch from "./AdsCampaignLaunch.vue";
+import AdsCampaignPlan from "./AdsCampaignPlan.vue";
 import AdsCreativeReview from "./AdsCreativeReview.vue";
 import { CAMPAIGN_STATE_LABEL, CAMPAIGN_STATE_TONE, canLaunchFrom, isWorking, personMoves } from "./adsCampaignFlow";
-import { useAdsCampaign, useCampaignMove, useChooseWords, useCreativeDecision } from "./useAdsCampaigns";
+import { mayHavePlan, planIsOpen } from "./adsPlan";
+import { useAdsCampaign, useApprovePlan, useCampaignMove, useCampaignPlan, useChooseWords, useCreativeDecision } from "./useAdsCampaigns";
 
 /**
  * One campaign (E3): review its ads and move it on. The moves are the machine's (`personMoves`), shown to whoever
@@ -39,7 +41,16 @@ const moves = computed(() => (view.value && canManage.value ? personMoves(view.v
  */
 const launchRefused = ref(false);
 const showLaunch = computed(() => Boolean(view.value && session.admin && canLaunchFrom(view.value.state)));
-const busy = computed(() => move.isPending.value || decide.isPending.value || words.isPending.value);
+/**
+ * Approving the plan is the drawer's primary action while the plan waits for review, so it sits in the footer with
+ * the campaign's other actions and not at the end of a long plan. It names the version on screen — the same read
+ * `AdsCampaignPlan` draws (one query key, one answer) — and is held back while that component has an edit open.
+ */
+const plan = useCampaignPlan(toRef(props, "campaignId"), computed(() => Boolean(view.value && mayHavePlan(view.value.state))));
+const approvePlan = useApprovePlan();
+const planEditing = ref(false);
+const planToApprove = computed(() => (view.value && canManage.value && planIsOpen(view.value.state) ? (plan.data.value?.plan ?? null) : null));
+const busy = computed(() => move.isPending.value || decide.isPending.value || words.isPending.value || approvePlan.isPending.value);
 
 async function act(work: () => Promise<void>, done: string): Promise<void> {
   try {
@@ -49,6 +60,7 @@ async function act(work: () => Promise<void>, done: string): Promise<void> {
     toast.error("That did not go through", e instanceof Error ? e.message : undefined);
   }
 }
+const approveThePlan = () => planToApprove.value ? act(() => approvePlan.mutateAsync({ id: props.campaignId, approval: { plan_id: planToApprove.value!.id } }), "Plan approved. The ads are being made from it") : Promise.resolve();
 const press = (m: AdsCampaignMove, done: string) => act(() => move.mutateAsync({ id: props.campaignId, move: m }), done);
 const approve = (creativeId: string) => act(() => decide.mutateAsync({ id: props.campaignId, creativeId, decision: { decision: "approve" } }), "Ad approved");
 async function chooseWords(creativeId: string, choice: AdsCopyChoice): Promise<void> {
@@ -75,8 +87,9 @@ const reject = (creativeId: string, reason: string) => act(() => decide.mutateAs
         </div>
         <AppCallout v-if="view.last_error && !launchRefused" tone="danger" data-test="campaign-error">{{ view.last_error }}</AppCallout>
         <AdsCampaignLaunch v-if="showLaunch" :campaign-id="campaignId" @refused="(m) => (launchRefused = m !== null)" />
+        <AdsCampaignPlan :campaign-id="campaignId" :state="view.state" :can-manage="canManage" @editing="(e) => (planEditing = e)" />
         <AdsCampaignConcepts :campaign-id="campaignId" :state="view.state" />
-        <p v-if="view.creatives.length === 0" class="text-sm text-ink-muted" data-test="no-ads">No ads yet.</p>
+        <p v-if="view.creatives.length === 0 && view.state !== 'plan_review'" class="text-sm text-ink-muted" data-test="no-ads">No ads yet.</p>
         <AdsCreativeReview
           v-for="c in view.creatives" :key="c.id" :creative="c" :can-decide="canManage && (view.state === 'review' || (view.state === 'live' && isReplacement(c, view.creatives)))"
           :replaces="isReplacement(c, view.creatives)" :busy="busy"
@@ -85,9 +98,10 @@ const reject = (creativeId: string, reason: string) => act(() => decide.mutateAs
         />
       </div>
     </QueryState>
-    <template v-if="moves.length > 0" #footer>
+    <template v-if="moves.length > 0 || planToApprove" #footer>
       <div class="flex flex-wrap items-center justify-end gap-3">
         <BaseButton v-for="m in moves" :key="m.event" :variant="m.event === 'creatives_approved' ? 'primary' : 'secondary'" :disabled="busy" :data-test="`move-${m.event}`" @click="press({ event: m.event }, 'Done')">{{ m.label }}</BaseButton>
+        <BaseButton v-if="planToApprove" variant="primary" :disabled="busy || planEditing" data-test="plan-approve" @click="approveThePlan">Approve this plan</BaseButton>
       </div>
     </template>
   </SlideOver>
