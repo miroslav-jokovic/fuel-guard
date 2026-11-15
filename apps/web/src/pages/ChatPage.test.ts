@@ -169,6 +169,7 @@ vi.mock("@/features/chat/teams/ChatChannelStage.vue", () => ({
   default: { props: ["entitled", "viewerName"], template: `<div data-test="channel-stage" />` },
 }));
 import ChatPage from "./ChatPage.vue";
+import { PAGE_GUTTER_CLASS } from "@/lib/layout";
 import ChatRail from "@/features/chat/ChatRail.vue";
 import NewChatDialog from "@/features/chat/NewChatDialog.vue";
 
@@ -228,6 +229,21 @@ describe("ChatPage", () => {
     state.modules = "lacks";
     const { w } = await render();
     expect(w.text()).toContain("Chat isn't part of your plan");
+  });
+
+  it("draws that notice on the page's background in the page gutter, and keeps the white stage for a chat", async () => {
+    state.modules = "lacks";
+    const off = (await render()).w;
+    // The page's frame: the first element (an entitled page has its dialogs beside it, so there is no single root).
+    const frame = (w: typeof off) => w.get("div.h-full.min-h-0");
+    expect(frame(off).classes()).not.toContain("bg-surface");
+    expect(off.get('[data-test="chat-not-in-plan"]').classes()).toEqual(expect.arrayContaining(["w-full", ...PAGE_GUTTER_CLASS.split(" ")]));
+
+    // Still white while the plan is being asked: an organization with chat must not see the page change colour.
+    for (const modules of ["has", "pending"] as const) {
+      state.modules = modules;
+      expect(frame((await render()).w).classes()).toContain("bg-surface");
+    }
   });
 
   it("asks for the conversation in ?c=, and never for a value that is not an id", async () => {
