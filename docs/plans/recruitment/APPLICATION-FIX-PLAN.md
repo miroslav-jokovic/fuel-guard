@@ -943,3 +943,16 @@ A gate fails on a literal string in an `apply/` template.
   - **Proof:** API (+4: what the driver is served, the answer's one stamp, a taken-back question, a filed application); web (+16: the composable, the screen, the router); 16 of 16 mutants killed; new `askAgain.spec.ts` walks the whole loop in a real browser and checks the answer reached the server before the office was told; both screens looked at in 390 px screenshots.
   - **A test seam, said plainly:** the composable takes its sender as an argument. With the module mocked instead, Vitest failed the two rejection tests on a rejection the code had handled; I did not find why.
   - **Next:** stage 2b, the office's "Ask the applicant" on the facts card and the list of what was asked. Then stage 3, the e-mail and text.
+- 2026-11-14: **F5 stage 2a merged** (#2386).
+- 2026-11-14: **F5, stage 2b: the office's "Ask the applicant"** (`claude/application-ask-again-office`, no migration). **This is the merge that makes ask-again usable.**
+  - **Where:** under each of the applicant's own answers on the Applicant facts card, while the application waits for the office. Not under Part 1's answers or the identity: the applicant can no longer change those, and the Edit beside them is the way.
+  - **What the office sees there:** "Ask the applicant" and a box for its own words; then "Waiting for the applicant's answer", its words and "Take it back"; then "The applicant answered your question on …". Approve refuses while one is waiting, in the API's own sentence.
+  - **The row is named by its key**, as a correction is (`keyedEditPath`).
+  - **Not built, each said where the office reads it or here:**
+    - **The applicant is not told.** No e-mail or text goes yet (stage 3). The form's hint says so, and tells the office to text or call. That sentence leaves with stage 3.
+    - **Jobs.** The jobs are a timeline of their own (`OfficeJobsSection`), not rows of this card, so there is no "Ask" on a job yet — and a job's dates are the likeliest thing to ask about. The driver's side already opens a job by its key. Next after stage 3.
+    - **One list of everything asked.** Each question shows under its own answer; there is no summary at the top of the drawer.
+  - **Met again:** the new line was first put between a row's `v-if` and its `v-else` chain, which rebinds the chain (the PR 2221 trap). Four drawer tests caught it; it sits after the chain, and a test now pins that the editor still opens.
+  - **Proof:** the row component (+11), the drawer (+1); 11 of 11 mutants killed, one only after its fixture was reordered (the other row's question had been listed second, so "the first open question" passed).
+  - **Next:** stage 3, the e-mail and text; then "Ask" on a job.
+

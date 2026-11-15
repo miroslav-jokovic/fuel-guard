@@ -16,6 +16,16 @@ import { APPLY_CAPTURE_TITLES, APPLY_COPY } from "./strings";
 const apiFetch = vi.hoisted(() => vi.fn());
 const fetchObjectUrl = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ apiFetch, fetchObjectUrl }));
+// F5: each answer's "Ask the applicant" reads its own list. It has its own tests (`FactAskAgain.test.ts`);
+// here it is held still, so this file's scripted answers stay the review's and the corrections' own.
+vi.mock("./useAskAgainOffice", async () => {
+  const { ref } = await import("vue");
+  return {
+    useAskAgainListQuery: () => ({ data: ref([]) }),
+    useAskApplicantAgain: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
+    useWithdrawAskAgain: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
+  };
+});
 // The real permission matrix over a fake who (F0, E10): the drawer asks `session.can("recruitment")`.
 const sessionHolder = vi.hoisted(() => ({ s: null as null | { role: string | null } }));
 vi.mock("@/stores/session", async () => {
@@ -125,6 +135,18 @@ beforeEach(() => {
 URL.revokeObjectURL = vi.fn();
 
 describe("what the office reads", () => {
+  /** F5: "Ask the applicant" sits under the applicant's own answers, and stays out of an open editor. */
+  it("⚠ offers to ask about a draft answer, and not while that answer's editor is open", async () => {
+    const w = drawer();
+    await settle(w);
+    const asks = (key: string) => factRow(w, key).findAll("button").filter((b) => b.text().trim() === "Ask the applicant");
+    expect(asks("questionnaire.position")).toHaveLength(1);
+    await openFact(w, "questionnaire.position");
+    expect(asks("questionnaire.position")).toHaveLength(0);
+    // The editor itself is still the editor: the row's own v-if/v-else chain was not rebound.
+    expect(factRow(w, "questionnaire.position").find("input, textarea, select").exists()).toBe(true);
+  });
+
   /**
    * F0 (APPLICATION-FIX-PLAN E10): `editable` says the application is still open, not that this reader
    * may change it. A `view` reader was shown Save and Approve, which the API then refused with 403.
