@@ -6,7 +6,7 @@ import { dayRangeInstants } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { apiFetch } from "@/lib/api";
-import { afterReset, useDetectionEpoch } from "./useDetectionEpoch";
+import { afterReset, epochGated, useDetectionEpoch } from "./useDetectionEpoch";
 
 /** Extended transaction row for the anomaly detail view (includes card/geo + fueling-event audit fields). */
 export interface AnomalyTxnDetail extends FuelTransaction {
@@ -79,8 +79,9 @@ export function useAnomaliesQuery(filters: Ref<AnomalyFilters>) {
    */
   const { zone } = useOrgTimezone();
   // D-CF9 (0439): cases before the org's detection start date are not listed (useDetectionEpoch.ts).
-  const { epoch, ready } = useDetectionEpoch();
-  return useQuery({
+  const gate = useDetectionEpoch();
+  const { epoch, ready } = gate;
+  const query = useQuery({
     queryKey: ["anomalies", filters, zone, epoch],
     enabled: ready,
     // Surface anomalies from background EFS ingestion + scoring without a manual reload. Matches the
@@ -119,6 +120,8 @@ export function useAnomaliesQuery(filters: Ref<AnomalyFilters>) {
       );
     },
   });
+  // The date's read failing is this list failing, and Retry asks for the one that failed (`epochGated`).
+  return { data: query.data, error: query.error, ...epochGated(query, gate) };
 }
 
 /** The fuel transaction behind an anomaly (for the detail view — includes card/geo fields). */

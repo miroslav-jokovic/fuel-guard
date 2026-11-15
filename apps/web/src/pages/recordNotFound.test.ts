@@ -48,7 +48,12 @@ vi.mock("@/stores/session", async () => {
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }) }));
 vi.mock("@/features/anomalies/useDetectionEpoch", async () => {
   const { ref } = await import("vue");
-  return { useDetectionEpoch: () => ({ epoch: ref(null), ready: ref(true) }), afterReset: (q: unknown) => q };
+  const actual = await vi.importActual<typeof import("@/features/anomalies/useDetectionEpoch")>("@/features/anomalies/useDetectionEpoch");
+  return {
+    useDetectionEpoch: () => ({ epoch: ref(null), ready: ref(true), failed: ref(false), isFetching: ref(false), retry: () => {} }),
+    afterReset: (q: unknown) => q,
+    epochGated: actual.epochGated,
+  };
 });
 
 import { ROUTE_TABLE } from "@/router/table";
