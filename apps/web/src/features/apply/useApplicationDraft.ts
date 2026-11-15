@@ -78,6 +78,8 @@ export function useApplicationDraft(
   let timer: ReturnType<typeof setTimeout> | null = null;
   let lastSaveStartedAt = 0;
   let inFlight = false;
+  /** The request in flight, for `settle` to wait on; null when none is. */
+  let running: Promise<void> | null = null;
   /** A change that arrived while a request was in flight — the form moved on since it was sent. */
   let dirtyWhileSaving = false;
 
@@ -126,6 +128,8 @@ export function useApplicationDraft(
       return;
     }
     inFlight = true;
+    let landed!: () => void;
+    running = new Promise<void>((resolve) => { landed = resolve; });
     const editsAtSend = edits;
     lastSaveStartedAt = Date.now();
     state.value = "saving";
@@ -152,6 +156,8 @@ export function useApplicationDraft(
       state.value = "failed";
     } finally {
       inFlight = false;
+      running = null;
+      landed();
       if (dirtyWhileSaving) {
         dirtyWhileSaving = false;
         schedule();
@@ -208,11 +214,48 @@ export function useApplicationDraft(
     return true;
   }
 
+  /**
+   * Make the server hold what is on the screen, NOW — and say whether it does (2026-11-15).
+   *
+   * ── WHY IT EXISTS ─────────────────────────────────────────────────────────────────────────────
+   * The hand-over to the office carries no answers ("the answers are already saved"), but an answer is
+   * saved up to five seconds after it is typed (the debounce, then the floor). A driver who corrected
+   * one answer from "Before you send" and pressed Send inside that window handed over the application
+   * WITHOUT the correction, was told the carrier had it, and could close the page. The late save still
+   * went out if the page stayed open; if it did not, the office read the old answer. Found by the full
+   * walk (`e2e-apply/fullWalk.spec.ts`), where a script finishes inside the window every time.
+   *
+   * ── WHAT IT ANSWERS ───────────────────────────────────────────────────────────────────────────
+   * True when nothing typed is waiting: no save scheduled, none in flight, and the last one did not
+   * fail. Otherwise it waits for the one in flight and sends what is left, at once — the five-second
+   * floor is about a driver's typing, and this is one act at the end of it. False when that save fails
+   * or the draft changed elsewhere, and the caller must not act as if it were saved.
+   *
+   * ⚠ True, too, where no save CAN go out (switched off, or no revision to save against): then nothing
+   * here stands between the driver and the server, and refusing would stop the send for ever.
+   */
+  async function settle(): Promise<boolean> {
+    for (let round = 0; round < 4; round += 1) {
+      if (state.value === "conflict") return false;
+      if (!options.enabled.value || !token.value || revision.value === null) return true;
+      if (running) {
+        await running;
+        continue;
+      }
+      if (timer === null && state.value !== "failed") return true;
+      clear();
+      await flush();
+      if (state.value === "failed") return false;
+    }
+    return false;
+  }
+
   return {
     state: computed(() => state.value),
     savedAt: computed(() => savedAt.value),
     notice: computed(() => notice.value),
     replay,
+    settle,
     /** Save now rather than on the timer — used when the driver leaves a section. */
     flushNow: (): Promise<void> => {
       clear();

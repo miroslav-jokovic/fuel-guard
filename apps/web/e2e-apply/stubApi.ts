@@ -236,7 +236,11 @@ const parse = (req: Request): unknown => {
   }
 };
 
-export async function stubApi(page: Page, bundle: Json): Promise<Stub> {
+/**
+ * `released`: what the date-of-birth unlock hands over BESIDE the draft, as the API does once Part 1 is
+ * finished — Part 1's own answers (`{ partOne: … }`, C3c2c2). Absent, the unlock releases the draft alone.
+ */
+export async function stubApi(page: Page, bundle: Json, opts: { released?: Json } = {}): Promise<Stub> {
   const draft = bundle.draft as { payload: Json | null; revision?: number };
   const state: StubState = {
     bundle,
@@ -346,7 +350,7 @@ export async function stubApi(page: Page, bundle: Json): Promise<Stub> {
     if (method === "POST" && rest === "/unlock") {
       // U2 (0604): a right answer that asked to be remembered leaves a device token, as the API does.
       const remembered = (body as { remember_device?: boolean } | null)?.remember_device === true ? { deviceToken: STUB_DEVICE_TOKEN } : {};
-      return json(route, 200, { draft: { ...(state.bundle.draft as Json), locked: false, payload: state.draft.payload ?? {}, revision: state.draft.revision, ...remembered } });
+      return json(route, 200, { draft: { ...(state.bundle.draft as Json), locked: false, payload: state.draft.payload ?? {}, revision: state.draft.revision, ...opts.released, ...remembered } });
     }
     // F5 (0607): "Send my answer" closes the question; the next read of the link no longer serves it.
     const answered = /^\/ask-again\/([^/]+)\/answer$/.exec(rest);

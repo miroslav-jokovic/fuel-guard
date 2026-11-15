@@ -100,6 +100,100 @@ describe("autosave", () => {
     handle.stop();
   });
 
+  /**
+   * `settle` (2026-11-15): the hand-over to the office carries no answers, so it asks first whether the
+   * server holds what is on the screen — and an answer typed inside the last five seconds is not there yet.
+   */
+  describe("settling before the hand-over", () => {
+    it("sends what is waiting at once, without the two seconds or the five-second floor, and says it is held", async () => {
+      const draft = reactive(emptyDraft());
+      const handle = run(draft);
+      draft.first_name = "Susan";
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(saved.fn).toHaveBeenCalledTimes(1);
+      // One second after a save: the floor would hold the next one back for four more.
+      draft.last_name = "Godfrey";
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(saved.fn).toHaveBeenCalledTimes(1);
+
+      await expect(handle.settle()).resolves.toBe(true);
+      expect(saved.fn).toHaveBeenCalledTimes(2);
+      expect(saved.fn.mock.calls[1]![1]).toMatchObject({ last_name: "Godfrey" });
+      // And the timer it replaced does not fire a third.
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(saved.fn).toHaveBeenCalledTimes(2);
+      handle.stop();
+    });
+
+    it("asks the server nothing when nothing is waiting", async () => {
+      const draft = reactive(emptyDraft());
+      const handle = run(draft);
+      await expect(handle.settle()).resolves.toBe(true);
+      draft.first_name = "Susan";
+      await vi.advanceTimersByTimeAsync(2_000);
+      await expect(handle.settle()).resolves.toBe(true);
+      expect(saved.fn).toHaveBeenCalledTimes(1);
+      handle.stop();
+    });
+
+    it("says no when the save fails, and tries again the next time it is asked", async () => {
+      const draft = reactive(emptyDraft());
+      const handle = run(draft);
+      draft.first_name = "Susan";
+      await vi.advanceTimersByTimeAsync(0);
+      saved.fn.mockRejectedValueOnce(new Error("offline"));
+      await expect(handle.settle()).resolves.toBe(false);
+      expect(handle.state.value).toBe("failed");
+      // Nothing is scheduled after a failure until the next keystroke, so asking again must send again.
+      await expect(handle.settle()).resolves.toBe(true);
+      expect(saved.fn).toHaveBeenCalledTimes(2);
+      handle.stop();
+    });
+
+    it("waits for a save already on its way, then sends what was typed during it", async () => {
+      const draft = reactive(emptyDraft());
+      const handle = run(draft);
+      let land!: (v: { updatedAt: string }) => void;
+      saved.fn.mockImplementationOnce(() => new Promise((resolve) => { land = resolve; }));
+      draft.first_name = "Susan";
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(saved.fn).toHaveBeenCalledTimes(1);
+      draft.last_name = "Godfrey";
+      await vi.advanceTimersByTimeAsync(0);
+
+      let held: boolean | null = null;
+      void handle.settle().then((v) => { held = v; });
+      await vi.advanceTimersByTimeAsync(0);
+      // Still out: it has not answered, and has not started a second request beside the first.
+      expect(held).toBeNull();
+      expect(saved.fn).toHaveBeenCalledTimes(1);
+
+      land({ updatedAt: "2026-08-21T09:00:01Z" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(held).toBe(true);
+      expect(saved.fn).toHaveBeenCalledTimes(2);
+      expect(saved.fn.mock.calls[1]![1]).toMatchObject({ last_name: "Godfrey" });
+      handle.stop();
+    });
+
+    it("says no once the draft changed elsewhere, and yes where no save can go out at all", async () => {
+      const draft = reactive(emptyDraft());
+      const handle = run(draft);
+      draft.first_name = "Susan";
+      await vi.advanceTimersByTimeAsync(0);
+      saved.fn.mockRejectedValueOnce(Object.assign(new Error("changed"), { code: "draft_revision_conflict" }));
+      await expect(handle.settle()).resolves.toBe(false);
+      await expect(handle.settle()).resolves.toBe(false);
+      expect(saved.fn).toHaveBeenCalledTimes(1);
+      handle.stop();
+
+      // Switched off (before the form is on screen): nothing here stands between the driver and the server.
+      const off = run(reactive(emptyDraft()), ref(false));
+      await expect(off.settle()).resolves.toBe(true);
+      off.stop();
+    });
+  });
+
   it("stops when the page goes away", async () => {
     const draft = reactive(emptyDraft());
     const handle = run(draft);
