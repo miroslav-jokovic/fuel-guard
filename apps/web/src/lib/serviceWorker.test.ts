@@ -83,6 +83,18 @@ describe("a push", () => {
     });
   });
 
+  it("shows a push whose text is hidden with no text — never the fallback sentence in its place (IA-S4)", async () => {
+    const w = worker();
+    const m = chatPushMessage({
+      origin: ORIGIN, title: "New message from Ana Petrović", body: "", path: `/chat?c=${T}`,
+      threadId: T, messageId: "m1", at: new Date("2026-11-15T15:00:00Z"),
+    });
+    await w.fire("push", pushOf(m));
+    expect(w.shown).toHaveLength(1);
+    expect(w.shown[0]!.title).toBe("New message from Ana Petrović");
+    expect(w.shown[0]!.options).toMatchObject({ body: "", tag: `chat:${T}`, renotify: true, data: { navigate: `${ORIGIN}/chat?c=${T}` } });
+  });
+
   it("still shows something for a message it cannot read — a push that shows nothing loses the permission", async () => {
     const w = worker();
     await w.fire("push", { data: { json: () => { throw new SyntaxError("not json"); } } });

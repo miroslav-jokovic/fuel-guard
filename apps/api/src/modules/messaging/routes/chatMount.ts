@@ -8,6 +8,7 @@ import { chatAboutRouter } from "./chatAbout.js";
 import { chatSearchRouter } from "./chatSearch.js";
 import { chatCatchupRouter } from "./chatCatchup.js";
 import { chatPushRouter } from "./chatPush.js";
+import { chatPushPrivacyRouter } from "./chatPushPrivacy.js";
 import { chatQuietRouter } from "./chatQuiet.js";
 
 /**
@@ -41,6 +42,8 @@ export function chatRouters(): Router {
   // CH10: this device's notifications — `/push` would otherwise be read as a conversation id.
   // CH10 WP5: Do not disturb, ahead of `/push` (whose routes would not claim it) and of the conversations.
   router.use("/push/quiet", chatQuietRouter());
+  // IA-S4: message text kept off the lock screen — the person's own switch, beside Do not disturb.
+  router.use("/push/privacy", chatPushPrivacyRouter());
   router.use("/push", chatPushRouter());
   router.use("/", chatRouter());
   return router;

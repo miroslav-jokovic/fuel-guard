@@ -33,7 +33,7 @@ function withNames(component: Component, props: Record<string, unknown>) {
     },
   });
   // The rail's Do not disturb reads the server through vue-query; it has its own test.
-  return mount(Host, { attachTo: document.body, global: { stubs: { ChatDoNotDisturb: true } } });
+  return mount(Host, { attachTo: document.body, global: { stubs: { ChatDoNotDisturb: true, ChatPushPrivacy: true } } });
 }
 
 describe("a mention in a line", () => {

@@ -8,6 +8,7 @@ import KebabMenuItem from "@/components/KebabMenuItem.vue";
 import ChatUnreadCount from "./ChatUnreadCount.vue";
 import ChatDesktopAlertsControl from "./ChatDesktopAlertsControl.vue";
 import ChatDoNotDisturb from "./ChatDoNotDisturb.vue";
+import ChatPushPrivacy from "./ChatPushPrivacy.vue";
 import { chatRowTime } from "./chatTime";
 import { useMentionNames } from "@/components/mentions/mentionNames";
 
@@ -277,5 +278,6 @@ const channelLabel = (c: ChatTeamChannel) => `# ${c.name}${c.visibility === "pri
     </nav>
     <ChatDesktopAlertsControl />
     <ChatDoNotDisturb />
+    <ChatPushPrivacy />
   </aside>
 </template>
