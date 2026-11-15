@@ -1045,4 +1045,15 @@ A gate fails on a literal string in an `apply/` template.
   - **Proof:** the rewritten test failed three times in a row before the line was added and passes three times after; all applicant browser specs pass (44, with the three local-only `assistantDock` failures); looked at in a 390 px screenshot.
   - **Left on a legacy link:** `employmentTimeline.spec.ts` only, which is the legacy wizard's own timeline and goes with it.
   - **Next:** what a legacy link shows in place of the wizard, then the removals.
+- 2026-11-14: **1b-5 stage 0, second spec merged** (#2398).
+- 2026-11-14: **1b-5 stage 1, measured before it is touched** (no code changed; a probe, reverted).
+  - **The probe:** a placeholder card put in front of every legacy link (a bundle with no `partOne`), and the applicant suites run.
+  - **What it showed:** 3 test files fail, and almost all of it is `apps/web/src/pages/ApplyPage.test.ts` (1,582 lines, 59 tests): **about 30 of its tests build a legacy link.** The browser specs no longer do, except `employmentTimeline.spec.ts`.
+  - **Why this is the real work of 1b-5, and why it is not a deletion:** most of those 30 pin behaviour that is every link's, written on a legacy fixture because it was the only one at the time: the consent comes before anything is asked or written; the ceremony sits between the consent and the form; a draft wording stops the send and says so on the first screen; the draft's revision conflict stops saving and offers a reload; the phone's copy is put back, never over a newer server copy; the screen reports name the screen the driver is on. Deleting them with the wizard would remove the only tests of those rules.
+  - **The order that keeps them:**
+    1. Move those tests onto a current link, a few at a time, in test-only merges. A test that only makes sense on the linear wizard (stepping "Step n of 9", its Back and Next) is named and dropped with its reason.
+    2. Then the card for a legacy link, with `employmentTimeline.spec.ts` dropped in the same merge.
+    3. Then the removals: `ApplySection`'s five section branches and their components (`ApplicantDetailsFields`, `AddressHistoryFields`, `AddressDrawer`, `AddressFields`, `ApplyEmploymentFields`, `SafetyHistoryFields`, `QuestionnaireFields` once nothing reads it), `ApplyProgress` and the linear Next/Back, the legacy identity screen.
+    4. Last, the server's `applicationLegacyFilingIssues`.
+  - **Stage 0 already paid for itself:** moving one browser test found that a driver inside a task was never told a save had failed (#2398). The same is likely to be true of some of the 30.
 
