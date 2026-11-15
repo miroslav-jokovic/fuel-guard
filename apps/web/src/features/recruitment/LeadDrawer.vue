@@ -372,7 +372,7 @@ const runPurge = (): Promise<void> =>
     </div>
 
     <template v-if="(canWork || canDelete) && !stepUpFor" #footer>
-      <div v-if="working" class="flex items-center justify-end gap-3">
+      <template v-if="working">
         <BaseButton :disabled="busy" @click="stopWork">Cancel</BaseButton>
         <BaseButton v-if="working === 'contact'" variant="primary" type="submit" :form="CONTACT_FORM" :disabled="busy" data-test="save-contact">
           {{ busy ? "Saving…" : "Save contact" }}
@@ -395,8 +395,8 @@ const runPurge = (): Promise<void> =>
         <BaseButton v-else variant="primary" :disabled="busy || convertChoice === ''" data-test="save-convert" @click="runConvert">
           {{ busy ? "Saving…" : "Confirm" }}
         </BaseButton>
-      </div>
-      <div v-else class="flex flex-wrap items-center justify-end gap-3">
+      </template>
+      <template v-else>
         <BaseButton v-if="canDelete" variant="danger" :disabled="busy" data-test="purge" @click="startPurge">Delete details</BaseButton>
         <template v-if="canWork">
           <BaseButton :disabled="busy" data-test="hold" @click="working = 'hold'">{{ lead?.do_not_contact ? "Lift do not contact" : "Do not contact" }}</BaseButton>
@@ -410,7 +410,7 @@ const runPurge = (): Promise<void> =>
           <BaseButton v-if="lead?.status !== 'converted'" :disabled="busy" data-test="convert" @click="startConvert">Make applicant</BaseButton>
           <BaseButton variant="primary" :disabled="busy" data-test="log-contact" @click="working = 'contact'">Log a contact</BaseButton>
         </template>
-      </div>
+      </template>
     </template>
   </SlideOver>
 </template>

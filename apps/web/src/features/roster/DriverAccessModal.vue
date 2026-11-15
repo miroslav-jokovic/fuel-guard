@@ -451,7 +451,7 @@ async function copyCredentials() {
     </div>
 
     <template v-if="driver" #footer>
-      <div v-if="confirmation" class="flex items-center justify-end gap-3">
+      <template v-if="confirmation">
         <BaseButton :disabled="busy" @click="confirmAction = null">Back</BaseButton>
         <BaseButton
           :variant="confirmation.tone === 'danger' ? 'danger' : 'primary'"
@@ -460,16 +460,16 @@ async function copyCredentials() {
         >
           {{ busy ? "Working…" : confirmation.confirmLabel }}
         </BaseButton>
-      </div>
+      </template>
 
-      <div v-else-if="issued" class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <div v-else-if="issued" class="flex w-full flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <BaseButton @click="finishCredentialHandoff">Done</BaseButton>
         <BaseButton variant="primary" @click="copyCredentials">
           <AppIcon :icon="CopyIcon" class="size-4" aria-hidden="true" /> Copy login details
         </BaseButton>
       </div>
 
-      <div v-else-if="access === 'none'" class="flex items-center justify-end gap-3">
+      <template v-else-if="access === 'none'">
         <BaseButton :disabled="busy" @click="close">Cancel</BaseButton>
         <BaseButton
           form="driver-login-form"
@@ -480,9 +480,9 @@ async function copyCredentials() {
           <AppIcon :icon="KeyIcon" class="size-4" aria-hidden="true" />
           {{ create.isPending.value ? "Creating…" : "Create app login" }}
         </BaseButton>
-      </div>
+      </template>
 
-      <div v-else class="flex items-center justify-end gap-3">
+      <template v-else>
         <BaseButton :disabled="busy" @click="close">Close</BaseButton>
         <BaseButton
           form="driver-password-reset-form"
@@ -492,7 +492,7 @@ async function copyCredentials() {
         >
           <AppIcon :icon="ResetPasswordIcon" class="size-4" aria-hidden="true" /> Reset password
         </BaseButton>
-      </div>
+      </template>
     </template>
   </SlideOver>
 </template>

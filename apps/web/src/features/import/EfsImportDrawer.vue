@@ -281,7 +281,7 @@ const previewTotal = (p: ImportPreview) =>
       away below three previews is a Commit button somebody cannot find.
     -->
     <template v-if="previews.length" #footer>
-      <div class="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+      <div class="w-full flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
         <p class="text-sm text-ink-muted">
           {{ previews.length }} file{{ previews.length > 1 ? "s" : "" }} ready ·
           <span class="font-medium text-ink">{{ totalNewRows.toLocaleString() }} new row(s)</span> to import

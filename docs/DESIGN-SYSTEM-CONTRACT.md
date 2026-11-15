@@ -736,20 +736,20 @@ Body swaps between three states, footer swaps with them:
   </div>
 
   <template v-if="driver" #footer>
-    <div v-if="confirmation" class="flex items-center justify-end gap-3">
+    <template v-if="confirmation">
       <BaseButton :disabled="busy" @click="confirmAction = null">Back</BaseButton>
       <BaseButton :variant="confirmation.tone === 'danger' ? 'danger' : 'primary'" :disabled="busy" @click="runConfirmedAction">
         {{ busy ? "Working…" : confirmation.confirmLabel }}
       </BaseButton>
-    </div>
-    <div v-else-if="access === 'none'" class="flex items-center justify-end gap-3">
+    </template>
+    <template v-else-if="access === 'none'">
       <BaseButton :disabled="busy" @click="close">Cancel</BaseButton>
       <BaseButton form="driver-login-form" type="submit" variant="primary"
                   :disabled="busy || !!usernameProblem || !!passwordProblem">
         <AppIcon :icon="KeyIcon" class="size-4" aria-hidden="true" />
         {{ create.isPending.value ? "Creating…" : "Create app login" }}
       </BaseButton>
-    </div>
+    </template>
     …
   </template>
 </SlideOver>
