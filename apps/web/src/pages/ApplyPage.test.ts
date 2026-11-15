@@ -105,7 +105,56 @@ const PACKET = driverPlacements(null).map((p) => ({ ...p, signedAt: null }));
 const TOTAL = APPLICATION_FILLING_SECTIONS.length;
 const step = (n: number): string => `Step ${n} of ${TOTAL}`;
 
-const ok = (body: unknown) => ({ ok: true, json: async () => body });
+/**
+ * 1b-5: every bundle a test serves is counted when it is the application's own and names no Part 1 — a
+ * legacy link, which no driver is sent any more. `LEGACY_LINK_TESTS` is the list still to move onto a
+ * current link; it may only shrink, and the check after each test fails a new test written on one.
+ */
+let legacyBundles = 0;
+const ok = (body: unknown) => {
+  if (body && typeof body === "object" && "carrier" in body && !(body as { partOne?: unknown }).partOne) legacyBundles += 1;
+  return { ok: true, json: async () => body };
+};
+/** Where Part 1 stands on a link nobody has walked, and on one that has finished it — as the server serves it. */
+const PART_ONE_NEW = {
+  completedAt: null, contact: false, address: false, licences: false, screening: false,
+  medicalCardPending: false, rights: false,
+};
+const PART_ONE_DONE = {
+  completedAt: "2026-08-21T09:05:00Z", contact: true, address: true, licences: true, screening: true,
+  medicalCardPending: false, rights: true,
+};
+const LEGACY_LINK_TESTS: string[] = [
+  "presents draft disclosures as unsignable, on the screen where they sign",
+  "walks one screen at a time and ends by handing it to the carrier",
+  "says the application cannot be sent yet, on the first screen and again at the Send",
+  "refuses to advance past an incomplete screen and names the field in words",
+  "puts the cursor in the first box that needs an answer",
+  "marks the box itself, not only the summary",
+  "resumes on the screen the driver had reached",
+  "hands the application over when the last screen's button is pressed",
+  "puts the signing ceremony between the consent and the form",
+  "asks for the licence before the first permission when it is not on file",
+  "offers the Clearinghouse registration on a v2 link's permissions-received screen only",
+  "names the employing carrier and its address on the form",
+  "shows the date of birth on the form and does not let it be retyped once on file",
+  "waits for the office after the permissions, until the application is sent",
+  "goes straight to the form when the ceremony is already finished",
+  "skips the ceremony while the wording is draft, and still shows the instruments",
+  "says what it involves before it asks for anything, on a link nobody has touched",
+  "does not explain the process again to somebody with",
+  "asks for the electronic-records consent before anything else, once it can be recorded",
+  "does not ask while the wording is still draft, because nothing could record it",
+  "goes straight to the form for a driver who already consented",
+  "asks for the date of birth before showing a draft that contains one",
+  "shows the form straight away when the draft has nothing sensitive in it yet",
+  "puts back what the phone could not send, onto the revision it was typed on, and sends it at once",
+  "drops a copy the server moved on from, says so, and sends nothing",
+  "stops saving and offers the reload when the server says the draft changed elsewhere",
+  "never puts a copy back on a locked draft before the date of birth, and uses the unlock's revision after it",
+  "names the screen the driver is on, from the first screen down to the form's section",
+  "names the welcome and the consent on an untouched link",
+];
 const dead = () => ({ ok: false, json: async () => ({ error: { code: "invalid_link", message: "This application link is not valid. Ask for a new one." } }) });
 
 // The app installs pinia; the employer panel's confirm (HW5b) is a pinia store, so the page needs it here too.
@@ -149,10 +198,18 @@ const settle = async (w: ReturnType<typeof mountPage>) => {
 };
 
 describe("the applicant's page", () => {
-  beforeEach(() => fetchMock.mockReset());
+  beforeEach(() => {
+    fetchMock.mockReset();
+    legacyBundles = 0;
+  });
+  afterEach(() => {
+    const name = expect.getState().currentTestName ?? "";
+    const listed = LEGACY_LINK_TESTS.some((title) => name.includes(title));
+    expect(legacyBundles > 0, `"${name}" ${listed ? "no longer opens a legacy link: take it off LEGACY_LINK_TESTS" : "opens a legacy link"}`).toBe(listed);
+  });
 
   it("asks the public endpoint with no Authorization header", async () => {
-    fetchMock.mockResolvedValue(ok({ carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES }));
+    fetchMock.mockResolvedValue(ok({ carrier: "Silvicom Inc", partOne: PART_ONE_NEW, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES }));
     const w = mountPage();
     await settle(w);
 
@@ -166,7 +223,7 @@ describe("the applicant's page", () => {
   });
 
   it("shows the carrier's name on the first screen", async () => {
-    fetchMock.mockResolvedValue(ok({ carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES }));
+    fetchMock.mockResolvedValue(ok({ carrier: "Silvicom Inc", partOne: PART_ONE_NEW, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES }));
     const w = mountPage();
     await settle(w);
 
@@ -389,7 +446,7 @@ describe("the applicant's page", () => {
    */
   it("shows what was sent when the link is reopened after submission", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: "2026-08-21T10:00:00Z" },
     }));
     const w = mountPage();
@@ -407,7 +464,7 @@ describe("the applicant's page", () => {
   // RT4, §391.31(g): the link's own payload is what puts the certificate on the filed card.
   it("offers the road-test certificate on the filed card when the link has one", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: "2026-08-21T10:00:00Z" },
       roadTestCertificate: { testedOn: "2026-09-25" },
     }));
@@ -427,7 +484,7 @@ describe("the applicant's page", () => {
    */
   it("says the carrier has it, once it has been handed over", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: {
         consentedAt: "2026-09-09T09:00:00Z", releasesCompletedAt: "2026-09-09T09:10:00Z",
         reviewRequestedAt: "2026-09-10T09:00:00Z", approvedAt: null, submittedAt: null,
@@ -440,13 +497,13 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain("They have your application");
     // And the form is gone: a driver who has handed it over must not be able to keep editing the
     // document somebody is reading.
-    expect(w.text()).not.toContain("Step 1 of");
+    expect(w.text()).not.toContain(APPLY_COPY.hub.heading);
     expect(w.text()).not.toContain("Send it to");
   });
 
   it("⚠ shows what the carrier changed, above the certification, once it comes back to sign", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: {
         consentedAt: "2026-09-09T09:00:00Z", releasesCompletedAt: "2026-09-09T09:10:00Z",
         reviewRequestedAt: "2026-09-10T09:00:00Z", approvedAt: "2026-09-11T09:00:00Z", submittedAt: null,
@@ -490,7 +547,7 @@ describe("the applicant's page", () => {
     // Silence would read as "we did not look". An applicant asked to re-certify is owed the answer
     // either way.
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: {
         consentedAt: null, releasesCompletedAt: null,
         reviewRequestedAt: "2026-09-10T09:00:00Z", approvedAt: "2026-09-11T09:00:00Z", submittedAt: null,
@@ -511,7 +568,7 @@ describe("the applicant's page", () => {
    */
   it("⚠ says what stops it, and who fixes it, when the final send is refused by the rules", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: {
         consentedAt: null, releasesCompletedAt: null,
         reviewRequestedAt: "2026-09-10T09:00:00Z", approvedAt: "2026-09-11T09:00:00Z", submittedAt: null,
@@ -547,7 +604,7 @@ describe("the applicant's page", () => {
    */
   it("⚠ says an approved application is signed in the office, until the office opens signing", async () => {
     const approvedPage = (signingOpenedAt: string | null) => ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: {
         consentedAt: "2026-09-09T09:00:00Z", releasesCompletedAt: "2026-09-09T09:10:00Z",
         reviewRequestedAt: "2026-09-10T09:00:00Z", approvedAt: "2026-09-11T09:00:00Z",
@@ -580,7 +637,7 @@ describe("the applicant's page", () => {
     // ⚠ It moved there because D-APP3 keeps it out of every saved draft: a number typed on the first
     // visit is gone by the second, and the second visit is when the file is created.
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: {
         consentedAt: null, releasesCompletedAt: null,
         reviewRequestedAt: "2026-09-10T09:00:00Z", approvedAt: "2026-09-11T09:00:00Z", submittedAt: null,
@@ -593,7 +650,7 @@ describe("the applicant's page", () => {
 
     // The first screen of the first visit does not ask for it.
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_NEW, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
     }));
     const first = mountPage();
@@ -1259,7 +1316,7 @@ describe("the applicant's page", () => {
    */
   it("offers the driver their own copy once the application is in", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: "2026-08-21T18:00:00Z" },
       draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
     }));
@@ -1279,7 +1336,7 @@ describe("the applicant's page", () => {
       String(url).endsWith("/document")
         ? ok({ url: "https://storage.test/signed/app.pdf", filename: "driver-application.pdf", expiresInSeconds: 300 })
         : ok({
-          carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+          carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
           phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: "2026-08-21T18:00:00Z" },
           draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
         }));
@@ -1301,7 +1358,7 @@ describe("the applicant's page", () => {
       String(url).endsWith("/document")
         ? ok({ url: "https://storage.test/signed/app.pdf", filename: "f.pdf", expiresInSeconds: 300 })
         : ok({
-          carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+          carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
           phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: "2026-08-21T18:00:00Z" },
           draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
         }));
@@ -1513,7 +1570,7 @@ describe("the applicant's page", () => {
 
     it("names the handbook while its places are being signed, and the filed page around it", async () => {
       const filed = (openedAt: string | null) => ok({
-        carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+        carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
         phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: "2026-08-25T09:00:00Z" },
         handbook: {
           canOpen: true, openedAt, driverSigned: [], driverComplete: false, filedAt: null, adoption: null, version: "h1",
