@@ -9,7 +9,7 @@ import { adsStepDedupKey, adsStepEnqueue, orchestratorTick, startAdsOrchestrator
 vi.mock("../../../queue/dispatch.js", () => ({ dispatchJob: vi.fn(async () => ({ jobId: "job-1" })) }));
 import { adsWorkers, type CampaignWorkers } from "./workers.js";
 
-const ALL: CampaignWorkers = { compose: async () => ({ ok: true }), createPaused: async () => ({ ok: true }), platform: async () => null, refresh: null };
+const ALL: CampaignWorkers = { plan: null, compose: async () => ({ ok: true }), createPaused: async () => ({ ok: true }), platform: async () => null, refresh: null };
 
 /**
  * The jobs ledger's rule, as 0095 states it: with a dedup_key, ONE active job per key (a global
@@ -65,7 +65,7 @@ describe("orchestratorTick — it only enqueues, one keyed step per campaign wit
     expect(states).not.toContain("archived");
     expect(states).not.toContain("review");
     const none = createAdsWorld({ campaigns: [] });
-    await orchestratorTick(none.admin, { compose: null, createPaused: null, platform: null, refresh: null }, ledger().enqueue);
+    await orchestratorTick(none.admin, { plan: null, compose: null, createPaused: null, platform: null, refresh: null }, ledger().enqueue);
     expect(none.rec.forTable("ads_campaigns").length).toBeGreaterThan(0); // launching/live: the switch can always act
   });
 });

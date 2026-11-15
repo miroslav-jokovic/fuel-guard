@@ -21,7 +21,8 @@ describe("applyCampaignEvent — the machine decides, the writer obeys", () => {
         for (const actor of Object.keys(ACTORS) as CampaignActor[]) {
           const w = createAdsWorld({ campaigns: [campaign("c1", state)] });
           const verdict = stepCampaign(state, event, actor);
-          const r = await applyCampaignEvent(w.admin, (await loadCampaign(w.admin, ORG, "c1"))!, { event, actor: ACTORS[actor] }, w.now().toISOString());
+          // `plan_approved` carries the plan it approves (V2); its own tests below cover the move without one.
+          const r = await applyCampaignEvent(w.admin, (await loadCampaign(w.admin, ORG, "c1"))!, { event, actor: ACTORS[actor], ...(event === "plan_approved" ? { plan_id: "plan-1" } : {}) }, w.now().toISOString());
           const rows = w.transitions();
           if (!verdict.ok) {
             expect(r, `${state} + ${event} by ${actor}`).toEqual({ kind: "refused", reason: verdict.reason });
@@ -111,5 +112,35 @@ describe("applyCampaignEvent — racing writers and crashes", () => {
     expect(w.byId("c1")).toMatchObject({ state: "failed", last_error: "renderer down" });
     await applyCampaignEvent(w.admin, (await loadCampaign(w.admin, ORG, "c1"))!, { event: "resume_compose", actor: PERSON }, w.now().toISOString());
     expect(w.byId("c1")).toMatchObject({ state: "composing", last_error: null });
+  });
+});
+
+describe("applyCampaignEvent — a plan is approved by name (V2)", () => {
+  const person = ACTORS.person;
+
+  it("plan_approved writes the plan's id in the same write as the state", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "plan_review")] });
+    const c = (await loadCampaign(w.admin, ORG, "c1"))!;
+    expect(await applyCampaignEvent(w.admin, c, { event: "plan_approved", actor: person, plan_id: "plan-7" }, w.now().toISOString())).toEqual({ kind: "moved", from: "plan_review", to: "composing" });
+    const writes = w.rec.forTable("ads_campaigns").filter((q) => q.write);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]!.write!.payload).toMatchObject({ state: "composing", plan_id: "plan-7" });
+    expect(writes[0]!.filters()).toEqual(expect.arrayContaining([{ col: "state", val: "plan_review" }, { col: "state_changed_at", val: c.state_changed_at }]));
+  });
+
+  it("plan_approved with no plan named is refused and recorded, and the campaign does not move", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "plan_review")] });
+    const c = (await loadCampaign(w.admin, ORG, "c1"))!;
+    expect(await applyCampaignEvent(w.admin, c, { event: "plan_approved", actor: person }, w.now().toISOString())).toEqual({ kind: "refused", reason: "plan_not_named" });
+    expect(w.byId("c1").state).toBe("plan_review");
+    expect(w.transitions()).toEqual([expect.objectContaining({ status: "refused", error_code: "plan_not_named" })]);
+    expect(w.rec.forTable("ads_campaigns").some((q) => q.write)).toBe(false);
+  });
+
+  it("no other move writes a plan id, even when one is passed", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "plan_review")] });
+    const c = (await loadCampaign(w.admin, ORG, "c1"))!;
+    await applyCampaignEvent(w.admin, c, { event: "replan", actor: person, plan_id: "plan-7" }, w.now().toISOString());
+    expect(w.rec.forTable("ads_campaigns").find((q) => q.write)!.write!.payload).not.toHaveProperty("plan_id");
   });
 });

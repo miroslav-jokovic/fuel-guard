@@ -29,6 +29,11 @@ import type { QueueDriver } from "../../../queue/types.js";
  * Orchestrator's L2 row: "0 duplicate vendor creates across all crash points").
  */
 export interface CampaignWorkers {
+  /**
+   * V2: the campaign's plan — the evidence pack built by code, then the Strategist's plan from it, stored as
+   * version 1 (`ads_campaign_plans`). Null = this host does not plan, and a draft goes straight to compose.
+   */
+  plan: ((campaign: CampaignRow, key: string) => Promise<WorkerResult>) | null;
   /** C1–C5: copy, art direction, render and checks, one creative per preset. */
   compose: ((campaign: CampaignRow, key: string) => Promise<WorkerResult>) | null;
   /** B2 (the publisher): put the campaign on its platform, paused. Returns the platform's ids. */
@@ -67,6 +72,8 @@ export type WorkerResult = { ok: true } | { ok: false; error: string } | { ok: f
  */
 export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
   return {
+    // V2: null until the plan store and the Strategist land (`modules/ads/plan/`). No host plans yet.
+    plan: null,
     // C5b2: the presets drawn, one creative per preset in the batch, each through copy → art → render →
     // overlay → the three checks (`compose/`). The render itself is NOT done here: see `queuedRender`.
     // Which model draws it follows the campaign's connection: a simulator campaign draws in the simulator.
@@ -146,7 +153,11 @@ export interface WorkerDeps {
  */
 export function agentHasWork(state: CampaignState, workers: CampaignWorkers, killSwitch: boolean): boolean {
   switch (state) {
+    // A draft is planned when a planner exists, composed when only the composer does.
     case "draft":
+      return workers.plan !== null || workers.compose !== null;
+    case "planning":
+      return workers.plan !== null;
     case "composing":
       return workers.compose !== null;
     case "approved":
@@ -160,7 +171,7 @@ export function agentHasWork(state: CampaignState, workers: CampaignWorkers, kil
       return killSwitch || workers.refresh !== null;
     case "pausing":
       return workers.platform !== null;
-    // A person's turn (review, paused, failed) or the end (archived).
+    // A person's turn (plan_review, review, paused, failed) or the end (archived).
     default:
       return false;
   }

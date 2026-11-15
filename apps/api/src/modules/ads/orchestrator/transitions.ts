@@ -64,13 +64,19 @@ export interface TransitionAsk {
    * campaign that did not move. The runner's `launchStep` reads them from the row.
    */
   budget?: { daily_budget_cents: number; lifetime_cap_cents: number } | null;
+  /**
+   * Written WITH the move (V2): the plan version a person approved, on `plan_approved`. In the same
+   * compare-and-set as the state for the reason the budget is — a campaign can never be composing from a
+   * plan nobody named, nor carry a plan it did not move with. The database holds the same line (AX032).
+   */
+  plan_id?: string | null;
 }
 
 export type TransitionResult =
   | { kind: "moved"; from: CampaignState; to: CampaignState }
   /** Legal and changes nothing (the kill switch in a state with nothing delivering): no row, no write. */
   | { kind: "no_op"; state: CampaignState }
-  | { kind: "refused"; reason: "illegal_transition" | "actor_not_allowed" }
+  | { kind: "refused"; reason: "illegal_transition" | "actor_not_allowed" | "plan_not_named" }
   /** Another writer moved the campaign first; this move did not happen and its row says so. */
   | { kind: "state_moved" }
   /** This exact move was already recorded finished by an earlier delivery of the same job. */
@@ -106,6 +112,11 @@ export async function applyCampaignEvent(admin: SupabaseClient, campaign: Campai
   }
   const { to } = step.transition;
   if (to === campaign.state && ask.event === "kill") return { kind: "no_op", state: to };
+  // Refused here, before any row, so the reason is ours and not a database error the caller has to decode.
+  if (ask.event === "plan_approved" && !ask.plan_id) {
+    await recordFinished(admin, base, { status: "refused", error_code: "plan_not_named", at });
+    return { kind: "refused", reason: "plan_not_named" };
+  }
 
   await settleOpenTransitions(admin, campaign);
   const key = `transition:${campaign.id}:${campaign.state_changed_at}:${ask.event}`;
@@ -126,6 +137,7 @@ export async function applyCampaignEvent(admin: SupabaseClient, campaign: Campai
   const patch: Record<string, unknown> = { state: to, state_changed_at: toAt, last_error: clip(ask.error ?? null) };
   if (ask.platform_refs) patch.platform_refs = { ...campaign.platform_refs, ...ask.platform_refs };
   if (ask.budget) Object.assign(patch, ask.budget);
+  if (ask.event === "plan_approved") patch.plan_id = ask.plan_id;
   const { data, error } = await admin
     .from("ads_campaigns")
     .update(patch)
