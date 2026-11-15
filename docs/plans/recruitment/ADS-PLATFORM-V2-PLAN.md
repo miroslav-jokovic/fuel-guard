@@ -249,6 +249,28 @@ answer for this carrier is measured in its first month instead of taken from a v
 Not researched. Candidates to compare on price, accuracy on cab noise, Spanish, and where audio is kept. Nothing
 in V4's motion lane waits on it.
 
+### Q-APX6 · Is planning mandatory, or the carrier's choice? — open (built as (a), reversible)
+
+**What was measured.** Every ads AI agent starts switched off in every carrier's settings (D-RA9), the
+Strategist included, and production holds no saved ads settings at all (§1). The planning step refuses with "the
+Strategist is switched off" when its switch is off.
+
+**Why it is a question.** With planning unconditional, every new campaign would stop at that refusal on the day
+planning shipped, until an admin found the switch — a change of behaviour nobody asked for by name.
+
+- **(a) The carrier's choice — recommended, and what V2c built.** A campaign is planned only when the
+  Strategist switch is on; off, it takes the road it took before planning existed. Nothing changes for anyone
+  until the switch is turned on. A campaign that was planned waits on the Strategist's certification at Launch;
+  one that was not, does not. Cost: two roads through the machine stay (`draft → plan`, `draft → compose`).
+- **(b) Mandatory.** One road, and no ad without a plan. Cost: the switch must be on by default or every
+  campaign stops, which reverses D-RA9 ("off by default") for this one agent.
+- **(c) Mandatory once the Strategist is certified (L4).** (a) until then, (b) after. Cost: a behaviour change
+  tied to a certification date rather than to a decision.
+
+The owner's words — "looks like AI is in rush to create ad without any research" — argue for (b) or (c) as the
+end state. (a) is the safe way to get there: it is one line to reverse (`plansFor` in `orchestrator/workers.ts`),
+and the `draft → compose` row leaves the machine in the same merge.
+
 ## 5a. Ruled
 
 **2026-11-14, the owner, to the four proposals above and to the request to record the agents on his Anthropic
@@ -268,6 +290,7 @@ key: *"ok proceed as proposed."*** Taken as:
 |---|---|---|---|
 | Q-APX1–4 | — | **ruled 2026-11-14, §5a** | — |
 | Q-APX5 | Speech-to-text provider | research owed | Claude |
+| Q-APX6 | Planning mandatory, or the carrier's choice | **open** — built as (a), reversible | owner |
 | — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 ## Sources (read 2026-11-14)

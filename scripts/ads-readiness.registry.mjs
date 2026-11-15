@@ -1193,9 +1193,8 @@ export const READINESS = [
     },
   },
   {
-    // V2c (2026-11-15): the Strategist writes a campaign's plan from the evidence pack. It is NOT in CAMPAIGN_WORKERS
-    // yet: no host plans (`CampaignWorkers.plan` is null until a person has a door to approve a plan), so no campaign
-    // uses it and Launch does not wait on it. It joins `meta:still` in the merge that fills `workers.plan`.
+    // V2c (2026-11-15): the Strategist writes a campaign's plan from the evidence pack. A campaign that carries a
+    // plan waits on its L4 at Launch (`meta:plannedstill` in CAMPAIGN_WORKERS); one that was never planned does not.
     worker: "Strategist",
     levels: {
       L1: [
@@ -1441,8 +1440,7 @@ export const READINESS = [
  *
  * @type {Record<string, Array<{ worker: string, platform?: string }>>}
  */
-export const CAMPAIGN_WORKERS = {
-  "meta:still": [
+const META_STILL = [
     { worker: "Orchestrator" },
     { worker: "Budget guard" },
     { worker: "Publisher (per adapter)", platform: "meta" },
@@ -1458,5 +1456,14 @@ export const CAMPAIGN_WORKERS = {
     // P1-7 (2026-11-10): every creative that passes the visual check is scored, so a Meta campaign uses it too.
     { worker: "Finished-ad judge" },
     { worker: "Security (all)" },
-  ],
+];
+
+/**
+ * A campaign that was PLANNED (it carries a plan, V2c) also used the Strategist, so its launch waits on the
+ * Strategist's L4 as well. Its own key, derived from the unplanned list so the two cannot drift: a carrier
+ * that never switched planning on is not held back by an agent its campaigns never used (Q-APX6).
+ */
+export const CAMPAIGN_WORKERS = {
+  "meta:still": META_STILL,
+  "meta:plannedstill": [...META_STILL, { worker: "Strategist" }],
 };

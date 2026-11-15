@@ -32,6 +32,8 @@ import { simulatorGate } from "../platforms/simulatorGate.js";
 export const LAUNCH_LEVEL: AdsReadinessLevel = "L4";
 /** The only creative kind compose makes (header). */
 export const CAMPAIGN_CREATIVE_KIND = "still";
+/** The kind of a campaign that carries a plan: the same workers and the Strategist (`meta:plannedstill`). */
+export const plannedKind = (kind: string): string => `planned${kind}`;
 
 const RANK: Record<AdsReadinessLevel, number> = { L0: 0, L1: 1, L2: 2, L3: 3, L4: 4, L5: 5 };
 
@@ -51,7 +53,7 @@ export type LaunchCertification =
   | { ok: false; refusal: "simulator_not_allowed" | "platform_not_listed"; missing: []; message: string };
 
 export function launchCertification(
-  connection: { provider: string },
+  connection: { provider: string; planned?: boolean },
   readiness: LaunchReadiness = BAKED_READINESS,
   processEnv: NodeJS.ProcessEnv = process.env,
   kind: string = CAMPAIGN_CREATIVE_KIND,
@@ -62,7 +64,7 @@ export function launchCertification(
       ? { ok: true, exempt: "simulator" }
       : { ok: false, refusal: "simulator_not_allowed", missing: [], message: `A simulator campaign cannot launch on this server: ${gate.reason}.` };
   }
-  const key = `${connection.provider}:${kind}`;
+  const key = `${connection.provider}:${connection.planned ? plannedKind(kind) : kind}`;
   const uses = readiness.workers[key];
   if (!uses || uses.length === 0) {
     return { ok: false, refusal: "platform_not_listed", missing: [], message: `No workers are listed for ${key} campaigns, so none can launch. The readiness registry's CAMPAIGN_WORKERS must name them first.` };

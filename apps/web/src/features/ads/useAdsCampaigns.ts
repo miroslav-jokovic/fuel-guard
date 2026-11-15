@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { Ref } from "vue";
-import { adsLaunchMissingSchema, type AdsCampaignCreate, type AdsCampaignLaunch, type AdsCampaignMove, type AdsCampaignSummary, type AdsCampaignView, type AdsCopyChoice, type AdsCreativeDecision, type AdsLaunchMissing, type CampaignConcepts } from "@silvicom/shared";
+import { adsLaunchMissingSchema, type AdsCampaignCreate, type AdsCampaignLaunch, type AdsCampaignMove, type AdsCampaignPlanRead, type AdsCampaignSummary, type AdsPlanApproval, type AdsPlanEdit, type AdsCampaignView, type AdsCopyChoice, type AdsCreativeDecision, type AdsLaunchMissing, type CampaignConcepts } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { apiRefusal } from "@/composables/useStepUpRetry";
 import { isWorking } from "./adsCampaignFlow";
@@ -106,3 +106,27 @@ export const useChooseWords = () =>
   useCampaignWrite<{ id: string; creativeId: string; choice: AdsCopyChoice }>(({ id, creativeId, choice }) =>
     post(`/api/ads/campaigns/${id}/creatives/${creativeId}/words`, choice, "Could not use these words"));
 
+
+/**
+ * The plan a campaign's ads are made from (V2c; `routes/plans.ts`). The key sits under the campaign's, so every
+ * campaign write reads it again — an approval or a colleague's edit shows without a reload. Asked only once a
+ * plan can exist (`mayHavePlan`), so a campaign still being planned does not ask for one.
+ */
+export function useCampaignPlan(id: Ref<string>, enabled: Ref<boolean>) {
+  return useQuery({
+    queryKey: [...ADS_CAMPAIGNS_KEY, id, "plan"],
+    enabled: () => id.value !== "" && enabled.value,
+    queryFn: async (): Promise<AdsCampaignPlanRead> => {
+      const res = await apiFetch<AdsCampaignPlanRead>(`/api/ads/campaigns/${id.value}/plan`);
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the plan");
+      return res.data;
+    },
+  });
+}
+
+/** A 422 `plan_refused` keeps the door's findings on the error's `detail`, so the editor says what to change. */
+export const useSavePlanEdit = () =>
+  useCampaignWrite<{ id: string; edit: AdsPlanEdit }>(({ id, edit }) => post(`/api/ads/campaigns/${id}/plan/versions`, edit, "Could not save the plan"));
+
+export const useApprovePlan = () =>
+  useCampaignWrite<{ id: string; approval: AdsPlanApproval }>(({ id, approval }) => post(`/api/ads/campaigns/${id}/plan/approval`, approval, "Could not approve the plan"));

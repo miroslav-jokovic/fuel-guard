@@ -21,7 +21,7 @@ import { startFuelSpendRollupScheduler } from "./modules/fuel-spend/index.js";
 import { startFinancialProjectionScheduler, startFinancialFreshnessScheduler } from "./modules/financial/index.js";
 import { startFleetpalScheduler } from "./modules/fleetpal/index.js";
 import { startMedstopScheduler } from "./modules/medstop/index.js";
-import { startLeadUncontacted, startSmsOutboxScheduler } from "./modules/recruiting/index.js";
+import { recruitingLeadQuality, startLeadUncontacted, startSmsOutboxScheduler } from "./modules/recruiting/index.js";
 import { startBoardEtaRecorder, startHomeTimeScheduler } from "./modules/livemap/index.js";
 import { startFmcsaFeedScheduler } from "./modules/inspections/index.js";
 import { startMcleodRelinkScheduler } from "./modules/mcleod/index.js";
@@ -95,7 +95,7 @@ export const SCHEDULERS: readonly ScheduledTask[] = [
   },
   { name: "realtime-probe", lane: "general", start: startRealtimeProbeScheduler }, // CHA4 (0515): every 15 min, a broadcast from the database must reach a subscriber; /api/version → realtime
   { name: "chat-export-sweeper", lane: "general", start: startChatExportSweeper }, // CHA3b (0517): an office chat export's files have a 7-day life; the record stays
-  { name: "ads-orchestrator", lane: "general", start: startAdsOrchestrator }, // A6 (D-AD16): every minute, one ads_step job per campaign with agent work; with ADS_ENABLED off it runs under the brake (pause only)
+  { name: "ads-orchestrator", lane: "general", start: (env) => startAdsOrchestrator(env, recruitingLeadQuality) }, // A6 (D-AD16): every minute, one ads_step job per campaign with agent work; with ADS_ENABLED off it runs under the brake (pause only)
   { name: "ads-leads-backfill", lane: "general", start: startAdsLeadsBackfill }, // B4a2: hourly, one ads_leads_backfill job per connected Meta connection (48 h window → LeadSink); OFF unless ADS_ENABLED
   { name: "ads-insights", lane: "general", start: startAdsInsights }, // B5a: hourly, one ads_insights job per connected Meta connection (3 local days, hourly grain → ads_spend_hourly); OFF unless ADS_ENABLED
   { name: "ads-reconcile", lane: "general", start: startAdsReconcile }, // B5c: daily, one ads_reconcile job per connected Meta connection (28-day insights re-read + Meta vs our rows → external_change); OFF unless ADS_ENABLED
