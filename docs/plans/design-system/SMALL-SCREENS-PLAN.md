@@ -210,3 +210,43 @@ Table layout at desk widths. New data on any card.
   - Not done here: `PageHeader`'s action buttons still wrap to two lines on Drivers at 390 px (four
     buttons). That is a page with four header verbs, which contract §9 rule 2 answers for the shop
     with a bottom bar; whether the office pages take the same rule is a product question — Q-SM4.
+- **2026-11-14, B built** (branch `claude/dashboard-cards-own-width`, stacked on A2).
+  - D-SM9: `TabWidgets`' grid is a container; spans collapse at 42rem and 64rem of GRID. Measured
+    after, on staging's data: at a 1024 px window (690 px of grid) Fuel spend is the full row and
+    Fleet MPG and Needs attention are two halves of 328 px — they were 210 and 150; at 1440 the
+    catalogue's 5 / 4 / 3 is back. No test pinned the old `md:` / `lg:` strings.
+  - D-SM10: `ChartCard`'s header stacks its control under the title below 24rem of card (the plan
+    said 22; 24 is Tailwind's `@sm`, and no card sits between the two).
+  - D-SM11: Fleet MPG says "No week in these dates has enough measured distance for an MPG." in the
+    plot's place, only once the read has answered (mutant caught: dropping that condition); x ticks
+    keep 16 px between them. The chart's floor is met by D-SM9 rather than by a minimum of its own:
+    the narrowest a chart card now gets is 308 px.
+  - M4: the two charts' accessible tables are clipped by an `sr-only` WRAPPER — a table ignores the
+    class's 1 px box. Fleet overview at 390 px: document 390 px wide, was 541.
+  - M12: Idling's four tiles pair up until their row has 72rem. The contract's tile grid
+    (`sm:grid-cols-2 xl:grid-cols-4`) has the same window-not-room arithmetic; Idling was the one
+    page measured breaking a figure, so it is the one changed, and the contract's line stays until
+    a second page shows the fault.
+  - M9, not changed, on purpose: the Ask AI launcher floats, and `--assistant-clearance` already
+    keeps it off a page's LAST control. Over the middle of a page it will always be over something;
+    moving it is the assistant's own plan, not this one.
+  - Checked and not a fault: the Fuel-spend plot's canvas is exactly its parent's width at 390, 1024
+    and 1440 (318 / 648 / 406 px), 20 px inside the card.
+- **2026-11-14, C1 built** (branch `claude/operations-quiet-rows`, stacked on B) — the three parts of
+  D-SM12 that need nothing from another feature.
+  - **Q-SM1 built as (a)**, the written ruling: a zero row still renders, on one line, figure in the
+    tertiary ink, its door kept as the arrow (`CountList`). The folded "✓ 4 clear" of the picture is
+    NOT built. A rate of nothing (value 0, printed "—") is an unknown and keeps its sentence.
+  - **Packing** (`features/dashboard/packing.ts`): a tab whose cards all take one span flows down
+    columns, each card as tall as its content. Decided from the spans, so Fleet overview is untouched.
+  - **Truck paperwork** is one 4 × 2 grid, its row names derived from `VEHICLE_CHECK_LABELS`
+    (`truckPapersGrid.ts`); each of the eight figures is still its own door.
+  - Measured on staging's data: Operations is 1,399 px tall at 1440 (was 2,219) and 3,619 at
+    390 (was 4,454). The paperwork grid is the shared `DataTable`, embedded — `lint:ui-adoption`
+    refuses a hand-written table — so on a phone it is four flat card rows. The picture's "about 1,150 px on a phone" assumed folded zeros.
+  - **C2, not built: the fleet strip and the "Needs action" card.** Q-SM3 is half answered —
+    `lib/dashboardWidgets.ts` already imports every feature's widget, so `lib/` may compose them —
+    but each of the ten cards computes its rows inside its own `.vue`. C2 first moves each card's
+    rows into a composable beside it (ten small moves, no behaviour change), then adds one catalogue
+    entry that reads them. Its own PR, with its own gate (`ops.needs-action` must respect each
+    source card's section gate, D-FM4).

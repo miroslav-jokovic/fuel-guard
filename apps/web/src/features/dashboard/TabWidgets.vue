@@ -47,6 +47,7 @@ import { WIDGET_COMPONENTS, WIDGETS_TAKING_RANGE } from "@/lib/dashboardWidgets"
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { AdjustmentsHorizontalIcon } from "@silvicom/ui/icons";
 import DashboardLayoutEditor from "@/features/dashboard/DashboardLayoutEditor.vue";
+import { packedSpanOf } from "@/features/dashboard/packing";
 
 const props = defineProps<{
   tab: string;
@@ -109,15 +110,45 @@ const emptyByChoice = computed(() => drawable.value.length === 0 && allowed.valu
 const staleLayout = computed(() => layout.value != null && layoutNamesNothingHere(allowed.value, layout.value));
 
 /**
- * Column count → grid classes. `md` collapses per D-DT5 (≤ 6 → half, > 6 → full); `lg` is the
- * catalogue's own count. Keys are the counts the catalogue uses; an unlisted count renders full.
+ * Column count → grid classes. The middle step collapses per D-DT5 (≤ 6 → half, > 6 → full); the
+ * wide step is the catalogue's own count. Keys are the counts the catalogue uses; an unlisted count
+ * renders full.
+ *
+ * ── THE RULER IS THE GRID'S OWN WIDTH, NOT THE WINDOW'S (SMALL-SCREENS-PLAN.md D-SM9, 2026-11-14) ──
+ * These were `md:` and `lg:`. At a 1024 px window the sidebar takes 270 of them, so `lg:` handed the
+ * catalogue's spans to a grid 690 px wide: Fleet MPG (span 4) came out 210 px, its subtitle one word
+ * a line and its header link printed over its title; Needs attention (span 3) 150 px. The window
+ * was never the question — a collapsed sidebar, a wider one, the assistant's panel all change the
+ * room without changing the window. `@2xl` is 42rem of GRID (two cards of ≥ 20rem); `@5xl` is 64rem,
+ * where a span of 3 is 238 px and a span of 4 is 325. D-DT5 stands as written: spans collapse,
+ * widgets are not restyled.
  */
 const SPAN_CLASS: Record<number, string> = {
-  3: "md:col-span-6 lg:col-span-3",
-  4: "md:col-span-6 lg:col-span-4",
-  5: "md:col-span-12 lg:col-span-5",
-  6: "md:col-span-6 lg:col-span-6",
-  12: "md:col-span-12 lg:col-span-12",
+  3: "@2xl:col-span-6 @5xl:col-span-3",
+  4: "@2xl:col-span-6 @5xl:col-span-4",
+  5: "@2xl:col-span-12 @5xl:col-span-5",
+  6: "@2xl:col-span-6 @5xl:col-span-6",
+  12: "@2xl:col-span-12 @5xl:col-span-12",
+};
+
+/**
+ * ── A TAB OF EQUAL CARDS IS PACKED, NOT GRIDDED (SMALL-SCREENS-PLAN.md D-SM12, 2026-11-14) ─────────
+ * A grid row is as tall as its tallest card. Operations is ten cards of one span and very different
+ * lengths (Shop three rows, Truck paperwork eight), so every row but one ended in white: the audit
+ * measured Seats stopping 250 px above its own bottom edge. When every card on a tab has the SAME
+ * span there are no rows to keep — nothing is wider than anything else — so the cards flow down
+ * columns and each is as tall as its content.
+ *
+ * Decided from the spans, never from the tab's name: Fleet overview mixes 5 / 4 / 3 / 12 / 6 and is
+ * still a grid, and a tab somebody arranges into equal cards tomorrow packs without a line here.
+ * The order a person saved still reads top to bottom, then across — down a column, not along a row.
+ */
+const packedSpan = computed<number | null>(() => packedSpanOf(drawable.value));
+/** Columns for a span — the same two steps `SPAN_CLASS` takes, as column counts. */
+const PACK_CLASS: Record<number, string> = {
+  3: "@2xl:columns-2 @5xl:columns-4",
+  4: "@2xl:columns-2 @5xl:columns-3",
+  6: "@2xl:columns-2",
 };
 
 /**
@@ -224,11 +255,18 @@ const workspaceWidget = computed(() =>
     <p v-else-if="staleLayout" class="text-xs text-ink-tertiary" data-test="stale-layout-note">
       Your saved arrangement referred to cards that no longer exist, so the default is shown. Customize to set a new one.
     </p>
-    <div v-if="!nothingAvailable && !emptyByChoice" class="grid grid-cols-1 gap-6 md:grid-cols-12">
+    <div v-if="!nothingAvailable && !emptyByChoice" class="@container">
+    <div v-if="packedSpan !== null && PACK_CLASS[packedSpan]" class="gap-6" :class="PACK_CLASS[packedSpan]" data-test="packed">
+      <div v-for="w in drawable" :key="w.key" :data-test="`widget-${w.key}`" class="mb-6 break-inside-avoid">
+        <component :is="WIDGET_COMPONENTS[w.key]" v-bind="WIDGETS_TAKING_RANGE.has(w.key) ? { range } : {}" />
+      </div>
+    </div>
+    <div v-else class="grid grid-cols-1 gap-6 @2xl:grid-cols-12">
       <!--
-        Twelve columns, and a card's `span` is how many it takes (Q-FO3). D-DT5: a narrower screen
-        collapses SPANS, never restyles a widget — so below `lg` anything narrower than half the
-        row becomes half, and anything wider becomes the whole row; below `md` everything stacks.
+        Twelve columns, and a card's `span` is how many it takes (Q-FO3). D-DT5: a narrower grid
+        collapses SPANS, never restyles a widget — so under 64rem of grid anything narrower than
+        half the row becomes half, and anything wider becomes the whole row; under 42rem everything
+        stacks. See `SPAN_CLASS` for why it is the grid's width and not the window's.
         A static class per count, because Tailwind cannot see a class built at runtime.
       -->
       <div
@@ -242,6 +280,7 @@ const workspaceWidget = computed(() =>
           v-bind="WIDGETS_TAKING_RANGE.has(w.key) ? { range } : {}"
         />
       </div>
+    </div>
     </div>
 
     <DashboardLayoutEditor

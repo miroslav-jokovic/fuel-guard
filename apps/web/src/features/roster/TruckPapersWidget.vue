@@ -21,10 +21,12 @@
  * every paper check, and a zero printed then would be a claim, so the row reads "—" (CountList).
  */
 import { computed } from "vue";
+import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import { DocumentTextIcon } from "@silvicom/ui/icons";
-import { matchesVehicleCheck, VEHICLE_CHECK_LABELS, type VehicleCheck } from "@silvicom/shared";
+import { matchesVehicleCheck, type VehicleCheck } from "@silvicom/shared";
+import { PAPERS, PAPER_STATES, paperCheck, paperStateLabel, type Paper } from "./truckPapersGrid";
 import ChartCard from "@/components/ui/ChartCard.vue";
-import CountList, { type CountRow } from "@/components/ui/CountList.vue";
+import DoorLink from "@/components/ui/DoorLink.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useUnitFilesQuery } from "@/composables/useCompliance";
 
@@ -40,36 +42,43 @@ const count = (check: VehicleCheck) => {
   return vehicles.value.filter((v) => v.status === "active" && matchesVehicleCheck(v, check, files.get(v.id))).length;
 };
 /** One caption per kind of answer — the label already says which paper. */
-const CAPTION: Record<string, string> = {
-  overdue: "past its date",
-  due: "lapses soon",
-  date_only: "McLeod's date, no paper filed",
-  missing: "nothing on file",
-};
-const row = (check: VehicleCheck, alarm = false): CountRow => ({
-  key: check,
-  label: VEHICLE_CHECK_LABELS[check],
-  value: count(check),
-  caption: CAPTION[check.slice(check.indexOf("_") + 1)],
-  to: `/vehicles?check=${check}`,
-  door: "Trucks",
-  alarm,
-});
-
-const rows = computed<CountRow[]>(() => [
-  row("inspection_overdue", true),
-  row("inspection_due"),
-  row("inspection_date_only"),
-  row("inspection_missing"),
-  row("registration_overdue", true),
-  row("registration_due"),
-  row("registration_date_only"),
-  row("registration_missing"),
-]);
+// One grid, four states by two papers — see `truckPapersGrid.ts` for why, and for where the row
+// names come from. Every figure is still its own door (D-FM9), to the same filtered list as before.
+const grid = computed(() =>
+  PAPER_STATES.map((state) => ({
+    state,
+    label: paperStateLabel(PAPERS[0], state),
+    cells: Object.fromEntries(
+      PAPERS.map((paper) => {
+        const check = paperCheck(paper, state);
+        return [paper.key, { check, value: count(check), to: `/vehicles?check=${check}`, alarm: state === "overdue" }];
+      }),
+    ) as Record<Paper["key"], { check: VehicleCheck; value: number | null; to: string; alarm: boolean }>,
+  })),
+);
+const COLUMNS: DataTableColumn[] = [
+  { key: "label", label: "State", cellClass: "text-ink-secondary" },
+  ...PAPERS.map((paper) => ({ key: paper.key, label: paper.label, numeric: true })),
+];
+const fmt = (n: number | null) => (n == null ? "—" : n.toLocaleString("en-US"));
 </script>
 
 <template>
   <ChartCard title="Truck paperwork" subtitle="Active trucks — annual inspection and registration" :icon="DocumentTextIcon" tone="warning" class="h-full">
-    <CountList :rows="rows" />
+    <!-- The one data table, embedded in this card: a hand-written table is refused by
+         `lint:ui-adoption`, and below `md` this one becomes the shared card rows for free. -->
+    <!-- ui-adoption: never-empty — four fixed states, whatever the fleet holds -->
+    <DataTable :columns="COLUMNS" :rows="grid" row-key="state" embedded dense :sticky-header="false" :nowrap="false">
+      <template v-for="paper in PAPERS" :key="paper.key" #[`cell-${paper.key}`]="{ row }">
+        <span class="whitespace-nowrap">
+          <span
+            class="tabular-nums"
+            :class="row.cells[paper.key].value === 0 ? 'font-medium text-ink-tertiary' : row.cells[paper.key].alarm && (row.cells[paper.key].value ?? 0) > 0 ? 'text-base font-bold text-danger-text' : 'text-base font-bold text-ink'"
+            :data-test="`count-${row.cells[paper.key].check}`"
+          >{{ fmt(row.cells[paper.key].value) }}</span>
+          <DoorLink :to="row.cells[paper.key].to"><span class="sr-only">Trucks: {{ paper.label }}, {{ row.label.toLowerCase() }}</span></DoorLink>
+        </span>
+      </template>
+    </DataTable>
   </ChartCard>
 </template>

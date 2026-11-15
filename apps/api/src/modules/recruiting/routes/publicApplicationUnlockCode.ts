@@ -14,6 +14,7 @@ import { unlockCodeLimiter, unlockLimiter } from "../../../middleware/applicatio
 import { isIntakeError } from "../applicationIntake.js";
 import { requestUnlockCode, unlockWithCode } from "../applicationUnlockCode.js";
 import { unlockWithDevice } from "../applicationDraft.js";
+import { answerAskAgain } from "../applicationAskAgain.js";
 
 /**
  * The one-time code in place of the date of birth (F0b) — `applicationUnlockCode.ts` says what it may
@@ -34,6 +35,8 @@ const STATUS: Record<string, number> = {
   code_not_accepted: 422,
   code_failed: 502,
   device_not_known: 422,
+  question_not_open: 409,
+  already_submitted: 409,
 };
 
 export function publicApplicationUnlockCodeRouter(): Router {
@@ -90,6 +93,25 @@ export function publicApplicationUnlockCodeRouter(): Router {
         return;
       }
       res.json({ draft: result });
+    }),
+  );
+
+  /**
+   * F5 (0607): "Send my answer" to a question the office sent back. Here, beside the other small acts on
+   * the link, because `publicApplication.ts` sits near its line budget. No body: the answer is the draft's.
+   */
+  router.post(
+    "/:token/ask-again/:questionId/answer",
+    asyncHandler(async (req, res) => {
+      const { env } = getAppLocals(req);
+      const result = await answerAskAgain(
+        getSupabaseAdmin(env), String(req.params.token ?? ""), String(req.params.questionId ?? ""), new Date(),
+      );
+      if (isIntakeError(result)) {
+        res.status(STATUS[result.code] ?? 500).json(apiError(result.code, result.message));
+        return;
+      }
+      res.json({ question: result });
     }),
   );
 

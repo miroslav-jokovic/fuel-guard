@@ -125,3 +125,25 @@ describe("campaignMachine — every (state, event, actor) answered", () => {
     }
   });
 });
+
+describe("campaignMachine — planning (V2)", () => {
+  it("only a person approves a plan or asks for a new one; only the agent starts and finishes planning", () => {
+    for (const event of ["plan_approved", "replan"] as const) {
+      expect(stepCampaign("plan_review", event, "person").ok).toBe(true);
+      expect(stepCampaign("plan_review", event, "agent")).toMatchObject({ ok: false, reason: "actor_not_allowed" });
+    }
+    expect(stepCampaign("draft", "plan", "person")).toMatchObject({ ok: false, reason: "actor_not_allowed" });
+    expect(stepCampaign("planning", "plan_ready", "person")).toMatchObject({ ok: false, reason: "actor_not_allowed" });
+  });
+
+  it("no ad is composed from plan review except by approving the plan", () => {
+    const out = CAMPAIGN_TRANSITIONS.filter((t) => t.from === "plan_review" && t.to === "composing").map((t) => t.event);
+    expect(out).toEqual(["plan_approved"]);
+    expect(CAMPAIGN_TRANSITIONS.filter((t) => t.from === "planning" && t.to === "composing")).toEqual([]);
+  });
+
+  it("no planning move can spend", () => {
+    for (const t of CAMPAIGN_TRANSITIONS) if (t.from === "planning" || t.from === "plan_review" || t.to === "planning") expect(t.spend, `${t.from}|${t.event}`).toBe(false);
+  });
+});
+

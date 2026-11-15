@@ -15,7 +15,8 @@ import { agentHasWork, type CampaignWorkers } from "./workers.js";
  * `ads_actions` row (`transitions.ts`). It decides nothing a table does not: the event it sends is
  * asked of `stepCampaign`, and an illegal one is refused and recorded, never forced.
  *
- *   draft      → compose                          (once C-phase's workers exist)
+ *   draft      → plan when this host plans, else compose
+ *   planning   → the evidence pack + the Strategist → plan_ready | plan_failed (pending: no move, no row)
  *   composing  → the workers write + check        → creatives_ready | compose_failed
  *                (a compose not finished — a render still drawing — answers `pending`: no move, no row)
  *   approved   → create_paused                    (once B2's publisher exists)
@@ -103,7 +104,13 @@ async function decide(deps: RunnerDeps, c: CampaignRow, killReason: string | nul
   if (killReason && (c.state === "launching" || c.state === "live")) return { event: "kill", cause: `kill switch: ${killReason}` };
   switch (c.state) {
     case "draft":
-      return { event: "compose" };
+      return { event: workers.plan ? "plan" : "compose" };
+    case "planning": {
+      const r = await attempt(() => workers.plan!(c, key));
+      if (r.ok) return { event: "plan_ready" };
+      if ("pending" in r) return { wait: r.why };
+      return { event: "plan_failed", cause: r.error, error: r.error };
+    }
     case "composing": {
       const r = await attempt(() => workers.compose!(c, key));
       if (r.ok) return { event: "creatives_ready" };

@@ -39,6 +39,24 @@ export const APPLY_FLOW_COPY = {
     note: "Nothing more to do for now. We will email you a new link for the application — this one will stop working when it arrives.",
   },
 
+  /**
+   * F5 (0607): the office sent a question back. In place of the wait screen while one is open.
+   * ⚠ "question" and not "problem": most of these are a date or a name the office could not read.
+   */
+  askAgain: {
+    heading: (carrier: string, n: number): string =>
+      n === 1 ? `${sentenceCase(carrier)} has a question for you` : `${sentenceCase(carrier)} has ${n} questions for you`,
+    intro: (carrier: string): string =>
+      `${sentenceCase(carrier)} is reading your application and needs this from you before they can go on. Open each one, check your answer, and send it back.`,
+    about: "About",
+    open: "Open my answer",
+    openAgain: "Open it again",
+    send: "Send my answer",
+    sending: "Sending…",
+    failed: "That did not send. Check your signal and try again. Nothing you typed is lost.",
+    asked: (carrier: string): string => `${sentenceCase(carrier)} asked`,
+    done: "Done — back to the question",
+  },
   handoff: {
     send: (carrier: string): string => `Send it to ${carrier}`,
     sending: "Sending…",

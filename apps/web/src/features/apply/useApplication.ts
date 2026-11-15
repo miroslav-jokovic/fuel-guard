@@ -2,6 +2,7 @@ import { computed, type Ref } from "vue";
 import { takeServedForm } from "./servedForm";
 import { useMutation, useQuery } from "@tanstack/vue-query";
 import type {
+  AskAgainView,
   ApplicantOwedKind,
   CarrierQuestionStamp,
 } from "@silvicom/shared";
@@ -188,6 +189,8 @@ export interface ApplyInvitation {
   captures: ApplicationCaptureView[];
   /** What the office changed while it had the application. Empty for almost every one of them. */
   edits: ApplyEdit[];
+  /** F5 (0607): questions the office sent back and the driver has not answered. Absent from an older API. */
+  askAgain?: AskAgainView[];
   /**
    * The carrier's packet, stop by stop (P5, D-PKT6) — the driver's twenty-two marks in the packet's
    * own page order, each saying whether this link has collected it yet.

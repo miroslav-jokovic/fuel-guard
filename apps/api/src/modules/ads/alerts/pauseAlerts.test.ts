@@ -20,7 +20,7 @@ function pausing(w: AdsWorld, pause: () => Promise<PlatformOutcome>, platform = 
     safe: { readAccountHeadroomCents: vi.fn(async () => 300_000), readSpendCents: vi.fn(async () => 0), pause: vi.fn(pause), pauseAd: vi.fn(async () => ({ ok: true as const })), activateAd: vi.fn(async () => ({ ok: true as const })) },
     spend: { launch: vi.fn(), raiseDailyBudget: vi.fn(), changeArea: vi.fn() },
   };
-  return { compose: null, createPaused: null, refresh: null, platform: platform ? async (_o, conn) => (conn === CONN ? guardPlatform(w.admin, w.now, "meta", adapter) : null) : async () => null };
+  return { plan: null, compose: null, createPaused: null, refresh: null, platform: platform ? async (_o, conn) => (conn === CONN ? guardPlatform(w.admin, w.now, "meta", adapter) : null) : async () => null };
 }
 
 const steps = async (w: AdsWorld, workers: CampaignWorkers, n: number) => {

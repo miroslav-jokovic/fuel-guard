@@ -26,6 +26,7 @@ import { CAMPAIGN_STATES, type CampaignState } from "./contracts.js";
  */
 
 export const CAMPAIGN_EVENTS = [
+  "plan", "plan_ready", "plan_failed", "plan_approved", "replan", "resume_plan",
   "compose", "creatives_ready", "compose_failed", "regenerate", "creatives_approved",
   "create_paused", "created", "create_failed", "launch", "launched", "launch_failed",
   "pause", "paused", "pause_failed", "kill", "platform_paused", "platform_activated",
@@ -61,7 +62,19 @@ const KILL_NO_OP: readonly CampaignState[] = [
 ];
 
 export const CAMPAIGN_TRANSITIONS: readonly CampaignTransition[] = [
-  // composing: the workers write, render and check one creative per enabled preset
+  // planning (V2, 0606): the evidence pack is built and the Strategist writes the plan from it; a person
+  // approves or edits it, and only that names the plan the campaign composes from (`plan_approved` writes
+  // `plan_id` in the same compare-and-set, `transitions.ts`; AX032 refuses the move without it).
+  T("draft", "plan", "planning", AGENT),
+  T("planning", "plan_ready", "plan_review", AGENT),
+  T("planning", "plan_failed", "failed", AGENT),
+  T("plan_review", "plan_approved", "composing", PERSON),
+  T("plan_review", "replan", "planning", PERSON),
+  // composing: the workers write, render and check one creative per enabled preset.
+  // `draft → compose` is the road WITHOUT a plan. It stays while a host has no planner
+  // (`CampaignWorkers.plan` null — every host until the Strategist ships and is switched on): the runner
+  // takes `plan` when a planner exists and `compose` when none does, so both roads are the machine's and
+  // neither is a code path beside it. It is removed in the step that makes planning unconditional.
   T("draft", "compose", "composing", AGENT),
   T("composing", "creatives_ready", "review", AGENT),
   T("composing", "compose_failed", "failed", AGENT),
@@ -91,21 +104,18 @@ export const CAMPAIGN_TRANSITIONS: readonly CampaignTransition[] = [
   // `planning` like `draft`: nothing has been made or spent, so a person may stop there.
   ...(["draft", "planning", "plan_review", "review", "approved", "paused", "failed"] as const).map((s) => T(s, "archive", "archived", EITHER)),
   // leaving a failure is a person's act; the runner resumes idempotently (every vendor call is keyed)
+  T("failed", "resume_plan", "planning", PERSON),
   T("failed", "resume_compose", "composing", PERSON),
   T("failed", "resume_create", "creating", PERSON),
 ];
 
 /**
- * States the database accepts and no row of the table enters yet (0606, ADS-PLATFORM-V2-PLAN V2).
- *
- * This list exists for ONE merge. The CHECK that allows a state has to be applied before any code writes
- * it (docs/MIGRATION-DISCIPLINE.md §the-deploy-window), and `adsSchemaParity.test.ts` holds
- * `CAMPAIGN_STATES` equal to that CHECK — so for the merge that carries the migration the list names two
- * states the machine cannot reach. `campaignMachine.test.ts` requires every state to be reachable from
- * `draft` EXCEPT these, and requires each of these to have no row entering it: the merge that adds the
- * planning moves fails that second test until this list is emptied.
+ * States the database accepts and no row of the table enters. Empty since V2b gave `planning` and
+ * `plan_review` their moves; it held those two for the one merge that carried migration 0606 alone.
+ * Kept, empty, because `campaignMachine.test.ts` holds it equal to what the table actually leaves
+ * unentered — so a state added to `CAMPAIGN_STATES` ahead of its moves has to be named here, on purpose.
  */
-export const CAMPAIGN_STATES_AWAITING_ENTRY: readonly CampaignState[] = ["planning", "plan_review"];
+export const CAMPAIGN_STATES_AWAITING_ENTRY: readonly CampaignState[] = [];
 
 const TABLE = new Map<string, CampaignTransition>(CAMPAIGN_TRANSITIONS.map((t) => [`${t.from}|${t.event}`, t]));
 

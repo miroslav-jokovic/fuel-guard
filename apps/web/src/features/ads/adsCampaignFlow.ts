@@ -32,12 +32,13 @@ export const CHECK_VERDICT_LABEL: Record<AdCheckVerdict, string> = { passed: "Pa
 export const CHECK_VERDICT_TONE: Record<AdCheckVerdict, string> = { passed: "success", failed: "danger", not_run: "neutral" };
 
 /** The agent is working: the page reads the campaign again until it stops. */
-const WORKING: ReadonlySet<CampaignState> = new Set<CampaignState>(["draft", "composing", "approved", "creating", "launching", "pausing"]);
+const WORKING: ReadonlySet<CampaignState> = new Set<CampaignState>(["draft", "planning", "composing", "approved", "creating", "launching", "pausing"]);
 export const isWorking = (s: CampaignState): boolean => WORKING.has(s);
 
 const MOVE_LABEL: Partial<Record<CampaignEvent, string>> = {
   regenerate: "Make new ads", creatives_approved: "Approve this campaign", create_paused: "Create it paused",
   pause: "Pause", archive: "Archive", resume_compose: "Try making the ads again", resume_create: "Try creating it again",
+  replan: "Write a new plan", resume_plan: "Try planning again",
 };
 
 export interface CampaignMove { event: CampaignEvent; label: string }

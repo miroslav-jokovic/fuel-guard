@@ -53,6 +53,14 @@ const band = computed(() => {
   return vals.length ? { lo: Math.min(...vals), hi: Math.max(...vals) } : null;
 });
 
+/**
+ * The read has answered and no week in it has an MPG (SMALL-SCREENS-PLAN.md D-SM11). The card then
+ * says so in the plot's place: until 2026-11-14 it drew 200 px of gridlines from 0 to 1 with nothing
+ * on them, which reads as a chart that failed to load. ⚠ `mpgTotal` is null until the read
+ * answers, and stays the condition — a loading card must not claim there is no data.
+ */
+const nothingMeasured = computed(() => mpgTotal.value != null && mpgWeeks.value.every((p) => p.mpg == null));
+
 const chart = computed<ChartConfiguration>(() => {
   const labels = mpgWeeks.value.map((p) => p.from);
   const datasets: ChartConfiguration["data"]["datasets"] = [{
@@ -97,18 +105,27 @@ const chart = computed<ChartConfiguration>(() => {
     <template #meta><DoorLink to="/driver-performance">Driver performance</DoorLink></template>
     <template #beside-readout><AppDelta v-if="delta" v-bind="delta" /></template>
 
-    <BaseChart :config="chart" :height="200" />
-    <p v-if="band" class="mt-1.5 text-2xs text-ink-tertiary">Grey band: where {{ previousPhrase }}' weeks sat ({{ band.lo }} – {{ band.hi }}).</p>
-    <table class="sr-only">
-      <caption>Fleet MPG by week</caption>
-      <thead><tr><th scope="col">Week beginning</th><th scope="col">MPG</th></tr></thead>
-      <tbody>
-        <tr v-for="p in mpgWeeks" :key="p.from">
-          <th scope="row">{{ fmtDay(p.from) }}</th>
-          <td>{{ p.mpg ?? "no data" }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <p v-if="nothingMeasured" class="rounded-control bg-surface-subtle px-4 py-6 text-center text-sm text-ink-muted" data-test="mpg-nothing-measured">
+      No week in these dates has enough measured distance for an MPG.
+    </p>
+    <BaseChart v-else :config="chart" :height="200" />
+    <p v-if="band && !nothingMeasured" class="mt-1.5 text-2xs text-ink-tertiary">Grey band: where {{ previousPhrase }}' weeks sat ({{ band.lo }} – {{ band.hi }}).</p>
+    <!-- The wrapper is `sr-only`, not the table: a table sizes to its content and ignores the
+         1 px box, so this one stood 541 px wide inside a 390 px phone and the whole Fleet overview
+         scrolled sideways (SMALL-SCREENS-PLAN.md M4, measured 2026-11-14). The table keeps the
+         class as well: it is how `lint:ui-adoption` tells a reader's table from a visible one. -->
+    <div class="sr-only">
+      <table class="sr-only">
+        <caption>Fleet MPG by week</caption>
+        <thead><tr><th scope="col">Week beginning</th><th scope="col">MPG</th></tr></thead>
+        <tbody>
+          <tr v-for="p in mpgWeeks" :key="p.from">
+            <th scope="row">{{ fmtDay(p.from) }}</th>
+            <td>{{ p.mpg ?? "no data" }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <!-- The roll-up's reach, stated on the card: this is the card that made the 2026-09-13 outage
          visible at all (a headline of 8.61 above five weeks of 6.3–7.1). -->
     <p v-if="windowNote" class="mt-3 text-xs text-ink-tertiary">{{ windowNote }}</p>

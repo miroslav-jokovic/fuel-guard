@@ -124,7 +124,9 @@ const fromTransition = (r: TransitionResult): MoveOutcome => {
   switch (r.kind) {
     case "moved": return { kind: "moved", to: r.to };
     case "no_op": return { kind: "moved", to: r.state };
-    case "refused": return { kind: "refused", reason: r.reason };
+    // `plan_not_named` cannot come through these doors: `plan_approved` is excluded from the general door
+    // (`ADS_PERSON_DOOR_EXCLUDED`) and its own door always names a plan. Said as the door it belongs to.
+    case "refused": return { kind: "refused", reason: r.reason === "plan_not_named" ? "not_this_door" : r.reason };
     case "state_moved": case "already_recorded": return { kind: "conflict" };
   }
 };
