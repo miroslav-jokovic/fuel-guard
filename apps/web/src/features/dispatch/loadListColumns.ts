@@ -10,17 +10,17 @@ import type { DispatchLoad } from "./useDispatchLoads";
  * 500-line budget; nothing here renders.
  */
 export const LOAD_COLUMNS: DataTableColumn[] = [
-  { key: "ref", label: "Load #", sortable: true, width: "sm", cellClass: "font-medium text-ink" },
-  { key: "status", label: "Status", sortable: true, width: "md" },
-  { key: "driver_name", label: "Driver", sortable: true, width: "md" },
-  { key: "pickup", label: "Pickup", sortable: true, width: "lg" },
-  { key: "delivery", label: "Delivery", sortable: true, width: "lg" },
-  { key: "type", label: "Type", width: "sm" },
+  { key: "ref", label: "Load #", sortable: true, width: "sm", cellClass: "font-medium text-ink", card: "title" },
+  { key: "status", label: "Status", sortable: true, width: "md", card: "status" },
+  { key: "driver_name", label: "Driver", sortable: true, width: "md", card: "sentence" },
+  { key: "pickup", label: "Pickup", sortable: true, width: "lg", card: "figure" },
+  { key: "delivery", label: "Delivery", sortable: true, width: "lg", card: "figure" },
+  { key: "type", label: "Type", width: "sm", card: "figure" },
   // D-LMR7: whether the office sent it is its own fact, beside McLeod's status — never folded into it.
-  { key: "dispatch", label: "Dispatch", width: "md" },
+  { key: "dispatch", label: "Dispatch", width: "md", card: "detail" },
 ];
 /** When the truck left the last drop (D-LA1), beside Delivery's appointment, on the two tabs that hold delivered loads. */
-export const DELIVERED_COLUMN: DataTableColumn = { key: "delivered", label: "Delivered", sortable: true, width: "md" };
+export const DELIVERED_COLUMN: DataTableColumn = { key: "delivered", label: "Delivered", sortable: true, width: "md", card: "figure" };
 
 /** What a column — or an opening order's own key (`loadListOrder.ts`), which no header writes — sorts by. */
 export function loadSortValue(load: DispatchLoad, key: string, nowMs: number): unknown {

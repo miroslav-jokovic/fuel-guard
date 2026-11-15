@@ -197,11 +197,11 @@ watch([search, phase, waitingOn], () => {
 });
 
 const columns: DataTableColumn[] = [
-  { key: "full_name", label: "Applicant" },
-  { key: "stage", label: "Stage" },
-  { key: "next", label: "Next action" },
-  { key: "waiting_on", label: "Waiting on" },
-  { key: "days_waiting", label: "Days waiting", numeric: true, sortable: true },
+  { key: "full_name", label: "Applicant", card: "title" },
+  { key: "stage", label: "Stage", card: "status" },
+  { key: "next", label: "Next action", card: "sentence" },
+  { key: "waiting_on", label: "Waiting on", card: "figure" },
+  { key: "days_waiting", label: "Days waiting", numeric: true, sortable: true, card: "figure" },
 ];
 // D-US2: the sort is in the URL with `SORT_DEFAULT` as the FALLBACK of both halves, so a plain link
 // opens oldest-first and writes nothing. The third click's "no sort" is still representable: it

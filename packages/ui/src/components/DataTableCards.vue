@@ -90,6 +90,22 @@ const isControl = (col: DataTableColumn) => !col.label;
  * convention rather than a flag: a hundred column arrays exist unmarked, and the status badge is the
  * one field a person scanning a list of fills or loads is looking for.
  */
+/**
+ * A part of the context line that says nothing is not drawn (SMALL-SCREENS-PLAN.md, 2026-11-15).
+ *
+ * Decided from what the cell PRINTED, not from the row's value. The value is the wrong witness in
+ * both directions: Loads' driver cell prints "No driver · No truck / no trailer" for a null
+ * `driver_name`, which is the fact a dispatcher is scanning for, and a cell keyed on a field that is
+ * set can still print a dash for the half it shows. So the page's cell decides what it prints, as it
+ * always did, and the card decides only that a lone dash is not context. The title keeps its dash:
+ * an identifier that is missing is something to see.
+ */
+const saysNothing = (el: HTMLElement) => /^[\s—–-]*$/.test(el.textContent ?? "");
+const vContextPart = {
+  mounted: (el: HTMLElement) => void (el.hidden = saysNothing(el)),
+  updated: (el: HTMLElement) => void (el.hidden = saysNothing(el)),
+};
+
 const STATUS_KEYS = /^(status|state|result|outcome|severity|disposition)$/;
 /** Three, because three label-over-value cells are what 390 px holds without one wrapping (D-SM1). */
 const FIGURES = 3;
@@ -273,16 +289,29 @@ function onCardSort(key: string) {
 
             <!-- One line of context, its parts joined by a dot: "Driving · 733 · Indianapolis, IN". A
                  line each is what made a card a form; the shop's single sentence is the same markup
-                 with nothing to join. -->
-            <div v-if="shape.sentences.length" :class="OVER" class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm text-ink-secondary">
-              <template v-for="(col, i) in shape.sentences" :key="col.key">
-                <span v-if="i" class="text-ink-tertiary" aria-hidden="true">·</span>
-                <div class="min-w-0">
-                  <slot :name="`cell-${col.key}`" :row="row" :value="cellValue(row, col.key)">
-                    {{ isBlank(cellValue(row, col.key)) ? "—" : cellValue(row, col.key) }}
-                  </slot>
-                </div>
-              </template>
+                 with nothing to join.
+                 A part that prints nothing but a dash drops out, and its dot with it (`v-context-part`,
+                 above): a parked driver read "— · —". The dot is the FOLLOWING part's `::before`, so
+                 it is drawn only between two parts that are both there (`.context-part`, in the tokens'
+                 `epilogue.css` beside `.workspace-cards`); its alt text is empty, the `aria-hidden`
+                 the old separator span carried. -->
+            <div
+              v-if="shape.sentences.length"
+              :class="OVER"
+              class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm text-ink-secondary [&:not(:has(>[data-context-part]:not([hidden])))]:hidden"
+              data-context-line
+            >
+              <div
+                v-for="col in shape.sentences"
+                :key="col.key"
+                v-context-part
+                data-context-part
+                class="context-part min-w-0"
+              >
+                <slot :name="`cell-${col.key}`" :row="row" :value="cellValue(row, col.key)">
+                  {{ isBlank(cellValue(row, col.key)) ? "—" : cellValue(row, col.key) }}
+                </slot>
+              </div>
             </div>
 
           </div>

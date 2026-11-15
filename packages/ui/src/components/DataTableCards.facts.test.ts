@@ -262,3 +262,60 @@ describe("the record card", () => {
     expect(empty.get("section").classes()).toContain("ring-1");
   });
 });
+
+/**
+ * The context line's blank parts (SMALL-SCREENS-PLAN.md, 2026-11-15). A parked driver read "— · —":
+ * a part that prints only a dash is not drawn, judged from what the page's cell printed.
+ */
+describe("a context part that says nothing", () => {
+  const COLS: DataTableColumn[] = [
+    { key: "unit", label: "Number", card: "title" },
+    { key: "driver", label: "Driver", card: "sentence" },
+    { key: "truck", label: "Truck", card: "sentence" },
+    { key: "place", label: "Position", card: "sentence" },
+  ];
+  type Row = { id: string; unit: string | null; driver: string | null; truck: string | null; place: string | null };
+  const cards = (rows: Row[], slots: Record<string, (p: { row: Row }) => unknown> = {}) => {
+    setViewport(false);
+    // `as never`: the mount helper types a scoped slot's argument as `any`-keyed props, not this row.
+    return mount(DataTable, { props: { columns: COLS, rows }, slots: slots as never, attachTo: document.body });
+  };
+  const shown = (w: ReturnType<typeof cards>, i = 0) =>
+    w.findAll("[data-context-line]")[i]!.findAll("[data-context-part]").filter((p) => !(p.element as HTMLElement).hidden).map((p) => p.text());
+
+  it("drops out of the line, wherever it stands, and leaves the parts that say something", () => {
+    const w = cards([
+      { id: "a", unit: "654", driver: "ANN LEE", truck: null, place: "Reno, NV" },
+      { id: "b", unit: "655", driver: null, truck: "733", place: null },
+    ]);
+    expect(shown(w, 0)).toEqual(["ANN LEE", "Reno, NV"]);
+    expect(shown(w, 1)).toEqual(["733"]);
+  });
+
+  it("is judged from what the cell printed — a cell that words a missing value is kept, one that prints a dash is not", () => {
+    const w = cards([{ id: "a", unit: "654", driver: null, truck: "733", place: "Reno, NV" }], {
+      "cell-driver": ({ row }) => h("span", row.driver ?? "No driver"),
+      "cell-place": () => h("span", { class: "text-ink-tertiary" }, "—"),
+    });
+    expect(shown(w)).toEqual(["No driver", "733"]);
+  });
+
+  it("keeps every part in the document, hidden, so a page test and find-in-page still read the card", () => {
+    const w = cards([{ id: "a", unit: "654", driver: null, truck: null, place: null }]);
+    expect(w.findAll("[data-context-part]")).toHaveLength(3);
+    expect(shown(w)).toEqual([]);
+  });
+
+  it("comes back when the row gains a value", async () => {
+    const w = cards([{ id: "a", unit: "654", driver: null, truck: "733", place: null }]);
+    expect(shown(w)).toEqual(["733"]);
+    await w.setProps({ rows: [{ id: "a", unit: "654", driver: "ANN LEE", truck: null, place: null }] });
+    await nextTick();
+    expect(shown(w)).toEqual(["ANN LEE"]);
+  });
+
+  it("leaves the title its dash: a missing identifier is something to see", () => {
+    const w = cards([{ id: "a", unit: null, driver: "ANN LEE", truck: null, place: null }]);
+    expect(w.get("li").text()).toContain("—");
+  });
+});
