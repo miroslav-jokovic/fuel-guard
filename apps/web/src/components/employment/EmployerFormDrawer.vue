@@ -115,7 +115,7 @@ async function remove(): Promise<void> {
     </div>
 
     <template #footer>
-      <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="w-full flex flex-wrap items-center justify-between gap-3">
         <BaseButton v-if="removable" variant="ghost" :size="touch ? 'touch' : 'md'" :disabled="pending" @click="remove">
           {{ copy.removeJob }}
         </BaseButton>

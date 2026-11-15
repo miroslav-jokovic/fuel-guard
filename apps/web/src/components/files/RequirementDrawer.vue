@@ -418,15 +418,13 @@ const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
     </div>
 
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="saving" @click="emit('close')">
-          {{ onlyElsewhere ? "Close" : "Cancel" }}
-        </BaseButton>
-        <BaseButton v-if="!onlyElsewhere" variant="primary" :disabled="saving || !ready" @click="save">
-          <AppIcon :icon="ClipboardDocumentCheckIcon" class="size-4" aria-hidden="true" />
-          {{ saving ? "Saving…" : "Record it" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="saving" @click="emit('close')">
+        {{ onlyElsewhere ? "Close" : "Cancel" }}
+      </BaseButton>
+      <BaseButton v-if="!onlyElsewhere" variant="primary" :disabled="saving || !ready" @click="save">
+        <AppIcon :icon="ClipboardDocumentCheckIcon" class="size-4" aria-hidden="true" />
+        {{ saving ? "Saving…" : "Record it" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

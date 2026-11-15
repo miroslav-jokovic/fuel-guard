@@ -114,15 +114,13 @@ async function onSubmit(input: AssetCreateInput) {
     />
     <AssetTypesDrawer v-if="typesOpen" :open="true" @close="typesOpen = false" />
     <template #footer>
-      <div class="flex flex-wrap items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="submitting" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton v-if="!asset" :form="ASSET_FORM_ID" type="submit" :disabled="submitting" data-test="save-another" @click="another = true">
-          Save and add another
-        </BaseButton>
-        <BaseButton :form="ASSET_FORM_ID" type="submit" variant="primary" :disabled="submitting" @click="another = false">
-          {{ submitting ? (asset ? "Saving…" : "Adding…") : asset ? "Save asset" : "Add asset" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="submitting" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton v-if="!asset" :form="ASSET_FORM_ID" type="submit" :disabled="submitting" data-test="save-another" @click="another = true">
+        Save and add another
+      </BaseButton>
+      <BaseButton :form="ASSET_FORM_ID" type="submit" variant="primary" :disabled="submitting" @click="another = false">
+        {{ submitting ? (asset ? "Saving…" : "Adding…") : asset ? "Save asset" : "Add asset" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

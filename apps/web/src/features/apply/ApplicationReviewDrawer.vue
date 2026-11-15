@@ -407,7 +407,7 @@ async function approveIt(): Promise<void> {
       <!-- Stacked on a phone, with the primary action at the BOTTOM where a thumb is, and side by
            side from `sm` up. Wrapping them instead put "Close" above "Approve" at 320px, which reads
            as the wrong order and is the harder one to reach. -->
-      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+      <div class="w-full flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
         <BaseButton variant="secondary" class="w-full sm:w-auto" @click="emit('close')">
           Close
         </BaseButton>

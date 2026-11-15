@@ -124,7 +124,7 @@ const remove = (key: string) => (pending.value = pending.value.filter((p) => p.k
     </div>
 
     <template #footer>
-      <div class="flex items-center justify-between gap-3">
+      <div class="w-full flex items-center justify-between gap-3">
         <p class="text-xs text-ink-muted" data-test="bulk-summary">
           <template v-if="pending.length">{{ ready.length }} of {{ pending.filter((p) => p.state !== "filed").length }} ready to file</template>
         </p>

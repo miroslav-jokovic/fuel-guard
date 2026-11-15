@@ -190,16 +190,16 @@ async function setActive(location: StockLocationDto, active: boolean) {
       </form>
     </div>
     <template #footer>
-      <div v-if="adding" class="flex items-center justify-end gap-3">
+      <template v-if="adding">
         <BaseButton variant="ghost" :disabled="submitting" @click="adding = false">Cancel</BaseButton>
         <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="submitting">
           {{ submitting ? "Saving…" : editing ? "Save location" : "Add location" }}
         </BaseButton>
-      </div>
-      <div v-else class="flex items-center justify-end gap-3">
+      </template>
+      <template v-else>
         <BaseButton variant="ghost" @click="emit('close')">Close</BaseButton>
         <BaseButton variant="primary" @click="startAdd">Add a place</BaseButton>
-      </div>
+      </template>
     </template>
   </SlideOver>
 </template>

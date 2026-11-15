@@ -256,12 +256,10 @@ async function save() {
       </FormField>
     </form>
     <template #footer>
-      <div class="flex flex-wrap items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="record.isPending.value" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton form="invoice-form" type="submit" variant="primary" :disabled="record.isPending.value" data-test="invoice-save">
-          {{ record.isPending.value ? "Saving…" : correcting ? "Save the correction" : "Save invoice" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="record.isPending.value" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton form="invoice-form" type="submit" variant="primary" :disabled="record.isPending.value" data-test="invoice-save">
+        {{ record.isPending.value ? "Saving…" : correcting ? "Save the correction" : "Save invoice" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

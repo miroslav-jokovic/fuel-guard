@@ -227,7 +227,7 @@ watch(
     </div>
 
     <template #footer>
-      <div v-if="c" class="flex items-center justify-end gap-3">
+      <template v-if="c">
         <AppButton v-if="c.closedAt" :disabled="reopenCase.isPending.value" data-test="reopen" @click="reopen">Reopen</AppButton>
         <template v-else-if="closing">
           <AppButton @click="closing = false">Cancel</AppButton>
@@ -237,7 +237,7 @@ watch(
         </template>
         <AppButton v-else-if="c.open" data-test="close-start" @click="closing = true">Close without billing</AppButton>
         <AppButton @click="emit('close')">Done</AppButton>
-      </div>
+      </template>
     </template>
   </SlideOver>
 </template>

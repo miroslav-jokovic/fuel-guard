@@ -276,12 +276,10 @@ async function submit() {
       </FormField>
     </form>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="record.isPending.value" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="record.isPending.value">
-          {{ record.isPending.value ? "Recording…" : TITLES[verb] }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="record.isPending.value" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="record.isPending.value">
+        {{ record.isPending.value ? "Recording…" : TITLES[verb] }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

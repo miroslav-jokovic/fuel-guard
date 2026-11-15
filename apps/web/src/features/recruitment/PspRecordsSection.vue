@@ -280,18 +280,16 @@ const sourceTone = (row: QualificationRecordRow): string => {
       </div>
 
       <template #footer>
-        <div class="flex items-center justify-end gap-3">
-          <BaseButton variant="ghost" :disabled="importRecord.isPending.value" @click="drawerOpen = false">
-            Cancel
-          </BaseButton>
-          <BaseButton
-            variant="primary"
-            :disabled="!ready || importRecord.isPending.value"
-            @click="submit"
-          >
-            {{ importRecord.isPending.value ? "Filing…" : "File it" }}
-          </BaseButton>
-        </div>
+        <BaseButton variant="ghost" :disabled="importRecord.isPending.value" @click="drawerOpen = false">
+          Cancel
+        </BaseButton>
+        <BaseButton
+          variant="primary"
+          :disabled="!ready || importRecord.isPending.value"
+          @click="submit"
+        >
+          {{ importRecord.isPending.value ? "Filing…" : "File it" }}
+        </BaseButton>
       </template>
     </SlideOver>
   </div>

@@ -135,7 +135,7 @@ async function setAside(): Promise<void> {
     </div>
 
     <template #footer>
-      <div class="flex items-center justify-between gap-3">
+      <div class="w-full flex items-center justify-between gap-3">
         <BaseButton variant="ghost" :disabled="discardPaper.isPending.value || filePaper.isPending.value" @click="setAside">Not a driver-file paper</BaseButton>
         <div class="flex gap-3">
           <BaseButton variant="ghost" @click="emit('close')">Cancel</BaseButton>

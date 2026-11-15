@@ -74,6 +74,7 @@ export { provideRouteOpens } from "./lists/routeOpens";
 // "Are you sure?" (D-US7) and the dialog it draws in, moved with the list kit so the admin console
 // asks the same way the web app does instead of through `window.confirm`.
 export { default as BaseModal } from "./components/BaseModal.vue";
+export { DIALOG_FOOTER_CLASS } from "./components/dialogFooter";
 export { default as ConfirmHost } from "./components/ConfirmHost.vue";
 export { useConfirm, useConfirmStore } from "./lists/confirm";
 export type { ConfirmRequest } from "./lists/confirm";
