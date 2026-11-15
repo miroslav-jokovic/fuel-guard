@@ -123,8 +123,22 @@ export const DASHBOARD_WIDGETS: readonly DashboardWidget[] = [
    * three-column Driver files card's header door on top of its title, so no card here is narrower
    * than four.
    */
-  { span: 4 as const, key: "ops.fleet-now", label: "Fleet right now", tab: "ops", gate: section("dispatch"), module: "dispatch" },
-  { span: 4 as const, key: "ops.road-attention", label: "Needs a hand now", tab: "ops", gate: section("dispatch"), module: "dispatch" },
+  /**
+   * ── THE TAB HAS AN ORDER SINCE C2 (SMALL-SCREENS-PLAN.md D-SM12, 2026-11-15) ─────────────────────
+   * The board's four figures lead as a strip across the tab (`span: 12`), then "Needs action", then
+   * the area cards. Until then all ten were `span: 4` and read as ten equal boxes.
+   *
+   * ⚠ `ops.needs-action` is gated on `equipment` and that is NOT the gate of what it shows. It lists
+   * rows from the cards below it, and each row is admitted by ITS OWN card's gate, asked row source by
+   * row source in the web app (`lib/NeedsActionWidget.vue`, D-FM4). The card's own gate only has to
+   * answer "is there anything it could list": the tab is `manage("equipment")`, so every reader of
+   * the tab holds `equipment` and with it the Seats and Truck paperwork rows. A gate kind meaning
+   * "any of these sections" would say the same thing with a new branch in every reader of
+   * `SurfaceGate`; `opsTab.test.ts` holds that a reader who gets the card gets a source.
+   */
+  { span: 12 as const, key: "ops.fleet-now", label: "Fleet right now", tab: "ops", gate: section("dispatch"), module: "dispatch" },
+  { span: 4 as const, key: "ops.needs-action", label: "Needs action", tab: "ops", gate: section("equipment") },
+  { span: 4 as const, key: "ops.road-attention", label: "On the road", tab: "ops", gate: section("dispatch"), module: "dispatch" },
   { span: 4 as const, key: "ops.driver-files", label: "Driver files", tab: "ops", gate: section("roster") },
   { span: 4 as const, key: "ops.seats", label: "Seats", tab: "ops", gate: section("equipment") },
   { span: 4 as const, key: "ops.shop", label: "Shop", tab: "ops", gate: section("maintenance") },

@@ -20,42 +20,16 @@
  * Both reads must be in before a count is shown — a truck whose file has not arrived answers no to
  * every paper check, and a zero printed then would be a claim, so the row reads "—" (CountList).
  */
-import { computed } from "vue";
 import { DataTable, type DataTableColumn } from "@silvicom/ui";
 import { DocumentTextIcon } from "@silvicom/ui/icons";
-import { matchesVehicleCheck, type VehicleCheck } from "@silvicom/shared";
-import { PAPERS, PAPER_STATES, paperCheck, paperStateLabel, type Paper } from "./truckPapersGrid";
+import { PAPERS } from "./truckPapersGrid";
 import ChartCard from "@/components/ui/ChartCard.vue";
 import DoorLink from "@/components/ui/DoorLink.vue";
-import { useVehiclesQuery } from "@/composables/useVehicles";
-import { useUnitFilesQuery } from "@/composables/useCompliance";
+import { useTruckPapersRows } from "./useTruckPapersRows";
 
-const { data: vehicles } = useVehiclesQuery();
-const unitFilesQ = useUnitFilesQuery("tractor");
-const fileById = computed(() =>
-  unitFilesQ.data.value ? new Map(unitFilesQ.data.value.units.map((u) => [u.subject_id, u])) : null,
-);
-
-const count = (check: VehicleCheck) => {
-  const files = fileById.value;
-  if (!vehicles.value || !files) return null;
-  return vehicles.value.filter((v) => v.status === "active" && matchesVehicleCheck(v, check, files.get(v.id))).length;
-};
-/** One caption per kind of answer — the label already says which paper. */
 // One grid, four states by two papers — see `truckPapersGrid.ts` for why, and for where the row
 // names come from. Every figure is still its own door (D-FM9), to the same filtered list as before.
-const grid = computed(() =>
-  PAPER_STATES.map((state) => ({
-    state,
-    label: paperStateLabel(PAPERS[0], state),
-    cells: Object.fromEntries(
-      PAPERS.map((paper) => {
-        const check = paperCheck(paper, state);
-        return [paper.key, { check, value: count(check), to: `/vehicles?check=${check}`, alarm: state === "overdue" }];
-      }),
-    ) as Record<Paper["key"], { check: VehicleCheck; value: number | null; to: string; alarm: boolean }>,
-  })),
-);
+const { grid } = useTruckPapersRows();
 const COLUMNS: DataTableColumn[] = [
   { key: "label", label: "State", cellClass: "text-ink-secondary" },
   ...PAPERS.map((paper) => ({ key: paper.key, label: paper.label, numeric: true })),

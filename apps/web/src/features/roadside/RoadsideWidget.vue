@@ -17,57 +17,20 @@
  */
 import { computed } from "vue";
 import { RoadIcon } from "@silvicom/ui/icons";
-import { VIOLATION_CATEGORY_NAMES, type DayWindow, type RoadsideRate } from "@silvicom/shared";
+import type { DayWindow } from "@silvicom/shared";
 import ChartCard from "@/components/ui/ChartCard.vue";
-import CountList, { type CountRow } from "@/components/ui/CountList.vue";
+import CountList from "@/components/ui/CountList.vue";
 import { formatDateRange } from "@/lib/format";
-import { useRoadsideSummaryQuery } from "./useRoadsideInspections";
+import { useRoadsideRows } from "./useRoadsideRows";
 import { roadsideFeedSentence } from "./feedFreshness";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 const props = defineProps<{ range: DayWindow }>();
-const { data: summary, isError } = useRoadsideSummaryQuery(computed(() => props.range));
+const { summary, isError, rows } = useRoadsideRows(computed(() => props.range));
 const { zone } = useOrgTimezone();
 // How current the record behind these figures is (IC1c): a figure from a feed that stopped is still shown —
 // it is the last good record — but never without saying so.
 const freshness = computed(() => (summary.value ? roadsideFeedSentence(summary.value.feed, zone.value) : null));
-
-const list = (extra: Record<string, string> = {}) => {
-  const q = new URLSearchParams({ view: "all", from: props.range.from, to: props.range.to, ...extra });
-  return `/roadside-inspections?${q.toString()}`;
-};
-const pct = (r: RoadsideRate | undefined) => (r?.share == null ? "—" : `${Math.round(r.share * 100)}%`);
-const ofCaption = (r: RoadsideRate | undefined, what: string) => (r ? `${r.count} of ${r.of} ${what}` : what);
-
-const rows = computed<CountRow[]>(() => {
-  const s = summary.value?.stats;
-  const out: CountRow[] = [
-    { key: "inspections", label: "Inspections", value: s?.inspections ?? null, caption: "on our FMCSA record", to: list(), door: "Inspections" },
-    { key: "clean", label: "Clean", value: s?.clean.count ?? null, display: s ? pct(s.clean) : undefined, caption: ofCaption(s?.clean, "with no violation"), to: list({ clean: "1" }), door: "Clean" },
-    {
-      key: "vehicle-oos", label: "Vehicle out-of-service rate", value: s?.vehicleOos.count ?? null, display: s ? pct(s.vehicleOos) : undefined,
-      caption: ofCaption(s?.vehicleOos, "vehicle inspections"), to: list({ oos: "vehicle", insp: "vehicle" }), door: "Vehicle OOS", alarm: true,
-    },
-    {
-      key: "driver-oos", label: "Driver out-of-service rate", value: s?.driverOos.count ?? null, display: s ? pct(s.driverOos) : undefined,
-      caption: ofCaption(s?.driverOos, "driver inspections"), to: list({ oos: "driver", insp: "driver" }), door: "Driver OOS", alarm: true,
-    },
-    { key: "hazmat-oos", label: "Hazmat out of service", value: s?.hazmatOos ?? null, caption: "inspections with a hazmat order", to: list({ oos: "hazmat" }), door: "Hazmat OOS", alarm: true },
-    { key: "points", label: "CSA points added", value: s?.points ?? null, caption: "today's weight of these inspections, verified categories" },
-    { key: "needs", label: "Needs action", value: s?.needsAction ?? null, caption: "a repair, a ticket or the driver left", to: list({ view: "needs" }), door: "Needs action", alarm: true },
-  ];
-  for (const c of s?.topCategories ?? []) {
-    out.push({
-      key: `category-${c.categoryId}`,
-      label: VIOLATION_CATEGORY_NAMES[c.categoryId] ?? `Category ${c.categoryId}`,
-      value: c.inspections,
-      caption: "inspections with this violation",
-      to: list({ category: String(c.categoryId) }),
-      door: "Inspections",
-    });
-  }
-  return out;
-});
 const subtitle = computed(() => `FMCSA's record, ${formatDateRange(props.range.from, props.range.to)}`);
 </script>
 
