@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import type { Router } from "vue-router";
-import { chatPushTag, type WebPushDevice, type WebPushDevicesResponse, type WebPushStateResponse, type WebPushTestResponse } from "@silvicom/shared";
+import { chatPushTag, deviceLabel, type WebPushDevice, type WebPushDevicesResponse, type WebPushStateResponse, type WebPushTestResponse } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -65,26 +65,8 @@ export function pushSupport(): PushSupport {
   return isIosDevice() && !isStandalone() ? "ios-install" : "unsupported";
 }
 
-/**
- * "Chrome on Android" — so a person can tell their devices apart. Decides one thing only: its " on iPhone" / " on iPad"
- * ending is how an iPhone tab learns the app is already on a Home Screen (`installedOnThisKindOfDevice`). */
-export function deviceLabel(ua: string): string {
-  const browser = /SamsungBrowser/.test(ua) ? "Samsung Internet"
-    : /Edg\//.test(ua) ? "Edge"
-    : /OPR\//.test(ua) ? "Opera"
-    : /Firefox\/|FxiOS/.test(ua) ? "Firefox"
-    : /Chrome\/|CriOS/.test(ua) ? "Chrome"
-    : /Safari\//.test(ua) ? "Safari"
-    : "Browser";
-  const os = /Android/.test(ua) ? "Android"
-    : /iPhone|iPod/.test(ua) ? "iPhone"
-    : /iPad/.test(ua) ? "iPad"
-    : /Windows/.test(ua) ? "Windows"
-    : /Macintosh|Mac OS X/.test(ua) ? "Mac"
-    : /Linux/.test(ua) ? "Linux"
-    : "this device";
-  return `${browser} on ${os}`;
-}
+/** "Chrome on Android" — `@silvicom/shared`'s, since the signed-in devices list reads user agents too. */
+export { deviceLabel };
 
 /** The server's base64url public key as the bytes `pushManager.subscribe` takes. */
 export function applicationServerKey(base64url: string): Uint8Array {

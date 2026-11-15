@@ -12,6 +12,7 @@ import { USER_ROLE_LABELS, type UserRole } from "@silvicom/shared";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { useServedRelease } from "@/composables/useServedRelease";
 import { useMyAlertsPanel } from "@/features/settings/useMyAlertsPanel";
+import { useSignedInDevicesPanel } from "@/features/settings/useSignedInDevices";
 import { askToInstall, installWay } from "@/lib/installApp";
 
 const props = defineProps<{
@@ -54,6 +55,8 @@ const release = useServedRelease();
  * because it is the person's own answer — a dispatcher has no Settings to open.
  */
 const myAlerts = useMyAlertsPanel();
+/** "Signed-in devices" (INSTALLED-APP-PLAN IA-S3): the person's own sign-ins, beside the Sign out that ends this one. */
+const devices = useSignedInDevicesPanel();
 
 const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "Signed in"));
 /** What the trigger and the menu head say first: the name if there is one, else the email. */
@@ -123,6 +126,7 @@ const subline = computed(() => (props.name && props.email ? `${props.email} · $
     </div>
     <div class="sidebar-divider mb-1 border-t" />
     <button type="button" class="sidebar-account-item" @click="myAlerts.show()">My alerts</button>
+    <button type="button" class="sidebar-account-item" data-testid="signed-in-devices-item" @click="devices.show()">Signed-in devices</button>
     <!-- Only while this browser can still install it (D-WP15): gone once installed, never a dead item. -->
     <button v-if="installWay" type="button" class="sidebar-account-item" data-testid="install-app-item" @click="askToInstall()">
       Install app

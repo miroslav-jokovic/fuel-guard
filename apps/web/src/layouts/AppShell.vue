@@ -21,6 +21,7 @@ import { paletteEntries } from "@/lib/commandPalette";
 import { visibleSettingsScreens } from "@/lib/settingsCards";
 import SectionTabBar from "@/layouts/SectionTabBar.vue";
 import MyAlertsPanel from "@/features/settings/MyAlertsPanel.vue";
+import SignedInDevicesPanel from "@/features/settings/SignedInDevicesPanel.vue";
 import { useOpens } from "@/composables/useOpens";
 import { usePhoneFirst } from "@/composables/usePhoneFirst";
 import { bottomChromeHeight } from "@/composables/bottomChrome";
@@ -356,5 +357,6 @@ async function signOut() {
     <CommandPalette :open="paletteOpen" :entries="palette" @close="paletteOpen = false" />
     <!-- Opened from the account menu, which is mounted in both sidebars (`useMyAlertsPanel`). -->
     <MyAlertsPanel />
+    <SignedInDevicesPanel />
   </div>
 </template>
