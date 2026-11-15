@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { DRAFT_PAYLOAD_MAX_BYTES } from "@silvicom/shared";
 import { hashInvitationToken } from "./applicationIntake.js";
 import { isIntakeError } from "./applicationIntake.js";
@@ -45,6 +46,11 @@ const seed = (
     draft?: Record<string, unknown> | null;
     /** A v2 link (C3c2c2): its Part 1 row, licences, and the `drivers` row Part 1 wrote. */
     partOne?: { intake: Record<string, unknown>; licences: Record<string, unknown>[]; driver: Record<string, unknown> };
+    /**
+     * ⚠ A LEGACY invitation — no Part 1 row — for the one test that is the legacy rule's own. No driver
+     * is sent one; it goes with that rule (APPLICATION-FIX-PLAN §7, 1b-5 step 4).
+     */
+    legacy?: boolean;
     /** Q-AM3 (0589): the SSN the form saved. */
     ssn?: Record<string, unknown>;
   } = {},
@@ -53,7 +59,7 @@ const seed = (
     tables: {
       application_invitations: opts.inv === null ? [] : [opts.inv ?? invitation()],
       application_drafts: opts.draft === undefined ? [] : opts.draft === null ? [] : [opts.draft],
-      application_intakes: opts.partOne ? [opts.partOne.intake] : [],
+      application_intakes: opts.legacy ? [] : [opts.partOne?.intake ?? PART_ONE_ROW],
       application_intake_licences: opts.partOne?.licences ?? [],
       drivers: opts.partOne ? [opts.partOne.driver] : [],
       application_ssns: opts.ssn ? [opts.ssn] : [],
@@ -67,7 +73,7 @@ const BODY = { payload: { first_name: "Susan" }, section: "identity", revision: 
 describe("saving against a revision (AW10, C3d1b)", () => {
   it("uses the revision-checked save when the page says which revision it holds", async () => {
     const rec = createSupabaseRecorder({
-      tables: { application_invitations: [invitation()], application_drafts: [], organizations: [{ id: ORG, operating_hours: null }] },
+      tables: { application_invitations: [invitation()], application_intakes: [PART_ONE_ROW], application_drafts: [], organizations: [{ id: ORG, operating_hours: null }] },
       rpc: { save_application_draft: { draft_id: "d-1", updated_at: "2026-08-21T09:05:00Z", revision: 4 } },
     });
     const result = await saveDraft(rec.client, TOKEN, { ...BODY, revision: 3 }, NOW);
@@ -83,7 +89,7 @@ describe("saving against a revision (AW10, C3d1b)", () => {
 
   it("answers a stale revision as draft_revision_conflict, in the driver's words", async () => {
     const rec = createSupabaseRecorder({
-      tables: { application_invitations: [invitation()], application_drafts: [], organizations: [{ id: ORG, operating_hours: null }] },
+      tables: { application_invitations: [invitation()], application_intakes: [PART_ONE_ROW], application_drafts: [], organizations: [{ id: ORG, operating_hours: null }] },
       rpc: { save_application_draft: { error: { code: "DA041", message: "draft_revision_conflict" } } },
     });
     const result = await saveDraft(rec.client, TOKEN, { ...BODY, revision: 2 }, NOW);
@@ -95,7 +101,7 @@ describe("saving against a revision (AW10, C3d1b)", () => {
 
   it("keeps any other database refusal a save failure", async () => {
     const rec = createSupabaseRecorder({
-      tables: { application_invitations: [invitation()], application_drafts: [], organizations: [{ id: ORG, operating_hours: null }] },
+      tables: { application_invitations: [invitation()], application_intakes: [PART_ONE_ROW], application_drafts: [], organizations: [{ id: ORG, operating_hours: null }] },
       rpc: { save_application_draft: { error: { code: "23505", message: "duplicate" } } },
     });
     const result = await saveDraft(rec.client, TOKEN, { ...BODY, revision: 2 }, NOW);
@@ -342,7 +348,7 @@ describe("unlocking a v2 link", () => {
   });
 
   it("gives a legacy link no Part 1 facts", async () => {
-    const result = await unlockDraft(seed({ draft: draftRow({ date_of_birth: "1980-04-01" }) }).client, TOKEN, "1980-04-01", NOW);
+    const result = await unlockDraft(seed({ draft: draftRow({ date_of_birth: "1980-04-01" }), legacy: true }).client, TOKEN, "1980-04-01", NOW);
     expect(isIntakeError(result) ? null : "partOne" in result).toBe(false);
   });
 

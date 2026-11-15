@@ -6,6 +6,7 @@ import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 import { hashInvitationToken } from "../applicationIntake.js";
 
@@ -93,6 +94,7 @@ function seed(over: { videos?: unknown[]; invitations?: unknown[]; wording?: unk
         { org_id: ORG, driver_id: DRIVER, video_id: V2, opened_at: "2026-10-20T11:00:00Z" },
         { org_id: ORG, driver_id: DRIVER, video_id: V2, opened_at: "2026-10-20T12:00:00Z" },
       ]),
+      application_intakes: postgrestFixture([{ ...PART_ONE_ROW, org_id: ORG, invitation_id: INV }]),
       sms_consents: [],
       sms_outbox: [],
       audit_logs: [],
