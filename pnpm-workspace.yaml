@@ -4,3 +4,17 @@ packages:
 allowBuilds:
   esbuild: false
   vue-demi: false
+# Patched versions of libraries nothing here depends on directly, so no `package.json` can ask for them
+# (security audit 2026-11-15, docs/plans/messaging/INSTALLED-APP-PLAN.md §5a, IA11). Each is the newest release
+# of the line its parent already uses — no major version moves here. Remove an entry when its parent
+# (express, express-rate-limit, soap, exceljs) asks for a fixed version by itself.
+overrides:
+  "proxy-addr@2": "2.0.8"
+  "body-parser@2": "2.4.0"
+  "qs@6": "6.17.1"
+  "ip-address@10": "10.7.6"
+  "axios@1": "1.21.1"
+  "follow-redirects@1": "1.16.3"
+  "@xmldom/xmldom@0.8": "0.8.15"
+  "brace-expansion@1": "1.1.22"
+  "brace-expansion@2": "2.1.8"
