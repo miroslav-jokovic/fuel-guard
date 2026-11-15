@@ -2,7 +2,7 @@ import { DEFAULT_ORG_TIMEZONE, wallClockInZone } from "@silvicom/shared";
 import type { Env } from "../../../../env.js";
 import { getSupabaseAdmin } from "../../../../lib/supabaseAdmin.js";
 import { dispatchJob } from "../../../../queue/dispatch.js";
-import { metaConnectionsTick, type BackfillEnqueue } from "../../leads/backfillTick.js";
+import { metaConnectionsTick, type ConnectionEnqueue } from "../../connections/connectionsTick.js";
 
 /**
  * The `ads-daily-brief` scheduler (F1b; docs/WORKER-DEPLOYMENT.md, ads row): every hour, from 07:00 in the
@@ -28,7 +28,7 @@ export function briefDue(now: Date, zone: string = DEFAULT_ORG_TIMEZONE): boolea
   return wallClockInZone(now, zone).hour >= BRIEF_HOUR;
 }
 
-export function dailyBriefEnqueue(admin: ReturnType<typeof getSupabaseAdmin>, env: Env): BackfillEnqueue {
+export function dailyBriefEnqueue(admin: ReturnType<typeof getSupabaseAdmin>, env: Env): ConnectionEnqueue {
   return async (orgId) => {
     const r = await dispatchJob(admin, env, "ads_daily_brief", { orgId, payload: {}, dedupKey: adsDailyBriefDedupKey(orgId) });
     return "conflict" in r ? "conflict" : "queued";

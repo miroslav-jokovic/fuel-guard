@@ -1,7 +1,7 @@
 import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
-import { metaConnectionsTick, type BackfillEnqueue } from "../leads/backfillTick.js";
+import { metaConnectionsTick, type ConnectionEnqueue } from "../connections/connectionsTick.js";
 
 /**
  * The `ads-reconcile` scheduler (B5c; docs/WORKER-DEPLOYMENT.md, ads row): once a day, one `ads_reconcile`
@@ -21,7 +21,7 @@ const FIRST_TICK_MS = 15 * 60_000;
 
 export const adsReconcileDedupKey = (connectionId: string): string => `ads_reconcile:${connectionId}`;
 
-export function reconcileEnqueue(admin: ReturnType<typeof getSupabaseAdmin>, env: Env): BackfillEnqueue {
+export function reconcileEnqueue(admin: ReturnType<typeof getSupabaseAdmin>, env: Env): ConnectionEnqueue {
   return async (orgId, connectionId) => {
     const r = await dispatchJob(admin, env, "ads_reconcile", { orgId, payload: { connectionId }, dedupKey: adsReconcileDedupKey(connectionId) });
     return "conflict" in r ? "conflict" : "queued";

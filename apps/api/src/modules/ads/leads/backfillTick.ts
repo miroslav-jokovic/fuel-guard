@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
+import { metaConnectionsTick, type ConnectionEnqueue } from "../connections/connectionsTick.js";
 
 /**
  * The `ads-leads-backfill` scheduler (B4a2; docs/WORKER-DEPLOYMENT.md, ads row): every hour, one
@@ -19,38 +20,9 @@ import { dispatchJob } from "../../../queue/dispatch.js";
  */
 export const ADS_LEADS_BACKFILL_MS = 60 * 60_000;
 const FIRST_TICK_MS = 5 * 60_000;
-const PAGE = 500;
 
 export const adsLeadsBackfillDedupKey = (connectionId: string): string => `ads_leads_backfill:${connectionId}`;
-export type BackfillEnqueue = (orgId: string, connectionId: string) => Promise<"queued" | "conflict">;
-
-/**
- * Every Meta (or simulator) connection that is `connected` or `failing`, across carriers, handed to `enqueue`.
- * The ONE tenant-wide read of the ads hourly jobs: the leads backfill here and the insights pull
- * (`monitor/insightsTick.ts`, B5a) both start from it, so the two cannot disagree on which connections run.
- */
-export async function metaConnectionsTick(admin: SupabaseClient, enqueue: BackfillEnqueue): Promise<{ connections: number; queued: number; conflicts: number }> {
-  const result = { connections: 0, queued: 0, conflicts: 0 };
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await admin
-      .from("ads_platform_connections")
-      .select("id, org_id")
-      .in("provider", ["meta", "simulator"])
-      // `failing` too (2026-11-03 audit H1): skipping it made a dead token's lost leads silent — no job,
-      // so no failed job. Now its job runs, and fails loudly every hour until the token is fixed.
-      .in("status", ["connected", "failing"])
-      .order("id")
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(`ads_platform_connections: ${error.message}`);
-    const rows = (data ?? []) as Array<{ id: string; org_id: string }>;
-    for (const c of rows) {
-      result.connections += 1;
-      if ((await enqueue(c.org_id, c.id)) === "queued") result.queued += 1;
-      else result.conflicts += 1;
-    }
-    if (rows.length < PAGE) return result;
-  }
-}
+export type BackfillEnqueue = ConnectionEnqueue;
 
 export const leadsBackfillTick = metaConnectionsTick;
 
