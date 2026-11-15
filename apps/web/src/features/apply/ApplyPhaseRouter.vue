@@ -6,7 +6,6 @@ import AskAgainScreen from "@/features/apply/AskAgainScreen.vue";
 import { askAgainIssue, type useAskAgain } from "@/features/apply/askAgain";
 import DraftUnlockGate from "@/features/apply/DraftUnlockGate.vue";
 import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
-import IdentityFields from "@/features/apply/IdentityFields.vue";
 import PartOneClearinghouse from "@/features/apply/partOne/PartOneClearinghouse.vue";
 import PartOneFlow from "@/features/apply/partOne/PartOneFlow.vue";
 import type { PartOneInputs } from "@/features/apply/partOne/usePartOne";
@@ -88,8 +87,6 @@ const props = defineProps<{
   partOneNeeded: boolean;
   partOneInputs: PartOneInputs | null;
   refreshPartOne: () => Promise<PartOneInputs | null>;
-  isPartOneLink: boolean;
-  identityNeeded: boolean;
   ceremonyNeeded: boolean;
   releases: ApplyRelease[];
   waitingForApplication: boolean;
@@ -114,7 +111,6 @@ const emit = defineEmits<{
   begin: [];
   agree: [];
   partOneDone: [];
-  identityRecorded: [];
   ceremonyDone: [];
   unlocked: [released: Released];
   send: [];
@@ -203,12 +199,6 @@ const emit = defineEmits<{
       :refresh="refreshPartOne" @done="emit('partOneDone')" />
   </BaseCard>
 
-  <BaseCard v-else-if="identityNeeded">
-    <ApplyScreenMark name="identity" />
-    <IdentityFields :token="token" :carrier="invitation.data.value?.carrier ?? ''"
-      :captures="invitation.data.value?.captures ?? []" @done="emit('identityRecorded')" />
-  </BaseCard>
-
   <!-- A5/D-APP7: one instrument per screen, one act each. FCRA §604(b)(2) requires each
        disclosure to stand alone, so there is nothing else on screen while one is showing. -->
   <BaseCard v-else-if="ceremonyNeeded">
@@ -230,7 +220,7 @@ const emit = defineEmits<{
     <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :phases="invitation.data.value?.phases ?? null" :owes="invitation.data.value?.owes ?? []" :heading="APPLY_COPY.permissionsReceived.heading" :note="APPLY_COPY.permissionsReceived.note"
       :body="APPLY_COPY.permissionsReceived.body(invitation.data.value?.carrier ?? '')">
       <!-- §6.2 screen 20: a v2 link's "done" — and what the driver can do meanwhile. -->
-      <PartOneClearinghouse v-if="isPartOneLink" :carrier="invitation.data.value?.carrier ?? ''" />
+      <PartOneClearinghouse :carrier="invitation.data.value?.carrier ?? ''" />
     </ApplyWaitScreen>
   </BaseCard>
 

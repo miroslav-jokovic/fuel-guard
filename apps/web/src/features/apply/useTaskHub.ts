@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from "vue";
+import { computed, ref } from "vue";
 import type { ApplicationSection } from "@silvicom/shared";
 
 /**
@@ -8,7 +8,7 @@ import type { ApplicationSection } from "@silvicom/shared";
  * ── A LAYER OVER THE WIZARD, NOT A SECOND ONE ─────────────────────────────────────────────────
  * The screens, their order, their validation and the high-water mark autosave stores are all
  * `useApplicationWizard`'s; this only decides whether the driver is looking at the LIST or at one task.
- * A legacy link never sees it (`enabled` false) and keeps the linear wizard it was sent.
+ * Every link sees it: the linear wizard a legacy link kept was retired with those links (1b-5).
  *
  * ⚠ The list opens first on every page load — "the hub opens on every return" (§6.4) — rather than on
  * the furthest screen, because a returning driver's question is "what is left?", and the list is the
@@ -21,15 +21,15 @@ export interface TaskHubWizard {
   setIssues: (issues: []) => void;
 }
 
-export function useTaskHub(wizard: TaskHubWizard, enabled: Ref<boolean>) {
+export function useTaskHub(wizard: TaskHubWizard) {
   const atList = ref(true);
   const scrollToTop = (): void => globalThis.scrollTo?.({ top: 0, behavior: "smooth" });
 
   return {
     /** The task list is on screen. */
-    showList: computed(() => enabled.value && atList.value),
+    showList: computed(() => atList.value),
     /** A task is on screen, inside the hub (so its buttons are the hub's, not the wizard's). */
-    inTask: computed(() => enabled.value && !atList.value),
+    inTask: computed(() => !atList.value),
     open(section: ApplicationSection, keepIssues = false): void {
       wizard.goTo(section, keepIssues);
       atList.value = false;

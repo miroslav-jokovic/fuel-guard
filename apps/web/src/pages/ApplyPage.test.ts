@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia } from "pinia";
-import { driverPlacements, APPLICATION_FILLING_SECTIONS, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
+import { driverPlacements, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
 
 /**
  * Part 1's steps since F4 PR 1: its ten pages, the typed ones one question to a screen (about 2, the CDL 4,
@@ -114,17 +114,15 @@ const CURRENT_DRAFT = {
 /** The real inventory, so "the walk is the certification" is asserted against the shipped queue. */
 const PACKET = driverPlacements(null).map((p) => ({ ...p, signedAt: null }));
 
-const TOTAL = APPLICATION_FILLING_SECTIONS.length;
-const step = (n: number): string => `Step ${n} of ${TOTAL}`;
 
 /**
- * 1b-5: every bundle a test serves is counted when it is the application's own and names no Part 1 — a
- * legacy link, which no driver is sent any more. `LEGACY_LINK_TESTS` is the list still to move onto a
- * current link; it may only shrink, and the check after each test fails a new test written on one.
+ * 1b-5: every application bundle a test serves names a Part 1, as every bundle the server serves does
+ * (it answers an invitation without one as a dead link). A fixture without one is a page no driver can
+ * be shown; the check after each test fails it.
  */
-let legacyBundles = 0;
+let bundlesWithoutPartOne = 0;
 const ok = (body: unknown) => {
-  if (body && typeof body === "object" && "carrier" in body && !(body as { partOne?: unknown }).partOne) legacyBundles += 1;
+  if (body && typeof body === "object" && "carrier" in body && !(body as { partOne?: unknown }).partOne) bundlesWithoutPartOne += 1;
   return { ok: true, json: async () => body };
 };
 /** Where Part 1 stands on a link nobody has walked, and on one that has finished it — as the server serves it. */
@@ -136,14 +134,6 @@ const PART_ONE_DONE = {
   completedAt: "2026-08-21T09:05:00Z", contact: true, address: true, licences: true, screening: true,
   medicalCardPending: false, rights: true,
 };
-const LEGACY_LINK_TESTS: string[] = [
-  "walks one screen at a time and ends by handing it to the carrier",
-  "resumes on the screen the driver had reached",
-  "asks for the licence before the first permission when it is not on file",
-  "offers the Clearinghouse registration on a v2 link's permissions-received screen only",
-  "shows the date of birth on the form and does not let it be retyped once on file",
-  "names the screen the driver is on, from the first screen down to the form's section",
-];
 const dead = () => ({ ok: false, json: async () => ({ error: { code: "invalid_link", message: "This application link is not valid. Ask for a new one." } }) });
 
 // The app installs pinia; the employer panel's confirm (HW5b) is a pinia store, so the page needs it here too.
@@ -201,12 +191,10 @@ const settle = async (w: ReturnType<typeof mountPage>) => {
 describe("the applicant's page", () => {
   beforeEach(() => {
     fetchMock.mockReset();
-    legacyBundles = 0;
+    bundlesWithoutPartOne = 0;
   });
   afterEach(() => {
-    const name = expect.getState().currentTestName ?? "";
-    const listed = LEGACY_LINK_TESTS.some((title) => name.includes(title));
-    expect(legacyBundles > 0, `"${name}" ${listed ? "no longer opens a legacy link: take it off LEGACY_LINK_TESTS" : "opens a legacy link"}`).toBe(listed);
+    expect(bundlesWithoutPartOne, `"${expect.getState().currentTestName ?? ""}" serves a bundle with no Part 1`).toBe(0);
   });
 
   it("asks the public endpoint with no Authorization header", async () => {
@@ -261,71 +249,6 @@ describe("the applicant's page", () => {
     // The only checkbox on the screen is the §391.21(b)(12) certification of the application itself.
     const checkboxLabels = w.findAll("label").map((l) => l.text()).join(" ");
     expect(checkboxLabels).not.toContain("I authorize");
-  });
-
-  /** The wizard, end to end — and a working proof that every screen's field set validates. */
-  it("walks one screen at a time and ends by handing it to the carrier", async () => {
-    // ⚠ PUBLISHED wording, since 2026-08-23: with draft instruments the last screen offers "Not
-    // ready to send yet" instead, which is the next test. This one is about the nine screens.
-    fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
-      releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
-      phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null },
-      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
-      esignConsent: {
-        version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true,
-      },
-    }));
-    const w = mountPage();
-    await settle(w);
-
-    expect(w.text()).toContain(step(1));
-    expect(w.text()).toContain("About you");
-    // D-AX7: the carrier's own page-1 questions are asked on the first screen, where its paper asks
-    // them. "What job are you applying for?" was the sixth of nine steps until 2026-09-11.
-    expect(w.text()).toContain("Position you are applying for");
-    expect(w.text()).toContain("How did you hear about this company?");
-    // ⚠ This used to assert the screen NAMED its paragraph — "§391.21(b)(2)" rendered under the
-    // heading. Inverted 2026-08-22 on the owner's judgement that citations are "useless and
-    // confusing for a regular user": the driver gets the words, the auditor gets the PDF. The
-    // assertion is kept rather than deleted because it is now the pin in the other direction.
-    expect(w.text()).not.toMatch(/§|\bCFR\b/);
-
-    await advance(w);
-    expect(w.text()).toContain("Where you have lived");
-    await advance(w);
-    expect(w.text()).toContain("Your license");
-    // §391.21(b)(5)'s "each": the list the schema carried no field for until A3.
-    expect(w.text()).toContain("Other licenses and permits, now or in the last 3 years");
-    // Q-AF4: §391.23(a)(1) wants every state that licensed them in 3 years, so a licence given up on
-    // moving is asked for by name — the case the old "you hold" wording could never collect.
-    expect(w.text()).toContain("even if you gave it up");
-    await advance(w);
-    expect(w.text()).toContain("Where you have worked");
-    // D-AX7's one departure from the paper: asked above the employer list rather than on page 1,
-    // because a driver cannot picture who is being asked about until they have named them.
-    expect(w.text()).toContain("May we contact your previous employers?");
-    await advance(w);
-    expect(w.text()).toContain("Your driving record");
-    await advance(w);
-    // A9: the carrier's own questions — and the screen says they are the carrier's, because unlike
-    // every other screen in this wizard it discharges no CFR paragraph (D-APP12).
-    expect(w.text()).toContain("The carrier's own questions");
-    // What is LEFT on this screen after D-AX7 — the four the workbook puts on its page 16.
-    expect(w.text()).toContain("Education and training");
-    expect(w.text()).toContain("Three personal references");
-    expect(w.text()).not.toContain("How did you hear about this company?");
-    await advance(w);
-    // A8: the photographs are taken while the driver still has the documents in their hand.
-    expect(w.text()).toContain("Your documents");
-    expect(w.text()).toContain("Front of your license");
-    await advance(w);
-    // Nobody sends what they cannot see, and nobody certifies it either (§391.21(b)(12)).
-    expect(w.text()).toContain("Check your answers");
-    expect(w.text()).toContain("Susan Godfrey");
-    // ⚠ And the last control hands it over rather than certifying it (F4, D-AX11).
-    expect(w.text()).toContain("Send it to Silvicom Inc");
-    expect(w.text()).not.toContain("I certify that all entries");
   });
 
   /**
@@ -427,20 +350,6 @@ describe("the applicant's page", () => {
     const described = document.getElementById(input?.getAttribute("aria-describedby") ?? "");
     expect(described?.textContent).toBe("This is needed.");
     w.unmount();
-  });
-
-  /** The saved section is where a resumed session opens. */
-  it("resumes on the screen the driver had reached", async () => {
-    fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
-      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
-      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: "employment", updatedAt: null },
-    }));
-    const w = mountPage();
-    await settle(w);
-
-    expect(w.text()).toContain("Where you have worked");
-    expect(w.text()).toContain(step(4));
   });
 
   /**
@@ -724,32 +633,6 @@ describe("the applicant's page", () => {
   });
 
   /**
-   * ⚠ AF3/D-AF1: the date of birth and licence come BEFORE the first permission. PSP, the driving
-   * record and the Clearinghouse query run on them before the application exists, and the server
-   * refuses a signature without them — so a page that went straight to the ceremony would walk the
-   * applicant into a refusal on the first tap.
-   */
-  it("asks for the licence before the first permission when it is not on file", async () => {
-    fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
-      releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
-      releasesSigned: [],
-      phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: null, submittedAt: null },
-      draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
-      esignConsent: {
-        version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true,
-      },
-      identityComplete: false,
-    }));
-    const w = mountPage();
-    await settle(w);
-
-    expect(w.text()).toContain("Your driver's license");
-    expect(w.text()).not.toContain("Your signature");
-    expect(w.text()).not.toContain(step(1));
-  });
-
-  /**
    * C3a (§6.2): a v2 link — the server serves it a `partOne` — walks Part 1 where a legacy link is asked
    * its identity, because Part 1 writes the identity now. The discriminator is the legacy test above: the
    * same bundle without `partOne` still opens on the identity screen.
@@ -999,28 +882,64 @@ describe("the applicant's page", () => {
     expect(w.text()).not.toContain("Your driver's license");
   });
 
-  /** §6.2 screen 20: the v2 "done" screen offers the Clearinghouse registration; a legacy one does not. */
-  it("offers the Clearinghouse registration on a v2 link's permissions-received screen only", async () => {
+  /**
+   * U1: the three visits are marked above every screen of a live link — the task list included, which
+   * until 1b-5 was the only form screen that had the bar (a legacy link's wizard had its own).
+   */
+  it("marks which of the three visits the driver is on, above the task list", async () => {
+    fetchMock.mockResolvedValue(partOnePage({ completedAt: "2026-08-21T09:05:00Z" }, {
+      phases: {
+        consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z",
+        submittedAt: null, applicationSentAt: "2026-08-22T09:00:00Z",
+      },
+      releasesSigned: [...APPLICATION_RELEASE_ORDER],
+    }));
+    const w = mountPage();
+    await settle(w);
+    expect(w.text()).toContain(APPLY_COPY.hub.heading);
+    const stages = w.find("[data-apply-stages]");
+    expect(stages.exists()).toBe(true);
+    // The form has been sent, so the second visit is the current one.
+    expect(stages.findAll("[data-state]").map((s) => s.attributes("data-state"))).toEqual(["done", "current", "ahead"]);
+  });
+
+  /**
+   * F5 (0607): the office's question is answered INSIDE its task. "Open my answer" is pressed on the
+   * wait screen, where no task is open, so the page has to open the task itself — moving the wizard's
+   * section alone would leave the driver on the task list with the question nowhere on screen.
+   */
+  it("opens the task an office question is about, at that question, from the wait screen", async () => {
+    fetchMock.mockResolvedValue(partOnePage({ completedAt: "2026-08-21T09:05:00Z" }, {
+      carrierToday: CARRIER_TODAY,
+      phases: {
+        consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null,
+        applicationSentAt: "2026-08-22T09:00:00Z", reviewRequestedAt: "2026-08-23T09:00:00Z", approvedAt: null,
+      },
+      releasesSigned: [...APPLICATION_RELEASE_ORDER],
+      draft: { locked: false, payload: CURRENT_DRAFT, furthestSection: "review", updatedAt: null },
+      askAgain: [{ id: "q1", path: ["first_name"], question: "Is this your legal first name?", askedAt: "2026-08-24T09:00:00Z", answeredAt: null, withdrawnAt: null }],
+    }));
+    const w = mountPage();
+    await settle(w);
+    expect(w.text()).toContain("Is this your legal first name?");
+    expect(w.find("#apply-first_name").exists()).toBe(false);
+
+    await w.findAll("button").find((b) => b.text() === APPLY_COPY.askAgain.open)!.trigger("click");
+    await settle(w);
+    expect((w.find("#apply-first_name").element as HTMLInputElement).value).toBe("Susan");
+    expect(w.text()).not.toContain(APPLY_COPY.hub.heading);
+  });
+
+  /** §6.2 screen 20: the "done" screen of the first visit offers the Clearinghouse registration. */
+  it("offers the Clearinghouse registration on the permissions-received screen", async () => {
     const received = { phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null, applicationSentAt: null } };
     fetchMock.mockResolvedValue(partOnePage({ completedAt: "2026-08-21T09:05:00Z" }, received));
     const v2 = mountPage();
     await settle(v2);
     expect(v2.text()).toContain(APPLY_COPY.permissionsReceived.heading);
     expect(v2.text()).toContain(APPLY_COPY.partOne.clearinghouse.heading);
-
-    fetchMock.mockResolvedValue(partOnePage({}, { ...received, partOne: null }));
-    const legacy = mountPage();
-    await settle(legacy);
-    expect(legacy.text()).toContain(APPLY_COPY.permissionsReceived.heading);
-    expect(legacy.text()).not.toContain(APPLY_COPY.partOne.clearinghouse.heading);
   });
 
-  /**
-   * ⚠ And once it is on file the form SHOWS it and does not let it be retyped (D-AF8): the licence
-   * PSP ran against is the licence the application must name. The discriminator is the pair — the
-   * same page with the identity not on file must leave the field editable, or a field that was always
-   * disabled would pass.
-   */
   /**
    * §391.21(b)(1) (C3c1): "The name and address of the employing motor carrier" is ON the application —
    * the form shows the carrier's legal address the filed PDF prints, and says nothing where none is on file.
@@ -1045,35 +964,6 @@ describe("the applicant's page", () => {
     const none = mountPage();
     await settle(none);
     expect(none.text()).not.toContain("Employing carrier:");
-  });
-
-  it("shows the date of birth on the form and does not let it be retyped once on file", async () => {
-    const formPage = (identityComplete: boolean) => ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
-      releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
-      releasesSigned: [...APPLICATION_RELEASE_ORDER],
-      phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null },
-      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
-      esignConsent: {
-        version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true,
-      },
-      identityComplete,
-    });
-    const dobDisabled = (w: ReturnType<typeof mountPage>) =>
-      w.findAll("input").filter((i) => i.element.disabled).length;
-
-    fetchMock.mockResolvedValue(formPage(true));
-    const locked = mountPage();
-    await settle(locked);
-    expect(locked.text()).toContain("To change this, contact Silvicom Inc.");
-    expect(dobDisabled(locked)).toBeGreaterThan(0);
-    locked.unmount();
-
-    fetchMock.mockResolvedValue(formPage(false));
-    const open = mountPage();
-    await settle(open);
-    expect(open.text()).not.toContain("To change this, contact");
-    expect(dobDisabled(open)).toBe(0);
   });
 
   /**
@@ -1606,32 +1496,6 @@ describe("the applicant's page", () => {
       await settle(w);
       await close(w);
       expect(screens).toEqual(["filed"]);
-    });
-
-    it("names the screen the driver is on, from the first screen down to the form's section", async () => {
-      const reports: { events: { screen: string; left_at: string | null }[] }[] = [];
-      fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
-        if (String(url).endsWith("/screen-events")) {
-          reports.push(JSON.parse(String(init!.body)) as (typeof reports)[number]);
-          return ok({ ok: true, inserted: 1, closed: 0 });
-        }
-        return ok({
-          carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
-          draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
-        });
-      });
-      const w = mountPage();
-      await settle(w);
-      // A draft on file counts as a used link, so this one opens on the form rather than the welcome.
-      await advance(w);
-      window.dispatchEvent(new Event("pagehide"));
-      await settle(w);
-
-      expect(String(fetchMock.mock.calls.find(([u]) => String(u).endsWith("/screen-events"))![0]))
-        .toBe(`/api/public/application/${"t".repeat(43)}/screen-events`);
-      const visits = reports.flatMap((r) => r.events);
-      expect(visits.map((v) => v.screen)).toEqual(["part2.identity", "part2.addresses"]);
-      expect(visits.every((v) => v.left_at !== null)).toBe(true);
     });
 
     it("names the welcome and the consent on an untouched link", async () => {
