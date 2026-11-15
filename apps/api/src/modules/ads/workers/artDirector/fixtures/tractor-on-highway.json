@@ -83,18 +83,19 @@
       "regional runs",
       "lanes: Midwest to the Southeast"
     ],
-    "headline": "$0.68 a mile, every mile"
+    "headline": "$0.68 a mile, every mile",
+    "idea": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@5",
+    "prompt_version": "artDirector@6",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T22:23:51.851Z",
+    "recorded_at": "2026-11-15T20:18:24.357Z",
     "output": {
       "slots": {
-        "time_of_day": "golden hour on a late-summer evening",
-        "light": "low amber sun through roadside pines, long shadows across the lanes, lit sky",
+        "time_of_day": "golden hour on a late-summer evening, cornfields giving way to southern pines",
+        "light": "low warm sun raking across the cab, long shadows on the pavement, glowing sky",
         "viewpoint": "a low angle near the road surface, ahead of the cab and to one side, looking up"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

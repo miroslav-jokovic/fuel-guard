@@ -100,27 +100,28 @@
       }
     },
     "company_name": "Dispatch Freight Lines",
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:35:17.098Z",
+    "recorded_at": "2026-11-15T20:54:03.551Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "Tanker, $0.80 a mile",
             "cta": "Apply today",
-            "primary_text": "Regional Class A tanker runs in Illinois and Indiana. Pay is $0.76 to $0.80 per mile, and you are home weekends. Age 23+. Drive for Dispatch Freight Lines.",
+            "primary_text": "You pull tanker freight on regional runs in Illinois and Indiana. Pay is $0.76 to $0.80 per mile. You are home weekends. Class A, age 23+.",
             "headline": "Dispatch Freight Lines"
           },
           "es": {
-            "hook": "Tanque, $0.80/milla",
+            "hook": "Tanque, $0.80 la milla",
             "cta": "Aplica hoy",
-            "primary_text": "Rutas regionales de tanque Clase A en Illinois e Indiana. Pagamos de $0.76 a $0.80 por milla y estás en casa los fines de semana. Mayores de 23.",
+            "primary_text": "Jalas carga de tanque en rutas regionales por Illinois e Indiana. Pagamos de $0.76 a $0.80 por milla. Estás en casa los fines de semana. Clase A, mayores de 23.",
             "headline": "Dispatch Freight Lines"
           }
         },
@@ -128,28 +129,28 @@
           "en": {
             "hook": "Tanker, home weekends",
             "cta": "Apply now",
-            "primary_text": "Haul tanker freight across Illinois and Indiana during the week, then be home weekends. $0.80 per mile and a pet policy. Age 23+.",
-            "headline": "Weekends at home"
+            "primary_text": "Run regional tanker freight across Illinois and Indiana during the week, then you're home weekends. $0.76 to $0.80 per mile. Pet policy too. Age 23+.",
+            "headline": "Class A tanker, age 23+"
           },
           "es": {
-            "hook": "Tanque: findes en casa",
+            "hook": "Tanque y fines en casa",
             "cta": "Aplica ya",
-            "primary_text": "Carga de tanque por Illinois e Indiana entre semana y en casa los fines de semana. $0.80 por milla y política de mascotas. Mayores de 23.",
-            "headline": "Fines de semana en casa"
+            "primary_text": "Rutas regionales de tanque por Illinois e Indiana entre semana, y en casa los fines de semana. De $0.76 a $0.80 por milla. Política de mascotas. Mayores de 23.",
+            "headline": "Clase A, mayores de 23"
           }
         },
         {
           "en": {
-            "hook": "Tanker: IL and Indiana",
-            "cta": "Apply today",
-            "primary_text": "Straight talk: Class A tanker, regional runs in Illinois and Indiana. $0.76 per mile. Home weekends. Pet policy. You must be 23+.",
-            "headline": "Class A tanker, regional"
+            "hook": "Regional tanker, IL-IN",
+            "cta": "Call dispatch",
+            "primary_text": "Dispatch Freight Lines runs tanker freight in Illinois and Indiana. Regional lanes, $0.76 to $0.80 per mile, home weekends. Class A, 23+.",
+            "headline": "$0.76-$0.80 per mile"
           },
           "es": {
-            "hook": "Tanque: IL e Indiana",
-            "cta": "Aplica hoy",
-            "primary_text": "Te lo digo claro: tanque Clase A, rutas regionales en Illinois e Indiana. $0.76 por milla. En casa los fines de semana. Política de mascotas. Mayores de 23.",
-            "headline": "Tanque Clase A, regional"
+            "hook": "Tanque regional IL-IN",
+            "cta": "Llama hoy",
+            "primary_text": "Dispatch Freight Lines mueve carga de tanque en Illinois e Indiana. Rutas regionales, de $0.76 a $0.80 por milla y en casa los fines de semana. Clase A, mayores de 23.",
+            "headline": "$0.76-$0.80 por milla"
           }
         }
       ]

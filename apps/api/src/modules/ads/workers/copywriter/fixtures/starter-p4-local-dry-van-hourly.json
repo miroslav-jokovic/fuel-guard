@@ -111,56 +111,57 @@
       "scene_family": "equipment_at_rest"
     },
     "company_name": "360 Logistics",
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T00:14:01.535Z",
+    "recorded_at": "2026-11-15T21:35:15.799Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Dry van, Chicagoland",
+            "hook": "Dry van, $28-$32/hour",
             "cta": "Apply today",
-            "primary_text": "Local dry van runs to Chicagoland stores. $28 to $32 per hour, home daily. Dedicated work with 360 Logistics. Class A, 2 years experience, 23+.",
+            "primary_text": "360 Logistics hauls dry van freight to Chicagoland stores. Class A local runs pay $28 to $32 per hour. You are home daily, with paid time off.",
             "headline": "Home daily, paid time off"
           },
           "es": {
-            "hook": "Caja seca en Chicagoland",
+            "hook": "Caja seca, $28-$32/hora",
             "cta": "Aplica hoy",
-            "primary_text": "Rutas locales en caja seca a tiendas de Chicagoland. $28 a $32 por hora y en casa todos los días. Trabajo dedicado con 360 Logistics. Clase A, 2 años de experiencia, mayores de 23.",
-            "headline": "En casa todos los días"
+            "primary_text": "360 Logistics lleva carga seca a tiendas de Chicagoland. Rutas locales Clase A de $28 a $32 por hora. Vuelves a casa a diario y tienes tiempo libre pagado.",
+            "headline": "Vuelves a casa cada día"
           }
         },
         {
           "en": {
-            "hook": "$28 to $32 per hour",
+            "hook": "Dry van, home daily",
             "cta": "Apply now",
-            "primary_text": "Class A local dry van at 360 Logistics. Dedicated Chicagoland store deliveries, home daily, with paid time off. You need 2 years experience and age 23.",
-            "headline": "Local dry van, home daily"
+            "primary_text": "Dedicated local dry van work with 360 Logistics. You run store deliveries around Chicagoland and go home daily. Pay is $28 to $32 per hour.",
+            "headline": "$28-$32 per hour"
           },
           "es": {
-            "hook": "$28 a $32 por hora",
+            "hook": "Dry van, a casa diario",
             "cta": "Aplica ya",
-            "primary_text": "Clase A local en caja seca con 360 Logistics. Entregas dedicadas a tiendas de Chicagoland, en casa a diario y tiempo libre pagado. Requisitos: 2 años de experiencia, mayor de 23 años.",
-            "headline": "Local, en casa a diario"
+            "primary_text": "Trabajo dedicado de dry van local con 360 Logistics. Entregas a tiendas en Chicagoland y vuelves a casa a diario. Pago de $28 a $32 por hora.",
+            "headline": "$28-$32 por hora"
           }
         },
         {
           "en": {
-            "hook": "Home daily, local runs",
-            "cta": "Apply now",
-            "primary_text": "You run dedicated dry van loads to Chicagoland stores and sleep at home. Pay is $28 to $32 per hour, plus paid time off. Class A, 23+, 2 years experience.",
-            "headline": "360 Logistics, local runs"
+            "hook": "Dry van, Chicagoland",
+            "cta": "Start today",
+            "primary_text": "Here is the work: dry van freight, store deliveries around Chicagoland. $28 to $32 per hour. You need a Class A, 2 years of experience, and to be 23+.",
+            "headline": "Drive for 360 Logistics"
           },
           "es": {
-            "hook": "En casa a diario",
-            "cta": "Aplica ahora",
-            "primary_text": "Llevas caja seca a tiendas de Chicagoland en ruta dedicada y duermes en casa. Pagamos $28 a $32 por hora, más tiempo libre pagado. Clase A, mayores de 23, 2 años de experiencia.",
-            "headline": "Rutas locales en caja seca"
+            "hook": "Dry van en Chicagoland",
+            "cta": "Empieza hoy",
+            "primary_text": "Así es el trabajo: dry van, entregas a tiendas en Chicagoland. De $28 a $32 por hora. Necesitas licencia Clase A, 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "Maneja con 360 Logistics"
           }
         }
       ]

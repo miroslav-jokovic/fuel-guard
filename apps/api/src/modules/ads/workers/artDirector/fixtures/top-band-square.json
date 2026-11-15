@@ -83,19 +83,20 @@
       "over the road",
       "lanes: the Mountain West"
     ],
-    "headline": "Flatbed drivers wanted"
+    "headline": "Flatbed drivers wanted",
+    "idea": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@5",
+    "prompt_version": "artDirector@6",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T22:23:44.622Z",
+    "recorded_at": "2026-11-15T20:18:18.722Z",
     "output": {
       "slots": {
-        "time_of_day": "first light on a high sagebrush plateau in early autumn, mountains on the far horizon",
-        "light": "low golden sun raking across the road, long shadows, clear pale sky",
-        "viewpoint": "low on the gravel shoulder ahead of the cab, looking slightly up"
+        "time_of_day": "golden hour on an early autumn evening in high sagebrush country",
+        "light": "low warm sun from the side, long shadows across the asphalt, clear open sky",
+        "viewpoint": "a low angle on the shoulder, ahead of the cab, looking slightly up"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "focal_subject": "tractor",

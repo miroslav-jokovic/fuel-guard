@@ -88,68 +88,69 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:31:43.150Z",
+    "recorded_at": "2026-11-15T20:50:15.844Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Dedicated Class A",
+            "hook": "Dedicated Class A runs",
             "cta": "Apply today",
-            "primary_text": "Class A drivers, this is dedicated work. You get a 401k plus dental and vision. Apply today.",
-            "headline": "Class A dedicated driver",
-            "kicker": "Now hiring drivers",
-            "second_line": "401k plan"
-          },
-          "es": {
-            "hook": "Clase A dedicado",
-            "cta": "Aplica hoy",
-            "primary_text": "Choferes Clase A, este es trabajo dedicado. Tienes plan 401k y seguro dental y de visión. Aplica hoy.",
-            "headline": "Chofer Clase A dedicado",
-            "kicker": "Buscamos choferes",
-            "second_line": "Plan 401k"
-          }
-        },
-        {
-          "en": {
-            "hook": "401k for drivers",
-            "cta": "Apply now",
-            "primary_text": "Plan for later while you drive now. Class A dedicated work with a 401k, plus dental and vision. Apply now.",
-            "headline": "401k, dental and vision",
-            "kicker": "Class A dedicated",
+            "primary_text": "Drive Class A on a dedicated account. You get a 401k, plus dental and vision. Apply today.",
+            "headline": "Dedicated work with a 401k",
+            "kicker": "Now hiring",
             "second_line": "Dental and vision"
           },
           "es": {
-            "hook": "Plan 401k para ti",
-            "cta": "Aplica ya",
-            "primary_text": "Piensa en tu futuro mientras manejas. Trabajo dedicado Clase A con plan 401k y seguro dental y de visión. Aplica ya.",
-            "headline": "401k, dental y visión",
-            "kicker": "Clase A dedicado",
+            "hook": "Rutas dedicadas Clase A",
+            "cta": "Aplica hoy",
+            "primary_text": "Maneja Clase A en una cuenta dedicada. Tienes 401k, además de dental y visión. Aplica hoy.",
+            "headline": "Trabajo dedicado con 401k",
+            "kicker": "Ahora contratando",
             "second_line": "Dental y visión"
           }
         },
         {
           "en": {
-            "hook": "Dental and vision",
-            "cta": "Start here",
-            "primary_text": "Straight talk: Class A, dedicated. 401k. Dental and vision. If that fits you, apply today.",
-            "headline": "Hiring Class A, dedicated",
-            "kicker": "Now hiring: Class A",
-            "second_line": "Dedicated runs"
+            "hook": "Class A seat with a 401k",
+            "cta": "Apply now",
+            "primary_text": "Your Class A, on dedicated work. The benefits include a 401k plus dental and vision. Apply today.",
+            "headline": "401k, dental and vision",
+            "kicker": "Dedicated drivers",
+            "second_line": "Dental and vision"
           },
           "es": {
-            "hook": "Dental y visión",
-            "cta": "Empieza aquí",
-            "primary_text": "Sin rodeos: Clase A, dedicado. Plan 401k. Seguro dental y de visión. Si te queda, aplica hoy.",
-            "headline": "Buscamos Clase A dedicado",
-            "kicker": "Chofer Clase A",
-            "second_line": "Rutas dedicadas"
+            "hook": "Clase A con 401k",
+            "cta": "Aplica ya",
+            "primary_text": "Tu Clase A, en trabajo dedicado. Los beneficios incluyen 401k, dental y visión. Aplica hoy.",
+            "headline": "401k, dental y visión",
+            "kicker": "Choferes dedicados",
+            "second_line": "Dental y visión"
+          }
+        },
+        {
+          "en": {
+            "hook": "Dedicated work, 401k",
+            "cta": "Apply today",
+            "primary_text": "Here is the deal. You drive Class A on dedicated work. You get a 401k, plus dental and vision. Apply and let's talk.",
+            "headline": "Dedicated account, Class A",
+            "kicker": "Class A drivers",
+            "second_line": "Dental and vision"
+          },
+          "es": {
+            "hook": "Trabajo dedicado y 401k",
+            "cta": "Aplica hoy",
+            "primary_text": "Así está la cosa. Manejas Clase A en trabajo dedicado. Tienes 401k, más dental y visión. Aplica y hablamos.",
+            "headline": "Cuenta dedicada, Clase A",
+            "kicker": "Choferes Clase A",
+            "second_line": "Dental y visión"
           }
         }
       ]

@@ -113,68 +113,69 @@
       }
     },
     "company_name": "Dispatch Freight Lines",
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:36:37.006Z",
+    "recorded_at": "2026-11-15T20:55:24.047Z",
     "output": {
       "candidates": [
         {
           "en": {
             "card_get": "$0.66 per mile",
-            "card_need": "Class A CDL, age 23, and 2 years of experience.",
-            "card_apply": "Tap Apply and send us your info.",
+            "card_need": "Class A CDL, 2 years experience, age 23",
+            "card_apply": "Tap Apply and send your info",
             "cta": "Apply today",
-            "primary_text": "Dispatch Freight Lines pays $0.66 per mile on regional flatbed and tanker runs within 500 miles of Joliet. Home weekends. $2,000 sign-on bonus.",
-            "headline": "$2,000 sign-on bonus"
+            "primary_text": "Dispatch Freight Lines pays $0.66 per mile for flatbed and tanker. Regional runs within 500 miles of Joliet, home weekends, and a $2,000 sign-on bonus.",
+            "headline": "$0.66/mile, $2,000 sign-on"
           },
           "es": {
             "card_get": "$0.66 por milla",
-            "card_need": "CDL Clase A, mayores de 23 y 2 años de experiencia.",
-            "card_apply": "Toca Aplicar y envíanos tus datos.",
+            "card_need": "CDL Clase A, 2 años de experiencia, mayor de 23 años",
+            "card_apply": "Toca Aplicar y manda tus datos",
             "cta": "Aplica hoy",
-            "primary_text": "Dispatch Freight Lines paga $0.66 por milla en rutas regionales de flatbed y tanque, dentro de 500 millas de Joliet. En casa los fines de semana. Bono de $2,000 al firmar.",
-            "headline": "Bono de $2,000 al firmar"
+            "primary_text": "Dispatch Freight Lines paga $0.66 por milla en flatbed y tanque. Rutas regionales dentro de 500 millas de Joliet, en casa los fines de semana y bono de $2,000 al firmar.",
+            "headline": "$0.66/milla, bono de $2,000"
           }
         },
         {
           "en": {
             "card_get": "Home weekends",
-            "card_need": "Class A CDL, 2 years of experience, age 23.",
-            "card_apply": "Apply now with Dispatch Freight Lines.",
+            "card_need": "Class A CDL, age 23, 2 years of experience",
+            "card_apply": "Apply below to talk with a recruiter",
             "cta": "Apply now",
-            "primary_text": "Regional runs, and you are home weekends. Flatbed and tanker freight within 500 miles of Joliet at $0.66 per mile, plus a $2,000 sign-on bonus.",
-            "headline": "Regional, $0.66 per mile"
+            "primary_text": "Run regional flatbed and tanker freight within 500 miles of Joliet and be home weekends. $0.66 per mile and a $2,000 sign-on bonus at Dispatch Freight Lines.",
+            "headline": "Home weekends, $0.66/mile"
           },
           "es": {
             "card_get": "En casa los fines de semana",
-            "card_need": "CDL Clase A, 2 años de experiencia, mayor de 23 años.",
-            "card_apply": "Aplica con Dispatch Freight Lines.",
+            "card_need": "CDL Clase A, mayor de 23 años y 2 años de experiencia",
+            "card_apply": "Aplica abajo y habla con un reclutador",
             "cta": "Aplica ya",
-            "primary_text": "Rutas regionales y en casa los fines de semana. Carga de flatbed y tanque dentro de 500 millas de Joliet, a $0.66 por milla y bono de $2,000 al firmar.",
-            "headline": "Regional, $0.66 por milla"
+            "primary_text": "Rutas regionales de flatbed y tanque dentro de 500 millas de Joliet, y en casa los fines de semana. $0.66 por milla y bono de $2,000 al firmar con Dispatch Freight Lines.",
+            "headline": "En casa fines de semana"
           }
         },
         {
           "en": {
             "card_get": "Flatbed and tanker near Joliet",
-            "card_need": "You need a Class A CDL, 2 years of experience, age 23.",
-            "card_apply": "Fill out the short form to apply.",
+            "card_need": "Class A CDL, 2 years experience, 23+",
+            "card_apply": "Fill out the short form to apply",
             "cta": "Start here",
-            "primary_text": "Flatbed and tanker loads on regional runs, all within 500 miles of Joliet. $0.66 per mile, home weekends, and a $2,000 sign-on bonus from Dispatch Freight Lines.",
-            "headline": "Within 500 miles of Joliet"
+            "primary_text": "Regional runs within 500 miles of Joliet, hauling flatbed and tanker. You get $0.66 per mile, home weekends and a $2,000 sign-on bonus. Drive for Dispatch Freight Lines.",
+            "headline": "Regional runs near Joliet"
           },
           "es": {
             "card_get": "Flatbed y tanque cerca de Joliet",
-            "card_need": "Necesitas CDL Clase A, 2 años de experiencia y ser mayor de 23 años.",
-            "card_apply": "Llena la solicitud corta para aplicar.",
+            "card_need": "CDL Clase A, 2 años de experiencia, mayor de 23 años",
+            "card_apply": "Llena la solicitud corta para aplicar",
             "cta": "Empieza aquí",
-            "primary_text": "Cargas de flatbed y tanque en rutas regionales, dentro de 500 millas de Joliet. $0.66 por milla, en casa los fines de semana y bono de $2,000 al firmar.",
-            "headline": "A 500 millas de Joliet"
+            "primary_text": "Flatbed y tanque, rutas regionales dentro de 500 millas de Joliet. Ganas $0.66 por milla, en casa los fines de semana y bono de $2,000 al firmar.",
+            "headline": "Regional cerca de Joliet"
           }
         }
       ]

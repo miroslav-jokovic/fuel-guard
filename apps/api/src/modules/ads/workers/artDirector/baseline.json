@@ -1,11 +1,11 @@
 {
   "worker": "artDirector",
-  "prompt_version": "artDirector@5",
+  "prompt_version": "artDirector@6",
   "model": "claude-opus-5-5",
-  "fixtures": 21,
-  "asked": 14,
-  "agreed": 14,
+  "fixtures": 26,
+  "asked": 19,
+  "agreed": 19,
   "agreement": 1,
   "planted_skipped": 7,
-  "recorded_at": "2026-11-14T22:23:55.665Z"
+  "recorded_at": "2026-11-15T20:18:28.295Z"
 }

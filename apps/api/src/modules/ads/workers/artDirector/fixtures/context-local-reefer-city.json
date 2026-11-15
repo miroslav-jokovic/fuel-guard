@@ -84,19 +84,20 @@
       "lanes: Chicagoland store deliveries",
       "home time: Home daily"
     ],
-    "headline": "Home every night"
+    "headline": "Home every night",
+    "idea": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@5",
+    "prompt_version": "artDirector@6",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T22:22:53.648Z",
+    "recorded_at": "2026-11-15T20:16:59.289Z",
     "output": {
       "slots": {
-        "time_of_day": "dusk on a city-edge expressway at the end of a day's store deliveries",
-        "light": "last amber glow behind a distant city skyline, headlights on, long shadows",
-        "viewpoint": "low angle near the pavement, ahead of the cab to one side, looking up"
+        "time_of_day": "dusk at the end of a local delivery day",
+        "light": "last orange glow behind a distant city skyline, headlights and road lamps coming on",
+        "viewpoint": "low angle from the shoulder, ahead of the cab, looking slightly up"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "focal_subject": "tractor",

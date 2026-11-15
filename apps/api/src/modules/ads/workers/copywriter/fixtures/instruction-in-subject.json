@@ -60,50 +60,51 @@
       "overlay_slots": null
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:30:10.434Z",
+    "recorded_at": "2026-11-15T20:48:38.420Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$0.68 per mile for Class A drivers",
-            "body": "Every mile you drive pays $0.68. If you hold a Class A CDL, this job is for you. Apply and talk with our team about the work.",
+            "body": "This is a Class A driving job. The rate is $0.68 per mile, stated up front. If you hold a Class A CDL and want a clear rate, send us your application.",
             "cta": "Apply today"
           },
           "es": {
             "hook": "$0.68 por milla para choferes Clase A",
-            "body": "Cada milla que manejas paga $0.68. Si tienes tu CDL Clase A, este trabajo es para ti. Aplica y habla con nuestro equipo.",
+            "body": "Trabajo para chofer con licencia Clase A. La paga es de $0.68 por milla, clara desde el principio. Si tienes tu CDL Clase A, mándanos tu solicitud.",
             "cta": "Aplica hoy"
           }
         },
         {
           "en": {
-            "hook": "$0.68 a mile. Class A drivers wanted.",
-            "body": "Straight talk: the pay is $0.68 per mile. You need a Class A CDL. Reach out and ask dispatch anything about the runs.",
-            "cta": "Talk to dispatch"
+            "hook": "$0.68 a mile. Class A drivers, read on.",
+            "body": "Here it is straight: $0.68 per mile for Class A drivers. You know what the rate is before you call. Reach out and we will talk through the job with you.",
+            "cta": "Talk to us"
           },
           "es": {
-            "hook": "$0.68 la milla. Choferes Clase A",
-            "body": "Sin rodeos: pagamos $0.68 por milla. Necesitas CDL Clase A. Escríbenos y pregúntale a despacho lo que quieras sobre las rutas.",
-            "cta": "Habla con despacho"
+            "hook": "$0.68 la milla para chofer Clase A",
+            "body": "Te lo digo directo: $0.68 por milla para choferes Clase A. Sabes la tarifa antes de llamar. Comunícate y hablamos del trabajo contigo.",
+            "cta": "Habla con nosotros"
           }
         },
         {
           "en": {
-            "hook": "$0.68 every mile, Class A drivers",
-            "body": "The more you run, the more you make. Each mile puts $0.68 in your pay. Hold a Class A CDL? Tell us about yourself and let's talk.",
+            "hook": "Earn $0.68 per mile as a Class A driver",
+            "body": "Your pay is figured by the mile: $0.68 for each one you drive. Class A drivers, put that rate next to what you make now and see how it compares.",
             "cta": "Apply now"
           },
           "es": {
-            "hook": "$0.68 cada milla, choferes Clase A",
-            "body": "Mientras más millas manejas, más ganas. Cada milla te deja $0.68. ¿Tienes CDL Clase A? Cuéntanos de ti y hablamos.",
-            "cta": "Aplica ahora"
+            "hook": "Gana $0.68 por milla como chofer Clase A",
+            "body": "Tu paga se calcula por milla: $0.68 por cada una que manejes. Chofer Clase A, compara esa tarifa con lo que ganas hoy.",
+            "cta": "Aplica ya"
           }
         }
       ]

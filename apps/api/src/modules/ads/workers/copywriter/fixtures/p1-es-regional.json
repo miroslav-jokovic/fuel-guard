@@ -76,56 +76,57 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:42:02.305Z",
+    "recorded_at": "2026-11-15T21:00:46.142Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Sunrise run at $0.66/mile",
+            "hook": "Dawn run, $0.66 a mile",
             "cta": "Apply today",
-            "primary_text": "You start at sunrise in the cab of a regional Class A truck. The pay is $0.66 per mile, and you are home weekends. Regional runs, plain numbers. Apply today.",
-            "headline": "Home weekends, Class A"
+            "primary_text": "You pull out at first light with the road to yourself. Class A regional driving at $0.66 per mile, and you are home weekends. Apply today and we'll talk.",
+            "headline": "Regional, home weekends"
           },
           "es": {
-            "hook": "Amanece. $0.66 por milla",
+            "hook": "Amanece: $0.66 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Arrancas al amanecer en la cabina de un camión Clase A regional. Pagamos $0.66 por milla y estás en casa los fines de semana. Rutas regionales, números claros. Aplica hoy.",
-            "headline": "Fines de semana en casa"
+            "primary_text": "Sales con la primera luz y la carretera tranquila. Manejo regional Clase A a $0.66 por milla, y estás en casa los fines de semana. Aplica hoy y hablamos.",
+            "headline": "Regional, fines en casa"
           }
         },
         {
           "en": {
-            "hook": "Dawn run, home weekends",
-            "cta": "Start here",
-            "primary_text": "Your week starts at dawn on regional routes in a Class A truck. Your weekend is at home. The pay is $0.66 per mile. Apply today.",
-            "headline": "Regional at $0.66/mile"
-          },
-          "es": {
-            "hook": "Amanece. Finde en casa",
-            "cta": "Empieza aquí",
-            "primary_text": "Tu semana arranca al alba en rutas regionales con tráiler Clase A. El fin de semana lo pasas en casa. Pagamos $0.66 por milla. Aplica hoy.",
-            "headline": "$0.66 por milla"
-          }
-        },
-        {
-          "en": {
-            "hook": "Class A regional at dawn",
+            "hook": "Dawn miles, home weekends",
             "cta": "Apply now",
-            "primary_text": "Here it is straight. Regional Class A runs. $0.66 per mile. Home weekends. You roll out at first light. Apply now.",
-            "headline": "Plain pay: $0.66 a mile"
+            "primary_text": "You watch the sun come up over the hood, and on weekends you are home. Class A regional runs at $0.66 per mile. Apply now.",
+            "headline": "Regional at $0.66 a mile"
           },
           "es": {
-            "hook": "Clase A regional al alba",
+            "hook": "Amanece. Fines en casa",
             "cta": "Aplica ya",
-            "primary_text": "Te lo digo claro: rutas regionales Clase A. $0.66 por milla. En casa los fines de semana. Sales con la primera luz. Aplica ya.",
-            "headline": "Pago: $0.66 por milla"
+            "primary_text": "Ves salir el sol desde la cabina, y los fines de semana estás en casa. Rutas regionales Clase A a $0.66 por milla. Aplica ya.",
+            "headline": "Regional a $0.66 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "First light, $0.66 a mile",
+            "cta": "Apply here",
+            "primary_text": "Straight answer: Class A, regional, $0.66 per mile, home weekends. You start your day at sunrise. Send your application and we'll call you.",
+            "headline": "Class A regional drivers"
+          },
+          "es": {
+            "hook": "Al alba, $0.66 por milla",
+            "cta": "Aplica aquí",
+            "primary_text": "Te lo digo claro: Clase A, regional, $0.66 por milla y en casa los fines de semana. Arrancas con la primera luz. Manda tu solicitud y te llamamos.",
+            "headline": "Choferes Clase A regional"
           }
         }
       ]

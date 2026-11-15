@@ -123,65 +123,69 @@
       "scene_family": "home_street"
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
-  "expect": "ready",
+  "expect": "refused",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T00:05:47.362Z",
+    "recorded_at": "2026-11-15T21:27:09.594Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "Out 2 weeks, home 3 days",
             "cta": "Apply today",
-            "primary_text": "Over-the-road dry van, coast to coast. You run 2 weeks, then go home for 3 days. Pay is $0.70 per mile, plus a $2,500 sign-on bonus. Class A, 23+.",
-            "headline": "Class A dry van, OTR",
+            "primary_text": "Dry van, over-the-road, coast to coast. You run 2 weeks, then you're home 3 days. $0.70 per mile and a $2,500 sign-on bonus. Class A, 23+.",
+            "headline": "Class A OTR, dry van",
             "second_line": "$0.70 per mile"
           },
           "es": {
-            "hook": "Fuera 2 semanas, 3 en casa",
+            "hook": "2 semanas fuera, 3 en casa",
             "cta": "Aplica hoy",
-            "primary_text": "Ruta larga con carga seca, de costa a costa. Manejas 2 semanas y vas a casa 3 días. Pagamos $0.70 por milla, más un bono de $2,500 al firmar. Clase A, mayores de 23.",
-            "headline": "Clase A, carga seca",
+            "primary_text": "Carga seca en tráiler, rutas de costa a costa. Trabajas 2 semanas y luego pasas 3 días en casa. $0.70 por milla y bono de contratación de $2,500. Clase A, mayores de 23.",
+            "headline": "Clase A, larga distancia",
             "second_line": "$0.70 por milla"
           }
         },
         {
           "en": {
-            "hook": "You get 3 days at home",
+            "hook": "Every 2 weeks, 3 days home",
             "cta": "Apply now",
-            "primary_text": "Out 2 weeks, then 3 days at home. On the road, you haul dry van freight coast to coast at $0.70 per mile. $2,500 sign-on bonus and a 401k. Class A drivers, age 23.",
-            "headline": "$0.70 per mile, plus 401k",
-            "second_line": "$2,500 sign-on"
+            "primary_text": "Start with a $2,500 sign-on bonus. Then it's dry van, coast to coast, at $0.70 per mile, with 3 days home after every 2 weeks out. 401k included. Class A, age 23.",
+            "headline": "$0.70/mile, dry van OTR",
+            "second_line": "$2,500 to sign on"
           },
           "es": {
-            "hook": "Tienes 3 días en casa",
+            "hook": "Cada 2 semanas, 3 en casa",
             "cta": "Aplica ya",
-            "primary_text": "2 semanas en ruta y luego 3 días en casa. En la ruta llevas carga seca de costa a costa a $0.70 por milla. Bono de $2,500 al firmar y 401k. Choferes Clase A, mayores de 23.",
-            "headline": "$0.70 por milla y 401k",
+            "primary_text": "Empiezas con un bono de contratación de $2,500. Carga seca de costa a costa a $0.70 por milla, con 3 días en casa cada 2 semanas en ruta. Incluye 401k. Clase A, mayor de 23 años.",
+            "headline": "$0.70 por milla en ruta",
             "second_line": "Bono de $2,500"
           }
         },
         {
           "en": {
-            "hook": "Dry van, coast to coast",
-            "cta": "Apply here",
-            "primary_text": "Over-the-road dry van freight, from coast to coast. Out 2 weeks, home 3 days. $0.70 per mile and a 401k. Class A, 23+. Apply today.",
-            "headline": "$2,500 sign-on bonus",
-            "second_line": "Home 3 days"
+            "hook": "3 days home after 2 weeks",
+            "cta": "Start here",
+            "primary_text": "Here's the run: you pick up dry van loads and go coast to coast for 2 weeks. Then you're home 3 days. Pay is $0.70 per mile, and you get a 401k. Class A drivers, 23+.",
+            "headline": "Dry van, coast to coast",
+            "second_line": "With 401k"
           },
           "es": {
-            "hook": "Carga seca de costa a costa",
-            "cta": "Aplica aquí",
-            "primary_text": "Carga seca en rutas largas, de costa a costa. 2 semanas fuera, 3 días en casa. $0.70 por milla y 401k. Clase A, mayores de 23. Aplica hoy.",
-            "headline": "Bono de $2,500 al firmar",
-            "second_line": "3 días en casa"
+            "hook": "Tras 2 semanas, 3 en casa",
+            "cta": "Empieza aquí",
+            "primary_text": "Así va la ruta: cargas en tráiler seco y vas de costa a costa por 2 semanas. Luego, 3 días en casa. Pagamos $0.70 por milla y tienes 401k. Choferes Clase A, mayores de 23.",
+            "headline": "Carga seca, costa a costa",
+            "second_line": "Con 401k"
           }
         }
       ]
     }
-  }
+  },
+  "expect_findings": [
+    "unrecognised_number"
+  ]
 }

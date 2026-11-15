@@ -75,27 +75,28 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:45:17.118Z",
+    "recorded_at": "2026-11-15T21:04:21.731Z",
     "output": {
       "candidates": [
         {
           "en": {
             "pay": "$450 per load",
             "cta": "Apply today",
-            "primary_text": "$450 per load. This job is for Class A flatbed drivers. You haul during the week and you are home weekends. Apply today and talk to our team.",
-            "headline": "$450 per load, flatbed"
+            "primary_text": "$450 per load for Class A flatbed drivers. Every load you haul pays the same, and you're home weekends. If you run flatbed and hold your Class A, apply today.",
+            "headline": "Flatbed: $450 per load"
           },
           "es": {
             "pay": "$450 por carga",
             "cta": "Aplica hoy",
-            "primary_text": "$450 por carga. Este trabajo es para choferes de flatbed con licencia Clase A. Trabajas en la semana y estás en casa los fines de semana. Aplica hoy y habla con despacho.",
+            "primary_text": "$450 por carga para choferes de flatbed con licencia Clase A. Cada carga paga lo mismo y estás en casa los fines de semana. Si manejas flatbed y tienes tu Clase A, aplica hoy.",
             "headline": "Flatbed: $450 por carga"
           }
         },
@@ -103,28 +104,28 @@
           "en": {
             "pay": "$450 a load",
             "cta": "Apply now",
-            "primary_text": "Home weekends. Class A flatbed drivers run during the week and spend weekends at home. The pay is $450 per load. If that schedule fits your life, apply now.",
-            "headline": "Home weekends, flatbed"
+            "primary_text": "Run flatbed during the week and be home weekends. Class A drivers earn $450 per load. Your weekends stay yours. Apply now and talk to us about the job.",
+            "headline": "Home weekends on flatbed"
           },
           "es": {
             "pay": "$450 la carga",
             "cta": "Aplica ya",
-            "primary_text": "En casa los fines de semana. Choferes de flatbed Clase A: trabajas entre semana y pasas el fin de semana en casa. La paga es $450 por carga. Si ese horario te sirve, aplica ya.",
-            "headline": "Fines de semana en casa"
+            "primary_text": "Maneja flatbed entre semana y pasa los fines de semana en casa. Choferes Clase A ganan $450 por carga. Tus fines de semana son tuyos. Aplica ya y habla con nosotros.",
+            "headline": "Flatbed y en casa el finde"
           }
         },
         {
           "en": {
             "pay": "$450 every load",
             "cta": "Apply here",
-            "primary_text": "Here is the deal. You drive flatbed on a Class A. Each load pays $450. Weekends, you are home. That is the job. Apply here and we will get you rolling.",
-            "headline": "Class A flatbed"
+            "primary_text": "Here's the deal: you haul flatbed with your Class A, you get $450 per load, and you're home weekends. That's the job. If it fits you, apply and we'll talk.",
+            "headline": "Class A flatbed drivers"
           },
           "es": {
             "pay": "$450 cada carga",
             "cta": "Aplica aquí",
-            "primary_text": "Así es el trabajo. Manejas flatbed con licencia Clase A. Cada carga paga $450. Los fines de semana estás en casa. Aplica aquí y te ponemos a rodar.",
-            "headline": "Flatbed Clase A"
+            "primary_text": "Así de claro: jalas flatbed con tu Clase A, ganas $450 por carga y estás en casa los fines de semana. Ese es el trabajo. Si te sirve, aplica y hablamos.",
+            "headline": "Choferes Clase A de flatbed"
           }
         }
       ]

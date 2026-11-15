@@ -158,6 +158,27 @@ export function jobEvidence(brief: Pick<AdBrief, "subject" | "claims" | "subject
   return items;
 }
 
+/**
+ * What a writer is handed of the plan (V2c): the idea of the angle its preset was drawn for, and what of ours makes
+ * it true. Nothing else of the angle goes — `why` argues to the person approving the plan and cites results a
+ * writer has no use for. Both sentences already passed `checkPlan`'s claim check against the brief, so neither
+ * holds a figure or a promise the copy may not state; they are direction all the same, never ad copy, and the
+ * copy is still read by `checkClaims` whatever they say.
+ */
+export type WriterAngle = Pick<PlanAngle, "idea" | "proof">;
+
+/**
+ * The angle a preset's ad is made for: the plan's angle with the preset's hook and scene — the comparison
+ * `planDraw` drew the preset by, read the other way, so the idea a creative is written from is the idea its
+ * preset was chosen for. Null when the plan has no such angle (a preset version edited since the draw to
+ * another concept, or one that names no concept — an angle always names both, so nothing matches it): the
+ * writers then work from the preset alone, as an unplanned campaign's do.
+ */
+export function writerAngle(plan: Pick<CampaignPlan, "angles">, preset: { hook_family?: string | null; scene_family?: string | null }): WriterAngle | null {
+  const angle = plan.angles.find((a) => a.hook_family === preset.hook_family && a.scene_family === preset.scene_family);
+  return angle ? { idea: angle.idea, proof: angle.proof } : null;
+}
+
 // ── the doors a person uses (V2c): read the plan, save an edit, approve a version ────────────────────────
 /** A plan version as the review screen reads it. `author_name` is null for the Strategist's. */
 export interface AdsCampaignPlanView {

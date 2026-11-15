@@ -61,6 +61,9 @@ export function presentationOrder(seed: string, n: number): number[] {
 export function judgeUserMessage(brief: Pick<AdBrief, "subject" | "claims" | "subject_matter">, recipe: AdPresetRecipe, candidates: readonly AdCopy[], ctx: CopyContext, presented: readonly number[]): string {
   const base = JSON.parse(copyUserMessage(brief, recipe, ctx)) as Record<string, unknown>;
   delete base.candidates;
+  // The plan's idea is the Copywriter's (v5): the judge ranks craft, and its prompt says nothing of a plan. It is
+  // taken out here, so this agent's request is what its recordings were made on until its own prompt takes it up.
+  delete base.plan;
   return JSON.stringify({ ...base, candidates: presented.map((i) => candidates[i]!) }, null, 2);
 }
 

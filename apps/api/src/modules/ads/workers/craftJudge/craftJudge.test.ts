@@ -52,6 +52,9 @@ describe("craft judge — presentation order and the mapping back", () => {
     const sent = JSON.parse(judgeUserMessage(fx.input.brief, fx.input.recipe, fx.input.candidates, { company_name: fx.input.company_name }, presented)) as { candidates: unknown[] } & Record<string, unknown>;
     expect(sent.candidates).toEqual(presented.map((i) => fx.input.candidates[i]));
     expect(Object.keys(sent).sort()).toEqual(["about_the_job", "candidates", "company", "concept", "facts", "in_our_words", "subject"]);
+    // The plan's idea is the Copywriter's: a context that carries one changes nothing the judge is sent.
+    const planned = judgeUserMessage(fx.input.brief, fx.input.recipe, fx.input.candidates, { company_name: fx.input.company_name, angle: { idea: "Lead with the pay per mile.", proof: "The opening states the rate." } }, presented);
+    expect(planned).toBe(JSON.stringify(sent, null, 2));
   });
 });
 
