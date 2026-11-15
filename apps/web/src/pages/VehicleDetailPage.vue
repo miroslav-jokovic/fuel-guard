@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { afterReset, useDetectionEpoch } from "@/features/anomalies/useDetectionEpoch";
+import { afterReset, epochGated, useDetectionEpoch } from "@/features/anomalies/useDetectionEpoch";
 import { computed, nextTick, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
@@ -103,7 +103,8 @@ const txnsQuery = useQuery({
 const txns = txnsQuery.data;
 
 // D-CF9 (0439): cases before the org's detection start date are not listed (useDetectionEpoch.ts).
-const { epoch: detectionEpoch, ready: epochReady } = useDetectionEpoch();
+const epochGate = useDetectionEpoch();
+const { epoch: detectionEpoch, ready: epochReady } = epochGate;
 const anomaliesQuery = useQuery({
   queryKey: ["vehicle_anomalies", id, detectionEpoch],
   enabled: epochReady,
@@ -121,6 +122,8 @@ const anomaliesQuery = useQuery({
   },
 });
 const anomalies = anomaliesQuery.data;
+/** The list and the detection date it waits on, drawn as one read (`epochGated`). */
+const anomaliesRead = epochGated(anomaliesQuery, epochGate);
 
 /**
  * The summary card's facts (D-US6). A truck with no tank on file printed " gal" here before FactList:
@@ -284,15 +287,15 @@ const fillColumns: DataTableColumn[] = [
           <h3 class="border-b border-edge-subtle px-5 py-3 text-sm font-semibold text-ink">Anomalies</h3>
           <!-- `isPending`, not `isLoading`: the read waits on the detection epoch, and while it is
                disabled `isLoading` is false — which drew "No anomalies" before anything was asked. -->
-          <div v-if="anomaliesQuery.isPending.value || anomaliesQuery.isError.value" class="px-5 py-3">
+          <div v-if="anomaliesRead.isPending.value || anomaliesRead.isError.value" class="px-5 py-3">
             <QueryState
               compact
-              :loading="anomaliesQuery.isPending.value && !anomaliesQuery.isError.value"
-              :error="anomaliesQuery.isError.value"
-              :retrying="anomaliesQuery.isFetching.value"
+              :loading="!anomaliesRead.isError.value"
+              :error="anomaliesRead.isError.value"
+              :retrying="anomaliesRead.isFetching.value"
               loading-text="Loading the anomalies…"
               error-text="Could not load the anomalies."
-              @retry="anomaliesQuery.refetch()"
+              @retry="anomaliesRead.refetch()"
             />
           </div>
           <ul v-else class="divide-y divide-edge-subtle text-sm">
