@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import {
   AD_AGENT_MODELS, AD_HOOK_FAMILY_LABELS, AD_SCENE_FAMILY_LABELS, PLAN_ANGLES_MAX, PLAN_ANGLES_MIN, PLAN_FORMATS_BUILT,
-  campaignPlanSchema, checkPlan, evidencePackSchema, type AdBrief, type CampaignPlan, type EvidencePack, type PlanFinding,
+  campaignPlanSchema, checkPlan, evidencePackSchema, planFindingWords, type AdBrief, type CampaignPlan, type EvidencePack, type PlanFinding,
 } from "@silvicom/shared";
 import type { ForcedTool } from "../../../../lib/anthropic.js";
 import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOutcome } from "../../generations/claudeGeneration.js";
@@ -52,15 +52,8 @@ export interface PlanRevision {
   findings: PlanFinding[];
 }
 
-export function findingWords(f: PlanFinding): string {
-  switch (f.kind) {
-    case "unknown_evidence": return `${f.where} cites ${f.id}, which is not on the sheet.`;
-    case "no_job_evidence": return `${f.where} cites no job item.`;
-    case "same_kind": return `${f.where} uses the same hook and scene as ${f.other}.`;
-    case "format_not_built": return `${f.where} is in the format ${f.format}, which is not in formats_available.`;
-    case "claim": return `${f.where} says "${f.text}", which the job's facts do not hold (${f.finding}).`;
-  }
-}
+/** One definition, shared with the edit door's refusal (`planFindingWords`): the model and a person are told the same thing. */
+export const findingWords = planFindingWords;
 
 /** The sheet the model reads. `evidence` is the pack whole, so the ledger's copy of this request restores it. */
 export function planSheet(evidence: EvidencePack, revise?: PlanRevision) {

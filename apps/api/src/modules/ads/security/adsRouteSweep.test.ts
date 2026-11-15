@@ -59,6 +59,8 @@ const idsOf = (n: number) => ({
   kit: `${n}10e0c1a-2d3e-4f50-8a6b-7c8d9e0f1a2b`,
   preset: `${n}20e0c1a-2d3e-4f50-8a6b-7c8d9e0f1a2b`,
   settings: `${n}30e0c1a-2d3e-4f50-8a6b-7c8d9e0f1a2b`,
+  plan: `${n}40e0c1a-2d3e-4f50-8a6b-7c8d9e0f1a2b`,
+  generation: `${n}50e0c1a-2d3e-4f50-8a6b-7c8d9e0f1a2b`,
 });
 const MINE = idsOf(1);
 const THEIRS = idsOf(2);
@@ -90,6 +92,8 @@ function carrier(org: string, ids: ReturnType<typeof idsOf>): Record<string, Fix
     ads_spend_hourly: [{ org_id: org, campaign_id: ids.campaign, hour: T, spend_cents: org === ORG ? 1_234 : 8_765, impressions: 10, clicks: 1, leads: 1 }],
     // CQ3's concept read folds these: each carrier's ad hour carries its own figure, so a fold that lost its org filter would show it.
     ads_ad_spend_hourly: [{ org_id: org, campaign_id: ids.campaign, creative_id: ids.creative, language: "en", meta_ad_id: org === ORG ? "880000000001" : "880000000002", hour: T, spend_cents: org === ORG ? 2_468 : 9_753, impressions: 20, clicks: 2, leads: 2 }],
+    // V2c's plan read: each carrier's campaign has a plan with its own audience line, so a read that lost its org filter would show it.
+    ads_campaign_plans: [{ id: ids.plan, org_id: org, campaign_id: ids.campaign, version: 1, plan: { audience: org === ORG ? "Our own regional drivers" : "The other carrier's drivers", audience_evidence: ["job:subject"], angles: [] }, evidence: [], author_kind: "agent", generation_id: ids.generation, author_id: null, author_name: null, created_at: T }],
     jobs: [{ id: randomUUID(), org_id: org, kind: "ads_reconcile", dedup_key: `ads_reconcile:${ids.conn}`, status: "done", started_at: org === ORG ? T : "2026-11-05T13:00:00.000Z" }],
   };
 }
@@ -102,6 +106,10 @@ const SWEEP_RECIPE = {
   starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null, formats: ["4:5"],
   hook_family: "pay_first", scene_family: "abstract_plate",
 };
+
+/** A plan the edit door can parse: three angles that differ in kind. */
+const sweepAngle = (hook_family: string, scene_family: string) => ({ hook_family, scene_family, format: "still", idea: "Lead with the pay per mile.", proof: "The opening's own pay figure.", why: "Pay is what a driver compares first.", evidence: ["job:subject"] });
+const SWEEP_PLAN = { audience: "Regional drivers who want a steady week.", audience_evidence: ["job:subject"], angles: [sweepAngle("pay_first", "cab_pov"), sweepAngle("life_first", "home_street"), sweepAngle("proof", "abstract_plate")] };
 
 const sealedValues: string[] = [];
 const tables: Record<string, FixtureRow[]> = {};
@@ -175,6 +183,10 @@ const SWEEP: Array<[string, string, unknown?]> = [
   ["GET /api/ads/campaigns", "campaigns"],
   ["GET /api/ads/campaigns/:campaignId", `campaigns/${MINE.campaign}`],
   ["GET /api/ads/campaigns/:campaignId/concepts", `campaigns/${MINE.campaign}/concepts`],
+  ["GET /api/ads/campaigns/:campaignId/plan", `campaigns/${MINE.campaign}/plan`],
+  // The sweep's campaign is paused, so both plan doors answer their refusal: reached, and nothing moved.
+  ["POST /api/ads/campaigns/:campaignId/plan/versions", `campaigns/${MINE.campaign}/plan/versions`, { based_on_version: 1, plan: SWEEP_PLAN }],
+  ["POST /api/ads/campaigns/:campaignId/plan/approval", `campaigns/${MINE.campaign}/plan/approval`, { plan_id: MINE.plan }],
   ["POST /api/ads/campaigns", "campaigns", { id: randomUUID(), brief_source: "recruiting_opening", brief_ref: MINE.campaign, connection_id: MINE.conn, brand_kit_id: MINE.kit }],
   ["POST /api/ads/campaigns/:campaignId/launch", `campaigns/${MINE.campaign}/launch`, { daily_budget_cents: 5_000, lifetime_cap_cents: 50_000 }],
   // Launch before the archive move below: G-launch-gate's refusal is asserted on a paused campaign.
@@ -235,6 +247,13 @@ describe("Security L3 — the sweep reaches every ads route", () => {
     expect(concepts.text).toContain(`"preset_key":"P1"`);
     expect(concepts.text).toContain(`"spend_cents":2468`);
     expect(concepts.text).not.toContain("9753");
+    const plan = answers.get("GET /api/ads/campaigns/:campaignId/plan")!;
+    expect(plan.status).toBe(200);
+    expect(plan.text).toContain(MINE.plan);
+    expect(plan.text).toContain("Our own regional drivers");
+    expect(plan.text).not.toContain("The other carrier");
+    expect(answers.get("POST /api/ads/campaigns/:campaignId/plan/versions")!.text).toContain("not_in_plan_review");
+    expect(answers.get("POST /api/ads/campaigns/:campaignId/plan/approval")!.text).toContain("not_in_plan_review");
     const spend = answers.get("GET /api/ads/spend")!;
     expect(spend.status).toBe(200);
     expect(spend.text).toContain(MINE.campaign);

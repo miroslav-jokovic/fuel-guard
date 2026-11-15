@@ -2,6 +2,7 @@ import { z } from "zod";
 import { checkClaims } from "./adClaims.js";
 import { AD_HOOK_FAMILIES, AD_SCENE_FAMILIES } from "./brandKitContract.js";
 import type { AdBrief } from "./contracts.js";
+import { recordId } from "../recordId.js";
 
 /**
  * A campaign's plan, and the evidence it is written from (ADS-PLATFORM-V2-PLAN V2; owner 2026-11-14: "looks like
@@ -132,4 +133,40 @@ export function jobEvidence(brief: Pick<AdBrief, "subject" | "claims" | "subject
   brief.subject_matter.details.forEach((d, i) => items.push({ id: `job:detail_${i + 1}`, kind: "job", text: d, source: null }));
   if (brief.subject_matter.in_our_words) items.push({ id: "job:in_our_words", kind: "job", text: brief.subject_matter.in_our_words, source: null });
   return items;
+}
+
+// ── the doors a person uses (V2c): read the plan, save an edit, approve a version ────────────────────────
+/** A plan version as the review screen reads it. `author_name` is null for the Strategist's. */
+export interface AdsCampaignPlanView {
+  id: string;
+  version: number;
+  plan: CampaignPlan;
+  evidence: EvidencePack;
+  author_kind: "agent" | "person";
+  author_name: string | null;
+  created_at: string;
+}
+
+/** `GET /api/ads/campaigns/:id/plan`: the newest version, or null when the campaign was never planned. */
+export interface AdsCampaignPlanRead {
+  plan: AdsCampaignPlanView | null;
+}
+
+/** A person's edit: the whole plan, and the version they had open — the save is refused if the plan moved since. */
+export const adsPlanEditSchema = z.object({ based_on_version: z.number().int().min(1), plan: campaignPlanSchema });
+export type AdsPlanEdit = z.infer<typeof adsPlanEditSchema>;
+
+/** Approval names the version by id (AX032): the campaign composes from exactly the plan the person read. */
+export const adsPlanApprovalSchema = z.object({ plan_id: recordId() });
+export type AdsPlanApproval = z.infer<typeof adsPlanApprovalSchema>;
+
+/** A finding as a sentence for the person who edited the plan — the same facts the Strategist is told. */
+export function planFindingWords(f: PlanFinding): string {
+  switch (f.kind) {
+    case "unknown_evidence": return `${f.where} cites ${f.id}, which is not on the sheet.`;
+    case "no_job_evidence": return `${f.where} cites no job item.`;
+    case "same_kind": return `${f.where} uses the same hook and scene as ${f.other}.`;
+    case "format_not_built": return `${f.where} is in the format ${f.format}, which is not in formats_available.`;
+    case "claim": return `${f.where} says "${f.text}", which the job's facts do not hold (${f.finding}).`;
+  }
 }

@@ -120,7 +120,7 @@ export type MoveOutcome =
    */
   | { kind: "launch_refused"; refusal: "not_certified" | "simulator_not_allowed" | "platform_not_listed" | SandboxOnlyRefusal; missing: MissingWorker[]; message: string };
 
-const fromTransition = (r: TransitionResult): MoveOutcome => {
+export const fromTransition = (r: TransitionResult): MoveOutcome => {
   switch (r.kind) {
     case "moved": return { kind: "moved", to: r.to };
     case "no_op": return { kind: "moved", to: r.state };
