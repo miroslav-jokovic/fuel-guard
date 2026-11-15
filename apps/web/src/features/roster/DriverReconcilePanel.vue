@@ -135,8 +135,12 @@ async function linkDriver(sourceId: string) {
           Drivers with no confident Samsara match — pick the right person to merge into.
         </p>
         <ul class="mt-2 space-y-2">
-          <li v-for="u in stillUnmatched" :key="u.id" class="flex items-center gap-2 text-sm">
-            <span class="min-w-0 flex-1 truncate">{{ u.full_name }}</span>
+          <!-- `flex-wrap` and a floor on the name: in a phone-width drawer the picker and its button
+               took the whole line and the name — the one thing that says WHO is being linked —
+               truncated to nothing, six pickers with no driver beside them (browser pass,
+               2026-11-15). Below the room for all three the name takes its own line. -->
+          <li v-for="u in stillUnmatched" :key="u.id" class="flex flex-wrap items-center gap-2 text-sm" data-test="link-row">
+            <span class="min-w-40 flex-1 truncate font-medium text-ink" :title="u.full_name">{{ u.full_name }}</span>
             <AppSelect
               v-model="linkTarget[u.id]"
               class="max-w-64"

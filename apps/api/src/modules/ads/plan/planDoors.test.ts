@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CampaignPlan } from "@silvicom/shared";
 import { ORG, campaign, createAdsWorld } from "../../../testing/adsWorld.js";
+import { presetRows } from "../../../testing/adsPresetRows.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { STRATEGIST_EVAL, loadFixtures, strategistPack } from "../workers/agentFixtures.js";
 import { approvePlan, readPlan, savePlanEdit } from "./planDoors.js";
@@ -59,9 +60,10 @@ describe("approvePlan — a person approves the newest version, by name", () => 
 
 describe("savePlanEdit — a person's edit is the next version, only while the plan waits for review", () => {
   const edited: CampaignPlan = { ...sound, audience: "Regional flatbed drivers who want a week they can plan around." };
-  function world(state: string | null, plans = [planRow(P1, 1)]) {
+  function world(state: string | null, plans = [planRow(P1, 1)], concepts = fx.input.concepts) {
     return createSupabaseRecorder({
       tables: {
+        ...presetRows(ORG, concepts),
         ads_campaigns: state === null ? [] : [{ state, brief_snapshot: fx.input.brief }],
         ads_campaign_plans: (q) => (q.write ? [{ ...planRow(P2, 0), ...(q.write.payload as object), id: P2 }] : [...plans].sort((a, b) => b.version - a.version)),
       },
@@ -100,13 +102,31 @@ describe("savePlanEdit — a person's edit is the next version, only while the p
   });
 });
 
+describe("savePlanEdit — an edit is held to the kinds of ad the carrier can make today", () => {
+  it("an idea changed to a lead and picture no enabled preset has is refused, naming the idea", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        ...presetRows(ORG, fx.input.concepts),
+        ads_campaigns: [{ state: "plan_review", brief_snapshot: fx.input.brief }],
+        ads_campaign_plans: (q) => (q.write ? [] : [planRow(P1, 1)]),
+      },
+    });
+    const changed: CampaignPlan = { ...sound, angles: [{ ...sound.angles[0]!, hook_family: "proof", scene_family: "cab_pov" }, ...sound.angles.slice(1)] };
+    expect(await savePlanEdit(rec.client, ORG, koni, C, { based_on_version: 1, plan: changed })).toMatchObject({ kind: "refused", findings: [{ kind: "concept_not_available", where: "angle 1" }] });
+    expect(rec.writes()).toEqual([]);
+  });
+});
+
 describe("readPlan", () => {
-  it("answers the newest version as the screen reads it, null when never planned, and not found for no campaign", async () => {
-    const w = createAdsWorld({ campaigns: [campaign(C, "plan_review")], extraTables: { ads_campaign_plans: [planRow(P1, 1), planRow(P2, 2)] } });
+  it("answers the newest version as the screen reads it, with the kinds of ad the carrier can make; null when never planned; not found for no campaign", async () => {
+    const w = createAdsWorld({ campaigns: [campaign(C, "plan_review")], extraTables: { ads_campaign_plans: [planRow(P1, 1), planRow(P2, 2)], ...presetRows(ORG, fx.input.concepts) } });
     const out = await readPlan(w.admin, ORG, C);
-    expect(out).toMatchObject({ kind: "ok", plan: { id: P2, version: 2, author_kind: "agent", author_name: null } });
+    expect(out).toMatchObject({ kind: "ok", plan: { id: P2, version: 2, author_kind: "agent", author_name: null }, concepts: fx.input.concepts });
     expect(out.kind === "ok" && out.plan && Object.keys(out.plan).sort()).toEqual(["author_kind", "author_name", "created_at", "evidence", "id", "plan", "version"]);
-    expect(await readPlan(createAdsWorld({ campaigns: [campaign(C, "draft")], extraTables: { ads_campaign_plans: [] } }).admin, ORG, C)).toEqual({ kind: "ok", plan: null });
+    // Never planned: no plan, and no presets are read for an editor that will not open.
+    const none = createAdsWorld({ campaigns: [campaign(C, "draft")], extraTables: { ads_campaign_plans: [] } });
+    expect(await readPlan(none.admin, ORG, C)).toEqual({ kind: "ok", plan: null, concepts: [] });
+    expect(none.rec.forTable("ad_concept_presets")).toEqual([]);
     expect(await readPlan(createAdsWorld({ campaigns: [], extraTables: { ads_campaign_plans: [planRow(P1, 1)] } }).admin, ORG, C)).toEqual({ kind: "not_found" });
     expectOrgScoped(w.rec, ORG);
   });

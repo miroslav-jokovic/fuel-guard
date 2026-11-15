@@ -69,30 +69,52 @@
         "text": "4 of 46 of our ad leads in the last 28 days were closed as: not interested.",
         "source": null
       }
+    ],
+    "concepts": [
+      {
+        "hook_family": "pay_first",
+        "scene_family": "equipment_on_road"
+      },
+      {
+        "hook_family": "life_first",
+        "scene_family": "home_street"
+      },
+      {
+        "hook_family": "equipment_first",
+        "scene_family": "equipment_at_rest"
+      },
+      {
+        "hook_family": "straight_talk",
+        "scene_family": "cab_pov"
+      },
+      {
+        "hook_family": "proof",
+        "scene_family": "abstract_plate"
+      }
     ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "strategist@2",
+    "prompt_version": "strategist@3",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-15T17:03:44.316Z",
+    "recorded_at": "2026-11-15T19:25:55.434Z",
     "output": {
-      "audience": "Class A flatbed drivers who meet the experience requirement and live where the Midwest lanes run. They likely drive for a larger fleet now, out longer or in a shared truck. The pay per mile, home weekly and an assigned truck, with the area named plainly, would make them stop.",
+      "audience": "Class A flatbed drivers who meet the experience the opening asks for and live along its Midwest lanes. They likely run regional or longer for a bigger fleet now. They would stop for a clear pay per mile, weekly home time and a truck that stays theirs.",
       "audience_evidence": [
         "job:subject",
+        "job:detail_1",
         "job:detail_2",
-        "job:claim_3",
         "lead_outcome:closed_out_of_area"
       ],
       "angles": [
         {
           "hook_family": "straight_talk",
-          "scene_family": "abstract_plate",
+          "scene_family": "cab_pov",
           "format": "still",
-          "idea": "State plainly who this is for: Class A flatbed drivers on Midwest lanes who meet the experience requirement.",
-          "proof": "The job is regional, on Midwest lanes, and states an experience requirement.",
-          "why": "A large share of recent leads were closed as out of area. Stating the lanes and the requirement up front filters before the form. No hook or scene has been measured yet.",
+          "idea": "Say plainly where the lanes run and what the opening requires, so a driver outside the Midwest knows it is not for them.",
+          "proof": "The job is Class A regional flatbed on Midwest lanes, with a stated experience requirement.",
+          "why": "Out of area was the largest reason earlier leads were closed. Stating the lanes and the requirement up front should filter before the form, though no hook has been measured yet.",
           "evidence": [
             "job:detail_2",
             "job:claim_3",
@@ -104,48 +126,51 @@
           "hook_family": "pay_first",
           "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with the pay per mile for regional flatbed work, and name the Midwest lanes beside it.",
-          "proof": "The opening states a pay per mile, on flatbed, on Midwest lanes.",
-          "why": "Pay is the fact a working driver compares fastest. Naming the lanes next to it helps keep out-of-area drivers from applying. Untested for this carrier.",
+          "idea": "Lead with the pay per mile, shown over a loaded flatbed moving on a Midwest highway.",
+          "proof": "The opening states its pay per mile for flatbed work on Midwest lanes.",
+          "why": "Pay per mile is the most concrete fact of the job and easy to compare. No earlier ad result by hook is on the sheet, so this is untested.",
           "evidence": [
             "job:claim_1",
             "job:detail_1",
-            "job:detail_2",
-            "lead_outcome:closed_out_of_area"
+            "job:detail_2"
           ]
         },
         {
           "hook_family": "life_first",
           "scene_family": "home_street",
           "format": "still",
-          "idea": "Lead with being home weekly, shown as a driver's truck-free day on a Midwest home street.",
-          "proof": "The opening offers home weekly on Midwest lanes.",
-          "why": "Home time is the job's clearest life fact and fits regional drivers. Nothing has been measured for this hook, so it is a starting bet.",
+          "idea": "Lead with being home weekly, pictured as a driver arriving on their own street in a Midwest town.",
+          "proof": "The opening offers home weekly on regional Midwest lanes.",
+          "why": "Weekly home time speaks to drivers who are out longer now. Naming the Midwest in the line keeps the appeal from pulling more out-of-area leads.",
           "evidence": [
             "job:claim_2",
-            "job:detail_2"
+            "job:detail_2",
+            "lead_outcome:closed_out_of_area"
           ]
         },
         {
           "hook_family": "equipment_first",
           "scene_family": "equipment_at_rest",
           "format": "still",
-          "idea": "Lead with the assigned truck: the same flatbed rig waiting for the same driver, parked and ready.",
-          "proof": "The job lists an assigned truck and flatbed work.",
-          "why": "Flatbed drivers care about their equipment, and showing flatbed screens out drivers who do not want that work. There is no earlier result to lean on.",
+          "idea": "Lead with the assigned truck: the same flatbed rig waiting for the same driver, shown parked and ready.",
+          "proof": "The job comes with an assigned truck and is flatbed work.",
+          "why": "An assigned truck matters to experienced flatbed drivers and fits a small fleet. Nothing has been measured for this hook, so treat it as a test.",
           "evidence": [
             "job:detail_3",
-            "job:detail_1"
+            "job:detail_1",
+            "job:in_our_words"
           ]
         },
         {
-          "hook_family": "straight_talk",
-          "scene_family": "cab_pov",
+          "hook_family": "proof",
+          "scene_family": "abstract_plate",
           "format": "still",
-          "idea": "Lead with the small fleet where dispatch knows the driver's name, seen from the driver's seat.",
-          "proof": "The carrier describes itself as a small fleet where dispatch knows your name.",
-          "why": "This is the carrier's own line and sets it apart from large fleets. Some recent leads closed as not interested, so a clearer picture of the job may help. Unmeasured.",
+          "idea": "Set out the job's terms as a plain list on a plain background, closing on the small fleet where dispatch knows your name.",
+          "proof": "Pay per mile, home weekly, the retirement plan and the fleet's own description are all stated job facts.",
+          "why": "Some earlier leads were not interested when called. Showing the terms before the form lets drivers decide earlier. This is untested.",
           "evidence": [
+            "job:claim_1",
+            "job:claim_4",
             "job:in_our_words",
             "lead_outcome:closed_not_interested"
           ]

@@ -41,6 +41,7 @@ const LEAD_GOLDEN = "apps/api/src/modules/ads/leads/golden.test.ts";
 const ANALYST = "apps/api/src/modules/ads/workers/analyst/analyst.test.ts";
 const STRATEGIST = "apps/api/src/modules/ads/workers/strategist/strategist.test.ts";
 const PLAN_STORE = "apps/api/src/modules/ads/plan/planStore.test.ts";
+const PLAN_CAMPAIGN = "apps/api/src/modules/ads/plan/planCampaign.test.ts";
 const EVIDENCE_PACK = "apps/api/src/modules/ads/plan/evidencePack.test.ts";
 const BRIEF = "packages/shared/src/ads/analystBrief.test.ts";
 const DAILY_BRIEF = "apps/api/src/modules/ads/workers/analyst/dailyBrief.test.ts";
@@ -1204,10 +1205,10 @@ export const READINESS = [
             { file: STRATEGIST, titles: [
               "has model recordings under the prompt in force and planted defects beside them",
               "planted-sound", "planted-unknown-evidence", "planted-no-job-evidence", "planted-same-kind", "planted-format-not-built",
-              "planted-invented-figure", "planted-added-benefit", "planted-two-angles",
+              "planted-invented-figure", "planted-added-benefit", "planted-two-angles", "planted-concept-not-available",
               "refuses the planted figure, naming where it is and what was said",
               "asks once per stint and attempt, as the strategist, for this campaign",
-              "shows the model the evidence pack whole and the lists an angle chooses from, read off the contract",
+              "shows the model the evidence pack whole and the concepts the carrier can make, each with what it means",
               "the prompt names no hook, scene or format key of its own, so the lists cannot drift from the contract",
               "asks no model when the strategist is switched off",
             ] },
@@ -1233,6 +1234,7 @@ export const READINESS = [
           tests: [
             { file: STRATEGIST, titles: [
               "a replayed answer is checked against the pack that was sent, not the pack read today",
+              "a replayed answer is held to the concepts that were sent, not the presets enabled today",
               "a replayed answer whose stored request holds no pack throws rather than be checked against another",
               "the second ask carries the refused plan and each finding in words",
               "instruction-in-our-words", "thin-job",
@@ -1252,6 +1254,20 @@ export const READINESS = [
             "a recorded plan spreads its angles over more than one hook, so the angles differ in kind and not only in picture",
             "first-campaign-regional", "thin-results",
           ] }],
+        },
+        {
+          need: "an approved plan is what the ads are made from: its ideas are kinds of ad the carrier can make, and compose draws them in the plan's order",
+          tests: [
+            { file: PLAN_CAMPAIGN, titles: [
+              "sends the carrier's concepts on the sheet and stores a plan held to them",
+              "with fewer than three kinds of ad enabled no plan can pass: the model is not asked and the reason says what to do",
+            ] },
+            { file: "apps/api/src/modules/ads/compose/campaignDraw.test.ts", titles: [
+              "is made from the plan's ideas in the plan's order, and stores that as the campaign's draw",
+              "is not the seeded draw: the same campaign with no plan draws every enabled preset by its seed",
+              "fails with a reason a person can act on when none of the plan's ideas can be made, or the plan is gone",
+            ] },
+          ],
         },
       ],
       L3: [{ need: "plans a person judges good: the office's approvals and edits of real plans on the review screen, as Q-APX3 rules for the judge", gap: "passing the check shows a plan is sound, not that it is good — there is no ground truth for that until the plan review screen exists and the owner has approved or edited real plans (ADS-PLATFORM-V2-PLAN V2c, Q-APX3)" }],

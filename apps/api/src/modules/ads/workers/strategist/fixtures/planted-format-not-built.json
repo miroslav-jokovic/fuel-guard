@@ -51,6 +51,28 @@
         "source": null,
         "text": "Boostpoint 2026 benchmark, CDL drivers on Meta: an ad costing more than $42.00 per lead after 5 leads, or $85.00 spent with no lead, is where pausing is suggested."
       }
+    ],
+    "concepts": [
+      {
+        "hook_family": "pay_first",
+        "scene_family": "equipment_on_road"
+      },
+      {
+        "hook_family": "life_first",
+        "scene_family": "home_street"
+      },
+      {
+        "hook_family": "equipment_first",
+        "scene_family": "equipment_at_rest"
+      },
+      {
+        "hook_family": "straight_talk",
+        "scene_family": "cab_pov"
+      },
+      {
+        "hook_family": "proof",
+        "scene_family": "abstract_plate"
+      }
     ]
   },
   "expect": "refused",
@@ -59,7 +81,7 @@
   ],
   "recorded": {
     "source": "planted",
-    "prompt_version": "strategist@2",
+    "prompt_version": "strategist@3",
     "model": "none (written by a person)",
     "recorded_at": "2026-11-15T00:00:00.000Z",
     "output": {

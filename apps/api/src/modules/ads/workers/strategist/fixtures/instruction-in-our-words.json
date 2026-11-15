@@ -40,16 +40,38 @@
         "text": "Boostpoint 2026 benchmark, CDL drivers on Meta: an ad costing more than $42.00 per lead after 5 leads, or $85.00 spent with no lead, is where pausing is suggested.",
         "source": null
       }
+    ],
+    "concepts": [
+      {
+        "hook_family": "pay_first",
+        "scene_family": "equipment_on_road"
+      },
+      {
+        "hook_family": "life_first",
+        "scene_family": "home_street"
+      },
+      {
+        "hook_family": "equipment_first",
+        "scene_family": "equipment_at_rest"
+      },
+      {
+        "hook_family": "straight_talk",
+        "scene_family": "cab_pov"
+      },
+      {
+        "hook_family": "proof",
+        "scene_family": "abstract_plate"
+      }
     ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "strategist@2",
+    "prompt_version": "strategist@3",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-15T17:03:11.503Z",
+    "recorded_at": "2026-11-15T19:25:23.145Z",
     "output": {
-      "audience": "Class A drivers who run or want regional dry van work. They likely have a job now and are comparing its pay per mile and time at home against other openings. They would stop on an ad that states the pay per mile and the home weekly schedule plainly.",
+      "audience": "Drivers holding a Class A licence who run or want regional dry van freight. They may be on lanes that keep them out longer than they would like, or on pay that is hard to read. A plain pay per mile and a home weekly schedule would make them stop.",
       "audience_evidence": [
         "job:subject",
         "job:claim_1",
@@ -59,24 +81,24 @@
       "angles": [
         {
           "hook_family": "pay_first",
-          "scene_family": "abstract_plate",
+          "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with the pay per mile as the main statement on a plain plate, with Class A regional dry van beneath it.",
+          "idea": "Lead with the pay per mile, stated as the plain rate for regional dry van work.",
           "proof": "The opening states its pay per mile.",
-          "why": "Pay per mile is the clearest fact the job holds. Nothing has been measured for this carrier yet, so judge it against the benchmark cost per lead.",
+          "why": "The pay per mile is the most concrete fact the job holds. Nothing has been measured for this carrier yet, so this is planned from the job alone.",
           "evidence": [
             "job:claim_1",
             "job:subject",
-            "benchmark:cost_per_lead"
+            "job:detail_1"
           ]
         },
         {
           "hook_family": "life_first",
           "scene_family": "home_street",
           "format": "still",
-          "idea": "Lead with being home weekly, pictured as a quiet home street at the end of a regional run.",
+          "idea": "Lead with being home weekly, shown as the truck's week ending on the driver's own street.",
           "proof": "The opening offers home weekly.",
-          "why": "Regional drivers weigh home time alongside pay, and the job states home weekly. This carrier has no ad history, so the hook is untested here.",
+          "why": "Home weekly is what sets this regional job apart from longer-haul work. No earlier results exist, so this is untested.",
           "evidence": [
             "job:claim_2",
             "job:subject"
@@ -84,16 +106,16 @@
         },
         {
           "hook_family": "straight_talk",
-          "scene_family": "equipment_at_rest",
+          "scene_family": "cab_pov",
           "format": "still",
-          "idea": "State plainly what the job is: Class A regional dry van, with the pay per mile and home weekly named and nothing added.",
-          "proof": "The job is a Class A regional driver opening on dry van freight.",
-          "why": "Naming the licence and the freight up front keeps out drivers who do not fit. No lead outcomes exist yet, so this is a precaution, not a response to a measured problem.",
+          "idea": "Lay out the job plainly from the driver's seat: Class A, regional, dry van, the pay per mile and home weekly, nothing added.",
+          "proof": "The job is Class A regional dry van, with a stated pay per mile and home weekly.",
+          "why": "Stating the licence and the kind of work up front lets drivers who do not fit pass by. With no history, the benchmark cost per lead is the only yardstick for pausing.",
           "evidence": [
             "job:subject",
             "job:detail_1",
             "job:claim_1",
-            "job:claim_2"
+            "benchmark:cost_per_lead"
           ]
         }
       ]

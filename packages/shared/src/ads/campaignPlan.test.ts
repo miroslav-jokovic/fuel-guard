@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  PLAN_ANGLES_MIN, PLAN_FORMATS, PLAN_FORMATS_BUILT, campaignPlanSchema, checkPlan, evidencePackSchema, jobEvidence,
+  PLAN_ANGLES_MIN, PLAN_FORMATS, PLAN_FORMATS_BUILT, campaignPlanSchema, checkPlan, distinctConcepts, evidencePackSchema, jobEvidence, planDraw, planFindingWords,
   type CampaignPlan, type EvidencePack, type PlanAngle,
 } from "./campaignPlan.js";
 import type { AdBrief } from "./contracts.js";
@@ -125,5 +125,68 @@ describe("the evidence pack", () => {
 
   it("a source is an https address or nothing", () => {
     expect(evidencePackSchema.safeParse([{ id: "market:pay", kind: "market", text: "A pay figure.", source: "http://example.com" }]).success).toBe(false);
+  });
+});
+
+describe("checkPlan — an angle must be a kind of ad the carrier can make", () => {
+  const concepts = sound.angles.map((a) => ({ hook_family: a.hook_family, scene_family: a.scene_family }));
+
+  it("a plan whose every angle is an available concept has no finding", () => {
+    expect(checkPlan(sound, pack, brief, concepts)).toEqual([]);
+  });
+
+  it("an angle whose hook and scene no enabled preset has is refused, and said in a sentence", () => {
+    const found = checkPlan(sound, pack, brief, concepts.slice(0, 2));
+    expect(found).toEqual([{ kind: "concept_not_available", where: "angle 3" }]);
+    expect(planFindingWords(found[0]!)).toBe("angle 3 uses a hook and scene that is not one of the concepts on the sheet.");
+  });
+
+  it("with no concepts given the question is not asked; with an empty list every angle is refused", () => {
+    expect(checkPlan(sound, pack, brief)).toEqual([]);
+    expect(checkPlan(sound, pack, brief, []).map((f) => f.kind)).toEqual(["concept_not_available", "concept_not_available", "concept_not_available"]);
+  });
+});
+
+describe("distinctConcepts", () => {
+  it("gives each hook and scene pair once, in the order first met, and nothing for a preset that names no concept", () => {
+    expect(distinctConcepts([
+      { hook_family: "pay_first", scene_family: "cab_pov" }, { hook_family: "pay_first", scene_family: "cab_pov" },
+      { hook_family: "life_first" }, { hook_family: "nonsense", scene_family: "cab_pov" }, {},
+      { hook_family: "proof", scene_family: "abstract_plate" },
+    ])).toEqual([{ hook_family: "pay_first", scene_family: "cab_pov" }, { hook_family: "proof", scene_family: "abstract_plate" }]);
+  });
+});
+
+describe("planDraw — a planned campaign's ads are the plan's angles, in the plan's order", () => {
+  const preset = (key: string, hook_family: string, scene_family: string, enabled = true) => ({ version_id: `v-${key}`, key, enabled, hook_family, scene_family });
+  const presets = [
+    preset("P1", "equipment_first", "equipment_at_rest"), preset("P2", "pay_first", "equipment_on_road"),
+    preset("P3", "life_first", "home_street"), preset("P4", "proof", "abstract_plate"),
+  ];
+
+  it("orders the presets as the plan orders its angles, not as the presets are keyed, and names the plan as its seed", () => {
+    expect(planDraw("plan-9", sound, presets, [])).toEqual({ seed: "plan:plan-9", eligible: ["v-P1", "v-P2", "v-P3"], excluded_live: [], order: ["v-P2", "v-P3", "v-P1"], exhausted: false });
+  });
+
+  it("leaves out a preset a campaign for the same brief already runs, and says which", () => {
+    expect(planDraw("p", sound, presets, ["P3"])).toMatchObject({ order: ["v-P2", "v-P1"], excluded_live: ["P3"], exhausted: false });
+  });
+
+  it("an angle whose preset was disabled since the plan was approved is not drawn; with none left the draw is exhausted", () => {
+    const off = presets.map((p) => (p.key === "P2" ? { ...p, enabled: false } : p));
+    expect(planDraw("p", sound, off, []).order).toEqual(["v-P3", "v-P1"]);
+    expect(planDraw("p", sound, [], [])).toMatchObject({ order: [], exhausted: true });
+  });
+
+  it("an idea is matched by its lead AND its picture: a preset with the same lead and another picture is not it", () => {
+    // P0 sorts first and shares the first angle's lead (pay first) with a different picture.
+    const sameLead = [preset("P0", "pay_first", "cab_pov"), ...presets];
+    expect(planDraw("p", sound, sameLead, []).order).toEqual(["v-P2", "v-P3", "v-P1"]);
+  });
+
+  it("two presets with one concept: the first by key is taken whatever order the rows arrive in", () => {
+    const twin = [preset("P9", "pay_first", "equipment_on_road"), ...presets];
+    expect(planDraw("p", sound, twin, []).order[0]).toBe("v-P2");
+    expect(planDraw("p", sound, [...twin].reverse(), []).order[0]).toBe("v-P2");
   });
 });

@@ -11,10 +11,12 @@ import type { CampaignPlan, EvidencePack } from "@silvicom/shared";
 const plan = { audience: "x", audience_evidence: [], angles: [] } as unknown as CampaignPlan;
 const evidence: EvidencePack = [];
 
+const THREE = [{ hook_family: "pay_first", scene_family: "cab_pov" }, { hook_family: "life_first", scene_family: "home_street" }, { hook_family: "proof", scene_family: "abstract_plate" }];
+vi.mock("./concepts.js", () => ({ availableConcepts: async () => THREE }));
 vi.mock("./evidencePack.js", () => ({ buildEvidencePack: async () => ({ ok: true, brief: { claims: [] }, evidence }) }));
 vi.mock("../workers/strategist/strategist.js", () => ({
   findingWords: () => "",
-  writePlan: async () => ({ kind: "ready", generationId: "gen-1", plan, evidence, replayed: false }),
+  writePlan: async () => ({ kind: "ready", generationId: "gen-1", plan, evidence, concepts: THREE, replayed: false }),
 }));
 const storeAgentPlan = vi.fn();
 vi.mock("./planStore.js", () => ({ storeAgentPlan: (...args: unknown[]) => storeAgentPlan(...args) }));
@@ -31,6 +33,6 @@ describe("planCampaign — the store has the last word", () => {
   it("a stored plan is the only answer that reads as done", async () => {
     storeAgentPlan.mockResolvedValueOnce({ kind: "stored", plan: {}, replayed: false });
     expect(await planCampaign(deps, { id: "c-1", org_id: "org-a" }, "c-1:t")).toEqual({ ok: true });
-    expect(storeAgentPlan.mock.calls.at(-1)![1]).toMatchObject({ orgId: "org-a", campaignId: "c-1", generationId: "gen-1" });
+    expect(storeAgentPlan.mock.calls.at(-1)![1]).toMatchObject({ orgId: "org-a", campaignId: "c-1", generationId: "gen-1", concepts: THREE });
   });
 });

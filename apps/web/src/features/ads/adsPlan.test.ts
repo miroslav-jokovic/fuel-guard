@@ -35,7 +35,7 @@ vi.mock("@tanstack/vue-query", () => ({
 import AdsCampaignDrawer from "./AdsCampaignDrawer.vue";
 import AdsCampaignPlan from "./AdsCampaignPlan.vue";
 import {
-  EVIDENCE_KIND_LABEL, HOOK_OPTIONS, SCENE_OPTIONS, authorLine, canRemoveAngle, draftErrors, editFrom, editablePlan, factsFor, mayHavePlan, planIsOpen, planRefusalLines,
+  EVIDENCE_KIND_LABEL, authorLine, canRemoveAngle, conceptKey, conceptLabel, conceptOptions, draftErrors, editFrom, editablePlan, factsFor, mayHavePlan, planIsOpen, planRefusalLines, setConcept,
 } from "./adsPlan";
 
 const ID = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -55,6 +55,8 @@ const plan = (n = 4): CampaignPlan => ({
     angle({ hook_family: "straight_talk", scene_family: "abstract_plate", idea: "Say plainly who the job is for and where it runs.", evidence: ["job:subject"] }),
   ].slice(0, n),
 });
+/** What the carrier can make: the four kinds the plan uses, and one more. */
+const CONCEPTS = [...plan().angles.map((a) => ({ hook_family: a.hook_family, scene_family: a.scene_family })), { hook_family: "pay_first" as const, scene_family: "cab_pov" as const }];
 const view = (over: Partial<AdsCampaignPlanView> = {}): AdsCampaignPlanView => ({
   id: PLAN_ID, version: 1, plan: plan(), author_kind: "agent", author_name: null, created_at: "2026-11-15T18:30:00Z",
   evidence: [
@@ -79,18 +81,31 @@ beforeEach(() => {
   state.campaign = null;
   api.calls = [];
   api.failNext = null;
-  state.read = { plan: view() };
+  state.read = { plan: view(), concepts: CONCEPTS };
   state.enabled = [];
   toasts.success = [];
   toasts.error = [];
 });
 
 describe("adsPlan — the contract decides, this words it", () => {
-  it("every hook, scene and kind of fact has office words, read from the contract's own lists", () => {
-    expect(HOOK_OPTIONS.map((o) => o.value)).toEqual([...AD_HOOK_FAMILIES]);
-    expect(SCENE_OPTIONS.map((o) => o.value)).toEqual([...AD_SCENE_FAMILIES]);
-    for (const o of [...HOOK_OPTIONS, ...SCENE_OPTIONS]) expect(o.label).toMatch(/^[A-Z]/);
+  it("every kind of fact has office words, and every lead and picture pair has a label and a key that reads back", () => {
     for (const k of PLAN_EVIDENCE_KINDS) expect(EVIDENCE_KIND_LABEL[k]).toBeTruthy();
+    for (const hook_family of AD_HOOK_FAMILIES) for (const scene_family of AD_SCENE_FAMILIES) {
+      const a = angle({});
+      setConcept(a, conceptKey({ hook_family, scene_family }));
+      expect([a.hook_family, a.scene_family]).toEqual([hook_family, scene_family]);
+      expect(conceptLabel({ hook_family, scene_family })).toMatch(/^[A-Z].*, picture: /);
+    }
+    const kept = angle({});
+    setConcept(kept, "nonsense+cab_pov");
+    expect(kept.hook_family).toBe("pay_first");
+  });
+
+  it("an idea is offered the kinds of ad the carrier can make, and its own kind marked if that can no longer be made", () => {
+    expect(conceptOptions(CONCEPTS, angle({})).map((o) => o.value)).toEqual(CONCEPTS.map(conceptKey));
+    const gone = conceptOptions(CONCEPTS, angle({ hook_family: "proof", scene_family: "cab_pov" }));
+    expect(gone).toHaveLength(CONCEPTS.length + 1);
+    expect(gone[0]).toEqual({ value: "proof+cab_pov", label: "Proof, picture: from the cab (cannot be made now)" });
   });
 
   it("a plan can exist from plan review onward, and is open only in plan review", () => {
@@ -144,6 +159,7 @@ describe("adsPlan — the contract decides, this words it", () => {
       { kind: "unknown_evidence", where: "angle 1", id: "market:x" },
       { kind: "format_not_built", where: "angle 4", format: "motion" },
       { kind: "claim", where: "angle 2 why", finding: "term_not_in_brief", text: "sign-on bonus" },
+      { kind: "concept_not_available", where: "angle 3" },
       { kind: "new_rule", where: "angle 1", message: "The door's own sentence." },
     ], off_schema: null })).toEqual([
       'Who the ads speak to names pay the opening does not offer ("$0.80").',
@@ -152,6 +168,7 @@ describe("adsPlan — the contract decides, this words it", () => {
       "Idea 1 rests on a fact that is not in this plan's list.",
       "Idea 4 asks for a kind of ad that cannot be made yet.",
       'Idea 2, why this idea promises something the opening does not offer ("sign-on bonus").',
+      "Idea 3 is a kind of ad with no enabled preset. Choose another kind, or enable its preset in Settings.",
       "The door's own sentence.",
     ]);
     expect(planRefusalLines({ findings: [], off_schema: "plan: invalid" })).toEqual(["The plan is incomplete. Fill every part of it."]);
@@ -185,7 +202,7 @@ describe("AdsCampaignPlan — reading", () => {
   });
 
   it("a campaign with no plan (made before planning existed) shows nothing rather than an empty plan", () => {
-    state.read = { plan: null };
+    state.read = { plan: null, concepts: [] };
     const w = show("review");
     expect(w.find("[data-test='plan-author']").exists()).toBe(false);
     expect(w.find("[data-test='plan-edit']").exists()).toBe(false);
@@ -217,7 +234,7 @@ describe("the drawer — Approve is its primary action while the plan waits for 
     who.manages = false;
     expect(drawer().find("[data-test='plan-approve']").exists()).toBe(false);
     who.manages = true;
-    state.read = { plan: null };
+    state.read = { plan: null, concepts: [] };
     expect(drawer().find("[data-test='plan-approve']").exists()).toBe(false);
   });
 
@@ -253,7 +270,7 @@ describe("AdsCampaignPlan — editing", () => {
     const w = show();
     await w.get("[data-test='plan-edit']").trigger("click");
     await w.get("[data-test='plan-edit-audience']").setValue("Regional flatbed drivers who are tired of unpredictable weeks away from home.");
-    await w.get("[data-test='plan-edit-scene-0']").setValue("cab_pov");
+    await w.get("[data-test='plan-edit-concept-0']").setValue("pay_first+cab_pov");
     await w.get("[data-test='plan-edit-save']").trigger("click");
     await flushPromises();
     const want = plan();

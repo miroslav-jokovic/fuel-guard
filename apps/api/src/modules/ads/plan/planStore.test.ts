@@ -52,8 +52,10 @@ function world(rows: PlanRow[], opts: { writeError?: unknown; afterWrite?: PlanR
   });
   return rec;
 }
-const agentInput = (over: Partial<Parameters<typeof storeAgentPlan>[1]> = {}) => ({ orgId: ORG, campaignId: CAMPAIGN, generationId: "g-1", plan: sound, evidence, brief, ...over });
-const personInput = (over: Partial<Parameters<typeof storePersonPlan>[1]> = {}) => ({ orgId: ORG, campaignId: CAMPAIGN, basedOnVersion: 1, author: { id: "u-1", name: "Koni" }, plan: sound, brief, ...over });
+/** The carrier can make exactly the sound plan's three kinds of ad. */
+const concepts = sound.angles.map((a) => ({ hook_family: a.hook_family, scene_family: a.scene_family }));
+const agentInput = (over: Partial<Parameters<typeof storeAgentPlan>[1]> = {}) => ({ orgId: ORG, campaignId: CAMPAIGN, generationId: "g-1", plan: sound, evidence, brief, concepts, ...over });
+const personInput = (over: Partial<Parameters<typeof storePersonPlan>[1]> = {}) => ({ orgId: ORG, campaignId: CAMPAIGN, basedOnVersion: 1, author: { id: "u-1", name: "Koni" }, plan: sound, brief, concepts, ...over });
 
 describe("storeAgentPlan", () => {
   it("writes the Strategist's plan as version 1 with its evidence and its generation, naming the org", async () => {
@@ -144,6 +146,16 @@ describe("storePersonPlan", () => {
     const rec = world([stored({})]);
     const out = await storePersonPlan(rec.client, personInput({ plan: { ...sound, audience_evidence: ["swipe:mine"] } }));
     expect(out).toMatchObject({ kind: "refused", findings: [{ kind: "unknown_evidence", where: "audience", id: "swipe:mine" }] });
+  });
+});
+
+describe("the store holds a plan to the kinds of ad the carrier can make", () => {
+  it("the agent's and a person's plan are both refused for an angle no enabled preset can make", async () => {
+    const fewer = concepts.slice(0, 2);
+    expect(await storeAgentPlan(world([]).client, agentInput({ concepts: fewer }))).toMatchObject({ kind: "refused", findings: [{ kind: "concept_not_available", where: "angle 3" }] });
+    const rec = world([stored({})]);
+    expect(await storePersonPlan(rec.client, personInput({ concepts: fewer }))).toMatchObject({ kind: "refused", findings: [{ kind: "concept_not_available", where: "angle 3" }] });
+    expect(rec.writes()).toEqual([]);
   });
 });
 

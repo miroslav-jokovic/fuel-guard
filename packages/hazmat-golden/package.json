@@ -12,7 +12,7 @@
   "dependencies": {
     "@hazmat/engine": "workspace:*",
     "@hazmat/data": "workspace:*",
-    "zod": "4.4.3",
+    "zod": "4.6.7",
     "yaml": "^2.5.0"
   },
   "devDependencies": {

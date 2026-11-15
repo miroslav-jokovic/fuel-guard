@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { campaignPlanSchema, checkPlan, evidencePackSchema, type AdBrief, type CampaignPlan, type EvidencePack, type PlanFinding } from "@silvicom/shared";
+import { campaignPlanSchema, checkPlan, evidencePackSchema, type AdBrief, type CampaignPlan, type EvidencePack, type PlanConcept, type PlanFinding } from "@silvicom/shared";
 
 /**
  * The ONE writer of `ads_campaign_plans` (0606; ADS-PLATFORM-V2-PLAN V2c). A plan is a VERSION: the
@@ -74,12 +74,12 @@ async function planByGeneration(admin: SupabaseClient, orgId: string, campaignId
   return (data as PlanRow | null) ?? null;
 }
 
-function refusal(plan: unknown, evidence: unknown, brief: Pick<AdBrief, "claims">): { plan: CampaignPlan; evidence: EvidencePack } | Extract<StorePlanOutcome, { kind: "refused" }> {
+function refusal(plan: unknown, evidence: unknown, brief: Pick<AdBrief, "claims">, concepts: readonly PlanConcept[]): { plan: CampaignPlan; evidence: EvidencePack } | Extract<StorePlanOutcome, { kind: "refused" }> {
   const p = campaignPlanSchema.safeParse(plan);
   if (!p.success) return { kind: "refused", findings: [], off_schema: `plan: ${p.error.issues[0]?.message ?? "invalid"}` };
   const e = evidencePackSchema.safeParse(evidence);
   if (!e.success) return { kind: "refused", findings: [], off_schema: `evidence: ${e.error.issues[0]?.message ?? "invalid"}` };
-  const findings = checkPlan(p.data, e.data, brief);
+  const findings = checkPlan(p.data, e.data, brief, concepts);
   return findings.length > 0 ? { kind: "refused", findings, off_schema: null } : { plan: p.data, evidence: e.data };
 }
 
@@ -91,11 +91,13 @@ export interface AgentPlanInput {
   plan: unknown;
   evidence: unknown;
   brief: Pick<AdBrief, "claims">;
+  /** The kinds of ad the carrier can make (`plan/concepts.ts`): an angle outside them is refused. */
+  concepts: readonly PlanConcept[];
 }
 
 /** The Strategist's plan, as the campaign's next version (1 on the first planning, n+1 after a `replan`). */
 export async function storeAgentPlan(admin: SupabaseClient, input: AgentPlanInput): Promise<StorePlanOutcome> {
-  const checked = refusal(input.plan, input.evidence, input.brief);
+  const checked = refusal(input.plan, input.evidence, input.brief, input.concepts);
   if ("kind" in checked) return checked;
   const done = await planByGeneration(admin, input.orgId, input.campaignId, input.generationId);
   if (done) return { kind: "stored", plan: done, replayed: true };
@@ -121,13 +123,14 @@ export interface PersonPlanInput {
   author: { id: string; name: string };
   plan: unknown;
   brief: Pick<AdBrief, "claims">;
+  concepts: readonly PlanConcept[];
 }
 
 /** A person's edited plan, as the version after the one they edited, on that version's evidence. */
 export async function storePersonPlan(admin: SupabaseClient, input: PersonPlanInput): Promise<StorePlanOutcome> {
   const latest = await latestPlan(admin, input.orgId, input.campaignId);
   if (!latest || latest.version !== input.basedOnVersion) return { kind: "stale", latest: latest?.version ?? null };
-  const checked = refusal(input.plan, latest.evidence, input.brief);
+  const checked = refusal(input.plan, latest.evidence, input.brief, input.concepts);
   if ("kind" in checked) return checked;
 
   const { data, error } = await admin.from("ads_campaign_plans").insert({
