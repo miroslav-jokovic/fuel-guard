@@ -79,6 +79,17 @@
         "why": "D-APP2 \u2014 a half-typed §391.21 form holding PII for somebody who never applied. 90d rule predates this plan."
       }
     },
+    "application_ask_agains": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "new in 0607 (2026-11-14, F5); one row per question the office sends back to an applicant, at most 5 open per application (ASK_AGAIN_MAX_OPEN); kept with the application like application_edits and deleted with its invitation."
+      }
+    },
     "application_edits": {
       "module": "recruiting",
       "layer": "core",

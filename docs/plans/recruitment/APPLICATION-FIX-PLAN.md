@@ -243,6 +243,8 @@ A gate fails on a literal string in an `apply/` template.
 | Q-AM20 | The signed packet prints the full SSN (Q-AM3), but only admin and safety may see all nine digits (Q-AM17). The filed packet is a stored document that recruiters open, so a full SSN on it reaches the readers Q-AM17 keeps it from. Which wins, and how? | ANSWERED 2026-11-12 (owner, "as proposed"): **(a)**. The stored packet prints the last four (`•••-••-1234`). A holder of "See the full SSN" gets the full packet rendered on demand from the sealed number, never stored. The office preview masks for non-holders the same way. The driver sees their own full number on the signing pages | — |
 | Q-AM21 | Page 21 returns to the signing packet (Q-AM4). Should the signed page 21 also be a row of the roster's `seven_day_statements` (0236)? | ANSWERED 2026-11-12 (owner): **(a) yes**. Filing writes it through `record_application_seven_day_statement` (0591): `source = application`, the filed application named and unique, written once. The roster section shows it as the current statement, and the roster form stays for a start date too long after signing | — |
 | Q-AM22 | The other names are a list of plain STRINGS (`other_names: string[]`), so a row had nowhere to hold Q-AM15's key, and an office correction to one was named by position. Key them? | ANSWERED 2026-11-13 (owner, "as recommended"): **(b)**, keyed in the DRAFT only, as `{ name, key }`. The form's filing and the preview's composition hand on the names, so the certified shape, the packet and `drivers` stay as they are | — |
+| Q-AM23 | Q-AM5 ruled "phone **or** email". Read against the code on 2026-11-14: the signed application requires BOTH today (`driverApplicationSchema`), so a driver with no email cannot send at all; the carrier's paper asks "Phone #" and has no applicant e-mail field; and a driver with no phone is not sent to Med-Stop (it requires `phone1`), cannot be texted, and prints a blank "Phone #". Which is built? | (a) e-mail optional ("I don't have email"), phone stays required; (b) phone or email as ruled, a phone-less driver added to Med-Stop by hand and reached by e-mail only | **(a)**: it removes the block that exists, and matches the paper |
+| Q-AM24 | A permit (CLP) holder: the class is the roster's `CDL_CLASSES` (A, B, C), written to `drivers.cdl_class`, and Med-Stop requires a class. The paper asks no class | (a) the permit holder picks the class they are training for, and the office reads "permit" from the license kind; (b) add CLP to the roster's class list (roster, Med-Stop and every class reader change) | **(a)** |
 
 ## 6. Size and order
 
@@ -910,3 +912,24 @@ A gate fails on a literal string in an `apply/` template.
   - **Not said** once Med-Stop holds the person, once a create was attempted (that line is Med-Stop's own answer), or while Med-Stop is not connected.
   - **Proof:** shared (+2), API (+7), the card (+2); 9 of 9 mutants killed, one only after its test was added (the reason was dropped exactly where Med-Stop holds nobody, the case the line exists for).
   - **Next:** phone or email (Q-AM5), now that a driver with no phone produces a line the office can read.
+- 2026-11-14: **The Med-Stop reason merged** (#2381). **Phone-or-email is stopped on Q-AM23** (§5), and the permit class on Q-AM24: both are owner decisions about what the signed application requires, and neither is built.
+- 2026-11-14: **F5, designed before building** (`claude/application-ask-again`). The plan held one line for it; this is the design.
+  - **Today:** once the driver presses Send, their page is a wait screen until the office approves. The office can correct an answer itself, and cannot ask the driver anything.
+  - **What "ask again" is:** the office marks one answer on the Applicant facts card and writes one line to the driver ("Which month did you leave Old Carrier?"). The driver's link then opens on "Silvicom has a question" instead of the wait screen, with the office's words and a button that opens that one question's screen. Their answer saves as any answer does; "Send my answer" closes the question and tells the office.
+  - **The record:** a new table, one row per question asked: the answer's path (as `application_edits` names it), the office's words, who asked and when, and when it was answered or withdrawn. Audited both ways.
+  - **Rules:**
+    - **Window:** from the driver's Send until the office approves. Approval sends the document to signing, and waits on open questions.
+    - **Approval waits:** the office cannot approve while a question is open; it withdraws it or waits.
+    - **Part 2 answers only, at first.** Part 1's answers are frozen to the driver once the first visit ends (0376, AI008), so a question about one would open a screen that cannot save. The office corrects those itself, as today.
+    - **The driver is told** by the same e-mail and text the application's other steps use.
+  - **Stages:** (1) the table and the office's ask, withdraw and list, with approval's refusal; (2) the driver's screen and answer; (3) the e-mail and text.
+- 2026-11-14: **F5, stage 1: the office can ask, take back and list; approval waits** (`claude/application-ask-again`; **migration 0607**, a new table, so its writer ships with it). Nothing is shown to anybody yet: no office button and no driver screen.
+  - **The table** `application_ask_agains`: the answer's path, the office's words (1 to 500 characters), who and when, answered or taken back. One OPEN question per answer (a partial unique index), at most five open per application.
+  - **The API** (`applicationAskAgain.ts`): `GET`, `POST …/ask-again`, `POST …/ask-again/:id/withdraw` on the office's review routes; view to read, manage to ask, as corrections are.
+  - **What may be asked** is read from where Part 1's and the identity's keys are defined (`canAskAgain`), not listed again: those are frozen to the driver after the first visit, and the office corrects them itself.
+  - **Approval refuses while a question is open** ("2 questions are still waiting for the applicant's answer…").
+  - **Removed while building:** a "has signing started" check on asking. It could never be reached (a packet mark cannot exist before an approval, and approval already ends the window); a mutant of it survived for that reason.
+  - **Registered:** `table-modules.json`, `table-writers.json`, the RLS and purge matrices' seeds. No retention rule: it is kept with the application, like `application_edits`.
+  - **Proof:** API (+15), matrix `application-ask-agains` (18), 13 of 13 reachable mutants killed.
+  - **Next:** stage 2, the driver's screen and answer, and the office's button on the facts card.
+

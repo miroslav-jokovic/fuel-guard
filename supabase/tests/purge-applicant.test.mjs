@@ -190,6 +190,9 @@ async function seedApplicant(org, name) {
   await db.query(
     `insert into application_unlock_codes (org_id, invitation_id, channel, code_hash, expires_at, used_at)
      values ($1,$2,'email',repeat('a',64),now() + interval '10 minutes',now())`, [org, inv]);
+  // 0607 (F5): a question the office sent back leaves with the invitation the same way.
+  await db.query(
+    `insert into application_ask_agains (org_id, invitation_id, path, question) values ($1,$2,'["experience"]','How many years?')`, [org, inv]);
   // 0604 (U2): a remembered device leaves with the invitation the same way (on delete cascade).
   await db.query(
     `insert into application_trusted_devices (org_id, invitation_id, token_hash, earned_by, expires_at)
