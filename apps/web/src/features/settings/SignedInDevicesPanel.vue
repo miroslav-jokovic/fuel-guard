@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { formatDisplayDateTime } from "@silvicom/shared";
 import { AppButton as BaseButton, QueryState } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
+import SignedInDeviceList from "./SignedInDeviceList.vue";
 import { useSignedInDevices, useSignedInDevicesPanel } from "./useSignedInDevices";
 
 /**
@@ -30,7 +30,7 @@ async function act(fn: () => Promise<unknown>, done: string) {
     await fn();
     note.value = done;
   } catch (e) {
-    note.value = e instanceof Error ? e.message : "That did not work. Try again.";
+    note.value = e instanceof Error ? e.message : "Could not sign that device out.";
   }
 }
 </script>
@@ -45,28 +45,7 @@ async function act(fn: () => Promise<unknown>, done: string) {
       error-text="Could not load your devices."
       @retry="list.refetch()"
     >
-      <ul class="divide-y divide-edge-subtle" data-testid="signed-in-devices">
-        <li v-for="d in devices" :key="d.id" class="flex items-start justify-between gap-3 py-3">
-          <div class="min-w-0">
-            <p class="text-sm font-semibold text-ink">
-              {{ d.device }}
-              <span v-if="d.current" class="ml-1 text-xs font-medium text-ink-muted">This device</span>
-            </p>
-            <p class="mt-0.5 text-xs text-ink-muted">Last used {{ formatDisplayDateTime(d.last_used_at) }}<template v-if="d.ip"> · {{ d.ip }}</template></p>
-            <p class="mt-0.5 text-xs text-ink-tertiary">Signed in {{ formatDisplayDateTime(d.created_at) }}</p>
-          </div>
-          <BaseButton
-            v-if="!d.current"
-            size="sm"
-            variant="secondary"
-            :disabled="busy"
-            :aria-label="`Sign out ${d.device}, last used ${formatDisplayDateTime(d.last_used_at)}`"
-            @click="act(() => endOne.mutateAsync(d.id), `${d.device} is signed out.`)"
-          >
-            Sign out
-          </BaseButton>
-        </li>
-      </ul>
+      <SignedInDeviceList :devices="devices" :busy="busy" @end="(d) => act(() => endOne.mutateAsync(d.id), `${d.device} is signed out.`)" />
       <p v-if="devices.length > 0 && others.length === 0" class="mt-2 text-sm text-ink-muted">You are signed in on this device only.</p>
       <BaseButton
         v-if="others.length > 1"

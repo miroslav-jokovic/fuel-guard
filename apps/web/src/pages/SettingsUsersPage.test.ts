@@ -254,6 +254,20 @@ describe("SettingsUsersPage — suspend, reinstate, remove", () => {
     w2.unmount();
   });
 
+  it("opens a member's signed-in devices from their row — and one's own, which no access act is offered on", async () => {
+    const w = mountPage();
+    await flushPromises();
+    expect(await menuOf(w, "shop@silvicom.test")).toContain("Signed-in devices…");
+    await pick("Signed-in devices…");
+    expect(calls.some((c) => c.path === "/api/members/u-tech/sessions" && !c.init?.method)).toBe(true);
+    expect(calls.some((c) => c.path.endsWith("/password-reset"))).toBe(false);
+    w.unmount();
+    const w2 = mountPage();
+    await flushPromises();
+    expect(await menuOf(w2, "boss@silvicom.test")).toContain("Signed-in devices…");
+    w2.unmount();
+  });
+
   it("offers no access act on yourself, or on a driver-app login", async () => {
     const w = mountPage();
     await flushPromises();
