@@ -10,7 +10,7 @@ import {
   type ApplicationReviewState,
 } from "@silvicom/shared";
 import { formatDateTime } from "@/lib/format";
-import { useAskAgainListQuery, useAskApplicantAgain, useWithdrawAskAgain } from "./useAskAgainOffice";
+import { askAgainNoticeText, useAskAgainListQuery, useAskApplicantAgain, useWithdrawAskAgain } from "./useAskAgainOffice";
 
 /**
  * "Ask the applicant" under one answer of the facts card (APPLICATION-FIX-PLAN.md F5).
@@ -25,9 +25,9 @@ import { useAskAgainListQuery, useAskApplicantAgain, useWithdrawAskAgain } from 
  * A question already waiting on this answer, in the office's words, with "Take it back"; the last
  * answered one, so the office sees the applicant replied; otherwise the way to ask.
  *
- * ⚠ The hint says the applicant is NOT told automatically. That is true until F5's stage 3 (the e-mail
- * and text) ships, and the sentence goes with it — an office that believed a notice went would wait
- * on an applicant who has no reason to open their link.
+ * After a question is sent the row says what became of telling the applicant (`askAgainNoticeText`):
+ * e-mailed and to where, or not, and then to text or call — an office that believed a notice went would
+ * wait on an applicant who has no reason to open their link. No text message goes yet.
  *
  * The row is named by its KEY (`keyedEditPath`), as a correction is, so the question stays on its row
  * when the applicant adds or removes one above it.
@@ -58,12 +58,14 @@ const offered = computed(() => props.canAsk && props.state === "awaiting_review"
 const writing = ref(false);
 const words = ref("");
 const problem = ref<string | null>(null);
+/** What became of the notice for the question just sent — said on the row until it is closed. */
+const told = ref<string | null>(null);
 
 async function send(): Promise<void> {
   problem.value = null;
   try {
-    await ask.mutateAsync({ path: keyed.value, question: words.value.trim() });
-    [writing.value, words.value] = [false, ""];
+    const asked = await ask.mutateAsync({ path: keyed.value, question: words.value.trim() });
+    [writing.value, words.value, told.value] = [false, "", askAgainNoticeText(asked.notice)];
   } catch (e) {
     problem.value = (e as Error).message;
   }
@@ -79,7 +81,7 @@ async function takeBack(questionId: string): Promise<void> {
 </script>
 
 <template>
-  <div v-if="waiting || answered || offered" class="mt-1 space-y-2" data-ask-again>
+  <div v-if="waiting || answered || offered || told" class="mt-1 space-y-2" data-ask-again>
     <div v-if="waiting" class="rounded-surface bg-surface-muted p-2 text-xs" data-ask-waiting>
       <p class="font-medium text-ink">Waiting for the applicant's answer</p>
       <p class="mt-0.5 whitespace-pre-line break-words text-ink-secondary">You asked: {{ waiting.question }}</p>
@@ -98,7 +100,7 @@ async function takeBack(questionId: string): Promise<void> {
       <div v-else class="space-y-2 rounded-surface bg-surface-muted p-3">
         <FormField
           :label="`Your question about “${label}”`"
-          hint="The applicant reads exactly this when they next open their link, then opens this answer to change it. They are not told automatically yet: text or call them to open it."
+          hint="The applicant is e-mailed that a question is waiting — not your words, which they read on their own link. No text message is sent."
         >
           <template #default="f">
             <BaseTextarea v-bind="f" v-model="words" rows="2" :maxlength="ASK_AGAIN_QUESTION_MAX" data-ask-words />
@@ -110,6 +112,8 @@ async function takeBack(questionId: string): Promise<void> {
         </div>
       </div>
     </template>
+    <!-- Its own line, not part of the waiting block: said the moment the send answers, before the list is re-read. -->
+    <p v-if="told" class="text-xs text-ink-secondary" role="status" data-ask-told>{{ told }}</p>
     <p v-if="problem" class="text-sm text-danger-700" role="alert">{{ problem }}</p>
   </div>
 </template>

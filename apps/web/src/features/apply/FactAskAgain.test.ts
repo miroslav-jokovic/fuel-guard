@@ -10,9 +10,11 @@ vi.mock("./useAskAgainOffice", async () => {
     useAskAgainListQuery: () => ({ data: r(hooks.list) }),
     useAskApplicantAgain: () => ({ mutateAsync: hooks.ask, isPending: r(false) }),
     useWithdrawAskAgain: () => ({ mutateAsync: hooks.withdraw, isPending: r(false) }),
+    askAgainNoticeText: (await vi.importActual<typeof import("./useAskAgainOffice")>("./useAskAgainOffice")).askAgainNoticeText,
   };
 });
 const FactAskAgain = (await import("./FactAskAgain.vue")).default;
+const { askAgainNoticeText } = await vi.importActual<typeof import("./useAskAgainOffice")>("./useAskAgainOffice");
 
 /**
  * "Ask the applicant" under one answer of the office's facts card (F5, 0607).
@@ -59,7 +61,7 @@ describe("when it is offered", () => {
 
 describe("asking", () => {
   it("sends the office's words, trimmed, and closes the box", async () => {
-    hooks.ask.mockResolvedValue(q());
+    hooks.ask.mockResolvedValue({ question: q(), notice: null });
     const w = show();
     await button(w, "Ask the applicant")!.trigger("click");
     expect(button(w, "Send the question")!.attributes("disabled")).toBeDefined();
@@ -71,7 +73,7 @@ describe("asking", () => {
   });
 
   it("⚠ names a row by its key, not its place", async () => {
-    hooks.ask.mockResolvedValue(q());
+    hooks.ask.mockResolvedValue({ question: q(), notice: null });
     const w = show({ path: ["accidents", 1, "nature"], label: "Accident 2 · What happened" });
     await button(w, "Ask the applicant")!.trigger("click");
     await w.find("[data-ask-words]").setValue("Which dock?");
@@ -127,3 +129,35 @@ describe("a question already asked", () => {
     expect(button(w, "Ask the applicant")).toBeDefined();
   });
 });
+
+/** Stage 3: after sending, the office reads what became of telling the applicant. */
+describe("what became of telling the applicant", () => {
+  it("says each outcome in a sentence the office can act on", () => {
+    expect(askAgainNoticeText({ sent: true, email: "s@example.test", reason: null })).toBe("Sent. s@example.test was e-mailed that a question is waiting.");
+    expect(askAgainNoticeText({ sent: false, email: null, reason: "no_address" })).toMatch(/no e-mail address.*Text or call/);
+    expect(askAgainNoticeText({ sent: false, email: "s@example.test", reason: "send_failed" })).toMatch(/did not go.*Text or call/);
+    expect(askAgainNoticeText({ sent: false, email: "s@example.test", reason: "mail_disabled" })).toMatch(/did not go/);
+    expect(askAgainNoticeText(null)).toBe("Sent. They were already told a question is waiting.");
+  });
+
+  it("⚠ shows it on the row as soon as the question is sent", async () => {
+    hooks.ask.mockResolvedValue({ question: q(), notice: { sent: false, email: null, reason: "no_address" } });
+    const w = show();
+    await button(w, "Ask the applicant")!.trigger("click");
+    await w.find("[data-ask-words]").setValue("How many years?");
+    await button(w, "Send the question")!.trigger("click");
+    await flushPromises();
+    expect(w.find("[data-ask-told]").text()).toMatch(/not e-mailed.*Text or call/);
+  });
+
+  it("says nothing of a notice when the question was refused", async () => {
+    hooks.ask.mockImplementation(() => Promise.reject(new Error("refused")));
+    const w = show();
+    await button(w, "Ask the applicant")!.trigger("click");
+    await w.find("[data-ask-words]").setValue("How many years?");
+    await button(w, "Send the question")!.trigger("click");
+    await flushPromises();
+    expect(w.find("[data-ask-told]").exists()).toBe(false);
+  });
+});
+

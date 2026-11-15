@@ -26,13 +26,31 @@ export function useAskAgainListQuery(invitationId: Ref<string | null>) {
   });
 }
 
+/**
+ * What became of telling the applicant (stage 3). Reported, never thrown: the question is stored
+ * either way. Null when nothing was sent by design — a question was already waiting, so they were told.
+ */
+export interface AskAgainNotice {
+  sent: boolean;
+  email: string | null;
+  reason: string | null;
+}
+
+/** The sentence the office reads after sending a question: where the notice went, or what to do instead. */
+export function askAgainNoticeText(notice: AskAgainNotice | null | undefined): string {
+  if (!notice) return "Sent. They were already told a question is waiting.";
+  if (notice.sent) return `Sent. ${notice.email} was e-mailed that a question is waiting.`;
+  if (notice.reason === "no_address") return "Sent, but not e-mailed: there is no e-mail address on this application. Text or call them to open their link.";
+  return "Sent, but the e-mail did not go. Text or call them to open their link.";
+}
+
 export function useAskApplicantAgain(invitationId: Ref<string | null>) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: AskAgain): Promise<AskAgainView> => {
-      const res = await apiFetch<{ question: AskAgainView }>(base(invitationId.value ?? ""), { method: "POST", body: input });
+    mutationFn: async (input: AskAgain): Promise<{ question: AskAgainView; notice: AskAgainNotice | null }> => {
+      const res = await apiFetch<{ question: AskAgainView; notice?: AskAgainNotice | null }>(base(invitationId.value ?? ""), { method: "POST", body: input });
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "The question could not be sent.");
-      return res.data.question;
+      return { question: res.data.question, notice: res.data.notice ?? null };
     },
     onSettled: () => void qc.invalidateQueries({ queryKey: key(invitationId.value ?? "") }),
   });
