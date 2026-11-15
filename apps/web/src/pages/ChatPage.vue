@@ -5,6 +5,7 @@ import { chatTitle, isRecordId, type ChatFileRef, type ChatMuteLevel, type ChatT
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useModulesQuery } from "@/composables/useModules";
+import { PAGE_GUTTER_CLASS } from "@/lib/layout";
 import { AppCard as BaseCard, QueryState } from "@silvicom/ui";
 import ChatRail from "@/features/chat/ChatRail.vue";
 import ChatConversationStage from "@/features/chat/ChatConversationStage.vue";
@@ -68,6 +69,8 @@ const router = useRouter();
 const modules = useModulesQuery();
 const entitlementKnown = computed(() => modules.data.value !== undefined);
 const entitled = computed(() => modules.data.value?.has("messages") ?? false);
+/** The plan has answered and chat is not in it: the page is a notice, not a chat (see the template). */
+const notInPlan = computed(() => entitlementKnown.value && !entitled.value);
 // CH12: "Catch me up" in every conversation and channel menu, only while the carrier has `chat_ai` (D-CHAT37).
 provideChatCatchup(computed(() => entitled.value && (modules.data.value?.has("chat_ai") ?? false)));
 
@@ -248,7 +251,12 @@ useChatShortcuts((s) => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 bg-surface">
+  <!-- The white stage is the chat's own (D-CHATUI1). An organization without the module gets no stage:
+       its one notice sits on the page's normal background, inside the page gutter and as wide as it,
+       as Driver messages draws the same sentence. It used to be a content-wide card on an empty white
+       page (small-screens audit, 2026-11-15) — full bleed means this page supplies what the shell
+       otherwise would. -->
+  <div class="flex h-full min-h-0" :class="notInPlan ? '' : 'bg-surface'">
     <div v-if="!entitlementKnown" class="flex flex-1 items-center justify-center p-6">
       <QueryState
         :loading="modules.isPending.value && !modules.isError.value"
@@ -259,7 +267,7 @@ useChatShortcuts((s) => {
         @retry="modules.refetch()"
       />
     </div>
-    <div v-else-if="!entitled" class="p-6">
+    <div v-else-if="!entitled" data-test="chat-not-in-plan" class="w-full py-6" :class="PAGE_GUTTER_CLASS">
       <BaseCard><p class="text-sm text-ink-muted">Chat isn't part of your plan. Contact Silvicom 360 to enable it.</p></BaseCard>
     </div>
 
