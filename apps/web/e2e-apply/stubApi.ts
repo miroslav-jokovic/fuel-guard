@@ -348,6 +348,15 @@ export async function stubApi(page: Page, bundle: Json): Promise<Stub> {
       const remembered = (body as { remember_device?: boolean } | null)?.remember_device === true ? { deviceToken: STUB_DEVICE_TOKEN } : {};
       return json(route, 200, { draft: { ...(state.bundle.draft as Json), locked: false, payload: state.draft.payload ?? {}, revision: state.draft.revision, ...remembered } });
     }
+    // F5 (0607): "Send my answer" closes the question; the next read of the link no longer serves it.
+    const answered = /^\/ask-again\/([^/]+)\/answer$/.exec(rest);
+    if (method === "POST" && answered) {
+      const open = ((state.bundle.askAgain as Json[] | undefined) ?? []);
+      const found = open.find((q) => q.id === answered[1]);
+      if (!found) return json(route, 409, { error: { code: "question_not_open", message: "That question is not waiting for an answer any more." } });
+      state.bundle = { ...state.bundle, askAgain: open.filter((q) => q !== found) };
+      return json(route, 200, { question: { ...found, answeredAt: NOW } });
+    }
     if (method === "POST" && rest === "/unlock-device") {
       if ((body as { device_token?: string } | null)?.device_token !== STUB_DEVICE_TOKEN) {
         return json(route, 422, { error: { code: "device_not_known", message: "This device is not remembered for this application. Enter your date of birth." } });

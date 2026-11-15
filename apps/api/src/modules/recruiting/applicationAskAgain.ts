@@ -9,6 +9,7 @@ import {
   type ApplicationPath,
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
+import { ALREADY_SUBMITTED, isIntakeError, resolveInvitation, type IntakeError } from "./applicationIntake.js";
 
 /**
  * The office asks the driver one question again (APPLICATION-FIX-PLAN.md F5; 0607) — the office's half:
@@ -174,3 +175,63 @@ export async function withdrawAskAgain(
   });
   return view(taken);
 }
+
+// ── the driver's half ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * The questions still waiting on the driver, for their own page (`GET /:token`). The office's words and
+ * which answer — never who asked: which member of staff typed it is the carrier's internal record
+ * (`ApplicantVisibleEdit`'s rule, for the same reason).
+ */
+export async function openAskAgainsForApplicant(admin: SupabaseClient, orgId: string, invitationId: string): Promise<AskAgainView[]> {
+  return (await listAskAgains(admin, orgId, invitationId)).filter(askAgainIsOpen);
+}
+
+export const QUESTION_NOT_WAITING: IntakeError = {
+  code: "question_not_open",
+  message: "That question is not waiting for an answer any more.",
+};
+
+/**
+ * "Send my answer" (`POST /:token/ask-again/:id/answer`): the driver says the answer on their
+ * application is now the one the office asked for. It stamps the question; the answer itself is in the
+ * draft, saved as every answer is — so the office reads it where it reads all the others, and an
+ * answer the driver did not change is still an answer ("it was right").
+ *
+ * ⚠ Stamped by the filters, once: a second tap, or a tap after the office took the question back, finds
+ * nothing open and says so rather than answering twice.
+ */
+export async function answerAskAgain(
+  admin: SupabaseClient,
+  token: string,
+  questionId: string,
+  now: Date,
+): Promise<AskAgainView | IntakeError> {
+  const invitation = await resolveInvitation(admin, token, now);
+  if (isIntakeError(invitation)) return invitation;
+  if (invitation.submitted_at) return ALREADY_SUBMITTED;
+
+  const { data, error } = await admin
+    .from("application_ask_agains")
+    .update({ answered_at: now.toISOString() })
+    .eq("org_id", invitation.org_id)
+    .eq("invitation_id", invitation.id)
+    .eq("id", questionId)
+    .is("answered_at", null)
+    .is("withdrawn_at", null)
+    .select(COLUMNS);
+  const answered = ((data ?? []) as Row[])[0];
+  if (error || !answered) return QUESTION_NOT_WAITING;
+
+  await writeAudit(admin, {
+    orgId: invitation.org_id,
+    // An applicant is not a user of this system (`requestReview`): the invitation is the actor's identity.
+    actorId: null,
+    action: "application_question_answered",
+    entity: "application_invitations",
+    entityId: invitation.id,
+    meta: { driverId: invitation.driver_id, questionId },
+  });
+  return view(answered);
+}
+

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { ASK_AGAIN_MAX_OPEN, canAskAgain } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
 import { loadEnv } from "../../env.js";
-import { askAgain, isAskAgainError, listAskAgains, openAskAgainCount, withdrawAskAgain } from "./applicationAskAgain.js";
+import {
+  answerAskAgain, askAgain, isAskAgainError, listAskAgains, openAskAgainCount, openAskAgainsForApplicant, withdrawAskAgain,
+} from "./applicationAskAgain.js";
+import { hashInvitationToken, isIntakeError } from "./applicationIntake.js";
 import { approveApplication, isReviewError } from "./applicationReview.js";
 
 /**
@@ -166,3 +169,49 @@ describe("the list, and what approval reads", () => {
     expect(isReviewError(r)).toBe(false);
   });
 });
+
+/** The driver's half: what their page is served, and "Send my answer". */
+describe("the driver's side", () => {
+  const TOKEN = "i".repeat(43);
+  const live = (over: Record<string, unknown> = {}) => inv({
+    token_hash: hashInvitationToken(TOKEN), sign_token_hash: null, sms_token_hash: null, expires_at: "2026-12-01T00:00:00Z",
+    revoked_at: null, consented_at: "2026-11-01T00:00:00Z", ...over,
+  });
+
+  it("is served only the questions still waiting, with the office's words and never who asked", async () => {
+    const rec = seed({ asked: [q(), q({ id: "q-2", answered_at: "2026-11-13T12:00:00Z" }), q({ id: "q-3", withdrawn_at: "2026-11-13T12:00:00Z" })] });
+    const served = await openAskAgainsForApplicant(rec.client, ORG, INV);
+    expect(served.map((x) => x.id)).toEqual(["q-1"]);
+    expect(Object.keys(served[0]!).sort()).toEqual(["answeredAt", "askedAt", "id", "path", "question", "withdrawnAt"]);
+  });
+
+  it("⚠ stamps the question answered once, by the filters, and audits it with no actor", async () => {
+    const rec = seed({ inv: [live()], written: [q({ answered_at: NOW.toISOString() })] });
+    const r = await answerAskAgain(rec.client, TOKEN, "q-1", NOW);
+    expect(r).toMatchObject({ id: "q-1", answeredAt: NOW.toISOString() });
+    const w = writes(rec)[0]!;
+    expect(w.write!.payload).toEqual({ answered_at: NOW.toISOString() });
+    expect(w.ops.filter((o) => o.method === "is").map((o) => String(o.args[0])).sort()).toEqual(["answered_at", "withdrawn_at"]);
+    expect(w.ops.filter((o) => o.method === "eq").map((o) => `${String(o.args[0])}=${String(o.args[1])}`))
+      .toEqual(expect.arrayContaining([`org_id=${ORG}`, `invitation_id=${INV}`, "id=q-1"]));
+    const audit = audits(rec).find((a) => a.action === "application_question_answered")!;
+    expect(audit).toMatchObject({ actor_id: null, meta: { driverId: DRIVER, questionId: "q-1" } });
+  });
+
+  it("⚠ says so when the question was taken back or already answered, and audits nothing", async () => {
+    const rec = seed({ inv: [live()], written: [] });
+    const r = await answerAskAgain(rec.client, TOKEN, "q-1", NOW);
+    expect(isIntakeError(r) && r.code).toBe("question_not_open");
+    expect(audits(rec)).toHaveLength(0);
+  });
+
+  it("answers nothing on a filed application, or on a link that does not resolve", async () => {
+    const filed = seed({ inv: [live({ submitted_at: "2026-11-14T00:00:00Z" })] });
+    const a = await answerAskAgain(filed.client, TOKEN, "q-1", NOW);
+    expect(isIntakeError(a) && a.code).toBe("already_submitted");
+    expect(writes(filed)).toHaveLength(0);
+    const dead = await answerAskAgain(seed({ inv: [] }).client, TOKEN, "q-1", NOW);
+    expect(isIntakeError(dead) && dead.code).toBe("invalid_link");
+  });
+});
+

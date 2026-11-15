@@ -15,6 +15,20 @@ export const APPLY_FLOW_COPY_ES = {
     note: "Por ahora no hay nada más que hacer. Le enviaremos por correo electrónico un enlace nuevo para la solicitud; este dejará de funcionar cuando llegue.",
   },
 
+  askAgain: {
+    heading: (carrier: string, n: number): string =>
+      n === 1 ? `${sentenceCase(carrier)} tiene una pregunta para usted` : `${sentenceCase(carrier)} tiene ${n} preguntas para usted`,
+    intro: (carrier: string): string =>
+      `${sentenceCase(carrier)} está leyendo su solicitud y necesita esto de usted para continuar. Abra cada una, revise su respuesta y envíela.`,
+    about: "Sobre",
+    open: "Abrir mi respuesta",
+    openAgain: "Abrirla de nuevo",
+    send: "Enviar mi respuesta",
+    sending: "Enviando…",
+    failed: "Eso no se envió. Revise su señal e inténtelo de nuevo. Nada de lo que escribió se pierde.",
+    asked: (carrier: string): string => `${sentenceCase(carrier)} preguntó`,
+    done: "Listo — volver a la pregunta",
+  },
   handoff: {
     send: (carrier: string): string => `Enviar a ${carrier}`,
     sending: "Enviando…",

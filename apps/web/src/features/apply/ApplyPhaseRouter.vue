@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { toRef } from "vue";
+import { computed, toRef } from "vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import ApplicationFiledCard from "@/features/apply/ApplicationFiledCard.vue";
+import AskAgainScreen from "@/features/apply/AskAgainScreen.vue";
+import { askAgainIssue, type useAskAgain } from "@/features/apply/askAgain";
 import DraftUnlockGate from "@/features/apply/DraftUnlockGate.vue";
 import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
 import IdentityFields from "@/features/apply/IdentityFields.vue";
@@ -75,6 +77,8 @@ const props = defineProps<{
   invitation: ReturnType<typeof useApplyInvitationQuery>;
   submitted: boolean;
   awaitingReview: boolean;
+  /** F5: the office's open questions and the driver's two acts on them (`askAgain.ts`). */
+  ask: ReturnType<typeof useAskAgain>;
   expectationsNeeded: boolean;
   ceremonyAvailable: boolean;
   esignConsent: ApplyEsignConsent | null;
@@ -104,6 +108,8 @@ provideScreenEvents(toRef(props, "token"));
 // The dead card's words (Q-AW56 (e)). Here and not in the page: it reads the device, decides nothing
 // the page holds, and the card it feeds is this file's.
 const deadCopy = useLinkMemo(toRef(props, "token"), props.invitation);
+/** Each open question's answer, in the words its own screen prints above it. */
+const askLabels = computed(() => Object.fromEntries(props.ask.open.value.map((q) => [q.id, askAgainIssue(q, draft.value).label])));
 const emit = defineEmits<{
   begin: [];
   agree: [];
@@ -143,6 +149,22 @@ const emit = defineEmits<{
 
   <!-- F4/D-AX11: handed over, and not yet approved. The driver has done everything they can do for
        the moment, and the screen says so rather than leaving them on a form with a spent button. -->
+  <!-- F5 (0607): the office is waiting on the driver, so the wait screen is its questions. ⚠ Before the
+       date-of-birth gate, like the wait screens: it prints the office's words and which question, never an answer. -->
+  <BaseCard v-else-if="ask.asking.value">
+    <ApplyScreenMark name="wait.review" />
+    <AskAgainScreen
+      :carrier="invitation.data.value?.carrier ?? ''"
+      :questions="ask.open.value"
+      :labels="askLabels"
+      :opened="ask.opened.value"
+      :sending="ask.sending.value"
+      :failed="ask.failed.value"
+      @answer="ask.answer"
+      @send="ask.send"
+    />
+  </BaseCard>
+
   <BaseCard v-else-if="awaitingReview">
     <ApplyScreenMark name="wait.review" />
     <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :phases="invitation.data.value?.phases ?? null" :owes="invitation.data.value?.owes ?? []" :heading="APPLY_COPY.handoff.waitingHeading" :note="APPLY_COPY.handoff.waitingNote"
