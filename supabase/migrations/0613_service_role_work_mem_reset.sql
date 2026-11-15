@@ -1,0 +1,45 @@
+-- 0613: `service_role` loses the `work_mem` setting 0610 gave it. That setting took the production
+-- API off the database for 25 minutes on 2026-11-15 (17:43:28–18:08:51 UTC).
+--
+-- ── WHAT HAPPENED ───────────────────────────────────────────────────────────────────────────────
+-- 0610 ran `alter role service_role set work_mem = '16MB'`. PostgREST applies an impersonated
+-- role's settings to every request with `set_config(name, value, true)` — and it sends the VALUE
+-- LOWER-CASED. Postgres memory units are case-sensitive, so every request made with the secret key
+-- failed before its first statement:
+--     postgres log   invalid value for parameter "work_mem": "16mb"
+--     edge log       HTTP 400, proxy_status "PostgREST; error=22023", on every /rest/v1 path
+-- Read from production's edge logs: 0 of the API's requests succeeded from the schema-cache reload
+-- that followed the release's migration step (17:43:28) until the setting was reset by hand through
+-- the management API (18:08:51, `alter role service_role reset work_mem` + a schema reload). The
+-- signed-in browser's own reads (`authenticated`) and `anon` were unaffected — their only role
+-- setting is `statement_timeout=8s`, which has no capital letter to lose.
+--
+-- ── WHY NOTHING CAUGHT IT ───────────────────────────────────────────────────────────────────────
+-- · The measurement behind 0610 ran `alter role` and `set local work_mem = '16MB'` in SQL, inside
+--   rolled-back transactions. Both are valid there. Neither passes through PostgREST, which is the
+--   only place the value is rewritten.
+-- · The PGlite matrices have no PostgREST.
+-- · Staging received 0610 at 17:04 UTC and served every request normally afterwards (edge log:
+--   no 400 in any ten-minute bucket). Why staging's PostgREST did not fail the same way is NOT
+--   established; until it is, staging passing says nothing about a role setting.
+--
+-- ── WHAT THIS DOES ──────────────────────────────────────────────────────────────────────────────
+-- Makes the hand-applied reset the recorded state, so staging — which still carries the setting —
+-- and any database rebuilt from migrations cannot meet it. `reset` on a role that has no such
+-- setting is a no-op, so this is safe on production as it stands. The schema reload is what makes
+-- PostgREST drop the cached role setting; 'reload config' alone does not.
+-- The index and the two `authenticator` settings from 0610 stay: production has served on them
+-- since 18:08:51.
+--
+-- ── WHAT IT LEAVES UNFIXED ──────────────────────────────────────────────────────────────────────
+-- The driver_vehicle_assignments page sort still spills to disk at 5 MB (audit P1). Any second
+-- attempt must be proven through PostgREST on staging — a real request with the secret key — and
+-- must not rest on a value whose meaning changes when lower-cased (a bare kilobyte count such as
+-- `16384` has no unit to lose, but that is a hypothesis until it is run).
+--
+-- ── DEPLOY WINDOW (docs/MIGRATION-DISCIPLINE.md) ─────────────────────────────────────────────────
+-- Order-independent: no table, column or function changes.
+
+alter role service_role reset work_mem;
+
+notify pgrst, 'reload schema';
