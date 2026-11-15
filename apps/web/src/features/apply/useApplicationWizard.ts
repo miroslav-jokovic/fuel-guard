@@ -86,15 +86,16 @@ function toSectionIssue(
  * with — the (b)(3) address years, the (b)(10) employer answers, every gap explained — asked while the
  * driver still holds the form instead of at filing, in the office, after the office approved it.
  *
- * `asOf` is the carrier's day (`carrierToday`), the one filing judges against; null for a legacy link,
- * which filing never asks (plan §7), and so neither does this. The issue's dotted path becomes the
- * form's own path, so its message lands on the box that answers it.
+ * `asOf` is the carrier's day (`carrierToday`), the one filing judges against. It is null only before
+ * the page has it (a caller's default); every link a driver opens carries one since the legacy wizard
+ * went, and without it the window rules are not run. The issue's dotted path becomes the form's own
+ * path, so its message lands on the box that answers it.
  */
 export function v2FilingIssues(draft: ApplicationDraft, asOf: string | null): SectionIssue[] {
   const candidate = toApplication(draft) as Parameters<typeof applicationV2FilingIssues>[0]
     & Parameters<typeof applicationPaperFilingIssues>[0];
   // F2c: what the carrier's paper asks of EVERY filing — question B, each conviction's state and
-  // penalty — is asked on a legacy link too; the v2 rules only on a v2 one.
+  // penalty — needs no day; the window rules need the carrier's.
   // D-AM4, Q-AM8 (a): an employer's address and a home's street are the office's to complete, so the
   // driver's checks skip them; the office's Send for signing and filing still refuse without them.
   const found = [...applicationPaperFilingIssues(candidate), ...(asOf ? applicationV2FilingIssues(candidate, asOf) : [])]

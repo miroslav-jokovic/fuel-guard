@@ -26,7 +26,7 @@ test("a styled signature pressed before its font has loaded is still sent, with 
   link.identityComplete = true;
   link.partOne = {
     completedAt: null, contact: true, address: true, licences: true, screening: true,
-    medicalCardPending: true, rights: false,
+    medicalCardPending: true, cdlPhotoPending: false, rights: false,
   };
   const stub = await stubApi(page, link);
   // Registered after the stub's own routes, so it is matched first (Playwright walks them last-first).

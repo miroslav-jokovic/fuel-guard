@@ -108,26 +108,12 @@ export function partOneLink(over: { captures?: Json[] } = {}): Json {
     edits: [], packet: [], packetAdopted: null, identityComplete: false, roadTestCertificate: null, handbook: null,
     partOne: {
       completedAt: null, contact: false, address: false, licences: false, screening: false,
-      medicalCardPending: false, rights: false,
+      medicalCardPending: false, cdlPhotoPending: false, rights: false,
     },
     fcraSummary: {
       version: "e2e", sourceUrl: "https://example.test", spanishNote: "n", title: "A Summary of Your Rights",
       intro: ["intro"], rights: [], closing: "closing", contactsHeading: { business: "b", contact: "c" }, contacts: [],
     },
-  };
-}
-
-/** A legacy link whose form the office has sent, with an unlocked draft at `revision`. */
-export function partTwoLink(payload: Json, revision: number): Json {
-  return {
-    carrier: CARRIER, carrierAddress: null, carrierToday: "2026-09-28", expiresAt: "2099-01-01T00:00:00Z",
-    localKey: "e2e-local-key-part-two",
-    releases: RELEASES, releasesSigned: ["fcra_disclosure", "psp"],
-    phases: { ...PHASES_NONE, consentedAt: NOW, releasesCompletedAt: NOW, applicationSentAt: NOW },
-    draft: { locked: false, payload, furthestSection: "identity", updatedAt: NOW, revision },
-    esignConsent: { version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true },
-    captures: [], edits: [], packet: [], packetAdopted: null, identityComplete: true,
-    roadTestCertificate: null, handbook: null, partOne: null, fcraSummary: null,
   };
 }
 
@@ -203,7 +189,7 @@ export function partTwoV2Link(over: Json = {}): Json {
     phases: { ...PHASES_NONE, consentedAt: NOW, releasesCompletedAt: NOW, applicationSentAt: NOW, ...(phases as Json | undefined) },
     draft: { locked: false, payload: { first_name: "Susan", last_name: "Godfrey" }, furthestSection: "identity", updatedAt: NOW, revision: 1 },
     partOne: {
-      completedAt: NOW, contact: true, address: true, licences: true, screening: true, medicalCardPending: false, rights: true,
+      completedAt: NOW, contact: true, address: true, licences: true, screening: true, medicalCardPending: false, cdlPhotoPending: false, rights: true,
     },
     identityComplete: true,
     fcraSummary: null,
