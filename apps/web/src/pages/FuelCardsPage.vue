@@ -109,13 +109,13 @@ const syncOutcome = computed((): { tone: string; text: string; at?: string } | n
 });
 
 const columns: DataTableColumn[] = [
-  { key: "maskedRef", label: "Card", sortable: true, width: "md", cellClass: "font-medium text-ink" },
-  { key: "status", label: "Status", sortable: true, width: "md" },
-  { key: "driverName", label: "Driver", sortable: true, width: "lg" },
-  { key: "unitPrompt", label: "Unit", sortable: true, width: "sm" },
-  { key: "driverIdPrompt", label: "Driver ID", sortable: true, width: "md" },
-  { key: "policyNumber", label: "Policy", sortable: true, numeric: true, width: "sm" },
-  { key: "overrideUses", label: "Override", sortable: true, width: "sm" },
+  { key: "maskedRef", label: "Card", sortable: true, width: "md", cellClass: "font-medium text-ink", card: "title" },
+  { key: "status", label: "Status", sortable: true, width: "md", card: "status" },
+  { key: "driverName", label: "Driver", sortable: true, width: "lg", card: "sentence" },
+  { key: "unitPrompt", label: "Unit", sortable: true, width: "sm", card: "figure" },
+  { key: "driverIdPrompt", label: "Driver ID", sortable: true, width: "md", card: "detail" },
+  { key: "policyNumber", label: "Policy", sortable: true, numeric: true, width: "sm", card: "figure" },
+  { key: "overrideUses", label: "Override", sortable: true, width: "sm", card: "figure" },
 ];
 
 /**
