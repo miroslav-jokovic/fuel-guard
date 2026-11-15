@@ -16,6 +16,7 @@ import {
   type SupabaseRecorder,
 } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 import { pdfDrawnLines, pdfPageTexts, pdfText } from "../../../testing/pdfText.js";
 import { hashInvitationToken } from "../applicationIntake.js";
 import { PSP_MANDATED_INTENT, PSP_MANDATED_PARAGRAPHS } from "../pspDisclosure.js";
@@ -54,6 +55,7 @@ const seed = (over: { invitation?: Record<string, unknown> | null; adopted?: str
   createSupabaseRecorder({
     tables: {
       application_invitations: over.invitation === null ? [] : [invitation(over.invitation)],
+      application_intakes: [PART_ONE_ROW],
       // Screen 13's adoption (D-AW15), which the next permission is signed with — none on a legacy link.
       signature_adoptions: over.adopted ? [{ id: "ad-1", typed_text: over.adopted }] : [],
       driver_authorizations: [],

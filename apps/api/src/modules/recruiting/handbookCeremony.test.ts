@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { postgrestFixture, type FixtureRow } from "../../testing/postgrestFixture.js";
 import { hashInvitationToken, isIntakeError } from "./applicationIntake.js";
 import { applicantHandbookPdf, linkHandbookStatus, recordHandbookMark } from "./handbookCeremony.js";
@@ -34,6 +35,7 @@ const seed = (over: { inv?: Record<string, unknown>; adopted?: string | null; wr
   createSupabaseRecorder({
     tables: {
       application_invitations: [invitation(over.inv)],
+      application_intakes: [PART_ONE_ROW],
       org_disclosures: [],
       // The packet's adopted signature: one `signature` mark is enough for `adoptedPacketMarks`.
       application_packet_marks: over.packetMarks ?? (over.adopted === null ? [] : [{ mark: "signature", signed_name: over.adopted ?? "Jovana Petrović" }]),

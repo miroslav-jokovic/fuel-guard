@@ -2,6 +2,7 @@ import { driverPlacementIds, signingPlaceDestination } from "@silvicom/shared";
 import { pdfDestinations } from "../../testing/pdfDestinations.js";
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { pdfText as textOf } from "../../testing/pdfText.js";
 import { applicationPreviewPdf, isPreviewError } from "./applicationPdf/preview.js";
 import { applicantReadingCopy } from "./applicationReadingCopy.js";
@@ -88,6 +89,7 @@ const seed = (
         const wanted = q.filters().find((f) => f.col === "org_id")?.val;
         return wanted !== undefined && wanted !== ORG ? [] : rows;
       },
+      application_intakes: [PART_ONE_ROW],
       application_drafts: over.payload === null ? [] : [{ payload: over.payload ?? PAYLOAD }],
       organizations: [{ name: "Silvicom Inc", legal_address: null }],
       driver_authorizations: [],

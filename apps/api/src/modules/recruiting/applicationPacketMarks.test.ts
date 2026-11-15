@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { driverPlacements, packetPlacementById } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { hashInvitationToken, isIntakeError } from "./applicationIntake.js";
 import { adoptedPacketMarks, packetStops, recordPacketMark } from "./applicationPacketMarks.js";
 import { DRUG_ALCOHOL_POLICY_VERSION } from "./applicationPdf/drugAlcoholPolicy/drugAlcoholPolicyText.js";
@@ -53,6 +54,7 @@ const seed = (
   createSupabaseRecorder({
     tables: {
       application_invitations: opts.inv === null ? [] : [opts.inv ?? invitation()],
+      application_intakes: [PART_ONE_ROW],
       application_packet_marks: opts.marks ?? [],
       application_drafts: opts.applyingAs === undefined
         ? []
@@ -144,7 +146,7 @@ describe("recording one mark", () => {
       ...driverPlacements(null).filter((p) => p.id !== "p31b").map((p) => ({ placement_id: p.id, signed_at: "2026-09-17T12:00:00Z" })),
     ];
     const rec = createSupabaseRecorder({
-      tables: { application_invitations: [invitation()], application_packet_marks: rows },
+      tables: { application_invitations: [invitation()], application_intakes: [PART_ONE_ROW], application_packet_marks: rows },
       rpc: { record_packet_mark: { mark_id: "m-21", signed_count: 21, complete: true } },
     });
     const result = await recordPacketMark(rec.client, TOKEN, body("p31a"), CTX, NOW);
@@ -283,7 +285,7 @@ describe("the window a packet may be signed in", () => {
 describe("what the transaction refuses", () => {
   const failing = (code: string, message: string) =>
     createSupabaseRecorder({
-      tables: { application_invitations: [invitation()], application_packet_marks: [] },
+      tables: { application_invitations: [invitation()], application_intakes: [PART_ONE_ROW], application_packet_marks: [] },
       rpc: () => ({ data: null, error: { code, message } }),
     });
 

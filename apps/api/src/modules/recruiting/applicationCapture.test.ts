@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { beforeAll, describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { hashInvitationToken } from "./applicationIntake.js";
 import {
   confirmCapture,
@@ -45,6 +46,7 @@ function seed(
         consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
         ...over,
       }],
+      application_intakes: [PART_ONE_ROW],
       application_captures: [],
       ...tables,
     },
@@ -120,6 +122,7 @@ describe("a filed application stages no signature picture (C0b retired)", () => 
           releases_completed_at: "2026-09-14T08:30:00Z", submitted_at: "2026-09-14T10:00:00Z",
           signing_opened_at: "2026-09-14T09:00:00Z", handbook_filed_at: null,
         }],
+        application_intakes: [PART_ONE_ROW],
         application_packet_marks: [],
         handbook_marks: [],
         application_captures: [],
@@ -226,6 +229,7 @@ describe("confirming that the bytes landed", () => {
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
           consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
         }],
+        application_intakes: [PART_ONE_ROW],
       },
       rpc: {
         stage_application_capture: { capture_id: CAPTURE, captured_at: NOW.toISOString(), replaced_path: null },
@@ -246,6 +250,7 @@ describe("confirming that the bytes landed", () => {
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
           consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
         }],
+        application_intakes: [PART_ONE_ROW],
       },
       rpc: {
         stage_application_capture: {
