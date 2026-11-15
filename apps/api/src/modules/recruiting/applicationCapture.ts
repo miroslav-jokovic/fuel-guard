@@ -93,7 +93,11 @@ async function openSession(
   // default made this line a no-op from A4 until 2026-09-13.
   const consent = requireEsignConsent(invitation, await loadCarrierWording(admin, invitation.org_id));
   if (consent) return consent;
-  if (invitation.submitted_at) return ALREADY_SUBMITTED;
+  // ⚠ Except on the documents-only link (Q-AM19 stage 3, 0609). A photograph staged after filing used to
+  // be promoted by nothing, which is why it is refused; on that link the office now files it from the
+  // applicant's record (`fileApplicantCapture`), so it is taken and shown there as waiting. The
+  // application's own links still refuse: their page has no screen that says the office must file it.
+  if (invitation.submitted_at && invitation.door !== "documents") return ALREADY_SUBMITTED;
   // AF4: the medical certificate and the Social Security card are the application's documents, so
   // they wait for the office to send it. The licence photographs belong to the permissions visit
   // (AF3), and the marks to the ceremonies that stage them, so those stay open from consent onward.
@@ -350,17 +354,8 @@ export async function promoteCaptures(
     // The filed document IS the staged capture, by id. That is what makes promotion exactly-once: a
     // replayed copy lands on the same key and a replayed insert would violate the primary key rather
     // than quietly produce a second copy of a licence.
-    const destination = documentStoragePath(orgId, "driver", driverId, row.id, row.content_type);
-    const { error: copyError } = await admin.storage
-      .from(APPLICATION_CAPTURES_BUCKET)
-      .copy(row.storage_path, destination, { destinationBucket: DOCUMENTS_BUCKET });
-    if (copyError && !(await objectExists(admin, DOCUMENTS_BUCKET, destination))) {
-      console.error("[application] could not promote a staged capture", {
-        slot: row.slot,
-        error: copyError.message,
-      });
-      return CAPTURE_PROMOTION_FAILED;
-    }
+    const destination = await copyCaptureIntoFile(admin, orgId, driverId, row);
+    if (destination === null) return CAPTURE_PROMOTION_FAILED;
     promoted.push({
       capture_id: row.id,
       kind: APPLICATION_CAPTURE_DOCUMENT_KIND[row.slot],
@@ -369,6 +364,29 @@ export async function promoteCaptures(
     });
   }
   return promoted;
+}
+
+/**
+ * One staged capture's bytes, copied into the evidence bucket under the capture's own id — the path, or
+ * null when the copy failed and the object is not there. Copy first, then file: both promotions at
+ * filing and the office's late filing (`fileApplicantCapture`, 0609) go through this one function.
+ */
+export async function copyCaptureIntoFile(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  row: { id: string; slot: string; storage_path: string; content_type: string },
+): Promise<string | null> {
+  // The type is one the capture route accepted when it staged the row (0230's CHECK).
+  const destination = documentStoragePath(orgId, "driver", driverId, row.id, row.content_type as Parameters<typeof documentStoragePath>[4]);
+  const { error: copyError } = await admin.storage
+    .from(APPLICATION_CAPTURES_BUCKET)
+    .copy(row.storage_path, destination, { destinationBucket: DOCUMENTS_BUCKET });
+  if (copyError && !(await objectExists(admin, DOCUMENTS_BUCKET, destination))) {
+    console.error("[application] could not promote a staged capture", { slot: row.slot, error: copyError.message });
+    return null;
+  }
+  return destination;
 }
 
 /**

@@ -102,6 +102,12 @@ export interface ApplicantDocument {
   addedBy: string | null;
   /** Still in the link's staging bucket — sent, and not yet filed with Part 1 or the application. */
   staged: boolean;
+  /**
+   * Staged on an application that is ALREADY filed (0609): nothing will file it but the office, so the
+   * record offers "File it". False for a photograph the filing itself will pick up. Optional: an API
+   * from before 0609's reader sends none.
+   */
+  fileable?: boolean;
   /** The bytes' size and hash as registered — what the shared viewer prints under the paper (§390.32(c)). */
   bytes: number | null;
   sha256: string;

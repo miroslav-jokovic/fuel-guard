@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
   requests: [] as Array<{ url: string; method: string; body: unknown }>,
   puts: [] as Array<{ path: string; token: string; type: string }>,
   canManage: true,
+  fileRefusal: null as string | null,
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -28,6 +29,7 @@ vi.mock("@/lib/api", () => ({
     const method = opts?.method ?? "GET";
     if (method !== "GET") {
       state.requests.push({ url, method, body: opts?.body });
+      if (url.endsWith("/file")) return state.fileRefusal ? { ok: false, error: { code: "x", message: state.fileRefusal } } : { ok: true, data: { documentId: "cap-late" } };
       return { ok: true, data: { documentId: (opts?.body as { document_id: string }).document_id, storagePath: "org/driver/d/x.pdf", uploadUrl: "u", token: "tok" } };
     }
     return { ok: true, data: { documents: state.docs } };
@@ -70,6 +72,7 @@ beforeEach(() => {
   state.requests = [];
   state.puts = [];
   state.canManage = true;
+  state.fileRefusal = null;
 });
 
 describe("the office's upload on the applicant record", () => {
@@ -161,3 +164,45 @@ describe("the viewer — the same one a truck's and a trailer's file opens", () 
     expect(w.findComponent(DocumentPreview).find("img").attributes("src")).toBe("https://signed.test/x");
   });
 });
+
+/** Q-AM19 stage 3 (0609): a photograph sent after the application was filed is the office's to file. */
+describe("a photograph that arrived after filing", () => {
+  const LATE = row({ id: "cap-late", slot: "medical_card", kind: "medical_card", staged: true, fileable: true });
+
+  it("⚠ says it is waiting for the office, and files it for this driver with one press", async () => {
+    state.docs = [LATE];
+    const w = mountSection();
+    await settle(w);
+    expect(w.find("[data-document-waiting]").text()).toBe("Sent after filing — waiting for you to file it");
+    expect(w.text()).not.toContain("Filed when the applicant finishes");
+    await w.find("[data-document-file]").trigger("click");
+    await settle(w);
+    expect(state.requests).toEqual([{ url: `/api/recruitment/applicants/${DRIVER}/documents/cap-late/file`, method: "POST", body: undefined }]);
+  });
+
+  it("⚠ offers no filing for a photograph the application's own filing will pick up", async () => {
+    state.docs = [row({ id: "cap-early", staged: true, fileable: false })];
+    const w = mountSection();
+    await settle(w);
+    expect(w.find("[data-document-file]").exists()).toBe(false);
+    expect(w.text()).toContain("Filed when the applicant finishes");
+  });
+
+  it("offers no filing to a role that may only read the section, though it still sees the photograph waiting", async () => {
+    state.canManage = false;
+    state.docs = [LATE];
+    const w = mountSection();
+    await settle(w);
+    expect(w.find("[data-document-waiting]").exists()).toBe(true);
+    expect(w.find("[data-document-file]").exists()).toBe(false);
+  });
+
+  it("keeps View beside File it: the office looks at a photograph before filing it", async () => {
+    state.docs = [LATE];
+    const w = mountSection();
+    await settle(w);
+    expect(w.find("[data-document='cap-late'] [data-document-view]").exists()).toBe(true);
+    expect(w.find("[data-document='cap-late'] [data-document-file]").exists()).toBe(true);
+  });
+});
+
