@@ -1,6 +1,6 @@
 import {
   AD_HOOK_FAMILIES, AD_HOOK_FAMILY_LABELS, AD_SCENE_FAMILIES, AD_SCENE_FAMILY_LABELS, PLAN_ANGLES_MIN, adsPlanEditSchema, campaignPlanSchema,
-  type AdsCampaignPlanView, type AdsPlanEdit, type CampaignPlan, type CampaignState, type EvidenceItem, type PlanAngle, type PlanEvidenceKind,
+  type AdsCampaignPlanView, type AdsPlanEdit, type CampaignPlan, type CampaignState, type EvidenceItem, type PlanAngle, type PlanConcept, type PlanEvidenceKind,
 } from "@silvicom/shared";
 
 /**
@@ -18,8 +18,23 @@ export const planIsOpen = (s: CampaignState): boolean => s === "plan_review";
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export const hookLabel = (a: Pick<PlanAngle, "hook_family">): string => sentence(AD_HOOK_FAMILY_LABELS[a.hook_family]);
 export const sceneLabel = (a: Pick<PlanAngle, "scene_family">): string => sentence(AD_SCENE_FAMILY_LABELS[a.scene_family]);
-export const HOOK_OPTIONS = AD_HOOK_FAMILIES.map((value) => ({ value, label: sentence(AD_HOOK_FAMILY_LABELS[value]) }));
-export const SCENE_OPTIONS = AD_SCENE_FAMILIES.map((value) => ({ value, label: sentence(AD_SCENE_FAMILY_LABELS[value]) }));
+/**
+ * A kind of ad as ONE choice: an ad is made from a preset, and a preset is a lead and a picture together, so
+ * the editor offers the pairs the carrier can make and never a lead from one with a picture from another.
+ */
+export const conceptKey = (c: PlanConcept): string => `${c.hook_family}+${c.scene_family}`;
+export const conceptLabel = (c: PlanConcept): string => `${hookLabel(c)}, picture: ${AD_SCENE_FAMILY_LABELS[c.scene_family]}`;
+/** The kinds of ad on offer for one idea: what the carrier can make, and the idea's own kind even if it no longer can. */
+export function conceptOptions(available: readonly PlanConcept[], current: PlanConcept): Array<{ value: string; label: string }> {
+  const offered = available.some((c) => conceptKey(c) === conceptKey(current)) ? [...available] : [current, ...available];
+  return offered.map((c) => ({ value: conceptKey(c), label: available.some((a) => conceptKey(a) === conceptKey(c)) ? conceptLabel(c) : `${conceptLabel(c)} (cannot be made now)` }));
+}
+/** Write a chosen kind onto an idea. A key that is no known pair changes nothing. */
+export function setConcept(angle: PlanAngle, key: string): void {
+  const [hook, scene] = key.split("+");
+  const h = AD_HOOK_FAMILIES.find((x) => x === hook), s = AD_SCENE_FAMILIES.find((x) => x === scene);
+  if (h && s) { angle.hook_family = h; angle.scene_family = s; }
+}
 
 /** Where a fact came from, in office words. */
 export const EVIDENCE_KIND_LABEL: Record<PlanEvidenceKind, string> = {
@@ -95,6 +110,7 @@ export function planRefusalLines(detail: unknown): string[] {
       case "no_job_evidence": return `${where} rests on no fact of the job.`;
       case "unknown_evidence": return `${where} rests on a fact that is not in this plan's list.`;
       case "format_not_built": return `${where} asks for a kind of ad that cannot be made yet.`;
+      case "concept_not_available": return `${where} is a kind of ad with no enabled preset. Choose another kind, or enable its preset in Settings.`;
       default: return f.message ?? `${where} cannot be saved as it is.`;
     }
   });

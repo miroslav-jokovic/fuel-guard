@@ -5,8 +5,8 @@ import { AppButton as BaseButton, AppCallout, AppFormField as FormField, AppSele
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import {
-  EVIDENCE_KIND_LABEL, HOOK_OPTIONS, SCENE_OPTIONS, authorLine, canRemoveAngle, draftErrors, editFrom, editablePlan, factsFor, hookLabel,
-  mayHavePlan, planIsOpen, planRefusalLines, sceneLabel,
+  EVIDENCE_KIND_LABEL, authorLine, canRemoveAngle, conceptKey, conceptOptions, draftErrors, editFrom, editablePlan, factsFor, hookLabel,
+  mayHavePlan, planIsOpen, planRefusalLines, sceneLabel, setConcept,
 } from "./adsPlan";
 import { useCampaignPlan, useSavePlanEdit } from "./useAdsCampaigns";
 
@@ -18,7 +18,7 @@ import { useCampaignPlan, useSavePlanEdit } from "./useAdsCampaigns";
  * While the plan waits for review, whoever manages recruiting may edit it here or approve it from the drawer's
  * footer, where a drawer's actions live. An edit is saved as a new version and the door decides whether it is
  * allowed; its refusal is listed in sentences beside the Save button, where the person is when it arrives. A person edits
- * the words and the kind of each idea; the facts an idea cites stay as they are, because the facts are gathered
+ * the words and the kind of each idea — one of the kinds the carrier's enabled presets can make; the facts an idea cites stay as they are, because the facts are gathered
  * by the system and not typed by hand. After approval the plan stays on the campaign, read-only: it is why the
  * ads say what they say.
  */
@@ -31,6 +31,8 @@ const read = useCampaignPlan(toRef(props, "campaignId"), computed(() => mayHaveP
 const save = useSavePlanEdit();
 
 const view = computed(() => read.data.value?.plan ?? null);
+/** The kinds of ad the carrier can make today (the read's own answer; the door holds an edit to the same list). */
+const concepts = computed(() => read.data.value?.concepts ?? []);
 const open = computed(() => props.canManage && planIsOpen(props.state));
 const busy = computed(() => save.isPending.value);
 
@@ -121,14 +123,9 @@ async function saveEdit(): Promise<void> {
           </FormField>
           <fieldset v-for="(a, i) in draft.angles" :key="i" class="space-y-2 rounded-detail bg-surface p-3 ring-1 ring-edge" :data-test="`plan-edit-angle-${i}`">
             <legend class="px-1 text-sm font-semibold text-ink">Idea {{ i + 1 }}</legend>
-            <div class="grid gap-2 sm:grid-cols-2">
-              <FormField v-slot="{ id }" label="What the ad leads with" required>
-                <AppSelect :id="id" v-model="a.hook_family" :options="HOOK_OPTIONS" :data-test="`plan-edit-hook-${i}`" />
-              </FormField>
-              <FormField v-slot="{ id }" label="What the picture shows" required>
-                <AppSelect :id="id" v-model="a.scene_family" :options="SCENE_OPTIONS" :data-test="`plan-edit-scene-${i}`" />
-              </FormField>
-            </div>
+            <FormField v-slot="{ id }" label="The kind of ad: what it leads with, and its picture" required>
+              <AppSelect :id="id" :model-value="conceptKey(a)" :options="conceptOptions(concepts, a)" :data-test="`plan-edit-concept-${i}`" @update:model-value="(k) => setConcept(a, String(k ?? ''))" />
+            </FormField>
             <FormField v-slot="{ id }" label="The idea, in one sentence" :error="errors[`angles.${i}.idea`]" required>
               <AppTextarea :id="id" v-model="a.idea" :rows="2" :invalid="Boolean(errors[`angles.${i}.idea`])" :data-test="`plan-edit-idea-${i}`" />
             </FormField>

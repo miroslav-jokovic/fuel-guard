@@ -51,33 +51,55 @@
         "text": "Boostpoint 2026 benchmark, CDL drivers on Meta: an ad costing more than $42.00 per lead after 5 leads, or $85.00 spent with no lead, is where pausing is suggested.",
         "source": null
       }
+    ],
+    "concepts": [
+      {
+        "hook_family": "pay_first",
+        "scene_family": "equipment_on_road"
+      },
+      {
+        "hook_family": "life_first",
+        "scene_family": "home_street"
+      },
+      {
+        "hook_family": "equipment_first",
+        "scene_family": "equipment_at_rest"
+      },
+      {
+        "hook_family": "straight_talk",
+        "scene_family": "cab_pov"
+      },
+      {
+        "hook_family": "proof",
+        "scene_family": "abstract_plate"
+      }
     ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "strategist@2",
+    "prompt_version": "strategist@3",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-15T17:02:46.894Z",
+    "recorded_at": "2026-11-15T19:25:05.783Z",
     "output": {
-      "audience": "Class A drivers with flatbed experience who run or live near Midwest lanes and meet the opening's stated requirement. They likely drive for a larger fleet now and want a week that ends at home. A plain pay per mile, an assigned truck and a small fleet would stop them.",
+      "audience": "Class A drivers who meet the experience requirement and run flatbed, living in or near the Midwest lanes. Many are likely out for long stretches or in a large fleet with shared trucks. A plain pay per mile, weekly home time and an assigned truck would make them stop.",
       "audience_evidence": [
         "job:subject",
+        "job:claim_3",
         "job:detail_1",
-        "job:detail_2",
-        "job:claim_3"
+        "job:detail_2"
       ],
       "angles": [
         {
           "hook_family": "pay_first",
           "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with the pay per mile for flatbed work on Midwest lanes, and name the retirement plan beside it.",
-          "proof": "The opening states its pay per mile and offers the retirement plan named on the sheet.",
-          "why": "Pay is the most concrete fact the job has and the quickest to compare. Nothing has been measured for this carrier yet, so judge it against the benchmark cost per lead.",
+          "idea": "Lead with the pay per mile, stated plainly, over a loaded flatbed rolling on a Midwest highway.",
+          "proof": "The opening states its pay per mile, and the work is flatbed on Midwest lanes.",
+          "why": "Pay is the fact drivers compare most directly. Nothing has been measured for this carrier yet, so this is a starting test to judge against the benchmark cost per lead.",
           "evidence": [
             "job:claim_1",
-            "job:claim_4",
+            "job:detail_1",
             "job:detail_2",
             "benchmark:cost_per_lead"
           ]
@@ -86,34 +108,35 @@
           "hook_family": "life_first",
           "scene_family": "home_street",
           "format": "still",
-          "idea": "Lead with the home weekly schedule that regional Midwest lanes allow, shown as the end of a week at home.",
-          "proof": "The opening offers home weekly and the job is regional on Midwest lanes.",
-          "why": "Home time is the job's clearest life benefit and regional lanes make it believable. No earlier ads exist to show whether it outdraws pay, so run it beside the pay angle.",
+          "idea": "Lead with being home weekly, shown as a quiet home street at the end of a regional run.",
+          "proof": "The opening offers home weekly, and the job is regional on Midwest lanes.",
+          "why": "Home time is a main reason a driver looks at regional work, and the Midwest lanes make it believable. There are no earlier ads to compare, so this is untested.",
           "evidence": [
             "job:claim_2",
-            "job:detail_2",
-            "job:subject"
+            "job:subject",
+            "job:detail_2"
           ]
         },
         {
           "hook_family": "equipment_first",
           "scene_family": "equipment_at_rest",
           "format": "still",
-          "idea": "Lead with the assigned truck: a flatbed rig at rest that belongs to its driver, not to whoever is next.",
-          "proof": "The job details list an assigned truck and flatbed work.",
-          "why": "An assigned truck is a specific fact that sets the job apart for flatbed drivers. It is untested here, and the still should show a real truck of this fleet.",
+          "idea": "Lead with the assigned truck: a parked flatbed rig that stays with its driver, in a small fleet where dispatch knows your name.",
+          "proof": "The job lists an assigned truck, flatbed work, and a small fleet where dispatch knows your name.",
+          "why": "An assigned truck and a small fleet are what set this job apart from a large carrier. There is no history yet, so it runs as a test beside the pay and home-time angles.",
           "evidence": [
             "job:detail_3",
-            "job:detail_1"
+            "job:detail_1",
+            "job:in_our_words"
           ]
         },
         {
           "hook_family": "straight_talk",
-          "scene_family": "abstract_plate",
+          "scene_family": "cab_pov",
           "format": "still",
-          "idea": "State plainly who should apply: Class A, flatbed, Midwest lanes, and the requirement the opening states.",
-          "proof": "The opening names the licence class, the flatbed work, the Midwest lanes and a stated requirement.",
-          "why": "With no lead history, stating the hard requirements up front is the cheapest guard against out-of-area or unqualified leads. The office should confirm what the stated requirement measures.",
+          "idea": "Say plainly who the job is for: Class A drivers with the stated experience who want flatbed work on Midwest lanes.",
+          "proof": "The opening is Class A regional, states its experience requirement, and is flatbed on Midwest lanes.",
+          "why": "Stating licence, experience, equipment and area up front should keep out drivers who cannot qualify or live elsewhere. With no lead outcomes yet, this is a precaution, not a proven result.",
           "evidence": [
             "job:subject",
             "job:claim_3",
@@ -122,14 +145,17 @@
           ]
         },
         {
-          "hook_family": "life_first",
-          "scene_family": "cab_pov",
+          "hook_family": "proof",
+          "scene_family": "abstract_plate",
           "format": "still",
-          "idea": "Lead with the small fleet where dispatch knows the driver by name, seen from the driver's seat during a working day.",
-          "proof": "The carrier describes itself as a small fleet where dispatch knows your name.",
-          "why": "This is the carrier's own claim and what a large fleet cannot copy. It is softer than pay or home time and nothing has been measured, so treat it as a trial.",
+          "idea": "Set out the stated terms as a plain list: pay per mile, home weekly, the retirement plan and the assigned truck.",
+          "proof": "Each line is a fact of the opening: the pay per mile, home weekly, the retirement plan and the assigned truck.",
+          "why": "A plain list lets a driver check the whole offer at a glance, with no picture doing the selling. Nothing has been measured, so it is a test against the other angles.",
           "evidence": [
-            "job:in_our_words"
+            "job:claim_1",
+            "job:claim_2",
+            "job:claim_4",
+            "job:detail_3"
           ]
         }
       ]

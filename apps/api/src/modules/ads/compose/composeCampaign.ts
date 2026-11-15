@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adBriefSchema, adCandidatesSchema, drawPresets, nextPresetBatch, type AdBrandKit, type AdPresetRecipe, type CreativeState, type PresetDraw } from "@silvicom/shared";
+import { adBriefSchema, adCandidatesSchema, drawPresets, nextPresetBatch, planDraw, type AdBrandKit, type AdPresetRecipe, type CreativeState, type PresetDraw } from "@silvicom/shared";
 import { listBrandKits, listPresets } from "../creative/kitVersions.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 import { storePresetDraw, type CampaignRow } from "../orchestrator/transitions.js";
 import type { WorkerResult } from "../orchestrator/workers.js";
+import { planById } from "../plan/planStore.js";
 import { composeCreative, type ComposeDeps, type CreativeRow, type PersonChoice } from "./composeCreative.js";
 
 /**
@@ -14,6 +15,8 @@ import { composeCreative, type ComposeDeps, type CreativeRow, type PersonChoice 
  *   1. THE DRAW (D-AD11). The first run draws the presets — seed = the campaign id, every enabled preset
  *      eligible except those a campaign for the same brief runs now — and stores the whole draw in
  *      `ads_campaigns.preset_draw` (written only while it is null, so a re-run keeps the first draw).
+ *      A campaign with an approved plan (V2c) is not drawn by seed: its presets are the plan's angles, in
+ *      the plan's order (`planDraw`), stored in the same column in the same shape.
  *   2. THE WINDOW (D-AD18, CQ1). EVERY preset of the draw gets a creative, at most `BATCH` of them under way
  *      at once (plan v4: "new creatives enter two at a time"). A preset already started is moved first;
  *      then, while fewer than `BATCH` are still drawing, the next unstarted presets of the draw enter. The
@@ -49,12 +52,12 @@ export interface ComposeCampaignDeps extends ComposeDeps {
   admin: SupabaseClient;
 }
 
-interface CampaignExtra { brief_ref: string; brief_snapshot: unknown; preset_draw: PresetDraw | null; brand_kit_id: string | null }
+interface CampaignExtra { brief_ref: string; brief_snapshot: unknown; preset_draw: PresetDraw | null; brand_kit_id: string | null; plan_id: string | null }
 interface CreativeRead extends CreativeRow { preset_version_id: string; created_at: string; last_error: string | null; supersedes_id: string | null }
 
 export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow): Promise<WorkerResult> {
   const { admin } = deps;
-  const { data: extra, error } = await admin.from("ads_campaigns").select("brief_ref, brief_snapshot, preset_draw, brand_kit_id").eq("org_id", c.org_id).eq("id", c.id).maybeSingle();
+  const { data: extra, error } = await admin.from("ads_campaigns").select("brief_ref, brief_snapshot, preset_draw, brand_kit_id, plan_id").eq("org_id", c.org_id).eq("id", c.id).maybeSingle();
   if (error) throw new Error(`ads_campaigns ${c.id}: ${error.message}`);
   if (!extra) return { ok: false, error: "campaign not found" };
   const campaign = extra as CampaignExtra;
@@ -66,8 +69,9 @@ export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow)
   const kit = kitOf.kit;
 
   const presets = (await listPresets(admin, c.org_id)).filter((p) => !p.archived_at && p.current);
-  const draw = campaign.preset_draw ?? await storePresetDraw(admin, c, drawPresets(c.id, presets.map((p) => ({ version_id: p.current!.id, key: p.key, enabled: p.current!.enabled })), await liveKeys(admin, c, campaign.brief_ref, presets)));
-  if (draw.exhausted) return { ok: false, error: "no preset to draw: every enabled preset already runs for this brief, or none is enabled" };
+  const drawn = await campaignDraw(admin, c, campaign, presets);
+  if (!drawn.ok) return drawn;
+  const draw = drawn.draw;
   const recipes = new Map(presets.map((p) => [p.current!.id, p.current!.body]));
   // A drawn version that is no longer the preset's newest is still the one drawn: read it by id.
   for (const id of draw.order) if (!recipes.has(id)) recipes.set(id, await recipeById(admin, c.org_id, id));
@@ -103,6 +107,34 @@ export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow)
     return { ok: false, pending: true, why: [...tally.pending, ...(waiting > 0 ? [`${waiting} preset(s) waiting for the window`] : [])].join(" | ") };
   }
   return tally.ready > 0 ? { ok: true } : { ok: false, error: `no creative passed its checks: ${tally.reasons.join(" | ")}`.slice(0, 2000) };
+}
+
+/**
+ * The presets this campaign's ads are made from, drawn once and kept (`ads_campaigns.preset_draw`). A campaign
+ * whose plan a person approved is made from that plan — its angles, in its order (`planDraw`, V2c) — and not
+ * from the seeded draw; one with no plan (planning off for this carrier, Q-APX6) draws by seed as before.
+ * Both leave out a preset a campaign for the same brief already runs (D-AD11).
+ */
+export async function campaignDraw(
+  admin: SupabaseClient, c: CampaignRow, campaign: Pick<CampaignExtra, "brief_ref" | "preset_draw" | "plan_id">,
+  presets: Array<{ id: string; key: string; current: { id: string; enabled: boolean; body: Pick<AdPresetRecipe, "hook_family" | "scene_family"> } | null }>,
+): Promise<{ ok: true; draw: PresetDraw } | { ok: false; error: string }> {
+  let draw = campaign.preset_draw;
+  if (!draw) {
+    const candidates = presets.map((p) => ({ version_id: p.current!.id, key: p.key, enabled: p.current!.enabled, hook_family: p.current!.body.hook_family ?? null, scene_family: p.current!.body.scene_family ?? null }));
+    const live = await liveKeys(admin, c, campaign.brief_ref, presets);
+    if (campaign.plan_id) {
+      const approved = await planById(admin, c.org_id, c.id, campaign.plan_id);
+      if (!approved) return { ok: false, error: "the campaign's approved plan was not found" };
+      draw = await storePresetDraw(admin, c, planDraw(approved.id, approved.plan, candidates, live));
+    } else draw = await storePresetDraw(admin, c, drawPresets(c.id, candidates, live));
+  }
+  if (draw.exhausted) {
+    return { ok: false, error: campaign.plan_id
+      ? "none of the plan's ideas can be made: the ad preset for each is disabled, or already runs for this opening"
+      : "no preset to draw: every enabled preset already runs for this brief, or none is enabled" };
+  }
+  return { ok: true, draw };
 }
 
 /**

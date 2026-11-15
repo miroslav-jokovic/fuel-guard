@@ -25,6 +25,9 @@ import { recordId } from "../recordId.js";
  *   same_kind          two angles with the same hook and scene: one concept twice, which Meta's delivery
  *                      collapses into one ad (ADS-CREATIVE-QUALITY-PLAN, the reason for D-AD29).
  *   format_not_built   an angle in a format no worker can make yet — a dead angle a person would approve.
+ *   concept_not_available  an angle whose hook and scene no enabled preset of the carrier has. An ad is always
+ *                      made from a preset (its copy slots, its picture, its layout), so such an angle could be
+ *                      approved and then never made. Checked when the caller says which concepts exist.
  *   claim              a figure or a promise in the plan's own words that the brief does not hold, read by
  *                      the same `checkClaims` the copy is read by: a plan that says "$0.80 a mile" would
  *                      otherwise brief the copywriter to write it.
@@ -87,12 +90,30 @@ export type PlanFinding =
   | { kind: "no_job_evidence"; where: string }
   | { kind: "same_kind"; where: string; other: string }
   | { kind: "format_not_built"; where: string; format: PlanFormat }
+  | { kind: "concept_not_available"; where: string }
   | { kind: "claim"; where: string; finding: string; text: string };
 
 /** An angle's concept as one comparable value — the same shape as a preset's (`conceptPair`). */
 export const angleKind = (a: Pick<PlanAngle, "hook_family" | "scene_family">): string => `${a.hook_family}+${a.scene_family}`;
 
-export function checkPlan(plan: CampaignPlan, evidence: EvidencePack, brief: Pick<AdBrief, "claims">): PlanFinding[] {
+/** A kind of ad the carrier can make: the hook and scene of one of its enabled presets. */
+export type PlanConcept = Pick<PlanAngle, "hook_family" | "scene_family">;
+
+/** The distinct concepts among `presets`, in the order first met. A preset that names no concept offers none. */
+export function distinctConcepts(presets: ReadonlyArray<{ hook_family?: string | null; scene_family?: string | null }>): PlanConcept[] {
+  const seen = new Map<string, PlanConcept>();
+  for (const p of presets) {
+    const c = z.object({ hook_family: z.enum(AD_HOOK_FAMILIES), scene_family: z.enum(AD_SCENE_FAMILIES) }).safeParse(p);
+    if (c.success && !seen.has(angleKind(c.data))) seen.set(angleKind(c.data), c.data);
+  }
+  return [...seen.values()];
+}
+
+/**
+ * `concepts` — the kinds of ad the carrier's enabled presets can make. Given, an angle outside them is a
+ * finding; absent, the question is not asked (the contract's own tests, and a caller with no presets to read).
+ */
+export function checkPlan(plan: CampaignPlan, evidence: EvidencePack, brief: Pick<AdBrief, "claims">, concepts?: readonly PlanConcept[]): PlanFinding[] {
   const findings: PlanFinding[] = [];
   const kindOf = new Map(evidence.map((e) => [e.id, e.kind]));
   const cited = (where: string, ids: readonly string[]) => {
@@ -106,6 +127,7 @@ export function checkPlan(plan: CampaignPlan, evidence: EvidencePack, brief: Pic
   claims("audience", plan.audience);
 
   const seen = new Map<string, string>();
+  const makeable = concepts ? new Set(concepts.map(angleKind)) : null;
   plan.angles.forEach((a, i) => {
     const where = `angle ${i + 1}`;
     cited(where, a.evidence);
@@ -115,6 +137,7 @@ export function checkPlan(plan: CampaignPlan, evidence: EvidencePack, brief: Pic
     if (other) findings.push({ kind: "same_kind", where, other });
     else seen.set(kind, where);
     if (!PLAN_FORMATS_BUILT.includes(a.format)) findings.push({ kind: "format_not_built", where, format: a.format });
+    if (makeable && !makeable.has(kind)) findings.push({ kind: "concept_not_available", where });
     for (const part of ["idea", "proof", "why"] as const) claims(`${where} ${part}`, a[part]);
   });
   return findings;
@@ -147,9 +170,13 @@ export interface AdsCampaignPlanView {
   created_at: string;
 }
 
-/** `GET /api/ads/campaigns/:id/plan`: the newest version, or null when the campaign was never planned. */
+/**
+ * `GET /api/ads/campaigns/:id/plan`: the newest version, or null when the campaign was never planned — and the
+ * kinds of ad the carrier can make today, which is what an edit may choose from (the door refuses any other).
+ */
 export interface AdsCampaignPlanRead {
   plan: AdsCampaignPlanView | null;
+  concepts: PlanConcept[];
 }
 
 /** A person's edit: the whole plan, and the version they had open — the save is refused if the plan moved since. */
@@ -167,6 +194,32 @@ export function planFindingWords(f: PlanFinding): string {
     case "no_job_evidence": return `${f.where} cites no job item.`;
     case "same_kind": return `${f.where} uses the same hook and scene as ${f.other}.`;
     case "format_not_built": return `${f.where} is in the format ${f.format}, which is not in formats_available.`;
+    case "concept_not_available": return `${f.where} uses a hook and scene that is not one of the concepts on the sheet.`;
     case "claim": return `${f.where} says "${f.text}", which the job's facts do not hold (${f.finding}).`;
   }
+}
+
+/**
+ * The presets a planned campaign's ads are made from, in the plan's order (V2c): for each angle, the enabled
+ * preset with that hook and scene. It answers in the shape of the seeded draw (`presetDraw.ts`), so compose
+ * reads one shape whichever road the campaign took; `seed` says which plan it came from.
+ *
+ * A preset a campaign for the same brief already runs is left out, as the seeded draw leaves it out (D-AD11:
+ * the same concept twice for one opening competes with itself). Two presets with one concept cannot both be
+ * enabled (`conceptPair`'s rule at save), so "the preset of an angle" is one preset; were there two, the first
+ * by key is taken, so the answer does not depend on row order.
+ */
+export interface PlanDrawPreset { version_id: string; key: string; enabled: boolean; hook_family?: string | null; scene_family?: string | null }
+export function planDraw(planId: string, plan: Pick<CampaignPlan, "angles">, presets: readonly PlanDrawPreset[], liveKeysForBrief: readonly string[]) {
+  const live = new Set(liveKeysForBrief);
+  const usable = [...presets].filter((p) => p.enabled).sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  const order: string[] = [];
+  const excluded = new Set<string>();
+  for (const a of plan.angles) {
+    const preset = usable.find((p) => p.hook_family === a.hook_family && p.scene_family === a.scene_family);
+    if (!preset) continue;
+    if (live.has(preset.key)) excluded.add(preset.key);
+    else if (!order.includes(preset.version_id)) order.push(preset.version_id);
+  }
+  return { seed: `plan:${planId}`, eligible: [...order].sort(), excluded_live: [...excluded].sort(), order, exhausted: order.length === 0 };
 }
