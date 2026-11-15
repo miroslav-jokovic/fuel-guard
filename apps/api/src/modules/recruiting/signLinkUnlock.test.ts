@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { SIGN_LINK_UNLOCK_LIMIT } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { hashInvitationToken, isIntakeError, resolveInvitation } from "./applicationIntake.js";
 import { unlockDraft } from "./applicationDraft.js";
 
@@ -54,7 +55,7 @@ const seed = (opts: { inv?: Record<string, unknown>; updates?: unknown[][]; rere
         return [{ unlock_failures: opts.reread ?? 0 }];
       },
       application_drafts: [LOCKED],
-      application_intakes: [],
+      application_intakes: [PART_ONE_ROW],
       application_intake_licences: [],
       drivers: [],
       audit_logs: [],

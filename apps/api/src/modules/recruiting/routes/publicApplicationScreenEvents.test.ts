@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { postgrestFixture, type FixtureRow } from "../../../testing/postgrestFixture.js";
 import { APPLICATION_INTAKE_LIMIT, SCREEN_EVENTS_LIMIT } from "../../../middleware/applicationLimits.js";
@@ -49,6 +50,7 @@ const seed = (token: string, visits: FixtureRow[] = [], invitation: FixtureRow =
         id: INV, org_id: ORG, driver_id: "d-1", token_hash: hashInvitationToken(token),
         expires_at: "2099-01-01T00:00:00Z", revoked_at: null, consented_at: null, ...invitation,
       }],
+      application_intakes: [PART_ONE_ROW],
       application_screen_events: postgrestFixture(visits),
     },
   });

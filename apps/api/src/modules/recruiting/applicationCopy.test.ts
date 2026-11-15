@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { hashInvitationToken } from "./applicationIntake.js";
 import { APPLICANT_COPY_TTL_SEC, applicantCopy } from "./applicationCopy.js";
 
@@ -36,6 +37,7 @@ const seed = (over: { invitation?: Record<string, unknown> | null; application?:
   createSupabaseRecorder({
     tables: {
       application_invitations: over.invitation === null ? [] : [over.invitation ?? invitationRow()],
+      application_intakes: [PART_ONE_ROW],
       driver_applications: over.application === null ? [] : [over.application ?? { id: APP_ID }],
       // Already filed: `ensureApplicationPdf` finds the citation and hands the document back rather
       // than rendering, which is the path a second download takes.

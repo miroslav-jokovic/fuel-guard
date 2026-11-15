@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { hashInvitationToken } from "../applicationIntake.js";
 import { open, secretAad } from "../../../lib/secretBox.js";
@@ -56,6 +57,7 @@ const seed = (opts: { invitation?: Row; marks?: number; rpc?: Record<string, unk
         intake_completed_at: null, releases_completed_at: null, submitted_at: null,
         ...opts.invitation,
       }],
+      application_intakes: [PART_ONE_ROW],
       // `signingStarted` asks for a count (head: true), so the fixture answers with one.
       application_packet_marks: { data: [], count: opts.marks ?? 0 },
     },

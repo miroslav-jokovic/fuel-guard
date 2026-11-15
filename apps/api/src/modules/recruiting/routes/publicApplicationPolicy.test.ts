@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 import { pdfText } from "../../../testing/pdfText.js";
@@ -50,6 +51,7 @@ const seed = (token: string, opts: { invitation?: Record<string, unknown>; marks
         id: "inv-1", org_id: ORG, driver_id: DRIVER, token_hash: hashInvitationToken(token),
         expires_at: "2099-01-01T00:00:00Z", revoked_at: null, submitted_at: null, ...opts.invitation,
       }],
+      application_intakes: [PART_ONE_ROW],
       application_packet_marks: postgrestFixture(opts.marks ?? []),
       driver_applications: postgrestFixture([{ id: APP_ID, org_id: ORG, invitation_id: "inv-1", certified_at: "2026-11-04T17:00:00Z" }]),
       documents: postgrestFixture(opts.filed

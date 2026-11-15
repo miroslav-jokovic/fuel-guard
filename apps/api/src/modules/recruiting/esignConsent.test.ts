@@ -9,6 +9,7 @@ import {
   type CarrierWording,
 } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { hashInvitationToken, isIntakeError, requireEsignConsent } from "./applicationIntake.js";
 import { esignConsentForApplicant, recordEsignConsent } from "./esignConsent.js";
 import { ESIGN_VERSION } from "./defaultWording.js";
@@ -45,7 +46,7 @@ const seed = (inv: Record<string, unknown> | null = invitation()) =>
   createSupabaseRecorder({
     // ⚠ `organizations` since D-WORD1: `loadCarrierWording` reads the carrier's name to fill the
     // "I authorize ___" blanks in FMCSA's forms, so a fixture without one is a carrier with no name.
-    tables: { application_invitations: inv ? [inv] : [], organizations: [{ name: "Silvicom Inc" }] },
+    tables: { application_invitations: inv ? [inv] : [], application_intakes: [PART_ONE_ROW], organizations: [{ name: "Silvicom Inc" }] },
     rpc: { record_esign_consent: { consent_id: "c-1" } },
   });
 
@@ -157,6 +158,7 @@ describe("recording it", () => {
     const rec = createSupabaseRecorder({
       tables: {
         application_invitations: [invitation()],
+        application_intakes: [PART_ONE_ROW],
         organizations: [{ name: "Silvicom Inc" }],
         org_disclosures: [{
           instrument: "esign_consent", version: "v0-draft", title: "Draft consent",
@@ -197,7 +199,7 @@ describe("recording it", () => {
   it("turns the transaction's race into the same answer", async () => {
     published();
     const rec = createSupabaseRecorder({
-      tables: { application_invitations: [invitation()] },
+      tables: { application_invitations: [invitation()], application_intakes: [PART_ONE_ROW] },
       rpc: { record_esign_consent: { error: { code: "EC022", message: "esign_consent_already_given" } } },
     });
     const result = await recordEsignConsent(rec.client, TOKEN, CTX, NOW);

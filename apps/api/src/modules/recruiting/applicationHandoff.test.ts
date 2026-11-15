@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { hashInvitationToken, isIntakeError } from "./applicationIntake.js";
 import { applicantVisibleEdits, requestReview } from "./applicationHandoff.js";
 
@@ -43,6 +44,7 @@ const seed = (over: { invitation?: Record<string, unknown>; draft?: boolean; edi
         const org = q.filters().find((f) => f.col === "org_id")?.val;
         return org !== undefined && org !== row.org_id ? [] : [row];
       },
+      application_intakes: [PART_ONE_ROW],
       application_drafts: over.draft === false ? [] : [{ invitation_id: INV }],
       application_edits: (over.edits ?? []) as never,
       audit_logs: [],
