@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { z } from "zod";
-import { AD_FORMATS, AD_PEOPLE_POLICIES, AD_VISUAL_CHECKS, FINISHED_AD_CRITERIA, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, judgeArt, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
+import { AD_FORMATS, AD_PEOPLE_POLICIES, AD_VISUAL_CHECKS, FINISHED_AD_CRITERIA, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, evidencePackSchema, jobEvidence, judgeArt, type CampaignPlan, type EvidencePack, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
 import type { ForcedToolRequest } from "../../../lib/anthropic.js";
 import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, buildFitRequest, fittable, judgeSet, type CopySet } from "./copywriter/copywriter.js";
 import { CRAFT_JUDGE_PROMPT_VERSION, buildJudgeRequest, judgeAnswer, presentationOrder, type JudgeAnswer } from "./craftJudge/craftJudge.js";
@@ -8,6 +8,7 @@ import { rankCandidates } from "@silvicom/shared";
 import { ART_DIRECTOR_PROMPT_VERSION, buildArtRequest } from "./artDirector/artDirector.js";
 import { ANALYST_PROMPT_VERSION, briefTool, buildBriefRequest, judgeBrief, type BriefAnswer } from "./analyst/analyst.js";
 import { FINISHED_AD_JUDGE_PROMPT_VERSION, buildFinishedAdRequest, finishedAdTool, scoreLine, type FinishedAdAnswer } from "./finishedAdJudge/finishedAdJudge.js";
+import { STRATEGIST_PROMPT_VERSION, buildPlanRequest, judgePlan, planTool } from "./strategist/strategist.js";
 import { CHECKER_PROMPT_VERSION, applicableChecks, buildVisualRequest, judgeVisual, prepareSubject, visualTool, type VisualAnswer, type VisualSubject } from "./checker/checker.js";
 
 /**
@@ -313,7 +314,49 @@ export const FINISHED_AD_JUDGE_EVAL: EvalWorker<FinishedAdJudgeFixture, Finished
   withRecording: (f, recorded) => ({ ...f, recorded }),
 };
 
-export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL, checker: CHECKER_EVAL, analyst: ANALYST_EVAL, craftJudge: CRAFT_JUDGE_EVAL, finishedAdJudge: FINISHED_AD_JUDGE_EVAL } as const;
+/**
+ * The Strategist's cases (V2c) are OPENINGS with a history: the brief, and the evidence the pack would hold
+ * beyond the job's own facts (`history` — the benchmark, lead counts, concept results, written as
+ * `plan/evidencePack.ts` writes them). The job's items are made from the brief by `jobEvidence`, as in
+ * production, so a fixture cannot cite a job fact the brief does not hold. A planted answer is a plan a person
+ * wrote with one defect `checkPlan` must name; a model answer agrees when the plan has no finding (`ready`) —
+ * after the worker's one second ask, when the first was refused (`refine`).
+ */
+export const strategistFixtureSchema = z.object({
+  name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,60}$/),
+  about: z.string().min(10),
+  input: z.object({ brief: adBriefSchema, history: evidencePackSchema }).strict(),
+  expect: z.enum(["ready", "refused", "off_schema"]),
+  expect_findings: z.array(z.string()).optional(),
+  recorded: recordingSchema,
+}).strict();
+export type StrategistFixture = z.infer<typeof strategistFixtureSchema>;
+
+export const strategistPack = (f: StrategistFixture): EvidencePack => evidencePackSchema.parse([...jobEvidence(f.input.brief), ...f.input.history]);
+
+export const STRATEGIST_EVAL: EvalWorker<StrategistFixture, CampaignPlan> = {
+  promptVersion: STRATEGIST_PROMPT_VERSION,
+  dir: new URL("./strategist/fixtures/", import.meta.url),
+  parse: (raw) => strategistFixtureSchema.parse(raw),
+  name: (f) => f.name,
+  source: (f) => f.recorded.source,
+  request: (f) => buildPlanRequest(strategistPack(f)),
+  judge: (f, output) => {
+    const parsed = planTool.schema.safeParse(output);
+    if (!parsed.success) return { verdict: "off_schema", findings: [] };
+    const found = judgePlan(parsed.data, strategistPack(f), f.input.brief);
+    return found.length === 0 ? { verdict: "ready", findings: [] } : { verdict: "refused", findings: [...new Set(found.map((x) => x.kind))].sort() };
+  },
+  refine: (f, output) => {
+    const parsed = planTool.schema.safeParse(output);
+    if (!parsed.success) return null;
+    const findings = judgePlan(parsed.data, strategistPack(f), f.input.brief);
+    return findings.length === 0 ? null : buildPlanRequest(strategistPack(f), { plan: parsed.data, findings });
+  },
+  withRecording: (f, recorded) => ({ ...f, recorded }),
+};
+
+export const EVAL_WORKERS = { copywriter: COPYWRITER_EVAL, artDirector: ART_DIRECTOR_EVAL, checker: CHECKER_EVAL, analyst: ANALYST_EVAL, craftJudge: CRAFT_JUDGE_EVAL, finishedAdJudge: FINISHED_AD_JUDGE_EVAL, strategist: STRATEGIST_EVAL } as const;
 
 /** Every fixture of a worker, parsed, in file-name order; a file whose `name` is not its file name throws. */
 export function loadFixtures<F, T>(w: EvalWorker<F, T>): Array<{ file: URL; fixture: F }> {

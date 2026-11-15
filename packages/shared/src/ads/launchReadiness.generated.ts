@@ -84,7 +84,8 @@ export const ADS_WORKER_LEVELS: Readonly<Record<string, AdsReadinessLevel>> = {
   "Publisher (per adapter)": "L3",
   "Publisher (per adapter)|meta": "L3",
   "Renderer / Higgsfield client": "L3",
-  "Security (all)": "L3"
+  "Security (all)": "L3",
+  "Strategist": "L2"
 };
 
 /** The runs behind every L4/L5 above (scripts/ads-certifications.json). */

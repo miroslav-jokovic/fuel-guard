@@ -1,0 +1,156 @@
+{
+  "name": "local-missed-requirement",
+  "about": "A local job whose earlier leads often missed a hard requirement or gave a wrong number.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A local delivery driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 3200,
+          "per": "hour"
+        },
+        {
+          "kind": "term",
+          "term": "home daily"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 150,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [
+          "day cab",
+          "touch freight",
+          "Monday to Friday"
+        ],
+        "in_our_words": null
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "history": [
+      {
+        "id": "benchmark:cost_per_lead",
+        "kind": "benchmark",
+        "text": "Boostpoint 2026 benchmark, CDL drivers on Meta: an ad costing more than $42.00 per lead after 5 leads, or $85.00 spent with no lead, is where pausing is suggested.",
+        "source": null
+      },
+      {
+        "id": "lead_outcome:reached",
+        "kind": "lead_outcome",
+        "text": "Of 58 of our ad leads in the last 28 days, 44 were called and 25 were reached.",
+        "source": null
+      },
+      {
+        "id": "lead_outcome:not_qualified",
+        "kind": "lead_outcome",
+        "text": "21 of 58 of our ad leads in the last 28 days did not meet a hard requirement of the opening.",
+        "source": null
+      },
+      {
+        "id": "lead_outcome:wrong_number",
+        "kind": "lead_outcome",
+        "text": "9 of the 44 ad leads we called in the last 28 days had a wrong number.",
+        "source": null
+      }
+    ]
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "strategist@2",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-15T17:04:23.578Z",
+    "output": {
+      "audience": "Class A drivers who already meet the years requirement the opening states, now on runs that keep them out overnight or over weekends. They stop for hourly pay and a home-daily, Monday to Friday week in a day cab, and they are willing to handle touch freight.",
+      "audience_evidence": [
+        "job:subject",
+        "job:claim_3",
+        "job:claim_2",
+        "lead_outcome:not_qualified"
+      ],
+      "angles": [
+        {
+          "hook_family": "straight_talk",
+          "scene_family": "abstract_plate",
+          "format": "still",
+          "idea": "Lead with who qualifies: a Class A licence and the years requirement the opening states, said before any benefit.",
+          "proof": "The opening is a Class A job and states a years requirement.",
+          "why": "A large share of recent leads failed a hard requirement, so stating it up front is worth more than attraction. Office should confirm what the years figure covers.",
+          "evidence": [
+            "job:subject",
+            "job:claim_3",
+            "lead_outcome:not_qualified"
+          ]
+        },
+        {
+          "hook_family": "pay_first",
+          "scene_family": "cab_pov",
+          "format": "still",
+          "idea": "Lead with the hourly pay rate for local work, with health insurance named beside it.",
+          "proof": "The opening states an hourly pay rate and offers health insurance.",
+          "why": "Hourly pay is the clearest term on the job for a local driver. No hook or scene has been measured yet, so this is untested.",
+          "evidence": [
+            "job:claim_1",
+            "job:claim_4",
+            "job:detail_1"
+          ]
+        },
+        {
+          "hook_family": "life_first",
+          "scene_family": "home_street",
+          "format": "still",
+          "idea": "Lead with the week: home daily on a Monday to Friday schedule, shown as the driver back on their own street.",
+          "proof": "The opening offers home daily and lists Monday to Friday.",
+          "why": "The schedule is what a driver on longer runs lacks. Nothing has been measured for this pairing, so treat it as a test.",
+          "evidence": [
+            "job:claim_2",
+            "job:detail_3"
+          ]
+        },
+        {
+          "hook_family": "equipment_first",
+          "scene_family": "equipment_on_road",
+          "format": "still",
+          "idea": "Lead with the day cab running local delivery, a truck with no sleeper because the driver goes home daily.",
+          "proof": "The job is local delivery in a day cab and offers home daily.",
+          "why": "The day cab shows the home-daily claim without needing words. Untested here, since no earlier ad results exist by hook or scene.",
+          "evidence": [
+            "job:detail_1",
+            "job:subject",
+            "job:claim_2"
+          ]
+        },
+        {
+          "hook_family": "straight_talk",
+          "scene_family": "equipment_at_rest",
+          "format": "still",
+          "idea": "Say plainly that this is touch freight: the driver handles the load, and the pay is by the hour.",
+          "proof": "The opening lists touch freight and pays an hourly rate.",
+          "why": "Drivers who will not handle freight should rule themselves out before the form. Thin link: the outcomes do not say which requirement leads failed.",
+          "evidence": [
+            "job:detail_2",
+            "job:claim_1",
+            "lead_outcome:not_qualified"
+          ]
+        }
+      ]
+    }
+  }
+}

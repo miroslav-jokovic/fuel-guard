@@ -22,6 +22,9 @@ import type { AdAiAgent } from "./contracts.js";
  * the writer's model currently writes. `workers/agentModels.test.ts` fails a line whose
  * model is not the one that worker's `baseline.json` was recorded on.
  *
+ * The Strategist (V2c, 2026-11-15) started on Fable 5.2 and has no earlier line: the plan (§V1) assigns the
+ * planning work to the strongest model, and its first recording was made there.
+ *
  * `renderer` asks no Claude model (its provider is Higgsfield); it is in `AD_AI_AGENTS` for the switch and
  * the ledger, so it has no line.
  */
@@ -40,4 +43,5 @@ export const AD_AGENT_MODELS: Readonly<Record<AdClaudeAgent, AdAgentModel>> = {
   analyst: { model: "claude-opus-5-5" },
   craft_judge: { model: "claude-fable-5-2" },
   finished_ad_judge: { model: "claude-fable-5-2" },
+  strategist: { model: "claude-fable-5-2" },
 };

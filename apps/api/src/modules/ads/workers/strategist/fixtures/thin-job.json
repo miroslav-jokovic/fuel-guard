@@ -1,0 +1,91 @@
+{
+  "name": "thin-job",
+  "about": "An opening with one fact and no description: few honest angles exist.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "CDL driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 150000,
+          "per": "week"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 150,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [],
+        "in_our_words": null
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "history": [
+      {
+        "id": "benchmark:cost_per_lead",
+        "kind": "benchmark",
+        "text": "Boostpoint 2026 benchmark, CDL drivers on Meta: an ad costing more than $42.00 per lead after 5 leads, or $85.00 spent with no lead, is where pausing is suggested.",
+        "source": null
+      }
+    ]
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "strategist@2",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-15T17:06:54.507Z",
+    "output": {
+      "audience": "Drivers who hold a CDL and want to know what a week of work pays before they apply. They would stop on a plain amount paid per week. The job states little else, so the ads stay on the licence and the pay.",
+      "audience_evidence": [
+        "job:subject",
+        "job:claim_1"
+      ],
+      "angles": [
+        {
+          "hook_family": "pay_first",
+          "scene_family": "abstract_plate",
+          "format": "still",
+          "idea": "Lead with the amount the opening pays per week as the largest thing on the ad, with CDL driver stated right under it.",
+          "proof": "The opening states its pay as an amount per week.",
+          "why": "Pay is the only term the job states, so it must carry the ad. Nothing has been measured yet; the benchmark only says when to pause.",
+          "evidence": [
+            "job:claim_1",
+            "job:subject",
+            "benchmark:cost_per_lead"
+          ]
+        },
+        {
+          "hook_family": "straight_talk",
+          "scene_family": "cab_pov",
+          "format": "still",
+          "idea": "Say plainly who this is for and what it pays: a CDL is required, the pay per week is stated, and nothing else is implied.",
+          "proof": "The job is a CDL driver opening and it states what it pays per week.",
+          "why": "Naming the licence up front keeps away people who cannot take the job. No lead outcomes exist yet, so this is a precaution, not a finding.",
+          "evidence": [
+            "job:subject",
+            "job:claim_1"
+          ]
+        },
+        {
+          "hook_family": "life_first",
+          "scene_family": "equipment_at_rest",
+          "format": "still",
+          "idea": "Lead with ending a work week knowing what it paid, shown by a parked truck, and keep every claim on the pay.",
+          "proof": "The pay is stated as an amount per week.",
+          "why": "Tests whether the pay framed around the driver's week draws better than the amount alone. Nothing has been measured, and the job states no other terms, so the ad stays on pay.",
+          "evidence": [
+            "job:claim_1"
+          ]
+        }
+      ]
+    }
+  }
+}

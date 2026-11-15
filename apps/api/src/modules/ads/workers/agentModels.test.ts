@@ -17,6 +17,7 @@ const WORKER_DIR: Record<AdClaudeAgent, string> = {
   analyst: "analyst",
   craft_judge: "craftJudge",
   finished_ad_judge: "finishedAdJudge",
+  strategist: "strategist",
 };
 
 describe("each ads agent's baseline was recorded on the model it asks", () => {

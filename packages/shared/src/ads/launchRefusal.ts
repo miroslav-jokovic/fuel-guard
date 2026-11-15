@@ -38,6 +38,7 @@ export const AD_WORKER_OFFICE_LABEL: Readonly<Record<string, string>> = {
   "Analyst": "The morning report",
   "Craft judge": "Choosing the best of the ad texts offered",
   "Finished-ad judge": "A second opinion on each finished ad",
+  "Strategist": "Planning the campaign before any ad is made",
   "Outcome feed": "Telling the platform which applicants were hired",
 };
 

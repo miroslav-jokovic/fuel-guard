@@ -1,0 +1,138 @@
+{
+  "name": "first-campaign-regional",
+  "about": "A carrier with no history: the pack holds the job and the benchmark only.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A regional truck driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 68,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "quantity",
+          "value": 1,
+          "unit": "year"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 150,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [
+          "flatbed",
+          "Midwest lanes",
+          "assigned truck"
+        ],
+        "in_our_words": "A small fleet where dispatch knows your name"
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "history": [
+      {
+        "id": "benchmark:cost_per_lead",
+        "kind": "benchmark",
+        "text": "Boostpoint 2026 benchmark, CDL drivers on Meta: an ad costing more than $42.00 per lead after 5 leads, or $85.00 spent with no lead, is where pausing is suggested.",
+        "source": null
+      }
+    ]
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "strategist@2",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-15T17:02:46.894Z",
+    "output": {
+      "audience": "Class A drivers with flatbed experience who run or live near Midwest lanes and meet the opening's stated requirement. They likely drive for a larger fleet now and want a week that ends at home. A plain pay per mile, an assigned truck and a small fleet would stop them.",
+      "audience_evidence": [
+        "job:subject",
+        "job:detail_1",
+        "job:detail_2",
+        "job:claim_3"
+      ],
+      "angles": [
+        {
+          "hook_family": "pay_first",
+          "scene_family": "equipment_on_road",
+          "format": "still",
+          "idea": "Lead with the pay per mile for flatbed work on Midwest lanes, and name the retirement plan beside it.",
+          "proof": "The opening states its pay per mile and offers the retirement plan named on the sheet.",
+          "why": "Pay is the most concrete fact the job has and the quickest to compare. Nothing has been measured for this carrier yet, so judge it against the benchmark cost per lead.",
+          "evidence": [
+            "job:claim_1",
+            "job:claim_4",
+            "job:detail_2",
+            "benchmark:cost_per_lead"
+          ]
+        },
+        {
+          "hook_family": "life_first",
+          "scene_family": "home_street",
+          "format": "still",
+          "idea": "Lead with the home weekly schedule that regional Midwest lanes allow, shown as the end of a week at home.",
+          "proof": "The opening offers home weekly and the job is regional on Midwest lanes.",
+          "why": "Home time is the job's clearest life benefit and regional lanes make it believable. No earlier ads exist to show whether it outdraws pay, so run it beside the pay angle.",
+          "evidence": [
+            "job:claim_2",
+            "job:detail_2",
+            "job:subject"
+          ]
+        },
+        {
+          "hook_family": "equipment_first",
+          "scene_family": "equipment_at_rest",
+          "format": "still",
+          "idea": "Lead with the assigned truck: a flatbed rig at rest that belongs to its driver, not to whoever is next.",
+          "proof": "The job details list an assigned truck and flatbed work.",
+          "why": "An assigned truck is a specific fact that sets the job apart for flatbed drivers. It is untested here, and the still should show a real truck of this fleet.",
+          "evidence": [
+            "job:detail_3",
+            "job:detail_1"
+          ]
+        },
+        {
+          "hook_family": "straight_talk",
+          "scene_family": "abstract_plate",
+          "format": "still",
+          "idea": "State plainly who should apply: Class A, flatbed, Midwest lanes, and the requirement the opening states.",
+          "proof": "The opening names the licence class, the flatbed work, the Midwest lanes and a stated requirement.",
+          "why": "With no lead history, stating the hard requirements up front is the cheapest guard against out-of-area or unqualified leads. The office should confirm what the stated requirement measures.",
+          "evidence": [
+            "job:subject",
+            "job:claim_3",
+            "job:detail_1",
+            "job:detail_2"
+          ]
+        },
+        {
+          "hook_family": "life_first",
+          "scene_family": "cab_pov",
+          "format": "still",
+          "idea": "Lead with the small fleet where dispatch knows the driver by name, seen from the driver's seat during a working day.",
+          "proof": "The carrier describes itself as a small fleet where dispatch knows your name.",
+          "why": "This is the carrier's own claim and what a large fleet cannot copy. It is softer than pay or home time and nothing has been measured, so treat it as a trial.",
+          "evidence": [
+            "job:in_our_words"
+          ]
+        }
+      ]
+    }
+  }
+}
