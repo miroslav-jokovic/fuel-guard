@@ -13,6 +13,7 @@ import { releasesForApplicant, signedReleases } from "../applicationReleases.js"
 import { adoptedPacketMarks, packetStops } from "../applicationPacketMarks.js";
 import { identityOnFile } from "../applicantIdentity.js";
 import { partOneStatus } from "../applicantIntake.js";
+import { openAskAgainsForApplicant } from "../applicationAskAgain.js";
 import { FCRA_SUMMARY } from "../fcraSummary.js";
 import { latestRoadTestCertificate } from "../applicationRoadTestCopy.js";
 import { linkHandbookStatus } from "../handbookCeremony.js";
@@ -145,6 +146,8 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     captures,
     // Empty for every application nobody has corrected, which is most of them.
     edits,
+    // F5 (0607): the questions the office sent back and the driver has not answered. Empty for almost all.
+    askAgain: await openAskAgainsForApplicant(admin, invitation.org_id, invitation.id),
     // The signing ceremony's queue. Empty of signatures until the office approves — the stops
     // themselves are the carrier's paper and do not depend on anything the driver has done.
     packet,

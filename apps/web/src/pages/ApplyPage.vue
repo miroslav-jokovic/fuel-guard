@@ -12,6 +12,8 @@ import {
 } from "@silvicom/ui";
 import ApplySection from "@/features/apply/ApplySection.vue";
 import ApplyTaskHub from "@/features/apply/ApplyTaskHub.vue";
+import AskAgainBanner from "@/features/apply/AskAgainBanner.vue";
+import { useAskAgain } from "@/features/apply/askAgain";
 import { useTaskHub } from "@/features/apply/useTaskHub";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
 import ApplyProgress from "@/features/apply/ApplyProgress.vue";
@@ -288,6 +290,12 @@ const stageFacts = computed(() => ({
   approved: approved.value,
   submitted: submitted.value,
 }));
+// F5 (0607): while the office waits on an answer, the wait screen is its questions (`askAgain.ts`).
+const ask = useAskAgain({
+  token, draft, awaitingReview, formReady: autosaveEnabled, atList: hub.showList, showIssue,
+  questions: () => (isPartOneLink.value ? invitation.data.value?.askAgain : undefined),
+  flush: () => autosave.flushNow(), refetch: () => invitation.refetch(),
+});
 function identityRecorded(): void {
   [identityDone.value, restored.value, autosaveEnabled.value] = [true, false, false];
   void invitation.refetch();
@@ -330,7 +338,8 @@ watch(
     :token="token"
     :invitation="invitation"
     :submitted="submitted"
-    :awaiting-review="awaitingReview"
+    :awaiting-review="awaitingReview && !ask.answering.value"
+    :ask="ask"
     :expectations-needed="expectationsNeeded"
     :ceremony-available="ceremonyAvailable"
     :esign-consent="esignConsent"
@@ -362,6 +371,7 @@ watch(
     @send="send"
   >
     <div v-if="invitation.data.value" class="space-y-6">
+      <AskAgainBanner v-if="ask.answering.value" :carrier="invitation.data.value.carrier" :question="ask.answering.value.question" @done="ask.back()" />
       <div>
         <h1 class="text-2xl font-semibold text-ink">{{ APPLY_COPY.page.title }}</h1>
         <p class="mt-1 text-sm text-ink-muted">

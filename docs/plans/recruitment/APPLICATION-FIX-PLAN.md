@@ -933,3 +933,13 @@ A gate fails on a literal string in an `apply/` template.
   - **Proof:** API (+15), matrix `application-ask-agains` (18), 13 of 13 reachable mutants killed.
   - **Next:** stage 2, the driver's screen and answer, and the office's button on the facts card.
 
+- 2026-11-14: **F5 stage 1 merged** (#2384).
+- 2026-11-14: **F5, stage 2a: the driver's side** (`claude/application-ask-again-driver`, no migration). Still not reachable by a user: the office has no button yet, so no question can exist.
+  - **The screen:** while a question is open, the handed-over application opens on "Silvicom has a question for you" in place of the wait screen: the office's words, and which answer they are about. It stands before the date-of-birth gate, like the wait screens, and prints none of the driver's answers.
+  - **The loop:** "Open my answer" takes the driver into their application at the screen that asks that answer, with the office's words kept above it and "Done — back to the question". The date-of-birth gate is met on the way in when the draft is behind it. "Send my answer" is offered only for an answer that was opened; it puts everything typed on the server, tells the office, and the page is the wait screen again.
+  - **The answer is the draft's.** Nothing is typed into the question. An answer left as it was is still an answer.
+  - **Found by a test, fixed:** a job is named by its key, and the keyed-row helper does not place jobs (they were keyed earlier, by another rule). A question about a job opened no screen until the job is looked up in the driver's own list.
+  - **v2 links only.** A legacy link shows the wait screen; none is open in production, and 1b-5 retires the path.
+  - **Proof:** API (+4: what the driver is served, the answer's one stamp, a taken-back question, a filed application); web (+16: the composable, the screen, the router); 16 of 16 mutants killed; new `askAgain.spec.ts` walks the whole loop in a real browser and checks the answer reached the server before the office was told; both screens looked at in 390 px screenshots.
+  - **A test seam, said plainly:** the composable takes its sender as an argument. With the module mocked instead, Vitest failed the two rejection tests on a rejection the code had handled; I did not find why.
+  - **Next:** stage 2b, the office's "Ask the applicant" on the facts card and the list of what was asked. Then stage 3, the e-mail and text.
