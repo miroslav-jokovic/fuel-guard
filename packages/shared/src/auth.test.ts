@@ -258,7 +258,7 @@ describe("section capability matrix", () => {
 describe("claimsToContext", () => {
   it("maps a fully-claimed JWT", () => {
     expect(
-      claimsToContext({ sub: "u1", email: "a@b.com", org_id: "o1", user_role: "fleet_manager", iat: 1_700_000_000 }),
+      claimsToContext({ sub: "u1", email: "a@b.com", org_id: "o1", user_role: "fleet_manager", iat: 1_700_000_000, session_id: "5e551011-0000-4000-8000-000000000001" }),
     ).toEqual({
       userId: "u1",
       email: "a@b.com",
@@ -266,7 +266,13 @@ describe("claimsToContext", () => {
       role: "fleet_manager",
       sections: null,
       issuedAt: 1_700_000_000,
+      sessionId: "5e551011-0000-4000-8000-000000000001",
     });
+  });
+  it("says it cannot tell which session a token is for when the token does not say (IA-S3)", () => {
+    expect(claimsToContext({ sub: "u1" }).sessionId).toBeNull();
+    expect(claimsToContext({ sub: "u1", session_id: "" }).sessionId).toBeNull();
+    expect(claimsToContext({ sub: "u1", session_id: 7 as unknown as string }).sessionId).toBeNull();
   });
   it("carries the org's overrides through from the same verified token (D-PERM2)", () => {
     expect(
@@ -289,6 +295,8 @@ describe("claimsToContext", () => {
       // A token with no `iat` yields null, and every step-up gate reads null as "not fresh". Failing
       // closed on an absent claim is the property, not an accident — see middleware/requireFreshAuth.ts.
       issuedAt: null,
+      // "Cannot tell which session": nothing is marked as this device and nothing is refused for being it.
+      sessionId: null,
     });
   });
 });

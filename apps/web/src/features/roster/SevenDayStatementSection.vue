@@ -177,16 +177,14 @@ async function submit(): Promise<void> {
       </div>
 
       <template #footer>
-        <div class="flex justify-end gap-3">
-          <BaseButton variant="secondary" @click="open = false">Cancel</BaseButton>
-          <BaseButton
-            variant="primary"
-            :disabled="!ready || record.isPending.value"
-            @click="submit"
-          >
-            {{ record.isPending.value ? "Recording…" : "Record" }}
-          </BaseButton>
-        </div>
+        <BaseButton variant="secondary" @click="open = false">Cancel</BaseButton>
+        <BaseButton
+          variant="primary"
+          :disabled="!ready || record.isPending.value"
+          @click="submit"
+        >
+          {{ record.isPending.value ? "Recording…" : "Record" }}
+        </BaseButton>
       </template>
     </SlideOver>
   </BaseCard>

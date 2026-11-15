@@ -157,12 +157,10 @@ async function onSubmit() {
 
     </form>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="save.isPending.value" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="save.isPending.value">
-          {{ save.isPending.value ? "Saving…" : "Save shelf" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="save.isPending.value" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="save.isPending.value">
+        {{ save.isPending.value ? "Saving…" : "Save shelf" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

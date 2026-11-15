@@ -95,12 +95,10 @@ async function start() {
 
     </form>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="openSession.isPending.value" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="openSession.isPending.value">
-          {{ openSession.isPending.value ? "Starting…" : "Start counting" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="openSession.isPending.value" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="openSession.isPending.value">
+        {{ openSession.isPending.value ? "Starting…" : "Start counting" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

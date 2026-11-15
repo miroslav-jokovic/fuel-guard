@@ -428,12 +428,10 @@ async function onRetire(t: Trailer) {
         @submit="onSubmit"
       />
       <template #footer>
-        <div class="flex justify-end gap-3">
-          <BaseButton @click="drawerOpen = false">Cancel</BaseButton>
-          <BaseButton form="trailer-form" type="submit" variant="primary" :disabled="saving">
-            {{ saving ? "Saving…" : "Save trailer" }}
-          </BaseButton>
-        </div>
+        <BaseButton @click="drawerOpen = false">Cancel</BaseButton>
+        <BaseButton form="trailer-form" type="submit" variant="primary" :disabled="saving">
+          {{ saving ? "Saving…" : "Save trailer" }}
+        </BaseButton>
       </template>
     </SlideOver>
   </div>

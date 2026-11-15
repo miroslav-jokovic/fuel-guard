@@ -25,7 +25,7 @@ import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { formatDate } from "@/lib/format";
-import MemberPasswordResetDrawer from "@/features/settings/MemberPasswordResetDrawer.vue";
+import MemberRowDrawers from "@/features/settings/MemberRowDrawers.vue";
 import GatedLink from "@/components/GatedLink.vue";
 import MemberRenameDrawer from "@/features/settings/MemberRenameDrawer.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
@@ -254,7 +254,7 @@ async function sendRole(m: OrgMember, newRole: string) {
 }
 
 const renaming = ref<OrgMember | null>(null); // 0301 — the drawer owns the save and its step-up
-const resetting = ref<OrgMember | null>(null); // 0363 — the drawer owns the send and its step-up
+const rowAct = ref<{ kind: "reset" | "devices"; member: OrgMember } | null>(null); // 0363, IA-S3 — each drawer owns its act and its step-up
 // ── search + multi-select (members) ─────────────────────────────────────────
 // In the URL (D-US2), so a reload or Back keeps the member the admin searched for. The page's other
 // list, invitations, has no filter, so the key needs no scope.
@@ -427,7 +427,8 @@ const inviteColumns: DataTableColumn[] = [
         <template #actions="{ row }">
           <KebabMenu>
             <BaseButton class="kebab-item" @click="renaming = row">{{ row.fullName ? "Edit name" : "Add name" }}</BaseButton>
-            <BaseButton v-if="row.userId !== session.userId" class="kebab-item" @click="resetting = row">Send password reset…</BaseButton>
+            <BaseButton v-if="row.userId !== session.userId" class="kebab-item" @click="rowAct = { kind: 'reset', member: row }">Send password reset…</BaseButton>
+            <BaseButton class="kebab-item" @click="rowAct = { kind: 'devices', member: row }">Signed-in devices…</BaseButton>
             <template v-if="offersAccessActions(row, session.userId)">
               <BaseButton v-if="isSuspended(row)" class="kebab-item" @click="memberAct(reinstateMember, row)">Reinstate member…</BaseButton>
               <BaseButton v-else class="kebab-item" @click="memberAct(suspendMember, row)">Suspend member…</BaseButton>
@@ -461,7 +462,7 @@ const inviteColumns: DataTableColumn[] = [
     <SlideOver :open="stepUpFor !== null" title="Confirm your password" @close="cancel">
       <StepUpPrompt v-if="stepUpFor" :reason="stepUpFor" @confirmed="confirmed" @cancel="cancel" />
     </SlideOver>
-    <MemberPasswordResetDrawer :member="resetting" @close="resetting = null" />
+    <MemberRowDrawers :act="rowAct" @close="rowAct = null" />
 
     <section class="space-y-3">
       <h3 class="text-lg font-semibold text-ink">Invitations</h3>

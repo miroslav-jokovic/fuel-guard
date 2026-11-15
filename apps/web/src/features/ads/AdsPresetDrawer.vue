@@ -120,12 +120,10 @@ async function submit(): Promise<void> {
       <AppCallout v-if="refusal" tone="danger" data-test="preset-refusal">{{ refusal }}</AppCallout>
     </form>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton :disabled="save.isPending.value" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton variant="primary" type="submit" :form="FORM" :disabled="save.isPending.value" data-test="save-preset">
-          {{ preset ? `Save as version ${nextVersion}` : "Save preset" }}
-        </BaseButton>
-      </div>
+      <BaseButton :disabled="save.isPending.value" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton variant="primary" type="submit" :form="FORM" :disabled="save.isPending.value" data-test="save-preset">
+        {{ preset ? `Save as version ${nextVersion}` : "Save preset" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

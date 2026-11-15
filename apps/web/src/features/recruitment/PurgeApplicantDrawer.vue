@@ -81,16 +81,14 @@ function close(): void {
       </FormField>
     </div>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton :disabled="purge.isPending.value" @click="close">Cancel</BaseButton>
-        <BaseButton
-          variant="danger"
-          :disabled="!matches || purge.isPending.value || stepUpFor !== null"
-          @click="run"
-        >
-          {{ purge.isPending.value ? "Deleting…" : "Delete permanently" }}
-        </BaseButton>
-      </div>
+      <BaseButton :disabled="purge.isPending.value" @click="close">Cancel</BaseButton>
+      <BaseButton
+        variant="danger"
+        :disabled="!matches || purge.isPending.value || stepUpFor !== null"
+        @click="run"
+      >
+        {{ purge.isPending.value ? "Deleting…" : "Delete permanently" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

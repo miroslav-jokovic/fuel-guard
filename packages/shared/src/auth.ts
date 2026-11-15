@@ -21,6 +21,11 @@ export interface AuthClaims {
   sections?: Partial<Record<AppSection, SectionAccess>>;
   /** Seconds since the epoch. Standard JWT claim, verified by `jose` along with the signature. */
   iat?: number;
+  /**
+   * The Supabase session this token was minted for — `auth.sessions.id`. Seen on a staging token on
+   * 2026-11-15 (claims: aal, amr, session_id, …); Supabase's auth server sets it, not our hook.
+   */
+  session_id?: string;
 }
 
 /** The authenticated principal the API attaches to each request after verifying the JWT. */
@@ -50,25 +55,14 @@ export interface AuthContext {
    * whole point of the gate is to be certain, and "we could not tell" is not certainty.
    */
   issuedAt?: number | null;
-}
-
-/** Lower-cased domain part of an email, or null if malformed. */
-export function emailDomain(email: string): string | null {
-  const at = email.lastIndexOf("@");
-  if (at <= 0 || at === email.length - 1) return null;
-  return email.slice(at + 1).trim().toLowerCase();
-}
-
-/**
- * True iff the email's domain is in the org's allowlist (case-insensitive).
- * An empty or absent allowlist means no domain restriction — all emails are allowed.
- * Enforced at BOTH invite creation and invite acceptance (audit M2).
- */
-export function isEmailDomainAllowed(email: string, allowedDomains: readonly string[] | null | undefined): boolean {
-  if (!allowedDomains || allowedDomains.length === 0) return true;
-  const domain = emailDomain(email);
-  if (!domain) return false;
-  return allowedDomains.some((d) => d.trim().toLowerCase() === domain);
+  /**
+   * The session this token belongs to (INSTALLED-APP-PLAN IA-S3), off the same verified JWT. Its one use is
+   * marking "this device" in the signed-in devices list and refusing to end it there.
+   *
+   * OPTIONAL, and absence means "cannot tell": no entry is marked current and none is refused. That is the
+   * safe direction — the list still works, and Sign out is still how a person ends the device in their hand.
+   */
+  sessionId?: string | null;
 }
 
 // ── Section-scoped capabilities ───────────────────────────────────────────────
@@ -267,6 +261,7 @@ export const claimsToContext = (c: AuthClaims): AuthContext => ({
   // Carried through verbatim: a number here is only ever one `jose` has already verified the
   // signature over, so nothing downstream has to trust the client about when it signed in.
   issuedAt: typeof c.iat === "number" ? c.iat : null,
+  sessionId: typeof c.session_id === "string" && c.session_id ? c.session_id : null,
 });
 
 // ── Restricted qualification records (Phase G, D-DQ15; SPLIT 2026-08-19) ─────

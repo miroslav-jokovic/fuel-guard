@@ -32,41 +32,41 @@ const item = (over: Partial<ChatActivityItem> = {}): ChatActivityItem => ({
 
 describe("inboxAlerts — direct and group lines", () => {
   it("rings for a new line from somebody else, titled by them alone in a direct conversation", () => {
-    expect(inboxAlerts([conv(3)], [conv(4)], ME, away, names)).toEqual([
+    expect(inboxAlerts([conv(3)], [conv(4)], ME, away, names, false)).toEqual([
       { messageId: conv(4).last_message!.id, threadId: T, title: "Ben Admin", body: "Gate code 4411", query: { c: T } },
     ]);
   });
 
   it("titles a group line by its sender and the group", () => {
     const g = (seq: number) => conv(seq, { kind: "group", subject: "Night dispatch" });
-    expect(inboxAlerts([g(3)], [g(4)], ME, away, names)[0]!.title).toBe("Ben Admin in Night dispatch");
+    expect(inboxAlerts([g(3)], [g(4)], ME, away, names, false)[0]!.title).toBe("Ben Admin in Night dispatch");
   });
 
   it("rings for nothing on the first snapshot — what was there when the page loaded is not news", () => {
-    expect(inboxAlerts(null, [conv(4)], ME, away, names)).toEqual([]);
+    expect(inboxAlerts(null, [conv(4)], ME, away, names, false)).toEqual([]);
   });
 
   it("rings for nothing that is not newer, not from somebody else, removed, or already read", () => {
-    expect(inboxAlerts([conv(4)], [conv(4)], ME, away, names)).toEqual([]);
-    expect(inboxAlerts([conv(3)], [conv(4, {}, ME)], ME, away, names)).toEqual([]);
-    expect(inboxAlerts([conv(3)], [conv(4, { last_message: { ...conv(4).last_message!, deleted: true } })], ME, away, names)).toEqual([]);
-    expect(inboxAlerts([conv(3)], [conv(4, { unread: 0 })], ME, away, names)).toEqual([]);
+    expect(inboxAlerts([conv(4)], [conv(4)], ME, away, names, false)).toEqual([]);
+    expect(inboxAlerts([conv(3)], [conv(4, {}, ME)], ME, away, names, false)).toEqual([]);
+    expect(inboxAlerts([conv(3)], [conv(4, { last_message: { ...conv(4).last_message!, deleted: true } })], ME, away, names, false)).toEqual([]);
+    expect(inboxAlerts([conv(3)], [conv(4, { unread: 0 })], ME, away, names, false)).toEqual([]);
   });
 
   it("leaves a channel, and a conversation muted either way, to Activity's rules", () => {
-    expect(inboxAlerts([conv(3, { kind: "channel" })], [conv(4, { kind: "channel" })], ME, away, names)).toEqual([]);
-    expect(inboxAlerts([conv(3)], [conv(4, { muted: "mentions" })], ME, away, names)).toEqual([]);
-    expect(inboxAlerts([conv(3)], [conv(4, { muted: "all" })], ME, away, names)).toEqual([]);
+    expect(inboxAlerts([conv(3, { kind: "channel" })], [conv(4, { kind: "channel" })], ME, away, names, false)).toEqual([]);
+    expect(inboxAlerts([conv(3)], [conv(4, { muted: "mentions" })], ME, away, names, false)).toEqual([]);
+    expect(inboxAlerts([conv(3)], [conv(4, { muted: "all" })], ME, away, names, false)).toEqual([]);
   });
 
   it("never rings for the conversation on screen in a visible tab — but does when the tab is hidden", () => {
-    expect(inboxAlerts([conv(3)], [conv(4)], ME, { visible: true, threadId: T }, names)).toEqual([]);
-    expect(inboxAlerts([conv(3)], [conv(4)], ME, { visible: false, threadId: T }, names)).toHaveLength(1);
-    expect(inboxAlerts([conv(3)], [conv(4)], ME, { visible: true, threadId: CH }, names)).toHaveLength(1);
+    expect(inboxAlerts([conv(3)], [conv(4)], ME, { visible: true, threadId: T }, names, false)).toEqual([]);
+    expect(inboxAlerts([conv(3)], [conv(4)], ME, { visible: false, threadId: T }, names, false)).toHaveLength(1);
+    expect(inboxAlerts([conv(3)], [conv(4)], ME, { visible: true, threadId: CH }, names, false)).toHaveLength(1);
   });
 
   it("does not ring for a conversation it has never seen — its first appearance is a baseline too", () => {
-    expect(inboxAlerts([], [conv(4)], ME, away, names)).toEqual([]);
+    expect(inboxAlerts([], [conv(4)], ME, away, names, false)).toEqual([]);
   });
 });
 
@@ -74,27 +74,27 @@ describe("activityAlerts — mentions and replies", () => {
   const muted = (m: ChatConversation["muted"] | undefined) => () => m;
 
   it("rings for a channel mention, with # and the words, the mention read as a name", () => {
-    const [a] = activityAlerts([item()], new Set(), muted("none"), away, (id) => (id === ME ? "Miki" : null));
+    const [a] = activityAlerts([item()], new Set(), muted("none"), away, (id) => (id === ME ? "Miki" : null), false);
     expect(a).toEqual({ messageId: item().message_id, threadId: CH, title: "Ben Admin in # Loads", body: "@Miki can you call 611?", query: { ch: CH } });
   });
 
   it("opens a reply in its post's thread", () => {
-    const [a] = activityAlerts([item({ reason: "reply", parent_id: T })], new Set(), muted("none"), away, names);
+    const [a] = activityAlerts([item({ reason: "reply", parent_id: T })], new Set(), muted("none"), away, names, false);
     expect(a!.query).toEqual({ ch: CH, post: T });
   });
 
   it("rings for a direct or group mention only when that conversation is muted to mentions — else the inbox did", () => {
     const d = item({ kind: "direct", thread_id: T, subject: null });
-    expect(activityAlerts([d], new Set(), muted("none"), away, names)).toEqual([]);
-    expect(activityAlerts([d], new Set(), muted("mentions"), away, names)).toHaveLength(1);
+    expect(activityAlerts([d], new Set(), muted("none"), away, names, false)).toEqual([]);
+    expect(activityAlerts([d], new Set(), muted("mentions"), away, names, false)).toHaveLength(1);
   });
 
   it("never rings for a conversation muted all, a reaction, a read item, one already seen, or the one on screen", () => {
-    expect(activityAlerts([item()], new Set(), muted("all"), away, names)).toEqual([]);
-    expect(activityAlerts([item({ reason: "reaction" })], new Set(), muted("none"), away, names)).toEqual([]);
-    expect(activityAlerts([item({ unread: false })], new Set(), muted("none"), away, names)).toEqual([]);
-    expect(activityAlerts([item()], new Set([item().message_id]), muted("none"), away, names)).toEqual([]);
-    expect(activityAlerts([item()], new Set(), muted("none"), { visible: true, threadId: CH }, names)).toEqual([]);
+    expect(activityAlerts([item()], new Set(), muted("all"), away, names, false)).toEqual([]);
+    expect(activityAlerts([item({ reason: "reaction" })], new Set(), muted("none"), away, names, false)).toEqual([]);
+    expect(activityAlerts([item({ unread: false })], new Set(), muted("none"), away, names, false)).toEqual([]);
+    expect(activityAlerts([item()], new Set([item().message_id]), muted("none"), away, names, false)).toEqual([]);
+    expect(activityAlerts([item()], new Set(), muted("none"), { visible: true, threadId: CH }, names, false)).toEqual([]);
   });
 });
 
@@ -106,5 +106,27 @@ describe("alertText", () => {
     expect(text.endsWith("…")).toBe(true);
     expect(alertText("two\n\nlines", names)).toBe("two lines");
     expect(alertText(null, names)).toBe("");
+  });
+});
+
+describe("message text hidden (INSTALLED-APP-PLAN IA-S4)", () => {
+  it("says only who wrote: no line, and not the group's name", () => {
+    const g = (seq: number) => conv(seq, { kind: "group", subject: "Night dispatch" });
+    const [a] = inboxAlerts([g(3)], [g(4)], ME, away, names, true);
+    expect(a).toEqual({ messageId: g(4).last_message!.id, threadId: T, title: "New message from Ben Admin", body: "", query: { c: T } });
+  });
+
+  it("hides a mention's text and its channel the same way, and still opens the line", () => {
+    const [a] = activityAlerts([item({ parent_id: T })], new Set(), () => "none", away, names, true);
+    expect(a!.title).toBe("New message from Ben Admin");
+    expect(a!.body).toBe("");
+    expect(JSON.stringify(a)).not.toMatch(/Loads|611/);
+    expect(a!.query).toEqual({ ch: CH, post: T });
+  });
+
+  it("rings for exactly the lines it rang for before — hiding is not muting", () => {
+    expect(inboxAlerts([conv(3)], [conv(4)], ME, away, names, true)).toHaveLength(1);
+    expect(inboxAlerts([conv(4)], [conv(4)], ME, away, names, true)).toEqual([]);
+    expect(inboxAlerts([conv(3)], [conv(4)], ME, { visible: true, threadId: T }, names, true)).toEqual([]);
   });
 });

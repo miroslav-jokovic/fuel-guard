@@ -76,10 +76,8 @@ async function submit(): Promise<void> {
       <AppCallout v-if="refused" tone="danger" role="alert" data-test="campaign-refusal">{{ refused }}</AppCallout>
     </form>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton :disabled="create.isPending.value" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton variant="primary" type="submit" :form="FORM" :disabled="!ready || create.isPending.value" data-test="start-campaign">Start campaign</BaseButton>
-      </div>
+      <BaseButton :disabled="create.isPending.value" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton variant="primary" type="submit" :form="FORM" :disabled="!ready || create.isPending.value" data-test="start-campaign">Start campaign</BaseButton>
     </template>
   </SlideOver>
 </template>

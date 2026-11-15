@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { afterReset, useDetectionEpoch } from "@/features/anomalies/useDetectionEpoch";
+import { afterReset, epochGated, useDetectionEpoch } from "@/features/anomalies/useDetectionEpoch";
 import { computed, nextTick, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
@@ -214,7 +214,8 @@ const txnsQuery = useQuery({
 const txns = txnsQuery.data;
 
 // D-CF9 (0439): cases before the org's detection start date are not listed (useDetectionEpoch.ts).
-const { epoch: detectionEpoch, ready: epochReady } = useDetectionEpoch();
+const epochGate = useDetectionEpoch();
+const { epoch: detectionEpoch, ready: epochReady } = epochGate;
 const anomaliesQuery = useQuery({
   queryKey: ["driver-anomalies", id, detectionEpoch],
   enabled: computed(
@@ -238,11 +239,15 @@ const anomaliesQuery = useQuery({
   },
 });
 const anomalies = anomaliesQuery.data;
-/** The anomalies are read for the fills' ids, so a failed fills read is their failure too. */
-const anomaliesFailed = computed(() => anomaliesQuery.isError.value || txnsQuery.isError.value);
+/**
+ * The anomalies are read for the fills' ids and after the detection date, so a failed read of either
+ * is their failure too (`epochGated` folds the date in; the fills are this page's own).
+ */
+const anomaliesRead = epochGated(anomaliesQuery, epochGate);
+const anomaliesFailed = computed(() => anomaliesRead.isError.value || txnsQuery.isError.value);
 function retryAnomalies(): void {
   if (txnsQuery.isError.value) void txnsQuery.refetch();
-  else void anomaliesQuery.refetch();
+  else anomaliesRead.refetch();
 }
 
 // The band is `MPG_PLAUSIBLE_MIN/MAX` from `@silvicom/shared`, not the `>= 1 && <= 40` this line used
@@ -465,7 +470,7 @@ const fillColumns: DataTableColumn[] = [
               compact
               :loading="!anomaliesFailed"
               :error="anomaliesFailed"
-              :retrying="anomaliesQuery.isFetching.value || txnsQuery.isFetching.value"
+              :retrying="anomaliesRead.isFetching.value || txnsQuery.isFetching.value"
               loading-text="Loading the anomalies…"
               error-text="Could not load the anomalies."
               @retry="retryAnomalies"

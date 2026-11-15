@@ -88,6 +88,84 @@ export async function readVehicleIdBySamsara(
   }
 }
 
+/**
+ * A value inside a PostgREST `or=(…)` list. The list's grammar reserves the comma, the full stop, the
+ * colon and both parentheses, and a timestamp carries two of them, so every value is double-quoted with
+ * the two characters that end or escape a quoted value escaped.
+ */
+function orValue(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * Every assignment interval that overlaps [overlapFromIso, endIso], in (start_at, vehicle, driver) order.
+ *
+ * ── WHY EACH PAGE STARTS AFTER THE LAST ROW INSTEAD OF AT AN OFFSET (database audit 2026-11-15, P1) ──
+ * This read was `.range(offset, offset + 999)` until 2026-11-15, and on production it was the largest
+ * single source of temporary-file writes in the database: 262 GB in 41 days over 145,334 calls. A
+ * 30-day window matches 99,532 of the table's 250,777 rows (54,687 of them open-ended, so they overlap
+ * every window), which is 100 pages; no index can serve the order, because the filter that decides a
+ * row is on `end_at`; and `LIMIT 1000 OFFSET 90000` obliges Postgres to sort the first 91,000 rows to
+ * find the last thousand. That sort needs about 10 MB and the database gives a connection 5 MB, so
+ * every page past the first few went to disk.
+ * A page that asks for "the 1,000 rows after this one" keeps only 1,000 rows while it scans. Measured
+ * on production the same day, PostgREST's own statement shape, no parallel worker, 5 MB of sort memory:
+ *   at row 40,000 — offset: external merge, 5,088 kB on disk, 144 ms · after-row: 163 kB in memory, 102 ms
+ *   at row 90,000 — offset: external merge, 5,088 kB on disk, 187 ms · after-row: 132 kB in memory,  86 ms
+ * The first attempt at this (migration 0610) raised the API role's sort memory instead and took
+ * production down for 25 minutes, because PostgREST lower-cases a role setting's value before sending
+ * it and `16mb` is not a size Postgres accepts (reset by migration 0613). This one changes no setting.
+ *
+ * ── WHY THE DRIVER IS THE THIRD SORT COLUMN ─────────────────────────────────────────────────────
+ * The old order was (start_at, vehicle) and that pair is not unique — 287 of production's rows shared
+ * one with another row on 2026-11-15 (team drivers logging into one truck in the same instant). An
+ * offset page over a non-unique order may repeat or skip the tied rows at a page boundary; an
+ * after-row page over one would skip them every time. (org, vehicle, driver, start_at) is the table's
+ * primary key, so with the driver the order is total and no row can be seen twice or missed.
+ *
+ * `start_at` goes back to PostgREST exactly as PostgREST printed it. Postgres keeps microseconds and
+ * a JavaScript Date keeps milliseconds, so a cursor passed through `new Date()` would land before
+ * its own row and read it again.
+ */
+export async function readAssignmentsOverlapping(
+  admin: SupabaseClient,
+  orgId: string,
+  overlapFromIso: string,
+  endIso: string,
+): Promise<AssignmentRow[]> {
+  const out: AssignmentRow[] = [];
+  let last: AssignmentRow | null = null;
+  for (;;) {
+    let query = admin
+      .from("driver_vehicle_assignments")
+      .select("vehicle_samsara_id, driver_samsara_id, start_at, end_at")
+      .eq("org_id", orgId)
+      .lte("start_at", endIso)
+      .or(`end_at.is.null,end_at.gte.${overlapFromIso}`);
+    if (last) {
+      const start = orValue(last.start_at);
+      const vehicle = orValue(last.vehicle_samsara_id);
+      const driver = orValue(last.driver_samsara_id);
+      // A second `or` is a second query parameter, and PostgREST joins its parameters with AND.
+      query = query.or(
+        `start_at.gt.${start},` +
+          `and(start_at.eq.${start},vehicle_samsara_id.gt.${vehicle}),` +
+          `and(start_at.eq.${start},vehicle_samsara_id.eq.${vehicle},driver_samsara_id.gt.${driver})`,
+      );
+    }
+    const { data, error } = await query
+      .order("start_at", { ascending: true })
+      .order("vehicle_samsara_id", { ascending: true })
+      .order("driver_samsara_id", { ascending: true })
+      .limit(PAGE_SIZE);
+    requireDatabaseSuccess(error, "assignment read");
+    const batch = (data ?? []) as AssignmentRow[];
+    out.push(...batch);
+    if (batch.length < PAGE_SIZE) return out;
+    last = batch[batch.length - 1] ?? null;
+  }
+}
+
 /** Assignment intervals overlapping the (padded) window — same pad as the segments they will clip. */
 export async function readAssignments(
   admin: SupabaseClient,
@@ -95,23 +173,8 @@ export async function readAssignments(
   fromIso: string,
   endIso: string,
 ): Promise<AssignmentRow[]> {
-  const out: AssignmentRow[] = [];
   const paddedFromIso = new Date(Date.parse(fromIso) - SEGMENT_PAD_MS).toISOString();
-  for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { data, error } = await admin
-      .from("driver_vehicle_assignments")
-      .select("vehicle_samsara_id, driver_samsara_id, start_at, end_at")
-      .eq("org_id", orgId)
-      .lte("start_at", endIso)
-      .or(`end_at.is.null,end_at.gte.${paddedFromIso}`)
-      .order("start_at", { ascending: true })
-      .order("vehicle_samsara_id", { ascending: true })
-      .range(offset, offset + PAGE_SIZE - 1);
-    requireDatabaseSuccess(error, "assignment read");
-    const batch = (data ?? []) as AssignmentRow[];
-    out.push(...batch);
-    if (batch.length < PAGE_SIZE) return out;
-  }
+  return readAssignmentsOverlapping(admin, orgId, paddedFromIso, endIso);
 }
 
 export function mapSegments(rows: HosSegmentRow[]): {

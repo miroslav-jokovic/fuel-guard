@@ -45,12 +45,10 @@ const listName = (): string => (props.kind === "applicant" ? "the applicant boar
       <p>You can put them back at any time — switch this list to Archived and restore them.</p>
     </div>
     <template #footer>
-      <div class="flex justify-end gap-3">
-        <BaseButton variant="secondary" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton variant="primary" :disabled="busy" @click="emit('confirm')">
-          {{ busy ? "Archiving…" : "Archive" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="secondary" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton variant="primary" :disabled="busy" @click="emit('confirm')">
+        {{ busy ? "Archiving…" : "Archive" }}
+      </BaseButton>
     </template>
   </BaseModal>
 </template>

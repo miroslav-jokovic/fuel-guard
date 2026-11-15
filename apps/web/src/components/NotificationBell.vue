@@ -140,13 +140,13 @@ const touch = useTouchTargets();
       </ul>
 
       <template #footer>
-        <div v-if="confirmingClear" class="flex items-center justify-end gap-3">
+        <template v-if="confirmingClear">
           <BaseButton :disabled="dismiss.isPending.value" @click="confirmingClear = false">Back</BaseButton>
           <BaseButton variant="danger" :disabled="dismiss.isPending.value" @click="clearAll">
             {{ dismiss.isPending.value ? "Clearing…" : "Clear all" }}
           </BaseButton>
-        </div>
-        <div v-else class="flex items-center justify-end gap-3">
+        </template>
+        <template v-else>
           <BaseButton
             variant="ghost"
             size="sm"
@@ -163,7 +163,7 @@ const touch = useTouchTargets();
           >
             Mark all read
           </BaseButton>
-        </div>
+        </template>
       </template>
     </SlideOver>
   </div>

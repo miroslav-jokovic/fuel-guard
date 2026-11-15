@@ -8,6 +8,7 @@ import { useSessionStore } from "@/stores/session";
 import { activityAlerts, inboxAlerts, type DesktopAlert, type OnScreen } from "./chatDesktopAlerts";
 import { activityKey, CHAT_KEY } from "./useChat";
 import { useChatDnd } from "./useChatDnd";
+import { useChatPushPrivacy } from "./useChatPushPrivacy";
 
 /**
  * Desktop alerts for office chat (OFFICE-CHAT-PLAN CH6d; Q-CHAT4 (a): while the tab is open; Q-CHAT18 (a)).
@@ -86,6 +87,9 @@ export function useChatDesktopAlerts(enabled: Ref<boolean>, inbox: Ref<ChatConve
   // Do not disturb (CHAT-WEB-PUSH-PLAN WP5) holds the PC's alerts as the server holds the phone's pushes. A line
   // that arrives during it is counted as rung, so it does not ring when the quiet ends — the inbox has it.
   const dnd = useChatDnd(live);
+  // Message text kept off a locked screen (INSTALLED-APP-PLAN IA-S4): the person's one switch, which the phone's
+  // pushes obey on the server. Read when an alert is worded, so a press of Hide holds for the next line.
+  const privacy = useChatPushPrivacy(live);
 
   // This device's push registration, refreshed once per signed-in person while chat is open to them
   // (a rotated endpoint re-registers; a subscription left by somebody else is let go — lib/webPush.ts).
@@ -133,7 +137,7 @@ export function useChatDesktopAlerts(enabled: Ref<boolean>, inbox: Ref<ChatConve
     () => (live.value ? inbox.value : undefined),
     (next) => {
       if (!next) { lastInbox = null; return; } // off, or not loaded: the next snapshot is a baseline again
-      ring(inboxAlerts(lastInbox, next, session.userId ?? "", screen(), nameOf));
+      ring(inboxAlerts(lastInbox, next, session.userId ?? "", screen(), nameOf, privacy.hideText()));
       lastInbox = next;
     },
     { immediate: true },
@@ -157,7 +161,7 @@ export function useChatDesktopAlerts(enabled: Ref<boolean>, inbox: Ref<ChatConve
       if (!page) return;
       if (firstLook) { seen = new Set(page.items.map((i) => i.message_id)); return; } // a baseline, not news
       const mutedOf = (id: string) => inbox.value?.find((c) => c.thread_id === id)?.muted;
-      ring(activityAlerts(page.items, seen!, mutedOf, screen(), nameOf));
+      ring(activityAlerts(page.items, seen!, mutedOf, screen(), nameOf, privacy.hideText()));
       for (const i of page.items) seen!.add(i.message_id);
     },
     { immediate: true },

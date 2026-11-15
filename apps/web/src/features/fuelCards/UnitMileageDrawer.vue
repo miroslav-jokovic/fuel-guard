@@ -248,14 +248,10 @@ async function submit(): Promise<void> {
     </div>
 
     <template #footer>
-      <!-- The footer every other drawer draws: right-aligned, 12 px apart. The two buttons were bare
-           in the slot, so they sat at the left edge touching each other (browser pass, 2026-11-15). -->
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="secondary" :disabled="saving" @click="emit('close')">Close</BaseButton>
-        <BaseButton variant="primary" :disabled="!canSubmit" @click="submit">
-          {{ saving ? "Sending…" : "Correct mileage" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="secondary" :disabled="saving" @click="emit('close')">Close</BaseButton>
+      <BaseButton variant="primary" :disabled="!canSubmit" @click="submit">
+        {{ saving ? "Sending…" : "Correct mileage" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

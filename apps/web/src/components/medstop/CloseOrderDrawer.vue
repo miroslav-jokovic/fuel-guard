@@ -105,21 +105,19 @@ const facts = computed((): Fact[] => {
       </template>
     </div>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <template v-if="done">
-          <BaseButton @click="emit('close')">Done</BaseButton>
-          <BaseButton v-if="done.reorder" variant="primary" @click="emit('orderAgain', done.reorder)">Order again</BaseButton>
-        </template>
-        <template v-else>
-          <BaseButton :disabled="send.isPending.value" @click="emit('close')">Keep the order</BaseButton>
-          <BaseButton v-if="!reviewed" :disabled="preview.isPending.value" @click="review">
-            {{ preview.isPending.value ? "Checking…" : "Check again" }}
-          </BaseButton>
-          <BaseButton v-else variant="danger" :disabled="send.isPending.value" @click="confirm">
-            {{ send.isPending.value ? "Closing…" : "Close the order" }}
-          </BaseButton>
-        </template>
-      </div>
+      <template v-if="done">
+        <BaseButton @click="emit('close')">Done</BaseButton>
+        <BaseButton v-if="done.reorder" variant="primary" @click="emit('orderAgain', done.reorder)">Order again</BaseButton>
+      </template>
+      <template v-else>
+        <BaseButton :disabled="send.isPending.value" @click="emit('close')">Keep the order</BaseButton>
+        <BaseButton v-if="!reviewed" :disabled="preview.isPending.value" @click="review">
+          {{ preview.isPending.value ? "Checking…" : "Check again" }}
+        </BaseButton>
+        <BaseButton v-else variant="danger" :disabled="send.isPending.value" @click="confirm">
+          {{ send.isPending.value ? "Closing…" : "Close the order" }}
+        </BaseButton>
+      </template>
     </template>
   </SlideOver>
 </template>

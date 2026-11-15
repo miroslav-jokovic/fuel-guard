@@ -12,9 +12,12 @@ import type { ChatConversation } from "@silvicom/shared";
  */
 /** The person's Do not disturb as the server answers it; a test sets it (CHAT-WEB-PUSH-PLAN WP5). */
 const quiet = vi.hoisted(() => ({ state: null as null | Record<string, unknown> }));
+/** Whether the person hides message text, as the server answers it (INSTALLED-APP-PLAN IA-S4); null = it cannot say. */
+const privacy = vi.hoisted(() => ({ hide_text: false as boolean | null }));
 const apiFetch = vi.hoisted(() => vi.fn(async (path: string) => ({
-  ok: true,
+  ok: !(path.includes("/push/privacy") && privacy.hide_text === null),
   data: path.includes("/push/quiet") && quiet.state ? quiet.state
+    : path.includes("/push/privacy") ? (privacy.hide_text === null ? undefined : { hide_text: privacy.hide_text })
     : path.includes("/unread") ? { unread: 0 } : path.includes("/people") ? { people: [] } : { items: [], next: null, unread: 0 },
 })));
 vi.mock("@/lib/api", () => ({ apiFetch }));
@@ -130,6 +133,33 @@ describe("desktop alerts in a tab", () => {
     w.unmount();
     quiet.state = null;
     vi.useRealTimers();
+  });
+
+  it("leaves the text out for a person who hides it, and still opens the line", async () => {
+    privacy.hide_text = true;
+    const { w, inbox, control, router } = await setup();
+    await control().turnOn();
+    await flushPromises();
+    inbox.value = [conv(4)];
+    await nextTick();
+    expect(FakeNotification.shown.map((n) => [n.title, n.options.body, n.options.tag])).toEqual([["New message from Ben Admin", "", `chat:${T}`]]);
+    FakeNotification.shown[0]!.onclick!();
+    await flushPromises();
+    expect(router.currentRoute.value.fullPath).toBe(`/chat?c=${T}`);
+    w.unmount();
+    privacy.hide_text = false;
+  });
+
+  it("leaves the text out when the server cannot say whether the person hides it", async () => {
+    privacy.hide_text = null;
+    const { w, inbox, control } = await setup();
+    await control().turnOn();
+    await flushPromises();
+    inbox.value = [conv(4)];
+    await nextTick();
+    expect(FakeNotification.shown.map((n) => [n.title, n.options.body])).toEqual([["New message from Ben Admin", ""]]);
+    w.unmount();
+    privacy.hide_text = false;
   });
 
   it("opens the line where it lives when the alert is clicked", async () => {

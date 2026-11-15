@@ -12,12 +12,32 @@ stripped before Claude reads the file. -->
 
 ## Package map
 
-- `apps/api` — Express 5 API + background worker + schedulers. Serves the built web SPA. Deploys to
-  Railway (two services from `railway.json`: `fleetguardapi` is WEX-whitelisted and runs the pollers).
+- `apps/api` — Express 5 API + background worker + schedulers. Serves the built web SPA. Runs on
+  **AWS EC2** (us-west-2) as Docker Compose services — `infra/server/compose.yml`: `api` ×2, `worker`,
+  `web`, `console`, behind Caddy; settings from SSM Parameter Store; logs in CloudWatch
+  `/silvicom/<env>`. Production images come from `aws-production.yml` (called by `release.yml`),
+  staging's from `image.yml`. Plan and decisions: `docs/plans/architecture/AWS-MIGRATION-PLAN.md`.
 - `apps/web` — Vue 3 + Vite + Tailwind 4 SPA (Pinia, vue-router, TanStack vue-query). See its CLAUDE.md.
 - `apps/driver` — Expo/React Native driver app. Ships through the stores only (`driver-store.yml`, EAS → Play/TestFlight); the APK install
   page and the self-hosted OTA server were switched off in the AWS move (D-AWS16).
-- `apps/admin` + `apps/admin-api` — internal platform console (own Railway service).
+- `apps/admin` + `apps/admin-api` — internal platform console (the `console` Compose service).
+
+## Hosting: AWS only — Railway is retired
+
+Production left Railway on 2026-10-28 (Railway's production services were deleted that day);
+staging runs on AWS, and anything still left in Railway's `uat` project is a remnant awaiting
+deletion, not a host. **Never
+deploy to, configure, debug on, or read a variable from Railway**, and never propose it. Hosts:
+`360.silvicominc.com` + `api.360.silvicominc.com` (production), `staging-api.360.silvicominc.com`
+(staging). To see what production is doing, read CloudWatch (`AWS_PROFILE=silvicom
+AWS_REGION=us-west-2 aws logs filter-log-events --log-group-name /silvicom/production …`), not Railway.
+
+Code still carries Railway names — `RAILWAY_*` environment reads, `railway.json`'s `watchPatterns` in
+`deploy-verify.yml`, "Railway" in comments. They are leftovers, and three of them are live defects
+on AWS (the release name, console release approval, and the web build id are all read from
+variables AWS never sets). Inventory and fix order: `docs/plans/architecture/RAILWAY-REMOVAL-PLAN.md`.
+A new `RAILWAY_*` read is never the answer: read the platform-neutral name (`GIT_COMMIT_SHA`,
+`GIT_BRANCH`, `DEPLOY_ENVIRONMENT`) that `infra/image/Dockerfile` and `infra/server/` set.
 - `packages/shared` — Zod contracts (`*Contract.ts`) + pure domain logic. The ONLY home for
   api/web/driver-shared types and rules; never redefine a contract per app.
 - `packages/ui` — shared Vue components + `tokens.css`. `packages/hazmat-*` — hazmat rules engine
@@ -63,7 +83,8 @@ stripped before Claude reads the file. -->
   `plan` job and, on a yes, skips every heavy job but `native-android`; `build` accepts those skips
   only then (`scripts/check-ci-verdict.sh`, run in `gates`). A nightly `schedule` run (09:30 UTC)
   and `workflow_dispatch` always run everything. `deploy-verify` passes pushes that touch only
-  paths `railway.json`'s `watchPatterns` exclude, and a host serving a later main commit. A push to
+  paths `railway.json`'s `watchPatterns` exclude (a Railway leftover still in force — see the
+  removal plan), and a host serving a later main commit. A push to
   main verifies the STAGING hosts (`STAGING_*` variables); `release.yml` calls it for production.
   Every push-triggered production job (`migrate`, smoke) skips while
   the repository variable `RELEASE_TRAIN` is `on`; deleting that variable is half of the undo.
@@ -80,15 +101,19 @@ stripped before Claude reads the file. -->
   edit an applied migration. **A merge deploys to STAGING; a release deploys to PRODUCTION** (the
   release train, live since 2026-10-04 — `docs/plans/ship-pipeline/RELEASE-TRAIN-PLAN.md`):
   - On merge to main, `migrate.yml`'s `migrate-staging` job applies the migration to the staging
-    database and Railway `uat` serves the code. Production does not move.
+    database and `image.yml` deploys the code to the AWS staging server. Production does not move.
   - Production moves only through `release.yml`: at 01:07 CT, Sunday–Thursday nights, it ships the
     commit the owner approved on the open `main → production` release PR — migrations FIRST, then
     the code. A merged migration is a released migration by the next morning at the earliest, and
     never if nobody approves. Hotfix and rollback are `release.yml` dispatch modes; never move the
-    `production` branch or Railway's production triggers by hand (a ruleset refuses even an admin).
+    `production` branch by hand (a ruleset refuses even an admin).
+  - **A migration that changes a ROLE (`alter role … set`) is tested against PRODUCTION, never only
+    staging.** Production's PostgREST lowercased 0610's `work_mem = '16MB'` to `16mb` and every API
+    read failed for 30 minutes (2026-11-15); staging's PostgREST build passed it through and showed
+    nothing. Release verify does not catch it — it checks the code is live, not that reads succeed.
   - The nightly `schema-drift.yml` fails when production's schema differs from what the migrations
     build — fix with the next migration, never by hand on either database.
-- ...and code still meets the other side's schema. On staging, Railway serves a merge in minutes
+- ...and code still meets the other side's schema. On staging, AWS serves a merge in minutes
   and `migrate-staging` may apply its schema before OR after that; in a release, new schema serves
   OLD code for the deploy minutes. So a column and its first reader ship in two separate merges
   (`lint:migration-ordering`), and a column is dropped only a release after its last reader is gone;
@@ -156,9 +181,9 @@ So, when the honest fix is out of scope:
 - Background work runs in the worker (`WORKER_ROLE=scheduler|consumer|both`); schedulers must run in
   exactly ONE process fleet-wide — never add one without checking `docs/WORKER-DEPLOYMENT.md`.
   `RUN_SCHEDULERS_IN_PROCESS` defaults to **true**, so a service never given it runs them: `api`
-  owns them (it is the WEX-whitelisted host), and every other service from `railway.json` gets
-  `false` before its first deploy. No gate can see a Railway variable — `docs/DEPLOYMENT.md` has
-  the log check.
+  owns the egress lane (it is the WEX-whitelisted host) and the `scheduler` worker the general lane;
+  `infra/server/compose.yml` gives `web` and `console` `false`, and any new Compose service gets
+  `false` too. Who holds each lane right now: `platform_scheduler_leases`.
 
 ## graphify
 

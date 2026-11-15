@@ -143,12 +143,10 @@ async function confirmDelete() {
     </div>
 
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton v-if="!cannotConfirm" variant="danger" :disabled="blocked" @click="confirmDelete">
-          {{ remove.isPending.value ? "Deleting…" : "Delete this record" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton v-if="!cannotConfirm" variant="danger" :disabled="blocked" @click="confirmDelete">
+        {{ remove.isPending.value ? "Deleting…" : "Delete this record" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>
