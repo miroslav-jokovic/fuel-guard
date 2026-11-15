@@ -236,3 +236,49 @@ describe("HW6b: what the applicant's PSP record suggests", () => {
     expect(w.find('[data-testid="psp-suggestions"]').exists()).toBe(false);
   });
 });
+
+/** F5 (0607): one question per job, named by the job's key — the jobs are a timeline, not rows of the card. */
+describe("asking the applicant about a job", () => {
+  const withState = (employers: unknown[], state: string, editable = true) =>
+    mount(OfficeJobsSection, {
+      props: { invitationId: "inv-1", driverId: "drv-1", employers: employers as never, givenGaps: [], revision: 7, v2: true, editable, state: state as never },
+      global: { plugins: [VueQueryPlugin] },
+    });
+  const settleAll = async () => { for (let i = 0; i < 6; i++) { await new Promise((r) => setTimeout(r, 0)); } };
+  const asks = (w: ReturnType<typeof withState>) => w.findAll("button").filter((b) => b.text().startsWith("Ask the applicant about"));
+
+  it("offers it for each job that has a key, by the company's name, while the application waits for the office", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: { questions: [] } });
+    const w = withState([job(KEY_A, "Old Carrier", "2015-01-01", yearAgo), { employer_name: "Keyless Freight", started_on: "2010-01-01" }], "awaiting_review");
+    await settleAll();
+    expect(asks(w).map((b) => b.text())).toEqual(["Ask the applicant about Old Carrier"]);
+  });
+
+  it("offers nothing when the section is not told where the application stands, or once it is approved", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: { questions: [] } });
+    apiFetch.mockClear();
+    expect(asks(mountIt())).toHaveLength(0);
+    await settleAll();
+    // Not told where the application stands: nothing is offered, so the list of questions is not even read.
+    expect(apiFetch.mock.calls.some((c) => String(c[0]).endsWith("/ask-again"))).toBe(false);
+    const approved = withState([job(KEY_A, "Old Carrier", "2015-01-01", yearAgo)], "approved");
+    await settleAll();
+    expect(asks(approved)).toHaveLength(0);
+  });
+
+  it("⚠ sends the question about the job by its key", async () => {
+    apiFetch.mockImplementation(async (_url: string, init?: { method?: string }) =>
+      init?.method === "POST"
+        ? { ok: true, data: { question: { id: "q1", path: ["employers", KEY_A], question: "x", askedAt: "x", answeredAt: null, withdrawnAt: null }, notice: null } }
+        : { ok: true, data: { questions: [] } });
+    const w = withState([job(KEY_A, "Old Carrier", "2015-01-01", yearAgo)], "awaiting_review");
+    await settleAll();
+    await asks(w)[0]!.trigger("click");
+    await w.find("[data-ask-words]").setValue("When exactly did you leave?");
+    await w.findAll("button").find((b) => b.text() === "Send the question")!.trigger("click");
+    await settleAll();
+    const sent = apiFetch.mock.calls.find((c) => String(c[0]).endsWith("/ask-again") && c[1]?.method === "POST")!;
+    expect(sent[1].body).toEqual({ path: ["employers", KEY_A], question: "When exactly did you leave?" });
+  });
+});
+

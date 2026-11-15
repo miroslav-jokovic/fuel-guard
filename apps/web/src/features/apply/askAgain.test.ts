@@ -61,6 +61,23 @@ describe("where a question's answer is", () => {
     expect(issue.fieldId).toBe("apply-employers-1-ended_on");
   });
 
+  it("⚠ opens a question about the job itself at the job's first question", () => {
+    const draft = emptyDraft();
+    draft.employers = [{ ...draft.employers[0]!, key: "a" }, { ...draft.employers[0]!, key: "b" }];
+    expect(askAgainIssue({ path: ["employers", "b"] }, draft)).toMatchObject({
+      path: ["employers", 1, "employer_name"], section: "employment", fieldId: "apply-employers-1-employer_name",
+    });
+  });
+
+  it("⚠ names a job by its company, and its answer by the company and the answer", () => {
+    const draft = emptyDraft();
+    draft.employers = [{ ...draft.employers[0]!, key: "a", employer_name: "Newer Freight" }, { ...draft.employers[0]!, key: "b", employer_name: "Old Carrier" }];
+    expect(askAgainIssue({ path: ["employers", "b"] }, draft).label).toBe("Old Carrier");
+    expect(askAgainIssue({ path: ["employers", "b", "ended_on"] }, draft).label).toMatch(/^Old Carrier · /);
+    // Behind the gate the draft is empty: the plain noun, and no name that was never loaded.
+    expect(askAgainIssue({ path: ["employers", "b"] }, emptyDraft()).label).not.toContain("Old Carrier");
+  });
+
   it("still names the screen for a job the driver has since removed", () => {
     expect(askAgainIssue({ path: ["employers", "gone", "ended_on"] }, emptyDraft()).section).toBe("employment");
   });

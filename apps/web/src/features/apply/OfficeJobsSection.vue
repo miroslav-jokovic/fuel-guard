@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import FactAskAgain from "./FactAskAgain.vue";
+import type { ApplicationReviewState } from "@silvicom/shared";
 import { computed, ref, toRef } from "vue";
 import { AppButton as BaseButton, AppInput as BaseInput } from "@silvicom/ui";
 import { formatDisplayDate, type ApplicationPath, type UnlistedCarrier } from "@silvicom/shared";
@@ -47,6 +49,8 @@ const props = defineProps<{
   /** A v2 application (it has a Part 1) — whose filing asks each job for its address, reason and (iv). */
   v2: boolean;
   editable: boolean;
+  /** F5: where the application stands, for "Ask the applicant" on a job. Absent: nothing is offered. */
+  state?: ApplicationReviewState;
 }>();
 
 const toast = useToastStore();
@@ -233,6 +237,23 @@ async function explainGap(gap: { from: string; to: string }): Promise<void> {
         </div>
       </template>
     </EmploymentTimeline>
+
+    <!-- F5 (0607): one question per job, named by the job's key. Below the timeline, because a job there is
+         a bar and a badge, with no room for the office's words. A keyless job (from before AW1) cannot be
+         named, so it is not offered — as it cannot be removed. -->
+    <ul v-if="state" class="space-y-1" data-job-questions>
+      <li v-for="r in rows.filter((x) => typeof x.ref === 'string')" :key="r.id" :data-job-question="r.id">
+        <FactAskAgain
+          :invitation-id="invitationId"
+          :path="['employers', r.ref]"
+          :label="employerName(r.row)"
+          :state="state"
+          :payload="null"
+          :can-ask="editable"
+          :ask-label="`Ask the applicant about ${employerName(r.row)}`"
+        />
+      </li>
+    </ul>
 
     <PspSuggestionsBlock :suggestions="pspQ.data.value" :editable="editable" @add="addFromPsp" />
 

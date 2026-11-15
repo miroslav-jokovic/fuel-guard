@@ -48,3 +48,30 @@ test("a driver answers the office's question and goes back to waiting", async ({
   expect(body.payload.experience).toBe("Eight years, dry van. Two of them on a flatbed.");
   expect(stub.state.unstubbed).toEqual([]);
 });
+
+test("a question about a job opens that job, not the first one", async ({ page }) => {
+  const job = (key: string, employer_name: string, started_on: string, ended_on: string) => ({
+    key, employer_name, usdot_number: "", address_line1: "", city: "", state: "", phone: "", email: "", position_held: "Driver",
+    started_on, ended_on, operated_cmv: true, dot_regulated: true, reason_for_leaving: "Better pay", subject_to_fmcsr: true, safety_sensitive: true,
+  });
+  const KEY_B = "40000000-0000-4000-8000-00000000000b";
+  const link = partTwoV2Link({ phases: { reviewRequestedAt: T } });
+  await stubApi(page, {
+    ...link,
+    askAgain: [{ id: "q2", path: ["employers", KEY_B], question: "Which terminal did you run out of?", askedAt: T, answeredAt: null, withdrawnAt: null }],
+    draft: {
+      locked: false, furthestSection: "review", updatedAt: T, revision: 1,
+      payload: {
+        first_name: "Susan", last_name: "Godfrey", declares_no_employment: false,
+        employers: [job("40000000-0000-4000-8000-00000000000a", "Newer Freight", "2025-07-01", ""), job(KEY_B, "Old Carrier", "2023-01-01", "2025-06-30")],
+      },
+    },
+  });
+  await page.goto(url);
+  // Named by the company, never by the key.
+  await expect(page.getByText("About: Old Carrier", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Open my answer" }).click();
+  await expect(page.locator("[data-ask-again-banner]")).toContainText("Which terminal did you run out of?");
+  await expect(page.locator("#apply-employers-1-employer_name")).toHaveValue("Old Carrier");
+});
+

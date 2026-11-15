@@ -42,6 +42,8 @@ const props = defineProps<{
   payload: Record<string, unknown> | null;
   /** May this reader act on the application (the card's own `draftOpen`)? Without it the row only reports. */
   canAsk: boolean;
+  /** The button's own words where "Ask the applicant" alone would not say about what (one per job). */
+  askLabel?: string;
 }>();
 
 const id = toRef(props, "invitationId");
@@ -95,7 +97,7 @@ async function takeBack(questionId: string): Promise<void> {
 
     <template v-if="offered && !waiting">
       <div v-if="!writing" class="flex justify-end">
-        <BaseButton size="sm" variant="ghost" @click="writing = true; problem = null">Ask the applicant</BaseButton>
+        <BaseButton size="sm" variant="ghost" @click="writing = true; problem = null">{{ askLabel ?? "Ask the applicant" }}</BaseButton>
       </div>
       <div v-else class="space-y-2 rounded-surface bg-surface-muted p-3">
         <FormField
