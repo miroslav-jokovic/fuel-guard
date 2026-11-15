@@ -68,6 +68,10 @@ const LEDGER: Record<string, string> = {
   "POST /api/ads/campaigns/:campaignId/creatives/:creativeId/decision": MANAGE,
   "POST /api/ads/campaigns/:campaignId/creatives/:creativeId/words": MANAGE,
   "POST /api/ads/campaigns/:campaignId/launch": SPEND,
+  // V2c: reading a plan is a view; editing and approving one spend nothing (composing runs inside the AI budget).
+  "GET /api/ads/campaigns/:campaignId/plan": VIEW,
+  "POST /api/ads/campaigns/:campaignId/plan/versions": MANAGE,
+  "POST /api/ads/campaigns/:campaignId/plan/approval": MANAGE,
 };
 
 /** The doors §4R names, and the two siblings that also move money or an account: each with a body that would pass. */

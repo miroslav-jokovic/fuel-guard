@@ -108,7 +108,7 @@ export interface AdsCampaignView extends AdsCampaignSummary {
  */
 /**
  * `plan_approved` is excluded too (V2): it must name the plan version the person approved, which the general
- * door has no field for, so it has its own door with the plan store. Until that door exists nothing can send it.
+ * door has no field for, so it has its own door with the plan store (`POST …/plan/approval`, `plan/planDoors.ts`).
  */
 export const ADS_PERSON_DOOR_EXCLUDED: readonly CampaignEvent[] = ["kill", "launch", "plan_approved"];
 export const adsCampaignMoveSchema = z.object({
