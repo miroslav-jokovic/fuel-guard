@@ -342,19 +342,17 @@ async function addNew(): Promise<void> {
     </div>
 
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="working" @click="emit('close')">
-          {{ link || orphaned ? "Done" : "Cancel" }}
-        </BaseButton>
-        <BaseButton
-          v-if="!link && !orphaned && !matches?.length"
-          variant="primary"
-          :disabled="!ready || working || !canInvite"
-          @click="submit"
-        >
-          {{ working ? "Creating…" : "Add and create the link" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="working" @click="emit('close')">
+        {{ link || orphaned ? "Done" : "Cancel" }}
+      </BaseButton>
+      <BaseButton
+        v-if="!link && !orphaned && !matches?.length"
+        variant="primary"
+        :disabled="!ready || working || !canInvite"
+        @click="submit"
+      >
+        {{ working ? "Creating…" : "Add and create the link" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

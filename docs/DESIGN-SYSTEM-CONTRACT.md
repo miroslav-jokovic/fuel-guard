@@ -695,14 +695,15 @@ TransitionRoot → Dialog (z-50)
     │   DialogDescription mt-1 text-sm text-ink-muted        (only when `description`)
     │   close BaseButton  variant="ghost" size="sm" -mr-2 shrink-0 px-2 text-ink-subtle, aria-label="Close drawer"
     ├ BODY    flex-1 overflow-y-auto px-4 py-6 sm:px-6      → <slot />
-    └ FOOTER  border-t border-edge bg-surface px-4 py-4 sm:px-6  → <slot name="footer" /> (only if provided)
+    └ FOOTER  border-t border-edge bg-surface px-4 py-4 sm:px-6 + DIALOG_FOOTER_CLASS
+              (flex flex-wrap items-center justify-end gap-3)  → <slot name="footer" /> (only if provided)
 ```
 
 ### 6.2 The rules
 
 - Header, padding and the close button are **not yours** — never re-add a title or an ✕ inside the body.
 - Body root is `<div class="space-y-6">`; each section is `<section aria-labelledby>` with an `h3.text-sm.font-semibold.text-ink`.
-- **Actions belong in `#footer`**, right-aligned, `flex items-center justify-end gap-3`, secondary first then `variant="primary"` last. Use `size` default (`md`) in footers.
+- **Actions belong in `#footer`, passed BARE**: secondary first then `variant="primary"` last, `size` default (`md`). The row (right-aligned, 12 px apart, wrapping on a phone) is the primitive's since 2026-11-15: `DIALOG_FOOTER_CLASS` (`packages/ui/src/components/dialogFooter.ts`), on `SlideOver` and `BaseModal` alike. Do not wrap the buttons in your own `flex … justify-end` div. A footer that is not a row of buttons (a field above them, an action held apart on the left) passes ONE element with `w-full` and lays itself out inside it.
 - Cross-fields submit via `<form :id="…">` in the body + `<BaseButton :form="…" type="submit">` in the footer, so the footer stays pinned while the body scrolls.
 - Destructive confirmations **replace the body**, they do not stack a second modal.
 - A one-question "are you sure?" is `useConfirm()` (D-US7): `await ask({ title, message, confirmLabel, tone })`.
@@ -735,20 +736,20 @@ Body swaps between three states, footer swaps with them:
   </div>
 
   <template v-if="driver" #footer>
-    <div v-if="confirmation" class="flex items-center justify-end gap-3">
+    <template v-if="confirmation">
       <BaseButton :disabled="busy" @click="confirmAction = null">Back</BaseButton>
       <BaseButton :variant="confirmation.tone === 'danger' ? 'danger' : 'primary'" :disabled="busy" @click="runConfirmedAction">
         {{ busy ? "Working…" : confirmation.confirmLabel }}
       </BaseButton>
-    </div>
-    <div v-else-if="access === 'none'" class="flex items-center justify-end gap-3">
+    </template>
+    <template v-else-if="access === 'none'">
       <BaseButton :disabled="busy" @click="close">Cancel</BaseButton>
       <BaseButton form="driver-login-form" type="submit" variant="primary"
                   :disabled="busy || !!usernameProblem || !!passwordProblem">
         <AppIcon :icon="KeyIcon" class="size-4" aria-hidden="true" />
         {{ create.isPending.value ? "Creating…" : "Create app login" }}
       </BaseButton>
-    </div>
+    </template>
     …
   </template>
 </SlideOver>

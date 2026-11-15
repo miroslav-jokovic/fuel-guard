@@ -133,12 +133,10 @@ async function submit() {
       </p>
     </form>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="busy" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="busy || !rows.length">
-          {{ busy ? "Saving…" : "Save" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="busy" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="busy || !rows.length">
+        {{ busy ? "Saving…" : "Save" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

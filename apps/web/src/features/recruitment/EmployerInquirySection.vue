@@ -281,17 +281,15 @@ const FORM_ID = "employer-inquiry-form";
       </div>
 
       <template #footer>
-        <div class="flex items-center justify-end gap-3">
-          <BaseButton variant="ghost" :disabled="record.isPending.value" @click="composeFor = null">Cancel</BaseButton>
-          <BaseButton
-            :form="FORM_ID"
-            type="submit"
-            variant="primary"
-            :disabled="record.isPending.value || !form.contacted_on || !form.sent_to.trim()"
-          >
-            {{ record.isPending.value ? "Recording…" : "Record this inquiry" }}
-          </BaseButton>
-        </div>
+        <BaseButton variant="ghost" :disabled="record.isPending.value" @click="composeFor = null">Cancel</BaseButton>
+        <BaseButton
+          :form="FORM_ID"
+          type="submit"
+          variant="primary"
+          :disabled="record.isPending.value || !form.contacted_on || !form.sent_to.trim()"
+        >
+          {{ record.isPending.value ? "Recording…" : "Record this inquiry" }}
+        </BaseButton>
       </template>
     </SlideOver>
   </div>

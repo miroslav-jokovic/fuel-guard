@@ -171,12 +171,10 @@ async function save() {
     </form>
 
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="saving" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton form="new-inspection-form" type="submit" variant="primary" :disabled="saving || !ready">
-          {{ saving ? "Starting…" : "Start inspection" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="saving" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton form="new-inspection-form" type="submit" variant="primary" :disabled="saving || !ready">
+        {{ saving ? "Starting…" : "Start inspection" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

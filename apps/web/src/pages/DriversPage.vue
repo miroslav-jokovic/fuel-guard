@@ -420,12 +420,10 @@ async function onSubmit(input: DriverInput) {
         @submit="onSubmit"
       />
       <template #footer>
-        <div class="flex justify-end gap-3">
-          <BaseButton @click="drawerOpen = false">Cancel</BaseButton>
-          <BaseButton form="driver-form" type="submit" variant="primary" :disabled="saving">
-            {{ saving ? "Saving…" : "Save driver" }}
-          </BaseButton>
-        </div>
+        <BaseButton @click="drawerOpen = false">Cancel</BaseButton>
+        <BaseButton form="driver-form" type="submit" variant="primary" :disabled="saving">
+          {{ saving ? "Saving…" : "Save driver" }}
+        </BaseButton>
       </template>
     </SlideOver>
 

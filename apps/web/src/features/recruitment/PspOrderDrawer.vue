@@ -119,12 +119,10 @@ async function place(): Promise<void> {
     </div>
 
     <template v-if="!stepUpFor" #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="order.isPending.value" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton variant="primary" :disabled="!canOrder || order.isPending.value" @click="place">
-          {{ order.isPending.value ? "Ordering…" : "Order the record" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="order.isPending.value" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton variant="primary" :disabled="!canOrder || order.isPending.value" @click="place">
+        {{ order.isPending.value ? "Ordering…" : "Order the record" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

@@ -239,12 +239,10 @@ const uploadAccept = acceptFor(EMPLOYER_RESPONSE_CONTENT_TYPES);
     </div>
 
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="busy" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton variant="primary" :disabled="busy || !form.outcome_on" @click="save">
-          {{ busy ? "Recording…" : "Record their answer" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="busy" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton variant="primary" :disabled="busy || !form.outcome_on" @click="save">
+        {{ busy ? "Recording…" : "Record their answer" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

@@ -155,22 +155,20 @@ async function saveSetup() {
     </div>
 
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <template v-if="setupOpen">
-          <BaseButton variant="ghost" @click="setupOpen = false">Back</BaseButton>
-          <BaseButton
-            variant="primary"
-            :disabled="!form.name.trim() || saveProfile.isPending.value"
-            @click="saveSetup"
-          >
-            {{ saveProfile.isPending.value ? "Saving…" : "Save printer" }}
-          </BaseButton>
-        </template>
-        <template v-else>
-          <BaseButton variant="ghost" @click="emit('close')">Cancel</BaseButton>
-          <BaseButton variant="primary" :disabled="needsProfile" @click="printIt">Print</BaseButton>
-        </template>
-      </div>
+      <template v-if="setupOpen">
+        <BaseButton variant="ghost" @click="setupOpen = false">Back</BaseButton>
+        <BaseButton
+          variant="primary"
+          :disabled="!form.name.trim() || saveProfile.isPending.value"
+          @click="saveSetup"
+        >
+          {{ saveProfile.isPending.value ? "Saving…" : "Save printer" }}
+        </BaseButton>
+      </template>
+      <template v-else>
+        <BaseButton variant="ghost" @click="emit('close')">Cancel</BaseButton>
+        <BaseButton variant="primary" :disabled="needsProfile" @click="printIt">Print</BaseButton>
+      </template>
     </template>
   </SlideOver>
 </template>

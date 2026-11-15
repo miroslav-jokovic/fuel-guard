@@ -111,16 +111,14 @@ async function send(): Promise<void> {
     </div>
 
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton :disabled="dispatch.isPending.value" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton
-          variant="primary"
-          :disabled="dispatch.isPending.value || !driverId || !preview.data.value"
-          @click="send"
-        >
-          {{ dispatch.isPending.value ? "Dispatching…" : "Dispatch" }}
-        </BaseButton>
-      </div>
+      <BaseButton :disabled="dispatch.isPending.value" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton
+        variant="primary"
+        :disabled="dispatch.isPending.value || !driverId || !preview.data.value"
+        @click="send"
+      >
+        {{ dispatch.isPending.value ? "Dispatching…" : "Dispatch" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

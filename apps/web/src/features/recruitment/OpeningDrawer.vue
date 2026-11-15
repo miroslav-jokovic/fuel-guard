@@ -160,12 +160,10 @@ async function submit(): Promise<void> {
       <AppCallout v-if="refusal" tone="danger" data-test="opening-refusal">{{ refusal }}</AppCallout>
     </form>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton :disabled="save.isPending.value" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton v-if="canManage" variant="primary" type="submit" :form="FORM" :disabled="save.isPending.value" data-test="save-opening">
-          {{ opening ? `Save as version ${nextVersion}` : "Save opening" }}
-        </BaseButton>
-      </div>
+      <BaseButton :disabled="save.isPending.value" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton v-if="canManage" variant="primary" type="submit" :form="FORM" :disabled="save.isPending.value" data-test="save-opening">
+        {{ opening ? `Save as version ${nextVersion}` : "Save opening" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

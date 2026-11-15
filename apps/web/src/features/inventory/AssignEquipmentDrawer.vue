@@ -392,12 +392,10 @@ const FORM_ID = "assign-equipment-form";
       </ul>
     </form>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="saving" @click="close">Cancel</BaseButton>
-        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="saving || toAssign.length === 0" data-test="assign-confirm">
-          {{ confirmLabel }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="saving" @click="close">Cancel</BaseButton>
+      <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="saving || toAssign.length === 0" data-test="assign-confirm">
+        {{ confirmLabel }}
+      </BaseButton>
     </template>
     <!-- Inside the drawer's slot, as the sticker field's camera is, so Escape closes the camera and
          not the drawer under it (`BarcodeCamera`'s header). Kept open: a box of straps is many reads. -->

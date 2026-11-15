@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
+import { DIALOG_FOOTER_CLASS } from "@silvicom/ui";
 import SlideOver from "./SlideOver.vue";
 
 /**
@@ -46,5 +47,30 @@ describe("how wide the drawer opens", () => {
 
   it("xl for a whole document, which is what the application review is", async () => {
     expect(await widthOf("xl")).toContain("max-w-4xl");
+  });
+});
+
+/**
+ * The footer's layout is the drawer's (`DIALOG_FOOTER_CLASS`), not each caller's. Until 2026-11-15
+ * the slot was a plain block and forty-odd drawers wrote the same row themselves; the one that forgot
+ * shipped with its buttons at the left edge, touching.
+ */
+describe("the drawer's footer", () => {
+  const footer = async (slots: Record<string, string>) => {
+    open = mount(SlideOver, { props: { open: true, title: "A drawer" }, slots, attachTo: document.body });
+    await nextTick();
+    await nextTick();
+    return document.querySelector('[data-test="dialog-footer"]');
+  };
+
+  it("lays bare buttons out as the right-aligned row that wraps, with no wrapper from the caller", async () => {
+    const el = await footer({ footer: "<button>Cancel</button><button>Save</button>" });
+    expect(el?.className.split(/\s+/)).toEqual(expect.arrayContaining(DIALOG_FOOTER_CLASS.split(" ")));
+    expect(DIALOG_FOOTER_CLASS.split(" ")).toEqual(expect.arrayContaining(["flex", "flex-wrap", "justify-end", "gap-3"]));
+    expect(Array.from(el?.children ?? []).map((c) => c.textContent)).toEqual(["Cancel", "Save"]);
+  });
+
+  it("draws no footer bar for a drawer that has no footer", async () => {
+    expect(await footer({})).toBeNull();
   });
 });
