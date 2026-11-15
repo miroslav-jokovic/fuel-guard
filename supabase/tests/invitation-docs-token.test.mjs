@@ -43,10 +43,7 @@ await db.exec(`
 await db.exec(
   "grant usage on schema public, storage to anon, authenticated, service_role;" +
   "alter default privileges in schema public grant all on tables to anon, authenticated, service_role;" +
-  "alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;" +
-  // As Supabase ships: a new function is callable by every client role unless the migration revokes it.
-  // Without this line "no client role may" passes on a migration that revoked nothing.
-  "alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;",
+  "alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;",
 );
 for (const f of MIGRATIONS) {
   await db.exec(read(join("migrations", f)).replace(/create extension if not exists pgcrypto;?/gi, ""));
@@ -97,6 +94,8 @@ ok("two invitations cannot hold the same documents token (23505)", (await rotate
 // ── 5. who may call it ──────────────────────────────────────────────────────────────────────
 const may = async (role) => (await one(`select has_function_privilege($1, 'public.rotate_invitation_docs_token(uuid, uuid, text, timestamptz)', 'execute') p`, [role])).p;
 ok("the service role may rotate", (await may("service_role")) === true);
+// ⚠ Held by 0412 (every new function is closed to client roles by default), not by this migration's own
+// revoke, which only says it again: dropping that revoke changes nothing, and this line still passes.
 ok("no client role may", (await may("anon")) === false && (await may("authenticated")) === false);
 
 await db.close();
