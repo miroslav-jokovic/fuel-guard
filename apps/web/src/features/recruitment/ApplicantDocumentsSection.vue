@@ -23,7 +23,7 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { pickImageFile } from "@/lib/filePicker";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import { useApplicantDocumentsQuery, useUploadApplicantDocument } from "@/features/recruitment/useApplicantDocuments";
+import { useApplicantDocumentsQuery, useFileApplicantPhoto, useUploadApplicantDocument } from "@/features/recruitment/useApplicantDocuments";
 
 /**
  * The applicant's documents on their record, and the office's upload (HIRING-WORKFLOW-AUDIT-2026-10-31
@@ -80,6 +80,20 @@ async function add(files: File[]): Promise<void> {
   }
 }
 
+/**
+ * Q-AM19 stage 3 (0609): a photograph the applicant sent after their application was filed. Nothing files
+ * it but the office — the link only stages it — so its row says it is waiting and offers the one press.
+ */
+const fileIt = useFileApplicantPhoto();
+async function file(d: ApplicantDocument): Promise<void> {
+  try {
+    await fileIt.mutateAsync({ driverId: props.driverId, captureId: d.id });
+    toast.success("Filed", `${labelOf(d)} is in the driver's file.`);
+  } catch (e) {
+    toast.error("Could not file it", e instanceof Error ? e.message : "Try again.");
+  }
+}
+
 /** A phone's camera, from the record itself — the office photographs a card the applicant brought in. */
 async function photograph(): Promise<void> {
   const file = await pickImageFile("image/*", "environment");
@@ -91,7 +105,8 @@ async function photograph(): Promise<void> {
   <BaseCard>
     <h3 class="text-sm font-semibold text-ink">Documents</h3>
     <p class="mt-1 max-w-2xl text-sm text-ink-muted">
-      What the applicant sent from their link, and papers the office adds. Each is filed in the driver's file.
+      What the applicant sent from their link, and papers the office adds. Each is filed in the driver's file;
+      a photo that arrives after the application is filed waits here for you to file it.
     </p>
 
     <div v-if="canAdd" class="mt-4 space-y-3" data-documents-add>
@@ -154,7 +169,8 @@ async function photograph(): Promise<void> {
                 </span>
                 <span>{{ formatDisplayDate(d.at) }}</span>
                 <span v-if="d.contentType === 'application/pdf'">PDF</span>
-                <span v-if="d.staged">Filed when the applicant finishes</span>
+                <span v-if="d.staged && d.fileable" class="font-medium text-ink" data-document-waiting>Sent after filing — waiting for you to file it</span>
+                <span v-else-if="d.staged">Filed when the applicant finishes</span>
               </p>
             </div>
             <BaseButton
@@ -172,6 +188,18 @@ async function photograph(): Promise<void> {
             <p v-else-if="d.imageWithheld" class="text-xs text-ink-muted" data-image-withheld>
               Your role cannot open this picture. An administrator can change that in Settings → Permissions.
             </p>
+            <!-- After the pair above, never between them (the v-if / v-else-if are one chain). -->
+            <BaseButton
+              v-if="d.fileable && canAdd"
+              size="sm"
+              variant="secondary"
+              :disabled="fileIt.isPending.value"
+              :aria-label="`File ${labelOf(d)} in the driver's file`"
+              data-document-file
+              @click="file(d)"
+            >
+              File it
+            </BaseButton>
           </li>
         </ul>
       </QueryState>

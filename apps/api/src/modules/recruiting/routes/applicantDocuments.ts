@@ -8,6 +8,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
 import {
+  fileApplicantCapture,
   isApplicantDocumentsError,
   listApplicantDocuments,
   registerApplicantDocument,
@@ -115,6 +116,46 @@ export function recruitmentApplicantDocumentsRouter(): Router {
       res.status(201).json({
         documentId: result.documentId, storagePath: result.storagePath, uploadUrl: result.uploadUrl, token: result.token,
       });
+    }),
+  );
+
+  /**
+   * File one photograph the applicant sent after their application was filed (Q-AM19 stage 3, 0609).
+   * `recruitment: manage`, as the office's own upload is: it puts a paper into a driver's file.
+   */
+  router.post(
+    "/applicants/:driverId/documents/:captureId/file",
+    requireOrg,
+    requireSection("recruitment"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const driverId = String(req.params.driverId ?? "");
+      const result = await fileApplicantCapture(admin, orgId, driverId, String(req.params.captureId ?? ""));
+      if ("code" in result) {
+        const status = result.code === "not_found" ? 404 : result.code === "not_filed_yet" ? 409 : 500;
+        res.status(status).json(apiError(result.code, result.message));
+        return;
+      }
+      // The office member who filed it is named HERE: the document's own `uploaded_by` stays null, because
+      // the applicant took the photograph (0609).
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "compliance.applicant_photo_filed",
+        entity: "documents",
+        entityId: result.documentId,
+        meta: { kind: result.kind, subjectType: "driver", subjectId: driverId, via: "applicant_record" },
+      });
+      if (shouldDerive(result.contentType as never)) {
+        await dispatchJob(admin, getAppLocals(req).env, "document_derive", {
+          orgId,
+          payload: { documentId: result.documentId },
+          dedupKey: `document_derive:${result.documentId}`,
+          requestedBy: req.auth!.userId,
+        }).catch(() => undefined);
+      }
+      res.status(201).json({ documentId: result.documentId });
     }),
   );
 

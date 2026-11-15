@@ -15,9 +15,8 @@ import { recruitingSettings } from "./recruitingSettings.js";
  * - **Not before the applicant agreed to do this electronically.** A photograph is refused without
  *   the 7001(c) consent, and this link has no screen that can collect it — so a link sent earlier
  *   would open a list that refuses every photograph. The office sends the application link instead.
- * - **Not after the application is filed.** A photograph staged then is promoted by nothing
- *   (`applicationCapture.ts`), so the page would say "received" about a photo nobody will file. Until
- *   the office can file a late photograph from its drawer (the plan's stage 3), the office uploads it.
+ * - **After the application is filed too** (stage 3, 0609): the photograph is staged and the office
+ *   files it from the applicant's record. Until 0609 this was refused, because nothing would file it.
  * - **Not on a revoked invitation** — the database's own guard (`rotate_invitation_docs_token`).
  * A LAPSED application is fine, and is the case this exists for.
  *
@@ -54,12 +53,12 @@ export async function sendDocumentsLink(
 ): Promise<DocumentsLinkSent | DocumentsLinkError> {
   const { data } = await admin
     .from("application_invitations")
-    .select("id, driver_id, email, consented_at, submitted_at, revoked_at")
+    .select("id, driver_id, email, consented_at, revoked_at")
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .maybeSingle();
   const inv = data as {
-    id: string; driver_id: string; email: string | null; consented_at: string | null; submitted_at: string | null; revoked_at: string | null;
+    id: string; driver_id: string; email: string | null; consented_at: string | null; revoked_at: string | null;
   } | null;
   if (!inv) return { code: "application_not_found", message: "There is no application on this invitation." };
   if (inv.revoked_at) return { code: "invitation_revoked", message: "This application was ended, so no link can be sent on it." };
@@ -69,13 +68,6 @@ export async function sendDocumentsLink(
       message: "The applicant has not started yet, so a documents link would refuse their photos. Send the application link instead.",
     };
   }
-  if (inv.submitted_at) {
-    return {
-      code: "already_filed",
-      message: "This application is filed, and a photo sent now would not reach the file. Upload the document here instead.",
-    };
-  }
-
   const { token, hash } = mintInvitationToken();
   const expiresAt = new Date(now.getTime() + DOCUMENTS_LINK_TTL_DAYS * DAY_MS).toISOString();
   const { data: written, error } = await admin.rpc("rotate_invitation_docs_token", {

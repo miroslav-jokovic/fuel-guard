@@ -99,11 +99,18 @@ describe("what the documents token opens", () => {
     expect(r.storagePath).toBe(`${ORG}/${INV}/${r.captureId}.webp`);
   });
 
-  it("keeps the photograph's own refusals: no consent, and nothing once the application is filed", async () => {
+  it("keeps the photograph's refusal without the consent", async () => {
     const unconsented = await startCapture(seed({ inv: [row({ consented_at: null })] }).client, DOCS, { slot: "medical_card", content_type: "image/webp" }, NOW);
     expect(unconsented).toMatchObject({ code: "esign_consent_required" });
-    const filed = await startCapture(seed({ inv: [row({ submitted_at: "2026-11-01T00:00:00Z" })] }).client, DOCS, { slot: "medical_card", content_type: "image/webp" }, NOW);
-    expect(filed).toMatchObject({ code: "already_submitted" });
+  });
+
+  /** Stage 3 (0609): the office files a late photograph, so this link — and only it — takes one. */
+  it("⚠ takes a photograph AFTER the application is filed, which the application's own link still refuses", async () => {
+    const filed = row({ submitted_at: "2026-11-01T00:00:00Z", expires_at: "2099-01-01T00:00:00Z" });
+    const onDocuments = await startCapture(seed({ inv: [filed] }).client, DOCS, { slot: "medical_card", content_type: "image/webp" }, NOW);
+    expect("captureId" in onDocuments).toBe(true);
+    const onApplication = await startCapture(seed({ inv: [filed] }).client, INVITE, { slot: "medical_card", content_type: "image/webp" }, NOW);
+    expect(onApplication).toMatchObject({ code: "already_submitted" });
   });
 });
 
@@ -147,10 +154,14 @@ describe("the office sends one", () => {
     expect(isDocumentsLinkError(await sendDocumentsLink(seed().client, env, ORG, INV, { actorId: ACTOR }, NOW))).toBe(false);
   });
 
-  it("⚠ refuses before the applicant consented, once filed, and on a revoked invitation — minting nothing", async () => {
+  it("is sent on a FILED application too: the office files what arrives (stage 3)", async () => {
+    const r = await sendDocumentsLink(seed({ inv: [row({ submitted_at: "2026-11-01T00:00:00Z" })] }).client, env, ORG, INV, { actorId: ACTOR }, NOW);
+    expect(isDocumentsLinkError(r)).toBe(false);
+  });
+
+  it("⚠ refuses before the applicant consented, and on a revoked invitation — minting nothing", async () => {
     for (const [over, code] of [
-      [{ consented_at: null }, "not_consented"], [{ submitted_at: "2026-11-01T00:00:00Z" }, "already_filed"],
-      [{ revoked_at: "2026-11-01T00:00:00Z" }, "invitation_revoked"],
+      [{ consented_at: null }, "not_consented"], [{ revoked_at: "2026-11-01T00:00:00Z" }, "invitation_revoked"],
     ] as const) {
       const rec = seed({ inv: [row(over)] });
       const r = await sendDocumentsLink(rec.client, env, ORG, INV, { actorId: ACTOR }, NOW);

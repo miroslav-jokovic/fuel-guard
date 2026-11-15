@@ -66,3 +66,26 @@ export function useUploadApplicantDocument() {
     },
   });
 }
+
+/**
+ * File one photograph the applicant sent AFTER their application was filed (Q-AM19 stage 3; 0609). The
+ * link only stages it then; the office looks at it and files it, one at a time.
+ */
+export function useFileApplicantPhoto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { driverId: string; captureId: string }): Promise<string> => {
+      const res = await apiFetch<{ documentId: string }>(
+        `/api/recruitment/applicants/${input.driverId}/documents/${encodeURIComponent(input.captureId)}/file`, { method: "POST" },
+      );
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "The photograph could not be filed.");
+      return res.data.documentId;
+    },
+    // Settled: a refusal ("already filed", "not filed yet") is answered by reading the list again.
+    onSettled: (_d, _e, input) => {
+      void qc.invalidateQueries({ queryKey: documentsKey(input.driverId) });
+      void qc.invalidateQueries({ queryKey: ["compliance"] });
+    },
+  });
+}
+

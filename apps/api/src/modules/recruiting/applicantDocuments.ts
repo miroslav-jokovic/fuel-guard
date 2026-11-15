@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   APPLICANT_RECORD_DOCUMENT_KINDS,
   APPLICANT_DOCUMENT_SLOTS,
+  APPLICATION_CAPTURE_DOCUMENT_KIND,
+  APPLICATION_CAPTURE_PAGE,
   APPLICATION_CAPTURES_BUCKET,
   DOCUMENTS_BUCKET,
   applicantDocumentKind,
@@ -18,6 +20,7 @@ import {
   type UserRole,
 } from "@silvicom/shared";
 import { registerDocument } from "../evidence/index.js";
+import { copyCaptureIntoFile } from "./applicationCapture.js";
 import { labelOf, memberLabels } from "../../lib/memberLabels.js";
 import { loadPermissionGrants } from "../org/index.js";
 
@@ -52,6 +55,7 @@ const URL_TTL_SECONDS = 300;
 
 interface CaptureRow {
   id: string;
+  invitation_id: string;
   slot: ApplicationCaptureSlot;
   storage_path: string;
   content_type: string;
@@ -124,7 +128,7 @@ async function locateApplicantDocuments(
   const [{ data: captureData }, { data: documentData }, grants] = await Promise.all([
     admin
       .from("application_captures")
-      .select("id, slot, storage_path, content_type, captured_at, promoted_document_id, bytes, sha256")
+      .select("id, invitation_id, slot, storage_path, content_type, captured_at, promoted_document_id, bytes, sha256")
       .eq("org_id", orgId)
       .eq("driver_id", driverId),
     admin
@@ -153,6 +157,9 @@ async function locateApplicantDocuments(
     return readable(d.kind) && (capturedAs === undefined || LISTED_SLOTS.has(capturedAs));
   });
 
+  // 0609: which of the staged ones sit on an application ALREADY filed — nothing files those but the office.
+  const filedInvitations = await filedInvitationIds(admin, orgId, [...new Set(staged.map((c) => c.invitation_id))]);
+
   const stagedKind = (c: CaptureRow) => applicantDocumentKind(c.slot as PromotedCaptureSlot);
   const [stagedUrls, filedUrls, labels] = await Promise.all([
     sign(admin, APPLICATION_CAPTURES_BUCKET, staged.filter((c) => canSeePaperImage(stagedKind(c), role, grants)).map((c) => c.storage_path)),
@@ -168,7 +175,8 @@ async function locateApplicantDocuments(
         bucket: APPLICATION_CAPTURES_BUCKET, storagePath: c.storage_path,
         row: {
           id: c.id, slot: c.slot, kind, contentType: c.content_type, at: c.captured_at,
-          source: "applicant", addedBy: null, staged: true, bytes: c.bytes, sha256: c.sha256,
+          source: "applicant", addedBy: null, staged: true, fileable: filedInvitations.has(c.invitation_id),
+          bytes: c.bytes, sha256: c.sha256,
           url: withheld ? null : (stagedUrls.get(c.storage_path) ?? null), imageWithheld: withheld,
         },
       };
@@ -191,6 +199,17 @@ async function locateApplicantDocuments(
   ];
   docs.sort((a, b) => b.row.at.localeCompare(a.row.at));
   return { driverName: driver.full_name, docs };
+}
+
+/** Of these invitations, the ones whose application is filed. */
+async function filedInvitationIds(admin: SupabaseClient, orgId: string, ids: string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const { data } = await admin
+    .from("application_invitations")
+    .select("id, submitted_at")
+    .eq("org_id", orgId)
+    .in("id", ids);
+  return new Set(((data ?? []) as Array<{ id: string; submitted_at: string | null }>).filter((i) => i.submitted_at).map((i) => i.id));
 }
 
 export async function listApplicantDocuments(
@@ -264,3 +283,56 @@ export async function registerApplicantDocument(
   if ("code" in registered) return { code: registered.code, message: registered.error };
   return { ...registered, kind };
 }
+
+/**
+ * The office files ONE photograph that arrived after the application was filed (Q-AM19 stage 3; 0609).
+ *
+ * ── WHY THE OFFICE, AND WHY ONE AT A TIME ─────────────────────────────────────────────────────
+ * Until filing, a photograph enters the driver's file inside an act the driver performs and the carrier
+ * reviews. After it there is no such act, and the link is unauthenticated — so the link stages, and a
+ * member of the office looks at the photograph and files it. One at a time, because each is looked at.
+ *
+ * Copy, then file (`promoteCaptures`'s order, and its reason): a failed copy files nothing, and the
+ * staged row is untouched, so pressing again files the same photograph. The function is idempotent by
+ * the capture's id, so a second press after a lost response answers the same document.
+ *
+ * ⚠ Only a paper on the applicant's list (`LISTED_SLOTS`) — the read's own rule, so nothing can be filed
+ * that the list would not show. The database refuses a selfie and a drawn mark as well (FC003).
+ */
+export async function fileApplicantCapture(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  captureId: string,
+): Promise<{ documentId: string; kind: string; contentType: string } | { code: string; message: string }> {
+  const { data } = await admin
+    .from("application_captures")
+    .select("id, invitation_id, slot, storage_path, content_type, promoted_document_id")
+    .eq("org_id", orgId)
+    .eq("driver_id", driverId)
+    .eq("id", captureId)
+    .maybeSingle();
+  const row = data as Pick<CaptureRow, "id" | "invitation_id" | "slot" | "storage_path" | "content_type" | "promoted_document_id"> | null;
+  if (!row || !LISTED_SLOTS.has(row.slot)) return { code: "not_found", message: "That photograph is not on this applicant's record." };
+  const slot = row.slot as PromotedCaptureSlot;
+  const kind = APPLICATION_CAPTURE_DOCUMENT_KIND[slot];
+
+  const destination = await copyCaptureIntoFile(admin, orgId, driverId, row);
+  if (destination === null) {
+    return { code: "copy_failed", message: "The photograph could not be copied into the file. Nothing was filed. Try again." };
+  }
+  const { data: filed, error } = await admin.rpc("file_application_capture", {
+    p_org: orgId, p_invitation: row.invitation_id, p_driver: driverId, p_capture: row.id,
+    p_kind: kind, p_page: APPLICATION_CAPTURE_PAGE[slot], p_storage_path: destination,
+  });
+  if (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "FC002") {
+      return { code: "not_filed_yet", message: "This application is not filed yet. The photograph is filed with it when the applicant signs." };
+    }
+    if (code === "FC001" || code === "FC003") return { code: "not_found", message: "That photograph is not on this applicant's record." };
+    return { code: "file_failed", message: "The photograph could not be filed. Try again." };
+  }
+  return { documentId: String(filed ?? row.id), kind, contentType: row.content_type };
+}
+
