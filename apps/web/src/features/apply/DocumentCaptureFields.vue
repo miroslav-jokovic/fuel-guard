@@ -34,6 +34,11 @@ const props = defineProps<{
   only?: readonly ApplicationCaptureSlot[];
   /** Passed through to `useApplicationCaptures` — the original of each photograph once it is staged (AW5). */
   onStaged?: (slot: ApplicationCaptureSlot, original: Blob) => void;
+  /**
+   * The list without its introduction — for the documents-only link (Q-AM19), whose own screen says what
+   * the list is for. The introduction here speaks of "sending the application", which that link cannot do.
+   */
+  bare?: boolean;
 }>();
 
 const copy = APPLY_COPY.documents;
@@ -68,7 +73,7 @@ const placeLabel = (group: DocumentGroupView, place: DocumentPlaceView): string 
 
 <template>
   <div v-if="documents" class="space-y-4">
-    <div>
+    <div v-if="!bare">
       <p class="text-sm text-ink">{{ copy.intro }}</p>
       <p class="mt-1 text-sm text-ink-muted">{{ copy.optional }}</p>
     </div>
@@ -91,7 +96,10 @@ const placeLabel = (group: DocumentGroupView, place: DocumentPlaceView): string 
             :alt="placeLabel(group, place)"
             class="h-14 w-20 shrink-0 rounded-detail object-cover ring-1 ring-inset ring-edge"
           />
-          <div class="min-w-0 flex-1">
+          <!-- ⚠ A floor on the name, not `min-w-0` alone: with no floor a wrapping row never wraps — the name
+               shrinks to nothing instead and its letters show under the buttons (seen in a 390 px screenshot,
+               2026-11-14: "Medi / exam / certi"). With it, the two buttons drop to their own line on a phone. -->
+          <div class="min-w-[11rem] flex-1">
             <p class="text-sm font-medium text-ink">{{ placeLabel(group, place) }}</p>
             <!-- §4.7: the licence Part 1 took is shown as received, and never asked for again. -->
             <p v-if="group.fromPartOne && place.state === 'done'" class="mt-1 text-sm text-ink-muted">
@@ -116,7 +124,7 @@ const placeLabel = (group: DocumentGroupView, place: DocumentPlaceView): string 
         </div>
         <!-- 0534: up to five of a paper that comes in several. -->
         <div v-if="group.next !== null" class="flex flex-wrap items-center gap-2">
-          <p class="min-w-0 flex-1 text-sm text-ink-muted">{{ copy.addAnother }}</p>
+          <p class="min-w-[11rem] flex-1 text-sm text-ink-muted">{{ copy.addAnother }}</p>
           <BaseButton
             variant="secondary"
             :disabled="anyBusy"

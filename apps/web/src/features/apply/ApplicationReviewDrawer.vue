@@ -23,6 +23,7 @@ import { describeField, rowText } from "./fieldLabels";
 import { draftEmployers, draftGaps, employerName } from "./officeJobs";
 import OfficeJobsSection from "./OfficeJobsSection.vue";
 import ApplicantFactsCard from "./ApplicantFactsCard.vue";
+import SendDocumentsLink from "./SendDocumentsLink.vue";
 import {
   useApplicationReviewQuery,
   useApproveApplication,
@@ -334,6 +335,9 @@ async function approveIt(): Promise<void> {
              replaced "Correct an answer" and the Part 1 form, which offered the same facts twice over
              and corrected dates and states by typing the stored format (E8). The jobs are its
              Employment group (F3c part 2). -->
+        <!-- Q-AM19: a link that opens only their documents. ⚠ Before the callout, never between the facts
+             card and the jobs section below it, which are one v-if / v-else-if chain. -->
+        <SendDocumentsLink v-if="canManage && invitationId" :invitation-id="invitationId" />
         <AppCallout v-if="editable && !canManage" tone="info" data-testid="review-read-only">
           You can read this application. Correcting or approving it needs permission to manage Recruiting.
         </AppCallout>
