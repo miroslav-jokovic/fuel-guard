@@ -16,6 +16,7 @@ export { aiTokensUsedThisMonth } from "./aiUsage.js";
 export { publicInvitesRouter } from "./routes/publicInvites.js";
 export { publicPasswordResetRouter } from "./routes/publicPasswordReset.js";
 export { memberPasswordResetRouter } from "./routes/memberPasswordReset.js";
+export { memberSessionsRouter, mySessionsRouter } from "./routes/memberSessions.js";
 export { deliverInvite, type InviteDelivery } from "./inviteDelivery.js";
 export { membersRouter } from "./routes/members.js";
 export { usersWhoManage, usersInRoles, lookupMemberRole, listOfficeMembers, type OfficeMember } from "./memberLookup.js";

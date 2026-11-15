@@ -170,6 +170,14 @@ export const OPEN_ROUTES = new Map<string, string>([
     "\"My alerts\" in the account menu (HOME-TIME-PLAN D-HT17, HT5): what the CALLER receives of the routed alerts. A read of their own answer, computed from their own role by the sender's resolver; it names nobody else and returns no row of any table. It IS section-gated per ALERT rather than per route — `readMyAlerts` lists an alert only when the caller's role can view that alert's section — and the alerts span sections, so no one static `requireSection` describes it.",
   ],
   [
+    "GET /api/me/sessions/",
+    "the caller's OWN signed-in devices (INSTALLED-APP-PLAN IA-S3, Q-IA3 (b)): where they are signed in — browser, last used, address. Any signed-in member of the org, by design — every role signs in on devices, a driver included, and where one is signed in is the person's own question, not a role's permission. The person is the token's user id and the org the token's org, never anything in the request, and 0615's functions return nothing of a token; an ADMIN's view of somebody else's is a different route, `/api/members/:userId/sessions`, which is role- and step-up-gated.",
+  ],
+  [
+    "DELETE /api/me/sessions/:sessionId",
+    "the caller ending ONE of their own signed-in devices (INSTALLED-APP-PLAN IA-S3, Q-IA3 (b)) — the lost-phone act, which must not need an admin to be awake. Audited as `session.ended`; refused for the session the request itself is signed in with. No step-up, deliberately: the worst a stolen session can do here is sign the real owner's OTHER devices out, which costs them a sign-in, while a prompt would stand between a person and ending a device they no longer hold. Any signed-in member of the org, by design — every role signs in on devices, a driver included, and where one is signed in is the person's own question, not a role's permission. The person is the token's user id and the org the token's org, never anything in the request, and 0615's functions return nothing of a token; an ADMIN's view of somebody else's is a different route, `/api/members/:userId/sessions`, which is role- and step-up-gated.",
+  ],
+  [
     "POST /api/me/notifications/token/revoke",
     "a driver's own device retiring its own push token on sign-out, keyed by the caller's user id; refusing it would leave a personal phone receiving load content after the person signed out (D14/D53)",
   ],
