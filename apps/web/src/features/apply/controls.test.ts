@@ -3,7 +3,7 @@ import { mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { reactive } from "vue";
 import { questionnaireForApplicant } from "@silvicom/shared";
-import QuestionnaireFields from "./QuestionnaireFields.vue";
+import { QuestionList } from "@/features/apply/questionListHarness";
 import ApplyEmploymentFields from "./ApplyEmploymentFields.vue";
 import { emptyDraft, emptyEquipment, type ApplicationDraft } from "./draft";
 
@@ -25,7 +25,7 @@ const questionnaire = questionnaireForApplicant();
 
 describe("the carrier's own questions", () => {
   const screen = (section: "identity" | "employment" | "questions") =>
-    mount(QuestionnaireFields, {
+    mount(QuestionList, {
       props: { modelValue: emptyDraft(), section },
     });
 
@@ -58,7 +58,7 @@ describe("the carrier's own questions", () => {
     // The component writes into the draft it is given (`draft.value.questionnaire = …`), so the draft is
     // reactive here and read back directly.
     const draft = reactive(emptyDraft());
-    const w = mount(QuestionnaireFields, { props: { modelValue: draft, section: "questions" } });
+    const w = mount(QuestionList, { props: { modelValue: draft, section: "questions" } });
     const military = () => w.findAll('[role="radiogroup"]').find((g) => g.attributes("aria-label")?.includes("military"))!;
     expect(w.text()).not.toContain("If so, when?");
     await military().findAll('[role="radio"]')[0]!.trigger("click");
@@ -73,7 +73,7 @@ describe("the carrier's own questions", () => {
 
   it("stores an optional question's skip as its own answer, distinct from blank and from no (§9 P8)", async () => {
     const draft = reactive(emptyDraft());
-    const w = mount(QuestionnaireFields, { props: { modelValue: draft, section: "questions" } });
+    const w = mount(QuestionList, { props: { modelValue: draft, section: "questions" } });
     const skip = w.findAll('input[type="checkbox"]').find((c) => c.element.closest("label")?.textContent?.includes("Doesn't apply"))!;
     await skip.setValue(true);
     expect(draft.questionnaire.other_training).toBe("Doesn't apply");

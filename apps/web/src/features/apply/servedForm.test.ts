@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import { APPLICATION_CAPTURE_REQUESTED, APPLICATION_CROSS_FIELD_RULES } from "@silvicom/shared";
 import ApplyField from "@/features/apply/ApplyField.vue";
-import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
+import { QuestionList } from "@/features/apply/questionListHarness";
 import { emptyDraft, toApplication } from "@/features/apply/draft";
 import { applicantQuestionnaire } from "@/features/apply/questionnaireCopy";
 import { applyLanguage } from "@/features/apply/language";
@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 const requiredOn = (section: "identity" | "questions") => {
-  const w = mount(QuestionnaireFields, { props: { modelValue: emptyDraft(), section } });
+  const w = mount(QuestionList, { props: { modelValue: emptyDraft(), section } });
   return Object.fromEntries(w.findAllComponents(ApplyField).map((f) => [String(f.props("label")), f.props("required") === true]));
 };
 
@@ -45,7 +45,7 @@ describe("the bundle's stamp", () => {
 
   it("takes the skip away from a question it requires, and leaves it on the others (D-RS5)", () => {
     takeServedForm({ requiredQuestions: ["references"] });
-    const w = mount(QuestionnaireFields, { props: { modelValue: emptyDraft(), section: "questions" } });
+    const w = mount(QuestionList, { props: { modelValue: emptyDraft(), section: "questions" } });
     // "I'd rather not say" stays on military service; references, now required, has none.
     expect(w.text().match(/I'd rather not say/g)?.length).toBe(1);
     const def = applicantQuestionnaire();

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { AppCombobox } from "@silvicom/ui";
-import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
+import { QuestionList } from "@/features/apply/questionListHarness";
 import { emptyDraft, type ApplicationDraft } from "@/features/apply/draft";
 
 /**
@@ -13,7 +13,7 @@ import { emptyDraft, type ApplicationDraft } from "@/features/apply/draft";
  */
 
 const mountIt = (draft: ApplicationDraft = emptyDraft()) =>
-  mount(QuestionnaireFields, { props: { modelValue: draft, section: "identity" } });
+  mount(QuestionList, { props: { modelValue: draft, section: "identity" } });
 
 const applyingAs = (w: ReturnType<typeof mountIt>) =>
   w.findAllComponents(AppCombobox).find((c) =>
