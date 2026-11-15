@@ -96,6 +96,18 @@ const COMPLETE_DRAFT = {
 };
 
 /**
+ * The same draft as a current link's filing reads it. There the three years of work are counted back from
+ * the carrier's day (`carrierToday`), and a job that ends before that day leaves a gap the driver has to
+ * explain — which keeps "Before you send" shut. So the one job covers the three years up to the day these
+ * bundles name.
+ */
+const CARRIER_TODAY = "2025-07-01";
+const CURRENT_DRAFT = {
+  ...COMPLETE_DRAFT,
+  employers: [{ ...COMPLETE_DRAFT.employers[0]!, started_on: "2022-06-01" }],
+};
+
+/**
  * Read off the vocabulary rather than typed in, so adding a screen — A8 added `documents` — moves
  * these assertions instead of breaking six of them for a reason that is not the reason under test.
  */
@@ -125,23 +137,11 @@ const PART_ONE_DONE = {
   medicalCardPending: false, rights: true,
 };
 const LEGACY_LINK_TESTS: string[] = [
-  "presents draft disclosures as unsignable, on the screen where they sign",
   "walks one screen at a time and ends by handing it to the carrier",
-  "says the application cannot be sent yet, on the first screen and again at the Send",
-  "refuses to advance past an incomplete screen and names the field in words",
-  "puts the cursor in the first box that needs an answer",
-  "marks the box itself, not only the summary",
   "resumes on the screen the driver had reached",
-  "hands the application over when the last screen's button is pressed",
   "asks for the licence before the first permission when it is not on file",
   "offers the Clearinghouse registration on a v2 link's permissions-received screen only",
-  "names the employing carrier and its address on the form",
   "shows the date of birth on the form and does not let it be retyped once on file",
-  "skips the ceremony while the wording is draft, and still shows the instruments",
-  "puts back what the phone could not send, onto the revision it was typed on, and sends it at once",
-  "drops a copy the server moved on from, says so, and sends nothing",
-  "stops saving and offers the reload when the server says the draft changed elsewhere",
-  "never puts a copy back on a locked draft before the date of birth, and uses the unlock's revision after it",
   "names the screen the driver is on, from the first screen down to the form's section",
 ];
 const dead = () => ({ ok: false, json: async () => ({ error: { code: "invalid_link", message: "This application link is not valid. Ask for a new one." } }) });
@@ -176,6 +176,18 @@ const start = async (w: ReturnType<typeof mountPage>) => {
   const button = w.findAll("button").find((b) => b.text() === APPLY_COPY.expectations.start);
   expect(button, "the expectations screen is not on this untouched link").toBeTruthy();
   await button!.trigger("click");
+  await settle(w);
+};
+
+/**
+ * Open one task from a current link's list, by the name on its row. ⚠ A row that is shut ("Before you
+ * send" while a required task is unfinished) is a disabled button and the click does nothing, so the
+ * test fails on what it looks for next rather than passing on the list.
+ */
+const openTask = async (w: ReturnType<typeof mountPage>, label: string) => {
+  const row = w.findAll("button").find((b) => b.text().includes(label));
+  expect(row, `the task list has no "${label}" row`).toBeTruthy();
+  await row!.trigger("click");
   await settle(w);
 };
 
@@ -228,20 +240,19 @@ describe("the applicant's page", () => {
    */
   it("presents draft disclosures as unsignable, on the screen where they sign", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, carrierToday: CARRIER_TODAY,
+      expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
-      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      draft: { locked: false, payload: CURRENT_DRAFT, furthestSection: null, updatedAt: null },
     }));
     const w = mountPage();
     await settle(w);
+    await openTask(w, APPLY_COPY.hub.beforeYouSend);
 
-    // identity → addresses → licence → employment → safety → questions → documents → review
-    for (let i = 0; i < TOTAL - 1; i++) await advance(w);
-
-    // ⚠ "Check your answers" is the last screen of the FIRST visit since F4. The certification is not
+    // ⚠ "Before you send" is the last screen of the FIRST visit since F4. The certification is not
     // on it: the office reads the application before anybody signs it, so a signature taken here
     // would be a signature on a document that may still change.
-    expect(w.text()).toContain("Check your answers");
+    expect(w.text()).toContain(APPLY_COPY.review.intro);
     // The wording is SERVED, so what somebody signed is a fact the server can prove — never shipped
     // in the client bundle where a build could change it.
     expect(w.text()).toContain("We may obtain your FMCSA crash and inspection history.");
@@ -327,19 +338,20 @@ describe("the applicant's page", () => {
    */
   it("says the application cannot be sent yet, on the first screen and again at the Send", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, carrierToday: CARRIER_TODAY,
+      expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
-      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      draft: { locked: false, payload: CURRENT_DRAFT, furthestSection: null, updatedAt: null },
     }));
     const w = mountPage();
     await settle(w);
 
-    // Screen one. Not a wall — the form is right there underneath it.
+    // The first screen: the task list. Not a wall — the tasks are right there underneath it.
     expect(w.text()).toContain("cannot be sent yet");
     expect(w.text()).toContain("everything you type is saved");
-    expect(w.text()).toContain(step(1));
+    expect(w.text()).toContain(APPLY_COPY.hub.heading);
 
-    for (let i = 0; i < TOTAL - 1; i++) await advance(w);
+    await openTask(w, APPLY_COPY.hub.beforeYouSend);
     expect(w.text()).not.toContain("Send my application");
     expect(w.text()).toContain("Not ready to send yet");
     // Disabled, not hidden: the control the driver came for is where they expect it, saying why.
@@ -347,19 +359,30 @@ describe("the applicant's page", () => {
     expect(send?.attributes("disabled")).toBeDefined();
   });
 
+  /**
+   * A current link's form with nothing typed into it yet: the office has sent it, the list is on screen.
+   */
+  const emptyForm = () => ok({
+    carrier: "Silvicom Inc", partOne: PART_ONE_DONE, carrierToday: CARRIER_TODAY, expiresAt: "2099-01-01T00:00:00Z",
+    releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
+    releasesSigned: [...APPLICATION_RELEASE_ORDER],
+    phases: {
+      consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z",
+      submittedAt: null, applicationSentAt: "2026-08-22T09:00:00Z",
+    },
+    draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
+    esignConsent: { version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true },
+  });
+
   /** Forward is gated on the screen being complete; the driver is told what is missing. */
   it("refuses to advance past an incomplete screen and names the field in words", async () => {
-    fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
-      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
-      draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
-    }));
+    fetchMock.mockResolvedValue(emptyForm());
     const w = mountPage();
     await settle(w);
-    await start(w);
+    await openTask(w, "About you");
+    const before = w.text();
 
     await advance(w);
-    expect(w.text()).toContain("Before you can go on");
     // ⚠ This asserted `first_name` until D-AX3 — the contract key, rendered to a driver as the name
     // of the box they had not filled in. The field is now named the way the label above it names it,
     // and the message is a sentence rather than "Too small: expected string to have >=1 characters".
@@ -367,8 +390,9 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain("This is needed.");
     expect(w.text()).not.toContain("first_name");
     expect(w.text()).not.toMatch(/Too small|expected string/);
-    // And it did not move on.
-    expect(w.text()).toContain(step(1));
+    // And it did not move on: the same question, with its message added.
+    expect(before).not.toContain("This is needed.");
+    expect(w.find("#apply-first_name").exists()).toBe(true);
   });
 
   /**
@@ -378,31 +402,22 @@ describe("the applicant's page", () => {
    * test in this file mounts detached on purpose — it is faster and none of them care.
    */
   it("puts the cursor in the first box that needs an answer", async () => {
-    fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
-      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
-      draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
-    }));
+    fetchMock.mockResolvedValue(emptyForm());
     const w = mount(ApplyPage, { global: { plugins: [VueQueryPlugin, createPinia()] }, attachTo: document.body });
     await settle(w);
-    await start(w);
+    await openTask(w, "About you");
     await advance(w);
 
-    // Not "the page scrolled to the top and printed a list" — on the employment screen the field a
-    // list names can be two thousand pixels below the fold.
+    // Not "the page scrolled to the top and printed a list" — the box itself.
     expect(document.activeElement?.id).toBe("apply-first_name");
     w.unmount();
   });
 
   it("marks the box itself, not only the summary", async () => {
-    fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
-      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
-      draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
-    }));
+    fetchMock.mockResolvedValue(emptyForm());
     const w = mount(ApplyPage, { global: { plugins: [VueQueryPlugin, createPinia()] }, attachTo: document.body });
     await settle(w);
-    await start(w);
+    await openTask(w, "About you");
     await advance(w);
 
     const input = document.getElementById("apply-first_name");
@@ -651,15 +666,21 @@ describe("the applicant's page", () => {
 
   it("hands the application over when the last screen's button is pressed", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, carrierToday: CARRIER_TODAY, expiresAt: "2099-01-01T00:00:00Z",
       releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
       phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null },
-      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: "review", updatedAt: null },
+      draft: { locked: false, payload: CURRENT_DRAFT, furthestSection: "review", updatedAt: null },
       esignConsent: { version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true },
     }));
     const w = mountPage();
     await settle(w);
-    expect(w.text()).toContain("Check your answers");
+    // The list first, on every return — even for a driver who had reached the last screen.
+    await openTask(w, APPLY_COPY.hub.beforeYouSend);
+    // Nobody sends what they cannot see (§391.21(b)(12)).
+    expect(w.text()).toContain(APPLY_COPY.review.intro);
+    expect(w.text()).toContain("Susan Godfrey");
+    expect(w.text()).toContain("Send it to Silvicom Inc");
+    expect(w.text()).not.toContain("I certify that all entries");
 
     fetchMock.mockResolvedValueOnce(ok({ ok: true, reviewRequestedAt: "2026-09-11T10:00:00Z" }));
     await advance(w);
@@ -1006,7 +1027,7 @@ describe("the applicant's page", () => {
    */
   it("names the employing carrier and its address on the form", async () => {
     const formPage = (carrierAddress: string | null) => ok({
-      carrier: "Silvicom Inc", carrierAddress, expiresAt: "2099-01-01T00:00:00Z",
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, carrierAddress, expiresAt: "2099-01-01T00:00:00Z",
       releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
       releasesSigned: [...APPLICATION_RELEASE_ORDER],
       phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null },
@@ -1128,17 +1149,18 @@ describe("the applicant's page", () => {
    */
   it("skips the ceremony while the wording is draft, and still shows the instruments", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, carrierToday: CARRIER_TODAY,
+      expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       releasesSigned: [],
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
-      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      draft: { locked: false, payload: CURRENT_DRAFT, furthestSection: null, updatedAt: null },
     }));
     const w = mountPage();
     await settle(w);
 
     expect(w.text()).not.toContain("Your signature");
-    expect(w.text()).toContain(step(1));
-    for (let i = 0; i < TOTAL - 1; i++) await advance(w);
+    expect(w.text()).toContain(APPLY_COPY.hub.heading);
+    await openTask(w, APPLY_COPY.hub.beforeYouSend);
     expect(w.text()).toContain("Not final");
     expect(w.text()).toContain("We may obtain your FMCSA crash and inspection history.");
   });
@@ -1382,7 +1404,7 @@ describe("the applicant's page", () => {
   describe("the draft's revision and the copy on the phone", () => {
     const KEY = "a".repeat(64);
     const formBundle = (draft: Record<string, unknown>) => ({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", localKey: KEY,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", localKey: KEY,
       releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
       releasesSigned: ["fcra_disclosure", "psp"],
       phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null },
