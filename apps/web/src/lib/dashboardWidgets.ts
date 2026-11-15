@@ -42,11 +42,14 @@ import OpsFuelWidget from "@/features/dashboard/widgets/OpsFuelWidget.vue";
 import HazmatReviewWidget from "@/features/hazmat/HazmatReviewWidget.vue";
 import HiringWidget from "@/features/recruitment/HiringWidget.vue";
 import RoadsideWidget from "@/features/roadside/RoadsideWidget.vue";
+import NeedsActionWidget from "./NeedsActionWidget.vue";
 
 export const WIDGET_COMPONENTS: Record<string, Component> = {
   // Operations (FLEET-MANAGER-HOME-PLAN §4). Each card lives in the feature that owns its data (D-FM8);
   // none takes the page's range — the tab is NOW, and the fuel card fixes its own window (D-FM5).
   "ops.fleet-now": FleetNowWidget,
+  // Lists rows from the cards below it, so it lives here in the composition root (`opsRowSources.ts`).
+  "ops.needs-action": NeedsActionWidget,
   "ops.road-attention": RoadAttentionWidget,
   "ops.driver-files": DriverFilesWidget,
   "ops.seats": SeatsWidget,
@@ -86,4 +89,6 @@ export const WIDGETS_TAKING_RANGE = new Set([
   "fleet.savings",
   // IC16 (2026-10-19): the Roadside card counted a fixed 90 days under this page's 30.
   "ops.roadside",
+  // …and the card that lists Roadside's alarms must count them over the same range.
+  "ops.needs-action",
 ]);

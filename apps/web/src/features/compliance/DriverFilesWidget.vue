@@ -19,32 +19,13 @@
  */
 import { computed } from "vue";
 import { ClipboardDocumentListIcon } from "@silvicom/ui/icons";
-import { buildDqDigestSection, FILE_FILTER_LABELS, fileChip, matchesFileFilter, type FileFilterKind } from "@silvicom/shared";
+import { buildDqDigestSection } from "@silvicom/shared";
 import ChartCard from "@/components/ui/ChartCard.vue";
-import CountList, { type CountRow } from "@/components/ui/CountList.vue";
-import { useComplianceOverviewQuery } from "@/composables/useCompliance";
+import CountList from "@/components/ui/CountList.vue";
+import { useDriverFilesRows } from "./useDriverFilesRows";
 
-const { data: overview } = useComplianceOverviewQuery();
-const drivers = computed(() => overview.value?.drivers ?? null);
+const { drivers, complete, rows } = useDriverFilesRows();
 
-const count = (f: FileFilterKind) => (drivers.value ? drivers.value.filter((d) => matchesFileFilter(fileChip(d), f)).length : null);
-const row = (f: FileFilterKind, caption: string, alarm = false): CountRow => ({
-  key: f,
-  label: FILE_FILTER_LABELS[f],
-  value: count(f),
-  caption,
-  to: `/drivers?file=${f}`,
-  door: "Drivers",
-  alarm,
-});
-
-const rows = computed<CountRow[]>(() => [
-  row("expired", "drivers with something lapsed", true),
-  row("expiring", "drivers with something due soon, nothing lapsed"),
-  row("not_started", "drivers whose file is empty"),
-]);
-
-const complete = computed(() => count("complete"));
 const next = computed(() => {
   const top = drivers.value ? buildDqDigestSection(drivers.value).topPairs[0] : undefined;
   return top ? `${top.driver} — ${top.label}, ${top.due}` : null;

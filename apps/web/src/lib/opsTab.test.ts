@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { computed, ref } from "vue";
 import type { DispatchBoardResponse, DispatchBoardRow, DriverOverviewRow } from "@silvicom/shared";
 
@@ -106,7 +106,8 @@ const DRIVERS = [
   { id: "c", status: "active", archived_at: null },
   { id: "x", status: "terminated", archived_at: null },
 ];
-vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: ref(VEHICLES) }) }));
+const vehicles = ref<typeof VEHICLES | undefined>(VEHICLES);
+vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: vehicles }) }));
 vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => ({ data: ref(DRIVERS) }) }));
 
 // ── the shop ────────────────────────────────────────────────────────────────────────────────────
@@ -163,6 +164,17 @@ const render = () =>
   });
 const cards = (w: ReturnType<typeof render>) => w.findAll("[data-test^='widget-']").map((c) => c.attributes("data-test"));
 const n = (w: ReturnType<typeof render>, key: string) => w.get(`[data-test='count-${key}']`).text();
+/** The card reads its sources' rows as each one reports, a tick after mount. */
+const settled = async () => {
+  const w = render();
+  await flushPromises();
+  return w;
+};
+/** A strip tile's figure: `StatCard` draws label, value, caption as three `p`s, in that order. */
+const tile = (w: ReturnType<typeof render>, key: string) => w.get(`[data-test='count-${key}']`).findAll("p")[1]!.text();
+/** The "Needs action" card's rows, top to bottom, as [source card's row, figure]. */
+const needs = (w: ReturnType<typeof render>) =>
+  w.get("[data-test='widget-ops.needs-action']").findAll("[data-test^='count-ops.']").map((c) => [c.attributes("data-test")!.slice("count-".length), c.text()]);
 const hrefs = (w: ReturnType<typeof render>) => w.findAll("a").map((a) => a.attributes("href"));
 
 beforeEach(() => {
@@ -173,6 +185,7 @@ beforeEach(() => {
   session.surfaces = null;
   modules.value = new Set(["dispatch", "navigation", "hazmatguard"]);
   shop.value = SHOP;
+  vehicles.value = VEHICLES;
   roadside.value = ROADSIDE;
 });
 afterEach(() => vi.useRealTimers());
@@ -180,7 +193,7 @@ afterEach(() => vi.useRealTimers());
 describe("the Operations tab", () => {
   it("gives a fleet manager every card, in the plan's order", () => {
     expect(cards(render())).toEqual([
-      "widget-ops.fleet-now", "widget-ops.road-attention", "widget-ops.driver-files", "widget-ops.seats",
+      "widget-ops.fleet-now", "widget-ops.needs-action", "widget-ops.road-attention", "widget-ops.driver-files", "widget-ops.seats",
       "widget-ops.shop", "widget-ops.truck-papers", "widget-ops.fuel", "widget-ops.hazmat", "widget-ops.hiring",
       "widget-ops.roadside",
     ]);
@@ -188,7 +201,9 @@ describe("the Operations tab", () => {
 
   it("shows nobody a currency figure, the fuel card included (D-FM6)", () => {
     session.role = "admin"; // holds accounting — and still sees no dollar, because no card reads one
-    expect(render().html()).not.toMatch(/\$/);
+    // What is PRINTED, not the markup: the strip's shared `StatCard` carries a "$151.9K" in a template
+    // comment about its own layout, which is not a figure anybody is shown.
+    expect(render().text()).not.toMatch(/\$/);
   });
 
   it("gates each card on its own section — the tab gate decides who gets the page, not what is on it", () => {
@@ -197,7 +212,7 @@ describe("the Operations tab", () => {
     session.role = "technician";
     session.sections = { equipment: "manage" };
     const w = render();
-    expect(cards(w)).toEqual(["widget-ops.seats", "widget-ops.shop", "widget-ops.truck-papers"]);
+    expect(cards(w)).toEqual(["widget-ops.needs-action", "widget-ops.seats", "widget-ops.shop", "widget-ops.truck-papers"]);
     // …and the Seats card drops its drivers line, which reads the roster.
     expect(w.find("[data-test='count-no-truck']").exists()).toBe(false);
   });
@@ -217,10 +232,108 @@ describe("the Operations tab", () => {
   });
 });
 
+describe("the fleet strip (D-SM12)", () => {
+  it("leads the tab on the grid, full width, with every other card packed under it", () => {
+    const w = render();
+    expect(w.get("[data-test='widget-ops.fleet-now']").element.parentElement!.className).toContain("grid");
+    expect(w.findAll("[data-test='packed'] > [data-test^='widget-']").map((c) => c.attributes("data-test"))).toEqual(cards(w).slice(1));
+  });
+
+  it("makes the total the door to the board and Empty the door to its queue, and leaves the parts without a list plain", () => {
+    const w = render();
+    const door = (key: string) => w.get(`[data-test='count-${key}']`).element.tagName === "A" ? w.get(`[data-test='count-${key}']`).attributes("href") : null;
+    expect([door("total"), door("loaded"), door("empty"), door("in-shop")]).toEqual([
+      "/assignments?scope=all", null, "/assignments?scope=all&queue=empty", null,
+    ]);
+    expect(w.get("[data-test='count-empty']").text()).toContain("Find a load");
+  });
+});
+
+describe("Needs action (D-SM12)", () => {
+  it("lists every alarm above zero from the reader's cards, largest first, ties in the tab's order", async () => {
+    expect(needs(await settled())).toEqual([
+      ["ops.shop.defects", "52"],
+      ["ops.roadside.needs", "9"],
+      ["ops.seats.no-driver", "2"],
+      ["ops.hazmat.needs-review", "2"],
+      ["ops.road-attention.late", "1"],
+      ["ops.road-attention.hos-low", "1"],
+      ["ops.driver-files.expired", "1"],
+      ["ops.truck-papers.inspection_overdue", "1"],
+      ["ops.roadside.hazmat-oos", "1"],
+    ]);
+  });
+
+  it("says how many need a person and how many alarm checks are clear, and names each row's card", async () => {
+    const card = (await settled()).get("[data-test='widget-ops.needs-action']").text();
+    // Registration overdue is the one alarm at zero in this fixture.
+    expect(card).toContain("9");
+    expect(card).toContain("things need a person · 1 check is clear");
+    expect(card).toContain("Shop · found on inspections, not resolved");
+  });
+
+  it("gives each row the door its own card gives it", async () => {
+    const w = await settled();
+    const own = (scope: string, key: string) => w.get(`[data-test='${scope}']`).findAll("li").find((li) => li.find(`[data-test='count-${key}']`).exists())!.get("a").attributes("href");
+    expect(own("widget-ops.needs-action", "ops.shop.defects")).toBe(own("widget-ops.shop", "defects"));
+    expect(own("widget-ops.needs-action", "ops.roadside.needs")).toBe(own("widget-ops.roadside", "needs"));
+    expect(own("widget-ops.needs-action", "ops.roadside.needs")).toContain("from=2026-09-12&to=2026-10-12");
+  });
+
+  it("admits each row by its own card's gate — a reader without the section gets neither the card nor its alarms (D-FM4)", async () => {
+    // The technician of the gate test above: equipment and the shop, no dispatch, roster, hazmat or safety.
+    session.role = "technician";
+    session.sections = { equipment: "manage" };
+    const w = await settled();
+    expect(needs(w)).toEqual([
+      ["ops.shop.defects", "52"],
+      ["ops.seats.no-driver", "2"],
+      ["ops.truck-papers.inspection_overdue", "1"],
+    ]);
+    // …and the refused cards' reads were never started for them: Roadside's is asked only by a mounted source.
+    const before = roadsideAsked.length;
+    await settled();
+    expect(roadsideAsked.length).toBe(before);
+  });
+
+  it("does not call an unanswered check clear: a dash is counted apart and nothing is claimed", async () => {
+    shop.value = undefined as unknown as typeof SHOP;
+    const w = await settled();
+    expect(needs(w).map(([k]) => k)).not.toContain("ops.shop.defects");
+    expect(w.get("[data-test='needs-action-unknown']").text()).toBe("1 check has not answered yet.");
+    expect(w.find("[data-test='needs-action-clear']").exists()).toBe(false);
+  });
+
+  it("says nothing needs a person only once every check has answered so", async () => {
+    // Equipment and the shop alone, and the shop has nothing open: the trucks decide.
+    session.role = "technician";
+    session.sections = { equipment: "manage" };
+    shop.value = { ...SHOP, unresolvedDefects: 0 };
+    // Every truck seated and in date → three alarm checks, all zero.
+    vehicles.value = [{ id: "t6", status: "active", assigned_driver_id: "a", dot_annual_inspection_expires_at: "2027-06-01", registration_expires_at: "2027-06-01" }] as typeof VEHICLES;
+    const clear = await settled();
+    expect(needs(clear)).toEqual([]);
+    expect(clear.get("[data-test='needs-action-clear']").text()).toBe("Nothing needs a person right now.");
+    expect(clear.get("[data-test='widget-ops.needs-action']").text()).toContain("4 checks are clear");
+    // The trucks have not arrived: nothing is listed, and nothing is claimed either.
+    vehicles.value = undefined;
+    const waiting = await settled();
+    expect(needs(waiting)).toEqual([]);
+    expect(waiting.find("[data-test='needs-action-clear']").exists()).toBe(false);
+    expect(waiting.get("[data-test='needs-action-unknown']").text()).toBe("3 checks have not answered yet.");
+  });
+
+  it("leaves a rate to its card: an out-of-service percentage has no place in a list ordered by counts", async () => {
+    const keys = needs(await settled()).map(([k]) => k);
+    expect(keys).not.toContain("ops.roadside.vehicle-oos");
+    expect(keys).not.toContain("ops.roadside.driver-oos");
+  });
+});
+
 describe("every count is the row count behind its door (D-FM7)", () => {
   it("board: the parked pool is out, as it is on the board's All", () => {
     const w = render();
-    expect([n(w, "loaded"), n(w, "empty"), n(w, "in-shop")]).toEqual(["2", "1", "1"]);
+    expect([tile(w, "total"), tile(w, "loaded"), tile(w, "empty"), tile(w, "in-shop")]).toEqual(["4", "2", "1", "1"]);
     expect([n(w, "late"), n(w, "hos-low"), n(w, "no-gps"), n(w, "no-next"), n(w, "uncovered")]).toEqual(["1", "1", "1", "1", "3"]);
   });
 

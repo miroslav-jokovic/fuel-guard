@@ -7,19 +7,12 @@
  * `?waiting=them` is the other half — the board's own URL state (D-US2), so the figure is the row
  * count behind the door (D-FM9).
  */
-import { computed } from "vue";
 import { UserListIcon } from "@silvicom/ui/icons";
 import ChartCard from "@/components/ui/ChartCard.vue";
-import CountList, { type CountRow } from "@/components/ui/CountList.vue";
-import { countWaitingOn, usePipelineQuery } from "./useEmployment";
+import CountList from "@/components/ui/CountList.vue";
+import { useHiringRows } from "./useHiringRows";
 
-const { data: applicants } = usePipelineQuery();
-const count = (who: "us" | "them") => (applicants.value ? countWaitingOn(applicants.value, who) : null);
-
-const rows = computed<CountRow[]>(() => [
-  { key: "us", label: "Waiting on you", value: count("us"), caption: "applications with our next step", to: "/recruitment", door: "Applicants" },
-  { key: "them", label: "Waiting on them", value: count("them"), caption: "with the applicant", to: "/recruitment?waiting=them", door: "Applicants" },
-]);
+const { applicants, rows } = useHiringRows();
 </script>
 
 <template>

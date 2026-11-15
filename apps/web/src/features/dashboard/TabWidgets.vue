@@ -47,7 +47,7 @@ import { WIDGET_COMPONENTS, WIDGETS_TAKING_RANGE } from "@/lib/dashboardWidgets"
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { AdjustmentsHorizontalIcon } from "@silvicom/ui/icons";
 import DashboardLayoutEditor from "@/features/dashboard/DashboardLayoutEditor.vue";
-import { packedSpanOf } from "@/features/dashboard/packing";
+import { layoutSegments } from "@/features/dashboard/packing";
 
 const props = defineProps<{
   tab: string;
@@ -132,18 +132,20 @@ const SPAN_CLASS: Record<number, string> = {
 };
 
 /**
- * ── A TAB OF EQUAL CARDS IS PACKED, NOT GRIDDED (SMALL-SCREENS-PLAN.md D-SM12, 2026-11-14) ─────────
- * A grid row is as tall as its tallest card. Operations is ten cards of one span and very different
- * lengths (Shop three rows, Truck paperwork eight), so every row but one ended in white: the audit
- * measured Seats stopping 250 px above its own bottom edge. When every card on a tab has the SAME
- * span there are no rows to keep — nothing is wider than anything else — so the cards flow down
- * columns and each is as tall as its content.
+ * ── A RUN OF EQUAL CARDS IS PACKED, NOT GRIDDED (SMALL-SCREENS-PLAN.md D-SM12, 2026-11-14) ────────
+ * A grid row is as tall as its tallest card. Operations is cards of one span and different lengths
+ * (Shop is three rows, Truck paperwork eight), so every row but one ended in white: the audit
+ * measured Seats stopping 250 px above its own bottom edge. Where a run of cards has the SAME span
+ * and wraps, there are no rows to keep — nothing is wider than anything else — so the cards flow
+ * down columns and each is as tall as its content.
  *
- * Decided from the spans, never from the tab's name: Fleet overview mixes 5 / 4 / 3 / 12 / 6 and is
- * still a grid, and a tab somebody arranges into equal cards tomorrow packs without a line here.
- * The order a person saved still reads top to bottom, then across — down a column, not along a row.
+ * Decided by the spans, never by the tab's name, and per RUN since C2 (2026-11-15): the fleet strip
+ * is full-width and leads Operations, so the tab is cut at its full-width cards and each run between
+ * them answers for itself (`layoutSegments`, where the rule is written out). Fleet overview mixes
+ * 5 / 4 / 3 / 12 / 6 and is still one grid. The order a person saved still reads top to bottom, then
+ * across — down a column, not along a row.
  */
-const packedSpan = computed<number | null>(() => packedSpanOf(drawable.value));
+const segments = computed(() => layoutSegments(drawable.value));
 /** Columns for a span — the same two steps `SPAN_CLASS` takes, as column counts. */
 const PACK_CLASS: Record<number, string> = {
   3: "@2xl:columns-2 @5xl:columns-4",
@@ -256,21 +258,22 @@ const workspaceWidget = computed(() =>
       Your saved arrangement referred to cards that no longer exist, so the default is shown. Customize to set a new one.
     </p>
     <div v-if="!nothingAvailable && !emptyByChoice" class="@container">
-    <div v-if="packedSpan !== null && PACK_CLASS[packedSpan]" class="gap-6" :class="PACK_CLASS[packedSpan]" data-test="packed">
-      <div v-for="w in drawable" :key="w.key" :data-test="`widget-${w.key}`" class="mb-6 break-inside-avoid">
+    <template v-for="(seg, i) in segments" :key="i">
+    <div v-if="seg.packed !== null && PACK_CLASS[seg.packed]" class="gap-6" :class="PACK_CLASS[seg.packed]" data-test="packed">
+      <div v-for="w in seg.widgets" :key="w.key" :data-test="`widget-${w.key}`" class="mb-6 break-inside-avoid">
         <component :is="WIDGET_COMPONENTS[w.key]" v-bind="WIDGETS_TAKING_RANGE.has(w.key) ? { range } : {}" />
       </div>
     </div>
-    <div v-else class="grid grid-cols-1 gap-6 @2xl:grid-cols-12">
-      <!--
-        Twelve columns, and a card's `span` is how many it takes (Q-FO3). D-DT5: a narrower grid
-        collapses SPANS, never restyles a widget — so under 64rem of grid anything narrower than
-        half the row becomes half, and anything wider becomes the whole row; under 42rem everything
-        stacks. See `SPAN_CLASS` for why it is the grid's width and not the window's.
-        A static class per count, because Tailwind cannot see a class built at runtime.
-      -->
+    <!-- `mb-6` so a grid segment keeps the gap to a packed run under it; the packed run's own cards
+         end on `mb-6`, which is the gap to whatever follows them. -->
+    <div v-else class="grid grid-cols-1 gap-6 @2xl:grid-cols-12" :class="i < segments.length - 1 ? 'mb-6' : ''">
+      <!-- Twelve columns, and a card's `span` is how many it takes (Q-FO3). D-DT5: a narrower grid
+           collapses SPANS, never restyles a widget — so under 64rem of grid anything narrower than
+           half the row becomes half, anything wider becomes the whole row; under 42rem everything
+           stacks. See `SPAN_CLASS` for why it is the grid's width and not the window's. A static
+           class per count, because Tailwind cannot see a class built at runtime. -->
       <div
-        v-for="w in drawable"
+        v-for="w in seg.widgets"
         :key="w.key"
         :data-test="`widget-${w.key}`"
         :class="SPAN_CLASS[typeof w.span === 'number' ? w.span : 12]"
@@ -281,6 +284,7 @@ const workspaceWidget = computed(() =>
         />
       </div>
     </div>
+    </template>
     </div>
 
     <DashboardLayoutEditor
