@@ -3,6 +3,12 @@ import type { APPLY_DOCUMENTS_COPY } from "../strings.documents";
 
 /** `strings.documents.ts` in Spanish (Q-AW11, C4; the list's new words drafted 2026-11-01, §9 P9). */
 export const APPLY_DOCUMENTS_COPY_ES = {
+  documentsLink: {
+    heading: (carrier: string): string => `Fotos para ${carrier}`,
+    intro: "Fotografíe los que tenga. Aquí no hay preguntas ni nada que firmar.",
+    saved: "Cada foto se envía en cuanto usted la confirma. Puede cerrar esta página al terminar.",
+    until: (day: string, carrier: string): string => `Este enlace funciona hasta el ${day}. Después, pida a ${carrier} que se lo envíe de nuevo.`,
+  },
   documents: {
     intro: "Envíe lo que tenga ahora; puede llevar el resto a la oficina.",
     optional: "Cada uno puede ser una foto o un PDF. Ninguno le impide enviar la solicitud.",

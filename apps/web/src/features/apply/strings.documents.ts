@@ -13,6 +13,13 @@ export const APPLY_DOCUMENTS_COPY = {
    * only "that did not work" sends a driver to a support call; one that names the problem sends them
    * to a window.
    */
+  /** The documents-only link's own screen (Q-AM19, 0608): the photo list and nothing else. */
+  documentsLink: {
+    heading: (carrier: string): string => `Photos for ${carrier}`,
+    intro: "Photograph the ones you have. There are no questions here, and nothing to sign.",
+    saved: "Each photo is sent as soon as you confirm it. You can close this page when you are done.",
+    until: (day: string, carrier: string): string => `This link works until ${day}. After that, ask ${carrier} to send it again.`,
+  },
   documents: {
     /**
      * §9 P9 (HIRING-WORKFLOW-AUDIT §4.7): the copy stops inviting the skip. Until P9 it ended "— or skip

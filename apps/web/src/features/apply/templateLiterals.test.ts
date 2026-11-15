@@ -29,6 +29,7 @@ const OFFICE: Readonly<Record<string, string>> = {
   "FactEditor.vue": "the office card's one-answer editor",
   "FactRowAdder.vue": "the office card's add-a-row control",
   "OfficeJobsSection.vue": "the office card's employment section",
+  "SendDocumentsLink.vue": "the office drawer's \"Send a documents link\" (Q-AM19)",
   "TableRowEditor.vue": "the office card's table-row editor",
 };
 

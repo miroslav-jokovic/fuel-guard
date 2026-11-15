@@ -39,7 +39,8 @@ export const authRoutes: RouteRecordRaw[] = [
   {
     path: "/apply/:token",
     name: "driver-application",
-    component: () => import("@/pages/ApplyPage.vue"),
+    // The door: the application's own page, or the documents-only link's (`ApplyDoorPage`, Q-AM19).
+    component: () => import("@/pages/ApplyDoorPage.vue"),
     meta: { public: true, layout: "apply", title: "Driver application", noindex: true },
   },
   /**

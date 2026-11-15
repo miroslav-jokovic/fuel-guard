@@ -922,6 +922,9 @@ function verifyAdoption() {
     // (The breadcrumb half of that sentence was aspirational until G2 shipped it on 2026-08-25;
     // `PageHeader` now walks `meta.parent` via `lib/breadcrumbs.ts`. It is true as written.)
     "ApplyPage.vue",
+    // Q-AM19: the door in front of it — the same address and the same ApplyLayout, choosing between the
+    // application's page and the documents-only link's. The same no-workspace reason.
+    "ApplyDoorPage.vue",
     // HW8a: the orientation videos on the same applicant link, in the same ApplyLayout — the same reason.
     "ApplyVideosPage.vue",
     "auth/AcceptInvitePage.vue",
