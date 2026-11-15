@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { hashInvitationToken } from "../applicationIntake.js";
 import { FCRA_SUMMARY_VERSION } from "../fcraSummary.js";
@@ -66,7 +67,7 @@ const seed = (opts: { invitation?: Row; intake?: Row[]; rpc?: Record<string, unk
         intake_completed_at: null, releases_completed_at: null, submitted_at: null,
         ...opts.invitation,
       }],
-      application_intakes: opts.intake ?? [],
+      application_intakes: opts.intake ?? [PART_ONE_ROW],
       application_captures: (q: RecordedQuery) => {
         const slots = q.filters().find((f) => f.col === "slot")?.val as string[] | undefined;
         return slots ? STAGED.filter((c) => slots.includes(c.slot)) : STAGED;
@@ -285,7 +286,9 @@ describe("the permissions wait for Part 1 on a v2 link", () => {
   });
 
   it("lets a legacy link (no Part 1 row) past this check to its old rules", async () => {
-    holder.client = seed().client;
+    // ⚠ The one fixture here with NO Part 1 row, on purpose: this is the legacy rule's own test, and it
+    // goes with that rule (APPLICATION-FIX-PLAN §7, 1b-5 step 4).
+    holder.client = seed({ intake: [] }).client;
     const res = await sign();
     // It stops at the identity rule it always had — the point is that it is NOT `intake_incomplete`.
     expect((await read(res)).error?.code).toBe("identity_missing");

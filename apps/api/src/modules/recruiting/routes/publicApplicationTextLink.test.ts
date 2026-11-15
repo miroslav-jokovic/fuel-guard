@@ -5,6 +5,7 @@ import { SMS_CONSENT } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 import { TEXT_LINK_LIMIT } from "../../../middleware/applicationLimits.js";
@@ -66,6 +67,7 @@ const seed = (token: string, consents: Row[] = [LIVE], invitation: Row = {}, sup
         expires_at: "2099-01-01T00:00:00Z", revoked_at: null, consented_at: "2026-09-14T08:00:00Z",
         ...invitation,
       }],
+      application_intakes: [PART_ONE_ROW],
       organizations: [{ name: "Silvicom Inc" }],
       sms_consents: postgrestFixture(consents.map((r) => ({ org_id: ORG, driver_id: DRIVER, ...r }))),
       sms_suppressions: postgrestFixture(suppressions),

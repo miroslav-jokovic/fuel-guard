@@ -130,12 +130,10 @@ async function save() {
       </div>
     </form>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="saving" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton form="printer-form" type="submit" variant="primary" :disabled="saving || !ready">
-          {{ saving ? "Saving…" : printer ? "Save" : "Add printer" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="saving" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton form="printer-form" type="submit" variant="primary" :disabled="saving || !ready">
+        {{ saving ? "Saving…" : printer ? "Save" : "Add printer" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

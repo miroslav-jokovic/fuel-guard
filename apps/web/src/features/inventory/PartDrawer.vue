@@ -57,12 +57,10 @@ async function onSubmit(input: PartInput) {
     </AppCallout>
     <PartForm :part="part" :initial-upc="initialUpc" @submit="onSubmit" />
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" :disabled="submitting" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton :form="PART_FORM_ID" type="submit" variant="primary" :disabled="submitting">
-          {{ submitting ? (part ? "Saving…" : "Adding…") : part ? "Save part" : "Add part" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" :disabled="submitting" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton :form="PART_FORM_ID" type="submit" variant="primary" :disabled="submitting">
+        {{ submitting ? (part ? "Saving…" : "Adding…") : part ? "Save part" : "Add part" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

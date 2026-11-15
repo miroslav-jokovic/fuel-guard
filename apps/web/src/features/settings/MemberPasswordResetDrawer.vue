@@ -57,12 +57,10 @@ function close(): void {
       <p>You won't see the link or the new password. When it's used, every device they're signed in on is signed out.</p>
     </div>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton :disabled="busy" @click="close">Cancel</BaseButton>
-        <BaseButton variant="primary" :disabled="busy || stepUpFor !== null" @click="send">
-          {{ busy ? "Sending…" : "Send reset email" }}
-        </BaseButton>
-      </div>
+      <BaseButton :disabled="busy" @click="close">Cancel</BaseButton>
+      <BaseButton variant="primary" :disabled="busy || stepUpFor !== null" @click="send">
+        {{ busy ? "Sending…" : "Send reset email" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

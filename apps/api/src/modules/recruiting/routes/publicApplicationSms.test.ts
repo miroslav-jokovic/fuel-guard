@@ -6,6 +6,7 @@ import { createApp } from "../../../app.js";
 import { SMS_CONSENT_LIMIT } from "../../../middleware/applicationLimits.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 import { hashInvitationToken } from "../applicationIntake.js";
@@ -89,7 +90,7 @@ const seed = (consents: Row[] = [], invitation: Row = {}, suppressions: Row[] = 
       },
       // C2d: the confirmation goes through the outbox, which records every text it sends or queues.
       sms_outbox: (q: RecordedQuery) => (q.write?.method === "insert" ? [{ id: "o-1" }] : []),
-      application_intakes: [],
+      application_intakes: [PART_ONE_ROW],
       sms_suppressions: postgrestFixture(suppressions),
     },
     rpc: { revoke_sms_consent: 1 },

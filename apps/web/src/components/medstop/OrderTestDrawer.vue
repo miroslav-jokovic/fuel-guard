@@ -308,15 +308,13 @@ const reviewFacts = computed((): Fact[] => {
       </section>
     </div>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton :disabled="place.isPending.value" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton v-if="!reviewed" variant="primary" :disabled="off || !input || preview.isPending.value" @click="review">
-          {{ preview.isPending.value ? "Checking…" : "Review order" }}
-        </BaseButton>
-        <BaseButton v-else variant="primary" :disabled="place.isPending.value" @click="confirm">
-          {{ place.isPending.value ? "Ordering…" : "Place order" }}
-        </BaseButton>
-      </div>
+      <BaseButton :disabled="place.isPending.value" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton v-if="!reviewed" variant="primary" :disabled="off || !input || preview.isPending.value" @click="review">
+        {{ preview.isPending.value ? "Checking…" : "Review order" }}
+      </BaseButton>
+      <BaseButton v-else variant="primary" :disabled="place.isPending.value" @click="confirm">
+        {{ place.isPending.value ? "Ordering…" : "Place order" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

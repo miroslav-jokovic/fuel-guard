@@ -474,7 +474,7 @@ const environmentBadge = computed(() =>
     </div>
 
     <template #footer>
-      <div v-if="props.operation && !settled && !stepUpFor && !confirmingDiscard" class="space-y-2">
+      <div v-if="props.operation && !settled && !stepUpFor && !confirmingDiscard" class="w-full space-y-2">
         <!-- Invariant 6: the sentence sits WITH the disabled button, not in a tooltip. -->
         <p v-if="missing" class="text-right text-sm text-ink-muted">{{ missing }}</p>
         <div class="flex items-center justify-end gap-3">
@@ -488,9 +488,9 @@ const environmentBadge = computed(() =>
           </BaseButton>
         </div>
       </div>
-      <div v-else-if="settled" class="flex items-center justify-end">
+      <template v-else-if="settled">
         <BaseButton variant="primary" @click="emit('close')">Close</BaseButton>
-      </div>
+      </template>
     </template>
   </SlideOver>
 </template>

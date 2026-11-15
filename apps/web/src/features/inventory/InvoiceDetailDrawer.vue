@@ -140,9 +140,7 @@ function onCorrected(saved: { id: string }) {
     />
 
     <template v-if="canManage && bill && !bill.supersededBy" #footer>
-      <div class="flex justify-end">
-        <BaseButton variant="primary" data-test="invoice-correct" @click="correcting = true">Correct this invoice</BaseButton>
-      </div>
+      <BaseButton variant="primary" data-test="invoice-correct" @click="correcting = true">Correct this invoice</BaseButton>
     </template>
   </SlideOver>
 </template>

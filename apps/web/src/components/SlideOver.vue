@@ -10,7 +10,7 @@ import {
   TransitionChild,
 } from "@headlessui/vue";
 import { computed, useSlots } from "vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, DIALOG_FOOTER_CLASS } from "@silvicom/ui";
 
 const props = withDefaults(
   defineProps<{
@@ -106,7 +106,9 @@ const panelWidth = computed(() => WIDTHS[props.size]);
                   </div>
                   <div
                     v-if="slots.footer"
+                    data-test="dialog-footer"
                     class="border-t border-edge bg-surface px-4 py-4 sm:px-6"
+                    :class="DIALOG_FOOTER_CLASS"
                   >
                     <slot name="footer" />
                   </div>

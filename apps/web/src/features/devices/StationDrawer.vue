@@ -94,18 +94,16 @@ async function copy(text: string) {
     </div>
 
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton variant="ghost" @click="emit('close')">{{ code ? "Done" : "Cancel" }}</BaseButton>
-        <BaseButton
-          v-if="!code"
-          form="station-form"
-          type="submit"
-          variant="primary"
-          :disabled="create.isPending.value || !name.trim()"
-        >
-          {{ create.isPending.value ? "Adding…" : "Add and show code" }}
-        </BaseButton>
-      </div>
+      <BaseButton variant="ghost" @click="emit('close')">{{ code ? "Done" : "Cancel" }}</BaseButton>
+      <BaseButton
+        v-if="!code"
+        form="station-form"
+        type="submit"
+        variant="primary"
+        :disabled="create.isPending.value || !name.trim()"
+      >
+        {{ create.isPending.value ? "Adding…" : "Add and show code" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

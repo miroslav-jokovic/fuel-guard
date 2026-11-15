@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 import { postgrestFixture, type FixtureRow } from "../../../testing/postgrestFixture.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { hashInvitationToken } from "../applicationIntake.js";
@@ -46,7 +47,6 @@ const seed = (over: {
   adoptions?: FixtureRow[];
   authorizations?: FixtureRow[];
   packetMarks?: FixtureRow[];
-  intakes?: FixtureRow[];
   rpc?: Record<string, unknown>;
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
@@ -54,7 +54,9 @@ const seed = (over: {
       application_invitations: postgrestFixture([{
         id: INVITE, org_id: ORG, driver_id: DRIVER, token_hash: hashInvitationToken(TOKEN),
         expires_at: "2099-01-01T00:00:00Z", revoked_at: null, consented_at: "2026-09-28T09:00:00Z",
-        intake_completed_at: null, releases_completed_at: null, submitted_at: null,
+        // ⚠ Part 1 finished, on the default link: screen 13 comes after it (`INTAKE_INCOMPLETE`), so a
+        // driver who can adopt a signature is one who has. The test ABOUT that rule overrides this.
+        intake_completed_at: "2026-09-28T09:30:00Z", releases_completed_at: null, submitted_at: null,
         ...over.invitation,
       }]),
       organizations: [{ name: "Silvicom Inc" }],
@@ -62,7 +64,7 @@ const seed = (over: {
       driver_authorizations: postgrestFixture(over.authorizations ?? []),
       application_packet_marks: postgrestFixture(over.packetMarks ?? []),
       handbook_marks: postgrestFixture([]),
-      application_intakes: postgrestFixture(over.intakes ?? []),
+      application_intakes: postgrestFixture([{ ...PART_ONE_ROW, id: "i1", org_id: ORG, invitation_id: INVITE }]),
       // Identity on file, as `recordRelease` requires before any permission (AF3).
       drivers: [{ date_of_birth: "1980-04-01", cdl_number: "PA334554", cdl_state: "PA" }],
       application_drafts: [{ payload: { date_of_birth: "1980-04-01", cdl_number: "PA334554", cdl_state: "PA" } }],
@@ -208,7 +210,7 @@ describe("POST /:token/adoption", () => {
   });
 
   it("comes after Part 1 on a v2 link", async () => {
-    const rec = seed({ intakes: [{ id: "i1", org_id: ORG, invitation_id: INVITE }] });
+    const rec = seed({ invitation: { intake_completed_at: null } });
     holder.client = rec.client;
     const res = await adopt({ kind: "signature", typed_text: "Susan Godfrey", png_base64: PNG.toString("base64") });
     expect(res.status).toBe(409);
@@ -238,18 +240,15 @@ describe("POST /:token/adoption", () => {
 });
 
 describe("the link serves what it adopted", () => {
-  /** The link a driver is sent: its invitation has a Part 1 row (a link without one is a legacy link). */
-  const PART_ONE = [{ invitation_id: INVITE, org_id: ORG, phone: null, postal_code: null, prior_positive_2y: null, medical_card_pending: null, fcra_summary_version: null }];
-
   it("as typed text, this org's only", async () => {
-    const rec = seed({ intakes: PART_ONE, adoptions: [adoption(ORG, "signature"), adoption(ORG, "initials", { typed_text: "SG" })] });
+    const rec = seed({ adoptions: [adoption(ORG, "signature"), adoption(ORG, "initials", { typed_text: "SG" })] });
     holder.client = rec.client;
     const body = (await (await call("")).json()) as { adoptions: unknown };
     expect(body.adoptions).toEqual({ signature: "Susan Godfrey", initials: "SG" });
   });
 
   it("a superseded adoption is not served", async () => {
-    holder.client = seed({ intakes: PART_ONE, adoptions: [adoption(ORG, "signature", { superseded_by: "newer" })] }).client;
+    holder.client = seed({ adoptions: [adoption(ORG, "signature", { superseded_by: "newer" })] }).client;
     const body = (await (await call("")).json()) as { adoptions: unknown };
     expect(body.adoptions).toEqual({ signature: null, initials: null });
   });

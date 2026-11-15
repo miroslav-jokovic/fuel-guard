@@ -11,6 +11,7 @@ import {
 } from "@headlessui/vue";
 import { computed, useSlots } from "vue";
 import BaseButton from "./AppButton.vue";
+import { DIALOG_FOOTER_CLASS } from "./dialogFooter";
 
 /**
  * The one CENTRED dialog (DQF execution plan B5) — added deliberately as a second sanctioned
@@ -113,7 +114,7 @@ const panelWidth = computed(() =>
                 <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
                   <slot />
                 </div>
-                <div v-if="slots.footer" class="border-t border-edge bg-surface px-4 py-4 sm:px-6">
+                <div v-if="slots.footer" data-test="dialog-footer" class="border-t border-edge bg-surface px-4 py-4 sm:px-6" :class="DIALOG_FOOTER_CLASS">
                   <slot name="footer" />
                 </div>
               </div>

@@ -99,10 +99,8 @@ const reject = (creativeId: string, reason: string) => act(() => decide.mutateAs
       </div>
     </QueryState>
     <template v-if="moves.length > 0 || planToApprove" #footer>
-      <div class="flex flex-wrap items-center justify-end gap-3">
-        <BaseButton v-for="m in moves" :key="m.event" :variant="m.event === 'creatives_approved' ? 'primary' : 'secondary'" :disabled="busy" :data-test="`move-${m.event}`" @click="press({ event: m.event }, 'Done')">{{ m.label }}</BaseButton>
-        <BaseButton v-if="planToApprove" variant="primary" :disabled="busy || planEditing" data-test="plan-approve" @click="approveThePlan">Approve this plan</BaseButton>
-      </div>
+      <BaseButton v-for="m in moves" :key="m.event" :variant="m.event === 'creatives_approved' ? 'primary' : 'secondary'" :disabled="busy" :data-test="`move-${m.event}`" @click="press({ event: m.event }, 'Done')">{{ m.label }}</BaseButton>
+      <BaseButton v-if="planToApprove" variant="primary" :disabled="busy || planEditing" data-test="plan-approve" @click="approveThePlan">Approve this plan</BaseButton>
     </template>
   </SlideOver>
 </template>

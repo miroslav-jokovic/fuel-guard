@@ -1,41 +1,4 @@
 {
-  "//": "Critical and high advisories that reach the office app and are accepted FOR NOW, each for the packages named and with a reason somebody can check (scripts/check-advisories.mjs, INSTALLED-APP-PLAN §5a A4). This list may only shrink: the check fails on an entry that no longer describes anything, so the upgrade that closes an advisory removes its line in the same PR. Measured on 2026-11-15; every one has a fix inside the range its dependent already asks for — none is here because it cannot be fixed, only because each upgrade is its own tested step.",
-  "accepted": [
-    {
-      "id": "GHSA-g2v6-rqmx-r4w6",
-      "library": "@vue/server-renderer",
-      "reaches": ["@silvicom/web", "@silvicom/admin"],
-      "reason": "Installed because `vue` depends on it; neither app renders on a server — no file under apps/web/src, apps/admin/src or packages/ui/src imports the server renderer or calls renderToString (grep, 2026-11-15). Closed by vue 3.5.42."
-    },
-    {
-      "id": "GHSA-r28c-9q8g-f849",
-      "library": "postcss",
-      "reaches": ["@silvicom/web", "@silvicom/admin"],
-      "reason": "Reached through vue > @vue/compiler-sfc, which compiles .vue files at build time and is not in the browser bundle; the only source import of the compiler is a test (apps/web/src/features/apply/templateLiterals.test.ts). Fixed in postcss 8.5.18."
-    },
-    {
-      "id": "GHSA-28wg-ghj8-5hjv",
-      "library": "nanoid",
-      "reaches": ["@silvicom/web", "@silvicom/admin"],
-      "reason": "Reached only through postcss (above): vue > @vue/compiler-sfc > postcss > nanoid, build time. Fixed in nanoid 3.3.16."
-    },
-    {
-      "id": "GHSA-2v37-7h3g-55p8",
-      "library": "nanoid",
-      "reaches": ["@silvicom/web", "@silvicom/admin"],
-      "reason": "Same path as GHSA-28wg-ghj8-5hjv. Fixed in nanoid 3.3.18."
-    },
-    {
-      "id": "GHSA-68fv-2mgg-jv7q",
-      "library": "source-map-js",
-      "reaches": ["@silvicom/web", "@silvicom/admin"],
-      "reason": "Reached through vue > @vue/compiler-dom > @vue/compiler-core, which uses it to write source maps while compiling templates; neither vite config aliases vue to a build that compiles in the browser, and no source maps are served (audit 2026-11-15). Fixed in source-map-js 1.2.2."
-    },
-    {
-      "id": "GHSA-587h-7wmj-h5pm",
-      "library": "vite",
-      "reaches": ["@silvicom/web", "@silvicom/admin"],
-      "reason": "vite counts as a production dependency only because vue-router > unplugin depends on it (pnpm why, 2026-11-15); it is the build tool and dev server, and the advisory is in launch-editor, which opens a file in an editor from the dev server on Windows. Nothing deployed runs it. Fixed in vite 8.1.6."
-    }
-  ]
+  "//": "Critical and high advisories that reach the office app and are accepted FOR NOW, each for the packages named and with a reason somebody can check (scripts/check-advisories.mjs, INSTALLED-APP-PLAN §5a A4). This list may only shrink: the check fails on an entry that no longer describes anything, so the upgrade that closes an advisory removes its line in the same PR. EMPTY since 2026-11-15: the seven measured that day were closed by zod 4.6.7, vue 3.5.45, vite 8.1.7 and three pins under vue's template compiler. An entry added here is a decision to ship a known high advisory — say why, and what removes it.",
+  "accepted": []
 }

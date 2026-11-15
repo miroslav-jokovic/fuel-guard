@@ -93,10 +93,8 @@ async function save(): Promise<void> {
       </FormField>
     </form>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton :disabled="busy" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton variant="primary" type="submit" :form="FORM" :disabled="busy" data-test="save-add">{{ busy ? "Saving…" : "Add lead" }}</BaseButton>
-      </div>
+      <BaseButton :disabled="busy" @click="emit('close')">Cancel</BaseButton>
+      <BaseButton variant="primary" type="submit" :form="FORM" :disabled="busy" data-test="save-add">{{ busy ? "Saving…" : "Add lead" }}</BaseButton>
     </template>
   </SlideOver>
 </template>

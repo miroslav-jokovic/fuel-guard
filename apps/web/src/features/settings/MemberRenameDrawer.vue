@@ -78,17 +78,15 @@ function close(): void {
       </FormField>
     </form>
     <template #footer>
-      <div class="flex items-center justify-end gap-3">
-        <BaseButton :disabled="busy" @click="close">Cancel</BaseButton>
-        <BaseButton
-          variant="primary"
-          type="submit"
-          form="rename-member"
-          :disabled="busy || stepUpFor !== null || name.trim().length === 0"
-        >
-          {{ busy ? "Saving…" : "Save name" }}
-        </BaseButton>
-      </div>
+      <BaseButton :disabled="busy" @click="close">Cancel</BaseButton>
+      <BaseButton
+        variant="primary"
+        type="submit"
+        form="rename-member"
+        :disabled="busy || stepUpFor !== null || name.trim().length === 0"
+      >
+        {{ busy ? "Saving…" : "Save name" }}
+      </BaseButton>
     </template>
   </SlideOver>
 </template>

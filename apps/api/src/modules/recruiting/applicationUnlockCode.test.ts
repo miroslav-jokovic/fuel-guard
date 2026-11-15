@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UNLOCK_CODE_MAX_TRIES } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { loadEnv } from "../../env.js";
 import { hashInvitationToken, isIntakeError } from "./applicationIntake.js";
 
@@ -48,7 +49,7 @@ const seed = (opts: { draft?: unknown[]; codes?: unknown[]; spent?: unknown[]; e
       application_invitations: (q: RecordedQuery) =>
         q.ops.some((o) => o.method === "or") ? [invitation] : [{ email: opts.email === undefined ? invitation.email : opts.email }],
       application_drafts: opts.draft ?? [LOCKED_DRAFT],
-      application_intakes: [],
+      application_intakes: [PART_ONE_ROW],
       application_intake_licences: [],
       drivers: [],
       organizations: [{ name: "Silvicom" }],
