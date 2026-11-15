@@ -487,6 +487,7 @@ function shown(row: FactRow): string {
         :revision="review.revision ?? 0"
         :v2="Boolean(review.partOne)"
         :editable="draftOpen"
+        :state="review.state"
       />
     </div>
   </section>

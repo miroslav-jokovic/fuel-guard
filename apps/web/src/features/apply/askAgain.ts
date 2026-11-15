@@ -33,7 +33,9 @@ export function askAgainFieldPath(path: ApplicationPath, draft: ApplicationDraft
   // A job is named by its key since §9 P5 and is not one of the keyed row lists `currentEditPaths` places
   // (those came with Q-AM15), so it is found here, in the driver's own list.
   const job = path[0] === "employers" && typeof path[1] === "string" ? draft.employers.findIndex((e) => e.key === path[1]) : -1;
-  if (job >= 0) return ["employers", job, ...path.slice(2)];
+  // A question about the JOB (no answer named — the office's jobs are a timeline, not rows) opens the
+  // job at its first question, the company's name: the walk finds a screen by the answer it asks.
+  if (job >= 0) return ["employers", job, ...(path.length > 2 ? path.slice(2) : ["employer_name"])];
   const now = currentEditPaths([{ path, before: null, after: null, editedAt: "" }], toDraftPayload(draft))[0];
   const placed = now && !now.gone ? now.path : path;
   return placed[0] === DRAFT_ANSWERS ? ["questionnaire_answers", ...placed.slice(1)] : placed;
@@ -42,8 +44,15 @@ export function askAgainFieldPath(path: ApplicationPath, draft: ApplicationDraft
 /** Where the answer is asked, as the form's own "take me to this box" understands it. */
 export function askAgainIssue(q: Pick<AskAgainView, "path">, draft: ApplicationDraft): SectionIssue {
   const path = askAgainFieldPath(q.path, draft);
+  // A job is named by its company — "Old Carrier", "Old Carrier · Left on" — never "Employer 2": with two
+  // jobs the number says nothing. Behind the date-of-birth gate the draft is not loaded, so there is no
+  // name to print, and the label is the plain noun.
+  const company = q.path[0] === "employers" && typeof q.path[1] === "string"
+    ? (draft.employers.find((e) => e.key === q.path[1])?.employer_name.trim() || null)
+    : null;
+  const label = company ? (q.path.length > 2 ? describeField(q.path, company) : company) : describeField(path);
   return {
-    path, key: String(path[0] ?? ""), message: "", say: "", label: describeField(path), fieldId: fieldId(path),
+    path, key: String(path[0] ?? ""), message: "", say: "", label, fieldId: fieldId(path),
     section: sectionOwningPath(path),
   };
 }

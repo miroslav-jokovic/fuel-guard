@@ -966,4 +966,12 @@ A gate fails on a literal string in an `apply/` template.
   - **Not built: a text message.** A new kind of text needs its wording in the SMS programme's own catalogue and the consent it is sent under (SMS-OPT-IN-PLAN §6). The office's form says no text is sent.
   - **Proof:** API (+6), the row (+3), 8 of 8 mutants killed (one re-run after its first pattern did not apply).
   - **F5 is built except for the text message and "Ask" on a job.** Next: "Ask" on a job, then the documents-only link.
+- 2026-11-14: **F5 stage 3 merged** (#2389).
+- 2026-11-14: **F5: "Ask" on a job** (`claude/application-ask-again-jobs`, no migration).
+  - **The office:** under the jobs timeline, one "Ask the applicant about {company}" per job. One question per job, named by the job's key; a job from before keys (AW1) cannot be named, so it is not offered, as it cannot be removed.
+  - **Why below the timeline and not on each bar:** a job there is a bar and a badge, with no room for the office's words or the waiting state.
+  - **The driver:** the question reads "About: Old Carrier" (the company, never "Employer 2"), and "Open my answer" opens that job at its first question, with the office's words above. Behind the date-of-birth gate the draft is not loaded, so the label is the plain noun.
+  - **Proof:** web (+6); 5 of 5 mutants killed, one only after its test was added (a guard whose effect is one request not made); a second browser test in `askAgain.spec.ts` opens the SECOND of two jobs and finds its company in the box.
+  - **F5 is built.** Left out, each recorded above: a text message; a question about a first-visit answer; one list of everything asked at the top of the drawer.
+  - **Next:** the documents-only link and photo straightening (Q-AM19).
 
