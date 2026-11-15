@@ -301,7 +301,8 @@ async function onSubmit(input: DriverInput) {
     <PageHeader
       description="Drivers in your fleet. Assign drivers to vehicles from the Vehicles page."
     >
-      <template #actions>
+      <!-- The three secondary verbs: in the row at a desk, behind the header's More on a phone (Q-SM4). -->
+      <template #more>
         <!-- Outside the roster-manage block: an auditor reads the ledger (`safety: view`) and builds nothing. -->
         <BaseButton v-if="canSeeBinders" @click="bindersOpen = true">Audit binders</BaseButton>
         <template v-if="session.can('roster')">
@@ -316,10 +317,12 @@ async function onSubmit(input: DriverInput) {
           </BaseButton>
           <!-- Paper driver files, scanned in stacks under cover sheets (DRIVER-PAPER-INTAKE-PLAN PI4). -->
           <BaseButton :to="{ name: 'driver-paper-intake' }">Upload scanned files</BaseButton>
-          <BaseButton variant="primary" @click="openNew">
-            <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New driver
-          </BaseButton>
         </template>
+      </template>
+      <template v-if="session.can('roster')" #actions>
+        <BaseButton variant="primary" @click="openNew">
+          <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New driver
+        </BaseButton>
       </template>
       <template #freshness><RosterFreshnessLine /></template>
     </PageHeader>
