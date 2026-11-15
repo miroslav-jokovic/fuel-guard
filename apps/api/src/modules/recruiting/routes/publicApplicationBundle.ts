@@ -8,7 +8,7 @@ import { applicantVisibleEdits } from "../applicationHandoff.js";
 import { loadCarrierWording } from "../carrierWording.js";
 import { loadDraft } from "../applicationDraft.js";
 import { esignConsentForApplicant } from "../esignConsent.js";
-import { isIntakeError, phasesOf, resolveDocumentsLink, resolveInvitation } from "../applicationIntake.js";
+import { DEAD_LINK, isIntakeError, phasesOf, resolveDocumentsLink, resolveInvitation } from "../applicationIntake.js";
 import { releasesForApplicant, signedReleases } from "../applicationReleases.js";
 import { adoptedPacketMarks, packetStops } from "../applicationPacketMarks.js";
 import { identityOnFile } from "../applicantIdentity.js";
@@ -68,6 +68,19 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     return;
   }
 
+  // 1b-5 (APPLICATION-FIX-PLAN §7): an invitation with no Part 1 row is a LEGACY one, created before C3a
+  // (2026-09), whose form was the linear wizard. Nobody is sent one — every invitation since is minted
+  // its row (`mintIntakeRow`) — and that wizard is retired, so its link opens nothing and says what every
+  // dead link says. ⚠ Read FIRST, before anything of the application is loaded: a link that opens no
+  // page must not have its draft, its edits or its photographs read for it.
+  // Production held one such invitation when this was written (measured 2026-11-15), already revoked.
+  // "Send the link again" gives the applicant a new invitation instead (`sendApplicationLinkAgain`).
+  const partOne = await partOneStatus(admin, invitation.org_id, invitation);
+  if (!partOne) {
+    res.status(404).json(apiError(DEAD_LINK.code, DEAD_LINK.message));
+    return;
+  }
+
   const { data: org } = await admin
     .from("organizations")
     .select("name, legal_address")
@@ -114,9 +127,6 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
   const certificate = await latestRoadTestCertificate(admin, invitation.org_id, invitation.driver_id);
   // D-HB1: where the handbook stands, null until the application is filed. Places, never names.
   const handbook = await linkHandbookStatus(admin, invitation);
-  // C3a (§6.2): where Part 1 stands — null for a legacy link, which has none. Booleans and a stamp,
-  // never an answer, for `identityComplete`'s reason.
-  const partOne = await partOneStatus(admin, invitation.org_id, invitation);
   // §11 D-RS6: the documents Part 2 asks for. ⚠ A failed settings read offers every slot rather than
   // failing the page: offering a document the carrier withheld costs one photo the capture route then
   // refuses, while a blank page costs the applicant.
@@ -146,7 +156,7 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     // C3c2c2 (Q-AW34): once Part 1 is finished a v2 link's form is behind the unlock whether or not the
     // draft holds a date of birth yet — the unlock is what releases Part 1's facts to the page, and a
     // page that never met the gate would never be given them.
-    draft: partOne?.completedAt && !draft.locked ? { ...draft, locked: true, payload: null } : draft,
+    draft: partOne.completedAt && !draft.locked ? { ...draft, locked: true, payload: null } : draft,
     // The 15 U.S.C. 7001(c) consent, served like every other instrument — the exact text, from
     // the server, so what somebody agreed to is a fact we can prove (A4).
     esignConsent: esignConsentForApplicant(wording.esignConsent),
@@ -167,10 +177,11 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     identityComplete,
     roadTestCertificate: certificate ? { testedOn: certificate.occurred_on } : null,
     handbook,
+    // C3a (§6.2): where Part 1 stands. Booleans and a stamp, never an answer, for `identityComplete`'s reason.
     partOne,
     // The FCRA summary Part 1 ends on (AW3), served — like the instruments — so the version the page
     // posts back names text the server holds. Only to a link that has a Part 1 still to walk.
-    fcraSummary: partOne && !partOne.completedAt ? FCRA_SUMMARY : null,
+    fcraSummary: !partOne.completedAt ? FCRA_SUMMARY : null,
     // §11 D-RS3/D-RS4: the questions THIS applicant must answer, as stamped at the office's first Send —
     // never the live setting. Null for an invitation sent before 0550's reader (the definition decides).
     requiredQuestions: requiredQuestionsOf(invitation.required_questions ?? null),

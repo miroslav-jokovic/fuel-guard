@@ -5,6 +5,13 @@ import type { Env } from "../../env.js";
 import { isSecretBoxConfigured, seal, secretAad } from "../../lib/secretBox.js";
 
 /**
+ * What every dead link is told, whatever killed it (see `resolveInvitation`): the token never existed,
+ * it was revoked, its time ran out — or, since 1b-5, its invitation is a legacy one with no Part 1
+ * (`applicationBundleHandler`). One sentence for all of them, because telling them apart is a probe.
+ */
+export const DEAD_LINK = { code: "invalid_link", message: "This application link is not valid. Ask for a new one." } as const;
+
+/**
  * The applicant's side of hiring — an invitation, a certified application, four signed releases (H5).
  *
  * Everything here runs UNAUTHENTICATED, for somebody who is not yet anyone. The token is the entire
@@ -297,7 +304,7 @@ export async function resolveInvitation(
     .or(`token_hash.eq.${hash},sign_token_hash.eq.${hash},sms_token_hash.eq.${hash}`)
     .maybeSingle();
   const row = data as InvitationRow | null;
-  const dead = { code: "invalid_link", message: "This application link is not valid. Ask for a new one." };
+  const dead = DEAD_LINK;
   const door = row ? presentedTokenMatches(row, hash) : null;
   if (!row || !door) return dead;
   if (row.revoked_at) return dead;

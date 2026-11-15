@@ -43,6 +43,9 @@ const seed = (invitations: Record<string, unknown>[], driver: Record<string, unk
       },
       organizations: [{ name: "Silvicom Inc" }],
       audit_logs: [],
+      // Each invitation's Part 1 row, as every one created since C3a has; `legacy: true` is one without.
+      application_intakes: (q: RecordedQuery) =>
+        q.write ? [] : invitations.filter((i) => !i.legacy && q.filters().some((f) => f.col === "invitation_id" && f.val === i.id)).map((i) => ({ id: `intake-${String(i.id)}` })),
     },
   });
 
@@ -172,6 +175,23 @@ describe("sending the link again", () => {
     }
   });
 
+  /**
+   * 1b-5: a legacy invitation's link opens nothing (the bundle answers it as a dead link), and a re-send
+   * would move its end date forward and mail that dead link. So it is never re-sent: the applicant gets
+   * a new invitation, which is a current one. The first test in this block is the discriminator — the
+   * same invitation WITH its Part 1 row is re-sent.
+   */
+  it("opens a new invitation for a legacy one, and never re-sends its link", async () => {
+    const rec = seed([invitation({ legacy: true })]);
+    const out = await again(rec);
+    expect(out).toMatchObject({ mode: "created" });
+    expect(rec.writes().filter((q) => q.table === "application_invitations").map((q) => q.write?.method)).toEqual(["insert"]);
+    expect(rec.writtenRows("application_intakes")).toEqual([{ org_id: ORG, invitation_id: "inv-new" }]);
+    // Addressed where the legacy one was, so the applicant is not asked for their e-mail again.
+    expect(rec.writtenRows("application_invitations")[0]).toMatchObject({ driver_id: DRIVER, email: "driver@example.test" });
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
+  });
+
   /** A revoked NEWER invitation does not hide an older live one — the newest UNREVOKED is current. */
   it("re-sends the newest unrevoked invitation, whatever is newer and revoked", async () => {
     const rec = seed([
@@ -199,6 +219,7 @@ describe("sending the link again", () => {
         application_invitations: (q: RecordedQuery) => (q.write?.method === "update" ? [] : postgrestFixture([invitation()])(q)),
         organizations: [{ name: "Silvicom Inc" }],
         audit_logs: [],
+        application_intakes: [{ id: "intake-1" }],
       },
     });
     expect(await again(rec)).toMatchObject({ status: 409, code: "link_changed" });

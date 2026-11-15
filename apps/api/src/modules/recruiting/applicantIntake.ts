@@ -40,12 +40,16 @@ import {
  * (AI008): the office screened on those answers, and only the office corrects them now.
  *
  * ── LEGACY INVITATIONS, AND WHERE THE ROW COMES FROM ─────────────────────────────────────────
- * All eight production invitations predate Part 1 and have no `application_intakes` row (plan §7's
- * legacy rule). Since C3a every NEW invitation is given its (empty) row the moment it is created
- * (`mintIntakeRow`, called by `createApplicationInvite`), so "has a row" and "is v2" are the same
- * fact from the first second — no cutover date, and nothing that reads the row has to learn one. An
- * invitation created before C3a's deploy never gets one: re-sending its link keeps the invitation,
- * and so keeps it legacy. `intakeState` is how every other path asks which kind it is looking at.
+ * An invitation from before Part 1 has no `application_intakes` row (plan §7's legacy rule). Since C3a
+ * every NEW invitation is given its (empty) row the moment it is created (`mintIntakeRow`, called by
+ * `createApplicationInvite`), so "has a row" and "is v2" are the same fact from the first second — no
+ * cutover date, and nothing that reads the row has to learn one. `intakeState` is how every other path
+ * asks which kind it is looking at.
+ *
+ * ⚠ A legacy invitation is no longer a link (1b-5, 2026-11-15). Its form was the linear wizard, which
+ * is retired: the bundle answers it as a dead link (`applicationBundleHandler`) and "Send the link
+ * again" opens a new invitation for it instead of re-sending (`sendApplicationLinkAgain`). Production
+ * held eight when Part 1 shipped and one, revoked and never filed, when this was written.
  *
  * ⚠ Every query org-filters itself: the service role bypasses RLS, and the org comes from a resolved
  * token, never from the request.

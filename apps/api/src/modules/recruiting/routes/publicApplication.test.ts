@@ -520,7 +520,7 @@ describe("opening the link", () => {
     expect(body.partOne).toMatchObject({ screening: true, contact: false, address: false, licences: false });
   });
 
-  it("stops serving the summary once Part 1 is finished, and serves a legacy link no Part 1 at all", async () => {
+  it("stops serving the summary once Part 1 is finished", async () => {
     holder.client = seed({ intake_completed_at: "2026-09-27T10:00:00Z" }, {
       application_intakes: [{
         phone: "+17082365732", postal_code: "60601", prior_positive_2y: false,
@@ -530,17 +530,38 @@ describe("opening the link", () => {
     const done = (await (await call(`/${TOKEN}`)).json()) as { partOne: { completedAt: string; rights: boolean }; fcraSummary: unknown };
     expect(done.partOne).toMatchObject({ completedAt: "2026-09-27T10:00:00Z", rights: true });
     expect(done.fcraSummary).toBeNull();
+  });
 
-    holder.client = seed({}, LEGACY_INVITATION).client;
-    const legacy = (await (await call(`/${TOKEN}`)).json()) as { partOne: unknown; fcraSummary: unknown };
-    expect(legacy.partOne).toBeNull();
-    expect(legacy.fcraSummary).toBeNull();
+  /**
+   * 1b-5 (APPLICATION-FIX-PLAN §7): a legacy invitation — live, unexpired, with a draft and a correction
+   * behind it, and no Part 1 row — opens nothing. Its form was the linear wizard, which is retired.
+   * ⚠ The answer is the dead link's own, word for word, and nothing of the application is read for it:
+   * a refusal that still loaded the draft would be one line away from serving it.
+   */
+  it("answers a legacy invitation as a dead link, and reads nothing of its application", async () => {
+    const rec = seed({}, {
+      ...LEGACY_INVITATION,
+      application_drafts: [{ payload: { first_name: "Susan" }, furthest_section: "identity", updated_at: "2026-09-27T10:00:00Z" }],
+    });
+    holder.client = rec.client;
+    const res = await call(`/${TOKEN}`);
+    expect(res.status).toBe(404);
+    const text = await res.text();
+    expect(JSON.parse(text)).toEqual({ error: { code: "invalid_link", message: "This application link is not valid. Ask for a new one." } });
+    expect(text).not.toContain("Susan");
+    expect(text).not.toContain("Silvicom");
+    const read = [...new Set(rec.queries.map((q) => q.table))];
+    expect(read).toEqual(["application_invitations", "application_intakes"]);
+
+    // The discriminator: the same invitation with its Part 1 row opens.
+    holder.client = seed().client;
+    expect((await call(`/${TOKEN}`)).status).toBe(200);
   });
 
   /**
    * C3c2c2 (Q-AW34): once Part 1 is finished, a v2 link's form is behind the unlock even with no date of
    * birth in the draft — the unlock is what releases Part 1's facts, so the page must always meet it.
-   * Before Part 1 is finished, and on a legacy link, the draft reads exactly as it did.
+   * Before Part 1 is finished the draft reads exactly as it did.
    */
   it("locks a v2 link's draft once Part 1 is finished, and only then", async () => {
     const intake = { phone: "+17082365732", postal_code: "60601", prior_positive_2y: false, medical_card_pending: false, fcra_summary_version: FCRA_SUMMARY_VERSION };
@@ -552,7 +573,6 @@ describe("opening the link", () => {
     expect(await read({ intake_completed_at: "2026-09-27T10:00:00Z" }, { application_intakes: [intake] }))
       .toMatchObject({ locked: true, payload: null });
     expect(await read({}, { application_intakes: [intake] })).toMatchObject({ locked: false, payload: { first_name: "Susan" } });
-    expect(await read({ intake_completed_at: "2026-09-27T10:00:00Z" }, LEGACY_INVITATION)).toMatchObject({ locked: false, payload: { first_name: "Susan" } });
   });
 
   it("tells an anonymous caller nothing about who exists", async () => {
