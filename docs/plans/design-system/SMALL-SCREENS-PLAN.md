@@ -337,3 +337,15 @@ Table layout at desk widths. New data on any card.
     CSS rule beside `.workspace-cards`, drawn only between two parts that are both there.
   - **`FilterBar`'s count-and-actions row wraps.** On Declines at 390 px it ran past its card and
     cut "Export CSV".
+- **2026-11-15 — A3 merged** as PR #2420 (`e465671`), on staging. Phases A, B and C are complete.
+- **2026-11-15, sweep of the pages not yet looked at.** Every parameterless route (103) at 390 px on
+  staging, the staging admin, measuring the document's width and every box that leaves the window.
+  - One fault: Drivers with a filter applied was 456 px wide — "Clear filters", the count, a saved
+    view's name and Columns on one line. Measured on the build before A3; on A3's build (the
+    count-and-actions row wraps) the same address is 390 px. No other page scrolls sideways.
+  - Looked at, not only measured, at 390 and 768: a driver's page, a truck's page, the dispatch
+    board, Permissions, Settings, the Shop home, Notes. No layout fault.
+  - Seen and left: the Ask AI launcher sits over "Set ownership" on a truck's page at 390 (M9, the
+    assistant's own plan); `/chat` for an org without the module is a white page, not the canvas.
+  - Still not looked at: drawers and forms while open, the shop on a real tablet, the admin
+    console, the failed and empty fixtures, dark mode.
