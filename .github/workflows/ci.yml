@@ -213,6 +213,12 @@ jobs:
       - name: Migration ordering self-test
         run: node scripts/check-migration-ordering.mjs --self-test
 
+      # The 2026-11-15 outage: a role setting ('16MB') that production's PostgREST re-applied in lower
+      # case, which Postgres refuses — 25 minutes with the API off the database, and staging (a different
+      # PostgREST build) never failed. Asks a real Postgres whether each setting survives lower-casing.
+      - name: Role and database settings read the same in lower case
+        run: pnpm lint:role-settings
+
       - name: Migration ordering (column and its first reader in one merge)
         if: github.event_name == 'pull_request'
         env:
