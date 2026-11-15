@@ -23,6 +23,7 @@ import { FCRA_SUMMARY, FCRA_SUMMARY_VERSION } from "../fcraSummary.js";
 import { packetTextVersion } from "../applicationPdf/packet/packetTextVersion.js";
 import { PSP_DISCLOSURE_TITLE, PSP_MANDATED_INTENT, missingPspParagraphs, pspDisclosure } from "../pspDisclosure.js";
 import { CLEARINGHOUSE_VERSION, ESIGN_VERSION, PACKET_VERSION } from "../defaultWording.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 
 /**
  * The public surface, end to end and unauthenticated.
@@ -149,11 +150,6 @@ const IDENTITY_TABLES = {
   application_drafts: [{ payload: { date_of_birth: "1980-04-01", cdl_number: "PA334554", cdl_state: "PA" } }],
 };
 
-/**
- * The Part 1 row every invitation has had since C3a (`mintIntakeRow`), with nothing answered yet. It is
- * what makes a link a CURRENT one: the bundle, the permissions and the filing all read "has a row".
- */
-const PART_ONE_ROW = { phone: null, postal_code: null, prior_positive_2y: null, medical_card_pending: null, fcra_summary_version: null };
 /**
  * ⚠ A LEGACY invitation — no Part 1 row — passed as `extra` by the tests that are about the server's
  * legacy rules themselves (signing gated on the identity screen, filing by the paper's rules alone).
