@@ -8,7 +8,7 @@ import {
   type CarrierQuestionStamp,
 } from "@silvicom/shared";
 import ApplyField from "@/features/apply/ApplyField.vue";
-import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
+import { QuestionList } from "@/features/apply/questionListHarness";
 import { emptyDraft, fromDraftPayload, toApplication, toDraftPayload } from "@/features/apply/draft";
 import { applyLanguage } from "@/features/apply/language";
 import { servedCarrierQuestions, takeServedForm } from "@/features/apply/servedForm";
@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 const carrierFields = (draft = emptyDraft()) =>
-  mount(QuestionnaireFields, { props: { modelValue: draft, source: "carrier" } });
+  mount(QuestionList, { props: { modelValue: draft, source: "carrier" } });
 
 describe("the bundle's carrier questions", () => {
   it("are taken as served, and a bundle without the key reads as none", () => {
