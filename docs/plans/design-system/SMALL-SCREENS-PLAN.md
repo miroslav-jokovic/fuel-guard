@@ -378,3 +378,26 @@ Table layout at desk widths. New data on any card.
     One fault, fixed here: the alert-recipients card was titled "Email" and broke the address
     mid-word in a third of the card; the address is now the title.
   - Seen and left, as before: the Ask AI launcher over a control mid-page (M9).
+- **2026-11-15, the audits' leftovers.** Three merged, all on staging, none in production.
+  - **Fuel alerts when its reads fail** (PR #2434). Cause: the list waits for the organization's
+    detection start date (`useDetectionEpoch`), and a FAILED read of that date opened the wait — so
+    the list's three retries ran after the date's three, 14 s of skeleton against every other page's
+    7 s (measured with the app's retry rule under fake timers). It did reach its error; nine seconds
+    was too early to see it. Behind it was a worse case: with only the date's read failing, the list
+    answered without the date and showed the alerts the reset had closed. A failed date read is now
+    the list's failure (`epochGated`), Retry asks for whichever read failed, and the driver and truck
+    pages' Anomalies panels follow the same rule.
+  - **`/chat` without the chat module** (PR #2437). The notice was a content-wide card on the chat's
+    white stage. It is now on the page's background, in the page gutter and as wide as it, as Driver
+    messages draws the same sentence; the page stays white while the plan is being asked.
+  - **Drawer and dialog footers** (PR #2442). `SlideOver` and `BaseModal` lay out their own footer
+    (`DIALOG_FOOTER_CLASS`: right-aligned, 12 px apart, wrapping). 61 hand-written wrappers removed
+    across 66 files; eight footers with their own layout take `w-full`. `BaseModal` had the fault
+    Correct mileage had — the chat dialogs pass two buttons bare. Contract §6.1–§6.3 updated. Ten
+    drawers measured at 390 and 1280 px. NOT seen in a browser: drawers that open from a row or need
+    data staging lacks (app login, EFS import, lead, PSP order) and every chat dialog (staging has no
+    chat module).
+  - Stale `.impeccable/config.json` ignores for the deleted mockups file removed (local file).
+  - **Still open, the owner's:** what they saw of Operations and Drivers on a phone on staging; the
+    Ask AI launcher over mid-page controls (M9); the shop on a real tablet in the bay; the four A3
+    lists with real rows, after the release. **Not built:** the stubbed every-read-empty pass.
