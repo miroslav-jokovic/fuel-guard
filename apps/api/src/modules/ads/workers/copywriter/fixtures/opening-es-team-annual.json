@@ -115,62 +115,62 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:53:43.894Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:35:44.867Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "card_get": "Earn up to $105,000 per year on dedicated dry van runs.",
-            "card_need": "Class A CDL, age 23+, and 2 years of experience.",
-            "card_apply": "Join Silvicom Inc. Apply today.",
+            "card_get": "$90,000 to $105,000 a year",
+            "card_need": "Class A team drivers, 23+, with 2 years of experience",
+            "card_apply": "Tap apply and send your info",
             "cta": "Apply today",
-            "primary_text": "Silvicom Inc is hiring dedicated Class A teams for dry van, over-the-road runs. Drop and hook freight, dedicated routes. Top earners reach $105,000 per year. Class A CDL, 2 years of experience, and 23+ required.",
-            "headline": "Up to $105,000 per year"
+            "primary_text": "Silvicom Inc is hiring Class A teams for dedicated dry van runs. $90,000 to $105,000 a year. Drop and hook freight. 23+ with 2 years of experience.",
+            "headline": "Up to $105,000 a year"
           },
           "es": {
-            "card_get": "Gana hasta $105,000 por año en rutas dedicadas de carga seca.",
-            "card_need": "CDL clase A, mayor de 23 años y 2 años de experiencia.",
-            "card_apply": "Únete a Silvicom Inc. Aplica hoy.",
+            "card_get": "$90,000 a $105,000 al año",
+            "card_need": "Equipos Clase A, mayores de 23, con 2 años de experiencia",
+            "card_apply": "Toca aplicar y manda tus datos",
             "cta": "Aplica hoy",
-            "primary_text": "Silvicom Inc contrata equipos clase A para rutas dedicadas de van seco. Carga drop and hook. Hasta $105,000 por año. CDL clase A, 2 años de experiencia y mayor de 23 años.",
-            "headline": "Hasta $105,000 por año"
+            "primary_text": "Silvicom Inc busca equipos Clase A para rutas dedicadas de caja seca. $90,000 a $105,000 al año. Drop and hook. Mayores de 23 con 2 años de experiencia.",
+            "headline": "Hasta $105,000 al año"
           }
         },
         {
           "en": {
-            "card_get": "Dedicated routes. Dry van. Home every other weekend.",
-            "card_need": "Class A CDL, 2 years of experience, age 23+.",
-            "card_apply": "Apply now with Silvicom Inc.",
+            "card_get": "Dedicated runs, drop and hook",
+            "card_need": "Class A team drivers, age 23, with 2 years of experience",
+            "card_apply": "Apply here and tell us your experience",
             "cta": "Apply now",
-            "primary_text": "Dedicated dry van team runs with Silvicom Inc. Drop and hook freight on set over-the-road routes. Pay from $90,000 to $105,000 per year. Class A CDL, 2 years' experience, and 23+ required.",
-            "headline": "Dedicated team runs"
+            "primary_text": "Dedicated routes and drop and hook freight. Silvicom Inc pays Class A teams $90,000 to $105,000 a year. You need to be 23+ with 2 years of experience.",
+            "headline": "Dedicated, drop and hook"
           },
           "es": {
-            "card_get": "Rutas dedicadas. Van seco. Regreso a casa cada dos fines de semana.",
-            "card_need": "CDL clase A, 2 años de experiencia, mayor de 23 años.",
-            "card_apply": "Aplica con Silvicom Inc ahora.",
-            "cta": "Aplica ahora",
-            "primary_text": "Silvicom Inc busca equipos clase A para rutas dedicadas de van seco. Carga drop and hook. Pago entre $90,000 y $105,000 por año. CDL clase A, 2 años de experiencia y mayor de 23 años.",
-            "headline": "Rutas dedicadas en equipo"
+            "card_get": "Rutas dedicadas, drop and hook",
+            "card_need": "Equipos Clase A, mayor de 23 años, con 2 años de experiencia",
+            "card_apply": "Aplica aquí y cuéntanos tu experiencia",
+            "cta": "Aplica ya",
+            "primary_text": "Rutas dedicadas y carga drop and hook. Silvicom Inc paga a equipos Clase A de $90,000 a $105,000 al año. Mayores de 23 con 2 años de experiencia.",
+            "headline": "Dedicado, drop and hook"
           }
         },
         {
           "en": {
-            "card_get": "$90,000 to $105,000 per year. Drop and hook. No touch.",
-            "card_need": "Class A CDL. 2 years behind the wheel. Age 23+.",
-            "card_apply": "Call or click. Silvicom Inc.",
-            "cta": "Call or click",
-            "primary_text": "Dry van team drivers at Silvicom Inc run dedicated lanes with drop and hook freight. Pay runs $90,000 to $105,000 per year. Class A CDL, 2 years of experience, and 23+ required.",
-            "headline": "$90K–$105K per year"
+            "card_get": "Dedicated dry van, OTR",
+            "card_need": "A Class A team, 23+, with 2 years behind the wheel",
+            "card_apply": "Apply below and tell us about your team",
+            "cta": "Start here",
+            "primary_text": "Here is the job: dry van freight, over-the-road, on dedicated routes. Drop and hook. Teams make $90,000 to $105,000 a year with Silvicom Inc.",
+            "headline": "Dry van teams, OTR"
           },
           "es": {
-            "card_get": "$90,000 a $105,000 por año. Drop and hook. Sin tocar carga.",
-            "card_need": "CDL clase A. 2 años de experiencia. Mayor de 23 años.",
-            "card_apply": "Llama o aplica. Silvicom Inc.",
-            "cta": "Llama o aplica",
-            "primary_text": "Silvicom Inc busca equipos de van seco en rutas dedicadas con carga drop and hook. Pago de $90,000 a $105,000 por año. CDL clase A, 2 años de experiencia y mayor de 23 años.",
-            "headline": "$90K–$105K por año"
+            "card_get": "Caja seca, rutas dedicadas",
+            "card_need": "Equipo Clase A, mayores de 23, con 2 años manejando",
+            "card_apply": "Aplica abajo y cuéntanos de tu equipo",
+            "cta": "Empieza aquí",
+            "primary_text": "Así es el trabajo: carga en caja seca, viajes largos por rutas dedicadas. Drop and hook. Los equipos ganan de $90,000 a $105,000 al año con Silvicom Inc.",
+            "headline": "Equipos de caja seca, OTR"
           }
         }
       ]

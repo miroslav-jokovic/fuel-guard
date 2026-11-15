@@ -81,50 +81,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T05:00:50.147Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:47:11.009Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Home weekly. $0.68 a mile.",
+            "hook": "Home weekly",
             "cta": "Apply today",
-            "primary_text": "Regional Class A drivers, this run gets you home every week and pays $0.68 per mile while you're out. If you want a regional seat that keeps you close to home without cutting your pay, apply today.",
-            "headline": "Home weekly, $0.68/mile"
+            "primary_text": "Class A regional driving that gets you home weekly. The pay is $0.68 per mile. Apply today and ask us about the route.",
+            "headline": "Class A regional driver"
           },
           "es": {
-            "hook": "Casa cada semana. $0.68/milla.",
+            "hook": "En casa cada semana",
             "cta": "Aplica hoy",
-            "primary_text": "Conductores Clase A regionales: esta ruta te regresa a casa cada semana y paga $0.68 por milla. Un puesto regional que cuida tu tiempo en casa sin reducir tu pago. Aplica hoy.",
-            "headline": "Casa semanal, $0.68/milla"
+            "primary_text": "Manejo regional Clase A que te trae a casa cada semana. Pagamos $0.68 por milla. Aplica hoy y pregúntanos por la ruta.",
+            "headline": "Chofer regional Clase A"
           }
         },
         {
           "en": {
-            "hook": "Home every week. No debate.",
-            "cta": "Join the team",
-            "primary_text": "Class A regional seat — home weekly, $0.68 per mile. That's the job. Regional runs mean you're not sacrificing home time for a paycheck. If that fits your life, we want to talk.",
-            "headline": "Home weekly, every week"
-          },
-          "es": {
-            "hook": "A casa cada semana, sin falta.",
-            "cta": "Únete al equipo",
-            "primary_text": "Puesto regional Clase A — a casa cada semana, $0.68 por milla. Rutas regionales para que no tengas que elegir entre tu familia y tu sueldo. Si eso encaja con tu vida, contáctanos.",
-            "headline": "A casa cada semana"
-          }
-        },
-        {
-          "en": {
-            "hook": "0.68 a mile, home weekly.",
+            "hook": "Get home every week",
             "cta": "Apply now",
-            "primary_text": "$0.68 per mile on a regional run, and you're home weekly. Class A drivers who want steady miles and predictable home time — this seat is worth a look. Apply now and let's get you started.",
-            "headline": "$0.68/mile, home weekly"
+            "primary_text": "$0.68 per mile on Class A regional runs, and you are home weekly. You know what you make and you know you get home. Apply now.",
+            "headline": "$0.68 per mile"
           },
           "es": {
-            "hook": "$0.68/milla, casa cada semana.",
-            "cta": "Aplica ahora",
-            "primary_text": "$0.68 por milla en ruta regional y a casa cada semana. Conductores Clase A que buscan millas estables y tiempo en casa predecible — este puesto vale la pena. Aplica ahora y empecemos.",
-            "headline": "$0.68/milla, casa semanal"
+            "hook": "Vuelve a casa cada semana",
+            "cta": "Aplica ya",
+            "primary_text": "$0.68 por milla en rutas regionales Clase A, y estás en casa cada semana. Sabes cuánto ganas y sabes que regresas. Aplica ya.",
+            "headline": "$0.68 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "You get home weekly",
+            "cta": "Talk to us",
+            "primary_text": "Here is the deal. Class A regional runs, $0.68 per mile, and you are home weekly. Got your Class A? Reach out and let's talk.",
+            "headline": "Class A regional opening"
+          },
+          "es": {
+            "hook": "Llegas a casa cada semana",
+            "cta": "Háblanos",
+            "primary_text": "Así de claro: rutas regionales Clase A, $0.68 por milla y en casa cada semana. ¿Tienes tu licencia Clase A? Escríbenos y hablamos.",
+            "headline": "Puesto regional Clase A"
           }
         }
       ]

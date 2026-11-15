@@ -84,50 +84,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:58:47.941Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:43:45.824Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "pay": "Dedicated route",
+            "pay": "401k for Class A",
             "cta": "Apply today",
-            "primary_text": "Class A dedicated drivers, this run is yours — same route, same customers, steady work. Benefits include 401k, dental and vision. Apply and make it your road.",
-            "headline": "Class A dedicated drivers"
+            "primary_text": "Class A drivers: this is a dedicated job with a 401k plus dental and vision. If you hold a Class A CDL, apply today.",
+            "headline": "Class A dedicated driver"
           },
           "es": {
-            "pay": "Ruta dedicada",
+            "pay": "401k para Clase A",
             "cta": "Aplica hoy",
-            "primary_text": "Conductores Clase A dedicados: misma ruta, mismos clientes, trabajo estable. Beneficios incluyen 401k, dental y visión. Esta ruta puede ser la tuya.",
-            "headline": "Conductores Clase A dedicados"
+            "primary_text": "Choferes Clase A: este trabajo es dedicado, con 401k y dental y visión. Si tienes tu CDL Clase A, aplica hoy.",
+            "headline": "Chofer Clase A dedicado"
           }
         },
         {
           "en": {
-            "pay": "401k + benefits",
-            "cta": "Join our team",
-            "primary_text": "Dedicated Class A seat open now. You get a consistent route, 401k, and dental and vision coverage. Same load, same lanes — no guessing what next week looks like.",
-            "headline": "Dedicated Class A opening"
-          },
-          "es": {
-            "pay": "401k + beneficios",
-            "cta": "Únete hoy",
-            "primary_text": "Posición Clase A dedicada disponible. Ruta fija, 401k y cobertura dental y de visión. Misma carga, mismo trayecto — sabes exactamente qué esperar cada semana.",
-            "headline": "Plaza Clase A dedicada"
-          }
-        },
-        {
-          "en": {
-            "pay": "Dental, vision, 401k",
+            "pay": "Dedicated Class A",
             "cta": "Apply now",
-            "primary_text": "Class A driver wanted for a dedicated position. Dental and vision coverage plus 401k are part of the package. Dedicated means your route doesn't change — plan your life around it.",
-            "headline": "Dedicated Class A driver"
+            "primary_text": "Dedicated work for Class A drivers. You get a 401k, and you get dental and vision. Join our team.",
+            "headline": "Dedicated Class A driving"
           },
           "es": {
-            "pay": "Dental, visión, 401k",
-            "cta": "Aplica ahora",
-            "primary_text": "Se busca conductor Clase A para posición dedicada. El paquete incluye dental, visión y 401k. Dedicado significa tu ruta es fija — organiza tu vida con certeza.",
-            "headline": "Conductor Clase A dedicado"
+            "pay": "Clase A dedicado",
+            "cta": "Aplica ya",
+            "primary_text": "Trabajo dedicado para choferes Clase A. Tienes 401k, y también dental y visión. Únete a nuestro equipo.",
+            "headline": "Puesto dedicado Clase A"
+          }
+        },
+        {
+          "en": {
+            "pay": "Dental and vision",
+            "cta": "Talk to us",
+            "primary_text": "Here is the job, straight: Class A, dedicated. The benefits are a 401k and dental and vision. Want in? Reach out and we will talk.",
+            "headline": "Class A, dedicated, 401k"
+          },
+          "es": {
+            "pay": "Dental y visión",
+            "cta": "Contáctanos",
+            "primary_text": "Así es el trabajo: Clase A, dedicado. Los beneficios son 401k, dental y visión. ¿Te interesa? Escríbenos y hablamos.",
+            "headline": "Clase A, dedicado, 401k"
           }
         }
       ]

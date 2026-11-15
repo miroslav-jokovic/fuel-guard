@@ -118,56 +118,56 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T17:02:36.961Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-15T00:06:50.315Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Home every weekend.",
+            "hook": "Home on weekends",
             "cta": "Apply today",
-            "primary_text": "Dispatch Freight Lines runs tanker freight across Illinois and Indiana. You are home weekends, every week. Pay starts at $0.76 per mile and goes to $0.80 per mile. Must be 23+ with 2 years of experience. Pet policy in place.",
-            "headline": "Home every weekend.",
+            "primary_text": "Dispatch Freight Lines pays $0.76 to $0.80 per mile for Class A tanker drivers. Regional runs in Illinois and Indiana, home weekends. Pet policy. Age 23+.",
+            "headline": "Tanker pay up to $0.80/mile",
             "second_line": "$0.76–$0.80/mile"
           },
           "es": {
-            "hook": "En casa cada fin de semana.",
+            "hook": "En casa los fines de semana",
             "cta": "Aplica hoy",
-            "primary_text": "Dispatch Freight Lines mueve carga en tánqueres por Illinois e Indiana. Ruta regional, llegas a casa cada fin de semana. Pago de $0.76 a $0.80 por milla. Se requieren mayores de 23 con 2 años de experiencia. Se acepta mascota.",
-            "headline": "En casa cada fin de semana.",
+            "primary_text": "Dispatch Freight Lines paga de $0.76 a $0.80 por milla a choferes de tanque Clase A. Rutas regionales en Illinois e Indiana, en casa los fines de semana. Política de mascotas. Mayores de 23.",
+            "headline": "Tanque: hasta $0.80/milla",
             "second_line": "$0.76–$0.80/milla"
           }
         },
         {
           "en": {
-            "hook": "Weekends home, every time.",
-            "cta": "Join us today",
-            "primary_text": "Regional tanker runs in Illinois and Indiana with Dispatch Freight Lines. You make $0.76 per mile to start, up to $0.80 per mile. You are home weekends — no exceptions. Pets ride along. Must be 23+ with 2 years of experience.",
-            "headline": "Weekends home, every time.",
+            "hook": "Run the week, home weekends",
+            "cta": "Apply today",
+            "primary_text": "Haul tanker freight on regional runs across Illinois and Indiana with Dispatch Freight Lines. Run your week, then you are home weekends. $0.76 to $0.80 per mile. Pet policy. Class A, 23+.",
+            "headline": "Illinois and Indiana tanker",
             "second_line": "Up to $0.80/mile"
           },
           "es": {
-            "hook": "Cada fin de semana en casa.",
-            "cta": "Únete hoy",
-            "primary_text": "Rutas regionales de tánquer en Illinois e Indiana con Dispatch Freight Lines. Ganas de $0.76 a $0.80 por milla. Llegas a casa cada fin de semana, siempre. Se permite mascota. Mayores de 23 con 2 años de experiencia.",
-            "headline": "Cada fin de semana en casa.",
+            "hook": "Fines de semana en casa",
+            "cta": "Aplica hoy",
+            "primary_text": "Lleva carga de tanque en rutas regionales por Illinois e Indiana con Dispatch Freight Lines. Trabajas la semana y estás en casa los fines de semana. De $0.76 a $0.80 por milla. Clase A, mayores de 23.",
+            "headline": "Tanque: Illinois e Indiana",
             "second_line": "Hasta $0.80/milla"
           }
         },
         {
           "en": {
-            "hook": "Tanker, regional, home weekends.",
+            "hook": "You're home on weekends",
             "cta": "Apply now",
-            "primary_text": "Illinois and Indiana tanker lanes with Dispatch Freight Lines. Regional routes mean you are home weekends, week in and week out. Pay runs $0.76 to $0.80 per mile. Need 2 years of experience and must be 23+. Pet-friendly.",
-            "headline": "Home weekends, guaranteed.",
-            "second_line": "$0.76–$0.80/mile"
+            "primary_text": "You haul tanker freight in Illinois and Indiana, and you are home weekends. Pay is $0.76 to $0.80 per mile. You need a Class A and must be 23+. We have a pet policy.",
+            "headline": "Class A tanker, regional",
+            "second_line": "From $0.76/mile"
           },
           "es": {
-            "hook": "Tánquer regional, casa los fines.",
-            "cta": "Aplica ahora",
-            "primary_text": "Rutas de tánquer en Illinois e Indiana con Dispatch Freight Lines. Trabajo regional: en casa cada fin de semana, todas las semanas. Pago entre $0.76 y $0.80 por milla. Se requieren 2 años de experiencia y mayores de 23. Se acepta mascota.",
-            "headline": "Casa los fines de semana.",
-            "second_line": "$0.76–$0.80/milla"
+            "hook": "Los fines de semana, en casa",
+            "cta": "Aplica ya",
+            "primary_text": "Llevas carga de tanque en Illinois e Indiana y estás en casa los fines de semana. Pagamos de $0.76 a $0.80 por milla. Necesitas Clase A y ser mayor de 23 años. Hay política de mascotas.",
+            "headline": "Tanque Clase A, regional",
+            "second_line": "Desde $0.76/milla"
           }
         }
       ]

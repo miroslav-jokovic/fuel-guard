@@ -118,50 +118,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T16:56:51.121Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:56:09.006Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Local nights, home daily.",
+            "hook": "Rail yards to Joliet",
             "cta": "Apply today",
-            "primary_text": "Rail yards to Joliet warehouses, nights. You are home every day. 360 Logistics pays $320–$360 per day, weekly. Automatic transmission. Class A, 2 years experience, age 23+.",
-            "headline": "360 Logistics is hiring"
+            "primary_text": "360 Logistics pays $320 to $360 per day, weekly, for nights hauling intermodal freight from the rail yards to Joliet warehouses. Local runs, home daily. You need a Class A, 2 years of experience and age 23.",
+            "headline": "$320 to $360 per day"
           },
           "es": {
-            "hook": "Local nocturno, casa cada día.",
+            "hook": "Del patio de tren a Joliet",
             "cta": "Aplica hoy",
-            "primary_text": "Rutas locales de patios ferroviarios a bodegas en Joliet, turno nocturno. Llegas a casa cada día. 360 Logistics paga $320–$360 por día, con pago semanal. Tráiler automático. Clase A, 2 años de experiencia, mayores de 23.",
-            "headline": "360 Logistics está contratando"
+            "primary_text": "360 Logistics paga de $320 a $360 por día, cada semana, por mover carga intermodal de noche, del patio de tren a almacenes de Joliet. Rutas locales, a casa a diario. Requisitos: Clase A, 2 años de experiencia, mayor de 23 años.",
+            "headline": "$320 a $360 por día"
           }
         },
         {
           "en": {
-            "hook": "$320–$360 a day, nights.",
-            "cta": "Join our team",
-            "primary_text": "Intermodal, local runs, nights. Rail yards to Joliet warehouses. You are home daily and paid weekly. Automatic transmission trucks. Class A with 2 years experience. Age 23+.",
-            "headline": "Home daily. Weekly pay."
+            "hook": "Night runs, home daily",
+            "cta": "Apply now",
+            "primary_text": "Work nights, then head home every day. Local intermodal runs from the rail yards to Joliet warehouses. Weekly pay, $320 to $360 per day. Class A, 2 years of experience, 23+.",
+            "headline": "Weekly pay"
           },
           "es": {
-            "hook": "$320–$360 por día, turno noche.",
-            "cta": "Únete al equipo",
-            "primary_text": "Carga intermodal, rutas locales nocturnas entre patios de tren y bodegas en Joliet. Casa cada día, pago semanal. Tráiler con transmisión automática. Clase A, 2 años de experiencia, mayores de 23.",
-            "headline": "Casa cada día. Pago semanal."
+            "hook": "Noches, a casa a diario",
+            "cta": "Aplica ya",
+            "primary_text": "Trabajas de noche y regresas a casa todos los días. Rutas locales intermodales del patio de tren a almacenes de Joliet. Pago semanal, de $320 a $360 por día. Clase A, 2 años de experiencia, mayor de 23 años.",
+            "headline": "Pago semanal"
           }
         },
         {
           "en": {
-            "hook": "Intermodal local, Class A nights.",
-            "cta": "Apply with us",
-            "primary_text": "You pull intermodal freight — rail yards to Joliet warehouses — on a night schedule with 360 Logistics. Home daily, automatic transmission, weekly pay at $320–$360 per day. Need Class A and 2 years experience. Age 23+.",
-            "headline": "Automatic trucks. $320–$360/day."
+            "hook": "Local intermodal, nights",
+            "cta": "Apply here",
+            "primary_text": "Here is the run: you haul intermodal freight from the rail yards to Joliet warehouses, at night, in an automatic. Local, home daily. $320 to $360 per day, paid weekly. Need a Class A, 2 years of experience, 23+.",
+            "headline": "Drive for 360 Logistics"
           },
           "es": {
-            "hook": "Intermodal local, Clase A nocturno.",
-            "cta": "Aplica con nosotros",
-            "primary_text": "Mueves carga intermodal de patios de tren a bodegas en Joliet en turno nocturno con 360 Logistics. Casa cada día, tráiler automático, pago semanal de $320–$360 por día. Se requiere Clase A y 2 años de experiencia, mayores de 23.",
-            "headline": "Automático. $320–$360 por día."
+            "hook": "Intermodal local, noches",
+            "cta": "Aplica aquí",
+            "primary_text": "Así es la ruta: llevas carga intermodal del patio de tren a almacenes de Joliet, de noche, en camión automático. Local, a casa a diario. $320 a $360 por día, pago semanal. Clase A, 2 años de experiencia, mayor de 23 años.",
+            "headline": "Maneja con 360 Logistics"
           }
         }
       ]

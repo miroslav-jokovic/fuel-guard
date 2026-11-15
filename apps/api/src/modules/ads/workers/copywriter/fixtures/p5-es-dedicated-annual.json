@@ -92,62 +92,62 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T05:02:13.772Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:49:40.687Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "card_get": "$90,000 per year. Health insurance. Dedicated account.",
-            "card_need": "Class A CDL. Ready to run a dedicated route.",
-            "card_apply": "Apply today and get started.",
+            "card_get": "$90,000 per year",
+            "card_need": "You hold a Class A CDL and want to run a dedicated account.",
+            "card_apply": "Tap Apply and send us your info.",
             "cta": "Apply today",
-            "primary_text": "Dedicated account means the same lanes, the same freight, steady work. You get $90,000 per year and health insurance. We need a Class A driver ready to commit.",
-            "headline": "$90,000 per year"
+            "primary_text": "Class A drivers: $90,000 per year on a dedicated account. Health insurance is included. Apply today.",
+            "headline": "$90,000 a year, dedicated"
           },
           "es": {
-            "card_get": "$90,000 al año. Seguro médico. Cuenta dedicada.",
-            "card_need": "CDL Clase A. Listo para trabajar ruta dedicada.",
-            "card_apply": "Aplica hoy y empieza pronto.",
+            "card_get": "$90,000 al año",
+            "card_need": "Tienes licencia Clase A y quieres manejar una cuenta dedicada.",
+            "card_apply": "Toca Aplica y mándanos tus datos.",
             "cta": "Aplica hoy",
-            "primary_text": "Cuenta dedicada: misma ruta, misma carga, trabajo estable. Ganas $90,000 al año e incluye seguro médico. Necesitamos chofer Clase A comprometido.",
-            "headline": "$90,000 al año"
+            "primary_text": "Choferes Clase A: $90,000 al año en una cuenta dedicada. Incluye seguro médico. Aplica hoy.",
+            "headline": "Dedicada: $90,000 al año"
           }
         },
         {
           "en": {
-            "card_get": "Dedicated account. Same route, steady freight. Health insurance.",
-            "card_need": "Class A CDL. Comfortable with a dedicated run.",
-            "card_apply": "Hit apply and join the team.",
+            "card_get": "Dedicated Class A account",
+            "card_need": "A Class A CDL. Bring yours and run this account.",
+            "card_apply": "Send your info with the Apply button.",
+            "cta": "Apply today",
+            "primary_text": "This is a dedicated account for a Class A driver. It pays $90,000 per year and comes with health insurance. Apply today.",
+            "headline": "Dedicated Class A driver"
+          },
+          "es": {
+            "card_get": "Cuenta dedicada, Clase A",
+            "card_need": "Licencia Clase A. Tráela y maneja esta cuenta.",
+            "card_apply": "Manda tus datos con el botón Aplica.",
+            "cta": "Aplica hoy",
+            "primary_text": "Es una cuenta dedicada para chofer Clase A. Paga $90,000 al año e incluye seguro médico. Aplica hoy.",
+            "headline": "Chofer Clase A, dedicado"
+          }
+        },
+        {
+          "en": {
+            "card_get": "Health insurance included",
+            "card_need": "You need a Class A CDL to run this account.",
+            "card_apply": "Hit Apply. We take it from there.",
             "cta": "Apply now",
-            "primary_text": "This is a dedicated account — consistent lanes, no guessing what's next. Pay is $90,000 per year. Health insurance is included. Class A CDL required. Apply now.",
-            "headline": "Dedicated account"
+            "primary_text": "Straight talk: you run a dedicated account with your Class A. Pay is $90,000 per year. Health insurance is part of the deal. Apply now.",
+            "headline": "Class A, $90,000 a year"
           },
           "es": {
-            "card_get": "Cuenta dedicada. Ruta fija, carga constante. Seguro médico.",
-            "card_need": "CDL Clase A. Cómodo con ruta fija dedicada.",
-            "card_apply": "Aplica y únete al equipo.",
-            "cta": "Aplica ahora",
-            "primary_text": "Cuenta dedicada: ruta constante, sin sorpresas. El pago es $90,000 al año, con seguro médico incluido. Se requiere CDL Clase A. Aplica ahora.",
-            "headline": "Cuenta dedicada"
-          }
-        },
-        {
-          "en": {
-            "card_get": "$90,000 per year plus health insurance on a dedicated account.",
-            "card_need": "Class A CDL to run this dedicated account.",
-            "card_apply": "Apply today — it's straightforward.",
-            "cta": "Apply today",
-            "primary_text": "Class A drivers: dedicated account, $90,000 per year, health insurance. No mystery freight, no random dispatch. If you hold a Class A CDL, apply today.",
-            "headline": "$90k, health insurance"
-          },
-          "es": {
-            "card_get": "$90,000 al año más seguro médico en cuenta dedicada.",
-            "card_need": "CDL Clase A para manejar esta cuenta dedicada.",
-            "card_apply": "Aplica hoy, el proceso es sencillo.",
-            "cta": "Aplica hoy",
-            "primary_text": "Choferes Clase A: cuenta dedicada, $90,000 al año y seguro médico. Sin sorpresas en el despacho. Si tienes CDL Clase A, aplica hoy.",
-            "headline": "$90k y seguro médico"
+            "card_get": "Seguro médico incluido",
+            "card_need": "Necesitas licencia Clase A para esta cuenta.",
+            "card_apply": "Dale a Aplica y nosotros seguimos.",
+            "cta": "Aplica ya",
+            "primary_text": "Sin rodeos: manejas una cuenta dedicada con tu Clase A. Pagamos $90,000 al año. El seguro médico va incluido. Aplica ya.",
+            "headline": "Clase A, $90,000 al año"
           }
         }
       ]

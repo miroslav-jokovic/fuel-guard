@@ -84,50 +84,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T05:01:24.678Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:48:10.532Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "Dry van, $0.64 a mile",
             "cta": "Apply today",
-            "primary_text": "Class A dry van position with no-touch freight and drop-and-hook runs. You handle the driving — no unloading, no waiting on docks. At $0.64 per mile, your miles add up fast. Join our team.",
+            "primary_text": "Class A dry van driver. You earn $0.64 per mile. Freight is no-touch and loads are drop and hook. Apply today.",
             "headline": "No-touch, drop and hook"
           },
           "es": {
-            "hook": "Seca, $0.64 por milla",
+            "hook": "Caja seca: $0.64/milla",
             "cta": "Aplica hoy",
-            "primary_text": "Posición Clase A en caja seca con carga sin contacto y operaciones drop and hook. Tú manejas, nosotros nos encargamos del resto. A $0.64 por milla, tus millas cuentan. Únete al equipo.",
-            "headline": "Sin contacto, drop and hook"
+            "primary_text": "Buscamos chofer Clase A de caja seca. Pagamos $0.64 por milla. La carga es no-touch y trabajas con drop and hook. Aplica hoy.",
+            "headline": "No-touch y drop and hook"
           }
         },
         {
           "en": {
-            "hook": "Dry van: no-touch loads",
+            "hook": "No-touch dry van",
             "cta": "Apply now",
-            "primary_text": "No-touch freight means you drop the trailer, hook another, and keep moving. No unloading, no dock work. Class A dry van. Drop and hook runs. $0.64 per mile. Apply and get rolling.",
+            "primary_text": "You drive a Class A dry van. Drop and hook, no-touch freight, so your time goes to driving, not the dock. Pay is $0.64 per mile. Apply now.",
             "headline": "Drop and hook, $0.64/mile"
           },
           "es": {
-            "hook": "Seca: carga sin contacto",
-            "cta": "Aplica ahora",
-            "primary_text": "Carga sin contacto: dejas el tráiler, enganchas otro y sigues. Sin descargar, sin trabajo en muelle. Clase A, caja seca, rutas drop and hook. $0.64 por milla. Aplica y ponte en marcha.",
-            "headline": "$0.64/milla, drop and hook"
+            "hook": "Caja seca no-touch",
+            "cta": "Aplica ya",
+            "primary_text": "Manejas caja seca con tu Clase A. Drop and hook y carga no-touch: tu tiempo es para manejar, no para el muelle. Pago de $0.64 por milla. Aplica ya.",
+            "headline": "Drop and hook, $0.64/milla"
           }
         },
         {
           "en": {
-            "hook": "Class A dry van driving",
-            "cta": "Start today",
-            "primary_text": "Drop and hook freight, no touching the load. Class A dry van seat at $0.64 per mile. Fast turns, no-touch operations — you drive, that is the job. Apply and join the team.",
-            "headline": "$0.64/mile, no-touch"
+            "hook": "Dry van, drop and hook",
+            "cta": "Apply here",
+            "primary_text": "Plain and simple: Class A dry van. You drop, hook and roll. Freight is no-touch. Pay is $0.64 per mile. Apply and talk to dispatch.",
+            "headline": "No-touch, $0.64/mile"
           },
           "es": {
-            "hook": "Chofer Clase A, caja seca",
-            "cta": "Empieza hoy",
-            "primary_text": "Rutas drop and hook, sin tocar la carga. Puesto Clase A en caja seca a $0.64 por milla. Operaciones sin contacto, cambios rápidos de tráiler. Tu trabajo es manejar. Aplica hoy.",
-            "headline": "$0.64/milla, sin contacto"
+            "hook": "Caja seca: drop and hook",
+            "cta": "Aplica aquí",
+            "primary_text": "Así de claro: caja seca con Clase A. Sueltas, enganchas y sales. La carga es no-touch. El pago es $0.64 por milla. Aplica y habla con despacho.",
+            "headline": "No-touch, $0.64 por milla"
           }
         }
       ]

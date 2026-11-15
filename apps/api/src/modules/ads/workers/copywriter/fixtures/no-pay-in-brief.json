@@ -69,44 +69,44 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:51:16.728Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:32:27.991Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "Home weekly. Class A regional drivers.",
-            "body": "No-touch freight on a regional run. You get home weekly, so you can plan your time off the road. If you hold a Class A and want a steady lane with no-touch loads, apply today.",
-            "cta": "Apply today."
+            "body": "This is a Class A regional job. You get home every week, and the freight is no-touch, so your work is the driving.",
+            "cta": "Apply today"
           },
           "es": {
-            "hook": "Casa cada semana. Conductores Clase A.",
-            "body": "Carga sin contacto en ruta regional. Regresas a casa cada semana, con tiempo real para descansar. Si tienes Clase A y quieres una ruta estable con carga sin contacto, aplica hoy.",
-            "cta": "Aplica hoy."
+            "hook": "En casa cada semana. Clase A regional.",
+            "body": "Es un puesto regional con licencia Clase A. Llegas a casa cada semana y la carga es no-touch: tú solo manejas.",
+            "cta": "Aplica hoy"
           }
         },
         {
           "en": {
-            "hook": "No-touch freight for Class A regional drivers.",
-            "body": "Regional lanes, no-touch freight — you handle the driving, not the loading. Home weekly means your schedule has a rhythm. Class A drivers, this run is built around you.",
-            "cta": "Join our team."
+            "hook": "No-touch freight for Class A drivers.",
+            "body": "Regional runs with no-touch freight. You do not load or unload. You drive, and you are home weekly.",
+            "cta": "Ask about the route"
           },
           "es": {
-            "hook": "Carga sin contacto, conductores Clase A regional.",
-            "body": "Rutas regionales con carga sin contacto — tú manejas, no cargas ni descargas. Regresas a casa cada semana, con un horario predecible. Conductores Clase A, esta ruta es para ti.",
-            "cta": "Únete al equipo."
+            "hook": "Carga no-touch para choferes Clase A.",
+            "body": "Rutas regionales con carga no-touch. No cargas ni descargas. Tú manejas y llegas a casa cada semana.",
+            "cta": "Pregunta por la ruta"
           }
         },
         {
           "en": {
-            "hook": "Class A regional. Home weekly, no-touch freight.",
-            "body": "This is a regional seat with no-touch freight and a weekly home time. You drive a steady lane, skip the loading dock, and get back to your family every week. Class A required.",
-            "cta": "Apply now."
+            "hook": "Here's the job: Class A regional.",
+            "body": "Here it is straight. You are home weekly. The freight is no-touch. You need a Class A license and you run regional. Call and we will walk you through it.",
+            "cta": "Talk to us"
           },
           "es": {
-            "hook": "Regional Clase A. Casa semanal, sin contacto.",
-            "body": "Puesto regional con carga sin contacto y regreso a casa cada semana. Manejas una ruta fija, te mantienes lejos de la carga y llegas a tu familia cada semana. Se requiere Clase A.",
-            "cta": "Aplica ahora."
+            "hook": "Este es el trabajo: Clase A regional.",
+            "body": "Te lo digo claro. Llegas a casa cada semana. La carga es no-touch. Necesitas licencia Clase A y las rutas son regionales. Llama y te explicamos todo.",
+            "cta": "Habla con nosotros"
           }
         }
       ]

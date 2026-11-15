@@ -125,50 +125,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T16:57:18.116Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:57:06.040Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Valley to Midwest, out 2 weeks",
-            "cta": "Apply today",
-            "primary_text": "Reefer OTR run: produce out of the valley to the Midwest. Out 2 weeks, home 4 days. Pay starts at $0.70 per mile, up to $0.78 per mile. Class A, 2 years experience, age 23+. 401k and rider policy available. Join our team.",
-            "headline": "Reefer OTR — $0.70/mile"
-          },
-          "es": {
-            "hook": "Valle al Medio Oeste, 2 semanas",
-            "cta": "Aplica hoy",
-            "primary_text": "Ruta OTR de reefer: carga de produce del valle al Medio Oeste. Sales 2 semanas, regresas 4 días. Pago desde $0.70 por milla, hasta $0.78 por milla. Clase A, 2 años de experiencia, mayores de 23. 401k y política de acompañante disponibles.",
-            "headline": "OTR reefer — $0.70/milla"
-          }
-        },
-        {
-          "en": {
-            "hook": "Home 4 days after 2 weeks out",
+            "hook": "Valley to Midwest, reefer",
             "cta": "Apply now",
-            "primary_text": "Out 2 weeks, home 4 days — reefer freight, produce lanes from the valley to the Midwest. $0.70 per mile to start, $0.78 per mile as you go. Need Class A, 2 years experience, and age 23+. 401k and rider policy included.",
-            "headline": "Home 4 days every 2 weeks"
+            "primary_text": "Pay is $0.70 to $0.78 per mile. You pull reefer freight over the road, hauling produce out of the valley to the Midwest. Out 2 weeks, home 4 days. 401k offered. Class A, 23+.",
+            "headline": "$0.70 to $0.78 per mile"
           },
           "es": {
-            "hook": "Casa 4 días tras 2 semanas fuera",
-            "cta": "Aplica ahora",
-            "primary_text": "Fuera 2 semanas, en casa 4 días — tráiler reefer, rutas de produce del valle al Medio Oeste. Desde $0.70 por milla, hasta $0.78 por milla. Se requiere Clase A, 2 años de experiencia, mayor de 23 años. 401k y política de acompañante.",
-            "headline": "4 días en casa cada 2 semanas"
+            "hook": "Del valle al Medio Oeste",
+            "cta": "Aplica ya",
+            "primary_text": "Pagamos de $0.70 a $0.78 por milla. Jalas carga refrigerada OTR, frutas y verduras del valle al Medio Oeste. 2 semanas de ruta y 4 días en casa. Ofrecemos 401k. Licencia Clase A, mayores de 23.",
+            "headline": "$0.70 a $0.78 por milla"
           }
         },
         {
           "en": {
-            "hook": "Reefer, valley produce, OTR",
+            "hook": "Out 2 weeks, home 4 days",
             "cta": "Apply today",
-            "primary_text": "You haul reefer produce out of the valley to the Midwest, over the road. $0.78 per mile is on the table. Schedule runs 2 weeks out, 4 days home. Class A with 2 years required, age 23+. 401k and rider policy on offer.",
-            "headline": "Up to $0.78/mile, reefer OTR"
+            "primary_text": "You run 2 weeks out, then you are home 4 days. Reefer loads of produce from the valley to the Midwest. 401k and a rider policy. Pay runs $0.70 to $0.78 per mile. Class A, age 23.",
+            "headline": "401k and rider policy"
           },
           "es": {
-            "hook": "Reefer, produce del valle, OTR",
+            "hook": "2 semanas fuera, 4 en casa",
             "cta": "Aplica hoy",
-            "primary_text": "Llevas carga reefer de produce del valle al Medio Oeste, ruta OTR. Hasta $0.78 por milla disponible. Ciclo de 2 semanas fuera, 4 días en casa. Se requiere Clase A con 2 años de experiencia, mayor de 23 años. 401k y política de acompañante.",
-            "headline": "Hasta $0.78/milla, reefer OTR"
+            "primary_text": "Haces 2 semanas de ruta y luego 4 días en casa. Cargas refrigeradas de frutas y verduras del valle al Medio Oeste. 401k y política de pasajero. Pago de $0.70 a $0.78 por milla. Mayores de 23.",
+            "headline": "401k y política de pasajero"
+          }
+        },
+        {
+          "en": {
+            "hook": "OTR reefer, 2 years, 23+",
+            "cta": "Apply now",
+            "primary_text": "Here is the run: reefer, over the road, produce out of the valley to the Midwest. Out 2 weeks, home 4 days. We need a Class A, 2 years of experience and age 23. $0.70 to $0.78 per mile.",
+            "headline": "Class A OTR reefer driver"
+          },
+          "es": {
+            "hook": "Reefer OTR, mayores de 23",
+            "cta": "Aplica ya",
+            "primary_text": "Esta es la ruta: reefer OTR, frutas y verduras del valle al Medio Oeste. 2 semanas fuera, 4 días en casa. Buscamos Clase A, 2 años de experiencia, mayores de 23. De $0.70 a $0.78 por milla.",
+            "headline": "Chofer Clase A reefer OTR"
           }
         }
       ]

@@ -125,50 +125,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T16:55:59.624Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:54:03.587Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Coast to coast, out 2 weeks",
+            "hook": "Coast to coast, dry van",
             "cta": "Apply today",
-            "primary_text": "Dry van, over the road, coast to coast. You run out 2 weeks and come home for 3 days. $0.70 per mile, plus a $2,500 sign-on bonus. 401k included. Class A, 2 years experience, age 23+.",
-            "headline": "$0.70/mile + $2,500 bonus"
+            "primary_text": "Dry van freight, over the road, coast to coast. You run 2 weeks out and get 3 days home. Pay is $0.70 per mile with a $2,500 sign-on bonus and a 401k. You need to be 23+ with 2 years of experience.",
+            "headline": "$0.70/mile, coast to coast"
           },
           "es": {
-            "hook": "Costa a costa, 2 semanas fuera",
+            "hook": "Costa a costa, caja seca",
             "cta": "Aplica hoy",
-            "primary_text": "Carga seca, rutas de larga distancia, costa a costa. Sales 2 semanas y regresas a casa 3 días. $0.70 por milla más $2,500 de bono de contratación. Incluye 401k. Clase A, 2 años de experiencia, mayores de 23.",
-            "headline": "$0.70/milla + bono $2,500"
+            "primary_text": "Carga de caja seca en rutas de larga distancia, costa a costa. Sales 2 semanas y descansas 3 días en casa. Pagamos $0.70 por milla, bono de contratación de $2,500 y 401k. Mayores de 23 con 2 años de experiencia.",
+            "headline": "$0.70/milla, costa a costa"
           }
         },
         {
           "en": {
             "hook": "Out 2 weeks, home 3 days",
             "cta": "Apply now",
-            "primary_text": "Coast-to-coast dry van runs. Know your schedule: 2 weeks out, 3 days home. $0.70 per mile and a $2,500 sign-on bonus when you start. 401k available. Need Class A, 2 years experience, age 23+.",
-            "headline": "Home every 2 weeks"
+            "primary_text": "Over-the-road dry van, coast to coast. You're out 2 weeks, then home 3 days. Pay is $0.70 per mile, plus a $2,500 sign-on bonus and a 401k. You need to be 23+ with 2 years of experience.",
+            "headline": "$2,500 sign-on bonus"
           },
           "es": {
-            "hook": "2 semanas fuera, 3 días en casa",
-            "cta": "Aplica ahora",
-            "primary_text": "Rutas de larga distancia, carga seca, costa a costa. Horario claro: 2 semanas en ruta, 3 días en casa. $0.70 por milla y $2,500 de bono al contratar. 401k disponible. Se requiere Clase A, 2 años de experiencia, mayores de 23.",
-            "headline": "A casa cada 2 semanas"
+            "hook": "2 semanas fuera, 3 en casa",
+            "cta": "Aplica ya",
+            "primary_text": "Ruta larga en caja seca, costa a costa. Sales 2 semanas y vuelves a casa 3 días. Pagamos $0.70 por milla, $2,500 de bono al firmar y 401k. Mayores de 23 con 2 años de experiencia.",
+            "headline": "Bono de $2,500 al firmar"
           }
         },
         {
           "en": {
-            "hook": "Dry van, coast to coast OTR",
-            "cta": "Join the team",
-            "primary_text": "$0.70 per mile on coast-to-coast dry van freight. Over-the-road schedule: 2 weeks out, 3 days home. $2,500 sign-on bonus and 401k. Class A required, 2 years experience, age 23+.",
-            "headline": "Dry van, $0.70/mile OTR"
+            "hook": "OTR, 2 years experience",
+            "cta": "Send your info",
+            "primary_text": "Here's the run: dry van, coast to coast, 2 weeks out and 3 days home. Pay is $0.70 per mile. You get a $2,500 sign-on bonus and a 401k. You need 2 years of experience and must be 23+.",
+            "headline": "$0.70 per mile, plus 401k"
           },
           "es": {
-            "hook": "Carga seca, larga distancia OTR",
-            "cta": "Únete al equipo",
-            "primary_text": "$0.70 por milla en rutas de carga seca costa a costa. Larga distancia: 2 semanas fuera, 3 días en casa. Bono de contratación de $2,500 y 401k. Se requiere Clase A, 2 años de experiencia, mayores de 23.",
-            "headline": "Carga seca $0.70/milla OTR"
+            "hook": "OTR, 2 años de experiencia",
+            "cta": "Envía tus datos",
+            "primary_text": "Así va la ruta: caja seca, costa a costa, 2 semanas fuera y 3 días en casa. Pagamos $0.70 por milla, con $2,500 de bono al firmar y 401k. Buscamos 2 años de experiencia, mayores de 23.",
+            "headline": "$0.70 por milla y 401k"
           }
         }
       ]

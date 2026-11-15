@@ -122,56 +122,56 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T16:58:23.613Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:59:01.647Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "pay": "$1,600–$1,900/week",
+            "pay": "$1,900 per week",
             "cta": "Apply today",
-            "primary_text": "Silvicom Inc is hiring dry van drivers for regional Midwest runs. Earn $1,600 to $1,900 per week and get home weekly. Health, dental, and vision insurance included. Must be 23+ with 2 years of experience.",
+            "primary_text": "Silvicom Inc pays $1,600 to $1,900 per week for Class A regional dry van runs in the Midwest. You are home weekly, with health insurance plus dental and vision. Drivers 23+, apply today.",
             "headline": "Home weekly, Midwest runs",
-            "kicker": "Class A regional"
+            "kicker": "Class A dry van"
           },
           "es": {
-            "pay": "$1,600–$1,900/semana",
+            "pay": "$1,900 por semana",
             "cta": "Aplica hoy",
-            "primary_text": "Silvicom Inc busca conductores de van seca para rutas regionales en el Medio Oeste. Gana de $1,600 a $1,900 por semana y regresa a casa cada semana. Seguro médico, dental y de visión incluidos. Se requieren mayores de 23 con 2 años de experiencia.",
-            "headline": "A casa cada semana",
+            "primary_text": "Silvicom Inc paga de $1,600 a $1,900 por semana en rutas regionales de caja seca en el Medio Oeste. Estás en casa cada semana, con seguro médico, dental y de visión. Mayores de 23, aplica hoy.",
+            "headline": "En casa cada semana",
+            "kicker": "Clase A caja seca"
+          }
+        },
+        {
+          "en": {
+            "pay": "$1,600-$1,900/week",
+            "cta": "Apply now",
+            "primary_text": "Run regional dry van in the Midwest and be home weekly. Pay is $1,600 to $1,900 per week, with health insurance, dental and vision. Class A, 23+. Silvicom Inc is hiring now.",
+            "headline": "Regional runs, home weekly",
+            "kicker": "Regional Class A"
+          },
+          "es": {
+            "pay": "$1,600-$1,900/semana",
+            "cta": "Aplica ya",
+            "primary_text": "Rutas regionales de caja seca en el Medio Oeste y en casa cada semana. Pago de $1,600 a $1,900 por semana, con seguro médico, dental y de visión. Clase A, mayores de 23. Silvicom Inc está contratando.",
+            "headline": "Rutas regionales, en casa",
             "kicker": "Clase A regional"
           }
         },
         {
           "en": {
-            "pay": "$1,600–$1,900/week",
-            "cta": "Join us today",
-            "primary_text": "Home weekly on Midwest regional dry van runs — that is the job at Silvicom Inc. Pay runs $1,600 to $1,900 per week. Full benefits: health, dental, and vision insurance. Requirements: 23+ and 2 years behind the wheel.",
-            "headline": "Silvicom Inc is hiring",
+            "pay": "$1,600 per week",
+            "cta": "Apply today",
+            "primary_text": "Here is the job: dry van freight on regional runs in the Midwest. Pay is $1,600 to $1,900 per week. You are home weekly. Health insurance, dental and vision. Class A, age 23. Apply with Silvicom Inc.",
+            "headline": "Dry van freight, Midwest",
             "kicker": "Midwest dry van"
           },
           "es": {
-            "pay": "$1,600–$1,900/semana",
-            "cta": "Únete hoy",
-            "primary_text": "Regresas a casa cada semana en rutas regionales de van seca por el Medio Oeste — ese es el trabajo en Silvicom Inc. Paga de $1,600 a $1,900 por semana. Beneficios completos: seguro médico, dental y de visión. Requisitos: mayores de 23 y 2 años de experiencia.",
-            "headline": "Silvicom Inc está contratando",
-            "kicker": "Van seca, Medio Oeste"
-          }
-        },
-        {
-          "en": {
-            "pay": "$1,600–$1,900/week",
-            "cta": "Apply now",
-            "primary_text": "Dry van, Midwest regional, home weekly. Silvicom Inc pays $1,600 to $1,900 per week with health, dental, and vision insurance. If you have 2 years of experience and are 23+, this run is ready for you.",
-            "headline": "Midwest dry van, home weekly",
-            "kicker": "2 yrs exp required"
-          },
-          "es": {
-            "pay": "$1,600–$1,900/semana",
-            "cta": "Aplica ahora",
-            "primary_text": "Van seca, rutas regionales en el Medio Oeste, a casa cada semana. Silvicom Inc paga de $1,600 a $1,900 por semana con seguro médico, dental y de visión. Si tienes 2 años de experiencia y eres mayor de 23, esta ruta te espera.",
-            "headline": "Van seca, a casa cada semana",
-            "kicker": "Se requieren 2 años"
+            "pay": "$1,600 por semana",
+            "cta": "Aplica hoy",
+            "primary_text": "Así es el trabajo: carga en caja seca, rutas regionales en el Medio Oeste. Pago de $1,600 a $1,900 por semana. En casa cada semana. Seguro médico, dental y de visión. Clase A, mayor de 23 años. Aplica con Silvicom Inc.",
+            "headline": "Caja seca, Medio Oeste",
+            "kicker": "Caja seca regional"
           }
         }
       ]

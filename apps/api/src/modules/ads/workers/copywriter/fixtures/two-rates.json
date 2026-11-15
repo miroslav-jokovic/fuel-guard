@@ -75,44 +75,44 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T05:04:13.469Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-15T00:22:14.917Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "$0.72 per mile for Class A regional drivers.",
-            "body": "Top miles pay $0.72 per mile, with a floor of $0.60 per mile so your check stays predictable. Pay hits your account every week — no waiting, no guessing. If you hold a Class A and want a regional run, apply today.",
-            "cta": "Apply today."
+            "hook": "$0.60-$0.72 a mile, Class A regional",
+            "body": "Regional runs for Class A drivers. You earn $0.60 to $0.72 per mile, and pay comes every week. Talk to us about the lanes and the miles.",
+            "cta": "Apply today"
           },
           "es": {
-            "hook": "$0.72 por milla para conductores Clase A regionales.",
-            "body": "Las mejores rutas pagan $0.72 por milla, con un mínimo de $0.60 por milla para que tu cheque sea predecible. El pago llega cada semana, sin esperas. Si tienes Clase A y buscas ruta regional, aplica hoy.",
-            "cta": "Aplica hoy."
+            "hook": "$0.60-$0.72/milla, Clase A regional",
+            "body": "Rutas regionales para choferes con licencia Clase A. Ganas de $0.60 a $0.72 por milla y te pagamos cada semana. Llámanos y te contamos de las rutas.",
+            "cta": "Aplica hoy"
           }
         },
         {
           "en": {
-            "hook": "Weekly pay. Class A regional drivers wanted.",
-            "body": "Your pay lands every week — $0.60 to $0.72 per mile. Regional work means you are not crossing the country to earn it. Class A required. Apply now.",
-            "cta": "Apply now."
+            "hook": "$0.72/mile, weekly pay, Class A",
+            "body": "Your check comes every week. Class A regional work at $0.60 to $0.72 per mile. You know what you earn and when it lands.",
+            "cta": "Apply now"
           },
           "es": {
-            "hook": "Pago semanal. Se buscan conductores Clase A regionales.",
-            "body": "Tu pago llega cada semana: entre $0.60 y $0.72 por milla según las millas que hagas. Trabajo regional, sin cruzar el país. Se requiere Clase A. Únete al equipo y aplica ahora.",
-            "cta": "Aplica ahora."
+            "hook": "$0.72/milla, pago semanal, Clase A",
+            "body": "Tu cheque llega cada semana. Trabajo regional con Clase A, de $0.60 a $0.72 por milla. Sabes cuánto ganas y cuándo te llega.",
+            "cta": "Aplica ya"
           }
         },
         {
           "en": {
-            "hook": "$0.60–$0.72 per mile. Class A regional run.",
-            "body": "Regional Class A drivers earn $0.60 per mile starting, up to $0.72 per mile. Weekly pay, no delays. Regional work keeps you closer to home. Apply and get started.",
-            "cta": "Get started today."
+            "hook": "$0.60-$0.72 a mile. Need Class A.",
+            "body": "Straight talk: I need Class A drivers for regional freight. Pay runs $0.60 to $0.72 per mile, paid weekly. Call me and we'll go over the runs.",
+            "cta": "Call dispatch"
           },
           "es": {
-            "hook": "$0.60–$0.72 por milla. Ruta regional Clase A.",
-            "body": "Conductores Clase A regionales ganan desde $0.60 hasta $0.72 por milla. Pago semanal, sin demoras. Es una posición regional, así que te mantienes más cerca de casa sin sacrificar lo que ganas. Aplica hoy.",
-            "cta": "Aplica hoy mismo."
+            "hook": "$0.60-$0.72 la milla. Busco Clase A.",
+            "body": "Te hablo claro: busco choferes Clase A para carga regional. Pagamos de $0.60 a $0.72 por milla, cada semana. Llámame y vemos las rutas.",
+            "cta": "Llama a despacho"
           }
         }
       ]

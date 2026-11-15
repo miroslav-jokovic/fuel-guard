@@ -124,58 +124,54 @@
     "company_name": "Dispatch Freight Lines",
     "candidates": 3
   },
-  "expect": "refused",
-  "expect_findings": [
-    "too_long",
-    "unrecognised_number"
-  ],
+  "expect": "ready",
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:56:11.137Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:39:32.207Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "You're rolling. $0.68 a mile.",
-            "cta": "Apply today",
-            "primary_text": "Dispatch Freight Lines runs flatbed OTR, Midwest to the Southeast. You earn $0.68 per mile loaded, $0.74 per mile on select runs, plus a $3,000 sign-on bonus. Out 10 to 12 days, home 3. Health insurance and 401k included. Must be 23+ with 2 years experience. Dispatch picks up — every time.",
-            "headline": "Flatbed OTR. $0.68/mile."
+            "hook": "Sunrise pays $0.68-$0.74/mi",
+            "cta": "Start your run",
+            "primary_text": "You start the day with the sun on the hood and a flatbed load behind you. Dispatch Freight Lines pays $0.68 to $0.74 per mile, Midwest to the Southeast. Plus a $3,000 sign-on bonus. Age 23+.",
+            "headline": "$3,000 sign-on bonus"
           },
           "es": {
-            "hook": "Al volante. $0.68 por milla.",
-            "cta": "Aplica hoy",
-            "primary_text": "Dispatch Freight Lines opera rutas de carga plana por carretera del Medio Oeste al Sureste. Gana $0.68 por milla, hasta $0.74 por milla en rutas seleccionadas, más un bono de contratación de $3,000. Fuera 10 a 12 días, en casa 3. Seguro médico y 401k incluidos. Mayores de 23 con 2 años de experiencia. Despachamos y contestamos el teléfono.",
-            "headline": "Carga plana OTR. $0.68/mi."
+            "hook": "Al amanecer: $0.68-$0.74/mi",
+            "cta": "Empieza tu ruta",
+            "primary_text": "Empiezas el día con el sol de frente y una carga de flatbed atrás. Dispatch Freight Lines paga de $0.68 a $0.74 por milla, del Medio Oeste al Sureste. Bono de $3,000 al firmar. Mayores de 23.",
+            "headline": "Bono de $3,000 al firmar"
           }
         },
         {
           "en": {
-            "hook": "Home in 3. Back on the road.",
-            "cta": "Join our team",
-            "primary_text": "Out 10 to 12 days running flatbed freight Midwest to the Southeast, home for 3. Dispatch Freight Lines pays $0.68 per mile, $0.74 per mile on select lanes. $3,000 sign-on bonus. Health insurance and 401k. Must be 23+ with 2 years behind the wheel. Family-run since the eighties — dispatch answers when you call.",
-            "headline": "Out 12 days. Home 3."
-          },
-          "es": {
-            "hook": "Sales 12 días. Vuelves en 3.",
-            "cta": "Únete hoy",
-            "primary_text": "Rutas de carga plana por carretera, del Medio Oeste al Sureste. Sales entre 10 y 12 días, regresas a casa por 3. Dispatch Freight Lines paga $0.68 por milla, y $0.74 por milla en rutas seleccionadas. Bono de contratación de $3,000. Seguro médico y 401k. Mayores de 23 con 2 años de experiencia. Empresa familiar — el despachador te contesta.",
-            "headline": "Fuera 12 días. Casa en 3."
-          }
-        },
-        {
-          "en": {
-            "hook": "Flatbed. Midwest to Southeast.",
+            "hook": "Dawn, out 10 to 12 days",
             "cta": "Apply now",
-            "primary_text": "Dispatch Freight Lines needs a Class A flatbed driver for OTR runs between the Midwest and the Southeast. $3,000 sign-on bonus. Pay starts at $0.68 per mile, $0.74 per mile on select lanes. Health insurance and 401k. Out 10 to 12 days, home 3. Must be 23+ with 2 years experience. A family-run carrier where dispatch answers the phone.",
-            "headline": "$3,000 sign-on. $0.68/mile."
+            "primary_text": "Out 10 to 12 days on over-the-road flatbed runs, Midwest to the Southeast. You get health insurance and a 401k. Dispatch Freight Lines is family-run, and dispatch picks up when you call.",
+            "headline": "Health insurance and 401k"
           },
           "es": {
-            "hook": "Plataforma. Medio Oeste al Sur.",
-            "cta": "Aplica ahora",
-            "primary_text": "Dispatch Freight Lines busca conductor Clase A para rutas de carga plana por carretera entre el Medio Oeste y el Sureste. Bono de contratación de $3,000. Pago desde $0.68 por milla, hasta $0.74 por milla en rutas seleccionadas. Seguro médico y 401k. Fuera entre 10 y 12 días, en casa por 3. Mayores de 23 con 2 años de experiencia. Empresa familiar donde el despachador sí contesta.",
-            "headline": "$3,000 de bono. $0.68/milla."
+            "hook": "Sales al alba: 10 a 12 días",
+            "cta": "Aplica ya",
+            "primary_text": "Fuera de 10 a 12 días en rutas OTR de flatbed, del Medio Oeste al Sureste. Tienes seguro médico y 401k. Dispatch Freight Lines es una empresa familiar, y despacho contesta cuando llamas.",
+            "headline": "Seguro médico y 401k"
+          }
+        },
+        {
+          "en": {
+            "hook": "Flatbed at dawn, Southeast",
+            "cta": "Apply today",
+            "primary_text": "Straight talk: flatbed, OTR, Midwest to the Southeast. $0.68 to $0.74 per mile, out 10 to 12 days. Age 23+. We are a family-run carrier, and when you call, dispatch answers.",
+            "headline": "Dispatch Freight Lines"
+          },
+          "es": {
+            "hook": "Al alba, flatbed al sureste",
+            "cta": "Aplica hoy",
+            "primary_text": "Te lo digo claro: flatbed, OTR, del Medio Oeste al Sureste. De $0.68 a $0.74 por milla, fuera de 10 a 12 días. Mayores de 23. Somos una empresa familiar y despacho contesta el teléfono.",
+            "headline": "Dispatch Freight Lines"
           }
         }
       ]

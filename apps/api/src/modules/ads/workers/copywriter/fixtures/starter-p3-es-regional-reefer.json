@@ -122,55 +122,55 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T17:02:23.505Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-15T00:06:21.517Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Home every week.",
+            "hook": "Home weekly",
             "cta": "Apply today",
-            "primary_text": "Silvicom Inc runs reefer freight from Chicago to Texas. Regional lanes mean home weekly, with weekly pay on the same schedule. $0.64–$0.72 per mile, no-touch freight, dispatcher speaks Spanish. Must be 23+ with 2 years experience.",
-            "headline": "Home every week.",
+            "primary_text": "Run regional reefer, Chicago to Texas, and be home weekly. Earn $0.64 to $0.72 per mile with weekly pay. No-touch freight. Class A, 23+. Our dispatch speaks Spanish.",
+            "headline": "Silvicom Inc is hiring",
             "second_line": "$0.64–$0.72/mile"
           },
           "es": {
-            "hook": "A casa cada semana.",
+            "hook": "En casa cada semana",
             "cta": "Aplica hoy",
-            "primary_text": "Silvicom Inc corre rutas refrigeradas de Chicago a Texas. Ruta regional: regresas a casa cada semana y cobras cada semana. De $0.64 a $0.72 por milla, carga sin toque y el despacho habla español. Mayores de 23 con 2 años de experiencia.",
-            "headline": "A casa cada semana.",
-            "second_line": "$0.64–$0.72/milla"
+            "primary_text": "Rutas regionales de refrigerado, de Chicago a Texas, y en casa cada semana. Gana de $0.64 a $0.72 por milla, con pago semanal. Carga sin tocar. Clase A, mayores de 23. Despacho habla español.",
+            "headline": "Silvicom Inc contrata",
+            "second_line": "$0.64-$0.72/milla"
           }
         },
         {
           "en": {
-            "hook": "Weekly pay. Home weekly.",
-            "cta": "Join us today",
-            "primary_text": "Regional reefer runs, Chicago to Texas. You earn $0.64–$0.72 per mile on no-touch freight, get paid every week, and you're back home every week. Silvicom Inc keeps you on a regional loop so the miles and the home time both work in your favor. 23+ and 2 years experience required.",
-            "headline": "Weekly pay. Home weekly.",
+            "hook": "Home weekly. Paid weekly.",
+            "cta": "Join our team",
+            "primary_text": "Regional reefer runs keep you home weekly, and your pay lands weekly too. No-touch freight at $0.64 to $0.72 per mile. Class A drivers, 23+. Dispatch speaks Spanish.",
+            "headline": "Silvicom Inc reefer runs",
             "second_line": "No-touch freight"
           },
           "es": {
-            "hook": "Pago semanal. Casa semanal.",
-            "cta": "Únete hoy",
-            "primary_text": "Rutas regionales de refrigerado, Chicago a Texas. Ganas de $0.64 a $0.72 por milla en carga sin toque, cobras cada semana y llegas a casa cada semana. Silvicom Inc te mantiene en rutas regionales donde las millas y el tiempo en casa funcionan para ti. Se requieren más de 23 años y 2 años de experiencia.",
-            "headline": "Pago semanal. Casa semanal.",
-            "second_line": "Carga sin toque"
+            "hook": "Casa y pago cada semana",
+            "cta": "Únete al equipo",
+            "primary_text": "Rutas regionales de refrigerado: en casa cada semana y pago semanal. Carga sin tocar, de $0.64 a $0.72 por milla. Clase A, mayores de 23. Despacho habla español.",
+            "headline": "Rutas de Silvicom Inc",
+            "second_line": "Carga sin tocar"
           }
         },
         {
           "en": {
-            "hook": "Chicago to Texas. Home weekly.",
+            "hook": "Reefer runs, home weekly",
             "cta": "Apply now",
-            "primary_text": "Reefer lanes, Chicago to Texas. Silvicom Inc pays $0.64–$0.72 per mile on no-touch freight. Weekly pay, home weekly — regional miles that bring you back every week. Dispatcher speaks Spanish. Must be 23+ with 2 years experience.",
-            "headline": "Chicago–Texas. Home weekly.",
+            "primary_text": "Here's the run: reefer, regional, Chicago to Texas. You're home weekly. Pay is $0.64 to $0.72 per mile, paid weekly. No-touch freight. Class A, 23+. At Silvicom Inc, dispatch speaks Spanish.",
+            "headline": "Chicago to Texas, regional",
             "second_line": "Weekly pay"
           },
           "es": {
-            "hook": "Chicago a Texas. Casa cada semana.",
-            "cta": "Aplica ahora",
-            "primary_text": "Rutas de refrigerado, Chicago a Texas. Silvicom Inc paga de $0.64 a $0.72 por milla en carga sin toque. Pago semanal y a casa cada semana — ruta regional que te regresa seguido. El despacho habla español. Se requieren mayores de 23 con 2 años de experiencia.",
-            "headline": "Chicago–Texas. Casa semanal.",
+            "hook": "Refri y en casa cada semana",
+            "cta": "Aplica ya",
+            "primary_text": "La ruta: refrigerado, regional, de Chicago a Texas. En casa cada semana. Pagamos de $0.64 a $0.72 por milla, cada semana. Carga sin tocar. Clase A, mayores de 23. En Silvicom Inc, el despacho habla español.",
+            "headline": "De Chicago a Texas",
             "second_line": "Pago semanal"
           }
         }

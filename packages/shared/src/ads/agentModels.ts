@@ -1,4 +1,4 @@
-import { AI_MODELS, type AiEffort } from "../ai.js";
+import type { AiEffort } from "../ai.js";
 import type { AdAiAgent } from "./contracts.js";
 
 /**
@@ -14,7 +14,12 @@ import type { AdAiAgent } from "./contracts.js";
  * runs: art director 14 of 14, checker 10 of 10 and analyst 14 of 14 on Opus 5.5; craft judge 6 of 6 and
  * finished-ad judge 16 of 16 on Fable 5.2 — the judges on a different model from the writer, which the
  * 2026-11-10 audit asked for (F-AG7). The analyst was first tried on Sonnet 5.5 and scored 13 of 14 (a
- * number written in words), below its baseline, so it was not moved there. `workers/agentModels.test.ts` fails a line whose
+ * number written in words), below its baseline, so it was not moved there.
+ *
+ * The copywriter followed the same day (V1c), on Opus 5.5: 124 of 124 on two consecutive runs, against 121 of
+ * 124 on Sonnet 4.6. Its headlines came out shorter (median 25 → 22 characters), which is why the overlay's
+ * capacity is now measured with a frozen set (`creative/overlay/headlineCorpus.json`) and not with whatever
+ * the writer's model currently writes. `workers/agentModels.test.ts` fails a line whose
  * model is not the one that worker's `baseline.json` was recorded on.
  *
  * `renderer` asks no Claude model (its provider is Higgsfield); it is in `AD_AI_AGENTS` for the switch and
@@ -29,8 +34,7 @@ export interface AdAgentModel {
 }
 
 export const AD_AGENT_MODELS: Readonly<Record<AdClaudeAgent, AdAgentModel>> = {
-  // Still on its recorded model: its 124 cases take about two hours a pass on Opus 5.5, so it moves in its own PR.
-  copywriter: { model: AI_MODELS.deep },
+  copywriter: { model: "claude-opus-5-5" },
   art_director: { model: "claude-opus-5-5" },
   checker: { model: "claude-opus-5-5" },
   analyst: { model: "claude-opus-5-5" },

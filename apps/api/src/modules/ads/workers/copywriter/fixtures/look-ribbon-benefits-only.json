@@ -94,62 +94,62 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:50:48.087Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:31:43.150Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Dedicated route. 401k.",
+            "hook": "Dedicated Class A",
             "cta": "Apply today",
-            "primary_text": "This is a dedicated run — same route, same rhythm, every week. You get a 401k, plus dental and vision coverage. Consistent work, steady miles. Apply today and get on a route that works for you.",
-            "headline": "Dedicated, with benefits",
+            "primary_text": "Class A drivers, this is dedicated work. You get a 401k plus dental and vision. Apply today.",
+            "headline": "Class A dedicated driver",
+            "kicker": "Now hiring drivers",
+            "second_line": "401k plan"
+          },
+          "es": {
+            "hook": "Clase A dedicado",
+            "cta": "Aplica hoy",
+            "primary_text": "Choferes Clase A, este es trabajo dedicado. Tienes plan 401k y seguro dental y de visión. Aplica hoy.",
+            "headline": "Chofer Clase A dedicado",
+            "kicker": "Buscamos choferes",
+            "second_line": "Plan 401k"
+          }
+        },
+        {
+          "en": {
+            "hook": "401k for drivers",
+            "cta": "Apply now",
+            "primary_text": "Plan for later while you drive now. Class A dedicated work with a 401k, plus dental and vision. Apply now.",
+            "headline": "401k, dental and vision",
             "kicker": "Class A dedicated",
             "second_line": "Dental and vision"
           },
           "es": {
-            "hook": "Ruta fija. 401k.",
-            "cta": "Aplica hoy",
-            "primary_text": "Ruta dedicada — mismo recorrido, misma rutina cada semana. Incluye 401k, dental y visión. Trabajo constante, millas seguras. Aplica hoy.",
-            "headline": "Dedicado, con beneficios",
+            "hook": "Plan 401k para ti",
+            "cta": "Aplica ya",
+            "primary_text": "Piensa en tu futuro mientras manejas. Trabajo dedicado Clase A con plan 401k y seguro dental y de visión. Aplica ya.",
+            "headline": "401k, dental y visión",
             "kicker": "Clase A dedicado",
             "second_line": "Dental y visión"
           }
         },
         {
           "en": {
-            "hook": "Class A truck. 401k plan.",
-            "cta": "Join our team",
-            "primary_text": "Drive a dedicated route with the same consistent schedule week after week. Your benefits package includes a 401k, dental, and vision. Dedicated driving means you know the road before you leave. Join our team.",
-            "headline": "Steady route, full benefits",
+            "hook": "Dental and vision",
+            "cta": "Start here",
+            "primary_text": "Straight talk: Class A, dedicated. 401k. Dental and vision. If that fits you, apply today.",
+            "headline": "Hiring Class A, dedicated",
             "kicker": "Now hiring: Class A",
-            "second_line": "401k included"
+            "second_line": "Dedicated runs"
           },
           "es": {
-            "hook": "Clase A. Plan 401k.",
-            "cta": "Únete hoy",
-            "primary_text": "Ruta dedicada con horario fijo cada semana. El paquete incluye 401k, dental y visión. Sabes el camino antes de salir. Únete al equipo.",
-            "headline": "Ruta fija, beneficios completos",
-            "kicker": "Se busca: Clase A",
-            "second_line": "401k incluido"
-          }
-        },
-        {
-          "en": {
-            "hook": "Your truck. Your route.",
-            "cta": "Apply now",
-            "primary_text": "A dedicated position means one route — yours. Dental and vision coverage are included, along with a 401k. No guessing where you are headed. This is a Class A seat with benefits. Apply now.",
-            "headline": "One route, real benefits",
-            "kicker": "Dedicated Class A run",
-            "second_line": "Dental and vision"
-          },
-          "es": {
-            "hook": "Tu tráiler. Tu ruta.",
-            "cta": "Aplica ahora",
-            "primary_text": "Posición dedicada: una sola ruta, siempre la tuya. Incluye dental, visión y 401k. Clase A con beneficios reales. Aplica ahora.",
-            "headline": "Una ruta, beneficios reales",
-            "kicker": "Ruta dedicada Clase A",
-            "second_line": "Dental y visión"
+            "hook": "Dental y visión",
+            "cta": "Empieza aquí",
+            "primary_text": "Sin rodeos: Clase A, dedicado. Plan 401k. Seguro dental y de visión. Si te queda, aplica hoy.",
+            "headline": "Buscamos Clase A dedicado",
+            "kicker": "Chofer Clase A",
+            "second_line": "Rutas dedicadas"
           }
         }
       ]

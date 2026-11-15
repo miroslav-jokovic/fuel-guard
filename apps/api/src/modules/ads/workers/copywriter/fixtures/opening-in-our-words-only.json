@@ -105,62 +105,62 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:54:46.604Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:37:04.496Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "card_get": "$29 per hour. Home daily. Local dry van runs in Joliet and the south suburbs.",
-            "card_need": "Class A CDL. 2 years of experience. Age 23+.",
-            "card_apply": "Apply with 360 Logistics today.",
+            "card_get": "$29 per hour",
+            "card_need": "Class A CDL, age 23, and 2 years of experience.",
+            "card_apply": "Apply online with 360 Logistics.",
             "cta": "Apply today",
-            "primary_text": "Local dry van work in Joliet and the south suburbs. You earn $29 per hour and sleep in your own bed every night. Same dispatcher every day. Apply now with 360 Logistics.",
-            "headline": "$29/hr, home daily"
+            "primary_text": "$29 per hour driving local dry van runs around Joliet and the south suburbs. You are home daily. Need age 23 and 2 years of experience. Same dispatcher every day.",
+            "headline": "$29/hour local Class A"
           },
           "es": {
-            "card_get": "$29 por hora. Casa cada día. Van seco local en Joliet y suburbios del sur.",
-            "card_need": "CDL clase A. 2 años de experiencia. Mayores de 23.",
-            "card_apply": "Aplica con 360 Logistics hoy.",
+            "card_get": "$29 por hora",
+            "card_need": "CDL Clase A, mayor de 23 años y 2 años de experiencia.",
+            "card_apply": "Aplica en línea con 360 Logistics.",
             "cta": "Aplica hoy",
-            "primary_text": "Rutas locales de van seco en Joliet y los suburbios del sur. Ganas $29 por hora y llegas a casa cada día. El mismo despachador de siempre. Aplica con 360 Logistics.",
-            "headline": "$29/hora, casa diario"
+            "primary_text": "$29 por hora en rutas locales de caja seca por Joliet y los suburbios del sur. Llegas a casa a diario. Mayor de 23 años y 2 años de experiencia.",
+            "headline": "Clase A local: $29/hora"
           }
         },
         {
           "en": {
-            "card_get": "Home every day. Local runs, dry van, Joliet and the south suburbs.",
-            "card_need": "Class A CDL, 2 years experience, age 23+.",
-            "card_apply": "Apply with 360 Logistics now.",
+            "card_get": "Home daily",
+            "card_need": "Class A CDL, 23+, with 2 years of experience.",
+            "card_apply": "Apply now to drive for 360 Logistics.",
             "cta": "Apply now",
-            "primary_text": "You are home every day on this local dry van route. Pay is $29 per hour. Work stays in Joliet and the south suburbs. Same dispatcher every shift. 360 Logistics is hiring now.",
-            "headline": "Home daily, $29/hr"
+            "primary_text": "Local runs in Joliet and the south suburbs, and you are home daily. Dry van freight at $29 per hour. You need 2 years of experience and must be 23+.",
+            "headline": "Local Class A, home daily"
           },
           "es": {
-            "card_get": "Casa cada día. Rutas locales, van seco, Joliet y suburbios del sur.",
-            "card_need": "CDL clase A, 2 años de experiencia, mayor de 23 años.",
-            "card_apply": "Aplica con 360 Logistics ahora.",
-            "cta": "Aplica ahora",
-            "primary_text": "Llegas a casa cada día en esta ruta local de carga seca. El pago es $29 por hora. Las rutas son en Joliet y los suburbios del sur. El mismo despachador siempre. 360 Logistics está contratando.",
-            "headline": "Casa diario, $29/hora"
+            "card_get": "En casa todos los días",
+            "card_need": "CDL Clase A, mayor de 23 años y 2 años de experiencia.",
+            "card_apply": "Aplica ahora y maneja con 360 Logistics.",
+            "cta": "Aplica ya",
+            "primary_text": "Rutas locales en Joliet y los suburbios del sur, y llegas a casa todos los días. Caja seca a $29 por hora. Necesitas 2 años de experiencia y ser mayor de 23 años.",
+            "headline": "Local, en casa a diario"
           }
         },
         {
           "en": {
-            "card_get": "Local dry van, Joliet and the south suburbs. $29 per hour.",
-            "card_need": "Class A CDL. 2 years behind the wheel. Age 23+.",
-            "card_apply": "Join 360 Logistics — apply today.",
-            "cta": "Apply today",
-            "primary_text": "Dry van freight, local lanes in Joliet and the south suburbs. You make $29 per hour and are home daily. Same dispatcher every day, trucks washed Fridays. 360 Logistics wants you on the team.",
-            "headline": "Local dry van, $29/hr"
+            "card_get": "Local dry van in Joliet",
+            "card_need": "Class A CDL, 2 years driving, and age 23.",
+            "card_apply": "Apply with 360 Logistics today.",
+            "cta": "Apply here",
+            "primary_text": "Straight talk from 360 Logistics: local dry van runs in Joliet and the south suburbs. $29 per hour, home daily. Same dispatcher every day, and the trucks get washed.",
+            "headline": "Local dry van, Joliet area"
           },
           "es": {
-            "card_get": "Van seco local, Joliet y suburbios del sur. $29 por hora.",
-            "card_need": "CDL clase A. 2 años de experiencia. Mayores de 23.",
-            "card_apply": "Únete a 360 Logistics — aplica hoy.",
-            "cta": "Aplica hoy",
-            "primary_text": "Carga seca, rutas locales en Joliet y los suburbios del sur. Ganas $29 por hora y llegas a casa cada día. El mismo despachador siempre, tráileres lavados los viernes. Aplica con 360 Logistics.",
-            "headline": "Van seco local, $29/hr"
+            "card_get": "Caja seca local en Joliet",
+            "card_need": "CDL Clase A, 2 años manejando y mayor de 23 años.",
+            "card_apply": "Aplica hoy con 360 Logistics.",
+            "cta": "Aplica aquí",
+            "primary_text": "Con 360 Logistics: rutas locales de caja seca en Joliet y los suburbios del sur. $29 por hora y en casa a diario. Mismo despachador cada día y camiones lavados.",
+            "headline": "Caja seca local, Joliet"
           }
         }
       ]

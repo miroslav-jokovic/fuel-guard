@@ -82,50 +82,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:58:15.551Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:42:46.971Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "You're home tonight. $31/hr.",
+            "hook": "You roll at dawn. $31/hour",
             "cta": "Apply today",
-            "primary_text": "Local Class A driving means you clock out and sleep in your own bed every night. At $31 per hour, you know what your week is worth before it starts. Home daily, no guessing.",
-            "headline": "Home daily, Class A local"
+            "primary_text": "You pull out as the sun comes up, Class A, local work. The pay is $31 per hour, and you are home daily. Apply today.",
+            "headline": "Class A local, $31/hour"
           },
           "es": {
-            "hook": "En casa esta noche. $31/hr.",
+            "hook": "Sales al alba. $31 la hora",
             "cta": "Aplica hoy",
-            "primary_text": "Ruta local con Clase A: terminas tu turno y duermes en casa cada noche. A $31 por hora, sabes exactamente lo que ganas cada semana. A casa diario, sin sorpresas.",
-            "headline": "A casa diario, Clase A local"
+            "primary_text": "Sales cuando apenas sale el sol, con tu licencia Clase A, en ruta local. Pagamos $31 por hora y estás en casa todos los días. Aplica hoy.",
+            "headline": "Clase A local, $31/hora"
           }
         },
         {
           "en": {
-            "hook": "You start at $31 an hour.",
-            "cta": "Apply today",
-            "primary_text": "Class A local route. You earn $31 per hour and you are home daily — no nights on the road, no long-haul weeks away. If you hold a Class A and want to stay close to home, this run is built for you.",
-            "headline": "Class A local — $31/hr"
+            "hook": "Leave at dawn. Home daily.",
+            "cta": "Apply now",
+            "primary_text": "You start with the sunrise in the windshield and you end the day at home. Every day. Class A local driving at $31 per hour.",
+            "headline": "Local Class A, home daily"
           },
           "es": {
-            "hook": "Empiezas a $31 por hora.",
-            "cta": "Aplica hoy",
-            "primary_text": "Ruta local Clase A. Ganas $31 por hora y regresas a casa a diario, sin noches en carretera ni semanas lejos de tu familia. Si tienes licencia Clase A y quieres quedarte cerca de casa, esta ruta es para ti.",
-            "headline": "Local Clase A — $31 por hora"
+            "hook": "Sales al alba, vuelves hoy",
+            "cta": "Aplica ya",
+            "primary_text": "Arrancas con el amanecer en el parabrisas y terminas el día en tu casa. Todos los días. Manejo local con licencia Clase A a $31 por hora.",
+            "headline": "Ruta local, en casa diario"
           }
         },
         {
           "en": {
-            "hook": "Local run. Home every night.",
-            "cta": "Apply today",
-            "primary_text": "This is a Class A local position: you run your route and you are home daily. Pay is $31 per hour. No hotel rooms, no waiting on loads across the country — just a solid local driving job. Join our team.",
-            "headline": "$31/hr, home daily"
+            "hook": "Keys at dawn. $31/hr.",
+            "cta": "Apply now",
+            "primary_text": "Here is the job. Class A, local. $31 per hour. Home daily. You need a Class A license. Apply and we will go over the rest with you.",
+            "headline": "Local, Class A, $31/hour"
           },
           "es": {
-            "hook": "Ruta local. En casa cada noche.",
-            "cta": "Aplica hoy",
-            "primary_text": "Posición local Clase A: haces tu ruta y llegas a casa a diario. El pago es de $31 por hora. Sin hoteles, sin esperas en terminales lejos de casa, solo un trabajo de chofer local bien pagado. Únete al equipo.",
-            "headline": "$31/hr, a casa diario"
+            "hook": "Llaves al alba. $31/hora.",
+            "cta": "Aplica ya",
+            "primary_text": "Así es el trabajo. Clase A, local. $31 por hora. En casa todos los días. Necesitas licencia Clase A. Aplica y lo platicamos.",
+            "headline": "Local, Clase A, $31/hora"
           }
         }
       ]

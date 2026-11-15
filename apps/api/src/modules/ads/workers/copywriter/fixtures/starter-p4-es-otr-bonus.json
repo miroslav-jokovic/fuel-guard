@@ -124,50 +124,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T17:05:32.079Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-15T00:11:37.242Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Dry van, $0.70 a mile",
+            "hook": "$0.70 a mile, dry van",
             "cta": "Apply today",
-            "primary_text": "Coast-to-coast dry van runs paying $0.70 per mile. Out 2 weeks, home 3 days. $2,500 sign-on bonus. 401k available. Must be age 23 with 2 years of experience. Join our team.",
-            "headline": "Now hiring: Class A OTR"
+            "primary_text": "$0.70 per mile hauling dry van over the road, coast to coast. Add a $2,500 sign-on bonus and a 401k. Class A, age 23+.",
+            "headline": "Class A, coast to coast"
           },
           "es": {
-            "hook": "Van seco, $0.70 por milla",
+            "hook": "$0.70/milla, caja seca",
             "cta": "Aplica hoy",
-            "primary_text": "Rutas de costa a costa en van seco a $0.70 por milla. Sales 2 semanas, regresas 3 días. Bono de contratación de $2,500. Plan 401k disponible. Se requiere mayores de 23 con 2 años de experiencia.",
-            "headline": "Se buscan conductores Clase A"
+            "primary_text": "$0.70 por milla jalando caja seca OTR de costa a costa. Más bono de $2,500 al firmar y 401k. Clase A, mayores de 23.",
+            "headline": "Clase A, de costa a costa"
           }
         },
         {
           "en": {
-            "hook": "Home 3 days, $2,500 bonus",
+            "hook": "Coast to coast dry van",
             "cta": "Apply now",
-            "primary_text": "Out 2 weeks, home 3 days on coast-to-coast dry van freight. $0.70 per mile plus a $2,500 sign-on bonus. 401k included. Must be age 23 and have 2 years of OTR experience.",
-            "headline": "Class A OTR — $0.70/mile"
+            "primary_text": "Dry van freight, over the road, coast to coast. You get a $2,500 sign-on bonus and $0.70 per mile. Out 2 weeks, home 3 days.",
+            "headline": "$2,500 sign-on bonus"
           },
           "es": {
-            "hook": "3 días en casa, bono $2,500",
-            "cta": "Aplica ahora",
-            "primary_text": "Fuera 2 semanas, en casa 3 días. Carga van seco de costa a costa a $0.70 por milla. Bono de $2,500 al firmar. 401k incluido. Debes ser mayor de 23 con 2 años de experiencia.",
-            "headline": "Clase A OTR — $0.70/milla"
+            "hook": "Caja seca, costa a costa",
+            "cta": "Aplica ya",
+            "primary_text": "Carga en caja seca, rutas OTR de costa a costa. Tienes bono de $2,500 al firmar y $0.70 por milla. Fuera 2 semanas, en casa 3 días.",
+            "headline": "Bono de $2,500 al firmar"
           }
         },
         {
           "en": {
-            "hook": "Coast to coast, dry van",
-            "cta": "Apply today",
-            "primary_text": "Long-haul dry van, coast to coast. $0.70 per mile, $2,500 sign-on bonus, and 401k. Schedule runs 2 weeks out, 3 days home. Must be age 23 with 2 years of experience behind the wheel.",
-            "headline": "$0.70/mile + $2,500 bonus"
+            "hook": "Out 2 weeks, home 3 days",
+            "cta": "Apply here",
+            "primary_text": "You run dry van coast to coast for 2 weeks, then you are home for 3 days. $0.70 per mile and a 401k. Class A, age 23+.",
+            "headline": "Class A, OTR dry van"
           },
           "es": {
-            "hook": "Costa a costa, van seco",
-            "cta": "Aplica hoy",
-            "primary_text": "Larga distancia en van seco de costa a costa. $0.70 por milla y bono de $2,500 al entrar. 401k disponible. Itinerario: 2 semanas en ruta, 3 días en casa. Mayores de 23 con 2 años de experiencia.",
-            "headline": "$0.70/milla + bono $2,500"
+            "hook": "2 semanas OTR, 3 en casa",
+            "cta": "Aplica aquí",
+            "primary_text": "Corres caja seca de costa a costa 2 semanas y luego pasas 3 días en casa. $0.70 por milla y 401k. Clase A, mayores de 23.",
+            "headline": "Clase A, caja seca OTR"
           }
         }
       ]

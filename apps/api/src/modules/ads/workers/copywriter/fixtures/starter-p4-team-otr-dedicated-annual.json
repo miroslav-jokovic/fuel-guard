@@ -123,60 +123,57 @@
     "company_name": "Silvicom Inc",
     "candidates": 3
   },
-  "expect": "refused",
+  "expect": "ready",
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T17:08:33.769Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-15T00:16:03.786Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "Dry van, coast to coast",
             "cta": "Apply today",
-            "primary_text": "Silvicom Inc runs dedicated OTR team lanes, dry van, drop and hook. Teams earn $95,000 to $110,000 per year. We do not split a team that works. Late-model equipment, $1,500 referral bonus. Age 23+, 2 years experience.",
-            "headline": "Up to $110,000 per year"
+            "primary_text": "Team up on late-model equipment hauling dry van freight coast to coast for Silvicom Inc. Dedicated OTR runs with drop and hook. $95,000 to $110,000 per year. Class A, 23+.",
+            "headline": "Silvicom Inc team drivers"
           },
           "es": {
-            "hook": "Van seco, costa a costa",
+            "hook": "Caja seca, costa a costa",
             "cta": "Aplica hoy",
-            "primary_text": "Silvicom Inc opera rutas OTR dedicadas en equipo, carga seca, drop and hook. Los equipos ganan de $95,000 a $110,000 por año. No separamos parejas. Equipo de último modelo, bono de referido de $1,500. Mayores de 23 años, 2 años de experiencia.",
-            "headline": "Hasta $110,000 por año"
+            "primary_text": "Parejas Clase A: carga dry van de costa a costa en equipo de modelo reciente con Silvicom Inc. Rutas dedicadas OTR, drop and hook. De $95,000 a $110,000 por año. Mayores de 23.",
+            "headline": "Silvicom Inc busca equipos"
           }
         },
         {
           "en": {
-            "hook": "Drop and hook, $110,000",
-            "cta": "Join our team",
-            "primary_text": "Silvicom Inc hires Class A team drivers for dedicated OTR dry van, coast to coast. Drop and hook keeps you moving. Late-model equipment, home every other weekend. $95,000 to $110,000 per year. $1,500 referral bonus. Age 23+, 2 years experience.",
-            "headline": "Home every other weekend"
-          },
-          "es": {
-            "hook": "Drop and hook, $110,000",
-            "cta": "Únete hoy",
-            "primary_text": "Silvicom Inc contrata equipos Clase A, rutas OTR dedicadas, van seco, costa a costa. Drop and hook, equipo moderno, casa cada dos fines de semana. De $95,000 a $110,000 por año, bono de referido de $1,500. Mayores de 23 años, 2 años de experiencia.",
-            "headline": "Casa cada dos fines de semana"
-          }
-        },
-        {
-          "en": {
-            "hook": "Late-model dry van OTR",
+            "hook": "$95,000-$110,000 a year",
             "cta": "Apply now",
-            "primary_text": "Late-model equipment, dedicated dry van lanes, coast to coast. Silvicom Inc does not split a team that works. Drop and hook runs, home every other weekend. $95,000 to $110,000 per year. $1,500 referral bonus. Age 23+, 2 years experience.",
-            "headline": "$95,000–$110,000 per year"
+            "primary_text": "Team drivers at Silvicom Inc earn $95,000 to $110,000 per year. Dry van, dedicated OTR, coast to coast. You drive late-model equipment. Class A, 23+.",
+            "headline": "Dedicated dry van teams"
           },
           "es": {
-            "hook": "Van seco OTR, equipo nuevo",
-            "cta": "Aplica ahora",
-            "primary_text": "Equipo de último modelo, rutas dedicadas van seco, costa a costa. Silvicom Inc no separa a un equipo que funciona. Carga drop and hook, casa cada dos fines de semana. De $95,000 a $110,000 por año. Bono de $1,500. Mayores de 23 años, 2 años de experiencia.",
-            "headline": "$95,000–$110,000 por año"
+            "hook": "$95,000-$110,000 al año",
+            "cta": "Aplica ya",
+            "primary_text": "Los equipos de Silvicom Inc ganan de $95,000 a $110,000 por año. Dry van, rutas dedicadas OTR de costa a costa. Equipo de modelo reciente. Clase A, mayores de 23.",
+            "headline": "Equipos dry van dedicados"
+          }
+        },
+        {
+          "en": {
+            "hook": "Dedicated, drop and hook",
+            "cta": "Apply today",
+            "primary_text": "Here is the run: dry van, coast to coast, drop and hook on dedicated OTR freight. At Silvicom Inc, good teams stay together. $95,000 to $110,000 per year. Class A, 23+.",
+            "headline": "Teams stay together here"
+          },
+          "es": {
+            "hook": "Dedicado, drop and hook",
+            "cta": "Aplica hoy",
+            "primary_text": "Así es la ruta: dry van de costa a costa, drop and hook, carga dedicada OTR. En Silvicom Inc no separamos una buena pareja. De $95,000 a $110,000 por año. Clase A, mayores de 23.",
+            "headline": "Aquí no separamos parejas"
           }
         }
       ]
     }
-  },
-  "expect_findings": [
-    "too_long"
-  ]
+  }
 }
