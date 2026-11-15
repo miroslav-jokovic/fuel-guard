@@ -146,26 +146,8 @@ export function applicationV2FilingIssues(
 }
 
 /**
- * What a LEGACY link (no Part 1) may not be filed without, beyond the contract (F1 part 2, 2026-11-10).
- *
- * §40.25(j)'s two-year question. A v2 link asks it in Part 1, which refuses to store an intake without
- * it (AI009), so this is the legacy link's alone. Not a contract rule: the field is nullish because every
- * application filed before P8 has no answer and must go on parsing — but a NEW filing must answer it.
- * It was an unticked box until F1 part 2, so a driver who skipped it had said No (audit finding 13).
- */
-export const PRIOR_TEST_UNANSWERED = APPLICANT_ISSUE_TEXT.prior_test_answered();
-
-export function applicationLegacyFilingIssues(
-  application: Pick<DriverApplicationFields, "prior_failed_pre_employment_test">,
-): ApplicationFilingIssue[] {
-  return typeof application.prior_failed_pre_employment_test === "boolean"
-    ? []
-    : [{ path: "prior_failed_pre_employment_test", ...applicantIssue("prior_test_answered") }];
-}
-
-/**
  * What EVERY new filing must carry because the carrier's paper asks it (F2c, owner 2026-11-11: "the paper
- * application is our guidance and the form must match it"), on a v2 link and a legacy one alike.
+ * application is our guidance and the form must match it"), on every link.
  *
  * Not the contract, for `applicationV2FilingIssues`'s reason: each is nullish there because applications
  * filed before F2c lack them and must go on parsing.

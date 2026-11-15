@@ -17,7 +17,7 @@ import {
   type IntakeError,
   type SubmitContext,
 } from "./applicationIntake.js";
-import { INTAKE_INCOMPLETE, intakeState } from "./applicantIntake.js";
+import { INTAKE_INCOMPLETE } from "./applicantIntake.js";
 import { ADOPTION_IN_USE, adoptionSplitsADocument } from "./documentAdoption.js";
 
 /**
@@ -114,11 +114,9 @@ export async function recordSignatureAdoption(
   // An adoption is a signature, so it needs the §390.32(d) consent every signature on the link needs.
   const consent = requireEsignConsent(invitation, await loadCarrierWording(admin, invitation.org_id));
   if (consent) return consent;
-  // Screen 13 comes after Part 1 on a v2 link (§6.2), for the permissions' own reason: the mark adopted
-  // here is what they are signed with. A legacy link has no Part 1 and adopts as it always has.
-  if (!invitation.intake_completed_at && (await intakeState(admin, invitation.org_id, invitation.id)).v2) {
-    return INTAKE_INCOMPLETE;
-  }
+  // Screen 13 comes after Part 1 (§6.2), for the permissions' own reason: the mark adopted here is what
+  // they are signed with. Every link that resolves has a Part 1 (`resolveInvitation`).
+  if (!invitation.intake_completed_at) return INTAKE_INCOMPLETE;
 
   const live = await liveAdoption(admin, invitation.org_id, invitation.id, body.kind);
   if (live && (await adoptionSplitsADocument(admin, invitation, live.id, body.kind))) return ADOPTION_IN_USE;

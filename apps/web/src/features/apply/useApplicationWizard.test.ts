@@ -127,11 +127,11 @@ describe("questions that start unanswered (F1 part 2)", () => {
     expect(validateSection("employment", draft)).toEqual([]);
   });
 
-  it("stops a legacy link's driving-record screen on an unanswered §40.25(j), and not a v2 link's", () => {
+  it("does not stop the driving-record screen on §40.25(j), which Part 1 asks and this form does not", () => {
+    // The draft holds no answer of its own: Part 1's is laid over it at filing (`composeFiledApplication`).
     const draft = { ...complete(), prior_failed_pre_employment_test: null };
-    expect(validateSection("safety", draft).map((i) => i.fieldId)).toEqual(["apply-prior_failed_pre_employment_test"]);
-    // A v2 link asked it in Part 1, and its draft holds that answer — this screen does not ask again.
-    expect(validateSection("safety", draft, "2026-09-26").map((i) => i.fieldId)).not.toContain("apply-prior_failed_pre_employment_test");
+    expect(validateSection("safety", draft, "2026-09-26")).toEqual([]);
+    expect(validateSection("safety", draft)).toEqual([]);
   });
 });
 

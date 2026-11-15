@@ -68,13 +68,12 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     return;
   }
 
-  // 1b-5 (APPLICATION-FIX-PLAN §7): an invitation with no Part 1 row is a LEGACY one, created before C3a
-  // (2026-09), whose form was the linear wizard. Nobody is sent one — every invitation since is minted
-  // its row (`mintIntakeRow`) — and that wizard is retired, so its link opens nothing and says what every
-  // dead link says. ⚠ Read FIRST, before anything of the application is loaded: a link that opens no
-  // page must not have its draft, its edits or its photographs read for it.
-  // Production held one such invitation when this was written (measured 2026-11-15), already revoked.
-  // "Send the link again" gives the applicant a new invitation instead (`sendApplicationLinkAgain`).
+  // 1b-5 (APPLICATION-FIX-PLAN §7): a LEGACY invitation (no Part 1 row, created before C3a) does not get
+  // this far — `resolveInvitation` refuses it on every route since step 4, and "Send the link again"
+  // gives that applicant a new invitation (`sendApplicationLinkAgain`). Production held one when that
+  // was written (measured 2026-11-15), already revoked.
+  // ⚠ Still read FIRST, and still refused when absent: a link that opens no page must not have its
+  // draft, its edits or its photographs read for it, and a row can vanish between the two reads.
   const partOne = await partOneStatus(admin, invitation.org_id, invitation);
   if (!partOne) {
     res.status(404).json(apiError(DEAD_LINK.code, DEAD_LINK.message));

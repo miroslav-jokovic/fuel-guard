@@ -325,6 +325,40 @@ describe("every bad link fails the same way", () => {
     await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(rec.rpcs()).toHaveLength(0);
   });
+
+  /**
+   * 1b-5 step 4 (APPLICATION-FIX-PLAN §7): an invitation from before Part 1 has no `application_intakes`
+   * row. Its form is retired, so it is a dead link HERE, in the function every route on the link calls,
+   * and not only on the page's first read. A live, unexpired, unrevoked invitation is the case that
+   * matters: it is the one that could still have saved a draft, signed a permission and filed.
+   */
+  const LEGACY = { application_intakes: [] };
+
+  it("refuses a live invitation that has no Part 1, in the words of every dead link", async () => {
+    const result = await resolveInvitation(seed(invitation(), signedPacket(), LEGACY).client, TOKEN, NOW);
+    expect(result).toEqual({ code: "invalid_link", message: "This application link is not valid. Ask for a new one." });
+  });
+
+  it("signs nothing and files nothing on an invitation that has no Part 1", async () => {
+    const rec = seed(submittableInvitation(), signedPacket(), { ...IDENTITY_TABLES, ...LEGACY });
+    const signed = await recordRelease(rec.client, TOKEN, { purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }, CTX, NOW);
+    const filed = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(signed) && signed.code).toBe("invalid_link");
+    expect(isIntakeError(filed) && filed.code).toBe("invalid_link");
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("asks for the Part 1 of the invitation's own org, and only once the token is otherwise alive", async () => {
+    const live = seed();
+    await resolveInvitation(live.client, TOKEN, NOW);
+    const q = live.forTable("application_intakes")[0]!;
+    expect(q.filters()).toContainEqual({ col: "org_id", val: ORG });
+    expect(q.filters()).toContainEqual({ col: "invitation_id", val: "inv-1" });
+
+    const revoked = seed(invitation({ revoked_at: "2026-08-19T00:00:00Z" }));
+    await resolveInvitation(revoked.client, TOKEN, NOW);
+    expect(revoked.forTable("application_intakes")).toHaveLength(0);
+  });
 });
 
 /**
