@@ -676,6 +676,19 @@ describe("submitting", () => {
     expect(JSON.stringify(body)).not.toContain(ORG);
   });
 
+  // Q-AM23 (owner, 2026-11-15): the e-mail is optional. The route's contract turns a blank into null,
+  // so that is what is filed; the phone is still Part 1's.
+  it("files an application whose driver gave no e-mail, with null in its place", async () => {
+    const rec = seed({ consented_at: "2026-08-21T09:00:00Z" }, PART_ONE_ANSWERED);
+    holder.client = rec.client;
+    const body = { ...CURRENT_FILING, application: { ...CURRENT_FILING.application, email: "" } };
+    const res = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(body) });
+    expect(res.status).toBe(201);
+    const filed = (rec.rpcs().find((r) => r.fn === "submit_driver_application")!.args as { p_payload: Record<string, unknown> }).p_payload;
+    expect(filed.email).toBeNull();
+    expect(filed.phone).toBe("+13125550142");
+  });
+
   /**
    * ⚠ The §390.32(d) window at the edge of the API (2026-08-23), kept after D-WORD1.
    *

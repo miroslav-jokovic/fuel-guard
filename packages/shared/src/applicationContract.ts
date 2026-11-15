@@ -249,7 +249,13 @@ export const driverApplicationObject = z
      * inquiry that goes out.
      */
     other_names: z.array(z.string().min(1).max(120)).default([]),
-    email: z.email().max(200),
+    /**
+     * Q-AM23 (owner, 2026-11-15): the e-mail is OPTIONAL, the phone is required. The carrier's paper asks
+     * "Phone #" and has no applicant e-mail field, and a driver with no e-mail could not send the form at
+     * all while this was required. A blank is filed as null; an address that is given must still be one.
+     * Applications filed before this all carry an address and go on parsing.
+     */
+    email: z.email().max(200).nullish().or(z.literal("").transform(() => null)),
     phone: z.string().min(7).max(40),
     // (b)(3) — every address for the preceding 3 years.
     addresses: z.array(applicationAddressSchema).min(1),
