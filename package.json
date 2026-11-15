@@ -34,6 +34,8 @@
     "ci:local": "node scripts/ci-local.mjs",
     "//verify:live": "Answers \"why don't I see my changes?\" in one command: compares production with origin/production (default), `staging` with origin/main, or a URL with HEAD — commit, release tag, migration — against GET /api/version. Exits non-zero on drift.",
     "verify:live": "node scripts/verify-live.mjs",
+    "//check:advisories": "Fails when a published critical or high advisory reaches the production dependencies of web, api, admin or admin-api and scripts/advisory-baseline.json does not accept it for that package, or when a baseline entry no longer describes anything (INSTALLED-APP-PLAN §5a A4). NOT a lint:* gate and not in ci.yml on purpose: an advisory is published against code that is already merged, so it runs nightly in .github/workflows/advisories.yml, and on any PR touching the lockfile, the workspace overrides, or the check. Needs the network (pnpm audit) and an installed workspace (pnpm ls). --self-test proves the verdict without either.",
+    "check:advisories": "node scripts/check-advisories.mjs",
     "backfill:efs-soap-passwords": "pnpm --filter @silvicom/api backfill:efs-soap-passwords",
     "verify:idle": "node scripts/verify-idle-precision.mjs",
     "gen": "pnpm gen:rules && pnpm gen:tokens && pnpm gen:ads-readiness",
