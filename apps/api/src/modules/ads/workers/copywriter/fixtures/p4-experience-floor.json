@@ -81,50 +81,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T05:01:48.019Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:48:53.770Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Tanker. $0.75 a mile.",
+            "hook": "Tanker, $0.75/mile",
             "cta": "Apply today",
-            "primary_text": "Class A tanker drivers earn $0.75 per mile here. You need 2 years of verifiable experience to qualify. If you have the seat time in a tanker, apply now and let's get you moving.",
-            "headline": "Class A tanker drivers"
+            "primary_text": "Class A tanker driver wanted. You run a tanker and earn $0.75 per mile. You need 2 years of experience to apply.",
+            "headline": "Class A tanker driver"
           },
           "es": {
-            "hook": "Tánker. $0.75 por milla.",
+            "hook": "Tanque, $0.75/milla",
             "cta": "Aplica hoy",
-            "primary_text": "Conductores clase A con experiencia en tánker ganan $0.75 por milla. Se requieren 2 años de experiencia verificable. Si tienes el tiempo en el asiento, aplica ahora.",
-            "headline": "Conductores tánker clase A"
+            "primary_text": "Buscamos chofer Clase A de tanque. Manejas un tanque y ganas $0.75 por milla. Necesitas 2 años de experiencia.",
+            "headline": "Chofer de tanque Clase A"
           }
         },
         {
           "en": {
-            "hook": "Tanker CDL-A, 2 years in.",
-            "cta": "Join us now",
-            "primary_text": "Have 2 years behind the wheel of a tanker? That's what it takes. Class A drivers with tanker experience start at $0.75 per mile. Apply today and get to work.",
-            "headline": "2 years exp. $0.75/mile"
-          },
-          "es": {
-            "hook": "Tánker CDL-A, 2 años exp.",
-            "cta": "Únete hoy",
-            "primary_text": "¿Tienes 2 años de experiencia en tánker? Eso es todo lo que se necesita. Conductores clase A con esa experiencia ganan $0.75 por milla. Aplica hoy.",
-            "headline": "2 años exp. $0.75/milla"
-          }
-        },
-        {
-          "en": {
-            "hook": "Tanker haul, top-mile pay.",
+            "hook": "Tanker. Got 2 years?",
             "cta": "Apply now",
-            "primary_text": "$0.75 per mile for Class A tanker drivers. Bring 2 years of tanker experience and you qualify. Straightforward pay, real miles. Apply now.",
-            "headline": "Earn $0.75 per mile"
+            "primary_text": "Got 2 years of experience behind the wheel? Put it to work in a Class A tanker. The pay is $0.75 per mile.",
+            "headline": "Put your 2 years to work"
           },
           "es": {
-            "hook": "Tánker clase A, buen pago.",
-            "cta": "Aplica ahora",
-            "primary_text": "$0.75 por milla para conductores clase A en tánker. Con 2 años de experiencia en tánker calificas. Pago directo, millas reales. Aplica ahora.",
-            "headline": "Gana $0.75 por milla"
+            "hook": "Tanque. ¿Tienes 2 años?",
+            "cta": "Aplica ya",
+            "primary_text": "¿Tienes 2 años de experiencia manejando? Ponla a trabajar en un tanque Clase A. El pago es $0.75 por milla.",
+            "headline": "Pon tus 2 años a trabajar"
+          }
+        },
+        {
+          "en": {
+            "hook": "Tanker seat open",
+            "cta": "Contact us",
+            "primary_text": "Straight talk: we have a Class A tanker that needs a driver. It pays $0.75 per mile. You need 2 years of experience. Apply and we will talk.",
+            "headline": "Tanker pays $0.75 a mile"
+          },
+          "es": {
+            "hook": "Tanque disponible",
+            "cta": "Contáctanos",
+            "primary_text": "Directo: tenemos un tanque Clase A sin chofer. Paga $0.75 por milla. Necesitas 2 años de experiencia. Aplica y hablamos.",
+            "headline": "Tanque a $0.75 por milla"
           }
         }
       ]

@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { AD_FORMATS, AD_LOOKS, AD_OVERLAY_LAYOUTS, FEED_FORMATS, OVERLAY_HEADLINE_MAX_CHARS, OVERLAY_SMALL_LINE_MAX_CHARS, QUIET_REGION, adPresetSaveSchema, type AdBrandKit, type AdLook } from "@silvicom/shared";
+import { AD_FORMATS, AD_LOOKS, AD_OVERLAY_LAYOUTS, FEED_FORMATS, OVERLAY_HEADLINE_MAX_CHARS, OVERLAY_SMALL_LINE_MAX_CHARS, QUIET_REGION, adPresetSaveSchema, type AdBrandKit, type AdBrief, type AdLook } from "@silvicom/shared";
 import { COPYWRITER_EVAL, loadFixtures } from "../../workers/agentFixtures.js";
 import { overlayFit } from "./overlay.js";
 import { layOut } from "./overlayLayout.js";
@@ -25,16 +26,39 @@ import { layOut } from "./overlayLayout.js";
  * another 8,049 ms against vitest's 5,000 (2026-11-11, PRs #2233 and #2234). The work is real and nothing here waits on
  * a timer, so the limit is the file's own, as composeCreative.test.ts does for the same reason.
  */
-vi.setConfig({ testTimeout: 30_000 });
+// 120 s since V1c: the frozen set and today's recordings are both measured, about twice the headlines; the whole
+// file took 23 s on a laptop under load on 2026-11-14, and CI runs these at about half a laptop's speed.
+vi.setConfig({ testTimeout: 120_000 });
 
 const overlay = { zone: null, text_color: "#FFFFFF", plate_color: "#0B3D2E" };
 const kit: Pick<AdBrandKit, "overlays"> = { overlays: Object.fromEntries(FEED_FORMATS.map((f) => [f, overlay])) };
 
 const LENGTH = new Set(["too_long", "overflows", "stack_too_tall"]);
-const recorded = loadFixtures(COPYWRITER_EVAL).flatMap(({ fixture }) => {
+type Measured = { language: "en" | "es"; text: string; brief: Pick<AdBrief, "claims"> };
+const today: Measured[] = loadFixtures(COPYWRITER_EVAL).flatMap(({ fixture }) => {
   const slot = fixture.input.recipe.overlay_slots?.headline ?? "hook";
   const out = fixture.recorded?.output as { candidates?: Array<Record<"en" | "es", Record<string, string>>> } | undefined;
   return (out?.candidates ?? []).flatMap((c) => (["en", "es"] as const).flatMap((language) => (c[language]?.[slot] ? [{ language, text: c[language][slot]!, brief: fixture.input.brief }] : [])));
+});
+/**
+ * THE MEASURING SET IS FROZEN BESIDE THIS FILE (`headlineCorpus.json`, V1c 2026-11-14), and today's recordings are
+ * measured with it. The ceiling is a property of the RENDERER — what the face, the sizes and the safe zone can draw —
+ * and until V1c it was measured with whatever the copywriter's current model happened to write. When the copywriter
+ * moved to Opus 5.5 its headlines got shorter (median 25 → 22 characters; 104 of 754 were 40 or longer, now 2), so
+ * the same test read the same renderer's ceiling as 39. Lowering the figure to that would have refused every preset
+ * and every headline a person types between 40 and 58 characters, which the overlay draws exactly as before. So the
+ * 754 headlines recorded on Sonnet 4.6 — real model output in two languages, with the claims each was written for —
+ * are kept as the ruler, and a change of writer can no longer move a renderer's figure. A change to the renderer
+ * still does, which is this file's purpose.
+ */
+const frozen: Measured[] = (JSON.parse(readFileSync(new URL("./headlineCorpus.json", import.meta.url), "utf8")) as Array<{ brief: Pick<AdBrief, "claims">; headlines: Array<{ language: "en" | "es"; text: string }> }>)
+  .flatMap((f) => f.headlines.map((h) => ({ ...h, brief: f.brief })));
+const seenText = new Set<string>();
+const recorded = [...frozen, ...today].filter((h) => {
+  const key = `${h.language}|${h.text}`;
+  if (seenText.has(key)) return false;
+  seenText.add(key);
+  return true;
 });
 const findingsOf = (h: (typeof recorded)[number], format: (typeof FEED_FORMATS)[number], layout: (typeof AD_OVERLAY_LAYOUTS)[number], look: AdLook = "field") =>
   overlayFit({ format, language: h.language, headline: h.text, cta: "Apply", brief: h.brief, kit, layout, look });
@@ -69,6 +93,8 @@ describe("the two small lines' ceiling is the overlay's own (D-ADL4)", () => {
 
 describe("the headline's ceiling is the overlay's own (D-AD27)", () => {
   it("the corpus is real and wide enough to measure with", () => {
+    expect(frozen.length).toBe(754);
+    expect(today.length).toBeGreaterThanOrEqual(350);
     expect(recorded.length).toBeGreaterThanOrEqual(350);
     expect(headlines.length).toBeGreaterThanOrEqual(300);
     expect(Math.max(...headlines.map((h) => h.text.length))).toBeGreaterThan(OVERLAY_HEADLINE_MAX_CHARS);

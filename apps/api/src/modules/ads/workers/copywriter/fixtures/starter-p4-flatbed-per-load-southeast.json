@@ -117,50 +117,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T17:06:25.823Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-15T00:12:59.372Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Flatbed, $420–$680/load",
+            "hook": "Flatbed, $680 a load",
             "cta": "Apply today",
-            "primary_text": "Dispatch Freight Lines runs flatbed freight through Georgia, the Carolinas, and Tennessee. You earn $420 to $680 per load with guaranteed pay. Paid orientation, home weekly. Need 2 years of experience and be 23+.",
-            "headline": "Guaranteed pay, home weekly"
+            "primary_text": "Dispatch Freight Lines pays $420 to $680 per load, with guaranteed pay. Regional flatbed runs across Georgia, the Carolinas and Tennessee. Age 23+.",
+            "headline": "$420 to $680 per load"
           },
           "es": {
-            "hook": "Plataforma, $420–$680/carga",
+            "hook": "Flatbed, $680 por carga",
             "cta": "Aplica hoy",
-            "primary_text": "Dispatch Freight Lines mueve plataforma por Georgia, las Carolinas y Tennessee. Ganas de $420 a $680 por carga, pago garantizado. Orientación pagada, regresas semanal. Se requieren 2 años y ser mayor de 23 años.",
-            "headline": "Pago garantizado, casa semanal"
+            "primary_text": "Dispatch Freight Lines paga de $420 a $680 por carga, con pago garantizado. Rutas regionales de flatbed por Georgia, las Carolinas y Tennessee. Mayores de 23.",
+            "headline": "De $420 a $680 por carga"
           }
         },
         {
           "en": {
-            "hook": "Home weekly. Flatbed runs.",
-            "cta": "Join us today",
-            "primary_text": "Flatbed through the Southeast — Georgia, the Carolinas, Tennessee. Dispatch Freight Lines pays $420 to $680 per load, guaranteed. Paid orientation included. Requires 2 years of experience and age 23+.",
-            "headline": "$420–$680 per load, guaranteed"
-          },
-          "es": {
-            "hook": "Casa semanal. Ruta regional.",
-            "cta": "Únete hoy",
-            "primary_text": "Plataforma por el sureste: Georgia, las Carolinas y Tennessee. Dispatch Freight Lines paga de $420 a $680 por carga, garantizado. Orientación pagada. Se requieren 2 años y ser mayor de 23 años.",
-            "headline": "$420–$680 por carga, garantizado"
-          }
-        },
-        {
-          "en": {
-            "hook": "Flatbed, Southeast regional",
+            "hook": "Flatbed, home weekly",
             "cta": "Apply now",
-            "primary_text": "Flatbed loads across Georgia, the Carolinas, and Tennessee. Dispatch Freight Lines pays $420 to $680 per load — guaranteed pay. Home weekly, paid orientation. Need 2 years of experience and be 23+.",
-            "headline": "Paid orientation. Home weekly."
+            "primary_text": "Run regional flatbed in Georgia, the Carolinas and Tennessee, then get home weekly. Paid orientation to start. $420 to $680 per load. Age 23+.",
+            "headline": "Paid orientation to start"
           },
           "es": {
-            "hook": "Plataforma, sureste regional",
-            "cta": "Aplica ahora",
-            "primary_text": "Cargas en plataforma por Georgia, las Carolinas y Tennessee. Dispatch Freight Lines paga de $420 a $680 por carga, garantizado. Casa cada semana, orientación pagada. Se requieren 2 años y ser mayor de 23 años.",
-            "headline": "Orientación pagada. Casa semanal."
+            "hook": "En casa cada semana",
+            "cta": "Aplica ya",
+            "primary_text": "Rutas regionales de flatbed por Georgia, las Carolinas y Tennessee, y en casa cada semana. Orientación pagada para empezar. De $420 a $680 por carga. Mayores de 23.",
+            "headline": "Orientación pagada"
+          }
+        },
+        {
+          "en": {
+            "hook": "Flatbed in the Southeast",
+            "cta": "Apply here",
+            "primary_text": "Flatbed loads in Georgia, the Carolinas and Tennessee. You get guaranteed pay and you're home weekly. Dispatch Freight Lines is hiring Class A drivers, 23+.",
+            "headline": "Guaranteed pay"
+          },
+          "es": {
+            "hook": "Flatbed en el Sureste",
+            "cta": "Aplica aquí",
+            "primary_text": "Cargas de flatbed por Georgia, las Carolinas y Tennessee. Tienes pago garantizado y vas a casa cada semana. Dispatch Freight Lines contrata choferes Clase A, mayores de 23.",
+            "headline": "Pago garantizado"
           }
         }
       ]

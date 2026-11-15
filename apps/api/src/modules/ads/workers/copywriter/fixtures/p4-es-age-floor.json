@@ -81,50 +81,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T05:01:11.962Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:47:46.559Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Class A, $0.70 a mile",
+            "hook": "$0.70 a mile",
             "cta": "Apply today",
-            "primary_text": "Long-haul Class A drivers earn $0.70 per mile on every run. If you are 23 or older, you qualify. Join our team and put your miles to work.",
-            "headline": "Class A long-haul driving"
+            "primary_text": "Class A long-haul driving at $0.70 per mile. Open to drivers 23+. Apply today and talk with our dispatch about the run.",
+            "headline": "Class A long haul, 23+"
+          },
+          "es": {
+            "hook": "$0.70 por milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Larga distancia con licencia Clase A, a $0.70 por milla. Para conductores mayores de 23. Aplica hoy y habla con nuestro despacho sobre la ruta.",
+            "headline": "Larga distancia Clase A"
+          }
+        },
+        {
+          "en": {
+            "hook": "Long haul, Class A",
+            "cta": "Apply now",
+            "primary_text": "Long-haul runs for Class A drivers. Pay is $0.70 per mile. Drivers 23+ can apply. If the open road is your work, send your application.",
+            "headline": "$0.70 per mile"
+          },
+          "es": {
+            "hook": "Larga distancia, Clase A",
+            "cta": "Aplica ya",
+            "primary_text": "Rutas de larga distancia para conductores Clase A. El pago es $0.70 por milla. Para mayores de 23. Si la carretera es tu trabajo, manda tu solicitud.",
+            "headline": "$0.70 por milla"
+          }
+        },
+        {
+          "en": {
+            "hook": "Class A at $0.70/mile",
+            "cta": "Apply here",
+            "primary_text": "Straight talk: you drive long haul with your Class A, and you make $0.70 per mile. You need to be 23+. Apply and we'll talk about the job.",
+            "headline": "Long-haul drivers, 23+"
           },
           "es": {
             "hook": "Clase A, $0.70 por milla",
-            "cta": "Aplica hoy",
-            "primary_text": "Conductores Clase A de larga distancia ganan $0.70 por milla en cada ruta. Si eres mayor de 23 años, cumples con el requisito. Únete al equipo y pon tus millas a trabajar.",
-            "headline": "Conductor Clase A, larga distancia"
-          }
-        },
-        {
-          "en": {
-            "hook": "Long-haul, $0.70/mile",
-            "cta": "Start now",
-            "primary_text": "You drive long-haul Class A and earn $0.70 per mile. No complex requirements — you need to be 23 or older and hold a Class A CDL. Apply and get moving.",
-            "headline": "Class A CDL, great mileage pay"
-          },
-          "es": {
-            "hook": "Larga distancia, $0.70/milla",
-            "cta": "Empieza hoy",
-            "primary_text": "Manejas tráiler Clase A en rutas de larga distancia y ganas $0.70 por milla. El requisito es sencillo: mayores de 23 años con CDL Clase A. Aplica y sal a la carretera.",
-            "headline": "CDL Clase A, $0.70 por milla"
-          }
-        },
-        {
-          "en": {
-            "hook": "Class A CDL, 70 cents/mile",
-            "cta": "Join us today",
-            "primary_text": "Class A long-haul position paying $0.70 per mile. Drivers 23 or older are encouraged to apply. Straightforward pay, real miles — come drive with us.",
-            "headline": "Long-haul Class A, 70¢ a mile"
-          },
-          "es": {
-            "hook": "CDL Clase A, $0.70 la milla",
-            "cta": "Aplica ya",
-            "primary_text": "Posición de larga distancia con CDL Clase A, pagando $0.70 por milla. Aceptamos conductores mayores de 23 años. Pago claro, rutas reales — maneja con nosotros.",
-            "headline": "Larga distancia, $0.70 la milla"
+            "cta": "Aplica aquí",
+            "primary_text": "Sin rodeos: manejas larga distancia con tu Clase A y ganas $0.70 por milla. Tienes que ser mayor de 23 años. Aplica y hablamos del trabajo.",
+            "headline": "Mayores de 23, Clase A"
           }
         }
       ]

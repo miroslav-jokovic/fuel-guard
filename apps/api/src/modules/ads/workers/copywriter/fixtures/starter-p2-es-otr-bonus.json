@@ -129,56 +129,56 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T16:58:49.550Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:59:45.516Z",
     "output": {
       "candidates": [
         {
           "en": {
             "pay": "$0.70 per mile",
             "cta": "Apply today",
-            "primary_text": "Earn $0.70 per mile hauling dry van freight on coast-to-coast runs. You are out 2 weeks and home 3 days. $2,500 sign-on bonus, 401k included. Must be age 23+ with 2 years of experience.",
-            "headline": "Dry van, coast to coast",
-            "kicker": "Class A OTR drivers"
+            "primary_text": "Class A over-the-road, dry van freight, coast to coast. You make $0.70 per mile and get a $2,500 sign-on bonus. Out 2 weeks, home 3 days.",
+            "headline": "$2,500 sign-on bonus",
+            "kicker": "Class A, OTR"
           },
           "es": {
             "pay": "$0.70 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Gana $0.70 por milla transportando carga de van seco en rutas de costa a costa. Sales 2 semanas y regresas a casa 3 días. Bono de contratación de $2,500 y plan 401k. Debes ser mayor de 23 años con 2 años de experiencia.",
-            "headline": "Van seco, costa a costa",
-            "kicker": "Conductores Clase A"
-          }
-        },
-        {
-          "en": {
-            "pay": "$0.70 per mile",
-            "cta": "Join our team",
-            "primary_text": "Coast-to-coast dry van runs at $0.70 a mile. You run 2 weeks out, then come home for 3 days — a steady rhythm you can plan around. $2,500 sign-on bonus and 401k. Age 23+ and 2 years of experience required.",
-            "headline": "Home 3 days after 2 weeks out",
-            "kicker": "OTR — dry van"
-          },
-          "es": {
-            "pay": "$0.70 por milla",
-            "cta": "Únete hoy",
-            "primary_text": "Rutas de costa a costa en van seco a $0.70 por milla. Sales 2 semanas y vuelves a casa 3 días — un ritmo fijo que puedes planear. Bono de $2,500 al firmar y plan 401k. Mayores de 23 con 2 años de experiencia.",
-            "headline": "3 días en casa tras 2 semanas",
-            "kicker": "OTR — van seco"
+            "primary_text": "Clase A en ruta larga, carga en caja seca, de costa a costa. Ganas $0.70 por milla y recibes un bono de firma de $2,500. Fuera 2 semanas, en casa 3 días.",
+            "headline": "Bono de firma de $2,500",
+            "kicker": "Chofer Clase A"
           }
         },
         {
           "en": {
             "pay": "$0.70 per mile",
             "cta": "Apply now",
-            "primary_text": "Start with a $2,500 sign-on bonus driving dry van freight across the country at $0.70 a mile. Runs go coast to coast: out 2 weeks, home 3 days. 401k available. Must be 23+ with 2 years behind the wheel.",
-            "headline": "$2,500 sign-on bonus",
-            "kicker": "Class A — coast to coast"
+            "primary_text": "You run 2 weeks over the road, then you are home 3 days. Dry van, coast to coast, at $0.70 per mile. You also get a 401k.",
+            "headline": "Out 2 weeks, home 3 days",
+            "kicker": "OTR, Class A"
           },
           "es": {
             "pay": "$0.70 por milla",
-            "cta": "Aplica ahora",
-            "primary_text": "Empieza con un bono de $2,500 al firmar manejando van seco por todo el país a $0.70 por milla. Rutas de costa a costa: fuera 2 semanas, en casa 3 días. 401k disponible. Mayores de 23 con 2 años de experiencia.",
-            "headline": "$2,500 bono de contratación",
-            "kicker": "Clase A — costa a costa"
+            "cta": "Aplica ya",
+            "primary_text": "Trabajas 2 semanas en la ruta y luego pasas 3 días en casa. Caja seca, de costa a costa, a $0.70 por milla. También tienes 401k.",
+            "headline": "2 semanas fuera, 3 en casa",
+            "kicker": "OTR, Clase A"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.70 per mile",
+            "cta": "Call dispatch",
+            "primary_text": "Dry van freight, over the road, coast to coast. The pay is $0.70 per mile, with a $2,500 sign-on bonus. You need a Class A and must be 23+.",
+            "headline": "Dry van, coast to coast",
+            "kicker": "Dry van, Class A"
+          },
+          "es": {
+            "pay": "$0.70 por milla",
+            "cta": "Llama a despacho",
+            "primary_text": "Carga seca en tráiler, ruta larga de costa a costa. Pagamos $0.70 por milla, con bono de firma de $2,500. Necesitas Clase A y ser mayor de 23 años.",
+            "headline": "Caja seca, de costa a costa",
+            "kicker": "Caja seca, Clase A"
           }
         }
       ]

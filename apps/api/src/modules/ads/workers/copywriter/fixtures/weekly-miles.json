@@ -71,44 +71,44 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T05:04:24.403Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-15T00:22:32.950Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "$0.62 per mile for Class A regional drivers.",
-            "body": "You run regional routes and turn in around 2500 miles a week. That rate pays you honestly for every mile you turn. If you hold a Class A and want steady regional work, apply today.",
-            "cta": "Apply today."
+            "hook": "$0.62 a mile, Class A regional",
+            "body": "Class A regional driving at $0.62 per mile. Run 2500 miles and every one of them pays. You know your rate before you take the load.",
+            "cta": "Apply today"
           },
           "es": {
-            "hook": "$0.62 por milla para conductores regionales Clase A.",
-            "body": "Rutas regionales con aproximadamente 2500 millas por semana. Una tarifa directa y honesta por cada milla que manejas. Si tienes licencia Clase A y buscas trabajo regional estable, aplica hoy.",
-            "cta": "Aplica hoy."
+            "hook": "$0.62 por milla, Clase A regional",
+            "body": "Manejo regional con licencia Clase A a $0.62 por milla. Son 2500 millas y cada una se paga. Conoces tu tarifa antes de tomar la carga.",
+            "cta": "Aplica hoy"
           }
         },
         {
           "en": {
-            "hook": "$0.62 a mile — Class A regional drivers wanted.",
-            "body": "Regional work with around 2500 miles per week. You know what you will earn before you roll out. Class A required. Consistent miles, a clear rate, and regional lanes — come drive with us.",
-            "cta": "Join our team."
+            "hook": "$0.62/mile for regional Class A",
+            "body": "2500 miles of regional driving with a Class A license. Paid at $0.62 per mile. You stay on regional routes and the miles add up on your check.",
+            "cta": "Apply now"
           },
           "es": {
-            "hook": "$0.62 por milla — se buscan conductores Clase A regionales.",
-            "body": "Trabajo regional con cerca de 2500 millas a la semana. Sabes cuánto vas a ganar antes de salir. Se requiere licencia Clase A. Millas consistentes y rutas regionales te esperan.",
-            "cta": "Únete al equipo."
+            "hook": "$0.62/milla para Clase A regional",
+            "body": "2500 millas de ruta regional con licencia Clase A. Pagadas a $0.62 por milla. Te quedas en rutas regionales y las millas suman en tu cheque.",
+            "cta": "Aplica ya"
           }
         },
         {
           "en": {
-            "hook": "Class A regional driver: $0.62 per mile.",
-            "body": "About 2500 miles a week on regional runs. The rate is $0.62 per mile — straightforward, no guessing. If you have your Class A and want to stay in the region, this seat is open.",
-            "cta": "Apply now."
+            "hook": "$0.62 a mile. Regional Class A.",
+            "body": "Here it is straight: Class A, regional, $0.62 per mile, 2500 miles. Talk to us, ask your questions, and we will tell you how the runs go.",
+            "cta": "Talk to dispatch"
           },
           "es": {
-            "hook": "Conductor regional Clase A: $0.62 por milla.",
-            "body": "Alrededor de 2500 millas semanales en rutas regionales. La tarifa es clara: $0.62 por milla, sin sorpresas. Tienes Clase A y quieres trabajar en la región — este puesto es tuyo.",
-            "cta": "Aplica ahora."
+            "hook": "$0.62 la milla. Clase A regional.",
+            "body": "Te lo digo claro: Clase A, regional, $0.62 por milla, 2500 millas. Habla con nosotros, haz tus preguntas y te explicamos cómo son las rutas.",
+            "cta": "Habla con despacho"
           }
         }
       ]

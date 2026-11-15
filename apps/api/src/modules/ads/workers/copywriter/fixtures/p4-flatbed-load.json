@@ -80,50 +80,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T05:01:59.206Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:49:15.211Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Flatbed, $450 a load",
+            "hook": "Flatbed. $450 per load",
             "cta": "Apply today",
-            "primary_text": "Drive flatbed and earn $450 per load. You are home weekends. If you hold a Class A and want a steady flatbed run with your weekends free, join our team.",
-            "headline": "Home every weekend"
+            "primary_text": "Class A flatbed driver wanted. You get paid $450 per load, and you are home weekends. Strap it, haul it, get paid. Apply today.",
+            "headline": "$450 per load, flatbed"
           },
           "es": {
-            "hook": "Plataforma, $450 por carga",
+            "hook": "Flatbed: $450 por carga",
             "cta": "Aplica hoy",
-            "primary_text": "Maneja tráiler de plataforma y gana $450 por carga. Regresas a casa los fines de semana. Si tienes Clase A y buscas una ruta fija con tus fines de semana libres, únete al equipo.",
-            "headline": "Casa los fines de semana"
+            "primary_text": "Buscamos chofer Clase A de flatbed. Ganas $450 por carga y estás en casa los fines de semana. Amarras, entregas, cobras. Aplica hoy.",
+            "headline": "$450 por carga en flatbed"
           }
         },
         {
           "en": {
             "hook": "Flatbed, home weekends",
-            "cta": "Apply now",
-            "primary_text": "Flatbed drivers: you are home weekends, every weekend. Each load pays $450. Class A required. If a steady flatbed seat with your weekends back sounds right, apply now.",
-            "headline": "$450 per load"
+            "cta": "Apply today",
+            "primary_text": "Run flatbed all week, then you are home weekends. Class A drivers earn $450 per load. Your weekends stay yours. Apply today.",
+            "headline": "Home weekends, Class A"
           },
           "es": {
-            "hook": "Plataforma, casa fines de semana",
-            "cta": "Aplica ahora",
-            "primary_text": "Conductores de plataforma: casa todos los fines de semana. Cada carga paga $450. Se requiere Clase A. Si buscas un asiento fijo en plataforma con tus fines de semana libres, aplica ahora.",
-            "headline": "$450 por carga"
+            "hook": "Flatbed, findes en casa",
+            "cta": "Aplica hoy",
+            "primary_text": "Corres flatbed toda la semana y estás en casa los fines de semana. Choferes Clase A ganan $450 por carga. Aplica hoy.",
+            "headline": "Fines de semana en casa"
           }
         },
         {
           "en": {
-            "hook": "Flatbed, Class A drivers",
-            "cta": "Join the team",
-            "primary_text": "Here is the flatbed seat: $450 per load, home weekends. No guessing what the week looks like — you know when you roll out and when you are back. Class A required. Apply today.",
-            "headline": "$450 load, home weekends"
+            "hook": "Your Class A flatbed",
+            "cta": "Apply now",
+            "primary_text": "Straight talk: we need a Class A flatbed driver. Pay is $450 per load. You are home weekends. Apply and we will talk.",
+            "headline": "Class A flatbed, $450/load"
           },
           "es": {
-            "hook": "Plataforma, conductores Clase A",
-            "cta": "Únete al equipo",
-            "primary_text": "Así es la ruta de plataforma: $450 por carga y en casa los fines de semana. Sabes cuándo sales y cuándo regresas. Se requiere Clase A. Aplica hoy.",
-            "headline": "$450 por carga, fines en casa"
+            "hook": "Tu flatbed Clase A",
+            "cta": "Aplica ya",
+            "primary_text": "Sin rodeos: buscamos chofer Clase A de flatbed. Pagamos $450 por carga. Estás en casa los fines de semana. Aplica y hablamos.",
+            "headline": "Flatbed Clase A, $450/carga"
           }
         }
       ]

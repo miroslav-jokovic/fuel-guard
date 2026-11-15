@@ -113,50 +113,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-12T16:57:44.919Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:58:10.142Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Regional tanker, home weekends",
+            "hook": "Tanker runs, home weekends",
             "cta": "Apply today",
-            "primary_text": "Tanker runs through Illinois, Indiana, and Wisconsin. You haul regional, you're home on weekends, and you get paid weekly. $0.75 per mile. Pet policy in place. Class A with tanker and hazmat endorsements required. Must be 23+ with 2 years of experience.",
-            "headline": "Home every weekend"
+            "primary_text": "Tanker freight on regional runs in Illinois, Indiana and Wisconsin. You run the week and come home weekends. $0.75 per mile, paid weekly. Class A with hazmat.",
+            "headline": "$0.75/mile, weekly pay"
           },
           "es": {
-            "hook": "Tanque regional, casa los fines",
+            "hook": "En casa los fines de semana",
             "cta": "Aplica hoy",
-            "primary_text": "Rutas regionales en tráiler tanque por Illinois, Indiana y Wisconsin. Regresas a casa los fines de semana y cobras cada semana. $0.75 por milla. Se permiten mascotas. Se requiere Clase A con endoso de tanque y hazmat. Mayores de 23 años con 2 años de experiencia.",
-            "headline": "Casa los fines de semana"
+            "primary_text": "Carga de tanque en rutas regionales por Illinois, Indiana y Wisconsin. Trabajas la semana y estás en casa los fines de semana. $0.75 por milla, con pago semanal. Clase A con hazmat.",
+            "headline": "$0.75/milla, pago semanal"
           }
         },
         {
           "en": {
-            "hook": "IL, IN, WI tanker — hazmat",
-            "cta": "Join our team",
-            "primary_text": "$0.75 per mile on regional tanker lanes. Illinois, Indiana, Wisconsin — you know the territory. Weekly pay, home weekends, and a pet policy. Class A, tanker and hazmat endorsements, 23+, 2 years behind the wheel.",
-            "headline": "$0.75 per mile"
-          },
-          "es": {
-            "hook": "Tanque IL, IN, WI — hazmat",
-            "cta": "Únete hoy",
-            "primary_text": "$0.75 por milla en rutas de tanque regional. Illinois, Indiana y Wisconsin — territorio conocido. Pago semanal, casa los fines de semana y política de mascotas. Clase A con endoso de tanque y hazmat. Mayor de 23 años y 2 años de experiencia.",
-            "headline": "$0.75 por milla"
-          }
-        },
-        {
-          "en": {
-            "hook": "Tanker, Midwest, home weekends",
+            "hook": "Tanker in IL, IN and WI",
             "cta": "Apply now",
-            "primary_text": "Class A tanker driver needed for regional hazmat runs in Illinois, Indiana, and Wisconsin. You earn $0.75 per mile, get home on weekends, and are paid weekly. Pets welcome. Need tanker and hazmat endorsements, 2 years experience, age 23+.",
-            "headline": "Class A hazmat tanker"
+            "primary_text": "Regional tanker runs across Illinois, Indiana and Wisconsin. You need a Class A with hazmat and 2 years of experience. $0.75 per mile, and we have a pet policy.",
+            "headline": "Home weekends, weekly pay"
           },
           "es": {
-            "hook": "Tanque, Midwest, fines en casa",
-            "cta": "Aplica ahora",
-            "primary_text": "Se busca conductor Clase A para rutas regionales de tanque y hazmat en Illinois, Indiana y Wisconsin. Ganas $0.75 por milla, llegas a casa los fines de semana y cobras semanalmente. Se aceptan mascotas. Se requieren endosos de tanque y hazmat, 2 años de experiencia, mayor de 23 años.",
-            "headline": "Tanque hazmat Clase A"
+            "hook": "Tanque en IL, IN y WI",
+            "cta": "Aplica ya",
+            "primary_text": "Rutas regionales de tanque por Illinois, Indiana y Wisconsin. Necesitas licencia Clase A con hazmat y 2 años de experiencia. $0.75 por milla y tenemos política de mascotas.",
+            "headline": "Fines en casa, pago semanal"
+          }
+        },
+        {
+          "en": {
+            "hook": "Class A hazmat tanker",
+            "cta": "Start here",
+            "primary_text": "Here's the run: regional tanker freight in Illinois, Indiana and Wisconsin. You need a Class A with hazmat, and you must be 23+. We pay weekly, and you're home weekends. Apply and we'll talk.",
+            "headline": "Pay: $0.75 per mile"
+          },
+          "es": {
+            "hook": "Tanque hazmat, Clase A",
+            "cta": "Empieza aquí",
+            "primary_text": "Así es la ruta: carga de tanque regional en Illinois, Indiana y Wisconsin. Necesitas Clase A con hazmat y ser mayor de 23 años. Pagamos cada semana y estás en casa los fines de semana. Aplica y hablamos.",
+            "headline": "Pago: $0.75 por milla"
           }
         }
       ]

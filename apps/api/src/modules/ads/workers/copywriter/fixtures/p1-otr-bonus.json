@@ -87,50 +87,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:58:27.545Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:43:10.123Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "You're rolling. $0.72 a mile.",
+            "hook": "Sunrise. $0.72 a mile.",
             "cta": "Apply today",
-            "primary_text": "Class A OTR drivers earn $0.72 per mile on this run. Add a $5,000 sign-on bonus and you're ahead before the first load delivers. Join our team.",
-            "headline": "Earn $0.72 per mile OTR"
-          },
-          "es": {
-            "hook": "Al volante. $0.72 por milla.",
-            "cta": "Aplica hoy",
-            "primary_text": "Conductores Clase A en rutas OTR ganan $0.72 por milla. Más un bono de contratación de $5,000 desde el primer día. Únete al equipo.",
-            "headline": "$0.72 por milla, OTR"
-          }
-        },
-        {
-          "en": {
-            "hook": "Sun's up. $5,000 to start.",
-            "cta": "Apply today",
-            "primary_text": "Class A OTR drivers get a $5,000 sign-on bonus plus $0.72 per mile. If you hold a Class A and you're ready to run, we want to hear from you.",
+            "primary_text": "You pull out as the sun comes up, and every mile pays $0.72. This is over-the-road work for Class A drivers, with a $5,000 sign-on bonus to start. Apply today and we'll talk you through it.",
             "headline": "$5,000 sign-on bonus"
           },
           "es": {
-            "hook": "Amanece. $5,000 al firmar.",
+            "hook": "Amanece. $0.72 por milla.",
             "cta": "Aplica hoy",
-            "primary_text": "Conductores Clase A OTR reciben un bono de $5,000 al contratar y $0.72 por milla en ruta. Si tienes tu Clase A y estás listo, contáctanos.",
+            "primary_text": "Sales con el sol y cada milla te paga $0.72. Es trabajo OTR para choferes con licencia Clase A, con un bono de $5,000 al firmar. Aplica hoy y te explicamos todo.",
             "headline": "Bono de $5,000 al firmar"
           }
         },
         {
           "en": {
-            "hook": "Miles ahead: $0.72 each.",
-            "cta": "Apply today",
-            "primary_text": "OTR Class A run. You earn $0.72 per mile from the start, plus a $5,000 sign-on bonus waiting at hire. Put your miles where they pay. Apply today.",
-            "headline": "$5,000 bonus + $0.72/mi"
+            "hook": "Dawn. $5,000 to sign on.",
+            "cta": "Apply now",
+            "primary_text": "First light, open road, and a $5,000 sign-on bonus when you join. Over-the-road runs for Class A drivers at $0.72 per mile. Apply now.",
+            "headline": "$0.72 per mile, OTR"
           },
           "es": {
-            "hook": "Cada milla vale $0.72.",
-            "cta": "Aplica hoy",
-            "primary_text": "Ruta OTR Clase A. Ganas $0.72 por milla desde el inicio, más un bono de contratación de $5,000 al ser contratado. Pon tus millas donde se pagan bien.",
-            "headline": "$5,000 bono + $0.72/milla"
+            "hook": "Amanece. $5,000 al firmar.",
+            "cta": "Aplica ya",
+            "primary_text": "Primera luz, carretera abierta y un bono de $5,000 al firmar. Rutas OTR para choferes Clase A a $0.72 por milla. Aplica ya.",
+            "headline": "$0.72 por milla, OTR"
+          }
+        },
+        {
+          "en": {
+            "hook": "Sun's up. Class A, OTR.",
+            "cta": "Call us",
+            "primary_text": "Here's the job. Class A, over-the-road. Pay is $0.72 per mile. There's a $5,000 sign-on bonus. Call us or apply, and we'll go over the details.",
+            "headline": "$0.72/mile, $5,000 to sign"
+          },
+          "es": {
+            "hook": "Sale el sol. Clase A, OTR.",
+            "cta": "Llámanos",
+            "primary_text": "Este es el trabajo. Clase A, OTR. El pago es $0.72 por milla. Hay un bono de $5,000 al firmar. Llámanos o aplica, y te explicamos los detalles.",
+            "headline": "$0.72/milla, bono $5,000"
           }
         }
       ]

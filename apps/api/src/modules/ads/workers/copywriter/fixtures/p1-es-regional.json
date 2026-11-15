@@ -82,50 +82,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:57:45.758Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:42:02.305Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "You're earning $0.66 a mile.",
+            "hook": "Sunrise run at $0.66/mile",
             "cta": "Apply today",
-            "primary_text": "Regional Class A driving with home weekends. You keep the miles, you keep the weekends. $0.66 per mile — no guessing what your check looks like. Join our team and apply today.",
-            "headline": "Home every weekend."
+            "primary_text": "You start at sunrise in the cab of a regional Class A truck. The pay is $0.66 per mile, and you are home weekends. Regional runs, plain numbers. Apply today.",
+            "headline": "Home weekends, Class A"
           },
           "es": {
-            "hook": "Ganas $0.66 por milla.",
+            "hook": "Amanece. $0.66 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Ruta regional, Clase A. Ganas $0.66 por milla y llegas a casa los fines de semana. Sin sorpresas en tu cheque. Únete al equipo y aplica hoy.",
-            "headline": "Casa los fines de semana."
+            "primary_text": "Arrancas al amanecer en la cabina de un camión Clase A regional. Pagamos $0.66 por milla y estás en casa los fines de semana. Rutas regionales, números claros. Aplica hoy.",
+            "headline": "Fines de semana en casa"
           }
         },
         {
           "en": {
-            "hook": "Home weekends. Every one.",
-            "cta": "Apply today",
-            "primary_text": "Regional Class A run. You're back home every weekend — and you're pulling $0.66 per mile to get there. Straightforward pay, predictable schedule. Apply today.",
-            "headline": "$0.66 a mile, Class A."
+            "hook": "Dawn run, home weekends",
+            "cta": "Start here",
+            "primary_text": "Your week starts at dawn on regional routes in a Class A truck. Your weekend is at home. The pay is $0.66 per mile. Apply today.",
+            "headline": "Regional at $0.66/mile"
           },
           "es": {
-            "hook": "Casa los fines de semana.",
-            "cta": "Aplica hoy",
-            "primary_text": "Ruta regional, Clase A. Llegas a casa cada fin de semana y ganas $0.66 por milla. Pago claro, ruta predecible. Aplica hoy.",
-            "headline": "$0.66 por milla, Clase A."
+            "hook": "Amanece. Finde en casa",
+            "cta": "Empieza aquí",
+            "primary_text": "Tu semana arranca al alba en rutas regionales con tráiler Clase A. El fin de semana lo pasas en casa. Pagamos $0.66 por milla. Aplica hoy.",
+            "headline": "$0.66 por milla"
           }
         },
         {
           "en": {
-            "hook": "Sun's up. You're on a run.",
-            "cta": "Apply today",
-            "primary_text": "Class A regional. You're on the road during the week and home by the weekend. The rate is $0.66 per mile — steady miles, steady pay. Apply today.",
-            "headline": "$0.66/mile, home weekends."
+            "hook": "Class A regional at dawn",
+            "cta": "Apply now",
+            "primary_text": "Here it is straight. Regional Class A runs. $0.66 per mile. Home weekends. You roll out at first light. Apply now.",
+            "headline": "Plain pay: $0.66 a mile"
           },
           "es": {
-            "hook": "Amanece. Estás en ruta.",
-            "cta": "Aplica hoy",
-            "primary_text": "Clase A, ruta regional. Durante la semana estás en el tráiler; los fines de semana, en casa. La tarifa es $0.66 por milla, con millas constantes. Aplica hoy.",
-            "headline": "$0.66/milla, fines en casa."
+            "hook": "Clase A regional al alba",
+            "cta": "Aplica ya",
+            "primary_text": "Te lo digo claro: rutas regionales Clase A. $0.66 por milla. En casa los fines de semana. Sales con la primera luz. Aplica ya.",
+            "headline": "Pago: $0.66 por milla"
           }
         }
       ]

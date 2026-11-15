@@ -88,62 +88,62 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T05:03:26.569Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:51:29.078Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "card_get": "$0.68 per mile. Home weekly.",
-            "card_need": "Class A CDL. Ready to run regional routes.",
-            "card_apply": "Hit apply and join the team.",
+            "card_get": "$0.68 per mile",
+            "card_need": "You hold a Class A CDL and want regional runs.",
+            "card_apply": "Tap Apply and send your info.",
             "cta": "Apply today",
-            "primary_text": "You get $0.68 per mile and home weekly. We need a Class A driver ready for regional work. If that is you, apply now.",
-            "headline": "$0.68/mile, home weekly"
+            "primary_text": "Class A regional driver. You earn $0.68 per mile and you are home weekly. If you hold a Class A CDL, apply today.",
+            "headline": "Regional, $0.68 per mile"
           },
           "es": {
-            "card_get": "$0.68 por milla. Casa cada semana.",
-            "card_need": "CDL clase A. Listo para rutas regionales.",
-            "card_apply": "Aplica y únete al equipo.",
+            "card_get": "$0.68 por milla",
+            "card_need": "Tienes CDL Clase A y quieres manejar rutas regionales.",
+            "card_apply": "Toca Aplica y manda tus datos.",
             "cta": "Aplica hoy",
-            "primary_text": "Ganas $0.68 por milla y llegas a casa cada semana. Necesitamos un conductor clase A listo para trabajo regional. Si eres tú, aplica ahora.",
-            "headline": "$0.68/milla, casa semanal"
+            "primary_text": "Chofer regional Clase A. Ganas $0.68 por milla y estás en casa cada semana. Si tienes CDL Clase A, aplica hoy.",
+            "headline": "Ruta regional, $0.68/milla"
           }
         },
         {
           "en": {
-            "card_get": "Home every week. $0.68 per mile while you are out.",
-            "card_need": "Class A CDL driver for regional runs.",
-            "card_apply": "Apply now — it takes two minutes.",
+            "card_get": "Home weekly",
+            "card_need": "A Class A CDL for regional runs.",
+            "card_apply": "Fill out the form to apply.",
             "cta": "Apply now",
-            "primary_text": "Regional driving means you are home weekly. The pay is $0.68 per mile. We need a Class A CDL holder ready to go. Apply today.",
-            "headline": "Home weekly"
+            "primary_text": "Regional runs that bring you home weekly. Pay is $0.68 per mile. You need a Class A CDL. Apply now.",
+            "headline": "Home weekly, regional runs"
           },
           "es": {
-            "card_get": "Casa cada semana. $0.68 por milla en ruta.",
-            "card_need": "Conductor clase A para rutas regionales.",
-            "card_apply": "Aplica ahora — solo toma dos minutos.",
-            "cta": "Aplica ahora",
-            "primary_text": "Con estas rutas regionales llegas a casa cada semana. La paga es $0.68 por milla. Necesitamos un conductor con CDL clase A listo para trabajar. Aplica hoy.",
-            "headline": "Casa cada semana"
+            "card_get": "En casa cada semana",
+            "card_need": "CDL Clase A para rutas regionales.",
+            "card_apply": "Llena la solicitud para aplicar.",
+            "cta": "Aplica ya",
+            "primary_text": "Rutas regionales y en casa cada semana. Pagamos $0.68 por milla. Necesitas CDL Clase A. Aplica ya.",
+            "headline": "En casa cada semana"
           }
         },
         {
           "en": {
-            "card_get": "Class A regional work at $0.68 per mile.",
-            "card_need": "Valid Class A CDL and willingness to run regional.",
-            "card_apply": "Apply today and get moving.",
-            "cta": "Get started",
-            "primary_text": "Regional routes. $0.68 per mile. Home weekly. If you hold a Class A CDL and want steady regional work, this is a straight fit. Apply today.",
-            "headline": "Regional, $0.68/mile"
+            "card_get": "Regional runs at $0.68 a mile",
+            "card_need": "Bring your Class A CDL. You are home weekly.",
+            "card_apply": "Apply here and talk to dispatch.",
+            "cta": "Apply here",
+            "primary_text": "Straight talk from dispatch: regional Class A runs, $0.68 per mile, home weekly. Got your Class A CDL? Apply here.",
+            "headline": "Talk to dispatch today"
           },
           "es": {
-            "card_get": "Rutas regionales clase A a $0.68 por milla.",
-            "card_need": "CDL clase A vigente y disponible para rutas regionales.",
-            "card_apply": "Aplica hoy y empieza a rodar.",
-            "cta": "Empieza hoy",
-            "primary_text": "Rutas regionales. $0.68 por milla. Casa cada semana. Si tienes CDL clase A y buscas trabajo regional estable, esto es para ti. Aplica hoy.",
-            "headline": "Regional, $0.68/milla"
+            "card_get": "Rutas regionales a $0.68/milla",
+            "card_need": "Trae tu CDL Clase A. Estás en casa cada semana.",
+            "card_apply": "Aplica aquí y habla con despacho.",
+            "cta": "Aplica aquí",
+            "primary_text": "Te lo decimos directo: rutas regionales Clase A, $0.68 por milla y en casa cada semana. ¿Tienes CDL Clase A? Aplica aquí.",
+            "headline": "Habla con despacho hoy"
           }
         }
       ]

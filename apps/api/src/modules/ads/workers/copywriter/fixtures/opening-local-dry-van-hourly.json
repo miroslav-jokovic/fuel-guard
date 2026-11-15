@@ -111,50 +111,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:55:34.677Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:38:38.644Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Home daily. Every day.",
+            "hook": "Home daily",
             "cta": "Apply today",
-            "primary_text": "360 Logistics is hiring Class A drivers for local dry van runs in Chicagoland. You are home every day — this is a dedicated route, not a rotation. Pay runs $28 per hour, with experienced drivers earning up to $32 per hour. Paid time off included. Must be 23+.",
-            "headline": "Up to $32 per hour"
+            "primary_text": "Local dry van runs to Chicagoland stores, and you are home daily. Pay is $28 to $32 per hour, with paid time off. Apply with 360 Logistics today.",
+            "headline": "Dry van in Chicagoland"
           },
           "es": {
-            "hook": "A casa cada día.",
+            "hook": "En casa todos los días",
             "cta": "Aplica hoy",
-            "primary_text": "360 Logistics busca conductores Clase A para rutas locales de van seca en Chicago. Ruta dedicada, a casa cada día. Pago de $28 a $32 por hora. Tiempo libre pagado. Mayores de 23 años.",
-            "headline": "Hasta $32 por hora"
+            "primary_text": "Rutas locales en dry van a tiendas de Chicagoland, y estás en casa todos los días. Pagamos de $28 a $32 por hora, con tiempo libre pagado. Aplica con 360 Logistics.",
+            "headline": "Dry van en Chicagoland"
           }
         },
         {
           "en": {
-            "hook": "Local pay: $28–$32/hr",
-            "cta": "Join our team",
-            "primary_text": "Class A local driver, Chicagoland store deliveries. Dedicated dry van route — you are home daily, not over the road. Starting at $28 per hour, up to $32 per hour. Paid time off. 360 Logistics. Must be age 23 or older with 2 years of experience.",
-            "headline": "Home daily, local runs"
-          },
-          "es": {
-            "hook": "Pago local: $28–$32/hr",
-            "cta": "Únete hoy",
-            "primary_text": "Clase A, entregas locales en Chicago. Ruta dedicada de van seca, a casa cada día. De $28 a $32 por hora. Tiempo libre pagado. 360 Logistics. Se requieren 2 años de experiencia y ser mayor de 23 años.",
-            "headline": "A casa cada día"
-          }
-        },
-        {
-          "en": {
-            "hook": "Dedicated Chicagoland run",
+            "hook": "Home daily, up to $32/hr",
             "cta": "Apply now",
-            "primary_text": "Dry van, local store deliveries around Chicagoland — same dedicated route, home every day. 360 Logistics pays $28 per hour to start, up to $32 per hour. Paid time off. Class A, 2 years experience, 23+.",
-            "headline": "$28–$32 per hour"
+            "primary_text": "Pay runs $28 to $32 per hour, and you sleep at home daily. Local dry van, store deliveries around Chicagoland. Class A drivers 23+, apply with 360 Logistics.",
+            "headline": "Chicagoland store runs"
           },
           "es": {
-            "hook": "Ruta dedicada en Chicago",
+            "hook": "Hasta $32/hora y en casa",
             "cta": "Aplica ahora",
-            "primary_text": "Van seca, entregas locales a tiendas en el área de Chicago — misma ruta dedicada, a casa todos los días. 360 Logistics paga desde $28 hasta $32 por hora. Tiempo libre pagado. Clase A, 2 años de experiencia, mayores de 23 años.",
-            "headline": "$28–$32 por hora"
+            "primary_text": "Pagamos de $28 a $32 por hora y estás en casa todos los días. Dry van local, entregas a tiendas en Chicagoland. Choferes Clase A mayores de 23, aplica con 360 Logistics.",
+            "headline": "Entregas en Chicagoland"
+          }
+        },
+        {
+          "en": {
+            "hook": "Dedicated, home daily",
+            "cta": "Apply today",
+            "primary_text": "Straight talk: dedicated dry van, local store runs around Chicagoland. You start and end the day at home. Paid time off too. Class A drivers, age 23+.",
+            "headline": "$28 to $32 per hour"
+          },
+          "es": {
+            "hook": "Dedicado, en casa diario",
+            "cta": "Aplica hoy",
+            "primary_text": "Te lo digo claro: dry van dedicado, rutas locales a tiendas en Chicagoland. Sales y regresas a casa el mismo día. Tiempo libre pagado. Choferes Clase A, mayores de 23.",
+            "headline": "De $28 a $32 por hora"
           }
         }
       ]

@@ -70,44 +70,44 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T05:03:55.060Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:52:26.655Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "$0.68 per mile for Class A regional drivers.",
-            "body": "Regional routes mean you are home weekends. If you hold a Class A CDL and want steady miles at a rate you can count on, this run is worth a look. Apply and let's talk.",
-            "cta": "Apply today."
+            "hook": "$0.68/mile. Class A regional drivers.",
+            "body": "You earn $0.68 per mile on regional runs with your Class A. You are home weekends. Every mile you drive is paid at that rate.",
+            "cta": "Apply today"
           },
           "es": {
-            "hook": "$0.68 por milla para conductores Clase A regionales.",
-            "body": "Rutas regionales con regreso a casa los fines de semana. Si tienes CDL Clase A y buscas millas constantes a una tarifa sólida, esta ruta es para ti. Aplica y conversamos.",
-            "cta": "Aplica hoy."
+            "hook": "$0.68 por milla. Chofer Clase A.",
+            "body": "Ganas $0.68 por milla en rutas regionales con tu licencia Clase A. Estás en casa los fines de semana. Cada milla que manejas se paga a esa tarifa.",
+            "cta": "Aplica hoy"
           }
         },
         {
           "en": {
-            "hook": "$0.68 a mile — home weekends, Class A CDL.",
-            "body": "You are home every weekend on this regional run. The pay is $0.68 per mile, and the miles are consistent. Hold a Class A CDL and want to stop sacrificing your weekends? Join our team.",
-            "cta": "Join us today."
+            "hook": "$0.68/mile and home weekends, Class A",
+            "body": "This regional Class A job gets you home weekends. Your weekends are spent at home, and every mile you run pays $0.68.",
+            "cta": "Apply now"
           },
           "es": {
-            "hook": "$0.68 por milla — casa los fines de semana, CDL Clase A.",
-            "body": "Llegas a casa cada fin de semana en esta ruta regional. La tarifa es $0.68 por milla con millas constantes. ¿Tienes CDL Clase A y quieres recuperar tus fines de semana? Únete al equipo.",
-            "cta": "Únete hoy."
+            "hook": "$0.68/milla y fines de semana en casa",
+            "body": "Este trabajo regional Clase A te trae a casa los fines de semana. Pasas el fin de semana en casa y cada milla que manejas paga $0.68.",
+            "cta": "Aplica ya"
           }
         },
         {
           "en": {
-            "hook": "Class A regional run paying $0.68 per mile.",
-            "body": "This is a regional position: consistent routes, $0.68 per mile, and home weekends. No guessing when you will be back — your weekends are yours. Class A CDL required. Come drive with us.",
-            "cta": "Apply now."
+            "hook": "$0.68 a mile. Need a Class A driver.",
+            "body": "Straight talk: regional Class A runs, $0.68 per mile, and you are home weekends. That is the job. Call in and we will go over the routes with you.",
+            "cta": "Call dispatch"
           },
           "es": {
-            "hook": "Ruta regional Clase A a $0.68 por milla.",
-            "body": "Posición regional con rutas consistentes, $0.68 por milla y casa los fines de semana. Sin adivinar cuándo regresas: tus fines de semana son tuyos. Se requiere CDL Clase A. Maneja con nosotros.",
-            "cta": "Aplica ahora."
+            "hook": "$0.68 la milla. Busco chofer Clase A.",
+            "body": "Te lo digo claro: rutas regionales Clase A, $0.68 por milla y en casa los fines de semana. Así es el trabajo. Llama y repasamos las rutas contigo.",
+            "cta": "Llama al despacho"
           }
         }
       ]

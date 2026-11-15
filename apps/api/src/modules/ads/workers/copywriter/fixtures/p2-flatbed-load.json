@@ -81,50 +81,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:59:41.829Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:45:17.118Z",
     "output": {
       "candidates": [
         {
           "en": {
             "pay": "$450 per load",
             "cta": "Apply today",
-            "primary_text": "Class A flatbed drivers: $450 per load, home weekends. If you want to know what you earn before you roll, this is that job. Apply today.",
-            "headline": "Flatbed, home weekends"
+            "primary_text": "$450 per load. This job is for Class A flatbed drivers. You haul during the week and you are home weekends. Apply today and talk to our team.",
+            "headline": "$450 per load, flatbed"
           },
           "es": {
             "pay": "$450 por carga",
             "cta": "Aplica hoy",
-            "primary_text": "Conductores de tráiler plataforma con licencia clase A: $450 por carga y en casa los fines de semana. Sabes lo que ganas antes de salir. Aplica hoy.",
-            "headline": "Plataforma, casa fines de semana"
+            "primary_text": "$450 por carga. Este trabajo es para choferes de flatbed con licencia Clase A. Trabajas en la semana y estás en casa los fines de semana. Aplica hoy y habla con despacho.",
+            "headline": "Flatbed: $450 por carga"
           }
         },
         {
           "en": {
-            "pay": "$450 per load",
-            "cta": "Join us today",
-            "primary_text": "Home weekends, $450 per load — Class A flatbed drivers, this run is built around you. Steady freight, a number you can count on. Come drive with us.",
-            "headline": "Home every weekend"
+            "pay": "$450 a load",
+            "cta": "Apply now",
+            "primary_text": "Home weekends. Class A flatbed drivers run during the week and spend weekends at home. The pay is $450 per load. If that schedule fits your life, apply now.",
+            "headline": "Home weekends, flatbed"
           },
           "es": {
-            "pay": "$450 por carga",
-            "cta": "Únete hoy",
-            "primary_text": "En casa los fines de semana y $450 por carga. Conductores clase A de plataforma: una ruta estable con un pago claro. Únete al equipo.",
-            "headline": "En casa cada fin de semana"
+            "pay": "$450 la carga",
+            "cta": "Aplica ya",
+            "primary_text": "En casa los fines de semana. Choferes de flatbed Clase A: trabajas entre semana y pasas el fin de semana en casa. La paga es $450 por carga. Si ese horario te sirve, aplica ya.",
+            "headline": "Fines de semana en casa"
           }
         },
         {
           "en": {
-            "pay": "$450 per load",
-            "cta": "Start now",
-            "primary_text": "Flatbed, Class A. You get $450 per load and you are home weekends. No guessing what the check looks like — the number is right here. Take a look and apply.",
-            "headline": "Flatbed pays $450 a load"
+            "pay": "$450 every load",
+            "cta": "Apply here",
+            "primary_text": "Here is the deal. You drive flatbed on a Class A. Each load pays $450. Weekends, you are home. That is the job. Apply here and we will get you rolling.",
+            "headline": "Class A flatbed"
           },
           "es": {
-            "pay": "$450 por carga",
-            "cta": "Empieza hoy",
-            "primary_text": "Plataforma, clase A. Ganas $450 por carga y llegas a casa los fines de semana. El número está claro desde el principio. Revisa la oferta y aplica.",
-            "headline": "Plataforma: $450 por carga"
+            "pay": "$450 cada carga",
+            "cta": "Aplica aquí",
+            "primary_text": "Así es el trabajo. Manejas flatbed con licencia Clase A. Cada carga paga $450. Los fines de semana estás en casa. Aplica aquí y te ponemos a rodar.",
+            "headline": "Flatbed Clase A"
           }
         }
       ]

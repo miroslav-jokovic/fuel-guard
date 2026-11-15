@@ -85,50 +85,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:59:53.238Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:45:31.269Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Home on a dedicated run",
+            "hook": "$90,000 per year",
             "cta": "Apply today",
-            "primary_text": "Dedicated routes mean the same lanes, the same customers, and a predictable schedule. This Class A position pays $90,000 per year and includes health insurance. Join our team.",
-            "headline": "Dedicated. $90,000/year."
+            "primary_text": "Class A driver on a dedicated account. You earn $90,000 per year, and health insurance comes with the job. Apply today.",
+            "headline": "Dedicated Class A account"
           },
           "es": {
-            "hook": "Ruta dedicada, llegas a casa",
+            "hook": "$90,000 al año",
             "cta": "Aplica hoy",
-            "primary_text": "Una cuenta dedicada te da las mismas rutas y un horario predecible. Este puesto Clase A paga $90,000 al año e incluye seguro médico. Únete al equipo.",
-            "headline": "Dedicado. $90,000 al año."
+            "primary_text": "Chofer Clase A para una cuenta dedicada. Ganas $90,000 al año y tienes seguro médico. Aplica hoy.",
+            "headline": "Cuenta dedicada Clase A"
           }
         },
         {
           "en": {
-            "hook": "$90,000. Dedicated route.",
+            "hook": "Dedicated Class A work",
             "cta": "Apply now",
-            "primary_text": "Class A drivers on this dedicated account earn $90,000 per year. You run consistent lanes — same stops, steady rhythm, no surprises. Health insurance is included. Apply and get started.",
+            "primary_text": "You drive one dedicated account with your Class A. The pay is $90,000 per year, with health insurance. Apply now.",
             "headline": "$90,000 per year"
           },
           "es": {
-            "hook": "$90,000 al año. Cuenta dedicada.",
-            "cta": "Aplica ahora",
-            "primary_text": "Choferes Clase A en esta cuenta dedicada ganan $90,000 al año. Mismas rutas, mismo ritmo, sin sorpresas. Incluye seguro médico. Aplica hoy mismo.",
+            "hook": "Cuenta dedicada Clase A",
+            "cta": "Aplica ya",
+            "primary_text": "Manejas una cuenta dedicada con tu licencia Clase A. El pago es $90,000 al año, con seguro médico. Aplica ya.",
             "headline": "$90,000 al año"
           }
         },
         {
           "en": {
-            "hook": "Class A, health insurance",
-            "cta": "Start today",
-            "primary_text": "This is a dedicated Class A position: consistent lanes, reliable schedule, $90,000 per year. Health insurance is part of the package. If you want to know what next week looks like before it starts, this run is for you.",
-            "headline": "Health insurance included"
+            "hook": "Health insurance included",
+            "cta": "Apply here",
+            "primary_text": "Straight talk: Class A, dedicated account, $90,000 per year. Health insurance comes with it. Apply and we will walk you through the job.",
+            "headline": "Talk to us today"
           },
           "es": {
-            "hook": "Clase A, seguro médico incluido",
-            "cta": "Empieza hoy",
-            "primary_text": "Posición Clase A en cuenta dedicada: rutas fijas, horario estable, $90,000 al año. Incluye seguro médico. Si quieres saber cómo será tu semana antes de que empiece, esta ruta es para ti.",
-            "headline": "Seguro médico incluido"
+            "hook": "Con seguro médico",
+            "cta": "Aplica aquí",
+            "primary_text": "Sin rodeos: Clase A, cuenta dedicada, $90,000 al año. Incluye seguro médico. Aplica y te explicamos el trabajo.",
+            "headline": "Habla con nosotros"
           }
         }
       ]

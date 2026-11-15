@@ -158,50 +158,50 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T04:51:43.097Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:32:54.888Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Late-model autos, $0.70/mile",
+            "hook": "$0.70–$0.76 per mile",
             "cta": "Apply today",
-            "primary_text": "Silvicom Inc: dedicated Midwest dry van. Drop and hook, no-touch freight, automatic. Home weekly, guaranteed weekly pay. Health, dental, vision, 401k, paid time off. Pet and rider policy. Age 23+, 2 years exp.",
-            "headline": "Home weekly. $0.70/mile."
+            "primary_text": "Drive a late-model automatic on regional dry van runs in the Midwest. You earn $0.70 to $0.76 per mile, with weekly pay. Drop and hook freight.",
+            "headline": "Silvicom Inc is hiring"
           },
           "es": {
-            "hook": "Autos nuevos, $0.70 por milla",
+            "hook": "$0.70–$0.76 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Silvicom Inc: van seca dedicada en el Medio Oeste. Drop and hook, sin tocar la carga, automática. Casa cada semana, pago garantizado y semanal. Médico, dental, visión, 401k. Mascotas y acompañante. Mayores de 23, 2 años.",
-            "headline": "Casa cada semana. $0.70/mi."
+            "primary_text": "Maneja un automático de modelo reciente en rutas regionales de caja seca en el Medio Oeste. Ganas de $0.70 a $0.76 por milla, con pago semanal.",
+            "headline": "Silvicom Inc contrata"
           }
         },
         {
           "en": {
-            "hook": "Home weekly, up to $0.76/mile",
-            "cta": "Join us now",
-            "primary_text": "Midwest regional dry van with Silvicom Inc. Home weekly, guaranteed pay, up to $0.76/mile. Drop and hook, no-touch, automatic transmission, late-model equipment. Health, dental, vision, 401k, paid time off. Age 23+, 2 years exp.",
-            "headline": "Up to $0.76/mile, home weekly"
-          },
-          "es": {
-            "hook": "Casa semanal, hasta $0.76/milla",
-            "cta": "Únete hoy",
-            "primary_text": "Van seca regional en el Medio Oeste con Silvicom Inc. Casa cada semana, pago garantizado, hasta $0.76 por milla. Drop and hook, sin tocar la carga, automática, equipo moderno. Médico, dental, visión, 401k. Mayores de 23, 2 años de exp.",
-            "headline": "Hasta $0.76/mi, casa semanal"
-          }
-        },
-        {
-          "en": {
-            "hook": "Drop-and-hook dry van, $0.70+/mile",
+            "hook": "Dry van, home weekly",
             "cta": "Apply now",
-            "primary_text": "Silvicom Inc. Dedicated Midwest dry van. Drop and hook, no-touch, late-model automatics. $0.70 to $0.76/mile, weekly guaranteed pay. Health, dental, vision, 401k, paid orientation. Rider and pet policy. Age 23+, 2 years.",
-            "headline": "Dedicated dry van, $0.70/mile"
+            "primary_text": "Regional dry van runs across the Midwest, and you are home weekly. Dedicated freight, drop and hook. Paid time off and a rider policy too.",
+            "headline": "Class A drivers, 23+"
           },
           "es": {
-            "hook": "Drop-and-hook van seca, $0.70+/mi",
-            "cta": "Aplica ahora",
-            "primary_text": "Silvicom Inc. Van seca dedicada, Medio Oeste. Drop and hook, sin tocar la carga, automática moderna. De $0.70 a $0.76 por milla, pago semanal garantizado. Médico, dental, visión, 401k. Mascotas y acompañante. Mayores de 23, 2 años.",
-            "headline": "Van seca dedicada, $0.70/milla"
+            "hook": "En casa cada semana",
+            "cta": "Aplica ya",
+            "primary_text": "Rutas regionales de caja seca en el Medio Oeste. Estás en casa cada semana. Carga dedicada con drop and hook. Tiempo libre pagado.",
+            "headline": "Clase A, mayores de 23"
+          }
+        },
+        {
+          "en": {
+            "hook": "Late-model automatics",
+            "cta": "Get started",
+            "primary_text": "You drive a late-model automatic, haul no-touch dry van freight and run regional in the Midwest. Paid orientation, guaranteed pay and health insurance.",
+            "headline": "Dry van with Silvicom Inc"
+          },
+          "es": {
+            "hook": "Camión automático",
+            "cta": "Empieza hoy",
+            "primary_text": "Manejas un automático de modelo reciente, carga de caja seca sin tocar, rutas regionales en el Medio Oeste. Orientación pagada, pago garantizado y seguro médico.",
+            "headline": "Caja seca con Silvicom Inc"
           }
         }
       ]

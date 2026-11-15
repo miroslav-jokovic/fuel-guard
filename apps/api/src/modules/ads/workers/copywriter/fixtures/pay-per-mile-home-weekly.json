@@ -70,44 +70,44 @@
   "recorded": {
     "source": "model",
     "prompt_version": "copywriter@4",
-    "model": "claude-sonnet-4-6",
-    "recorded_at": "2026-11-11T05:03:37.906Z",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-14T23:51:47.851Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "$0.68 per mile for Class A regional drivers.",
-            "body": "You earn $0.68 per mile on regional runs and get home weekly. Regional means shorter hauls, familiar roads, and a schedule that brings you back to your family every week. Apply and get moving.",
-            "cta": "Apply today."
+            "hook": "$0.68 a mile, Class A regional",
+            "body": "Drive regional with your Class A license and earn $0.68 per mile. You are home weekly. Apply and talk with our recruiters.",
+            "cta": "Apply today"
           },
           "es": {
-            "hook": "$0.68 por milla para conductores Clase A regionales.",
-            "body": "Ganas $0.68 por milla en rutas regionales y regresas a casa cada semana. Rutas más cortas, caminos conocidos y un horario que te permite estar con tu familia semana a semana. Aplica ahora.",
-            "cta": "Aplica hoy."
+            "hook": "$0.68/milla, Clase A regional",
+            "body": "Maneja rutas regionales con tu licencia Clase A y gana $0.68 por milla. Estás en casa cada semana. Aplica y habla con nuestro equipo.",
+            "cta": "Aplica hoy"
           }
         },
         {
           "en": {
-            "hook": "$0.68 a mile — Class A regional, home weekly.",
-            "body": "Home weekly is the schedule. $0.68 per mile is the pay. Regional Class A driving means you are not gone for weeks at a time. If you hold a Class A and want to be home every week, this run is worth a look.",
-            "cta": "Join our team."
+            "hook": "$0.68/mile. Class A, home weekly.",
+            "body": "Regional runs that bring you home weekly. You drive Class A and earn $0.68 per mile. Plan your week around your time at home.",
+            "cta": "Apply now"
           },
           "es": {
-            "hook": "$0.68 por milla — Clase A regional, casa cada semana.",
-            "body": "Casa cada semana es el horario. $0.68 por milla es el pago. Las rutas regionales Clase A significan que no estarás fuera semanas enteras. Si tienes Clase A y quieres llegar a casa cada semana, este trabajo vale la pena.",
-            "cta": "Únete al equipo."
+            "hook": "$0.68/milla. Clase A, en casa semanal.",
+            "body": "Rutas regionales que te traen a casa cada semana. Manejas Clase A y ganas $0.68 por milla. Planea tu semana con tiempo en casa.",
+            "cta": "Aplica ya"
           }
         },
         {
           "en": {
-            "hook": "Class A regional driver wanted — $0.68 per mile.",
-            "body": "Regional Class A position. You run regional routes, get home weekly, and earn $0.68 per mile. No long stretches away from home. If you have a Class A and want steady regional work, come drive with us.",
-            "cta": "Start your app."
+            "hook": "$0.68 a mile. Class A regional.",
+            "body": "Here is the deal. Regional freight, Class A, $0.68 a mile, and you are home weekly. Call us and we will go over the routes with you.",
+            "cta": "Call us today"
           },
           "es": {
-            "hook": "Se busca conductor Clase A regional — $0.68 por milla.",
-            "body": "Puesto Clase A regional. Haces rutas regionales, llegas a casa cada semana y ganas $0.68 por milla. Sin largas ausencias del hogar. Si tienes Clase A y buscas trabajo regional estable, maneja con nosotros.",
-            "cta": "Aplica ahora."
+            "hook": "$0.68 la milla. Clase A regional.",
+            "body": "Así de claro: carga regional, Clase A, $0.68 por milla y en casa cada semana. Llámanos y te explicamos las rutas.",
+            "cta": "Llámanos hoy"
           }
         }
       ]
