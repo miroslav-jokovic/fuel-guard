@@ -114,7 +114,7 @@ export const APPLY_HISTORY_COPY = {
     intro: "Three questions about your driving record. The lists open only when the answer is yes.",
     /**
      * The three gates (C3c2c1, §6.4 item 6: "yes/no gates first; loops only on Yes"), asked with nothing
-     * chosen. Plain words for (b)(7), (b)(8) and (b)(9); `SafetyHistoryFields.test.ts` holds each against
+     * chosen. Plain words for (b)(7), (b)(8) and (b)(9); `safetyQuestionsRegulation.test.ts` holds each against
      * the committed text (cfr-391-21/391.21.txt):
      *   (b)(7) "all motor vehicle accidents in which the applicant was involved during the 3 years"
      *   (b)(8) "all violations of motor vehicle laws or ordinances (other than violations involving only

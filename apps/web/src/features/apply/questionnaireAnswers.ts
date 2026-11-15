@@ -4,9 +4,9 @@ import { applicantCarrierQuestionnaire, applicantQuestionnaire } from "@/feature
 
 /**
  * The carrier's questions' answers in the draft — read, written, skipped — for whichever screen asks them:
- * the section component that lays a task's questions out together (`QuestionnaireFields`, until F4 PR 1b-5
- * retires it), and the walk that asks them one to a screen (`useTaskWalk`, F4 PR 1b-2). One set of rules,
- * so a question answered either way is stored the same way.
+ * the walk, which asks them one to a screen (`useTaskWalk`, F4 PR 1b-2), and the office's fact editor.
+ * One set of rules, so a question answered either way is stored the same way. (The legacy wizard's
+ * questions screen, which laid a task's questions out together, was retired in 1b-5.)
  *
  * `builtin` is the carrier's definition the draft's answers are given against (§9 P8); `carrier` is the
  * questions the carrier wrote itself, as stamped on this invitation (§15.3 D-CQ4), answered into
