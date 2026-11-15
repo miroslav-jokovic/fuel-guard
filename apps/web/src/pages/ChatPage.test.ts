@@ -189,7 +189,7 @@ async function render(path = "/chat") {
   await router.push(path);
   await router.isReady();
   // Do not disturb reads the server through vue-query; it has its own test (ChatDoNotDisturb.test.ts).
-  const w = mount(ChatPage, { global: { plugins: [router], stubs: { ChatDoNotDisturb: true } }, attachTo: document.body });
+  const w = mount(ChatPage, { global: { plugins: [router], stubs: { ChatDoNotDisturb: true, ChatPushPrivacy: true } }, attachTo: document.body });
   await flushPromises();
   return { w, router };
 }

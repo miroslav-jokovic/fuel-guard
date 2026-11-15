@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   chatAlertPlace,
   chatAlertText,
-  chatAlertTitle,
+  chatAlertWords,
   chatMemberSchema,
   chatPushMessage,
   chatPushPath,
@@ -171,14 +171,24 @@ export async function deliverChatPush(
   // The icon's number (INSTALLED-APP-PLAN IA-U1b): each recipient's OWN inbox total, by the function the
   // sidebar's badge is — `chatInbox` — so the icon and the sidebar are one definition. Asked now, after the
   // hold, so it counts this line. A person whose total cannot be read still gets the push, without a number.
-  const unread = new Map(await Promise.all([...new Set(devices.map((d) => d.user_id))].map(async (userId) =>
+  const recipients = [...new Set(devices.map((d) => d.user_id))];
+  const unread = new Map(await Promise.all(recipients.map(async (userId) =>
     [userId, await chatInbox(admin, orgId, userId, {}).then((i) => i.unread_total, () => null)] as const)));
+
+  // Who keeps message text off their lock screen (INSTALLED-APP-PLAN IA-S4, 0614). Asked once for the line's
+  // recipients. A read that FAILS hides the text for all of them: hiding wrongly costs one vaguer notification,
+  // showing wrongly puts a line on a locked phone whose owner said not to.
+  // `rpc` throws on an error it has no words for (a function not there yet, a database that is down), and
+  // nothing here may stop the push — so both kinds of failure land on null, which hides.
+  const hides = await rpc<{ user_id: string }[]>(admin, "chat_push_text_hidden_for", { p_org: orgId, p_users: recipients })
+    .then((r) => (r.ok ? new Set((r.value ?? []).map((row) => row.user_id.toLowerCase())) : null), () => null);
+  const hidesText = (userId: string) => hides === null || hides.has(userId.toLowerCase());
 
   const result: ChatPushResult = { targets: people.length, devices: devices.length, sent: 0, gone: 0, failed: 0, unused };
   await Promise.all(devices.map(async (device) => {
-    const title = chatAlertTitle(sender, chatAlertPlace(conversation, members, device.user_id));
+    const words = chatAlertWords(hidesText(device.user_id), sender, chatAlertPlace(conversation, members, device.user_id), body);
     const message = chatPushMessage({
-      origin: device.origin, title, body, path, threadId: line.thread_id, messageId, at: new Date(line.created_at),
+      origin: device.origin, ...words, path, threadId: line.thread_id, messageId, at: new Date(line.created_at),
       unread: unread.get(device.user_id),
     });
     const outcome = await sendPush(device, JSON.stringify(message), keys, { ttl: PUSH_TTL_SECONDS, urgency: "high", topic }, fetcher);

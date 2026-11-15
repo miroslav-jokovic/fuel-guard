@@ -1,4 +1,4 @@
-import { chatAlertText, chatAlertTitle, chatTitle, type ChatActivityItem, type ChatConversation } from "@silvicom/shared";
+import { chatAlertText, chatAlertWords, chatTitle, type ChatActivityItem, type ChatConversation } from "@silvicom/shared";
 
 /**
  * What a desktop alert says, and when one is owed (OFFICE-CHAT-PLAN CH6d; Q-CHAT18 ruled (a), Q-CHAT4 (a)).
@@ -19,11 +19,12 @@ import { chatAlertText, chatAlertTitle, chatTitle, type ChatActivityItem, type C
  */
 
 /**
- * The words are `@silvicom/shared`'s (`chatAlertText`, `chatAlertTitle`) since CH10: the phone's push says
- * exactly what this alert says (CHAT-WEB-PUSH-PLAN D-WP4), and two copies of a wording drift.
+ * The words are `@silvicom/shared`'s (`chatAlertText`, `chatAlertWords`) since CH10: the phone's push says
+ * exactly what this alert says (CHAT-WEB-PUSH-PLAN D-WP4), and two copies of a wording drift. That includes
+ * what is LEFT OUT for a person who hides message text (INSTALLED-APP-PLAN IA-S4): `hideText` is theirs, read
+ * by the composable, and `chatAlertWords` decides what it removes — here as on the phone.
  */
 const alertText = chatAlertText;
-const alertTitle = chatAlertTitle;
 
 export interface DesktopAlert {
   /** The line it is about — the dedupe key. */
@@ -53,6 +54,7 @@ export function inboxAlerts(
   viewerId: string,
   screen: OnScreen,
   nameOf: NameOf,
+  hideText: boolean,
 ): DesktopAlert[] {
   if (!prev) return [];
   const before = new Map(prev.map((c) => [c.thread_id, c.last_message?.seq ?? 0]));
@@ -66,8 +68,7 @@ export function inboxAlerts(
     out.push({
       messageId: last.id,
       threadId: c.thread_id,
-      title: alertTitle(last.sender_name, c.kind === "direct" ? null : chatTitle(c)),
-      body: alertText(last.body, nameOf),
+      ...chatAlertWords(hideText, last.sender_name, c.kind === "direct" ? null : chatTitle(c), alertText(last.body, nameOf)),
       query: { c: c.thread_id },
     });
   }
@@ -85,6 +86,7 @@ export function activityAlerts(
   mutedOf: (threadId: string) => ChatConversation["muted"] | undefined,
   screen: OnScreen,
   nameOf: NameOf,
+  hideText: boolean,
 ): DesktopAlert[] {
   const out: DesktopAlert[] = [];
   for (const i of items) {
@@ -97,8 +99,7 @@ export function activityAlerts(
     out.push({
       messageId: i.message_id,
       threadId: i.thread_id,
-      title: alertTitle(i.sender_name, place),
-      body: alertText(i.body, nameOf),
+      ...chatAlertWords(hideText, i.sender_name, place, alertText(i.body, nameOf)),
       query: i.kind !== "channel" ? { c: i.thread_id } : i.parent_id ? { ch: i.thread_id, post: i.parent_id } : { ch: i.thread_id },
     });
   }
