@@ -103,8 +103,11 @@ async function decide(deps: RunnerDeps, c: CampaignRow, killReason: string | nul
   const { workers } = deps;
   if (killReason && (c.state === "launching" || c.state === "live")) return { event: "kill", cause: `kill switch: ${killReason}` };
   switch (c.state) {
-    case "draft":
-      return { event: workers.plan ? "plan" : "compose" };
+    case "draft": {
+      // Planned when this host plans AND this carrier asked for it (Q-APX6); else the road before planning.
+      const planned = workers.plan !== null && (workers.plansFor ? await workers.plansFor(c) : true);
+      return { event: planned ? "plan" : "compose" };
+    }
     case "planning": {
       const r = await attempt(() => workers.plan!(c, key));
       if (r.ok) return { event: "plan_ready" };

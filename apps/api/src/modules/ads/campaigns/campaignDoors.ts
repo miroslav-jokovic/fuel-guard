@@ -177,7 +177,10 @@ export async function launchCampaign(
     await recordCampaignRefusal(admin, c, { event: "launch", actor: approverActor, error_code: sandbox.refusal, error: sandbox.message }, at.toISOString());
     return { kind: "launch_refused", refusal: sandbox.refusal, missing: [], message: sandbox.message };
   }
-  const cert = launchCertification({ provider: row?.provider ?? "unknown" }, readiness);
+  // V2c: a campaign that carries a plan used the Strategist, so its launch waits on that worker too.
+  const { data: planned, error: pErr } = await admin.from("ads_campaigns").select("plan_id").eq("org_id", orgId).eq("id", campaignId).maybeSingle();
+  if (pErr) throw new Error(`ads_campaigns: ${pErr.message}`);
+  const cert = launchCertification({ provider: row?.provider ?? "unknown", planned: Boolean((planned as { plan_id: string | null } | null)?.plan_id) }, readiness);
   if (!cert.ok) {
     await recordCampaignRefusal(admin, c, { event: "launch", actor: approverActor, error_code: cert.refusal, error: cert.message }, at.toISOString());
     return { kind: "launch_refused", refusal: cert.refusal, missing: cert.missing, message: cert.message };

@@ -334,6 +334,31 @@ describe("runCampaignStep — a campaign is planned when this host plans (V2)", 
     expect(f.compose).not.toHaveBeenCalled();
   });
 
+  it("a carrier that has not switched planning on keeps the road before planning: draft to composing, and the planner is never called", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "draft")] });
+    const f = planning(w, { ok: true });
+    const plansFor = vi.fn(async (_c: CampaignRow) => false);
+    expect(await step(w, { ...f.workers, plansFor })).toMatchObject({ kind: "stepped", event: "compose" });
+    expect(w.byId("c1").state).toBe("composing");
+    expect(plansFor).toHaveBeenCalledWith(expect.objectContaining({ id: "c1", org_id: ORG }));
+    expect(f.plan).not.toHaveBeenCalled();
+  });
+
+  it("a carrier that switched planning on has its draft planned", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "draft")] });
+    const f = planning(w, { ok: true });
+    expect(await step(w, { ...f.workers, plansFor: async () => true })).toMatchObject({ kind: "stepped", event: "plan" });
+    expect(w.byId("c1").state).toBe("planning");
+  });
+
+  it("the switch is asked only at draft: a campaign already planning is planned to the end even if it was turned off since", async () => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", "planning")] });
+    const f = planning(w, { ok: true });
+    const plansFor = vi.fn(async () => false);
+    expect(await step(w, { ...f.workers, plansFor })).toMatchObject({ kind: "stepped", event: "plan_ready" });
+    expect(plansFor).not.toHaveBeenCalled();
+  });
+
   it("with no planner a draft still goes straight to composing", async () => {
     const w = createAdsWorld({ campaigns: [campaign("c1", "draft")] });
     expect(await step(w, fakes(w).workers)).toMatchObject({ kind: "stepped", event: "compose" });
