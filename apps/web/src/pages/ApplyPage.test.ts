@@ -133,27 +133,16 @@ const LEGACY_LINK_TESTS: string[] = [
   "marks the box itself, not only the summary",
   "resumes on the screen the driver had reached",
   "hands the application over when the last screen's button is pressed",
-  "puts the signing ceremony between the consent and the form",
   "asks for the licence before the first permission when it is not on file",
   "offers the Clearinghouse registration on a v2 link's permissions-received screen only",
   "names the employing carrier and its address on the form",
   "shows the date of birth on the form and does not let it be retyped once on file",
-  "waits for the office after the permissions, until the application is sent",
-  "goes straight to the form when the ceremony is already finished",
   "skips the ceremony while the wording is draft, and still shows the instruments",
-  "says what it involves before it asks for anything, on a link nobody has touched",
-  "does not explain the process again to somebody with",
-  "asks for the electronic-records consent before anything else, once it can be recorded",
-  "does not ask while the wording is still draft, because nothing could record it",
-  "goes straight to the form for a driver who already consented",
-  "asks for the date of birth before showing a draft that contains one",
-  "shows the form straight away when the draft has nothing sensitive in it yet",
   "puts back what the phone could not send, onto the revision it was typed on, and sends it at once",
   "drops a copy the server moved on from, says so, and sends nothing",
   "stops saving and offers the reload when the server says the draft changed elsewhere",
   "never puts a copy back on a locked draft before the date of birth, and uses the unlock's revision after it",
   "names the screen the driver is on, from the first screen down to the form's section",
-  "names the welcome and the consent on an untouched link",
 ];
 const dead = () => ({ ok: false, json: async () => ({ error: { code: "invalid_link", message: "This application link is not valid. Ask for a new one." } }) });
 
@@ -692,7 +681,7 @@ describe("the applicant's page", () => {
    */
   it("puts the signing ceremony between the consent and the form", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z",
       releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
       releasesSigned: [],
       phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: null, submittedAt: null },
@@ -710,7 +699,7 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain("Your signature");
     expect(w.text()).toContain("Type your full name");
     // And the form is not reachable behind it.
-    expect(w.text()).not.toContain(step(1));
+    expect(w.text()).not.toContain(APPLY_COPY.hub.heading);
   });
 
   /**
@@ -1077,7 +1066,7 @@ describe("the applicant's page", () => {
    */
   it("waits for the office after the permissions, until the application is sent", async () => {
     const page = (applicationSentAt?: string | null) => ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z",
       releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
       releasesSigned: [...APPLICATION_RELEASE_ORDER],
       phases: {
@@ -1094,25 +1083,25 @@ describe("the applicant's page", () => {
     await settle(waiting);
     expect(waiting.text()).toContain("We have your permissions");
     expect(waiting.text()).toContain("this one will stop working");
-    expect(waiting.text()).not.toContain(step(1));
+    expect(waiting.text()).not.toContain(APPLY_COPY.hub.heading);
     waiting.unmount();
 
     fetchMock.mockResolvedValue(page("2026-08-22T09:00:00Z"));
     const sent = mountPage();
     await settle(sent);
     expect(sent.text()).not.toContain("We have your permissions");
-    expect(sent.text()).toContain(step(1));
+    expect(sent.text()).toContain(APPLY_COPY.hub.heading);
     sent.unmount();
 
     fetchMock.mockResolvedValue(page(undefined));
     const olderApi = mountPage();
     await settle(olderApi);
-    expect(olderApi.text()).toContain(step(1));
+    expect(olderApi.text()).toContain(APPLY_COPY.hub.heading);
   });
 
   it("goes straight to the form when the ceremony is already finished", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z",
       releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
       releasesSigned: ["fcra_disclosure", "psp"],
       phases: {
@@ -1129,7 +1118,7 @@ describe("the applicant's page", () => {
     await settle(w);
 
     expect(w.text()).not.toContain("Your signature");
-    expect(w.text()).toContain(step(1));
+    expect(w.text()).toContain(APPLY_COPY.hub.heading);
   });
 
   /**
@@ -1164,7 +1153,7 @@ describe("the applicant's page", () => {
    */
   it("says what it involves before it asks for anything, on a link nobody has touched", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_NEW, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
       draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
       esignConsent: {
@@ -1179,12 +1168,14 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain(APPLY_COPY.expectations.heading);
     // Neither the consent nor the form is behind it yet — one screen at a time, and this one first.
     expect(w.text()).not.toContain("You do not have to do any of this electronically.");
-    expect(w.text()).not.toContain(step(1));
+    expect(w.text()).not.toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
+    expect(w.text()).not.toContain(APPLY_COPY.hub.heading);
 
     await start(w);
     // And the consent is still what the link collects first.
     expect(w.text()).toContain("You do not have to do any of this electronically.");
-    expect(w.text()).not.toContain(step(1));
+    expect(w.text()).not.toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
+    expect(w.text()).not.toContain(APPLY_COPY.hub.heading);
   });
 
   /**
@@ -1208,7 +1199,7 @@ describe("the applicant's page", () => {
     }],
   ])("does not explain the process again to somebody with %s", async (_case, link) => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES, ...link,
+      carrier: "Silvicom Inc", partOne: PART_ONE_NEW, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES, ...link,
     }));
     const w = mountPage();
     await settle(w);
@@ -1223,7 +1214,7 @@ describe("the applicant's page", () => {
    */
   it("asks for the electronic-records consent before anything else, once it can be recorded", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_NEW, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
       draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
       esignConsent: {
@@ -1239,12 +1230,13 @@ describe("the applicant's page", () => {
     // The whole served text, not a summary — 7001(c) enumerates what the driver must be told.
     expect(w.text()).toContain("You do not have to do any of this electronically.");
     // And the form is not reachable behind it.
-    expect(w.text()).not.toContain(step(1));
+    expect(w.text()).not.toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
+    expect(w.text()).not.toContain(APPLY_COPY.hub.heading);
   });
 
   it("does not ask while the wording is still draft, because nothing could record it", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_NEW, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
       draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
       esignConsent: {
@@ -1256,12 +1248,13 @@ describe("the applicant's page", () => {
     await settle(w);
 
     expect(w.text()).not.toContain("Before you start");
-    expect(w.text()).toContain(step(1));
+    // Part 1 is what a current link asks next.
+    expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
   });
 
-  it("goes straight to the form for a driver who already consented", async () => {
+  it("does not ask a driver who already consented again, and goes on to Part 1", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_NEW, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: null, submittedAt: null },
       draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
       esignConsent: {
@@ -1273,7 +1266,7 @@ describe("the applicant's page", () => {
     await settle(w);
 
     expect(w.text()).not.toContain("Before you start");
-    expect(w.text()).toContain(step(1));
+    expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
   });
 
   /**
@@ -1282,7 +1275,7 @@ describe("the applicant's page", () => {
    */
   it("asks for the date of birth before showing a draft that contains one", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
       draft: { locked: true, payload: null, furthestSection: "identity", updatedAt: "2026-08-21T09:00:00Z" },
     }));
@@ -1297,7 +1290,7 @@ describe("the applicant's page", () => {
 
   it("shows the form straight away when the draft has nothing sensitive in it yet", async () => {
     fetchMock.mockResolvedValue(ok({
-      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      carrier: "Silvicom Inc", partOne: PART_ONE_DONE, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
       draft: { locked: false, payload: { first_name: "Susan" }, furthestSection: "identity", updatedAt: null },
     }));
@@ -1306,7 +1299,10 @@ describe("the applicant's page", () => {
 
     // Before a date of birth is typed there is nothing to protect, so no question is asked.
     expect(w.text()).not.toContain("Pick up where you left off");
-    expect(w.text()).toContain(step(1));
+    expect(w.text()).toContain(APPLY_COPY.hub.heading);
+    // And what was saved is what the task opens with.
+    await w.findAll("button").find((b) => b.text().includes("About you"))!.trigger("click");
+    await settle(w);
     expect((w.find("input[autocomplete=\"given-name\"]").element as HTMLInputElement).value).toBe("Susan");
   });
 
@@ -1624,7 +1620,7 @@ describe("the applicant's page", () => {
           return ok({ ok: true });
         }
         return ok({
-          carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+          carrier: "Silvicom Inc", partOne: PART_ONE_NEW, expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
           esignConsent: { version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true },
         });
       });
