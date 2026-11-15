@@ -1,7 +1,7 @@
 import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
-import { metaConnectionsTick, type BackfillEnqueue } from "../leads/backfillTick.js";
+import { metaConnectionsTick, type ConnectionEnqueue } from "../connections/connectionsTick.js";
 
 /**
  * The `ads-insights` scheduler (B5a; docs/WORKER-DEPLOYMENT.md, ads row): every hour, one `ads_insights` job
@@ -21,7 +21,7 @@ const FIRST_TICK_MS = 7 * 60_000;
 
 export const adsInsightsDedupKey = (connectionId: string): string => `ads_insights:${connectionId}`;
 
-export function insightsEnqueue(admin: ReturnType<typeof getSupabaseAdmin>, env: Env): BackfillEnqueue {
+export function insightsEnqueue(admin: ReturnType<typeof getSupabaseAdmin>, env: Env): ConnectionEnqueue {
   return async (orgId, connectionId) => {
     const r = await dispatchJob(admin, env, "ads_insights", { orgId, payload: { connectionId }, dedupKey: adsInsightsDedupKey(connectionId) });
     return "conflict" in r ? "conflict" : "queued";
