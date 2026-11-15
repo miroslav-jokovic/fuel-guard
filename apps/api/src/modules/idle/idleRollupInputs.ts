@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { readAssignmentsOverlapping } from "./vehicleDutyTimelines.js";
 
 const READ_PAGE = 1000;
 const SEGMENT_PAD_MS = 72 * 3_600_000;
@@ -49,13 +50,6 @@ interface RawSegment {
   status: string;
   started_at: string;
   ended_at: string | null;
-}
-
-interface RawAssignment {
-  vehicle_samsara_id: string;
-  driver_samsara_id: string;
-  start_at: string;
-  end_at: string | null;
 }
 
 export async function readAll<T>(
@@ -127,16 +121,8 @@ export async function readIdleRollupInputs(
       .order("id", { ascending: true })
       .range(a, b),
   );
-  const rawAssignments = await readAll<RawAssignment>("driver_vehicle_assignments", (a, b) =>
-    admin
-      .from("driver_vehicle_assignments")
-      .select("vehicle_samsara_id, driver_samsara_id, start_at, end_at")
-      .eq("org_id", orgId)
-      .lte("start_at", w.toIso)
-      .or(`end_at.is.null,end_at.gte.${w.fromIso}`)
-      .order("start_at", { ascending: true })
-      .order("vehicle_samsara_id", { ascending: true })
-      .range(a, b),
-  );
+  // One reader for this table, shared with the duty timelines: it pages by "after the last row", which
+  // is what keeps a 100-page read off the database's disk (see readAssignmentsOverlapping).
+  const rawAssignments = await readAssignmentsOverlapping(admin, orgId, w.fromIso, w.toIso);
   return { engineDays, sessions, events, segments, rawAssignments };
 }
