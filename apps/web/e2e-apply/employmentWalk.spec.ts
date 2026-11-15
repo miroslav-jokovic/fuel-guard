@@ -78,9 +78,8 @@ test("a job is walked a question at a time, Not sure is an answer, the gap is ex
   await next(page);
   await next(page);
 
-  // The carrier's own question on this task, then the close.
+  // The carrier's own question on this task: the tap answers it and closes the task (U3).
   await pick(page, "Yes");
-  await next(page);
 
   await expect(page.getByRole("button", { name: "Open Where you have worked, Completed" })).toBeVisible();
   const lastSave = () => stub.callsTo("PUT", /\/draft$/).at(-1)?.body as { payload: Record<string, unknown> } | undefined;

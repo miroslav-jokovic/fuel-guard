@@ -58,10 +58,11 @@ test("About you is walked a question at a time, the carrier's questions among th
   await expect(page.locator("#apply-questionnaire_answers-heard_from")).toHaveValue("A friend or a driver");
   await next(page);
 
+  // The carrier's two Yes/No questions: a tap answers and moves on, as the regulation's do (U3).
+  await expect(page.getByText("Can you legally work in the USA?")).toBeVisible();
   await page.getByRole("radio", { name: "Yes" }).click();
-  await next(page);
+  await expect(page.getByText("Can you legally work in the USA?")).toBeHidden();
   await page.getByRole("radio", { name: "Yes" }).click();
-  await next(page);
 
   await expect(page.getByRole("button", { name: "Open About you, Completed" })).toBeVisible();
   const lastSave = () => stub.callsTo("PUT", /\/draft$/).at(-1)?.body as { payload: Record<string, unknown> } | undefined;

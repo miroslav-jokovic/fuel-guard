@@ -276,7 +276,10 @@ describe("what the office reads", () => {
     apiFetch.mockResolvedValue({ ok: true, data: review({ payload, partOne: FACTS }) });
     const w = drawer();
     await settle(w);
-    expect(w.text()).toContain("+13125550142");
+    // Part 1's number, printed as every other screen prints a phone (`formatPhone`) — and nowhere as it
+    // is stored: the card above the summary printed it formatted already, so only the absence tells.
+    expect(w.text()).toContain("(312) 555-0142");
+    expect(w.text()).not.toContain("+13125550142");
     expect(w.text()).not.toContain("555-0000");
     expect(w.find("[data-correction-note]").text()).toContain("My phone ends in 42.");
     expect(factRow(w, "phone").text()).toContain("(312) 555-0142");

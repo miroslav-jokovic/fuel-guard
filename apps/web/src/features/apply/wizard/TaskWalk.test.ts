@@ -11,6 +11,14 @@ import SsnField from "@/features/apply/SsnField.vue";
 import TaskWalk from "./TaskWalk.vue";
 import { useTaskWalk } from "./useTaskWalk";
 
+/**
+ * A click as the browser reports it: `detail` counts a pointer's presses, and is 0 for a click made by
+ * Space or Enter on the button. Dispatched for real, because test-utils cannot set `detail`.
+ */
+const click = (el: Element, detail: number): void => {
+  el.dispatchEvent(new MouseEvent("click", { bubbles: true, detail }));
+};
+
 /** The open task drawn one screen at a time (F4 PR 1b-1): where the driver is, whose row, and its removal. */
 async function walking(section: ApplicationSection = "safety", partOne: PartOneFactsView | null = null) {
   const draft = reactive<ApplicationDraft>(emptyDraft());
@@ -138,6 +146,31 @@ describe("About you, one screen at a time", () => {
     await pick!.trigger("click");
     expect(draft.questionnaire.heard_from).toBe("A friend or a driver");
     expect((w.find("input").element as HTMLInputElement).value).toBe("Un amigo o un chofer");
+  });
+
+  /**
+   * The owner's ruling after the 2026-11-15 walk: one of the CARRIER's Yes/No questions moves on at a tap,
+   * as the regulation's do (U3). Only a tap: a Yes reached with the keyboard waits for Continue.
+   */
+  it("moves on at a tap on one of the carrier's Yes/No questions, and waits for Continue when it is keyed", async () => {
+    vi.useFakeTimers();
+    const { w, walk, draft } = await walking("identity");
+    Object.assign(draft, { first_name: "Ana", last_name: "Diaz", email: "ana@example.com" });
+    draft.questionnaire = { position: "Driver", applying_as: "company_driver", heard_from: "Indeed" };
+    await walkTo(walk, "questionnaire_answers.legally_work");
+    const yes = () => w.findAll('[role="radio"]').find((b) => b.text() === APPLY_COPY.carrierQuestions.yes)!;
+
+    click(yes().element, 0);
+    vi.runAllTimers();
+    await nextTick();
+    expect(draft.questionnaire.legally_work).toBe(true);
+    expect(walk.current.value?.key).toBe("questionnaire_answers.legally_work");
+
+    click(yes().element, 1);
+    vi.runAllTimers();
+    await nextTick();
+    expect(walk.current.value?.key).not.toBe("questionnaire_answers.legally_work");
+    vi.useRealTimers();
   });
 
   it("ends on Part 1's answers, read-only with \"Something wrong? Tell us\"", async () => {

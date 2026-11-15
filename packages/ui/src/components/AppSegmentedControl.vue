@@ -60,7 +60,17 @@ const props = withDefaults(
   { disabled: false, inherited: false },
 );
 
-const emit = defineEmits<{ "update:modelValue": [value: string] }>();
+const emit = defineEmits<{
+  "update:modelValue": [value: string];
+  /**
+   * A segment was TAPPED or clicked with a pointer — not chosen with the keyboard. For a page that moves
+   * on when a question is answered (U3, as `AppRadioGroup`'s `pick`): arrowing between segments must
+   * never do that, and neither must Space or Enter on one, which a browser reports as a click on the
+   * button. A pointer's click counts its presses in `detail`; a key's click has none, so that is the test.
+   * Fired after the model has changed. Tapping the segment already chosen fires it too.
+   */
+  pick: [value: string];
+}>();
 const touchTargets = useTouchTargets();
 
 const buttons = ref<HTMLButtonElement[]>([]);
@@ -80,6 +90,13 @@ function choose(index: number, focus = false): void {
   if (!option || props.disabled) return;
   emit("update:modelValue", option.value);
   if (focus) void buttons.value[index]?.focus();
+}
+
+function tapped(index: number, event: MouseEvent): void {
+  const option = props.options[index];
+  choose(index);
+  if (!option || props.disabled || event.detail === 0) return;
+  setTimeout(() => emit("pick", option.value), 0);
 }
 
 function onKey(event: KeyboardEvent): void {
@@ -135,7 +152,7 @@ function onKey(event: KeyboardEvent): void {
       :aria-checked="option.value === modelValue"
       :tabindex="index === activeIndex ? 0 : -1"
       :disabled="disabled"
-      @click="choose(index)"
+      @click="tapped(index, $event)"
     >
       {{ option.label }}
     </button>
