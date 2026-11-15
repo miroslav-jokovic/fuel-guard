@@ -98,7 +98,8 @@ vi.mock("@/stores/session", async () => {
 vi.mock("@/components/ui/PageHeader.vue", () => ({
   default: {
     props: ["description"],
-    template: `<header><slot name="actions" /></header>`,
+    // Both slots: the page's secondary verbs are in `#more` since Q-SM4 (SMALL-SCREENS-PLAN.md).
+    template: `<header><slot name="more" /><slot name="actions" /></header>`,
   },
 }));
 const savedViews = vi.hoisted(() => ({

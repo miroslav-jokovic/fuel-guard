@@ -149,6 +149,10 @@ Read before the build, and each one changed the design:
   "More" menu below `md`, drawn by `PageHeader` for every page. **Recommendation: (b)**, as its own
   small PR after B — it touches every page's header and deserves its own browser pass.
 
+  **Answered 2026-11-15: (b), built, with two measured corrections.** Only 19 page headers carry
+  actions at all and three carry three or more (Drivers 4, Equipment up to 4, Driver detail 3), so
+  the page MARKS its secondary verbs (`#more`) rather than the header guessing them from every page.
+  And the fold follows the header's own width (under 56rem), not `md`: see the log.
 - **Q-SM5 — which rows "need action" (raised by C2's browser pass, 2026-11-15).** D-SM12 says the
   ALARM rows, and C2 builds exactly that: a row its own card already draws in the danger ink (late
   risk, HOS low, trucks without a driver, expired driver files, overdue truck papers, open defects,
@@ -291,3 +295,20 @@ Table layout at desk widths. New data on any card.
   - Not built: the picture's header sentence above the strip ("6 things need a person, 28 checks are
     clear") — the same sentence is the card's own readout. The phone picture's folded area list
     waits on Q-SM1.
+- **2026-11-15 — C2 merged** as PR #2405 (`bddeb40`), on staging.
+- **2026-11-15, Q-SM4 built** (branch `claude/page-header-more-menu`).
+  - `PageHeader` has a `#more` slot beside `#actions`. In a header at least 56rem wide its buttons
+    sit in the row as before (`display: contents`); in a narrower one they are behind one "More"
+    button and open in a panel under the row. One DOM at every width, a disclosure rather than an
+    ARIA menu; it closes on Escape (focus back on the button), on a press outside, and once a verb
+    in it is used.
+  - Drivers moves Audit binders, Reconcile with Samsara and Upload scanned files into `#more`; New
+    driver stays on the line.
+  - **The browser pass moved the breakpoint.** Built first at `md`, as the question was written.
+    At 768 px, and at 1024 with the sidebar open, the four buttons then fitted one line by crushing
+    the description into a column four words wide: header 145 px tall. Switched on the header's own
+    width, Drivers' header is 85 px at 768, 1024 and 1440, and 157 at 390 with the buttons on one
+    line (was two lines of buttons).
+  - Measured and left alone: Equipment shows one header button on staging at 390, and Driver detail's
+    three (Notes, Home time, Export this file) share one line at 390. Neither wraps, so neither is
+    marked; a page that grows a fourth verb marks it then.

@@ -220,3 +220,81 @@ describe("PageHeader's one way back (§9 rule 5)", () => {
     expect(nav.classes()).toContain("hidden");
   });
 });
+
+/**
+ * `#more` — the verbs a phone folds behind one button (SMALL-SCREENS-PLAN.md Q-SM4).
+ *
+ * jsdom has no layout, so what is held here is the arrangement the CSS switches between: one DOM,
+ * the secondary verbs in the row of a wide header (`@4xl:contents`) and hidden in a narrow one until asked for.
+ */
+describe("PageHeader's More (Q-SM4)", () => {
+  afterEach(() => document.body.replaceChildren());
+
+  const withMore = async (slots: Record<string, string>) => {
+    const router = await routerFor("/settings");
+    return mount(PageHeader, { slots, global: { plugins: [router] }, attachTo: document.body });
+  };
+  const SLOTS = {
+    more: `<button data-test="audit">Audit binders</button><a href="/intake" data-test="upload">Upload scanned files</a>`,
+    actions: `<button data-test="new">New driver</button>`,
+  };
+
+  it("draws no More button for a page that marks nothing secondary", async () => {
+    const w = await withMore({ actions: SLOTS.actions });
+    expect(w.find("[data-test='header-more']").exists()).toBe(false);
+    expect(w.find("[data-test='new']").exists()).toBe(true);
+  });
+
+  it("keeps the secondary verbs in the document at every width — in the row at a desk, hidden on a phone until asked for", async () => {
+    const w = await withMore(SLOTS);
+    const panel = w.get("[data-test='header-more-panel']");
+    // One DOM: a page test still finds and presses its buttons, whatever the width.
+    expect(panel.find("[data-test='audit']").exists()).toBe(true);
+    expect(panel.classes()).toEqual(expect.arrayContaining(["@4xl:contents", "@max-4xl:hidden"]));
+    // The button is the phone's alone, and the page's own verb is outside the panel.
+    expect(w.get("[data-test='header-more']").classes()).toContain("@4xl:hidden");
+    expect(panel.find("[data-test='new']").exists()).toBe(false);
+  });
+
+  it("opens under the row on a press, says so, and closes once a verb inside is used", async () => {
+    const w = await withMore(SLOTS);
+    const more = w.get("[data-test='header-more']");
+    const panel = w.get("[data-test='header-more-panel']");
+    expect(more.attributes("aria-expanded")).toBe("false");
+    expect(more.attributes("aria-controls")).toBe(panel.attributes("id"));
+    await more.trigger("click");
+    expect(more.attributes("aria-expanded")).toBe("true");
+    expect(panel.classes()).toContain("@max-4xl:absolute");
+    expect(panel.classes()).not.toContain("@max-4xl:hidden");
+    await panel.get("[data-test='audit']").trigger("click");
+    expect(more.attributes("aria-expanded")).toBe("false");
+    expect(panel.classes()).toContain("@max-4xl:hidden");
+  });
+
+  it("closes on Escape with focus back on the button, and on a press anywhere outside the row", async () => {
+    const w = await withMore(SLOTS);
+    const more = w.get("[data-test='header-more']");
+    await more.trigger("click");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await w.vm.$nextTick();
+    expect(more.attributes("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(more.element);
+
+    await more.trigger("click");
+    // A press inside the row is the row's own business…
+    more.element.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    await w.vm.$nextTick();
+    expect(more.attributes("aria-expanded")).toBe("true");
+    // …and one anywhere else closes it.
+    document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    await w.vm.$nextTick();
+    expect(more.attributes("aria-expanded")).toBe("false");
+  });
+
+  it("has no axe violations, closed or open", async () => {
+    const w = await withMore(SLOTS);
+    expect((await axe.run(w.element)).violations).toEqual([]);
+    await w.get("[data-test='header-more']").trigger("click");
+    expect((await axe.run(w.element)).violations).toEqual([]);
+  });
+});
