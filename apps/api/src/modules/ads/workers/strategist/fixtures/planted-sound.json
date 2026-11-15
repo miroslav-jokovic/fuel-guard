@@ -1,0 +1,106 @@
+{
+  "name": "planted-sound",
+  "about": "A hand-written plan with no defect: the check must pass what is sound.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A regional truck driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 68,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "quantity",
+          "value": 1,
+          "unit": "year"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 150,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [
+          "flatbed",
+          "Midwest lanes",
+          "assigned truck"
+        ],
+        "in_our_words": "A small fleet where dispatch knows your name"
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "history": [
+      {
+        "id": "benchmark:cost_per_lead",
+        "kind": "benchmark",
+        "source": null,
+        "text": "Boostpoint 2026 benchmark, CDL drivers on Meta: an ad costing more than $42.00 per lead after 5 leads, or $85.00 spent with no lead, is where pausing is suggested."
+      }
+    ]
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "planted",
+    "prompt_version": "strategist@2",
+    "model": "none (written by a person)",
+    "recorded_at": "2026-11-15T00:00:00.000Z",
+    "output": {
+      "audience": "Experienced regional flatbed drivers who want steady miles and a week they can plan around.",
+      "audience_evidence": [
+        "job:subject",
+        "job:detail_1"
+      ],
+      "angles": [
+        {
+          "hook_family": "pay_first",
+          "scene_family": "equipment_on_road",
+          "format": "still",
+          "idea": "Lead with the pay per mile, stated plainly.",
+          "proof": "The opening's own pay figure.",
+          "why": "Pay is the first thing a driver compares between carriers.",
+          "evidence": [
+            "job:claim_1"
+          ]
+        },
+        {
+          "hook_family": "life_first",
+          "scene_family": "home_street",
+          "format": "still",
+          "idea": "Lead with being home on the schedule the job states.",
+          "proof": "The opening's home-time term.",
+          "why": "A regional driver chooses a job by the week it gives them.",
+          "evidence": [
+            "job:claim_2"
+          ]
+        },
+        {
+          "hook_family": "equipment_first",
+          "scene_family": "equipment_at_rest",
+          "format": "still",
+          "idea": "Lead with the flatbed work and the assigned truck.",
+          "proof": "The equipment the opening lists.",
+          "why": "Flatbed drivers look for flatbed work by name.",
+          "evidence": [
+            "job:detail_1",
+            "job:detail_3"
+          ]
+        }
+      ]
+    }
+  }
+}

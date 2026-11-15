@@ -77,9 +77,10 @@ export type OutcomeStage = LeadOutcomeStage;
  */
 /**
  * The model-using workers, each with its own switch and ledger rows. `craft_judge` ranks the Copywriter's candidates
- * (CQ4); `finished_ad_judge` scores the finished ad as a second opinion (P1-7, Q-AD76).
+ * (CQ4); `finished_ad_judge` scores the finished ad as a second opinion (P1-7, Q-AD76). `strategist` writes a
+ * campaign's plan from the evidence pack before anything is composed (ADS-PLATFORM-V2-PLAN V2c).
  */
-export const AD_AI_AGENTS = ["copywriter", "art_director", "renderer", "checker", "analyst", "craft_judge", "finished_ad_judge"] as const;
+export const AD_AI_AGENTS = ["copywriter", "art_director", "renderer", "checker", "analyst", "craft_judge", "finished_ad_judge", "strategist"] as const;
 export type AdAiAgent = (typeof AD_AI_AGENTS)[number];
 
 // ── the brief: the only source of an ad's facts (D-AD1) ─────────────────────────────────────────

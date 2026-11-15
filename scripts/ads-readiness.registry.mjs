@@ -39,6 +39,9 @@ const CHECKER = "apps/api/src/modules/ads/workers/checker/checker.test.ts";
 const MONITOR_GOLDEN = "apps/api/src/modules/ads/monitor/golden.test.ts";
 const LEAD_GOLDEN = "apps/api/src/modules/ads/leads/golden.test.ts";
 const ANALYST = "apps/api/src/modules/ads/workers/analyst/analyst.test.ts";
+const STRATEGIST = "apps/api/src/modules/ads/workers/strategist/strategist.test.ts";
+const PLAN_STORE = "apps/api/src/modules/ads/plan/planStore.test.ts";
+const EVIDENCE_PACK = "apps/api/src/modules/ads/plan/evidencePack.test.ts";
 const BRIEF = "packages/shared/src/ads/analystBrief.test.ts";
 const DAILY_BRIEF = "apps/api/src/modules/ads/workers/analyst/dailyBrief.test.ts";
 const BRIEF_FOLD = "apps/api/src/modules/ads/workers/analyst/briefFold.test.ts";
@@ -1186,6 +1189,74 @@ export const READINESS = [
       // L4-ruling (Track G, 2026-11-06): owner, 2026-11-05: a Claude worker has an L4 like any other, so none launches on its
       // evaluation set alone (ADS-AGENT-PLAN §9). The run below was written by us from the ruling and CONFIRMED BY THE OWNER 2026-11-06.
       L4: [{ need: "a live brief written over a day of the sandbox account's real hourly insights, every number from the fact sheet", gap: STAGE2 }],
+      L5: [{ need: "canary", gap: CANARY }],
+    },
+  },
+  {
+    // V2c (2026-11-15): the Strategist writes a campaign's plan from the evidence pack. It is NOT in CAMPAIGN_WORKERS
+    // yet: no host plans (`CampaignWorkers.plan` is null until a person has a door to approve a plan), so no campaign
+    // uses it and Launch does not wait on it. It joins `meta:still` in the merge that fills `workers.plan`.
+    worker: "Strategist",
+    levels: {
+      L1: [
+        {
+          need: "a plan written only from the evidence pack and checked by code: an invented id, an angle with no fact of the job, one concept twice, a format nobody can make, a figure or a benefit the opening does not hold — each refused whole",
+          tests: [
+            { file: STRATEGIST, titles: [
+              "has model recordings under the prompt in force and planted defects beside them",
+              "planted-sound", "planted-unknown-evidence", "planted-no-job-evidence", "planted-same-kind", "planted-format-not-built",
+              "planted-invented-figure", "planted-added-benefit", "planted-two-angles",
+              "refuses the planted figure, naming where it is and what was said",
+              "asks once per stint and attempt, as the strategist, for this campaign",
+              "shows the model the evidence pack whole and the lists an angle chooses from, read off the contract",
+              "the prompt names no hook, scene or format key of its own, so the lists cannot drift from the contract",
+              "asks no model when the strategist is switched off",
+            ] },
+            { file: PLAN_STORE, titles: [
+              "a plan with a finding is refused whole and nothing is read or written",
+              "a person's edit is held to the same check as the model's: a figure the opening does not hold is refused",
+            ] },
+          ],
+        },
+        {
+          need: "the evidence built by code from our own rows: the job, the cited benchmark, lead counts and each concept's results, for this org only",
+          tests: [{ file: EVIDENCE_PACK, titles: [
+            "a carrier whose ads never ran is planned from the job and the benchmark alone",
+            "reads the last 28 days from the top of the hour, for this org only, in both readers",
+            "holds the job, the benchmark, the lead counts and each concept's result, every id unique and of its kind",
+            "says nothing when no lead arrived — a zero is not a finding",
+          ] }],
+        },
+      ],
+      L2: [
+        {
+          need: "§4R's faults: the step run twice, a pack that moved between the two runs, two writers racing for a version, an instruction inside the job's own words, a job with one fact",
+          tests: [
+            { file: STRATEGIST, titles: [
+              "a replayed answer is checked against the pack that was sent, not the pack read today",
+              "a replayed answer whose stored request holds no pack throws rather than be checked against another",
+              "the second ask carries the refused plan and each finding in words",
+              "instruction-in-our-words", "thin-job",
+            ] },
+            { file: PLAN_STORE, titles: [
+              "the step's second run finds the first run's row and writes nothing",
+              "losing the race for the version to its own other run answers with the winner's row",
+              "losing the race to a different writer throws, so the step runs again",
+              "two people saving at once: the second is told the plan moved",
+            ] },
+          ],
+        },
+        {
+          need: "the live model's plans pass the check on every opening of the set, a carrier with no history and one with thin results among them",
+          tests: [{ file: STRATEGIST, titles: [
+            "the live eval met the bar on every opening: each model recording under the prompt in force is ready, and the baseline agrees on all",
+            "a recorded plan spreads its angles over more than one hook, so the angles differ in kind and not only in picture",
+            "first-campaign-regional", "thin-results",
+          ] }],
+        },
+      ],
+      L3: [{ need: "plans a person judges good: the office's approvals and edits of real plans on the review screen, as Q-APX3 rules for the judge", gap: "passing the check shows a plan is sound, not that it is good — there is no ground truth for that until the plan review screen exists and the owner has approved or edited real plans (ADS-PLATFORM-V2-PLAN V2c, Q-APX3)" }],
+      L4: [{ need: "a plan written over a sandbox campaign's real evidence pack and approved by a person", gap: STAGE2 }],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },

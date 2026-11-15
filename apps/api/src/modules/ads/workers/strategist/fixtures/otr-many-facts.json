@@ -1,0 +1,161 @@
+{
+  "name": "otr-many-facts",
+  "about": "An over-the-road job with many facts: enough for five angles that differ in kind.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A over-the-road truck driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 72,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 3,
+          "unit": "week"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        },
+        {
+          "kind": "term",
+          "term": "paid time off"
+        },
+        {
+          "kind": "quantity",
+          "value": 48,
+          "unit": "state"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 150,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [
+          "reefer",
+          "newer trucks",
+          "no-touch freight",
+          "pets allowed"
+        ],
+        "in_our_words": "Family owned, and the owner still drives"
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "history": [
+      {
+        "id": "benchmark:cost_per_lead",
+        "kind": "benchmark",
+        "text": "Boostpoint 2026 benchmark, CDL drivers on Meta: an ad costing more than $42.00 per lead after 5 leads, or $85.00 spent with no lead, is where pausing is suggested.",
+        "source": null
+      },
+      {
+        "id": "our_result:equipment_first_equipment_at_rest",
+        "kind": "our_result",
+        "text": "Our ads with hook equipment_first (equipment first) and scene equipment_at_rest (truck at rest) spent $402.10 in the last 28 days over 30100 impressions and brought 14 leads, $28.72 per lead.",
+        "source": null
+      }
+    ]
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "strategist@2",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-15T17:05:20.504Z",
+    "output": {
+      "audience": "Experienced Class A over-the-road drivers who meet the experience requirement and will run reefer across the full operating area. They hold an OTR seat now. The pay per mile, a newer truck and a pet in the cab would make them stop.",
+      "audience_evidence": [
+        "job:subject",
+        "job:claim_3",
+        "job:claim_7",
+        "job:detail_1"
+      ],
+      "angles": [
+        {
+          "hook_family": "equipment_first",
+          "scene_family": "equipment_at_rest",
+          "format": "still",
+          "idea": "Lead with the newer truck itself, parked and clean, and name it as a reefer seat.",
+          "proof": "The job lists newer trucks and reefer equipment.",
+          "why": "This hook and scene is the only combination measured, and its cost per lead sits under the benchmark pause line. The lead count is modest, so treat it as a lean, not proof.",
+          "evidence": [
+            "job:detail_2",
+            "job:detail_1",
+            "our_result:equipment_first_equipment_at_rest",
+            "benchmark:cost_per_lead"
+          ]
+        },
+        {
+          "hook_family": "pay_first",
+          "scene_family": "abstract_plate",
+          "format": "still",
+          "idea": "Lead with the pay per mile in plain type, with health insurance, retirement plan and paid time off beneath it.",
+          "proof": "The job states the pay per mile and offers health insurance, a retirement plan and paid time off.",
+          "why": "Pay is the fact an OTR driver compares most readily, and a plain background keeps it readable. No pay-led ad has been measured here yet.",
+          "evidence": [
+            "job:claim_1",
+            "job:claim_4",
+            "job:claim_5",
+            "job:claim_6"
+          ]
+        },
+        {
+          "hook_family": "straight_talk",
+          "scene_family": "equipment_on_road",
+          "format": "still",
+          "idea": "Say plainly who this is for: Class A, the stated experience, reefer, all the states the job covers, the stated weeks.",
+          "proof": "The job states the licence class, a years figure, a weeks figure and the states covered.",
+          "why": "Stating requirements filters out drivers who cannot qualify. The years and weeks items are unlabelled on the sheet, so the office should confirm what each means before writing.",
+          "evidence": [
+            "job:subject",
+            "job:claim_3",
+            "job:claim_2",
+            "job:claim_7"
+          ]
+        },
+        {
+          "hook_family": "life_first",
+          "scene_family": "cab_pov",
+          "format": "still",
+          "idea": "Lead with life in the cab: a pet riding along on a long run, with the job's freight-handling detail beneath.",
+          "proof": "The job allows pets, and its freight-handling detail is on the sheet for the writer to use as written.",
+          "why": "Long-haul work is easier with company in the cab, and the view from the cab can show that. Nothing has been measured on this hook.",
+          "evidence": [
+            "job:detail_4",
+            "job:detail_3"
+          ]
+        },
+        {
+          "hook_family": "proof",
+          "scene_family": "equipment_at_rest",
+          "format": "still",
+          "idea": "Lead with the carrier's own words: family owned, and the owner still drives.",
+          "proof": "The job's own description says the carrier is family owned and the owner still drives.",
+          "why": "An owner who drives is a claim a driver can check, and it sets this carrier apart. It reuses the scene that has brought leads, with a hook that has not been measured.",
+          "evidence": [
+            "job:in_our_words",
+            "our_result:equipment_first_equipment_at_rest"
+          ]
+        }
+      ]
+    }
+  }
+}

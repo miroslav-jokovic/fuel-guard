@@ -1,0 +1,153 @@
+{
+  "name": "thin-results",
+  "about": "Results exist but each rests on one or two leads: too thin to steer by.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A regional truck driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 68,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "quantity",
+          "value": 1,
+          "unit": "year"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 150,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [
+          "flatbed",
+          "Midwest lanes",
+          "assigned truck"
+        ],
+        "in_our_words": "A small fleet where dispatch knows your name"
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "history": [
+      {
+        "id": "benchmark:cost_per_lead",
+        "kind": "benchmark",
+        "text": "Boostpoint 2026 benchmark, CDL drivers on Meta: an ad costing more than $42.00 per lead after 5 leads, or $85.00 spent with no lead, is where pausing is suggested.",
+        "source": null
+      },
+      {
+        "id": "our_result:straight_talk_cab_pov",
+        "kind": "our_result",
+        "text": "Our ads with hook straight_talk (straight talk) and scene cab_pov (from the cab) spent $41.20 in the last 28 days over 3010 impressions and brought 1 lead, $41.20 per lead.",
+        "source": null
+      },
+      {
+        "id": "our_result:proof_equipment_at_rest",
+        "kind": "our_result",
+        "text": "Our ads with hook proof (proof) and scene equipment_at_rest (truck at rest) spent $38.75 in the last 28 days over 2890 impressions and brought 2 leads, $19.38 per lead.",
+        "source": null
+      }
+    ]
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "strategist@2",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-15T17:07:36.478Z",
+    "output": {
+      "audience": "Class A drivers with flatbed experience who meet the experience requirement and want Midwest regional lanes. They likely run longer stretches out or drive for a large fleet. A plain pay per mile, the home-time schedule and an assigned truck would make them stop.",
+      "audience_evidence": [
+        "job:subject",
+        "job:detail_1",
+        "job:detail_2",
+        "job:claim_2"
+      ],
+      "angles": [
+        {
+          "hook_family": "pay_first",
+          "scene_family": "abstract_plate",
+          "format": "still",
+          "idea": "Lead with the pay per mile, stated plainly on a plain background with flatbed and Midwest lanes beside it.",
+          "proof": "The opening states the pay per mile and offers a retirement plan.",
+          "why": "Pay is the most concrete fact on the opening and no earlier ad of ours has led with it. Nothing has been measured for this hook, so it is a test.",
+          "evidence": [
+            "job:claim_1",
+            "job:claim_4",
+            "job:detail_1",
+            "job:detail_2"
+          ]
+        },
+        {
+          "hook_family": "life_first",
+          "scene_family": "home_street",
+          "format": "still",
+          "idea": "Lead with the home-time schedule, pictured as an ordinary home street at the end of a regional run.",
+          "proof": "The opening offers the stated home-time schedule on regional Midwest lanes.",
+          "why": "Home time is what separates a regional job from over-the-road work. No earlier ad of ours has tested a life hook, so this is unmeasured.",
+          "evidence": [
+            "job:claim_2",
+            "job:detail_2",
+            "job:subject"
+          ]
+        },
+        {
+          "hook_family": "equipment_first",
+          "scene_family": "equipment_on_road",
+          "format": "still",
+          "idea": "Lead with the assigned truck and the flatbed work, shown as a loaded flatbed running a Midwest road.",
+          "proof": "The job is flatbed with an assigned truck on Midwest lanes.",
+          "why": "Flatbed drivers choose jobs by the equipment and the work, and an assigned truck is a concrete fact. This hook has no results yet.",
+          "evidence": [
+            "job:detail_3",
+            "job:detail_1",
+            "job:detail_2"
+          ]
+        },
+        {
+          "hook_family": "straight_talk",
+          "scene_family": "cab_pov",
+          "format": "still",
+          "idea": "State plainly who the job is for: Class A, the experience requirement, flatbed, Midwest lanes, seen from the driver's seat.",
+          "proof": "The opening states the licence class, the experience requirement, flatbed and Midwest lanes.",
+          "why": "This pair brought very few leads at a cost near the benchmark's pause line, which is too thin to judge. Stating the requirement plainly should keep unqualified drivers from clicking.",
+          "evidence": [
+            "job:claim_3",
+            "job:subject",
+            "our_result:straight_talk_cab_pov",
+            "benchmark:cost_per_lead"
+          ]
+        },
+        {
+          "hook_family": "proof",
+          "scene_family": "equipment_at_rest",
+          "format": "still",
+          "idea": "Show the small fleet as the proof: a parked assigned truck and the line that dispatch knows the driver by name.",
+          "proof": "The carrier describes itself as a small fleet where dispatch knows your name, and the truck is assigned.",
+          "why": "This pair had the lower cost per lead of our earlier ads, but over very few leads, so it is a lead to follow and not proof. The small-fleet fact gives it something specific to show.",
+          "evidence": [
+            "job:in_our_words",
+            "job:detail_3",
+            "our_result:proof_equipment_at_rest"
+          ]
+        }
+      ]
+    }
+  }
+}
