@@ -13,7 +13,7 @@
  */
 
 import process from "node:process";
-import { GL_CONTROL_TOTALS, OFFICE_SETTLEMENT_LINES, GL_ACCOUNTS, GL_CONTROL } from "./queries.mjs";
+import { GL_CONTROL_TOTALS, OFFICE_SETTLEMENT_LINES, GL_ACCOUNTS, GL_CONTROL, GL_KEY_LINES } from "./queries.mjs";
 import { withPool } from "./connection.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchSettlements } from "./settlements.mjs";
@@ -296,5 +296,44 @@ export async function fetchGlControl({
       .input("companyId", mssql.VarChar(32), companyId)
       .query(GL_CONTROL);
     return { control: mapGlControl(rows.recordset[0]) };
+  });
+}
+
+/**
+ * The month's ledger per posting key as the wire carries it (GL_KEY_LINES, P0c). The same two quiet
+ * failures `toLedgerTotalRows` guards against: the day is the source's own string, never re-parsed;
+ * and a row with no day or no key is dropped rather than defaulted, because it cannot be replaced by
+ * any later sweep of its own month and cannot tie to anything.
+ */
+export function toLedgerKeyLineRows(recordset) {
+  const rows = [];
+  for (const r of recordset ?? []) {
+    const txnDate = String(r.txn_date ?? "").trim().slice(0, 10);
+    const postKey = String(r.post_key ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(txnDate) || !postKey) continue;
+    rows.push({
+      txn_date: txnDate,
+      post_module: String(r.post_module || "").trim(),
+      post_key: postKey,
+      glid: String(r.glid || "").trim(),
+      lines: Number(r.lines),
+      net_amount: num(r.net_amount),
+    });
+  }
+  return rows;
+}
+
+/** One calendar month of key lines — the caller replaces the month whole with them. */
+export async function fetchLedgerKeyLines({
+  server, port, database, user, password, companyId, windowStart, windowEnd, encrypt, trustCert, serverName,
+}) {
+  return withPool({ server, port, database, user, password, encrypt, trustCert, serverName }, async (pool, mssql) => {
+    const rows = await pool
+      .request()
+      .input("companyId", mssql.VarChar(32), companyId)
+      .input("windowStart", mssql.VarChar(32), windowStart)
+      .input("windowEnd", mssql.VarChar(32), windowEnd)
+      .query(GL_KEY_LINES);
+    return { lines: toLedgerKeyLineRows(rows.recordset) };
   });
 }

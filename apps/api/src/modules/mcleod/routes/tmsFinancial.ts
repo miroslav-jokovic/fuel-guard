@@ -11,6 +11,7 @@ import {
   tmsGlControlPayloadSchema,
   tmsFuelTaxReceiptsPayloadSchema,
   tmsTractorPeriodsPayloadSchema,
+  tmsLedgerKeyLinesPayloadSchema,
 } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -22,6 +23,7 @@ import { ingestLedgerTotals, ingestGlAccounts } from "../ledgerControlIngest.js"
 import { stampFinancialSynced } from "../tmsIngest.js";
 import { ingestGlControl } from "../glControl.js";
 import { ingestTractorPeriods } from "../tractorPeriods.js";
+import { ingestLedgerKeyLines } from "../ledgerKeyLines.js";
 import { ingestFuelTaxReceipts } from "../fuelTaxReceipts.js";
 
 /**
@@ -116,6 +118,23 @@ export function registerTmsFinancialRoutes(router: Router): void {
       // D-FIN3: the financial sweep stamps its own freshness row, so "figures as of" and the stale
       // finding read a fact rather than guessing from the roster stamp.
       await stampFinancialSynced(admin, req.tms!.orgId);
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  // The ledger per posting key for BILL, SET, SETV and FUEL (0568, TRUCK-DRIVER-PNL-PLAN P0c) — one
+  // calendar month per post, replaced whole. Stamps nothing: the ledger-totals post for the same
+  // month already does.
+  router.post(
+    "/ledger-key-lines",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsLedgerKeyLinesPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", `Invalid ledger-key-lines payload: ${parsed.error.issues[0]?.message ?? "unreadable"}`));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await ingestLedgerKeyLines(admin, req.tms!.orgId, parsed.data);
       res.json({ ok: true, ...result });
     }),
   );
