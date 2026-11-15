@@ -413,6 +413,8 @@ watch(
           :save-trouble="autosave.state.value === 'failed' || autosave.state.value === 'conflict'"
           @go-to="wizard.goTo"
         />
+        <!-- Inside a task too: until 2026-11-14 only the list and the legacy bar said a save had failed. -->
+        <p v-else-if="saveStatus" class="text-xs" :class="autosave.state.value === 'failed' || autosave.state.value === 'conflict' ? 'text-danger-700' : 'text-ink-secondary'" aria-live="polite" data-task-save-status>{{ saveStatus }}</p>
 
         <!-- A walked task says each problem under its own box, one screen at a time (`TaskWalk`). -->
         <ApplyIssueList
