@@ -1,0 +1,54 @@
+name: Advisories
+
+# Has a published critical or high advisory reached the office app? (INSTALLED-APP-PLAN §5a A4)
+#
+# An advisory is published against code that is already merged, so no pull request can catch it:
+# the 2026-11-15 audit was the first time anybody asked, and it found 119. This asks every night.
+# It fails on a critical or high advisory in the production dependencies of web, api, admin or
+# admin-api that scripts/advisory-baseline.json does not accept for that package, and on a baseline
+# entry that no longer describes anything. What "reaches" means, and why the audit report alone
+# cannot say, is in scripts/check-advisories.mjs.
+#
+# 10:23 UTC is 05:23 CDT / 04:23 CST: after the 01:07 CT release, before the office opens, and an
+# hour before schema-drift so two red mornings are told apart by their timestamps.
+#
+# It also runs on a PR that changes what is installed (the lockfile, the workspace overrides) or the
+# check itself, so an upgrade that closes an advisory is made to remove its baseline line, and a
+# new dependency that arrives with an advisory is seen before it merges. It is NOT one of the seven
+# jobs behind the required `build` check: an advisory published this morning must not block an
+# unrelated merge this afternoon.
+#
+# No secrets. `pnpm audit` sends the lockfile's package names and versions to the npm registry and
+# nothing else; the workflow writes nothing anywhere.
+
+on:
+  schedule:
+    - cron: "23 10 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "scripts/check-advisories.mjs"
+      - "scripts/advisory-baseline.json"
+      - ".github/workflows/advisories.yml"
+
+jobs:
+  advisories:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # The check reads where each library is installed from `pnpm ls`, which reads node_modules.
+      - uses: ./.github/actions/setup
+        with:
+          build-shared: "false"
+
+      - name: Self-test the verdict
+        run: pnpm check:advisories --self-test
+
+      - name: Critical and high advisories reaching the office app
+        run: pnpm check:advisories
