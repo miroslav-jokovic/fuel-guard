@@ -238,15 +238,18 @@ describe("POST /:token/adoption", () => {
 });
 
 describe("the link serves what it adopted", () => {
+  /** The link a driver is sent: its invitation has a Part 1 row (a link without one is a legacy link). */
+  const PART_ONE = [{ invitation_id: INVITE, org_id: ORG, phone: null, postal_code: null, prior_positive_2y: null, medical_card_pending: null, fcra_summary_version: null }];
+
   it("as typed text, this org's only", async () => {
-    const rec = seed({ adoptions: [adoption(ORG, "signature"), adoption(ORG, "initials", { typed_text: "SG" })] });
+    const rec = seed({ intakes: PART_ONE, adoptions: [adoption(ORG, "signature"), adoption(ORG, "initials", { typed_text: "SG" })] });
     holder.client = rec.client;
     const body = (await (await call("")).json()) as { adoptions: unknown };
     expect(body.adoptions).toEqual({ signature: "Susan Godfrey", initials: "SG" });
   });
 
   it("a superseded adoption is not served", async () => {
-    holder.client = seed({ adoptions: [adoption(ORG, "signature", { superseded_by: "newer" })] }).client;
+    holder.client = seed({ intakes: PART_ONE, adoptions: [adoption(ORG, "signature", { superseded_by: "newer" })] }).client;
     const body = (await (await call("")).json()) as { adoptions: unknown };
     expect(body.adoptions).toEqual({ signature: null, initials: null });
   });
