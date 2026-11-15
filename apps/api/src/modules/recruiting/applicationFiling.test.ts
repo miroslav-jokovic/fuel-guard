@@ -8,6 +8,7 @@ import {
 } from "@silvicom/shared";
 import { loadEnv } from "../../env.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { CURRENT_LINK_APPLICATION, CURRENT_LINK_EMPLOYER, PART_ONE_ANSWERED } from "../../testing/partOneRow.js";
 import { hashInvitationToken, isIntakeError } from "./applicationIntake.js";
 import { submitApplication } from "./applicationSubmit.js";
 import { recordPacketMark } from "./applicationPacketMarks.js";
@@ -50,46 +51,19 @@ const packet = (version: string | null = PRINTED) =>
     return { placement_id, mark, signed_name: mark === "initials" ? "SG" : "Susan Godfrey", packet_version: version };
   });
 
-/** An employer answering every (b)(10) question, covering the whole three-year window. */
-const EMPLOYER_ID = "5b0c6a4e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
-const EMPLOYER = {
-  key: EMPLOYER_ID, employer_name: "Midwest Freight",
-  address_line1: "1 Main St", city: "Joliet", state: "IL",
-  started_on: "2020-01-01", ended_on: null, operated_cmv: true, dot_regulated: true,
-  reason_for_leaving: "Still employed", subject_to_fmcsr: true, safety_sensitive: true,
-};
+const EMPLOYER = CURRENT_LINK_EMPLOYER;
 
 const APPLICATION = (over: Record<string, unknown> = {}) => ({
-  application: {
-    first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
-    email: "s@example.test", phone: "555-0111",
-    addresses: [{ line1: "typed", line2: null, city: "typed", state: "WI", postal_code: "53201", from: "2019-02", to: null }],
-    cdl_number: "TYPED1", cdl_state: "WI", cdl_expires_at: "2027-01-01",
-    additional_licences: [], experience: "Eight years, dry van.",
-    accidents: [], declares_no_accidents: true, violations: [], declares_no_violations: true,
-    licence_ever_denied: false, licence_suspended: false, prior_failed_pre_employment_test: null,
-    // Q-AM4: page 21, answered (all zeros is an answer).
-    seven_day_hours: [0, 0, 0, 0, 0, 0, 0], last_relieved_at: "2026-08-20T17:00",
-    employers: [EMPLOYER], declares_no_employment: false, employment_gaps: [],
-    // §9 P8 / §11: a certified document answers the carrier's required questions (v3's seven).
-    questionnaire_version: "silvicom_driver@v3",
-    questionnaire_answers: {
-      position: "Company driver", applying_as: "company_driver", heard_from: "A friend", legally_work: true,
-      proof_of_age: true, may_contact_employers: true, education: [{ school: "Joliet High" }],
-    },
-    certified: true as const, signed_name: "Susan Godfrey",
-    ...over,
-  },
+  application: { ...CURRENT_LINK_APPLICATION, ...over },
   ssn: null,
 }) as unknown as Parameters<typeof submitApplication>[3];
 
-const PART_ONE = {
-  application_intakes: [{
-    phone: "+13125550142", address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL",
-    postal_code: "60431", prior_positive_2y: false,
-  }],
-  application_intake_licences: [{ position: 0, state_code: "IL", agency: null, licence_number: "IL123", expires_on: "2029-03-01" }],
-};
+const PART_ONE = PART_ONE_ANSWERED;
+/**
+ * ⚠ A LEGACY invitation — no Part 1 row — for the two tests below that are the legacy filing rule's own.
+ * No driver is sent one; they go with that rule (APPLICATION-FIX-PLAN §7, 1b-5 step 4).
+ */
+const LEGACY_INVITATION = { application_intakes: [], application_intake_licences: [] };
 
 const seed = (opts: { marks?: unknown[]; tables?: Record<string, unknown> } = {}) =>
   createSupabaseRecorder({
@@ -97,6 +71,8 @@ const seed = (opts: { marks?: unknown[]; tables?: Record<string, unknown> } = {}
       application_invitations: [invitation()],
       organizations: [{ name: "Silvicom" }],
       application_packet_marks: opts.marks ?? packet(),
+      // The link a driver is sent: Part 1 answered, which the filing lays over the certified document.
+      ...PART_ONE,
       ...opts.tables,
     },
     rpc: { submit_driver_application: { application_id: "app-1" } },
@@ -120,7 +96,7 @@ describe("the packet text version (A-5)", () => {
 
   it("is stamped on every mark, selecting 0376's thirteen-argument overload", async () => {
     const rec = createSupabaseRecorder({
-      tables: { application_invitations: [invitation({ signing_opened_at: "2026-09-27T14:00:00Z" })], application_packet_marks: [] },
+      tables: { application_invitations: [invitation({ signing_opened_at: "2026-09-27T14:00:00Z" })], ...PART_ONE, application_packet_marks: [] },
       rpc: { record_packet_mark: { mark_id: "m-1", signed_count: 1, complete: false } },
     });
     await recordPacketMark(rec.client, TOKEN, { placement_id: "p03", signed_name: "Susan Godfrey", esign_consent: true }, CTX, NOW);
@@ -277,7 +253,7 @@ describe("a v2 invitation files the composed application (D-AW3, AW1)", () => {
 
   it("asks a legacy invitation nothing new but §40.25(j), and files what it certified", async () => {
     publish();
-    const rec = seed();
+    const rec = seed({ tables: LEGACY_INVITATION });
     const result = await submitApplication(
       rec.client, env(), TOKEN,
       APPLICATION({ employers: [{ ...EMPLOYER, reason_for_leaving: null }], prior_failed_pre_employment_test: false }), CTX, NOW,
@@ -295,7 +271,7 @@ describe("a v2 invitation files the composed application (D-AW3, AW1)", () => {
    */
   it("refuses a legacy filing that never answered §40.25(j), and files nothing", async () => {
     publish();
-    const rec = seed();
+    const rec = seed({ tables: LEGACY_INVITATION });
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION({ prior_failed_pre_employment_test: null }), CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("application_incomplete");
     expect(isIntakeError(result) && result.message).toContain("tested positive or refused a test");

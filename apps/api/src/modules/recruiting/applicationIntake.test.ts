@@ -8,6 +8,7 @@ import {
 } from "@silvicom/shared";
 import { loadEnv } from "../../env.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
+import { CURRENT_LINK_APPLICATION, CURRENT_LINK_EMPLOYER, PART_ONE_ANSWERED } from "../../testing/partOneRow.js";
 import {
   hashInvitationToken,
   isIntakeError,
@@ -72,6 +73,11 @@ const invitation = (over: Record<string, unknown> = {}) => ({
    * front of whatever each one was actually about. The gate's own tests override it back to null.
    */
   consented_at: CONSENTED,
+  /**
+   * Part 1 finished: on the link a driver is sent, the permissions and the signature wait for it
+   * (`INTAKE_INCOMPLETE`), and the filing lays its answers over the certified document.
+   */
+  intake_completed_at: "2026-08-21T09:10:00Z",
   releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z",
   submitted_at: null,
   /** No sign token until the office approves (A5b, 0345) — which is most invitations, most of the time. */
@@ -148,6 +154,7 @@ const seed = (
   createSupabaseRecorder({
     tables: {
       application_invitations: inv ? [inv] : [],
+      ...PART_ONE_ANSWERED,
       organizations: [{ name: "Silvicom" }],
       driver_authorizations: [{ id: "auth-1" }],
       application_packet_marks: packet,
@@ -157,23 +164,7 @@ const seed = (
   });
 
 const APPLICATION = {
-  application: {
-    first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01",
-    email: "s@example.test", phone: "555-0111", addresses: [],
-    cdl_number: "PA334554", cdl_state: "PA", cdl_expires_at: "2029-01-01",
-    // §391.21(b)(6) is mandatory content of the application form; a fixture standing in for a
-    // certified document answers at least one half of it.
-    experience: "Eight years, dry van and reefer.",
-    accidents: [], declares_no_accidents: true,
-    violations: [], declares_no_violations: true,
-    licence_ever_denied: false, licence_suspended: false,
-    // Q-AM4: page 21, answered (all zeros is an answer).
-    seven_day_hours: [0, 0, 0, 0, 0, 0, 0], last_relieved_at: "2026-08-20T17:00",
-    // §40.25(j) answered: a legacy filing is refused without it since F1 part 2.
-    prior_failed_pre_employment_test: false,
-    employers: [], declares_no_employment: true,
-    certified: true as const, signed_name: "Susan Godfrey",
-  },
+  application: CURRENT_LINK_APPLICATION,
   ssn: null,
 } as unknown as Parameters<typeof submitApplication>[3];
 
@@ -228,13 +219,13 @@ describe("either link opens the same application", () => {
   });
 
   it("opens on the token the applicant was invited with", async () => {
-    const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()] } });
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()], ...PART_ONE_ANSWERED } });
     const row = await resolveInvitation(rec.client, TOKEN, NOW);
     expect(isIntakeError(row)).toBe(false);
   });
 
   it("opens on the sign token the approval email carried", async () => {
-    const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()] } });
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()], ...PART_ONE_ANSWERED } });
     const row = await resolveInvitation(rec.client, SIGN_TOKEN, NOW);
     expect(isIntakeError(row)).toBe(false);
     if (isIntakeError(row)) return;
@@ -252,21 +243,21 @@ describe("either link opens the same application", () => {
     const TEXT_TOKEN = "t".repeat(43);
     const texted = () => ({ ...approved(), sms_token_hash: hashInvitationToken(TEXT_TOKEN) });
     for (const token of [TEXT_TOKEN, TOKEN, SIGN_TOKEN]) {
-      const row = await resolveInvitation(createSupabaseRecorder({ tables: { application_invitations: [texted()] } }).client, token, NOW);
+      const row = await resolveInvitation(createSupabaseRecorder({ tables: { application_invitations: [texted()], ...PART_ONE_ANSWERED } }).client, token, NOW);
       expect(isIntakeError(row), token.slice(0, 1)).toBe(false);
       if (!isIntakeError(row)) expect(row.id).toBe("inv-1");
     }
     for (const without of [approved(), { ...approved(), sms_token_hash: null }]) {
-      const rec = createSupabaseRecorder({ tables: { application_invitations: [without] } });
+      const rec = createSupabaseRecorder({ tables: { application_invitations: [without], ...PART_ONE_ANSWERED } });
       expect(await resolveInvitation(rec.client, TEXT_TOKEN, NOW)).toMatchObject({ code: "invalid_link" });
     }
     // Revocation kills every door, the text's included.
-    const revoked = createSupabaseRecorder({ tables: { application_invitations: [{ ...texted(), revoked_at: "2026-08-21T00:00:00Z" }] } });
+    const revoked = createSupabaseRecorder({ tables: { application_invitations: [{ ...texted(), revoked_at: "2026-08-21T00:00:00Z" }], ...PART_ONE_ANSWERED } });
     expect(await resolveInvitation(revoked.client, TEXT_TOKEN, NOW)).toMatchObject({ code: "invalid_link" });
   });
 
   it("asks PostgREST for both columns, so a sign token can match at all", async () => {
-    const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()] } });
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()], ...PART_ONE_ANSWERED } });
     await resolveInvitation(rec.client, SIGN_TOKEN, NOW);
     const ops = rec.forTable("application_invitations")[0]!.ops;
     expect(String(ops.find((o) => o.method === "select")?.args[0])).toContain("sign_token_hash");
@@ -284,14 +275,14 @@ describe("either link opens the same application", () => {
    * refuses, and it is the only thing that does.
    */
   it("refuses a token that matches neither hash, even when a row comes back", async () => {
-    const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()] } });
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()], ...PART_ONE_ANSWERED } });
     const row = await resolveInvitation(rec.client, "z".repeat(43), NOW);
     expect(row).toMatchObject({ code: "invalid_link" });
   });
 
   /** An unapproved invitation has no sign token, and a null must never be treated as a match. */
   it("refuses a sign token against an invitation that has none", async () => {
-    const rec = createSupabaseRecorder({ tables: { application_invitations: [invitation()] } });
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [invitation()], ...PART_ONE_ANSWERED } });
     expect(await resolveInvitation(rec.client, SIGN_TOKEN, NOW)).toMatchObject({ code: "invalid_link" });
   });
 
@@ -304,7 +295,7 @@ describe("either link opens the same application", () => {
    */
   it("refuses when the column was never selected, not only when it is null", async () => {
     const { sign_token_hash: _omitted, ...withoutColumn } = invitation();
-    const rec = createSupabaseRecorder({ tables: { application_invitations: [withoutColumn] } });
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [withoutColumn], ...PART_ONE_ANSWERED } });
     expect(await resolveInvitation(rec.client, SIGN_TOKEN, NOW)).toMatchObject({ code: "invalid_link" });
   });
 });
@@ -371,8 +362,8 @@ describe("the link is a session, not a fuse", () => {
     if (isIntakeError(result)) throw new Error("expected a live invitation");
     expect(phasesOf(result)).toEqual({
       consentedAt: "2026-08-19T00:00:00Z",
-      // D-AW1: Part 1's stamp — null on this link, as on every legacy one.
-      intakeCompletedAt: null,
+      // D-AW1: Part 1's stamp, which the default link here carries.
+      intakeCompletedAt: "2026-08-21T09:10:00Z",
       releasesCompletedAt: "2026-08-19T00:05:00Z",
       applicationSentAt: "2026-08-19T00:10:00Z",
       reviewRequestedAt: "2026-08-19T00:30:00Z",
@@ -478,6 +469,7 @@ describe("the rendered document never costs the submission", () => {
     const broken = createSupabaseRecorder({
       tables: {
         application_invitations: [submittableInvitation()],
+        ...PART_ONE_ANSWERED,
         application_packet_marks: signedPacket(),
       },
       rpc: {
@@ -517,7 +509,12 @@ describe("submitting", () => {
    */
   it("§11: refuses an unanswered question the invitation's stamp requires, whatever list the page sent", async () => {
     const rec = seed(submittableInvitation({ required_questions: ["heard_from"] }));
-    const body = { ...APPLICATION, application: { ...APPLICATION.application, questionnaire_required: [] } } as typeof APPLICATION;
+    // The default application answers it, so this one takes that answer back out.
+    const { heard_from: _heardFrom, ...answered } = CURRENT_LINK_APPLICATION.questionnaire_answers;
+    const body = {
+      ...APPLICATION,
+      application: { ...APPLICATION.application, questionnaire_answers: answered, questionnaire_required: [] },
+    } as typeof APPLICATION;
     const result = await submitApplication(rec.client, env(), TOKEN, body, CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("application_incomplete");
     expect(isIntakeError(result) && result.message).toContain("How did you hear about this company?");
@@ -535,7 +532,9 @@ describe("submitting", () => {
 
   it("§11: an invitation sent before the stamp existed is judged by the definition's own flags", async () => {
     const rec = seed(submittableInvitation({ required_questions: null }));
-    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    const { questionnaire_answers: _answers, questionnaire_version: _version, ...bare } = CURRENT_LINK_APPLICATION;
+    const body = { ...APPLICATION, application: bare } as unknown as typeof APPLICATION;
+    const result = await submitApplication(rec.client, env(), TOKEN, body, CTX, NOW);
     // No answers and no version: the served v3's seven, as before §11.
     expect(isIntakeError(result) && result.code).toBe("application_incomplete");
   });
@@ -606,6 +605,7 @@ describe("submitting", () => {
     const rec = createSupabaseRecorder({
       tables: {
         application_invitations: [submittableInvitation()],
+        ...PART_ONE_ANSWERED,
         organizations: [{ name: "S" }],
         application_packet_marks: signedPacket(),
       },
@@ -636,7 +636,9 @@ describe("the carrier's form has to be signed through", () => {
    * counting rows rather than asking whether every PLACE carries a mark.
    */
   it("refuses a packet missing a single place, and names which kind of refusal it is", async () => {
-    const all = driverPlacementIds(null);
+    // The places of the answer being filed (a company driver's): the full list's last place, p31b, is
+    // the owner-operator's alone, and leaving that one out would leave this packet complete.
+    const all = driverPlacementIds("company_driver");
     const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), signedPacket("Susan Godfrey", all.slice(0, -1)));
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("packet_not_signed");
@@ -648,7 +650,9 @@ describe("the carrier's form has to be signed through", () => {
    * cannot see.
    */
   it("refuses the right number of marks made on the wrong places", async () => {
-    const all = driverPlacementIds(null);
+    // The places of the answer being filed (a company driver's): the full list's last place, p31b, is
+    // the owner-operator's alone, and leaving that one out would leave this packet complete.
+    const all = driverPlacementIds("company_driver");
     const doubled = [...all.slice(0, -1), all[0]!];
     const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), signedPacket("Susan Godfrey", doubled));
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
@@ -685,10 +689,8 @@ describe("the carrier's form has to be signed through", () => {
       application: {
         ...(APPLICATION as { application: Record<string, unknown> }).application,
         declares_no_employment: false,
-        employers: [{
-          key: KEY, employer_name: "Kowlage Haulage", started_on: "2023-01-01", ended_on: "2025-06-30",
-          operated_cmv: true, dot_regulated: true,
-        }],
+        // The default employer's three covered years, under this test's own key and name.
+        employers: [{ ...CURRENT_LINK_EMPLOYER, key: KEY, employer_name: "Kowlage Haulage" }],
       },
     } as unknown as Parameters<typeof submitApplication>[3];
     const call = {
@@ -828,6 +830,7 @@ describe("the photographs the application arrives with", () => {
     createSupabaseRecorder({
       tables: {
         application_invitations: [submittableInvitation()],
+        ...PART_ONE_ANSWERED,
         organizations: [{ name: "Silvicom" }],
         application_packet_marks: signedPacket(),
         application_captures: [{
@@ -863,6 +866,7 @@ describe("the photographs the application arrives with", () => {
     const rec = createSupabaseRecorder({
       tables: {
         application_invitations: [submittableInvitation()],
+        ...PART_ONE_ANSWERED,
         application_packet_marks: signedPacket(),
         application_captures: [{
           id: CAPTURE, slot: "cdl_front",
@@ -937,6 +941,7 @@ describe("the signing ceremony", () => {
       tables: {
         ...IDENTITY_TABLES,
         application_invitations: [inv],
+        ...PART_ONE_ANSWERED,
         driver_authorizations: [{ id: "auth-1" }],
         // The name FMCSA's "I authorize ___" blanks are filled from.
         organizations: [{ name: "Silvicom" }],
@@ -983,7 +988,7 @@ describe("the signing ceremony", () => {
   it("turns a double-tap into the answer the page can act on", async () => {
     publish();
     const rec = createSupabaseRecorder({
-      tables: { ...IDENTITY_TABLES, application_invitations: [consented()] },
+      tables: { ...IDENTITY_TABLES, application_invitations: [consented()], ...PART_ONE_ANSWERED },
       rpc: { record_driver_release: { error: { code: "DR023", message: "release_already_signed" } } },
     });
     const result = await recordRelease(
@@ -1032,6 +1037,7 @@ describe("signing a release", () => {
       tables: {
         ...IDENTITY_TABLES,
         application_invitations: [inv],
+        ...PART_ONE_ANSWERED,
         organizations: [{ name: "Silvicom" }],
         driver_authorizations: [{ id: "auth-1" }],
         org_disclosures: [{
