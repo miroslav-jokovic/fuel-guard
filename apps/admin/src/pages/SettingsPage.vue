@@ -45,11 +45,13 @@ const CHANNELS: SelectOption[] = [
 const texts = computed(() => (recipients.data.value ?? []).filter((r) => r.channel === "sms"));
 const rows = computed(() => [...texts.value, ...(recipients.data.value ?? []).filter((r) => r.channel === "email")]);
 
+// On a card the ADDRESS is the row: derived from column order the card was titled "Email" and put the
+// address in a third of its width, breaking it mid-word (seen 2026-11-15, SMALL-SCREENS-PLAN.md).
 const COLUMNS: DataTableColumn[] = [
-  { key: "channel", label: "Type", cellClass: "text-ink-secondary", width: "sm" },
-  { key: "address", label: "Address", cellClass: "font-medium text-ink tabular-nums" },
-  { key: "label", label: "Who", cellClass: "text-ink-secondary" },
-  { key: "createdAt", label: "Added", cellClass: "text-ink-secondary", width: "md" },
+  { key: "channel", label: "Type", cellClass: "text-ink-secondary", width: "sm", card: "sentence" },
+  { key: "address", label: "Address", cellClass: "font-medium text-ink tabular-nums", card: "title" },
+  { key: "label", label: "Who", cellClass: "text-ink-secondary", card: "sentence" },
+  { key: "createdAt", label: "Added", cellClass: "text-ink-secondary", width: "md", card: "sentence" },
 ];
 
 /** What to tell the person about a refused change, from the API's own error code. */
