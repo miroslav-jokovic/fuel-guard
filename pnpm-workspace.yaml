@@ -18,3 +18,8 @@ overrides:
   "@xmldom/xmldom@0.8": "0.8.15"
   "brace-expansion@1": "1.1.22"
   "brace-expansion@2": "2.1.8"
+  # Under vue's template compiler (@vue/compiler-sfc, @vue/compiler-core), which asks for them by range; build
+  # time only. Remove when a vue release asks for these by itself (advisory check, 2026-11-15).
+  "postcss@8": "8.5.33"
+  "nanoid@3": "3.3.20"
+  "source-map-js@1": "1.2.2"
