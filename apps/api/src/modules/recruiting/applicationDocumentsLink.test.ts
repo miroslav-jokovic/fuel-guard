@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DOCUMENTS_LINK_TTL_DAYS } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { loadEnv } from "../../env.js";
 import { hashInvitationToken, isIntakeError, resolveDocumentsLink, resolveInvitation } from "./applicationIntake.js";
 import { startCapture } from "./applicationCapture.js";
@@ -43,6 +44,7 @@ const seed = (opts: { inv?: unknown[]; rotated?: unknown } = {}) =>
   createSupabaseRecorder({
     tables: {
       application_invitations: opts.inv ?? [row()],
+      application_intakes: [PART_ONE_ROW],
       organizations: [{ name: "Silvicom Inc" }],
       org_disclosures: [],
       audit_logs: [],

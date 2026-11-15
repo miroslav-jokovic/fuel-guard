@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ASK_AGAIN_MAX_OPEN, canAskAgain } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { PART_ONE_ROW } from "../../testing/partOneRow.js";
 import { loadEnv } from "../../env.js";
 import {
   answerAskAgain, askAgain, isAskAgainError, listAskAgains, openAskAgainCount, openAskAgainsForApplicant, withdrawAskAgain,
@@ -43,6 +44,7 @@ const seed = (opts: { inv?: unknown[]; asked?: unknown[]; written?: unknown[] } 
   createSupabaseRecorder({
     tables: {
       application_invitations: opts.inv ?? [inv()],
+      application_intakes: [PART_ONE_ROW],
       organizations: [{ name: "Silvicom Inc" }],
       audit_logs: [],
       application_ask_agains: (r: RecordedQuery) => (r.write ? (opts.written ?? [q({ id: "q-new" })]) : (opts.asked ?? [])),

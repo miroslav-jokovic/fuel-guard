@@ -11,6 +11,7 @@ import {
   type SupabaseRecorder,
 } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 import { hashInvitationToken } from "../applicationIntake.js";
 
 /**
@@ -52,7 +53,7 @@ const seed = (over: {
   /** The carrier's own link lifetime (Q-AW41). Absent: no row, the product's defaults. */
   settings?: Record<string, unknown>;
   draftPayload?: Record<string, unknown>;
-  /** A v2 link's Part 1 row. Absent: a legacy link, which filing judges by the paper's rules alone. */
+  /** Part 1's answers, laid over the empty row every link has. Absent: nothing answered yet. */
   intake?: Record<string, unknown>;
   /** How many rows the pre-mint UPDATE matched — 0 is an invitation that changed under the office. */
   startMatches?: number;
@@ -62,7 +63,7 @@ const seed = (over: {
       application_invitations: (q: RecordedQuery) =>
         over.invitation === null || (q.write && over.startMatches === 0) ? [] : [invitation(over.invitation)],
       recruiting_settings: over.settings ? [over.settings] : [],
-      application_intakes: over.intake ? [{ invitation_id: INV, org_id: ORG, ...over.intake }] : [],
+      application_intakes: [{ ...PART_ONE_ROW, invitation_id: INV, org_id: ORG, ...over.intake }],
       application_intake_licences: [],
       organizations: [{ name: "Silvicom Inc" }],
       drivers: [{ id: DRIVER, org_id: ORG, hire_date: null, date_of_birth: "1980-04-01", cdl_number: "D1", cdl_state: "IL" }],

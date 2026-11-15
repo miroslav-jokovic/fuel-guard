@@ -11,6 +11,7 @@ import {
   type SupabaseRecorder,
 } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 import { hashInvitationToken } from "../applicationIntake.js";
 
 /**
@@ -62,8 +63,6 @@ const seed = (over: {
   wording?: Record<string, unknown>[];
   /** §15.3 CQ2: the carrier's own questions, as 0567's rows. */
   questions?: Record<string, unknown>[];
-  /** The invitation's Part 1 row, which every link sent since C3a has. Absent: a legacy invitation. */
-  partOne?: boolean;
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
@@ -90,7 +89,7 @@ const seed = (over: {
       driver_employment_history: [],
       employer_inquiries: [],
       audit_logs: [],
-      application_intakes: over.partOne ? [{ phone: null, postal_code: null, prior_positive_2y: null, medical_card_pending: null, fcra_summary_version: null }] : [],
+      application_intakes: [PART_ONE_ROW],
     },
     rpc: {
       send_application_invitation: "2026-09-24T12:00:00Z",
@@ -181,7 +180,7 @@ describe("the applicant's link before the application is sent", () => {
   });
 
   it("tells the page when the form has been sent", async () => {
-    holder.client = seed({ partOne: true, invitation: { application_sent_at: "2026-09-24T12:00:00Z" } }).client;
+    holder.client = seed({ invitation: { application_sent_at: "2026-09-24T12:00:00Z" } }).client;
     const body = (await (await pub(`/${TOKEN}`)).json()) as { phases: { applicationSentAt: string | null } };
     expect(body.phases.applicationSentAt).toBe("2026-09-24T12:00:00Z");
   });

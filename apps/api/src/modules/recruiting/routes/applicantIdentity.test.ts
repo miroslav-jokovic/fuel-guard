@@ -10,6 +10,7 @@ import {
   type SupabaseRecorder,
 } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { PART_ONE_ROW } from "../../../testing/partOneRow.js";
 import { hashInvitationToken } from "../applicationIntake.js";
 import { editedBy, editsSent } from "../../../testing/officeEdits.js";
 
@@ -48,12 +49,13 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/** Part 1 finished: the permissions wait for it on the link a driver is sent (`INTAKE_INCOMPLETE`). */
+const PART_ONE_DONE = { intake_completed_at: "2026-09-20T09:00:00Z" };
+
 const seed = (over: {
   invitation?: Record<string, unknown> | null;
   drivers?: unknown[];
   drafts?: unknown[];
-  /** `[]` is a LEGACY invitation (no Part 1 row), for the tests that are about the legacy rule itself. */
-  intakes?: unknown[];
   rpc?: Record<string, unknown>;
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
@@ -63,7 +65,7 @@ const seed = (over: {
       drivers: over.drivers ?? ROW_WITHOUT_IDENTITY,
       application_drafts: over.drafts ?? [],
       // The link every driver is sent since C3a: its invitation has a Part 1 row, with nothing answered yet.
-      application_intakes: over.intakes ?? [{ phone: null, postal_code: null, prior_positive_2y: null, medical_card_pending: null, fcra_summary_version: null }],
+      application_intakes: [PART_ONE_ROW],
       driver_authorizations: [],
       audit_logs: [],
     },
@@ -229,8 +231,8 @@ describe("signing a permission needs identity first (D-AF1)", () => {
     });
 
   it("refuses identity_missing, before any signature is recorded", async () => {
-    // A legacy invitation: `identity_missing` is its rule. A current link is refused earlier, until Part 1 is finished.
-    const rec = seed({ drivers: ROW_WITHOUT_IDENTITY, drafts: [], intakes: [] });
+    // Part 1 finished, so the answer is the identity rule's and not "finish Part 1", which comes before it.
+    const rec = seed({ drivers: ROW_WITHOUT_IDENTITY, drafts: [], invitation: PART_ONE_DONE });
     holder.client = rec.client;
     const res = await sign();
     expect(res.status).toBe(409);
@@ -239,7 +241,7 @@ describe("signing a permission needs identity first (D-AF1)", () => {
   });
 
   it("signs once identity is on file", async () => {
-    holder.client = seed({ drivers: ROW_WITH_IDENTITY, drafts: DRAFT_WITH_IDENTITY, intakes: [] }).client;
+    holder.client = seed({ drivers: ROW_WITH_IDENTITY, drafts: DRAFT_WITH_IDENTITY, invitation: PART_ONE_DONE }).client;
     expect((await sign()).status).toBe(201);
   });
 });
