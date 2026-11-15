@@ -123,6 +123,8 @@ function mapHarness() {
       layers.push({ id: "vehicles", type: "symbol", source: "vehicles" });
     }
     addControl() {}
+    /** maplibre 6: the place icons arrive through this (`mapIcons.ts`); these tests ask for none. */
+    setMissingStyleImageResolver() {}
     on(event: string, fn: (e: { sourceId: string }) => void) {
       if (event === "sourcedata") handlers.push(fn);
     }
@@ -176,10 +178,14 @@ function mapHarness() {
 
 /** Every value handed to maplibre's global image-request cap, in order (D-DR28). */
 const parallelSet: number[] = [];
+/** Every address handed to maplibre for its worker (maplibre 6 loads it by URL). */
+const workerUrls: string[] = [];
 
 async function mountMap(FakeMap: unknown, tilesRef: { value: string }, isDark?: { value: boolean }) {
   vi.doMock("maplibre-gl", () => ({
-    default: { Map: FakeMap, NavigationControl: class {}, setMaxParallelImageRequests: (n: number) => parallelSet.push(n) },
+    // Named exports: maplibre 6 is ESM-only and has no default export (`import * as maplibregl`).
+    Map: FakeMap, NavigationControl: class {}, setMaxParallelImageRequests: (n: number) => parallelSet.push(n),
+    setWorkerUrl: (url: string) => workerUrls.push(url),
   }));
   vi.doMock("@/lib/supabase", () => ({
     supabase: {
@@ -363,6 +369,30 @@ describe("useMapLibre cross-fades every tile and fetches 32 at a time", () => {
     const rasters = h.layers.filter((l) => l.type === "raster");
     expect(rasters.map((l) => l.id)).toEqual(["here", "here-1"]);
     for (const l of rasters) expect(l.paint).toEqual({ "raster-fade-duration": 300 });
+    wrapper.unmount();
+    vi.doUnmock("maplibre-gl");
+    vi.doUnmock("@/lib/supabase");
+  });
+
+  /**
+   * maplibre 6 loads its worker from an address (it used to be inlined). Unset, it looks beside its own
+   * module file, which a bundle has moved: the map then never draws a tile, in production only.
+   */
+  it("tells maplibre where its worker file is before the map is built", async () => {
+    vi.resetModules();
+    workerUrls.length = 0;
+    const h = mapHarness();
+    let setBeforeConstruct: string[] | null = null;
+    class Recording extends h.FakeMap {
+      constructor(opts: ConstructorParameters<typeof h.FakeMap>[0]) {
+        setBeforeConstruct = [...workerUrls];
+        super(opts);
+      }
+    }
+    const { ref } = await import("vue");
+    const { wrapper } = await mountMap(Recording, ref(DAY));
+    expect(setBeforeConstruct).toHaveLength(1);
+    expect(setBeforeConstruct![0]).toMatch(/maplibre-gl-worker/);
     wrapper.unmount();
     vi.doUnmock("maplibre-gl");
     vi.doUnmock("@/lib/supabase");

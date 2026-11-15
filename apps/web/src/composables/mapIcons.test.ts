@@ -11,14 +11,14 @@ const img = (n: number): MapIconImage => ({ width: 1, height: 1, data: new Uint8
 
 function fakeMap() {
   const images = new Map<string, MapIconImage>();
-  let missing: ((e: { id: string }) => void) | null = null;
+  let missing: ((id: string) => void) | null = null;
   const map: IconMap = {
-    on: (_t, l) => (missing = l),
+    setMissingStyleImageResolver: (r) => (missing = r),
     hasImage: (id) => images.has(id),
     addImage: (id, image) => images.set(id, image),
     updateImage: (id, image) => images.set(id, image),
   };
-  return { map, images, ask: (id: string) => missing!({ id }) };
+  return { map, images, ask: (id: string) => missing!(id) };
 }
 
 describe("the map's place icons", () => {

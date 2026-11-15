@@ -20,7 +20,8 @@
  * screen of 401s. Do not "tidy" that into a non-blocking fetch.
  */
 import { onBeforeUnmount, onMounted, shallowRef, toValue, watch, type Ref } from "vue";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import { MAPLIBRE_WORKER_URL } from "./maplibreWorker";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { HERE_MAX_TILE_ZOOM, HERE_MAX_VECTOR_ZOOM, TILE_CSS_PX, TRUCK_PLACES_ZOOM, TILE_REQUEST } from "@silvicom/shared";
 import { GLYPHS_PATH, MAP_PALETTE_KEYS, TRUCK_PLACES_TILES_TEMPLATE, isVectorTemplate, truckPlacesSourceId, vectorBasemapLayers, type MapPalette } from "./vectorBasemap";
@@ -296,6 +297,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
       accessToken = session?.access_token ?? null;
     }).data.subscription;
 
+    maplibregl.setWorkerUrl(MAPLIBRE_WORKER_URL); // maplibre 6 loads its worker by address: maplibreWorker.ts
     maplibregl.setMaxParallelImageRequests(MAX_PARALLEL_TILE_REQUESTS);
     // A map can open on either kind of basemap; the first one is declared in the style either way.
     const first = tileUrl();

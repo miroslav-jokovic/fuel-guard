@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { basemapFor, type BasemapChoice, type LiveMapVehicle } from "@silvicom/shared";
 import { useMapLibre, tokenColor } from "@/composables/useMapLibre";
 import { VECTOR_TILES_TEMPLATE, VECTOR_TRIAL_CHOICE } from "@/composables/vectorBasemap";
