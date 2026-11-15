@@ -126,9 +126,6 @@ const WAIVERS = new Map([
   // HT6's "My alerts" writes the numbers.
   // notification_channel_settings left on 2026-11-13 in HT6: messaging/alertTexts.ts reads the hours a text is
   // held and the Settings page saves them.
-  // ads_campaign_plans (0606, ADS-PLATFORM-V2-PLAN V2): schema-only by lint:migration-ordering — the planning
-  // step that writes it (modules/ads/plan/) ships in the next merge and removes this line.
-  ["ads_campaign_plans", "0606 schema-only; written by modules/ads/plan/ in the next merge (ADS-PLATFORM-V2-PLAN V2)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

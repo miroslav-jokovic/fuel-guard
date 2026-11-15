@@ -1,11 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import express, { type Express, type NextFunction, type Request, type Response } from "express";
+import express, { type Express, type NextFunction, type Request, type RequestHandler, type Response } from "express";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import type { Env } from "./env.js";
+import { permissionsPolicy } from "./permissionsPolicy.js";
 import { APP_NAME } from "@silvicom/shared";
 import { apiError, asyncHandler } from "./lib/http.js";
 import { getBuildInfo } from "./lib/buildInfo.js";
@@ -45,7 +46,13 @@ import {
  * directly to Supabase (REST + realtime websockets + storage images), so those origins must be
  * allowed in connect/img. Harmless for API-only responses (JSON carries no CSP-restricted content).
  */
-export function securityMiddleware(env: Env) {
+export function securityMiddleware(env: Env): RequestHandler[] {
+  // helmet's headers, then the one it does not send (`permissionsPolicy.ts`). One mount, so no caller
+  // can install the first without the second.
+  return [securityHeaders(env), permissionsPolicy];
+}
+
+function securityHeaders(env: Env) {
   const apiConnectSrc = env.VITE_API_URL ? [env.VITE_API_URL] : [];
   return helmet({
     contentSecurityPolicy: {
