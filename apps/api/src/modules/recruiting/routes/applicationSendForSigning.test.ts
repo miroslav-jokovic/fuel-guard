@@ -147,10 +147,12 @@ describe("the applicant's link before the office opens signing", () => {
   });
 
   it("tells the page whether signing has been opened", async () => {
-    holder.client = seed().client;
+    // A current link: its invitation has a Part 1 row.
+    const partOne = { phone: null, postal_code: null, prior_positive_2y: null, medical_card_pending: null, fcra_summary_version: null };
+    holder.client = seed({ intake: partOne }).client;
     const closed = (await (await pub(`/${TOKEN}`)).json()) as { phases: { signingOpenedAt: string | null } };
     expect(closed.phases.signingOpenedAt).toBeNull();
-    holder.client = seed({ invitation: { signing_opened_at: "2026-09-24T12:00:00Z" } }).client;
+    holder.client = seed({ intake: partOne, invitation: { signing_opened_at: "2026-09-24T12:00:00Z" } }).client;
     const opened = (await (await pub(`/${TOKEN}`)).json()) as { phases: { signingOpenedAt: string | null } };
     expect(opened.phases.signingOpenedAt).toBe("2026-09-24T12:00:00Z");
   });
