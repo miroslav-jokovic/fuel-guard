@@ -153,6 +153,9 @@ Read before the build, and each one changed the design:
   actions at all and three carry three or more (Drivers 4, Equipment up to 4, Driver detail 3), so
   the page MARKS its secondary verbs (`#more`) rather than the header guessing them from every page.
   And the fold follows the header's own width (under 56rem), not `md`: see the log.
+- **Q-SM1 and Q-SM5 ruled, owner 2026-11-15 ("proceed as recommended and proposed"):** zero rows
+  stay as quiet one-line rows (Q-SM1 (a)); "Needs action" lists the alarm rows only (Q-SM5 (a)).
+  Both are what is built; nothing to change.
 - **Q-SM5 — which rows "need action" (raised by C2's browser pass, 2026-11-15).** D-SM12 says the
   ALARM rows, and C2 builds exactly that: a row its own card already draws in the danger ink (late
   risk, HOS low, trucks without a driver, expired driver files, overdue truck papers, open defects,
@@ -312,3 +315,25 @@ Table layout at desk widths. New data on any card.
   - Measured and left alone: Equipment shows one header button on staging at 390, and Driver detail's
     three (Notes, Home time, Export this file) share one line at 390. Neither wraps, so neither is
     marked; a page that grows a fourth verb marks it then.
+- **2026-11-15 — Q-SM4 merged** as PR #2410 (`1757b7e`), on staging. Q-SM1 and Q-SM5 ruled (§5).
+- **2026-11-15, A3 finished** (branch `claude/record-card-marks-a3`) — the last four lists, the
+  blank context parts, and one toolbar.
+  - **There is no Transactions page**: `/transactions` redirects to the Fuel log's Source records
+    tab. The fourth list of the phase is the Fuel log's **Declines** tab, the one unmarked table on
+    that page.
+  - **Staging holds no row on any of the four**, so they were viewed with fixture rows (shapes from
+    each page's own tests) laid over the staging build — the owner's choice, 2026-11-15. The marks:
+    - Fuel cards: card, status, driver as the context; Unit, Policy, Override as figures (the
+      page's own comment: an active override is what a reviewer most wants to spot); Driver ID
+      behind the disclosure. Derived, Override was hidden.
+    - Loads: load number, status, driver and truck as the context; Pickup, Delivery, then Delivered
+      on the tabs that hold delivered loads and Type on the others; Dispatch behind the disclosure.
+    - Applicants: name, stage, the next action as the context; Waiting on and Days waiting.
+    - Declines: unit, risk, the time on the top line; driver and the decline's reason as the
+      context; Card, State, Code; invoice, location, city, policy behind the disclosure.
+  - **Blank context parts drop out** (the open item from A1). A part that prints only a dash is
+    hidden with its dot; judged from what the cell PRINTED, because Loads prints "No driver" for a
+    null value and that is a fact worth its place. The parts stay in the document. The dot is now a
+    CSS rule beside `.workspace-cards`, drawn only between two parts that are both there.
+  - **`FilterBar`'s count-and-actions row wraps.** On Declines at 390 px it ran past its card and
+    cut "Export CSV".

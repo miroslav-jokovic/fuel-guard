@@ -234,7 +234,9 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
         </Teleport>
       </div>
 
-      <div class="flex items-center gap-3 lg:ml-auto lg:shrink-0">
+      <!-- `flex-wrap`: a count and three buttons do not fit 390 px — on the Fuel log's Declines the
+           row ran 12 px past its card and cut "Export CSV" (browser pass, 2026-11-15). -->
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2 lg:ml-auto lg:shrink-0">
         <BaseButton v-if="activeCount > 0" variant="ghost" size="sm" @click="emit('clear-all')">
           Clear filters
         </BaseButton>

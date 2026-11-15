@@ -644,6 +644,15 @@
   .workspace-cards > :not([data-card-list]):not(:has([data-card-list])) {
     @apply rounded-surface bg-surface shadow-card ring-1 ring-edge-subtle;
   }
+
+  /* The dot between two parts of a record card's context line ("Driving · 733 · Indianapolis, IN"),
+     drawn only where BOTH neighbours are — `DataTableCards` hides a part that prints nothing but a
+     dash, and a separator element between them would then read "· 733" or "Driving ·". The empty
+     alt text keeps it out of the accessible name, as `aria-hidden` did on the span it replaces. */
+  .context-part:not([hidden]) ~ .context-part:not([hidden])::before {
+    content: "·" / "";
+    @apply mr-1.5 text-ink-tertiary;
+  }
 }
 
 /* ── VueDatePicker theme (@vuepic/vue-datepicker) ─────────────────────────
