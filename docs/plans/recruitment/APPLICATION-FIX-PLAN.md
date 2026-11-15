@@ -974,4 +974,20 @@ A gate fails on a literal string in an `apply/` template.
   - **Proof:** web (+6); 5 of 5 mutants killed, one only after its test was added (a guard whose effect is one request not made); a second browser test in `askAgain.spec.ts` opens the SECOND of two jobs and finds its company in the box.
   - **F5 is built.** Left out, each recorded above: a text message; a question about a first-visit answer; one list of everything asked at the top of the drawer.
   - **Next:** the documents-only link and photo straightening (Q-AM19).
+- 2026-11-14: **"Ask" on a job merged** (#2390). F5 is built.
+- 2026-11-14: **The documents-only link (Q-AM19), designed before building** (`claude/application-documents-link`). The ruling was one sentence; this is what it meets in the code.
+  - **Today:** a photograph reaches the office only through the application's own link, the whole of it; and a photograph is refused once the application is filed (`ALREADY_SUBMITTED`), after which only the office can add a document, by uploading it itself.
+  - **The link:** a fourth token on the invitation, beside the e-mail's, the signing link's and the text's. Each send mints a new one, so only the last link sent works.
+    - **Its own end, not the application's.** The office sends it weeks after the application's link lapsed. Extending the application's own expiry to carry it would re-open the link that reads back a date of birth and six signed permissions.
+    - **It can be e-mailed WITH the link**, unlike the question and approval notices: a freshly minted token is known at the moment it is sent.
+  - **What it opens:** the documents list and nothing else: no answers, so no date-of-birth question. The consent comes first if it was never given.
+  - **Stages:**
+    1. **Migration 0608** (this merge): the token and its end on the invitation, and the guarded rotation. No reader.
+    2. The resolver accepts the fourth token; the office's "Send a documents link" (e-mail); the page opens on the documents list for that link.
+    3. **After filing.** A photograph is refused then. The link must stage it and the office must file it from the drawer, because `documents` is an evidence table and an unauthenticated link must not write to it. Until this stage the link works up to filing, which is short of the ruling's "at any time", and the office's own upload covers the rest.
+  - **My decisions:**
+    - **The link's server-side reach is the text link's**, not narrower, at first: the page opens only the documents, and the answers stay behind the date of birth as on every link. Narrowing the routes the token may call is a hardening step, recorded, not skipped silently.
+    - **No text message with the link yet**, for the reason the question's notice has none (the SMS programme's catalogue).
+  - **Photos straightened and cropped** (the second half of Q-AM19) is a separate build after the link: it is image processing in the browser, and I have not yet read what the scanner already does to a frame.
+- 2026-11-14: **Documents link, stage 1: migration 0608.** `docs_token_hash`, `docs_link_expires_at` (set together or not at all), one invitation per hash, and `rotate_invitation_docs_token`: this org's only, never a revoked invitation, and a lapsed or filed one is still given a link. **Proof:** matrix `invitation-docs-token` (15); 6 of 6 real mutants of the migration killed. A seventh, dropping the function's own revoke from client roles, changes nothing: 0412 already closes every new function to them, so that revoke only restates it and no test of this migration can tell. I first wrote "7 of 7" here and in the PR, and corrected both.
 
