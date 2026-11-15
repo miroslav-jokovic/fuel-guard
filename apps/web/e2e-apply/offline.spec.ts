@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { shootWithScanner } from "./liveScanner";
-import { partOneLink, partTwoLink, STORAGE_UPLOAD, stubApi, TOKEN, type Stub } from "./stubApi";
+import { partOneLink, partTwoV2Link, STORAGE_UPLOAD, stubApi, TOKEN, type Stub } from "./stubApi";
 
 /**
  * §6.8's network bar, in a real browser: "network cut mid-screen: zero lost answers; a cut upload is
@@ -107,10 +107,11 @@ test("Part 1: a cut connection at screen 7 and a reload lose none of screens 3�
 });
 
 test("Part 2: an answer typed while saves fail is put back and saved on the next visit (C3d1b)", async ({ page }) => {
-  const stub = await stubApi(page, partTwoLink(
-    { first_name: "Susan", last_name: "Godfrey", email: "s@example.test", phone: "3125550142" }, 3,
-  ));
+  // On a link drivers are sent (1b-5): the task list, and "About you" walked a question at a time. Until
+  // 2026-11-14 this ran on a legacy link's linear wizard, which no live link can reach.
+  const stub = await stubApi(page, partTwoV2Link());
   await page.goto(url);
+  await page.getByRole("button", { name: /About you/ }).click();
   await expect(page.locator("#apply-first_name")).toHaveValue("Susan");
 
   stub.cut(/\/draft$/);
@@ -118,17 +119,19 @@ test("Part 2: an answer typed while saves fail is put back and saved on the next
   await expect(page.getByText(/Not saved — check your signal/)).toBeVisible({ timeout: 15_000 });
   expect(stub.callsTo("PUT", /\/draft$/).length).toBeGreaterThan(0);
   // Nothing reached the server's copy.
-  expect(stub.state.draft.revision).toBe(3);
+  expect(stub.state.draft.revision).toBe(1);
 
   stub.restore();
   await page.reload();
   await expect(page.getByText(/We put back answers/)).toBeVisible();
-  await expect(page.locator("#apply-middle_name")).toHaveValue("Anne");
   // Sent at once, on the revision it was typed on, and the server now holds it.
-  await expect.poll(() => stub.state.draft.revision).toBe(4);
+  await expect.poll(() => stub.state.draft.revision).toBe(2);
   expect(stub.state.draft.payload).toMatchObject({ first_name: "Susan", middle_name: "Anne" });
   const replay = stub.callsTo("PUT", /\/draft$/).at(-1)!;
-  expect(replay.body).toMatchObject({ revision: 3 });
+  expect(replay.body).toMatchObject({ revision: 1 });
+  // And it is back in its box, where the driver left it.
+  await page.getByRole("button", { name: /About you/ }).click();
+  await expect(page.locator("#apply-middle_name")).toHaveValue("Anne");
 });
 
 /** Photograph the CDL's front, press "Use this photo", and return the stub. */
