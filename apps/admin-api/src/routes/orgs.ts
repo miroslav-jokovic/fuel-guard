@@ -15,6 +15,7 @@ import { listOrgs, getOrgDetail, setOrgEntitlement } from "../lib/orgs.js";
 import { listOrgMembers, setOrgModuleEnabled } from "../lib/members.js";
 import { startGrant, getActiveGrant, viewOrgAnomalies, writeTenantAudit } from "../lib/impersonation.js";
 import { readOrgIdleEngine } from "../lib/idleEngine.js";
+import { removeMemberSecondFactor } from "./memberSecondFactor.js";
 
 /** /admin/orgs — read-only customer oversight (Phase 1). All routes behind the full platform gate. */
 export function orgsRouter(): Router {
@@ -213,6 +214,9 @@ export function orgsRouter(): Router {
       }
     },
   );
+
+  // ── A customer's member has lost the phone with their authenticator (INSTALLED-APP-PLAN IA-S1, Q-IA11 (b)) ──
+  r.post("/:id/members/:userId/second-factor/remove", requirePlatformRole("platform_owner", "platform_admin"), requireStepUp, removeMemberSecondFactor);
 
   // ── Read-only impersonation ("view as customer") ──────────────────────────────────────────────
   // Start a time-boxed, reason-required grant. Support role and up (never platform_readonly). Dual-audited:

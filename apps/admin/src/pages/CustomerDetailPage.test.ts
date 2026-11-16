@@ -88,3 +88,78 @@ describe("one customer (US7, D-US11)", () => {
     expect(wrapper.text()).toContain("Members");
   });
 });
+
+/** INSTALLED-APP-PLAN IA-S1, Q-IA11 (b): the way back in for a customer with no other admin to ask. */
+describe("removing a member's two-step sign-in", () => {
+  const MEMBERS = [
+    { userId: "22222222-2222-4222-8222-222222222222", email: "boss@acme.test", role: "admin", createdAt: "2026-01-01T00:00:00Z" },
+    { userId: "33333333-3333-4333-8333-333333333333", email: "aaron@drivers.test", role: "driver", createdAt: "2026-01-02T00:00:00Z" },
+  ];
+  const REASON = "Phoned from the number on file and confirmed their DOT number.";
+  const withMembers = (role = "platform_owner") =>
+    api.apiGet.mockImplementation(async (path: string) => {
+      if (path === "/admin/me") return { id: "u", email: "owner@silvicominc.com", role };
+      if (path.endsWith("/members")) return { members: MEMBERS };
+      if (path === "/admin/impersonation") return { grants: [] };
+      throw new Error(`unexpected ${path}`);
+    });
+  const fill = async (wrapper: Awaited<ReturnType<typeof mountPage>>["wrapper"], reason: string) => {
+    const card = wrapper.findAll("form").find((f) => f.text().includes("Remove two-step sign-in"))!;
+    await card.find("select").setValue(MEMBERS[0]!.userId);
+    await card.find("input").setValue(reason);
+    return card;
+  };
+
+  it("removes it for the member chosen, with the reason, after asking — and says what happened", async () => {
+    withMembers();
+    api.apiPost.mockResolvedValue({ removed: true, sessionsEnded: true });
+    const { wrapper, pinia } = await mountPage(CustomerDetailPage, `/customers/${ID}`);
+    const asked = answerConfirm(true, pinia);
+    const card = await fill(wrapper, REASON);
+    await card.trigger("submit");
+    await settle();
+    expect(asked.mock.calls[0]![0]).toMatchObject({ title: "Remove two-step sign-in for boss@acme.test?", tone: "danger" });
+    expect(api.apiPost).toHaveBeenCalledWith(`/admin/orgs/${ID}/members/${MEMBERS[0]!.userId}/second-factor/remove`, { reason: REASON });
+    expect(wrapper.text()).toContain("Removed. boss@acme.test is signed out everywhere");
+  });
+
+  it("sends nothing on No, and nothing without a real reason", async () => {
+    withMembers();
+    const { wrapper, pinia } = await mountPage(CustomerDetailPage, `/customers/${ID}`);
+    answerConfirm(false, pinia);
+    const card = await fill(wrapper, REASON);
+    await card.trigger("submit");
+    await settle();
+    expect(api.apiPost).not.toHaveBeenCalled();
+    const short = await fill(wrapper, "lost it");
+    expect(short.find("button[type=submit]").attributes("disabled")).toBeDefined();
+  });
+
+  it("offers office members only — a driver-app login has no two-step sign-in", async () => {
+    withMembers();
+    const { wrapper } = await mountPage(CustomerDetailPage, `/customers/${ID}`);
+    const options = wrapper.findAll("form").find((f) => f.text().includes("Remove two-step sign-in"))!.findAll("option").map((o) => o.text());
+    expect(options.some((o) => o.includes("boss@acme.test"))).toBe(true);
+    expect(options.some((o) => o.includes("aaron@drivers.test"))).toBe(false);
+  });
+
+  it("says in words when the member has none, and when the operator's own code is too old", async () => {
+    withMembers();
+    const { wrapper, pinia } = await mountPage(CustomerDetailPage, `/customers/${ID}`);
+    answerConfirm(true, pinia);
+    api.apiPost.mockRejectedValueOnce(new ApiRequestError(404, "no_second_factor", null));
+    await (await fill(wrapper, REASON)).trigger("submit");
+    await settle();
+    expect(wrapper.text()).toContain("boss@acme.test has no two-step sign-in set up");
+    api.apiPost.mockRejectedValueOnce(new ApiRequestError(403, "step_up_required", null));
+    await (await fill(wrapper, REASON)).trigger("submit");
+    await settle();
+    expect(wrapper.text()).toContain("This needs a fresh authenticator code of your own.");
+  });
+
+  it("is not shown to support or read-only staff", async () => {
+    withMembers("platform_support");
+    const { wrapper } = await mountPage(CustomerDetailPage, `/customers/${ID}`);
+    expect(wrapper.text()).not.toContain("Remove a member's two-step sign-in");
+  });
+});

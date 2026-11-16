@@ -16,6 +16,7 @@ import {
 } from "@silvicom/ui";
 import AppShell from "@/layouts/AppShell.vue";
 import OrgSwitchCard, { type OrgSwitch } from "@/components/OrgSwitchCard.vue";
+import MemberSecondFactorCard from "@/components/MemberSecondFactorCard.vue";
 import { useImpersonationStore } from "@/stores/impersonation";
 import { useMeQuery, useOrgMembersQuery, useOrgQuery } from "@/lib/queries";
 import { fmtDate } from "@/lib/format";
@@ -188,6 +189,8 @@ async function startSession() {
             <template #cell-createdAt="{ value }">{{ fmtDate(value) }}</template>
           </DataTable>
         </AppCard>
+
+        <MemberSecondFactorCard v-if="canManage && members.data.value?.length" class="mt-4" :org-id="id" :members="members.data.value" />
 
         <AppCard v-if="canImpersonate" class="mt-4">
           <h2 class="text-sm font-semibold text-ink-secondary">Support access</h2>
