@@ -82,6 +82,46 @@ export interface JudgeFinishedAdsInput {
 
 export type JudgeFinishedAdsOutcome = { kind: "pending"; why: string } | { kind: "judged"; check: FinishedAdCheck };
 
+export interface JudgeOneAdInput extends Omit<JudgeFinishedAdsInput, "ads"> {
+  format: AdFormat;
+  png: Buffer;
+  /**
+   * The pairing judged (V3 "make many, show few"): which picture, and the words by their place in the Copywriter's
+   * own order (`offered_as`, which no re-ranking moves). Absent = the creative's one ad, as before V3, under the key
+   * every judgement had then.
+   */
+  pairing?: { picture: number; words: number };
+}
+
+export type JudgeOneAdOutcome =
+  | { kind: "pending"; why: string }
+  | { kind: "scored"; scores: FinishedAdScores }
+  /**
+   * Switched off, out of budget, failed or off its schema: no opinion, and why — never a refusal of the ad (Q-AD76).
+   * `standing` says the next call would be refused the same way (the switch, the month's budget); a failed or
+   * unreadable answer is this call's alone.
+   */
+  | { kind: "not_run"; why: string; standing: boolean };
+
+/** One finished ad in one format through the rail: its scores, that it is still in flight, or why there are none. */
+export async function judgeOneAd(deps: ClaudeGenerationDeps, input: JudgeOneAdInput): Promise<JudgeOneAdOutcome> {
+  const req = await buildFinishedAdRequest({
+    image: { format: "png", bytes: new Uint8Array(input.png) }, headline: input.headline, button: input.button,
+    subject: input.subject, kit: input.kit, logo: input.logo,
+  });
+  const which = input.pairing ? `p${input.pairing.picture}:w${input.pairing.words}:` : "";
+  const out = await generateWithClaude(deps, {
+    orgId: input.orgId, agent: "finished_ad_judge", campaignId: input.campaignId, creativeId: input.creativeId,
+    idempotencyKey: `finished:${input.creativeId}:${which}${input.format}:${input.attempt}`, promptVersion: FINISHED_AD_JUDGE_PROMPT_VERSION,
+    ...req,
+  });
+  if (out.kind === "in_flight") return { kind: "pending", why: `finished-ad judge ${which}${input.format} in flight` };
+  if (out.kind === "succeeded") return { kind: "scored", scores: out.value.scores };
+  if (out.kind === "agent_off") return { kind: "not_run", why: "agent_off", standing: true };
+  if (out.kind === "budget_exhausted") return { kind: "not_run", why: `budget_exhausted (${out.refusal})`, standing: true };
+  return { kind: "not_run", why: `failed (${out.errorCode})`, standing: false };
+}
+
 /**
  * Every published format judged, or why not. A call still in flight is `pending` (compose returns and comes back;
  * the formats already answered replay from their ledger rows). Anything else that is not an answer — switched off,
@@ -90,22 +130,14 @@ export type JudgeFinishedAdsOutcome = { kind: "pending"; why: string } | { kind:
  */
 export async function judgeFinishedAds(deps: ClaudeGenerationDeps, input: JudgeFinishedAdsInput): Promise<JudgeFinishedAdsOutcome> {
   const byFormat: Record<string, FinishedAdScores> = {};
-  for (const ad of input.ads) {
-    const req = await buildFinishedAdRequest({
-      image: { format: "png", bytes: new Uint8Array(ad.png) }, headline: input.headline, button: input.button,
-      subject: input.subject, kit: input.kit, logo: input.logo,
-    });
-    const out = await generateWithClaude(deps, {
-      orgId: input.orgId, agent: "finished_ad_judge", campaignId: input.campaignId, creativeId: input.creativeId,
-      idempotencyKey: `finished:${input.creativeId}:${ad.format}:${input.attempt}`, promptVersion: FINISHED_AD_JUDGE_PROMPT_VERSION,
-      ...req,
-    });
-    if (out.kind === "in_flight") return { kind: "pending", why: `finished-ad judge ${ad.format} in flight` };
-    if (out.kind !== "succeeded") {
-      const notRun = out.kind === "agent_off" ? "agent_off" : out.kind === "budget_exhausted" ? `budget_exhausted (${out.refusal})` : `failed (${out.errorCode})`;
-      return { kind: "judged", check: { ran: false, prompt_version: FINISHED_AD_JUDGE_PROMPT_VERSION, not_run: notRun, ...(Object.keys(byFormat).length > 0 ? { by_format: byFormat } : {}) } };
+  const { ads, ...rest } = input;
+  for (const ad of ads) {
+    const out = await judgeOneAd(deps, { ...rest, format: ad.format, png: ad.png });
+    if (out.kind === "pending") return out;
+    if (out.kind === "not_run") {
+      return { kind: "judged", check: { ran: false, prompt_version: FINISHED_AD_JUDGE_PROMPT_VERSION, not_run: out.why, ...(Object.keys(byFormat).length > 0 ? { by_format: byFormat } : {}) } };
     }
-    byFormat[ad.format] = out.value.scores;
+    byFormat[ad.format] = out.scores;
   }
   return { kind: "judged", check: { ran: true, prompt_version: FINISHED_AD_JUDGE_PROMPT_VERSION, by_format: byFormat } };
 }

@@ -63,7 +63,12 @@ function world(opts: { planId?: string; plans?: unknown[]; concepts?: Array<[str
           return [{ ...p, regenerations: 0, created_at: NOW.toISOString(), last_error: null }];
         }
         if (has(q, "campaign_id") && Array.isArray(q.filters().find((f) => f.col === "campaign_id")!.val)) return opts.liveCreatives ?? [];
-        if (has(q, "id")) return [{ id: q.filters().find((f) => f.col === "id")!.val, org_id: ORG, campaign_id: "c-1", preset_version_id: "pv-0", state: "generating", regenerations: 0, created_at: NOW.toISOString(), last_error: null }];
+        if (has(q, "id")) {
+          const id = q.filters().find((f) => f.col === "id")!.val;
+          // A creative the test seeded answers with its own tries and what it was chosen from; any other id is a new row.
+          const known = (opts.creatives ?? []).find((c) => (c as { id: string }).id === id) as { regenerations?: number; pairings?: unknown } | undefined;
+          return [{ id, org_id: ORG, campaign_id: "c-1", preset_version_id: "pv-0", state: "generating", regenerations: known?.regenerations ?? 0, pairings: known?.pairings ?? null, created_at: NOW.toISOString(), last_error: null }];
+        }
         return opts.creatives ?? [];
       },
     },
@@ -210,13 +215,30 @@ describe("composeCampaign — a creative per preset in this stint", () => {
     const rec = world({ creatives: [old], choices: [words] });
     await composeCampaign(deps(rec), campaign);
     expect(rec.writtenRows("ads_creatives")[0]).toMatchObject({ preset_version_id: order[0], supersedes_id: "old-1" });
-    // The world answers any read by id with a creative at regenerations 0: its last attempt is 1.
-    expect(composed[0]!.choice).toMatchObject({ copy: words.copy, from_candidate: 1, edited_slots: ["hook"], chosen_by_name: "Koni", replaced: { creativeId: "old-1", attempt: 1 } });
+    // An ad made from one picture, at regenerations 0: its picture is the first, and that picture's last attempt is 1.
+    expect(composed[0]!.choice).toMatchObject({ copy: words.copy, from_candidate: 1, edited_slots: ["hook"], chosen_by_name: "Koni", replaced: { creativeId: "old-1", attempt: 1, picture: 1 } });
+    expect(composed[0]!.choice).not.toHaveProperty("picture");
     // A creative superseded with nobody's words is composed as always.
     const plain = world({ creatives: [{ ...old, state: "check_failed" }] });
     composed.length = 0;
     await composeCampaign(deps(plain), campaign);
     expect(composed[0]!.choice).toBeUndefined();
+  });
+
+  it("the picture kept for a person's words is the one the ad was — the winning pairing's, at that picture's own attempt — or the one the choice names", async () => {
+    const picture = (n: number, attempt: number, dropped: string | null = null) => ({ picture: n, attempt, reference: "a".repeat(64), focal_subject: "tractor", camera_distance: "medium", dropped });
+    const pairing = (n: number, words: number) => ({ picture: n, words, judged: null, total: null, preview: null });
+    // Chosen from three pictures: the third won, on its second try; the creative's own count of tries says 1.
+    const pairings = { format: "4:5", pictures: [picture(1, 1), picture(2, 1, "art check: repeats_earlier_picture"), picture(3, 2)], ranked: [pairing(3, 0), pairing(1, 0)], chosen: 0, judge: null };
+    const old = { id: "old-1", org_id: ORG, campaign_id: "c-1", preset_version_id: order[0], state: "rejected", regenerations: 1, pairings, created_at: "2026-11-03T10:00:00Z", last_error: null };
+    const words = { replaces_creative_id: "old-1", copy: { en: { hook: "A" }, es: { hook: "B" } }, from_candidate: null, edited_slots: ["hook"], chosen_by_name: "Koni", picture: null };
+    await composeCampaign(deps(world({ creatives: [old], choices: [words] })), campaign);
+    expect((composed[0]!.choice as { replaced: unknown }).replaced).toMatchObject({ creativeId: "old-1", picture: 3, attempt: 2 });
+
+    // The choice names the first picture (a rival the person preferred): that one, at its own attempt.
+    composed.length = 0;
+    await composeCampaign(deps(world({ creatives: [old], choices: [{ ...words, picture: 1 }] })), campaign);
+    expect((composed[0]!.choice as { replaced: unknown }).replaced).toMatchObject({ creativeId: "old-1", picture: 1, attempt: 1 });
   });
 
   it("a ready creative from an earlier stint is kept, not redone", async () => {

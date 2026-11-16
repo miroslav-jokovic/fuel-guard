@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AdPairings } from "./adPairings.js";
 import type { AdCandidates } from "./copyCandidates.js";
 import { recordId } from "../recordId.js";
 import type { AdBrief, CampaignState, CreativeState } from "./contracts.js";
@@ -84,6 +85,11 @@ export interface AdsCreativeView {
   checks: Record<string, unknown> | null;
   /** Every copy the Copywriter offered, ranked by the craft judge, and which became `copy` (CQ4, 0579); null before CQ4. */
   candidates: AdCandidates | null;
+  /**
+   * The pictures this ad was chosen from and every picture-and-words pairing, ranked by the finished-ad judge (V3,
+   * 0619); null for an ad made from one picture — every ad before V3, and one built from a person's choice.
+   */
+  pairings: AdPairings | null;
   regenerations: number;
   last_error: string | null;
   created_at: string;

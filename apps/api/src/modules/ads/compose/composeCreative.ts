@@ -1,17 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  FORMAT_SIZE, overlaySlotList, publishedFormats, rankCandidates, withRegenerationClauses,
-  type AdAssetRef, type AdBrandKit, type AdBrief, type AdCandidates, type AdFormat, type AdPresetRecipe, type AdVisualCheck, type CreativeState, type WriterAngle,
+  MAX_PICTURES_PER_CREATIVE, adPairingsSchema, publishedFormats, rankCandidates,
+  type AdAssetRef, type AdBrandKit, type AdBrief, type AdCandidates, type AdFormat, type AdPairings, type AdPresetRecipe, type ArtAnswer, type CreativeState, type WriterAngle,
 } from "@silvicom/shared";
-import type { ClaudeGenerationDeps } from "../generations/claudeGeneration.js";
-import { stillParams } from "../creative/higgsfield/prices.js";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
-import { frameStill, overlayFit, renderOverlay, type OverlayFinding, type OverlayLanguage } from "../creative/overlay/overlay.js";
+import { overlayFit, type OverlayFinding, type OverlayLanguage } from "../creative/overlay/overlay.js";
 import { writeCopy, type AdCopy, type SlotFinding } from "../workers/copywriter/copywriter.js";
 import { CRAFT_JUDGE_PROMPT_VERSION, judgeCraft } from "../workers/craftJudge/craftJudge.js";
-import { directArt } from "../workers/artDirector/artDirector.js";
-import { checkVisual, type FractionRect, type VisionImage, type VisualResult } from "../workers/checker/checker.js";
 import { judgeFinishedAds } from "../workers/finishedAdJudge/finishedAdJudge.js";
+import { rankPictures } from "./creativePairings.js";
+import { drawnCopy, makePicture, overlaySummary, stopCode, type DrawnImage, type PictureDeps, type PictureOutcome, type WordsToDraw } from "./creativePictures.js";
+
+export { drawnCopy, union } from "./creativePictures.js";
 
 /**
  * One creative, moved as far as it can go (ADS-AGENT-BUILD-WORKFLOW C5b; plan D-AD9, D-AD12). Called by
@@ -24,6 +24,11 @@ import { judgeFinishedAds } from "../workers/finishedAdJudge/finishedAdJudge.js"
  *     `pending`) → per format: the still framed, the overlay in English and Spanish (the render check),
  *     the visual check over the framed still with the band the overlay actually covered
  *   → `ready` with everything a person must see, or `check_failed` with the reason.
+ *
+ * Since V3 (ADS-PLATFORM-V2-PLAN "make many, show few") the art → render → check part is one PICTURE's
+ * (`creativePictures.ts`), a creative may make several, and which picture under which words becomes the ad is
+ * ranked (`creativePairings.ts`); see `fromPictures` below. Everything in this comment about one picture holds for
+ * each of them.
  *
  * ── ONLY THE FORMATS AN AD IS SHOWN IN (Q-AD75, ruled 2026-11-10; D-AD25) ─────────────────────────────
  * "Per format" above means per PUBLISHED format: `publishedFormats(recipe.formats)`, the list the publisher
@@ -75,7 +80,7 @@ export interface CreativeRow {
   regenerations: number;
 }
 
-export interface ComposeDeps extends ClaudeGenerationDeps {
+export interface ComposeDeps extends PictureDeps {
   render: (input: RenderInput) => Promise<RenderOutcome>;
   /** Higgsfield's model path for stills. Null until V4 chooses and prices one: compose stops, visibly. */
   renderModel: string | null;
@@ -91,6 +96,8 @@ export interface ComposeInput {
   maxRegenerations: number;
   /** `settings.budgets.candidates_per_creative` (CQ4); absent = the Copywriter's default. */
   candidates?: number;
+  /** `settings.budgets.pictures_per_creative` (V3, Q-APX7); absent = 1, the one picture every creative had before V3. */
+  pictures?: number;
   /** The approved plan's idea for this preset (V2c); null or absent for a campaign that was not planned. */
   angle?: WriterAngle | null;
   /** A person chose this creative's words (Q-ADL7): no copywriter, no judge, and the replaced creative's picture. */
@@ -107,7 +114,8 @@ export interface PersonChoice {
   from_candidate: number | null;
   edited_slots: string[];
   chosen_by_name: string;
-  replaced: { creativeId: string; attempt: number; candidates: AdCandidates | null };
+  /** `picture`: which of the replaced creative's pictures is kept (V3); absent = its first, the only one before V3. */
+  replaced: { creativeId: string; attempt: number; picture?: number; candidates: AdCandidates | null };
 }
 
 export interface CreativeAsset { format: AdFormat; language: OverlayLanguage; sha256: string; path: string; width: number; height: number }
@@ -121,7 +129,6 @@ export type ComposeOutcome =
 
 const LANGUAGES: OverlayLanguage[] = ["en", "es"];
 type Stop = { kind: "stop"; reason: string; checks?: Record<string, unknown> };
-type Pending = { kind: "pending"; why: string };
 
 export async function composeCreative(deps: ComposeDeps, input: ComposeInput): Promise<ComposeOutcome> {
   const { creative: cr, brief, recipe } = input;
@@ -137,7 +144,7 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
     const ch = input.choice, set = ch.replaced.candidates;
     const candidates = set ? { ...set, chosen: ch.from_candidate ?? set.chosen, chosen_by_person: { name: ch.chosen_by_name, edited_slots: ch.edited_slots } } : null;
     if (candidates) await keep(deps.admin, cr, { candidates });
-    return attempts(deps, input, ch.copy, candidates, stop);
+    return fromPictures(deps, input, [{ index: candidates?.chosen ?? 0, offeredAs: ch.from_candidate !== null && set ? set.ranked[ch.from_candidate]?.offered_as ?? 0 : 0, copy: ch.copy }], candidates, stop);
   }
 
   const written = await writeCopy(deps, { ...ids, attempt: 1, brief, recipe, company_name: input.kit.company_name, candidates: input.candidates, angle: input.angle ?? null });
@@ -174,112 +181,109 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
       : `render check: none of the ${ranked.length} copies fits the image — ${passedOver.map((p) => `#${p.index + 1} (${p.reason})`).join(" · ")}`;
     return stop({ kind: "stop", reason: reason.slice(0, 2000), checks: { copy: { ok: true }, render: { ok: false, format: first.format, language: first.language, findings: first.findings } } });
   }
-  return attempts(deps, input, ranked[fits]!.copy, candidates, stop);
+  // One picture: the first words that fit, as before V3. Several: every set that fits, each paired with each picture.
+  const fitting: WordsToDraw[] = ranked.flatMap((r, index) => (unfit[index] === null ? [{ index, offeredAs: r.offered_as, copy: r.copy }] : []));
+  return fromPictures(deps, input, pictureCount(input) === 1 ? fitting.slice(0, 1) : fitting, candidates, stop);
 }
 
 /**
- * Art, render, overlay and visual check, regenerating on a visual failure (D-AD12), then the finished-ad opinion and
- * `ready`. One function for the copy the ranking chose and the copy a person chose (Q-ADL7).
+ * The pictures, the pairing that becomes the ad, and `ready` — or why not. One function for the words the ranking
+ * chose and the words a person chose (Q-ADL7).
+ *
+ * ── ONE PICTURE IS THE AD AS IT ALWAYS WAS; SEVERAL ARE RANKED (V3, Q-APX7) ───────────────────────────
+ * `input.pictures` is `settings.budgets.pictures_per_creative`. At 1 — and for a person's choice, which keeps the
+ * picture it was made on — nothing differs from before V3: one picture under the first words that fit, the same
+ * ledger keys, no `pairings` written. Above 1 each picture is made in turn (`makePicture`), every one that passes is
+ * paired with the words it can carry, the finished-ad judge ranks the pairings (`rankPictures`), the first becomes
+ * the ad, and the rest are kept beside it as one image each (Q-APX9). A picture that cannot be used is dropped with
+ * its reason; the creative stops only when none can.
+ *
+ * Every picture is directed and its render queued before this returns `pending`, so three renders wait in the
+ * queue together and not one after another across three runs of the step.
  */
-async function attempts(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, candidates: AdCandidates | null, stop: (s: Stop) => Promise<ComposeOutcome>): Promise<ComposeOutcome> {
-  const { creative: cr, recipe } = input;
-  const ids = { orgId: cr.org_id, campaignId: cr.campaign_id, creativeId: cr.id };
-  let failed: AdVisualCheck[] = [];
-  const history: Array<{ attempt: number; visual: Record<string, VisualResult[]> }> = [];
-  for (let attempt = 1; attempt <= 1 + input.maxRegenerations; attempt += 1) {
-    const r = await oneAttempt(deps, input, copy, attempt, failed);
-    if (r.kind === "pending") return r;
-    if (r.kind === "stop") return stop({ ...r, checks: { copy: { ok: true }, ...r.checks, visual_attempts: history } });
-    history.push({ attempt, visual: r.visual });
-    if (r.kind === "passed") {
-      // P1-7 (Q-AD76): a second opinion on the finished ad, never a gate — switched off or refused, it says so and
-      // the creative still reaches review.
-      const opinion = await judgeFinishedAds(deps, {
-        ...ids, attempt, ads: r.english, kit: input.kit, logo: r.logo, subject: r.subject,
-        headline: copy.en[recipe.overlay_slots!.headline]!, button: copy.en[recipe.overlay_slots!.cta]!,
-      });
-      if (opinion.kind === "pending") return { kind: "pending", why: opinion.why };
-      await finish(deps.admin, cr, {
-        state: "ready", copy, candidates, assets: r.assets, regenerations: attempt - 1, last_error: null,
-        checks: { copy: { ok: true }, render: { ok: true }, visual: { ok: true, attempt, results: r.visual }, visual_attempts: history, finished_ad: opinion.check },
-      });
-      return { kind: "ready" };
-    }
-    failed = r.failed;
-  }
-  const reasons = history.at(-1)!.visual;
-  const said = Object.entries(reasons).flatMap(([format, rs]) => rs.filter((x) => x.verdict === "fail").map((x) => `${format} ${x.check}: ${x.reason}`));
-  return stop({ kind: "stop", reason: `visual check failed after ${history.length} attempt(s): ${said.join(" · ")}`.slice(0, 2000), checks: { copy: { ok: true }, render: { ok: true }, visual: { ok: false }, visual_attempts: history } });
-}
-
-type AttemptResult =
-  | Pending
-  | Stop
-  | { kind: "passed"; visual: Record<string, VisualResult[]>; assets: CreativeAsset[]; english: Array<{ format: AdFormat; png: Buffer }>; logo: VisionImage | null; subject: string }
-  | { kind: "visual_failed"; visual: Record<string, VisualResult[]>; failed: AdVisualCheck[] };
-
-async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, attempt: number, failedBefore: AdVisualCheck[]): Promise<AttemptResult> {
+async function fromPictures(deps: ComposeDeps, input: ComposeInput, words: WordsToDraw[], candidates: AdCandidates | null, stop: (s: Stop) => Promise<ComposeOutcome>): Promise<ComposeOutcome> {
   const { creative: cr, brief, recipe, kit } = input;
   const ids = { orgId: cr.org_id, campaignId: cr.campaign_id, creativeId: cr.id };
-  // A person's choice keeps the replaced creative's picture: its art and render rows are replayed by their keys, so
-  // nothing is asked again and nothing is paid twice (Q-ADL7). A regeneration after a failed check is a new picture.
-  const reused = attempt === 1 && input.choice ? input.choice.replaced : null;
-  const from = reused ? { ...ids, creativeId: reused.creativeId } : ids, fromAttempt = reused ? reused.attempt : attempt;
-  const art = await directArt(deps, { ...from, attempt: fromAttempt, recipe, kit, context: brief.subject_matter.details, headline: copy.en[recipe.overlay_slots!.headline] ?? null, idea: input.angle?.idea ?? null });
-  if (art.kind === "in_flight") return { kind: "pending", why: `art ${attempt} in flight` };
-  if (art.kind === "not_possible") return { kind: "stop", reason: `art: ${art.reason}` };
-  if (art.kind === "refused") return { kind: "stop", reason: `art check: ${art.findings.map((f) => f.kind).join(", ")}` };
-  if (art.kind !== "ready") return { kind: "stop", reason: `art: ${stopCode(art)}` };
-
-  if (!deps.renderModel) return { kind: "stop", reason: "render: no still model chosen yet (V4)" };
-  const prompt = withRegenerationClauses(art.direction.prompt, failedBefore);
-  const ref = art.direction.reference;
-  const render = await deps.render({ ...from, attempt: fromAttempt, model: deps.renderModel, params: stillParams(deps.renderModel, prompt, art.direction.composition.frame), reference: ref ? { sha256: ref.sha256, format: ref.format } : null });
-  if (render.kind === "pending") return { kind: "pending", why: `render ${attempt}: ${render.why}` };
-  if (render.kind === "refused") return { kind: "stop", reason: `render: ${render.refusal}` };
-  if (render.kind !== "stored") return { kind: "stop", reason: `render: ${render.kind === "failed" ? render.errorCode : render.refusal}` };
-  if (render.assets.length === 0) return { kind: "stop", reason: "render: no image" };
-  await markChecking(deps.admin, cr);
-
-  const base = await deps.readAsset(cr.org_id, render.assets[0]!);
-  const logo = kit.logo ? await deps.readAsset(cr.org_id, kit.logo) : null;
-  const photo = ref ? kit.equipment_photos.find((p) => p.asset.sha256 === ref.sha256) ?? null : null;
-  const reference = photo ? { label: photo.label, image: { format: photo.asset.format, bytes: new Uint8Array(await deps.readAsset(cr.org_id, photo.asset)) } } : null;
-
-  const visual: Record<string, VisualResult[]> = {};
-  const failed = new Set<AdVisualCheck>();
-  const rendered: Array<{ format: AdFormat; language: OverlayLanguage; png: Buffer }> = [];
-  for (const format of publishedFormats(recipe.formats)) {
-    const still = await frameStill(base, format, recipe.layout);
-    const boxes: FractionRect[] = [];
-    for (const language of LANGUAGES) {
-      const o = await renderOverlay({
-        format, language, base: still, brief, kit, logo, layout: recipe.layout, look: recipe.look,
-        ...drawnCopy(recipe.overlay_slots!, copy[language]),
-      });
-      if (o.kind === "refused") return { kind: "stop", reason: `render check (${format}, ${language}): ${overlaySummary(o.findings)}`, checks: { render: { ok: false, format, language, findings: o.findings } } };
-      rendered.push({ format, language, png: o.png });
-      boxes.push(toFraction(o.stack, format));
-    }
-    const v = await checkVisual(deps, {
-      ...ids, format, attempt,
-      subject: { image: { format: "png", bytes: new Uint8Array(still) }, reference, scene: recipe, kit, text_band: union(boxes) },
+  const reuse = input.choice ? { creativeId: input.choice.replaced.creativeId, picture: input.choice.replaced.picture ?? 1, attempt: input.choice.replaced.attempt } : undefined;
+  const n = pictureCount(input);
+  const made: PictureOutcome[] = [];
+  const earlier: ArtAnswer[] = [];
+  for (let picture = 1; picture <= n; picture += 1) {
+    const r = await makePicture(deps, {
+      ids, brief, recipe, kit, maxRegenerations: input.maxRegenerations, idea: input.angle?.idea ?? null, picture, earlier: [...earlier], words,
+      ...(reuse ? { reuse } : {}), onRendered: () => markChecking(deps.admin, cr),
     });
-    if (v.kind === "in_flight") return { kind: "pending", why: `visual ${format} ${attempt} in flight` };
-    if (v.kind === "no_reference") return { kind: "stop", reason: "visual: the scene shows equipment and no reference photo was chosen" };
-    if (v.kind !== "passed" && v.kind !== "check_failed") return { kind: "stop", reason: `visual: ${stopCode(v)}` };
-    visual[format] = v.results;
-    for (const r of v.results) if (r.verdict === "fail") failed.add(r.check);
+    made.push(r);
+    // A picture whose direction is not known yet cannot be told to the next one: wait, and come back.
+    if (r.kind === "pending" && !r.answer) break;
+    if (r.answer) earlier.push(r.answer);
   }
-  if (failed.size > 0) return { kind: "visual_failed", visual, failed: [...failed] };
+  const waiting = made.find((m) => m.kind === "pending");
+  if (waiting?.kind === "pending") return { kind: "pending", why: waiting.why };
 
-  const assets: CreativeAsset[] = [];
-  for (const r of rendered) {
-    const ref = await deps.storeAsset(cr.org_id, r.png);
-    assets.push({ format: r.format, language: r.language, sha256: ref.sha256, path: `${cr.org_id}/${ref.sha256}.png`, width: ref.width, height: ref.height });
+  const passed = made.flatMap((m, i) => (m.kind === "passed" ? [{ ...m, picture: i + 1 }] : []));
+  if (passed.length === 0) {
+    const dropped = made.flatMap((m) => (m.kind === "dropped" ? [m] : []));
+    // The same reason for every picture (a switched-off agent, no still model) is said once, as it was for one.
+    const same = new Set(dropped.map((d) => d.reason)).size === 1;
+    const reason = same ? dropped[0]!.reason : `none of the ${n} pictures could be used — ${dropped.map((d, i) => `#${i + 1} (${d.reason})`).join(" · ")}`;
+    return stop({ kind: "stop", reason: reason.slice(0, 2000), checks: { copy: { ok: true }, ...dropped[0]!.checks } });
   }
-  const english = rendered.filter((r) => r.language === "en").map((r) => ({ format: r.format, png: r.png }));
-  return { kind: "passed", visual, assets, english, logo: kit.logo && logo ? { format: kit.logo.format, bytes: new Uint8Array(logo) } : null, subject: art.direction.composition.focal_subject };
+  const slots = recipe.overlay_slots!;
+  const store = async (images: DrawnImage[]): Promise<CreativeAsset[]> => {
+    const assets: CreativeAsset[] = [];
+    for (const r of images) {
+      const ref = await deps.storeAsset(cr.org_id, r.png);
+      assets.push({ format: r.format, language: r.language, sha256: ref.sha256, path: `${cr.org_id}/${ref.sha256}.png`, width: ref.width, height: ref.height });
+    }
+    return assets;
+  };
+  const checksOf = (p: (typeof passed)[number], finishedAd: unknown) => ({ copy: { ok: true }, render: { ok: true }, visual: { ok: true, attempt: p.attempt, results: p.visual }, visual_attempts: p.history, finished_ad: finishedAd });
+
+  if (n === 1) {
+    const pic = passed[0]!, drawn = pic.drawn[0]!;
+    const assets = await store(drawn.images);
+    // P1-7 (Q-AD76): a second opinion on the finished ad, never a gate — switched off or refused, it says so and
+    // the creative still reaches review.
+    const opinion = await judgeFinishedAds(deps, {
+      ...ids, attempt: pic.attempt, ads: drawn.images.filter((i) => i.language === "en").map((i) => ({ format: i.format, png: i.png })), kit, logo: pic.logo, subject: pic.subject,
+      headline: drawn.words.copy.en[slots.headline]!, button: drawn.words.copy.en[slots.cta]!,
+    });
+    if (opinion.kind === "pending") return { kind: "pending", why: opinion.why };
+    await finish(deps.admin, cr, { state: "ready", copy: drawn.words.copy, candidates, assets, regenerations: pic.attempt - 1, last_error: null, checks: checksOf(pic, opinion.check) });
+    return { kind: "ready" };
+  }
+
+  const out = await rankPictures(deps, { ids, recipe, kit, pictures: passed });
+  if (out.kind === "pending") return out;
+  const winner = out.ranked[0]!;
+  const assets = await store(winner.drawn.images);
+  const ranked: AdPairings["ranked"] = [];
+  for (const r of out.ranked) {
+    const ref = await deps.storeAsset(cr.org_id, r.png);
+    ranked.push({ picture: r.picture, words: r.words, judged: r.judged, total: r.total, preview: { sha256: ref.sha256, path: `${cr.org_id}/${ref.sha256}.png`, width: ref.width, height: ref.height } });
+  }
+  // Parsed at the write: a body the review screen could not read is a bug here, not a blank screen there.
+  const pairings = adPairingsSchema.parse({
+    format: out.format, ranked, chosen: 0, judge: out.judge,
+    pictures: made.map((m, i) => ({
+      picture: i + 1, attempt: m.kind === "pending" ? 1 : m.attempt, reference: m.answer?.reference_photo ?? null,
+      focal_subject: m.answer?.focal_subject ?? null, camera_distance: m.answer?.camera_distance ?? null,
+      dropped: m.kind === "dropped" ? m.reason.slice(0, 300) : null,
+      ...(m.kind === "passed" && m.undrawable.length > 0 ? { undrawable: m.undrawable.map((u) => ({ words: u.index, reason: u.reason })) } : {}),
+    })),
+  } satisfies AdPairings);
+  await finish(deps.admin, cr, {
+    // The words that became `copy` are the winning pairing's, which need not be the craft judge's first.
+    state: "ready", copy: winner.drawn.words.copy, candidates: candidates ? { ...candidates, chosen: winner.words } : null, pairings, assets,
+    regenerations: winner.from.attempt - 1, last_error: null, checks: checksOf(passed.find((p) => p.picture === winner.picture)!, out.finishedAd),
+  });
+  return { kind: "ready" };
+}
+
+/** How many pictures this creative is chosen from: the setting, 1 for a person's choice (it keeps its picture) and when unset. */
+export function pictureCount(input: Pick<ComposeInput, "pictures" | "choice">): number {
+  return input.choice ? 1 : Math.min(MAX_PICTURES_PER_CREATIVE, Math.max(1, Math.trunc(input.pictures ?? 1)));
 }
 
 /**
@@ -297,35 +301,7 @@ function fitRefusal(input: ComposeInput, copy: AdCopy): { format: AdFormat; lang
   return null;
 }
 
-/**
- * The words the overlay draws, by role, from one language's copy: the headline and the call to action always,
- * and the two small lines when the preset names a slot for them (D-ADL4). One function for the fit asked before
- * the picture and the render after it, so the two are asked about the same words.
- */
-export function drawnCopy(slots: NonNullable<AdPresetRecipe["overlay_slots"]>, copy: Record<string, string>): { headline: string; cta: string; kicker: string | null; subline: string | null } {
-  const said = Object.fromEntries(overlaySlotList(slots).map(([role, slot]) => [role, copy[slot] ?? null]));
-  return { headline: said.headline!, cta: said.cta!, kicker: said.kicker ?? null, subline: said.subline ?? null };
-}
-
-function toFraction(box: { x: number; y: number; width: number; height: number }, format: AdFormat): FractionRect {
-  const { width: W, height: H } = FORMAT_SIZE[format];
-  return { x: box.x / W, y: box.y / H, width: box.width / W, height: box.height / H };
-}
-
-/** The smallest rectangle holding every box — the band the text of either language covers. */
-export function union(boxes: FractionRect[]): FractionRect {
-  const x = Math.max(0, Math.min(...boxes.map((b) => b.x)));
-  const y = Math.max(0, Math.min(...boxes.map((b) => b.y)));
-  const right = Math.min(1, Math.max(...boxes.map((b) => b.x + b.width)));
-  const bottom = Math.min(1, Math.max(...boxes.map((b) => b.y + b.height)));
-  return { x, y, width: right - x, height: bottom - y };
-}
-
 const summarise = (fs: SlotFinding[]) => [...new Set(fs.map((f) => `${f.kind} (${f.language} ${f.slot})`))].join(", ");
-const overlaySummary = (fs: OverlayFinding[]) => [...new Set(fs.map((f) => f.kind))].join(", ");
-function stopCode(o: { kind: string; errorCode?: string; refusal?: string }): string {
-  return o.kind === "failed" ? o.errorCode ?? "failed" : o.kind === "budget_exhausted" ? `budget_exhausted (${o.refusal})` : o.kind;
-}
 
 /** A field written while the workers still hold the creative (`generating`/`checking`); a creative that left both is not touched. */
 async function keep(admin: SupabaseClient, cr: CreativeRow, patch: Record<string, unknown>): Promise<void> {

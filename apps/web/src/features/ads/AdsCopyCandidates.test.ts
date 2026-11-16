@@ -28,4 +28,14 @@ describe("AdsCopyCandidates — which copy became the ad", () => {
     expect(w.find("[data-test=candidate-2] [data-test=chosen]").exists()).toBe(true);
     expect(w.find("[data-test=candidate-2] [data-test=passed-over]").exists()).toBe(false);
   });
+
+  it("an ad chosen from several pictures says its words went best with the picture, and names the fit only when the copies above were in fact passed over", () => {
+    const paired = (candidates: AdCandidates) => mount(AdsCopyCandidates, { props: { candidates, language: "en", paired: true } }).find("summary").text();
+    expect(paired({ ...SET, chosen: 2 })).toContain("#3 became the ad: these words went best with the picture that was chosen.");
+    expect(paired({ ...SET, chosen: 2 })).not.toContain("do not fit");
+    expect(paired({ ...SET, chosen: 1, passed_over: [{ index: 0, reason: "4:5, en: too_long" }] })).toContain("#2 became the ad, because the ones above it do not fit on the image.");
+    // One of the two above it did not fit; the other did and lost on the picture: the picture is the reason given.
+    expect(paired({ ...SET, chosen: 2, passed_over: [{ index: 0, reason: "4:5, en: too_long" }] })).toContain("these words went best with the picture");
+    expect(paired(SET)).toContain("the first became the ad.");
+  });
 });

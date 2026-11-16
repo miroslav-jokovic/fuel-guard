@@ -10,7 +10,7 @@ import { copyLines } from "./adsCampaignFlow";
  * the others are shown so a reviewer sees why — and can disagree, which is how the judge gets calibrated (R7). When
  * no judge ranked them (switched off, or before it existed) the order is the writer's and the heading says so.
  */
-const props = defineProps<{ candidates: AdCandidates; language: string; canChoose?: boolean }>();
+const props = defineProps<{ candidates: AdCandidates; language: string; canChoose?: boolean; /** The ad was chosen from several pictures (V3): which words became the ad was then decided with the picture, not by the fit alone. */ paired?: boolean }>();
 const emit = defineEmits<{ use: [index: number] }>();
 
 const ranked = computed(() => props.candidates.ranked.map((c, i) => ({ ...c, rank: i + 1, chosen: i === props.candidates.chosen })));
@@ -18,7 +18,17 @@ const judged = computed(() => props.candidates.judge !== null);
 const dropped = computed(() => props.candidates.offered - props.candidates.passed);
 /** Why a better-ranked copy is not the ad (AG1): the overlay could not draw it, in the overlay's own word. */
 const passedOver = computed(() => new Map((props.candidates.passed_over ?? []).map((p) => [p.index, p.reason])));
-const which = computed(() => (props.candidates.chosen === 0 ? "the first became the ad" : `#${props.candidates.chosen + 1} became the ad, because the ones above it do not fit on the image`));
+/**
+ * Why a copy that is not the first became the ad. Until V3 there was one reason: the ones above it did not fit. An ad
+ * chosen from several pictures has another — these words went best with the picture that won — and may have both, so
+ * the fit is named only for the copies that were in fact passed over.
+ */
+const which = computed(() => {
+  const n = props.candidates.chosen;
+  if (n === 0) return "the first became the ad";
+  if (!props.paired) return `#${n + 1} became the ad, because the ones above it do not fit on the image`;
+  return passedOver.value.size >= n ? `#${n + 1} became the ad, because the ones above it do not fit on the image` : `#${n + 1} became the ad: these words went best with the picture that was chosen`;
+});
 </script>
 
 <template>

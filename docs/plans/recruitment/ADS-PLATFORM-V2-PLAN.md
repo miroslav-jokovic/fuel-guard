@@ -334,6 +334,15 @@ pictures were made in. The numbers are settings a carrier does not see at first 
 **Kept from Q-AD76:** the finished-ad judge stays an opinion and never a gate. Ranking chooses what a person sees
 first; it refuses nothing, and every rival stays one click away.
 
+**Built 2026-11-16 as (b), ahead of the ruling** (V3d; the number is a setting, so a different answer is a number
+and not a rebuild). `budgets.pictures_per_creative`, default 3, 1 to 5. At 1 an ad is made exactly as before:
+one picture, the first words that fit, the same ledger keys, nothing new stored. Above 1: each picture is directed,
+rendered and checked in turn; every picture that passes is paired with every set of words it can carry; the judge
+scores each pairing in the composed frame; `rankPairings` orders them with the one-point margin above; the first
+becomes the ad and is then judged in its other formats. A picture that cannot be used is dropped with its reason and
+the ad is chosen from the rest; the creative stops only when none can be used. All renders are queued before the
+step waits. Q-APX9 is built as (a): one image per pairing.
+
 ### Q-APX8 · What makes the three pictures of one ad differ — open
 
 **What was read.** `artDirector.ts` and `composeCreative.ts`: one direction is asked per ad, keyed by ad and attempt.

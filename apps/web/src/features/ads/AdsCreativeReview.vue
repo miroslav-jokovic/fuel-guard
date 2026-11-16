@@ -72,7 +72,7 @@ const tone = computed(() => (props.creative.state === "check_failed" || props.cr
       <div class="space-y-1">
         <p v-for="c in copyLines(creative.copy, l)" :key="c.slot" class="text-sm text-ink"><span class="text-ink-muted">{{ c.slot }}: </span>{{ c.text }}</p>
       </div>
-      <AdsCopyCandidates v-if="creative.candidates && creative.candidates.ranked.length > 1" :candidates="creative.candidates" :language="l" :can-choose="choosable" @use="editWords" />
+      <AdsCopyCandidates v-if="creative.candidates && creative.candidates.ranked.length > 1" :candidates="creative.candidates" :language="l" :can-choose="choosable" :paired="Boolean(creative.pairings)" @use="editWords" />
     </section>
     <AdsWordsEditor v-if="editing" :start="editing.start" :from-candidate="editing.from" :busy="busy" :refusal="wordsRefusal" @save="(c) => emit('words', c)" @cancel="editing = null" />
     <div v-if="canDecide && creative.state === 'ready'" class="space-y-2">
