@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { BinderRequest, DocumentExportRequest, DqExportRow } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import { deviceHeader } from "@/lib/deviceKey";
 
 /**
  * Driver-qualification exports (DQ-BINDER-PLAN). Two shapes, one ledger.
@@ -74,6 +75,7 @@ export function useExportDocument() {
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...deviceHeader(),
         },
         body: JSON.stringify({
           driverId: input.driverId,

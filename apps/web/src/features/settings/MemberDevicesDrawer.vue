@@ -8,6 +8,7 @@ import { apiRefusal, useStepUpRetry } from "@/composables/useStepUpRetry";
 import SlideOver from "@/components/SlideOver.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import SignedInDeviceList from "./SignedInDeviceList.vue";
+import DeviceHistory from "./DeviceHistory.vue";
 
 /**
  * "Signed-in devices…" on the Users page (INSTALLED-APP-PLAN IA-S3; Q-IA3 (b): an admin may end anybody's
@@ -91,5 +92,6 @@ function close(): void {
       <p v-if="devices.length === 0" class="text-sm text-ink-muted" data-testid="member-devices-empty">{{ who }} is not signed in anywhere.</p>
       <SignedInDeviceList v-else :devices="devices" :busy="busy" @end="end" />
     </QueryState>
+    <DeviceHistory v-if="!stepUpFor" :path="userId ? `/api/members/${userId}/devices` : null" />
   </SlideOver>
 </template>

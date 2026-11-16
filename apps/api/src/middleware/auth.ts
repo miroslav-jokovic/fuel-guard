@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import {
+  DEVICE_KEY_HEADER,
   SECOND_FACTOR_REQUIRED,
   callerCanManage,
   callerCanView,
@@ -57,7 +58,8 @@ function authenticate(req: Request, res: Response, next: NextFunction, allowFirs
     locals.verifyToken ??
     (async (t: string) => {
       const ctx = await verifyAccessToken(t, getProjectJwks(locals.env), projectTokenAudience(locals.env));
-      const verdict = await membershipVerdict(getSupabaseAdmin(locals.env), ctx);
+      // The device key rides beside the token, not in it: it only names the device for 0620's record.
+      const verdict = await membershipVerdict(getSupabaseAdmin(locals.env), { ...ctx, deviceKey: req.get(DEVICE_KEY_HEADER) ?? null });
       if (verdict === "stale") throw new AccessChanged();
       if (verdict === "signed_out") throw new SignedOut();
       if (verdict === "second_factor" && !allowFirstStep) throw new SecondStepNeeded();

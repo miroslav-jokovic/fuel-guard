@@ -45,6 +45,29 @@ export interface RetentionRule {
 export const RETENTION_RULES: RetentionRule[] = [
   {
     /**
+     * IA-S6 (0620): a device a member signed in on, kept past sign-out. The owner ruled twelve months after it
+     * was last seen (Q-IA17, 2026-11-16) — `DEVICE_HISTORY_DAYS`, which the devices list states beside itself.
+     * A device in use is touched at least every few minutes, so only devices nobody has used for a year go;
+     * their addresses go with them (cascade).
+     */
+    table: "member_devices",
+    timeColumn: "last_seen_at",
+    keepDays: 365,
+    strategy: "id",
+    orgScoped: true,
+    why: "Owner's ruling Q-IA17: a remembered device is kept twelve months after it was last seen, then deleted with its addresses.",
+  },
+  {
+    /** IA-S6 (0620): every address a device was seen from — personal data, kept twelve months after last seen (Q-IA17). */
+    table: "member_device_addresses",
+    timeColumn: "last_seen_at",
+    keepDays: 365,
+    strategy: "id",
+    orgScoped: true,
+    why: "Owner's ruling Q-IA17: an IP address is personal data and is kept twelve months after it was last seen.",
+  },
+  {
+    /**
      * U2 (0604): a device an applicant asked to be remembered. The token is dead thirty days after it
      * was made (`TRUSTED_DEVICE_TTL_DAYS`) and is only ever checked on a link that still resolves, so a
      * row older than ninety days opens nothing. `audit_logs` keeps the record that it was remembered.

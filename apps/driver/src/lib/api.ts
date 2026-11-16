@@ -1,6 +1,7 @@
 import type { ZodType } from "zod";
 import { env } from "./env";
 import { supabase } from "./supabase";
+import { deviceHeader } from "./deviceKey";
 
 export interface ApiError {
   code: string;
@@ -86,6 +87,7 @@ export async function apiFetch<T = unknown>(
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(await deviceHeader()),
       },
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: controller.signal,

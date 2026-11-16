@@ -28,6 +28,7 @@ import { GLYPHS_PATH, MAP_PALETTE_KEYS, TRUCK_PLACES_TILES_TEMPLATE, isVectorTem
 import { installMapIcons, rasteriseMapIcons } from "./mapIcons";
 import { rasteriseShields } from "./mapShields";
 import { supabase } from "@/lib/supabase";
+import { deviceHeader } from "@/lib/deviceKey";
 
 /**
  * Convert a computed CSS colour into something maplibre's style parser accepts.
@@ -280,7 +281,7 @@ export function useMapLibre(options: UseMapLibreOptions): {
 
   function attachAuth(url: string): maplibregl.RequestParameters {
     if (accessToken && url.includes(options.authPathFragment)) {
-      return { url, headers: { Authorization: `Bearer ${accessToken}` } };
+      return { url, headers: { Authorization: `Bearer ${accessToken}`, ...deviceHeader() } };
     }
     return { url };
   }

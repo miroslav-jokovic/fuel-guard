@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { deviceHeader } from "./deviceKey";
 
 /**
  * The browser half of step-up re-authentication (audit P0-4).
@@ -46,7 +47,7 @@ export async function verifyStepUp(password: string): Promise<StepUpResult> {
 
   const res = await fetch("/api/auth/step-up", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearer}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearer}`, ...deviceHeader() },
     body: JSON.stringify({ password }),
   });
   if (res.status === 503) {

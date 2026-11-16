@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { AppButton as BaseButton, QueryState } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import SignedInDeviceList from "./SignedInDeviceList.vue";
+import DeviceHistory from "./DeviceHistory.vue";
 import { useSignedInDevices, useSignedInDevicesPanel } from "./useSignedInDevices";
 
 /**
@@ -67,5 +68,6 @@ async function act(fn: () => Promise<unknown>, done: string) {
       </p>
       <SignedInDeviceList :devices="devices" :busy="busy" @end="(d) => act(() => endOne.mutateAsync(d.id), `${d.device} is signed out.`)" />
     </QueryState>
+    <DeviceHistory :path="panel.open.value ? '/api/me/devices' : null" />
   </SlideOver>
 </template>

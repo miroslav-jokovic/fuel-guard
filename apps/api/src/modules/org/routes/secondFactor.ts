@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { secondFactorStatus, type SecondFactorStatus } from "@silvicom/shared";
+import { DEVICE_KEY_HEADER, secondFactorStatus, type SecondFactorStatus } from "@silvicom/shared";
 import { requireAuthFirstStep, requireOrg } from "../../../middleware/auth.js";
-import { readAccessState, secondFactorFacts, sessionClaim } from "../../../middleware/membershipCurrent.js";
+import { deviceKeyClaim, readAccessState, secondFactorFacts, sessionClaim } from "../../../middleware/membershipCurrent.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -27,7 +27,14 @@ export function secondFactorRouter(): Router {
     requireOrg,
     asyncHandler(async (req, res) => {
       const auth = req.auth!;
-      const read = await readAccessState(getSupabaseAdmin(getAppLocals(req).env), { userId: auth.userId, orgId: auth.orgId!, sessionId: sessionClaim(auth) });
+      // The device key too: this read is 0620's, which remembers the device it is asked about, and without the
+      // key it would remember this request as a second device keyed by its session.
+      const read = await readAccessState(getSupabaseAdmin(getAppLocals(req).env), {
+        userId: auth.userId,
+        orgId: auth.orgId!,
+        sessionId: sessionClaim(auth),
+        deviceKey: deviceKeyClaim(req.get(DEVICE_KEY_HEADER)),
+      });
       if ("error" in read || !read.row) {
         res.status(503).json(apiError("unavailable", "Could not read your sign-in settings. Try again."));
         return;

@@ -1,6 +1,7 @@
 import { ref } from "vue";
 import { supabase } from "@/lib/supabase";
 import { useToastStore } from "@/stores/toast";
+import { deviceHeader } from "@/lib/deviceKey";
 
 /**
  * Download a load's defense packet (M12.1).
@@ -26,7 +27,7 @@ export function useDefensePacket() {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       const res = await fetch(`/api/hazmat/loads/${loadId}/packet`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...deviceHeader() },
       });
       if (!res.ok) throw new Error(`Packet failed (${res.status})`);
       const blob = await res.blob();

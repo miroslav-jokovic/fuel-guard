@@ -2251,10 +2251,10 @@
       "layer": "core",
       "lifecycle": {
         "growth": "time",
-        "retention_days": null,
+        "retention_days": 365,
         "partition": null,
         "budget_rows_per_day": 20,
-        "why": "new in 0620 (2026-11-16, IA-S6); one row per (device, address) pair, read from auth.sessions.ip; production had 18 distinct addresses across 80 sessions on 2026-11-16. Written at most once per five minutes per pair. 12-month retention from last_seen_at (Q-IA17) lands with the API reader's merge, beside its RETENTION_RULES entry."
+        "why": "new in 0620 (2026-11-16, IA-S6); one row per (device, address) pair, read from auth.sessions.ip; production had 18 distinct addresses across 80 sessions on 2026-11-16. Written at most once per five minutes per pair. pruned 365 days after last_seen_at (Q-IA17)."
       }
     },
     "member_devices": {
@@ -2262,10 +2262,10 @@
       "layer": "core",
       "lifecycle": {
         "growth": "time",
-        "retention_days": null,
+        "retention_days": 365,
         "partition": null,
         "budget_rows_per_day": 5,
-        "why": "new in 0620 (2026-11-16, IA-S6); one row per device a member signed in on, kept past sign-out. Bounded by people x devices: production had 19 accounts and 80 sessions on 2026-11-16, and a session binds to one device, so an app cannot mint rows by sending new keys. 12-month retention from last_seen_at (Q-IA17) lands with the API reader's merge, which also adds the RETENTION_RULES entry -- a rule for a table the deploy window may not have yet is a failing job."
+        "why": "new in 0620 (2026-11-16, IA-S6); one row per device a member signed in on, kept past sign-out. Bounded by people x devices: production had 19 accounts and 80 sessions on 2026-11-16, and a session binds to one device, so an app cannot mint rows by sending new keys. pruned 365 days after last_seen_at (Q-IA17), with its addresses (cascade)."
       }
     },
     "memberships": {

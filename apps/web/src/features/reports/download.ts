@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { deviceHeader } from "@/lib/deviceKey";
 
 // Same-origin by default (single-service deploy). Without the ?? "" this was `undefined`, making every
 // report URL "undefined/api/…" → 404. Only set VITE_API_URL for a split-service deploy.
@@ -9,7 +10,7 @@ export async function downloadReport(path: string, filename: string): Promise<vo
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   const res = await fetch(`${API_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...deviceHeader() },
   });
   if (!res.ok) throw new Error("Export failed");
   const blob = await res.blob();
