@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { AppButton as BaseButton, AppCallout, AppInput, QueryState } from "@silvicom/ui";
+import { AUTHENTICATOR_ISSUER } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 
@@ -56,7 +57,7 @@ async function prepare() {
     // An enrolment started and never finished (the page was closed at the QR code) would refuse a new one
     // under the same name: remove it first. Only ever an UNVERIFIED factor — it protects nothing yet.
     for (const f of data?.all ?? []) if (f.status !== "verified") await supabase.auth.mfa.unenroll({ factorId: f.id });
-    const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "Authenticator app" });
+    const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "Authenticator app", issuer: AUTHENTICATOR_ISSUER });
     if (enrollError) throw enrollError;
     factorId.value = enrolled.id;
     qr.value = enrolled.totp.qr_code;

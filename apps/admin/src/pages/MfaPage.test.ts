@@ -25,4 +25,11 @@ describe("two-factor sign-in (US7)", () => {
     await settle();
     expect(wrapper.find('input[autocomplete="one-time-code"]').exists()).toBe(true);
   });
+
+  it("names the authenticator entry Silvicom 360, not the auth server's host", async () => {
+    mfa.listFactors.mockResolvedValueOnce({ data: { totp: [] }, error: null });
+    mfa.enroll.mockResolvedValueOnce({ data: { id: "f-new", totp: { qr_code: "data:image/svg+xml;utf8,<svg/>", secret: "JBSWY3DPEHPK3PXP" } }, error: null });
+    await mountPage(MfaPage, "/");
+    expect(mfa.enroll).toHaveBeenCalledWith({ factorType: "totp", issuer: "Silvicom 360" });
+  });
 });

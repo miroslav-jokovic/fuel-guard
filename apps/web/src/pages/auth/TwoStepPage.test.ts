@@ -97,7 +97,7 @@ describe("somebody with an authenticator who owes its code", () => {
 describe("somebody without one", () => {
   it("is shown the QR code and the key, and it turns on with the first right code", async () => {
     const w = await render();
-    expect(mfa.enroll).toHaveBeenCalledWith({ factorType: "totp", friendlyName: "Authenticator app" });
+    expect(mfa.enroll).toHaveBeenCalledWith({ factorType: "totp", friendlyName: "Authenticator app", issuer: "Silvicom 360" });
     expect(w.find("img").attributes("src")).toContain("data:image/svg+xml");
     expect(w.find('[data-testid="two-step-secret"]').text()).toBe("JBSWY3DPEHPK3PXP");
     await enter(w, "654321");
