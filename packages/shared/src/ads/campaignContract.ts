@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { MAX_PICTURES_PER_CREATIVE, asGoodCount, type AdPairing, type AdPairings, type AdPicture } from "./adPairings.js";
 import type { AdCandidates } from "./copyCandidates.js";
+import type { PlatformText } from "./platformText.js";
+import type { AdNameLanguage } from "./naming.js";
 import { recordId } from "../recordId.js";
 import type { AdBrief, CampaignState, CreativeState } from "./contracts.js";
 import { CAMPAIGN_EVENTS, type CampaignEvent } from "./campaignMachine.js";
@@ -126,6 +128,12 @@ export interface AdsCreativeView {
    * 0619); null for an ad made from one picture — every ad before V3, and one built from a person's choice.
    */
   pairings: AdPairingsView | null;
+  /**
+   * The two texts Meta is handed beside the image, per language — primary text above it, headline under it — as the
+   * publisher would send them (`platformText`). A language is null when its copy lacks one of them; the whole is
+   * null when the ad's preset names no slots for them, which is an ad the publisher refuses.
+   */
+  platform_text: Partial<Record<AdNameLanguage, PlatformText | null>> | null;
   regenerations: number;
   last_error: string | null;
   created_at: string;

@@ -125,8 +125,10 @@ for both. **Measured the same day:** what make-many costs and how steady the jud
 
 **Built 2026-11-16 (V3c–V3e):** the Art director makes one ad's pictures differ; an ad is chosen from several
 pictures by ranked pairings; the review screen shows the winner with its rivals and a person can use another.
-**Open in V3:** the preview frames (waits on a sandbox account for the measured safe zones) and the reference set
-(waits on 50 real approvals and rejections).
+**Built 2026-11-16 (V3f):** each ad as a Facebook feed post on the review screen, both languages, from the texts
+and the image the publisher sends, with a sentence when a text runs past Meta's recommendation. **Open in V3:** the
+story frame and Meta's own preview (Q-APX11, waits on the Meta account) and the reference set (waits on 50 real
+approvals and rejections).
 
 **Done when:** the review screen shows the winner with its rivals, and the preview frames match Meta's safe zones
 measured on the sandbox. "Top of class" cannot be claimed before a real image model is chosen (Q-AD20).
@@ -382,6 +384,48 @@ bucket whose size and backup are already a recorded concern.
   "Use these words" already rebuilds an ad on its kept picture). 4 files + 8 small ones per ad.
 - (b) Everything for every pairing. Nothing is redrawn on a pick; nine times the storage for ads nobody opens.
 
+### Q-APX10 · The text above the picture is longer than Meta recommends — open
+
+**What was read (2026-11-16).** Meta's own page for a Facebook feed image ad: "Primary Text: 50-150 characters",
+"Headline: 27 characters". For Instagram Stories: "Primary Text: 125 characters". These are recommendations: Meta
+accepts longer text and shows only its start until a person taps "See more". Neither page says where it cuts.
+
+**What was measured.** Every text the Copywriter has on record for a preset that names the two texts beside the
+image (120 fixtures, 360 texts per language, `copywriter@5`):
+
+| | English | Spanish |
+|---|---|---|
+| Headline under the picture: median, longest, over Meta's 27 | 23, 31, 3 of 360 | 23, 29, 2 of 360 |
+| Text above the picture: median, shortest, longest | 156, 82, 231 | 171, 87, 239 |
+| Text above the picture over Meta's 150 | **214 of 360 (59 %)** | **260 of 360 (72 %)** |
+
+The headline is fine. The text above the picture is not: most of what we would send is longer than Meta
+recommends, and the five starter presets allow it — their limit for this text is 240 to 300 characters.
+
+- **(a) Lower the starter presets' limit for this text to 150 — recommended.** The Copywriter writes to the limit
+  it is given, so no prompt changes; the 120 fixtures that carry a starter preset's limits are updated and the
+  Copywriter recorded again (131 calls, about an hour a pass, two passes). **This should be decided before the 60
+  copy sets are rated:** the rating page shows these texts, and ratings given to texts that are then shortened are
+  ratings of something that will not run. The page holds no ratings today.
+- (b) Keep the limits; the review screen says when a text runs past Meta's figure (built, V3f). Costs nothing now;
+  most ads go out with their last sentence behind "See more".
+- (c) 125, Stories' figure. Our ads are not sent to Stories with their own image today (Q-AD29).
+
+### Q-APX11 · The Instagram story frame, and Meta's own preview — open
+
+**What was read.** We send each ad with one image, the feed image (4:5, else 1:1): a lead ad takes one image, and
+giving each placement its own waits on Q-AD29. Meta's Stories page gives the margins for a 9:16 image (14 % top,
+35 % bottom, 6 % each side; our renderer keeps 15 / 36 / 8) and does not say how a 4:5 image is shown there.
+
+So a story frame drawn by us would be a guess, and V3's "preview frames match Meta's safe zones measured on the
+sandbox" cannot be met without the sandbox.
+
+- **(a) Our feed drawing now; Meta's own preview when the account exists — recommended.** The feed frame is built
+  (V3f) and says it is a drawing. Meta's Marketing API returns its own preview of an ad for each placement (feed,
+  Instagram feed, Stories) as a frame to embed; once the Meta app and a sandbox account exist, the review screen
+  shows that beside ours, and the story frame is Meta's, exact. No story frame is drawn until then.
+- (b) Draw a story frame now from the 9:16 margins. It would show an image we do not send.
+
 ## 5a. Ruled
 
 **2026-11-14, the owner, to the four proposals above and to the request to record the agents on his Anthropic
@@ -436,6 +480,8 @@ is 100%."*** Taken as:
 | Q-APX7 | Pictures and words per ad; which pairings are judged | (b) 3 × 3, nine judged in the composed frame, about $0.88 an ad | owner |
 | Q-APX8 | What makes the three pictures differ | (a) one Art director call per picture, told what the earlier ones chose | owner |
 | Q-APX9 | What is kept of the pairings that did not win | (a) one image per rival; a picked rival is redrawn | owner |
+| Q-APX10 | Text above the picture: 59 % (English) and 72 % (Spanish) run past Meta's 150 characters | (a) lower the starter presets' limit to 150, before the 60 sets are rated | owner |
+| Q-APX11 | The story frame, and Meta's own preview | (a) our feed drawing now, Meta's preview when the account exists | owner |
 | — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 ## Sources (read 2026-11-14)

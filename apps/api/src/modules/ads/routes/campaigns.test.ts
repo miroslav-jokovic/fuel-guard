@@ -99,6 +99,7 @@ beforeEach(() => {
     ad_brand_kit_versions: [{ id: "kv1", org_id: ORG, kit_id: KIT, version: 1, kit: KIT_BODY, created_by_name: "Owner", created_at: "2026-11-01T00:00:00Z" }],
     ads_campaigns: [{ id: THEIRS, org_id: OTHER, name: "Theirs", state: "review", brief_source: "recruiting_opening", brief_ref: "x", created_at: "2026-11-01T00:00:00Z" }],
     ads_creatives: [],
+    ad_concept_preset_versions: [],
   };
   signing = (paths) => ({ data: paths.map((path) => ({ path, signedUrl: `https://store/${path}?token=t`, error: null })), error: null });
   db = createSupabaseRecorder({
@@ -242,6 +243,32 @@ describe("GET /api/ads/campaigns(/:id) — the list and the review screen's read
     tables.ads_creatives = [{ id: "c2", org_id: ORG, campaign_id: NEW_ID, state: "ready", created_at: "2026-11-04T10:01:00Z", assets: [{ ...asset, path: `${ORG}/a.png` }], pairings: null }];
     const plain = (await (await call("GET", `campaigns/${NEW_ID}`)).json()) as { campaign: { creatives: Array<{ pairings: unknown }> } };
     expect(plain.campaign.creatives[0]!.pairings).toBeNull();
+  });
+
+  it("hands the review screen the two texts Meta is sent beside each ad's image, by the slots that ad's own preset version names", async () => {
+    await call("POST", "campaigns", ask());
+    const copy = { en: { hook: "On the image", cta: "Apply", body: "Above the picture.", title: "Under it" }, es: { hook: "En la imagen", cta: "Aplica", body: "Arriba de la foto." } };
+    tables.ad_concept_preset_versions = [
+      { id: "pv-named", org_id: ORG, recipe: { platform_slots: { primary_text: "body", headline: "title" } } },
+      { id: "pv-silent", org_id: ORG, recipe: { platform_slots: null } },
+      // Another carrier's version under the same id as nothing of ours: never read.
+      { id: "pv-theirs", org_id: OTHER, recipe: { platform_slots: { primary_text: "hook", headline: "cta" } } },
+    ];
+    const row = (id: string, preset_version_id: string) => ({ id, org_id: ORG, campaign_id: NEW_ID, state: "ready", created_at: `2026-11-04T10:0${id.slice(1)}:00Z`, preset_version_id, copy, assets: [] });
+    tables.ads_creatives = [row("c1", "pv-named"), row("c2", "pv-silent"), row("c3", "pv-theirs"), { ...row("c4", "pv-named"), copy: null }];
+    const body = (await (await call("GET", `campaigns/${NEW_ID}`)).json()) as { campaign: { creatives: Array<{ id: string; platform_text: unknown }> } };
+    expect(body.campaign.creatives.map((c) => [c.id, c.platform_text])).toEqual([
+      // English has both texts; the Spanish copy lacks the headline, so that language is null — the ad the publisher refuses.
+      ["c1", { en: { primary_text: "Above the picture.", headline: "Under it" }, es: null }],
+      ["c2", null],
+      ["c3", null],
+      ["c4", { en: null, es: null }],
+    ]);
+    // One read of the preset versions, for the distinct versions these creatives name, in this carrier's rows.
+    const reads = db.forTable("ad_concept_preset_versions");
+    expect(reads).toHaveLength(1);
+    expect(reads[0]!.filters().find((f) => f.col === "id")!.val).toEqual(["pv-named", "pv-silent", "pv-theirs"]);
+    expectOrgScoped(db, ORG);
   });
 
   it("an image storage could not sign gets no link, and the others keep theirs", async () => {

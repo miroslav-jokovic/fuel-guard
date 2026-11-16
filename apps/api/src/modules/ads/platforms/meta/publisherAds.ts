@@ -1,4 +1,4 @@
-import { AD_NAME_LANGUAGES, FEED_FORMATS, type AdFormat, type AdNameLanguage } from "@silvicom/shared";
+import { AD_NAME_LANGUAGES, feedImageOf, platformText, type AdFormat, type AdNameLanguage } from "@silvicom/shared";
 import { adNameFor, byName, ensure, failureBody, type Found, type Listing, type PublishInput, type PublisherDeps } from "./publisher.js";
 
 /**
@@ -59,27 +59,23 @@ export interface PublishedAd {
 export function creativeRefusal(c: PublishCreative): string | null {
   if (!c.platform_slots) return "no_platform_slots";
   for (const language of AD_NAME_LANGUAGES) {
-    const copy = c.copy[language];
-    if (!copy?.[c.platform_slots.primary_text] || !copy[c.platform_slots.headline]) return "creative_copy_missing";
+    if (!platformText(c.copy[language], c.platform_slots)) return "creative_copy_missing";
     if (!feedImage(c, language)) return "no_feed_image";
   }
   return null;
 }
 
+/** The image this ad shows; the rule is shared's (`feedImageOf`), because the review screen previews the same one. */
 export function feedImage(c: Pick<PublishCreative, "assets">, language: AdNameLanguage) {
-  for (const format of FEED_FORMATS) {
-    const hit = c.assets.find((a) => a.format === format && a.language === language);
-    if (hit) return hit;
-  }
-  return null;
+  return feedImageOf(c.assets, language);
 }
 
 /** The link-ad spec Meta stores; the read-back compares these fields. */
 export function linkData(c: PublishCreative, language: AdNameLanguage, imageHash: string, formId: string) {
-  const copy = c.copy[language]!;
-  const slots = c.platform_slots!;
+  // The two texts beside the image are shared's (`platformText`): what is sent here is what the review screen shows.
+  const said = platformText(c.copy[language], c.platform_slots)!;
   return {
-    image_hash: imageHash, link: LEAD_AD_LINK, message: copy[slots.primary_text]!, name: copy[slots.headline]!,
+    image_hash: imageHash, link: LEAD_AD_LINK, message: said.primary_text, name: said.headline,
     call_to_action: { type: CTA, value: { lead_gen_form_id: formId } },
   };
 }
