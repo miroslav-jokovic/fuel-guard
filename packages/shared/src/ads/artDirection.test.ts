@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AD_CAMERA_DISTANCES, AD_FOCAL_SUBJECTS, DISTANCE_CLAUSE, EQUIPMENT_CLAUSE, FOCAL_CLAUSE, FRAME_CLAUSE, NO_LETTERING, QUIET_REGION, REGENERATION_CLAUSES,
-  artDirection, artPrecheck, composeImagePrompt, compositionClauses, judgeArt, withRegenerationClauses,
+  artDirection, artPrecheck, composeImagePrompt, compositionClauses, judgeArt, repeatsPicture, withRegenerationClauses,
 } from "./artDirection.js";
 import { AD_OVERLAY_LAYOUTS } from "./brandKitContract.js";
 import { AD_FORMATS } from "./renderGeometry.js";
@@ -142,3 +142,32 @@ describe("withRegenerationClauses — the failure added to a regeneration's prom
   });
 });
 
+describe("a later picture of the same ad (V3; Q-APX8)", () => {
+  const first = { slots: { time_of_day: "golden hour on a late-summer evening" }, reference_photo: "a".repeat(64), ...SEEN };
+  const two = kit([photo("a"), photo("b")]);
+
+  it("the same photo, subject, distance and words is the earlier picture again, whatever the case and spacing", () => {
+    expect(repeatsPicture({ ...first, slots: { time_of_day: "  Golden hour on a  late-summer evening " } }, first)).toBe(true);
+    expect(judgeArt(first, recipe(), two, [first])).toEqual([{ kind: "repeats_earlier_picture", text: "picture 1" }]);
+  });
+
+  it("another photo, another subject, another distance or other words in one slot is each a different picture", () => {
+    expect(repeatsPicture({ ...first, reference_photo: "b".repeat(64) }, first)).toBe(false);
+    expect(repeatsPicture({ ...first, focal_subject: "tractor_and_trailer" }, first)).toBe(false);
+    expect(repeatsPicture({ ...first, camera_distance: "wide" }, first)).toBe(false);
+    expect(repeatsPicture({ ...first, slots: { time_of_day: "first light in early autumn" } }, first)).toBe(false);
+    expect(judgeArt({ ...first, reference_photo: "b".repeat(64) }, recipe(), two, [first])).toEqual([]);
+  });
+
+  it("names the earlier picture it repeats by its place, and an ad's first picture repeats nothing", () => {
+    const other = { ...first, slots: { time_of_day: "first light in early autumn" } };
+    expect(judgeArt(first, recipe(), two, [other, first])).toEqual([{ kind: "repeats_earlier_picture", text: "picture 2" }]);
+    expect(judgeArt(first, recipe(), two)).toEqual([]);
+    expect(judgeArt(first, recipe(), two, [])).toEqual([]);
+  });
+
+  it("a picture with a slot the earlier one lacks is not a repeat of it", () => {
+    expect(repeatsPicture({ ...first, slots: { ...first.slots, light: "low warm sun" } }, first)).toBe(false);
+    expect(repeatsPicture(first, { ...first, slots: { ...first.slots, light: "low warm sun" } })).toBe(false);
+  });
+});

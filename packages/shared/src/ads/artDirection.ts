@@ -122,14 +122,35 @@ export interface ArtAnswer {
 
 export type ArtFindingKind =
   | "missing_slot" | "unknown_slot" | "slot_too_long" | "digit_in_slot" | "quote_in_slot" | "lettering_in_slot"
-  | "reference_required" | "reference_not_in_kit" | "reference_on_text_only" | "focal_subject_not_in_scene";
+  | "reference_required" | "reference_not_in_kit" | "reference_on_text_only" | "focal_subject_not_in_scene"
+  | "repeats_earlier_picture";
 
 export interface ArtFinding { kind: ArtFindingKind; slot?: string; text?: string }
 
 /** Words that ask an image model to draw letters. Whole words, case-insensitive, English (the prompt's language). */
 const LETTERING = /\b(?:text|texts|logo|logos|lettering|letters?|words?|writing|written|caption|captions|sign|signs|signage|banner|banners|billboards?|posters?|placards?|label|labels|slogan|brand(?:ed|ing)?|decals?|numbers?|digits?|typography|font)\b/i;
 
-export function judgeArt(answer: ArtAnswer, recipe: Pick<AdPresetRecipe, "image_slots" | "starts_from" | "shows_equipment" | "shows_people">, kit: Pick<AdBrandKit, "equipment_photos">): ArtFinding[] {
+/** One slot's words as compared between two pictures: case and spacing are not a difference. */
+const sameWords = (a: string, b: string): boolean => a.trim().replace(/\s+/g, " ").toLowerCase() === b.trim().replace(/\s+/g, " ").toLowerCase();
+
+/**
+ * Whether `answer` is the picture `earlier` already is (V3 "make many, show few"; Q-APX8): the same photo to start
+ * from, the same subject at the same distance, and every slot in the same words. That is the one repeat code can
+ * name without judging taste — the image model would be asked for the same picture twice and a person shown two
+ * of one. Whether two DIFFERENT directions differ enough is the prompt's rule and the eval's measurement
+ * (`sibling-*` fixtures), not a threshold somebody picked here.
+ */
+export function repeatsPicture(answer: ArtAnswer, earlier: ArtAnswer): boolean {
+  if (answer.reference_photo !== earlier.reference_photo || answer.focal_subject !== earlier.focal_subject || answer.camera_distance !== earlier.camera_distance) return false;
+  const slots = Object.keys(answer.slots);
+  return slots.length === Object.keys(earlier.slots).length && slots.every((k) => k in earlier.slots && sameWords(answer.slots[k]!, earlier.slots[k]!));
+}
+
+/**
+ * `earlier` is the directions already given for the same ad's other pictures, oldest first; empty for an ad's first
+ * picture and for every caller before V3.
+ */
+export function judgeArt(answer: ArtAnswer, recipe: Pick<AdPresetRecipe, "image_slots" | "starts_from" | "shows_equipment" | "shows_people">, kit: Pick<AdBrandKit, "equipment_photos">, earlier: readonly ArtAnswer[] = []): ArtFinding[] {
   const out: ArtFinding[] = [];
   const declared = new Set(recipe.image_slots);
   for (const s of recipe.image_slots) if (!(s in answer.slots)) out.push({ kind: "missing_slot", slot: s });
@@ -151,6 +172,8 @@ export function judgeArt(answer: ArtAnswer, recipe: Pick<AdPresetRecipe, "image_
   if ((answer.focal_subject === "person_at_work" && !recipe.shows_people) || (EQUIPMENT_SUBJECTS.has(answer.focal_subject) && !recipe.shows_equipment)) {
     out.push({ kind: "focal_subject_not_in_scene", text: answer.focal_subject });
   }
+  const twin = earlier.findIndex((e) => repeatsPicture(answer, e));
+  if (twin >= 0) out.push({ kind: "repeats_earlier_picture", text: `picture ${twin + 1}` });
   return out;
 }
 

@@ -46,7 +46,8 @@
             "width": 4032,
             "height": 3024,
             "byte_size": 2400000
-          }
+          },
+          "tags": []
         },
         {
           "label": "white tractor with a 53 ft dry van, side view",
@@ -57,7 +58,8 @@
             "width": 4032,
             "height": 3024,
             "byte_size": 2400000
-          }
+          },
+          "tags": []
         },
         {
           "label": "reefer trailer, rear view, doors closed",
@@ -68,7 +70,8 @@
             "width": 4032,
             "height": 3024,
             "byte_size": 2400000
-          }
+          },
+          "tags": []
         }
       ],
       "overlays": {},
@@ -83,18 +86,19 @@
       "lanes: coast to coast"
     ],
     "headline": null,
-    "idea": null
+    "idea": null,
+    "earlier": []
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@6",
+    "prompt_version": "artDirector@7",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T20:18:28.295Z",
+    "recorded_at": "2026-11-16T15:26:36.360Z",
     "output": {
       "slots": {
-        "time_of_day": "first light, low sun just over the horizon of open high plains",
-        "weather": "clear cold morning, thin ground haze, long shadows across dry asphalt"
+        "time_of_day": "first light, low sun just breaking the horizon ahead",
+        "weather": "clear dry air over open high desert plains, long shadows across the lanes"
       },
       "reference_photo": null,
       "focal_subject": "road_ahead",
