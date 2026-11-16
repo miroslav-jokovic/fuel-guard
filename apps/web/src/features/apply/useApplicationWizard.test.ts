@@ -63,6 +63,14 @@ describe("one screen at a time", () => {
     }
   });
 
+  // Q-AM23: a driver with no e-mail is not stopped; one who mistypes theirs still is, in words.
+  it("lets About you go on with no e-mail, and names an address that is not one", () => {
+    expect(validateSection("identity", { ...complete(), email: "" })).toEqual([]);
+    expect(validateSection("identity", { ...complete(), email: "   " })).toEqual([]);
+    const issues = validateSection("identity", { ...complete(), email: "susan at example" });
+    expect(issues.map((i) => [i.key, i.say])).toEqual([["email", "This does not look like an email address."]]);
+  });
+
   it("judges a screen only by its own fields", () => {
     // Nothing filled in at all. The identity screen complains about identity, and about nothing the
     // driver has not been shown yet — a form that demanded a licence number on the first screen

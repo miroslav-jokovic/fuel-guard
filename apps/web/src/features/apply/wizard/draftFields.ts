@@ -149,7 +149,7 @@ const fieldCopy = (): Record<FactPath, FieldCopy> => {
     "application.middle_name": { label: you.middle_name, hint: you.optional, autocomplete: "additional-name" },
     "application.last_name": { label: you.last_name, autocomplete: "family-name", capitalize: "words" },
     "application.other_names[]": { label: you.otherNames, hint: you.otherNamesHint },
-    "application.email": { label: you.email, autocomplete: "email" },
+    "application.email": { label: you.email, hint: you.emailHint, autocomplete: "email" },
     ssn: { label: you.ssn, hint: you.ssnHint },
     "application.declares_no_accidents": { label: safety.accidentsQuestion },
     "application.accidents[].occurred_on": { label: walk.accidentDate },

@@ -123,6 +123,7 @@ export const APPLY_COPY_ES = {
     last_name: "Apellido",
     date_of_birth: "Fecha de nacimiento",
     email: "Correo electrónico",
+    emailHint: "Opcional. Si no tiene uno, déjelo en blanco.",
     phone: "Teléfono",
     optional: "Opcional.",
     otherNames: "Otros nombres con los que lo hayan conocido",
