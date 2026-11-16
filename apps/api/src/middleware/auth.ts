@@ -17,6 +17,8 @@ import * as Sentry from "@sentry/node";
 
 /** The token is genuine but names a membership that was removed, re-roled or suspended since (SP7). */
 class AccessChanged extends Error {}
+/** The token is genuine but its session was ended — the device was signed out (Q-IA10, 0616). */
+class SignedOut extends Error {}
 
 /**
  * Authenticate the request from its Bearer token. Attaches req.auth (audit B5: org_id/role come
@@ -38,7 +40,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     locals.verifyToken ??
     (async (t: string) => {
       const ctx = await verifyAccessToken(t, getProjectJwks(locals.env), projectTokenAudience(locals.env));
-      if ((await membershipVerdict(getSupabaseAdmin(locals.env), ctx)) === "stale") throw new AccessChanged();
+      const verdict = await membershipVerdict(getSupabaseAdmin(locals.env), ctx);
+      if (verdict === "stale") throw new AccessChanged();
+      if (verdict === "signed_out") throw new SignedOut();
       return ctx;
     });
 
@@ -55,6 +59,13 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     .catch((err: unknown) => {
       if (err instanceof AccessChanged) {
         res.status(401).json(apiError("access_changed", "Your access to this organization has changed. Sign in again."));
+        return;
+      }
+      // The SAME code as a changed membership, on purpose: what a client must do is identical — try to
+      // renew, which fails because the session is gone, and sign in — and the web already does exactly
+      // that for `access_changed` (lib/api.ts). Only the sentence differs.
+      if (err instanceof SignedOut) {
+        res.status(401).json(apiError("access_changed", "This device was signed out. Sign in again."));
         return;
       }
       res.status(401).json(apiError("unauthorized", "Invalid or expired token"));

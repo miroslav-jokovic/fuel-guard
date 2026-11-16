@@ -85,8 +85,8 @@ function close(): void {
       <!-- The answer to a press and what it means sit above the list: a list can be 160 rows long. -->
       <p v-if="note" class="mb-3 text-sm text-ink-secondary" role="status">{{ note }}</p>
       <p class="mb-2 text-xs text-ink-muted">
-        A device signed out here cannot sign back in without the password. If it is open right now, it can keep working
-        for up to an hour. To sign out every device at once, use Suspend member or Send password reset.
+        A device signed out here stops working within a few seconds and cannot sign back in without the password. To
+        sign out every device at once, use Suspend member or Send password reset.
       </p>
       <p v-if="devices.length === 0" class="text-sm text-ink-muted" data-testid="member-devices-empty">{{ who }} is not signed in anywhere.</p>
       <SignedInDeviceList v-else :devices="devices" :busy="busy" @end="end" />
