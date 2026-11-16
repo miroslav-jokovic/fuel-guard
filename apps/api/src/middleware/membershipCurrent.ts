@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DEVICE_KEY_PATTERN,
+  DEVICE_LIMIT,
   SECOND_STEP_DONE,
   SESSION_IDLE_HOURS,
   isRecordId,
@@ -55,8 +56,10 @@ import {
  * The read is now `member_access_check`: the same answers, and on the way it REMEMBERS the device the request
  * comes from (the app's own key, `DEVICE_KEY_HEADER`) and the address Supabase saw it at, and says whether
  * the device holds one of the `DEVICE_LIMIT` places. Still one round trip, still at most once per session per
- * 15 s. This merge passes no limit (`p_limit` null): every device is recorded and none is stopped, because the
- * page that explains a refusal ships in the next one.
+ * 15 s. A device that does not hold one is `device_limit` (Q-IA14 (b): the fourth sign-in is STOPPED, nobody
+ * else is signed out): never cached, so the moment the person signs another device out the next request is
+ * admitted. `requireAuth` answers it 403 `device_limit`, and the apps show the three devices with a way to
+ * sign one out — `requireAuthOverLimit` lets exactly those routes through.
  *
  * ⚠ A failed READ is answered "current" (fail open), not cached, and logged. The token is still
  * genuinely signed, this is exactly what the API did before SP7, and failing closed would sign every
@@ -64,7 +67,7 @@ import {
  */
 export const MEMBERSHIP_CACHE_MS = 15_000;
 
-export type Verdict = "current" | "stale" | "signed_out" | "second_factor";
+export type Verdict = "current" | "stale" | "signed_out" | "second_factor" | "device_limit";
 type Ctx = Pick<AuthContext, "userId" | "orgId" | "role"> &
   Pick<Partial<AuthContext>, "sessionId" | "aal"> & {
     /** The app's own device key from the request header (0620); anything not in its alphabet is no key. */
@@ -119,7 +122,7 @@ export async function readAccessState(
   const check = await admin.rpc("member_access_check", {
     ...base,
     p_device_key: ctx.deviceKey ?? null,
-    p_limit: null,
+    p_limit: DEVICE_LIMIT,
     p_idle_hours: SESSION_IDLE_HOURS,
   });
   if (!check.error) return { row: ((check.data ?? []) as AccessStateRow[])[0] ?? null };
@@ -171,6 +174,11 @@ export async function membershipVerdict(admin: SupabaseClient, ctx: Ctx, now: nu
   if (ctx.aal !== SECOND_STEP_DONE && secondFactorRequired(secondFactorFacts(row), new Date(now))) {
     cache.delete(k);
     return "second_factor";
+  }
+  // Exactly false: NULL is "nothing decided" — no session named, or one still owing its code (0620).
+  if (row.device_admitted === false) {
+    cache.delete(k);
+    return "device_limit";
   }
   cache.set(k, now + MEMBERSHIP_CACHE_MS);
   return "current";

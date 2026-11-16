@@ -37,6 +37,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/two-step",
   },
   {
+    "name": "too-many-devices",
+    "params": {},
+    "url": "/too-many-devices",
+  },
+  {
     "name": "pending",
     "params": {},
     "url": "/pending",
@@ -1831,6 +1836,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "terms-of-use",
     "path": "/terms",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "auth",
+      "title": "Too many devices",
+    },
+    "name": "too-many-devices",
+    "path": "/too-many-devices",
     "redirect": null,
   },
   {

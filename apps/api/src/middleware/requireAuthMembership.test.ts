@@ -21,7 +21,7 @@ vi.mock("../lib/auth.js", () => ({
 vi.mock("../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
 vi.mock("../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) }));
 
-const { requireAuth, requireAuthFirstStep } = await import("./auth.js");
+const { requireAuth, requireAuthFirstStep, requireAuthOverLimit } = await import("./auth.js");
 const { resetMembershipCache } = await import("./membershipCurrent.js");
 
 async function hit(gate: typeof requireAuth = requireAuth, extra: Record<string, string> = {}): Promise<{ status: number; code?: string }> {
@@ -70,8 +70,23 @@ describe("requireAuth with the membership check", () => {
     rec = state({ role: "dispatcher", suspended_at: null, session_alive: true });
     await hit();
     expect(rec.rpcs().find((c) => c.fn === "member_access_check")!.args).toEqual({
-      p_org: ORG, p_user: USER, p_session: SESSION, p_device_key: null, p_limit: null, p_idle_hours: 12,
+      p_org: ORG, p_user: USER, p_session: SESSION, p_device_key: null, p_limit: 3, p_idle_hours: 12,
     });
+  });
+
+  it("answers 403 device_limit to a fourth device — 403, so the app keeps the session it signs another out with", async () => {
+    rec = state({ role: "dispatcher", suspended_at: null, session_alive: true, device_admitted: false, devices_in_use: 3 });
+    expect(await hit()).toEqual({ status: 403, code: "device_limit" });
+  });
+
+  it("lets a fourth device through the one gate made for it, and that gate waives nothing else", async () => {
+    rec = state({ role: "dispatcher", suspended_at: null, session_alive: true, device_admitted: false, devices_in_use: 3 });
+    expect((await hit(requireAuthOverLimit)).status).toBe(200);
+    expect(await hit(requireAuthFirstStep)).toEqual({ status: 403, code: "device_limit" });
+    rec = state({ role: "dispatcher", suspended_at: null, session_alive: true, has_second_factor: true, second_factor_required_from: "2099-01-01T00:00:00Z" });
+    expect(await hit(requireAuthOverLimit)).toEqual({ status: 403, code: "second_factor_required" });
+    rec = state({ role: "dispatcher", suspended_at: null, session_alive: false });
+    expect(await hit(requireAuthOverLimit)).toEqual({ status: 401, code: "access_changed" });
   });
 
   it("passes the app's device key from its header, so the database can remember the device (IA-S6)", async () => {

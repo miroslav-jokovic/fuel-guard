@@ -135,3 +135,24 @@ describe("GET /api/members/:userId/devices — an admin, for a member of their c
     expect(body.devices.every((d) => !d.current)).toBe(true);
   });
 });
+
+describe("the routes a fourth device may still call (Q-IA14 (b))", () => {
+  // The route tests above inject the token check, so they cannot see which gate a router mounts. These can.
+  const firstGate = (router: { stack: Array<{ handle: unknown }> }) => router.stack[0]!.handle;
+
+  it("its own devices and its own sessions — the list it chooses from and the way to sign one out", async () => {
+    const { requireAuthOverLimit } = await import("../../../middleware/auth.js");
+    const { myDevicesRouter } = await import("./memberDevices.js");
+    const { mySessionsRouter } = await import("./memberSessions.js");
+    expect(firstGate(myDevicesRouter() as never)).toBe(requireAuthOverLimit);
+    expect(firstGate(mySessionsRouter() as never)).toBe(requireAuthOverLimit);
+  });
+
+  it("and nothing about anybody else: an admin's view of a member is behind the full check", async () => {
+    const { requireAuth } = await import("../../../middleware/auth.js");
+    const { memberDevicesRouter } = await import("./memberDevices.js");
+    const { memberSessionsRouter } = await import("./memberSessions.js");
+    expect(firstGate(memberDevicesRouter() as never)).toBe(requireAuth);
+    expect(firstGate(memberSessionsRouter() as never)).toBe(requireAuth);
+  });
+});

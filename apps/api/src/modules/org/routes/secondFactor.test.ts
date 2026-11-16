@@ -54,7 +54,7 @@ describe("GET /api/me/second-factor", () => {
   it("an admin inside the 14 days: not required yet, and told the date", async () => {
     expect(await get()).toEqual({ status: 200, body: { required: false, satisfied: false, has_factor: false, due_from: SOON, must_keep: false } });
     expect(holder.rec!.rpcs().find((c) => c.fn === "member_access_check")!.args).toEqual({
-      p_org: ORG, p_user: ME, p_session: SESSION, p_device_key: null, p_limit: null, p_idle_hours: 12,
+      p_org: ORG, p_user: ME, p_session: SESSION, p_device_key: null, p_limit: 3, p_idle_hours: 12,
     });
   });
 

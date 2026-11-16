@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isRecordId, sessionDeviceLabel, type MemberSession, type MemberSessionsResponse } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireAuthOverLimit, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -103,7 +103,9 @@ async function endSession(req: Request, res: Response, userId: string, action: "
 
 export function mySessionsRouter(): Router {
   const router = Router();
-  router.use(requireAuth);
+  // A fourth device may use this (IA-S6, Q-IA14 (b)): signing one of the three out is what lets it in. It can
+  // never end itself here (409 `current_session`), and everything else about the token is still checked.
+  router.use(requireAuthOverLimit);
 
   router.get(
     "/",

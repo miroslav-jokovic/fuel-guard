@@ -33,7 +33,7 @@ import { router } from "./index";
 
 /** Every URL worth pinning: one per declared route, with the ambiguous pairs written out. */
 const PROBES = [
-  "/login", "/placard-calculator", "/apply/tok_123", "/apply/tok_123/videos", "/accept-invite", "/two-step", "/pending", "/use-the-app",
+  "/login", "/placard-calculator", "/apply/tok_123", "/apply/tok_123/videos", "/accept-invite", "/two-step", "/too-many-devices", "/pending", "/use-the-app",
   "/forgot-password", "/reset-password",
   "/",
   "/assignments",

@@ -12,8 +12,9 @@ import {
 } from './outbox';
 import { discardStagedFiles, sweepOrphans } from './fileStaging';
 import { isNotADbError, recoverCorruptDb } from './db';
-import { countNeedsAttention, countPending, outcomeAfterDeferral, outcomeAfterFailure, type OutboxRecord } from './policy';
+import { countNeedsAttention, countPending, outcomeAfterDeferral, outcomeAfterFailure, outcomeWhileDeviceLimited, type OutboxRecord } from './policy';
 import { onEnqueued } from './outboxSignal';
+import { isDeviceLimited } from '../lib/deviceLimit';
 
 /**
  * The sync engine (plan §13.3). One serial worker drains the outbox: claim the oldest due record,
@@ -144,6 +145,12 @@ async function processOne(record: OutboxRecord): Promise<boolean> {
       // is the only copy of it.
       const deferral = outcomeAfterDeferral(record, e.message, Date.now());
       await markOutcome(record.id, deferral.status, deferral.attempts, deferral.nextAttemptAt, deferral.lastError);
+      return false;
+    }
+    // The API refused this PHONE, not the record (IA-S6): put it back untouched rather than let a 403 dead-letter it.
+    if (isDeviceLimited()) {
+      const wait = outcomeWhileDeviceLimited(record, Date.now());
+      await markOutcome(record.id, wait.status, wait.attempts, wait.nextAttemptAt, wait.lastError);
       return false;
     }
     const status = e instanceof SyncError ? e.status : undefined;

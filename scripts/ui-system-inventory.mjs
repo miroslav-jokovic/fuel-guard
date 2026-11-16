@@ -939,6 +939,9 @@ function verifyAdoption() {
     // no-workspace reason from the other side: the person HAS a session, but one every API route the
     // shell calls refuses until the code is given, so there is no shell to put a header in.
     "auth/TwoStepPage.vue",
+    // IA-S6: a fourth device's page. AuthLayout, for the two-step page's reason: the session is good but every
+    // API route the shell calls refuses it until another device is signed out, so there is no shell for a header.
+    "auth/TooManyDevicesPage.vue",
     // P3's three published documents. Same reason as the placard calculator directly above: they
     // render in `PublicLayout` for a driver or a store reviewer with no session, so there is no
     // workspace for a header to sit in and no breadcrumb trail to walk. `LegalDocument.vue` gives
