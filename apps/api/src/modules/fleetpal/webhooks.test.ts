@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { FLEETPAL_WEBHOOK_EVENTS } from "@silvicom/shared";
-import type { Env } from "../../env.js";
+import { testEnv } from "../../testing/testEnv.js";
 import { seal, secretAad } from "../../lib/secretBox.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { receiveDelivery, signedAtMs, subscribeAll, unsubscribeAll, verifyFleetpalSignature } from "./webhooks.js";
@@ -15,10 +15,10 @@ import { receiveDelivery, signedAtMs, subscribeAll, unsubscribeAll, verifyFleetp
 const ORG = "11111111-1111-4111-8111-111111111111";
 // Readable test values — a hex-looking constant reads as a leaked key to the secret scanner.
 const SECRET = "the-shop-webhook-secret-for-tests";
-const env = {
+const env = testEnv({
   SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
   PUBLIC_API_URL: "https://api.example.test",
-} as unknown as Env;
+});
 const NOW = Date.parse("2026-11-16T20:00:00Z");
 const sealed = seal(env, SECRET, secretAad(ORG, "fleetpal.webhook_secret"));
 
@@ -163,7 +163,7 @@ describe("subscribeAll / unsubscribeAll", () => {
 
   it("refuses to subscribe without a public address", async () => {
     const rec = createSupabaseRecorder({ tables: {} });
-    expect(await subscribeAll(rec.client, { ...env, PUBLIC_API_URL: undefined } as Env, ORG, client().client)).toEqual({
+    expect(await subscribeAll(rec.client, testEnv({ SECRETS_ENCRYPTION_KEY: env.SECRETS_ENCRYPTION_KEY, PUBLIC_API_URL: undefined }), ORG, client().client)).toEqual({
       error: "PUBLIC_API_URL is not set, so FleetPal has no address to call.",
     });
   });
