@@ -220,6 +220,33 @@ describe("a refusal", () => {
  * The medical card and the selfie (owner, 2026-09-30, Q-AW53): the same scanner, each framed as itself. What
  * differs is `liveFrame.LIVE_SLOTS`'s; these pin that the screen reads it, slot by slot.
  */
+/**
+ * A paper from "Your documents" (Q-AM25 (a), owner 2026-11-15): the same scanner, named by the title the
+ * driver pressed "Take photo" beside, framed by its rough shape. No words are written per paper.
+ */
+describe("a paper from Your documents", () => {
+  it("frames a wallet card as a card, named by its title, taken by the shutter", async () => {
+    await open({ photo: "twic" });
+    expect(fake.slot).toBe("twic");
+    expect(q("[data-live-outline]")!.getAttribute("data-live-outline")).toBe("card");
+    expect(q("[data-live-side]")?.textContent).toContain("TWIC card");
+    expect(body().textContent).toContain("TWIC card");
+    expect(body().textContent).toContain("Fit it inside the corners, then press the button.");
+    expect(q(".scan-sweep")).toBeNull();
+    expect(q("video")?.className).not.toContain("-scale-x-100");
+  });
+
+  it("frames a certificate as a page, and opens on the document's tips under its own name", async () => {
+    await open({ photo: "training_certificate", tips: true });
+    expect(q("[data-live-tips]")?.getAttribute("data-live-tips")).toBe("document");
+    expect(body().textContent).toContain("Training certificate");
+    button("Open the camera")!.click();
+    await flushPromises();
+    expect(q("[data-live-outline]")!.getAttribute("data-live-outline")).toBe("page");
+    expect(q("[data-live-side]")?.textContent).toContain("Training certificate");
+  });
+});
+
 describe("the medical card", () => {
   it("is framed as a letter-size page with the four corners, named as the certificate, and taken by the shutter", async () => {
     await open({ photo: "medical_card" });

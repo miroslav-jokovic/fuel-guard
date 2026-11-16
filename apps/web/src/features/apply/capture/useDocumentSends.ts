@@ -13,7 +13,7 @@ import { injectLocalCopy, type LocalCopySpec } from "../deviceCopies";
 import { APPLY_CAPTURE_TITLES } from "../strings";
 import { dropKeptPhoto, keepPhoto, readKeptPhoto, serverIsNewer } from "./photoLocal";
 import { captureContentType, stageCapture, DEFAULT_CAPTURE_IO, type CaptureIo } from "./stageCapture";
-import { createWebFileProvider, type WebCaptureProvider } from "./webFileProvider";
+import { createWebFileProvider, type PickedPhoto, type WebCaptureProvider } from "./webFileProvider";
 import { pickImageFile, pickPhotoFromCamera } from "./webImageIo";
 import { servedDocumentSlots } from "../servedForm";
 
@@ -74,6 +74,13 @@ export interface DocumentSendOptions {
   /** The file picker ("Upload a file"); injectable so a test hands it a file. */
   pickFile?: () => Promise<File | null>;
   local?: Ref<LocalCopySpec | null> | null;
+  /**
+   * The in-page scanner (Q-AM25 (a), owner 2026-11-15): "Take photo" opens it for a place, and it resolves
+   * with the photograph cut to the outline — or null when the driver closed it. It answers `undefined`,
+   * at once, where the scanner is not offered (a computer, a browser with no camera API, a phone it has
+   * already failed on): the camera app takes the photo then, as it always did.
+   */
+  live?: (slot: ApplicationCaptureSlot) => Promise<PickedPhoto | null> | undefined;
 }
 
 export function useDocumentSends(
@@ -85,8 +92,8 @@ export function useDocumentSends(
   const spec = (): LocalCopySpec | null => local_?.value ?? null;
   const io: CaptureIo = { ...DEFAULT_CAPTURE_IO, ...(options.io ?? {}) };
   const pickFile = options.pickFile ?? (() => pickImageFile("image/*,application/pdf"));
-  /** A file the driver already chose, handed to the provider's next `scan()` instead of the camera. */
-  let chosen: File | null = null;
+  /** A file the driver already chose, or the scanner's photograph, handed to the provider's next `scan()` instead of the camera. */
+  let chosen: File | PickedPhoto | null = null;
   const provider =
     options.provider ??
     createWebFileProvider(BUNDLED_DEFAULT_CONFIG, {
@@ -212,8 +219,38 @@ export function useDocumentSends(
     }
   }
 
-  /** "Take photo" — the phone's camera, through the gate. */
-  const photo = (place: DocumentPlace): Promise<void> => run(place, () => sendPicture(place));
+  /** A file in hand: a PDF is sent as it is, after the size check; a picture goes through the gate. */
+  async function sendFile(place: DocumentPlace, picked: File, from?: PickedPhoto): Promise<void> {
+    if (!isPdf(picked)) {
+      chosen = from ?? picked;
+      await sendPicture(place);
+      return;
+    }
+    if (picked.size > APPLICATION_CAPTURE_MAX_BYTES) {
+      mark(place.slot, place.ordinal, { state: "failed", failure: "too_large" });
+      return;
+    }
+    const blob = new Blob([await picked.arrayBuffer()], { type: "application/pdf" });
+    await send(place, blob, "application/pdf", await io.digest(blob), null);
+  }
+
+  /**
+   * "Take photo" — the in-page scanner where it is offered (Q-AM25), the phone's camera app where it is
+   * not; either way through the gate. ⚠ The scanner has "Upload a photo instead" inside it, which takes a
+   * PDF, so what it hands back goes the way a chosen file does: the gate would draw a PDF's first page and
+   * drop the rest.
+   */
+  const photo = (place: DocumentPlace): Promise<void> =>
+    run(place, async () => {
+      const scanning = options.live?.(place.slot);
+      if (!scanning) return sendPicture(place);
+      const got = await scanning;
+      if (!got) {
+        delete places[placeKey(place.slot, place.ordinal)];
+        return;
+      }
+      await sendFile(place, got.file, got);
+    });
 
   /**
    * "Upload a file" — a PDF is sent as it is (after the size check; the server checks it is a PDF),
@@ -226,17 +263,7 @@ export function useDocumentSends(
         delete places[placeKey(place.slot, place.ordinal)];
         return;
       }
-      if (!isPdf(picked)) {
-        chosen = picked;
-        await sendPicture(place);
-        return;
-      }
-      if (picked.size > APPLICATION_CAPTURE_MAX_BYTES) {
-        mark(place.slot, place.ordinal, { state: "failed", failure: "too_large" });
-        return;
-      }
-      const blob = new Blob([await picked.arrayBuffer()], { type: "application/pdf" });
-      await send(place, blob, "application/pdf", await io.digest(blob), null);
+      await sendFile(place, picked);
     });
 
   /**

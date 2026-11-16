@@ -1,6 +1,9 @@
+import { APPLICATION_CAPTURE_REQUESTED } from "@silvicom/shared";
 import { describe, expect, it } from "vitest";
 import { BUNDLED_DEFAULT_CONFIG } from "@silvicom/capture-engine";
 import {
+  isLiveSlot,
+  isPartOneLiveSlot,
   LIVE_SLOTS,
   meetsResolutionFloor,
   mirrored,
@@ -135,7 +138,35 @@ describe("what each photograph is", () => {
       cdl_back: ["card", true],
       medical_card: ["page", false],
       selfie: ["face", false],
+      // "Your documents" (Q-AM25): wallet cards and a passport's photo page as a card, papers as a page.
+      twic: ["card", false],
+      passport: ["card", false],
+      work_authorization: ["card", false],
+      ssn_card: ["card", false],
+      hazmat_endorsement: ["page", false],
+      road_test_certificate: ["page", false],
+      training_certificate: ["page", false],
+      other: ["page", false],
     });
+  });
+
+  /**
+   * Q-AM25 (a): every paper the documents list offers a photograph of is one the scanner takes, with the
+   * rear camera. Read from the list itself, so a paper added to it without an outline fails here.
+   */
+  it("takes every paper the documents list offers, with the rear camera, and not the drawn marks", () => {
+    for (const slot of APPLICATION_CAPTURE_REQUESTED) {
+      expect(isLiveSlot(slot), slot).toBe(true);
+      if (isLiveSlot(slot)) expect(LIVE_SLOTS[slot].facing, slot).toBe("environment");
+    }
+    expect(isLiveSlot("signature_mark")).toBe(false);
+    expect(isLiveSlot("initials_mark")).toBe(false);
+  });
+
+  it("knows Part 1's four, which have words of their own, from a paper named by its title", () => {
+    expect((["cdl_front", "cdl_back", "medical_card", "selfie"] as const).every(isPartOneLiveSlot)).toBe(true);
+    expect(isPartOneLiveSlot("twic")).toBe(false);
+    expect(isPartOneLiveSlot("other")).toBe(false);
   });
 
   it("mirrors the selfie's preview and nothing else", () => {

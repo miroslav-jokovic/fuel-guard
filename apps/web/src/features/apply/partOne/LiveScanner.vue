@@ -20,6 +20,7 @@ import {
 } from "@silvicom/ui/icons";
 import { useLiveScan, type LiveCapture } from "@/features/apply/capture/useLiveScan";
 import {
+  isPartOneLiveSlot,
   LIVE_SLOTS,
   mirrored,
   SHUTTER_DEADLINE_MS,
@@ -30,7 +31,7 @@ import {
 import type { LiveRefusal } from "@/lib/camera/cameraFrame";
 import type { PickedPhoto } from "@/features/apply/capture/webFileProvider";
 import { pickImageFile, pickPhotoFromCamera, uploadAccept } from "@/features/apply/capture/webImageIo";
-import { APPLY_COPY } from "@/features/apply/strings";
+import { APPLY_CAPTURE_TITLES, APPLY_COPY } from "@/features/apply/strings";
 
 /**
  * The live scanner (2026-09-30): the camera inside the page, an outline of the document over it, and the
@@ -94,6 +95,16 @@ const TAKEN_BUZZ_MS = 40;
 const copy = APPLY_COPY.partOne.photo;
 const live = copy.live;
 const kind = LIVE_SLOTS[props.photo];
+/**
+ * The words. Part 1's four have their own (which side, what it is). A paper from "Your documents"
+ * (Q-AM25) is named by its title in that list, the name the driver just pressed "Take photo" beside,
+ * so a slot added to the list needs no words written here.
+ */
+const partOne = isPartOneLiveSlot(props.photo) ? props.photo : null;
+const title = APPLY_CAPTURE_TITLES[props.photo];
+const heading = partOne ? copy[partOne].heading : title;
+const tipsHeading = partOne ? live.tips.heading[partOne] : title;
+const side = partOne ? live.side[partOne] : title;
 const mirror = mirrored(props.photo);
 const face = kind.outline === "face";
 const video = ref<HTMLVideoElement | null>(null);
@@ -134,7 +145,7 @@ const status = computed<string | null>(() => {
   if (taken.value) return live.taking;
   switch (scan.state.value) {
     case "starting": return live.starting;
-    case "aiming": return live.aim[props.photo];
+    case "aiming": return partOne ? live.aim[partOne] : live.aimDocument;
     case "settling": return live.settling;
     case "taking": return live.taking;
     default: return null;
@@ -163,7 +174,8 @@ const TIPS = {
   ],
 }[tipsKind(props.photo)];
 /** What the tips and the chip above the frame show: the thing being photographed. */
-const SUBJECT_ICON = { cdl_front: IdCardIcon, cdl_back: ScanIcon, medical_card: MedicalCardIcon, selfie: FaceIcon }[props.photo];
+const PART_ONE_ICON = { cdl_front: IdCardIcon, cdl_back: ScanIcon, medical_card: MedicalCardIcon, selfie: FaceIcon };
+const SUBJECT_ICON = partOne ? PART_ONE_ICON[partOne] : kind.outline === "card" ? IdCardIcon : MedicalCardIcon;
 /**
  * The outline, the document's own shape. The page and the oval are sized against BOTH sides of the view
  * (container units on the view, `cqw`/`cqh`), because a tall shape fitted to the width alone runs off the
@@ -226,7 +238,7 @@ onBeforeUnmount(() => {
   >
     <DialogPanel class="scheme-light fixed inset-0 flex flex-col bg-scrim text-ink-inverse" data-live-scanner>
       <div class="flex items-center justify-between gap-3 px-4 pt-4">
-        <DialogTitle class="text-base font-semibold">{{ tipsOpen ? live.tips.heading[photo] : copy[photo].heading }}</DialogTitle>
+        <DialogTitle class="text-base font-semibold">{{ tipsOpen ? tipsHeading : heading }}</DialogTitle>
         <div class="flex items-center gap-2">
           <BaseButton
             v-if="torchOffered && !taken"
@@ -352,7 +364,7 @@ onBeforeUnmount(() => {
               data-live-side
             >
               <AppIcon :icon="SUBJECT_ICON" class="size-5" aria-hidden="true" />
-              {{ live.side[photo] }}
+              {{ side }}
             </p>
           </template>
           <div v-else class="absolute inset-0 grid place-items-center px-6">

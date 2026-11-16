@@ -175,6 +175,7 @@ export const APPLY_PART_ONE_COPY_ES = {
           medical_card: "Encuadre la página dentro de las esquinas, y después presione el botón.",
           selfie: "Encuadre su cara en el óvalo, y después presione el botón.",
         },
+        aimDocument: "Encuádrelo dentro de las esquinas, y después presione el botón.",
         side: {
           cdl_front: "Frente: el lado con su foto",
           cdl_back: "Reverso: el lado con el código de barras",

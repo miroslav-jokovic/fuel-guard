@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import DocumentCaptureFields from "@/features/apply/DocumentCaptureFields.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -57,6 +57,61 @@ describe("a photo that did not go through", () => {
     const text = await takeOne();
     expect(text).toContain(APPLY_COPY.documents.failed);
     expect(text).not.toContain(APPLY_COPY.documents.notIntact);
+  });
+});
+
+/**
+ * Q-AM25 (a), owner 2026-11-15: on a phone whose browser has a camera API, "Take photo" in "Your documents"
+ * opens the in-page scanner for that paper. Without one (jsdom here, an old browser) and on a computer, the
+ * camera app takes the photo as before.
+ */
+describe("Take photo opens the in-page scanner", () => {
+  const SCANNER = { name: "LiveScanner", props: ["photo", "tips"], emits: ["captured", "cancel", "unavailable", "tipsSeen"], template: "<div data-stub-scanner />" };
+  const mountList = () => mount(DocumentCaptureFields, { props: { token: "t", captures: [] }, global: { stubs: { LiveScanner: SCANNER } } });
+  const take = (w: ReturnType<typeof mountList>, slot: string) =>
+    w.find(`[data-document-slot="${slot}"]`).findAll("button").find((b) => b.text() === APPLY_COPY.documents.take)!.trigger("click");
+  const withCamera = (): void => {
+    vi.stubGlobal("navigator", { ...navigator, mediaDevices: { getUserMedia: vi.fn() } });
+  };
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("for the paper pressed, on a phone with a camera API, and closes when the driver closes it", async () => {
+    withCamera();
+    const w = mountList();
+    await take(w, "passport");
+    const scanner = w.findComponent(SCANNER);
+    expect(scanner.exists()).toBe(true);
+    expect(scanner.props("photo")).toBe("passport");
+    scanner.vm.$emit("cancel");
+    await flushPromises();
+    expect(w.findComponent(SCANNER).exists()).toBe(false);
+    expect(w.find('[data-document-slot="passport"]').text()).toContain(APPLY_COPY.documents.take);
+  });
+
+  it("stops offering it once the scanner says it cannot run on this phone", async () => {
+    withCamera();
+    const w = mountList();
+    await take(w, "passport");
+    w.findComponent(SCANNER).vm.$emit("unavailable", "unsupported");
+    w.findComponent(SCANNER).vm.$emit("cancel");
+    await flushPromises();
+    await take(w, "twic");
+    await flushPromises();
+    expect(w.findComponent(SCANNER).exists()).toBe(false);
+  });
+
+  it("is not opened where the browser has no camera API, or on a computer", async () => {
+    const plain = mountList();
+    await take(plain, "passport");
+    await flushPromises();
+    expect(plain.findComponent(SCANNER).exists()).toBe(false);
+
+    withCamera();
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+    const computer = mountList();
+    await take(computer, "passport");
+    await flushPromises();
+    expect(computer.findComponent(SCANNER).exists()).toBe(false);
   });
 });
 
