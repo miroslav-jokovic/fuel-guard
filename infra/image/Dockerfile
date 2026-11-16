@@ -51,6 +51,16 @@ ARG VITE_SUPPORT_EMAIL
 RUN test -n "$VITE_SUPABASE_URL" && test -n "$VITE_SUPABASE_ANON_KEY" \
  || { echo "VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required build arguments"; exit 1; }
 RUN rm -rf apps/web/dist && pnpm --filter ./apps/web exec vite build
+# ffmpeg, for the ads module's motion ads (`modules/ads/creative/motion/motionJoin.ts`; ADS-PLATFORM-V2-PLAN
+# Q-APX14, ruled 2026-11-16): Debian's own build, so it is patched with the base image and carries the H.264 and
+# AAC encoders Meta asks of a feed video. Not an npm package that downloads a third party's binary at install —
+# this server holds ad tokens. In `app` only: the console makes no video. The join answers `ffmpeg_missing` by
+# name where the program is absent, so an image built without this line refuses a motion ad and breaks nothing else.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/* \
+ && ffmpeg -hide_banner -encoders | grep -q libx264 \
+ && ffmpeg -hide_banner -encoders | grep -qw aac
 ARG GIT_COMMIT_SHA
 ARG GIT_BRANCH
 # buildInfo.ts reads these when RAILWAY_GIT_* are absent, so /api/version still names the commit.

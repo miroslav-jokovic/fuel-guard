@@ -165,8 +165,15 @@ and tested, read by nothing yet.
 **Built 2026-11-16 (V4b):** the renderer takes a still apart into a motion ad's layers (`renderMotionLayers`):
 everything but the timed words on one transparent layer, each group of words on its own. It is the still's own
 painting, so the picture and the layers put back together are the still to within 3 levels of 255 on every pixel,
-in all three looks. Not built: the join, the clip request, the sampled-frame check, the publisher's video road,
-the `video` kind in `CAMPAIGN_WORKERS`.
+in all three looks.
+
+**Built 2026-11-16 (V4c), after Q-APX13 to Q-APX15 were ruled:** ffmpeg on the server's image and in CI's API test
+job, and the join (`creative/motion/motionJoin.ts`): the model's clip, the layers and the still become one MP4 —
+H.264, 1080 × 1350, 30 frames a second with every frame the same length, a silent stereo AAC track, no edit list,
+the index in front. Later words fade in and rise 24 px over 0.3 s; the motion's last frame dissolves into the
+approved still over 0.4 s. Not built: the clip request (Q-APX12 waits on the Higgsfield key), the check of the
+frames before the last (matters for `photo`), the publisher's video road, the `video` kind in `CAMPAIGN_WORKERS`,
+the player on the review screen.
 
 **Done when:** a motion ad passes the contract suite on the fake, and Renderer and Publisher show L3 for
 `meta:video`.
@@ -555,16 +562,24 @@ is 100%."*** Taken as:
 | Q-APX1–4 | — | **ruled 2026-11-14, §5a** | — |
 | Q-APX5 | Speech-to-text provider | research owed | Claude |
 | Q-APX6 | Planning mandatory, or the carrier's choice | **ruled (b) 2026-11-15, §5a** | — |
-| Q-APX7 | Pictures and words per ad; which pairings are judged | (b) 3 × 3, nine judged in the composed frame, about $0.88 an ad | owner |
-| Q-APX8 | What makes the three pictures differ | (a) one Art director call per picture, told what the earlier ones chose | owner |
-| Q-APX9 | What is kept of the pairings that did not win | (a) one image per rival; a picked rival is redrawn | owner |
-| Q-APX10 | Text above the picture: 59 % (English) and 72 % (Spanish) run past Meta's 150 characters | (a) lower the starter presets' limit to 150, before the 60 sets are rated | owner |
-| Q-APX11 | The story frame, and Meta's own preview | (a) our feed drawing now, Meta's preview when the account exists | owner |
-| Q-APX12 | Which model sets the picture moving | (a) three models on three kit photos on the owner's key, under $4, with the still model's sitting | owner, with the Higgsfield key |
-| Q-APX13 | What a motion ad is, second by second | (a) five seconds of motion under the still's own words arriving in turn, then the approved still held; about 7 seconds | owner |
-| Q-APX14 | How ffmpeg reaches the server | (a) Debian's package in the image | owner |
-| Q-APX15 | Sound | (a) none generated; a silent track | owner |
+| Q-APX7–15 | — | **ruled 2026-11-16 as proposed, §5a**; Q-APX12's sitting still waits on the Higgsfield key | — |
 | — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
+
+**2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want
+this to be high grade and really good quality, modern and in trending."*** Taken as:
+
+- **Q-APX7 RULED (b), Q-APX8 RULED (a), Q-APX9 RULED (a), Q-APX11 RULED (a)** — as built in V3.
+- **Q-APX10 RULED (a).** The starter presets' limit for the text above the picture is Meta's 150, read from
+  `META_FEED_TEXT`; every Copywriter fixture carrying such a limit is updated and the Copywriter recorded again
+  (the recording was named with its size and cost in the proposal). The rating page is rebuilt from it.
+- **Q-APX12 RULED (a).** The video model is chosen by a sitting on the owner's key. Still waits on the key.
+- **Q-APX13 RULED (a).** A motion ad is the still's own words over five seconds of motion, then the approved still.
+  The one-second and two-second figures stay ours until a real clip is looked at.
+- **Q-APX14 RULED (a).** Debian's ffmpeg in the image.
+- **Q-APX15 RULED (a).** No generated sound; a silent track.
+- **"Modern and trending" is a goal, not a measurement.** What it changes in the order of work: the motion's
+  entrance and settle were added to the join now rather than later, and the comparison of real clips (Q-APX12) is
+  the first thing to do when the key exists, because no rule of ours can make a poor clip look good.
 
 ## Sources (read 2026-11-14)
 

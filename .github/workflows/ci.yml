@@ -543,6 +543,13 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           build-shared: "false"
+      # The ads module joins a motion ad with ffmpeg (motionJoin.ts), and its test reads the file ffmpeg wrote.
+      # The server gets Debian's package (infra/image/Dockerfile); the runner gets Ubuntu's, the same family.
+      # motionJoin.test.ts FAILS in CI when ffmpeg is absent, so removing this step cannot go unnoticed.
+      - name: ffmpeg for the motion-ad join
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg; }
+          ffmpeg -hide_banner -version | head -1
       - name: apps/api unit suites
         run: pnpm --filter @silvicom/api test --shard=$(( ${{ strategy.job-index }} + 1 ))/${{ strategy.job-total }}
 
