@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET, resolveLimitVocabulary } from "@silvicom/shared";
 import type { CardCapabilities } from "@silvicom/shared";
+import { AppCombobox } from "@silvicom/ui";
 import CardOperationDrawer from "./CardOperationDrawer.vue";
 import CardOperationInputs from "./CardOperationInputs.vue";
 import {
@@ -764,6 +765,26 @@ describe("re-homed from the drawer this replaced", () => {
         infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "3182", remove: false,
         ...PROMPT_INPUT_UNSET,
       },
+    ]);
+  });
+
+  it("keeps the value in the box when the operator changes how the pump treats a prompt", async () => {
+    // Changing the choice used to change the type alone: the box emptied, because the form reads a
+    // different field for each type, and the save blanked the unit number in EFS.
+    mutations.prompts.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
+    const wrapper = render("prompts", {
+      prompts: [{ infoId: "UNIT", validationType: "EXACT_MATCH", matchValue: "3182", reportValue: null }],
+    });
+
+    wrapper.findComponent(CardOperationInputs).findComponent(AppCombobox).vm.$emit("update:modelValue", "REPORT_ONLY");
+    await flushPromises();
+    expect((wrapper.findComponent(CardOperationInputs).find("input[type=text]").element as HTMLInputElement).value).toBe("3182");
+
+    await button(wrapper, "Save prompts").trigger("click");
+    await flushPromises();
+    const arg = mutations.prompts.mutateAsync.mock.calls[0]![0] as { prompts: Record<string, unknown>[] };
+    expect(arg.prompts).toEqual([
+      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "3182", remove: false, ...PROMPT_INPUT_UNSET },
     ]);
   });
 
