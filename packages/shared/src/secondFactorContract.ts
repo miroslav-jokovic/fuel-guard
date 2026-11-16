@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isAdmin } from "./auth.js";
-import type { UserRole } from "./constants.js";
+import { APP_NAME, type UserRole } from "./constants.js";
 
 /**
  * Two-step sign-in for the office app (INSTALLED-APP-PLAN IA-S1; the owner's rulings of 2026-11-15:
@@ -33,6 +33,16 @@ export function secondFactorDue(facts: Pick<SecondFactorFacts, "role" | "require
 export function secondFactorRequired(facts: SecondFactorFacts, now: Date): boolean {
   return facts.hasFactor || secondFactorDue(facts, now);
 }
+
+/**
+ * The name an authenticator app shows for the entry the QR code adds — the `issuer` of `mfa.enroll`.
+ * Without it Supabase names the entry after the auth project's Site URL host: measured on staging
+ * 2026-11-16, a fresh enrolment's `otpauth://` URI read `fleetguardweb-uat.up.railway.app:<email>`, a
+ * retired Railway host, so a person who scanned the code found nothing called Silvicom 360 on their phone.
+ * One name for the office app AND the platform console: a factor belongs to the sign-in account, not to
+ * the app that enrolled it, so one person must not be shown two names for one code.
+ */
+export const AUTHENTICATOR_ISSUER = APP_NAME;
 
 /** The `aal` claim Supabase puts on a token: `aal2` once a second factor was verified in that session. */
 export const SECOND_STEP_DONE = "aal2";

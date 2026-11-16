@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { AppButton, AppCallout, AppCard, AppInput, QueryState } from "@silvicom/ui";
+import { AUTHENTICATOR_ISSUER } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 
@@ -41,7 +42,7 @@ async function setup() {
       return;
     }
     // No verified factor yet → enroll a new TOTP factor.
-    const { data: enrolled, error: enrollErr } = await supabase.auth.mfa.enroll({ factorType: "totp" });
+    const { data: enrolled, error: enrollErr } = await supabase.auth.mfa.enroll({ factorType: "totp", issuer: AUTHENTICATOR_ISSUER });
     if (enrollErr) throw enrollErr;
     factorId.value = enrolled.id;
     qrSvg.value = enrolled.totp.qr_code;
