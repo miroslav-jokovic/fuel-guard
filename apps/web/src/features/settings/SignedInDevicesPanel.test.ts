@@ -133,9 +133,10 @@ describe("Signed-in devices", () => {
     expect(document.body.querySelector('[data-testid="signed-in-devices-summary"]')!.textContent!.trim()).toBe("You are signed in on this device and 1 other.");
   });
 
-  it("says what signed out does not mean: an open device keeps working for up to an hour", async () => {
+  it("says what signing out does: the device stops within seconds and needs the password to return", async () => {
     await openPanel();
-    expect(text()).toContain("it can keep working for up to an hour");
+    expect(text()).toContain("stops working within a few seconds and cannot sign back in without your password");
+    expect(text()).not.toContain("hour");
   });
 
   it("says it could not load rather than showing an empty list", async () => {

@@ -13,9 +13,8 @@ import { useSignedInDevices, useSignedInDevicesPanel } from "./useSignedInDevice
  * the same menu, which also stops this browser's notifications. Everything else can be signed out one at a
  * time or all at once.
  *
- * ⚠ The line under the list says what "signed out" means, because it is not instant: a device that is open
- * right now keeps working for up to an hour (0615 §4; Q-IA10 is whether to close that). A person who has
- * lost a phone must not read "Signed out" as "nobody can see anything from this second".
+ * The line above the list says what "signed out" means: the API stops answering that device within seconds
+ * (Q-IA10, `membershipCurrent.ts`) and it cannot renew its sign-in.
  */
 const panel = useSignedInDevicesPanel();
 const { list, endOne, endOthers } = useSignedInDevices(panel.open);
@@ -62,9 +61,9 @@ async function act(fn: () => Promise<unknown>, done: string) {
       </BaseButton>
       <p v-if="note" class="mt-3 text-sm text-ink-secondary" role="status">{{ note }}</p>
       <p class="mb-2 mt-3 text-xs text-ink-muted">
-        A device you sign out here cannot sign back in without your password. If it is open right now, it can keep
-        working for up to an hour. If you think somebody else has your password, sign out and use “Forgot password?” on
-        the sign-in page: a new password signs out every device.
+        A device you sign out here stops working within a few seconds and cannot sign back in without your password.
+        If you think somebody else has your password, sign out and use “Forgot password?” on the sign-in page: a new
+        password signs out every device.
       </p>
       <SignedInDeviceList :devices="devices" :busy="busy" @end="(d) => act(() => endOne.mutateAsync(d.id), `${d.device} is signed out.`)" />
     </QueryState>
