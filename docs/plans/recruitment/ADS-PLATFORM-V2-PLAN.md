@@ -350,6 +350,12 @@ viewpoint — and the three renders would differ only by the image model's chanc
   refuses all three.
 - (c) Three calls with nothing shared. No prompt change, and no real difference between the pictures.
 
+**Built 2026-11-16 as (a), ahead of the ruling** (`artDirector@7`, V3c): it costs nothing to undo — an ad's first
+picture is asked exactly as before, and nothing asks for a second until the compose step does. Measured on two
+passes: 24 of 24 both times (19 fixtures from before, 5 new). In the new ones the model started the second and
+third pictures from kit photos no earlier picture had used; with one photo it kept it and changed the hour and the
+side the cab is seen from; on a flatbed job with a flatbed photo and a reefer photo it stayed on the flatbed.
+
 ### Q-APX9 · What is kept of the pairings that did not win — open
 
 **What was read.** A finished ad is stored as one PNG per format and language (`CreativeAsset`): four files for a

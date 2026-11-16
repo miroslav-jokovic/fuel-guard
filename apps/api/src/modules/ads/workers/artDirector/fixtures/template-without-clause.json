@@ -45,7 +45,8 @@
             "width": 4032,
             "height": 3024,
             "byte_size": 2400000
-          }
+          },
+          "tags": []
         },
         {
           "label": "white tractor with a 53 ft dry van, side view",
@@ -56,7 +57,8 @@
             "width": 4032,
             "height": 3024,
             "byte_size": 2400000
-          }
+          },
+          "tags": []
         },
         {
           "label": "reefer trailer, rear view, doors closed",
@@ -67,7 +69,8 @@
             "width": 4032,
             "height": 3024,
             "byte_size": 2400000
-          }
+          },
+          "tags": []
         }
       ],
       "overlays": {},
@@ -78,17 +81,18 @@
     },
     "context": [],
     "headline": null,
-    "idea": null
+    "idea": null,
+    "earlier": []
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@6",
+    "prompt_version": "artDirector@7",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T20:18:11.335Z",
+    "recorded_at": "2026-11-16T15:26:22.326Z",
     "output": {
       "slots": {
-        "time_of_day": "golden hour, low sun raking across the cab, long shadows under a glowing amber sky"
+        "time_of_day": "golden hour, low sun raking across the steel girders and a lit amber sky"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "focal_subject": "tractor",

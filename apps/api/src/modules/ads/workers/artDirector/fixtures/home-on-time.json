@@ -46,7 +46,8 @@
             "width": 4032,
             "height": 3024,
             "byte_size": 2400000
-          }
+          },
+          "tags": []
         },
         {
           "label": "white tractor with a 53 ft dry van, side view",
@@ -57,7 +58,8 @@
             "width": 4032,
             "height": 3024,
             "byte_size": 2400000
-          }
+          },
+          "tags": []
         },
         {
           "label": "reefer trailer, rear view, doors closed",
@@ -68,7 +70,8 @@
             "width": 4032,
             "height": 3024,
             "byte_size": 2400000
-          }
+          },
+          "tags": []
         }
       ],
       "overlays": {},
@@ -83,18 +86,19 @@
       "home time: Home daily"
     ],
     "headline": "Home every weekend",
-    "idea": null
+    "idea": null,
+    "earlier": []
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@6",
+    "prompt_version": "artDirector@7",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T20:17:12.337Z",
+    "recorded_at": "2026-11-16T15:24:55.039Z",
     "output": {
       "slots": {
-        "time_of_day": "dusk at the end of a day's local deliveries",
-        "light": "last amber sunset glow, long shadows, a deep blue sky and warm lit windows"
+        "time_of_day": "dusk, just after the last local delivery of the day",
+        "light": "last amber glow low behind the rooftops, long shadows across the pavement"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "focal_subject": "tractor",

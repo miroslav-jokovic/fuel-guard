@@ -46,7 +46,8 @@
             "width": 4032,
             "height": 3024,
             "byte_size": 2400000
-          }
+          },
+          "tags": []
         },
         {
           "label": "white tractor with a 53 ft dry van, side view",
@@ -57,7 +58,8 @@
             "width": 4032,
             "height": 3024,
             "byte_size": 2400000
-          }
+          },
+          "tags": []
         },
         {
           "label": "reefer trailer, rear view, doors closed",
@@ -68,7 +70,8 @@
             "width": 4032,
             "height": 3024,
             "byte_size": 2400000
-          }
+          },
+          "tags": []
         }
       ],
       "overlays": {},
@@ -83,18 +86,19 @@
       "lanes: Chicagoland store deliveries"
     ],
     "headline": null,
-    "idea": "Lead with the newer truck, parked and clean with the reefer trailer hooked up."
+    "idea": "Lead with the newer truck, parked and clean with the reefer trailer hooked up.",
+    "earlier": []
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@6",
+    "prompt_version": "artDirector@7",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T20:17:22.935Z",
+    "recorded_at": "2026-11-16T15:25:04.316Z",
     "output": {
       "slots": {
-        "time_of_day": "first light, low sun raking across the dock under a pale lit sky",
-        "setting": "brick city grocery store receiving dock, wide empty swept concrete apron, low camera angle"
+        "time_of_day": "first light, low sun under a pink and amber sky, dock lamps still on",
+        "setting": "grocery store dock behind a city strip, clean wet concrete apron in front"
       },
       "reference_photo": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "focal_subject": "trailer",

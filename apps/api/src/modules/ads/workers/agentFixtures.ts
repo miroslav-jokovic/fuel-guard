@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { z } from "zod";
-import { AD_FORMATS, AD_HOOK_FAMILIES, AD_PEOPLE_POLICIES, AD_SCENE_FAMILIES, AD_VISUAL_CHECKS, FINISHED_AD_CRITERIA, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, evidencePackSchema, jobEvidence, judgeArt, planAngleSchema, type CampaignPlan, type EvidencePack, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
+import { AD_CAMERA_DISTANCES, AD_FOCAL_SUBJECTS, AD_FORMATS, AD_HOOK_FAMILIES, AD_PEOPLE_POLICIES, AD_SCENE_FAMILIES, AD_VISUAL_CHECKS, FINISHED_AD_CRITERIA, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, evidencePackSchema, jobEvidence, judgeArt, planAngleSchema, type CampaignPlan, type EvidencePack, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
 import type { ForcedToolRequest } from "../../../lib/anthropic.js";
 import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, buildFitRequest, fittable, judgeSet, type CopySet } from "./copywriter/copywriter.js";
 import { CRAFT_JUDGE_PROMPT_VERSION, buildJudgeRequest, judgeAnswer, presentationOrder, type JudgeAnswer } from "./craftJudge/craftJudge.js";
@@ -163,9 +163,23 @@ export const artDirectorFixtureSchema = z.object({
     headline: z.string().trim().min(1).max(120).nullable().default(null),
     /** The idea of the approved plan's angle for this preset (V2c, prompt v6); null = a campaign that was not planned. */
     idea: writerAngleSchema.shape.idea.nullable().default(null),
+    /**
+     * The answers already given for the same ad's earlier pictures (V3, prompt v7), oldest first; empty = this is
+     * the ad's first picture. Each is an answer as `judgeArt` would have passed it for this recipe and kit.
+     */
+    earlier: z.array(z.object({
+      slots: z.record(z.string(), z.string().min(1)), reference_photo: z.string().regex(/^[0-9a-f]{64}$/).nullable(),
+      focal_subject: z.enum(AD_FOCAL_SUBJECTS), camera_distance: z.enum(AD_CAMERA_DISTANCES),
+    }).strict()).max(4).default([]),
   }),
   expect: z.enum(["ready", "refused", "off_schema"]),
   expect_findings: z.array(z.string()).optional(),
+  /**
+   * For a later picture of an ad (`earlier` not empty): where the live answer must start from. `new` = a kit photo
+   * no earlier picture used (another fits the job as well); `used` = one already used (no other photo fits, and
+   * being different must not move the picture off the job). Absent = either. Read by `agrees`, never by the worker.
+   */
+  expect_photo: z.enum(["new", "used"]).optional(),
   recorded: recordingSchema,
 }).strict();
 export type ArtDirectorFixture = z.infer<typeof artDirectorFixtureSchema>;
@@ -176,13 +190,18 @@ export const ART_DIRECTOR_EVAL: EvalWorker<ArtDirectorFixture, ArtAnswer> = {
   parse: (raw) => artDirectorFixtureSchema.parse(raw),
   name: (f) => f.name,
   source: (f) => f.recorded.source,
-  request: (f) => buildArtRequest(f.input.recipe, f.input.kit, f.input.context, f.input.headline, f.input.idea),
+  request: (f) => buildArtRequest(f.input.recipe, f.input.kit, f.input.context, f.input.headline, f.input.idea, f.input.earlier),
   judge: (f, output) => {
     const parsed = buildArtRequest(f.input.recipe, f.input.kit).tool.schema.safeParse(output);
     if (!parsed.success) return { verdict: "off_schema", findings: [] };
-    const found = judgeArt(parsed.data, f.input.recipe, f.input.kit);
-    return found.length === 0 ? { verdict: "ready", findings: [] } : { verdict: "refused", findings: [...new Set(found.map((x) => x.kind))].sort() };
+    const found = judgeArt(parsed.data, f.input.recipe, f.input.kit, f.input.earlier);
+    if (found.length > 0) return { verdict: "refused", findings: [...new Set(found.map((x) => x.kind))].sort() };
+    // A sound answer's "finding" is where it starts from, for `agrees` alone (as the craft judge's is its ranking).
+    const used = f.input.earlier.some((e) => e.reference_photo === parsed.data.reference_photo);
+    return { verdict: "ready", findings: f.input.earlier.length > 0 ? [`photo:${used ? "used" : "new"}`] : [] };
   },
+  // Every art fixture's right answer is a sound direction; a later picture's must also start where its fixture says.
+  agrees: (f, verdict, findings) => verdict === "ready" && (!f.expect_photo || findings.includes(`photo:${f.expect_photo}`)),
   withRecording: (f, recorded) => ({ ...f, recorded }),
 };
 

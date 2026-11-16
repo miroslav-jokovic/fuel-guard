@@ -45,10 +45,19 @@ import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOut
  * the idea the words lead with, and not only of the job. Only the idea goes: the angle's `proof` is about the
  * job's facts, and the image carries none (D-AD9). It is data like the headline; `judgeArt` reads the answer as
  * before, so a digit or lettering asked for because an idea mentioned pay is refused all the same.
+ *
+ * Prompt v7 (2026-11-16, ADS-PLATFORM-V2-PLAN V3 "make many, show few"; Q-APX8): an ad is now chosen from several
+ * pictures, and asked the same thing three times the model gives three near-copies. So every picture after the
+ * first is also told `earlier_pictures` — the directions already given for this same ad, exactly as answered — and
+ * asked for a picture a person can tell from them at a glance: another kit photo where one fits the job as well,
+ * otherwise another hour AND another setting or viewpoint, never by leaving the job or the idea. Each photo also
+ * carries `shows`, the tags a person ticked on it (the photo library, V3a). The first picture's message carries
+ * an empty `earlier_pictures`; its key is unchanged, and a later picture's names it (`artKey`). `judgeArt` refuses
+ * the one repeat code can name — the same photo, subject, distance and words (`repeats_earlier_picture`).
  */
 
-export const ART_DIRECTOR_PROMPT_VERSION = "artDirector@6";
-const PROMPT = readFileSync(new URL("./prompt.v6.md", import.meta.url), "utf8");
+export const ART_DIRECTOR_PROMPT_VERSION = "artDirector@7";
+const PROMPT = readFileSync(new URL("./prompt.v7.md", import.meta.url), "utf8");
 const MAX_TOKENS = 600;
 
 type Recipe = Pick<AdPresetRecipe, "image_prompt_template" | "image_slots" | "starts_from" | "shows_equipment" | "shows_people" | "layout" | "formats">;
@@ -71,7 +80,7 @@ export function artTool(recipe: Pick<AdPresetRecipe, "image_slots">): ForcedTool
 /** What the job is like, as the brief's `subject_matter.details` (CQ2); empty when a fixture or a caller has none. */
 export type ArtContext = readonly string[];
 
-export function artUserMessage(recipe: Recipe, kit: Kit, context: ArtContext = [], headline: string | null = null, idea: string | null = null): string {
+export function artUserMessage(recipe: Recipe, kit: Kit, context: ArtContext = [], headline: string | null = null, idea: string | null = null, earlier: readonly ArtAnswer[] = []): string {
   const frame = publishedFormats(recipe.formats)[0] ?? null;
   return JSON.stringify({
     template: recipe.image_prompt_template,
@@ -81,13 +90,22 @@ export function artUserMessage(recipe: Recipe, kit: Kit, context: ArtContext = [
     headline,
     idea,
     context,
-    photos: recipe.starts_from === "equipment_photo" ? kit.equipment_photos.map((p) => ({ label: p.label, sha256: p.asset.sha256 })) : [],
+    photos: recipe.starts_from === "equipment_photo" ? kit.equipment_photos.map((p) => ({ label: p.label, shows: p.tags, sha256: p.asset.sha256 })) : [],
+    // The answers themselves, as the model gave them and `judgeArt` passed them: nothing here is new text.
+    earlier_pictures: earlier.map((e) => ({ reference_photo: e.reference_photo, focal_subject: e.focal_subject, camera_distance: e.camera_distance, slots: e.slots })),
   }, null, 2);
 }
 
-export function buildArtRequest(recipe: Recipe, kit: Kit, context: ArtContext = [], headline: string | null = null, idea: string | null = null) {
-  return { ...AD_AGENT_MODELS.art_director, system: PROMPT, user: artUserMessage(recipe, kit, context, headline, idea), tool: artTool(recipe), maxTokens: MAX_TOKENS };
+export function buildArtRequest(recipe: Recipe, kit: Kit, context: ArtContext = [], headline: string | null = null, idea: string | null = null, earlier: readonly ArtAnswer[] = []) {
+  return { ...AD_AGENT_MODELS.art_director, system: PROMPT, user: artUserMessage(recipe, kit, context, headline, idea, earlier), tool: artTool(recipe), maxTokens: MAX_TOKENS };
 }
+
+/**
+ * The ledger key of one direction. An ad's first picture keeps the key every direction had before V3, so a
+ * creative already composing replays its row; a later picture names itself.
+ */
+export const artKey = (creativeId: string, picture: number, attempt: number): string =>
+  picture <= 1 ? `art:${creativeId}:${attempt}` : `art:${creativeId}:p${picture}:${attempt}`;
 
 export interface DirectArtInput {
   orgId: string;
@@ -102,10 +120,14 @@ export interface DirectArtInput {
   headline?: string | null;
   /** The idea of the approved plan's angle for this preset (V2c); null or absent when the campaign was not planned. */
   idea?: string | null;
+  /** Which of the ad's pictures this is, from 1 (V3); absent = the first, the only one before V3. */
+  picture?: number;
+  /** The answers already given for this ad's earlier pictures, oldest first (`ready.answer` of each); absent = none. */
+  earlier?: readonly ArtAnswer[];
 }
 
 export type DirectArtOutcome =
-  | { kind: "ready"; generationId: string; direction: ArtDirection; replayed: boolean }
+  | { kind: "ready"; generationId: string; direction: ArtDirection; /** As answered: what a later picture of the same ad is told. */ answer: ArtAnswer; replayed: boolean }
   | { kind: "refused"; generationId: string; findings: ArtFinding[]; replayed: boolean }
   | { kind: "not_possible"; reason: ArtRefusal }
   | Exclude<ClaudeGenerationOutcome<ArtAnswer>, { kind: "succeeded" }>;
@@ -113,18 +135,19 @@ export type DirectArtOutcome =
 export async function directArt(deps: ClaudeGenerationDeps, input: DirectArtInput): Promise<DirectArtOutcome> {
   const reason = artPrecheck(input.recipe, input.kit);
   if (reason) return { kind: "not_possible", reason };
+  const earlier = input.earlier ?? [];
   const out = await generateWithClaude(deps, {
     orgId: input.orgId,
     agent: "art_director",
     campaignId: input.campaignId,
     creativeId: input.creativeId,
-    idempotencyKey: `art:${input.creativeId}:${input.attempt}`,
+    idempotencyKey: artKey(input.creativeId, input.picture ?? 1, input.attempt),
     promptVersion: ART_DIRECTOR_PROMPT_VERSION,
-    ...buildArtRequest(input.recipe, input.kit, input.context ?? [], input.headline ?? null, input.idea ?? null),
+    ...buildArtRequest(input.recipe, input.kit, input.context ?? [], input.headline ?? null, input.idea ?? null, earlier),
   });
   if (out.kind !== "succeeded") return out;
-  const findings = judgeArt(out.value, input.recipe, input.kit);
+  const findings = judgeArt(out.value, input.recipe, input.kit, earlier);
   return findings.length === 0
-    ? { kind: "ready", generationId: out.generationId, direction: artDirection(out.value, input.recipe, input.kit), replayed: out.replayed }
+    ? { kind: "ready", generationId: out.generationId, direction: artDirection(out.value, input.recipe, input.kit), answer: out.value, replayed: out.replayed }
     : { kind: "refused", generationId: out.generationId, findings, replayed: out.replayed };
 }
