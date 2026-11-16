@@ -25,7 +25,7 @@
 -- as on hand, and every one of those numbers would be wrong in the direction that stops a re-order.
 -- D-FP11 already says it: FleetPal supplies the catalogue, a COUNT supplies the balance. So FleetPal
 -- moves a shelf only from its `fleetpal_from` forward, and the admin picks that instant — ideally the
--- morning after a count. A FleetPal row dated before it raises IV017 here, so a sweep with a bug in
+-- morning after a count. A FleetPal row dated before it raises IV030 here, so a sweep with a bug in
 -- its window, or a hand-run script, cannot backfill by accident.
 --
 -- ── D-FP24: THE 24-HOUR CLOCK RULE IS ABOUT PHONES ─────────────────────────────────────────────
@@ -47,7 +47,7 @@
 -- Every other rule — idempotency on the movement id first, the org boundary, the inactive part, the
 -- guarded update, append-only — is the 0331 body verbatim. The function is restated whole because
 -- `create or replace` has no other shape; the diff against 0331 is the source column, the clock
--- branch and IV017.
+-- branch and IV030.
 
 alter table public.part_movements
   add column if not exists source text check (source in ('fleetpal'));
@@ -59,7 +59,7 @@ alter table public.stock_locations
   add column if not exists fleetpal_from timestamptz;
 
 comment on column public.stock_locations.fleetpal_from is
-  'The instant this location starts following FleetPal (F13, D-FP23). Null = it does not; at most one per org. FleetPal movements here dated before it, or at any other location, are refused (IV017): there is no backfill, because the opening balance is a count (D-FP11).';
+  'The instant this location starts following FleetPal (F13, D-FP23). Null = it does not; at most one per org. FleetPal movements here dated before it, or at any other location, are refused (IV030): there is no backfill, because the opening balance is a count (D-FP11).';
 
 create unique index if not exists stock_locations_one_fleetpal_shelf
   on public.stock_locations (org_id) where fleetpal_from is not null;
@@ -101,7 +101,7 @@ begin
 
   -- 2. The clock. A person's movement: ±24 h of now (0331). A FleetPal movement: never in the future,
   --    only at the location that follows FleetPal, and never before its `fleetpal_from` (D-FP23,
-  --    D-FP24 — see the header). An unknown location reads as null here and is IV017, not IV012:
+  --    D-FP24 — see the header). An unknown location reads as null here and is IV030, not IV012:
   --    either way nothing is written.
   if v_occurred > now() + interval '24 hours' then
     raise exception 'occurred_at % is more than 24 hours from now', v_occurred using errcode = 'IV014';
@@ -115,7 +115,7 @@ begin
       from public.stock_locations l where l.id = v_from and l.org_id = p_org;
     if v_fleetpal_from is null or v_occurred < v_fleetpal_from then
       raise exception 'FleetPal movement at % precedes this location''s FleetPal start %', v_occurred, v_fleetpal_from
-        using errcode = 'IV017';
+        using errcode = 'IV030';
     end if;
   else
     raise exception 'unknown movement source %', v_source using errcode = 'IV015';
@@ -245,4 +245,4 @@ revoke all on function record_part_movement(uuid, uuid, jsonb) from public, anon
 grant execute on function record_part_movement(uuid, uuid, jsonb) to service_role;
 
 comment on function record_part_movement(uuid, uuid, jsonb) is
-  'The only writer of part_stock.quantity_on_hand (D-INV4). Idempotent on the client-generated movement id (D-INV27); refuses to go negative (IV010, D-INV26); a transfer writes both legs. A FleetPal-sourced row (0621) keeps the vendor''s clock but lands only at the location carrying fleetpal_from, never before it (IV017).';
+  'The only writer of part_stock.quantity_on_hand (D-INV4). Idempotent on the client-generated movement id (D-INV27); refuses to go negative (IV010, D-INV26); a transfer writes both legs. A FleetPal-sourced row (0621) keeps the vendor''s clock but lands only at the location carrying fleetpal_from, never before it (IV030).';

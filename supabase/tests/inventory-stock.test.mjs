@@ -395,8 +395,8 @@ const FP_PART = await part("FP-SHELF-1");
 const fpMove = (hoursAgo, extra = {}) =>
   move({ id: randomUUID(), partId: FP_PART, locationId: MAIN, reason: "received", quantity: 4, occurredAt: at(hoursAgo), source: "fleetpal", ...extra });
 ok(
-  "a FleetPal movement where no location follows FleetPal is refused with IV017 — no start, no backfill",
-  (await fpMove(1)).code === "IV017",
+  "a FleetPal movement where no location follows FleetPal is refused with IV030 — no start, no backfill",
+  (await fpMove(1)).code === "IV030",
 );
 await db.query(`update stock_locations set fleetpal_from = now() - interval '72 hours' where id = $1`, [MAIN]);
 ok(
@@ -404,8 +404,8 @@ ok(
   (await attempt(`update stock_locations set fleetpal_from = now() where id = $1`, [ANNEX])) === "23505",
 );
 ok(
-  "...and a FleetPal movement at the location that does not follow it is IV017",
-  (await fpMove(1, { locationId: ANNEX })).code === "IV017",
+  "...and a FleetPal movement at the location that does not follow it is IV030",
+  (await fpMove(1, { locationId: ANNEX })).code === "IV030",
 );
 ok(
   "...a FleetPal receipt 48 hours old, after the shelf start, is accepted — the vendor's clock is not a phone's",
@@ -415,7 +415,7 @@ ok(
   "...and it is marked as FleetPal's, so the ledger can say why the shelf moved",
   (await one(`select count(*)::int as n from part_movements where part_id=$1 and source='fleetpal'`, [FP_PART])).n === 1,
 );
-ok("...but one dated before the shelf start is refused with IV017", (await fpMove(96)).code === "IV017");
+ok("...but one dated before the shelf start is refused with IV030", (await fpMove(96)).code === "IV030");
 ok("...and one 30 hours in the future is still IV014", (await fpMove(-30)).code === "IV014");
 ok(
   "a person's movement 48 hours old is still IV014 — the exemption is the vendor's only",
