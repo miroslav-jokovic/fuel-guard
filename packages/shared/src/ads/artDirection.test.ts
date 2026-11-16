@@ -8,7 +8,7 @@ import { AD_FORMATS } from "./renderGeometry.js";
 import type { AdBrandKit, AdPresetRecipe } from "./brandKitContract.js";
 
 /** Fixtures only — never a real brand value or preset (Q-AD14, Q-AD12). */
-const photo = (c: string, label = "white tractor, side view") => ({ label, asset: { sha256: c.repeat(64), format: "jpeg" as const, source_format: "jpeg" as const, width: 10, height: 10, byte_size: 10 } });
+const photo = (c: string, label = "white tractor, side view") => ({ label, tags: [], asset: { sha256: c.repeat(64), format: "jpeg" as const, source_format: "jpeg" as const, width: 10, height: 10, byte_size: 10 } });
 const kit = (photos = [photo("a")], people_policy: AdBrandKit["people_policy"] = "none") => ({ equipment_photos: photos, people_policy });
 const recipe = (o: Partial<AdPresetRecipe> = {}) => ({
   image_prompt_template: "Our tractor at {time_of_day}, no text, no logos, no lettering", image_slots: ["time_of_day"],

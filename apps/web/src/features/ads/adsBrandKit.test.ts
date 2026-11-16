@@ -138,6 +138,16 @@ describe("AdsBrandKitCard", () => {
     sent.kits = [{ ...VIEW, archived_at: "2026-11-01T00:00:00Z" }];
     expect(mount(AdsBrandKitCard, { global: { stubs } }).find("[data-test=kit-row]").exists()).toBe(false);
   });
+
+  it("a kit with one photo says its ads will repeat themselves, and one with several tagged photos says what it holds", () => {
+    sent.kits = [VIEW];
+    expect(mount(AdsBrandKitCard, { global: { stubs } }).find("[data-test=kit-photo-advice]").text()).toContain("One photo: every ad that shows equipment starts from it");
+    const two = { ...KIT, equipment_photos: [{ label: "White Freightliner", asset: ASSET, tags: ["truck" as const] }, { label: "Yard at dawn", asset: { ...ASSET, sha256: "b".repeat(64) }, tags: ["yard" as const, "truck" as const] }] };
+    sent.kits = [{ ...VIEW, current: { ...VIEW.current!, body: two } }];
+    const w = mount(AdsBrandKitCard, { global: { stubs } });
+    expect(w.find("[data-test=kit-photo-advice]").exists()).toBe(false);
+    expect(w.find("[data-test=kit-row]").text()).toContain("2 photos · 2 truck, 1 yard");
+  });
 });
 
 describe("AdsBrandKitDrawer", () => {
@@ -149,6 +159,22 @@ describe("AdsBrandKitDrawer", () => {
     await w.find("[data-test=kit-form]").trigger("submit");
     expect(sent.saves).toEqual([]);
     expect(w.find("[data-test=kit-refusal]").exists()).toBe(true);
+  });
+
+  it("ticking what a photo shows is sent with the save, in the list's order, and a second tick takes it off", async () => {
+    api.answers = [{ ok: true }];
+    const w = drawer(VIEW);
+    expect(w.findAll("[data-test=photo-advice]").map((p) => p.text())).toHaveLength(2);
+    await w.find("[data-test=photo-0-tag-yard]").setValue(true);
+    await w.find("[data-test=photo-0-tag-truck]").setValue(true);
+    await w.find("[data-test=photo-0-tag-road]").setValue(true);
+    await w.find("[data-test=photo-0-tag-road]").setValue(false);
+    expect(w.findAll("[data-test=photo-advice]")).toHaveLength(1);
+    await w.find("[data-test=kit-form]").trigger("submit");
+    await flushPromises();
+    expect((sent.saves[0] as { kit: AdBrandKit }).kit.equipment_photos[0]!.tags).toEqual(["truck", "yard"]);
+    // The stored kit was not edited in place: a tick replaces the photo's list, it never writes into it.
+    expect(KIT.equipment_photos[0]!.tags).toEqual([]);
   });
 
   it("saving an edited kit sends the next version of that kit and closes", async () => {

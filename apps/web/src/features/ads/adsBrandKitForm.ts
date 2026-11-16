@@ -1,4 +1,4 @@
-import { AD_FORMATS, AD_OVERLAY_START, adBrandKitSaveSchema, type AdAssetRef, type AdBrandKit, type AdBrandKitSave, type AdFormat } from "@silvicom/shared";
+import { AD_FORMATS, AD_OVERLAY_START, adBrandKitSaveSchema, type AdAssetRef, type AdBrandKit, type AdBrandKitSave, type AdFormat, type AdPhotoTag } from "@silvicom/shared";
 
 /**
  * The brand kit editor's form (E2; plan D-AD10), kept apart from the screen so what a save sends can be tested.
@@ -25,7 +25,8 @@ export interface BrandKitForm {
   phone: string;
   colors: Array<{ name: string; hex: string }>;
   logo: AdAssetRef | null;
-  equipment_photos: Array<{ label: string; asset: AdAssetRef }>;
+  /** `tags`: what the photo shows, ticked by the person (V3 photo library); a photo saved before tags starts with none. */
+  equipment_photos: Array<{ label: string; asset: AdAssetRef; tags: AdPhotoTag[] }>;
   overlays: Record<AdFormat, OverlayRow>;
   people_policy: AdBrandKit["people_policy"];
   /** One name per line. */

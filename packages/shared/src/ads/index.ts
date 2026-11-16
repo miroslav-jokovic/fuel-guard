@@ -28,6 +28,7 @@ export * from "./monitorChecks.js";
 export * from "./adsReconcile.js";
 export * from "./adFatigue.js";
 export * from "./brandKitContract.js";
+export * from "./photoLibrary.js";
 export * from "./finishedAd.js";
 export * from "./starterPresets.js";
 export * from "./artDirection.js";
