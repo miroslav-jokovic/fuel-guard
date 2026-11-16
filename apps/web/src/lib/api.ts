@@ -1,4 +1,4 @@
-import { SECOND_FACTOR_REQUIRED } from "@silvicom/shared";
+import { DEVICE_LIMIT_REACHED, SECOND_FACTOR_REQUIRED } from "@silvicom/shared";
 import { supabase } from "./supabase";
 import { clearStepUp, stepUpHeader } from "./stepUp";
 import { deviceHeader } from "./deviceKey";
@@ -130,6 +130,19 @@ function onSecondStepRequired(): void {
   window.location.assign("/two-step");
 }
 
+/**
+ * The API refused this device as a FOURTH (INSTALLED-APP-PLAN IA-S6, Q-IA14 (b): 403 `device_limit`). The
+ * session is good and is kept — it is the one the person signs another device out with — so this takes them to
+ * the page that lists their devices. Once, as above, and never from that page itself, whose own two calls the
+ * API lets through.
+ */
+let deviceLimitShown = false;
+function onDeviceLimit(): void {
+  if (deviceLimitShown || window.location.pathname === "/too-many-devices") return;
+  deviceLimitShown = true;
+  window.location.assign("/too-many-devices");
+}
+
 /** Call the Silvicom 360 API with the current Supabase access token as a Bearer credential. */
 export async function apiFetch<T = unknown>(
   path: string,
@@ -200,6 +213,7 @@ export async function apiFetch<T = unknown>(
     const err = (payload as { error?: { code: string; message: string } })?.error;
     if (res.status === 401 && err?.code === ACCESS_CHANGED) await onAccessChanged();
     if (res.status === 403 && err?.code === SECOND_FACTOR_REQUIRED) onSecondStepRequired();
+    if (res.status === 403 && err?.code === DEVICE_LIMIT_REACHED) onDeviceLimit();
     return {
       ok: false,
       status: res.status,

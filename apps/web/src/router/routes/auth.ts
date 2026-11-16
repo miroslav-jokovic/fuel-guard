@@ -80,6 +80,17 @@ export const authRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/auth/TwoStepPage.vue"),
     meta: { layout: "auth", title: "Two-step sign-in" },
   },
+  /**
+   * A fourth device (IA-S6, Q-IA14 (b)): the person's devices, to sign one out and continue here. NOT public — it
+   * needs the session that was stopped — and in the auth layout, because that session is refused by every API
+   * route the shell calls. `lib/api.ts` brings any page here on the API's 403 `device_limit`.
+   */
+  {
+    path: "/too-many-devices",
+    name: "too-many-devices",
+    component: () => import("@/pages/auth/TooManyDevicesPage.vue"),
+    meta: { layout: "auth", title: "Too many devices" },
+  },
   {
     path: "/accept-invite",
     name: "accept-invite",

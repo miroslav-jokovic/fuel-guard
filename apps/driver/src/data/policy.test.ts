@@ -9,6 +9,8 @@ import {
   DEFERRED_RETRY_MS,
   outcomeAfterDeferral,
   outcomeAfterFailure,
+  outcomeWhileDeviceLimited,
+  DEVICE_LIMIT_RETRY_MS,
   pickNext,
   type OutboxRecord,
 } from './policy';
@@ -212,5 +214,24 @@ describe('outcomeAfterDeferral', () => {
   it('keeps the reason, so the sync screen says what is being waited for', () => {
     expect(outcomeAfterDeferral(rec(), 'Waiting for Wi-Fi to upload 3 original pages', 0).lastError)
       .toBe('Waiting for Wi-Fi to upload 3 original pages');
+  });
+});
+
+describe('a phone stopped as a fourth device (IA-S6)', () => {
+  it('a 403 is otherwise permanent — which is why the refusal of a PHONE must not reach this rule', () => {
+    expect(outcomeAfterFailure(rec({ attempts: 0 }), 403, 'device_limit', 5_000).status).toBe('dead');
+  });
+
+  it('puts the record back as it was: pending, its attempts untouched, tried again within a minute', () => {
+    const out = outcomeWhileDeviceLimited(rec({ attempts: 4 }), 5_000);
+    expect(out).toMatchObject({ status: 'pending', attempts: 4, nextAttemptAt: 5_000 + DEVICE_LIMIT_RETRY_MS });
+    expect(DEVICE_LIMIT_RETRY_MS).toBe(60_000);
+  });
+
+  it('can wait for ever without a record ever needing attention', () => {
+    let r = rec({ attempts: MAX_ATTEMPTS - 1 });
+    for (let i = 0; i < 100; i++) r = { ...r, ...outcomeWhileDeviceLimited(r, i * DEVICE_LIMIT_RETRY_MS) };
+    expect(countNeedsAttention([r])).toBe(0);
+    expect(r.attempts).toBe(MAX_ATTEMPTS - 1);
   });
 });

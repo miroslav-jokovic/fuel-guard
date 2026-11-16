@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import {
   DEVICE_KEY_HEADER,
+  DEVICE_LIMIT,
+  DEVICE_LIMIT_REACHED,
   SECOND_FACTOR_REQUIRED,
   callerCanManage,
   callerCanView,
@@ -23,13 +25,21 @@ class AccessChanged extends Error {}
 class SignedOut extends Error {}
 /** The token is genuine but its owner must take the second step and this session has not (IA-S1, 0617). */
 class SecondStepNeeded extends Error {}
+/** The token is genuine but its device is a fourth: the account already holds its three places (IA-S6, 0620). */
+class DeviceLimit extends Error {}
+
+/** Which one refusal a router may waive — each is a separate door, and none waives the other. */
+interface Waive {
+  firstStep?: boolean;
+  deviceLimit?: boolean;
+}
 
 /**
  * Authenticate the request from its Bearer token. Attaches req.auth (audit B5: org_id/role come
  * from the verified JWT, NEVER the request body). Tests may inject app.locals.verifyToken.
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  authenticate(req, res, next, false);
+  authenticate(req, res, next, {});
 }
 
 /**
@@ -39,10 +49,20 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
  * date had passed would be refused by every route including the one that could say why.
  */
 export function requireAuthFirstStep(req: Request, res: Response, next: NextFunction): void {
-  authenticate(req, res, next, true);
+  authenticate(req, res, next, { firstStep: true });
 }
 
-function authenticate(req: Request, res: Response, next: NextFunction, allowFirstStep: boolean): void {
+/**
+ * `requireAuth` for the routes a FOURTH device may still call (IA-S6, Q-IA14 (b)): the person's own devices and
+ * signing one of them out — `/api/me/devices` and `/api/me/sessions`. Without them the device that was stopped
+ * could not do the one thing the refusal asks of it. Signature, membership, session and second step are all
+ * checked as above; only the device-limit refusal is waived.
+ */
+export function requireAuthOverLimit(req: Request, res: Response, next: NextFunction): void {
+  authenticate(req, res, next, { deviceLimit: true });
+}
+
+function authenticate(req: Request, res: Response, next: NextFunction, waive: Waive): void {
   const header = req.headers.authorization ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : null;
   if (!token) {
@@ -62,7 +82,8 @@ function authenticate(req: Request, res: Response, next: NextFunction, allowFirs
       const verdict = await membershipVerdict(getSupabaseAdmin(locals.env), { ...ctx, deviceKey: req.get(DEVICE_KEY_HEADER) ?? null });
       if (verdict === "stale") throw new AccessChanged();
       if (verdict === "signed_out") throw new SignedOut();
-      if (verdict === "second_factor" && !allowFirstStep) throw new SecondStepNeeded();
+      if (verdict === "second_factor" && !waive.firstStep) throw new SecondStepNeeded();
+      if (verdict === "device_limit" && !waive.deviceLimit) throw new DeviceLimit();
       return ctx;
     });
 
@@ -92,6 +113,12 @@ function authenticate(req: Request, res: Response, next: NextFunction, allowFirs
       // the code is entered. The web sends the person to the code page on this code (lib/api.ts).
       if (err instanceof SecondStepNeeded) {
         res.status(403).json(apiError(SECOND_FACTOR_REQUIRED, "Enter the code from your authenticator app to continue."));
+        return;
+      }
+      // 403, not 401, for the reason the second step's is: the token is good and must be kept — it is the one
+      // the person uses to sign another device out, after which the same session is let in.
+      if (err instanceof DeviceLimit) {
+        res.status(403).json(apiError(DEVICE_LIMIT_REACHED, `You are signed in on ${DEVICE_LIMIT} devices. Sign one out to use this one.`));
         return;
       }
       res.status(401).json(apiError("unauthorized", "Invalid or expired token"));

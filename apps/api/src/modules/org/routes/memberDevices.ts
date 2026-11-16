@@ -10,7 +10,7 @@ import {
   type MemberDevice,
   type MemberDevicesResponse,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireAuthOverLimit, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -59,7 +59,8 @@ async function listDevices(admin: SupabaseClient, orgId: string, userId: string,
 
 export function myDevicesRouter(): Router {
   const router = Router();
-  router.use(requireAuth);
+  // A fourth device may read this (IA-S6, Q-IA14 (b)): it is the list the refusal asks the person to choose from.
+  router.use(requireAuthOverLimit);
   router.get(
     "/",
     requireOrg,

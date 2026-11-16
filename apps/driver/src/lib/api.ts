@@ -2,6 +2,8 @@ import type { ZodType } from "zod";
 import { env } from "./env";
 import { supabase } from "./supabase";
 import { deviceHeader } from "./deviceKey";
+import { clearDeviceLimited, markDeviceLimited } from "./deviceLimit";
+import { DEVICE_LIMIT_REACHED } from "@silvicom/shared";
 
 export interface ApiError {
   code: string;
@@ -115,6 +117,10 @@ export async function apiFetch<T = unknown>(
   } catch {
     payload = undefined;
   }
+
+  // A fourth device (IA-S6): every answer either says so or says it is not — `deviceLimit.ts` says who reads it.
+  if (res.status === 403 && (payload as { error?: ApiError } | undefined)?.error?.code === DEVICE_LIMIT_REACHED) markDeviceLimited();
+  else if (res.status !== 401) clearDeviceLimited();
 
   if (!res.ok) {
     const err = (payload as { error?: ApiError } | undefined)?.error;

@@ -149,6 +149,27 @@ export function outcomeAfterDeferral(rec: OutboxRecord, reason: string, now: num
   return { status: 'pending', attempts: rec.attempts, nextAttemptAt: now + DEFERRED_RETRY_MS, lastError: reason };
 }
 
+/**
+ * How long a record waits while this phone is stopped as a fourth device (IA-S6), before it is tried again.
+ * A minute: the driver is looking at the screen that asks them to sign another device out, and once they have,
+ * their work should go within a minute — not a backoff curve's five, nor a deferral's thirty.
+ */
+export const DEVICE_LIMIT_RETRY_MS = 60 * 1000;
+
+/**
+ * What happens to a record that failed while the API was refusing this PHONE, not the record (IA-S6, 403
+ * `device_limit`). Put back as it was — pending, its attempt count untouched — because the refusal says nothing
+ * about the work: a 403 would otherwise be permanent and dead-letter a driver's stop at once.
+ */
+export function outcomeWhileDeviceLimited(rec: OutboxRecord, now: number): DeferralOutcome {
+  return {
+    status: 'pending',
+    attempts: rec.attempts,
+    nextAttemptAt: now + DEVICE_LIMIT_RETRY_MS,
+    lastError: 'Waiting: this phone is signed out until another device is.',
+  };
+}
+
 /** Records the driver should be told about ("2 pending", "1 needs attention"). */
 export function countPending(records: readonly OutboxRecord[]): number {
   return records.filter((r) => r.status !== 'done' && r.status !== 'dead').length;

@@ -45,7 +45,7 @@ describe("membershipVerdict — the membership", () => {
   it("a membership with the token's role, not suspended, on a live session, is current", async () => {
     expect(await membershipVerdict(recorderWith(ALIVE).client, ctx)).toBe("current");
     // Org, person and session come from the token; one call, nothing else.
-    expect(asked).toEqual([{ p_org: ORG, p_user: USER, p_session: SESSION, p_device_key: null, p_limit: null, p_idle_hours: 12 }]);
+    expect(asked).toEqual([{ p_org: ORG, p_user: USER, p_session: SESSION, p_device_key: null, p_limit: 3, p_idle_hours: 12 }]);
   });
 
   it("a removed membership is stale", async () => {
@@ -77,7 +77,7 @@ describe("membershipVerdict — the session (Q-IA10)", () => {
 
   it("a token that names no session cannot be told, and stands", async () => {
     expect(await membershipVerdict(recorderWith({ ...ALIVE, session_alive: null }).client, { ...ctx, sessionId: null })).toBe("current");
-    expect(asked).toEqual([{ p_org: ORG, p_user: USER, p_session: null, p_device_key: null, p_limit: null, p_idle_hours: 12 }]);
+    expect(asked).toEqual([{ p_org: ORG, p_user: USER, p_session: null, p_device_key: null, p_limit: 3, p_idle_hours: 12 }]);
   });
 
   it("never sends the database a session claim that is not an id", async () => {
@@ -184,9 +184,9 @@ describe("membershipVerdict — the second step (IA-S1)", () => {
 describe("membershipVerdict — the device (IA-S6, 0620)", () => {
   const DEVICE = "the-office-pc-in-dispatch";
 
-  it("passes the app's device key, and no limit yet — every device is remembered and none is stopped", async () => {
+  it("passes the app's device key and the owner's limit of three (Q-IA16)", async () => {
     await membershipVerdict(recorderWith(ALIVE).client, { ...ctx, deviceKey: DEVICE });
-    expect(asked).toEqual([{ p_org: ORG, p_user: USER, p_session: SESSION, p_device_key: DEVICE, p_limit: null, p_idle_hours: 12 }]);
+    expect(asked).toEqual([{ p_org: ORG, p_user: USER, p_session: SESSION, p_device_key: DEVICE, p_limit: 3, p_idle_hours: 12 }]);
   });
 
   it("never sends the database a key outside the app's alphabet", async () => {
@@ -198,8 +198,20 @@ describe("membershipVerdict — the device (IA-S6, 0620)", () => {
     }
   });
 
-  it("a refused device is still current in this merge: nothing stops a device until the page that explains it ships", async () => {
-    expect(await membershipVerdict(recorderWith({ ...ALIVE, device_admitted: false, devices_in_use: 3 }).client, ctx)).toBe("current");
+  it("a fourth device is device_limit, and that answer is never cached — one signed out, and it is let in", async () => {
+    expect(await membershipVerdict(recorderWith({ ...ALIVE, device_admitted: false, devices_in_use: 3 }).client, ctx, 1_000)).toBe("device_limit");
+    expect(await membershipVerdict(recorderWith({ ...ALIVE, device_admitted: true, devices_in_use: 3 }).client, ctx, 1_001)).toBe("current");
+  });
+
+  it("nothing decided is not a refusal: no session named, or one still owing its code", async () => {
+    expect(await membershipVerdict(recorderWith({ ...ALIVE, session_alive: null, device_admitted: null }).client, { ...ctx, sessionId: null })).toBe("current");
+  });
+
+  it("a changed membership, an ended session and an owed code each outrank the device limit", async () => {
+    const over = { ...ALIVE, device_admitted: false };
+    expect(await membershipVerdict(recorderWith({ ...over, role: "admin" }).client, ctx)).toBe("stale");
+    expect(await membershipVerdict(recorderWith({ ...over, session_alive: false }).client, ctx)).toBe("signed_out");
+    expect(await membershipVerdict(recorderWith({ ...over, has_second_factor: true }).client, { ...ctx, aal: "aal1" })).toBe("second_factor");
   });
 });
 

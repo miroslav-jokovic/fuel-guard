@@ -18,6 +18,9 @@ export const DEVICE_LIMIT = 3;
  */
 export const SESSION_IDLE_HOURS = 12;
 
+/** The API's refusal of a fourth device (Q-IA14 (b)): 403, the token kept, the person shown their devices. */
+export const DEVICE_LIMIT_REACHED = "device_limit";
+
 /** Devices and their addresses are kept this long after they were last seen (Q-IA17), then pruned. */
 export const DEVICE_HISTORY_DAYS = 365;
 

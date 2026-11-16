@@ -143,6 +143,9 @@ const UNCATALOGUED_WAIVERS = {
   // section check runs, and every signed-in office person may open it — it is their own sign-in, not a
   // screen of the product a carrier grants or withholds.
   "/two-step": "two-step sign-in; reached BEFORE the section gate, and every signed-in person's own",
+  // IA-S6. The same reasoning: the API sends a fourth device here, and every signed-in person may open it —
+  // it is about their own sign-ins, not a screen a carrier grants or withholds.
+  "/too-many-devices": "a fourth device's way to sign one out; every signed-in person's own",
 };
 
 /** Every `requireSurface("key")` in the API, with the file that wrote it. */

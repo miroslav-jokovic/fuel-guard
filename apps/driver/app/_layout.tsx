@@ -26,6 +26,7 @@ import { registerSyncHandlers } from "@/data/handlers";
 import { configureForegroundHandler, onNotificationTap, registerForPush } from "@/features/notifications/push";
 import { resolveDeepLink } from "@/features/notifications/deepLink";
 import { initCrashReporting, setCrashUser } from "@/lib/crash";
+import { useDeviceLimited } from "@/lib/deviceLimit";
 
 // Crash reporting FIRST (Phase 8.1) — a crash in any later module-load step should be captured.
 // No-op without EXPO_PUBLIC_SENTRY_DSN; PII-scrubbed by the shared scrubber either way.
@@ -43,6 +44,8 @@ configureForegroundHandler();
  */
 function useProtectedRoute() {
   const { status } = useSession();
+  // A fourth device (IA-S6): the API refuses this phone until another device is signed out.
+  const deviceLimited = useDeviceLimited();
   const segments = useSegments();
   const router = useRouter();
 
@@ -57,6 +60,15 @@ function useProtectedRoute() {
     // set password → accept → claims land). Leave it alone until the flow completes ('ready'),
     // otherwise the guard would yank the user to /pending the instant the link session lands.
     if (inAuthGroup && segs[1] === "accept-invite" && status !== "ready") return;
+
+    if (status === "ready" && deviceLimited) {
+      if (segs[0] !== "device-limit") router.replace("/device-limit");
+      return;
+    }
+    if (status === "ready" && segs[0] === "device-limit") {
+      router.replace("/home");
+      return;
+    }
 
     if (status === "ready") {
       // A driver with an org must be inside the app, never on the splash or an auth screen. At the
@@ -73,7 +85,7 @@ function useProtectedRoute() {
       status === "signedOut" ? "/sign-in" : status === "pending" ? "/pending" : "/wrong-app";
     const currentAuthScreen = inAuthGroup ? segs[1] : undefined;
     if (currentAuthScreen !== target.slice(1)) router.replace(target);
-  }, [status, segments, router]);
+  }, [status, deviceLimited, segments, router]);
 }
 
 /** Data spine: NetInfo → React Query, and the outbox drain loop. Runs for the app's lifetime. */
