@@ -66,6 +66,7 @@ const approval = (over: Record<string, unknown> = {}) => ({
 
 describe("POST /campaigns/:id/moves — what the machine lets a person press", () => {
   it("a recruiter regenerates a campaign in review: it moves to composing, recorded with their id", async () => {
+    world("review", { campaigns: [campaign(C, "review", { daily_budget_cents: null, lifetime_cap_cents: null, plan_id: "plan-1" })] });
     const res = await call(`${C}/moves`, { event: "regenerate" });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ state: "composing" });
@@ -73,6 +74,14 @@ describe("POST /campaigns/:id/moves — what the machine lets a person press", (
     expect(w.transitions(C)).toEqual([expect.objectContaining({ status: "succeeded", actor_kind: "person", actor_id: `u-${RECRUITER}` })]);
     // `user_profiles` is keyed by the caller's own user id (`displayNameFor`): a person's name, not org data.
     expectOrgScoped(w.rec, ORG, { exempt: ["user_profiles"] });
+  });
+
+  it("a campaign with no approved plan cannot be sent to make ads: 409 with what to do, and it stays where it is", async () => {
+    world("failed");
+    const res = await call(`${C}/moves`, { event: "resume_compose" });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: { code: "no_approved_plan", message: "This campaign has no approved plan, and no ad is made without one. Use Try planning again, then approve the plan." } });
+    expect(w.byId(C).state).toBe("failed");
   });
 
   it("a move the machine forbids from this state is refused and changes nothing", async () => {

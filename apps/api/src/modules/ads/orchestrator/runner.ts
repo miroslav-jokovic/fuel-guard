@@ -103,11 +103,10 @@ async function decide(deps: RunnerDeps, c: CampaignRow, killReason: string | nul
   const { workers } = deps;
   if (killReason && (c.state === "launching" || c.state === "live")) return { event: "kill", cause: `kill switch: ${killReason}` };
   switch (c.state) {
-    case "draft": {
-      // Planned when this host plans AND this carrier asked for it (Q-APX6); else the road before planning.
-      const planned = workers.plan !== null && (workers.plansFor ? await workers.plansFor(c) : true);
-      return { event: planned ? "plan" : "compose" };
-    }
+    // Every campaign is planned (Q-APX6, ruled (b) 2026-11-15): a draft has one move. A host with no planner
+    // is never asked about a draft (`agentHasWork`).
+    case "draft":
+      return { event: "plan" };
     case "planning": {
       const r = await attempt(() => workers.plan!(c, key));
       if (r.ok) return { event: "plan_ready" };

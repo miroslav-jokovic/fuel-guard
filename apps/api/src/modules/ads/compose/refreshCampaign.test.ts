@@ -21,7 +21,7 @@ const copyFx = loadFixtures(COPYWRITER_EVAL).find((f) => f.fixture.name === "age
 const artFx = loadFixtures(ART_DIRECTOR_EVAL).find((f) => f.fixture.name === "tractor-on-highway")!.fixture;
 const recipe = { ...artFx.input.recipe, copy_slots: copyFx.input.recipe.copy_slots, overlay_slots: { headline: "hook", cta: "cta" } };
 const REFS = { meta_campaign_id: "771", meta_adset_id: "881", meta_form_ids: { en: "f-en", es: "f-es" }, meta_ad_ids: ["9001", "9002"], ads: [{ creative_id: "cr-old", language: "en", meta_ad_id: "9001" }, { creative_id: "cr-two", language: "en", meta_ad_id: "9002" }] };
-const live = (): CampaignRow => ({ id: "c-1", org_id: ORG, connection_id: "conn", state: "live", state_changed_at: T0, daily_budget_cents: 5000, lifetime_cap_cents: 50000, platform_refs: REFS });
+const live = (): CampaignRow => ({ id: "c-1", org_id: ORG, connection_id: "conn", state: "live", state_changed_at: T0, daily_budget_cents: 5000, lifetime_cap_cents: 50000, platform_refs: REFS, plan_id: null });
 
 type Creative = { id: string; org_id: string; campaign_id: string; preset_version_id: string; state: CreativeState; regenerations: number; platform_status: string | null; supersedes_id: string | null; created_at: string; updated_at?: string };
 const cr = (id: string, version: string, over: Partial<Creative> = {}): Creative => ({ id, org_id: ORG, campaign_id: "c-1", preset_version_id: version, state: "approved", regenerations: 0, platform_status: null, supersedes_id: null, created_at: T0, ...over });

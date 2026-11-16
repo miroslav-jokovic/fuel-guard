@@ -10,6 +10,9 @@ campaigns:
   - { id: c2, state: draft }
 timeline:
   - settle: true
+  - person: { campaign: c1, event: plan_approved }
+  - person: { campaign: c2, event: plan_approved }
+  - settle: true
   - person: { campaign: c1, event: creatives_approved }
   - person: { campaign: c2, event: creatives_approved }
   - settle: true
@@ -22,7 +25,9 @@ expect:
   states: { c1: live, c2: live }
   ledger:
     c1: &walk
-      - "draft -compose-> composing succeeded"
+      - "draft -plan-> planning succeeded"
+      - "planning -plan_ready-> plan_review succeeded"
+      - "plan_review -plan_approved-> composing succeeded"
       - "composing -creatives_ready-> review succeeded"
       - "review -creatives_approved-> approved succeeded"
       - "approved -create_paused-> creating succeeded"

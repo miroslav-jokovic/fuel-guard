@@ -40,6 +40,7 @@ function sendMove(res: Response, out: MoveOutcome): void {
     case "refused": return void res.status(409).json(apiError(out.reason, out.reason === "not_this_door"
       ? "That step has its own button."
       : out.reason === "no_approved_creative" ? "Approve at least one ad first."
+      : out.reason === "no_approved_plan" ? "This campaign has no approved plan, and no ad is made without one. Use Try planning again, then approve the plan."
       : "The campaign cannot do that from where it is now. Reload to see its state."));
     case "conflict": return void res.status(409).json(apiError("state_moved", "The campaign moved while you were looking. Reload and try again."));
     case "needs_approval": return void res.status(409).json(apiError(out.refusal, out.refusal === "second_approver_missing"

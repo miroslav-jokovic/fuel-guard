@@ -32,6 +32,7 @@ vendor:                       # one answer per call, the last repeats: ok · fai
 timeline:                     # one key per step
   - settle: true              # tick until a tick runs no job (≤ 10)
   # - tick: 1                 # one tick: the orchestrator queues, every queued job runs at once
+  # - person:   { campaign: c1, event: plan_approved }    # the harness names the plan the fake planner wrote
   # - person:   { campaign: c1, event: creatives_approved }
   # - approver: { campaign: c1, event: launch }
   # - platform: { campaign: c1, event: platform_paused }
@@ -44,10 +45,10 @@ timeline:                     # one key per step
   # - advance:  { hours: 1 }
 
 expect:
-  states: { c1: review }      # every seeded campaign
+  states: { c1: plan_review } # every seeded campaign
   last_error: { c1: null }
   ledger:                     # the WHOLE ads_actions ledger of the campaign, in order
     c1:
-      - "draft -compose-> composing succeeded"
-      - "composing -creatives_ready-> review succeeded"
-  vendor: { compose: 1 }      # compose · create · creates (distinct objects) · launch · pause
+      - "draft -plan-> planning succeeded"
+      - "planning -plan_ready-> plan_review succeeded"
+  vendor: { compose: 0 }      # compose · create · creates (distinct objects) · launch · pause

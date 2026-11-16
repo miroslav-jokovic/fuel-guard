@@ -27,7 +27,7 @@ import { CAMPAIGN_STATES, type CampaignState } from "./contracts.js";
 
 export const CAMPAIGN_EVENTS = [
   "plan", "plan_ready", "plan_failed", "plan_approved", "replan", "resume_plan",
-  "compose", "creatives_ready", "compose_failed", "regenerate", "creatives_approved",
+  "creatives_ready", "compose_failed", "regenerate", "creatives_approved",
   "create_paused", "created", "create_failed", "launch", "launched", "launch_failed",
   "pause", "paused", "pause_failed", "kill", "platform_paused", "platform_activated",
   "platform_rejected", "archive", "resume_compose", "resume_create",
@@ -70,12 +70,10 @@ export const CAMPAIGN_TRANSITIONS: readonly CampaignTransition[] = [
   T("planning", "plan_failed", "failed", AGENT),
   T("plan_review", "plan_approved", "composing", PERSON),
   T("plan_review", "replan", "planning", PERSON),
-  // composing: the workers write, render and check one creative per enabled preset.
-  // `draft → compose` is the road WITHOUT a plan. It stays while a host has no planner
-  // (`CampaignWorkers.plan` null — every host until the Strategist ships and is switched on): the runner
-  // takes `plan` when a planner exists and `compose` when none does, so both roads are the machine's and
-  // neither is a code path beside it. It is removed in the step that makes planning unconditional.
-  T("draft", "compose", "composing", AGENT),
+  // composing: the workers write, render and check one creative per angle of the approved plan.
+  // There is ONE road into it (Q-APX6, ruled (b) by the owner on 2026-11-15: "planning should be mandatory"):
+  // `plan_review → composing`, on a person's approval. The row `draft → compose → composing`, the road with no
+  // plan, stood here while planning was the carrier's choice and left with that ruling, and its event with it.
   T("composing", "creatives_ready", "review", AGENT),
   T("composing", "compose_failed", "failed", AGENT),
   T("review", "regenerate", "composing", PERSON),

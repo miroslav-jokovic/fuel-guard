@@ -77,7 +77,7 @@ export const READINESS = [
           need: "the runner takes one step per job; the tick only enqueues, keyed per campaign and state, in one lane",
           tests: [
             { file: RUNNER, titles: [
-              "walks draft → composing → review, approved → creating → paused, launching → live, each with one transition row",
+              "walks draft → planning → plan review, composing → review, approved → creating → paused, launching → live, each with one transition row",
               "a worker not built yet leaves the campaign where it is, writing nothing",
             ] },
             { file: TICK, titles: [
@@ -1195,7 +1195,7 @@ export const READINESS = [
   },
   {
     // V2c (2026-11-15): the Strategist writes a campaign's plan from the evidence pack. A campaign that carries a
-    // plan waits on its L4 at Launch (`meta:plannedstill` in CAMPAIGN_WORKERS); one that was never planned does not.
+    // plan waits on its L4 at Launch (`meta:plannedstill` in CAMPAIGN_WORKERS); one made before planning became mandatory (Q-APX6) does not.
     worker: "Strategist",
     levels: {
       L1: [
@@ -1276,6 +1276,14 @@ export const READINESS = [
             ] },
             { file: "apps/api/src/modules/ads/compose/composeCreative.test.ts", titles: [
               "a planned campaign's idea reaches the Copywriter with its proof and the Art director without it; the craft judge and the checker are not told",
+            ] },
+            // Q-APX6 ruled (b), 2026-11-15: planning is mandatory, so "no ad without an approved plan" is held here.
+            { file: "apps/api/src/modules/ads/orchestrator/transitions.test.ts", titles: [
+              "a campaign that names no plan cannot go from %s to composing by %s: refused, recorded, nothing written",
+              "every row of the machine that enters composing is a person's, and none leaves draft: the list this rule guards",
+            ] },
+            { file: "apps/api/src/modules/ads/orchestrator/runner.test.ts", titles: [
+              "a host with no planner makes no ad: its draft stays a draft and nothing is composed",
             ] },
           ],
         },
@@ -1374,7 +1382,7 @@ export const READINESS = [
           need: "a cross-org read",
           tests: [
             { file: GUARD, titles: ["every query and write names the org"] },
-            { file: RUNNER, titles: ["walks draft → composing → review, approved → creating → paused, launching → live, each with one transition row"] },
+            { file: RUNNER, titles: ["walks draft → planning → plan review, composing → review, approved → creating → paused, launching → live, each with one transition row"] },
           ],
         },
         {
@@ -1486,8 +1494,9 @@ const META_STILL = [
 
 /**
  * A campaign that was PLANNED (it carries a plan, V2c) also used the Strategist, so its launch waits on the
- * Strategist's L4 as well. Its own key, derived from the unplanned list so the two cannot drift: a carrier
- * that never switched planning on is not held back by an agent its campaigns never used (Q-APX6).
+ * Strategist's L4 as well. Its own key, derived from the unplanned list so the two cannot drift: a campaign
+ * made before planning became mandatory (Q-APX6, ruled (b) 2026-11-15) is not held back by an agent it never used;
+ * every campaign made since is a planned one.
  */
 export const CAMPAIGN_WORKERS = {
   "meta:still": META_STILL,

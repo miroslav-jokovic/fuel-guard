@@ -7,7 +7,8 @@ import { CAMPAIGN_CREATIVE_KIND, launchCertification, plannedKind, type LaunchRe
 
 /**
  * A campaign that carries a plan used the Strategist, so its launch waits on that worker too (V2c, Q-APX6);
- * a campaign that was never planned is not held back by an agent it never used.
+ * a campaign made before planning became mandatory (2026-11-15) carries none, and is not held back by an agent it
+ * never used.
  */
 const STILL = ADS_CAMPAIGN_WORKERS[`meta:${CAMPAIGN_CREATIVE_KIND}`]!;
 const PLANNED = ADS_CAMPAIGN_WORKERS[`meta:${plannedKind(CAMPAIGN_CREATIVE_KIND)}`]!;

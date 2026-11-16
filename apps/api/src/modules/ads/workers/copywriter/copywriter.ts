@@ -33,7 +33,7 @@ import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOut
  * that one idea, differing in how it is said. Until v5 the plan chose WHICH presets were made and the words still
  * came from the preset's formula alone, so an approved idea never reached the page. `plan` is direction and data,
  * never copy and never a fact: the claim check reads the answer exactly as before, against the brief only. Null
- * for a campaign that was not planned (planning is the carrier's choice, Q-APX6), which is then written as in v4.
+ * for a campaign made before planning became mandatory (Q-APX6, 2026-11-15), which is then written as in v4.
  *
  * The call goes through the A4 rail (`generateWithClaude`): the switch, the budget, the ledger and the
  * replay are its, and this file holds no client. `buildCopyRequest` and `judgeCopy` are exported so

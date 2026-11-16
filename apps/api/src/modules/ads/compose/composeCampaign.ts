@@ -122,7 +122,7 @@ export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow)
 /**
  * The presets this campaign's ads are made from, drawn once and kept (`ads_campaigns.preset_draw`). A campaign
  * whose plan a person approved is made from that plan — its angles, in its order (`planDraw`, V2c) — and not
- * from the seeded draw; one with no plan (planning off for this carrier, Q-APX6) draws by seed as before.
+ * from the seeded draw; one with no plan — made before planning became mandatory (Q-APX6, 2026-11-15); none can be made since — draws by seed as it did.
  * Both leave out a preset a campaign for the same brief already runs (D-AD11). `approved` is the plan of the
  * campaign's `plan_id`, read by the caller, which hands each creative its idea from the same row.
  */

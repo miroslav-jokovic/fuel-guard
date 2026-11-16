@@ -109,7 +109,7 @@ export type MoveOutcome =
   | { kind: "moved"; to: CampaignState }
   | { kind: "not_found" }
   /** The machine said no (illegal from this state, or not a person's to cause), or the door excludes it. */
-  | { kind: "refused"; reason: "illegal_transition" | "actor_not_allowed" | "not_this_door" | "no_approved_creative" }
+  | { kind: "refused"; reason: "illegal_transition" | "actor_not_allowed" | "not_this_door" | "no_approved_creative" | "no_approved_plan" }
   /** Someone else moved the campaign first (`state_moved`), or this exact move was already recorded. */
   | { kind: "conflict" }
   /** Launch only: no standing approval covers these amounts, or a second approver is still owed. */

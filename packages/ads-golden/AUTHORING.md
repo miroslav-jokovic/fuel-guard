@@ -71,7 +71,7 @@ it goes into the plan's open questions; `launch-delivered-twice.yaml` and Q-AD23
 
 | Row | Line |
 |---|---|
-| a move | `draft -compose-> composing succeeded` |
+| a move | `draft -plan-> planning succeeded` |
 | a move another writer beat | `launching -launched-> live failed` |
 | a move left open by a crash | `launching -launched-> live started` |
 | a move the machine refused | `review -launch- refused` |

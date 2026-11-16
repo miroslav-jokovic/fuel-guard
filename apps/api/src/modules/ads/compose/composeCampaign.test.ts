@@ -27,7 +27,7 @@ const copyFx = loadFixtures(COPYWRITER_EVAL).find((f) => f.fixture.name === "age
 const artFx = loadFixtures(ART_DIRECTOR_EVAL).find((f) => f.fixture.name === "tractor-on-highway")!.fixture;
 const recipe = { ...artFx.input.recipe, copy_slots: copyFx.input.recipe.copy_slots, overlay_slots: { headline: "hook", cta: "cta" } };
 const settings: AdsSettings = { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, max_regenerations: 1 } };
-const campaign: CampaignRow = { id: "c-1", org_id: ORG, connection_id: "conn", state: "composing", state_changed_at: STINT, daily_budget_cents: null, lifetime_cap_cents: null, platform_refs: {} };
+const campaign: CampaignRow = { id: "c-1", org_id: ORG, connection_id: "conn", state: "composing", state_changed_at: STINT, daily_budget_cents: null, lifetime_cap_cents: null, platform_refs: {}, plan_id: null };
 
 const PRESETS = ["P1", "P2", "P3"].map((key, i) => ({ id: `p-${i}`, key, version: `pv-${i}` }));
 const isWrite = (q: RecordedQuery) => q.write !== null;
