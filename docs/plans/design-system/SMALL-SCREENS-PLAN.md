@@ -131,6 +131,11 @@ Read before the build, and each one changed the design:
 - **D-SM14 (2026-11-16): a card's door goes to its footer when the card is narrow.** `ChartCard`'s
   `#door` slot sits beside the title from 24rem of card, and in a footer below that; the composition
   legend (`ShareBar`) is one column per part, so no share wraps alone onto a second line.
+- **D-SM15 (2026-11-16): Fuel spend draws weeks when a day would get under 25 px of the card.**
+  Then one bar per calendar week, Monday first (`periodBounds`), its dollars on it, short weeks pale and
+  named, last period's full weeks as a grey band — the Fleet MPG card's grammar (D-SM13). Measured on
+  the card's own width, so phones, tablets (768–1180) and the two-column desktop draw weeks and a
+  single-column desktop keeps its days with last period's bars behind. `spendWeeks.ts`.
 
 ## 5. Open questions
 
@@ -472,3 +477,22 @@ Table layout at desk widths. New data on any card.
     the owner's go of this date.
   - **Still open, the owner's eyes only:** the shop on a real tablet; the four A3 lists and the
     row-opened drawers with production's rows.
+- **2026-11-16, Fuel spend on phones and tablets, D-SM15** (branch `claude/fuel-spend-small-screens`).
+  The owner, after the MPG bars: Fuel spend needs a better form on small screens, everything else
+  looks decent.
+  - **Measured** on staging's answers replayed into the build, spend patched to production's shape
+    (about 1.28 M dollars over 31 days): a phone gave each day 8 px and its bar 5 px, 62 bars in all;
+    tablets 20–24 px a day; the two-column desktop at 1440, 11 px. The grey "same day" bar behind each
+    day was a different weekday, since 31 days back never lands on the same one.
+  - **Built:** `spendWeeks.ts` (Monday-first weeks summed from the server's day totals, full when all
+    seven days have a figure, the band of last period's full weeks, `drawsWeeks`, short dollars);
+    `FuelWidget` measures its plot and draws weeks or days, keyed so the two are separate charts, and
+    nothing until measured; the subtitle says Weekly or Daily; the tooltip and readout name the week.
+    `mpgWeeks.ts` shares its week helpers and names a one-day week "11/16", not "11/16 – 11/16".
+  - **Seen:** 390, 768, 1180, 1280, 1440 px, no sideways scroll; a tapped week reads "$297,181 · week
+    of 10/19" in the header. Ten planted faults, all caught.
+  - **Found on the way, not ours:** a build served over plain http (not https, not localhost) no
+    longer signs in — the device history reader (#2473) calls `crypto.randomUUID`, which browsers
+    only give a secure page. Production and staging are https; local passes now use localhost.
+  - **Released the same day:** #2470 (MPG bars) and #2472 (the withheld cost split) shipped in the
+    18:06Z release; this one rides the next.
