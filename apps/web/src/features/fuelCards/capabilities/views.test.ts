@@ -204,6 +204,23 @@ describe("prompts spell out what a removal costs", () => {
     expect(rows[0]!.label).toBe("Driver ID");
   });
 
+  it("says how the pump treats the entry, so a change of treatment with the same value is visible", () => {
+    // The value is carried across when the treatment changes, so a row of values alone read
+    // "D-1 → D-1" for the edit that stops the pump checking who is fuelling.
+    const rows = promptsSetView.diff(
+      cardWith({ infos: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null }] as never }),
+      { expectedVersion: "", replaceAll: true, allowRemoveDriverId: false,
+        prompts: [{ infoId: "DRID", validationType: "REPORT_ONLY", matchValue: null, reportValue: "D-1",
+          remove: false, ...PROMPT_INPUT_UNSET }] } as never,
+    );
+    expect([rows[0]!.before, rows[0]!.after]).toEqual(["D-1 — must match", "D-1 — recorded only"]);
+  });
+
+  it("says a prompt the card does not have was not asked, rather than that any value was accepted", () => {
+    const rows = promptsSetView.diff(cardWith({ infos: [] }), body(false));
+    expect([rows[0]!.before, rows[0]!.after]).toEqual(["Not asked", "D-1 — must match"]);
+  });
+
   it("names an unknown info id by its raw code rather than showing nothing", () => {
     // `infoLabel` falls back to the id for a code the guide's table does not carry, so an id we have
     // not catalogued degrades to what this row showed before 9.6 — never to a blank label.

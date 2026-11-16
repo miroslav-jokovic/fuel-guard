@@ -58,8 +58,10 @@ export const promptsSetView = defineView(promptsSetContract, {
       const existing = (before.infos ?? []).find((info) => info.infoId === prompt.infoId);
       return row(
         infoLabel(prompt.infoId),
-        promptLabel(existing?.matchValue ?? null, existing?.reportValue ?? null),
-        prompt.remove ? "Removed — the pump stops asking" : promptLabel(prompt.matchValue, prompt.reportValue),
+        existing ? promptLabel(existing.validationType, existing.matchValue, existing.reportValue) : "Not asked",
+        prompt.remove
+          ? "Removed — the pump stops asking"
+          : promptLabel(prompt.validationType, prompt.matchValue, prompt.reportValue),
       );
     }),
 
@@ -78,9 +80,18 @@ export const promptsSetView = defineView(promptsSetContract, {
 const removedInfoIds = (body: PromptsSetBody): string[] =>
   body.prompts.filter((prompt) => prompt.remove).map((prompt) => prompt.infoId);
 
-/** A prompt carries its value in one of TWO fields, and reading only one left a header stale twice. */
-const promptLabel = (matchValue: string | null, reportValue: string | null): string => {
+/**
+ * A prompt's value AND how the pump treats it.
+ *
+ * A prompt carries its value in one of TWO fields, and reading only one left a header stale twice.
+ * The treatment is named because it is half of the change: switching a prompt from "must match" to
+ * "report only" keeps its value (`withValidationType`), so a row showing the value alone read
+ * "670 → 670" for the one edit that stops the pump checking who is fuelling.
+ */
+const promptLabel = (validationType: string | null, matchValue: string | null, reportValue: string | null): string => {
   const value = matchValue?.trim() || reportValue?.trim() || "";
+  if (validationType === "EXACT_MATCH") return `${value || "No value"} — must match`;
+  if (validationType === "REPORT_ONLY") return `${value || "Any value"} — recorded only`;
   return value === "" ? "Any value" : value;
 };
 

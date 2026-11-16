@@ -4,6 +4,7 @@ import {
   type CardCapabilities,
   type EfsLimitOption,
   type PromptInput,
+  infoLabel,
   resolveLimitVocabulary,
 } from "@silvicom/shared";
 import type { OperationCard } from "./cardOperations";
@@ -50,27 +51,83 @@ export const editableInfoIds = (card: OperationCard, allowed: readonly string[])
 export const missingEditableInfoIds = (card: OperationCard, allowed: readonly string[]): string[] =>
   allowed.filter((id) => !(card.infos ?? []).some((info) => info.infoId === id));
 
+type PromptRow = { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null };
+
+/**
+ * The two ways of treating an entry that the drawer's form can express. The vendor has seven
+ * (guide p36); the other five carry bounds or an accrual the form has no field for.
+ */
+export const FORM_VALIDATION_TYPES = ["EXACT_MATCH", "REPORT_ONLY"] as const;
+type FormValidationType = (typeof FORM_VALIDATION_TYPES)[number];
+const formType = (type: string | null): FormValidationType | null =>
+  (FORM_VALIDATION_TYPES as readonly string[]).includes(type ?? "") ? (type as FormValidationType) : null;
+
 /**
  * The card's prompts as editable drafts.
  *
  * Everything outside the editable set is echoed untouched by the API — and a `replaceAll` carrying
  * an info id this account does not allow is refused by `promptsEdits` (Step 9.1c), while silently
  * dropping the rest is what deletes a driver assignment (guide p137).
+ *
+ * ── A prompt whose type the form cannot express is LEFT OUT, not retyped (2026-11-16) ────────────
+ * This mapped every type that was not REPORT_ONLY to EXACT_MATCH. A card-level odometer prompt
+ * (ACCRUAL_CHECK, no match value) therefore became "EXACT_MATCH with nothing to match", which the
+ * contract refuses — so no prompt on that card could be saved at all — and a NUMERIC prompt would have
+ * been rewritten as EXACT_MATCH by a save that never showed it changing. A record the request does
+ * not name is written back exactly as EFS sent it (`promptsEdits`), which is the API's own rule for
+ * the same case in a proof run (`proofPrompts`). `untouchedPrompts` lists what was left out.
+ * Production carried no such card-level prompt when this was written: 1,765 records, 455
+ * EXACT_MATCH and 1,310 REPORT_ONLY.
  */
-export const promptDrafts = (
-  rows: readonly { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[],
-  allowed: readonly string[],
-): PromptInput[] =>
+export const promptDrafts = (rows: readonly PromptRow[], allowed: readonly string[]): PromptInput[] =>
   rows
-    .filter((p) => allowed.includes(p.infoId))
+    .filter((p) => allowed.includes(p.infoId) && formType(p.validationType) !== null)
     .map((p) => ({
       infoId: p.infoId,
-      validationType: p.validationType === "REPORT_ONLY" ? "REPORT_ONLY" : "EXACT_MATCH",
+      validationType: formType(p.validationType)!,
       matchValue: p.matchValue,
       reportValue: p.reportValue,
       remove: false,
       ...PROMPT_INPUT_UNSET,
     }));
+
+/** The prompts a save does not name: outside the account's editable set, or of a type the form cannot express. */
+export const untouchedPrompts = <T extends PromptRow>(rows: readonly T[], allowed: readonly string[]): T[] =>
+  rows.filter((p) => !allowed.includes(p.infoId) || formType(p.validationType) === null);
+
+/**
+ * Change how the pump treats a prompt, keeping the value the operator can see.
+ *
+ * EFS keeps a prompt's value in one of two fields: `matchValue` when the pump checks the entry,
+ * `reportValue` when it only records it (production, 2026-11-16: all 455 EXACT_MATCH records carry a
+ * matchValue and no reportValue; all 1,310 REPORT_ONLY records the reverse). The form showed whichever
+ * field belonged to the chosen type, and the choice used to change the type alone — so switching a
+ * prompt emptied the box, and a save then either blanked the value in EFS (to "report only") or was
+ * refused for having none (to "must match"). The same loss is what stranded unit 669 on card ••6122
+ * when the first production prompts proof could not revert (2026-09-23); the proof was taught to carry
+ * the value across then, and the form was not.
+ */
+export const withValidationType = (prompt: PromptInput, validationType: FormValidationType): PromptInput => {
+  if (prompt.validationType === validationType) return prompt;
+  const shown = (prompt.validationType === "REPORT_ONLY" ? prompt.reportValue : prompt.matchValue) ?? "";
+  return validationType === "REPORT_ONLY"
+    ? { ...prompt, validationType, matchValue: null, reportValue: shown }
+    : { ...prompt, validationType, matchValue: shown, reportValue: null };
+};
+
+/**
+ * Why Save is refused when a prompt is set to "must match" with nothing to match, or null.
+ *
+ * The contract refuses that record ("EXACT_MATCH needs a value to match"), because a pump told to
+ * check an entry against nothing declines every entry. The Edit form had no such check of its own, so
+ * Save stayed enabled and the operator met the contract's sentence as a failed request.
+ */
+export const unmatchablePromptBlocker = (prompts: readonly PromptInput[]): string | null => {
+  const empty = prompts.find((p) => !p.remove && p.validationType === "EXACT_MATCH" && !(p.matchValue ?? "").trim());
+  return empty
+    ? `Enter the value the driver must type for ${infoLabel(empty.infoId)}, or set it to report only.`
+    : null;
+};
 
 /**
  * The account's limit vocabulary, or the fallback when the server has not said — Step 10.3.

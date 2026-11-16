@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { CARD_CAPABILITY_CONTRACTS, EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET, resolveLimitVocabulary } from "@silvicom/shared";
+import {
+  CARD_CAPABILITY_CONTRACTS, EFS_EDITABLE_INFO_IDS, PROMPT_INPUT_UNSET, resolveLimitVocabulary, setPromptsSchema,
+} from "@silvicom/shared";
 import {
   CARD_OPERATIONS,
   blockedSentence,
@@ -16,6 +18,7 @@ import {
   type OperationCard,
 } from "./cardOperations";
 import { emptyDraft } from "./operationDrafts";
+import { untouchedPrompts, withValidationType } from "./promptDrafts";
 import type { CardCapabilities } from "@silvicom/shared";
 
 /** A card with no fuel exception — the state every blocker below is actually about. */
@@ -274,6 +277,55 @@ describe("adding a prompt to a card that has none (Step 6.5.4)", () => {
       prompts: [{ infoId: "UNIT" as const, validationType: "EXACT_MATCH" as const, matchValue: "  ", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET }],
     };
     expect(operationById("promptAdd")!.blocker!(draft, QUIET_CARD, [])).toContain("value the driver must type");
+  });
+});
+
+describe("editing how the pump treats a prompt (2026-11-16)", () => {
+  const VERSION = "0123456789abcdef0123456789abcdef";
+  const unit = { infoId: "UNIT", validationType: "EXACT_MATCH" as const, matchValue: "670", reportValue: null, remove: false, ...PROMPT_INPUT_UNSET };
+  const name = { infoId: "NAME", validationType: "REPORT_ONLY" as const, matchValue: null, reportValue: "J SMITH", remove: false, ...PROMPT_INPUT_UNSET };
+  const accepted = (prompts: unknown[]) =>
+    setPromptsSchema.safeParse({ expectedVersion: VERSION, replaceAll: true, allowRemoveDriverId: false, prompts });
+
+  it("keeps the value when a prompt goes from must-match to report-only, in the field EFS reads it from", () => {
+    // The form shows matchValue for one type and reportValue for the other. Changing the type alone
+    // emptied the box, and the save then blanked the value in EFS.
+    expect(withValidationType(unit, "REPORT_ONLY")).toEqual({ ...unit, validationType: "REPORT_ONLY", matchValue: null, reportValue: "670" });
+  });
+
+  it("keeps the value the other way, so the contract accepts the save instead of refusing it", () => {
+    const typeOnly = { ...name, validationType: "EXACT_MATCH" as const };
+    // What the form sent before: the type alone. The contract refuses it — the failed request an operator met.
+    expect(accepted([typeOnly]).success).toBe(false);
+    const carried = withValidationType(name, "EXACT_MATCH");
+    expect(carried).toEqual({ ...name, validationType: "EXACT_MATCH", matchValue: "J SMITH", reportValue: null });
+    expect(accepted([carried]).success).toBe(true);
+  });
+
+  it("returns to the starting record when the choice is changed and changed back", () => {
+    expect(withValidationType(withValidationType(unit, "REPORT_ONLY"), "EXACT_MATCH")).toEqual(unit);
+    expect(withValidationType(unit, "EXACT_MATCH")).toBe(unit);
+  });
+
+  it("will not save a must-match prompt with nothing to match, and names which one", () => {
+    const blocker = operationById("prompts")!.blocker!;
+    const emptied = { ...emptyDraft("Active"), prompts: [name, { ...unit, matchValue: "  " }] };
+    expect(blocker(emptied, QUIET_CARD, [])).toBe("Enter the value the driver must type for Unit number, or set it to report only.");
+    // An empty report-only value is a real configuration (the pump records whatever is typed).
+    expect(blocker({ ...emptyDraft("Active"), prompts: [unit, { ...name, reportValue: "" }] }, QUIET_CARD, [])).toBeNull();
+  });
+
+  it("leaves a prompt whose type the form cannot express out of the save, and lists it as untouched", () => {
+    const rows = [
+      { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null },
+      { infoId: "ODRD", validationType: "ACCRUAL_CHECK", matchValue: null, reportValue: null },
+      { infoId: "PPIN", validationType: "EXACT_MATCH", matchValue: "1", reportValue: null },
+    ];
+    const allowed = ["DRID", "ODRD"];
+    // Retyped as EXACT_MATCH with no value, the odometer record made the contract refuse the whole save.
+    expect(promptDrafts(rows, allowed).map((p) => [p.infoId, p.validationType])).toEqual([["DRID", "EXACT_MATCH"]]);
+    expect(accepted(promptDrafts(rows, allowed)).success).toBe(true);
+    expect(untouchedPrompts(rows, allowed).map((p) => p.infoId)).toEqual(["ODRD", "PPIN"]);
   });
 });
 

@@ -4,7 +4,7 @@ import type {
 import { grantBlocker } from "./overrideLimits.js";
 import * as drafts from "./promptDrafts";
 export const { allowedInfoIdsFrom, allowedLimitsFrom, editableInfoIds, missingEditableInfoIds } = drafts;
-export const promptDrafts = drafts.promptDrafts;
+export const { promptDrafts, untouchedPrompts } = drafts;
 import {
   CARD_CAPABILITY_CONTRACTS,
   EFS_CARD_STATUS_LABELS,
@@ -278,8 +278,10 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
        */
       allowRemoveDriverId: false,
     }),
-    blocker: (draft) =>
-      (draft.prompts.length === 0 ? "This card has no prompt Silvicom 360 can edit." : null),
+    // The second half is the contract's own rule, said before the request instead of by it.
+    blocker: (draft) => (draft.prompts.length === 0
+      ? "This card has no prompt Silvicom 360 can edit."
+      : drafts.unmatchablePromptBlocker(draft.prompts)),
   },
   {
     id: "promptRemove",
