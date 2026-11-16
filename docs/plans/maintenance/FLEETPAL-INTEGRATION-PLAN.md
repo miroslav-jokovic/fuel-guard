@@ -1827,3 +1827,26 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   four mutations of the migration (no `fleetpal_from` bound, no person's 24 h rule, `source` not
   written, unknown source accepted) each turn at least one red. The sweep that writes through it
   ships in the next merge (F13b), after `migrate-staging` applies this. **Q10** taken as (a).
+- **2026-11-16 · F9d — the roll-up (`claude/fleetpal-f9d-rollup`), no migration.** `GET
+  /api/maintenance/fleetpal/rollup?from&to&bucket=week|month|year&kind=tractor|trailer|all&limit&offset`.
+  - **Pure bucketing** is in `packages/shared/src/fleetpalRollup.ts`. Weeks start on Monday. Every
+    bucket and unit row carries both D-FP18 values, and `byKind` (tractor, trailer, unmatched) is
+    always present. FleetPal units fold per vehicle or trailer. An unpriced repair is counted, never
+    summed as zero. A week straddling a month end carries both months' bounds (Q10 (a)).
+  - **The reads** are in `fleetpal/rollup.ts`. Coverage is read first and gates everything; a refusal
+    NAMES the unswept months.
+  - **No roll-up table, measured:** twelve months is 9,290 service-history rows, read in 328 ms on
+    `idx_fleetpal_service_history_org_completed` (EXPLAIN ANALYZE, production).
+  - **July 2026 re-measured today does not reproduce §2.3, and the difference is the data, not the
+    code.** Carrier-zone July: 1,079 repairs, operational $309,157.15, external $204,601.20, which is
+    **6.7% below** the family's $219,301.48. §2.3 had 2.8% on 1,047 repairs on 2026-09-21, and
+    FleetPal's history has gained rows since. The split: tractors 645 / $205,629.68 / external
+    $141,215.58; trailers 434 / $103,527.47 / external $63,385.62 (§2.3a had 615 / $204,856.88 and
+    432 / $109,173.61).
+  - ⚠ UTC bucketing gives $219,860.58 external, within 0.3% of the family. That is worth knowing but
+    is not a reason to bucket in UTC. `completed` is a real instant (busiest at 22:00 UTC, which is
+    17:00 CT), and UTC pulls June 30's evening month-end closings into July, the same shift measured on
+    work orders on 2026-10-07. Whether the ledger dates those June-30 bills in June or July is a
+    question for the McLeod GL close, not for this step.
+  - **No web page in this step.** Where the roll-up is drawn (a Shop tab beside Repair bills, or the
+    fleet report) is the owner's call.

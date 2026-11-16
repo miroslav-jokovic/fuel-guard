@@ -1,10 +1,11 @@
 import { Router } from "express";
-import { coverageIsPrintable } from "@silvicom/shared";
+import { z } from "zod";
+import { coverageIsPrintable, ROLLUP_BUCKETS, ROLLUP_KINDS } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { labelRepairs, readCoverage, readUnitCost } from "../../fleetpal/index.js";
+import { labelRepairs, readCoverage, readRollup, readUnitCost } from "../../fleetpal/index.js";
 
 /**
  * Per-unit maintenance cost and its coverage bound (FLEETPAL-INTEGRATION-PLAN.md F9b).
@@ -36,6 +37,13 @@ function window(req: { query: Record<string, unknown> }): { from: string; to: st
   if (!DATE.test(from) || !DATE.test(to) || from >= to) return null;
   return { from, to };
 }
+
+const rollupQuerySchema = z.object({
+  bucket: z.enum(ROLLUP_BUCKETS).default("month"),
+  kind: z.enum(ROLLUP_KINDS).default("all"),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
 
 export function fleetpalCostRouter(): Router {
   const router = Router();
@@ -113,6 +121,40 @@ export function fleetpalCostRouter(): Router {
       // means FleetPal did not say — the repair's own description is what the page prints then.
       const repairs = await labelRepairs(admin, env, orgId, cost.repairs);
       res.json({ ok: true, ...cost, repairs, coverage: coverage.months, unmatchedUnits: coverage.unmatchedUnits });
+    }),
+  );
+
+  /**
+   * The roll-up (F9d): repair cost per week, month or year, fleet-wide and per truck or trailer, both
+   * D-FP18 values on every row and the tractor/trailer/unmatched split on every bucket. Unit rows page
+   * (`limit`, `offset`, `unitTotal`): 208 units × 12 months is past PostgREST's 1,000 already.
+   *
+   * The same gate as the unit file, and stricter in what it says: a window touching an unswept ledger
+   * month is a 409 that NAMES the months, because a year view meets it every January.
+   */
+  router.get(
+    "/fleetpal/rollup",
+    requireOrg,
+    requireSection("maintenance", "view"),
+    asyncHandler(async (req, res) => {
+      const w = window(req as never);
+      const parsed = rollupQuerySchema.safeParse(req.query);
+      if (!w || !parsed.success) {
+        res.status(400).json(apiError("bad_request", "from and to must be YYYY-MM-DD with from before to; bucket week|month|year; kind tractor|trailer|all"));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const outcome = await readRollup(admin, req.auth!.orgId!, { ...w, ...parsed.data });
+      if ("refused" in outcome) {
+        res.status(409).json(
+          apiError(
+            "coverage_unavailable",
+            `Repair cost cannot be shown for this window: the general ledger has no swept maintenance total for ${outcome.refused.join(", ")}, so there is nothing to measure FleetPal's share against.`,
+          ),
+        );
+        return;
+      }
+      res.json({ ok: true, ...outcome.ok });
     }),
   );
 
