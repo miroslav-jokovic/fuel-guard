@@ -171,6 +171,24 @@ export function useUpdateLocation() {
 }
 
 /**
+ * Start or stop a place following FleetPal (F13). No date is sent: the server stamps its own now, so
+ * nobody can start the shelf in the past and replay FleetPal's history onto it (D-FP23).
+ */
+export function useSetFleetpalShelf() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; follows: boolean }): Promise<void> => {
+      const r = await apiFetch(`/api/maintenance/inventory/locations/${input.id}/fleetpal`, {
+        method: "POST",
+        body: { follows: input.follows },
+      });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not change whether the place follows FleetPal");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
+  });
+}
+
+/**
  * The five desk verbs, one route each (`/receive`, `/issue`, `/adjust`, `/transfer`, `/return`).
  *
  * One hook rather than five, because after validation they differ in nothing this layer does — the

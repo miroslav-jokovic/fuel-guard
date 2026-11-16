@@ -212,6 +212,12 @@ function detailOf(m: {
   return parts.length ? parts.join(" · ") : "—";
 }
 
+/** Who moved it: the member's name, or FleetPal for a row its sweep wrote (F13), or a dash. */
+function byOf(m: { source?: string | null; actorName: string | null }): string {
+  if (m.source === "fleetpal") return "FleetPal";
+  return m.actorName ?? "—";
+}
+
 /** What this upload takes, by mime and by every extension it is saved under (a Google Voice `.jfif` is a JPEG). */
 const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
 </script>
@@ -340,6 +346,9 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
                 </span>
               </template>
               <template #cell-locationId="{ value }">{{ locationName(value) }}</template>
+              <!-- F13: the FleetPal sweep has no person behind it. Saying "FleetPal" is why the shelf
+                   moved when nobody here touched it; a blank "By" would read as a removed member. -->
+              <template #cell-actorName="{ row }">{{ byOf(row) }}</template>
               <template #cell-note="{ row }">{{ detailOf(row) }}</template>
               <template #empty>
                 <p>Nothing has moved yet. Receiving the first delivery starts the history.</p>

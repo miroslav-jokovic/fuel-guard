@@ -13,14 +13,24 @@ import type { ServiceError } from "./types.js";
  * is to transfer the stock off it first.
  */
 
-const COLUMNS = "id, name, code, address, active";
+const COLUMNS = "id, name, code, address, active, fleetpal_from";
 
-const toDto = (r: { id: string; name: string; code: string; address: string | null; active: boolean }): StockLocationDto => ({
+interface LocationRow {
+  id: string;
+  name: string;
+  code: string;
+  address: string | null;
+  active: boolean;
+  fleetpal_from: string | null;
+}
+
+const toDto = (r: LocationRow): StockLocationDto => ({
   id: r.id,
   name: r.name,
   code: r.code,
   address: r.address,
   active: r.active,
+  fleetpalFrom: r.fleetpal_from,
 });
 
 const row = (input: Partial<StockLocationInput>) => {
@@ -74,4 +84,57 @@ export async function updateLocation(
     return traced("updateLocation", "db_error", "Could not update the location", error);
   }
   return data ? toDto(data as never) : null;
+}
+
+/**
+ * Start or stop this place following FleetPal (F13, D-FP23).
+ *
+ * Starting stamps `now()` — the server's clock, never a date from the request — so the shelf takes
+ * FleetPal's deliveries and repairs from this moment on and none from before it. Stopping clears the
+ * stamp; starting again later stamps a NEW now, and whatever FleetPal recorded in between never
+ * reaches the shelf. That gap is the honest result of switching it off, and a count closes it.
+ *
+ * The partial unique index from 0621 allows one place per org. A second start is refused by name
+ * rather than moving the switch silently, because which shelf FleetPal fills is the shop's call.
+ * A closed place cannot start: `record_part_movement` refuses an inactive location (IV012), so a
+ * switch on one would be a switch that does nothing.
+ */
+export async function setFleetpalShelf(
+  admin: SupabaseClient,
+  orgId: string,
+  locationId: string,
+  follows: boolean,
+): Promise<StockLocationDto | null | ServiceError> {
+  if (follows) {
+    const current = await admin
+      .from("stock_locations")
+      .select(COLUMNS)
+      .eq("org_id", orgId)
+      .eq("id", locationId)
+      .maybeSingle();
+    if (current.error) return traced("setFleetpalShelf", "db_error", "Could not load the location", current.error);
+    if (!current.data) return null;
+    const row = current.data as unknown as LocationRow;
+    if (!row.active) return { error: "Reopen this place before it can follow FleetPal.", code: "location_closed" };
+    // Already following: keep the original start. Re-stamping would silently drop everything FleetPal
+    // recorded between the two clicks.
+    if (row.fleetpal_from) return toDto(row);
+  }
+  const { data, error } = await admin
+    .from("stock_locations")
+    .update({ fleetpal_from: follows ? new Date().toISOString() : null, updated_at: new Date().toISOString() })
+    .eq("org_id", orgId)
+    .eq("id", locationId)
+    .select(COLUMNS)
+    .maybeSingle();
+  if (error) {
+    if (error.code === "23505") {
+      return {
+        error: "Another place already follows FleetPal. Stop it there first — FleetPal moves one shelf.",
+        code: "fleetpal_shelf_taken",
+      };
+    }
+    return traced("setFleetpalShelf", "db_error", "Could not change whether the place follows FleetPal", error);
+  }
+  return data ? toDto(data as unknown as LocationRow) : null;
 }

@@ -46,6 +46,7 @@ vi.mock("./useInventory", () => ({
     ]),
   useCreateLocation: mutation,
   useUpdateLocation: mutation,
+  useSetFleetpalShelf: mutation,
 }));
 vi.mock("./useAssets", () => ({
   useAssetTypesQuery: () => answer([{ id: "t1", name: "Tablet", category: "Electronics", serialized: true }]),

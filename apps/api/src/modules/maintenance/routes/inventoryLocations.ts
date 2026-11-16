@@ -1,13 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
-import { stockLocationInputSchema } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
+import { fleetpalShelfInputSchema, stockLocationInputSchema } from "@silvicom/shared";
+import { requireAdminOnly, requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { listLocations } from "../inventory/stock.js";
-import { createLocation, updateLocation } from "../inventory/locationsWrite.js";
+import { createLocation, setFleetpalShelf, updateLocation } from "../inventory/locationsWrite.js";
 import { statusForServiceError } from "../inventory/httpStatus.js";
 import { isServiceError } from "../inventory/types.js";
 
@@ -104,6 +104,45 @@ export function inventoryLocationsRouter(): Router {
         entity: "stock_locations",
         entityId: result.id,
         meta: { changed: Object.keys(body) },
+      });
+      res.json({ ok: true, location: result });
+    }),
+  );
+
+  /**
+   * Start or stop this place following FleetPal (F13, D-FP23). Admin-only under the same named grant
+   * as the FleetPal key (`fleetpal.connection`): it decides which shelf an outside system moves every
+   * hour, which is the connection's business, not a shelf edit. The start is the server's now — the
+   * body carries no date, so nobody can backdate it and replay FleetPal's history onto an uncounted
+   * shelf. Audited under its own two actions, because "when did the shelf start following FleetPal"
+   * is the first question when a number on it looks wrong.
+   */
+  router.post(
+    "/:id/fleetpal",
+    requireOrg,
+    requireAdminOnly("fleetpal.connection"),
+    validateBody(fleetpalShelfInputSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+      const { follows } = res.locals.body as z.infer<typeof fleetpalShelfInputSchema>;
+      const result = await setFleetpalShelf(admin, orgId, id, follows);
+      if (isServiceError(result)) {
+        res.status(statusForServiceError(result.code)).json(apiError(result.code, result.error));
+        return;
+      }
+      if (!result) {
+        res.status(404).json(apiError("not_found", "That stock location no longer exists."));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: follows ? "maintenance.stock_location_fleetpal_started" : "maintenance.stock_location_fleetpal_stopped",
+        entity: "stock_locations",
+        entityId: result.id,
+        meta: { fleetpalFrom: result.fleetpalFrom ?? null },
       });
       res.json({ ok: true, location: result });
     }),

@@ -69,7 +69,7 @@ export const ADMIN_ONLY_CAPABILITIES = [
   {
     key: "fleetpal.connection",
     label: "FleetPal connection",
-    why: "Stores the carrier's FleetPal API key, which carries the role of the FleetPal user who issued it, and switches the hourly repair-record sweep on or off.",
+    why: "Stores the carrier's FleetPal API key, which carries the role of the FleetPal user who issued it, switches the hourly repair-record sweep on or off, and picks the shop place whose shelf FleetPal's deliveries and repairs move.",
   },
   {
     key: "medstop.connection",

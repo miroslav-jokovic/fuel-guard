@@ -24,7 +24,7 @@ import type { ServiceError } from "./types.js";
 const COLUMNS =
   "id, part_id, location_id, reason, adjust_reason, quantity_delta, counted_total, count_session_id, " +
   "unit_cost, supplier, vehicle_id, trailer_id, work_order_ref, note, actor_user_id, transfer_group_id, " +
-  "blind, occurred_at, received_at";
+  "blind, occurred_at, received_at, source";
 
 interface MovementRow {
   id: string;
@@ -46,6 +46,7 @@ interface MovementRow {
   blind: boolean | null;
   occurred_at: string;
   received_at: string;
+  source: "fleetpal" | null;
 }
 
 export const toMovementDto = (r: MovementRow, actorName: string | null = null): PartMovementDto => ({
@@ -67,6 +68,7 @@ export const toMovementDto = (r: MovementRow, actorName: string | null = null): 
   supplier: r.supplier,
   transferGroupId: r.transfer_group_id,
   blind: r.blind,
+  source: r.source ?? null,
   occurredAt: r.occurred_at,
   receivedAt: r.received_at,
 });

@@ -4,6 +4,7 @@ import { jobItemsIngest, jobsIngest, serviceHistoryIngest, workOrdersIngest } fr
 import { poInvoicesIngest, poItemsIngest, poPaymentsIngest, purchaseOrdersIngest } from "./purchasing.js";
 import { ingestShops, vendorsIngest } from "./reference.js";
 import { ingestParts } from "./parts.js";
+import { ingestShelf } from "./shelf.js";
 import { runIngest } from "./run.js";
 import type { IngestContext, IngestResult } from "./types.js";
 
@@ -46,6 +47,10 @@ export async function sweepRepairRecord(ctx: IngestContext): Promise<IngestResul
   // they point at, for the same orphan reason. Both watermark; `updated_after` measured exclusive.
   results.push(await runIngest(ctx, poPaymentsIngest));
   results.push(await runIngest(ctx, poItemsIngest));
+  // F13: the shelf, after everything it reads — the part lines and purchase-order lines it turns into
+  // movements, and the work orders and units it labels them with — and before the bounded re-read
+  // tier, so a sweep that dies late has still moved the shelf.
+  results.push(await ingestShelf(ctx));
   results.push(await runIngest(ctx, metersIngest));
   results.push(await ingestPmSchedules(ctx));
   // F7's bounded-re-read tier, last: it is the only part that does not watermark, so a sweep that
@@ -64,3 +69,5 @@ export { jobItemsIngest, jobsIngest, serviceHistoryIngest, workOrdersIngest } fr
 export { ingestShops, vendorsIngest } from "./reference.js";
 export type { IngestContext, IngestResult, ResourceIngest } from "./types.js";
 export { ingestParts, toCandidate as toFleetpalPartCandidate } from "./parts.js";
+export { ingestShelf, SHELF_RESOURCE } from "./shelf.js";
+export type { ShelfResult, ShelfTally } from "./shelf.js";

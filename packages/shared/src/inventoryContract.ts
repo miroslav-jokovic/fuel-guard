@@ -200,8 +200,23 @@ export const stockLocationDtoSchema = z.object({
   code: trimmedText(24),
   address: optionalText(240),
   active: z.boolean(),
+  /**
+   * F13 / 0621: the instant this place started following FleetPal — receipts received there and parts
+   * used on repairs move its shelf from then on, never before (D-FP23). Null when it does not. At
+   * most one place per org carries it, because FleetPal names no location and the shop names the one
+   * it moves.
+   */
+  fleetpalFrom: z.string().nullable().optional(),
 });
 export type StockLocationDto = z.infer<typeof stockLocationDtoSchema>;
+
+/**
+ * Start or stop a place following FleetPal (F13). No date in the body, on purpose: the start is the
+ * server's `now()` when the switch is turned on, so nobody can pick a past date and replay FleetPal's
+ * history onto a shelf that was never counted (D-FP23).
+ */
+export const fleetpalShelfInputSchema = z.object({ follows: z.boolean() });
+export type FleetpalShelfInput = z.infer<typeof fleetpalShelfInputSchema>;
 
 export const stockLocationInputSchema = z.object({
   name: trimmedText(120).min(1, "Give the location a name."),
@@ -345,6 +360,13 @@ export const partMovementDtoSchema = z.object({
    * negative and one positive, with nothing tying them together.
    */
   transferGroupId: recordId().nullable(),
+  /**
+   * F13 / 0621: `fleetpal` when the FleetPal sweep wrote the row — a delivery received in FleetPal or
+   * a part used on one of its repairs — so the history can say why a shelf moved when nobody here
+   * touched it. Null for every movement a person recorded. A null actor cannot say this: it also
+   * means a member who has since been removed.
+   */
+  source: z.enum(["fleetpal"]).nullable().optional(),
   occurredAt: z.string(),
   receivedAt: z.string(),
 });

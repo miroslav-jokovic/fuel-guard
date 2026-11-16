@@ -36,5 +36,8 @@ export { createInspector, inspectorFor, isQualifiedOn, listInspectors } from "./
 export type { InspectorDto, InspectorInput, InspectorRow } from "./inspections/inspectors.js";
 export { syncFleetpalPart } from "./inventory/partsSync.js";
 export type { FleetpalPartCandidate, PartSyncOutcome } from "./inventory/partsSync.js";
+// F13: the shelf follows FleetPal through these, never through the collector touching our tables.
+export { getFleetpalShelf, partIdsByFleetpalId, recordFleetpalMovement } from "./inventory/fleetpalShelf.js";
+export type { FleetpalMovement, FleetpalMovementOutcome, FleetpalShelf } from "./inventory/fleetpalShelf.js";
 // Ask AI's `annual_inspections_due` (F21 R6b): the Shop worklist's annual inspection group.
 export { assistantAnnualDue, ANNUAL_DUE_KINDS } from "./assistantAnnualDue.js";

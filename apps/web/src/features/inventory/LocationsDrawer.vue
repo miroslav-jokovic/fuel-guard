@@ -10,8 +10,10 @@ import {
 import SlideOver from "@/components/SlideOver.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { DataTable, type DataTableColumn, QueryState } from "@silvicom/ui";
-import { useCreateLocation, useLocationsQuery, useUpdateLocation } from "./useInventory";
+import { useCreateLocation, useLocationsQuery, useSetFleetpalShelf, useUpdateLocation } from "./useInventory";
 import { useToastStore } from "@/stores/toast";
+import { useSessionStore } from "@/stores/session";
+import { formatDateTime } from "@/lib/format";
 
 /**
  * Where the shop keeps things (D-INV1) — the list, and the form that adds to it.
@@ -48,6 +50,13 @@ import { useToastStore } from "@/stores/toast";
  * yet. Add the shop itself first" when the read FAILED — telling a shop with bays to create its
  * first one. Loading, failure (with Retry) and empty are now three answers. The rows are a table
  * (name, code, address, state) and Edit / Close / Reopen sit in the row's menu (contract §5.6).
+ *
+ * ── ONE PLACE FOLLOWS FLEETPAL (F13, 2026-11-16) ──────────────────────────────────────────────
+ * Deliveries received in FleetPal and parts used on its repairs move ONE shelf, from the moment an
+ * admin switches it on here — never before (D-FP23: the opening balance is a count, so the best
+ * moment is right after one). FleetPal names no location, so the shop names the one it moves; the
+ * database allows one per org. The switch is in the row's menu, admin-only like the FleetPal key
+ * (`fleetpal.connection`), and the state column says which place follows and since when.
  */
 
 defineProps<{ open: boolean }>();
@@ -67,6 +76,8 @@ const COLUMNS: DataTableColumn[] = [
 ];
 const create = useCreateLocation();
 const update = useUpdateLocation();
+const setFleetpal = useSetFleetpalShelf();
+const session = useSessionStore();
 
 const adding = ref(false);
 const editing = ref<StockLocationDto | null>(null);
@@ -117,6 +128,15 @@ async function onSubmit() {
   }
 }
 
+async function setFollowsFleetpal(location: StockLocationDto, follows: boolean) {
+  try {
+    await setFleetpal.mutateAsync({ id: location.id, follows });
+    toast.success(follows ? `${location.name} follows FleetPal from now on` : `${location.name} no longer follows FleetPal`);
+  } catch (e) {
+    toast.error("Could not change FleetPal for this place", e instanceof Error ? e.message : undefined);
+  }
+}
+
 async function setActive(location: StockLocationDto, active: boolean) {
   try {
     await update.mutateAsync({ id: location.id, patch: { active } });
@@ -160,10 +180,21 @@ async function setActive(location: StockLocationDto, active: boolean) {
           <template #cell-active="{ row }">
             <AppBadge v-if="!row.active" tone="neutral">Closed</AppBadge>
             <span v-else class="text-ink-secondary">Open</span>
+            <span v-if="row.fleetpalFrom" class="mt-0.5 block text-xs text-ink-tertiary" data-testid="fleetpal-from">
+              Follows FleetPal since {{ formatDateTime(row.fleetpalFrom, row.fleetpalFrom) }}
+            </span>
           </template>
           <template #actions="{ row }">
             <KebabMenu :trigger-label="`Actions for ${row.name}`">
               <BaseButton class="kebab-item" @click="startEdit(row)">Edit</BaseButton>
+              <template v-if="session.admin && row.active">
+                <BaseButton v-if="!row.fleetpalFrom" class="kebab-item" @click="setFollowsFleetpal(row, true)">
+                  Follow FleetPal from now
+                </BaseButton>
+                <BaseButton v-else class="kebab-item" @click="setFollowsFleetpal(row, false)">
+                  Stop following FleetPal
+                </BaseButton>
+              </template>
               <BaseButton v-if="row.active" class="kebab-item kebab-item-danger" @click="setActive(row, false)">
                 Close
               </BaseButton>
