@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { canonicalJson, creditGate, type AdAssetRef, type CreditGateRefusal } from "@silvicom/shared";
+import { canonicalJson, creditGate, pictureKeyPart, type AdAssetRef, type CreditGateRefusal } from "@silvicom/shared";
 import { settingsInForce } from "../../settings/settingsVersions.js";
 import { completeGeneration, generationByKey, higgsfieldCreditsThisMonth, insertGeneration, type GenerationRow } from "../../generations/generationLedger.js";
 import { AD_ASSETS_BUCKET, assetKey, prepareAsset, readAdAsset } from "../brandAssets.js";
@@ -62,6 +62,8 @@ export interface RenderInput {
   campaignId: string | null;
   creativeId: string | null;
   attempt: number;
+  /** Which of the creative's pictures this is, from 1 (V3 "make many, show few"); absent = the first, the only one before V3. */
+  picture?: number;
   /** Higgsfield's model path, e.g. "higgsfield-ai/soul/v2/standard". */
   model: string;
   /** The model's parameters — the Art director's `composeImagePrompt` result goes in here. */
@@ -80,7 +82,7 @@ export type RenderOutcome =
   /** Not finished: run again later (the job retries with backoff). */
   | { kind: "pending"; generationId: string; retryAfterSeconds: number | null; why: string };
 
-export const renderKey = (creativeId: string | null, attempt: number, model: string) => `render:${creativeId ?? "none"}:${attempt}:${model}`.slice(0, 200);
+export const renderKey = (creativeId: string | null, attempt: number, model: string, picture = 1) => `render:${creativeId ?? "none"}:${pictureKeyPart(picture)}${attempt}:${model}`.slice(0, 200);
 
 /**
  * Where a render stands, READ-ONLY (C5b2): what compose asks before queueing an `ads_render` job. A finished
@@ -91,7 +93,7 @@ export const renderKey = (creativeId: string | null, attempt: number, model: str
  * gate does that and records its answer as a row.
  */
 export async function renderStatus(admin: SupabaseClient, prices: Readonly<Record<string, number>>, input: RenderInput): Promise<RenderOutcome | { kind: "absent" }> {
-  const prior = await generationByKey(admin, input.orgId, renderKey(input.creativeId, input.attempt, input.model));
+  const prior = await generationByKey(admin, input.orgId, renderKey(input.creativeId, input.attempt, input.model, input.picture));
   if (prior && prior.status !== "started") return replayed(prior);
   if (prior) return { kind: "pending", generationId: prior.id, retryAfterSeconds: null, why: "rendering" };
   const { settings } = await settingsInForce(admin, input.orgId);
@@ -108,7 +110,7 @@ function withReference(params: Record<string, unknown>, field: { field: string; 
 
 export async function renderStep(deps: RenderDeps, input: RenderInput): Promise<RenderOutcome> {
   const { admin, orgId } = { admin: deps.admin, orgId: input.orgId };
-  const key = renderKey(input.creativeId, input.attempt, input.model);
+  const key = renderKey(input.creativeId, input.attempt, input.model, input.picture);
   const prior = await generationByKey(admin, orgId, key);
   if (prior && prior.status !== "started") return replayed(prior);
 
@@ -211,7 +213,7 @@ export function renderInputFromPayload(orgId: string, payload: unknown): RenderI
   if (r && (typeof r.sha256 !== "string" || !format)) throw new Error("ads_render: payload reference needs sha256 and format");
   return {
     orgId, campaignId: typeof p.campaignId === "string" ? p.campaignId : null, creativeId: typeof p.creativeId === "string" ? p.creativeId : null,
-    attempt: p.attempt, model: p.model, params: p.params as Record<string, unknown>,
+    attempt: p.attempt, ...(typeof p.picture === "number" ? { picture: p.picture } : {}), model: p.model, params: p.params as Record<string, unknown>,
     reference: r ? { sha256: r.sha256 as string, format: format! } : null,
   };
 }

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import sharp from "sharp";
 import { z } from "zod";
-import { AD_VISUAL_CHECKS, AD_AGENT_MODELS, type AdBrandKit, type AdPresetRecipe, type AdVisualCheck } from "@silvicom/shared";
+import { AD_VISUAL_CHECKS, AD_AGENT_MODELS, pictureKeyPart, type AdBrandKit, type AdPresetRecipe, type AdVisualCheck } from "@silvicom/shared";
 import { MAX_IMAGE_BYTES, type ForcedTool, type ImageFormat, type UserPart } from "../../../../lib/anthropic.js";
 import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOutcome } from "../../generations/claudeGeneration.js";
 
@@ -164,6 +164,8 @@ export interface CheckVisualInput {
   format: string;
   /** 1 for the first render; the one regeneration (D-AD12) is attempt 2, a new key. */
   attempt: number;
+  /** Which of the creative's pictures is checked, from 1 (V3); absent = the first, the only one before V3. */
+  picture?: number;
   subject: VisualSubject;
 }
 
@@ -184,7 +186,7 @@ export async function checkVisual(deps: ClaudeGenerationDeps, input: CheckVisual
     agent: "checker",
     campaignId: input.campaignId,
     creativeId: input.creativeId,
-    idempotencyKey: `visual:${input.creativeId}:${input.format}:${input.attempt}`,
+    idempotencyKey: `visual:${input.creativeId}:${pictureKeyPart(input.picture ?? 1)}${input.format}:${input.attempt}`,
     promptVersion: CHECKER_PROMPT_VERSION,
     ...buildVisualRequest(subject),
   });

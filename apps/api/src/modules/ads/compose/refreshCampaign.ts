@@ -100,7 +100,7 @@ async function make(deps: RefreshDeps, c: CampaignRow, creative: Row): Promise<s
   const { settings } = await settingsInForce(admin, c.org_id);
   const out = await deps.composeOne({
     creative, brief: material.brief, recipe: await recipeById(admin, c.org_id, creative.preset_version_id), kit: material.kit.body,
-    maxRegenerations: settings.budgets.max_regenerations, candidates: settings.budgets.candidates_per_creative,
+    maxRegenerations: settings.budgets.max_regenerations, candidates: settings.budgets.candidates_per_creative, pictures: settings.budgets.pictures_per_creative,
   });
   if (out.kind === "pending") return `creative ${creative.id}: ${out.why}`;
   if (out.kind === "ready") {

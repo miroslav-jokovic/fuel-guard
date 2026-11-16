@@ -3,6 +3,7 @@ import { recordId } from "../recordId.js";
 import { NOTIFICATION_CATEGORIES, type NotificationCategory } from "../notificationsContract.js";
 import { AD_AI_AGENTS, AD_PLATFORMS, type AdPlatform } from "./contracts.js";
 import { adsCreativeRefreshSchema } from "./adFatigue.js";
+import { MAX_PICTURES_PER_CREATIVE } from "./adPairings.js";
 /** The literal, not the parsed default: a zod default must be a plain value the type of the field. */
 const ADS_CREATIVE_REFRESH_DEFAULT_LITERAL = { retire: false, min_days: 7, ctr_drop_pct: 25, min_impressions: 2000 } as const;
 
@@ -56,6 +57,14 @@ export const adsBudgetsSchema = z.object({
    * (a): 3, ceiling 5). Defaulted, so a version saved before CQ4 parses and keeps the one-copy behaviour of its day.
    */
   candidates_per_creative: z.number().int().min(1).max(5).default(3),
+  /**
+   * How many pictures are made per creative, for the finished-ad judge to rank against the words (V3 "make many,
+   * show few"; Q-APX7: 3, ceiling 5 — `MAX_PICTURES_PER_CREATIVE`, and the bound of `ads_copy_choices.picture`,
+   * 0619). Each is a direction, a render and a visual check, so this number is what an ad costs: about $0.88 in
+   * model calls at 3 against $0.34 at 1 (measured 2026-11-16), and three renders against one. Defaulted, so a
+   * version saved before V3 parses; 1 is the ad as it was made before V3.
+   */
+  pictures_per_creative: z.number().int().min(1).max(MAX_PICTURES_PER_CREATIVE).default(3),
   /**
    * D-RA9: every model-using worker has its own switch, OFF by default. An agent absent from this
    * record is off, so a worker added to `AD_AI_AGENTS` later starts switched off in every org that
@@ -160,7 +169,7 @@ export const ADS_SETTINGS_UNSET: AdsSettings = {
   },
   creative_refresh: { retire: false, min_days: 7, ctr_drop_pct: 25, min_impressions: 2000 },
   approvals: { second_approver_above_cents: null },
-  budgets: { anthropic_tokens_monthly: null, higgsfield_credits_monthly: null, max_regenerations: 1, candidates_per_creative: 3, agents_enabled: {} },
+  budgets: { anthropic_tokens_monthly: null, higgsfield_credits_monthly: null, max_regenerations: 1, candidates_per_creative: 3, pictures_per_creative: 3, agents_enabled: {} },
   alerts: { recipients: {}, uncontacted_lead_minutes: 15 },
 };
 
