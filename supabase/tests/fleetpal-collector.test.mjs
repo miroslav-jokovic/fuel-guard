@@ -344,6 +344,30 @@ for (const role of ["admin", "fleet_manager", "technician"]) {
   }
 }
 
+// ── 0623 — webhook subscriptions (F15) ──────────────────────────────────────────────────────────
+// One ACTIVE subscription per event per org: the receiver picks the verifying secret by event key,
+// and two live secrets would make "which one signed this" a guess. Paused ones may pile up — FleetPal
+// has no DELETE — and each keeps its sealed secret for the way back on.
+const sub = (id, event, active = true) =>
+  sqlstate(
+    `insert into fleetpal_webhook_subscriptions (org_id, subscription_id, event_key, target_url, secret_sealed, is_active)
+     values ($1,$2,$3,'https://api.example.test/api/webhooks/fleetpal/x','sealed-envelope',$4)`,
+    [ORG, id, event, active],
+  );
+ok("a subscription row stores", (await sub("s-1", "work_order.closed")) === null);
+ok("a second ACTIVE subscription for the same event is refused", (await sub("s-2", "work_order.closed")) === "23505");
+ok("...while paused ones for that event may stand beside it", (await sub("s-3", "work_order.closed", false)) === null && (await sub("s-4", "work_order.closed", false)) === null);
+ok("the same FleetPal subscription id twice is refused", (await sub("s-1", "defect.resolved")) === "23505");
+ok("a subscription with no sealed secret is refused", (await sqlstate(
+  `insert into fleetpal_webhook_subscriptions (org_id, subscription_id, event_key, target_url, secret_sealed) values ($1,'s-9','pm_schedule.due_soon','https://x','')`,
+  [ORG],
+)) === "23514");
+ok(
+  "RLS is on with no client policy — the API is the only reader",
+  (await one(`select relrowsecurity as r from pg_class where relname='fleetpal_webhook_subscriptions'`)).r === true &&
+    Number((await one(`select count(*)::int as n from pg_policies where tablename='fleetpal_webhook_subscriptions'`)).n) === 0,
+);
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

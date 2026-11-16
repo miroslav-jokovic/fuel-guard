@@ -7,6 +7,10 @@ import { handleInboundSms, recordDeliveryReceipt } from "../modules/recruiting/i
 import { handleAlertInboundSms, recordAlertTextReceipt } from "../modules/messaging/index.js";
 import { inboundSmsLine, parseTelnyxDeliveryReceipt, parseTelnyxInboundSms } from "../lib/sms.js";
 import { verifyTelnyxSignature } from "../lib/telnyxSignature.js";
+import { receiveDelivery } from "../modules/fleetpal/index.js";
+import { dispatchJob } from "../queue/dispatch.js";
+
+const ORG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Inbound integration webhooks. No user auth — authenticated by provider signature instead. */
 export function webhooksRouter(): Router {
@@ -102,6 +106,42 @@ export function webhooksRouter(): Router {
       if (inboundSmsLine(env, inbound) === "staff_alerts") await handleAlertInboundSms(admin, env, from, text);
       else await handleInboundSms(admin, env, from, text);
       res.json({ ok: true });
+    }),
+  );
+
+  /**
+   * FleetPal's instant updates (FLEETPAL-INTEGRATION-PLAN.md F15, D-FP10). The org is in the path so
+   * the receiver knows whose subscription secret to verify against; the signature is what
+   * authenticates, and an unverifiable delivery is a 401 that changes nothing.
+   *
+   * ⚠ FleetPal is answered BEFORE the sweep is asked for. In `inprocess` job mode `dispatchJob` runs
+   * the whole sweep before it returns — minutes — and FleetPal retries an endpoint that does not answer
+   * quickly. A sweep already running for the org answers `conflict`, which is the coalescing: twenty
+   * events in one minute are one sweep, and anything it misses the hourly sweep reads anyway.
+   */
+  router.post(
+    "/fleetpal/:orgId",
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const orgId = String(req.params.orgId ?? "");
+      if (!ORG_ID.test(orgId)) {
+        res.status(401).json({ ok: false });
+        return;
+      }
+      const admin = getSupabaseAdmin(env);
+      const outcome = await receiveDelivery(admin, env, orgId, (req as unknown as { rawBody?: Buffer }).rawBody, {
+        event: req.header("X-Fleetpal-Event") ?? undefined,
+        delivery: req.header("X-Fleetpal-Delivery") ?? undefined,
+        eventTimestamp: req.header("X-Fleetpal-Event-Timestamp") ?? undefined,
+        timestamp: req.header("X-Fleetpal-Timestamp") ?? undefined,
+        signature: req.header("X-Fleetpal-Signature") ?? undefined,
+      });
+      res.status(outcome.status).json({ ok: outcome.status === 200, reason: outcome.reason });
+      if (outcome.reason === "accepted") {
+        void dispatchJob(admin, env, "fleetpal_sync", { orgId, payload: { orgId, trigger: "webhook" } }).catch((e) => {
+          console.error("[fleetpal webhook] could not start the sweep", e instanceof Error ? e.message : e);
+        });
+      }
     }),
   );
 

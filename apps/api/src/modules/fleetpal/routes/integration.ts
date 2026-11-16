@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { fleetpalApiKeySchema, type FleetpalConnectionStatus } from "@silvicom/shared";
+import { fleetpalApiKeySchema, fleetpalInstantUpdatesInputSchema, type FleetpalConnectionStatus } from "@silvicom/shared";
 import { requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -7,7 +7,9 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { dispatchJob, jobResponse } from "../../../queue/dispatch.js";
-import { getCredential, setApiKey, setEnabled } from "../credentials.js";
+import { getApiKey, getCredential, setApiKey, setEnabled } from "../credentials.js";
+import { FleetpalClient } from "../client.js";
+import { readInstantUpdates, subscribeAll, unsubscribeAll } from "../webhooks.js";
 import { listSyncState } from "../syncState.js";
 import { probeApiKey } from "../probe.js";
 
@@ -39,7 +41,11 @@ export function registerFleetpalIntegrationRoutes(router: Router): void {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
-      const [credential, state] = await Promise.all([getCredential(admin, orgId), listSyncState(admin, orgId)]);
+      const [credential, state, instantUpdates] = await Promise.all([
+        getCredential(admin, orgId),
+        listSyncState(admin, orgId),
+        readInstantUpdates(admin, env, orgId),
+      ]);
       const body: FleetpalConnectionStatus = {
         hasKey: credential?.hasKey ?? false,
         enabled: credential?.enabled ?? false,
@@ -53,6 +59,7 @@ export function registerFleetpalIntegrationRoutes(router: Router): void {
           lastError: s.lastError,
           rowsSeen: s.rowsSeen,
         })),
+        instantUpdates,
       };
       res.json(body);
     }),
@@ -149,6 +156,47 @@ export function registerFleetpalIntegrationRoutes(router: Router): void {
         requestedBy: req.auth!.userId,
       });
       jobResponse(res, result);
+    }),
+  );
+
+  /**
+   * Instant updates on or off (F15). On asks FleetPal to call us for each event in
+   * `FLEETPAL_WEBHOOK_EVENTS` and stores each subscription's one-time secret sealed; off pauses them.
+   * Step-up for ON, as for the key: it is a write into the carrier's FleetPal account. OFF does not ask,
+   * for the kill-switch reason `disable` gives. A partial answer is a 207 naming each event that failed.
+   */
+  router.post(
+    "/fleetpal/instant-updates",
+    ...adminOnly,
+    (req, res, next) => (req.body?.on === true ? requireFreshAuth()(req, res, next) : next()),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const parsed = fleetpalInstantUpdatesInputSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Send { on: true } or { on: false }."));
+        return;
+      }
+      const credential = await getApiKey(admin, env, orgId);
+      if (!credential) {
+        res.status(409).json(apiError("fleetpal_not_connected", "Connect FleetPal and switch the sweep on first."));
+        return;
+      }
+      const client = new FleetpalClient({ apiKey: credential.apiKey, baseUrl: credential.baseUrl });
+      const result = parsed.data.on ? await subscribeAll(admin, env, orgId, client) : await unsubscribeAll(admin, orgId, client);
+      if ("error" in result) {
+        res.status(503).json(apiError("instant_updates_unavailable", result.error));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: parsed.data.on ? "integration.fleetpal.instant_updates_on" : "integration.fleetpal.instant_updates_off",
+        entity: "fleetpal_webhook_subscriptions",
+        meta: { activated: result.activated, failed: result.failed.map((f) => f.event) }, // never a secret
+      });
+      res.status(result.failed.length ? 207 : 200).json({ ok: result.failed.length === 0, ...result });
     }),
   );
 }
