@@ -13,7 +13,7 @@ export const APPLY_STAGES_COPY_ES = {
   expectations: {
     heading: "En qué consiste",
     lead: (carrier: string): string => `Esta es la solicitud de conductor de ${carrier}.`,
-    howLong: "Se hace en tres etapas, con este mismo enlace. No tiene que terminar de una sola vez.",
+    howLong: "Se hace en tres etapas. Le enviamos un enlace nuevo para cada una, y el enlace anterior deja de funcionar. No tiene que terminar de una sola vez.",
     minutes: (minutes: number): string => `unos ${Math.max(5, Math.round(minutes / 5) * 5)} minutos`,
     stage: {
       today: {
@@ -22,11 +22,11 @@ export const APPLY_STAGES_COPY_ES = {
       },
       history: {
         what: "Dónde ha vivido y trabajado, y su historial de manejo.",
-        when: (carrier: string): string => `Después de que ${carrier} revise su historial. Le avisamos por correo electrónico cuando esté lista, y puede hacerla cualquier día de esa semana.`,
+        when: (carrier: string): string => `Después de que ${carrier} revise su historial. Le enviamos un enlace nuevo por correo electrónico cuando esté lista, y puede hacerla cualquier día de esa semana.`,
       },
       signing: {
         what: "Usted lee la solicitud terminada y la firma.",
-        when: (carrier: string): string => `Después de que ${carrier} la lea. Le enviamos el enlace para firmar en su teléfono.`,
+        when: (carrier: string): string => `Después de que ${carrier} la lea. Cuando usted venga, ${carrier} le envía el enlace para firmar a su teléfono.`,
       },
     },
     needHeading: "Qué tener a la mano",

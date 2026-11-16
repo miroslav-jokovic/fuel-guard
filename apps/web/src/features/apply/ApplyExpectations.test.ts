@@ -21,9 +21,13 @@ const screen = (props: Partial<{ carrier: string; signFirst: boolean }> = {}) =>
   mount(ApplyExpectations, { props: { carrier: "Silvicom Inc", signFirst: false, ...props } });
 
 describe("the decision it is asking for", () => {
-  it("says it is three stages on one link, before anything is asked", () => {
+  it("says it is three stages, each on a new link, before anything is asked", () => {
     const w = screen();
     expect(w.text()).toContain(APPLY_COPY.expectations.howLong);
+    // The server rotates the link at each stage (applicationSend.ts, applicationSendForSigning.ts), so
+    // a promise of one link sends the driver back to a dead one.
+    expect(w.text()).toContain("a new link for each one");
+    expect(w.text()).not.toMatch(/same link/i);
     // Nothing is asked here, which is what lets the screen sit ahead of the 7001(c) consent: A4's
     // ruling is that nothing is asked and nothing is written before it.
     expect(w.findAll("input")).toHaveLength(0);
@@ -61,7 +65,9 @@ describe("what it says the application involves", () => {
   it("says the signing is on the driver's own phone, from a link the office sends (D-AW14)", () => {
     const signing = APPLY_COPY.expectations.stage.signing.when("Silvicom Inc");
     expect(screen().text()).toContain(signing);
-    expect(signing).toContain("sign on your phone");
+    expect(signing).toContain("signing link to your phone");
+    // The link is sent at the visit, never with the approval (applicationApprovalNotice.ts).
+    expect(signing).toContain("When you come in");
     expect(screen().text()).not.toMatch(/in their office|road test/);
   });
 
