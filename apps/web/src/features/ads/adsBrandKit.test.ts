@@ -173,7 +173,7 @@ describe("AdsBrandKitDrawer", () => {
     await w.find("[data-test=kit-form]").trigger("submit");
     await flushPromises();
     expect((sent.saves[0] as { kit: AdBrandKit }).kit.equipment_photos[0]!.tags).toEqual(["truck", "yard"]);
-    // The stored kit was not edited in place: the form holds its own copy of each photo's tags.
+    // The stored kit was not edited in place: a tick replaces the photo's list, it never writes into it.
     expect(KIT.equipment_photos[0]!.tags).toEqual([]);
   });
 

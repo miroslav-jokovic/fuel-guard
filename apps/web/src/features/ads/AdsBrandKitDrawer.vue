@@ -28,6 +28,7 @@ const uploading = ref(false);
 const nextVersion = computed(() => (props.kit?.current?.version ?? 0) + 1);
 /** What the library as it stands in the form will cost the ads made from it (F-AG5), re-read on every edit. */
 const libraryAdvice = computed(() => photoLibraryAdvice({ equipment_photos: form.value.equipment_photos }));
+/** Replaces the list, never edits it: the form's photos start as the saved kit's own, and that kit must not change under a cancelled edit. */
 function toggleTag(photo: BrandKitForm["equipment_photos"][number], tag: AdPhotoTag): void {
   photo.tags = photo.tags.includes(tag) ? photo.tags.filter((t) => t !== tag) : AD_PHOTO_TAGS.filter((t) => t === tag || photo.tags.includes(t));
 }

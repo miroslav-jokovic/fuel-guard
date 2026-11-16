@@ -47,7 +47,7 @@ export function blankKitForm(): BrandKitForm {
 export function kitFormFrom(name: string, kit: AdBrandKit): BrandKitForm {
   return {
     name, company_name: kit.company_name, phone: kit.phone ?? "", colors: kit.colors.map((c) => ({ ...c })), logo: kit.logo,
-    equipment_photos: kit.equipment_photos.map((p) => ({ ...p, tags: [...p.tags] })),
+    equipment_photos: kit.equipment_photos.map((p) => ({ ...p })),
     overlays: Object.fromEntries(AD_FORMATS.map((f) => {
       const o = kit.overlays[f];
       return [f, o ? { zone: o.zone, text_color: o.text_color, plate_color: o.plate_color ?? "" } : startingOverlay()];
