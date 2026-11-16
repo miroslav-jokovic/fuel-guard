@@ -25,6 +25,10 @@ normalization and optimization, please research on web best way to do this"*.
   (blown pixels hold no information; that licence is a re-shoot, and the re-shoot floor waits on D-SCAN10).
 - The office sees the bytes through `applicantDocuments.ts`; filing copies the same bytes into the driver's
   file (`copyCaptureIntoFile`, `documents` = evidence, append-only).
+- **Optimisation for FILED documents already exists** (DQF plan B1–B3, `packages/shared/src/documentDerivatives.ts`,
+  `apps/api/src/modules/evidence/documentDerivatives.ts`, queue job `document_derive`): every filed image gets a
+  `thumb` (320 px, q65) and a `normalized` (2,000 px, q82) WebP, each its own append-only `documents` row linked by
+  `derived_from`, the original untouched. Those two are resize + encode ONLY, on purpose — see §3a.
 
 ## 2. What the research says (2026-11-16)
 
@@ -80,15 +84,22 @@ scanner's crop already bounds it). A bad warp is worse than none.
 **D-PCL6 — Optimisation is the clean copy's encoding**: WebP at the config long edge. An evened background
 compresses far better than a shadow gradient; the saving is measured on the corpus, not promised here.
 
+## 3a. ⚠ The rule this plan meets, found 2026-11-16 after P1 was built
+
+`documentDerivatives.ts` (B1) records why a filed document's derivatives may only auto-orient, resize and encode:
+*"legibility changes the evidence — acceptable as extraction input, unacceptable as output a human — a DOT
+auditor — looks at to decide whether a medical card is valid."* The hazmat normaliser's `.normalise()` and
+`.median(1)` were refused for exactly that reason. A clean copy (straightened, light evened) is that kind of
+change, so where it may be SHOWN is the owner's to rule (Q-PCL1), and P2–P4 wait on it. P1 is unaffected:
+it is pure, has no caller, and serves every answer (for (c) it is machine input only).
+
 ## 4. Steps
 
 | Step | What | Migration | Status |
 |---|---|---|---|
 | P1 | `capture-engine/src/enhance/`: homography + bilinear warp, document quad detection, illumination (page), levelling + white balance (card); fixture tests incl. a synthetic tilt with a known homography and a coloured stamp's hue | none | built |
-| P2 | `application_captures`: `clean_storage_path`, `clean_content_type`, `clean_bytes`, `clean_version`, `clean_quad` (columns; a new-column migration with its writer in the next merge per `lint:migration-ordering`) | yes | — |
-| P3 | The photo's shape moves from the web's `LIVE_SLOTS` to `@silvicom/shared` (D-PCL4), read by the scanner and the writer. Writer: a queue job after verification (sharp decodes/encodes, the engine processes), and a backfill over existing captures | none | — |
-| P4 | Readers: the office drawer and the documents-only list show the clean copy, with "Show original" one click away | none | — |
-| P5 | Filing (Q-PCL1) | per ruling | — |
+| P2+P3 | **Waits on Q-PCL1.** If (a): a new table `application_capture_cleans` (capture id, the ORIGINAL's `server_sha256` it was made from — a re-shoot makes it stale by construction — version, quad, path, bytes) in its own bucket, shipped with its writer (a queue job after verification); the bucket gets its own line in the orphan sweep, which also clears it after an applicant purge (rows cascade). The photo's shape moves from the web's `LIVE_SLOTS` to `@silvicom/shared` (D-PCL4). Backfill over existing captures. | 0622 or next | blocked |
+| P4 | **Waits on Q-PCL1.** The office drawer shows the clean copy, labelled as cleaned, with "Show original" one click away | none | blocked |
 
 ## 4a. What is deliberately not built, and what would open it
 
@@ -104,12 +115,18 @@ compresses far better than a shadow gradient; the saving is measured on the corp
 
 ## 5. Owner questions
 
-**Q-PCL1 — Which copy goes into the driver's file when a photo is filed?**
-(a) The original, as today; the clean copy is only how the office views it. (b) The clean copy as the file,
-the original kept in the application's bucket. (c) Both: the clean copy is what the file shows, the original
-is attached to the same document as its source.
-*Recommendation: (c).* An auditor reads the clean copy; "is this what the driver sent?" is answered by the
-original on the same row. It needs a source column on `documents` (P5), which is why it is asked, not built.
+**Q-PCL1 — Where may a cleaned (straightened, light-evened) copy of a photo be SHOWN to a person?**
+B1's rule (§3a) is that anything a person looks at to judge a document is the document as photographed.
+- (a) **The office's review of an applicant, only** — the recruiter reading a licence number, a name, an expiry
+  before deciding to move the applicant on. Labelled "Cleaned for reading", with "Show original" one click
+  away. Filing, the driver's file, the DQ viewer and every export keep the original and B1's resize-only copies.
+- (b) (a), **and** a third derivative of every filed image (`variant = 'clean'`, a `documents` row linked by
+  `derived_from` like `thumb`/`normalized`), shown in the file viewer with the same label. Amends B1; exports
+  and the binder still use originals.
+- (c) **Nowhere.** The clean copy is machine input only (reading a licence number, OCR), exactly B1's line.
+*Recommendation: (a).* It is where the problem was seen (the office squinting at a shadowed licence photo in
+the drawer), the decision made there is a recruiter's working decision rather than a compliance one, and it
+leaves B1 — and what an auditor sees — exactly as it is. (b) can follow if the office asks for it in the file.
 
 ## 6. Progress log
 
@@ -130,4 +147,7 @@ original on the same row. It needs a source column on `documents` (P5), which is
   - **Measured on the rendered samples** (synthetic, so no sensor noise): a 1,200 × 1,500 page photo cleans
     in ~100 ms on this Mac; WebP q80 of the clean copy 123 KB against 224 KB for the JPEG an iPhone sends
     today (129 KB as WebP); a card 17 KB against 58 KB JPEG. Real photos are noisier; P3 measures them.
-  - **Next:** P2, the columns.
+  - **Next:** P2/P3 were designed (a table, not columns: the clean copy records the original's hash it was made
+    from, so a re-shoot makes it stale without anybody clearing it; its own bucket, because the orphan sweep
+    matches one table per bucket and would delete clean files from the captures bucket nightly). **Stopped
+    before building** on finding B1's rule (§3a): Q-PCL1 asks the owner where a cleaned copy may be shown.
