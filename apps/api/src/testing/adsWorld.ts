@@ -41,7 +41,9 @@ export interface WorldCampaign extends FixtureRow {
 export function campaign(id: string, state: CampaignState, patch: Partial<WorldCampaign> = {}): WorldCampaign {
   return {
     id, org_id: ORG, connection_id: CONN, state, state_changed_at: T0,
-    daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, platform_refs: {}, last_error: null, ...patch,
+    daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, platform_refs: {}, last_error: null,
+    // A campaign names no plan until a person approves one; a test about a campaign past plan review says so.
+    plan_id: null, ...patch,
   };
 }
 

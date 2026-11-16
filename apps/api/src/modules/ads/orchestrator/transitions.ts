@@ -40,9 +40,11 @@ export interface CampaignRow {
   daily_budget_cents: number | null;
   lifetime_cap_cents: number | null;
   platform_refs: Record<string, unknown>;
+  /** The plan version a person approved (0606), or null: no move into `composing` is made without one (Q-APX6). */
+  plan_id: string | null;
 }
 
-export const CAMPAIGN_COLUMNS = "id, org_id, connection_id, state, state_changed_at, daily_budget_cents, lifetime_cap_cents, platform_refs";
+export const CAMPAIGN_COLUMNS = "id, org_id, connection_id, state, state_changed_at, daily_budget_cents, lifetime_cap_cents, platform_refs, plan_id";
 
 export type TransitionActor =
   | { kind: "person" | "approver"; id: string; name: string }
@@ -76,7 +78,7 @@ export type TransitionResult =
   | { kind: "moved"; from: CampaignState; to: CampaignState }
   /** Legal and changes nothing (the kill switch in a state with nothing delivering): no row, no write. */
   | { kind: "no_op"; state: CampaignState }
-  | { kind: "refused"; reason: "illegal_transition" | "actor_not_allowed" | "plan_not_named" }
+  | { kind: "refused"; reason: "illegal_transition" | "actor_not_allowed" | "plan_not_named" | "no_approved_plan" }
   /** Another writer moved the campaign first; this move did not happen and its row says so. */
   | { kind: "state_moved" }
   /** This exact move was already recorded finished by an earlier delivery of the same job. */
@@ -116,6 +118,14 @@ export async function applyCampaignEvent(admin: SupabaseClient, campaign: Campai
   if (ask.event === "plan_approved" && !ask.plan_id) {
     await recordFinished(admin, base, { status: "refused", error_code: "plan_not_named", at });
     return { kind: "refused", reason: "plan_not_named" };
+  }
+  // Q-APX6 (ruled (b), 2026-11-15): no ad is made without a plan a person approved. The machine cannot say this —
+  // `failed` does not remember where the campaign failed, so it offers "try making the ads again" to a campaign
+  // that failed while PLANNING, and `review` offers Regenerate to a campaign made before the ruling. So it is held
+  // here, once, for every row that enters `composing`: the campaign names its plan, or this move names it.
+  if (to === "composing" && !campaign.plan_id && !ask.plan_id) {
+    await recordFinished(admin, base, { status: "refused", error_code: "no_approved_plan", at });
+    return { kind: "refused", reason: "no_approved_plan" };
   }
 
   await settleOpenTransitions(admin, campaign);
@@ -247,7 +257,7 @@ export type InsertCampaignResult =
 /**
  * A new campaign, in `draft` (Track S, S1b): the create door's write, here because this file is
  * `ads_campaigns`' one writer. It moves no state, so no `ads_actions` row: the orchestrator's first
- * move (`draft → compose`) is the campaign's first transition and is recorded as every move is.
+ * move (`draft → plan`) is the campaign's first transition and is recorded as every move is.
  *
  * The brief is frozen as it arrives (AX031): `brief_ref` is the source's versioned ref, so the claim
  * checker reads the facts in force when a person pressed Create, never a later edit of the opening.

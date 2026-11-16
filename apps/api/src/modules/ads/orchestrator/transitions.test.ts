@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CAMPAIGN_EVENTS, CAMPAIGN_STATES, stepCampaign, type CampaignActor } from "@silvicom/shared";
+import { CAMPAIGN_EVENTS, CAMPAIGN_STATES, CAMPAIGN_TRANSITIONS, stepCampaign, type CampaignActor } from "@silvicom/shared";
 import { expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { campaign, createAdsWorld, ORG } from "../../../testing/adsWorld.js";
 import { applyCampaignEvent, loadCampaign, type TransitionActor } from "./transitions.js";
@@ -19,7 +19,9 @@ describe("applyCampaignEvent — the machine decides, the writer obeys", () => {
     for (const state of CAMPAIGN_STATES) {
       for (const event of CAMPAIGN_EVENTS) {
         for (const actor of Object.keys(ACTORS) as CampaignActor[]) {
-          const w = createAdsWorld({ campaigns: [campaign("c1", state)] });
+          // The campaign names a plan, so every move the machine allows is one the writer makes; a campaign that
+          // names none is refused entry to `composing` whatever the machine says, in its own tests below.
+          const w = createAdsWorld({ campaigns: [campaign("c1", state, { plan_id: "plan-1" })] });
           const verdict = stepCampaign(state, event, actor);
           // `plan_approved` carries the plan it approves (V2); its own tests below cover the move without one.
           const r = await applyCampaignEvent(w.admin, (await loadCampaign(w.admin, ORG, "c1"))!, { event, actor: ACTORS[actor], ...(event === "plan_approved" ? { plan_id: "plan-1" } : {}) }, w.now().toISOString());
@@ -107,11 +109,43 @@ describe("applyCampaignEvent — racing writers and crashes", () => {
   });
 
   it("an error travels with the move into last_error, and the next move clears it", async () => {
-    const w = createAdsWorld({ campaigns: [campaign("c1", "composing")] });
+    const w = createAdsWorld({ campaigns: [campaign("c1", "composing", { plan_id: "plan-1" })] });
     await applyCampaignEvent(w.admin, (await loadCampaign(w.admin, ORG, "c1"))!, { event: "compose_failed", actor: AGENT, cause: "renderer down", error: "renderer down" }, w.now().toISOString());
     expect(w.byId("c1")).toMatchObject({ state: "failed", last_error: "renderer down" });
     await applyCampaignEvent(w.admin, (await loadCampaign(w.admin, ORG, "c1"))!, { event: "resume_compose", actor: PERSON }, w.now().toISOString());
     expect(w.byId("c1")).toMatchObject({ state: "composing", last_error: null });
+  });
+});
+
+describe("applyCampaignEvent — no ad is made without an approved plan (Q-APX6, mandatory)", () => {
+  const ROADS = [["failed", "resume_compose"], ["review", "regenerate"]] as const;
+
+  it.each(ROADS)("a campaign that names no plan cannot go from %s to composing by %s: refused, recorded, nothing written", async (state, event) => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", state)] });
+    const r = await applyCampaignEvent(w.admin, (await loadCampaign(w.admin, ORG, "c1"))!, { event, actor: PERSON }, w.now().toISOString());
+    expect(r).toEqual({ kind: "refused", reason: "no_approved_plan" });
+    expect(w.byId("c1").state).toBe(state);
+    expect(w.transitions()).toEqual([expect.objectContaining({ status: "refused", error_code: "no_approved_plan" })]);
+    expect(w.rec.forTable("ads_campaigns").some((q) => q.write)).toBe(false);
+  });
+
+  it.each(ROADS)("the same campaign with its approved plan goes from %s to composing by %s", async (state, event) => {
+    const w = createAdsWorld({ campaigns: [campaign("c1", state, { plan_id: "plan-1" })] });
+    const r = await applyCampaignEvent(w.admin, (await loadCampaign(w.admin, ORG, "c1"))!, { event, actor: PERSON }, w.now().toISOString());
+    expect(r).toEqual({ kind: "moved", from: state, to: "composing" });
+  });
+
+  it("a campaign that failed while planning can still be planned again, and archived: only the road to making ads is closed", async () => {
+    for (const [event, to] of [["resume_plan", "planning"], ["archive", "archived"]] as const) {
+      const w = createAdsWorld({ campaigns: [campaign("c1", "failed")] });
+      expect(await applyCampaignEvent(w.admin, (await loadCampaign(w.admin, ORG, "c1"))!, { event, actor: PERSON }, w.now().toISOString())).toEqual({ kind: "moved", from: "failed", to });
+    }
+  });
+
+  it("every row of the machine that enters composing is a person's, and none leaves draft: the list this rule guards", () => {
+    // A row that stays in composing (the kill switch there) enters nothing.
+    const into = CAMPAIGN_TRANSITIONS.filter((t) => t.to === "composing" && t.from !== "composing").map((t) => `${t.from} -${t.event}- ${t.by.join("+")}`).sort();
+    expect(into).toEqual(["failed -resume_compose- person", "plan_review -plan_approved- person", "review -regenerate- person"]);
   });
 });
 

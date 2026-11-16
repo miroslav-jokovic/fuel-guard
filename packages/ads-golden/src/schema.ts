@@ -123,7 +123,7 @@ export const goldenExpectSchema = z
     last_error: z.record(id, z.string().nullable()).default({}),
     /**
      * The campaign's WHOLE `ads_actions` ledger, in the order written. Each line is
-     *   "<from> -<event>-> <to> <status>"   a transition (`draft -compose-> composing succeeded`)
+     *   "<from> -<event>-> <to> <status>"   a transition (`draft -plan-> planning succeeded`)
      *   "<from> -<event>- refused"          a transition the machine refused
      *   "<kind> <status>"                   any other act (`launch succeeded`, `pause failed`)
      * Omitted campaigns are not checked.

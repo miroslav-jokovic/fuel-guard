@@ -53,6 +53,8 @@ export interface GoldenFailure {
 
 const STATES = new Set<string>(CAMPAIGN_STATES);
 const EVENTS = new Set<string>(CAMPAIGN_EVENTS);
+/** The plan a scenario's person approves: the harness has no plan store, so the id is fixed. */
+const GOLDEN_PLAN_ID = "71000000-0000-4000-8000-000000000001";
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /** Every state and event the scenario names must be the machine's (`@silvicom/shared`), checked first. */
@@ -145,7 +147,9 @@ export async function runGolden(s: GoldenScenario, file = s.name): Promise<Golde
 
   const workers: CampaignWorkers = {
     refresh: null,
-    plan: null,
+    // Every campaign is planned (Q-APX6): the planner always answers a finished plan. A scenario about the
+    // planner's own faults would give it a script like the other vendors'; none exists yet.
+    plan: async () => ({ ok: true }),
     compose: s.vendor.compose[0] === "absent" ? null : async (_c, key) => {
       vendor.compose += 1;
       composeKeys.add(key);
@@ -199,7 +203,8 @@ export async function runGolden(s: GoldenScenario, file = s.name): Promise<Golde
       try {
         const c = await loadCampaign(world.admin, ORG, m.campaign);
         if (!c) throw new Error(`ads golden: campaign ${m.campaign} not found`);
-        await applyCampaignEvent(world.admin, c, { event: m.event as CampaignEvent, actor }, world.now().toISOString());
+        // Approving a plan names it (AX032): the one plan the fake planner is taken to have written.
+        await applyCampaignEvent(world.admin, c, { event: m.event as CampaignEvent, actor, ...(m.event === "plan_approved" ? { plan_id: GOLDEN_PLAN_ID } : {}) }, world.now().toISOString());
         return;
       } catch (e) {
         errors.push(message(e));

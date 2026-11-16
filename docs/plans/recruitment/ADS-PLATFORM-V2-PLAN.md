@@ -251,7 +251,7 @@ answer for this carrier is measured in its first month instead of taken from a v
 Not researched. Candidates to compare on price, accuracy on cab noise, Spanish, and where audio is kept. Nothing
 in V4's motion lane waits on it.
 
-### Q-APX6 · Is planning mandatory, or the carrier's choice? — open (built as (a), reversible)
+### Q-APX6 · Is planning mandatory, or the carrier's choice? — RULED (b), 2026-11-15
 
 **What was measured.** Every ads AI agent starts switched off in every carrier's settings (D-RA9), the
 Strategist included, and production holds no saved ads settings at all (§1). The planning step refuses with "the
@@ -286,13 +286,43 @@ key: *"ok proceed as proposed."*** Taken as:
 - **Recordings approved** for the six agents' move to the newer models (V1b). Any later recording is asked for
   again, as before.
 
+**2026-11-15, the owner, to Q-APX6 and to the recommendation on the copy rating page: *"We will proceed as
+recommended planing should be mandetory"*, and on staging: *"We will test in staging in couple days when feature
+is 100%."*** Taken as:
+
+- **Q-APX6 RULED (b): planning is mandatory.** No ad is made without a plan a person approved. The machine's
+  `draft → compose` row and its event are gone, and so is the per-carrier choice (`plansFor`); a draft has one
+  move, to `planning`.
+  - **Nothing enters `composing` without a named plan** (`applyCampaignEvent`, refusal `no_approved_plan`).
+    Removing the draft's road was not enough: the machine's `failed` state does not remember where a campaign
+    failed, so it offers *Try making the ads again* to a campaign that failed while planning, and `review` offers
+    Regenerate to a campaign made before the ruling. Both are now refused with what to do instead.
+  - **D-RA9 is NOT reversed.** The Strategist starts switched off like every agent. A campaign then stops at
+    planning with "the Strategist is switched off in the ads settings" — as it stops at composing with the
+    Copywriter off — and a person switches it on and presses *Try planning again*. (b)'s stated cost, "the switch
+    must be on by default", was wrong: every agent is off by default and a carrier must switch on the writers to
+    make any ad at all, so the Strategist is one more switch on the same screen, labelled as required.
+  - **Every new campaign's launch waits on the Strategist's certification** (`meta:plannedstill`), since every
+    new campaign carries a plan.
+  - **Campaigns made before the ruling** (staging only; production holds none) carry no plan. One already
+    composing finishes on its seeded preset draw; one in review can be approved and launched as it is, on the
+    unplanned launch list; none can be sent to make ads again without being planned first. The seeded draw stays
+    for those in flight and is reached by nothing new.
+  - **Owed, one release later:** the database still allows a campaign into `composing` with no plan from any
+    state but plan review (0606 left it open "for code still serving"; AX032 holds only the plan-review row).
+    Holding the whole rule there is a migration after the release that carries this change, per
+    MIGRATION-DISCIPLINE §the-deploy-window.
+- **The copy rating page is rebuilt** from the `copywriter@5` recordings (taken from "proceed as recommended":
+  the recommendation was to rebuild if rating had not started).
+- **The staging walk waits** until the feature is complete; nothing is switched on for staging before then.
+
 ## 6. Open, in one place
 
 | Id | Question | Recommendation | Who |
 |---|---|---|---|
 | Q-APX1–4 | — | **ruled 2026-11-14, §5a** | — |
 | Q-APX5 | Speech-to-text provider | research owed | Claude |
-| Q-APX6 | Planning mandatory, or the carrier's choice | **open** — built as (a), reversible | owner |
+| Q-APX6 | Planning mandatory, or the carrier's choice | **ruled (b) 2026-11-15, §5a** | — |
 | — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 ## Sources (read 2026-11-14)

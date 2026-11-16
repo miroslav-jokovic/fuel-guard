@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { ADS_SETTINGS_UNSET, type AdsSettings, type LeadQuality } from "@silvicom/shared";
-import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { testEnv } from "../../../testing/testEnv.js";
 import type { CampaignRow } from "./transitions.js";
 import { adsWorkers, agentHasWork } from "./workers.js";
 
 /**
- * The planner as the shipped workers hold it (ADS-PLATFORM-V2-PLAN V2c, Q-APX6): a host plans when it was handed
- * recruiting's lead counts, and a carrier's campaigns are planned only when its Strategist switch is on.
+ * The planner as the shipped workers hold it (ADS-PLATFORM-V2-PLAN V2c): a host plans when it was handed
+ * recruiting's lead counts. Every campaign is planned (Q-APX6, ruled (b) 2026-11-15), so a host with no planner
+ * has no work on a draft.
  */
 const planned = vi.hoisted(() => ({ calls: [] as unknown[][] }));
 vi.mock("../plan/planCampaign.js", () => ({ planCampaign: async (...args: unknown[]) => { planned.calls.push(args); return { ok: true }; } }));
@@ -29,19 +30,15 @@ describe("adsWorkers — who plans", () => {
     expect(agentHasWork("planning", w, false)).toBe(true);
   });
 
-  it("a host not handed them has no planner: its drafts are composed and a planning campaign is nobody's work", () => {
+  it("a host not handed them has no planner: a draft and a planning campaign are nobody's work there, though it could compose", () => {
     const w = workers(world(settings(true)));
     expect(w.plan).toBeNull();
+    expect(w.compose).not.toBeNull();
     expect(agentHasWork("planning", w, false)).toBe(false);
-    expect(agentHasWork("draft", w, false)).toBe(true);
+    expect(agentHasWork("draft", w, false)).toBe(false);
   });
 
-  it("a carrier's campaigns are planned only when its Strategist switch is on — off, never set and no settings saved all read as no", async () => {
-    const on = world(settings(true));
-    expect(await workers(on, quality).plansFor!(campaign)).toBe(true);
-    expectOrgScoped(on, ORG);
-    expect(await workers(world(settings(false)), quality).plansFor!(campaign)).toBe(false);
-    expect(await workers(world(settings(undefined)), quality).plansFor!(campaign)).toBe(false);
-    expect(await workers(world(null), quality).plansFor!(campaign)).toBe(false);
+  it("a draft is the planner's work whatever the carrier's Strategist switch says: the switch refuses at planning, it does not choose the road", () => {
+    for (const s of [settings(true), settings(false), settings(undefined), null]) expect(agentHasWork("draft", workers(world(s), quality), false)).toBe(true);
   });
 });
