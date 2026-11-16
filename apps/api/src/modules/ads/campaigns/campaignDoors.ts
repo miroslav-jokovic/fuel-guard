@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  ADS_PERSON_DOOR_EXCLUDED, adBriefSchema, stepCampaign,
+  AD_NAME_LANGUAGES, ADS_PERSON_DOOR_EXCLUDED, adBriefSchema, platformText, stepCampaign,
   type AdBriefSource, type AdsCampaignCreate, type AdsCampaignCreateRefusal, type AdsCampaignLaunch, type AdsCampaignMove,
-  type AdsCampaignSummary, type AdsCampaignView, type AdsCreativeView, type CampaignState,
+  type AdsCampaignSummary, type AdsCampaignView, type AdsCreativeView, type CampaignState, type PlatformSlots,
 } from "@silvicom/shared";
 import { AD_ASSETS_BUCKET } from "../creative/brandAssets.js";
 import { listBrandKits } from "../creative/kitVersions.js";
@@ -82,7 +82,29 @@ export async function readCampaign(admin: SupabaseClient, orgId: string, id: str
   if (!data) return null;
   const { data: cr, error: e2 } = await admin.from("ads_creatives").select(CREATIVE).eq("org_id", orgId).eq("campaign_id", id).order("created_at", { ascending: true });
   if (e2) throw new Error(`ads_creatives: ${e2.message}`);
-  return { ...(data as unknown as Omit<AdsCampaignView, "creatives">), creatives: await withImageUrls(admin, orgId, (cr ?? []) as unknown as AdsCreativeView[]) };
+  const read = (cr ?? []) as unknown as Array<Omit<AdsCreativeView, "platform_text">>;
+  return { ...(data as unknown as Omit<AdsCampaignView, "creatives">), creatives: await withImageUrls(admin, orgId, await withPlatformText(admin, orgId, read)) };
+}
+
+/**
+ * The two texts Meta is handed beside each ad's image, per language (V3 "preview as shown"): the copy slots the
+ * creative's own preset version names in `platform_slots`, picked out by the function the publisher sends them with
+ * (`platformText`). Null for a language the copy lacks one in, and for a creative whose preset names no slots — the
+ * same creative the publisher refuses (`no_platform_slots`). One read of the preset versions these creatives name.
+ */
+async function withPlatformText(admin: SupabaseClient, orgId: string, creatives: Array<Omit<AdsCreativeView, "platform_text">>): Promise<AdsCreativeView[]> {
+  const versions = [...new Set(creatives.map((c) => c.preset_version_id))];
+  const slots = new Map<string, PlatformSlots | null>();
+  if (versions.length > 0) {
+    const { data, error } = await admin.from("ad_concept_preset_versions").select("id, recipe").eq("org_id", orgId).in("id", versions);
+    if (error) throw new Error(`ad_concept_preset_versions: ${error.message}`);
+    for (const v of (data ?? []) as Array<{ id: string; recipe: { platform_slots?: PlatformSlots | null } | null }>) slots.set(v.id, v.recipe?.platform_slots ?? null);
+  }
+  return creatives.map((c) => {
+    const named = slots.get(c.preset_version_id) ?? null;
+    const copy = (c.copy ?? {}) as Record<string, Record<string, string> | undefined>;
+    return { ...c, platform_text: named ? Object.fromEntries(AD_NAME_LANGUAGES.map((l) => [l, platformText(copy[l], named)])) as AdsCreativeView["platform_text"] : null };
+  });
 }
 
 /** Long enough to look an ad over; the screen reads the campaign again and gets fresh links after that. */

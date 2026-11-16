@@ -30,6 +30,7 @@ export * from "./adFatigue.js";
 export * from "./brandKitContract.js";
 export * from "./photoLibrary.js";
 export * from "./finishedAd.js";
+export * from "./platformText.js";
 export * from "./adPairings.js";
 export * from "./starterPresets.js";
 export * from "./artDirection.js";

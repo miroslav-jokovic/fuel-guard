@@ -13,7 +13,7 @@ const COPY = { en: { hook: "Home every night", cta: "Apply now" }, es: { hook: "
 const OTHER = { en: { hook: "Home weekly, local runs", cta: "Apply today" }, es: { hook: "En casa cada semana", cta: "Aplica hoy" } };
 const creative = (over: Partial<AdsCreativeView> = {}): AdsCreativeView => ({
   id: "cr-1", preset_version_id: "pv", brand_kit_version_id: "kv", supersedes_id: null, state: "ready", platform_status: null,
-  copy: COPY, regenerations: 0, last_error: null, checks: null, pairings: null, created_at: "2026-11-12T12:00:00Z",
+  copy: COPY, regenerations: 0, last_error: null, checks: null, pairings: null, platform_text: null, created_at: "2026-11-12T12:00:00Z",
   candidates: { ranked: [COPY, OTHER].map((copy, i) => ({ copy, judged: null, total: null, offered_as: i })), chosen: 0, judge: null, offered: 2, passed: 2 },
   assets: [{ format: "4:5", language: "en", sha256: "a".repeat(64), path: "o/a.png", width: 1080, height: 1350, url: "https://store/a" }],
   ...over,

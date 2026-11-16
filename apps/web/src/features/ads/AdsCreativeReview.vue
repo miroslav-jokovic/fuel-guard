@@ -5,6 +5,7 @@ import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInp
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { CHECK_LABEL, CHECK_VERDICT_LABEL, CHECK_VERDICT_TONE, CREATIVE_STATE_LABEL, copyLines } from "./adsCampaignFlow";
 import AdsCopyCandidates from "./AdsCopyCandidates.vue";
+import AdsFeedPreview from "./AdsFeedPreview.vue";
 import AdsFinishedAdOpinion from "./AdsFinishedAdOpinion.vue";
 import AdsPairingRivals from "./AdsPairingRivals.vue";
 import AdsWordsEditor from "./AdsWordsEditor.vue";
@@ -70,6 +71,10 @@ const tone = computed(() => (props.creative.state === "check_failed" || props.cr
     <AdsPairingRivals v-if="creative.pairings" :pairings="creative.pairings" :can-choose="choosable" :busy="busy" @pick="pickRival" />
     <section v-for="l in languages" :key="l" class="space-y-2">
       <h3 class="text-sm font-semibold text-ink">{{ l.toUpperCase() }}</h3>
+      <details v-if="creative.platform_text?.[l as 'en' | 'es']" class="rounded-detail bg-surface-muted p-3 text-sm" :data-test="`feed-${l}`">
+        <summary class="cursor-pointer text-ink">How it is sent to Facebook: the text, the picture, the headline and the button. A drawing of the feed, not Meta's own preview.</summary>
+        <div class="mt-3"><AdsFeedPreview :creative="creative" :language="(l as 'en' | 'es')" /></div>
+      </details>
       <div class="grid grid-cols-3 gap-2">
         <figure v-for="a in creative.assets.filter((x) => x.language === l)" :key="a.sha256">
           <img v-if="a.url" :src="a.url" :alt="`Ad image, ${a.format}, ${l}`" class="w-full rounded-detail" data-test="ad-image" />
