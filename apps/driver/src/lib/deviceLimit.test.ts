@@ -24,7 +24,7 @@ beforeEach(() => {
   clearDeviceLimited();
 });
 
-// Imported at the top, not inside a test: the first load of `./api` took over 5 s on a cold CI runner (#2476).
+// Imported at the top, not inside a test: the first load of `./api` took over 5 s on a cold CI runner (2026-11-16).
 const call = () => apiFetch('/api/me');
 const limited = () => isDeviceLimited();
 
