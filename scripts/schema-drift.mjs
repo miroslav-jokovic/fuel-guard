@@ -94,6 +94,37 @@ async function query(ref, sql, token) {
   return res.json();
 }
 
+/**
+ * The builds the PLATFORM runs, which no migration sets and staging does not share with production.
+ * Measured 2026-11-15, after the outage that made it matter: production Postgres 17.6 / PostgREST 14.5,
+ * staging Postgres 17.11 / PostgREST 14.18 — and a role setting that production's PostgREST lower-cased
+ * (and Postgres then refused) passed staging without one error (scripts/check-role-settings.mjs).
+ *
+ * A WARNING, never a failure: only upgrading a project in the Supabase dashboard changes it, and a
+ * check that is red every night for a reason nobody at a keyboard can fix teaches people not to look.
+ * What it buys is that "it worked on staging" is never again said without this line in front of it.
+ * PostgREST names its build in `application_name`; a project with no connection open reports none.
+ */
+export const PLATFORM_SQL = `
+select (select setting from pg_settings where name = 'server_version') as postgres,
+       (select max(application_name) from pg_stat_activity where application_name like 'PostgREST %') as postgrest`;
+
+async function platformOf(ref, token) {
+  const [row] = await query(ref, PLATFORM_SQL, token);
+  return { postgres: row?.postgres ?? null, postgrest: row?.postgrest ?? null };
+}
+
+/** One sentence per component whose build differs; a build that could not be read is said, not skipped. */
+export function platformDifferences(prod, staging) {
+  const out = [];
+  for (const [key, label] of [["postgres", "Postgres"], ["postgrest", "PostgREST"]]) {
+    const a = prod[key], b = staging[key];
+    if (!a || !b) out.push(`${label}: production ${a ?? "not readable"}, staging ${b ?? "not readable"} — the builds could not be compared.`);
+    else if (a !== b) out.push(`${label}: production runs ${a}, staging ${b}. Anything the platform itself executes (a role setting, an extension, the API's own SQL) is NOT proven by staging.`);
+  }
+  return out;
+}
+
 function selfTest() {
   let fail = 0;
   const eq = (name, got, want) => {
@@ -110,7 +141,13 @@ function selfTest() {
   eq("production ahead of staging is broken", compareVersions(["0001", "0002"], ["0001"]).state, "broken");
   eq("a version production skipped in the middle is broken",
     compareVersions(["0001", "0003"], ["0001", "0002", "0003"]).state, "broken");
-  console.log(`\nRESULT: ${6 - fail} passed, ${fail} failed`);
+  eq("the same builds are no difference",
+    platformDifferences({ postgres: "17.6", postgrest: "PostgREST 14.5" }, { postgres: "17.6", postgrest: "PostgREST 14.5" }), []);
+  eq("the builds measured on 2026-11-15 are two differences",
+    platformDifferences({ postgres: "17.6", postgrest: "PostgREST 14.5" }, { postgres: "17.11", postgrest: "PostgREST 14.18" }).length, 2);
+  eq("a build that could not be read is said, not passed over",
+    platformDifferences({ postgres: "17.6", postgrest: null }, { postgres: "17.6", postgrest: "PostgREST 14.18" }).map((l) => l.includes("could not be compared")), [true]);
+  console.log(`\nRESULT: ${9 - fail} passed, ${fail} failed`);
   process.exitCode = fail ? 1 : 0;
 }
 
@@ -125,6 +162,12 @@ async function main() {
   if (prodRef === stagingRef) {
     console.error("✗ the two refs are the same project — refusing to compare production with itself.");
     process.exit(2);
+  }
+
+  // Printed every night, BEFORE anything can return early: on most nights staging is a release ahead
+  // and the schema comparison below is skipped. See PLATFORM_SQL.
+  for (const line of platformDifferences(await platformOf(prodRef, token), await platformOf(stagingRef, token))) {
+    console.log(`::warning title=Staging is not the build production runs::${line}`);
   }
 
   const versions = (rows) => rows.map((r) => r.version);

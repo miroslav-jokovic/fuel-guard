@@ -99,56 +99,57 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:40:47.900Z",
+    "recorded_at": "2026-11-15T20:59:30.621Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Tanker: $0.75 per mile",
+            "hook": "Tanker at $0.75/mile",
             "cta": "Apply today",
-            "primary_text": "Haul tanker freight on regional runs across Illinois, Indiana and Wisconsin. You earn $0.75 per mile, with weekly pay. Class A with hazmat, 23+.",
-            "headline": "Home weekends"
+            "primary_text": "Haul hazmat tanker freight on regional runs across Illinois, Indiana and Wisconsin. You earn $0.75 per mile with weekly pay. Class A, 23+.",
+            "headline": "$0.75/mile, weekly pay"
           },
           "es": {
-            "hook": "Tanque: $0.75 por milla",
+            "hook": "Tanque a $0.75/milla",
             "cta": "Aplica hoy",
-            "primary_text": "Jala carga de tanque en rutas regionales por Illinois, Indiana y Wisconsin. Ganas $0.75 por milla, con pago semanal. Clase A con hazmat, mayores de 23.",
-            "headline": "En casa fines de semana"
+            "primary_text": "Lleva carga hazmat en tanque por rutas regionales en Illinois, Indiana y Wisconsin. Ganas $0.75 por milla con pago semanal. Licencia Clase A, mayores de 23.",
+            "headline": "$0.75/milla, pago semanal"
           }
         },
         {
           "en": {
             "hook": "Tanker, home weekends",
             "cta": "Apply now",
-            "primary_text": "Regional tanker runs in Illinois, Indiana and Wisconsin, then home weekends. Weekly pay and a pet policy. Class A with hazmat, 23+.",
-            "headline": "$0.75 per mile"
+            "primary_text": "Run hazmat tanker loads on regional routes in Illinois, Indiana and Wisconsin, and you are home weekends. $0.75 per mile, weekly pay and a pet policy. Class A, 23+.",
+            "headline": "Home weekends, $0.75/mile"
           },
           "es": {
-            "hook": "Tanque, en casa el finde",
+            "hook": "Tanque y fines en casa",
             "cta": "Aplica ya",
-            "primary_text": "Rutas regionales de tanque en Illinois, Indiana y Wisconsin, y en casa los fines de semana. Pago semanal y política de mascotas. Clase A con hazmat, mayores de 23.",
-            "headline": "$0.75 por milla"
+            "primary_text": "Tanque hazmat en rutas regionales por Illinois, Indiana y Wisconsin. Los fines de semana estás en casa. $0.75 por milla y pago semanal. Clase A, mayores de 23.",
+            "headline": "Fines de semana en casa"
           }
         },
         {
           "en": {
-            "hook": "Tanker in IL, IN and WI",
+            "hook": "Tanker: IL, IN, WI",
             "cta": "Apply here",
-            "primary_text": "Straight talk: you pull a tanker on regional runs through Illinois, Indiana and Wisconsin. $0.75 per mile, paid weekly. Class A with hazmat, 23+.",
-            "headline": "Pet policy, home weekends"
+            "primary_text": "Here is the run: hazmat tanker, regional, Illinois, Indiana and Wisconsin. $0.75 per mile, paid weekly, home weekends. We have a pet policy. Class A, 23+.",
+            "headline": "Hazmat tanker, regional"
           },
           "es": {
-            "hook": "Tanque en IL, IN y WI",
+            "hook": "Tanque: IL, IN, WI",
             "cta": "Aplica aquí",
-            "primary_text": "Te lo digo claro: jalas tanque en rutas regionales por Illinois, Indiana y Wisconsin. $0.75 por milla, pago semanal. Clase A con hazmat, mayores de 23.",
-            "headline": "Mascotas y fines en casa"
+            "primary_text": "Así es la ruta: tanque hazmat, regional, Illinois, Indiana y Wisconsin. $0.75 por milla, pago semanal y fines de semana en casa. Hay política de mascotas. Clase A, mayores de 23.",
+            "headline": "Tanque hazmat regional"
           }
         }
       ]

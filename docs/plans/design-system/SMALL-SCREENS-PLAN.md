@@ -401,3 +401,15 @@ Table layout at desk widths. New data on any card.
   - **Still open, the owner's:** what they saw of Operations and Drivers on a phone on staging; the
     Ask AI launcher over mid-page controls (M9); the shop on a real tablet in the bay; the four A3
     lists with real rows, after the release. **Not built:** the stubbed every-read-empty pass.
+- **2026-11-16, the owner's two rulings, and the release.** The redesign is in production except the
+  drawer and dialog footers (#2442), which ride the next release.
+  - **M9, ruled:** the Ask AI launcher is drawn on the main pages only — Operations, Fleet overview
+    and the live map (the dashboard route). Built in the assistant's plan, where the detail is:
+    `product-readiness/F21-ask-ai/PLAN.md`, log entry of this date.
+  - **Q-SM5, confirmed (a) again** ("as recommended"): "Needs action" stays the alarm rows; No GPS,
+    files not started, drivers without a truck and papers with no date are not added.
+  - **Checked, not a gap:** the phase table's "Transactions" has no page (the A3 entry above); the
+    Declines tab took its place.
+  - **Still open:** the shop on a real tablet; the four A3 lists with real rows on production; the
+    chat dialogs and the row-opened drawers after #2442 releases. **Not built:** the header sentence
+    above the Operations strip, the contract's general tile-grid rule, a stubbed every-read-empty pass.

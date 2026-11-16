@@ -82,18 +82,19 @@
       "over-the-road runs",
       "lanes: coast to coast"
     ],
-    "headline": null
+    "headline": null,
+    "idea": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@5",
+    "prompt_version": "artDirector@6",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T22:23:55.665Z",
+    "recorded_at": "2026-11-15T20:18:28.295Z",
     "output": {
       "slots": {
-        "time_of_day": "first light, low sun rising over open plains ahead",
-        "weather": "clear dry morning, thin pink clouds low on the horizon, long shadows"
+        "time_of_day": "first light, low sun just over the horizon of open high plains",
+        "weather": "clear cold morning, thin ground haze, long shadows across dry asphalt"
       },
       "reference_photo": null,
       "focal_subject": "road_ahead",

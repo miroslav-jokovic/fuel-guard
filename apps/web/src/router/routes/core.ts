@@ -25,6 +25,8 @@ export const coreRoutes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       title: "Dashboard",
+      // The main pages: the only route the Ask AI orb floats over (`assistantLauncher`, router/index.ts).
+      assistantLauncher: true,
       fullBleed: (route) => tabIsWorkspace(String(route.query?.tab ?? "")),
       // The page backdrop (D-DT18). ⚠ `fullBleed` above and this are not in conflict: `heroPlate`
       // refuses a plate whenever the outlet is edge to edge, so the map tab drops it and the

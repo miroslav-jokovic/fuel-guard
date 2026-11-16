@@ -343,6 +343,18 @@ jobs:
         if: needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'hotfix'
         with:
           version: 2.109.0
+      # The "before" half of the check after the migrations (below): was the API reading the database at all?
+      # A hotfix may be shipped BECAUSE it was not, and must not be stopped for a fault it did not cause.
+      - name: Could the API read the database before the migrations
+        id: before
+        if: (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'hotfix') && env.DRY != 'true'
+        env:
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          applied=$(curl -sS --max-time 15 "${API_URL%/}/api/version" | jq -r '.schema.applied // empty' 2>/dev/null || true)
+          echo "before the migrations: schema.applied=${applied:-not readable}"
+          echo "readable=$([ -n "$applied" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
       - name: Apply migrations to production (before the code)
         if: needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'hotfix'
         env:
@@ -352,6 +364,41 @@ jobs:
           supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
           if [ "$DRY" = "true" ]; then supabase db push --dry-run; else supabase db push; fi
           supabase migration list --linked | tail -5
+
+      # THE 2026-11-15 OUTAGE WAS INVISIBLE HERE FOR 25 MINUTES. A migration made every service-role request
+      # fail the moment it applied, and nothing looked until `verify` gave up waiting — its loop reads
+      # "schema=unknown" as "migrations still coming" for 1,500 seconds. This asks at once, of the code that
+      # is serving RIGHT NOW (the old release): can the API still read the database? `/api/version`'s
+      # `schema.applied` is a service-role call through PostgREST, cached 30 s, so three minutes is several
+      # fresh reads. Asked BEFORE production is moved: when the database is the fault, new code cannot help,
+      # and a rollback of code cannot either (D-REL9: a migration is never reversed by this workflow).
+      # A failure stops the release with the migrations applied and the old code serving — the state the
+      # two-merge rule (docs/MIGRATION-DISCIPLINE.md) already makes safe — and the summary job tells the owners.
+      - name: The API can still read the database after the migrations
+        if: steps.before.outputs.readable == 'true'
+        env:
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          set -uo pipefail
+          deadline=$(( $(date +%s) + 180 ))
+          seen=0
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            applied=$(curl -sS --max-time 15 "${API_URL%/}/api/version" | jq -r '.schema.applied // empty' 2>/dev/null || true)
+            if [ -n "$applied" ]; then
+              seen=$((seen + 1))
+              echo "schema.applied=$applied (read $seen)"
+              # Two reads 35 s apart: the second cannot be the 30 s cache of an answer from before the push.
+              if [ "$seen" -ge 2 ]; then echo "✓ the API reads the database after the migrations (applied $applied)." >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
+              sleep 35
+            else
+              seen=0
+              echo "the API could not read the applied schema version; retrying"
+              sleep 10
+            fi
+          done
+          echo "::error::After the migrations, production's API cannot read the database (/api/version schema.applied is empty for 3 minutes). Production was NOT moved. Look first at what the migrations changed that the platform applies — a role or database setting (2026-11-15: \`alter role service_role reset work_mem; notify pgrst, 'reload config';\`) — and at CloudWatch /silvicom/production."
+          echo "✗ after the migrations the API cannot read the database — production not moved. See the job log." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
       - name: Move production to the release
         run: |

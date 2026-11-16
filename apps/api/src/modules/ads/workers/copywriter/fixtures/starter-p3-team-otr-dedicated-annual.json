@@ -126,62 +126,63 @@
       "scene_family": "home_street"
     },
     "company_name": "Silvicom Inc",
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T00:10:19.279Z",
+    "recorded_at": "2026-11-15T21:31:33.565Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "Dedicated team runs",
-            "cta": "Join our team",
-            "primary_text": "Dedicated OTR for Class A teams at Silvicom Inc. Dry van, coast to coast. $95,000 to $110,000 per year. We keep good pairs together. Age 23+.",
-            "headline": "Dedicated OTR for teams",
-            "second_line": "Coast to coast"
+            "cta": "Apply today",
+            "primary_text": "Class A teams: dedicated OTR dry van, coast to coast, with Silvicom Inc. Pay runs $95,000 to $110,000 per year. We keep a good pair together.",
+            "headline": "Silvicom Inc: team drivers",
+            "second_line": "Up to $110,000/yr"
           },
           "es": {
             "hook": "Rutas dedicadas en equipo",
-            "cta": "Únete al equipo",
-            "primary_text": "OTR dedicado para equipos Clase A en Silvicom Inc. Carga seca, de costa a costa. De $95,000 a $110,000 por año. Aquí no separamos a un buen equipo. Mayores de 23.",
-            "headline": "OTR dedicado para equipos",
-            "second_line": "De costa a costa"
-          }
-        },
-        {
-          "en": {
-            "hook": "$95,000 to $110,000 a year",
-            "cta": "Apply today",
-            "primary_text": "Class A teams earn $95,000 to $110,000 per year at Silvicom Inc. Dry van, over the road, coast to coast. Late-model equipment. Ask about our referral bonus. Age 23+.",
-            "headline": "Up to $110,000 a year",
-            "second_line": "Dedicated OTR"
-          },
-          "es": {
-            "hook": "$95,000 a $110,000 al año",
             "cta": "Aplica hoy",
-            "primary_text": "Equipos Clase A ganan de $95,000 a $110,000 por año en Silvicom Inc. Carga seca, OTR, de costa a costa. Equipo de modelo reciente. Pregunta por el bono por referidos. Mayores de 23.",
-            "headline": "Hasta $110,000 al año",
-            "second_line": "OTR dedicado"
+            "primary_text": "Equipos Clase A: ruta dedicada OTR, dry van, de costa a costa, con Silvicom Inc. El pago va de $95,000 a $110,000 al año. Aquí no separamos una buena pareja.",
+            "headline": "Silvicom Inc busca equipos",
+            "second_line": "Hasta $110,000/año"
           }
         },
         {
           "en": {
-            "hook": "Late-model equipment",
+            "hook": "Dedicated, drop and hook",
             "cta": "Apply now",
-            "primary_text": "Silvicom Inc runs Class A teams on dedicated OTR dry van, coast to coast. Late-model equipment, drop and hook freight, and we do not split a good pair. Age 23+.",
+            "primary_text": "Drop and hook on dedicated runs, so your team keeps rolling. Dry van, coast to coast, in late-model equipment. At Silvicom Inc, a good pair stays together.",
             "headline": "Dry van, coast to coast",
-            "second_line": "Drop and hook"
+            "second_line": "$95,000-$110,000"
           },
           "es": {
-            "hook": "Equipo de modelo reciente",
+            "hook": "Dedicado, drop and hook",
             "cta": "Aplica ya",
-            "primary_text": "Silvicom Inc tiene equipos Clase A en OTR dedicado, carga seca de costa a costa. Equipo de modelo reciente, drop and hook, y no separamos a una buena pareja. Mayores de 23.",
-            "headline": "Carga seca de costa a costa",
-            "second_line": "Drop and hook"
+            "primary_text": "Drop and hook en rutas dedicadas, para que tu equipo siga rodando. Dry van de costa a costa, con equipo de modelo reciente. En Silvicom Inc no separamos una buena pareja.",
+            "headline": "Dry van de costa a costa",
+            "second_line": "$95,000-$110,000"
+          }
+        },
+        {
+          "en": {
+            "hook": "Dedicated OTR for teams",
+            "cta": "Call us today",
+            "primary_text": "Here is the run: dedicated OTR, dry van, coast to coast, in late-model equipment. Your team stays paired. Know a good team? Ask about the $1,500 referral bonus.",
+            "headline": "$1,500 referral bonus",
+            "second_line": "Late-model rigs"
+          },
+          "es": {
+            "hook": "OTR dedicado para equipos",
+            "cta": "Llámanos hoy",
+            "primary_text": "Así es la ruta: OTR dedicado, dry van, de costa a costa, con equipo de modelo reciente. Tu equipo sigue junto. ¿Conoces un buen equipo? Pregunta por el bono de referido de $1,500.",
+            "headline": "Bono de referido de $1,500",
+            "second_line": "Equipo reciente"
           }
         }
       ]

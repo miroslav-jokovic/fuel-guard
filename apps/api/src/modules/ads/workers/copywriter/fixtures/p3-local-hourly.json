@@ -75,56 +75,57 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:46:25.346Z",
+    "recorded_at": "2026-11-15T21:05:43.007Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "Home daily",
             "cta": "Apply today",
-            "primary_text": "Local Class A work that gets you home daily. You drive local and earn $31 per hour. If you hold a Class A CDL, apply today.",
-            "headline": "Class A local, $31/hour"
+            "primary_text": "Local Class A driving that gets you home daily. You run your shift, you sleep in your own bed, and you earn $31 per hour. Apply today and talk with us about the job.",
+            "headline": "$31/hour, Class A local"
           },
           "es": {
             "hook": "En casa todos los días",
             "cta": "Aplica hoy",
-            "primary_text": "Trabajo local con Clase A y en casa todos los días. Manejas local y ganas $31 por hora. Si tienes tu CDL Clase A, aplica hoy.",
-            "headline": "Local Clase A, $31 por hora"
+            "primary_text": "Manejo local con licencia Clase A y en casa todos los días. Haces tu turno, duermes en tu cama y ganas $31 por hora. Aplica hoy y habla con nosotros.",
+            "headline": "$31 por hora, Clase A"
           }
         },
         {
           "en": {
             "hook": "Home daily, $31 an hour",
-            "cta": "Start here",
-            "primary_text": "$31 per hour for local Class A driving. You finish your shift and you are home daily. Class A CDL holders, apply today.",
-            "headline": "Local Class A driver"
+            "cta": "Apply now",
+            "primary_text": "$31 per hour for Class A local work. The shift ends, you head home. Every day. If you hold a Class A and want local runs, apply now.",
+            "headline": "Class A local driver"
           },
           "es": {
-            "hook": "$31/hora, en casa diario",
-            "cta": "Empieza aquí",
-            "primary_text": "$31 por hora manejando local con Clase A. Terminas tu turno y estás en casa todos los días. Si tienes CDL Clase A, aplica hoy.",
+            "hook": "Diario a casa, $31/hora",
+            "cta": "Aplica ya",
+            "primary_text": "$31 por hora en trabajo local con Clase A. Termina el turno y te vas a casa, todos los días. Si tienes licencia Clase A y buscas rutas locales, aplica ya.",
             "headline": "Chofer local Clase A"
           }
         },
         {
           "en": {
-            "hook": "Local Class A. Home daily.",
-            "cta": "Apply now",
-            "primary_text": "Straight talk: this is a local Class A seat. It pays $31 per hour. You are home daily. If that works for you, apply now.",
-            "headline": "$31 per hour, local"
+            "hook": "Off shift, then home",
+            "cta": "Message us",
+            "primary_text": "Straight talk: this is a local Class A seat. You drive your shift, you're home after every one, and the pay is $31 per hour. No weeks on the road. Send us a message and we'll walk you through it.",
+            "headline": "Local Class A at $31/hour"
           },
           "es": {
-            "hook": "Ruta local, en casa diario",
-            "cta": "Aplica ya",
-            "primary_text": "Te lo digo claro: es un puesto local Clase A. Paga $31 por hora. Estás en casa todos los días. Si te sirve, aplica ya.",
-            "headline": "$31 por hora, local"
+            "hook": "Terminas y a casa",
+            "cta": "Escríbenos",
+            "primary_text": "Te lo digo claro: es un puesto local con Clase A. Manejas tu turno, después de cada uno estás en casa y pagamos $31 por hora. Nada de semanas en la carretera. Escríbenos y te explicamos.",
+            "headline": "Local Clase A, $31/hora"
           }
         }
       ]

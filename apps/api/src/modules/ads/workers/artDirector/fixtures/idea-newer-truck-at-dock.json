@@ -1,0 +1,104 @@
+{
+  "name": "idea-newer-truck-at-dock",
+  "about": "A planned campaign (V2c, prompt v6): the \"reefer-at-dock\" case with the idea the Strategist recorded — the equipment itself, on the loading-dock template. The picture should be of the idea, within the template.",
+  "input": {
+    "recipe": {
+      "name": "Fixture concept",
+      "hook_formula": "Lead with the figure.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 60
+        }
+      ],
+      "image_prompt_template": "Our refrigerated trailer backed up to a loading dock at {time_of_day}, {setting}",
+      "image_slots": [
+        "time_of_day",
+        "setting"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "formats": [
+        "4:5"
+      ],
+      "overlay_slots": null
+    },
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "phone": null,
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#0B3D2E"
+        }
+      ],
+      "logo": null,
+      "equipment_photos": [
+        {
+          "label": "white tractor, front three-quarter view, parked at the yard",
+          "asset": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "format": "jpeg",
+            "source_format": "jpeg",
+            "width": 4032,
+            "height": 3024,
+            "byte_size": 2400000
+          }
+        },
+        {
+          "label": "white tractor with a 53 ft dry van, side view",
+          "asset": {
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "format": "jpeg",
+            "source_format": "jpeg",
+            "width": 4032,
+            "height": 3024,
+            "byte_size": 2400000
+          }
+        },
+        {
+          "label": "reefer trailer, rear view, doors closed",
+          "asset": {
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "format": "jpeg",
+            "source_format": "jpeg",
+            "width": 4032,
+            "height": 3024,
+            "byte_size": 2400000
+          }
+        }
+      ],
+      "overlays": {},
+      "people_policy": "none",
+      "forbidden_marks": [
+        "Other Freight Co"
+      ]
+    },
+    "context": [
+      "reefer freight",
+      "local runs",
+      "lanes: Chicagoland store deliveries"
+    ],
+    "headline": null,
+    "idea": "Lead with the newer truck, parked and clean with the reefer trailer hooked up."
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "artDirector@6",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-15T20:17:22.935Z",
+    "output": {
+      "slots": {
+        "time_of_day": "first light, low sun raking across the dock under a pale lit sky",
+        "setting": "brick city grocery store receiving dock, wide empty swept concrete apron, low camera angle"
+      },
+      "reference_photo": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "focal_subject": "trailer",
+      "camera_distance": "medium"
+    }
+  }
+}

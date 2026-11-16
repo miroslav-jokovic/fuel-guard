@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   FORMAT_SIZE, overlaySlotList, publishedFormats, rankCandidates, withRegenerationClauses,
-  type AdAssetRef, type AdBrandKit, type AdBrief, type AdCandidates, type AdFormat, type AdPresetRecipe, type AdVisualCheck, type CreativeState,
+  type AdAssetRef, type AdBrandKit, type AdBrief, type AdCandidates, type AdFormat, type AdPresetRecipe, type AdVisualCheck, type CreativeState, type WriterAngle,
 } from "@silvicom/shared";
 import type { ClaudeGenerationDeps } from "../generations/claudeGeneration.js";
 import { stillParams } from "../creative/higgsfield/prices.js";
@@ -54,6 +54,12 @@ import { judgeFinishedAds } from "../workers/finishedAdJudge/finishedAdJudge.js"
  * and `passed_over` says why each better-ranked one was not used. Only when none fits does the creative stop,
  * and it has then cost no picture. Contrast is the picture's and is still judged at the overlay.
  *
+ * ── A PLANNED CAMPAIGN'S CREATIVE IS WRITTEN AND DRAWN FROM ITS ANGLE (V2c) ───────────────────────────
+ * `input.angle` is the idea of the approved plan's angle this preset was drawn for (`writerAngle`, found by the
+ * campaign's compose step). The Copywriter is handed the idea and its proof, the Art director the idea; nothing
+ * else here reads it. It adds no fact: the copy check and the art check are asked exactly as without it. A
+ * person's own words (Q-ADL7) are not rewritten from it, and the picture they keep is replayed, not redrawn.
+ *
  * ── THE RENDER STARTS FROM THE PHOTO THE CHECK COMPARES AGAINST (D-AD9, 2026-11-04) ─────────────────
  * The Art director's `reference` is one kit photo; the render is image-to-image from it (`render.ts`
  * uploads it once and names it in the model's image field) and the visual check compares the result with
@@ -85,6 +91,8 @@ export interface ComposeInput {
   maxRegenerations: number;
   /** `settings.budgets.candidates_per_creative` (CQ4); absent = the Copywriter's default. */
   candidates?: number;
+  /** The approved plan's idea for this preset (V2c); null or absent for a campaign that was not planned. */
+  angle?: WriterAngle | null;
   /** A person chose this creative's words (Q-ADL7): no copywriter, no judge, and the replaced creative's picture. */
   choice?: PersonChoice;
 }
@@ -132,7 +140,7 @@ export async function composeCreative(deps: ComposeDeps, input: ComposeInput): P
     return attempts(deps, input, ch.copy, candidates, stop);
   }
 
-  const written = await writeCopy(deps, { ...ids, attempt: 1, brief, recipe, company_name: input.kit.company_name, candidates: input.candidates });
+  const written = await writeCopy(deps, { ...ids, attempt: 1, brief, recipe, company_name: input.kit.company_name, candidates: input.candidates, angle: input.angle ?? null });
   if (written.kind === "in_flight") return { kind: "pending", why: "copy in flight" };
   if (written.kind === "refused") return stop({ kind: "stop", reason: `copy check: ${summarise(written.findings)}`, checks: { copy: { ok: false, findings: written.findings, by_candidate: written.byCandidate } } });
   if (written.kind !== "ready") return stop({ kind: "stop", reason: `copy: ${stopCode(written)}` });
@@ -217,7 +225,7 @@ async function oneAttempt(deps: ComposeDeps, input: ComposeInput, copy: AdCopy, 
   // nothing is asked again and nothing is paid twice (Q-ADL7). A regeneration after a failed check is a new picture.
   const reused = attempt === 1 && input.choice ? input.choice.replaced : null;
   const from = reused ? { ...ids, creativeId: reused.creativeId } : ids, fromAttempt = reused ? reused.attempt : attempt;
-  const art = await directArt(deps, { ...from, attempt: fromAttempt, recipe, kit, context: brief.subject_matter.details, headline: copy.en[recipe.overlay_slots!.headline] ?? null });
+  const art = await directArt(deps, { ...from, attempt: fromAttempt, recipe, kit, context: brief.subject_matter.details, headline: copy.en[recipe.overlay_slots!.headline] ?? null, idea: input.angle?.idea ?? null });
   if (art.kind === "in_flight") return { kind: "pending", why: `art ${attempt} in flight` };
   if (art.kind === "not_possible") return { kind: "stop", reason: `art: ${art.reason}` };
   if (art.kind === "refused") return { kind: "stop", reason: `art check: ${art.findings.map((f) => f.kind).join(", ")}` };

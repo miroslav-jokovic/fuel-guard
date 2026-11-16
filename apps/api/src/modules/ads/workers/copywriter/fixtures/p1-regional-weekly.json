@@ -76,56 +76,57 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:43:31.635Z",
+    "recorded_at": "2026-11-15T21:02:27.692Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "Dawn run, $0.68 a mile",
             "cta": "Apply today",
-            "primary_text": "You're in the seat as the sun comes up, and every mile pays $0.68. This is a Class A regional job, and you're home weekly. Apply today.",
-            "headline": "Regional, home weekly"
+            "primary_text": "You roll out at first light with a regional run ahead. As a Class A driver you earn $0.68 per mile, and you're home weekly. Apply today and talk with our team.",
+            "headline": "Class A regional driver"
           },
           "es": {
-            "hook": "Amanece: $0.68 por milla",
+            "hook": "Al alba, $0.68 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Vas al volante cuando sale el sol y cada milla paga $0.68. Es un puesto regional con licencia Clase A, y estás en casa cada semana. Aplica hoy.",
+            "primary_text": "Sales con la primera luz y una ruta regional por delante. Con tu licencia Clase A ganas $0.68 por milla y estás en casa cada semana. Aplica hoy y habla con nosotros.",
+            "headline": "Chofer regional Clase A"
+          }
+        },
+        {
+          "en": {
+            "hook": "Sunrise run, home weekly",
+            "cta": "Apply now",
+            "primary_text": "You start the week at sunrise on regional runs. You're home weekly, and you earn $0.68 per mile with your Class A. Apply now.",
+            "headline": "Regional runs, home weekly"
+          },
+          "es": {
+            "hook": "Amanece: en casa cada semana",
+            "cta": "Aplica ya",
+            "primary_text": "Empiezas la semana al amanecer en rutas regionales. Estás en casa cada semana y ganas $0.68 por milla con tu licencia Clase A. Aplica ya.",
             "headline": "En casa cada semana"
           }
         },
         {
           "en": {
-            "hook": "Dawn out, home weekly",
-            "cta": "Apply now",
-            "primary_text": "You roll out at first light, and you're home weekly. Regional Class A runs pay $0.68 per mile. Join our team.",
-            "headline": "$0.68 per mile, regional"
-          },
-          "es": {
-            "hook": "En casa cada semana",
-            "cta": "Aplica ya",
-            "primary_text": "Sales con la primera luz y estás en casa cada semana. Las rutas regionales Clase A pagan $0.68 por milla. Únete al equipo.",
-            "headline": "$0.68 por milla, regional"
-          }
-        },
-        {
-          "en": {
             "hook": "First light, $0.68 a mile",
-            "cta": "Apply here",
-            "primary_text": "Here it is plain: Class A regional. $0.68 per mile. Home weekly. You start at dawn, you know the pay, and you know when you're home. Apply here.",
-            "headline": "Class A regional drivers"
+            "cta": "Get started",
+            "primary_text": "Here's the job straight: Class A regional, $0.68 per mile, home weekly. You pull out at first light and run your route. If that fits you, get started today.",
+            "headline": "Class A regional runs"
           },
           "es": {
-            "hook": "Al alba: $0.68 por milla",
-            "cta": "Aplica aquí",
-            "primary_text": "Sin rodeos: regional Clase A. $0.68 por milla. En casa cada semana. Sales al amanecer, sabes lo que ganas y sabes cuándo llegas a casa. Aplica aquí.",
-            "headline": "Choferes Clase A"
+            "hook": "Primera luz, $0.68 la milla",
+            "cta": "Empieza hoy",
+            "primary_text": "Te lo digo directo: Clase A regional, $0.68 por milla y en casa cada semana. Sales con la primera luz y haces tu ruta. Si te sirve, empieza hoy.",
+            "headline": "Rutas regionales Clase A"
           }
         }
       ]

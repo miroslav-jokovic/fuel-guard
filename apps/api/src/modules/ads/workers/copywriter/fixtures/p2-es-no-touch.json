@@ -79,56 +79,57 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:44:24.068Z",
+    "recorded_at": "2026-11-15T21:03:23.882Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "pay": "$0.64 per mile",
+            "pay": "$0.64 a mile",
             "cta": "Apply today",
-            "primary_text": "$0.64 per mile for Class A dry van drivers. The freight is no-touch and the loads are drop and hook. You drive, you don't unload. Apply today.",
-            "headline": "Dry van, $0.64 a mile"
+            "primary_text": "$0.64 a mile for Class A dry van drivers. The freight is no-touch, and the trailers are drop and hook. You drive, and you get paid by the mile. Apply today.",
+            "headline": "Class A dry van drivers"
           },
           "es": {
             "pay": "$0.64 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "$0.64 por milla para choferes Clase A de caja seca. La carga es sin tocar y trabajas con drop and hook. Tú manejas, no descargas. Aplica hoy.",
-            "headline": "Caja seca: $0.64/milla"
+            "primary_text": "$0.64 por milla para choferes Clase A de caja seca. La carga es no-touch y los tráileres son drop and hook. Tú manejas y cobras por milla. Aplica hoy.",
+            "headline": "Choferes Clase A, caja seca"
           }
         },
         {
           "en": {
-            "pay": "$0.64 a mile",
+            "pay": "$0.64 per mile",
             "cta": "Apply now",
-            "primary_text": "Dry van, Class A. No-touch freight and drop and hook: you hook the trailer and head out on the road. We pay $0.64 per mile. Apply now.",
-            "headline": "No-touch freight"
+            "primary_text": "No-touch freight. You don't unload and you don't lift. Class A dry van at $0.64 a mile, with drop and hook trailers.",
+            "headline": "No-touch dry van freight"
           },
           "es": {
             "pay": "$0.64 la milla",
             "cta": "Aplica ya",
-            "primary_text": "Caja seca, Clase A. Carga sin tocar y drop and hook: enganchas el tráiler y te vas a la ruta. Pagamos $0.64 por milla. Aplica ya.",
-            "headline": "Carga sin tocar"
+            "primary_text": "Carga no-touch: tú no descargas ni levantas cajas. Caja seca Clase A a $0.64 por milla, con tráileres drop and hook.",
+            "headline": "Caja seca, carga no-touch"
           }
         },
         {
           "en": {
-            "pay": "$0.64/mile",
-            "cta": "Apply here",
-            "primary_text": "Here is the job. Class A, dry van. You get $0.64 per mile. You don't touch the freight. You drop one trailer, hook the next and roll. If that sounds right, apply here.",
-            "headline": "Class A dry van drivers"
+            "pay": "$0.64 every mile",
+            "cta": "Apply now",
+            "primary_text": "Here's the deal: $0.64 a mile, Class A dry van. You drop the trailer, hook the next one and roll. The freight is no-touch, so you drive and leave the unloading to someone else.",
+            "headline": "Drop and hook, no-touch"
           },
           "es": {
-            "pay": "$0.64/milla",
-            "cta": "Aplica aquí",
-            "primary_text": "Este es el trabajo. Clase A, caja seca. Ganas $0.64 por milla. No tocas la carga. Dejas un tráiler, enganchas el otro y sigues. Si te cuadra, aplica aquí.",
-            "headline": "Chofer de caja seca"
+            "pay": "$0.64 cada milla",
+            "cta": "Aplica ahora",
+            "primary_text": "Así es: $0.64 por milla, caja seca Clase A. Dejas el tráiler, enganchas el siguiente y sigues. La carga es no-touch: tú manejas, no descargas.",
+            "headline": "Drop and hook y no-touch"
           }
         }
       ]

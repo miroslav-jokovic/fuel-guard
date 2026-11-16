@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  PLAN_ANGLES_MIN, PLAN_FORMATS, PLAN_FORMATS_BUILT, campaignPlanSchema, checkPlan, distinctConcepts, evidencePackSchema, jobEvidence, planDraw, planFindingWords,
+  PLAN_ANGLES_MIN, PLAN_FORMATS, PLAN_FORMATS_BUILT, campaignPlanSchema, checkPlan, distinctConcepts, evidencePackSchema, jobEvidence, planDraw, planFindingWords, writerAngle,
   type CampaignPlan, type EvidencePack, type PlanAngle,
 } from "./campaignPlan.js";
 import type { AdBrief } from "./contracts.js";
@@ -188,5 +188,31 @@ describe("planDraw — a planned campaign's ads are the plan's angles, in the pl
     const twin = [preset("P9", "pay_first", "equipment_on_road"), ...presets];
     expect(planDraw("p", sound, twin, []).order[0]).toBe("v-P2");
     expect(planDraw("p", sound, [...twin].reverse(), []).order[0]).toBe("v-P2");
+  });
+});
+
+describe("writerAngle — the idea a preset's ad is written from", () => {
+  it("is the idea and the proof of the plan's angle with the preset's hook and scene, and nothing else of it", () => {
+    for (const a of sound.angles) expect(writerAngle(sound, { hook_family: a.hook_family, scene_family: a.scene_family })).toEqual({ idea: a.idea, proof: a.proof });
+    // Each angle's idea is its own: the three answers above are three different ideas.
+    expect(new Set(sound.angles.map((a) => writerAngle(sound, a)!.idea)).size).toBe(sound.angles.length);
+  });
+
+  it("is every preset the plan's draw makes: a drawn preset always has an angle", () => {
+    const presets = sound.angles.map((a, i) => ({ version_id: `v-${i}`, key: `P${i}`, enabled: true, hook_family: a.hook_family, scene_family: a.scene_family }));
+    const drawn = planDraw("p", sound, presets, []).order.map((id) => presets.find((p) => p.version_id === id)!);
+    expect(drawn).toHaveLength(sound.angles.length);
+    expect(drawn.map((p) => writerAngle(sound, p)?.idea)).toEqual(sound.angles.map((a) => a.idea));
+  });
+
+  it("is null for a preset the plan has no angle for: the hook alone, the scene alone, or no concept named", () => {
+    const [a, b] = sound.angles;
+    // Another angle's scene under this angle's hook, when that pairing is not itself an angle of the plan.
+    const crossed = { hook_family: a!.hook_family, scene_family: b!.scene_family };
+    expect(sound.angles.some((x) => x.hook_family === crossed.hook_family && x.scene_family === crossed.scene_family)).toBe(false);
+    expect(writerAngle(sound, crossed)).toBeNull();
+    expect(writerAngle(sound, { hook_family: a!.hook_family })).toBeNull();
+    expect(writerAngle(sound, { hook_family: null, scene_family: a!.scene_family })).toBeNull();
+    expect(writerAngle(sound, {})).toBeNull();
   });
 });

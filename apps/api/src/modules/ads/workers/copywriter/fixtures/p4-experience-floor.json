@@ -75,56 +75,57 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:48:53.770Z",
+    "recorded_at": "2026-11-15T21:08:09.550Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Tanker, $0.75/mile",
+            "hook": "Tanker, $0.75 a mile",
             "cta": "Apply today",
-            "primary_text": "Class A tanker driver wanted. You run a tanker and earn $0.75 per mile. You need 2 years of experience to apply.",
+            "primary_text": "You drive a tanker on your Class A. Pay is $0.75 per mile. You need 2 years of experience to start. Apply today.",
             "headline": "Class A tanker driver"
           },
           "es": {
-            "hook": "Tanque, $0.75/milla",
+            "hook": "Tanque, $0.75 la milla",
             "cta": "Aplica hoy",
-            "primary_text": "Buscamos chofer Clase A de tanque. Manejas un tanque y ganas $0.75 por milla. Necesitas 2 años de experiencia.",
+            "primary_text": "Manejas un tanque con tu licencia Clase A. Pagamos $0.75 por milla. Necesitas 2 años de experiencia. Aplica hoy.",
             "headline": "Chofer de tanque Clase A"
           }
         },
         {
           "en": {
-            "hook": "Tanker. Got 2 years?",
+            "hook": "$0.75 a mile on tanker",
             "cta": "Apply now",
-            "primary_text": "Got 2 years of experience behind the wheel? Put it to work in a Class A tanker. The pay is $0.75 per mile.",
-            "headline": "Put your 2 years to work"
+            "primary_text": "Tanker work at $0.75 per mile. If you hold a Class A and have 2 years of experience, this seat is yours to take. Apply now.",
+            "headline": "$0.75/mile tanker work"
           },
           "es": {
-            "hook": "Tanque. ¿Tienes 2 años?",
+            "hook": "$0.75 la milla en tanque",
             "cta": "Aplica ya",
-            "primary_text": "¿Tienes 2 años de experiencia manejando? Ponla a trabajar en un tanque Clase A. El pago es $0.75 por milla.",
-            "headline": "Pon tus 2 años a trabajar"
+            "primary_text": "Trabajo en tanque a $0.75 por milla. Si tienes licencia Clase A y 2 años de experiencia, el puesto es para ti. Aplica ya.",
+            "headline": "Tanque a $0.75 por milla"
           }
         },
         {
           "en": {
-            "hook": "Tanker seat open",
-            "cta": "Contact us",
-            "primary_text": "Straight talk: we have a Class A tanker that needs a driver. It pays $0.75 per mile. You need 2 years of experience. Apply and we will talk.",
-            "headline": "Tanker pays $0.75 a mile"
+            "hook": "Tanker, 2 years needed",
+            "cta": "Apply here",
+            "primary_text": "Straight talk: it is a Class A tanker seat. You bring 2 years of experience, we pay $0.75 per mile. Apply here.",
+            "headline": "Experienced tanker drivers"
           },
           "es": {
-            "hook": "Tanque disponible",
-            "cta": "Contáctanos",
-            "primary_text": "Directo: tenemos un tanque Clase A sin chofer. Paga $0.75 por milla. Necesitas 2 años de experiencia. Aplica y hablamos.",
-            "headline": "Tanque a $0.75 por milla"
+            "hook": "Tanque, 2 años mínimo",
+            "cta": "Aplica aquí",
+            "primary_text": "Te lo digo claro: es un puesto de tanque con Clase A. Traes 2 años de experiencia y pagamos $0.75 por milla. Aplica aquí.",
+            "headline": "Choferes de tanque Clase A"
           }
         }
       ]
