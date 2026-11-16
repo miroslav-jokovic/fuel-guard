@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { AD_FORMATS, AD_LOOKS, AD_OVERLAY_LAYOUTS, FORMAT_SIZE, contains, safeZone, type AdBrandKit, type AdFormat, type AdClaim, type AdLook, type AdOverlayLayout } from "@silvicom/shared";
-import { frameStill, overlayFit, renderOverlay, type OverlayInput } from "./overlay.js";
+import { motionTimeline, AD_FORMATS, AD_LOOKS, AD_OVERLAY_LAYOUTS, FORMAT_SIZE, contains, safeZone, type AdBrandKit, type AdFormat, type AdClaim, type AdLook, type AdOverlayLayout } from "@silvicom/shared";
+import { frameStill, overlayFit, renderMotionLayers, renderOverlay, type OverlayInput } from "./overlay.js";
 import { inkOn, LOOKS, paletteOf, SCRIM_STEPS } from "./overlayLooks.js";
 
 /**
@@ -377,5 +377,94 @@ describe("overlay renderer — it refuses rather than overflows or invents", () 
   it("a character the bundled faces cannot draw refuses instead of printing an empty box", async () => {
     const out = await renderOverlay(await input("1:1", { headline: "Earn $0.68/mile 🚚" }));
     expect(out.kind === "refused" && out.findings).toEqual([expect.objectContaining({ kind: "undrawable_character", label: "headline" })]);
+  });
+});
+
+describe("motion layers — the still taken apart (V4, Q-APX13)", () => {
+  type Layers = Extract<Awaited<ReturnType<typeof renderMotionLayers>>, { kind: "rendered" }>;
+  const layersOf = async (i: OverlayInput): Promise<Layers> => {
+    const out = await renderMotionLayers(i);
+    if (out.kind !== "rendered") throw new Error(JSON.stringify(out.findings));
+    return out;
+  };
+  const raw = (png: Buffer) => sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const together = async (i: OverlayInput, o: Layers, layers: Buffer[] = [o.under, ...o.words.map((w) => w.png)]) =>
+    sharp(await frameStill(i.base, i.format, i.layout ?? "bottom_plate")).composite(layers.map((layer) => ({ input: layer }))).png().toBuffer();
+  /** The largest difference of any channel of any pixel. */
+  async function worst(a: Buffer, b: Buffer): Promise<number> {
+    const [x, y] = await Promise.all([raw(a), raw(b)]);
+    expect([x.info.width, x.info.height]).toEqual([y.info.width, y.info.height]);
+    let most = 0;
+    for (let n = 0; n < x.data.length; n += 1) most = Math.max(most, Math.abs(x.data[n]! - y.data[n]!));
+    return most;
+  }
+  /** How many pixels of a layer are not transparent, inside the boxes and outside them. */
+  async function inked(png: Buffer, boxes: Array<{ x: number; y: number; width: number; height: number }>, reach = { x: 8, y: 40 }): Promise<{ inside: number; outside: number }> {
+    const { data, info } = await raw(png);
+    let inside = 0, outside = 0;
+    for (let y = 0; y < info.height; y += 1) for (let x = 0; x < info.width; x += 1) {
+      if (data[(y * info.width + x) * 4 + 3]! === 0) continue;
+      // A glyph's descender and its anti-aliased edge reach a little past the cap-height box the layout measures.
+      if (boxes.some((b) => x >= b.x - reach.x && x <= b.x + b.width + reach.x && y >= b.y - reach.y && y <= b.y + b.height + reach.y)) inside += 1; else outside += 1;
+    }
+    return { inside, outside };
+  }
+
+  it.each([...AD_LOOKS])("%s: the picture, the layer under the words and every words layer put back together are the still", async (look) => {
+    const i = await input("4:5", { look, headline: FIGURE_FIRST });
+    const o = await layersOf(i);
+    expect(o.look).toBe(look);
+    expect(o.still.equals((await rendered(i)).png)).toBe(true);
+    expect(await worst(await together(i, o), o.still)).toBeLessThanOrEqual(3);
+  });
+
+  it("without its words layers the frame is not the still: the words are in them and nowhere else", async () => {
+    const i = await input("4:5");
+    const o = await layersOf(i);
+    expect(await worst(await together(i, o, [o.under]), o.still)).toBeGreaterThan(48);
+    expect(await worst(await together(i, o, [o.under, o.words[0]!.png]), o.still)).toBeGreaterThan(48);
+  });
+
+  it("the headline arrives first and the supporting line after it; the equal-opportunity line and the phone are on every frame", async () => {
+    const o = await layersOf(await input("4:5"));
+    expect(o.words.map((w) => w.labels)).toEqual([["headline"], ["subline"]]);
+    const always = o.blocks.filter((b) => b.label === "eeo" || b.label === "phone");
+    expect(always.map((b) => b.label)).toEqual(["eeo", "phone"]);
+    expect((await inked(o.under, always.map((b) => b.box), { x: 0, y: 0 })).inside).toBeGreaterThan(200);
+    for (const w of o.words) expect((await inked(w.png, always.map((b) => b.box), { x: 0, y: 0 })).inside).toBe(0);
+  });
+
+  it("a kicker standing in for the second line is drawn under the headline and arrives after it", async () => {
+    const o = await layersOf(await input("4:5", { subline: null }));
+    const y = (label: string) => o.blocks.find((b) => b.label === label)!.box.y;
+    expect(y("kicker")).toBeGreaterThan(y("headline"));
+    expect(o.words.map((w) => w.labels)).toEqual([["headline"], ["kicker"]]);
+  });
+
+  it("number's figure and its words arrive together, as one group", async () => {
+    const o = await layersOf(await input("4:5", { look: "number", headline: FIGURE_FIRST }));
+    expect(o.words.map((w) => w.labels)).toEqual([["headline_figure", "headline"], ["subline"]]);
+  });
+
+  it("each words layer holds its own rows and is transparent everywhere else", async () => {
+    const o = await layersOf(await input("4:5"));
+    for (const w of o.words) {
+      const own = o.blocks.filter((b) => w.labels.includes(b.label)).map((b) => b.box);
+      const ink = await inked(w.png, own);
+      expect(ink.inside).toBeGreaterThan(500);
+      expect(ink.outside).toBe(0);
+    }
+  });
+
+  it("counts the characters read — a wrapped line's break as its space — and the timing rule takes the groups as they are", async () => {
+    const o = await layersOf(await input("4:5"));
+    expect(o.words.map((w) => w.chars)).toEqual(["Earn $0.68/mile and be home weekly".length, "Home weekly".length]);
+    const t = motionTimeline(o.words);
+    expect(t.ok && t.timeline.cues).toEqual([{ labels: ["headline"], from_ms: 0 }, { labels: ["subline"], from_ms: 1700 }]);
+  });
+
+  it("is refused exactly when the still is, with the same findings", async () => {
+    const i = await input("1:1", { headline: "Earn $0.68/mile 🚚" });
+    expect(await renderMotionLayers(i)).toEqual(await renderOverlay(i));
   });
 });

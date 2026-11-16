@@ -160,8 +160,13 @@ and which of them draws a truck that still looks like the carrier's truck is not
 The questions these open are Q-APX12 to Q-APX15.
 
 **Built 2026-11-16 (V4a):** the rule for when each line of a motion ad appears (`shared/ads/motionAd.ts`), pure
-and tested, read by nothing yet. Not built: the renderer's layers, the join, the clip request, the publisher's
-video road, the `video` kind in `CAMPAIGN_WORKERS`.
+and tested, read by nothing yet.
+
+**Built 2026-11-16 (V4b):** the renderer takes a still apart into a motion ad's layers (`renderMotionLayers`):
+everything but the timed words on one transparent layer, each group of words on its own. It is the still's own
+painting, so the picture and the layers put back together are the still to within 3 levels of 255 on every pixel,
+in all three looks. Not built: the join, the clip request, the sampled-frame check, the publisher's video road,
+the `video` kind in `CAMPAIGN_WORKERS`.
 
 **Done when:** a motion ad passes the contract suite on the fake, and Renderer and Publisher show L3 for
 `meta:video`.
