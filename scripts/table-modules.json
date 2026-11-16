@@ -3071,6 +3071,28 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "toll_transponder_assignments": {
+      "module": "tolls",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "TOLLS-PER-TRUCK-PLAN (0622): which truck carried a toll tag and when, one row per move typed by the office; bounded by tag swaps, a few a week across the fleet. Never deleted: tolls are attributed from this history at read time (D-TL3), so a deleted row would move money between trucks."
+      }
+    },
+    "toll_transponders": {
+      "module": "tolls",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "TOLLS-PER-TRUCK-PLAN (0622): one row per toll tag the fleet ever held (E-ZPass, K-TAG, ExpressToll), roughly one or two per truck, 211 active trucks on 2026-10-30. Never deleted: a retired tag's old tolls still name it."
+      }
+    },
     "trailers": {
       "module": "roster",
       "layer": "core",

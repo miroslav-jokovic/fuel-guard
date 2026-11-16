@@ -189,7 +189,7 @@ const previewTotal = (p: ImportPreview) =>
       </p>
 
       <FileDropzone
-        accept=".xlsx,.xls,.csv"
+        accept=".xlsx,.xls,.ods,.csv"
         multiple
         :busy="analyzing"
         busy-label="Reading files…"

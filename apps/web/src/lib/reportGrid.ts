@@ -77,7 +77,8 @@ export async function readPivotSheet(input: File | ArrayBuffer): Promise<Grid | 
 
 
 /**
- * Genuine Excel 97-2003 binary (BIFF8), which the carrier's daily Pilot price report actually is.
+ * Genuine Excel 97-2003 binary (BIFF8), which the carrier's daily Pilot price report actually is —
+ * and, since TOLLS-PER-TRUCK-PLAN TL3, an OpenDocument `.ods` too (`isOpenDocument`).
  *
  * This used to be a hard rejection telling the reader to open the file in Excel and re-save it — fine
  * for one file, and the reason ninety of them sat unimported. ExcelJS cannot read BIFF8 and Papa is
@@ -106,6 +107,20 @@ async function readLegacyXlsGrid(buf: ArrayBuffer): Promise<Grid> {
       return String(v);
     }),
   );
+}
+
+/**
+ * An OpenDocument spreadsheet (`.ods` — what Google Sheets and LibreOffice export) is a zip like
+ * `.xlsx`, so "PK" alone sent it to ExcelJS, which cannot read it. The spec puts an uncompressed
+ * `mimetype` entry holding `application/vnd.oasis.opendocument.spreadsheet` first in the archive, and
+ * the manifest names the same type — but not every writer follows the order (SheetJS's own writer puts
+ * the manifest first, measured 2026-11-16), so the type is looked for anywhere in the first 64 KB
+ * rather than at a fixed offset. An `.xlsx` never carries that string: its parts are deflated XML in
+ * Microsoft's namespaces. SheetJS reads it — the same lazy decoder as legacy `.xls`.
+ */
+const ODS_MIME = "application/vnd.oasis.opendocument.spreadsheet";
+export function isOpenDocument(buf: ArrayBuffer): boolean {
+  return new TextDecoder("latin1").decode(new Uint8Array(buf.slice(0, 64 * 1024))).includes(ODS_MIME);
 }
 
 /** Many fuel-price "reports" are an HTML <table> saved with an .xls extension. Parse the biggest table. */
@@ -138,7 +153,7 @@ function readCsvGrid(text: string): Grid {
  * Decode a fuel-price report into a raw cell grid, client-side, sniffing the ACTUAL format by magic
  * bytes rather than trusting the extension. Enterprise reports are routinely a `.xls` that is really an
  * HTML table (or CSV). Modern spreadsheets (.xlsx/.xlsm) go through ExcelJS; genuine legacy binary OLE
- * `.xls` goes through the vendored SheetJS build (see `vendor/sheetjs/README.md` for why it is
+ * `.xls` and OpenDocument `.ods` go through the vendored SheetJS build (see `vendor/sheetjs/README.md` for why it is
  * vendored rather than installed).
  */
 export async function readReportGrid(input: File | ArrayBuffer): Promise<Grid> {
@@ -147,7 +162,7 @@ export async function readReportGrid(input: File | ArrayBuffer): Promise<Grid> {
   const isZip = head[0] === 0x50 && head[1] === 0x4b; // "PK" → .xlsx/.xlsm
   const isOle = head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0; // legacy .xls
 
-  if (isZip) return readXlsxGrid(buf);
+  if (isZip) return isOpenDocument(buf) ? readLegacyXlsGrid(buf) : readXlsxGrid(buf);
   if (isOle) return readLegacyXlsGrid(buf);
 
   const text = new TextDecoder("utf-8").decode(buf);
