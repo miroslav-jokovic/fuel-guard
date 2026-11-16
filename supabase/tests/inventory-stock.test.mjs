@@ -28,6 +28,9 @@
 //       dispatcher — `maintenance: none` — sees nothing at all.
 //   12. 0525 (F12): a part carries FleetPal's id once per org and may say its unit is `unmapped`,
 //       so a renumbered FleetPal part updates in place and an unmappable unit is never a silent `each`.
+//   13. 0621 (F13): a FleetPal movement keeps the vendor's clock back to its location's
+//       `fleetpal_from`, never before it and never at another location (D-FP23, D-FP24), a person's movement keeps the 24-hour rule, and a FleetPal
+//       consumption is refused on an empty shelf like anybody's (D-INV26).
 //
 // Run:  node supabase/tests/inventory-stock.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -385,6 +388,58 @@ ok(
     (await one(`select fleetpal_unit as u from parts where org_id=$1 and fleetpal_id='fp-bbb'`, [ORG])).u === "disp",
 );
 ok("...and a unit outside the list is still refused", (await withFleetpal("FP-3", ORG, "fp-ccc", "bx")) === "23514");
+
+// ── 13. 0621 — FleetPal moves one shelf from its `fleetpal_from` forward (F13) ─────────────────────────
+// Each refusal is checked in its own call so one constraint cannot take the RESULT line with it.
+const FP_PART = await part("FP-SHELF-1");
+const fpMove = (hoursAgo, extra = {}) =>
+  move({ id: randomUUID(), partId: FP_PART, locationId: MAIN, reason: "received", quantity: 4, occurredAt: at(hoursAgo), source: "fleetpal", ...extra });
+ok(
+  "a FleetPal movement where no location follows FleetPal is refused with IV017 — no start, no backfill",
+  (await fpMove(1)).code === "IV017",
+);
+await db.query(`update stock_locations set fleetpal_from = now() - interval '72 hours' where id = $1`, [MAIN]);
+ok(
+  "...a second location in the same org cannot also follow FleetPal — one shelf, named, not a default",
+  (await attempt(`update stock_locations set fleetpal_from = now() where id = $1`, [ANNEX])) === "23505",
+);
+ok(
+  "...and a FleetPal movement at the location that does not follow it is IV017",
+  (await fpMove(1, { locationId: ANNEX })).code === "IV017",
+);
+ok(
+  "...a FleetPal receipt 48 hours old, after the shelf start, is accepted — the vendor's clock is not a phone's",
+  (await fpMove(48)).ok,
+);
+ok(
+  "...and it is marked as FleetPal's, so the ledger can say why the shelf moved",
+  (await one(`select count(*)::int as n from part_movements where part_id=$1 and source='fleetpal'`, [FP_PART])).n === 1,
+);
+ok("...but one dated before the shelf start is refused with IV017", (await fpMove(96)).code === "IV017");
+ok("...and one 30 hours in the future is still IV014", (await fpMove(-30)).code === "IV014");
+ok(
+  "a person's movement 48 hours old is still IV014 — the exemption is the vendor's only",
+  (await move({ id: randomUUID(), partId: FP_PART, locationId: MAIN, reason: "received", quantity: 1, occurredAt: at(48) })).code === "IV014",
+);
+ok("an unknown source is refused, not filed as a person's", (await fpMove(1, { source: "samsara" })).code === "IV015");
+const FP_EMPTY = await part("FP-SHELF-EMPTY");
+ok(
+  "a FleetPal consumption against an empty shelf is IV010 like anybody's (D-INV26)",
+  (await move({ id: randomUUID(), partId: FP_EMPTY, locationId: MAIN, reason: "issued", quantity: 2, occurredAt: at(1), source: "fleetpal" })).code === "IV010",
+);
+ok(
+  "...and leaves no ledger row behind it",
+  (await num(`select count(*)::int as n from part_movements where part_id=$1`, [FP_EMPTY])) === 0,
+);
+const FP_ID = randomUUID();
+const first = await move({ id: FP_ID, partId: FP_PART, locationId: MAIN, reason: "issued", quantity: 1, occurredAt: at(2), source: "fleetpal" });
+const again = await move({ id: FP_ID, partId: FP_PART, locationId: MAIN, reason: "issued", quantity: 1, occurredAt: at(2), source: "fleetpal" });
+ok(
+  "the same FleetPal movement twice is one movement — the sweep's retry is free (D-INV27)",
+  first.ok && again.ok && (await onHand(FP_PART)) === 3,
+  `on hand ${await onHand(FP_PART)}`,
+);
+ok("...and the projection still equals the ledger", (await onHand(FP_PART)) === (await ledgerSum(FP_PART)));
 
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

@@ -434,6 +434,10 @@ This is also what finally feeds `vehicles.next_pm_due_odometer` / `next_pm_due_a
 | **D-FP19** | **Equipment-type totals come from FleetPal, never from the ledger.** McLeod names the type on 4 of 15 maintenance accounts — $36,781.52 trailer, $3,808.35 truck, and **$178,711.61 (81.5%) equipment-blind** in July 2026, its largest account (Tires, $71,290.62) covering both. FleetPal attributes 100%: all 1,047 July jobs resolved to a tractor or a trailer. So "trucks versus trailers" is a FleetPal answer, the GL family is **not decomposable** by type, and no surface may present a split of it as though it were. The D-FP18 seam also differs by type — labour is 36.5% of trailer cost and 29.8% of tractor cost — so one fleet-wide labour percentage cannot correct it. | §2.3a, measured 2026-09-21 |
 | **D-FP17** | **`mcleod_ap_vouchers` has no expense dimension, so FleetPal supplies the classification.** `ap_glid` is the accounts-payable CONTROL account, not the expense account — measured on production 2026-09-21 it is `20000000` on 1,278 of 1,658 rows and null on the other 380, one distinct non-null value in the table. The expense distribution lives on voucher DETAIL rows this stack does not stage, so a voucher header cannot be filtered to the maintenance family at all. Every FleetPal invoice is against a maintenance purchase order, so a voucher matched by number IS maintenance spend on FleetPal's evidence. The integration supplies the dimension McLeod is missing — §2.2's sentence about per-unit cost, arriving again from the other direction. | F9b, measured |
 | **D-FP16** | **The invoice number is stored exactly as the vendor entered it.** No trim, no case fold, no zero-stripping, anywhere between the wire and the join. Every one of those is a normalisation that would be indistinguishable at read from a real match, and would turn D-FP15's stated bound back into the guess Q9 rejected. | 0351; F9a |
+| **D-FP23** | **FleetPal moves ONE named shelf, only from a start instant, never backwards.** `stock_locations.fleetpal_from` (0621; at most one location per org), set by an admin, ideally the morning after a count. Naming the location answers Q4 for both kinds without the "default location" the schema never had, and keeps the start on maintenance's side of D-FP2. A FleetPal movement dated before it raises IV017 *in the ledger function*, so no window bug can backfill. Measured 2026-11-16: one location, zero movements ever, zero non-zero shelf lines — replaying 1,936 receipt lines and 16,240 part lines from 2025 would print stock bolted onto trucks a year ago as on hand. D-FP11 already says the balance is a count. | F13, 2026-11-16 |
+| **D-FP24** | **A FleetPal movement keeps FleetPal's clock.** IV014's ±24 h rule guards a phone's date; a FleetPal row's `occurred_at` is the vendor's `created`. It may be any age back to `fleetpal_from` and is still refused >24 h in the future. Otherwise a sweep outage over a day loses receipts, or tempts a caller to stamp them `now()`. `part_movements.source = 'fleetpal'` marks the row (0621); a null actor cannot, because it also means a removed member. | F13, 2026-11-16 |
+| **D-FP25** | **A FleetPal line the shelf cannot take is reported and retried, never forced.** D-INV26 holds for FleetPal: a consumption against an empty shelf is IV010. The sweep re-offers every receipt and part line from the last **7 days** (bounded by `fleetpal_from`) each hour — the derived movement id makes a re-offer free — so a part used before its receipt was swept lands once the receipt does. Older refusals are a counting problem, and a count fixes them. | F13, 2026-11-16 |
+| **D-FP26** | **What F13 does not write, measured 2026-11-16.** A fractional quantity (592 of 16,240 part lines, gallons) — the shelf is whole units. A part line with no catalogue part (24 of 661 in 30 days: the VENDOR_HIDDEN quote lines F12 skips). A receipt's supplier: `vendor_location` joins **0 of 4,416** purchase orders to `fleetpal_vendors` and the API has no vendor-location endpoint, so `supplier` stays null and the note carries the PO reference. With no location carrying `fleetpal_from`, nothing moves and the sweep says so. | F13, 2026-11-16 |
 
 ---
 
@@ -834,12 +838,12 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 | Q8 | Does FleetPal hold enough history to be worth a backfill, and from when? | **Yes — from 2025-01-01.** 5,264 of 5,295 work orders are completed, the earliest on 2025-01-01, 3,008 in 2025 and 2,256 in 2026. A full walk is 21 months. Measured F4, 2026-09-21. | — |
 | **Q4** | Which stock location does an ingested movement land in when an org has more than one? | **(c) for receipts, (a) for consumption** — the plan's own recommendation, ruled by the owner on **2026-09-21**. A receipt has a real physical destination and guessing it puts stock on the wrong shelf, so it waits for a shop→location mapping; a consumption is a decrement whose location matters less than its existence, so it lands in the org's default location with the row labelled FleetPal-sourced. **Unblocks F13.** | D-FP12, D-FP13 |
 | **Q9** | With `Vendor.code` populated on 1 of 761 vendors (F4), how does the coverage ratio join FleetPal invoices to `mcleod_ap_vouchers`? | **(a), stated as a bound** — ruled by the owner on **2026-09-21**. The join is on the invoice number ALONE and the answer is reported as "at least X%", said in those words on the page and not only in a tooltip. (b)'s normalised vendor-name comparison is the same class of guess D-FS5 bans for McLeod's free-text units, and (c) is right but waits on somebody outside this repo — nothing stops it happening later, and a populated `code` upgrades this to an exact figure with no code change beyond the join. **Unblocks F9.** | D-FP4, D-FP15 |
+| **Q10** | A weekly bucket has no coverage bound of its own — the GL is monthly. What does a weekly row print? | **(a)** — the containing month's bound, labelled as the month's. Taken on **2026-11-16** when the owner said to proceed with building the plan's remaining steps; (a) was the plan's recommendation and the text of F9d already. | F9d |
 
 ### 6.2 Open
 
 | # | Question | Candidates | Recommendation |
 |---|---|---|---|
-| **Q10** | A weekly bucket has no coverage bound of its own — the GL is monthly. What does a weekly row print? | (a) inherit the containing month's bound, labelled as the month's; (b) print no bound on a weekly row and show it only on the month header; (c) refuse weekly buckets entirely and offer month/year only | **(a).** D-FP4 says cost never appears without its ratio, and (b) puts a cost figure on a row with no ratio on it — the exact shape the rule forbids, rescued only by the reader looking up. (c) throws away the bucket a shop manager actually uses. The label is what makes (a) honest: "at least X% — July", on a row covering one week of July. **Blocks F9d only** |
 
 ### 6.3 Assumptions — each retired by the step that needs it
 
@@ -1807,3 +1811,19 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   390 and 834 px with zero console errors (`docs/plans/maintenance/screenshots/m3-*.png`). Open:
   nothing reads `vehicles.next_pm_due_*` yet — the Vehicles list is the obvious first reader, in its
   own PR.
+- **2026-11-16 · F13a — migration 0621 (`claude/fleetpal-f13-receipts`).** The owner asked to build
+  the plan's remaining steps (F13, F9d, F14, F15). Measured production first, and it changed F13's
+  shape: **one** active stock location, **zero** movements ever recorded, **zero** non-zero shelf
+  lines, 3,624 FleetPal parts in the catalogue; 661 part lines in the last 30 days (117 distinct
+  parts, 637 of them in the catalogue), 592 of 16,240 part lines fractional; 223 purchase-order part
+  lines in 30 days, all in the catalogue; `vendor_location` matches **0 of 4,416** POs to a staged
+  vendor. As written, F13 could not work against `record_part_movement`: IV014 refuses anything over
+  24 h old, and IV010 refuses every consumption on a shelf nobody has counted. Hence **D-FP23–D-FP26**.
+  The start instant first went on `fleetpal_credentials`; `lint:table-writers` refused a maintenance
+  function reading the collector's table, and moving it to `stock_locations.fleetpal_from` (one per
+  org) also answered which location FleetPal moves — Q4's "default location" names a column that never
+  existed. 0621 adds `part_movements.source`, `stock_locations.fleetpal_from` and IV017, and restates the ledger function with the FleetPal
+  clock branch. Pinned in `supabase/tests/inventory-stock.test.mjs` rule 13 — thirteen assertions;
+  four mutations of the migration (no `fleetpal_from` bound, no person's 24 h rule, `source` not
+  written, unknown source accepted) each turn at least one red. The sweep that writes through it
+  ships in the next merge (F13b), after `migrate-staging` applies this. **Q10** taken as (a).
