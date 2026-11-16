@@ -29,12 +29,20 @@ const summary = computed(() =>
     <div class="flex h-2.5 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
       <span v-for="i in items.filter((x) => x.value > 0)" :key="i.key" class="block h-full" :style="{ width: `${pct(i.value)}%`, backgroundColor: i.color }" /> <!-- token-check-disable-line: token-resolved chart color -->
     </div>
-    <ul class="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-xs" :aria-label="summary">
-      <li v-for="i in items" :key="i.key" class="flex items-center gap-1.5">
-        <span class="size-2 shrink-0 rounded-detail" :style="{ backgroundColor: i.color }" aria-hidden="true" /> <!-- token-check-disable-line: token-resolved chart color -->
-        <span class="text-ink-muted">{{ i.label }}</span>
-        <span class="font-semibold tabular-nums text-ink">{{ i.valueLabel }}</span>
-        <span class="tabular-nums text-ink-tertiary">· {{ pct(i.value) }}%</span>
+    <!-- One column per part, the name over its figure (SMALL-SCREENS-PLAN.md D-SM14, 2026-11-16).
+         The flowing row this replaced put Reefer, its dollars and its share alone on a second line at 390 px, so
+         the third share read as an afterthought and the three figures stood at three different x's.
+         Columns keep every part on one line at any width the card has. -->
+    <ul class="mt-2.5 grid gap-x-3 text-xs" :style="{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }" :aria-label="summary">
+      <li v-for="i in items" :key="i.key" class="min-w-0">
+        <span class="flex items-center gap-1.5 text-ink-muted">
+          <span class="size-2 shrink-0 rounded-detail" :style="{ backgroundColor: i.color }" aria-hidden="true" /> <!-- token-check-disable-line: token-resolved chart color -->
+          {{ i.label }}
+        </span>
+        <span class="mt-0.5 block truncate tabular-nums">
+          <span v-if="i.valueLabel" class="font-semibold text-ink">{{ i.valueLabel }}</span>
+          <span class="text-ink-tertiary">{{ i.valueLabel ? " · " : "" }}{{ pct(i.value) }}%</span>
+        </span>
       </li>
     </ul>
   </div>

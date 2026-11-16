@@ -250,6 +250,22 @@ export function reportableMpg(period: { mpg: number | null; mpgUsable: boolean }
 }
 
 /**
+ * A fleet MPG as a person reads it: ONE decimal.
+ *
+ * `computeFleetMpg` keeps two decimals because a refusal gate and a delta are computed from it, and
+ * that is right for arithmetic. It is wrong for a screen. The numerator this figure divides is
+ * measured to within a few percent and no better — `fuel_spend_days.miles` ran 3.78% ahead of IFTA in
+ * August 2026 (D-MPG2) — which is ±0.2 MPG on a 7 MPG fleet, so the second decimal is noise printed
+ * as if it were measured. It also made one card disagree with itself: the Fleet overview read
+ * "6.62 MPG … vs 6.95" beside a pill reading "↓ 0.3", because `deltaLabel` already printed one
+ * decimal (SMALL-SCREENS-PLAN.md D-SM13, 2026-11-16). The Fuel log's Avg MPG tile was already one
+ * decimal; this is that rule given a name so the next surface does not pick its own.
+ */
+export function formatFleetMpg(mpg: number): string {
+  return mpg.toFixed(1);
+}
+
+/**
  * Tractor fuel cost per mile (FS2, D-FSV4): the price actually paid per gallon ÷ the fleet MPG.
  *
  * ── WHY NOT `spend ÷ miles`, WHICH IS WHAT D-FSV4 SAYS IN WORDS ───────────────────────────────

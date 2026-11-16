@@ -7,6 +7,7 @@ import {
   computeFleetMpg,
   computeSubjectMpg,
   reportableMpg,
+  formatFleetMpg,
   mileageDivergence,
   type FleetMpgInputs,
   type SubjectFill,
@@ -296,5 +297,13 @@ describe("fuelCostPerMile", () => {
     expect(fuelCostPerMile(3.9, { mpg: null })).toBeNull();
     expect(fuelCostPerMile(null, { mpg: 6.5 })).toBeNull();
     expect(fuelCostPerMile(3.9, { mpg: 0 })).toBeNull();
+  });
+});
+
+describe("formatFleetMpg", () => {
+  it("prints a fleet MPG with one decimal, which is all its measured miles can carry", () => {
+    expect(formatFleetMpg(6.62)).toBe("6.6");
+    expect(formatFleetMpg(7)).toBe("7.0");
+    expect(formatFleetMpg(6.96)).toBe("7.0");
   });
 });

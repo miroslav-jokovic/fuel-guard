@@ -14,20 +14,20 @@
 import { computed } from "vue";
 import { GaugeIcon } from "@silvicom/ui/icons";
 import { AppDelta } from "@silvicom/ui";
-import { deltaLabel, deltaTone } from "@silvicom/shared";
+import { deltaLabel, deltaTone, formatFleetMpg } from "@silvicom/shared";
 import ChartCard from "@/components/ui/ChartCard.vue";
 import CountList from "@/components/ui/CountList.vue";
 import { useOpsFuelRows } from "./useOpsFuelRows";
 
 const { mpgTotal, mpgPrevious, deltas, previousLabel, previousPhrase, rangeLabel, rows } = useOpsFuelRows();
 
-const readout = computed(() => (mpgTotal.value?.mpg != null ? `${mpgTotal.value.mpg} MPG` : "—"));
+const readout = computed(() => (mpgTotal.value?.mpg != null ? `${formatFleetMpg(mpgTotal.value.mpg)} MPG` : "—"));
 const delta = computed(() => {
   const d = deltas.value.mpg;
   return d ? { direction: d.direction, tone: deltaTone(d, true), label: deltaLabel(d, "abs"), against: previousLabel.value } : null;
 });
 const caption = computed(() =>
-  mpgPrevious.value?.mpg != null ? `fleet MPG · vs ${mpgPrevious.value.mpg} ${previousPhrase.value}` : "fleet MPG",
+  mpgPrevious.value?.mpg != null ? `fleet MPG · vs ${formatFleetMpg(mpgPrevious.value.mpg)} ${previousPhrase.value}` : "fleet MPG",
 );
 </script>
 

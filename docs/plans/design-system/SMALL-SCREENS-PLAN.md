@@ -122,6 +122,15 @@ Read before the build, and each one changed the design:
   strip of the board's four figures first; then a "Needs action" card listing the non-zero ALARM
   rows of every card the reader may see, largest first; then the area cards, packed by their own
   height instead of stretched. How zero rows are drawn waits on Q-SM1.
+- **D-SM13 (2026-11-16, owner: "proceed as recommended"): Fleet MPG is one bar per week, and a week
+  says how long it is.** Bars from zero with the figure written on each; last period's FULL weeks as
+  a grey band behind them; a part-week (clamped by the picked dates or by the roll-up's reach) drawn
+  pale, named under the plot with its days, and kept out of the band. Every fleet MPG on a card
+  prints ONE decimal (`formatFleetMpg`). Weeks stay calendar weeks, Monday first — `periodBounds`
+  says why, and Ask AI reads the same series. Fuel spend keeps its daily bars (DR3).
+- **D-SM14 (2026-11-16): a card's door goes to its footer when the card is narrow.** `ChartCard`'s
+  `#door` slot sits beside the title from 24rem of card, and in a footer below that; the composition
+  legend (`ShareBar`) is one column per part, so no share wraps alone onto a second line.
 
 ## 5. Open questions
 
@@ -413,3 +422,31 @@ Table layout at desk widths. New data on any card.
   - **Still open:** the shop on a real tablet; the four A3 lists with real rows on production; the
     chat dialogs and the row-opened drawers after #2442 releases. **Not built:** the header sentence
     above the Operations strip, the contract's general tile-grid rule, a stubbed every-read-empty pass.
+- **2026-11-16, Fleet overview charts, D-SM13 and D-SM14** (branch `claude/fleet-mpg-weekly-bars`).
+  The owner: the Fleet overview's graphs were unchanged after phase B, weekly MPG "has some issues
+  with numbers", and the charts are a desktop design squeezed onto phones and mid widths. Phase B had
+  fixed their SIZE (D-SM9…D-SM11); the shapes in `B-charts.png` were never built, and the plan never
+  said so.
+  - **Measured, production's rollup (read-only, `fuel_spend_days`, 2026-09-12 → 11-15):** every
+    Sunday read 5.8–7.0 MPG and every Monday 7.3–9.6 (weekend fills stock the week). The default
+    range on 11-16 opened on a Saturday, so its first calendar bucket was Sat–Sun and read 6.30
+    between full weeks of 6.96–7.17; the previous range's band took in two five-day stubs. The line
+    drew both as full weeks. The card also printed "6.62 MPG … vs 6.95" beside a "↓ 0.3" pill.
+  - **Built:** `mpgWeeks.ts` (day count, full vs part, band of full weeks only, the note under the
+    plot); `EfficiencyWidget` as bars from zero with the figure on each (`lib/chartMarks.ts`), the
+    band behind them, part-weeks pale; `formatFleetMpg` in shared, also used by the Operations fuel
+    card. The empty card says its sentence once (the readout row's dash is gone). `ChartCard#door`
+    and the `ShareBar` columns (D-SM14) on Fuel spend, Fleet MPG and Biggest savings.
+  - **Found in the browser pass, fixed:** the band drew nowhere at first — Chart.js keeps the plugin
+    list a chart was built with, and the band was closed over while the previous period's read had
+    not answered. It now rides in the chart's options (`valueBand`).
+  - **Not changed, on purpose:** calendar weeks, Monday first (`periodBounds`; Ask AI reads the same
+    series) — the fix is to say a week is short, not to cut weeks differently. Fuel spend stays daily
+    bars (DR3). The server is untouched.
+  - **Also fixed on the card:** `fleetMpgWindowNote` and the window's refusal printed ISO days
+    ("Measured to 2026-11-15, not 2026-11-16") — now MM/DD/YYYY; the caption no longer repeats
+    "measured to 11/15" when that sentence is on the card. Measured at 390 / 1024 / 1440 px on
+    staging's own answers replayed into the build (MPG weeks patched to production's shape): no
+    sideways scroll, each door shown once, the band behind the bars.
+  - **Seen, not changed — staging data:** staging's Fuel spend reads "Idle 56,669 dollars · 100%"
+    against 1,929 dollars of spend (five fills, a year of idle hours). Not checked on production yet.
