@@ -171,9 +171,16 @@ in all three looks.
 job, and the join (`creative/motion/motionJoin.ts`): the model's clip, the layers and the still become one MP4 —
 H.264, 1080 × 1350, 30 frames a second with every frame the same length, a silent stereo AAC track, no edit list,
 the index in front. Later words fade in and rise 24 px over 0.3 s; the motion's last frame dissolves into the
-approved still over 0.4 s. Not built: the clip request (Q-APX12 waits on the Higgsfield key), the check of the
-frames before the last (matters for `photo`), the publisher's video road, the `video` kind in `CAMPAIGN_WORKERS`,
-the player on the review screen.
+approved still over 0.4 s.
+
+**Built 2026-11-16 (V4d):** how a clip is asked of each of Q-APX12's three candidates, from each model's own page
+(`creative/higgsfield/videoModels.ts`): the first frame, five seconds, sound turned off in that model's own field,
+and never a shape — none of the three can be asked for 4:5, so the picture is cut to the frame before it is sent.
+Five seconds is $0.19 (Wan 3.0, a floor), $0.40 (Seedance 2.0, a floor) and $0.54 (Kling 3.0 Standard) at the
+page's figures. No model is chosen. **Open with Q-AD20:** the settings' monthly budget is in Higgsfield credits and
+the pricing page speaks in dollars; how one becomes the other is read from the owner's account. Not built: sending
+the request (`render.ts` stores images only), the check of the frames before the last (matters for `photo`), the
+publisher's video road, the `video` kind in `CAMPAIGN_WORKERS`, the player on the review screen.
 
 **Done when:** a motion ad passes the contract suite on the fake, and Renderer and Publisher show L3 for
 `meta:video`.
