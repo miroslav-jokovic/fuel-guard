@@ -90,8 +90,7 @@ describe("resolveFleetMpgWindow", () => {
 describe("fleetMpgWindowNote", () => {
   it("names both days, because a reader needs to know what was swapped for what", () => {
     const note = fleetMpgWindowNote({ partial: true, to: "2026-09-15", requestedTo: "2026-09-21" });
-    expect(note).toMatch(/2026-09-15/);
-    expect(note).toMatch(/2026-09-21/);
+    expect(note).toContain("Measured to 09/15/2026, not 09/21/2026");
   });
 
   it("is null for a whole window, so a surface can render it unconditionally", () => {

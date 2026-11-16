@@ -108,7 +108,7 @@ const slices = computed(() => {
   >
     <!-- The fills live on the Fuel log (FUEL-C2); `/transactions` is a compatibility redirect and a
          door should name where the thing is. -->
-    <template #meta><DoorLink to="/fuel-log?tab=fills">Fuel log</DoorLink></template>
+    <template #door><DoorLink to="/fuel-log?tab=fills">Fuel log</DoorLink></template>
     <template #beside-readout><AppDelta v-if="delta" v-bind="delta" /></template>
 
     <template v-if="canSeeMoney">

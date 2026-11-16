@@ -46,6 +46,8 @@
  */
 
 /** A calendar day, `YYYY-MM-DD`. Compared as a string throughout — ISO days sort correctly. */
+import { formatDisplayDate } from "../displayDate.js";
+
 type Ymd = string;
 
 /**
@@ -132,7 +134,7 @@ export function resolveFleetMpgWindow(
       to: fuelThrough,
       partial: true,
       refusal:
-        `The daily fuel roll-up only reaches ${fuelThrough}, which is ${Math.round(covered * 100)}% of the period asked for. ` +
+        `The daily fuel roll-up only reaches ${formatDisplayDate(fuelThrough)}, which is ${Math.round(covered * 100)}% of the period asked for. ` +
         "A figure measured over what is left would be accurate and would be about a different fortnight, " +
         "which is worse than no figure — it is the roll-up that needs attention, not the fleet.",
     };
@@ -153,5 +155,7 @@ export function fleetMpgWindowNote(w: {
   requestedTo: Ymd;
 }): string | null {
   if (!w.partial) return null;
-  return `Measured to ${w.to}, not ${w.requestedTo} — the daily fuel roll-up has not reached the end of this period yet.`;
+  // MM/DD/YYYY, the one date a person reads in this product — the raw ISO day printed here until
+  // 2026-11-16 was the only YYYY-MM-DD on the Fleet overview (SMALL-SCREENS-PLAN.md D-SM13).
+  return `Measured to ${formatDisplayDate(w.to)}, not ${formatDisplayDate(w.requestedTo)} — the daily fuel roll-up has not reached the end of this period yet.`;
 }

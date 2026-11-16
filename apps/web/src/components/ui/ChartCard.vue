@@ -55,6 +55,13 @@ withDefaults(
         </div>
       </div>
       <div v-if="$slots.meta" class="shrink-0"><slot name="meta" /></div>
+      <!-- `#door` — the card's link to its page — sits here beside the title on a card of 24rem
+           and up. Below that it goes to the card's footer instead (the copy at the end): left under
+           the subtitle, as D-SM10 had it, "Driver performance →" stood as a line of its own between
+           the description and the figure, and the figure is what a phone reader came for
+           (SMALL-SCREENS-PLAN.md D-SM14, 2026-11-16). `hidden` is `display: none`, so the copy not
+           shown is out of the tab order and the accessibility tree — a reader meets one link. -->
+      <div v-if="$slots.door" class="hidden shrink-0 @sm:block"><slot name="door" /></div>
     </div>
 
     <!--
@@ -78,5 +85,9 @@ withDefaults(
     </div>
 
     <slot />
+
+    <div v-if="$slots.door" class="mt-4 flex justify-end border-t border-edge-subtle pt-3 empty:hidden @sm:hidden" data-test="card-door-footer">
+      <slot name="door" />
+    </div>
   </BaseCard>
 </template>

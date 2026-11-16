@@ -33,7 +33,7 @@ const opportunities = useFuelOpportunitiesQuery(computed(() => ({ from: props.ra
     tone="success"
     class="h-full"
   >
-    <template #meta><DoorLink to="/fuel-spend">Fuel costs</DoorLink></template>
+    <template #door><DoorLink to="/fuel-spend">Fuel costs</DoorLink></template>
     <FuelOpportunitiesStrip
       variant="card"
       :rows="opportunities.data.value"
