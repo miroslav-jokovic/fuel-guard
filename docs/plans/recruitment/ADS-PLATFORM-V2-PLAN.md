@@ -313,7 +313,8 @@ is 100%."*** Taken as:
     Holding the whole rule there is a migration after the release that carries this change, per
     MIGRATION-DISCIPLINE §the-deploy-window.
 - **The copy rating page is rebuilt** from the `copywriter@5` recordings (taken from "proceed as recommended":
-  the recommendation was to rebuild if rating had not started).
+  the recommendation was to rebuild if rating had not started). Done 2026-11-15: both of the page's stores read
+  empty before it was replaced; details in ADS-CREATIVE-QUALITY-PLAN §8.
 - **The staging walk waits** until the feature is complete; nothing is switched on for staging before then.
 
 ## 6. Open, in one place
