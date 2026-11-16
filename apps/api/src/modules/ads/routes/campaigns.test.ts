@@ -217,6 +217,33 @@ describe("GET /api/ads/campaigns(/:id) — the list and the review screen's read
     expect(db.storageCalls()).toEqual([{ bucket: "ad-assets", fn: "createSignedUrls", args: [[`${ORG}/a.png`], 600] }]);
   });
 
+  it("an ad chosen from several pictures also gets a link to the one image kept of each pairing — in this carrier's folder, asked for once", async () => {
+    await call("POST", "campaigns", ask());
+    const asset = { format: "4:5", language: "en", sha256: "a".repeat(64), width: 1080, height: 1350 };
+    const picture = (n: number) => ({ picture: n, attempt: 1, reference: null, focal_subject: "tractor", camera_distance: "medium", dropped: null });
+    const preview = (path: string) => ({ sha256: "b".repeat(64), path, width: 1080, height: 1350 });
+    tables.ads_creatives = [{
+      id: "c1", org_id: ORG, campaign_id: NEW_ID, state: "ready", created_at: "2026-11-04T10:01:00Z", assets: [{ ...asset, path: `${ORG}/a.png` }],
+      pairings: {
+        format: "4:5", pictures: [picture(1), picture(2)], chosen: 0, judge: null,
+        // The winner's kept image is the ad's own 4:5 English image; one rival's sits outside the folder; one has none.
+        ranked: [
+          { picture: 1, words: 0, judged: null, total: null, preview: preview(`${ORG}/a.png`) },
+          { picture: 2, words: 0, judged: null, total: null, preview: preview(`${ORG}/rival.png`) },
+          { picture: 2, words: 1, judged: null, total: null, preview: preview(`${OTHER}/theirs.png`) },
+          { picture: 1, words: 1, judged: null, total: null, preview: null },
+        ],
+      },
+    }];
+    const body = (await (await call("GET", `campaigns/${NEW_ID}`)).json()) as { campaign: { creatives: Array<{ pairings: { ranked: Array<{ preview: { url: string | null; path: string } | null }> } }> } };
+    expect(body.campaign.creatives[0]!.pairings.ranked.map((r) => (r.preview ? r.preview.url : "none"))).toEqual([`https://store/${ORG}/a.png?token=t`, `https://store/${ORG}/rival.png?token=t`, null, "none"]);
+    expect(db.storageCalls()).toEqual([{ bucket: "ad-assets", fn: "createSignedUrls", args: [[`${ORG}/a.png`, `${ORG}/rival.png`], 600] }]);
+    // An ad made from one picture has no pairings, and says so with null.
+    tables.ads_creatives = [{ id: "c2", org_id: ORG, campaign_id: NEW_ID, state: "ready", created_at: "2026-11-04T10:01:00Z", assets: [{ ...asset, path: `${ORG}/a.png` }], pairings: null }];
+    const plain = (await (await call("GET", `campaigns/${NEW_ID}`)).json()) as { campaign: { creatives: Array<{ pairings: unknown }> } };
+    expect(plain.campaign.creatives[0]!.pairings).toBeNull();
+  });
+
   it("an image storage could not sign gets no link, and the others keep theirs", async () => {
     await call("POST", "campaigns", ask());
     const asset = { format: "1:1", language: "en", sha256: "a".repeat(64), width: 1080, height: 1080 };

@@ -94,14 +94,19 @@ const IMAGE_URL_SECONDS = 600;
  * outside this org's folder gets none: the service role would sign anything it is asked, so the folder is checked here.
  */
 async function withImageUrls(admin: SupabaseClient, orgId: string, creatives: AdsCreativeView[]): Promise<AdsCreativeView[]> {
-  const ours = [...new Set(creatives.flatMap((c) => (c.assets ?? []).map((a) => a.path)))].filter((p) => p.startsWith(`${orgId}/`));
+  // The finished ad's images, and the one image kept of each pairing it was chosen from (V3, Q-APX9).
+  const previews = (c: AdsCreativeView) => (c.pairings?.ranked ?? []).flatMap((r) => (r.preview ? [r.preview.path] : []));
+  const ours = [...new Set(creatives.flatMap((c) => [...(c.assets ?? []).map((a) => a.path), ...previews(c)]))].filter((p) => p.startsWith(`${orgId}/`));
   const urls = new Map<string, string>();
   if (ours.length > 0) {
     const { data, error } = await admin.storage.from(AD_ASSETS_BUCKET).createSignedUrls(ours, IMAGE_URL_SECONDS);
     if (error) throw new Error(`ad-assets links: ${error.message}`);
     for (const d of data ?? []) if (d.path && d.signedUrl) urls.set(d.path, d.signedUrl);
   }
-  return creatives.map((c) => ({ ...c, assets: (c.assets ?? []).map((a) => ({ ...a, url: urls.get(a.path) ?? null })) }));
+  return creatives.map((c) => ({
+    ...c, assets: (c.assets ?? []).map((a) => ({ ...a, url: urls.get(a.path) ?? null })),
+    pairings: c.pairings ? { ...c.pairings, ranked: c.pairings.ranked.map((r) => ({ ...r, preview: r.preview ? { ...r.preview, url: urls.get(r.preview.path) ?? null } : null })) } : null,
+  }));
 }
 
 // ── S1c: a person's moves, and the approver's launch ─────────────────────────────────────────────

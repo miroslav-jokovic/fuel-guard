@@ -160,6 +160,58 @@ describe("POST …/creatives/:id/words — a person chooses an ad's words (Q-ADL
     expect(((await other.json()) as { error: { code: string } }).error.code).toBe("chosen_differently");
   });
 
+  describe("on another of the pictures the ad was chosen from (V3)", () => {
+    const picture = (n: number, dropped: string | null = null) => ({ picture: n, attempt: 1, reference: "a".repeat(64), focal_subject: "tractor", camera_distance: "medium", dropped });
+    const pairing = (n: number, words: number) => ({ picture: n, words, judged: null, total: null, preview: null });
+    // Three pictures made, the second dropped; the ad is picture 1 under the first copy.
+    const PAIRINGS = { format: "4:5", pictures: [picture(1), picture(2, "art check: repeats_earlier_picture"), picture(3)], ranked: [pairing(1, 0), pairing(3, 1), pairing(3, 0), pairing(1, 1)], chosen: 0, judge: null };
+    beforeEach(() => { creative().pairings = PAIRINGS; });
+    const code = async (res: Response) => ((await res.json()) as { error: { code: string } }).error.code;
+
+    it("a rival is used: the choice records its picture, the ad is rejected saying which picture replaces it, and the campaign regenerates", async () => {
+      const res = await choose({ from_candidate: 1, copy: offered[1], picture: 3 });
+      expect(res.status).toBe(200);
+      expect(choices()).toEqual([expect.objectContaining({ replaces_creative_id: CR, from_candidate: 1, edited_slots: [], picture: 3 })]);
+      expect(tables.ads_approvals).toEqual([expect.objectContaining({ kind: "reject_creative", reason: "Replaced: a person chose picture 3 of the ones this ad was made from; it is redrawn with the words they chose." })]);
+      expect(holder.moves).toEqual([expect.objectContaining({ event: "regenerate", reason: expect.stringContaining("chose another picture for one ad") })]);
+      expect(creative().state).toBe("rejected");
+    });
+
+    it("naming the picture the ad already has is a choice of words: the same picture is kept, and said to be", async () => {
+      expect((await choose({ from_candidate: 1, copy: offered[1], picture: 1 })).status).toBe(200);
+      expect(choices()[0]).toMatchObject({ picture: 1 });
+      expect(tables.ads_approvals![0]).toMatchObject({ reason: expect.stringContaining("the same picture is redrawn") });
+    });
+
+    it("words chosen with no picture named record none: compose keeps the picture the ad was", async () => {
+      expect((await choose({ from_candidate: 1, copy: offered[1] })).status).toBe(200);
+      expect(choices()[0]).toMatchObject({ picture: null });
+      expect((await choose({ from_candidate: 1, copy: offered[1], picture: null })).status).toBe(200);
+      expect(choices()).toHaveLength(1);
+    });
+
+    it("a picture that was dropped, one the ad never made, and any picture of an ad made from one are refused, and nothing is written", async () => {
+      expect(await code(await choose({ from_candidate: 0, copy: offered[0], picture: 2 }))).toBe("unknown_picture");
+      expect(await code(await choose({ from_candidate: 0, copy: offered[0], picture: 4 }))).toBe("unknown_picture");
+      creative().pairings = null;
+      const res = await choose({ from_candidate: 0, copy: offered[0], picture: 1 });
+      expect(res.status).toBe(409);
+      expect(await code(res)).toBe("unknown_picture");
+      expect([choices().length, tables.ads_approvals!.length, holder.moves.length, creative().state]).toEqual([0, 0, 0, "ready"]);
+      // Outside one to five it is not a well-formed ask at all.
+      expect((await choose({ from_candidate: 0, copy: offered[0], picture: 6 })).status).toBe(400);
+    });
+
+    it("the same words on a different picture is a different choice: the second press is refused", async () => {
+      await choose({ from_candidate: 1, copy: offered[1], picture: 3 });
+      tables.ads_campaigns![0]!.state = "composing";
+      expect((await choose({ from_candidate: 1, copy: offered[1], picture: 3 })).status).toBe(200);
+      expect(await code(await choose({ from_candidate: 1, copy: offered[1], picture: 1 }))).toBe("chosen_differently");
+      expect(await code(await choose({ from_candidate: 1, copy: offered[1] }))).toBe("chosen_differently");
+      expect(choices()).toHaveLength(1);
+    });
+  });
+
   it("an ad that is not waiting for review, or a campaign that is not, takes no choice", async () => {
     creative().state = "approved";
     expect(((await (await choose({ from_candidate: 1, copy: offered[1] })).json()) as { error: { code: string } }).error.code).toBe("not_ready");
