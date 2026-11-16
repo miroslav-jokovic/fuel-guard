@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adBriefSchema, adCandidatesSchema, drawPresets, nextPresetBatch, planDraw, writerAngle, type AdBrandKit, type AdPresetRecipe, type CampaignPlan, type CreativeState, type PresetDraw } from "@silvicom/shared";
+import { adBriefSchema, adCandidatesSchema, adPairingsSchema, drawPresets, nextPresetBatch, planDraw, writerAngle, type AdBrandKit, type AdPresetRecipe, type CampaignPlan, type CreativeState, type PresetDraw } from "@silvicom/shared";
 import { listBrandKits, listPresets } from "../creative/kitVersions.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 import { storePresetDraw, type CampaignRow } from "../orchestrator/transitions.js";
@@ -220,18 +220,26 @@ async function creativeForStint(admin: SupabaseClient, c: CampaignRow, presetId:
 /**
  * The words a person chose for the creative `replacedId` (`ads_copy_choices`, 0595, written by
  * `campaigns/copyChoice.ts`), with what compose needs to build its successor on the same picture: the replaced
- * creative's ranked set and its last attempt, whose art and render rows are replayed. Null when nobody chose.
+ * creative's ranked set and the picture kept, whose art and render rows are replayed. Null when nobody chose.
+ *
+ * WHICH PICTURE (V3): an ad chosen from several pictures is the WINNING pairing's picture, which need not be the
+ * first made, and "the same picture is redrawn with them" must mean that one. So the picture kept is the one the
+ * choice names (`ads_copy_choices.picture`, 0619), else the winning pairing's, else — an ad made from one picture,
+ * every ad before V3 — its only one; and the attempt replayed is that picture's own, not the creative's.
  */
 async function choiceFor(admin: SupabaseClient, orgId: string, replacedId: string): Promise<PersonChoice | null> {
   const [{ data: choice, error }, { data: replaced, error: rErr }] = await Promise.all([
-    admin.from("ads_copy_choices").select("copy, from_candidate, edited_slots, chosen_by_name").eq("org_id", orgId).eq("replaces_creative_id", replacedId).maybeSingle(),
-    admin.from("ads_creatives").select("id, regenerations, candidates").eq("org_id", orgId).eq("id", replacedId).maybeSingle(),
+    admin.from("ads_copy_choices").select("copy, from_candidate, edited_slots, chosen_by_name, picture").eq("org_id", orgId).eq("replaces_creative_id", replacedId).maybeSingle(),
+    admin.from("ads_creatives").select("id, regenerations, candidates, pairings").eq("org_id", orgId).eq("id", replacedId).maybeSingle(),
   ]);
   if (error) throw new Error(`ads_copy_choices: ${error.message}`);
   if (rErr) throw new Error(`ads_creatives: ${rErr.message}`);
   if (!choice || !replaced) return null;
-  const ch = choice as Omit<PersonChoice, "replaced">;
-  const r = replaced as { id: string; regenerations: number; candidates: unknown };
+  const { picture: named, ...ch } = choice as Omit<PersonChoice, "replaced"> & { picture: number | null };
+  const r = replaced as { id: string; regenerations: number; candidates: unknown; pairings: unknown };
   const set = adCandidatesSchema.safeParse(r.candidates);
-  return { ...ch, replaced: { creativeId: r.id, attempt: r.regenerations + 1, candidates: set.success ? set.data : null } };
+  const made = adPairingsSchema.safeParse(r.pairings);
+  const picture = named ?? (made.success ? made.data.ranked[made.data.chosen]!.picture : 1);
+  const attempt = (made.success ? made.data.pictures.find((p) => p.picture === picture)?.attempt : undefined) ?? r.regenerations + 1;
+  return { ...ch, replaced: { creativeId: r.id, attempt, picture, candidates: set.success ? set.data : null } };
 }

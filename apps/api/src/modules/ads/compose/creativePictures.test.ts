@@ -302,6 +302,21 @@ describe("composeCreative — an ad chosen from several pictures (V3, Q-APX7)", 
     expect(reads(on) - reads(h)).toBe(9);
   });
 
+  it("a person's words are drawn on the picture they kept: that picture's direction and render are asked for by the replaced creative's own keys", async () => {
+    const h = harness();
+    const copy = (copyFx.recorded.output as { candidates: Array<{ en: Record<string, string>; es: Record<string, string> }> }).candidates[0]!;
+    const choice = { copy, from_candidate: null, edited_slots: [], chosen_by_name: "Koni", replaced: { creativeId: "old-1", attempt: 2, picture: 3, candidates: null } };
+    expect(await h.run({ choice })).toEqual({ kind: "ready" });
+    // One picture, the third of the creative it replaces at its second attempt — replayed there, not made again here.
+    expect(h.keys("art:")).toEqual(["art:old-1:p3:2"]);
+    expect(h.render).toHaveBeenCalledTimes(1);
+    expect(h.render.mock.calls[0]![0]).toMatchObject({ creativeId: "old-1", picture: 3, attempt: 2 });
+    // The check and the opinion are this creative's own: the words on the picture are new.
+    expect(h.keys("visual:")).toEqual(["visual:cr-1:4:5:1", "visual:cr-1:1:1:1"]);
+    expect(h.written()).not.toHaveProperty("pairings");
+    expect(h.written().copy).toEqual(copy);
+  });
+
   it("one picture is the ad as it was made before V3: the first words that fit, the old keys, and no pairings written", async () => {
     const h = harness();
     expect(await h.run({ pictures: 1 })).toEqual({ kind: "ready" });
