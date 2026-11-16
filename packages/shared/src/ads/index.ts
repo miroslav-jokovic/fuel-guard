@@ -32,6 +32,7 @@ export * from "./photoLibrary.js";
 export * from "./finishedAd.js";
 export * from "./platformText.js";
 export * from "./adPairings.js";
+export * from "./motionAd.js";
 export * from "./starterPresets.js";
 export * from "./artDirection.js";
 export * from "./campaignContract.js";
