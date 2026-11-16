@@ -460,3 +460,15 @@ Table layout at desk widths. New data on any card.
   shared withholds the split when the idle estimate exceeds all tractor fuel bought — the impossible
   case, no invented threshold — and the card says why in its place, dollars only for a reader with
   money.
+- **2026-11-16, the owner's answers to the leftovers.**
+  - **M9, confirmed again ("as recommended"):** the Ask AI launcher stays on the dashboard route only.
+    On a phone, every other page reaches the assistant through the sidebar's Ask AI entry; on a
+    desktop, ⌘J opens it anywhere. Nothing to build.
+  - **Checked locally, chat module switched on by fixture, nothing sent to a server:** after #2442,
+    New team, New channel and Add people put Cancel and the action side by side on the right at 390
+    and 1280 px, no sideways scroll; New conversation seen at 1280 only. Row-opened drawers (lead,
+    PSP import) read in code: both pass two bare buttons to the shared footer.
+  - **Release:** #2470 (MPG bars) and #2472 (the withheld cost split) go out with the next train, on
+    the owner's go of this date.
+  - **Still open, the owner's eyes only:** the shop on a real tablet; the four A3 lists and the
+    row-opened drawers with production's rows.
