@@ -1,4 +1,4 @@
-import { createCanvas, loadImage, type SKRSContext2D } from "@napi-rs/canvas";
+import { createCanvas, loadImage, type Canvas, type SKRSContext2D } from "@napi-rs/canvas";
 import sharp from "sharp";
 import {
   checkRender, contrastRatio, FORMAT_SIZE, parseHex,
@@ -154,9 +154,11 @@ function paintBand(ctx: SKRSContext2D, l: Laid): void {
  * The logo, top-left of the zone, never recoloured (D-ADL7). Its contrast is measured: the mean of its opaque
  * pixels against the mean of what is under it. Below 3:1 it is set on a square block in whichever of the kit's two
  * overlay colours it reads better on — square since 2026-11-12, as a rounded chip is a card (D-ADL17). A mean is a crude reading of a many-coloured logo; it is the reading that
- * catches the case that matters, a dark logo on a darkened picture or a white one on a bright sky.
+ * catches the case that matters, a dark logo on a darkened picture or a white one on a bright sky. `measured` is
+ * the canvas the reading is taken from when it is not the one drawn on: a motion ad's layer is transparent, and
+ * what is under its logo is on the still's canvas.
  */
-async function paintLogo(ctx: SKRSContext2D, l: Laid, bytes: Buffer): Promise<void> {
+async function paintLogo(ctx: SKRSContext2D, l: Laid, bytes: Buffer, measured: SKRSContext2D = ctx): Promise<void> {
   if (!l.logo) return;
   const logo = await loadImage(bytes);
   const scale = Math.min(l.logo.height / logo.height, l.logo.maxWidth / logo.width);
@@ -167,7 +169,7 @@ async function paintLogo(ctx: SKRSContext2D, l: Laid, bytes: Buffer): Promise<vo
   const px = own.getImageData(0, 0, cw, ch).data;
   let r = 0, g = 0, b = 0, n = 0;
   for (let i = 0; i < px.length; i += 4) if (px[i + 3]! > 128) { r += px[i]!; g += px[i + 1]!; b += px[i + 2]!; n += 1; }
-  const under = samplesUnder(ctx, box, l), mean = (k: 0 | 1 | 2) => under.reduce((t, s) => t + s.rgb[k], 0) / under.length;
+  const under = samplesUnder(measured, box, l), mean = (k: 0 | 1 | 2) => under.reduce((t, s) => t + s.rgb[k], 0) / under.length;
   if (n > 0 && contrastRatio([r / n, g / n, b / n], [mean(0), mean(1), mean(2)]) < 3) {
     const hex = `#${[r, g, b].map((v) => Math.round(v / n).toString(16).padStart(2, "0")).join("")}`, pad = 12 * l.u;
     ctx.fillStyle = inkOn(hex, l.palette);
@@ -176,10 +178,10 @@ async function paintLogo(ctx: SKRSContext2D, l: Laid, bytes: Buffer): Promise<vo
   ctx.drawImage(logo, box.x, box.y, w, h);
 }
 
-function paintText(ctx: SKRSContext2D, l: Laid): void {
+function paintText(ctx: SKRSContext2D, l: Laid, rows: readonly LaidRow[] = l.rows): void {
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
-  for (const row of l.rows) {
+  for (const row of rows) {
     Object.assign(ctx, fontOf(row.style, l.u));
     for (const line of row.lines) {
       if (!row.figureColor) { ctx.fillStyle = row.color; ctx.fillText(line.text, line.x, line.y + row.cap); continue; }
@@ -195,18 +197,28 @@ function paintText(ctx: SKRSContext2D, l: Laid): void {
   }
 }
 
-export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome> {
+type Rendered = Extract<OverlayOutcome, { kind: "rendered" }>;
+
+/**
+ * The one painting of an ad, for a still and for a motion ad alike. `layered` also paints everything but the
+ * words on a second, transparent canvas (`under`) — the same calls with the same measured scrim step, so the two
+ * cannot drift.
+ */
+async function paint(input: OverlayInput, layered: boolean): Promise<Extract<OverlayOutcome, { kind: "refused" }> | { kind: "painted"; out: Rendered; l: Laid; under: Canvas | null }> {
   const layout: AdOverlayLayout = input.layout ?? "bottom_plate";
   const l = layOut({ ...input, hasLogo: input.logo !== null });
   if (!l.ok) return { kind: "refused", findings: l.findings };
   const canvas = createCanvas(l.width, l.height);
   const ctx = canvas.getContext("2d");
+  const under = layered ? createCanvas(l.width, l.height) : null;
+  const uctx = under?.getContext("2d") ?? null;
 
   // 1. The background: the picture, darkened under the words by as much as THIS picture needs, then our shapes.
   ctx.drawImage(await loadImage(await frameStill(input.base, input.format, layout)), 0, 0, l.width, l.height);
   const scrim = scrimFor(ctx, l);
-  paintScrim(ctx, l, scrim);
-  paintBand(ctx, l);
+  for (const c of uctx ? [ctx, uctx] : [ctx]) { paintScrim(c, l, scrim); paintBand(c, l); }
+  // The layer's logo first: its block is decided by what lies under it on the still, before the still's own logo is there.
+  if (input.logo && uctx) await paintLogo(uctx, l, input.logo, ctx);
   if (input.logo) await paintLogo(ctx, l, input.logo);
 
   // 2. Measure what lies under each line on that background, judge, and only then draw the words. A row drawn
@@ -219,5 +231,55 @@ export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome
   const verdict = checkRender(input.format, placed, l.zone);
   if (verdict.length) return { kind: "refused", findings: verdict };
   paintText(ctx, l);
-  return { kind: "rendered", png: await canvas.encode("png"), blocks: placed, stack: l.stack, scrim, look: l.look };
+  return { kind: "painted", out: { kind: "rendered", png: await canvas.encode("png"), blocks: placed, stack: l.stack, scrim, look: l.look }, l, under };
+}
+
+export async function renderOverlay(input: OverlayInput): Promise<OverlayOutcome> {
+  const p = await paint(input, false);
+  return p.kind === "painted" ? p.out : p;
+}
+
+/** The rows on every frame of a motion ad: the line the law asks for and the number to call. The logo and the band are with them. */
+const ALWAYS_ROWS: ReadonlySet<string> = new Set(["eeo", "phone"]);
+
+export interface MotionWordLayer { labels: string[]; /** The characters read, a line break counted as the space it replaced: what `motionTimeline` times. */ chars: number; png: Buffer }
+
+export type MotionLayersOutcome =
+  | (Omit<Rendered, "png"> & {
+    /** The finished still: the motion ad's last frame, and the frame every check above was made on. */
+    still: Buffer;
+    /** Everything but the timed words, transparent where the picture shows: scrim, band, logo, the always-on rows. */
+    under: Buffer;
+    /** The timed words in the order they arrive, each a transparent layer of the frame's size. */
+    words: MotionWordLayer[];
+  })
+  | Extract<OverlayOutcome, { kind: "refused" }>;
+
+/**
+ * A motion ad's layers (ADS-PLATFORM-V2-PLAN V4, Q-APX13): the SAME painting as the still, taken apart, so that
+ * the picture, `under` and every `words` layer put back together are the still — the frame a person approves and
+ * the one the contrast check was made on. Refused exactly when the still is.
+ *
+ * The words arrive in reading order: the headline (with `number`'s figure) first, then each remaining row in the
+ * layout's own order — today one, the supporting line, which every look draws under the headline. What `photo`'s words lie on moves once the picture does; the still's contrast verdict
+ * speaks for the last frame only, and the frames before it are the sampled-frame check's (V4 "Checks", not built).
+ */
+export async function renderMotionLayers(input: OverlayInput): Promise<MotionLayersOutcome> {
+  const p = await paint(input, true);
+  if (p.kind !== "painted") return p;
+  const { l, out } = p, under = p.under!;
+  paintText(under.getContext("2d"), l, l.rows.filter((r) => ALWAYS_ROWS.has(r.label)));
+
+  const timed = l.rows.filter((r) => !ALWAYS_ROWS.has(r.label));
+  const first = timed.filter((r) => r.label.startsWith("headline"));
+  const later = timed.filter((r) => !first.includes(r));
+  const words: MotionWordLayer[] = [];
+  for (const rows of [first, ...later.map((r) => [r])]) {
+    if (!rows.length) continue;
+    const layer = createCanvas(l.width, l.height);
+    paintText(layer.getContext("2d"), l, rows);
+    words.push({ labels: rows.map((r) => r.label), chars: rows.reduce((n, r) => n + r.lines.map((line) => line.text).join(" ").length, 0), png: await layer.encode("png") });
+  }
+  const { png: still, ...rest } = out;
+  return { ...rest, still, under: await under.encode("png"), words };
 }
