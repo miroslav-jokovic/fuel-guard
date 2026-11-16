@@ -63,6 +63,7 @@ export {
 } from "./unitMatch.js";
 export { resolveStagedUnits, type ResolveOutcome } from "./resolveUnits.js";
 export { readCoverage, monthsBetween, type CoverageAnswer } from "./coverage.js";
+export { readRollup, type RollupAnswer, type RollupOutcome, type RollupQuery } from "./rollup.js";
 export {
   readShopBacklog,
   readOpenWorkOrders,

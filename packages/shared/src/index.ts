@@ -321,6 +321,7 @@ export * from "./printingContract.js";
 export * from "./scannerRelayContract.js";
 export * from "./inventoryRules.js";
 export * from "./fleetpalContract.js";
+export * from "./fleetpalRollup.js";
 export * from "./shopSummaryContract.js";
 export * from "./unitShopContract.js";
 export * from "./shopPartsUsage.js";
