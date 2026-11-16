@@ -164,6 +164,21 @@ ok("a candidates list that is not an object is refused (23514, 0579)",
   (await sqlstate(`update ads_creatives set candidates = '[1, 2]' where id = $1`, [CR])) === "23514");
 ok("a creative made before 0579 has no candidates, and that is allowed",
   (await sqlstate(`update ads_creatives set candidates = null where id = $1`, [CR])) === null);
+ok("the workers may keep the picture-and-words pairings on a generating creative, as an object (0619)",
+  (await sqlstate(`update ads_creatives set pairings = '{"chosen": 0, "format": "4:5", "ranked": [{"picture": 1, "words": 0, "total": 17}]}' where id = $1`, [CR])) === null);
+ok("pairings that are not an object are refused (23514, 0619)",
+  (await sqlstate(`update ads_creatives set pairings = '[1, 2]' where id = $1`, [CR])) === "23514");
+ok("a creative made before 0619 has no pairings, and that is allowed",
+  (await sqlstate(`update ads_creatives set pairings = null where id = $1`, [CR])) === null);
+// A person's choice may name the picture too (0619). One choice per replaced creative, so the refusals come first.
+const choose = (picture) => sqlstate(
+  `insert into ads_copy_choices (org_id, campaign_id, replaces_creative_id, copy, chosen_by, chosen_by_name, picture) values ($1, $2, $3, '{"en": {}, "es": {}}', $4, 'Ana', $5)`,
+  [ORG, CAMP, CR, PERSON, picture]);
+ok("a choice naming picture 0 is refused: pictures are counted from 1 (23514, 0619)", (await choose(0)) === "23514");
+ok("a choice naming picture 6 is refused: a creative never has more than five (23514, 0619)", (await choose(6)) === "23514");
+ok("a choice may name one of the creative's pictures (0619)", (await choose(2)) === null);
+ok("the choices written before 0619 named no picture, and a new one may still name none",
+  (await one(`select count(*) n from information_schema.columns where table_name = 'ads_copy_choices' and column_name = 'picture' and is_nullable = 'YES' and column_default is null`)).n == 1);
 ok("a creative cannot be ready without its checks and assets (23514)",
   (await sqlstate(`update ads_creatives set state = 'ready' where id = $1`, [CR])) === "23514");
 ok("a checked creative with its assets becomes ready",
