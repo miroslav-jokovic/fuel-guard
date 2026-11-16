@@ -47,8 +47,17 @@ export const APPLY_STAGES_COPY = {
     heading: "What this involves",
     /** The carrier is a fact, so it is an argument rather than a template a translator cannot move. */
     lead: (carrier: string): string => `This is ${carrier}'s driver application.`,
-    /** The one sentence the screen exists for: it is three visits, not one sitting. */
-    howLong: "It is done in three stages, on this same link. You do not have to finish in one sitting.",
+    /**
+     * The one sentence the screen exists for: it is three visits, not one sitting.
+     *
+     * ⚠ It said "on this same link" until 2026-11-16, and the server has not worked that way since AF4. The
+     * office's "Send the application" rotates the invitation's token (`applicationSend.ts`, 0365), so the
+     * first link dies when the second arrives, and "Send for signing" mints a separate sign token
+     * (`applicationSendForSigning.ts`, 0369). A driver who believed this sentence kept the first email
+     * and later opened a dead link. Every other line the driver reads already said "a new link"
+     * (`APPLY_FLOW_COPY`, the emails in `applicantMessages.ts`); this was the one that disagreed.
+     */
+    howLong: "It is done in three stages. We send you a new link for each one, and the earlier link stops working. You do not have to finish in one sitting.",
     /**
      * ⚠ Rounded to the nearest five minutes on the way out. The estimates are judgements nobody has
      * measured; printing one to the minute would dress it up as a stopwatch.
@@ -66,14 +75,17 @@ export const APPLY_STAGES_COPY = {
       },
       history: {
         what: "Where you have lived and worked, and your driving record.",
-        when: (carrier: string): string => `After ${carrier} has checked your record. We email you when it is ready, and you can do it any time that week.`,
+        when: (carrier: string): string => `After ${carrier} has checked your record. We email you a new link when it is ready, and you can do it any time that week.`,
       },
       signing: {
         // ⚠ D-AW14 (2026-09-26): signed on the driver's own phone, from a link the office sends — never
         // on an office computer. This said "in their office, when you come in for your road test" (AF5)
-        // for seven weeks after that ruling.
+        // for seven weeks after that ruling. The office presses "Send for signing" while the driver is
+        // there (`applicationSendForSigning.ts`), and the approval notice carries no link on purpose
+        // (`applicationApprovalNotice.ts`), so the sentence says the link arrives at the visit: a driver
+        // told only "we send you the link" waits at home for an email that is not coming.
         what: "You read the finished application and sign it.",
-        when: (carrier: string): string => `After ${carrier} has read it. We send you the link to sign on your phone.`,
+        when: (carrier: string): string => `After ${carrier} has read it. When you come in, ${carrier} sends the signing link to your phone.`,
       },
     },
     needHeading: "What to have with you",

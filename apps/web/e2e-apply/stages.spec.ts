@@ -17,7 +17,7 @@ test("a fresh link opens on the three stages, marked at Today, and nothing is as
   await expect(rows).toHaveCount(3);
   await expect(rows.nth(0)).toContainText("1. Today");
   await expect(rows.nth(1)).toContainText("2. Your history");
-  await expect(rows.nth(2)).toContainText("sign on your phone");
+  await expect(rows.nth(2)).toContainText("signing link to your phone");
   await expect(page.locator("[data-apply-stages] li[aria-current=step]")).toContainText("Today");
   await expect(page.locator("input, select, textarea")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("intro.png"), fullPage: true });
