@@ -310,6 +310,7 @@ export * from "./annualInspectionCatalogue.js";
 export * from "./annualInspectionContract.js";
 export * from "./tagContract.js";
 export * from "./inventoryContract.js";
+export * from "./inventoryCountSessionContract.js";
 export * from "./inventoryAssetContract.js";
 export * from "./inventoryDriverHeld.js";
 export * from "./inventoryPurchaseContract.js";

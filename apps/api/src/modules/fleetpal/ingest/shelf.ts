@@ -70,24 +70,18 @@ export interface ShelfResult extends IngestResult {
 
 const emptyTally = (): ShelfTally => ({ recorded: 0, short: 0, beforeStart: 0, partInactive: 0, fractional: 0, notInCatalogue: 0 });
 
-/** Rows of one staged table by FleetPal id, chunked at 100 — an `.in()` list rides in the URL. */
-async function byFleetpalId<T>(
-  admin: SupabaseClient,
-  table: string,
-  columns: string,
-  orgId: string,
-  ids: readonly string[],
-): Promise<Map<string, T>> {
+/**
+ * Rows by FleetPal id, chunked at 100 — an `.in()` list rides in the URL. The caller names the table
+ * in a literal `.from()`, so every table gate can still see which staged table this step reads.
+ */
+type ChunkRead = (chunk: string[]) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
+async function byFleetpalId<T extends { fleetpal_id: string }>(ids: readonly string[], read: ChunkRead): Promise<Map<string, T>> {
   const out = new Map<string, T>();
   const unique = [...new Set(ids.filter(Boolean))];
   for (let i = 0; i < unique.length; i += 100) {
-    const { data, error } = await admin
-      .from(table)
-      .select(columns)
-      .eq("org_id", orgId)
-      .in("fleetpal_id", unique.slice(i, i + 100));
-    if (error) throw new Error(`${table}: ${error.message}`);
-    for (const r of (data ?? []) as unknown as (T & { fleetpal_id: string })[]) out.set(r.fleetpal_id, r);
+    const { data, error } = await read(unique.slice(i, i + 100));
+    if (error) throw new Error(error.message);
+    for (const r of (data ?? []) as T[]) out.set(r.fleetpal_id, r);
   }
   return out;
 }
@@ -138,9 +132,12 @@ async function receiptMovements(
     // back CANCEL lines, and one of those written as a receipt adds stock that never arrived.
     .filter((l: FleetpalPoReceiptItem) => l.type === "RECEIVE")
     .sort((a, b) => a.created.localeCompare(b.created));
-  const poItems = await byFleetpalId<PoItemRow>(admin, "fleetpal_po_items", "fleetpal_id, part_fleetpal_id, purchase_order_fleetpal_id", orgId, lines.map((l) => l.purchase_order_item));
-  const pos = await byFleetpalId<PoRow>(admin, "fleetpal_purchase_orders", "fleetpal_id, reference_number, work_order_fleetpal_id", orgId, [...poItems.values()].map((i) => i.purchase_order_fleetpal_id ?? ""));
-  const wos = await byFleetpalId<WorkOrderRow>(admin, "fleetpal_work_orders", "fleetpal_id, reference_number, unit_fleetpal_id", orgId, [...pos.values()].map((p) => p.work_order_fleetpal_id ?? ""));
+  const poItems = await byFleetpalId<PoItemRow>(lines.map((l) => l.purchase_order_item), (c) =>
+    admin.from("fleetpal_po_items").select("fleetpal_id, part_fleetpal_id, purchase_order_fleetpal_id").eq("org_id", orgId).in("fleetpal_id", c));
+  const pos = await byFleetpalId<PoRow>([...poItems.values()].map((i) => i.purchase_order_fleetpal_id ?? ""), (c) =>
+    admin.from("fleetpal_purchase_orders").select("fleetpal_id, reference_number, work_order_fleetpal_id").eq("org_id", orgId).in("fleetpal_id", c));
+  const wos = await byFleetpalId<WorkOrderRow>([...pos.values()].map((p) => p.work_order_fleetpal_id ?? ""), (c) =>
+    admin.from("fleetpal_work_orders").select("fleetpal_id, reference_number, unit_fleetpal_id").eq("org_id", orgId).in("fleetpal_id", c));
 
   const movements: Pending[] = [];
   for (const line of lines) {
@@ -193,9 +190,12 @@ async function consumptionMovements(
     items.push(...page);
     if (page.length < PAGE) break;
   }
-  const jobs = await byFleetpalId<JobRow>(admin, "fleetpal_jobs", "fleetpal_id, work_order_fleetpal_id", orgId, items.map((i) => i.job_fleetpal_id ?? ""));
-  const wos = await byFleetpalId<WorkOrderRow>(admin, "fleetpal_work_orders", "fleetpal_id, reference_number, unit_fleetpal_id", orgId, [...jobs.values()].map((j) => j.work_order_fleetpal_id ?? ""));
-  const units = await byFleetpalId<UnitRow>(admin, "fleetpal_units", "fleetpal_id, vehicle_id, trailer_id", orgId, [...wos.values()].map((w) => w.unit_fleetpal_id ?? ""));
+  const jobs = await byFleetpalId<JobRow>(items.map((i) => i.job_fleetpal_id ?? ""), (c) =>
+    admin.from("fleetpal_jobs").select("fleetpal_id, work_order_fleetpal_id").eq("org_id", orgId).in("fleetpal_id", c));
+  const wos = await byFleetpalId<WorkOrderRow>([...jobs.values()].map((j) => j.work_order_fleetpal_id ?? ""), (c) =>
+    admin.from("fleetpal_work_orders").select("fleetpal_id, reference_number, unit_fleetpal_id").eq("org_id", orgId).in("fleetpal_id", c));
+  const units = await byFleetpalId<UnitRow>([...wos.values()].map((w) => w.unit_fleetpal_id ?? ""), (c) =>
+    admin.from("fleetpal_units").select("fleetpal_id, vehicle_id, trailer_id").eq("org_id", orgId).in("fleetpal_id", c));
 
   const movements: Pending[] = [];
   for (const item of items) {
