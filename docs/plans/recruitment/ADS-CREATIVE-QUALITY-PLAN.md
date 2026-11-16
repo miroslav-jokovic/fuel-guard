@@ -392,6 +392,15 @@ standing instruction ("decide what you can, ask me only for what is mine").
   - 180 candidates written, 164 pass the checks and are on the rating page; 16 were refused and are not shown,
     since they would never reach review.
   - The rating page (D-AD31) is published, private to the owner: https://claude.ai/artifact/KG1h65doetP92nctQvSvnx.
+    **Rebuilt 2026-11-15 (version 2, the owner: "proceed as recommended")** from the `copywriter@5` recordings,
+    which the fixture gate required when the plan's idea reached the writer (ADS-PLATFORM-V2-PLAN V2c): 60 sets,
+    170 candidates shown, 10 refused by the checks and not shown, one set with nothing to rate
+    (`starter-p3-es-otr-bonus`). The page held no rating and no starter decision when it was replaced (both
+    stores read empty first), so nothing was lost. Its Starters tab was also redrawn: the five previews are the
+    real renderer's in the looks the starters carry now (`photo`, `number`, `field`; the page had shown the
+    retired `ribbon` and `rail`), and the words shown on the picture follow the looks' rule — no button on the
+    picture, the small label only without a second line. The page's source, its data builder and its preview
+    script are kept in `~/.claude-mem/deliverables/FuelGuard/ad-copy-ratings-v5/`.
     **The owner, 2026-11-12: "English only for now."** So the L3 rate is recorded from the English ratings and
     says so; the Spanish words stay checked by the claim and length checks alone, and the Spanish column waits
     for a reader the owner names (F-AG12 stays open).
