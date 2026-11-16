@@ -106,6 +106,52 @@ export interface FleetpalConnectionStatus {
     lastError: string | null;
     rowsSeen: number;
   }[];
+  /**
+   * F15: instant updates — FleetPal calls us when a work order opens, pends, closes or completes, a
+   * PM falls due, or a defect is resolved, and the sweep runs then instead of at the next hour.
+   * Optional so an older API's answer still parses.
+   */
+  instantUpdates?: FleetpalInstantUpdates;
 }
+
+/**
+ * The events F15 subscribes to (FLEETPAL-INTEGRATION-PLAN.md §2.8). Each is a WAKE-UP (D-FP10): the
+ * sweep re-reads through the API and nothing in a payload is written.
+ *
+ * ⚠ Deliberately NOT here: `fault_code.*`, `fault_rule.applied`, `invitation.*`, `member.*` — they fire
+ * about data no endpoint serves, so a delivery would name a resource we cannot fetch back. And none
+ * of the purchasing events: the sweep reads purchase orders hourly and no screen needs them sooner.
+ */
+export const FLEETPAL_WEBHOOK_EVENTS = [
+  "work_order.opened",
+  "work_order.pended",
+  "work_order.closed",
+  "work_order.completed",
+  "work_order.canceled",
+  "pm_schedule.due_soon",
+  "defect.resolved",
+  "unit.status_changed",
+] as const;
+export type FleetpalWebhookEvent = (typeof FLEETPAL_WEBHOOK_EVENTS)[number];
+
+export interface FleetpalInstantUpdates {
+  /** Every event above has an active subscription. */
+  on: boolean;
+  events: string[];
+  /** `PUBLIC_API_URL` is set — without it FleetPal has nowhere to call. */
+  publicUrlConfigured: boolean;
+  lastDeliveryAt: string | null;
+}
+
+export const fleetpalInstantUpdatesInputSchema = z.object({ on: z.boolean() });
+
+/** `POST /v1/webhook-subscriptions` — the only response that ever carries the `secret`. */
+export const fleetpalWebhookSubscriptionCreatedSchema = z.looseObject({
+  id: z.string().min(1),
+  event_key: z.string(),
+  target_url: z.string(),
+  is_active: z.boolean(),
+  secret: z.string().min(1),
+});
 
 export * from "./fleetpal/units.js";

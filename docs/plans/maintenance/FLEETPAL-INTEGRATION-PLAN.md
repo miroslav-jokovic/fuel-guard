@@ -1850,3 +1850,51 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
     question for the McLeod GL close, not for this step.
   - **No web page in this step.** Where the roll-up is drawn (a Shop tab beside Repair bills, or the
     fleet report) is the owner's call.
+- **2026-11-16 · F14 — NOT built: FleetPal already takes Samsara's odometer itself.** Measured
+  before writing into a vendor system for the first time. `fleetpal_meters` holds **76,168 `ODOMETER`
+  readings with `source = SAMSARA`** since 2024-07-15, across 298 units, at a median gap of **1.0
+  day** per unit. In the last 7 days FleetPal's own Samsara feed reached **191 of 228** active
+  mapped tractors. Of the 37 it missed, only **3** have a recent `obd` reading on our side (787, last
+  FleetPal reading 2026-10-16; 681, 2026-01-15; 644, both stale since 11-09). The rest are retired, in
+  the shop, or silent in Samsara too, so a push would reach no further. Our latest `obd` reading
+  leads FleetPal's by a median of 117 mi and half a day (225 trucks), which is the daily cadence and
+  not a gap. A second feed into the same meter would race FleetPal's own on its out-of-order rule for
+  three trucks' worth of value.
+  **Recommendation:** fix those three units in FleetPal's Samsara connection (likely a
+  device-swap mapping; see the `- OLD` suffix trap) rather than build a pusher. §2.11's premise —
+  "PM schedules fire on whatever the shop last typed" — was true of a FleetPal without its Samsara
+  connection, and this account has one. F14 stays in §5 as written, unbuilt, until a carrier
+  without that connection needs it.
+- **2026-11-16 · F15 — webhooks (`claude/fleetpal-f15-webhooks`, migration 0623).**
+  - **The table.** `fleetpal_webhook_subscriptions` holds one row per event, its secret sealed with
+    secretBox (`fleetpal.webhook_secret` AAD). There is one active row per event per org (partial
+    unique index), and RLS is on with no policy.
+  - **The receiver.** `POST /api/webhooks/fleetpal/:orgId` does five things in order:
+    - verifies `sha256=` HMAC over `"{X-Fleetpal-Timestamp}.{raw body}"` with that event's secret;
+    - refuses a signature more than 5 minutes off;
+    - claims `X-Fleetpal-Delivery` in 0334's ledger;
+    - answers FleetPal;
+    - only then dispatches `fleetpal_sync`. In `inprocess` mode a dispatch runs the whole sweep
+      first, and a sweep already running answers `conflict`, which is the coalescing.
+  - **Nothing in a payload is written.** That is the whole answer to ordering (D-FP10).
+  - **The switch.** `POST /api/integrations/fleetpal/instant-updates {on}`, admin-only under
+    `fleetpal.connection`. ON takes a fresh sign-in. FleetPal has no DELETE, so OFF pauses each
+    subscription (`is_active: false`) and keeps its secret, and ON reactivates a paused one before
+    creating new. A secret that fails to store gets its subscription paused at once.
+  - **The client** gained `send()`, attempted once and never retried: a POST that timed out may
+    already have created a subscription whose secret we will never see.
+  - **Events (8):** `work_order.opened|pended|closed|completed|canceled`, `pm_schedule.due_soon`,
+    `defect.resolved`, `unit.status_changed`. Not `fault_code.*`, `fault_rule.applied`,
+    `invitation.*` or `member.*`, per §2.8.
+  - **Settings → FleetPal** gains an "Instant updates" card, which names `PUBLIC_API_URL` when it is
+    missing. The page header no longer says it "never writes to FleetPal"; registering these is now
+    the one thing it does there.
+  - **Done-whens held, in `fleetpal/webhooks.test.ts`.** A forged signature is rejected and writes
+    nothing ("rejects a forged signature, and writes nothing"). A replayed delivery is a no-op ("a
+    replayed X-Fleetpal-Delivery is a no-op…"). An out-of-order retry writes only its own claim ("an
+    out-of-order retry cannot overwrite newer state…").
+  - **Mutations.** Four mutations of `webhooks.ts` were each caught: no HMAC check, no skew check,
+    no duplicate check, and a missing `is_active` filter. The last one first survived, because the
+    fixture ignored the filter; the fixture now answers on it.
+  - **Owner acts to go live:** confirm `PUBLIC_API_URL` on the production API host, then Settings →
+    FleetPal → Turn instant updates on.

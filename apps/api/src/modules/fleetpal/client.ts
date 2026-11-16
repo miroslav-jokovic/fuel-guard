@@ -120,13 +120,20 @@ export class FleetpalClient {
    * absolute one is NOT re-based: the vendor's own instruction is to follow the url it gives rather
    * than templating paths out of ids, so that a collection moving does not break us.
    */
-  private async request<T>(url: string, schema: z.ZodType<T>): Promise<T> {
+  private async request<T>(
+    url: string,
+    schema: z.ZodType<T>,
+    write?: { method: "POST" | "PATCH" | "DELETE"; body?: unknown },
+  ): Promise<T> {
     const target = url.startsWith("http") ? url : `${this.baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
     const started = Date.now();
     let attempts = 0;
     let lastError: FleetpalError | null = null;
 
-    while (attempts <= this.maxRetries) {
+    // ⚠ A write is attempted ONCE. A POST that timed out may already have created the subscription
+    // at FleetPal, and a retry would create a second one whose secret we never see (F15).
+    const maxRetries = write ? 0 : this.maxRetries;
+    while (attempts <= maxRetries) {
       attempts++;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -134,13 +141,20 @@ export class FleetpalClient {
       let headers: Headers | null = null;
       try {
         const res = await this.doFetch(target, {
-          headers: { Authorization: `Bearer ${this.apiKey}`, Accept: "application/json" },
+          method: write?.method ?? "GET",
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            Accept: "application/json",
+            ...(write?.body !== undefined ? { "Content-Type": "application/json" } : {}),
+          },
+          ...(write?.body !== undefined ? { body: JSON.stringify(write.body) } : {}),
           signal: controller.signal,
         });
         status = res.status;
         headers = res.headers;
         if (res.ok) {
-          const body = (await res.json()) as unknown;
+          // A 204 (a DELETE) has no body; the caller's schema decides whether that is acceptable.
+          const body = res.status === 204 ? null : ((await res.json()) as unknown);
           this.log.push({
             path: target,
             status,
@@ -185,7 +199,7 @@ export class FleetpalClient {
         error: lastError.message,
         rateLimit: limiterHeaders(headers),
       });
-      if (!lastError.retryable || attempts > this.maxRetries) throw lastError;
+      if (!lastError.retryable || attempts > maxRetries) throw lastError;
       await this.sleep(this.backoffMs(lastError, attempts));
     }
     throw lastError ?? new FleetpalError("FleetPal request failed", "transport", null);
@@ -207,6 +221,14 @@ export class FleetpalClient {
   /** One object by its own url or path. */
   async get<T>(path: string, schema: z.ZodType<T>): Promise<T> {
     return this.request(path, schema);
+  }
+
+  /**
+   * A write — F15's webhook subscriptions are the only caller. Attempted once, never retried (see
+   * `request`); the collector's sweep stays read-only.
+   */
+  async send<T>(method: "POST" | "PATCH" | "DELETE", path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+    return this.request(path, schema, { method, body });
   }
 
   /**

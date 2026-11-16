@@ -15,7 +15,12 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { useStepUpRetry } from "@/composables/useStepUpRetry";
-import { useFleetpalStatus, useSaveFleetpalKey, useSetFleetpalEnabled } from "@/features/settings/useFleetpalConnection";
+import {
+  useFleetpalStatus,
+  useSaveFleetpalKey,
+  useSetFleetpalEnabled,
+  useSetFleetpalInstantUpdates,
+} from "@/features/settings/useFleetpalConnection";
 import { useToastStore } from "@/stores/toast";
 import { formatDateTime } from "@/lib/format";
 
@@ -31,6 +36,7 @@ import { formatDateTime } from "@/lib/format";
 const status = useFleetpalStatus();
 const saveKey = useSaveFleetpalKey();
 const setEnabled = useSetFleetpalEnabled();
+const setInstant = useSetFleetpalInstantUpdates();
 const toast = useToastStore();
 const { stepUpFor, holdForStepUp, confirmed, cancel } = useStepUpRetry();
 
@@ -70,6 +76,21 @@ async function onToggle(enabled: boolean) {
   }
 }
 
+/**
+ * F15: FleetPal calls us when a work order opens, pends, closes or completes, a PM falls due or a
+ * defect is resolved, and the sweep runs then. The only thing Silvicom ever registers in FleetPal.
+ */
+async function onInstant(on: boolean) {
+  try {
+    const r = await setInstant.mutateAsync(on);
+    if (r.failed.length) toast.error("Some updates were not registered", r.failed.map((f) => f.event).join(", "));
+    else toast.success(on ? "Instant updates on" : "Instant updates off");
+  } catch (e) {
+    if (holdForStepUp(e, () => onInstant(on))) return;
+    toast.error("Could not change instant updates", e instanceof Error ? e.message : undefined);
+  }
+}
+
 // D-US4: the per-collection table is a DataTable inside the section's card.
 const resourceColumns: DataTableColumn[] = [
   { key: "resource", label: "Collection", cellClass: "font-medium text-ink" },
@@ -86,7 +107,8 @@ function when(at: string | null): string {
   <div class="space-y-6">
     <PageHeader>
       FleetPal is the shop's repair record. Once connected, Silvicom 360 reads its work orders, repair
-      costs, defects and purchase invoices every hour. It never writes to FleetPal.
+      costs, defects and purchase invoices every hour. It never changes a record in FleetPal; turning on
+      instant updates is the one thing it registers there.
     </PageHeader>
 
     <!-- `state` already folds "no data and not loading" into `error`; the query's own error is passed
@@ -181,6 +203,43 @@ function when(at: string | null): string {
         action-label="Sync now"
         description="Reads every FleetPal collection that changed since the last sweep. The first sweep reads all history from 01/01/2025 and takes a while."
       />
+
+      <BaseCard v-if="s!.hasKey && s!.enabled && s!.instantUpdates" as="section" data-testid="instant-updates">
+        <h2 class="text-sm font-semibold text-ink">Instant updates</h2>
+        <p class="mt-1 text-xs text-ink-muted">
+          <template v-if="s!.instantUpdates.on">
+            On. FleetPal tells us when a work order opens, pauses, closes or is completed, a PM falls due, or
+            a defect is resolved, and we read it then instead of at the next hour.
+            Last call from FleetPal: {{ when(s!.instantUpdates.lastDeliveryAt) }}.
+          </template>
+          <template v-else-if="!s!.instantUpdates.publicUrlConfigured">
+            Not available: the server has no public address set (<code class="text-xs">PUBLIC_API_URL</code>), so FleetPal
+            has nowhere to call.
+          </template>
+          <template v-else>
+            Off. Changes in FleetPal show here within the hour. Turn this on to see work orders and PMs as
+            they change.
+          </template>
+        </p>
+        <div class="mt-4 flex justify-end">
+          <BaseButton
+            v-if="s!.instantUpdates.on"
+            variant="secondary"
+            :disabled="setInstant.isPending.value"
+            @click="onInstant(false)"
+          >
+            Turn instant updates off
+          </BaseButton>
+          <BaseButton
+            v-else-if="s!.instantUpdates.publicUrlConfigured"
+            variant="secondary"
+            :disabled="setInstant.isPending.value"
+            @click="onInstant(true)"
+          >
+            Turn instant updates on
+          </BaseButton>
+        </div>
+      </BaseCard>
 
       <BaseCard v-if="s!.resources.length > 0" as="section">
         <h2 class="text-sm font-semibold text-ink">What each collection last brought in</h2>

@@ -50,3 +50,27 @@ export function useSetFleetpalEnabled() {
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });
 }
+
+export interface InstantUpdatesResult {
+  activated: string[];
+  failed: Array<{ event: string; error: string }>;
+}
+
+/**
+ * Instant updates on or off (F15). A partial answer (207) is still an answer: it lists the events
+ * FleetPal would not register, and the page says which.
+ */
+export function useSetFleetpalInstantUpdates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (on: boolean): Promise<InstantUpdatesResult> => {
+      const res = await apiFetch<InstantUpdatesResult>("/api/integrations/fleetpal/instant-updates", {
+        method: "POST",
+        body: { on },
+      });
+      if (!res.data && !res.ok) throw apiRefusal(res.error, on ? "Could not turn instant updates on" : "Could not turn instant updates off");
+      return res.data ?? { activated: [], failed: [] };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
+  });
+}

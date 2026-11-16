@@ -108,6 +108,14 @@ export {
   type ResourceIngest,
 } from "./ingest/index.js";
 export { claimDelivery, finishDelivery, listRecentDeliveries } from "./deliveries.js";
+export {
+  receiveDelivery,
+  readInstantUpdates,
+  subscribeAll,
+  unsubscribeAll,
+  verifyFleetpalSignature,
+  type DeliveryOutcome,
+} from "./webhooks.js";
 export { FleetpalClient, MAX_PAGE_SIZE, type FleetpalClientOptions, type FleetpalRequestLog } from "./client.js";
 export {
   FleetpalError,
