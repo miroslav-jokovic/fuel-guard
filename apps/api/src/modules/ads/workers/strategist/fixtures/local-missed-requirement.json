@@ -94,69 +94,66 @@
     "source": "model",
     "prompt_version": "strategist@3",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-15T19:26:26.141Z",
+    "recorded_at": "2026-11-16T17:31:03.678Z",
     "output": {
-      "audience": "Class A drivers who meet the stated experience requirement and now run longer lanes or local work with uneven hours. They want hourly pay and a Monday to Friday week, home daily. They stop on an ad that names the requirement and the touch freight plainly.",
+      "audience": "Class A drivers with the years of experience the opening states, who want local delivery work on hourly pay and a weekday schedule that ends at home. They will stop for an ad that states the pay, the schedule and the touch freight plainly, so they can tell at a glance whether they qualify.",
       "audience_evidence": [
         "job:subject",
         "job:claim_3",
-        "job:claim_2",
+        "job:detail_2",
         "lead_outcome:not_qualified"
       ],
       "angles": [
         {
-          "hook_family": "straight_talk",
-          "scene_family": "cab_pov",
-          "format": "still",
-          "idea": "Lead with the plain terms of the job: Class A, the stated experience requirement and touch freight, before any benefit.",
-          "proof": "The opening is Class A local delivery, states a years requirement and involves touch freight.",
-          "why": "A large share of recent leads failed a hard requirement, so stating it up front should screen them out. No ad results by hook are on the sheet, so this is unmeasured.",
-          "evidence": [
-            "job:subject",
-            "job:claim_3",
-            "job:detail_2",
-            "lead_outcome:not_qualified"
-          ]
-        },
-        {
           "hook_family": "pay_first",
           "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with the hourly pay rate for local Class A delivery, with the experience requirement stated beside it.",
-          "proof": "The opening pays the stated hourly rate.",
-          "why": "Hourly pay is the clearest term the job has and sets it apart from per-mile work. Pairing it with the requirement answers the unqualified leads. Nothing is measured yet by hook.",
+          "idea": "Lead with the hourly pay rate for local Class A delivery, shown over a day cab out on a local road.",
+          "proof": "The opening states its pay per hour and that the work is local delivery in a day cab.",
+          "why": "Hourly pay is the clearest fact of this job for a local driver. No hook or scene has been measured for this carrier yet, so this is a starting point, not a proven winner.",
           "evidence": [
             "job:claim_1",
             "job:subject",
-            "job:claim_3",
-            "lead_outcome:not_qualified"
+            "job:detail_1"
           ]
         },
         {
           "hook_family": "life_first",
           "scene_family": "home_street",
           "format": "still",
-          "idea": "Lead with the week the job gives: Monday to Friday, home daily, with health insurance as the supporting line.",
-          "proof": "The opening offers home daily, a Monday to Friday schedule and health insurance.",
-          "why": "The schedule is what a local job offers that longer lanes do not. No earlier results by hook exist, so this rests only on the job's facts.",
+          "idea": "Lead with being home daily on a Monday to Friday week, pictured as the home street a driver returns to when the shift ends.",
+          "proof": "The opening offers home daily and a Monday to Friday schedule.",
+          "why": "The home-time and the working week are what set this job apart for a driver weighing local work. Nothing has been measured for this hook yet.",
           "evidence": [
             "job:claim_2",
-            "job:detail_3",
-            "job:claim_4",
-            "job:subject"
+            "job:detail_3"
           ]
         },
         {
           "hook_family": "equipment_first",
           "scene_family": "equipment_at_rest",
           "format": "still",
-          "idea": "Lead with the day cab as the sign of local work, parked at the end of the shift, with touch freight named.",
-          "proof": "The job runs a day cab on local delivery, is home daily and involves touch freight.",
-          "why": "The day cab shows at a glance that this is local work, and naming touch freight keeps it honest. The job has only this equipment fact, so it is the thinnest angle and unmeasured.",
+          "idea": "Lead with the day cab parked at the end of a shift, the plain sign that this is local delivery work.",
+          "proof": "The opening is a local delivery job run in a day cab, and it offers health insurance.",
+          "why": "A day cab shows the kind of work before any words do, and the health insurance can sit under it as a supporting line. Untested here, so treat it as a trial.",
           "evidence": [
             "job:detail_1",
+            "job:subject",
+            "job:claim_4"
+          ]
+        },
+        {
+          "hook_family": "straight_talk",
+          "scene_family": "cab_pov",
+          "format": "still",
+          "idea": "Say plainly who this job is for: a Class A licence, the years of experience the opening states, and touch freight on the route.",
+          "proof": "The opening states a Class A licence, a years requirement and touch freight.",
+          "why": "A large share of recent leads did not meet a hard requirement, so stating the requirements and the touch freight up front should cut wasted calls. It filters more than it attracts.",
+          "evidence": [
+            "job:subject",
+            "job:claim_3",
             "job:detail_2",
-            "job:claim_2"
+            "lead_outcome:not_qualified"
           ]
         }
       ]

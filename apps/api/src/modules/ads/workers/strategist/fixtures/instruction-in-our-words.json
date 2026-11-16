@@ -69,9 +69,9 @@
     "source": "model",
     "prompt_version": "strategist@3",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-15T19:25:23.145Z",
+    "recorded_at": "2026-11-16T17:30:07.402Z",
     "output": {
-      "audience": "Drivers holding a Class A licence who run or want regional dry van freight. They may be on lanes that keep them out longer than they would like, or on pay that is hard to read. A plain pay per mile and a home weekly schedule would make them stop.",
+      "audience": "Class A drivers who run or want regional dry van work. Many are likely on lanes that keep them out longer or on pay that is not stated plainly. They would stop for a pay per mile and a home-time schedule said up front.",
       "audience_evidence": [
         "job:subject",
         "job:claim_1",
@@ -83,22 +83,22 @@
           "hook_family": "pay_first",
           "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with the pay per mile, stated as the plain rate for regional dry van work.",
-          "proof": "The opening states its pay per mile.",
-          "why": "The pay per mile is the most concrete fact the job holds. Nothing has been measured for this carrier yet, so this is planned from the job alone.",
+          "idea": "Lead with the pay per mile, stated plainly, over a dry van running a regional road.",
+          "proof": "The opening states its pay per mile for dry van work.",
+          "why": "Pay per mile is the fact a driver compares fastest. Nothing has been measured for this carrier yet, so the benchmark cost per lead is the only yardstick.",
           "evidence": [
             "job:claim_1",
-            "job:subject",
-            "job:detail_1"
+            "job:detail_1",
+            "benchmark:cost_per_lead"
           ]
         },
         {
           "hook_family": "life_first",
           "scene_family": "home_street",
           "format": "still",
-          "idea": "Lead with being home weekly, shown as the truck's week ending on the driver's own street.",
-          "proof": "The opening offers home weekly.",
-          "why": "Home weekly is what sets this regional job apart from longer-haul work. No earlier results exist, so this is untested.",
+          "idea": "Lead with being home weekly, shown as the driver's own street at the end of a regional run.",
+          "proof": "The opening offers home weekly on a regional job.",
+          "why": "Home weekly is what separates this regional job from longer-haul work. No earlier results exist, so this rests on the job fact alone.",
           "evidence": [
             "job:claim_2",
             "job:subject"
@@ -108,14 +108,14 @@
           "hook_family": "straight_talk",
           "scene_family": "cab_pov",
           "format": "still",
-          "idea": "Lay out the job plainly from the driver's seat: Class A, regional, dry van, the pay per mile and home weekly, nothing added.",
-          "proof": "The job is Class A regional dry van, with a stated pay per mile and home weekly.",
-          "why": "Stating the licence and the kind of work up front lets drivers who do not fit pass by. With no history, the benchmark cost per lead is the only yardstick for pausing.",
+          "idea": "State the whole job plainly from the driver's seat: Class A, regional, dry van, the pay per mile and home weekly, nothing added.",
+          "proof": "The job is a Class A regional dry van opening with a stated pay per mile and home weekly.",
+          "why": "Naming the licence, lanes and freight up front lets drivers who do not fit pass by before they become a lead. No history exists to rank it against the other angles.",
           "evidence": [
             "job:subject",
             "job:detail_1",
             "job:claim_1",
-            "benchmark:cost_per_lead"
+            "job:claim_2"
           ]
         }
       ]
