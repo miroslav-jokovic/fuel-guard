@@ -224,6 +224,8 @@ export const APPLY_PART_ONE_COPY = {
           medical_card: "Fit the page inside the corners, then press the button.",
           selfie: "Fit your face in the oval, then press the button.",
         },
+        /** A paper from "Your documents" (Q-AM25): any of them, so it is not named. */
+        aimDocument: "Fit it inside the corners, then press the button.",
         /** Which side goes up, said once above the frame, because the wrong side is the commonest bad photo. */
         side: {
           cdl_front: "Front — the side with your photo",

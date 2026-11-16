@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, toRef } from "vue";
+import { computed, ref, toRef } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import type { ApplicationCaptureSlot, ApplicationCaptureView } from "@silvicom/shared";
 import { useApplicationCaptures } from "@/features/apply/capture/useApplicationCaptures";
@@ -8,6 +8,11 @@ import {
   type DocumentGroupView,
   type DocumentPlaceView,
 } from "@/features/apply/capture/useDocumentSends";
+import { isLiveSlot, tipsKind, type LiveSlot } from "@/features/apply/capture/liveFrame";
+import type { PickedPhoto } from "@/features/apply/capture/webFileProvider";
+import LiveScanner from "@/features/apply/partOne/LiveScanner.vue";
+import { markScannerTipsSeen, scannerTipsSeen } from "@/features/apply/partOne/scannerTips";
+import { useIsDesktop } from "@/features/apply/partOne/useDesktopHandoff";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -53,7 +58,26 @@ const captures = props.only
       ...(props.onStaged ? { onStaged: props.onStaged } : {}),
     })
   : null;
-const documents = props.only ? null : useDocumentSends(toRef(props, "token"), toRef(props, "captures"));
+/**
+ * The in-page scanner for "Your documents" (Q-AM25 (a), owner 2026-11-15): on a phone whose browser has a
+ * camera API, "Take photo" opens the scanner Part 1 uses, so the paper is cut to its outline as the CDL
+ * is. On a computer, and once the scanner has said it cannot run here (`unavailable`), the camera app
+ * takes the photo as before — `PartOnePhoto`'s rule, for the same reasons.
+ */
+const desktop = useIsDesktop();
+const liveOff = ref(false);
+const scanning = ref<{ slot: LiveSlot; resolve: (photo: PickedPhoto | null) => void } | null>(null);
+const live = (slot: ApplicationCaptureSlot): Promise<PickedPhoto | null> | undefined => {
+  const offered = !desktop.value && !liveOff.value && typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia);
+  if (!offered || !isLiveSlot(slot)) return undefined;
+  return new Promise((resolve) => (scanning.value = { slot, resolve }));
+};
+const finishScan = (photo: PickedPhoto | null): void => {
+  const open = scanning.value;
+  scanning.value = null;
+  open?.resolve(photo);
+};
+const documents = props.only ? null : useDocumentSends(toRef(props, "token"), toRef(props, "captures"), { live });
 const anyBusy = computed(() => (captures?.busy.value ?? documents?.busy.value ?? null) !== null);
 
 /** What a place says under its name, in the driver's words. */
@@ -138,6 +162,16 @@ const placeLabel = (group: DocumentGroupView, place: DocumentPlaceView): string 
         </div>
       </li>
     </ul>
+
+    <LiveScanner
+      v-if="scanning"
+      :photo="scanning.slot"
+      :tips="!scannerTipsSeen[tipsKind(scanning.slot)]"
+      @captured="finishScan"
+      @cancel="finishScan(null)"
+      @unavailable="liveOff = true"
+      @tips-seen="markScannerTipsSeen(tipsKind(scanning.slot))"
+    />
   </div>
 
   <div v-else-if="captures" class="space-y-4">

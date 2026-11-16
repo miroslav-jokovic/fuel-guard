@@ -4,7 +4,7 @@ import type { CapturedPage } from "@silvicom/capture-engine";
 import { APPLICATION_CAPTURE_MAX_BYTES, APPLICATION_CAPTURE_REQUESTED, type ApplicationCaptureView } from "@silvicom/shared";
 import type { CaptureIo } from "./stageCapture";
 import type { WebCaptureProvider } from "./webFileProvider";
-import { useDocumentSends, type DocumentPlace } from "./useDocumentSends";
+import { useDocumentSends, type DocumentPlace, type DocumentSendOptions } from "./useDocumentSends";
 import { takeServedForm } from "../servedForm";
 
 /**
@@ -15,7 +15,7 @@ import { takeServedForm } from "../servedForm";
 const page = (): CapturedPage =>
   ({ originalOfRecord: { uri: "blob:fake", width: 1600, height: 1200, bytes: 900, mediaType: "image/webp" }, integrityHash: "a1".repeat(32) }) as unknown as CapturedPage;
 
-function harness(already: ApplicationCaptureView[] = [], pick: File | null = null) {
+function harness(already: ApplicationCaptureView[] = [], pick: File | null = null, live?: DocumentSendOptions["live"]) {
   const calls: Array<{ fn: string; args: unknown[] }> = [];
   const scans = vi.fn();
   const io: CaptureIo = {
@@ -41,7 +41,7 @@ function harness(already: ApplicationCaptureView[] = [], pick: File | null = nul
     cancel: () => {},
   };
   const scope = effectScope();
-  const sends = scope.run(() => useDocumentSends(ref("tok"), ref(already), { io, provider, pickFile: async () => pick, local: null }))!;
+  const sends = scope.run(() => useDocumentSends(ref("tok"), ref(already), { io, provider, pickFile: async () => pick, local: null, ...(live ? { live } : {}) }))!;
   const confirms = () => calls.filter((c) => c.fn === "confirm").map((c) => c.args[2]);
   return { sends, calls, confirms, scans, scope };
 }
@@ -111,6 +111,50 @@ describe("the documents list (§9 P9)", () => {
     expect(confirms()).toEqual([expect.objectContaining({ slot: "training_certificate", ordinal: 1 })]);
     expect(group().places.map((p) => [p.ordinal, p.state])).toEqual([[0, "done"], [1, "done"]]);
     expect(group().next).toBe(2);
+  });
+
+  /**
+   * Q-AM25 (a), owner 2026-11-15: "Take photo" opens the in-page scanner, so a paper is cut to its outline
+   * as the CDL is. What the scanner hands back goes through the same gate and the same three network acts.
+   */
+  describe("Take photo, with the in-page scanner", () => {
+    const scanned = (file: File) => ({ file, captureMode: "web_live_camera" as const });
+    const place = (slot: string) => ({ slot, ordinal: 0 }) as DocumentPlace;
+
+    it("opens the scanner for the paper, and sends its photograph through the gate", async () => {
+      const live = vi.fn(async () => scanned(new File(["x"], "scan.webp", { type: "image/webp" })));
+      const { sends, scans, confirms } = harness([], null, live);
+      await sends.photo(place("twic"));
+      expect(live).toHaveBeenCalledExactlyOnceWith("twic");
+      expect(scans).toHaveBeenCalledTimes(1);
+      expect(confirms()).toEqual([expect.objectContaining({ slot: "twic", content_type: "image/webp", ordinal: 0 })]);
+    });
+
+    it("sends nothing, and leaves the place as it was, when the driver closes the scanner", async () => {
+      const { sends, scans, calls } = harness([], null, async () => null);
+      await sends.photo(place("passport"));
+      expect(scans).not.toHaveBeenCalled();
+      expect(calls).toEqual([]);
+      expect(sends.groups.value.find((g) => g.slot === "passport")!.places[0]).toMatchObject({ state: "empty" });
+      expect(sends.busy.value).toBeNull();
+    });
+
+    it("uses the camera app where the scanner is not offered", async () => {
+      const live = vi.fn(() => undefined);
+      const { sends, scans, confirms } = harness([], null, live);
+      await sends.photo(place("ssn_card"));
+      expect(live).toHaveBeenCalledExactlyOnceWith("ssn_card");
+      expect(scans).toHaveBeenCalledTimes(1);
+      expect(confirms()).toEqual([expect.objectContaining({ slot: "ssn_card" })]);
+    });
+
+    // The scanner's own "Upload a photo instead" takes a PDF; the gate would draw its first page and drop the rest.
+    it("sends a PDF chosen from inside the scanner as the PDF it is, never through the gate", async () => {
+      const { sends, scans, confirms } = harness([], null, async () => ({ file: pdf(), captureMode: "web_file_input" as const }));
+      await sends.photo(place("training_certificate"));
+      expect(scans).not.toHaveBeenCalled();
+      expect(confirms()).toEqual([expect.objectContaining({ slot: "training_certificate", content_type: "application/pdf" })]);
+    });
   });
 
   it("stops offering another at five — 0534's limit", () => {

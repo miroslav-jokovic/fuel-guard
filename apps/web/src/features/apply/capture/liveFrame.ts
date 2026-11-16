@@ -17,11 +17,27 @@ import type { ApplicationCaptureSlot } from "@silvicom/shared";
 import type { LiveFacing, Size } from "@/lib/camera/cameraFrame";
 
 /**
- * The four photographs the scanner takes. Until 2026-09-30 it took the CDL's two sides only; the owner then
+ * The four photographs of Part 1 the scanner takes. Until 2026-09-30 it took the CDL's two sides only; the owner then
  * ruled that all four Part 1 photo screens look and behave the same (Q-AW53, against its recommendation (b)),
  * so the medical card and the selfie are taken in the page too. A slot the server renames breaks this type.
  */
-export type LiveSlot = Extract<ApplicationCaptureSlot, "cdl_front" | "cdl_back" | "medical_card" | "selfie">;
+export type PartOneLiveSlot = Extract<ApplicationCaptureSlot, "cdl_front" | "cdl_back" | "medical_card" | "selfie">;
+
+/**
+ * The papers of "Your documents" the scanner takes too (Q-AM25 (a), owner 2026-11-15): every document in
+ * that list is photographed in the page and cut to its outline, as the CDL is, where its "Take photo" used
+ * to open the phone's camera app and send the whole frame. The licence's two sides and the medical card
+ * are in that list as well and are already above.
+ *
+ * ⚠ Cut to the outline and NOTHING more. Straightening and evening a photograph is the scanner programme's
+ * Phase 6, made on the server as a derived copy (SCANNER-UPGRADE-PLAN, D-SCAN6: the original of record is
+ * never modified). Nothing here finds a page's edges or squares it up.
+ */
+export type DocumentLiveSlot = Extract<
+  ApplicationCaptureSlot,
+  "twic" | "passport" | "work_authorization" | "ssn_card" | "hazmat_endorsement" | "road_test_certificate" | "training_certificate" | "other"
+>;
+export type LiveSlot = PartOneLiveSlot | DocumentLiveSlot;
 
 export interface LiveSlotKind {
   /** The camera asked for: the rear for a document, the front for the selfie (AW6, §6.7). */
@@ -41,7 +57,24 @@ export const LIVE_SLOTS: Record<LiveSlot, LiveSlotKind> = {
   cdl_back: { facing: "environment", outline: "card", reads: true },
   medical_card: { facing: "environment", outline: "page", reads: false },
   selfie: { facing: "user", outline: "face", reads: false },
+  // "Your documents" (Q-AM25). The outline is an AIMING GUIDE in the paper's rough shape: a wallet card or
+  // a passport's photo page is wider than tall; a certificate, a letter, and "anything else" are a page.
+  twic: { facing: "environment", outline: "card", reads: false },
+  passport: { facing: "environment", outline: "card", reads: false },
+  work_authorization: { facing: "environment", outline: "card", reads: false },
+  ssn_card: { facing: "environment", outline: "card", reads: false },
+  hazmat_endorsement: { facing: "environment", outline: "page", reads: false },
+  road_test_certificate: { facing: "environment", outline: "page", reads: false },
+  training_certificate: { facing: "environment", outline: "page", reads: false },
+  other: { facing: "environment", outline: "page", reads: false },
 };
+
+/** Whether the scanner takes this slot at all — a slot the server adds is the camera app's until it is listed above. */
+export const isLiveSlot = (slot: ApplicationCaptureSlot): slot is LiveSlot => Object.hasOwn(LIVE_SLOTS, slot);
+
+/** The four of Part 1, which have words of their own (which side, what it is); a document is named by its title. */
+const PART_ONE_LIVE: readonly ApplicationCaptureSlot[] = ["cdl_front", "cdl_back", "medical_card", "selfie"];
+export const isPartOneLiveSlot = (slot: ApplicationCaptureSlot): slot is PartOneLiveSlot => PART_ONE_LIVE.includes(slot);
 
 /**
  * Whether the preview is shown mirrored. A front camera's picture, shown as it is, moves the wrong way when the
