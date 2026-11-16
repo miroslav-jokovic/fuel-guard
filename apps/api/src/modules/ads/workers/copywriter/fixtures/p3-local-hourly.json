@@ -45,7 +45,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 260
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -83,48 +83,48 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:05:43.007Z",
+    "recorded_at": "2026-11-16T19:36:52.307Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Home daily",
+            "hook": "Home every day",
             "cta": "Apply today",
-            "primary_text": "Local Class A driving that gets you home daily. You run your shift, you sleep in your own bed, and you earn $31 per hour. Apply today and talk with us about the job.",
-            "headline": "$31/hour, Class A local"
+            "primary_text": "Class A local driver. You run local and sleep in your own bed. $31 per hour, home daily. Apply today.",
+            "headline": "Local work, $31 per hour"
           },
           "es": {
             "hook": "En casa todos los días",
             "cta": "Aplica hoy",
-            "primary_text": "Manejo local con licencia Clase A y en casa todos los días. Haces tu turno, duermes en tu cama y ganas $31 por hora. Aplica hoy y habla con nosotros.",
-            "headline": "$31 por hora, Clase A"
+            "primary_text": "Chofer Clase A local. Haces rutas locales y duermes en tu cama. $31 por hora, en casa diario. Aplica hoy.",
+            "headline": "Local, $31 por hora"
           }
         },
         {
           "en": {
-            "hook": "Home daily, $31 an hour",
+            "hook": "Home daily at $31 an hour",
             "cta": "Apply now",
-            "primary_text": "$31 per hour for Class A local work. The shift ends, you head home. Every day. If you hold a Class A and want local runs, apply now.",
+            "primary_text": "Local Class A work at $31 per hour. You finish the shift and go home every day. Apply now.",
             "headline": "Class A local driver"
           },
           "es": {
-            "hook": "Diario a casa, $31/hora",
+            "hook": "En casa diario, $31/hora",
             "cta": "Aplica ya",
-            "primary_text": "$31 por hora en trabajo local con Clase A. Termina el turno y te vas a casa, todos los días. Si tienes licencia Clase A y buscas rutas locales, aplica ya.",
+            "primary_text": "Trabajo local Clase A a $31 por hora. Terminas el turno y vuelves a casa cada día. Aplica ya.",
             "headline": "Chofer local Clase A"
           }
         },
         {
           "en": {
-            "hook": "Off shift, then home",
-            "cta": "Message us",
-            "primary_text": "Straight talk: this is a local Class A seat. You drive your shift, you're home after every one, and the pay is $31 per hour. No weeks on the road. Send us a message and we'll walk you through it.",
+            "hook": "Back home at end of day",
+            "cta": "Apply here",
+            "primary_text": "Here is the job: Class A, local runs, $31 per hour. Your day ends at home. Apply here.",
             "headline": "Local Class A at $31/hour"
           },
           "es": {
-            "hook": "Terminas y a casa",
-            "cta": "Escríbenos",
-            "primary_text": "Te lo digo claro: es un puesto local con Clase A. Manejas tu turno, después de cada uno estás en casa y pagamos $31 por hora. Nada de semanas en la carretera. Escríbenos y te explicamos.",
+            "hook": "En casa al final del día",
+            "cta": "Aplica aquí",
+            "primary_text": "Así es el trabajo: Clase A, rutas locales, $31 por hora. Tu día termina en casa. Aplica aquí.",
             "headline": "Local Clase A, $31/hora"
           }
         }

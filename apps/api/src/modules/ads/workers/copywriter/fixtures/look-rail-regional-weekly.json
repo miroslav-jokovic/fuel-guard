@@ -45,7 +45,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 300
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -95,60 +95,60 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T20:49:53.734Z",
+    "recorded_at": "2026-11-16T19:21:07.193Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Your sunrise: $0.68 a mile",
+            "hook": "Dawn run at $0.68 a mile",
             "cta": "Apply today",
-            "primary_text": "You climb in at first light, and every mile pays $0.68. Class A regional runs, and you're home weekly. If you hold a Class A and want pay you can count by the mile, apply today.",
-            "headline": "$0.68/mile. Home weekly.",
+            "primary_text": "You roll out at first light on a Class A regional run. You earn $0.68 per mile, and you are home weekly.",
+            "headline": "$0.68/mile, home weekly",
             "kicker": "Class A regional",
             "second_line": "Home weekly"
           },
           "es": {
-            "hook": "Tu amanecer: $0.68/milla",
+            "hook": "Al amanecer, $0.68 la milla",
             "cta": "Aplica hoy",
-            "primary_text": "Subes a la cabina con la primera luz y cada milla paga $0.68. Rutas regionales Clase A, y estás en casa cada semana. Si tienes licencia Clase A y quieres pago que cuentas por milla, aplica hoy.",
-            "headline": "Pago: $0.68 por milla",
-            "kicker": "Clase A regional",
+            "primary_text": "Sales con la primera luz en una ruta regional Clase A. Ganas $0.68 por milla y estás en casa cada semana.",
+            "headline": "Regional, $0.68 por milla",
+            "kicker": "Regional Clase A",
             "second_line": "A casa cada semana"
           }
         },
         {
           "en": {
-            "hook": "Roll at dawn, home weekly",
+            "hook": "Out at dawn, home weekly",
             "cta": "Apply today",
-            "primary_text": "Your week starts on the road at dawn and ends at home. This Class A regional job gets you home weekly and pays $0.68 per mile. Apply today and ask us about the runs.",
-            "headline": "Home weekly, $0.68/mile",
-            "kicker": "Class A drivers",
+            "primary_text": "You start the day on the road and end the week at home. Class A regional, $0.68 per mile, home weekly.",
+            "headline": "Home weekly, regional runs",
+            "kicker": "Regional Class A",
             "second_line": "$0.68 per mile"
           },
           "es": {
-            "hook": "Ruta al alba, casa semanal",
+            "hook": "Al alba. En casa cada semana",
             "cta": "Aplica hoy",
-            "primary_text": "Tu semana empieza en la carretera al amanecer y termina en casa. Este trabajo regional Clase A te lleva a casa cada semana y paga $0.68 por milla. Aplica hoy y pregunta por las rutas.",
+            "primary_text": "Empiezas el día en la carretera y terminas la semana en casa. Regional Clase A, $0.68 por milla.",
             "headline": "En casa cada semana",
-            "kicker": "Choferes Clase A",
+            "kicker": "Regional Clase A",
             "second_line": "$0.68 por milla"
           }
         },
         {
           "en": {
-            "hook": "Morning, driver. $0.68/mile",
+            "hook": "First light, $0.68 a mile",
             "cta": "Apply now",
-            "primary_text": "Straight talk: it's Class A regional, it pays $0.68 per mile, and you're home weekly. Sun coming up, wheels rolling. If that's your kind of morning, send your application.",
-            "headline": "Regional, $0.68 a mile",
-            "kicker": "Regional Class A",
+            "primary_text": "Here is the deal: Class A regional, $0.68 per mile, and you are home weekly. Send your application and we will talk.",
+            "headline": "Regional run, home weekly",
+            "kicker": "Now hiring Class A",
             "second_line": "Home weekly"
           },
           "es": {
-            "hook": "Buenos días: $0.68/milla",
-            "cta": "Aplica ahora",
-            "primary_text": "Te lo digo claro: es Clase A regional, paga $0.68 por milla y estás en casa cada semana. Sale el sol y ya vas rodando. Si esa es tu mañana, manda tu solicitud.",
-            "headline": "Regional, $0.68 la milla",
-            "kicker": "Regional Clase A",
+            "hook": "Primera luz, $0.68 la milla",
+            "cta": "Aplica ya",
+            "primary_text": "Te lo digo claro: regional Clase A, $0.68 por milla y en casa cada semana. Manda tu solicitud y hablamos.",
+            "headline": "Ruta regional, casa semanal",
+            "kicker": "Buscamos Clase A",
             "second_line": "A casa cada semana"
           }
         }

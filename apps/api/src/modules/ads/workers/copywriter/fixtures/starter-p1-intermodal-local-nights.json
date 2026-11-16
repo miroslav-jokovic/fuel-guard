@@ -75,7 +75,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 300
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -120,49 +120,49 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:17:34.361Z",
+    "recorded_at": "2026-11-16T19:48:34.297Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Rail yards to Joliet",
+            "hook": "Rail yards to Joliet, nights",
             "cta": "Apply today",
-            "primary_text": "Local intermodal nights with 360 Logistics: rail yards to Joliet warehouses. $320 to $360 per day, paid weekly. Home daily. Automatic transmission. Class A, 2 years experience, age 23+.",
-            "headline": "Home daily, weekly pay"
+            "primary_text": "Intermodal loads from the rail yards to Joliet warehouses. $320 to $360 a day, paid weekly. Home daily.",
+            "headline": "$320 to $360 per day"
           },
           "es": {
-            "hook": "Patios de tren a Joliet",
+            "hook": "Del tren a Joliet, de noche",
             "cta": "Aplica hoy",
-            "primary_text": "Intermodal local de noche con 360 Logistics: de los patios de tren a almacenes en Joliet. De $320 a $360 por día, pago semanal. En casa a diario. Transmisión automática. Clase A, 2 años de experiencia, mayores de 23.",
-            "headline": "En casa a diario"
+            "primary_text": "Carga intermodal del patio de tren a bodegas en Joliet. $320 a $360 por día, pago semanal. En casa a diario.",
+            "headline": "$320 a $360 por día"
           }
         },
         {
           "en": {
             "hook": "Local nights, home daily",
             "cta": "Apply now",
-            "primary_text": "You run local intermodal at night, rail yards to Joliet warehouses, and you are home daily. $320 to $360 per day with weekly pay. Automatic transmission. Class A, 2 years experience, age 23+. 360 Logistics.",
-            "headline": "$320 to $360 per day"
+            "primary_text": "Night runs from the rail yards to Joliet, home daily. $320 to $360 a day. 23+ with 2 years experience.",
+            "headline": "Join 360 Logistics"
           },
           "es": {
-            "hook": "De noche, en casa cada día",
+            "hook": "De noche y en casa a diario",
             "cta": "Aplica ya",
-            "primary_text": "Haces intermodal local de noche, de los patios de tren a almacenes en Joliet, y duermes en casa a diario. De $320 a $360 por día, pago semanal. Transmisión automática. Clase A, 2 años de experiencia, mayores de 23.",
-            "headline": "De $320 a $360 por día"
+            "primary_text": "Turno de noche, del tren a Joliet, en casa a diario. $320 a $360 por día. Mayores de 23 con 2 años de experiencia.",
+            "headline": "Únete a 360 Logistics"
           }
         },
         {
           "en": {
-            "hook": "Joliet nights, automatic",
-            "cta": "Apply here",
-            "primary_text": "Here is the run: rail yards to Joliet warehouses, nights, automatic transmission. Home daily. $320 to $360 per day, paid weekly. Class A, 2 years experience, age 23+. Apply with 360 Logistics.",
-            "headline": "$320 to $360 a day"
+            "hook": "Joliet intermodal, nights",
+            "cta": "Get started",
+            "primary_text": "You haul intermodal loads from the rail yards to Joliet in an automatic. Home daily, $320 to $360 a day.",
+            "headline": "Automatic, local runs"
           },
           "es": {
-            "hook": "Joliet de noche, automático",
-            "cta": "Aplica aquí",
-            "primary_text": "Así es la ruta: de los patios de tren a almacenes en Joliet, de noche, transmisión automática. En casa a diario. De $320 a $360 por día, pago semanal. Clase A, 2 años de experiencia, mayores de 23. Aplica con 360 Logistics.",
-            "headline": "De $320 a $360 al día"
+            "hook": "Intermodal de noche, Joliet",
+            "cta": "Empieza hoy",
+            "primary_text": "Mueves carga intermodal del patio de tren a Joliet en camión automático. En casa a diario, $320 a $360 por día.",
+            "headline": "Camión automático, local"
           }
         }
       ]

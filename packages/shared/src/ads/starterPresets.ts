@@ -1,4 +1,5 @@
 import type { AdPresetSave } from "./brandKitContract.js";
+import { META_FEED_TEXT } from "./platformText.js";
 
 /**
  * The five starter presets (ADS-CREATIVE-QUALITY-PLAN Q-AD77, CQ5; Phase 1 step P1-6). Adoptable DATA, not
@@ -50,6 +51,13 @@ import type { AdPresetSave } from "./brandKitContract.js";
  * the adopt skips that key and says so.
  */
 
+/**
+ * The most the text above the picture may hold: Meta's own recommendation for the feed, read from the one place it
+ * is written down (Q-APX10, ruled 2026-11-16). Until then the five allowed 240 to 300, and the Copywriter — which
+ * writes to the limit it is given — ran past Meta's 150 in 59 % of its English texts and 72 % of its Spanish ones,
+ * so most ads would have gone out with their last sentence behind "See more".
+ */
+const PRIMARY_TEXT_MAX = META_FEED_TEXT.primary_max_chars;
 const PLATFORM = { primary_text: "primary_text", headline: "headline" } as const;
 const FEED = ["4:5", "1:1"] as ("4:5" | "1:1")[];
 const NO_WORDS = "no text, no logos, no lettering";
@@ -61,7 +69,7 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
       name: "From the driver's seat",
       hook_family: "straight_talk", scene_family: "cab_pov",
       hook_formula: "Say plainly what the run is, as if from the driver's seat: the lanes or the area, then the schedule or home time the brief states. If the brief states no lanes or area, say the kind of run (local, regional, over the road). Then what we need, if the brief states it (experience, licence, endorsements). No pay figure in the hook unless the brief states nothing else.",
-      copy_slots: [{ name: "hook", max_chars: 42 }, { name: "cta", max_chars: 24 }, { name: "primary_text", max_chars: 300 }, { name: "headline", max_chars: 40 }],
+      copy_slots: [{ name: "hook", max_chars: 42 }, { name: "cta", max_chars: 24 }, { name: "primary_text", max_chars: PRIMARY_TEXT_MAX }, { name: "headline", max_chars: 40 }],
       image_prompt_template: `View through a truck windshield from the driver's seat, {viewpoint}, an open {road} ahead through {setting}, {light}, {weather}, ${NO_WORDS}`,
       image_slots: ["viewpoint", "road", "setting", "light", "weather"],
       starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null,
@@ -75,7 +83,7 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
       name: "The number",
       hook_family: "pay_first", scene_family: "abstract_plate",
       hook_formula: "Lead with the pay figure alone, exactly as the brief states it and with its unit (per mile, per week, per year). If the brief states no pay, lead with its strongest other figure (a bonus, home days, miles) — never a figure the brief does not hold. Who the job is for (the licence, the kind of run) goes in a few words on the small line above it, never in the pay line.",
-      copy_slots: [{ name: "pay", max_chars: 30 }, { name: "cta", max_chars: 22 }, { name: "primary_text", max_chars: 280 }, { name: "headline", max_chars: 40 }, { name: "kicker", max_chars: 28 }],
+      copy_slots: [{ name: "pay", max_chars: 30 }, { name: "cta", max_chars: 22 }, { name: "primary_text", max_chars: PRIMARY_TEXT_MAX }, { name: "headline", max_chars: 40 }, { name: "kicker", max_chars: 28 }],
       image_prompt_template: `A plain {surface} background, {texture}, {light}, a soft {tone} gradient, nothing in the frame, ${NO_WORDS}`,
       image_slots: ["surface", "texture", "light", "tone"],
       starts_from: "text_only", shows_equipment: false, shows_people: false, motion_template: null,
@@ -89,7 +97,7 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
       name: "Home on time",
       hook_family: "life_first", scene_family: "home_street",
       hook_formula: "Lead with being home: the home time the brief states (every night, weekends, so many days a month), in the reader's words. If the brief states no home time, lead with the schedule or the area that keeps the driver near home. The one fact that makes it believable goes on the second line, in a few words.",
-      copy_slots: [{ name: "hook", max_chars: 40 }, { name: "cta", max_chars: 24 }, { name: "primary_text", max_chars: 260 }, { name: "headline", max_chars: 40 }, { name: "second_line", max_chars: 28 }],
+      copy_slots: [{ name: "hook", max_chars: 40 }, { name: "cta", max_chars: 24 }, { name: "primary_text", max_chars: PRIMARY_TEXT_MAX }, { name: "headline", max_chars: 40 }, { name: "second_line", max_chars: 28 }],
       image_prompt_template: `Our truck parked on a quiet {street} at {time_of_day}, a porch light on, {season}, {viewpoint}, no people, ${NO_WORDS}`,
       image_slots: ["street", "time_of_day", "season", "viewpoint"],
       starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null,
@@ -103,7 +111,7 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
       name: "Walk-around",
       hook_family: "equipment_first", scene_family: "equipment_at_rest",
       hook_formula: "Point at the equipment: what the driver will actually drive or haul, as the brief describes it (the trailer type, the freight). If the brief says nothing about the equipment, lead with the freight or the kind of run. Then the strongest fact the brief states.",
-      copy_slots: [{ name: "hook", max_chars: 36 }, { name: "cta", max_chars: 22 }, { name: "primary_text", max_chars: 240 }, { name: "headline", max_chars: 40 }],
+      copy_slots: [{ name: "hook", max_chars: 36 }, { name: "cta", max_chars: 22 }, { name: "primary_text", max_chars: PRIMARY_TEXT_MAX }, { name: "headline", max_chars: 40 }],
       image_prompt_template: `Our tractor parked at {setting}, {viewpoint}, {light}, {weather}, ${NO_WORDS}`,
       image_slots: ["setting", "viewpoint", "light", "weather"],
       starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null,
@@ -117,7 +125,7 @@ export const STARTER_PRESETS: readonly AdPresetSave[] = [
       name: "On the road, in figures",
       hook_family: "proof", scene_family: "equipment_on_road",
       hook_formula: "Lead with one of the brief's own figures as evidence rather than a promise (the pay, or the miles), and put a second on the second line (the home time, or the bonus), so the two read side by side. If the brief states only one figure, the second line is the plainest fact beside it. Never round, never add a figure.",
-      copy_slots: [{ name: "hook", max_chars: 40 }, { name: "cta", max_chars: 24 }, { name: "primary_text", max_chars: 260 }, { name: "headline", max_chars: 40 }, { name: "second_line", max_chars: 28 }],
+      copy_slots: [{ name: "hook", max_chars: 40 }, { name: "cta", max_chars: 24 }, { name: "primary_text", max_chars: PRIMARY_TEXT_MAX }, { name: "headline", max_chars: 40 }, { name: "second_line", max_chars: 28 }],
       image_prompt_template: `Our truck driving on {road} through {setting}, {viewpoint}, {light}, {season}, ${NO_WORDS}`,
       image_slots: ["road", "setting", "viewpoint", "light", "season"],
       starts_from: "equipment_photo", shows_equipment: true, shows_people: false, motion_template: null,

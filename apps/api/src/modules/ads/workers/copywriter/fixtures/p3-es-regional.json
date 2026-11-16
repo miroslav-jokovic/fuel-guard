@@ -45,7 +45,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 260
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -83,49 +83,49 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:05:02.734Z",
+    "recorded_at": "2026-11-16T19:36:19.183Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Home every weekend",
+            "hook": "Home weekends",
             "cta": "Apply today",
-            "primary_text": "Class A regional driving that gets you home weekends. You run your loads during the week, then you are home. Pay is $0.66 per mile. Apply today and talk with our team.",
-            "headline": "$0.66/mile, home weekends"
+            "primary_text": "Class A regional driving at $0.66 per mile. You run the week and you are home weekends.",
+            "headline": "$0.66 per mile, Class A"
           },
           "es": {
             "hook": "Fines de semana en casa",
             "cta": "Aplica hoy",
-            "primary_text": "Manejo regional Clase A con fines de semana en casa. Corres tus cargas en la semana y luego estás en casa. Pagamos $0.66 por milla. Aplica hoy y habla con nuestro equipo.",
+            "primary_text": "Clase A regional a $0.66 por milla. Manejas la semana y estás en casa los fines de semana.",
+            "headline": "$0.66 por milla, Clase A"
+          }
+        },
+        {
+          "en": {
+            "hook": "Weekends at home",
+            "cta": "Apply now",
+            "primary_text": "Regional Class A runs pay $0.66 per mile. Your weekends are spent at home. Apply and we will talk about the routes.",
+            "headline": "$0.66 a mile, regional"
+          },
+          "es": {
+            "hook": "En casa el fin de semana",
+            "cta": "Aplica ya",
+            "primary_text": "Rutas regionales Clase A a $0.66 por milla. Los fines de semana los pasas en casa. Aplica y hablamos de las rutas.",
             "headline": "$0.66 por milla, regional"
           }
         },
         {
           "en": {
             "hook": "Home for the weekend",
-            "cta": "Apply now",
-            "primary_text": "$0.66 per mile on regional Class A runs, and you are home weekends. Clear pay by the mile, and your weekend stays yours. Send your application and we will call you.",
-            "headline": "Regional Class A at $0.66/mi"
+            "cta": "Start here",
+            "primary_text": "Here is the deal: Class A, regional, $0.66 per mile, and you are home weekends. If that works for you, apply.",
+            "headline": "Class A regional drivers"
           },
           "es": {
-            "hook": "Sábado y domingo en casa",
-            "cta": "Aplica ya",
-            "primary_text": "$0.66 por milla en rutas regionales Clase A, y estás en casa los fines de semana. Pago claro por milla y tu fin de semana es tuyo. Manda tu solicitud y te llamamos.",
-            "headline": "Clase A regional, $0.66/milla"
-          }
-        },
-        {
-          "en": {
-            "hook": "We get you home weekends",
-            "cta": "Call us today",
-            "primary_text": "Here is the job straight. Class A, regional runs. You are home weekends. You get $0.66 per mile. If that works for you, apply and talk to dispatch.",
-            "headline": "Class A regional, home weekends"
-          },
-          "es": {
-            "hook": "Fin de semana: en tu casa",
-            "cta": "Llámanos hoy",
-            "primary_text": "Te lo digo directo. Clase A, rutas regionales. Estás en casa los fines de semana. Ganas $0.66 por milla. Si te sirve, aplica y habla con despacho.",
-            "headline": "Clase A regional, en casa"
+            "hook": "En casa cada fin de semana",
+            "cta": "Aplica aquí",
+            "primary_text": "Así es: Clase A, regional, $0.66 por milla y en casa los fines de semana. Si te sirve, aplica.",
+            "headline": "Clase A regional"
           }
         }
       ]

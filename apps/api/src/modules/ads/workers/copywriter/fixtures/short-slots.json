@@ -72,43 +72,43 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:14:05.974Z",
+    "recorded_at": "2026-11-16T19:45:05.703Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "$0.68 a mile",
-            "body": "Class A regional drivers, home weekly.",
-            "cta": "Apply"
+            "hook": "$0.68 per mile",
+            "body": "Class A regional drivers. Home weekly.",
+            "cta": "Apply now"
           },
           "es": {
             "hook": "$0.68/milla",
             "body": "Clase A regional. En casa cada semana.",
-            "cta": "Aplica"
+            "cta": "Aplica ya"
           }
         },
         {
           "en": {
             "hook": "$0.68/mile",
             "body": "Home weekly. Class A regional runs.",
-            "cta": "Join us"
+            "cta": "Apply"
           },
           "es": {
-            "hook": "$0.68/milla",
-            "body": "En casa cada semana. Rutas regionales.",
-            "cta": "Únete"
+            "hook": "$0.68 por milla",
+            "body": "En casa cada semana. Clase A regional.",
+            "cta": "Postúlate"
           }
         },
         {
           "en": {
-            "hook": "$0.68 per mile",
-            "body": "Regional Class A. You're home weekly.",
-            "cta": "Call us"
+            "hook": "$0.68 a mile",
+            "body": "You run regional, Class A. Home weekly.",
+            "cta": "Join us"
           },
           "es": {
             "hook": "$0.68 la milla",
-            "body": "Ruta regional. Vas a casa cada semana.",
-            "cta": "Llámanos"
+            "body": "Manejas regional, Clase A. En casa semanal.",
+            "cta": "Únete"
           }
         }
       ]

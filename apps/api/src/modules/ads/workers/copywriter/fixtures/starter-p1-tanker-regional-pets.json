@@ -70,7 +70,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 300
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -115,49 +115,49 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:19:40.257Z",
+    "recorded_at": "2026-11-16T19:50:48.422Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Tanker runs in IL, IN, WI",
+            "hook": "Tanker runs: IL, IN, WI",
             "cta": "Apply today",
-            "primary_text": "You haul tanker freight on regional runs across Illinois, Indiana and Wisconsin. You make $0.75 per mile with weekly pay, and you're home weekends. Class A with hazmat, 23+.",
-            "headline": "$0.75 per mile, weekly pay"
+            "primary_text": "Regional tanker freight across Illinois, Indiana and Wisconsin. $0.75 per mile, weekly pay. Class A, hazmat, 23+.",
+            "headline": "Weekly pay, $0.75 per mile"
           },
           "es": {
-            "hook": "Tanque por IL, IN y WI",
+            "hook": "Tanque: IL, IN y WI",
             "cta": "Aplica hoy",
-            "primary_text": "Llevas carga en tanque en rutas regionales por Illinois, Indiana y Wisconsin. Ganas $0.75 por milla con pago semanal y estás en casa los fines de semana. Clase A con hazmat, mayores de 23.",
-            "headline": "Pago semanal, $0.75/milla"
+            "primary_text": "Carga de tanque regional en Illinois, Indiana y Wisconsin. $0.75 por milla y pago semanal. Clase A con hazmat.",
+            "headline": "Pago semanal: $0.75/milla"
           }
         },
         {
           "en": {
             "hook": "Home weekends",
             "cta": "Apply today",
-            "primary_text": "Regional tanker runs in Illinois, Indiana and Wisconsin, and you're home weekends. $0.75 per mile, paid weekly. We have a pet policy. Class A with hazmat, 23+.",
-            "headline": "Regional tanker, $0.75/mile"
+            "primary_text": "Regional tanker runs in Illinois, Indiana and Wisconsin. Pet policy and weekly pay.",
+            "headline": "Hazmat tanker, Class A"
           },
           "es": {
-            "hook": "Fines de semana en casa",
+            "hook": "En casa fines de semana",
             "cta": "Aplica hoy",
-            "primary_text": "Rutas regionales en tanque por Illinois, Indiana y Wisconsin, y en casa los fines de semana. $0.75 por milla con pago semanal. Tenemos política de mascotas. Clase A con hazmat, mayores de 23.",
-            "headline": "Tanque, $0.75 por milla"
+            "primary_text": "Rutas regionales de tanque en Illinois, Indiana y Wisconsin. Política de mascotas y pago semanal.",
+            "headline": "Tanque hazmat, Clase A"
           }
         },
         {
           "en": {
-            "hook": "Regional hazmat tanker",
-            "cta": "Call us today",
-            "primary_text": "Here's the run: tanker freight, regional, across Illinois, Indiana and Wisconsin. You get $0.75 per mile, weekly pay and weekends at home. Pet policy too. You need your Class A, hazmat, and to be 23+.",
-            "headline": "Home weekends, weekly pay"
+            "hook": "Hazmat tanker, regional",
+            "cta": "Apply now",
+            "primary_text": "Tanker freight in Illinois, Indiana and Wisconsin. You need Class A hazmat, 2 years experience, 23+.",
+            "headline": "$0.75 per mile"
           },
           "es": {
             "hook": "Tanque hazmat regional",
-            "cta": "Llámanos hoy",
-            "primary_text": "Así es la ruta: carga en tanque, regional, por Illinois, Indiana y Wisconsin. Pagamos $0.75 por milla, pago semanal y fines de semana en casa. Política de mascotas. Necesitas Clase A con hazmat, mayor de 23 años.",
-            "headline": "En casa fines de semana"
+            "cta": "Aplica ya",
+            "primary_text": "Carga de tanque en Illinois, Indiana y Wisconsin. Buscamos Clase A hazmat, 2 años de experiencia, mayores de 23.",
+            "headline": "$0.75 por milla"
           }
         }
       ]

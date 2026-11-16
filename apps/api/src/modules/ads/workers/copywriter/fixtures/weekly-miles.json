@@ -73,43 +73,43 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:43:48.798Z",
+    "recorded_at": "2026-11-16T20:16:03.019Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "$0.62 a mile, Class A regional",
-            "body": "Class A regional driving at $0.62 per mile, with 2500 miles. You hold a Class A CDL and want regional work. Talk to our recruiters and get the details.",
+            "hook": "$0.62 per mile for Class A drivers",
+            "body": "You run regional with a Class A license and get paid $0.62 per mile. The job is 2500 miles. Plain pay, counted by the mile.",
             "cta": "Apply today"
           },
           "es": {
-            "hook": "$0.62 por milla, regional Clase A",
-            "body": "Manejo regional Clase A a $0.62 por milla, con 2500 millas. Si tienes tu CDL Clase A y buscas rutas regionales, habla con nosotros.",
+            "hook": "$0.62 por milla para choferes Clase A",
+            "body": "Manejas regional con licencia Clase A y te pagan $0.62 por milla. El trabajo es de 2500 millas. Pago claro, contado por milla.",
             "cta": "Aplica hoy"
           }
         },
         {
           "en": {
-            "hook": "$0.62/mile on regional Class A runs",
-            "body": "You run regional routes as a Class A driver. Pay is $0.62 per mile, with 2500 miles. Ask us how the routes run before you sign on.",
-            "cta": "Ask about routes"
+            "hook": "$0.62 a mile, regional Class A",
+            "body": "This is regional driving for a Class A driver. You cover 2500 miles, and each one pays $0.62. Reach out and talk to dispatch.",
+            "cta": "Talk to dispatch"
           },
           "es": {
-            "hook": "$0.62/milla en rutas regionales Clase A",
-            "body": "Haces rutas regionales como chofer Clase A. Pagamos $0.62 por milla, con 2500 millas. Pregúntanos cómo son las rutas antes de empezar.",
-            "cta": "Pregunta por rutas"
+            "hook": "$0.62 por milla, regional Clase A",
+            "body": "Es trabajo regional para chofer Clase A. Recorres 2500 millas y cada una se paga a $0.62. Escríbenos y habla con despacho.",
+            "cta": "Habla con despacho"
           }
         },
         {
           "en": {
-            "hook": "$0.62 a mile. Class A, regional.",
-            "body": "Here it is straight: $0.62 per mile and 2500 miles. You need a Class A CDL. Call and we will tell you what the freight and lanes look like.",
-            "cta": "Call us today"
+            "hook": "$0.62 per mile. Class A, regional.",
+            "body": "Here is the deal: 2500 miles at $0.62 per mile. Regional runs, Class A. If that works for you, send your info and we will talk.",
+            "cta": "Send your info"
           },
           "es": {
-            "hook": "$0.62 la milla. Clase A, regional.",
-            "body": "Te lo decimos claro: $0.62 por milla y 2500 millas. Necesitas CDL Clase A. Llama y te contamos cómo son la carga y las rutas.",
-            "cta": "Llámanos hoy"
+            "hook": "$0.62 por milla. Clase A, regional.",
+            "body": "Así está la cosa: 2500 millas a $0.62 por milla. Rutas regionales, Clase A. Si te sirve, mándanos tus datos y hablamos.",
+            "cta": "Manda tus datos"
           }
         }
       ]

@@ -75,7 +75,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 300
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -120,49 +120,49 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:17:09.014Z",
+    "recorded_at": "2026-11-16T19:48:08.457Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Home weekly on flatbed",
+            "hook": "Flatbed runs, home weekly",
             "cta": "Apply today",
-            "primary_text": "Home weekly. You run regional flatbed freight across Georgia, the Carolinas and Tennessee for Dispatch Freight Lines. Guaranteed pay and paid orientation. Class A, 23+, 2 years experience.",
-            "headline": "Guaranteed pay"
-          },
-          "es": {
-            "hook": "En casa cada semana",
-            "cta": "Aplica hoy",
-            "primary_text": "En casa cada semana. Llevas carga de flatbed en rutas regionales por Georgia, las Carolinas y Tennessee con Dispatch Freight Lines. Pago garantizado y orientación pagada. Licencia Clase A, mayores de 23, 2 años de experiencia.",
-            "headline": "Pago garantizado"
-          }
-        },
-        {
-          "en": {
-            "hook": "GA, the Carolinas, TN",
-            "cta": "Apply now",
-            "primary_text": "Georgia, the Carolinas and Tennessee. Regional flatbed runs with Dispatch Freight Lines, home weekly. You need a Class A, 2 years experience and to be 23+. Paid orientation to start.",
-            "headline": "Dispatch Freight Lines"
-          },
-          "es": {
-            "hook": "GA, las Carolinas y TN",
-            "cta": "Aplica ya",
-            "primary_text": "Georgia, las Carolinas y Tennessee. Rutas regionales de flatbed con Dispatch Freight Lines, en casa cada semana. Necesitas licencia Clase A, 2 años de experiencia y ser mayor de 23 años. Orientación pagada.",
-            "headline": "Dispatch Freight Lines"
-          }
-        },
-        {
-          "en": {
-            "hook": "Regional flatbed runs",
-            "cta": "Apply now",
-            "primary_text": "$420 to $680 per load, with guaranteed pay. Regional flatbed for Dispatch Freight Lines in Georgia, the Carolinas and Tennessee. Home weekly. Class A, 23+, 2 years experience.",
+            "primary_text": "Earn $420 to $680 per load hauling flatbed in Georgia, the Carolinas and Tennessee. Guaranteed pay.",
             "headline": "$420 to $680 per load"
           },
           "es": {
-            "hook": "Flatbed regional",
-            "cta": "Postúlate hoy",
-            "primary_text": "De $420 a $680 por carga, con pago garantizado. Flatbed regional con Dispatch Freight Lines en Georgia, las Carolinas y Tennessee. En casa cada semana. Licencia Clase A, mayores de 23, 2 años de experiencia.",
+            "hook": "Flatbed y casa cada semana",
+            "cta": "Aplica hoy",
+            "primary_text": "Gana de $420 a $680 por carga con flatbed en Georgia, las Carolinas y Tennessee. Pago garantizado.",
             "headline": "De $420 a $680 por carga"
+          }
+        },
+        {
+          "en": {
+            "hook": "GA, Carolinas, TN flatbed",
+            "cta": "Apply now",
+            "primary_text": "Regional flatbed runs in Georgia, the Carolinas and Tennessee. Home weekly. Paid orientation to start.",
+            "headline": "Home weekly, guaranteed pay"
+          },
+          "es": {
+            "hook": "Flatbed: GA, Carolinas y TN",
+            "cta": "Aplica ya",
+            "primary_text": "Rutas regionales de flatbed en Georgia, las Carolinas y Tennessee. En casa cada semana. Orientación pagada.",
+            "headline": "En casa cada semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "Your lane: GA to Tennessee",
+            "cta": "Apply today",
+            "primary_text": "Dispatch Freight Lines runs regional flatbed. Need 2 years of experience, 23+. Paid orientation.",
+            "headline": "Dispatch Freight Lines"
+          },
+          "es": {
+            "hook": "Tu ruta: GA a Tennessee",
+            "cta": "Aplica hoy",
+            "primary_text": "Dispatch Freight Lines: flatbed regional. Pide 2 años de experiencia, mayores de 23. Orientación pagada.",
+            "headline": "Dispatch Freight Lines"
           }
         }
       ]

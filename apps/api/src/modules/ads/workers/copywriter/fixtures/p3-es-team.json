@@ -45,7 +45,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 260
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -83,20 +83,20 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:05:21.585Z",
+    "recorded_at": "2026-11-16T19:36:37.853Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$2,500 per week",
             "cta": "Apply today",
-            "primary_text": "Class A team drivers: $2,500 per week, with weekly pay. You run as a team, and your check comes every week. Apply today.",
+            "primary_text": "Class A team drivers earn $2,500 per week. Your pay comes weekly. Apply today and get rolling as a team.",
             "headline": "Class A team drivers"
           },
           "es": {
             "hook": "$2,500 por semana",
             "cta": "Aplica hoy",
-            "primary_text": "Conductores en equipo Clase A: $2,500 por semana, con pago semanal. Manejas en equipo y tu cheque llega cada semana. Aplica hoy.",
+            "primary_text": "Conductores en equipo Clase A: $2,500 por semana. Te pagamos cada semana. Aplica hoy y sal a la ruta.",
             "headline": "Equipos Clase A"
           }
         },
@@ -104,28 +104,28 @@
           "en": {
             "hook": "Paid every week",
             "cta": "Apply now",
-            "primary_text": "Weekly pay for Class A team drivers. You run the truck as a team, and the check comes every week: $2,500 per week. Apply now.",
-            "headline": "Team drivers: $2,500/week"
+            "primary_text": "Your check comes every week. Class A team drivers make $2,500 per week. Apply now and start as a team.",
+            "headline": "$2,500 per week for teams"
           },
           "es": {
             "hook": "Pago cada semana",
-            "cta": "Solicita ya",
-            "primary_text": "Pago semanal para conductores en equipo Clase A. Manejan el camión en equipo y el cheque llega cada semana: $2,500 por semana. Solicita ya.",
+            "cta": "Aplica ya",
+            "primary_text": "Tu cheque llega cada semana. Los equipos Clase A ganan $2,500 por semana. Aplica ya y empieza en equipo.",
             "headline": "Equipos: $2,500 por semana"
           }
         },
         {
           "en": {
-            "hook": "Run as a team",
-            "cta": "Apply today",
-            "primary_text": "Here is the deal: you drive Class A as a team, you make $2,500 per week, and pay goes out weekly. You know what is coming every week. Apply today.",
-            "headline": "$2,500 per week"
+            "hook": "Team up for $2,500 a week",
+            "cta": "Get started",
+            "primary_text": "Got your Class A? Run as a team for $2,500 per week, with weekly pay. Tell us when you can start.",
+            "headline": "Class A teams, paid weekly"
           },
           "es": {
-            "hook": "Maneja en equipo",
-            "cta": "Aplica hoy",
-            "primary_text": "Así de claro: manejas Clase A en equipo, ganas $2,500 por semana y el pago es semanal. Sabes lo que entra cada semana. Aplica hoy.",
-            "headline": "$2,500 por semana"
+            "hook": "Equipo: $2,500 por semana",
+            "cta": "Empieza ya",
+            "primary_text": "¿Tienes tu Clase A? Maneja en equipo por $2,500 por semana, con pago semanal. Dinos cuándo puedes empezar.",
+            "headline": "Pago semanal, Clase A"
           }
         }
       ]

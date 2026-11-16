@@ -75,7 +75,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 260
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -125,22 +125,22 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:38:59.492Z",
+    "recorded_at": "2026-11-16T20:10:46.304Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$0.64 to $0.72 per mile",
             "cta": "Apply today",
-            "primary_text": "Silvicom Inc pays $0.64 to $0.72 per mile on regional reefer runs, Chicago to Texas. No-touch freight and weekly pay. Our dispatch speaks Spanish.",
-            "headline": "Class A reefer, regional",
+            "primary_text": "Silvicom Inc runs reefer freight Chicago to Texas. No-touch freight, weekly pay. Dispatch speaks Spanish.",
+            "headline": "Reefer, Chicago to Texas",
             "second_line": "Home weekly"
           },
           "es": {
             "hook": "$0.64 a $0.72 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Silvicom Inc paga de $0.64 a $0.72 por milla en rutas regionales de reefer, de Chicago a Texas. Carga sin tocar y pago semanal. Nuestro despacho habla español.",
-            "headline": "Reefer Clase A, regional",
+            "primary_text": "Silvicom Inc lleva carga refrigerada de Chicago a Texas. Carga sin tocar, pago semanal. Despacho habla español.",
+            "headline": "Reefer de Chicago a Texas",
             "second_line": "Casa cada semana"
           }
         },
@@ -148,31 +148,31 @@
           "en": {
             "hook": "Up to $0.72 per mile",
             "cta": "Apply now",
-            "primary_text": "You are home weekly. Regional reefer runs between Chicago and Texas, $0.64 to $0.72 per mile, paid every week by Silvicom Inc. Our dispatch speaks Spanish.",
-            "headline": "Home weekly on reefer runs",
+            "primary_text": "Regional reefer runs, Chicago to Texas. Home weekly and paid weekly at Silvicom Inc. Class A, 23+.",
+            "headline": "Home weekly, reefer",
             "second_line": "Weekly pay"
           },
           "es": {
             "hook": "Hasta $0.72 por milla",
-            "cta": "Aplica ya",
-            "primary_text": "Estás en casa cada semana. Rutas regionales de reefer entre Chicago y Texas, de $0.64 a $0.72 por milla, con pago semanal en Silvicom Inc. Nuestro despacho habla español.",
+            "cta": "Aplica ahora",
+            "primary_text": "Rutas regionales de carga refrigerada, Chicago a Texas. En casa y pago cada semana con Silvicom Inc. Mayores de 23.",
             "headline": "En casa cada semana",
             "second_line": "Pago semanal"
           }
         },
         {
           "en": {
-            "hook": "Reefer, up to $0.72/mile",
-            "cta": "Join our team",
-            "primary_text": "Reefer freight from Chicago to Texas on regional runs. No-touch freight: you drive, you don't unload. Silvicom Inc pays $0.64 to $0.72 per mile. Age 23+. Our dispatch speaks Spanish.",
-            "headline": "Chicago to Texas reefer",
+            "hook": "Reefer at $0.64–$0.72/mile",
+            "cta": "Apply today",
+            "primary_text": "Dispatch speaks Spanish. You run reefer from Chicago to Texas, no-touch, home weekly. Silvicom Inc, Class A, 23+.",
+            "headline": "Chicago to Texas, reefer",
             "second_line": "No-touch freight"
           },
           "es": {
-            "hook": "Hasta $0.72/milla, reefer",
-            "cta": "Únete al equipo",
-            "primary_text": "Carga refrigerada de Chicago a Texas, en rutas regionales. Carga sin tocar: tú manejas, no descargas. Silvicom Inc paga de $0.64 a $0.72 por milla. Mayores de 23. Despacho en español.",
-            "headline": "Reefer de Chicago a Texas",
+            "hook": "Reefer a $0.64–$0.72/milla",
+            "cta": "Aplica hoy",
+            "primary_text": "Despacho habla español. Llevas carga refrigerada de Chicago a Texas, sin tocar, en casa cada semana. Mayores de 23.",
+            "headline": "Reefer, Chicago a Texas",
             "second_line": "Carga sin tocar"
           }
         }

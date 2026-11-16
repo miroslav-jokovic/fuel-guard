@@ -404,6 +404,10 @@ standing instruction ("decide what you can, ask me only for what is mine").
     **The owner, 2026-11-12: "English only for now."** So the L3 rate is recorded from the English ratings and
     says so; the Spanish words stay checked by the claim and length checks alone, and the Spanish column waits
     for a reader the owner names (F-AG12 stays open).
+- **Rebuilt again 2026-11-16 (Q-APX10, ADS-PLATFORM-V2-PLAN §5a):** the text above the picture is now held to
+  Meta's 150 characters, the Copywriter was recorded again under the same prompt, and the page shows those words:
+  60 sets, 173 candidates, 7 refused by the checks and not shown, no set with nothing to rate. Both stores read
+  empty before the page was replaced.
 
 ## Sources (read 2026-11-09)
 

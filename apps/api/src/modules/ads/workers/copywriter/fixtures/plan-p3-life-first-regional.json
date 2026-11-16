@@ -58,7 +58,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 260
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -110,21 +110,21 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:12:34.790Z",
+    "recorded_at": "2026-11-16T19:43:32.546Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Home weekly",
+            "hook": "Home every week",
             "cta": "Apply today",
-            "primary_text": "Run flatbed on Midwest lanes in an assigned truck, and be home weekly. $0.68 per mile plus a 401k. At Silvicom Inc, a small fleet, dispatch knows you by name.",
-            "headline": "Flatbed, Midwest lanes",
+            "primary_text": "Silvicom Inc runs flatbed on Midwest lanes and gets you home weekly. $0.68 per mile, an assigned truck and a 401k.",
+            "headline": "Flatbed on Midwest lanes",
             "second_line": "$0.68 per mile"
           },
           "es": {
             "hook": "En casa cada semana",
             "cta": "Aplica hoy",
-            "primary_text": "Flatbed en rutas del Medio Oeste, con camión asignado y en casa cada semana. $0.68 por milla y plan 401k. En Silvicom Inc somos una flota pequeña: despacho sabe tu nombre.",
+            "primary_text": "Silvicom Inc lleva flatbed por rutas del Medio Oeste y te trae a casa cada semana. $0.68 por milla y camión asignado.",
             "headline": "Flatbed en el Medio Oeste",
             "second_line": "$0.68 por milla"
           }
@@ -133,32 +133,32 @@
           "en": {
             "hook": "Run the week, then home",
             "cta": "Apply now",
-            "primary_text": "Your week: flatbed loads across the Midwest in the same assigned truck, then home. Home weekly, $0.68 per mile and a 401k. Silvicom Inc is small enough that dispatch knows your name.",
-            "headline": "Silvicom Inc: home weekly",
-            "second_line": "$0.68 a mile"
+            "primary_text": "Your week: flatbed on Midwest lanes in your assigned truck, then home weekly. $0.68 per mile.",
+            "headline": "Silvicom Inc, home weekly",
+            "second_line": "With a 401k"
           },
           "es": {
-            "hook": "Rueda la semana y a casa",
+            "hook": "Corre la semana y a casa",
             "cta": "Aplica ya",
-            "primary_text": "Tu semana: cargas de flatbed por el Medio Oeste en tu camión asignado, y luego a casa. En casa cada semana, $0.68 por milla y 401k. En Silvicom Inc, despacho sabe tu nombre.",
-            "headline": "A casa cada semana",
-            "second_line": "$0.68 la milla"
+            "primary_text": "Tu semana: flatbed por el Medio Oeste en tu camión asignado, y luego a casa. $0.68 por milla.",
+            "headline": "Con Silvicom Inc, a casa",
+            "second_line": "Con plan 401k"
           }
         },
         {
           "en": {
-            "hook": "We get you home weekly",
-            "cta": "Apply here",
-            "primary_text": "Flatbed on Midwest lanes, regional runs that bring you home weekly. Same assigned truck, $0.68 per mile and a 401k. Silvicom Inc is a small fleet, and dispatch knows your name.",
-            "headline": "Flatbed, assigned truck",
-            "second_line": "401k included"
+            "hook": "You're home every week",
+            "cta": "Apply today",
+            "primary_text": "We're a small fleet. Dispatch knows you by name. Flatbed on Midwest lanes, home weekly and a 401k.",
+            "headline": "Silvicom Inc is hiring",
+            "second_line": "$0.68 a mile"
           },
           "es": {
-            "hook": "Cada semana, a casa",
-            "cta": "Aplica aquí",
-            "primary_text": "Flatbed en rutas regionales del Medio Oeste, y en casa cada semana. Camión asignado, $0.68 por milla y 401k. Silvicom Inc es una flota pequeña: despacho te conoce por nombre.",
-            "headline": "Flatbed y camión asignado",
-            "second_line": "Con plan 401k"
+            "hook": "Cada semana estás en casa",
+            "cta": "Aplica hoy",
+            "primary_text": "Somos una flota chica y en despacho te conocen por tu nombre. Flatbed en el Medio Oeste, casa cada semana y 401k.",
+            "headline": "Silvicom Inc contrata",
+            "second_line": "$0.68 la milla"
           }
         }
       ]

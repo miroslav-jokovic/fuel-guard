@@ -53,7 +53,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 220
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -90,61 +90,61 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:09:32.175Z",
+    "recorded_at": "2026-11-16T19:40:21.015Z",
     "output": {
       "candidates": [
         {
           "en": {
             "card_get": "$2,500 per week",
-            "card_need": "A Class A CDL, and you run as one half of a team.",
-            "card_apply": "Tap Apply and send your details.",
+            "card_need": "A Class A CDL and you're ready to drive as a team.",
+            "card_apply": "Tap apply and send your info.",
             "cta": "Apply today",
-            "primary_text": "Class A team drivers: $2,500 per week, paid weekly. You need a Class A CDL and you drive as a team. Tap Apply to send your details.",
+            "primary_text": "Class A team drivers: $2,500 per week, paid weekly. Bring your CDL and apply today.",
             "headline": "Team drivers: $2,500/week"
           },
           "es": {
             "card_get": "$2,500 por semana",
-            "card_need": "Licencia CDL Clase A y manejar en equipo.",
-            "card_apply": "Toca Aplica y manda tus datos.",
+            "card_need": "Licencia Clase A y ganas de manejar en equipo.",
+            "card_apply": "Toca aplicar y manda tus datos.",
             "cta": "Aplica hoy",
-            "primary_text": "Conductores en equipo Clase A: $2,500 por semana, con pago semanal. Necesitas CDL Clase A y manejar en equipo. Toca Aplica y manda tus datos.",
-            "headline": "Equipos: $2,500 por semana"
+            "primary_text": "Conductores en equipo Clase A: $2,500 por semana, con pago semanal. Trae tu licencia y aplica hoy.",
+            "headline": "En equipo: $2,500/semana"
           }
         },
         {
           "en": {
             "card_get": "Paid every week",
-            "card_need": "Class A CDL. You run the truck with a team partner.",
-            "card_apply": "Apply below with your details.",
-            "cta": "Apply now",
-            "primary_text": "You get paid every week: $2,500 per week for Class A team drivers. We need a Class A CDL, and you drive as a team. Apply below.",
-            "headline": "Weekly pay, $2,500 a week"
+            "card_need": "A Class A CDL and a willingness to run as a team.",
+            "card_apply": "Fill out the application below.",
+            "cta": "Start here",
+            "primary_text": "Drive Class A as a team and get paid every week: $2,500 per week. Apply today.",
+            "headline": "Weekly pay of $2,500"
           },
           "es": {
-            "card_get": "Te pagamos cada semana",
-            "card_need": "CDL Clase A. Manejas el camión con tu compañero de equipo.",
-            "card_apply": "Aplica abajo con tus datos.",
-            "cta": "Aplica ya",
-            "primary_text": "Te pagamos cada semana: $2,500 por semana para conductores en equipo Clase A. Necesitas CDL Clase A y manejar en equipo. Aplica abajo.",
-            "headline": "Pago semanal, $2,500/semana"
+            "card_get": "Pago cada semana",
+            "card_need": "Licencia Clase A y disposición para manejar en equipo.",
+            "card_apply": "Llena la solicitud aquí abajo.",
+            "cta": "Empieza aquí",
+            "primary_text": "Maneja en equipo con Clase A y cobra cada semana: $2,500 por semana. Aplica hoy.",
+            "headline": "Pago semanal de $2,500"
           }
         },
         {
           "en": {
-            "card_get": "Team runs, $2,500 a week",
-            "card_need": "Bring your Class A CDL and be ready to drive as a team.",
-            "card_apply": "Fill out the form to apply.",
-            "cta": "Get started",
-            "primary_text": "Straight talk: you drive Class A as a team and make $2,500 per week. Pay comes every week. Have your Class A CDL ready and fill out the form.",
+            "card_get": "$2,500 a week for team drivers",
+            "card_need": "You hold a Class A CDL and you want to run team.",
+            "card_apply": "Apply now and talk to us.",
+            "cta": "Apply now",
+            "primary_text": "Straight up: Class A team, $2,500 per week, and the check comes every week. Apply now.",
             "headline": "Class A teams, paid weekly"
           },
           "es": {
-            "card_get": "Equipos, $2,500 a la semana",
-            "card_need": "Trae tu CDL Clase A y prepárate para manejar en equipo.",
-            "card_apply": "Llena el formulario para aplicar.",
-            "cta": "Empieza aquí",
-            "primary_text": "Te lo decimos claro: manejas Clase A en equipo y ganas $2,500 por semana. El pago llega cada semana. Ten lista tu CDL Clase A y llena el formulario.",
-            "headline": "Pago semanal para equipos"
+            "card_get": "$2,500 a la semana en equipo",
+            "card_need": "Tienes licencia Clase A y quieres manejar en equipo.",
+            "card_apply": "Aplica ya y habla con nosotros.",
+            "cta": "Aplica ya",
+            "primary_text": "Te lo digo claro: equipo Clase A, $2,500 por semana y cobras cada semana. Aplica ya.",
+            "headline": "Pago semanal, Clase A"
           }
         }
       ]
