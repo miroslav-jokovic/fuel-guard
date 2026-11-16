@@ -64,7 +64,9 @@ describe("ChatConversationStage", () => {
   });
 
   it("puts every line under its day, with Today for the ones from today", () => {
-    const w = render(data([msg(1, BEN)]));
+    // Written NOW, not the fixture's default nine minutes ago: for the first nine minutes of every UTC day
+    // that default is yesterday, and this test failed in CI at 00:05 UTC on 2026-11-16 for that reason alone.
+    const w = render(data([msg(1, BEN, {}, 0)]));
     expect(w.find('[role="separator"][aria-label="Today"]').exists()).toBe(true);
   });
 
