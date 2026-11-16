@@ -158,6 +158,26 @@ describe("the application itself", () => {
   });
 
   /**
+   * Q-AM23 (owner, 2026-11-15): the e-mail is optional and the phone is not. The carrier's paper asks
+   * "Phone #" and has no applicant e-mail field.
+   */
+  it("files an application with no e-mail, as null, whether it was left blank or never sent", () => {
+    const { email: _email, ...without } = complete;
+    for (const given of [{ ...complete, email: "" }, { ...complete, email: null }, without]) {
+      const parsed = driverApplicationSchema.safeParse(given);
+      expect(parsed.success).toBe(true);
+      expect(parsed.success ? parsed.data.email ?? null : "refused").toBeNull();
+    }
+  });
+
+  it("still refuses an e-mail that is not one, and an application with no phone", () => {
+    const badEmail = driverApplicationSchema.safeParse({ ...complete, email: "susan at example" });
+    expect(badEmail.success ? [] : badEmail.error.issues.map((i) => i.path.join("."))).toEqual(["email"]);
+    const noPhone = driverApplicationSchema.safeParse({ ...complete, phone: "" });
+    expect(noPhone.success ? [] : noPhone.error.issues.map((i) => i.path.join("."))).toEqual(["phone"]);
+  });
+
+  /**
    * An empty array is an ANSWER, not an omission. Without the explicit declaration a blank form and a
    * clean record are the same bytes, and §391.21(b)(7)-(8) asks a question the applicant must answer.
    */

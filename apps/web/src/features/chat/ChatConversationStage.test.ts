@@ -64,10 +64,21 @@ describe("ChatConversationStage", () => {
   });
 
   it("puts every line under its day, with Today for the ones from today", () => {
-    // Written NOW, not the fixture's default nine minutes ago: for the first nine minutes of every UTC day
-    // that default is yesterday, and this test failed in CI at 00:05 UTC on 2026-11-16 for that reason alone.
-    const w = render(data([msg(1, BEN, {}, 0)]));
-    expect(w.find('[role="separator"][aria-label="Today"]').exists()).toBe(true);
+    // The clock is held at the instant the line is stamped with. `msg` stamps a line minutes in the
+    // PAST, so for the first nine minutes of every day this line was yesterday's and the test failed
+    // (CI, 2026-11-16 00:05 UTC) — a fact about the wall clock, not about the day divider.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    try {
+      const w = render(data([msg(1, BEN, {}, 0)]));
+      expect(w.find('[role="separator"][aria-label="Today"]').exists()).toBe(true);
+      // And a line from the day before is not under Today.
+      const old = render(data([msg(1, BEN, {}, 24 * 60)]));
+      expect(old.find('[role="separator"][aria-label="Today"]').exists()).toBe(false);
+      expect(old.find('[role="separator"][aria-label="Yesterday"]').exists()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("draws the New line above the first line you had not read, and nowhere without one", () => {

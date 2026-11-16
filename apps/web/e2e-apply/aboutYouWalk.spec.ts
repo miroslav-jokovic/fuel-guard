@@ -75,3 +75,32 @@ test("About you is walked a question at a time, the carrier's questions among th
   });
   expect(stub.state.unstubbed).toEqual([]);
 });
+
+/**
+ * Q-AM23 (owner, 2026-11-15): the e-mail is optional. The screen says so, a driver who has none goes on
+ * with the box empty, and one who mistypes theirs is still told, under the box, before going on.
+ */
+test("a driver with no email goes past the email question, and a mistyped one is still refused", async ({ page }) => {
+  const PART_ONE = { first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-04-01", phone: "+13125550142" };
+  const stub = await stubApi(page, partTwoV2Link({
+    draft: { locked: false, payload: PART_ONE, furthestSection: "identity", updatedAt: "2026-08-21T09:00:00.000Z", revision: 1 },
+  }));
+  await page.goto(url);
+  await page.getByRole("button", { name: /About you/ }).click();
+  await next(page); // the name
+  await next(page); // other names, none
+
+  const email = page.getByLabel("Email");
+  await expect(page.getByText("Optional. If you do not have one, leave it blank.")).toBeVisible();
+  await email.fill("susan at example");
+  await next(page);
+  await expect(page.getByText("This does not look like an email address.")).toBeVisible();
+  await expect(email).toBeVisible();
+
+  await email.fill("");
+  await next(page);
+  // The next screen: the SSN, which is how we know the email screen let them through.
+  await expect(page.getByRole("button", { name: "Save my number" })).toBeVisible();
+  await expect.poll(() => (stub.callsTo("PUT", /\/draft$/).at(-1)?.body as { payload: Record<string, unknown> } | undefined)?.payload.email).toBe("");
+  expect(stub.state.unstubbed).toEqual([]);
+});

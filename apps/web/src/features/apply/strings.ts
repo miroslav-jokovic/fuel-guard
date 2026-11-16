@@ -154,6 +154,8 @@ export const APPLY_COPY_EN = {
     last_name: "Last name",
     date_of_birth: "Date of birth",
     email: "Email",
+    /** Q-AM23: a driver with no e-mail goes on; the office reaches them by phone. */
+    emailHint: "Optional. If you do not have one, leave it blank.",
     phone: "Phone",
     optional: "Optional.",
     /** §391.23(a)(2). Asked with its reason in the same breath, like the SSN below. */

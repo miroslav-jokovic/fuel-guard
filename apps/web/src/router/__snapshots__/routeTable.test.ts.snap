@@ -700,6 +700,7 @@ exports[`the route table survives being split by area > route table 1`] = `
 [
   {
     "meta": {
+      "assistantLauncher": true,
       "fullBleed": [Function],
       "hero": "/hero/highway-dawn.webp",
       "heroDark": "/hero/highway-night.webp",
