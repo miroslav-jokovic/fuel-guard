@@ -24,14 +24,14 @@ vi.mock("../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) }));
 const { requireAuth, requireAuthFirstStep } = await import("./auth.js");
 const { resetMembershipCache } = await import("./membershipCurrent.js");
 
-async function hit(gate: typeof requireAuth = requireAuth): Promise<{ status: number; code?: string }> {
+async function hit(gate: typeof requireAuth = requireAuth, extra: Record<string, string> = {}): Promise<{ status: number; code?: string }> {
   const app = express();
   app.get("/x", gate, (_req, res) => res.json({ ok: true }));
   const server: Server = await new Promise((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });
   try {
-    const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/x`, { headers: { authorization: "Bearer t" } });
+    const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/x`, { headers: { authorization: "Bearer t", ...extra } });
     const body = (await res.json()) as { error?: { code?: string } };
     return { status: res.status, code: body.error?.code };
   } finally {
@@ -41,8 +41,8 @@ async function hit(gate: typeof requireAuth = requireAuth): Promise<{ status: nu
 
 beforeEach(() => resetMembershipCache());
 
-/** The database with 0617: `member_access_state` answers; `row` null is no membership. */
-const state = (row: unknown) => createSupabaseRecorder({ rpc: (fn) => (fn === "member_access_state" ? (row === null ? [] : [row]) : undefined) });
+/** The database with 0620: `member_access_check` answers; `row` null is no membership. */
+const state = (row: unknown) => createSupabaseRecorder({ rpc: (fn) => (fn === "member_access_check" ? (row === null ? [] : [row]) : undefined) });
 
 describe("requireAuth with the membership check", () => {
   it("passes a signed token whose membership is current and whose session is alive", async () => {
@@ -69,7 +69,15 @@ describe("requireAuth with the membership check", () => {
   it("asks about the session the token names", async () => {
     rec = state({ role: "dispatcher", suspended_at: null, session_alive: true });
     await hit();
-    expect(rec.rpcs().find((c) => c.fn === "member_access_state")!.args).toEqual({ p_org: ORG, p_user: USER, p_session: SESSION });
+    expect(rec.rpcs().find((c) => c.fn === "member_access_check")!.args).toEqual({
+      p_org: ORG, p_user: USER, p_session: SESSION, p_device_key: null, p_limit: null, p_idle_hours: 12,
+    });
+  });
+
+  it("passes the app's device key from its header, so the database can remember the device (IA-S6)", async () => {
+    rec = state({ role: "dispatcher", suspended_at: null, session_alive: true });
+    await hit(requireAuth, { "x-silvicom-device": "the-office-pc-in-dispatch" });
+    expect(rec.rpcs().find((c) => c.fn === "member_access_check")!.args).toMatchObject({ p_device_key: "the-office-pc-in-dispatch" });
   });
 
   it("answers 403 second_factor_required to a token that owes its code — 403, so the app keeps the session", async () => {

@@ -1,6 +1,7 @@
 import { SECOND_FACTOR_REQUIRED } from "@silvicom/shared";
 import { supabase } from "./supabase";
 import { clearStepUp, stepUpHeader } from "./stepUp";
+import { deviceHeader } from "./deviceKey";
 
 // Same-origin by default (single-service deploy): paths already include `/api`, so "" → "/api/…".
 // Set VITE_API_URL only when the API lives on a different origin (split-service deploy).
@@ -52,6 +53,7 @@ export async function fetchObjectUrl(
     method: init.method ?? "GET",
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...deviceHeader(),
       ...(init.body === undefined ? {} : { "Content-Type": "application/json" }),
     },
     ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
@@ -165,6 +167,7 @@ export async function apiFetch<T = unknown>(
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...deviceHeader(),
       // A held, unexpired step-up token rides on EVERY request (audit P0-4). Harmless where it is
       // not required; the one proof of a recently-typed password where it is. Explicit per-call
       // headers still win, so a caller can override.
@@ -225,6 +228,7 @@ export async function apiDownload(path: string, filename: string): Promise<void>
   const res = await fetch(`${API_URL}${path}`, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...deviceHeader(),
       ...stepUpHeader(),
     },
   });

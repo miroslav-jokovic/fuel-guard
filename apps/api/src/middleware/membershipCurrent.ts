@@ -1,5 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SECOND_STEP_DONE, isRecordId, secondFactorRequired, type AuthContext, type UserRole } from "@silvicom/shared";
+import {
+  DEVICE_KEY_PATTERN,
+  SECOND_STEP_DONE,
+  SESSION_IDLE_HOURS,
+  isRecordId,
+  secondFactorRequired,
+  type AuthContext,
+  type UserRole,
+} from "@silvicom/shared";
 
 /**
  * Is the membership a token names still the membership the person holds? (SP7, Q-SET6 (a).)
@@ -43,6 +51,13 @@ import { SECOND_STEP_DONE, isRecordId, secondFactorRequired, type AuthContext, t
  * `@silvicom/shared`; this file only asks it. A token that needs the second step and is not `aal2` is
  * `second_factor`: never cached, and answered by `requireAuth` with 403 `second_factor_required`.
  *
+ * ── AND WHICH DEVICE IS THIS? (INSTALLED-APP-PLAN IA-S6; migration 0620) ──
+ * The read is now `member_access_check`: the same answers, and on the way it REMEMBERS the device the request
+ * comes from (the app's own key, `DEVICE_KEY_HEADER`) and the address Supabase saw it at, and says whether
+ * the device holds one of the `DEVICE_LIMIT` places. Still one round trip, still at most once per session per
+ * 15 s. This merge passes no limit (`p_limit` null): every device is recorded and none is stopped, because the
+ * page that explains a refusal ships in the next one.
+ *
  * ⚠ A failed READ is answered "current" (fail open), not cached, and logged. The token is still
  * genuinely signed, this is exactly what the API did before SP7, and failing closed would sign every
  * user out on a database blip — the one outage that should not also become a lockout.
@@ -50,7 +65,11 @@ import { SECOND_STEP_DONE, isRecordId, secondFactorRequired, type AuthContext, t
 export const MEMBERSHIP_CACHE_MS = 15_000;
 
 export type Verdict = "current" | "stale" | "signed_out" | "second_factor";
-type Ctx = Pick<AuthContext, "userId" | "orgId" | "role"> & Pick<Partial<AuthContext>, "sessionId" | "aal">;
+type Ctx = Pick<AuthContext, "userId" | "orgId" | "role"> &
+  Pick<Partial<AuthContext>, "sessionId" | "aal"> & {
+    /** The app's own device key from the request header (0620); anything not in its alphabet is no key. */
+    deviceKey?: string | null;
+  };
 const cache = new Map<string, number>();
 // The assurance level is in the key: the SAME session is refused before its code and current after it.
 const key = (userId: string, orgId: string, sessionId: string | null, aal: string | null) => `${userId}:${orgId}:${sessionId ?? "-"}:${aal ?? "-"}`;
@@ -74,39 +93,45 @@ export interface AccessStateRow {
   session_alive?: boolean | null;
   second_factor_required_from?: string | null;
   has_second_factor?: boolean | null;
+  /** 0620: whether this device holds a place — null when nothing was decided (no live session, or one owing its code). */
+  device_admitted?: boolean | null;
+  devices_in_use?: number | null;
 }
 
 /** PostgREST's and Postgres's "there is no such function". */
 const functionMissing = (e: { code?: string }) => e.code === "PGRST202" || e.code === "42883";
 
 /**
- * The read: `member_access_state` (0617) when the database has it.
+ * The read: `member_access_check` (0620).
  *
- * DEPLOY-WINDOW GUARD, labelled as one: on a database that has not had 0617 applied it asks 0616's
- * `member_token_state` (membership and session, no second factor), and without that the `memberships`
- * read SP7 shipped with — so the membership rule never lapses and each later rule simply waits for its
- * migration. A release applies migrations before code and both merged first, so this is the order going
- * wrong, not the normal case. Remove both fallbacks once 0617 is in a production release; then drop
- * `member_token_state`, which will have no reader.
+ * DEPLOY-WINDOW GUARD, labelled as one: on a database without 0620 it asks 0617's `member_access_state`, which
+ * answers everything but the device — so nothing is remembered there and nothing else changes. Production has
+ * had 0617 since the release of 2026-11-16 (seen in its catalogue that day), so the two older fallbacks this
+ * replaced — 0616's `member_token_state` and SP7's `memberships` read — are gone, as their own comment asked.
+ * Remove this one once 0620 is in a production release; `member_access_state` then has no reader, and
+ * `member_token_state` already has none — both are dropped a release after that.
  */
 export async function readAccessState(
   admin: SupabaseClient,
-  ctx: { userId: string; orgId: string; sessionId: string | null },
+  ctx: { userId: string; orgId: string; sessionId: string | null; deviceKey?: string | null },
 ): Promise<{ row: AccessStateRow | null } | { error: string }> {
-  for (const fn of ["member_access_state", "member_token_state"]) {
-    const res = await admin.rpc(fn, { p_org: ctx.orgId, p_user: ctx.userId, p_session: ctx.sessionId });
-    if (!res.error) return { row: ((res.data ?? []) as AccessStateRow[])[0] ?? null };
-    if (!functionMissing(res.error as { code?: string })) return { error: res.error.message };
-  }
-  const { data, error } = await admin
-    .from("memberships")
-    .select("role, suspended_at")
-    .eq("org_id", ctx.orgId)
-    .eq("user_id", ctx.userId)
-    .maybeSingle();
-  if (error) return { error: error.message };
-  return { row: (data as AccessStateRow | null) ?? null };
+  const base = { p_org: ctx.orgId, p_user: ctx.userId, p_session: ctx.sessionId };
+  const check = await admin.rpc("member_access_check", {
+    ...base,
+    p_device_key: ctx.deviceKey ?? null,
+    p_limit: null,
+    p_idle_hours: SESSION_IDLE_HOURS,
+  });
+  if (!check.error) return { row: ((check.data ?? []) as AccessStateRow[])[0] ?? null };
+  if (!functionMissing(check.error as { code?: string })) return { error: check.error.message };
+  const res = await admin.rpc("member_access_state", base);
+  if (res.error) return { error: res.error.message };
+  return { row: ((res.data ?? []) as AccessStateRow[])[0] ?? null };
 }
+
+/** The header's value when it is a device key; anything else — absent, too long, another alphabet — is none. */
+export const deviceKeyClaim = (raw: string | undefined | null): string | null =>
+  typeof raw === "string" && DEVICE_KEY_PATTERN.test(raw) ? raw : null;
 
 /** Only ever a uuid reaches the database: anything else in the claim is "cannot tell", not an error. */
 export const sessionClaim = (ctx: Pick<Partial<AuthContext>, "sessionId">): string | null =>
@@ -128,7 +153,7 @@ export async function membershipVerdict(admin: SupabaseClient, ctx: Ctx, now: nu
   const until = cache.get(k);
   if (until !== undefined && until > now) return "current";
 
-  const read = await readAccessState(admin, { userId: ctx.userId, orgId: ctx.orgId, sessionId });
+  const read = await readAccessState(admin, { userId: ctx.userId, orgId: ctx.orgId, sessionId, deviceKey: deviceKeyClaim(ctx.deviceKey) });
   if ("error" in read) {
     console.error(`[membership] could not confirm ${ctx.userId} in ${ctx.orgId}; allowing the signed token`, read.error);
     return "current";
@@ -138,7 +163,7 @@ export async function membershipVerdict(admin: SupabaseClient, ctx: Ctx, now: nu
     cache.delete(k);
     return "stale";
   }
-  // Exactly false: NULL is a token that names no session, and absent is the fallback read.
+  // Exactly false: NULL is a token that names no session.
   if (row.session_alive === false) {
     cache.delete(k);
     return "signed_out";

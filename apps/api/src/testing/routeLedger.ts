@@ -174,6 +174,10 @@ export const OPEN_ROUTES = new Map<string, string>([
     "what two-step sign-in asks of the CALLER (INSTALLED-APP-PLAN IA-S1): whether a code is required of them, whether this session has given it, whether they have an authenticator, and — for an admin in their 14 days of notice — the date. Any signed-in member of the org, and deliberately reachable by a token that still OWES its code (`requireAuthFirstStep`): it is how the app learns to ask for one instead of showing a wall of refusals. It names nobody else, returns no secret and no code, and the person and org are the token's.",
   ],
   [
+    "GET /api/me/devices/",
+    "the caller's OWN devices REMEMBERED past sign-out, each with every address it was seen from (INSTALLED-APP-PLAN IA-S6, the owner's rulings Q-IA17/Q-IA18 of 2026-11-16, migration 0620). Any signed-in member of the org, by design, for the reason the sessions route beside it gives: where one's own account was used is the person's own question, a driver's included. Read only. The person is the token's user id and the org the token's org, never anything in the request; 0620's function checks the membership again and returns nothing of a token; an ADMIN's view of somebody else's is `/api/members/:userId/devices`, which is role-gated.",
+  ],
+  [
     "GET /api/me/sessions/",
     "the caller's OWN signed-in devices (INSTALLED-APP-PLAN IA-S3, Q-IA3 (b)): where they are signed in — browser, last used, address. Any signed-in member of the org, by design — every role signs in on devices, a driver included, and where one is signed in is the person's own question, not a role's permission. The person is the token's user id and the org the token's org, never anything in the request, and 0615's functions return nothing of a token; an ADMIN's view of somebody else's is a different route, `/api/members/:userId/sessions`, which is role- and step-up-gated.",
   ],

@@ -44,7 +44,7 @@ beforeEach(() => {
   me = { userId: ME, email: "ana@example.test", orgId: ORG, role: "admin", sessionId: SESSION, aal: "aal1" };
   row = { role: "admin", suspended_at: null, session_alive: true, second_factor_required_from: SOON, has_second_factor: false };
   holder.rec = createSupabaseRecorder({
-    rpc: (fn) => (fn !== "member_access_state" ? undefined : row && "error" in row ? row : row === null ? [] : [row]),
+    rpc: (fn) => (fn !== "member_access_check" ? undefined : row && "error" in row ? row : row === null ? [] : [row]),
   });
 });
 const get = async () => { const r = await fetch(url, { headers: { Authorization: "Bearer token" } }); return { status: r.status, body: (await r.json()) as Record<string, unknown> }; };
@@ -53,7 +53,9 @@ const set = (over: Record<string, unknown>) => { row = { ...(row as Record<strin
 describe("GET /api/me/second-factor", () => {
   it("an admin inside the 14 days: not required yet, and told the date", async () => {
     expect(await get()).toEqual({ status: 200, body: { required: false, satisfied: false, has_factor: false, due_from: SOON, must_keep: false } });
-    expect(holder.rec!.rpcs().find((c) => c.fn === "member_access_state")!.args).toEqual({ p_org: ORG, p_user: ME, p_session: SESSION });
+    expect(holder.rec!.rpcs().find((c) => c.fn === "member_access_check")!.args).toEqual({
+      p_org: ORG, p_user: ME, p_session: SESSION, p_device_key: null, p_limit: null, p_idle_hours: 12,
+    });
   });
 
   it("an admin past the date: required, not yet given, no date to wait for", async () => {
