@@ -258,7 +258,7 @@ describe("section capability matrix", () => {
 describe("claimsToContext", () => {
   it("maps a fully-claimed JWT", () => {
     expect(
-      claimsToContext({ sub: "u1", email: "a@b.com", org_id: "o1", user_role: "fleet_manager", iat: 1_700_000_000, session_id: "5e551011-0000-4000-8000-000000000001" }),
+      claimsToContext({ sub: "u1", email: "a@b.com", org_id: "o1", user_role: "fleet_manager", iat: 1_700_000_000, session_id: "5e551011-0000-4000-8000-000000000001", aal: "aal2" }),
     ).toEqual({
       userId: "u1",
       email: "a@b.com",
@@ -267,6 +267,7 @@ describe("claimsToContext", () => {
       sections: null,
       issuedAt: 1_700_000_000,
       sessionId: "5e551011-0000-4000-8000-000000000001",
+      aal: "aal2",
     });
   });
   it("says it cannot tell which session a token is for when the token does not say (IA-S3)", () => {
@@ -297,6 +298,8 @@ describe("claimsToContext", () => {
       issuedAt: null,
       // "Cannot tell which session": nothing is marked as this device and nothing is refused for being it.
       sessionId: null,
+      // No level claimed reads as "the second step was not taken" (IA-S1).
+      aal: null,
     });
   });
 });

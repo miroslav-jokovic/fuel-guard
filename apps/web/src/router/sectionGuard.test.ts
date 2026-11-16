@@ -286,3 +286,31 @@ describe("the section gates on the navigation guard", () => {
     router.removeRoute("probe");
   });
 });
+
+/** INSTALLED-APP-PLAN IA-S1: a session that owes its code opens one page until it has given it. */
+describe("the two-step sign-in guard", () => {
+  const owed = { required: true, satisfied: false, has_factor: true, due_from: null, must_keep: false };
+  const withSecond = async (status: unknown, role: string, path: string) => {
+    (session as unknown as { secondFactor: unknown }).secondFactor = status;
+    try { return await landsOn(role, path); } finally { (session as unknown as { secondFactor: unknown }).secondFactor = null; }
+  };
+
+  it("holds a session that owes its code on the code page, whatever it asked for", async () => {
+    expect(await withSecond(owed, "admin", "/settings/users")).toBe("two-step");
+    expect(await withSecond(owed, "dispatcher", "/")).toBe("two-step");
+    expect(await withSecond(owed, "admin", "/two-step")).toBe("two-step");
+  });
+
+  it("lets a session that has given it go where it asked", async () => {
+    expect(await withSecond({ ...owed, satisfied: true }, "admin", "/settings/users")).toBe("users");
+  });
+
+  it("holds nobody who is not required, or whose answer is not known", async () => {
+    expect(await withSecond({ ...owed, required: false }, "admin", "/settings/users")).toBe("users");
+    expect(await withSecond(null, "admin", "/settings/users")).toBe("users");
+  });
+
+  it("opens the page to somebody who chose it from the account menu", async () => {
+    expect(await withSecond({ ...owed, required: false, has_factor: false }, "dispatcher", "/two-step")).toBe("two-step");
+  });
+});

@@ -127,6 +127,7 @@ const subline = computed(() => (props.name && props.email ? `${props.email} · $
     <div class="sidebar-divider mb-1 border-t" />
     <button type="button" class="sidebar-account-item" @click="myAlerts.show()">My alerts</button>
     <button type="button" class="sidebar-account-item" data-testid="signed-in-devices-item" @click="devices.show()">Signed-in devices</button>
+    <RouterLink :to="{ name: 'two-step' }" class="sidebar-account-item block" data-testid="two-step-item">Two-step sign-in</RouterLink>
     <!-- Only while this browser can still install it (D-WP15): gone once installed, never a dead item. -->
     <button v-if="installWay" type="button" class="sidebar-account-item" data-testid="install-app-item" @click="askToInstall()">
       Install app

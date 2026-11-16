@@ -69,6 +69,17 @@ export const authRoutes: RouteRecordRaw[] = [
    * `allowNoOrg` stays for the moment between sign-in and navigation, when the store may still hold
    * a session whose claims it has not yet read.
    */
+  /**
+   * Two-step sign-in (IA-S1): the code, or setting an authenticator up. NOT public — it needs the session
+   * whose second step it is — and in the auth layout, not the shell: a session that owes its code is refused
+   * by every API route the shell calls. The guard in `index.ts` holds such a session on this page.
+   */
+  {
+    path: "/two-step",
+    name: "two-step",
+    component: () => import("@/pages/auth/TwoStepPage.vue"),
+    meta: { layout: "auth", title: "Two-step sign-in" },
+  },
   {
     path: "/accept-invite",
     name: "accept-invite",

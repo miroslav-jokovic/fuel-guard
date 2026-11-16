@@ -1,3 +1,4 @@
+import { SECOND_FACTOR_REQUIRED } from "@silvicom/shared";
 import { supabase } from "./supabase";
 import { clearStepUp, stepUpHeader } from "./stepUp";
 
@@ -112,6 +113,21 @@ async function onAccessChanged(): Promise<void> {
   return accessChangeInFlight;
 }
 
+/**
+ * The API refused a genuine token because its owner must take the second step and this session has not
+ * (INSTALLED-APP-PLAN IA-S1, `requireAuth`'s 403). The session is GOOD and is kept — the same one becomes
+ * `aal2` once the code is entered — so this only takes the person to the page that asks for it. The router
+ * guard normally gets there first; this is for the session that came to owe it while a page was already open
+ * (an admin whose 14 days ran out at their desk, or who set an authenticator up on another device).
+ * A full navigation, once: the page that was open cannot do anything until the code is given.
+ */
+let secondStepAsked = false;
+function onSecondStepRequired(): void {
+  if (secondStepAsked || window.location.pathname === "/two-step") return;
+  secondStepAsked = true;
+  window.location.assign("/two-step");
+}
+
 /** Call the Silvicom 360 API with the current Supabase access token as a Bearer credential. */
 export async function apiFetch<T = unknown>(
   path: string,
@@ -180,6 +196,7 @@ export async function apiFetch<T = unknown>(
   if (!res.ok) {
     const err = (payload as { error?: { code: string; message: string } })?.error;
     if (res.status === 401 && err?.code === ACCESS_CHANGED) await onAccessChanged();
+    if (res.status === 403 && err?.code === SECOND_FACTOR_REQUIRED) onSecondStepRequired();
     return {
       ok: false,
       status: res.status,

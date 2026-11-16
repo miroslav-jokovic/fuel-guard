@@ -32,6 +32,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/accept-invite",
   },
   {
+    "name": "two-step",
+    "params": {},
+    "url": "/two-step",
+  },
+  {
     "name": "pending",
     "params": {},
     "url": "/pending",
@@ -1860,6 +1865,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "truck-stops",
     "path": "/truck-stops",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "auth",
+      "title": "Two-step sign-in",
+    },
+    "name": "two-step",
+    "path": "/two-step",
     "redirect": null,
   },
   {

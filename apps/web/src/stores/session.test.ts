@@ -62,8 +62,14 @@ const me = {
   hold: false,
   pending: [] as ((v: { fullName: string | null; surfaces: Record<string, boolean> }) => void)[],
 };
+/** What `/api/me/second-factor` answers; null = it cannot be read. */
+const second = vi.hoisted(() => ({ calls: 0, status: null as null | Record<string, unknown> }));
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string) => {
+    if (path === "/api/me/second-factor") {
+      second.calls += 1;
+      return second.status ? { ok: true, data: second.status } : { ok: false, status: 503, error: { code: "unavailable", message: "x" } };
+    }
     if (path !== "/api/me") return { ok: true, data: {} };
     me.calls += 1;
     if (!me.hold) return { ok: true, data: { fullName: me.fullName, surfaces: me.surfaces, permissions: me.permissions } };
@@ -95,6 +101,8 @@ beforeEach(() => {
   me.permissions = undefined;
   me.hold = false;
   me.pending = [];
+  second.calls = 0;
+  second.status = null;
 });
 
 describe("signing in without reloading the page", () => {
@@ -254,5 +262,47 @@ describe("named permissions", () => {
     signInAs(sessionFor("user-2", "org-1", "fleet_manager"));
     await vi.waitFor(() => expect(me.calls).toBe(2));
     expect(store.hasPermission("recruitment.close_application")).toBe(false);
+  });
+});
+
+/** INSTALLED-APP-PLAN IA-S1: what two-step sign-in asks of the person, read before anything else. */
+describe("two-step sign-in", () => {
+  const OWED = { required: true, satisfied: false, has_factor: true, due_from: null, must_keep: false };
+
+  it("a session that owes its code learns so, and does not ask the API for what it would be refused", async () => {
+    second.status = OWED;
+    const store = useSessionStore();
+    await store.init();
+    signInAs(sessionFor("user-1", "org-1"));
+    await vi.waitFor(() => expect(store.secondFactor).toEqual(OWED));
+    expect(me.calls, "/api/me is not asked while the code is owed").toBe(0);
+    expect(store.fullName).toBeNull();
+  });
+
+  it("once the code is given, the rest loads", async () => {
+    second.status = { ...OWED, satisfied: true };
+    const store = useSessionStore();
+    await store.init();
+    signInAs(sessionFor("user-1", "org-1"));
+    await vi.waitFor(() => expect(store.fullName).toBe("Miroslav Jokovic"));
+    expect(store.secondFactor?.satisfied).toBe(true);
+  });
+
+  it("an answer that cannot be read holds nobody: the store says nothing and the app loads", async () => {
+    const store = useSessionStore();
+    await store.init();
+    signInAs(sessionFor("user-1", "org-1"));
+    await vi.waitFor(() => expect(store.fullName).toBe("Miroslav Jokovic"));
+    expect(store.secondFactor).toBeNull();
+  });
+
+  it("is forgotten at sign-out, so the next person is not held by the last one's answer", async () => {
+    second.status = OWED;
+    const store = useSessionStore();
+    await store.init();
+    signInAs(sessionFor("user-1", "org-1"));
+    await vi.waitFor(() => expect(store.secondFactor).not.toBeNull());
+    signInAs(null);
+    expect(store.secondFactor).toBeNull();
   });
 });
