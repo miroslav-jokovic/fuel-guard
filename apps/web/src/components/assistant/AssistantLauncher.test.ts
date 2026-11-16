@@ -26,7 +26,8 @@ async function mountAt(path: string) {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: "/", component: Blank },
+      // The dashboard is the one route that asks for the orb (`meta.assistantLauncher`, routes/core.ts).
+      { path: "/", component: Blank, meta: { assistantLauncher: true } },
       { path: "/idling", component: Blank },
       { path: "/ask", name: "ask", component: Blank },
     ],
@@ -83,13 +84,54 @@ beforeEach(() => {
 });
 
 describe("AssistantLauncher", () => {
-  it("shows for the admin and opens the dock with the page's own suggestions", async () => {
-    const { w } = await mountAt("/idling");
+  it("shows for the admin on a main page and opens the dock", async () => {
+    const { w } = await mountAt("/");
     expect(launcher()).not.toBeNull();
     launcher()!.click();
     await flushPromises();
     expect(dock()).not.toBeNull();
+    w.unmount();
+  });
+
+  // Owner, 2026-11-16: the orb floats over the main pages only; on a list or a record it covered controls.
+  it("draws no orb on a page that is not a main page, where ⌘J still opens the dock with that page's suggestions", async () => {
+    const { w } = await mountAt("/idling");
+    expect(launcher()).toBeNull();
+    expect(document.documentElement.style.getPropertyValue("--assistant-clearance")).toBe("0px");
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "j", metaKey: true }));
+    await flushPromises();
+    expect(dock()).not.toBeNull();
     expect(dock()!.textContent).toContain("who are the worst idlers?");
+    w.unmount();
+  });
+
+  it("gives focus back to what the person was on when the dock closes on a page without the orb", async () => {
+    const { w } = await mountAt("/idling");
+    const field = document.createElement("input");
+    document.body.append(field);
+    field.focus();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "j", ctrlKey: true }));
+    await flushPromises();
+    dock()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await flushPromises();
+    expect(document.activeElement).toBe(field);
+    w.unmount();
+  });
+
+  it("keeps an open dock open when the page behind it changes to one without the orb, and leaves no orb when it closes there", async () => {
+    const { w, router } = await mountAt("/");
+    launcher()!.click();
+    await flushPromises();
+    await router.push("/idling");
+    await flushPromises();
+    expect(dock()).not.toBeNull();
+    dock()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await flushPromises();
+    expect(dock()).toBeNull();
+    expect(launcher()).toBeNull();
+    await router.push("/");
+    await flushPromises();
+    expect(launcher()).not.toBeNull();
     w.unmount();
   });
 

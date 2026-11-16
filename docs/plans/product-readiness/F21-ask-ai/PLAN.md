@@ -1360,3 +1360,22 @@ audit row is the endpoint's own.
   - **Found while testing:** the first place for the note was inside the "Filters" popover, which is not
     on screen once it closes. It moved to the chip.
 
+- 2026-11-16 — **The launcher is drawn on the main pages only (owner's ruling, from the small-screens audit's M9).**
+  - **The ruling**, in the owner's words: "Ask AI button should maybe be displayed only on Main pages
+    like Operations, Fuel Overview an Live maps". Read as the dashboard route's three tabs: Operations,
+    Fleet overview and Dispatch (the live map). ⚠ "Fuel Overview" is read as the Fleet overview tab —
+    no page carries that name; the owner said "maybe", so this is the build to look at on staging.
+  - **Why:** the orb floats, so over the middle of a list or a record it is always over a control
+    ("Set ownership" on a truck's page at 390 px). Dragging it (2026-10-09) moved the problem.
+  - **Built:** the route says it — `meta.assistantLauncher`, set on the dashboard route alone — and
+    `AssistantLauncher` keeps no list of pages. `--assistant-clearance` is 0 where there is no orb.
+  - **What did NOT change, on purpose:** the dock is not tied to the orb. ⌘J / Ctrl J opens it on any
+    page; a dock that is open stays open across a navigation, so Step 5's `open_view` still opens the
+    page behind it; the sidebar's Ask AI and `/ask` are as before. Closing the dock on a page without
+    the orb returns focus to what the person was on.
+  - **Consequence to know:** on a phone, away from the dashboard, the way in is the sidebar's Ask AI
+    (the full page) — there is no ⌘J on a phone, so no dock over a list there unless it was opened on
+    the dashboard and carried across.
+  - Tests: `AssistantLauncher.test.ts` (no orb and no clearance off the main pages, ⌘J still opens with
+    that page's suggestions, an open dock survives the navigation, focus returns);
+    `e2e-apply/assistantDock.spec.ts` runs the shortcut on Settings and the orb on the dashboard.
