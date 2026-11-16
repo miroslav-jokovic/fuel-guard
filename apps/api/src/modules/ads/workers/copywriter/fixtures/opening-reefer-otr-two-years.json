@@ -112,56 +112,57 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:40:02.225Z",
+    "recorded_at": "2026-11-15T20:58:42.464Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Out 2 weeks, home 4 days",
+            "hook": "Home 4 days",
             "cta": "Apply today",
-            "primary_text": "Out 2 weeks hauling produce from the valley to the Midwest, then home 4 days. Reefer freight, $0.70 to $0.78 per mile. Class A, 23+.",
+            "primary_text": "Out 2 weeks, home 4 days. You haul reefer produce from the valley to the Midwest at $0.70 to $0.78 per mile. Rider policy on board.",
             "headline": "$0.70 to $0.78 per mile"
           },
           "es": {
-            "hook": "2 semanas fuera, 4 en casa",
+            "hook": "4 días en casa",
             "cta": "Aplica hoy",
-            "primary_text": "Sales 2 semanas con producto del valle al Medio Oeste y vuelves a casa 4 días. Carga refrigerada, $0.70 a $0.78 por milla. Licencia Clase A, mayores de 23.",
+            "primary_text": "2 semanas en la ruta, 4 días en casa. Llevas producto en reefer del valle al Medio Oeste, de $0.70 a $0.78 por milla. Con política de pasajero.",
             "headline": "$0.70 a $0.78 por milla"
           }
         },
         {
           "en": {
-            "hook": "$0.70 to $0.78 a mile",
+            "hook": "Home 4 days, then roll",
             "cta": "Apply now",
-            "primary_text": "Home 4 days after 2 weeks out, and $0.70 to $0.78 per mile while you run. Reefer produce, valley to the Midwest. 401k included. Class A, 23+.",
-            "headline": "Home 4 days after 2 weeks"
+            "primary_text": "$0.70 to $0.78 per mile on OTR reefer freight. You run 2 weeks, then you are home 4 days. 401k included. Class A drivers, 23+.",
+            "headline": "Class A OTR reefer, 401k"
           },
           "es": {
-            "hook": "$0.70 a $0.78 por milla",
-            "cta": "Aplica ahora",
-            "primary_text": "4 días en casa después de 2 semanas en ruta, y $0.70 a $0.78 por milla mientras manejas. Producto en reefer, del valle al Medio Oeste. Con 401k. Clase A, mayores de 23.",
-            "headline": "Casa 4 días tras 2 semanas"
+            "hook": "4 días en casa y a rodar",
+            "cta": "Aplica ya",
+            "primary_text": "De $0.70 a $0.78 por milla en carga refrigerada OTR. Corres 2 semanas y descansas 4 días en casa. Con 401k. Choferes Clase A, mayores de 23.",
+            "headline": "Reefer Clase A con 401k"
           }
         },
         {
           "en": {
-            "hook": "Produce to the Midwest",
-            "cta": "Apply today",
-            "primary_text": "Here's the run: you load produce in the valley and haul it reefer to the Midwest. Out 2 weeks, home 4 days. $0.70 to $0.78 per mile, and a rider policy. Class A, 23+.",
-            "headline": "Rider policy and 401k"
+            "hook": "Home 4 days after the run",
+            "cta": "Join our team",
+            "primary_text": "Here is the run: you load produce out of the valley and take it to the Midwest in a reefer. Out 2 weeks, home 4 days. Rider policy and 401k. Class A, age 23.",
+            "headline": "Valley produce to Midwest"
           },
           "es": {
-            "hook": "Producto al Medio Oeste",
-            "cta": "Aplica hoy",
-            "primary_text": "Así es la ruta: cargas producto en el valle y lo llevas en reefer al Medio Oeste. 2 semanas fuera, 4 días en casa. $0.70 a $0.78 por milla y política de pasajero. Clase A, mayores de 23.",
-            "headline": "Política de pasajero y 401k"
+            "hook": "En casa 4 días tras la ruta",
+            "cta": "Únete al equipo",
+            "primary_text": "Así es la ruta: cargas producto en el valle y lo llevas al Medio Oeste en reefer. 2 semanas fuera, 4 días en casa. Con política de pasajero y 401k. Clase A, mayores de 23.",
+            "headline": "Del valle al Medio Oeste"
           }
         }
       ]

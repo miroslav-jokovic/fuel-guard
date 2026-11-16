@@ -80,55 +80,56 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:41:35.483Z",
+    "recorded_at": "2026-11-15T21:00:24.064Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Sunrise. $90,000 a year.",
+            "hook": "Your dawn. $90,000 a year.",
             "cta": "Apply today",
-            "primary_text": "You're in the seat before the sun comes up. This Class A dedicated account pays $90,000 per year, with health insurance. Apply today and we'll talk.",
-            "headline": "Class A: $90,000 per year"
+            "primary_text": "You pull out at sunrise on a dedicated account. Class A drivers earn $90,000 per year, with health insurance. Apply today.",
+            "headline": "Class A: $90,000 a year"
           },
           "es": {
-            "hook": "Amanece. $90,000 al año.",
+            "hook": "Al amanecer: $90,000 al año",
             "cta": "Aplica hoy",
-            "primary_text": "Estás en la cabina antes de que salga el sol. Esta cuenta dedicada para chofer Clase A paga $90,000 al año, con seguro médico. Aplica hoy y hablamos.",
+            "primary_text": "Sales al amanecer en una cuenta dedicada. Chofer Clase A: $90,000 al año y seguro médico. Aplica hoy.",
             "headline": "Clase A: $90,000 al año"
           }
         },
         {
           "en": {
-            "hook": "Dawn. A dedicated account.",
-            "cta": "Apply today",
-            "primary_text": "The sun comes up and you already know the account. This Class A job is dedicated: one account, not whatever freight is left. Pay is $90,000 per year, with health insurance.",
+            "hook": "Dawn on a dedicated run",
+            "cta": "Apply now",
+            "primary_text": "The sun comes up and you already know the account. This is a dedicated Class A job paying $90,000 per year, with health insurance. Apply now.",
             "headline": "Dedicated Class A account"
           },
           "es": {
-            "hook": "Amanece. Cuenta dedicada.",
-            "cta": "Aplica hoy",
-            "primary_text": "Sale el sol y ya conoces la cuenta. Este trabajo Clase A es dedicado: una sola cuenta, no la carga que sobre. Paga $90,000 al año, con seguro médico.",
-            "headline": "Cuenta dedicada, Clase A"
+            "hook": "Amanecer en ruta dedicada",
+            "cta": "Aplica ya",
+            "primary_text": "Sale el sol y ya conoces la cuenta. Trabajo dedicado para chofer Clase A: $90,000 al año y seguro médico. Aplica ya.",
+            "headline": "Cuenta dedicada Clase A"
           }
         },
         {
           "en": {
-            "hook": "Dawn. Health insurance.",
-            "cta": "Apply now",
-            "primary_text": "Straight from dispatch: you need a Class A. The account is dedicated. Pay is $90,000 per year. Health insurance is included. That's the job. Apply now and we'll talk.",
+            "hook": "Dawn run, health insurance",
+            "cta": "Apply here",
+            "primary_text": "Straight talk: dedicated account, Class A, $90,000 per year. Health insurance comes with the job. You take the wheel at dawn. Apply and let's talk.",
             "headline": "Health insurance included"
           },
           "es": {
-            "hook": "Amanece. Seguro médico.",
-            "cta": "Aplica ya",
-            "primary_text": "Directo del despacho: necesitas licencia Clase A. La cuenta es dedicada. Paga $90,000 al año. Incluye seguro médico. Ese es el trabajo. Aplica ya y hablamos.",
+            "hook": "Amanecer con seguro médico",
+            "cta": "Aplica aquí",
+            "primary_text": "Te lo digo claro: cuenta dedicada, Clase A, $90,000 al año. El seguro médico viene con el trabajo. Tú tomas el volante al amanecer. Aplica y hablamos.",
             "headline": "Con seguro médico"
           }
         }

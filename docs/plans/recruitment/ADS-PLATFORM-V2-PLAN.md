@@ -103,6 +103,8 @@ The campaign machine gains a state `planning` before `composing`.
   plan with an angle resting on no evidence is refused by code.
 - Stored versioned (`ads_campaign_plans`, new table, RLS on). A person approves or edits it in Assisted mode.
 - Producers build from the plan's angles. Presets stop being the idea and become the look and the slots.
+  **Built 2026-11-15 (V2c):** an approved plan decides which presets are made and in what order, and each
+  creative's Copywriter is handed its angle's idea and proof and its Art director the idea (`writerAngle`).
 - After 14 days the angle's results join the next pack.
 
 **Done when:** on the simulator a campaign cannot reach `composing` without a plan, and every angle in a stored

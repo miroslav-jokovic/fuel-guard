@@ -1,0 +1,104 @@
+{
+  "name": "idea-home-weekly",
+  "about": "A planned campaign (V2c, prompt v6): the \"home-on-time\" case with the idea the Strategist recorded — being home weekly, on the home-street template. The picture should be of the idea, within the template.",
+  "input": {
+    "recipe": {
+      "name": "Fixture concept",
+      "hook_formula": "Lead with the figure.",
+      "copy_slots": [
+        {
+          "name": "hook",
+          "max_chars": 60
+        }
+      ],
+      "image_prompt_template": "Our tractor pulling into a quiet residential street at {time_of_day}, {light}, a porch light on",
+      "image_slots": [
+        "time_of_day",
+        "light"
+      ],
+      "starts_from": "equipment_photo",
+      "shows_equipment": true,
+      "shows_people": false,
+      "motion_template": null,
+      "layout": "bottom_plate",
+      "formats": [
+        "4:5"
+      ],
+      "overlay_slots": null
+    },
+    "kit": {
+      "company_name": "Fixture Carrier",
+      "phone": null,
+      "colors": [
+        {
+          "name": "primary",
+          "hex": "#0B3D2E"
+        }
+      ],
+      "logo": null,
+      "equipment_photos": [
+        {
+          "label": "white tractor, front three-quarter view, parked at the yard",
+          "asset": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "format": "jpeg",
+            "source_format": "jpeg",
+            "width": 4032,
+            "height": 3024,
+            "byte_size": 2400000
+          }
+        },
+        {
+          "label": "white tractor with a 53 ft dry van, side view",
+          "asset": {
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "format": "jpeg",
+            "source_format": "jpeg",
+            "width": 4032,
+            "height": 3024,
+            "byte_size": 2400000
+          }
+        },
+        {
+          "label": "reefer trailer, rear view, doors closed",
+          "asset": {
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "format": "jpeg",
+            "source_format": "jpeg",
+            "width": 4032,
+            "height": 3024,
+            "byte_size": 2400000
+          }
+        }
+      ],
+      "overlays": {},
+      "people_policy": "none",
+      "forbidden_marks": [
+        "Other Freight Co"
+      ]
+    },
+    "context": [
+      "reefer freight",
+      "local runs",
+      "home time: Home daily"
+    ],
+    "headline": "Home every weekend",
+    "idea": "Lead with being home weekly, shown as a quiet home street at the end of a regional run."
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "artDirector@6",
+    "model": "claude-opus-5-5",
+    "recorded_at": "2026-11-15T20:17:16.945Z",
+    "output": {
+      "slots": {
+        "time_of_day": "early dusk on a late-summer evening",
+        "light": "low amber sunset behind the rooftops, headlights on, long shadows across the street"
+      },
+      "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "focal_subject": "tractor",
+      "camera_distance": "medium"
+    }
+  }
+}

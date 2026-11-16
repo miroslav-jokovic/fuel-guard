@@ -27,6 +27,9 @@ const TRUCK = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const holder = vi.hoisted(() => ({ rec: null as SupabaseRecorder | null }));
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.rec!.client }));
 
+const forgetMembership = vi.hoisted(() => vi.fn());
+vi.mock("../../../middleware/membershipCurrent.js", async (orig) => ({ ...(await orig<typeof import("../../../middleware/membershipCurrent.js")>()), forgetMembership }));
+
 const env = loadEnv({ NODE_ENV: "test", SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") } as NodeJS.ProcessEnv);
 let me: AuthContext;
 let rpc: Record<string, unknown>;
@@ -117,6 +120,11 @@ describe("DELETE /api/me/sessions/:id — end one of my own", () => {
     expect(audits()).toEqual([
       expect.objectContaining({ org_id: ORG, actor_id: ME, action: "session.ended", entity: "member", entity_id: ME, meta: { sessionId: PHONE, device: "Safari on iPhone", lastUsedAt: ROWS[0]!.last_used_at } }),
     ]);
+  });
+
+  it("makes this server forget what it knew of the person's sessions, so the ended device is refused at once (Q-IA10)", async () => {
+    await call(`/api/me/sessions/${PHONE}`, "DELETE");
+    expect(forgetMembership).toHaveBeenCalledWith(ME);
   });
 
   it("needs no second password for one's own device", async () => {

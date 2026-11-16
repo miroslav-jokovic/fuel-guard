@@ -39,10 +39,16 @@ import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOut
  * tractor with its trailer is seen from ahead and to one side so the trailer's long side shows, because the
  * carrier's own marks go there afterwards; and it is told not to describe markings — the clean side and the plain
  * grille are `EQUIPMENT_CLAUSE`'s, fixed phrases of ours, not a model's.
+ *
+ * Prompt v6 (2026-11-15, ADS-PLATFORM-V2-PLAN V2c): for a campaign whose plan a person approved it is also told
+ * `idea` — the one sentence of the plan's angle this preset was drawn for (`writerAngle`) — so the picture is of
+ * the idea the words lead with, and not only of the job. Only the idea goes: the angle's `proof` is about the
+ * job's facts, and the image carries none (D-AD9). It is data like the headline; `judgeArt` reads the answer as
+ * before, so a digit or lettering asked for because an idea mentioned pay is refused all the same.
  */
 
-export const ART_DIRECTOR_PROMPT_VERSION = "artDirector@5";
-const PROMPT = readFileSync(new URL("./prompt.v5.md", import.meta.url), "utf8");
+export const ART_DIRECTOR_PROMPT_VERSION = "artDirector@6";
+const PROMPT = readFileSync(new URL("./prompt.v6.md", import.meta.url), "utf8");
 const MAX_TOKENS = 600;
 
 type Recipe = Pick<AdPresetRecipe, "image_prompt_template" | "image_slots" | "starts_from" | "shows_equipment" | "shows_people" | "layout" | "formats">;
@@ -65,7 +71,7 @@ export function artTool(recipe: Pick<AdPresetRecipe, "image_slots">): ForcedTool
 /** What the job is like, as the brief's `subject_matter.details` (CQ2); empty when a fixture or a caller has none. */
 export type ArtContext = readonly string[];
 
-export function artUserMessage(recipe: Recipe, kit: Kit, context: ArtContext = [], headline: string | null = null): string {
+export function artUserMessage(recipe: Recipe, kit: Kit, context: ArtContext = [], headline: string | null = null, idea: string | null = null): string {
   const frame = publishedFormats(recipe.formats)[0] ?? null;
   return JSON.stringify({
     template: recipe.image_prompt_template,
@@ -73,13 +79,14 @@ export function artUserMessage(recipe: Recipe, kit: Kit, context: ArtContext = [
     scene: { starts_from: recipe.starts_from, shows_equipment: recipe.shows_equipment, shows_people: recipe.shows_people },
     composition: { frame: frame ? FRAME_CLAUSE[frame] : null, kept_plain: QUIET_REGION[recipe.layout].where },
     headline,
+    idea,
     context,
     photos: recipe.starts_from === "equipment_photo" ? kit.equipment_photos.map((p) => ({ label: p.label, sha256: p.asset.sha256 })) : [],
   }, null, 2);
 }
 
-export function buildArtRequest(recipe: Recipe, kit: Kit, context: ArtContext = [], headline: string | null = null) {
-  return { ...AD_AGENT_MODELS.art_director, system: PROMPT, user: artUserMessage(recipe, kit, context, headline), tool: artTool(recipe), maxTokens: MAX_TOKENS };
+export function buildArtRequest(recipe: Recipe, kit: Kit, context: ArtContext = [], headline: string | null = null, idea: string | null = null) {
+  return { ...AD_AGENT_MODELS.art_director, system: PROMPT, user: artUserMessage(recipe, kit, context, headline, idea), tool: artTool(recipe), maxTokens: MAX_TOKENS };
 }
 
 export interface DirectArtInput {
@@ -93,6 +100,8 @@ export interface DirectArtInput {
   context?: ArtContext;
   /** The English headline the overlay will draw (AG1's chosen copy); null when a caller has none. */
   headline?: string | null;
+  /** The idea of the approved plan's angle for this preset (V2c); null or absent when the campaign was not planned. */
+  idea?: string | null;
 }
 
 export type DirectArtOutcome =
@@ -111,7 +120,7 @@ export async function directArt(deps: ClaudeGenerationDeps, input: DirectArtInpu
     creativeId: input.creativeId,
     idempotencyKey: `art:${input.creativeId}:${input.attempt}`,
     promptVersion: ART_DIRECTOR_PROMPT_VERSION,
-    ...buildArtRequest(input.recipe, input.kit, input.context ?? [], input.headline ?? null),
+    ...buildArtRequest(input.recipe, input.kit, input.context ?? [], input.headline ?? null, input.idea ?? null),
   });
   if (out.kind !== "succeeded") return out;
   const findings = judgeArt(out.value, input.recipe, input.kit);

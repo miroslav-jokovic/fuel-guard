@@ -82,68 +82,69 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:50:44.631Z",
+    "recorded_at": "2026-11-15T21:09:52.034Z",
     "output": {
       "candidates": [
         {
           "en": {
             "card_get": "$31 per hour",
             "card_need": "You hold a Class A CDL and want local work.",
-            "card_apply": "Tap the button and send your info.",
+            "card_apply": "Tap Apply and send us your info.",
             "cta": "Apply today",
-            "primary_text": "Class A local driver job paying $31 per hour. You drive local, and you are home daily. Apply today.",
-            "headline": "Local: $31 per hour"
+            "primary_text": "Class A local driver, $31 per hour. You run local and you're home daily. If you hold a Class A CDL, apply today.",
+            "headline": "Class A local: $31 per hour"
           },
           "es": {
             "card_get": "$31 por hora",
-            "card_need": "Tienes CDL Clase A y buscas trabajo local.",
-            "card_apply": "Toca el botón y manda tus datos.",
+            "card_need": "Tienes licencia CDL Clase A y buscas trabajo local.",
+            "card_apply": "Toca Aplica y mándanos tus datos.",
             "cta": "Aplica hoy",
-            "primary_text": "Trabajo local para chofer Clase A a $31 por hora. Manejas rutas locales y estás en casa todos los días. Aplica hoy.",
-            "headline": "Local: $31 la hora"
+            "primary_text": "Chofer local Clase A, $31 por hora. Rutas locales y en casa todos los días. Si tienes CDL Clase A, aplica hoy.",
+            "headline": "Local Clase A: $31 por hora"
           }
         },
         {
           "en": {
             "card_get": "Home daily",
-            "card_need": "You need a Class A CDL for local runs.",
-            "card_apply": "Apply with the button below.",
+            "card_need": "A Class A CDL. Local runs, so you sleep in your own bed.",
+            "card_apply": "Fill out the form and send it in.",
             "cta": "Apply now",
-            "primary_text": "Class A local job: you are home daily, and the pay is $31 per hour. Apply now and drive local routes.",
-            "headline": "Home daily, Class A local"
+            "primary_text": "Local Class A job, home daily. You end every shift at home and earn $31 per hour. Got your Class A CDL? Apply now.",
+            "headline": "Local Class A, home daily"
           },
           "es": {
             "card_get": "En casa todos los días",
-            "card_need": "Necesitas CDL Clase A para rutas locales.",
-            "card_apply": "Aplica con el botón de abajo.",
+            "card_need": "CDL Clase A. Rutas locales, duermes en tu casa.",
+            "card_apply": "Llena la solicitud y envíala.",
             "cta": "Aplica ya",
-            "primary_text": "Trabajo local Clase A: estás en casa todos los días y pagamos $31 por hora. Aplica ya y maneja rutas locales.",
-            "headline": "Local y en casa a diario"
+            "primary_text": "Trabajo local Clase A, en casa todos los días. Terminas cada turno en casa y ganas $31 por hora. ¿Tienes CDL Clase A? Aplica ya.",
+            "headline": "En casa diario, Clase A"
           }
         },
         {
           "en": {
-            "card_get": "Local Class A, $31 an hour",
-            "card_need": "Bring your Class A CDL and drive local.",
-            "card_apply": "Apply here and talk to dispatch.",
-            "cta": "Talk to us",
-            "primary_text": "Straight to it: local Class A work, $31 per hour, home daily. You need a Class A CDL. Apply and we will talk.",
-            "headline": "Local, $31/hr, home daily"
+            "card_get": "Local Class A work",
+            "card_need": "You need a Class A CDL and want to stay local.",
+            "card_apply": "Apply below and we'll talk.",
+            "cta": "Apply here",
+            "primary_text": "Straight up: it's a local Class A job. $31 per hour, and you're home daily. Got a Class A CDL? Apply here and let's talk.",
+            "headline": "$31/hour, home daily"
           },
           "es": {
-            "card_get": "Local Clase A, $31 la hora",
-            "card_need": "Trae tu CDL Clase A y maneja local.",
-            "card_apply": "Aplica aquí y habla con despacho.",
-            "cta": "Háblanos",
-            "primary_text": "Sin rodeos: trabajo local Clase A, $31 por hora, en casa todos los días. Necesitas CDL Clase A. Aplica y hablamos.",
-            "headline": "$31/hora, en casa a diario"
+            "card_get": "Trabajo local Clase A",
+            "card_need": "Necesitas CDL Clase A y buscas rutas locales.",
+            "card_apply": "Aplica abajo y hablamos.",
+            "cta": "Aplica aquí",
+            "primary_text": "Te lo digo claro: es trabajo local Clase A. $31 por hora y en casa todos los días. ¿Tienes CDL Clase A? Aplica aquí y hablamos.",
+            "headline": "$31/hora, en casa diario"
           }
         }
       ]

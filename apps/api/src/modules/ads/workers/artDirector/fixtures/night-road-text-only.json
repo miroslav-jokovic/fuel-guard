@@ -78,18 +78,19 @@
       ]
     },
     "context": [],
-    "headline": null
+    "headline": null,
+    "idea": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@5",
+    "prompt_version": "artDirector@6",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T22:23:19.202Z",
+    "recorded_at": "2026-11-15T20:17:49.636Z",
     "output": {
       "slots": {
-        "weather": "a clear sky after rain, thin cloud lit by a rising moon",
-        "light": "cool moonlight on wet asphalt, a distant warm glow of town at the horizon"
+        "weather": "a clear cold sky after rain, wet asphalt and a thin mist over the fields",
+        "light": "deep blue last glow on the horizon, a distant yard's sodium lights reflecting on the wet road"
       },
       "reference_photo": null,
       "focal_subject": "road_ahead",

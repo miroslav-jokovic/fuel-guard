@@ -78,56 +78,57 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:48:29.472Z",
+    "recorded_at": "2026-11-15T21:07:46.506Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$12,000 per week",
             "cta": "Apply today",
-            "primary_text": "New Class A license? This job is for you. The pay is $12,000 per week, paid weekly. Orientation is paid too. Apply today.",
+            "primary_text": "New Class A license? This job pays $12,000 per week, and you get paid every week. Orientation is paid too.",
             "headline": "New Class A drivers"
           },
           "es": {
             "hook": "$12,000 por semana",
             "cta": "Aplica hoy",
-            "primary_text": "¿Recién sacaste tu licencia Clase A? Este trabajo es para ti. Pagamos $12,000 por semana, con pago semanal. La orientación también es pagada. Aplica hoy.",
-            "headline": "Clase A recién licenciado"
+            "primary_text": "¿Recién sacaste tu licencia Clase A? Aquí ganas $12,000 por semana, con pago cada semana. La orientación también es pagada.",
+            "headline": "Nuevos choferes Clase A"
           }
         },
         {
           "en": {
-            "hook": "Paid orientation",
+            "hook": "Paid every week",
             "cta": "Apply now",
-            "primary_text": "Fresh Class A license? You start with paid orientation. After that, you get paid every week: $12,000 per week. Apply now.",
-            "headline": "Weekly pay for new Class A"
+            "primary_text": "Just got your Class A? Your check comes every week, and orientation is paid. The pay is $12,000 per week.",
+            "headline": "Orientation is paid"
           },
           "es": {
-            "hook": "Orientación pagada",
+            "hook": "Pago cada semana",
             "cta": "Aplica ya",
-            "primary_text": "¿Licencia Clase A recién sacada? Empiezas con orientación pagada. Después cobras cada semana: $12,000 por semana. Aplica ya.",
-            "headline": "Pago semanal para Clase A"
+            "primary_text": "¿Acabas de sacar tu Clase A? Te pagamos cada semana y la orientación es pagada. El pago es de $12,000 por semana.",
+            "headline": "Orientación pagada"
           }
         },
         {
           "en": {
-            "hook": "Just got your Class A?",
-            "cta": "Get started",
-            "primary_text": "Here it is plain. You just got your Class A, and we pay $12,000 per week. Pay goes out weekly. Orientation is paid. Get started today.",
-            "headline": "Paid every week"
+            "hook": "Your first Class A run",
+            "cta": "Apply here",
+            "primary_text": "New license? No problem. You start with paid orientation, then drive for $12,000 per week, paid weekly. Apply and we will walk you through it.",
+            "headline": "$12,000 per week, Class A"
           },
           "es": {
-            "hook": "¿Ya tienes tu Clase A?",
-            "cta": "Empieza hoy",
-            "primary_text": "Te lo digo claro. Si ya tienes tu Clase A, pagamos $12,000 por semana. Cobras cada semana y la orientación es pagada. Empieza hoy.",
-            "headline": "Cobras cada semana"
+            "hook": "Tu primera ruta Clase A",
+            "cta": "Aplica aquí",
+            "primary_text": "¿Licencia nueva? No hay problema. Empiezas con orientación pagada y luego manejas por $12,000 por semana, con pago semanal. Aplica y te explicamos todo.",
+            "headline": "$12,000 por semana"
           }
         }
       ]

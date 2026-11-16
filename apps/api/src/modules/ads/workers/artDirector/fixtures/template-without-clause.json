@@ -77,17 +77,18 @@
       ]
     },
     "context": [],
-    "headline": null
+    "headline": null,
+    "idea": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@5",
+    "prompt_version": "artDirector@6",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T22:23:38.918Z",
+    "recorded_at": "2026-11-15T20:18:11.335Z",
     "output": {
       "slots": {
-        "time_of_day": "golden hour, low sun raking across the bridge, warm lit sky over calm water"
+        "time_of_day": "golden hour, low sun raking across the cab, long shadows under a glowing amber sky"
       },
       "reference_photo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "focal_subject": "tractor",

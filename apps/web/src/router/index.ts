@@ -38,6 +38,15 @@ declare module "vue-router" {
      */
     fullBleed?: boolean | ((route: { query?: Record<string, unknown> }) => boolean);
     /**
+     * Draw the Ask AI launcher (the floating orb) on this route. Owner, 2026-11-16: only on the main
+     * pages — Operations, Fleet overview and the live map, which are the three tabs of the dashboard
+     * route — because on a record or a list it floats over a control somebody needs (small-screens
+     * audit M9: "Set ownership" on a truck's page at 390 px). The route says it, as it says
+     * `fullBleed`, so the launcher keeps no list of pages. `AssistantLauncher.vue` has what stays
+     * true on every other page: ⌘J, the sidebar's Ask AI, and a dock that is already open.
+     */
+    assistantLauncher?: boolean;
+    /**
      * A photographic plate behind this page, drawn by `AppShell` as a PAGE layer (D-DT18).
      *
      * ⚠ It is meta rather than a prop on `PageHeader` because of what the layer is: it starts at

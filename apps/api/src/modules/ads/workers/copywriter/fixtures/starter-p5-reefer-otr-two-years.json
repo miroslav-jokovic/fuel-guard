@@ -124,29 +124,30 @@
       "scene_family": "equipment_on_road"
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T00:20:20.486Z",
+    "recorded_at": "2026-11-15T21:41:24.607Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "$0.70 to $0.78 per mile",
+            "hook": "$0.70 to $0.78 a mile",
             "cta": "Apply today",
-            "primary_text": "Class A OTR reefer. You haul produce out of the valley to the Midwest at $0.70 to $0.78 per mile. Out 2 weeks, home 4 days. 401k and a rider policy. Age 23+.",
-            "headline": "Class A OTR reefer driver",
+            "primary_text": "Haul produce out of the valley to the Midwest in a reefer. $0.70 to $0.78 a mile. Out 2 weeks, home 4 days. 401k and a rider policy. Class A, 23+.",
+            "headline": "Class A reefer, OTR runs",
             "second_line": "Home 4 days"
           },
           "es": {
             "hook": "$0.70 a $0.78 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Reefer OTR, Clase A. Llevas producto del valle al Medio Oeste a $0.70 a $0.78 por milla. Fuera 2 semanas, 4 días en casa. 401k y política de pasajero. Mayores de 23.",
-            "headline": "Chofer Clase A, reefer OTR",
+            "primary_text": "Carga fruta y verdura del valle al Medio Oeste en reefer. De $0.70 a $0.78 por milla. 2 semanas en ruta, 4 días en casa. 401k y política de acompañante. Clase A, mayores de 23.",
+            "headline": "Reefer Clase A, rutas OTR",
             "second_line": "4 días en casa"
           }
         },
@@ -154,32 +155,32 @@
           "en": {
             "hook": "Out 2 weeks, home 4 days",
             "cta": "Apply now",
-            "primary_text": "Run produce from the valley to the Midwest, then get 4 days at home. Class A reefer, over the road, out 2 weeks at a time. Pay is $0.70 to $0.78 per mile, with a 401k and a rider policy. Age 23+.",
-            "headline": "Reefer runs to the Midwest",
+            "primary_text": "Run 2 weeks, then 4 days at home. Reefer freight, produce out of the valley to the Midwest. $0.70 to $0.78 a mile, a 401k and a rider policy. Class A drivers, 23+.",
+            "headline": "OTR reefer with a 401k",
             "second_line": "$0.70-$0.78/mile"
           },
           "es": {
             "hook": "2 semanas fuera, 4 en casa",
-            "cta": "Aplica ya",
-            "primary_text": "Llevas producto del valle al Medio Oeste y luego 4 días en casa. Reefer OTR, Clase A, 2 semanas en ruta. Pagamos $0.70 a $0.78 por milla, con 401k y política de pasajero. Mayores de 23.",
-            "headline": "Reefer OTR al Medio Oeste",
+            "cta": "Aplica ahora",
+            "primary_text": "Manejas 2 semanas y descansas 4 días en casa. Carga refrigerada, fruta y verdura del valle al Medio Oeste. De $0.70 a $0.78 por milla, 401k y política de acompañante. Clase A, mayores de 23.",
+            "headline": "Reefer OTR con 401k",
             "second_line": "$0.70-$0.78/milla"
           }
         },
         {
           "en": {
-            "hook": "Valley produce, 2-week runs",
-            "cta": "Apply now",
-            "primary_text": "Here is the run: you load produce in the valley and take it to the Midwest in a reefer. Out 2 weeks, home 4 days. $0.70 to $0.78 per mile, 401k, rider policy. Class A, 23+.",
-            "headline": "Class A reefer, OTR",
-            "second_line": "401k plan"
+            "hook": "Produce, valley to Midwest",
+            "cta": "Apply here",
+            "primary_text": "You load produce in the valley and run it to the Midwest, keeping the reefer cold. $0.70 to $0.78 a mile. Out 2 weeks, home 4 days. 401k and a rider policy. Class A, age 23.",
+            "headline": "OTR reefer, rider policy",
+            "second_line": "$0.70-$0.78/mile"
           },
           "es": {
-            "hook": "Carga del valle, 2 semanas",
-            "cta": "Aplica ahora",
-            "primary_text": "Así es la ruta: cargas producto en el valle y lo llevas al Medio Oeste en reefer. Fuera 2 semanas, 4 días en casa. $0.70 a $0.78 por milla, 401k y política de pasajero. Clase A, mayores de 23.",
-            "headline": "Clase A, reefer OTR",
-            "second_line": "Plan 401k"
+            "hook": "Del valle al Medio Oeste",
+            "cta": "Aplica aquí",
+            "primary_text": "Cargas fruta y verdura en el valle y la llevas al Medio Oeste en reefer. De $0.70 a $0.78 por milla. 2 semanas en ruta, 4 días en casa. 401k y política de acompañante. Clase A, mayores de 23.",
+            "headline": "Reefer OTR con acompañante",
+            "second_line": "$0.70-$0.78/milla"
           }
         }
       ]

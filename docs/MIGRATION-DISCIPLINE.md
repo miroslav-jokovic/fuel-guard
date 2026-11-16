@@ -212,3 +212,27 @@ the owner's call because it changes how every deploy in the repository is trigge
 failure mode where a broken `migrate.yml` would then block all deploys rather than just schema
 changes. Until it is answered, backward compatibility for one release is a property every merge has
 to have, and the gate is what checks it.
+
+## A setting the platform applies is not proven by staging
+
+On 2026-11-15 migration 0610 ran `alter role service_role set work_mem = '16MB'`. PostgREST re-applies
+the settings of the role it impersonates at the start of every transaction, production's build handed
+Postgres the value in lower case, and `16mb` is not a memory unit: every service-role request failed for
+25 minutes (2,332 error lines, 17:43:29–18:08:50 UTC) until the setting was reset by hand (0613).
+
+Staging had carried the same migration without one error. The two Supabase projects are different
+builds — production Postgres 17.6 / PostgREST 14.5, staging 17.11 / 14.18 on that day — so staging
+vouches for OUR SQL and not for anything the platform itself executes.
+
+What holds this now:
+
+- `lint:role-settings` (`scripts/check-role-settings.mjs`): every `alter role … set` and
+  `alter database … set` in a migration is set in a real Postgres as written and in lower case, and must
+  read back the same. Write memory in kB as a bare number (`'16384'`, not `'16MB'`).
+- `release.yml` asks, straight after the migrations and before production moves, whether the serving
+  API can still read the database. It stops the release if not. It does not reverse a migration.
+- `schema-drift.yml` warns every night while the two projects' builds differ.
+
+A role setting is also the one change that should be proven on production itself before it is merged:
+`begin; alter role … set …; rollback;` proves Postgres takes it, and nothing short of a request through
+production's own PostgREST proves that PostgREST does.

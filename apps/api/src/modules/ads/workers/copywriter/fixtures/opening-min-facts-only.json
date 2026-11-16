@@ -91,56 +91,57 @@
       }
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:38:59.926Z",
+    "recorded_at": "2026-11-15T20:57:40.824Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Sunrise. $0.60 a mile.",
+            "hook": "Dawn run at $0.60 a mile",
             "cta": "Apply today",
-            "primary_text": "You roll out at first light in a dry van, and every mile pays $0.60. You run Class A and you are home weekly. Drivers 23+. Apply today.",
-            "headline": "Dry van at $0.60/mile"
+            "primary_text": "You pull out at sunrise with a dry van load behind you. The pay is $0.60 per mile, and you are home weekly. Class A drivers, 23+. Apply today.",
+            "headline": "Dry van, $0.60 a mile"
           },
           "es": {
-            "hook": "Amanece. $0.60 por milla.",
+            "hook": "Amanece: $0.60 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Sales con la primera luz en un dry van, y cada milla te paga $0.60. Manejas con Clase A y estás en casa cada semana. Choferes mayores de 23. Aplica hoy.",
+            "primary_text": "Sales al amanecer con una carga de dry van detrás. Pagamos $0.60 por milla y estás en casa cada semana. Choferes con licencia Clase A, mayores de 23. Aplica hoy.",
             "headline": "Dry van a $0.60 por milla"
           }
         },
         {
           "en": {
-            "hook": "Sunrise run. Home weekly.",
-            "cta": "Apply now",
-            "primary_text": "You watch the sun come up over the hood, and you are still home weekly. You haul dry van freight at $0.60 per mile. Class A, age 23. Apply now.",
-            "headline": "Home weekly, dry van"
+            "hook": "Sunrise run, home weekly",
+            "cta": "Join our team",
+            "primary_text": "You start the week at dawn in the cab of a dry van, and you are home weekly. Pay is $0.60 per mile. Class A drivers, 23+. Join our team.",
+            "headline": "Class A, home weekly"
           },
           "es": {
-            "hook": "Amanece. Casa cada semana.",
-            "cta": "Aplica ya",
-            "primary_text": "Ves salir el sol desde la cabina y aun así estás en casa cada semana. Jalas carga en dry van a $0.60 por milla. Clase A, mayor de 23 años. Aplica ya.",
-            "headline": "En casa cada semana"
+            "hook": "Amanece. En casa cada semana",
+            "cta": "Únete hoy",
+            "primary_text": "Empiezas la semana al amanecer en un dry van y estás en casa cada semana. Pagamos $0.60 por milla. Choferes Clase A, mayores de 23. Únete al equipo.",
+            "headline": "Clase A, en casa semanal"
           }
         },
         {
           "en": {
-            "hook": "Sunup. Dry van, Class A.",
-            "cta": "Call us",
-            "primary_text": "Here is the job. You pull dry van freight with your Class A, and you are 23+. Pay is $0.60 per mile. You are home weekly. Call us and we will get you rolling.",
-            "headline": "Dry van. $0.60 a mile."
+            "hook": "Dawn, dry van, $0.60/mile",
+            "cta": "Apply now",
+            "primary_text": "Here is the job: dry van freight, $0.60 per mile, home weekly. You need a Class A and you need to be 23+. Apply and we will go over the loads with you.",
+            "headline": "Dry van freight, Class A"
           },
           "es": {
-            "hook": "Amanece. Dry van, Clase A.",
-            "cta": "Llámanos",
-            "primary_text": "Este es el trabajo. Jalas carga en dry van con tu Clase A. Debes ser mayor de 23 años. Pagamos $0.60 por milla y estás en casa cada semana. Llámanos y te ponemos a rodar.",
-            "headline": "Dry van. $0.60 por milla."
+            "hook": "Alba, dry van, $0.60/milla",
+            "cta": "Aplica ya",
+            "primary_text": "Así es el trabajo: carga en dry van, $0.60 por milla y en casa cada semana. Necesitas licencia Clase A y ser mayor de 23 años. Aplica y te explicamos las cargas.",
+            "headline": "Carga dry van, Clase A"
           }
         }
       ]

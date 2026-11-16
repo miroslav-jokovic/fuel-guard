@@ -100,56 +100,57 @@
       }
     },
     "company_name": "360 Logistics",
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:34:07.005Z",
+    "recorded_at": "2026-11-15T20:52:39.432Z",
     "output": {
       "candidates": [
         {
           "en": {
             "pay": "$27 per hour",
             "cta": "Apply today",
-            "primary_text": "$27 an hour to drive Class A dry van on local runs in Chicago. You are home daily. Paid time off and health insurance come with it. Drivers 23+ apply with 360 Logistics.",
-            "headline": "Local Class A dry van"
+            "primary_text": "$27 per hour. Local Class A dry van runs in Chicago with 360 Logistics. You're home daily, with health insurance and paid time off. Open to drivers 23+.",
+            "headline": "Local Class A in Chicago"
           },
           "es": {
             "pay": "$27 por hora",
             "cta": "Aplica hoy",
-            "primary_text": "$27 por hora manejando caja seca Clase A en rutas locales de Chicago. Regresas a casa todos los días. Incluye tiempo libre pagado y seguro médico. Mayores de 23. Aplica con 360 Logistics.",
-            "headline": "Clase A local, caja seca"
+            "primary_text": "$27 por hora. Rutas locales Clase A con caja seca en Chicago con 360 Logistics. Regresas a casa todos los días, con seguro médico y tiempo libre pagado. Para mayores de 23.",
+            "headline": "Clase A local en Chicago"
           }
         },
         {
           "en": {
             "pay": "$27 an hour",
             "cta": "Apply now",
-            "primary_text": "Home daily. Local dry van runs in Chicago at $27 an hour, Class A. Paid time off and health insurance included. You need to be 23+. Join 360 Logistics.",
-            "headline": "Home daily, Chicago local"
+            "primary_text": "$27 an hour, and you're home daily. Local runs around Chicago, Class A dry van, with paid time off. Drivers age 23 and up, 360 Logistics wants to hear from you.",
+            "headline": "Home daily, Chicago runs"
           },
           "es": {
             "pay": "$27 la hora",
             "cta": "Aplica ya",
-            "primary_text": "Duermes en casa a diario. Rutas locales de caja seca en Chicago a $27 por hora, Clase A. Tiempo libre pagado y seguro médico. Mayores de 23. Únete a 360 Logistics.",
-            "headline": "En casa a diario"
+            "primary_text": "$27 la hora y vuelves a casa cada día. Rutas locales en Chicago, caja seca Clase A, con tiempo libre pagado. Si eres mayor de 23 años, 360 Logistics te espera.",
+            "headline": "A casa cada día en Chicago"
           }
         },
         {
           "en": {
-            "pay": "$27/hour",
-            "cta": "Apply here",
-            "primary_text": "Here is the job: Class A, dry van, local deliveries around Chicago. $27 an hour, home daily, health insurance. Must be 23+. Apply with 360 Logistics.",
-            "headline": "Dry van, local Chicago"
+            "pay": "$27 per hour",
+            "cta": "Join our team",
+            "primary_text": "$27 per hour. Dry van, local deliveries in Chicago. You run your stops and you're home daily. Health insurance comes with it. Class A, age 23.",
+            "headline": "Dry van, Chicago local"
           },
           "es": {
-            "pay": "$27/hora",
-            "cta": "Aplica aquí",
-            "primary_text": "Así es el trabajo: Clase A, caja seca, entregas locales en Chicago. $27 por hora, en casa a diario y seguro médico. Mayores de 23. Aplica con 360 Logistics.",
-            "headline": "Caja seca, local en Chicago"
+            "pay": "$27 por hora",
+            "cta": "Únete hoy",
+            "primary_text": "$27 por hora. Caja seca, entregas locales en Chicago. Haces tus paradas y regresas a casa a diario. Con seguro médico. Clase A, mayores de 23.",
+            "headline": "Caja seca local en Chicago"
           }
         }
       ]

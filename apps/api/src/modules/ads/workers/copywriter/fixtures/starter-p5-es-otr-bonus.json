@@ -124,45 +124,46 @@
       "scene_family": "equipment_on_road"
     },
     "company_name": null,
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T00:17:23.435Z",
+    "recorded_at": "2026-11-15T21:38:27.746Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$0.70 per mile",
             "cta": "Apply today",
-            "primary_text": "Class A over-the-road, dry van freight coast to coast. $0.70 per mile, out 2 weeks and home 3 days, plus a $2,500 sign-on bonus.",
-            "headline": "Dry van, coast to coast",
-            "second_line": "Home 3 days"
+            "primary_text": "Class A over-the-road, dry van freight coast to coast. You run at $0.70 per mile, out 2 weeks and home 3 days, with a $2,500 sign-on bonus.",
+            "headline": "Class A over-the-road",
+            "second_line": "$2,500 sign-on"
           },
           "es": {
             "hook": "$0.70 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Clase A de larga distancia, carga dry van de costa a costa. $0.70 por milla, 2 semanas en ruta y 3 días en casa, más un bono de $2,500 al firmar.",
-            "headline": "Dry van de costa a costa",
-            "second_line": "3 días en casa"
+            "primary_text": "Clase A de larga distancia, carga dry van de costa a costa. Ganas $0.70 por milla, sales 2 semanas y pasas 3 días en casa, con bono de $2,500 al firmar.",
+            "headline": "Clase A, larga distancia",
+            "second_line": "Bono de $2,500"
           }
         },
         {
           "en": {
             "hook": "Out 2 weeks, home 3 days",
-            "cta": "Apply today",
-            "primary_text": "Over-the-road dry van, coast to coast. You run 2 weeks out, then you get 3 days at home. Pay is $0.70 per mile, with a 401k. Age 23+.",
-            "headline": "Class A, over the road",
+            "cta": "Apply now",
+            "primary_text": "Over-the-road dry van, coast to coast. You stay out 2 weeks, then you are home 3 days. $0.70 per mile and a 401k. Class A, 23+.",
+            "headline": "401k and $2,500 sign-on",
             "second_line": "$0.70 per mile"
           },
           "es": {
-            "hook": "Ruta 2 semanas, casa 3 días",
-            "cta": "Aplica hoy",
-            "primary_text": "Carga dry van de larga distancia, de costa a costa. Haces 2 semanas en ruta y luego 3 días en casa. Pago de $0.70 por milla y plan 401k. Mayores de 23.",
-            "headline": "Clase A, larga distancia",
+            "hook": "2 semanas fuera, 3 en casa",
+            "cta": "Aplica ya",
+            "primary_text": "Larga distancia con dry van, de costa a costa. Sales 2 semanas y luego pasas 3 días en casa. $0.70 por milla y plan 401k. Clase A, mayores de 23.",
+            "headline": "401k y bono de $2,500",
             "second_line": "$0.70 por milla"
           }
         },
@@ -170,16 +171,16 @@
           "en": {
             "hook": "$2,500 sign-on bonus",
             "cta": "Apply now",
-            "primary_text": "Here is the job: dry van, over the road, coast to coast. $0.70 per mile and a $2,500 sign-on bonus. You are out 2 weeks, home 3 days. Class A, age 23+.",
-            "headline": "Over-the-road dry van",
-            "second_line": "401k plan"
+            "primary_text": "Here is the run: dry van freight, over the road, coast to coast. You are out 2 weeks and home 3 days at $0.70 per mile. Got your Class A and age 23? Apply now.",
+            "headline": "Dry van, coast to coast",
+            "second_line": "Plus a 401k"
           },
           "es": {
             "hook": "Bono de $2,500 al firmar",
             "cta": "Aplica ya",
-            "primary_text": "Así es el trabajo: dry van, larga distancia, de costa a costa. $0.70 por milla y bono de $2,500 al firmar. Sales 2 semanas y estás 3 días en casa. Clase A, mayores de 23.",
-            "headline": "Dry van de larga distancia",
-            "second_line": "Plan 401k"
+            "primary_text": "Así es la ruta: carga dry van, larga distancia, de costa a costa. Sales 2 semanas y pasas 3 días en casa, a $0.70 por milla. ¿Tienes Clase A y eres mayor de 23 años? Aplica ya.",
+            "headline": "Dry van de costa a costa",
+            "second_line": "Con plan 401k"
           }
         }
       ]

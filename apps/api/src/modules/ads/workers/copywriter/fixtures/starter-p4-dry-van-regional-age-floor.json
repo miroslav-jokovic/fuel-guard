@@ -111,56 +111,57 @@
       "scene_family": "equipment_at_rest"
     },
     "company_name": "Silvicom Inc",
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T00:10:45.496Z",
+    "recorded_at": "2026-11-15T21:32:03.549Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Dry van, up to $1,900",
+            "hook": "Dry van, up to $1,900/wk",
             "cta": "Apply today",
-            "primary_text": "Silvicom Inc pays $1,600 to $1,900 per week for regional dry van runs in the Midwest. You are home weekly, with health insurance. Class A, age 23. Apply today.",
-            "headline": "$1,600-$1,900 per week"
+            "primary_text": "Haul dry van freight on regional runs across the Midwest for Silvicom Inc. Earn $1,600 to $1,900 per week and get home weekly. Age 23+ with 2 years of experience.",
+            "headline": "$1,600 to $1,900 per week"
           },
           "es": {
-            "hook": "Dry van: hasta $1,900",
+            "hook": "Dry van, hasta $1,900/sem",
             "cta": "Aplica hoy",
-            "primary_text": "Silvicom Inc paga de $1,600 a $1,900 por semana en rutas regionales de dry van en el Medio Oeste. En casa cada semana, con seguro médico. Clase A, mayores de 23.",
-            "headline": "$1,600-$1,900 por semana"
+            "primary_text": "Lleva carga dry van en rutas regionales por el Medio Oeste con Silvicom Inc. Gana de $1,600 a $1,900 por semana y llega a casa cada semana. Mayores de 23 con 2 años de experiencia.",
+            "headline": "$1,600 a $1,900 por semana"
           }
         },
         {
           "en": {
             "hook": "Dry van, home weekly",
             "cta": "Apply now",
-            "primary_text": "Regional dry van runs in the Midwest, and you are home weekly. Pay is $1,600 to $1,900 per week, plus dental and vision. Class A, 23+. Join Silvicom Inc.",
-            "headline": "Health, dental and vision"
+            "primary_text": "Regional dry van in the Midwest, and you are home weekly. Silvicom Inc pays $1,600 to $1,900 per week, with health, dental and vision. Age 23+ with 2 years of experience.",
+            "headline": "Home weekly, regional runs"
           },
           "es": {
-            "hook": "Dry van: casa semanal",
+            "hook": "Dry van, en casa semanal",
             "cta": "Aplica ya",
-            "primary_text": "Rutas regionales de dry van en el Medio Oeste, y en casa cada semana. Pago de $1,600 a $1,900 por semana, con dental y visión. Clase A, mayores de 23.",
-            "headline": "Médico, dental y visión"
+            "primary_text": "Dry van regional en el Medio Oeste, y en casa cada semana. Silvicom Inc paga de $1,600 a $1,900 por semana, con seguro médico, dental y visión. Mayores de 23, 2 años de experiencia.",
+            "headline": "En casa cada semana"
           }
         },
         {
           "en": {
-            "hook": "Midwest dry van runs",
-            "cta": "Apply today",
-            "primary_text": "Here is the run: dry van freight, regional, in the Midwest. You make $1,600 to $1,900 a week and get home weekly. You need a Class A, age 23. Apply with Silvicom Inc.",
-            "headline": "Silvicom Inc is hiring"
+            "hook": "Dry van in the Midwest",
+            "cta": "Join our team",
+            "primary_text": "Your lane is the Midwest: regional runs, dry van freight. Silvicom Inc offers health insurance plus dental and vision, and you are home weekly. You need to be 23+ with 2 years of experience.",
+            "headline": "Health, dental and vision"
           },
           "es": {
             "hook": "Dry van, Medio Oeste",
-            "cta": "Solicita hoy",
-            "primary_text": "Así es la ruta: carga dry van, regional, en el Medio Oeste. Ganas de $1,600 a $1,900 por semana y estás en casa cada semana. Clase A, mayores de 23. Aplica con Silvicom Inc.",
-            "headline": "Silvicom Inc contrata"
+            "cta": "Únete hoy",
+            "primary_text": "Tu ruta es el Medio Oeste: carga dry van, viajes regionales. Silvicom Inc da seguro médico, dental y visión. Llegas a casa cada semana. Mayores de 23 con 2 años de experiencia.",
+            "headline": "Salud, dental y visión"
           }
         }
       ]

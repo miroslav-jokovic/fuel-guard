@@ -122,68 +122,69 @@
       }
     },
     "company_name": "Silvicom Inc",
-    "candidates": 3
+    "candidates": 3,
+    "angle": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "copywriter@4",
+    "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T23:41:13.668Z",
+    "recorded_at": "2026-11-15T21:00:01.799Z",
     "output": {
       "candidates": [
         {
           "en": {
             "card_get": "$95,000 to $110,000 per year",
-            "card_need": "Class A CDL, age 23, 2 years of experience",
-            "card_apply": "Tap Apply and send your info",
-            "cta": "Apply today",
-            "primary_text": "Silvicom Inc pays Class A teams $95,000 to $110,000 per year. Dedicated dry van, coast to coast, on late-model equipment. We keep good pairs together.",
-            "headline": "Team pay up to $110,000/yr"
+            "card_need": "Class A CDL, 2 years of experience, age 23+.",
+            "card_apply": "Tap Apply now and tell us about you.",
+            "cta": "Apply now",
+            "primary_text": "Silvicom Inc is hiring Class A teams for dedicated OTR. Dry van, coast to coast, $95,000 to $110,000 per year. We keep good pairs together.",
+            "headline": "Team drivers, dedicated OTR"
           },
           "es": {
             "card_get": "$95,000 a $110,000 al año",
-            "card_need": "CDL Clase A, mayor de 23 años, 2 años de experiencia",
-            "card_apply": "Toca Aplicar y envía tus datos",
-            "cta": "Aplica hoy",
-            "primary_text": "Silvicom Inc paga a equipos Clase A de $95,000 a $110,000 al año. Dry van dedicado, costa a costa, con equipo reciente. No separamos a una buena pareja.",
-            "headline": "Equipos: hasta $110,000/año"
-          }
-        },
-        {
-          "en": {
-            "card_get": "Dedicated OTR for teams",
-            "card_need": "Class A CDL and 2 years of experience. Age 23 for both drivers.",
-            "card_apply": "Send your info and talk to dispatch",
-            "cta": "Apply now",
-            "primary_text": "Dedicated OTR for Class A teams at Silvicom Inc. Drop and hook dry van, coast to coast. $95,000 to $110,000 per year. Good pairs stay together here.",
-            "headline": "Dedicated drop and hook"
-          },
-          "es": {
-            "card_get": "Rutas dedicadas para equipos",
-            "card_need": "CDL Clase A y 2 años de experiencia. Mayores de 23.",
-            "card_apply": "Envía tus datos y habla con despacho",
+            "card_need": "Licencia Clase A, 2 años de experiencia, mayor de 23 años.",
+            "card_apply": "Toca Aplica ya y cuéntanos de ti.",
             "cta": "Aplica ya",
-            "primary_text": "Rutas OTR dedicadas para equipos Clase A en Silvicom Inc. Dry van drop and hook, costa a costa. De $95,000 a $110,000 al año. Aquí no separamos parejas.",
-            "headline": "Dedicado, drop and hook"
+            "primary_text": "Silvicom Inc busca equipos Clase A para ruta dedicada OTR. Carga seca, de costa a costa, $95,000 a $110,000 al año. No separamos a un buen equipo.",
+            "headline": "Equipos OTR dedicados"
           }
         },
         {
           "en": {
-            "card_get": "Late-model equipment",
-            "card_need": "Class A CDL, 2 years of experience, age 23",
-            "card_apply": "Apply as a team or bring a driver",
+            "card_get": "Dedicated OTR, drop and hook",
+            "card_need": "A Class A team, each driver age 23+ with 2 years of experience.",
+            "card_apply": "Both drivers, apply below.",
             "cta": "Apply today",
-            "primary_text": "Coast to coast in late-model equipment at Silvicom Inc. Dedicated dry van for Class A teams, $95,000 to $110,000 per year. $1,500 referral bonus.",
-            "headline": "$1,500 referral bonus"
+            "primary_text": "Dry van freight, coast to coast. Drop and hook on dedicated OTR runs, $95,000 to $110,000 per year. At Silvicom Inc, teams stay together.",
+            "headline": "Drop and hook, dry van OTR"
           },
           "es": {
-            "card_get": "Equipo de modelo reciente",
-            "card_need": "CDL Clase A, 2 años de experiencia, mayor de 23 años",
-            "card_apply": "Aplica en equipo o trae a un chofer",
+            "card_get": "OTR dedicado, drop and hook",
+            "card_need": "Equipo Clase A, cada chofer mayor de 23 años con 2 años de experiencia.",
+            "card_apply": "Los dos choferes, apliquen abajo.",
             "cta": "Aplica hoy",
-            "primary_text": "Costa a costa con equipo reciente en Silvicom Inc. Dry van dedicado para equipos Clase A, de $95,000 a $110,000 al año. Bono de $1,500 por referido.",
-            "headline": "Bono de $1,500 por referido"
+            "primary_text": "Carga seca de costa a costa. Drop and hook en rutas dedicadas OTR, $95,000 a $110,000 al año. En Silvicom Inc, los equipos se quedan juntos.",
+            "headline": "Drop and hook, caja seca"
+          }
+        },
+        {
+          "en": {
+            "card_get": "Late-model equipment, coast to coast",
+            "card_need": "Class A, age 23+, 2 years of experience. Bring your team partner.",
+            "card_apply": "Apply below. $1,500 referral bonus.",
+            "cta": "Apply now",
+            "primary_text": "Dedicated OTR for Class A teams, dry van, coast to coast. $95,000 to $110,000 per year. Silvicom Inc does not split a good pair.",
+            "headline": "$95,000 to $110,000 a year"
+          },
+          "es": {
+            "card_get": "Equipo modelo reciente, costa a costa",
+            "card_need": "Clase A, mayor de 23 años, 2 años de experiencia. Ven con tu equipo.",
+            "card_apply": "Aplica aquí. Bono por referido: $1,500.",
+            "cta": "Aplica ya",
+            "primary_text": "OTR dedicado para equipos Clase A, carga seca, de costa a costa. $95,000 a $110,000 al año. En Silvicom Inc no separamos a un buen equipo.",
+            "headline": "$95,000 a $110,000 al año"
           }
         }
       ]

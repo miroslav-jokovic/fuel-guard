@@ -82,18 +82,19 @@
       "local runs",
       "lanes: Chicagoland store deliveries"
     ],
-    "headline": null
+    "headline": null,
+    "idea": null
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "artDirector@5",
+    "prompt_version": "artDirector@6",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-14T22:23:29.923Z",
+    "recorded_at": "2026-11-15T20:18:02.145Z",
     "output": {
       "slots": {
-        "time_of_day": "first light, low sun under a pale sky, dock lights still glowing",
-        "setting": "brick grocery store receiving dock on a city side street, wide empty wet pavement apron"
+        "time_of_day": "first light, low orange sun and long shadows under a lit sky",
+        "setting": "grocery store receiving dock behind a city block, wet concrete apron after rain"
       },
       "reference_photo": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "focal_subject": "trailer",

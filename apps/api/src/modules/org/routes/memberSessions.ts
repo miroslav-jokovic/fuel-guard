@@ -8,6 +8,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { lookupMemberRole } from "../memberLookup.js";
+import { forgetMembership } from "../../../middleware/membershipCurrent.js";
 
 /**
  * Signed-in devices (INSTALLED-APP-PLAN IA-S3; Q-IA3 (b), the owner's ruling of 2026-11-15; migration 0615).
@@ -32,9 +33,10 @@ import { lookupMemberRole } from "../memberLookup.js";
  * what Sign out is for (`signOutThisDevice`), so the answer is 409 `current_session` and the dialog does not
  * offer the button.
  *
- * ⚠ WHAT "ENDED" MEANS (0615 §4): the device cannot renew its sign-in from that moment; the token it already
- * holds keeps working with the API until it expires, up to an hour. Q-IA10 in the plan is whether to close
- * that hour. The answer to a DELETE says nothing it cannot keep: `{ ended: true }`.
+ * WHAT "ENDED" MEANS: the device cannot renew its sign-in from that moment, and since Q-IA10 (0616,
+ * `membershipCurrent.ts`) the API stops answering the token it already holds — at once on this process, within
+ * 15 seconds on the other. What is left of the hour is the browser's direct database reads (RLS), which honour a
+ * token until it expires (SETTINGS-PERMISSIONS-PLAN §4b).
  */
 interface SessionRow {
   id: string;
@@ -85,6 +87,9 @@ async function endSession(req: Request, res: Response, userId: string, action: "
     res.status(404).json(apiError("not_found", "That device is no longer signed in"));
     return false;
   }
+  // This process stops answering that device NOW (Q-IA10): its cached "current" would otherwise stand for
+  // up to 15 s, which is still what the other API process takes.
+  forgetMembership(userId);
   await writeAudit(admin, {
     orgId,
     actorId: req.auth!.userId,

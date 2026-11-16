@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
-import { AD_AGENT_MODELS, checkClaims, overlaySlotList, type AdBrief, type AdClaim, type AdPresetRecipe, type ClaimFinding } from "@silvicom/shared";
+import { AD_AGENT_MODELS, checkClaims, overlaySlotList, type AdBrief, type AdClaim, type AdPresetRecipe, type ClaimFinding, type WriterAngle } from "@silvicom/shared";
 import type { ForcedTool } from "../../../../lib/anthropic.js";
 import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOutcome } from "../../generations/claudeGeneration.js";
 
@@ -27,13 +27,21 @@ import { generateWithClaude, type ClaudeGenerationDeps, type ClaudeGenerationOut
  * The company's name is the one phrase the claim check takes as written (`exempt_phrases`): "360 Logistics"
  * holds a digit that is not a figure. Nothing else is exempt.
  *
+ * ── THE PLAN'S IDEA (prompt v5, ADS-PLATFORM-V2-PLAN V2c) ──────────────────────────────────────────────
+ * A campaign whose plan a person approved is written from that plan: the model is also handed `plan` — the idea of
+ * the angle this preset was drawn for and what of ours makes it true (`writerAngle`) — and every candidate carries
+ * that one idea, differing in how it is said. Until v5 the plan chose WHICH presets were made and the words still
+ * came from the preset's formula alone, so an approved idea never reached the page. `plan` is direction and data,
+ * never copy and never a fact: the claim check reads the answer exactly as before, against the brief only. Null
+ * for a campaign that was not planned (planning is the carrier's choice, Q-APX6), which is then written as in v4.
+ *
  * The call goes through the A4 rail (`generateWithClaude`): the switch, the budget, the ledger and the
  * replay are its, and this file holds no client. `buildCopyRequest` and `judgeCopy` are exported so
  * `pnpm ads:eval` asks and judges exactly as the worker does.
  */
 
-export const COPYWRITER_PROMPT_VERSION = "copywriter@4";
-const PROMPT = readFileSync(new URL("./prompt.v4.md", import.meta.url), "utf8");
+export const COPYWRITER_PROMPT_VERSION = "copywriter@5";
+const PROMPT = readFileSync(new URL("./prompt.v5.md", import.meta.url), "utf8");
 export const COPY_LANGUAGES = ["en", "es"] as const;
 /** Five candidates of eight slots in two languages is ~5,000 tokens of text; the ceiling leaves room. */
 const MAX_TOKENS = 6000;
@@ -79,8 +87,11 @@ export const TOLD_SHORT_SHARE = 0.7;
 export const toldLimit = (maxChars: number): number =>
   Math.floor(maxChars * (maxChars <= SHORT_SLOT_CHARS ? TOLD_SHORT_SHARE : TOLD_LIMIT_SHARE));
 
-/** What the copywriter is told about the carrier (CQ2): its name as the ad should print it, or null; and how many copies to offer (CQ4). */
-export interface CopyContext { company_name: string | null; candidates?: number }
+/**
+ * What the copywriter is told beyond the brief and the preset: the carrier's name as the ad should print it, or
+ * null (CQ2); how many copies to offer (CQ4); and the approved plan's idea for this preset, or null (V2c).
+ */
+export interface CopyContext { company_name: string | null; candidates?: number; angle?: WriterAngle | null }
 const NO_CONTEXT: CopyContext = { company_name: null };
 const kOf = (ctx: CopyContext): number => ctx.candidates ?? DEFAULT_CANDIDATES;
 
@@ -116,6 +127,7 @@ export function copyUserMessage(brief: Pick<AdBrief, "subject" | "claims" | "sub
     in_our_words: brief.subject_matter.in_our_words,
     company: ctx.company_name,
     candidates: kOf(ctx),
+    plan: ctx.angle ? { idea: ctx.angle.idea, proof: ctx.angle.proof } : null,
     concept: {
       name: recipe.name,
       hook_formula: recipe.hook_formula,
@@ -212,6 +224,8 @@ export interface WriteCopyInput {
   company_name?: string | null;
   /** How many copies to offer (CQ4, `settings.budgets.candidates_per_creative`); absent = the default. */
   candidates?: number;
+  /** The approved plan's idea for this preset (V2c, `writerAngle`); null or absent when the campaign was not planned. */
+  angle?: WriterAngle | null;
 }
 
 export type WriteCopyOutcome =
@@ -228,7 +242,7 @@ export type WriteCopyOutcome =
  * fit pass is asked even when other candidates already passed: a slot that only ran long is a copy worth having.
  */
 export async function writeCopy(deps: ClaudeGenerationDeps, input: WriteCopyInput): Promise<WriteCopyOutcome> {
-  const ctx: CopyContext = { company_name: input.company_name ?? null, candidates: input.candidates ?? DEFAULT_CANDIDATES };
+  const ctx: CopyContext = { company_name: input.company_name ?? null, candidates: input.candidates ?? DEFAULT_CANDIDATES, angle: input.angle ?? null };
   const ids = { orgId: input.orgId, agent: "copywriter" as const, campaignId: input.campaignId, creativeId: input.creativeId, promptVersion: COPYWRITER_PROMPT_VERSION };
   const first = await generateWithClaude(deps, { ...ids, idempotencyKey: `copy:${input.creativeId}:${input.attempt}`, ...buildCopyRequest(input.brief, input.recipe, ctx) });
   if (first.kind !== "succeeded") return first;
