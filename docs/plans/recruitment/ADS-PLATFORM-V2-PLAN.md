@@ -144,6 +144,25 @@ measured on the sandbox. "Top of class" cannot be claimed before a real image mo
   `CAMPAIGN_WORKERS` with its own L-levels.
 - **Publisher.** Video upload and a video ad on the same Instant Form.
 
+**Read 2026-11-16, before any number was proposed (V4a):**
+
+| Question | What was found | Where |
+|---|---|---|
+| Is ffmpeg on the API's image? | **No.** The image is `node:22-bookworm-slim` with no package installed on top; the only ffmpeg in the repository is the tutorial recorder's, which runs on a laptop. | `infra/image/Dockerfile` |
+| What a clip costs | Per second, in dollars: Wan 3.0 "from $0.038", Wan 3.0 Prime "from $0.051", Seedance 2.0 $0.080 (shown at 480p), Kling 3.0 Turbo $0.105, Kling 3.0 Standard $0.107, Seedance 2.5 $0.118, MiniMax H3 $0.130, Kling 3.0 Pro $0.144, Happy Horse 1.1 $0.180, Kling 3.0 4K $0.315. Five seconds is $0.19 to $1.58. "From" prices are a model's cheapest mode; the page does not say what 1080p costs. | Higgsfield's pricing page |
+| How a clip is asked for | One POST per model path (`bytedance/seedance-2.0/image-to-video`, `alibaba/wan-3.0/image-to-video`, `kling-video/v3.0/std/image-to-video`), the same submit / status / `video.url` shapes our client already speaks. Seedance: `image_url`, `duration` 4–15 (default 5), `resolution`, `generate_audio` (default **true**), and no aspect field — "Output framing follows image_url". Wan: the same plus `aspect_ratio` (16:9, 4:3, 1:1, 3:4, 9:16, adaptive — **no 4:5**) and `duration` 2–30. Neither page states frame rate, codec or pixel size. | The two models' own pages |
+| What Meta asks of a feed video with the Leads objective | MP4, MOV or GIF; ratio 4:5; 1440 × 1800; H.264, fixed frame rate, progressive, stereo AAC at 128 kbps or more; captions and sound "optional, but recommended"; 1 second to 241 minutes; 4 GB. Text beside it as for an image: 50–150 and 27 characters. | Meta's Ads Guide |
+| How a video lead ad is made | The video goes to the account's library first (`POST act_<id>/advideos`, `source` or `file_url`); the creative's `object_story_spec.video_data` carries `video_id`, `image_url` (the thumbnail) and the same `call_to_action` with `lead_gen_form_id`. The page states no processing-status field and no size limit of its own. | Meta's lead-ads and ad-video pages |
+| How fast words over a moving picture can be read | "Up to 20 characters per second for adult programs". | Netflix's Timed Text Style Guide |
+
+So the plan's "about $1 a clip" stands only for Kling; the two cheapest models put five seconds at $0.19 to $0.40,
+and which of them draws a truck that still looks like the carrier's truck is not something a price page answers.
+The questions these open are Q-APX12 to Q-APX15.
+
+**Built 2026-11-16 (V4a):** the rule for when each line of a motion ad appears (`shared/ads/motionAd.ts`), pure
+and tested, read by nothing yet. Not built: the renderer's layers, the join, the clip request, the publisher's
+video road, the `video` kind in `CAMPAIGN_WORKERS`.
+
 **Done when:** a motion ad passes the contract suite on the fake, and Renderer and Publisher show L3 for
 `meta:video`.
 
@@ -426,6 +445,60 @@ sandbox" cannot be met without the sandbox.
   shows that beside ours, and the story frame is Meta's, exact. No story frame is drawn until then.
 - (b) Draw a story frame now from the 9:16 margins. It would show an image we do not send.
 
+### Q-APX12 · Which model sets the picture moving — open
+
+**What was read.** The table in V4. Ten image-to-video models, $0.038 to $0.315 a second. The pages give the request
+fields and not the result: none says how far the model keeps the first frame's truck, its paint or its lettering.
+
+- **(a) Measured on the owner's key, with the still model, as one sitting — recommended.** The same three kit
+  photos through Wan 3.0, Seedance 2.0 and Kling 3.0 Standard at five seconds: 15 seconds a model, about $0.60,
+  $1.20 and $1.60, under $4 in all. Judged by the owner on one thing first — is it still our truck — then on
+  motion. `HIGGSFIELD_VIDEO_MODEL` stays `null` until then, as `HIGGSFIELD_STILL_MODEL` does (Q-AD20), and a motion
+  ad on a real connection stops with "no video model chosen yet".
+- (b) The cheapest by the page. Costs nothing to decide and may put a truck on screen that is not the carrier's.
+
+Waits on the Higgsfield key.
+
+### Q-APX13 · What a motion ad is, second by second — open
+
+**What was read.** Meta's page (4:5; captions recommended; nothing on length beyond 1 second to 241 minutes); the
+models' default of five seconds; Netflix's 20 characters a second. No published figure was found for how long a
+finished ad should stay on screen at the end, or for the shortest time a line may show.
+
+- **(a) Five seconds of motion under the still's own words, arriving one group after another, then the finished
+  still held — recommended, and what V4a's rule computes.** The headline is on the first frame; the supporting
+  line arrives when the headline has had its reading time (characters ÷ 20, one second at least); nothing leaves;
+  the last frame is exactly the still a person approved, held two seconds, longer when the words need it. With our
+  median headline (23 characters) and a 40-character supporting line that is 7 seconds. More than 15 is refused.
+  The equal-opportunity line and the logo are on every frame.
+- (b) Words that replace each other, as subtitles do. Shows more text; the last frame is then not the approved ad,
+  and every intermediate frame needs its own contrast check.
+
+**The one second and the two seconds are ours, with nothing published behind them.** They are settings of the rule
+(`MOTION_MIN_CUE_MS`, `MOTION_HOLD_MS`), to be looked at on a real clip before they are believed.
+
+### Q-APX14 · How ffmpeg reaches the server — open
+
+- **(a) Debian's own package in the image (`apt-get install --no-install-recommends ffmpeg` in
+  `infra/image/Dockerfile`) — recommended.** The distribution's build, patched with the base image; it carries the
+  H.264 and AAC encoders Meta asks for. Cost: the image grows (size to be measured in the PR that adds it) and the
+  join runs on the worker's CPU — a 7-second 1080 × 1350 encode, measured there before it ships. CI's test job
+  installs the same package, so the join is tested against the encoder that will run it.
+- (b) An npm package that downloads a static binary at install. No image change; a binary from a third party's
+  release page, fetched by an install script, on a server that holds ad tokens.
+- (c) Encode elsewhere (a hosted service). A second vendor and the picture leaves our storage again.
+
+### Q-APX15 · Sound — open
+
+**What was read.** Both models make sound unless told not to (`generate_audio` defaults to true). Meta: sound is
+"optional, but recommended"; a feed video starts muted.
+
+- **(a) No generated sound; a silent stereo track — recommended.** A model's sound is content nobody wrote and
+  nothing of ours checks: it can put a voice or a horn on a carrier's ad. `generate_audio: false` is sent, and
+  the file carries the silent AAC track Meta's settings name. Licensed music is its own question later.
+- (b) The model's sound, listened to by a person at review. One more thing to approve on every ad, with no check
+  behind it.
+
 ## 5a. Ruled
 
 **2026-11-14, the owner, to the four proposals above and to the request to record the agents on his Anthropic
@@ -482,6 +555,10 @@ is 100%."*** Taken as:
 | Q-APX9 | What is kept of the pairings that did not win | (a) one image per rival; a picked rival is redrawn | owner |
 | Q-APX10 | Text above the picture: 59 % (English) and 72 % (Spanish) run past Meta's 150 characters | (a) lower the starter presets' limit to 150, before the 60 sets are rated | owner |
 | Q-APX11 | The story frame, and Meta's own preview | (a) our feed drawing now, Meta's preview when the account exists | owner |
+| Q-APX12 | Which model sets the picture moving | (a) three models on three kit photos on the owner's key, under $4, with the still model's sitting | owner, with the Higgsfield key |
+| Q-APX13 | What a motion ad is, second by second | (a) five seconds of motion under the still's own words arriving in turn, then the approved still held; about 7 seconds | owner |
+| Q-APX14 | How ffmpeg reaches the server | (a) Debian's package in the image | owner |
+| Q-APX15 | Sound | (a) none generated; a silent track | owner |
 | — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 ## Sources (read 2026-11-14)
@@ -503,6 +580,8 @@ is 100%."*** Taken as:
 - Boostpoint — CDL lead costs 2026: <https://boostpoint.com/industries-trucking/truck-driver-leads/>
 - Creative mix after Andromeda (agency sources): <https://segwise.ai/blog/meta-andromeda-update-creative-strategy-2026> · <https://theoptimizer.io/blog/how-to-test-ad-creatives-on-meta-after-the-andromeda-update-2026-playbook>
 - Driver video claims (vendor sources): <https://otrucking.com/resources/guides/social-media-recruiting-truck-drivers/>
+
+- Read 2026-11-16 for V4: Meta — feed video, Leads: <https://www.facebook.com/business/ads-guide/update/video/facebook-feed/outcome-leads> · Meta — ad videos: <https://developers.facebook.com/docs/marketing-api/advideo> · Higgsfield — Seedance 2.0 image to video: <https://docs.higgsfield.ai/docs/models/seedance-2/image-to-video.md> · Wan 3.0 image to video: <https://docs.higgsfield.ai/docs/models/wan-3/image-to-video.md> · Kling 3.0: <https://docs.higgsfield.ai/docs/models/kling-3.md> · Netflix — Timed Text Style Guide: <https://partnerhelp.netflixstudios.com/hc/en-us/articles/217350977-English-Timed-Text-Style-Guide>
 
 Most figures on creative practice come from vendors and agencies; where two disagreed, both are given above.
 
