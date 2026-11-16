@@ -346,3 +346,30 @@ export function summariseDashboard(m: DashboardMeasurements, extra: DashboardExt
 // ── CSV ─────────────────────────────────────────────────────────────────────
 // `toCsv` moved to `csv.ts` at FUEL-P2, where it is one rule for every exporter rather than two that
 // had already drifted about negative numbers. Its callers import it from the package barrel, unchanged.
+
+/**
+ * Whether the Fuel card may draw "where fuel dollars go" — Moving / Idle / Reefer — for a summary.
+ *
+ * `summariseDashboard` floors `movingSpend` at zero so a bar never gets a negative segment, which is
+ * right for the arithmetic and wrong for the picture: when the idle ESTIMATE (Samsara's idle hours ×
+ * the cost basis) is larger than the tractor fuel actually BOUGHT in the range, the bar drew "Idle
+ * 100%, Moving 0" — a claim that every dollar went on idling. Measured 2026-11-16 on staging: 17,709
+ * idle hours priced at 56,669 dollars against 1,929 dollars of spend, because staging has the real
+ * Samsara feed and five sandbox fills. Production read about 80,000 dollars of idle against 1.41
+ * million bought for the same 31 days (≈6%), so it is not a production fault today; it becomes one
+ * the day the fuel import stops while the idle feed carries on, which is how the 2026-09-13 sweep
+ * outage looked. The two numbers come from different feeds, and only one of them stopped.
+ *
+ * So the split is withheld, and the card says why, when the estimate exceeds what was bought. The
+ * line is the impossible case and nothing softer: idle is a part of tractor fuel, so it cannot be
+ * larger than all of it. A plausibility threshold below that (say 30%) would be a number nobody
+ * measured, and this file states measurements (the SQL returns a measurement; TypeScript owns the verdict).
+ */
+export type FuelCostSplit =
+  | { kind: "split" }
+  | { kind: "withheld"; idleCostUsd: number; tractorSpend: number };
+
+export function fuelCostSplit(s: Pick<DashboardSummary, "totalSpend" | "reeferSpend" | "idleCostUsd">): FuelCostSplit {
+  const tractorSpend = Math.round((s.totalSpend - s.reeferSpend) * 100) / 100;
+  return s.idleCostUsd > tractorSpend ? { kind: "withheld", idleCostUsd: s.idleCostUsd, tractorSpend } : { kind: "split" };
+}
