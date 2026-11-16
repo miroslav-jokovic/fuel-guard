@@ -39,7 +39,7 @@ const FACTS = {
   asOf: "2026-09-28",
 };
 
-test("an ordinary driver fills the history form on a phone and sends it: 38 screens, 71 taps, 112 characters", async ({ page }) => {
+test("an ordinary driver fills the history form on a phone and sends it: 38 screens, 68 taps, 112 characters", async ({ page }) => {
   const count = { screens: 0, taps: 0, typed: 0 };
   const widest = { px: 0, at: "" };
   const tap = async (target: Locator) => {
@@ -63,12 +63,11 @@ test("an ordinary driver fills the history form on a phone and sends it: 38 scre
     const save = page.getByRole("button", { name: "Save and continue", exact: true });
     await tap((await save.count()) ? save : page.getByRole("button", { name: "Continue", exact: true }));
   };
-  /** A one-question Yes/No: the tap is the answer and moves on (U3). */
+  /** A one-question Yes/No, the regulation's or the carrier's: the tap is the answer and moves on (U3). */
   const pick = async (name: string) => {
     await leave();
     await tap(page.getByRole("radio", { name, exact: true }));
   };
-  const answerYes = () => tap(page.getByRole("radio", { name: "Yes", exact: true }));
   const open = (task: RegExp) => tap(page.getByRole("button", { name: task }));
   const completed = (task: string) => expect(page.getByRole("button", { name: `Open ${task}, Completed` })).toBeVisible();
 
@@ -98,10 +97,8 @@ test("an ordinary driver fills the history form on a phone and sends it: 38 scre
   await next();
   await tap(page.getByRole("button", { name: "A friend or a driver" }));
   await next();
-  await answerYes();                                                 // can legally work
-  await next();
-  await answerYes();                                                 // has proof of age
-  await next();
+  await pick("Yes");                                                 // can legally work
+  await pick("Yes");                                                 // has proof of age
   await expect(page.locator("[data-part-one-facts]")).toContainText("(312) 555-0142");
   await next();                                                      // Part 1's answers, shown
   await completed("About you");
@@ -144,8 +141,7 @@ test("an ordinary driver fills the history form on a phone and sends it: 38 scre
   await type(page.getByLabel("About how many miles?"), "100,000");
   await next();
   await next();                                                      // anything else about your driving: optional
-  await answerYes();                                                 // may we contact your previous employers
-  await next();
+  await pick("Yes");                                                 // may we contact your previous employers
   await completed("Where you have worked");
 
   // ── Your driving record: clean, four taps ────────────────────────────────────────────────────
@@ -171,6 +167,9 @@ test("an ordinary driver fills the history form on a phone and sends it: 38 scre
   await expect(page.getByText("3 answers missing")).toBeVisible();
   await expect(page.getByText("These are optional. You can send without them.")).toBeVisible();
   await expect(page.getByText("Midwest Freight")).toBeVisible();
+  // The phone as "About you" printed it, not as it is stored.
+  await expect(page.getByText("(312) 555-0142").first()).toBeVisible();
+  await expect(page.getByText("+13125550142")).toHaveCount(0);
   await leave();
   await tap(page.getByRole("button", { name: `Send it to ${CARRIER}` }));
   await expect(page.getByText("They have your application")).toBeVisible();
@@ -187,7 +186,8 @@ test("an ordinary driver fills the history form on a phone and sends it: 38 scre
   expect(order.lastIndexOf("PUT draft")).toBeLessThan(order.indexOf("POST review"));
   expect(widest.px, `a screen is wider than the phone: "${widest.at}"`).toBeLessThanOrEqual(390);
   // The work, exactly. Change these only with the form: each is a screen, a tap or a keystroke asked of every driver.
-  expect(count).toEqual({ screens: 38, taps: 71, typed: 112 });
+  // 68 taps since the carrier's three Yes/No questions move on at the tap (71 while each needed Continue).
+  expect(count).toEqual({ screens: 38, taps: 68, typed: 112 });
 
   const saved = stub.callsTo("PUT", /\/draft$/).at(-1)!.body as { payload: Record<string, unknown> };
   expect(saved.payload).toMatchObject({

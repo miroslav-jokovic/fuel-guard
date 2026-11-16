@@ -1,6 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import AppSegmentedControl from "./AppSegmentedControl.vue";
+
+/**
+ * A click as the browser reports it: `detail` counts a pointer's presses, and is 0 for a click made by
+ * Space or Enter on the button. Dispatched for real, because test-utils cannot set `detail`.
+ */
+const click = (el: Element, detail: number): void => {
+  el.dispatchEvent(new MouseEvent("click", { bubbles: true, detail }));
+};
 
 /**
  * `AppSegmentedControl` — a radio group drawn as one strip.
@@ -39,6 +47,41 @@ describe("AppSegmentedControl", () => {
     const w = mountControl("view");
     await w.findAll('[role="radio"]')[2]!.trigger("click");
     expect(w.emitted("update:modelValue")?.at(-1)).toEqual(["manage"]);
+  });
+
+  /**
+   * `pick` is for a page that moves on when a question is answered: a pointer's tap is one, a key is not.
+   * A browser reports Space or Enter on a button as a click with `detail` 0, and a pointer's with 1 or more.
+   */
+  it("says a segment was picked when a pointer taps it, after the choice has gone out", async () => {
+    vi.useFakeTimers();
+    const w = mountControl("view");
+    click(w.findAll('[role="radio"]')[2]!.element, 1);
+    expect(w.emitted("update:modelValue")?.at(-1)).toEqual(["manage"]);
+    expect(w.emitted("pick")).toBeUndefined();
+    vi.runAllTimers();
+    expect(w.emitted("pick")).toEqual([["manage"]]);
+    vi.useRealTimers();
+  });
+
+  it("does not call a keyed choice a pick: not Space or Enter on a segment, and not an arrow", async () => {
+    vi.useFakeTimers();
+    const w = mountControl("view");
+    click(w.findAll('[role="radio"]')[2]!.element, 0);
+    await w.get('[role="radiogroup"]').trigger("keydown", { key: "ArrowRight" });
+    vi.runAllTimers();
+    expect(w.emitted("update:modelValue")).toHaveLength(2);
+    expect(w.emitted("pick")).toBeUndefined();
+    vi.useRealTimers();
+  });
+
+  it("picks nothing while it is disabled", async () => {
+    vi.useFakeTimers();
+    const w = mountControl("view", { disabled: true });
+    click(w.findAll('[role="radio"]')[2]!.element, 1);
+    vi.runAllTimers();
+    expect(w.emitted("pick")).toBeUndefined();
+    vi.useRealTimers();
   });
 
   it("moves the choice with the arrow keys and wraps at both ends", async () => {

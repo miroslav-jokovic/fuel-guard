@@ -21,6 +21,11 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * the definition says what is asked, and this says how a kind is answered.
  */
 const props = defineProps<{ question: QuestionnaireQuestion; answers: QuestionnaireAnswers }>();
+/**
+ * A Yes or a No was TAPPED (never keyed): on a screen that is this one question the walk moves on at it,
+ * as it does for the regulation's own yes/no questions (U3; owner's ruling after the 2026-11-15 walk).
+ */
+const emit = defineEmits<{ pick: [] }>();
 const a = props.answers;
 
 /**
@@ -82,6 +87,7 @@ const typed = (value: string): void =>
           :options="YES_NO"
           :label="question.label"
           @update:model-value="setBool($event)"
+          @pick="emit('pick')"
         />
         <BaseTextarea
           v-else-if="question.kind === 'longtext'"

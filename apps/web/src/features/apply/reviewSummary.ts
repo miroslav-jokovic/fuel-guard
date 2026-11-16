@@ -11,6 +11,7 @@ import {
   type QuestionnaireDefinition,
   type QuestionnaireQuestion,
 } from "@silvicom/shared";
+import { formatPhone } from "@/lib/format";
 import { APPLY_CAPTURE_TITLES, APPLY_COPY, APPLY_SECTION_TITLES } from "./strings";
 import type { ApplicationDraft } from "./draft";
 
@@ -71,6 +72,14 @@ export const showMonth = (value: string | null | undefined): string => formatDis
 
 const text = (v: string | null | undefined): string =>
   (v ?? "").trim() === "" ? copy.empty : (v ?? "").trim();
+
+/**
+ * A phone number as the rest of the application prints it, (312) 555-0142 — "About you" and the office's
+ * card read the same `formatPhone`. The draft holds Part 1's number as it is stored (+13125550142), and
+ * the review printed that raw (seen on the 2026-11-15 walk). A number that is not a plain US one is
+ * left as typed, which is `formatPhone`'s own rule.
+ */
+const phone = (v: string | null | undefined): string => ((v ?? "").trim() === "" ? copy.empty : formatPhone(v));
 
 /**
  * An other licence's type (P3): Part 1 files the code, so the driver reads the words the screen asked it
@@ -157,7 +166,7 @@ export function buildReviewSummary({ draft, questionnaire, carrier, captures }: 
         },
         { label: c.identity.date_of_birth, value: showDate(draft.date_of_birth) || copy.empty },
         { label: c.identity.email, value: text(draft.email) },
-        { label: c.identity.phone, value: text(draft.phone) },
+        { label: c.identity.phone, value: phone(draft.phone) },
       ],
     },
   ];
@@ -202,7 +211,7 @@ export function buildReviewSummary({ draft, questionnaire, carrier, captures }: 
         { label: c.employment.position, value: text(e.position_held) },
         { label: "Worked there", value: period(e.started_on, e.ended_on, false) },
         { label: "Where", value: text([e.address_line1.trim(), e.city.trim(), e.state.trim() ? place(e.state) : ""].filter((p) => p).join(", ")) },
-        { label: c.employment.phone, value: text(e.phone) },
+        { label: c.employment.phone, value: phone(e.phone) },
         { label: c.employment.reason, value: text(e.reason_for_leaving) },
         // F1 part 2: unanswered until tapped, like the (iv) pair below — "Not answered", never "Yes".
         { label: c.employment.operatedCmv, value: answered(e.operated_cmv) },

@@ -223,6 +223,17 @@ describe("how the answers read", () => {
     expect(showMonth("whenever")).toBe("whenever");
   });
 
+  // Seen on the 2026-11-15 walk: "Before you send" printed +13125550142 where "About you" printed (312) 555-0142.
+  it("prints a phone the way every other screen does, and leaves one that is not a US number as typed", () => {
+    const phoneOf = (phone: string) =>
+      summary({ ...filled(), phone }).find((s) => s.section === "identity")!
+        .groups.flatMap((g) => g.entries).find((e) => e.label === APPLY_COPY.identity.phone)?.value;
+    expect(phoneOf("+13125550142")).toBe("(312) 555-0142");
+    expect(phoneOf("312-555-0142")).toBe("(312) 555-0142");
+    expect(phoneOf("+44 20 7946 0958")).toBe("+44 20 7946 0958");
+    expect(phoneOf("")).toBe(APPLY_COPY.review.empty);
+  });
+
   it("ends an open period with a word, not a blank", () => {
     const current = summary(filled())
       .find((s) => s.section === "addresses")!

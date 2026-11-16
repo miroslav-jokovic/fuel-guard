@@ -137,7 +137,7 @@ const words = computed(() => {
     />
     <SsnField v-else-if="asksSsn" id="identity-ssn" v-model="draft" :token="token" />
     <WizardScreen v-else-if="step.screen" :key="step.key" :screen="step.screen" :row="step.row" :binding="walk.binding" @advance="walk.next()" />
-    <QuestionField v-else-if="step.question" :key="step.key" :question="step.question.q" :answers="step.question.answers" />
+    <QuestionField v-else-if="step.question" :key="step.key" :question="step.question.q" :answers="step.question.answers" @pick="walk.next()" />
     <PartOneFactsCard v-else-if="step.partOne && partOne" v-model="draft" :rows="aboutYouRows(draft, partOne)" />
 
     <p v-if="jobsCovered" class="text-sm text-ink-secondary" aria-live="polite" data-jobs-coverage>{{ jobsCovered }}</p>
