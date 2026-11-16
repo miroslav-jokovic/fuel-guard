@@ -80,9 +80,9 @@
     "source": "model",
     "prompt_version": "strategist@3",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-15T19:25:05.783Z",
+    "recorded_at": "2026-11-16T17:29:42.895Z",
     "output": {
-      "audience": "Class A drivers who meet the experience requirement and run flatbed, living in or near the Midwest lanes. Many are likely out for long stretches or in a large fleet with shared trucks. A plain pay per mile, weekly home time and an assigned truck would make them stop.",
+      "audience": "Class A drivers who meet the stated experience requirement and run flatbed or regional freight in the Midwest. They likely work in a larger fleet with longer stretches out. The pay per mile, home weekly and an assigned truck would make them stop.",
       "audience_evidence": [
         "job:subject",
         "job:claim_3",
@@ -94,9 +94,9 @@
           "hook_family": "pay_first",
           "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with the pay per mile, stated plainly, over a loaded flatbed rolling on a Midwest highway.",
+          "idea": "Lead with the pay per mile, shown over a loaded flatbed moving on a Midwest highway.",
           "proof": "The opening states its pay per mile, and the work is flatbed on Midwest lanes.",
-          "why": "Pay is the fact drivers compare most directly. Nothing has been measured for this carrier yet, so this is a starting test to judge against the benchmark cost per lead.",
+          "why": "Nothing has been measured for this carrier yet, so the pay rate is the plainest lead to test. Judge it against the benchmark cost per lead.",
           "evidence": [
             "job:claim_1",
             "job:detail_1",
@@ -108,35 +108,34 @@
           "hook_family": "life_first",
           "scene_family": "home_street",
           "format": "still",
-          "idea": "Lead with being home weekly, shown as a quiet home street at the end of a regional run.",
-          "proof": "The opening offers home weekly, and the job is regional on Midwest lanes.",
-          "why": "Home time is a main reason a driver looks at regional work, and the Midwest lanes make it believable. There are no earlier ads to compare, so this is untested.",
+          "idea": "Lead with being home weekly, pictured as the driver's own street at the end of a regional run.",
+          "proof": "The opening offers home weekly, and the lanes are regional in the Midwest.",
+          "why": "Home weekly is a stated job fact that speaks to drivers who are out longer now. No history exists, so this is a test and not a known winner.",
           "evidence": [
             "job:claim_2",
-            "job:subject",
-            "job:detail_2"
+            "job:detail_2",
+            "job:subject"
           ]
         },
         {
           "hook_family": "equipment_first",
           "scene_family": "equipment_at_rest",
           "format": "still",
-          "idea": "Lead with the assigned truck: a parked flatbed rig that stays with its driver, in a small fleet where dispatch knows your name.",
-          "proof": "The job lists an assigned truck, flatbed work, and a small fleet where dispatch knows your name.",
-          "why": "An assigned truck and a small fleet are what set this job apart from a large carrier. There is no history yet, so it runs as a test beside the pay and home-time angles.",
+          "idea": "Lead with the assigned truck: a flatbed rig parked and waiting that is the driver's own to run.",
+          "proof": "The job lists an assigned truck and flatbed work.",
+          "why": "An assigned truck matters to drivers who share equipment now, and it is a concrete fact a picture can carry. Untested here, since there are no earlier results.",
           "evidence": [
             "job:detail_3",
-            "job:detail_1",
-            "job:in_our_words"
+            "job:detail_1"
           ]
         },
         {
           "hook_family": "straight_talk",
           "scene_family": "cab_pov",
           "format": "still",
-          "idea": "Say plainly who the job is for: Class A drivers with the stated experience who want flatbed work on Midwest lanes.",
-          "proof": "The opening is Class A regional, states its experience requirement, and is flatbed on Midwest lanes.",
-          "why": "Stating licence, experience, equipment and area up front should keep out drivers who cannot qualify or live elsewhere. With no lead outcomes yet, this is a precaution, not a proven result.",
+          "idea": "Say plainly who this is for: Class A, the stated experience, flatbed, Midwest lanes, seen from the driver's seat.",
+          "proof": "The job states the licence class, the experience requirement, the flatbed freight and the Midwest lanes.",
+          "why": "With no lead history, stating the requirement and the area up front should keep out drivers who cannot qualify or live outside the lanes.",
           "evidence": [
             "job:subject",
             "job:claim_3",
@@ -148,14 +147,14 @@
           "hook_family": "proof",
           "scene_family": "abstract_plate",
           "format": "still",
-          "idea": "Set out the stated terms as a plain list: pay per mile, home weekly, the retirement plan and the assigned truck.",
-          "proof": "Each line is a fact of the opening: the pay per mile, home weekly, the retirement plan and the assigned truck.",
-          "why": "A plain list lets a driver check the whole offer at a glance, with no picture doing the selling. Nothing has been measured, so it is a test against the other angles.",
+          "idea": "Set the job's facts out as a plain list: pay per mile, home weekly, retirement plan, and a small fleet where dispatch knows your name.",
+          "proof": "The pay per mile, home weekly, the retirement plan and the carrier's own description of the fleet are all stated job facts.",
+          "why": "A plain list lets a driver compare this job with the one they have now. The small-fleet line is the carrier's own words and sets it apart from large fleets.",
           "evidence": [
             "job:claim_1",
             "job:claim_2",
             "job:claim_4",
-            "job:detail_3"
+            "job:in_our_words"
           ]
         }
       ]

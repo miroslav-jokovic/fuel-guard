@@ -98,11 +98,11 @@
     "source": "model",
     "prompt_version": "strategist@3",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-15T19:25:55.434Z",
+    "recorded_at": "2026-11-16T17:30:37.755Z",
     "output": {
-      "audience": "Class A flatbed drivers who meet the experience the opening asks for and live along its Midwest lanes. They likely run regional or longer for a bigger fleet now. They would stop for a clear pay per mile, weekly home time and a truck that stays theirs.",
+      "audience": "Class A flatbed drivers who meet the experience requirement and live along the Midwest lanes. They likely run for a larger carrier now and want home weekly, an assigned truck and a dispatcher who knows them. A plainly stated area and pay per mile would make them stop.",
       "audience_evidence": [
-        "job:subject",
+        "job:claim_3",
         "job:detail_1",
         "job:detail_2",
         "lead_outcome:closed_out_of_area"
@@ -112,13 +112,13 @@
           "hook_family": "straight_talk",
           "scene_family": "cab_pov",
           "format": "still",
-          "idea": "Say plainly where the lanes run and what the opening requires, so a driver outside the Midwest knows it is not for them.",
-          "proof": "The job is Class A regional flatbed on Midwest lanes, with a stated experience requirement.",
-          "why": "Out of area was the largest reason earlier leads were closed. Stating the lanes and the requirement up front should filter before the form, though no hook has been measured yet.",
+          "idea": "Say plainly who this is for: Class A drivers with the required experience who live near the Midwest lanes.",
+          "proof": "The opening is Class A regional, states an experience requirement and runs Midwest lanes.",
+          "why": "The largest share of closed leads were out of area. An ad that states the area and the requirement up front should bring fewer wasted calls.",
           "evidence": [
-            "job:detail_2",
-            "job:claim_3",
             "job:subject",
+            "job:claim_3",
+            "job:detail_2",
             "lead_outcome:closed_out_of_area"
           ]
         },
@@ -126,53 +126,52 @@
           "hook_family": "pay_first",
           "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with the pay per mile, shown over a loaded flatbed moving on a Midwest highway.",
-          "proof": "The opening states its pay per mile for flatbed work on Midwest lanes.",
-          "why": "Pay per mile is the most concrete fact of the job and easy to compare. No earlier ad result by hook is on the sheet, so this is untested.",
+          "idea": "Lead with the pay per mile, and name flatbed and Midwest lanes in the same line.",
+          "proof": "The opening states its pay per mile, on flatbed, on Midwest lanes.",
+          "why": "Pay is the firmest fact of the job. Naming the lanes beside it helps screen the out-of-area leads the earlier ads drew.",
           "evidence": [
             "job:claim_1",
             "job:detail_1",
-            "job:detail_2"
+            "job:detail_2",
+            "lead_outcome:closed_out_of_area"
           ]
         },
         {
           "hook_family": "life_first",
           "scene_family": "home_street",
           "format": "still",
-          "idea": "Lead with being home weekly, pictured as a driver arriving on their own street in a Midwest town.",
-          "proof": "The opening offers home weekly on regional Midwest lanes.",
-          "why": "Weekly home time speaks to drivers who are out longer now. Naming the Midwest in the line keeps the appeal from pulling more out-of-area leads.",
+          "idea": "Lead with home weekly, and say the freight runs Midwest lanes.",
+          "proof": "The opening offers home weekly and runs Midwest lanes.",
+          "why": "Home time is what a regional driver weighs against pay. No ad result by hook has been measured yet, so this is an early test.",
           "evidence": [
             "job:claim_2",
-            "job:detail_2",
-            "lead_outcome:closed_out_of_area"
+            "job:detail_2"
           ]
         },
         {
           "hook_family": "equipment_first",
           "scene_family": "equipment_at_rest",
           "format": "still",
-          "idea": "Lead with the assigned truck: the same flatbed rig waiting for the same driver, shown parked and ready.",
-          "proof": "The job comes with an assigned truck and is flatbed work.",
-          "why": "An assigned truck matters to experienced flatbed drivers and fits a small fleet. Nothing has been measured for this hook, so treat it as a test.",
+          "idea": "Lead with the assigned truck, shown parked with its flatbed trailer.",
+          "proof": "The job details list an assigned truck and flatbed work.",
+          "why": "Flatbed drivers care about their equipment and about not sharing it. The picture also shows the trailer type, so drivers who do not want flatbed pass by.",
           "evidence": [
             "job:detail_3",
-            "job:detail_1",
-            "job:in_our_words"
+            "job:detail_1"
           ]
         },
         {
           "hook_family": "proof",
           "scene_family": "abstract_plate",
           "format": "still",
-          "idea": "Set out the job's terms as a plain list on a plain background, closing on the small fleet where dispatch knows your name.",
-          "proof": "Pay per mile, home weekly, the retirement plan and the fleet's own description are all stated job facts.",
-          "why": "Some earlier leads were not interested when called. Showing the terms before the form lets drivers decide earlier. This is untested.",
+          "idea": "Set the job's facts out as a plain list: pay per mile, home weekly, retirement plan, small fleet where dispatch knows your name.",
+          "proof": "Each line is a stated fact of the opening, and the small-fleet line is the carrier's own description.",
+          "why": "A driver who sees every term before applying is less likely to close as not interested. That closure count is small, so treat this as a test.",
           "evidence": [
             "job:claim_1",
+            "job:claim_2",
             "job:claim_4",
-            "job:in_our_words",
-            "lead_outcome:closed_not_interested"
+            "job:in_our_words"
           ]
         }
       ]
