@@ -200,8 +200,23 @@ export const stockLocationDtoSchema = z.object({
   code: trimmedText(24),
   address: optionalText(240),
   active: z.boolean(),
+  /**
+   * F13 / 0621: the instant this place started following FleetPal — receipts received there and parts
+   * used on repairs move its shelf from then on, never before (D-FP23). Null when it does not. At
+   * most one place per org carries it, because FleetPal names no location and the shop names the one
+   * it moves.
+   */
+  fleetpalFrom: z.string().nullable().optional(),
 });
 export type StockLocationDto = z.infer<typeof stockLocationDtoSchema>;
+
+/**
+ * Start or stop a place following FleetPal (F13). No date in the body, on purpose: the start is the
+ * server's `now()` when the switch is turned on, so nobody can pick a past date and replay FleetPal's
+ * history onto a shelf that was never counted (D-FP23).
+ */
+export const fleetpalShelfInputSchema = z.object({ follows: z.boolean() });
+export type FleetpalShelfInput = z.infer<typeof fleetpalShelfInputSchema>;
 
 export const stockLocationInputSchema = z.object({
   name: trimmedText(120).min(1, "Give the location a name."),
@@ -345,6 +360,13 @@ export const partMovementDtoSchema = z.object({
    * negative and one positive, with nothing tying them together.
    */
   transferGroupId: recordId().nullable(),
+  /**
+   * F13 / 0621: `fleetpal` when the FleetPal sweep wrote the row — a delivery received in FleetPal or
+   * a part used on one of its repairs — so the history can say why a shelf moved when nobody here
+   * touched it. Null for every movement a person recorded. A null actor cannot say this: it also
+   * means a member who has since been removed.
+   */
+  source: z.enum(["fleetpal"]).nullable().optional(),
   occurredAt: z.string(),
   receivedAt: z.string(),
 });
@@ -442,53 +464,6 @@ export const partMovementInputSchema = z.discriminatedUnion("reason", [
   countStockSchema,
 ]);
 export type PartMovementInput = z.infer<typeof partMovementInputSchema>;
-
-// ── count sessions ───────────────────────────────────────────────────────────────────────────────
-
-/**
- * A walk of one place (D-INV19). One session shape serves a shelf count (I5) and a unit kit check
- * (I9), because they are the same activity against different holders — and because two session
- * tables would mean two review screens that drift.
- *
- * Exactly one of the three holder columns is set, which the migration enforces with a CHECK and
- * this schema enforces with a refinement. The header of that migration cites 0092:137 and 0153:1-7:
- * a session is about one place, not a parallel registry of everything being counted anywhere.
- */
-export const countSessionDtoSchema = z.object({
-  id: recordId(),
-  kind: countSessionKindSchema,
-  locationId: recordId().nullable(),
-  vehicleId: recordId().nullable(),
-  trailerId: recordId().nullable(),
-  holderLabel: z.string().nullable(),
-  startedBy: recordId().nullable(),
-  startedByName: z.string().nullable(),
-  blind: z.boolean(),
-  status: countSessionStatusSchema,
-  openedAt: z.string(),
-  closedAt: z.string().nullable(),
-  note: optionalText(2000),
-});
-export type CountSessionDto = z.infer<typeof countSessionDtoSchema>;
-
-export const countSessionInputSchema = z
-  .object({
-    kind: countSessionKindSchema,
-    locationId: recordId().nullable().optional(),
-    vehicleId: recordId().nullable().optional(),
-    trailerId: recordId().nullable().optional(),
-    blind: z.boolean(),
-    note: optionalText(2000).optional(),
-  })
-  .refine(
-    (v) => [v.locationId, v.vehicleId, v.trailerId].filter(Boolean).length === 1,
-    { message: "A count is about exactly one place — a location, a truck, or a trailer.", path: ["kind"] },
-  )
-  .refine((v) => (v.kind === "location" ? Boolean(v.locationId) : !v.locationId), {
-    message: "A location count needs a location, and a unit count does not take one.",
-    path: ["kind"],
-  });
-export type CountSessionInput = z.infer<typeof countSessionInputSchema>;
 
 /**
  * What a part or asset photo may be (`inventory/photos.ts` signs only these). One list, read by the API's

@@ -12,9 +12,9 @@ import {
   PART_MOVEMENT_REASON_LABELS,
   UNITS_OF_MEASURE,
   UNIT_OF_MEASURE_LABELS,
-  countSessionInputSchema,
   partMovementInputSchema,
 } from "./inventoryContract.js";
+import { countSessionInputSchema } from "./inventoryCountSessionContract.js";
 import {
   ASSET_MOVEMENT_REASONS,
   ASSET_MOVEMENT_REASON_LABELS,

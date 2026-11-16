@@ -66,10 +66,17 @@ export const fleetpalSyncHandler: JobHandler = async (ctx, job) => {
 
   if (error) throw new Error(error);
 
+  // F13: what the shelf did this hour, in counts — the sweep's log is where "why did that shelf not
+  // move" is answered first, and a bare `staged` cannot tell a short shelf from no place following.
+  const shelf = results.find((r) => r.resource === "shelf") as
+    | { tally: unknown; idle: string | null }
+    | undefined;
+
   return {
     ok: true,
     fetched,
     staged,
+    shelf: shelf ? (shelf.idle ?? shelf.tally) : null,
     failedResources: failed.map((r) => `${r.resource}: ${r.error}`),
     unitsResolved: "error" in resolved ? 0 : resolved.updated,
     unmatched: "error" in resolved ? null : resolved.stillUnmatched,

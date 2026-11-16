@@ -20,7 +20,7 @@ import type { ServiceError } from "./types.js";
  * shop that someday numbers its shelves.
  */
 
-const LOCATION_COLUMNS = "id, name, code, address, active";
+const LOCATION_COLUMNS = "id, name, code, address, active, fleetpal_from";
 
 /** Exported so the `BIN` tag resolver reads a stock line the same way the list does (I6). */
 export const STOCK_COLUMNS =
@@ -54,6 +54,7 @@ interface LocationRow {
   code: string;
   address: string | null;
   active: boolean;
+  fleetpal_from: string | null;
 }
 
 export const toStockLineDto = (r: StockRow): StockLineDto => ({
@@ -89,6 +90,7 @@ export async function listLocations(
     code: r.code,
     address: r.address,
     active: r.active,
+    fleetpalFrom: r.fleetpal_from,
   }));
 }
 

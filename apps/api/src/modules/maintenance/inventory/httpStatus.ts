@@ -22,6 +22,9 @@ const STATUS: Record<string, number> = {
   IV011: 409, // part_movements_append_only
   IV016: 409, // movement_in_flight — a retry, and the message says so
   IV017: 409, // count_session_closed — 0332's trigger; the walk is over, a correction is a new count
+  IV030: 409, // 0621: a FleetPal movement before the shelf's FleetPal start, or at a place that does not follow it
+  location_closed: 409, // a closed place cannot start following FleetPal (F13)
+  fleetpal_shelf_taken: 409, // another place already follows FleetPal — one per org (0621)
   // 0333, and the same split holds. The unit is full and the tag is taken are facts about the
   // FLEET that no edit to the request can change; the asset being retired or unknown is the payload
   // naming something unusable, which is the 422 half below.

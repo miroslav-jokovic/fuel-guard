@@ -27,6 +27,7 @@ let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
 vi.mock("../../../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) }));
 vi.mock("../../../middleware/auth.js", () => ({
+  requireAdminOnly: () => (_req: Request, _res: Response, next: NextFunction) => next(),
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
     req.auth = { userId: "u-1", orgId: ORG, role: "fleet_manager", email: "office@example.test" };
     next();

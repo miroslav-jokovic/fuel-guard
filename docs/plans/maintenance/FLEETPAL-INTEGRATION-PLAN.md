@@ -1827,6 +1827,25 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   four mutations of the migration (no `fleetpal_from` bound, no person's 24 h rule, `source` not
   written, unknown source accepted) each turn at least one red. The sweep that writes through it
   ships in the next merge (F13b), after `migrate-staging` applies this. **Q10** taken as (a).
+- **2026-11-16 · F13b — the shelf sweep (`claude/fleetpal-f13b-shelf-sync`), on 0621.**
+  `fleetpal/ingest/shelf.ts` runs in the hourly sweep after the purchase-order lines it reads.
+  Every `RECEIVE` receipt line becomes a `received` movement, and every staged `PART` job line an
+  `issued` one carrying the work order's reference and the resolved truck or trailer. Both go to the
+  one place following FleetPal, re-offered for 7 days. Ids are `derivedUuid` of org + FleetPal line
+  id. Maintenance owns the three doors (`getFleetpalShelf`, `partIdsByFleetpalId`,
+  `recordFleetpalMovement`) and the switch: `POST /api/maintenance/inventory/locations/:id/fleetpal
+  {follows}`, admin-only under `fleetpal.connection`, server-stamped, audited
+  `maintenance.stock_location_fleetpal_started|stopped`. The web shows "Follows FleetPal since …" and
+  the switch in Places' row menu, and "FleetPal" in a part's history "By" column.
+  **⚠ All of it is behind `SHELF_COUNTING_SHOWN = false`** (Q-MX8 (a), 2026-10-28: shelf counting
+  hidden until the shop asks), so it ships DORMANT. No place can be switched on from the product,
+  and the sweep logs "No shop place follows FleetPal". The day the owner reopens Q-MX8, the order is:
+  count the shelf, switch the place on, and FleetPal keeps it moving.
+  Done-whens held: two runs over the same lines are one receipt and one issue (`shelf.test.ts`, "two
+  sweeps over the same lines…", made to fail by a run-dependent id on either kind); a `CANCEL` line
+  produces none, even when FleetPal ignores the type filter; D-INV11 is restated in
+  `maintenance/inventory/fleetpalShelf.ts`'s header. Mutations of `shelf.ts` (no type re-check,
+  usage before receipts, no lookback bound, both units named) each fail a test.
 - **2026-11-16 · F9d — the roll-up (`claude/fleetpal-f9d-rollup`), no migration.** `GET
   /api/maintenance/fleetpal/rollup?from&to&bucket=week|month|year&kind=tractor|trailer|all&limit&offset`.
   - **Pure bucketing** is in `packages/shared/src/fleetpalRollup.ts`. Weeks start on Monday. Every
