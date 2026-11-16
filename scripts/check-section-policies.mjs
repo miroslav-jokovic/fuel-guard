@@ -60,6 +60,10 @@ const MODULE_SECTIONS = {
   // maintenance module's endpoints, so a role-named policy here would be a second, weaker
   // door onto a credential and a watermark (D-FP1, D-SEP1).
   fleetpal: null,
+  // Toll tags and statements (TOLLS-PER-TRUCK-PLAN, 0622): deny-all, read and written only through
+  // /api/tolls, which gates tags on `equipment` and statements on `accounting` (D-TL11). Two sections
+  // ask of one module, so no single section names its tables, and no table carries a client policy.
+  tolls: null,
   psp: "safety",
   // Med-Stop collector (0463): deny-all staging like fleetpal; the web reads it only through
   // /api/drug-alcohol (safety: view) and /api/integrations/medstop (admin).

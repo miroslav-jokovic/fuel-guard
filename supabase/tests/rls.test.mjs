@@ -2464,6 +2464,18 @@ async function main() {
         `values ('${org}', 'rls ' || gen_random_uuid(), 'diesel', 100) returning id) ` +
         `insert into unit_tags (org_id, vehicle_id, tag_code) select '${org}', id, ` +
         `translate(upper(substr(md5(gen_random_uuid()::text), 1, 6)), 'ILOU', '1100') from v`,
+      // 0622: the tag number must be normalised alphanumerics and the provider one of three, which the
+      // generic seeder's placeholder text is not; an assignment needs a same-org tag AND truck (TL003).
+      toll_transponders: (org) =>
+        `insert into toll_transponders (org_id, provider, tag_number) ` +
+        `values ('${org}', 'ezpass', upper(substr(md5(gen_random_uuid()::text), 1, 12)))`,
+      toll_transponder_assignments: (org) =>
+        `with v as (insert into vehicles (org_id, unit_number, fuel_type, tank_capacity_gal) ` +
+        `values ('${org}', 'rls ' || gen_random_uuid(), 'diesel', 100) returning id), ` +
+        `t as (insert into toll_transponders (org_id, provider, tag_number) ` +
+        `values ('${org}', 'ktag', upper(substr(md5(gen_random_uuid()::text), 1, 12))) returning id) ` +
+        `insert into toll_transponder_assignments (org_id, transponder_id, vehicle_id, valid_from) ` +
+        `select '${org}', t.id, v.id, now() from t, v`,
       // 0526: a job's payload is the printer's bytes and may not be empty, which the generic seeder's
       // placeholder bytea is; and its printer must be this org's, on this org's station (PS001), a
       // chain the seeder cannot build — handed a real one inline.

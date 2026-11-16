@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import { detectReportKind, type RawRow } from "@silvicom/shared";
+import { isOpenDocument, readReportGrid } from "./reportGrid";
 
 export interface ParsedFile {
   headers: string[];
@@ -30,12 +31,27 @@ function cellText(raw: unknown): string {
   return "";
 }
 
-/** Read an EFS export (.xlsx or .csv) into header + row objects. ExcelJS is lazy-loaded. */
+/**
+ * Read an EFS export (.xlsx, .xls, .ods or .csv) into header + row objects. ExcelJS is lazy-loaded.
+ *
+ * A spreadsheet extension used to mean ExcelJS, which reads only real `.xlsx`: a genuine Excel 97-2003
+ * `.xls`, an HTML table saved as `.xls`, or a Google Sheets `.ods` all failed with ExcelJS's message
+ * about a zip it could not open. The bytes now decide (TOLLS-PER-TRUCK-PLAN TL3): a real `.xlsx` keeps
+ * the every-sheet scan below, and anything else goes through `readReportGrid`, the shared decoder that
+ * already reads those formats for the fuel uploads, then through the same header detection as a CSV.
+ */
 export async function readFile(file: File): Promise<ParsedFile> {
   const name = file.name.toLowerCase();
   if (name.endsWith(".csv")) return readCsv(file);
-  if (name.endsWith(".xlsx") || name.endsWith(".xls")) return readXlsx(file);
-  throw new Error("Unsupported file type — upload an .xlsx or .csv EFS report");
+  if (name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".ods")) {
+    const buf = await file.arrayBuffer();
+    const head = new Uint8Array(buf.slice(0, 2));
+    const isZip = head[0] === 0x50 && head[1] === 0x4b;
+    if (isZip && !isOpenDocument(buf)) return readXlsx(buf);
+    const grid = await readReportGrid(buf);
+    return rowsToParsed(grid.map((row) => row.map((c) => (c == null ? "" : String(c)))));
+  }
+  throw new Error("Unsupported file type — upload an .xlsx, .xls, .ods or .csv EFS report");
 }
 
 async function readCsv(file: File): Promise<ParsedFile> {
@@ -46,9 +62,16 @@ async function readCsv(file: File): Promise<ParsedFile> {
   // Parse the WHOLE file as arrays first (quoted fields can legally contain commas and newlines — a
   // naive line split miscounted columns, could miss the header row, and silently dropped data), then
   // locate the header row among the first 8 parsed rows and build objects positionally from it.
-  // Require at least 5 non-empty cells — a title row like "Reject Transaction Report" has only 1.
   const parsed = Papa.parse<string[]>(text, { header: false, skipEmptyLines: true });
-  const data = parsed.data.filter((r) => Array.isArray(r));
+  return rowsToParsed(parsed.data.filter((r) => Array.isArray(r)));
+}
+
+/**
+ * Rows of cells → header + row objects. The header is the first of the first 8 rows that
+ * detectReportKind recognises, with at least 5 non-empty cells — a title row like "Reject Transaction
+ * Report" has only 1.
+ */
+function rowsToParsed(data: string[][]): ParsedFile {
   let headerRowIndex = 0;
   for (let i = 0; i < Math.min(8, data.length); i++) {
     const cols = (data[i] ?? []).map((c) => String(c ?? "").trim());
@@ -80,10 +103,10 @@ interface SheetCandidate {
   recognized: boolean; // detectReportKind found a known EFS report on this sheet
 }
 
-async function readXlsx(file: File): Promise<ParsedFile> {
+async function readXlsx(buf: ArrayBuffer): Promise<ParsedFile> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(await file.arrayBuffer());
+  await wb.xlsx.load(buf);
 
   // Evaluate EVERY worksheet and pick the BEST candidate: a sheet whose header row detectReportKind
   // recognises beats one it doesn't (EFS workbooks can lead with a summary/title sheet), and among

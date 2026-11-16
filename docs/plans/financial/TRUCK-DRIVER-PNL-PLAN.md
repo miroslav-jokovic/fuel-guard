@@ -395,3 +395,6 @@ per-driver P&L on the recommended answer to every question below, Q-TP1 through 
   ($902.25, voided two days after transfer) has no SETV line at all. `isReversedBySetv` has an
   exception the 10-19 month totals did not show. Both are what the per-key tie exists to catch.
   FUEL's per-key tie waits for `fuel_detail` (C1).
+- 2026-11-16 · tolls get a per-truck source: [TOLLS-PER-TRUCK-PLAN](./TOLLS-PER-TRUCK-PLAN.md) (transponder
+  history 0622, weekly statements from E-ZPass, K-TAG and ExpressToll). Its TL7 feeds P3's tolls row;
+  scales (40760000) and unloading (40700000) in the same family keep their spread.

@@ -114,6 +114,10 @@ for the owner's sign-off month).
 
 ### T4 — Tolls per truck (BLOCKED on R3: which transponder service, and does it export per-unit?)
 
+> **2026-11-16 — R3 answered; T4 continues in [TOLLS-PER-TRUCK-PLAN](./TOLLS-PER-TRUCK-PLAN.md).** The fleet's
+> toll accounts are E-ZPass, K-TAG and ExpressToll (PrePass is weigh-station bypass, not tolls), each
+> exporting a weekly per-transponder statement. The text below is kept as the record of why it waited.
+
 $72,613/June sits in AP as vendor payments. The precise source is the toll provider's own
 per-transponder statement (transponder → unit). Until the owner names the provider and we see an
 export, tolls stay in the unallocated pool — allocating tolls by miles would charge the Ohio
@@ -177,6 +181,7 @@ three classes named under T3.*
 - **R2 (blocks T3):** the deduct-code classification, ruled per code over the F6 measured list.
 - **R3 (blocks T4):** which toll transponder service the fleet uses, and access to its per-unit
   statement export.
+  **Answered 2026-11-16** — see TOLLS-PER-TRUCK-PLAN.md.
 - **R4 (blocks T2):** the GL account list constituting jurisdictional taxes — checklist produced
   from swept `mcleod_gl_totals`, owner confirms.
 - **R5 (blocks T5):** FleetPal API credentials and a sample export.

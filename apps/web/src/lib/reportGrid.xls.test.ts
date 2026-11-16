@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
-import { readReportGrid } from "./reportGrid";
+import { isOpenDocument, readReportGrid } from "./reportGrid";
 
 /**
  * Reading a genuine Excel 97-2003 binary (BIFF8) — the format the carrier's daily Pilot price report
@@ -28,7 +28,7 @@ describe("the vendored SheetJS build", () => {
 });
 
 /** Build a BIFF8 workbook in memory, so the test needs no binary fixture committed beside it. */
-async function biff8(rows: unknown[][]): Promise<ArrayBuffer> {
+async function biff8(rows: unknown[][], bookType = "xls"): Promise<ArrayBuffer> {
   const XLSX = (await import("@vendor/sheetjs/xlsx.mjs")) as unknown as {
     utils: { aoa_to_sheet(a: unknown[][]): unknown; book_new(): unknown; book_append_sheet(wb: unknown, ws: unknown, n: string): void };
     write(wb: unknown, o: { bookType: string; type: string }): ArrayBuffer;
@@ -37,7 +37,7 @@ async function biff8(rows: unknown[][]): Promise<ArrayBuffer> {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
   // `type: "array"` returns an ArrayBuffer directly — not a Uint8Array to unwrap.
-  return XLSX.write(wb, { bookType: "xls", type: "array" });
+  return XLSX.write(wb, { bookType, type: "array" });
 }
 
 describe("readReportGrid on a legacy .xls", () => {
@@ -71,5 +71,23 @@ describe("readReportGrid on a legacy .xls", () => {
     const csv = new ArrayBuffer(bytes.byteLength);
     new Uint8Array(csv).set(bytes);
     expect((await readReportGrid(csv))[1]).toEqual(["436", "Amarillo"]);
+  });
+});
+
+describe("readReportGrid on an OpenDocument .ods (Google Sheets, LibreOffice)", () => {
+  it("reads it instead of handing a zip that is not .xlsx to ExcelJS", async () => {
+    const buf = await biff8([["Tag", "Plaza", "Amount"], ["00812345678", "Elgin", 4.25]], "ods");
+    // Both are zips; only the OpenDocument marker tells them apart, so check the fixture really is one.
+    expect([...new Uint8Array(buf.slice(0, 2))]).toEqual([0x50, 0x4b]);
+    expect(isOpenDocument(buf)).toBe(true);
+
+    const grid = await readReportGrid(buf);
+    expect(grid[0]).toEqual(["Tag", "Plaza", "Amount"]);
+    expect(grid[1]?.[0]).toBe("00812345678"); // a text cell keeps its leading zeros
+    expect(grid[1]?.[2]).toBe(4.25);
+  });
+
+  it("does not take a real .xlsx for one", async () => {
+    expect(isOpenDocument(await biff8([["a"]], "xlsx"))).toBe(false);
   });
 });
