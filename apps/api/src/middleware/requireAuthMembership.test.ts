@@ -76,8 +76,8 @@ describe("requireAuth with the membership check", () => {
 
   it("passes the app's device key from its header, so the database can remember the device (IA-S6)", async () => {
     rec = state({ role: "dispatcher", suspended_at: null, session_alive: true });
-    await hit(requireAuth, { "x-silvicom-device": "0123456789abcdef0123456789abcdef" });
-    expect(rec.rpcs().find((c) => c.fn === "member_access_check")!.args).toMatchObject({ p_device_key: "0123456789abcdef0123456789abcdef" });
+    await hit(requireAuth, { "x-silvicom-device": "the-office-pc-in-dispatch" });
+    expect(rec.rpcs().find((c) => c.fn === "member_access_check")!.args).toMatchObject({ p_device_key: "the-office-pc-in-dispatch" });
   });
 
   it("answers 403 second_factor_required to a token that owes its code — 403, so the app keeps the session", async () => {

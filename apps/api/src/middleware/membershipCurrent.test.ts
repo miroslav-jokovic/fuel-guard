@@ -182,11 +182,11 @@ describe("membershipVerdict — the second step (IA-S1)", () => {
 });
 
 describe("membershipVerdict — the device (IA-S6, 0620)", () => {
-  const KEY = "0123456789abcdef0123456789abcdef";
+  const DEVICE = "the-office-pc-in-dispatch";
 
   it("passes the app's device key, and no limit yet — every device is remembered and none is stopped", async () => {
-    await membershipVerdict(recorderWith(ALIVE).client, { ...ctx, deviceKey: KEY });
-    expect(asked).toEqual([{ p_org: ORG, p_user: USER, p_session: SESSION, p_device_key: KEY, p_limit: null, p_idle_hours: 12 }]);
+    await membershipVerdict(recorderWith(ALIVE).client, { ...ctx, deviceKey: DEVICE });
+    expect(asked).toEqual([{ p_org: ORG, p_user: USER, p_session: SESSION, p_device_key: DEVICE, p_limit: null, p_idle_hours: 12 }]);
   });
 
   it("never sends the database a key outside the app's alphabet", async () => {
