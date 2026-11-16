@@ -139,6 +139,10 @@ const UNCATALOGUED_WAIVERS = {
   // Not a permission surface: the guard sends every driver here before any section check runs, and
   // it is the one page a driver may see.
   "/use-the-app": "the driver redirect; reached BEFORE any section gate, by construction",
+  // IA-S1. Not a permission surface either: the guard sends a session that owes its code here BEFORE the
+  // section check runs, and every signed-in office person may open it — it is their own sign-in, not a
+  // screen of the product a carrier grants or withholds.
+  "/two-step": "two-step sign-in; reached BEFORE the section gate, and every signed-in person's own",
 };
 
 /** Every `requireSurface("key")` in the API, with the file that wrote it. */

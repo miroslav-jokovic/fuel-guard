@@ -13,7 +13,7 @@ import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
 import { drainKindNow } from "./queue/inprocessDrain.js";
 import { accessReviewRouter, invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, rolePermissionsRouter, sectionAccessRouter, surfaceAccessRouter } from "./modules/org/index.js";
-import { membersRouter, memberSessionsRouter, mySessionsRouter } from "./modules/org/index.js";
+import { membersRouter, memberSecondFactorRouter, memberSessionsRouter, mySessionsRouter, secondFactorRouter } from "./modules/org/index.js";
 import { dashboardLayoutRouter, orgSettingsRouter, pageViewsRouter, savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
 import { anomaliesRouter, cardFraudIncidentsRouter } from "./modules/anomalies/index.js";
@@ -187,6 +187,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/me/alerts", myAlertsRouter()); // what the caller receives of the routed alerts (HOME-TIME D-HT17)
   app.use("/api/alert-routing", alertRoutingRouter()); // Settings › Notifications: who is told, by which channel (HOME-TIME D-HT15)
   app.use("/api/me/hazmat", meHazmatRouter()); // driver capture surface (M6) — before /api/me so this prefix wins
+  app.use("/api/me/second-factor", secondFactorRouter()); // what two-step sign-in asks of the caller (IA-S1) — the one route a one-step token may call
   app.use("/api/me/sessions", mySessionsRouter()); // signed-in devices, the caller's own (IA-S3) — before /api/me so this prefix wins
   app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
   app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
@@ -196,6 +197,8 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/members", memberPasswordResetRouter());
   // Signed-in devices of anybody in the company (IA-S3): admin-only inside the router, ending one is step-up gated.
   app.use("/api/members", memberSessionsRouter());
+  // An admin removes a colleague's lost authenticator (IA-S1, Q-IA11): admin-only, step-up gated, audited.
+  app.use("/api/members", memberSecondFactorRouter());
   // The per-org permission overrides (D-PERM1). Admin-only inside the router; every write audits.
   app.use("/api/section-access", sectionAccessRouter());
   app.use("/api/surface-access", surfaceAccessRouter());

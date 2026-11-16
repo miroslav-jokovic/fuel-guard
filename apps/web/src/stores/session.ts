@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { Session } from "@supabase/supabase-js";
-import { effectivePermission, type CallerPermissions, type EditablePermissionKey, type UserRole } from "@silvicom/shared";
+import { effectivePermission, secondFactorStatusSchema, type CallerPermissions, type EditablePermissionKey, type SecondFactorStatus, type UserRole } from "@silvicom/shared";
 import {
   callerCanManage,
   callerCanView,
@@ -94,6 +94,13 @@ export const useSessionStore = defineStore("session", () => {
    * (`requireNamedPermission`) is the one that decides.
    */
   const permissions = ref<CallerPermissions | null>(null);
+  /**
+   * What two-step sign-in asks of this person (INSTALLED-APP-PLAN IA-S1), from `GET /api/me/second-factor` —
+   * the one route a session that still owes its code may call. `null` until answered, and when it cannot be
+   * read: the router then sends nobody anywhere, and the API — which enforces the rule — answers the first
+   * real request with 403 `second_factor_required`, which `lib/api.ts` turns into the same page.
+   */
+  const secondFactor = ref<SecondFactorStatus | null>(null);
   const hasPermission = (key: EditablePermissionKey): boolean =>
     permissions.value?.[key] ?? effectivePermission(role.value, key, {});
 
@@ -163,6 +170,7 @@ export const useSessionStore = defineStore("session", () => {
       surfaces.value = null;
       fullName.value = null;
       permissions.value = null;
+      secondFactor.value = null;
       /**
        * ⚠ **And then FETCH them again.** This call is the whole of the 2026-09-20 fix, and its
        * absence is instructive: the comment above already said "while the next `loadSurfaces()` is
@@ -209,6 +217,13 @@ export const useSessionStore = defineStore("session", () => {
   async function loadSurfaces() {
     if (!session.value) return;
     const seq = identitySeq;
+    // Asked first, and alone when it says a code is owed: `/api/me` would only be refused, and the router
+    // guard — which awaits this function — needs this answer before it resolves any route.
+    const second = await apiFetch<unknown>("/api/me/second-factor");
+    if (seq !== identitySeq) return;
+    const parsed = second.ok ? secondFactorStatusSchema.safeParse(second.data) : null;
+    secondFactor.value = parsed?.success ? parsed.data : null;
+    if (secondFactor.value?.required && !secondFactor.value.satisfied) return;
     const res = await apiFetch<{ surfaces?: SurfaceClaim; fullName?: string | null; permissions?: CallerPermissions }>("/api/me");
     // A newer identity has arrived while this was in flight (or we signed out). Its own call owns
     // these refs now; writing here would be the older answer winning by finishing later.
@@ -286,6 +301,7 @@ export const useSessionStore = defineStore("session", () => {
     sections,
     surfaces,
     permissions,
+    secondFactor,
     hasPermission,
     loadSurfaces,
     isAuthenticated,

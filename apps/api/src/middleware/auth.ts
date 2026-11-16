@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import {
+  SECOND_FACTOR_REQUIRED,
   callerCanManage,
   callerCanView,
   isAdmin,
@@ -19,12 +20,28 @@ import * as Sentry from "@sentry/node";
 class AccessChanged extends Error {}
 /** The token is genuine but its session was ended — the device was signed out (Q-IA10, 0616). */
 class SignedOut extends Error {}
+/** The token is genuine but its owner must take the second step and this session has not (IA-S1, 0617). */
+class SecondStepNeeded extends Error {}
 
 /**
  * Authenticate the request from its Bearer token. Attaches req.auth (audit B5: org_id/role come
  * from the verified JWT, NEVER the request body). Tests may inject app.locals.verifyToken.
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  authenticate(req, res, next, false);
+}
+
+/**
+ * `requireAuth` for the ONE router a one-step token may still call: `/api/me/second-factor`, which tells
+ * the app that a code is needed (IA-S1). Everything else about the token is checked exactly as above —
+ * signature, membership, session — and only the second-step refusal is waived. Without it an admin whose
+ * date had passed would be refused by every route including the one that could say why.
+ */
+export function requireAuthFirstStep(req: Request, res: Response, next: NextFunction): void {
+  authenticate(req, res, next, true);
+}
+
+function authenticate(req: Request, res: Response, next: NextFunction, allowFirstStep: boolean): void {
   const header = req.headers.authorization ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : null;
   if (!token) {
@@ -43,6 +60,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
       const verdict = await membershipVerdict(getSupabaseAdmin(locals.env), ctx);
       if (verdict === "stale") throw new AccessChanged();
       if (verdict === "signed_out") throw new SignedOut();
+      if (verdict === "second_factor" && !allowFirstStep) throw new SecondStepNeeded();
       return ctx;
     });
 
@@ -66,6 +84,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
       // that for `access_changed` (lib/api.ts). Only the sentence differs.
       if (err instanceof SignedOut) {
         res.status(401).json(apiError("access_changed", "This device was signed out. Sign in again."));
+        return;
+      }
+      // 403, not 401: the token is good and must NOT be thrown away — the same session becomes `aal2` once
+      // the code is entered. The web sends the person to the code page on this code (lib/api.ts).
+      if (err instanceof SecondStepNeeded) {
+        res.status(403).json(apiError(SECOND_FACTOR_REQUIRED, "Enter the code from your authenticator app to continue."));
         return;
       }
       res.status(401).json(apiError("unauthorized", "Invalid or expired token"));

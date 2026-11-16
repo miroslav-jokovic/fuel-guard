@@ -195,6 +195,7 @@ export * from "./chatPushContract.js";
 export * from "./chatDndContract.js";
 export * from "./deviceLabel.js";
 export * from "./memberSessionsContract.js";
+export * from "./secondFactorContract.js";
 export * from "./rosterContract.js";
 export * from "./rosterHeld.js";
 export * from "./recruitmentContract.js";
