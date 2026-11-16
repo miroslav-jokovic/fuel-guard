@@ -43,5 +43,9 @@ describe("the Fleet MPG card's weeks", () => {
     expect(partWeekNote(weeks.slice(1))).toBeNull();
     expect(weekCaption(weeks[0]!)).toBe("10/17 – 10/18 · 2 days");
     expect(weekCaption(weeks[1]!)).toBe("week of 10/19");
+    // A week the data reaches by one day is named by that day, not "11/16 – 11/16".
+    const [one] = readWeeks([{ from: "2026-11-16", to: "2026-11-16", mpg: 6, partial: false }]);
+    expect(weekCaption(one!)).toBe("11/16 · 1 day");
+    expect(partWeekNote([one!])).toContain("11/16 (1 day)");
   });
 });
