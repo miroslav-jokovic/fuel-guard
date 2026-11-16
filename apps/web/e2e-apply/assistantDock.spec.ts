@@ -55,7 +55,9 @@ const ANSWER: AssistantStreamEvent[] = [
 test.describe("desktop, keyboard only", () => {
   test.use({ viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false });
 
-  test("opens on the shortcut with focus in the question, answers, and closes on Escape back to the launcher", async ({ page }) => {
+  // Owner, 2026-11-16: the orb floats over the main pages only (`meta.assistantLauncher`). Settings is
+  // not one, so this is the shortcut's path; the orb's own path is the phone test below, on the dashboard.
+  test("opens on the shortcut where there is no orb, with focus in the question, answers, and closes on Escape", async ({ page }) => {
     let asked: unknown = null;
     await signedIn(page, async (route) => {
       asked = route.request().postDataJSON();
@@ -63,8 +65,8 @@ test.describe("desktop, keyboard only", () => {
       await route.fulfill(sse(ANSWER));
     });
     await page.goto("/settings");
-    const launcher = page.getByRole("button", { name: /^Ask AI/ });
-    await expect(launcher).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Settings" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Ask AI \(/ })).toHaveCount(0);
 
     await page.keyboard.press("Control+j");
     const dock = page.getByRole("dialog", { name: "Ask AI" });
@@ -83,6 +85,17 @@ test.describe("desktop, keyboard only", () => {
     await question.focus();
     await page.keyboard.press("Escape");
     await expect(dock).toBeHidden();
+  });
+
+  test("on a main page the orb is drawn, opens the dock, and takes focus back when it closes", async ({ page }) => {
+    await signedIn(page, (route) => route.fulfill(sse(ANSWER)));
+    await page.goto("/");
+    const launcher = page.getByRole("button", { name: /^Ask AI \(/ });
+    await launcher.click();
+    const dock = page.getByRole("dialog", { name: "Ask AI" });
+    await expect(dock.getByRole("textbox")).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(dock).toBeHidden();
     await expect(launcher).toBeFocused();
   });
 
@@ -91,7 +104,7 @@ test.describe("desktop, keyboard only", () => {
       route.fulfill({ status: 429, json: { error: { code: "ai_budget_exhausted", message: "Ask AI has reached this month's spending cap. It resets on the 1st." } } }),
     );
     await page.goto("/settings");
-    await expect(page.getByRole("button", { name: /^Ask AI/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Settings" }).first()).toBeVisible();
     await page.keyboard.press("Control+j");
     const dock = page.getByRole("dialog", { name: "Ask AI" });
     await dock.getByRole("textbox").fill("fuel spend");
@@ -106,8 +119,8 @@ test.describe("a 390 px phone, reduced motion", () => {
     // On the page, not `test.use`: the config's options do not carry `reducedMotion` to the context.
     await page.emulateMedia({ reducedMotion: "reduce" });
     await signedIn(page, (route) => route.fulfill(sse(ANSWER)));
-    await page.goto("/settings");
-    await page.getByRole("button", { name: /^Ask AI/ }).click();
+    await page.goto("/");
+    await page.getByRole("button", { name: /^Ask AI \(/ }).click();
     const dock = page.getByRole("dialog", { name: "Ask AI" });
     // Read at once, while Vue's enter classes (`duration-200`) are still on the element: that is the
     // motion the rule must still. Read after the entrance, any duration would pass.

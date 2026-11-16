@@ -30,6 +30,13 @@ import { useOpenView } from "./useOpenView";
  * that page is the same thread at full width, and two copies of one conversation side by side
  * would be one too many.
  *
+ * The ORB is drawn on the main pages only (owner, 2026-11-16; `meta.assistantLauncher`, which the
+ * dashboard route alone sets): over the middle of a record or a list it is always over something.
+ * The DOCK is not tied to the orb. ⌘J opens it on any page, and a dock that is open stays open
+ * across a navigation until it is closed — an answer that opens a page (`useOpenView`) opens it
+ * BEHIND the dock, and a dock that vanished on arrival would take the answer with it. On a page
+ * without the orb the other ways in are ⌘J and the sidebar's Ask AI.
+ *
  * The launcher can be dragged anywhere on screen and stays where it was left (owner, 2026-10-09:
  * it sat over data people needed to read) — `useLauncherPosition` owns that, and the dock opens
  * from whichever corner the launcher is nearest, so it unfolds over the space the person cleared.
@@ -41,6 +48,8 @@ const allowed = useAssistantAccess();
 
 const onAskPage = computed(() => route.name === "ask");
 const visible = computed(() => allowed.value && !onAskPage.value);
+/** The orb itself: this route asked for it. */
+const orbHere = computed(() => visible.value && route.meta.assistantLauncher === true);
 // F21 Step 5: the page behind the dock goes with each question, and an answer that opens a page opens it.
 useOpenView(visible);
 
@@ -64,10 +73,11 @@ const position = useLauncherPosition(launcher, LAUNCHER_SIZE);
 /**
  * How far up from the window's bottom the launcher reaches, for the shell to end its content above
  * (`.shell-main-padding`, style.css). Written from where the launcher IS, so a launcher dragged
- * higher asks for more room and one that is not drawn (no access, the Ask AI page) asks for none.
+ * higher asks for more room and one that is not drawn (no access, the Ask AI page, any page that is
+ * not a main page) asks for none.
  */
 watchEffect(() => {
-  const reach = visible.value ? position.offset.value.bottom + LAUNCHER_SIZE + EDGE_MARGIN : 0;
+  const reach = orbHere.value ? position.offset.value.bottom + LAUNCHER_SIZE + EDGE_MARGIN : 0;
   document.documentElement.style.setProperty("--assistant-clearance", `${reach}px`);
 });
 onBeforeUnmount(() => document.documentElement.style.removeProperty("--assistant-clearance"));
@@ -94,13 +104,23 @@ function onLauncherClick() {
   show();
 }
 
+/**
+ * Where focus was when the dock opened. Closing hands focus to the orb where there is one; on a page
+ * without it (opened by ⌘J) focus goes back to what the person was on, not to the top of the page.
+ */
+let cameFrom: HTMLElement | null = null;
 function show() {
+  cameFrom = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
   store.open = true;
   nextTick(() => thread.value?.focus());
 }
 function hide() {
   store.open = false;
-  nextTick(() => launcher.value?.focus());
+  nextTick(() => {
+    if (launcher.value) launcher.value.focus();
+    else if (cameFrom?.isConnected) cameFrom.focus();
+    cameFrom = null;
+  });
 }
 
 /**
@@ -158,7 +178,7 @@ function expand() {
         turns only on hover or drag, and the app-wide reduced-motion rule stills it.
       -->
       <button
-        v-if="!store.open"
+        v-if="orbHere && !store.open"
         ref="launcher"
         type="button"
         class="assistant-orb group fixed z-chrome grid size-13 touch-none place-items-center rounded-full text-chip-glyph shadow-chip-brand select-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-ring"
