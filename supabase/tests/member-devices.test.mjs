@@ -182,6 +182,16 @@ const A6 = await signIn(ANA);
 ok("an old build sending no key is keyed by its session — and is still the fourth", (await check(ANA, A6, null)).device_admitted === false);
 ok("a key that is not the app's alphabet is treated as no key", (await check(ANA, A6, "'; drop table x; --")).device_admitted === false && (await devices(ANA)) === 4);
 
+console.log("\n-- a password alone takes no place --");
+const TOM = await person("tom@silvicom.test", ORG, "technician", "Tom Tech");
+await factor(TOM, "verified");
+const P1 = await signIn(TOM);
+const half = await check(TOM, P1, KEY(50));
+ok("a person with a factor: a session before its code is alive but takes no place", half.session_alive === true && half.device_admitted === null);
+ok("...and nothing is written for it", Number((await one(`select count(*) n from member_devices where last_session_id=$1`, [P1])).n) === 0);
+await db.query(`update auth.sessions set aal='aal2' where id=$1`, [P1]);
+ok("the same session after its code is admitted", (await check(TOM, P1, KEY(50))).device_admitted === true);
+
 console.log("\n-- idle --");
 await db.query(`update member_devices set last_seen_at = now() - interval '13 hours' where last_session_id=$1`, [A3]);
 ok("a device idle past the window has lost its place", (await check(ANA, A6, null)).device_admitted === true);

@@ -42,6 +42,12 @@
 --    Two sign-ins at the same instant must not both take the last place: a per-person advisory lock
 --    serialises admission.
 --
+--    A session that owes its second step (the person HAS a factor and the session is not `aal2`, read from
+--    `auth.sessions.aal`) takes no place: a stolen password with no phone behind it must not be able to fill
+--    the three and lock the real person out of every new device. (An admin past the company's date with NO
+--    factor yet is not covered: that person has nothing to give a code from, so the session is their only
+--    way to set one up. The rule that refuses it lives in the API, `secondFactorRequired`.)
+--
 -- 4. ADDRESSES COME FROM SUPABASE, NOT FROM A HEADER. `auth.sessions.ip` is the address Supabase saw when
 --    the device signed in or renewed its session; the function reads it itself. An API-side `X-Forwarded-For`
 --    would be one more thing a caller could write.
@@ -110,6 +116,7 @@ as $$
 declare
   v_alive   boolean;
   v_factor  boolean;
+  v_aal     text;
   v_ip      inet;
   v_ua      text;
   v_key     text;
@@ -124,7 +131,7 @@ begin
   end if;
 
   if p_session is not null then
-    select true, s.ip, s.user_agent into v_alive, v_ip, v_ua
+    select true, s.ip, s.user_agent, s.aal::text into v_alive, v_ip, v_ua, v_aal
       from auth.sessions s
      where s.id = p_session and s.user_id = p_user and (s.not_after is null or s.not_after > now());
     v_alive := coalesce(v_alive, false);
@@ -134,8 +141,12 @@ begin
     select 1 from auth.mfa_factors f where f.user_id = p_user and f.status::text = 'verified'
   ) into v_factor;
 
-  -- A device is decided only for a live session: a dead one is refused on its own rule above.
-  if v_alive then
+  -- A device is decided only for a live session: a dead one is refused on its own rule above. And only once
+  -- the session has given its second step when the person has a factor: a password alone must not take a
+  -- place, or somebody holding a stolen password and no phone could fill all three and stop the real person
+  -- signing in anywhere new. Such a session is refused by the second-factor rule anyway; it is admitted,
+  -- if there is room, on its first request after the code.
+  if v_alive and (not v_factor or v_aal = 'aal2') then
     perform pg_advisory_xact_lock(hashtext('member_devices:' || p_user::text));
 
     -- (a) this session already holds a device: that is its device, whatever key it sends now.
