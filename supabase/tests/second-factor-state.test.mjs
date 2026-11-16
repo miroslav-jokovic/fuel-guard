@@ -156,6 +156,15 @@ ok("a company's date can be moved, and only that company's",
   (await state(BEN, BENS))[0].second_factor_required_from.toISOString() === "2026-01-01T00:00:00.000Z"
   && days((await state(OUT, null, ORG_B))[0].second_factor_required_from) > 13.9);
 
+console.log("\n-- 0618: the notice period starts when the notice ships --");
+const run0618 = () => db.exec(read(join("migrations", "0618_second_factor_notice_starts.sql")));
+// ORG's date was moved to the past above — a company already being held to it; ORG_B's is still ahead.
+await db.query(`update organizations set second_factor_required_from = now() + interval '3 days' where id=$1`, [ORG_B]);
+await run0618();
+ok("a company still inside its notice gets the full 14 days again", days((await one(`select second_factor_required_from f from organizations where id=$1`, [ORG_B])).f) > 13.9);
+ok("a company already being held to it is NOT given a fresh two weeks",
+  (await one(`select second_factor_required_from f from organizations where id=$1`, [ORG])).f.toISOString() === "2026-01-01T00:00:00.000Z");
+
 console.log("\n-- a browser --");
 // As the token hook mints it for the company's own ADMIN — the browser with the most reach there is.
 const claims = { sub: BEN, role: "authenticated", org_id: ORG, user_role: "admin" };

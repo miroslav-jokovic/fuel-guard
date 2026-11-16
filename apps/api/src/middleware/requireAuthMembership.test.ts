@@ -21,12 +21,12 @@ vi.mock("../lib/auth.js", () => ({
 vi.mock("../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
 vi.mock("../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) }));
 
-const { requireAuth } = await import("./auth.js");
+const { requireAuth, requireAuthFirstStep } = await import("./auth.js");
 const { resetMembershipCache } = await import("./membershipCurrent.js");
 
-async function hit(): Promise<{ status: number; code?: string }> {
+async function hit(gate: typeof requireAuth = requireAuth): Promise<{ status: number; code?: string }> {
   const app = express();
-  app.get("/x", requireAuth, (_req, res) => res.json({ ok: true }));
+  app.get("/x", gate, (_req, res) => res.json({ ok: true }));
   const server: Server = await new Promise((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });
@@ -41,8 +41,8 @@ async function hit(): Promise<{ status: number; code?: string }> {
 
 beforeEach(() => resetMembershipCache());
 
-/** The database with 0616: `member_token_state` answers; `row` null is no membership. */
-const state = (row: unknown) => createSupabaseRecorder({ rpc: (fn) => (fn === "member_token_state" ? (row === null ? [] : [row]) : undefined) });
+/** The database with 0617: `member_access_state` answers; `row` null is no membership. */
+const state = (row: unknown) => createSupabaseRecorder({ rpc: (fn) => (fn === "member_access_state" ? (row === null ? [] : [row]) : undefined) });
 
 describe("requireAuth with the membership check", () => {
   it("passes a signed token whose membership is current and whose session is alive", async () => {
@@ -69,6 +69,21 @@ describe("requireAuth with the membership check", () => {
   it("asks about the session the token names", async () => {
     rec = state({ role: "dispatcher", suspended_at: null, session_alive: true });
     await hit();
-    expect(rec.rpcs().find((c) => c.fn === "member_token_state")!.args).toEqual({ p_org: ORG, p_user: USER, p_session: SESSION });
+    expect(rec.rpcs().find((c) => c.fn === "member_access_state")!.args).toEqual({ p_org: ORG, p_user: USER, p_session: SESSION });
+  });
+
+  it("answers 403 second_factor_required to a token that owes its code — 403, so the app keeps the session", async () => {
+    rec = state({ role: "dispatcher", suspended_at: null, session_alive: true, has_second_factor: true, second_factor_required_from: "2099-01-01T00:00:00Z" });
+    expect(await hit()).toEqual({ status: 403, code: "second_factor_required" });
+  });
+
+  it("lets that token through the one gate made for it, and nothing else", async () => {
+    rec = state({ role: "dispatcher", suspended_at: null, session_alive: true, has_second_factor: true, second_factor_required_from: "2099-01-01T00:00:00Z" });
+    expect((await hit(requireAuthFirstStep)).status).toBe(200);
+    // The first-step gate waives ONLY the second step: a signed-out device and a removed member are still refused.
+    rec = state({ role: "dispatcher", suspended_at: null, session_alive: false, has_second_factor: true });
+    expect(await hit(requireAuthFirstStep)).toEqual({ status: 401, code: "access_changed" });
+    rec = state(null);
+    expect(await hit(requireAuthFirstStep)).toEqual({ status: 401, code: "access_changed" });
   });
 });

@@ -65,6 +65,8 @@ const envelope = <T>(data: T | null): { ok: true; data: T } | undefined => (data
 
 const API: Array<[RegExp, Handler]> = [
   [/^\/api\/me$/, () => ({ fullName: DISPATCHER.fullName, surfaces: { "safety.placard-calculator": true } })],
+  // Two-step sign-in (IA-S1): the tutorial's dispatcher has none and is asked for none, so no page is held.
+  [/^\/api\/me\/second-factor$/, () => ({ required: false, satisfied: false, has_factor: false, due_from: null, must_keep: false })],
   [/^\/api\/version$/, () => ({ commit: "tutorial", release: null, migration: null })],
   [/^\/api\/me\/notifications$/, () => ({ notifications: [], unread: 0 })],
   [/^\/api\/hazmat\/review-count$/, () => ({ count: 0 })],

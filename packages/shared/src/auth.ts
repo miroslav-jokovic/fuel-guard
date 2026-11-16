@@ -26,6 +26,8 @@ export interface AuthClaims {
    * 2026-11-15 (claims: aal, amr, session_id, …); Supabase's auth server sets it, not our hook.
    */
   session_id?: string;
+  /** Supabase's assurance level: `aal2` once a second factor was verified in this session (IA-S1). */
+  aal?: string;
 }
 
 /** The authenticated principal the API attaches to each request after verifying the JWT. */
@@ -63,6 +65,8 @@ export interface AuthContext {
    * safe direction — the list still works, and Sign out is still how a person ends the device in their hand.
    */
   sessionId?: string | null;
+  /** The token's `aal` claim (IA-S1). Absent reads as "the second step was not taken". */
+  aal?: string | null;
 }
 
 // ── Section-scoped capabilities ───────────────────────────────────────────────
@@ -262,6 +266,7 @@ export const claimsToContext = (c: AuthClaims): AuthContext => ({
   // signature over, so nothing downstream has to trust the client about when it signed in.
   issuedAt: typeof c.iat === "number" ? c.iat : null,
   sessionId: typeof c.session_id === "string" && c.session_id ? c.session_id : null,
+  aal: typeof c.aal === "string" ? c.aal : null,
 });
 
 // ── Restricted qualification records (Phase G, D-DQ15; SPLIT 2026-08-19) ─────

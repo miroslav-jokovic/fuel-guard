@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isRecordId, type AuthContext } from "@silvicom/shared";
+import { SECOND_STEP_DONE, isRecordId, secondFactorRequired, type AuthContext, type UserRole } from "@silvicom/shared";
 
 /**
  * Is the membership a token names still the membership the person holds? (SP7, Q-SET6 (a).)
@@ -37,20 +37,27 @@ import { isRecordId, type AuthContext } from "@silvicom/shared";
  * the same 401 `access_changed` — the web's answer to that is a refresh, which fails, and a sign-in.
  * A token that names no session (`session_alive` NULL) is "cannot tell" and stands.
  *
+ * ── AND HAS THE SECOND STEP BEEN TAKEN? (INSTALLED-APP-PLAN IA-S1; migration 0617) ──
+ * The read is now `member_access_state`: the same answers plus the company's date and whether the person
+ * has a verified second factor — still one round trip. The RULE is `secondFactorRequired` in
+ * `@silvicom/shared`; this file only asks it. A token that needs the second step and is not `aal2` is
+ * `second_factor`: never cached, and answered by `requireAuth` with 403 `second_factor_required`.
+ *
  * ⚠ A failed READ is answered "current" (fail open), not cached, and logged. The token is still
  * genuinely signed, this is exactly what the API did before SP7, and failing closed would sign every
  * user out on a database blip — the one outage that should not also become a lockout.
  */
 export const MEMBERSHIP_CACHE_MS = 15_000;
 
-type Verdict = "current" | "stale" | "signed_out";
-type Ctx = Pick<AuthContext, "userId" | "orgId" | "role"> & Pick<Partial<AuthContext>, "sessionId">;
+export type Verdict = "current" | "stale" | "signed_out" | "second_factor";
+type Ctx = Pick<AuthContext, "userId" | "orgId" | "role"> & Pick<Partial<AuthContext>, "sessionId" | "aal">;
 const cache = new Map<string, number>();
-const key = (userId: string, orgId: string, sessionId: string | null) => `${userId}:${orgId}:${sessionId ?? "-"}`;
+// The assurance level is in the key: the SAME session is refused before its code and current after it.
+const key = (userId: string, orgId: string, sessionId: string | null, aal: string | null) => `${userId}:${orgId}:${sessionId ?? "-"}:${aal ?? "-"}`;
 
 /**
  * Clears this process's cached answers for a person — every session of theirs — called after any change
- * to their membership or to their sessions.
+ * to their membership, their sessions or their second factor.
  */
 export function forgetMembership(userId: string): void {
   for (const k of cache.keys()) if (k.startsWith(`${userId}:`)) cache.delete(k);
@@ -61,24 +68,36 @@ export function resetMembershipCache(): void {
   cache.clear();
 }
 
-interface StateRow { role: string; suspended_at: string | null; session_alive?: boolean | null }
+export interface AccessStateRow {
+  role: string;
+  suspended_at: string | null;
+  session_alive?: boolean | null;
+  second_factor_required_from?: string | null;
+  has_second_factor?: boolean | null;
+}
 
 /** PostgREST's and Postgres's "there is no such function". */
 const functionMissing = (e: { code?: string }) => e.code === "PGRST202" || e.code === "42883";
 
 /**
- * The read. `member_token_state` (0616) when the database has it.
+ * The read: `member_access_state` (0617) when the database has it.
  *
- * DEPLOY-WINDOW GUARD, labelled as one: where the function is not there — this code served by a database
- * that has not had 0616 applied — it falls back to the `memberships` read SP7 shipped with, so the
- * membership rule never lapses; only the session half waits. A release applies migrations before code and
- * 0616 merged first, so this is the order going wrong, not the normal case. Remove the fallback once 0616
- * is in a production release (then a missing function is a real fault and should be logged as one).
+ * DEPLOY-WINDOW GUARD, labelled as one: on a database that has not had 0617 applied it asks 0616's
+ * `member_token_state` (membership and session, no second factor), and without that the `memberships`
+ * read SP7 shipped with — so the membership rule never lapses and each later rule simply waits for its
+ * migration. A release applies migrations before code and both merged first, so this is the order going
+ * wrong, not the normal case. Remove both fallbacks once 0617 is in a production release; then drop
+ * `member_token_state`, which will have no reader.
  */
-async function readState(admin: SupabaseClient, ctx: { userId: string; orgId: string; sessionId: string | null }): Promise<{ row: StateRow | null } | { error: string }> {
-  const viaFunction = await admin.rpc("member_token_state", { p_org: ctx.orgId, p_user: ctx.userId, p_session: ctx.sessionId });
-  if (!viaFunction.error) return { row: ((viaFunction.data ?? []) as StateRow[])[0] ?? null };
-  if (!functionMissing(viaFunction.error as { code?: string })) return { error: viaFunction.error.message };
+export async function readAccessState(
+  admin: SupabaseClient,
+  ctx: { userId: string; orgId: string; sessionId: string | null },
+): Promise<{ row: AccessStateRow | null } | { error: string }> {
+  for (const fn of ["member_access_state", "member_token_state"]) {
+    const res = await admin.rpc(fn, { p_org: ctx.orgId, p_user: ctx.userId, p_session: ctx.sessionId });
+    if (!res.error) return { row: ((res.data ?? []) as AccessStateRow[])[0] ?? null };
+    if (!functionMissing(res.error as { code?: string })) return { error: res.error.message };
+  }
   const { data, error } = await admin
     .from("memberships")
     .select("role, suspended_at")
@@ -86,20 +105,30 @@ async function readState(admin: SupabaseClient, ctx: { userId: string; orgId: st
     .eq("user_id", ctx.userId)
     .maybeSingle();
   if (error) return { error: error.message };
-  return { row: (data as StateRow | null) ?? null };
+  return { row: (data as AccessStateRow | null) ?? null };
 }
+
+/** Only ever a uuid reaches the database: anything else in the claim is "cannot tell", not an error. */
+export const sessionClaim = (ctx: Pick<Partial<AuthContext>, "sessionId">): string | null =>
+  ctx.sessionId && isRecordId(ctx.sessionId) ? ctx.sessionId : null;
+
+/** The facts `secondFactorRequired` reads, from a row; a database without 0617 has none, and requires nothing. */
+export const secondFactorFacts = (row: AccessStateRow) => ({
+  role: row.role as UserRole,
+  hasFactor: row.has_second_factor === true,
+  requiredFrom: row.second_factor_required_from ?? null,
+});
 
 export async function membershipVerdict(admin: SupabaseClient, ctx: Ctx, now: number = Date.now()): Promise<Verdict> {
   // A token with no org (a person with no membership yet, or already suspended) claims nothing to
   // re-check: `requireOrg` refuses it wherever an org is needed.
   if (!ctx.orgId) return "current";
-  // Only ever a uuid reaches the database: anything else in the claim is "cannot tell", not an error.
-  const sessionId = ctx.sessionId && isRecordId(ctx.sessionId) ? ctx.sessionId : null;
-  const k = key(ctx.userId, ctx.orgId, sessionId);
+  const sessionId = sessionClaim(ctx);
+  const k = key(ctx.userId, ctx.orgId, sessionId, ctx.aal ?? null);
   const until = cache.get(k);
   if (until !== undefined && until > now) return "current";
 
-  const read = await readState(admin, { userId: ctx.userId, orgId: ctx.orgId, sessionId });
+  const read = await readAccessState(admin, { userId: ctx.userId, orgId: ctx.orgId, sessionId });
   if ("error" in read) {
     console.error(`[membership] could not confirm ${ctx.userId} in ${ctx.orgId}; allowing the signed token`, read.error);
     return "current";
@@ -113,6 +142,10 @@ export async function membershipVerdict(admin: SupabaseClient, ctx: Ctx, now: nu
   if (row.session_alive === false) {
     cache.delete(k);
     return "signed_out";
+  }
+  if (ctx.aal !== SECOND_STEP_DONE && secondFactorRequired(secondFactorFacts(row), new Date(now))) {
+    cache.delete(k);
+    return "second_factor";
   }
   cache.set(k, now + MEMBERSHIP_CACHE_MS);
   return "current";

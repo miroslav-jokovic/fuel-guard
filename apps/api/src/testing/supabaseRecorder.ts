@@ -100,6 +100,24 @@ const DEFAULT_AUTH: Record<string, (...args: any[]) => unknown> = {
   listUsers: () => ({ data: { users: [] }, error: null }),
 };
 
+/** `auth.admin.mfa`: every call recorded and scripted under "mfa.<method>" (see its use in the proxy below). */
+function mfaNamespace(
+  authCalls: Array<{ fn: string; args: unknown[] }>,
+  scripted: Record<string, (...args: never[]) => unknown> | undefined,
+): object {
+  return new Proxy({}, {
+    get(_m, method: string | symbol) {
+      if (typeof method === "symbol") return undefined;
+      const fn = `mfa.${method}`;
+      return async (...args: unknown[]) => {
+        authCalls.push({ fn, args });
+        const handler = scripted?.[fn] as ((...a: unknown[]) => unknown) | undefined;
+        return handler ? await handler(...args) : { data: {}, error: null };
+      };
+    },
+  });
+}
+
 export function createSupabaseRecorder(opts: {
   tables?: Record<string, RecorderFixture>;
   rpc?: Record<string, unknown> | ((fn: string, args: unknown) => unknown);
@@ -256,6 +274,9 @@ export function createSupabaseRecorder(opts: {
         {
           get(_t, prop: string | symbol) {
             if (typeof prop === "symbol") return undefined;
+            // `auth.admin.mfa` is a NAMESPACE (listFactors, deleteFactor), not a method: its calls are
+            // recorded and scripted as "mfa.listFactors" / "mfa.deleteFactor".
+            if (prop === "mfa") return mfaNamespace(authCalls, opts.auth);
             return async (...args: unknown[]) => {
               authCalls.push({ fn: prop, args });
               const handler = opts.auth?.[prop] ?? DEFAULT_AUTH[prop];

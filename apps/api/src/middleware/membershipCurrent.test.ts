@@ -6,8 +6,9 @@ import { membershipVerdict, forgetMembership, resetMembershipCache, MEMBERSHIP_C
  * SP7 (Q-SET6 (a)): a signed token whose membership was removed, re-roled or suspended since is
  * refused by the API, not honoured until it expires. And Q-IA10 (0616): so is one whose session was
  * ended — the device was signed out. Each case is one way the old token outlived what it was minted from.
- * What the function answers is 0616's, executed by `supabase/tests/member-token-state.test.mjs`; this
- * file holds the API to what it ASKS and what it makes of each answer.
+ * And IA-S1 (0617): so is one whose owner must take the second step and has not. What the function
+ * answers is 0617's, executed by `supabase/tests/second-factor-state.test.mjs`; the rule is
+ * `secondFactorRequired` in shared; this file holds the API to what it ASKS and what it makes of each answer.
  */
 const ORG = "00000000-0000-4000-8000-00000000000a";
 const USER = "00000000-0000-4000-8000-000000000002";
@@ -17,18 +18,20 @@ const ctx = { userId: USER, orgId: ORG, role: "dispatcher" as const, sessionId: 
 
 let reads = 0;
 let asked: Array<Record<string, unknown>> = [];
-/** The database with 0616: every answer comes from `member_token_state`. `row` null = no membership. */
+/** The database with 0617: every answer comes from `member_access_state`. `row` null = no membership. */
 const recorderWith = (row: unknown, error: unknown = null) =>
   createSupabaseRecorder({
     rpc: (fn, args) => {
-      if (fn !== "member_token_state") return undefined;
+      if (fn !== "member_access_state") return undefined;
       reads++;
       asked.push(args as Record<string, unknown>);
       return error ? { error } : row === null ? [] : [row];
     },
     tables: { memberships: () => { throw new Error("the table must not be read when the function answers"); } },
   });
-const ALIVE = { role: "dispatcher", suspended_at: null, session_alive: true };
+const FAR = "2099-01-01T00:00:00Z";
+const PAST = "2026-01-01T00:00:00Z";
+const ALIVE = { role: "dispatcher", suspended_at: null, session_alive: true, second_factor_required_from: FAR, has_second_factor: false };
 
 beforeEach(() => {
   resetMembershipCache();
@@ -127,11 +130,72 @@ describe("membershipVerdict — the cache and a failed read", () => {
   });
 });
 
-describe("membershipVerdict — a database that has not had 0616 applied", () => {
-  /** No such function: the read SP7 shipped with answers instead, so the membership rule never lapses. */
-  const without0616 = (row: unknown, code = "PGRST202") =>
+describe("membershipVerdict — the second step (IA-S1)", () => {
+  const admin = { ...ctx, role: "admin" as const };
+  const ADMIN = { ...ALIVE, role: "admin" };
+
+  it("an admin whose company's date has passed, on a one-step session, owes the second step", async () => {
+    expect(await membershipVerdict(recorderWith({ ...ADMIN, second_factor_required_from: PAST }).client, { ...admin, aal: "aal1" })).toBe("second_factor");
+  });
+
+  it("...and is current once the session has taken it", async () => {
+    expect(await membershipVerdict(recorderWith({ ...ADMIN, second_factor_required_from: PAST }).client, { ...admin, aal: "aal2" })).toBe("current");
+  });
+
+  it("an admin inside their 14 days is not asked yet", async () => {
+    expect(await membershipVerdict(recorderWith(ADMIN).client, { ...admin, aal: "aal1" })).toBe("current");
+  });
+
+  it("a dispatcher is never required by the date — it is the admin role's alone", async () => {
+    expect(await membershipVerdict(recorderWith({ ...ALIVE, second_factor_required_from: PAST }).client, { ...ctx, aal: "aal1" })).toBe("current");
+  });
+
+  it("anybody who HAS a factor owes it, whatever their role and whatever the date", async () => {
+    expect(await membershipVerdict(recorderWith({ ...ALIVE, has_second_factor: true }).client, { ...ctx, aal: "aal1" })).toBe("second_factor");
+    expect(await membershipVerdict(recorderWith({ ...ALIVE, has_second_factor: true }).client, { ...ctx, aal: "aal2" })).toBe("current");
+  });
+
+  it("a token that does not say its level has not taken the step", async () => {
+    expect(await membershipVerdict(recorderWith({ ...ALIVE, has_second_factor: true }).client, ctx)).toBe("second_factor");
+  });
+
+  it("a removed membership and a signed-out device outrank it: those tokens are finished, not one code away", async () => {
+    expect(await membershipVerdict(recorderWith({ ...ALIVE, role: "admin", has_second_factor: true }).client, { ...ctx, aal: "aal1" })).toBe("stale");
+    expect(await membershipVerdict(recorderWith({ ...ALIVE, has_second_factor: true, session_alive: false }).client, { ...ctx, aal: "aal1" })).toBe("signed_out");
+  });
+
+  it("is never cached, and the same session is current the moment its token is aal2", async () => {
+    const row = { ...ALIVE, has_second_factor: true };
+    expect(await membershipVerdict(recorderWith(row).client, { ...ctx, aal: "aal1" }, 1_000)).toBe("second_factor");
+    expect(await membershipVerdict(recorderWith(row).client, { ...ctx, aal: "aal1" }, 1_001)).toBe("second_factor");
+    expect(await membershipVerdict(recorderWith(row).client, { ...ctx, aal: "aal2" }, 1_002)).toBe("current");
+    expect(reads).toBe(3);
+  });
+
+  it("a cached two-step answer is not served to a one-step token of the same session", async () => {
+    const row = { ...ALIVE, has_second_factor: true };
+    await membershipVerdict(recorderWith(row).client, { ...ctx, aal: "aal2" }, 1_000);
+    expect(await membershipVerdict(recorderWith(row).client, { ...ctx, aal: "aal1" }, 1_001)).toBe("second_factor");
+  });
+});
+
+describe("membershipVerdict — a database behind the code", () => {
+  const missing = { error: { code: "PGRST202", message: "Could not find the function" } };
+
+  it("without 0617 it asks 0616's function: membership and session still hold, and no second step is asked", async () => {
+    const rec = createSupabaseRecorder({
+      rpc: (fn) => (fn === "member_access_state" ? missing : fn === "member_token_state" ? [{ role: "admin", suspended_at: null, session_alive: false }] : undefined),
+      tables: { memberships: () => { throw new Error("the table must not be read when a function answers"); } },
+    });
+    expect(await membershipVerdict(rec.client, { ...ctx, role: "admin" })).toBe("signed_out");
+    const live = createSupabaseRecorder({ rpc: (fn) => (fn === "member_access_state" ? missing : [{ role: "admin", suspended_at: null, session_alive: true }]) });
+    expect(await membershipVerdict(live.client, { ...ctx, role: "admin", aal: "aal1" })).toBe("current");
+  });
+
+  /** Neither function: the read SP7 shipped with answers, so the membership rule never lapses. */
+  const without = (row: unknown, code = "PGRST202") =>
     createSupabaseRecorder({
-      rpc: () => ({ error: { code, message: "Could not find the function public.member_token_state" } }),
+      rpc: () => ({ error: { code, message: "Could not find the function" } }),
       tables: {
         memberships: (q: RecordedQuery) => {
           reads++;
@@ -142,14 +206,14 @@ describe("membershipVerdict — a database that has not had 0616 applied", () =>
       },
     });
 
-  it("still refuses a removed, suspended or re-roled membership", async () => {
-    expect(await membershipVerdict(without0616(null).client, ctx)).toBe("stale");
-    expect(await membershipVerdict(without0616({ role: "dispatcher", suspended_at: "2026-09-30T12:00:00Z" }).client, ctx)).toBe("stale");
-    expect(await membershipVerdict(without0616({ role: "admin", suspended_at: null }, "42883").client, ctx)).toBe("stale");
+  it("without either it still refuses a removed, suspended or re-roled membership", async () => {
+    expect(await membershipVerdict(without(null).client, ctx)).toBe("stale");
+    expect(await membershipVerdict(without({ role: "dispatcher", suspended_at: "2026-09-30T12:00:00Z" }).client, ctx)).toBe("stale");
+    expect(await membershipVerdict(without({ role: "admin", suspended_at: null }, "42883").client, ctx)).toBe("stale");
     expect(reads).toBe(3);
   });
 
-  it("lets a current membership through — the session half simply waits for the migration", async () => {
-    expect(await membershipVerdict(without0616({ role: "dispatcher", suspended_at: null }).client, ctx)).toBe("current");
+  it("...and lets a current membership through — the later rules simply wait for their migrations", async () => {
+    expect(await membershipVerdict(without({ role: "dispatcher", suspended_at: null }).client, ctx)).toBe("current");
   });
 });

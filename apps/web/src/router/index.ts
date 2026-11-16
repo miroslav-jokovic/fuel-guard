@@ -105,6 +105,14 @@ router.beforeEach(async (to) => {
   if (session.role === "driver") {
     return to.name === "driver-app" ? true : { name: "driver-app" };
   }
+  /**
+   * Two-step sign-in (INSTALLED-APP-PLAN IA-S1): a session that owes its code opens ONE page until it has
+   * given it. The store read the answer in `init()`/`loadSurfaces()`, which this guard awaited; the API
+   * enforces the same rule on every route, so this is where the person is told, not where they are stopped.
+   */
+  if (session.secondFactor?.required && !session.secondFactor.satisfied) {
+    return to.name === "two-step" ? true : { name: "two-step" };
+  }
   // Authenticated with an org.
   if (to.name === "login" || to.name === "pending" || to.name === "driver-app")
     return { name: "dashboard" };

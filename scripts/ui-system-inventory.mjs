@@ -935,6 +935,10 @@ function verifyAdoption() {
     "auth/LoginPage.vue",
     "auth/PendingPage.vue",
     "auth/ResetPasswordPage.vue",
+    // IA-S1: the code of two-step sign-in. In AuthLayout like the pages around it, and for the same
+    // no-workspace reason from the other side: the person HAS a session, but one every API route the
+    // shell calls refuses until the code is given, so there is no shell to put a header in.
+    "auth/TwoStepPage.vue",
     // P3's three published documents. Same reason as the placard calculator directly above: they
     // render in `PublicLayout` for a driver or a store reviewer with no session, so there is no
     // workspace for a header to sit in and no breadcrumb trail to walk. `LegalDocument.vue` gives
