@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  fuelCostSplit,
   aggregateDashboard,
   measureDashboard,
   summariseDashboard,
@@ -114,5 +115,23 @@ describe("measureDashboard + summariseDashboard === aggregateDashboard", () => {
     expect(
       summariseDashboard(measureDashboard(rows, anomalies, vehicles, drivers, { tz: "America/Chicago" }, extra), extra),
     ).toEqual(aggregateDashboard(rows, anomalies, vehicles, drivers, { tz: "America/Chicago" }, extra));
+  });
+});
+
+describe("fuelCostSplit", () => {
+  it("withholds the split when the idle estimate is larger than all the tractor fuel bought", () => {
+    // Staging, 2026-11-16: five sandbox fills against a year of real idle hours.
+    expect(fuelCostSplit({ totalSpend: 1928.61, reeferSpend: 372, idleCostUsd: 56669 })).toEqual({
+      kind: "withheld", idleCostUsd: 56669, tractorSpend: 1556.61,
+    });
+  });
+
+  it("draws the split for a fleet whose idle is a part of what it bought", () => {
+    // Production, the same 31 days: about 6% idle.
+    expect(fuelCostSplit({ totalSpend: 1409686.05, reeferSpend: 9372.07, idleCostUsd: 83000 })).toEqual({ kind: "split" });
+  });
+
+  it("draws it when idle is exactly all of the tractor fuel, the last case that is not impossible", () => {
+    expect(fuelCostSplit({ totalSpend: 120, reeferSpend: 20, idleCostUsd: 100 })).toEqual({ kind: "split" });
   });
 });

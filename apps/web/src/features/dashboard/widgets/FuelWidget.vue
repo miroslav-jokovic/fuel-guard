@@ -20,7 +20,7 @@ import { computed, ref } from "vue";
 import type { ChartConfiguration } from "chart.js";
 import { CurrencyDollarIcon, GallonsIcon } from "@silvicom/ui/icons";
 import { AppDelta } from "@silvicom/ui";
-import { deltaLabel, deltaTone, type PeriodDelta } from "@silvicom/shared";
+import { deltaLabel, deltaTone, fuelCostSplit, type PeriodDelta } from "@silvicom/shared";
 import BaseChart from "@/components/BaseChart.vue";
 import ChartCard from "@/components/ui/ChartCard.vue";
 import ShareBar from "../ShareBar.vue";
@@ -85,6 +85,21 @@ const chart = computed<ChartConfiguration>(() => ({
   }),
 }));
 
+/**
+ * The Moving / Idle / Reefer bar is withheld when the idle estimate is larger than every tractor
+ * gallon bought — `fuelCostSplit` has the measurements. A sentence takes its place; dollars in it
+ * only for a reader who may see money, like every other figure on this card.
+ */
+const split = computed(() => (s.value ? fuelCostSplit(s.value) : { kind: "split" as const }));
+const withheldNote = computed(() => {
+  const v = split.value;
+  if (v.kind !== "withheld") return null;
+  const why = "Usually the fuel import is missing days, so the split is not shown.";
+  return canSeeMoney.value
+    ? `Idle is estimated at ${fmtMoney(v.idleCostUsd)}, more than the ${fmtMoney(v.tractorSpend)} of tractor fuel bought in these dates. ${why}`
+    : `The idle estimate is larger than the tractor fuel bought in these dates. ${why}`;
+});
+
 const slices = computed(() => {
   const m = s.value?.movingSpend ?? 0, i = s.value?.idleCostUsd ?? 0, r = s.value?.reeferSpend ?? 0;
   const label = (v: number) => (canSeeMoney.value ? `$${fmtCompact(v)}` : "");
@@ -136,6 +151,7 @@ const slices = computed(() => {
       </div>
     </template>
 
-    <ShareBar class="mt-4" :items="slices" :name="canSeeMoney ? 'Where fuel dollars go' : 'Where fuel goes'" />
+    <p v-if="withheldNote" class="mt-4 rounded-control bg-surface-subtle px-3 py-2.5 text-xs text-ink-muted" data-test="fuel-split-withheld">{{ withheldNote }}</p>
+    <ShareBar v-else class="mt-4" :items="slices" :name="canSeeMoney ? 'Where fuel dollars go' : 'Where fuel goes'" />
   </ChartCard>
 </template>

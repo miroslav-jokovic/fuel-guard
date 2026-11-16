@@ -450,3 +450,13 @@ Table layout at desk widths. New data on any card.
     sideways scroll, each door shown once, the band behind the bars.
   - **Seen, not changed — staging data:** staging's Fuel spend reads "Idle 56,669 dollars · 100%"
     against 1,929 dollars of spend (five fills, a year of idle hours). Not checked on production yet.
+- **2026-11-16, the Fuel card's cost split is withheld when it cannot be true** (branch
+  `claude/fuel-split-guard`). Staging's Fuel spend read "Idle 56,669 dollars · 100%, Moving 0" over
+  1,929 dollars of spend: staging has the real Samsara idle feed and five sandbox fills, and
+  `summariseDashboard` floors Moving at zero, so the bar handed every dollar to idling. Production for
+  the same 31 days, read-only: 63.8 M idle seconds (≈17,700 h, ≈80,000 dollars at the basis) against
+  1.41 M dollars bought — about 6%, so production is right today. It would read the same false 100% the
+  day the fuel import stops while the idle feed carries on (the 2026-09-13 shape). `fuelCostSplit` in
+  shared withholds the split when the idle estimate exceeds all tractor fuel bought — the impossible
+  case, no invented threshold — and the card says why in its place, dollars only for a reader with
+  money.
