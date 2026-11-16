@@ -18,6 +18,7 @@ import OverrideLimitPicker from "./OverrideLimitPicker.vue";
 import { type CardOperationId, type OperationDraft, type StatusRow, blockedSentence } from "./cardOperations";
 import { CLEAR_EXCEPTION_HELP, clearExceptionLabel, offersClearException } from "./overrideException";
 import { ALLOW_HAND_ENTER_HELP, ALLOW_HAND_ENTER_LABEL } from "./overrideLimits";
+import { withValidationType } from "./promptDrafts";
 
 /**
  * The controls for whichever operation the drawer is showing — its third region.
@@ -41,7 +42,7 @@ const props = defineProps<{
   operation: CardOperationId;
   draft: OperationDraft;
   busy: boolean;
-  /** Editable prompt records this product does not touch, listed so nobody thinks they vanished. */
+  /** Prompt records a save leaves exactly as they are (`untouchedPrompts`), listed so nobody thinks they vanished. */
   readOnlyPrompts: { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[];
   /** The three writable statuses, each already carrying the capability it writes through. */
   statusRows?: StatusRow[];
@@ -324,7 +325,7 @@ function chooseAdded(infoId: string): void {
             :model-value="added.validationType"
             :options="validationOptions"
             :disabled="props.busy"
-            @update:model-value="patchAdded({ validationType: $event as PromptInput['validationType'] })"
+            @update:model-value="patchAdded(withValidationType(added, $event as 'EXACT_MATCH' | 'REPORT_ONLY'))"
           />
         </template>
       </FormField>
@@ -388,7 +389,7 @@ function chooseAdded(infoId: string): void {
             :model-value="prompt.validationType"
             :options="validationOptions"
             :disabled="props.busy"
-            @update:model-value="patchPrompt(index, { validationType: $event as PromptInput['validationType'] })"
+            @update:model-value="patchPrompt(index, withValidationType(prompt, $event as 'EXACT_MATCH' | 'REPORT_ONLY'))"
           />
         </template>
       </FormField>

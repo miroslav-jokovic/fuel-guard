@@ -31,13 +31,17 @@ export interface MpgBucket {
   partial: boolean;
 }
 
-export interface MpgWeek {
+/** A calendar week as a card draws it: its days, and whether it is a whole one. Also `spendWeeks.ts`'s. */
+export interface WeekSpan {
   from: string;
   to: string;
-  mpg: number | null;
   days: number;
-  /** Seven days, none of them cut off by the picked dates or by the roll-up's reach. */
+  /** Seven days, none of them cut off by the picked dates or by the data's reach. */
   full: boolean;
+}
+
+export interface MpgWeek extends WeekSpan {
+  mpg: number | null;
 }
 
 export function readWeeks(buckets: readonly MpgBucket[]): MpgWeek[] {
@@ -53,25 +57,32 @@ export function readWeeks(buckets: readonly MpgBucket[]): MpgWeek[] {
  * whole MPG and make every real week look normal.
  */
 export function bandOf(weeks: readonly MpgWeek[]): { lo: number; hi: number } | null {
-  const vals = weeks.filter((w) => w.full && w.mpg != null).map((w) => w.mpg!);
+  return fullWeekBand(weeks, (w) => w.mpg);
+}
+
+/** The lowest and highest `value` among FULL weeks that have one, or null when none does. */
+export function fullWeekBand<W extends WeekSpan>(weeks: readonly W[], value: (w: W) => number | null): { lo: number; hi: number } | null {
+  const vals = weeks.filter((w) => w.full).map(value).filter((v): v is number => v != null);
   return vals.length ? { lo: Math.min(...vals), hi: Math.max(...vals) } : null;
 }
 
 const day = (ymd: string) => formatDisplayDayShort(ymd, ymd);
+/** "10/17 – 10/18", or "11/16" for a week the data reaches by one day only. */
+const span = (w: WeekSpan) => (w.from === w.to ? day(w.from) : `${day(w.from)} – ${day(w.to)}`);
 
 /** "week of 10/19", or "10/17 – 10/18 · 2 days" for a part-week — what the readout says on hover. */
-export function weekCaption(w: MpgWeek): string {
-  return w.full ? `week of ${day(w.from)}` : `${day(w.from)} – ${day(w.to)} · ${w.days} ${w.days === 1 ? "day" : "days"}`;
+export function weekCaption(w: WeekSpan): string {
+  return w.full ? `week of ${day(w.from)}` : `${span(w)} · ${w.days} ${w.days === 1 ? "day" : "days"}`;
 }
 
 /**
  * The one line under the plot that explains a pale bar, or null when every week is full. Names the
  * part-weeks by their dates and day counts — "pale" alone would leave the reader to guess why.
  */
-export function partWeekNote(weeks: readonly MpgWeek[]): string | null {
+export function partWeekNote(weeks: readonly WeekSpan[]): string | null {
   const part = weeks.filter((w) => !w.full);
   if (!part.length) return null;
-  const list = part.map((w) => `${day(w.from)} – ${day(w.to)} (${w.days} ${w.days === 1 ? "day" : "days"})`).join(" and ");
+  const list = part.map((w) => `${span(w)} (${w.days} ${w.days === 1 ? "day" : "days"})`).join(" and ");
   return `Pale: ${list}, not a full week, so not compared.`;
 }
 

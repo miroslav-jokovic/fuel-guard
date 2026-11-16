@@ -22,7 +22,7 @@ import {
   operationStepUp,
   operationUi,
   resolveCapability, capabilityBlockedBy, statusRows, toOperationCard,
-  allowedInfoIdsFrom, allowedLimitsFrom, missingEditableInfoIds, unwritableStatusLabel,
+  allowedInfoIdsFrom, allowedLimitsFrom, missingEditableInfoIds, untouchedPrompts, unwritableStatusLabel,
 } from "./cardOperations";
 import { rebaseDraft, seedDraftFor } from "./operationDrafts";
 import { newIdempotencyKey, type CardMutationOutcome } from "./useCardControl";
@@ -132,8 +132,7 @@ const typed = ref("");
 
 const dispatchOperation = useOperationDispatch();
 
-const readOnlyPrompts = computed(() =>
-  activePrompts.value.filter((p) => !allowedInfoIds.value.includes(p.infoId)));
+const readOnlyPrompts = computed(() => untouchedPrompts(activePrompts.value, allowedInfoIds.value));
 
 function seed(): void {
   activeVersion.value = props.version;
