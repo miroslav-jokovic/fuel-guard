@@ -82,7 +82,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 260
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -132,55 +132,55 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:38:27.746Z",
+    "recorded_at": "2026-11-16T20:10:08.642Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$0.70 per mile",
             "cta": "Apply today",
-            "primary_text": "Class A over-the-road, dry van freight coast to coast. You run at $0.70 per mile, out 2 weeks and home 3 days, with a $2,500 sign-on bonus.",
-            "headline": "Class A over-the-road",
-            "second_line": "$2,500 sign-on"
+            "primary_text": "Class A OTR dry van, coast to coast. $0.70 per mile, a $2,500 sign-on bonus and 401k.",
+            "headline": "Dry van, coast to coast",
+            "second_line": "Home 3 days"
           },
           "es": {
             "hook": "$0.70 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Clase A de larga distancia, carga dry van de costa a costa. Ganas $0.70 por milla, sales 2 semanas y pasas 3 días en casa, con bono de $2,500 al firmar.",
-            "headline": "Clase A, larga distancia",
-            "second_line": "Bono de $2,500"
+            "primary_text": "Clase A, caja seca, costa a costa. $0.70 por milla, bono de contratación de $2,500 y 401k.",
+            "headline": "Caja seca, de costa a costa",
+            "second_line": "3 días en casa"
           }
         },
         {
           "en": {
             "hook": "Out 2 weeks, home 3 days",
             "cta": "Apply now",
-            "primary_text": "Over-the-road dry van, coast to coast. You stay out 2 weeks, then you are home 3 days. $0.70 per mile and a 401k. Class A, 23+.",
-            "headline": "401k and $2,500 sign-on",
+            "primary_text": "Over-the-road dry van, coast to coast. You run 2 weeks and get 3 days home. $2,500 sign-on bonus.",
+            "headline": "$2,500 sign-on bonus",
             "second_line": "$0.70 per mile"
           },
           "es": {
             "hook": "2 semanas fuera, 3 en casa",
             "cta": "Aplica ya",
-            "primary_text": "Larga distancia con dry van, de costa a costa. Sales 2 semanas y luego pasas 3 días en casa. $0.70 por milla y plan 401k. Clase A, mayores de 23.",
-            "headline": "401k y bono de $2,500",
+            "primary_text": "Caja seca, larga distancia, costa a costa. 2 semanas en ruta y 3 días en casa. Bono de contratación de $2,500.",
+            "headline": "Bono de $2,500 al entrar",
             "second_line": "$0.70 por milla"
           }
         },
         {
           "en": {
-            "hook": "$2,500 sign-on bonus",
-            "cta": "Apply now",
-            "primary_text": "Here is the run: dry van freight, over the road, coast to coast. You are out 2 weeks and home 3 days at $0.70 per mile. Got your Class A and age 23? Apply now.",
-            "headline": "Dry van, coast to coast",
-            "second_line": "Plus a 401k"
+            "hook": "Coast to coast, $0.70/mile",
+            "cta": "Apply here",
+            "primary_text": "You pull dry van over the road, coast to coast. 2 weeks out, 3 days home, 401k. Class A, 23+.",
+            "headline": "Class A drivers, 23+",
+            "second_line": "$2,500 to sign on"
           },
           "es": {
-            "hook": "Bono de $2,500 al firmar",
-            "cta": "Aplica ya",
-            "primary_text": "Así es la ruta: carga dry van, larga distancia, de costa a costa. Sales 2 semanas y pasas 3 días en casa, a $0.70 por milla. ¿Tienes Clase A y eres mayor de 23 años? Aplica ya.",
-            "headline": "Dry van de costa a costa",
-            "second_line": "Con plan 401k"
+            "hook": "Costa a costa, $0.70/milla",
+            "cta": "Aplica aquí",
+            "primary_text": "Jalas caja seca en ruta larga, costa a costa. 2 semanas fuera, 3 días en casa y 401k. Clase A, mayores de 23.",
+            "headline": "Clase A, mayores de 23",
+            "second_line": "Bono de $2,500"
           }
         }
       ]

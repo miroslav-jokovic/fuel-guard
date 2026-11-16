@@ -79,7 +79,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 260
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -132,55 +132,55 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:13:52.366Z",
+    "recorded_at": "2026-11-16T19:44:48.077Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$0.72 per mile",
             "cta": "Apply today",
-            "primary_text": "Silvicom Inc is family owned, and the owner still drives. You run reefer in newer trucks at $0.72 per mile. No-touch freight. Pets allowed.",
-            "headline": "The owner still drives",
-            "second_line": "No-touch freight"
+            "primary_text": "Silvicom Inc is family owned, and the owner still drives. Reefer, 48 states, no-touch freight, pets allowed.",
+            "headline": "Our owner still drives",
+            "second_line": "Pets allowed"
           },
           "es": {
             "hook": "$0.72 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Silvicom Inc es una empresa familiar y el dueño todavía maneja. Llevas reefer en camiones más nuevos a $0.72 por milla. Carga sin tocar. Se permiten mascotas.",
-            "headline": "El dueño todavía maneja",
+            "primary_text": "Silvicom Inc es de familia y el dueño aún maneja. Reefer en 48 estados, carga sin tocar y tu mascota contigo.",
+            "headline": "Nuestro dueño aún maneja",
+            "second_line": "Lleva tu mascota"
+          }
+        },
+        {
+          "en": {
+            "hook": "$0.72 a mile",
+            "cta": "Apply now",
+            "primary_text": "Your week: a newer reefer, your pet riding along, no-touch loads in 48 states. A family-owned carrier.",
+            "headline": "The boss drives too",
+            "second_line": "No-touch freight"
+          },
+          "es": {
+            "hook": "$0.72 la milla",
+            "cta": "Aplica ya",
+            "primary_text": "Tu semana: un reefer más nuevo, tu mascota contigo y carga sin tocar en 48 estados. Empresa familiar.",
+            "headline": "El dueño también maneja",
             "second_line": "Carga sin tocar"
           }
         },
         {
           "en": {
-            "hook": "$0.72 a mile, reefer",
-            "cta": "Apply now",
-            "primary_text": "Family owned, and the owner still drives. Your week: a newer reefer truck, your pet in the cab, and freight you never unload. The pay is $0.72 per mile.",
-            "headline": "Our owner still drives",
-            "second_line": "Pets allowed"
+            "hook": "Paid $0.72 per mile",
+            "cta": "Apply today",
+            "primary_text": "Straight up: Silvicom Inc is family owned and the owner still drives. Newer reefers, no-touch freight, pets allowed.",
+            "headline": "Owner still drives here",
+            "second_line": "Health insurance"
           },
           "es": {
-            "hook": "$0.72 por milla, reefer",
-            "cta": "Aplica ya",
-            "primary_text": "Empresa familiar, y el dueño todavía maneja. Tu semana: un camión reefer más nuevo, tu mascota en la cabina y carga que no descargas. Pagamos $0.72 por milla.",
-            "headline": "Nuestro dueño aún maneja",
-            "second_line": "Con tu mascota"
-          }
-        },
-        {
-          "en": {
-            "hook": "Reefer at $0.72 per mile",
-            "cta": "Call us today",
-            "primary_text": "Silvicom Inc is family owned, and the owner still drives. You pull reefer in a newer truck. Bring your pet, and you don't touch the freight. Health insurance comes with the job.",
-            "headline": "Family owned, owner drives",
-            "second_line": "48 states"
-          },
-          "es": {
-            "hook": "Reefer a $0.72 por milla",
-            "cta": "Llámanos hoy",
-            "primary_text": "Silvicom Inc es una empresa familiar y el dueño todavía maneja. Jalas reefer en un camión más nuevo. Trae tu mascota y no tocas la carga. El trabajo incluye seguro médico.",
-            "headline": "Familiar, y el dueño maneja",
-            "second_line": "Los 48 estados"
+            "hook": "Pagamos $0.72 por milla",
+            "cta": "Postúlate hoy",
+            "primary_text": "Te lo digo claro: Silvicom Inc es de familia y el dueño aún maneja. Reefers nuevos, carga sin tocar, mascota a bordo.",
+            "headline": "Aquí el dueño aún maneja",
+            "second_line": "Seguro médico"
           }
         }
       ]

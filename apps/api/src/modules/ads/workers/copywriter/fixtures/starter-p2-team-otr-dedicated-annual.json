@@ -85,7 +85,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 280
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -134,55 +134,55 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:25:51.650Z",
+    "recorded_at": "2026-11-16T19:57:13.692Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "pay": "$95,000 per year",
+            "pay": "$110,000 per year",
             "cta": "Apply today",
-            "primary_text": "Silvicom Inc pays Class A teams $95,000 to $110,000 per year. Dedicated OTR runs, dry van, coast to coast. You stay with your co-driver; we do not split a good pair. Teams 23+.",
-            "headline": "$95,000 to $110,000 a year",
-            "kicker": "Class A OTR teams"
+            "primary_text": "Class A teams earn $95,000 to $110,000 per year. Dry van, coast to coast, drop and hook. Age 23+.",
+            "headline": "Dedicated OTR for teams",
+            "kicker": "Class A teams"
           },
           "es": {
-            "pay": "$95,000 al año",
+            "pay": "$110,000 al año",
             "cta": "Aplica hoy",
-            "primary_text": "Silvicom Inc paga a equipos Clase A de $95,000 a $110,000 al año. Rutas OTR dedicadas, carga seca, de costa a costa. Tu equipo no se separa; aquí cuidamos a un buen equipo. Mayores de 23.",
-            "headline": "$95,000-$110,000 al año",
+            "primary_text": "Equipos Clase A ganan de $95,000 a $110,000 al año. Carga seca, costa a costa, drop and hook. Mayores de 23.",
+            "headline": "OTR dedicado para equipos",
             "kicker": "Equipos Clase A"
           }
         },
         {
           "en": {
-            "pay": "$110,000 per year",
+            "pay": "$95,000 per year",
             "cta": "Apply now",
-            "primary_text": "Drop and hook dry van, coast to coast. Silvicom Inc runs dedicated OTR teams and pays up to $110,000 per year. Your team stays together. Class A, 23+.",
-            "headline": "Drop and hook dry van",
-            "kicker": "Dedicated OTR teams"
+            "primary_text": "At Silvicom Inc, teams stay together. Dedicated dry van runs with drop and hook, up to $110,000 per year.",
+            "headline": "Your pair stays together",
+            "kicker": "Team drivers, OTR"
           },
           "es": {
-            "pay": "$110,000 al año",
+            "pay": "$95,000 al año",
             "cta": "Aplica ya",
-            "primary_text": "Drop and hook con carga seca, de costa a costa. Silvicom Inc tiene rutas OTR dedicadas para equipos y paga hasta $110,000 al año. Tu equipo no se separa. Clase A, mayores de 23.",
-            "headline": "Carga seca, drop and hook",
-            "kicker": "Equipos dedicados"
+            "primary_text": "En Silvicom Inc no separamos a un buen equipo. Rutas dedicadas de carga seca, drop and hook, hasta $110,000 al año.",
+            "headline": "Tu equipo no se separa",
+            "kicker": "Equipos OTR"
           }
         },
         {
           "en": {
-            "pay": "Up to $110,000/year",
-            "cta": "Call us today",
-            "primary_text": "Here is the job: dedicated OTR, dry van, coast to coast, on late-model equipment. Teams make $95,000 to $110,000 per year at Silvicom Inc. We keep good pairs together. Class A, 23+.",
-            "headline": "Late-model equipment, OTR",
-            "kicker": "Team drivers, OTR"
+            "pay": "$95,000 per year",
+            "cta": "Apply today",
+            "primary_text": "Silvicom Inc runs dry van coast to coast, drop and hook. Class A teams earn $95,000 to $110,000 per year.",
+            "headline": "Late-model equipment",
+            "kicker": "Class A OTR teams"
           },
           "es": {
-            "pay": "Hasta $110,000/año",
-            "cta": "Llámanos hoy",
-            "primary_text": "Así es el trabajo: OTR dedicado, carga seca, de costa a costa, en equipo de modelo reciente. Los equipos ganan de $95,000 a $110,000 al año en Silvicom Inc. Aquí no separamos a un buen equipo. Clase A, mayores de 23.",
+            "pay": "$95,000 al año",
+            "cta": "Aplica hoy",
+            "primary_text": "Silvicom Inc mueve carga seca de costa a costa, drop and hook. Equipos Clase A ganan de $95,000 a $110,000 al año.",
             "headline": "Equipo de modelo reciente",
-            "kicker": "Equipos OTR"
+            "kicker": "Equipos en OTR"
           }
         }
       ]

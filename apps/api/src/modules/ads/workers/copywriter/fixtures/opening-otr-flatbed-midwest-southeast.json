@@ -91,7 +91,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 300
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -130,49 +130,49 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T20:58:14.160Z",
+    "recorded_at": "2026-11-16T19:29:46.045Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Dawn run, $0.68-$0.74/mile",
+            "hook": "Sunup. Up to $0.74/mile",
             "cta": "Apply today",
-            "primary_text": "You roll out at first light with flatbed freight, Midwest to the Southeast. Dispatch Freight Lines pays $0.68 to $0.74 per mile plus a $3,000 sign-on bonus. Family-run, and dispatch answers when you call.",
+            "primary_text": "Flatbed, Midwest to the Southeast. $0.68-$0.74 per mile, $3,000 sign-on bonus. Dispatch Freight Lines answers the phone.",
             "headline": "$3,000 sign-on bonus"
           },
           "es": {
-            "hook": "Amanece: $0.68-$0.74/milla",
+            "hook": "Al alba. Hasta $0.74/milla",
             "cta": "Aplica hoy",
-            "primary_text": "Sales al amanecer con carga de flatbed, del Medio Oeste al Sureste. Dispatch Freight Lines paga de $0.68 a $0.74 por milla y $3,000 de bono de contratación. Somos empresa familiar y el despacho contesta.",
-            "headline": "Bono de $3,000 al firmar"
+            "primary_text": "Flatbed del Medio Oeste al Sureste. $0.68-$0.74 por milla, bono de firma de $3,000. Despacho sí contesta.",
+            "headline": "Bono de firma de $3,000"
           }
         },
         {
           "en": {
-            "hook": "Sunup. Out 10 to 12 days",
+            "hook": "Dawn. Out 10 to 12 days",
             "cta": "Apply now",
-            "primary_text": "Your trips run 10 to 12 days over the road, hauling flatbed freight from the Midwest to the Southeast. Pay is $0.68 to $0.74 per mile, with health insurance. Dispatch Freight Lines is family-run, and dispatch answers the phone.",
-            "headline": "$0.68-$0.74 per mile"
+            "primary_text": "OTR flatbed runs, out 10 to 12 days at a time. $0.68-$0.74 per mile, health insurance and a 401k.",
+            "headline": "Dispatch Freight Lines"
           },
           "es": {
-            "hook": "Amanece: rutas de 10-12 días",
+            "hook": "Al alba. Fuera 10 a 12 días",
             "cta": "Aplica ya",
-            "primary_text": "Tus viajes son de 10 a 12 días en carretera, con carga de flatbed del Medio Oeste al Sureste. Pagamos de $0.68 a $0.74 por milla, con seguro médico. Dispatch Freight Lines es empresa familiar y el despacho contesta.",
-            "headline": "$0.68-$0.74 por milla"
+            "primary_text": "Rutas OTR en flatbed, fuera de 10 a 12 días. $0.68-$0.74 por milla, seguro médico y 401k.",
+            "headline": "Dispatch Freight Lines"
           }
         },
         {
           "en": {
-            "hook": "Sunrise, flatbed, Southeast",
-            "cta": "Apply here",
-            "primary_text": "Here's the run: flatbed freight, Midwest to the Southeast, out 10 to 12 days. Pay is $0.68 to $0.74 per mile. You must be 23+. Dispatch Freight Lines is family-run, and when you call, dispatch picks up.",
-            "headline": "401k and health insurance"
+            "hook": "At dawn, you roll southeast",
+            "cta": "Call us",
+            "primary_text": "Family-run, and dispatch answers the phone. Flatbed, Midwest to the Southeast, $0.68-$0.74 per mile. Age 23+.",
+            "headline": "Class A OTR flatbed"
           },
           "es": {
-            "hook": "Amanece: flatbed al Sureste",
-            "cta": "Aplica aquí",
-            "primary_text": "Así es la ruta: carga de flatbed del Medio Oeste al Sureste, de 10 a 12 días fuera. Pagamos de $0.68 a $0.74 por milla. Solo mayores de 23. Dispatch Freight Lines es empresa familiar y el despacho sí contesta.",
-            "headline": "401k y seguro médico"
+            "hook": "Al alba ruedas al Sureste",
+            "cta": "Llámanos",
+            "primary_text": "Empresa familiar y el despacho contesta. Flatbed del Medio Oeste al Sureste, $0.68-$0.74 por milla. Mayores de 23.",
+            "headline": "Flatbed OTR, Clase A"
           }
         }
       ]

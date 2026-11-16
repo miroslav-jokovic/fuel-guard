@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AD_HOOK_FAMILIES, AD_LOOKS, AD_SCENE_FAMILIES, adPresetSaveSchema, conceptPair } from "./brandKitContract.js";
 import { OVERLAY_HEADLINE_MAX_CHARS, OVERLAY_SMALL_LINE_MAX_CHARS } from "./copyCandidates.js";
 import { publishedFormats } from "./renderGeometry.js";
+import { META_FEED_TEXT } from "./platformText.js";
 import { STARTER_PRESETS } from "./starterPresets.js";
 
 /** The starters are data a carrier adopts (Q-AD77): each must be a save the door accepts, as it is. */
@@ -56,6 +57,14 @@ describe("the five starter presets", () => {
       });
     });
     expect(small).toEqual(["P2:kicker", "P3:subline", "P5:subline"]);
+  });
+
+  it("the text above the picture is held to Meta's recommendation for the feed, and the limit is read from it (Q-APX10)", () => {
+    expect(META_FEED_TEXT.primary_max_chars).toBe(150);
+    for (const { key, recipe } of STARTER_PRESETS) {
+      const slot = recipe.copy_slots.find((c) => c.name === recipe.platform_slots!.primary_text)!;
+      expect(slot.max_chars, key).toBe(META_FEED_TEXT.primary_max_chars);
+    }
   });
 
   it("every hook formula says what to do when the brief lacks the fact it leads with", () => {

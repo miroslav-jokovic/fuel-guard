@@ -66,7 +66,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 260
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -104,49 +104,49 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T20:56:52.677Z",
+    "recorded_at": "2026-11-16T19:28:08.773Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Home weekly at $0.67/mile",
+            "hook": "Home weekly",
             "cta": "Apply today",
-            "primary_text": "Run the I-80 corridor, Joliet to Des Moines, and be home weekly. Dispatch Freight Lines pays $0.67 per mile for no-touch dry van freight. Class A, 23+.",
-            "headline": "$0.67 per mile, dry van"
+            "primary_text": "$0.67 per mile on dry van, no-touch freight. Regional runs, Joliet to Des Moines on I-80. Class A, 23+.",
+            "headline": "$0.67 per mile, no-touch"
           },
           "es": {
             "hook": "En casa cada semana",
             "cta": "Aplica hoy",
-            "primary_text": "Recorre la I-80, de Joliet a Des Moines, y regresa a casa cada semana. Dispatch Freight Lines paga $0.67 por milla por carga seca no-touch. Licencia Clase A, mayores de 23.",
-            "headline": "$0.67 por milla, caja seca"
+            "primary_text": "$0.67 por milla en dry van, carga no-touch. Rutas regionales por la I-80, de Joliet a Des Moines. Mayores de 23.",
+            "headline": "$0.67 por milla"
           }
         },
         {
           "en": {
-            "hook": "Home weekly on I-80",
+            "hook": "Home every week",
             "cta": "Apply now",
-            "primary_text": "Regional runs on the I-80 corridor, Joliet to Des Moines, and you are home weekly. No-touch dry van freight at $0.67 per mile. Class A, 23+.",
-            "headline": "Regional dry van, Class A"
+            "primary_text": "Run I-80 from Joliet to Des Moines and be home weekly. Dry van, no-touch freight, $0.67 per mile.",
+            "headline": "Dispatch Freight Lines"
           },
           "es": {
-            "hook": "Casa semanal por la I-80",
+            "hook": "Cada semana, en casa",
             "cta": "Aplica ya",
-            "primary_text": "Rutas regionales por la I-80, de Joliet a Des Moines, y regresas a casa cada semana. Carga seca no-touch a $0.67 por milla. Clase A, mayores de 23.",
-            "headline": "Clase A, caja seca regional"
+            "primary_text": "Maneja la I-80 de Joliet a Des Moines y vuelve a casa cada semana. Dry van, carga no-touch, $0.67 por milla.",
+            "headline": "Dispatch Freight Lines"
           }
         },
         {
           "en": {
-            "hook": "You're home weekly",
-            "cta": "Talk to us",
-            "primary_text": "Here is the run: dry van on I-80, Joliet to Des Moines. No-touch freight, $0.67 per mile, home weekly. Class A, 23+. Talk to Dispatch Freight Lines.",
-            "headline": "No-touch dry van freight"
+            "hook": "Home weekly, I-80 lanes",
+            "cta": "Join our team",
+            "primary_text": "Dispatch Freight Lines runs dry van Joliet to Des Moines. No-touch freight, $0.67 per mile. Class A, age 23.",
+            "headline": "Class A regional, dry van"
           },
           "es": {
-            "hook": "Cada semana, a casa",
-            "cta": "Contáctanos",
-            "primary_text": "Así es la ruta: caja seca por la I-80, de Joliet a Des Moines. Carga no-touch, $0.67 por milla y en casa cada semana. Clase A, mayores de 23. Habla con Dispatch Freight Lines.",
-            "headline": "Carga seca no-touch"
+            "hook": "I-80 y a casa cada semana",
+            "cta": "Únete al equipo",
+            "primary_text": "Dispatch Freight Lines corre dry van de Joliet a Des Moines. Carga no-touch, $0.67 por milla. Mayores de 23.",
+            "headline": "Clase A regional, dry van"
           }
         }
       ]

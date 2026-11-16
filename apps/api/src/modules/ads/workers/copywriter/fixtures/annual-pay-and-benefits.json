@@ -80,43 +80,43 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T20:48:20.509Z",
+    "recorded_at": "2026-11-16T19:19:55.299Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$85,000 a year for Class A drivers",
-            "body": "Earn $85,000 per year in a dedicated Class A job. You also get health insurance and a 401k.",
+            "body": "$85,000 per year on a dedicated Class A job. Health insurance and a 401k come with it. If you hold a Class A, apply today.",
             "cta": "Apply today"
           },
           "es": {
-            "hook": "$85,000 al año con licencia Clase A",
-            "body": "Gana $85,000 al año en un puesto dedicado de Clase A. También tienes seguro médico y plan 401k.",
+            "hook": "$85,000 al año para choferes Clase A",
+            "body": "$85,000 al año en un trabajo dedicado con licencia Clase A. Incluye seguro médico y plan 401k. Si tienes tu Clase A, aplica hoy.",
             "cta": "Aplica hoy"
           }
         },
         {
           "en": {
-            "hook": "$85,000 a year. Dedicated Class A work.",
-            "body": "This is dedicated work for you if you hold a Class A. The pay is $85,000 per year, with health insurance and a 401k.",
-            "cta": "Join our team"
+            "hook": "$85,000 a year, Class A dedicated",
+            "body": "This is dedicated work for Class A drivers. The pay is $85,000 per year, with health insurance and a 401k. Apply and talk to our team.",
+            "cta": "Apply now"
           },
           "es": {
-            "hook": "$85,000 al año. Trabajo dedicado Clase A.",
-            "body": "Es trabajo dedicado si tienes licencia Clase A. Pagamos $85,000 al año, con seguro médico y plan 401k.",
-            "cta": "Únete al equipo"
+            "hook": "$85,000 al año, Clase A dedicado",
+            "body": "Es trabajo dedicado para choferes con Clase A. El pago es $85,000 al año, con seguro médico y plan 401k. Aplica y habla con nuestro equipo.",
+            "cta": "Aplica ahora"
           }
         },
         {
           "en": {
-            "hook": "$85,000 a year if you hold a Class A",
-            "body": "You run dedicated freight on your Class A. You make $85,000 per year. Health insurance and a 401k come with it.",
-            "cta": "Apply now"
+            "hook": "$85,000 a year. Got your Class A?",
+            "body": "Here's the deal: dedicated Class A work at $85,000 per year. You get health insurance and a 401k. Reach out and let's talk about the job.",
+            "cta": "Talk to us today"
           },
           "es": {
-            "hook": "$85,000 al año con tu licencia Clase A",
-            "body": "Manejas carga dedicada con tu licencia Clase A. Ganas $85,000 al año. Incluye seguro médico y plan 401k.",
-            "cta": "Aplica ahora"
+            "hook": "$85,000 al año. ¿Tienes tu Clase A?",
+            "body": "Te lo digo claro: trabajo dedicado con Clase A, $85,000 al año. Tienes seguro médico y plan 401k. Escríbenos y hablamos del trabajo.",
+            "cta": "Habla con nosotros"
           }
         }
       ]

@@ -449,6 +449,14 @@ recommends, and the five starter presets allow it — their limit for this text 
   most ads go out with their last sentence behind "See more".
 - (c) 125, Stories' figure. Our ads are not sent to Stories with their own image today (Q-AD29).
 
+**Built 2026-11-16 as (a), after the ruling.** The five starter presets read their limit from `META_FEED_TEXT`;
+121 Copywriter fixtures carried a limit over 150 (the 60 starter sets and 61 others) and now carry 150; the prompt
+is unchanged (`copywriter@5`). Recorded on the owner's key: 131 of 131 ready. Measured on the new recordings, 363
+texts per language: English median 101, longest 120; Spanish median 106, longest 124; **none over 150** (before:
+59 % and 72 %). The writer is told to write to about three quarters of a limit, which is why the longest is 124
+and not 150. The rating page was rebuilt from these recordings (60 sets, 173 candidates shown, 7 refused by the
+checks and not shown); both of its stores read empty before it was replaced.
+
 ### Q-APX11 · The Instagram story frame, and Meta's own preview — open
 
 **What was read.** We send each ad with one image, the feed image (4:5, else 1:1): a lead ad takes one image, and

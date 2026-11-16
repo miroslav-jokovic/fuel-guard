@@ -58,7 +58,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 300
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -106,49 +106,49 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:11:36.420Z",
+    "recorded_at": "2026-11-16T19:42:27.862Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Class A local, touch freight",
+            "hook": "Class A, touch freight",
             "cta": "Apply today",
-            "primary_text": "Class A local delivery with Silvicom Inc. You need 2 years of experience, and this is touch freight. Day cab, Monday to Friday. $32 per hour, home daily, with health insurance.",
+            "primary_text": "Class A, 2 years experience, touch freight. Local runs in a day cab, Monday to Friday. $32 per hour and home daily.",
             "headline": "Silvicom Inc: $32 per hour"
           },
           "es": {
-            "hook": "Clase A local, carga a mano",
+            "hook": "Clase A, carga a mano",
             "cta": "Aplica hoy",
-            "primary_text": "Reparto local Clase A con Silvicom Inc. Pedimos 2 años de experiencia y la carga se mueve a mano. Day cab, de lunes a viernes. $32 por hora, en casa a diario y seguro médico.",
+            "primary_text": "Clase A, 2 años de experiencia, carga a mano. Local en day cab, lunes a viernes. $32 por hora, en casa a diario.",
             "headline": "Silvicom Inc: $32 por hora"
           }
         },
         {
           "en": {
-            "hook": "Class A, 2 years experience",
+            "hook": "Class A with 2 years",
             "cta": "Apply now",
-            "primary_text": "Your week: Class A day cab, local delivery, touch freight, Monday to Friday. We need 2 years of experience. You make $32 per hour, you're home daily, and you get health insurance.",
-            "headline": "$32/hour, home daily"
+            "primary_text": "Your week: a day cab, local delivery, touch freight, Monday to Friday. Home daily, $32 per hour, health insurance.",
+            "headline": "Health insurance included"
           },
           "es": {
-            "hook": "Clase A, 2 años manejando",
-            "cta": "Solicita hoy",
-            "primary_text": "Tu semana: day cab Clase A, reparto local, carga a mano, de lunes a viernes. Pedimos 2 años de experiencia. Ganas $32 por hora, estás en casa a diario y tienes seguro médico.",
-            "headline": "$32/hora, en casa a diario"
+            "hook": "Clase A con 2 años",
+            "cta": "Aplica ya",
+            "primary_text": "Tu semana: day cab, entregas locales, carga a mano, de lunes a viernes. En casa a diario y $32 por hora.",
+            "headline": "Seguro médico incluido"
           }
         },
         {
           "en": {
-            "hook": "You need Class A, 2 years",
-            "cta": "Apply today",
-            "primary_text": "Straight talk: this is Class A local delivery, and you touch the freight. We need 2 years behind the wheel. Day cab, Monday to Friday, home daily. $32 per hour plus health insurance at Silvicom Inc.",
-            "headline": "Health insurance, $32/hour"
+            "hook": "Touch freight, Class A",
+            "cta": "Join our team",
+            "primary_text": "It's touch freight out of a day cab. You need Class A and 2 years behind the wheel. Home daily, $32 per hour.",
+            "headline": "Local with Silvicom Inc"
           },
           "es": {
-            "hook": "Pedimos Clase A y 2 años",
-            "cta": "Aplica hoy",
-            "primary_text": "Te lo digo claro: es reparto local Clase A y la carga se mueve a mano. Pedimos 2 años de experiencia. Day cab, de lunes a viernes, en casa a diario. $32 por hora más seguro médico en Silvicom Inc.",
-            "headline": "$32/hora y seguro médico"
+            "hook": "Carga a mano, Clase A",
+            "cta": "Únete al equipo",
+            "primary_text": "Es carga a mano en day cab. Necesitas licencia Clase A y 2 años al volante. En casa a diario, $32 por hora.",
+            "headline": "Local con Silvicom Inc"
           }
         }
       ]

@@ -75,7 +75,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 240
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -112,49 +112,49 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T20:52:21.729Z",
+    "recorded_at": "2026-11-16T19:23:43.923Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Dry van, $1,600 a week",
+            "hook": "Dry van, $1,600+/week",
             "cta": "Apply today",
-            "primary_text": "Drive a dry van on regional runs across the Midwest. Pay runs $1,600 to $1,900 per week, and you are home weekly. Class A, 23+. Apply with Silvicom Inc.",
-            "headline": "$1,600 to $1,900 a week"
-          },
-          "es": {
-            "hook": "Dry van, $1,600 semanal",
-            "cta": "Aplica hoy",
-            "primary_text": "Maneja caja seca en rutas regionales por el Medio Oeste. Pagamos de $1,600 a $1,900 por semana y estás en casa cada semana. Clase A, mayores de 23.",
-            "headline": "$1,600 a $1,900 por semana"
-          }
-        },
-        {
-          "en": {
-            "hook": "Dry van, home weekly",
-            "cta": "Apply today",
-            "primary_text": "Regional dry van runs in the Midwest, and you are home weekly. Pay is $1,600 to $1,900 per week, with health insurance plus dental and vision. Class A, 23+.",
+            "primary_text": "Regional dry van runs in the Midwest. $1,600 to $1,900 per week with Silvicom Inc. Home weekly.",
             "headline": "Home weekly, Midwest runs"
           },
           "es": {
-            "hook": "Dry van, en casa semanal",
+            "hook": "Dry van: $1,600+/semana",
             "cta": "Aplica hoy",
-            "primary_text": "Rutas regionales en caja seca por el Medio Oeste, y estás en casa cada semana. Pagamos de $1,600 a $1,900 por semana, con seguro médico, dental y de visión. Clase A, mayores de 23.",
+            "primary_text": "Rutas regionales de dry van en el Medio Oeste. De $1,600 a $1,900 por semana con Silvicom Inc. En casa cada semana.",
             "headline": "En casa cada semana"
           }
         },
         {
           "en": {
-            "hook": "Dry van up to $1,900/wk",
-            "cta": "Call us",
-            "primary_text": "Silvicom Inc runs dry van freight on regional lanes across the Midwest. You haul it, you're home weekly, and you earn up to $1,900 per week. Class A, 23+. Call us.",
-            "headline": "Silvicom Inc is hiring"
+            "hook": "Dry van, home weekly",
+            "cta": "Apply now",
+            "primary_text": "Midwest regional runs in a dry van, then home weekly. Health insurance, dental and vision. Silvicom Inc.",
+            "headline": "$1,600 to $1,900 per week"
           },
           "es": {
-            "hook": "Dry van, hasta $1,900",
-            "cta": "Llámanos",
-            "primary_text": "Silvicom Inc mueve carga en caja seca por rutas regionales del Medio Oeste. Tú la llevas, estás en casa cada semana y ganas hasta $1,900 por semana. Clase A, mayores de 23.",
-            "headline": "Silvicom Inc contrata"
+            "hook": "Dry van, casa cada semana",
+            "cta": "Aplica ya",
+            "primary_text": "Rutas regionales en el Medio Oeste con dry van y en casa cada semana. Seguro médico, dental y visión. Silvicom Inc.",
+            "headline": "$1,600 a $1,900 por semana"
+          }
+        },
+        {
+          "en": {
+            "hook": "Dry van, Class A, 23+",
+            "cta": "Apply today",
+            "primary_text": "You haul dry van freight on Midwest regional runs, home weekly. Age 23 with 2 years of experience. Silvicom Inc.",
+            "headline": "Health, dental and vision"
+          },
+          "es": {
+            "hook": "Dry van, mayores de 23",
+            "cta": "Aplica hoy",
+            "primary_text": "Carga dry van en rutas del Medio Oeste, en casa cada semana. Mayor de 23 años y 2 años de experiencia.",
+            "headline": "Médico, dental y visión"
           }
         }
       ]

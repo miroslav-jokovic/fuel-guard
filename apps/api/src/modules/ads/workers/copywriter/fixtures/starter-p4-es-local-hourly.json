@@ -70,7 +70,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 240
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -114,49 +114,49 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:32:24.681Z",
+    "recorded_at": "2026-11-16T20:04:04.900Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "Dry van, $27 an hour",
             "cta": "Apply today",
-            "primary_text": "Local dry van runs around Chicago for 360 Logistics. $27 per hour, home daily and health insurance. Class A, 23+.",
-            "headline": "Local Chicago, home daily"
+            "primary_text": "Local Class A dry van runs in Chicago. $27 per hour, home daily and health insurance.",
+            "headline": "360 Logistics: $27 an hour"
           },
           "es": {
             "hook": "Caja seca, $27 la hora",
             "cta": "Aplica hoy",
-            "primary_text": "Rutas locales de caja seca en Chicago con 360 Logistics. $27 por hora, en casa todos los días y seguro médico. Clase A, mayores de 23.",
-            "headline": "En casa todos los días"
+            "primary_text": "Rutas locales Clase A en caja seca, en Chicago. $27 por hora, en casa a diario y seguro médico.",
+            "headline": "360 Logistics: $27 la hora"
           }
         },
         {
           "en": {
             "hook": "Dry van, home daily",
-            "cta": "Apply today",
-            "primary_text": "Local dry van runs in Chicago, and you're home daily. 360 Logistics pays $27 per hour with paid time off and health insurance. Class A, 23+.",
-            "headline": "$27/hour with PTO"
+            "cta": "Apply now",
+            "primary_text": "Local dry van runs around Chicago, home daily. $27 per hour and paid time off. Class A, 23+.",
+            "headline": "Home daily, $27 an hour"
           },
           "es": {
-            "hook": "Caja seca, a casa diario",
-            "cta": "Aplica hoy",
-            "primary_text": "Entregas locales de caja seca en Chicago y regresas a casa todos los días. 360 Logistics paga $27 por hora, con tiempo libre pagado y seguro médico. Clase A, mayores de 23.",
-            "headline": "$27/hora y días pagados"
+            "hook": "Caja seca, en casa diario",
+            "cta": "Aplica ahora",
+            "primary_text": "Caja seca local en Chicago, en casa a diario. $27 por hora y tiempo libre pagado. Clase A, mayores de 23.",
+            "headline": "En casa diario, $27/hora"
           }
         },
         {
           "en": {
-            "hook": "Dry van around Chicago",
-            "cta": "Apply now",
-            "primary_text": "Here's the job: local dry van deliveries in Chicago. $27 per hour, home daily, health insurance and paid time off. Class A, 23+. Talk to 360 Logistics.",
-            "headline": "360 Logistics, $27/hour"
+            "hook": "Chicago dry van, $27/hr",
+            "cta": "Apply today",
+            "primary_text": "You run dry van loads around Chicago and go home daily. $27 per hour, health insurance and paid time off.",
+            "headline": "Drive for 360 Logistics"
           },
           "es": {
-            "hook": "Caja seca en Chicago",
-            "cta": "Aplica ya",
-            "primary_text": "Así es el trabajo: entregas locales de caja seca en Chicago. $27 por hora, en casa a diario, seguro médico y tiempo libre pagado. Clase A, mayores de 23. Habla con 360 Logistics.",
-            "headline": "360 Logistics, $27/hora"
+            "hook": "Caja seca local, $27/h",
+            "cta": "Aplica hoy",
+            "primary_text": "Llevas carga de caja seca por Chicago y vuelves a casa a diario. $27 por hora, seguro médico y tiempo libre pagado.",
+            "headline": "Maneja con 360 Logistics"
           }
         }
       ]

@@ -70,7 +70,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 300
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -115,49 +115,49 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:15:20.085Z",
+    "recorded_at": "2026-11-16T19:46:22.095Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Chicago local, home daily",
+            "hook": "Class A local in Chicago",
             "cta": "Apply today",
-            "primary_text": "Dry van, local runs in Chicago. You make $27 per hour and you're home daily. Health insurance and paid time off. Class A, 23+, 2 years of experience. Apply with 360 Logistics.",
+            "primary_text": "$27 per hour, home daily. Local dry van runs in Chicago. Need 23+ and 2 years experience.",
             "headline": "$27 per hour in Chicago"
           },
           "es": {
-            "hook": "Chicago, en casa a diario",
+            "hook": "Clase A local en Chicago",
             "cta": "Aplica hoy",
-            "primary_text": "Caja seca, entregas locales en Chicago. Ganas $27 por hora y estás en casa a diario. Seguro médico y tiempo libre pagado. Licencia Clase A, mayores de 23, 2 años de experiencia. Aplica con 360 Logistics.",
+            "primary_text": "$27 por hora y en casa todos los días. Caja seca local en Chicago. Buscamos mayores de 23 con 2 años de experiencia.",
             "headline": "$27 por hora en Chicago"
           }
         },
         {
           "en": {
-            "hook": "Local dry van, home daily",
+            "hook": "Chicago runs, home daily",
             "cta": "Apply now",
-            "primary_text": "Your day starts and ends in Chicago. Local dry van runs, and you're home daily. $27 per hour, paid time off and health insurance. You need a Class A, 23+, and 2 years of experience.",
+            "primary_text": "Home daily from local Chicago dry van runs. Paid time off and health insurance. 23+, 2 years experience.",
             "headline": "Home daily, $27 per hour"
           },
           "es": {
-            "hook": "Caja seca, casa a diario",
-            "cta": "Aplica ya",
-            "primary_text": "Tu día empieza y termina en Chicago. Rutas locales en caja seca y estás en casa a diario. $27 por hora, tiempo libre pagado y seguro médico. Necesitas Clase A, mayor de 23 años y 2 años de experiencia.",
+            "hook": "Chicago, en casa a diario",
+            "cta": "Aplica ahora",
+            "primary_text": "En casa a diario, rutas locales en Chicago. Tiempo libre pagado y seguro médico. Experiencia de 2 años.",
             "headline": "En casa a diario, $27/hora"
           }
         },
         {
           "en": {
-            "hook": "Chicago local, 2 years exp.",
-            "cta": "Apply today",
-            "primary_text": "Here's the job: dry van freight, local deliveries around Chicago, home daily. Pay is $27 per hour. You get health insurance and paid time off. Bring a Class A, 2 years of experience, and be 23+.",
-            "headline": "$27/hr at 360 Logistics"
+            "hook": "Dry van around Chicago",
+            "cta": "Apply here",
+            "primary_text": "You run dry van loads around Chicago and sleep at home. $27 per hour. Need 23+ and 2 years experience.",
+            "headline": "Drive for 360 Logistics"
           },
           "es": {
-            "hook": "Chicago local, 2 años exp.",
-            "cta": "Solicita hoy",
-            "primary_text": "Así es el trabajo: carga en caja seca, entregas locales en Chicago y en casa a diario. Pagamos $27 por hora. Tienes seguro médico y tiempo libre pagado. Trae tu Clase A, 2 años de experiencia y sé mayor de 23 años.",
-            "headline": "$27/hora en 360 Logistics"
+            "hook": "Caja seca por Chicago",
+            "cta": "Aplica aquí",
+            "primary_text": "Carga de caja seca en Chicago y a casa a diario. $27 por hora. Para mayores de 23 con 2 años de experiencia.",
+            "headline": "Maneja con 360 Logistics"
           }
         }
       ]

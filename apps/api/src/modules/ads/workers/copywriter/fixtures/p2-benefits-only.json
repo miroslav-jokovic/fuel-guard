@@ -48,7 +48,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 280
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -86,49 +86,49 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:02:46.025Z",
+    "recorded_at": "2026-11-16T19:34:18.193Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "pay": "401k and dental",
-            "cta": "Apply today",
-            "primary_text": "Class A dedicated driver. You get a 401k, plus dental and vision. Apply today and ask us about the run.",
-            "headline": "Dedicated Class A driver"
-          },
-          "es": {
-            "pay": "401k y dental",
-            "cta": "Aplica hoy",
-            "primary_text": "Buscamos chofer Clase A dedicado. Tienes 401k, además de dental y visión. Aplica hoy y pregúntanos por la ruta.",
-            "headline": "Chofer Clase A dedicado"
-          }
-        },
-        {
-          "en": {
             "pay": "Dedicated Class A",
-            "cta": "Apply now",
-            "primary_text": "Dedicated work for a Class A driver. Benefits include a 401k, plus dental and vision. Apply now and we will walk you through the job.",
+            "cta": "Apply today",
+            "primary_text": "Class A dedicated driver job. You get a 401k plus dental and vision. Apply today and talk to our team.",
             "headline": "401k, dental and vision"
           },
           "es": {
-            "pay": "Clase A dedicado",
-            "cta": "Aplica ya",
-            "primary_text": "Trabajo dedicado para chofer Clase A. Incluye 401k, dental y visión. Aplica ya y te explicamos el trabajo.",
+            "pay": "Ruta dedicada",
+            "cta": "Aplica hoy",
+            "primary_text": "Trabajo dedicado para chofer Clase A. Tienes 401k, dental y visión. Aplica hoy y habla con nuestro equipo.",
             "headline": "401k, dental y visión"
           }
         },
         {
           "en": {
+            "pay": "401k and dental",
+            "cta": "Call us",
+            "primary_text": "Dedicated Class A drivers get a 401k, plus dental and vision. Call us and ask about the run.",
+            "headline": "Dedicated Class A driving"
+          },
+          "es": {
+            "pay": "401k y dental",
+            "cta": "Llámanos",
+            "primary_text": "Choferes Clase A dedicados con 401k, dental y visión. Llámanos y pregunta por la ruta.",
+            "headline": "Puesto dedicado Clase A"
+          }
+        },
+        {
+          "en": {
             "pay": "Dental and vision",
-            "cta": "Apply here",
-            "primary_text": "Got your Class A? This one is dedicated. You get dental and vision, and a 401k. Send in your application and let's talk.",
-            "headline": "Class A, dedicated, 401k"
+            "cta": "Send your info",
+            "primary_text": "Got your Class A? This seat is dedicated, with a 401k and dental and vision. Send your info and we will call you.",
+            "headline": "Class A dedicated, 401k"
           },
           "es": {
             "pay": "Dental y visión",
-            "cta": "Aplica aquí",
-            "primary_text": "¿Tienes tu Clase A? Este trabajo es dedicado. Tienes dental y visión, y 401k. Manda tu solicitud y hablamos.",
-            "headline": "Clase A, dedicado, 401k"
+            "cta": "Manda tus datos",
+            "primary_text": "¿Tienes tu Clase A? Este puesto es dedicado, con 401k, dental y visión. Manda tus datos y te llamamos.",
+            "headline": "Clase A dedicado, con 401k"
           }
         }
       ]

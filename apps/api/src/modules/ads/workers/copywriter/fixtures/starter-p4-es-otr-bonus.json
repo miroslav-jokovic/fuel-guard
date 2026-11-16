@@ -82,7 +82,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 240
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -126,20 +126,20 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:32:45.687Z",
+    "recorded_at": "2026-11-16T20:04:28.124Z",
     "output": {
       "candidates": [
         {
           "en": {
-            "hook": "Dry van at $0.70 a mile",
+            "hook": "Dry van, $0.70/mile",
             "cta": "Apply today",
-            "primary_text": "Dry van freight, over-the-road, coast to coast. You earn $0.70 per mile, plus a $2,500 sign-on bonus. Out 2 weeks, home 3 days. Class A drivers, age 23.",
+            "primary_text": "Dry van freight, over-the-road, coast to coast. $0.70 per mile. Out 2 weeks, home 3 days.",
             "headline": "$2,500 sign-on bonus"
           },
           "es": {
-            "hook": "Caja seca a $0.70/milla",
+            "hook": "Dry van a $0.70/milla",
             "cta": "Aplica hoy",
-            "primary_text": "Carga dry van, rutas OTR de costa a costa. Ganas $0.70 por milla y un bono de contratación de $2,500. Fuera 2 semanas, en casa 3 días. Clase A, mayores de 23.",
+            "primary_text": "Carga dry van, rutas OTR de costa a costa. $0.70 por milla. Fuera 2 semanas, en casa 3 días.",
             "headline": "Bono de $2,500 al firmar"
           }
         },
@@ -147,28 +147,28 @@
           "en": {
             "hook": "Dry van, home 3 days",
             "cta": "Apply now",
-            "primary_text": "You run dry van coast to coast for 2 weeks, then you are home 3 days. $0.70 per mile, a 401k and a $2,500 sign-on bonus. Class A drivers, age 23.",
-            "headline": "Out 2 weeks, home 3 days"
+            "primary_text": "Over-the-road dry van, coast to coast. Out 2 weeks, then home 3 days. $0.70 per mile.",
+            "headline": "$2,500 sign-on and 401k"
           },
           "es": {
             "hook": "Dry van, 3 días en casa",
             "cta": "Aplica ya",
-            "primary_text": "Llevas dry van de costa a costa 2 semanas y luego descansas 3 días en casa. $0.70 por milla, 401k y bono de contratación de $2,500. Clase A, mayores de 23.",
-            "headline": "2 semanas fuera, 3 en casa"
+            "primary_text": "Dry van OTR de costa a costa. Fuera 2 semanas y luego 3 días en casa. $0.70 por milla.",
+            "headline": "Bono de $2,500 y 401k"
           }
         },
         {
           "en": {
             "hook": "Dry van, coast to coast",
-            "cta": "Apply today",
-            "primary_text": "Here is the run: dry van, over-the-road, coast to coast. $0.70 per mile. Out 2 weeks, home 3 days. 401k. Class A, age 23. Apply and we will get you rolling.",
-            "headline": "$0.70 per mile, plus 401k"
+            "cta": "Apply here",
+            "primary_text": "You run dry van freight from coast to coast. $2,500 sign-on bonus and 401k. Class A, 23+.",
+            "headline": "$0.70 per mile, OTR"
           },
           "es": {
             "hook": "Dry van de costa a costa",
-            "cta": "Aplica hoy",
-            "primary_text": "Así es la ruta: dry van, OTR, de costa a costa. $0.70 por milla. 2 semanas en la ruta, 3 días en casa. 401k. Clase A, mayores de 23. Aplica y te ponemos a rodar.",
-            "headline": "$0.70 por milla y 401k"
+            "cta": "Aplica aquí",
+            "primary_text": "Llevas carga dry van de costa a costa. Bono de $2,500 al firmar y 401k. Clase A, mayores de 23.",
+            "headline": "$0.70 por milla, OTR"
           }
         }
       ]

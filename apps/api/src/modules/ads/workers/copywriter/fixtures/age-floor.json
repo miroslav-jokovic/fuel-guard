@@ -73,43 +73,43 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T20:48:04.610Z",
+    "recorded_at": "2026-11-16T19:19:38.252Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$0.65 per mile for Class A OTR drivers",
-            "body": "You drive over the road with your Class A CDL and earn $0.65 per mile. Open to drivers 23+.",
+            "body": "Every mile you run pays $0.65. The job is over-the-road, for Class A drivers 23+. Apply and we will talk through the runs with you.",
             "cta": "Apply today"
           },
           "es": {
             "hook": "$0.65 por milla, choferes Clase A OTR",
-            "body": "Manejas OTR con tu licencia Clase A y ganas $0.65 por milla. Para choferes mayores de 23.",
+            "body": "Cada milla que manejas paga $0.65. Es trabajo de ruta larga (OTR) para choferes Clase A mayores de 23. Aplica y te contamos de las rutas.",
             "cta": "Aplica hoy"
           }
         },
         {
           "en": {
             "hook": "$0.65 a mile. Class A, over the road.",
-            "body": "This is over-the-road work for Class A drivers 23+. The pay is $0.65 a mile. If you hold a Class A CDL and want to run OTR, start here.",
-            "cta": "Start your application"
+            "body": "Here it is straight: you drive OTR on your Class A and you earn $0.65 a mile. You need to be 23+. Reach out and we will go over the rest.",
+            "cta": "Talk to dispatch"
           },
           "es": {
-            "hook": "$0.65 la milla. Clase A, OTR.",
-            "body": "Trabajo OTR para choferes con licencia Clase A, mayores de 23. Se paga $0.65 por milla. Si tienes tu CDL Clase A y quieres correr OTR, empieza aquí.",
-            "cta": "Empieza tu solicitud"
+            "hook": "$0.65 la milla. Clase A, ruta larga.",
+            "body": "Te lo digo claro: manejas OTR con tu licencia Clase A y ganas $0.65 por milla. Tienes que ser mayor de 23 años. Escríbenos y vemos lo demás.",
+            "cta": "Habla con despacho"
           }
         },
         {
           "en": {
-            "hook": "$0.65 a mile for Class A drivers, 23+",
-            "body": "Here is the deal: you run OTR, you get $0.65 per mile. You need a Class A CDL and you need to be 23+. Reach out and we'll talk.",
-            "cta": "Send your info"
+            "hook": "$0.65 a mile for Class A OTR, 23+",
+            "body": "Over the road, the miles add up, and each one pays $0.65. If you hold a Class A and you are 23+, you can drive with us.",
+            "cta": "Apply now"
           },
           "es": {
-            "hook": "$0.65 la milla, Clase A, mayores de 23",
-            "body": "Así de claro: corres OTR y ganas $0.65 por milla. Necesitas licencia Clase A y ser mayor de 23 años. Escríbenos y hablamos.",
-            "cta": "Manda tus datos"
+            "hook": "$0.65 la milla para Clase A OTR",
+            "body": "En ruta larga las millas suman, y cada una paga $0.65. Si tienes licencia Clase A y eres mayor de 23 años, puedes manejar con nosotros.",
+            "cta": "Aplica ya"
           }
         }
       ]

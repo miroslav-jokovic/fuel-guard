@@ -58,7 +58,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 280
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -110,55 +110,55 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:11:12.854Z",
+    "recorded_at": "2026-11-16T19:42:00.980Z",
     "output": {
       "candidates": [
         {
           "en": {
             "pay": "$0.68 per mile",
             "cta": "Apply today",
-            "primary_text": "Flatbed on Midwest lanes at $0.68 per mile. You run an assigned truck and get home weekly. Silvicom Inc is a small fleet where dispatch knows your name. You need 1 year of experience.",
-            "headline": "Home weekly, Midwest lanes",
+            "primary_text": "Silvicom Inc pays $0.68 per mile for flatbed on Midwest lanes. Home weekly, assigned truck, 401k.",
+            "headline": "Home weekly, with a 401k",
             "kicker": "Class A flatbed"
           },
           "es": {
             "pay": "$0.68 por milla",
             "cta": "Aplica hoy",
-            "primary_text": "Flatbed en rutas del Medio Oeste a $0.68 por milla. Tienes camión asignado y estás en casa cada semana. Silvicom Inc es una flota chica donde despacho sabe tu nombre. Se pide 1 año de experiencia.",
+            "primary_text": "Silvicom Inc paga $0.68 por milla en flatbed por rutas del Medio Oeste. En casa cada semana y 401k.",
+            "headline": "Casa cada semana y 401k",
+            "kicker": "Clase A, flatbed"
+          }
+        },
+        {
+          "en": {
+            "pay": "$0.68 per mile",
+            "cta": "Start here",
+            "primary_text": "Your week: flatbed loads on Midwest lanes in your assigned truck at $0.68 per mile, then home weekly.",
+            "headline": "Midwest runs, home weekly",
+            "kicker": "Regional flatbed"
+          },
+          "es": {
+            "pay": "$0.68 por milla",
+            "cta": "Empieza aquí",
+            "primary_text": "Tu semana: carga de flatbed por el Medio Oeste en tu camión asignado, a $0.68 por milla, y a casa.",
             "headline": "En casa cada semana",
-            "kicker": "Flatbed Clase A"
+            "kicker": "Flatbed regional"
           }
         },
         {
           "en": {
             "pay": "$0.68 per mile",
             "cta": "Apply now",
-            "primary_text": "Your week: flatbed loads across the Midwest in your assigned truck, paid $0.68 per mile, then home weekly. 401k at Silvicom Inc, a small fleet where dispatch knows your name.",
-            "headline": "Your week ends at home",
-            "kicker": "Regional Class A"
+            "primary_text": "Small fleet, and dispatch knows your name. Flatbed, Midwest lanes, assigned truck. 401k. Silvicom Inc.",
+            "headline": "Assigned truck and a 401k",
+            "kicker": "Class A regional"
           },
           "es": {
             "pay": "$0.68 por milla",
             "cta": "Aplica ya",
-            "primary_text": "Tu semana: cargas de flatbed por el Medio Oeste en tu camión asignado, a $0.68 por milla, y en casa cada semana. 401k en Silvicom Inc, una flota chica donde despacho sabe tu nombre.",
-            "headline": "Tu semana termina en casa",
-            "kicker": "Regional Clase A"
-          }
-        },
-        {
-          "en": {
-            "pay": "$0.68 per mile",
-            "cta": "Apply here",
-            "primary_text": "Here is the run. Flatbed, Midwest lanes, assigned truck. $0.68 per mile and home weekly. You need 1 year behind the wheel. We are a small fleet, so dispatch knows your name.",
-            "headline": "Silvicom Inc is hiring",
-            "kicker": "Flatbed drivers"
-          },
-          "es": {
-            "pay": "$0.68 por milla",
-            "cta": "Aplica aquí",
-            "primary_text": "Así es la ruta. Flatbed, Medio Oeste, camión asignado. $0.68 por milla y en casa cada semana. Necesitas 1 año de experiencia. Somos una flota chica: en despacho saben tu nombre.",
-            "headline": "Silvicom Inc busca choferes",
-            "kicker": "Choferes flatbed"
+            "primary_text": "Flota chica donde despacho sabe tu nombre. Flatbed, Medio Oeste, camión asignado. 401k. Silvicom Inc.",
+            "headline": "Camión asignado y 401k",
+            "kicker": "Clase A regional"
           }
         }
       ]

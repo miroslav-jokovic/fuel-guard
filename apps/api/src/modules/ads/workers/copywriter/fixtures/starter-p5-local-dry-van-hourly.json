@@ -75,7 +75,7 @@
         },
         {
           "name": "primary_text",
-          "max_chars": 260
+          "max_chars": 150
         },
         {
           "name": "headline",
@@ -125,54 +125,54 @@
     "source": "model",
     "prompt_version": "copywriter@5",
     "model": "claude-opus-5-5",
-    "recorded_at": "2026-11-15T21:40:56.412Z",
+    "recorded_at": "2026-11-16T20:12:53.016Z",
     "output": {
       "candidates": [
         {
           "en": {
             "hook": "$28 to $32 per hour",
             "cta": "Apply today",
-            "primary_text": "360 Logistics pays $28 to $32 per hour for Class A local dry van runs. You deliver to Chicagoland stores on a dedicated account and go home daily. Paid time off. Must be 23+.",
-            "headline": "Local dry van, Chicagoland",
+            "primary_text": "Local dry van runs to Chicagoland stores with 360 Logistics. Dedicated work, paid time off. Class A, 23+.",
+            "headline": "Local Class A dry van",
             "second_line": "Home daily"
           },
           "es": {
             "hook": "$28 a $32 por hora",
             "cta": "Aplica hoy",
-            "primary_text": "360 Logistics paga $28 a $32 por hora en rutas locales de dry van, Clase A. Entregas a tiendas en Chicagoland, cuenta dedicada y en casa a diario. Tiempo libre pagado. Mayores de 23.",
-            "headline": "Dry van local, Chicagoland",
+            "primary_text": "Carga seca local a tiendas de Chicagoland con 360 Logistics. Ruta dedicada y tiempo libre pagado.",
+            "headline": "Clase A local, caja seca",
             "second_line": "En casa a diario"
           }
         },
         {
           "en": {
-            "hook": "Up to $32 per hour",
+            "hook": "$28–$32 an hour, local",
             "cta": "Apply now",
-            "primary_text": "Up to $32 an hour. Local dry van, home daily, Chicagoland store deliveries. Dedicated runs with paid time off. Class A, 23+. Apply with 360 Logistics.",
-            "headline": "Home daily, local runs",
+            "primary_text": "Home daily. You run dedicated dry van freight to Chicagoland stores. Class A, 23+.",
+            "headline": "Local runs in Chicagoland",
             "second_line": "Paid time off"
           },
           "es": {
-            "hook": "Hasta $32 por hora",
+            "hook": "$28–$32 por hora, local",
             "cta": "Aplica ya",
-            "primary_text": "Hasta $32 por hora. Dry van local, en casa a diario, entregas a tiendas en Chicagoland. Ruta dedicada y tiempo libre pagado. Clase A, mayores de 23. Aplica con 360 Logistics.",
-            "headline": "Local y en casa a diario",
-            "second_line": "Vacaciones pagadas"
+            "primary_text": "En casa todos los días. Llevas carga seca dedicada a tiendas de Chicagoland. Clase A, mayores de 23.",
+            "headline": "Local en Chicagoland",
+            "second_line": "Tiempo libre pagado"
           }
         },
         {
           "en": {
-            "hook": "$28–$32 an hour, local",
-            "cta": "Apply today",
-            "primary_text": "You haul dry van freight to Chicagoland stores and go home daily. Dedicated account, $28 to $32 an hour, paid time off. Class A, 23+. Talk to 360 Logistics.",
-            "headline": "Chicagoland store runs",
+            "hook": "$28–$32/hr dry van",
+            "cta": "Join our team",
+            "primary_text": "360 Logistics here. Local dry van, store deliveries around Chicagoland, home daily. Class A and 23+ to apply.",
+            "headline": "360 Logistics is hiring",
             "second_line": "Dedicated runs"
           },
           "es": {
-            "hook": "$28–$32 la hora, local",
-            "cta": "Aplica hoy",
-            "primary_text": "Llevas carga en dry van a tiendas de Chicagoland y vuelves a casa a diario. Cuenta dedicada, $28 a $32 por hora, tiempo libre pagado. Clase A, mayores de 23. Habla con 360 Logistics.",
-            "headline": "Entregas en Chicagoland",
+            "hook": "$28–$32/hora, carga seca",
+            "cta": "Únete al equipo",
+            "primary_text": "Habla 360 Logistics. Caja seca local, entregas a tiendas en Chicagoland y en casa a diario. Clase A, mayores de 23.",
+            "headline": "360 Logistics contrata",
             "second_line": "Rutas dedicadas"
           }
         }
