@@ -123,6 +123,11 @@ plan cites evidence that exists.
 migration). Nothing reads the tags yet: the Art director is told them with Q-APX8's prompt change, one recording
 for both. **Measured the same day:** what make-many costs and how steady the judge is — Q-APX7 to Q-APX9.
 
+**Built 2026-11-16 (V3c–V3e):** the Art director makes one ad's pictures differ; an ad is chosen from several
+pictures by ranked pairings; the review screen shows the winner with its rivals and a person can use another.
+**Open in V3:** the preview frames (waits on a sandbox account for the measured safe zones) and the reference set
+(waits on 50 real approvals and rejections).
+
 **Done when:** the review screen shows the winner with its rivals, and the preview frames match Meta's safe zones
 measured on the sandbox. "Top of class" cannot be claimed before a real image model is chosen (Q-AD20).
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AdPairings } from "./adPairings.js";
+import { MAX_PICTURES_PER_CREATIVE, asGoodCount, type AdPairing, type AdPairings, type AdPicture } from "./adPairings.js";
 import type { AdCandidates } from "./copyCandidates.js";
 import { recordId } from "../recordId.js";
 import type { AdBrief, CampaignState, CreativeState } from "./contracts.js";
@@ -67,6 +67,42 @@ export interface AdsCreativeAsset {
   url: string | null;
 }
 
+/** A pairing as the review screen reads it: its one kept image with a short-lived link (null when none could be made). */
+export type AdPairingView = Omit<AdPairing, "preview"> & { preview: (NonNullable<AdPairing["preview"]> & { url: string | null }) | null };
+export type AdPairingsView = Omit<AdPairings, "ranked"> & { ranked: AdPairingView[] };
+
+export interface AdRival {
+  /** Its place in the ranking, from 1. */
+  rank: number;
+  picture: number;
+  /** The words, by their index in `candidates.ranked`. */
+  words: number;
+  /** The four scores added, of 20; null when the judge did not score it. */
+  total: number | null;
+  /** This pairing is the ad. */
+  chosen: boolean;
+  /**
+   * Scored within the judge's own movement of the best (`PAIRING_TIE_MARGIN`): the screen says "as good", never
+   * "second". False for everything when nothing was judged.
+   */
+  asGood: boolean;
+  url: string | null;
+}
+
+/**
+ * What the review screen shows of the pictures and words an ad was chosen from (V3 "show few"): every pairing in
+ * rank order with whether it is the ad and whether it is as good as the best, and the pictures that were made and
+ * not used, each with why. One function, so the screen states nothing the ranking did not.
+ */
+export function adRivals(pairings: AdPairingsView): { judged: boolean; rivals: AdRival[]; unused: Array<Pick<AdPicture, "picture"> & { reason: string }> } {
+  const level = asGoodCount(pairings.ranked);
+  return {
+    judged: pairings.judge !== null,
+    rivals: pairings.ranked.map((r, i) => ({ rank: i + 1, picture: r.picture, words: r.words, total: r.total, chosen: i === pairings.chosen, asGood: i < level, url: r.preview?.url ?? null })),
+    unused: pairings.pictures.flatMap((p) => (p.dropped === null ? [] : [{ picture: p.picture, reason: p.dropped }])),
+  };
+}
+
 export interface AdsCreativeView {
   id: string;
   preset_version_id: string;
@@ -89,7 +125,7 @@ export interface AdsCreativeView {
    * The pictures this ad was chosen from and every picture-and-words pairing, ranked by the finished-ad judge (V3,
    * 0619); null for an ad made from one picture — every ad before V3, and one built from a person's choice.
    */
-  pairings: AdPairings | null;
+  pairings: AdPairingsView | null;
   regenerations: number;
   last_error: string | null;
   created_at: string;
@@ -149,5 +185,11 @@ const copySlots = z.record(z.string().regex(/^[a-z][a-z0-9_]{1,30}$/), z.string(
 export const adsCopyChoiceSchema = z.object({
   from_candidate: z.number().int().min(0).max(4).nullable(),
   copy: z.object({ en: copySlots, es: copySlots }).strict(),
+  /**
+   * Which of the ad's pictures the words go on (V3, `ads_copy_choices.picture`, 0619): one of the pictures the ad
+   * was chosen from, by its number. Absent or null = the picture the ad has. The door refuses a picture the ad
+   * never made, or one that was dropped.
+   */
+  picture: z.number().int().min(1).max(MAX_PICTURES_PER_CREATIVE).nullable().optional(),
 }).strict();
 export type AdsCopyChoice = z.infer<typeof adsCopyChoiceSchema>;

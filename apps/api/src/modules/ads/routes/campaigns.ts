@@ -67,6 +67,7 @@ const CHOICE_REFUSAL: Record<Extract<CopyChoiceOutcome, { kind: "refused" }>["re
   settings_not_saved: "Save the ads settings before reviewing ads.",
   slots_mismatch: "Fill every line of the ad, in English and Spanish.",
   unknown_candidate: "That copy is not one this ad was offered. Reload to see the ad.",
+  unknown_picture: "That picture is not one this ad can use. Reload to see the ad.",
   chosen_differently: "Different words were already chosen for this ad. Reload to see them.",
   cannot_regenerate: "The ad cannot be remade now. Reload to see the campaign.",
 };

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adBriefSchema, adCandidatesSchema, publishedFormats, type AdFormat, type AdsCopyChoice } from "@silvicom/shared";
+import { adBriefSchema, adCandidatesSchema, adPairingsSchema, publishedFormats, type AdFormat, type AdsCopyChoice } from "@silvicom/shared";
 import { campaignKit, recipeById } from "../compose/composeCampaign.js";
 import { drawnCopy } from "../compose/composeCreative.js";
 import { overlayFit, type OverlayFinding, type OverlayLanguage } from "../creative/overlay/overlay.js";
@@ -11,7 +11,9 @@ import { personMove } from "./campaignDoors.js";
 /**
  * A person chooses the words of one ad (ADS-AD-LOOK-PLAN Q-ADL7; the owner, 2026-11-12: "we should in settings have
  * texts to choose, or ads page"). The reviewer picks one of the copies the writer offered, or edits any line, and
- * the ad is remade with those words on the SAME picture.
+ * the ad is remade with those words on the SAME picture — or, since V3, on another of the pictures the ad was chosen
+ * from (`ask.picture`): the reviewer sees the rivals and may prefer one. Either way no new picture is made: the one
+ * kept is replayed from its ledger rows.
  *
  * ── WHY A NEW CREATIVE, NOT AN EDIT ─────────────────────────────────────────────────────────────
  * 0537 freezes a creative once it leaves the workers ("what a person approved is what runs"), so the words of a
@@ -32,7 +34,7 @@ import { personMove } from "./campaignDoors.js";
 export type CopyChoiceOutcome =
   | { kind: "chosen"; replaced: string }
   | { kind: "not_found" }
-  | { kind: "refused"; reason: "campaign_not_in_review" | "not_ready" | "settings_not_saved" | "slots_mismatch" | "unknown_candidate" | "chosen_differently" | "cannot_regenerate"; detail?: string }
+  | { kind: "refused"; reason: "campaign_not_in_review" | "not_ready" | "settings_not_saved" | "slots_mismatch" | "unknown_candidate" | "unknown_picture" | "chosen_differently" | "cannot_regenerate"; detail?: string }
   | { kind: "words_refused"; copy: SlotFinding[]; overlay: Array<{ format: AdFormat; language: OverlayLanguage; findings: OverlayFinding[] }> };
 
 const LANGUAGES: OverlayLanguage[] = ["en", "es"];
@@ -42,19 +44,21 @@ export async function chooseWords(
 ): Promise<CopyChoiceOutcome> {
   const [{ data: campaign, error: cErr }, { data: creative, error: crErr }, { data: prior, error: pErr }] = await Promise.all([
     admin.from("ads_campaigns").select("state, brief_snapshot, brand_kit_id").eq("org_id", orgId).eq("id", campaignId).maybeSingle(),
-    admin.from("ads_creatives").select("state, preset_version_id, copy, candidates").eq("org_id", orgId).eq("campaign_id", campaignId).eq("id", creativeId).maybeSingle(),
-    admin.from("ads_copy_choices").select("copy, from_candidate").eq("org_id", orgId).eq("replaces_creative_id", creativeId).maybeSingle(),
+    admin.from("ads_creatives").select("state, preset_version_id, copy, candidates, pairings").eq("org_id", orgId).eq("campaign_id", campaignId).eq("id", creativeId).maybeSingle(),
+    admin.from("ads_copy_choices").select("copy, from_candidate, picture").eq("org_id", orgId).eq("replaces_creative_id", creativeId).maybeSingle(),
   ]);
   if (cErr) throw new Error(`ads_campaigns: ${cErr.message}`);
   if (crErr) throw new Error(`ads_creatives: ${crErr.message}`);
   if (pErr) throw new Error(`ads_copy_choices: ${pErr.message}`);
   if (!campaign || !creative) return { kind: "not_found" };
   const c = campaign as { state: string; brief_snapshot: unknown; brand_kit_id: string | null };
-  const cr = creative as { state: string; preset_version_id: string; copy: { en: Record<string, string>; es: Record<string, string> } | null; candidates: unknown };
+  const cr = creative as { state: string; preset_version_id: string; copy: { en: Record<string, string>; es: Record<string, string> } | null; candidates: unknown; pairings: unknown };
+  /** The picture asked for, or null for "the one the ad has": absent and null are one answer. */
+  const picture = ask.picture ?? null;
 
   // A press that already recorded this choice resumes from where it stopped; a different choice is refused.
-  const recorded = prior as { copy: AdsCopyChoice["copy"]; from_candidate: number | null } | null;
-  if (recorded && (JSON.stringify(recorded.copy) !== JSON.stringify(ask.copy) || recorded.from_candidate !== ask.from_candidate)) return { kind: "refused", reason: "chosen_differently" };
+  const recorded = prior as { copy: AdsCopyChoice["copy"]; from_candidate: number | null; picture: number | null } | null;
+  if (recorded && (JSON.stringify(recorded.copy) !== JSON.stringify(ask.copy) || recorded.from_candidate !== ask.from_candidate || (recorded.picture ?? null) !== picture)) return { kind: "refused", reason: "chosen_differently" };
   if (!recorded) {
     if (c.state !== "review") return { kind: "refused", reason: "campaign_not_in_review" };
     if (cr.state !== "ready") return { kind: "refused", reason: "not_ready" };
@@ -66,6 +70,11 @@ export async function chooseWords(
   if (LANGUAGES.some((l) => Object.keys(ask.copy[l]).sort().join(",") !== slots)) return { kind: "refused", reason: "slots_mismatch", detail: `every one of ${slots.replaceAll(",", ", ")}, in English and Spanish` };
   const candidates = adCandidatesSchema.safeParse(cr.candidates);
   if (ask.from_candidate !== null && (!candidates.success || ask.from_candidate >= candidates.data.ranked.length)) return { kind: "refused", reason: "unknown_candidate" };
+  // A picture named must be one this ad was chosen from and could use (V3): compose replays it by its number, and a
+  // number nothing was made under would be asked for — and paid for — as a new picture.
+  const made = adPairingsSchema.safeParse(cr.pairings);
+  if (picture !== null && !(made.success && made.data.pictures.some((p) => p.picture === picture && p.dropped === null))) return { kind: "refused", reason: "unknown_picture" };
+  const otherPicture = picture !== null && made.success && made.data.ranked[made.data.chosen]!.picture !== picture;
   const brief = adBriefSchema.parse(c.brief_snapshot);
   const kit = await campaignKit(admin, orgId, c.brand_kit_id);
   if (!kit.ok) return { kind: "refused", reason: "cannot_regenerate", detail: kit.error };
@@ -85,7 +94,7 @@ export async function chooseWords(
     const edited = recipe.copy_slots.map((s) => s.name).filter((slot) => LANGUAGES.some((l) => start?.[l]?.[slot] !== ask.copy[l][slot]));
     const { error } = await admin.from("ads_copy_choices").insert({
       org_id: orgId, campaign_id: campaignId, replaces_creative_id: creativeId, copy: ask.copy, from_candidate: ask.from_candidate,
-      edited_slots: edited, chosen_by: actor.id, chosen_by_name: actor.name,
+      edited_slots: edited, chosen_by: actor.id, chosen_by_name: actor.name, picture,
     });
     // 23505: a press racing this one recorded it first; the read above will see it on the next press.
     if (error && (error as { code?: string }).code !== "23505") throw new Error(`ads_copy_choices: ${error.message}`);
@@ -95,12 +104,12 @@ export async function chooseWords(
   if (recorded && c.state !== "review") return { kind: "chosen", replaced: creativeId };
 
   // 3. The creative it replaces, rejected for that reason (a no-op when an earlier press already did).
-  const decided = await decideOnCreative(admin, orgId, actor, campaignId, creativeId, { decision: "reject", reason: "Replaced: the words were chosen by a person; the same picture is redrawn with them." }, now);
+  const decided = await decideOnCreative(admin, orgId, actor, campaignId, creativeId, { decision: "reject", reason: otherPicture ? `Replaced: a person chose picture ${picture} of the ones this ad was made from; it is redrawn with the words they chose.` : "Replaced: the words were chosen by a person; the same picture is redrawn with them." }, now);
   if (decided.kind === "not_found") return { kind: "not_found" };
   if (decided.kind === "refused") return { kind: "refused", reason: decided.reason === "settings_not_saved" ? "settings_not_saved" : "not_ready" };
 
   // 4. Compose builds the successor.
-  const moved = await personMove(admin, orgId, actor, campaignId, { event: "regenerate", reason: `${actor.name} chose the words of one ad` }, now);
+  const moved = await personMove(admin, orgId, actor, campaignId, { event: "regenerate", reason: otherPicture ? `${actor.name} chose another picture for one ad` : `${actor.name} chose the words of one ad` }, now);
   if (moved.kind !== "moved") return { kind: "refused", reason: "cannot_regenerate", detail: moved.kind === "refused" ? moved.reason : moved.kind };
   return { kind: "chosen", replaced: creativeId };
 }

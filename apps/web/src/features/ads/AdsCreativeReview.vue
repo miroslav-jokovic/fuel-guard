@@ -6,8 +6,9 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { CHECK_LABEL, CHECK_VERDICT_LABEL, CHECK_VERDICT_TONE, CREATIVE_STATE_LABEL, copyLines } from "./adsCampaignFlow";
 import AdsCopyCandidates from "./AdsCopyCandidates.vue";
 import AdsFinishedAdOpinion from "./AdsFinishedAdOpinion.vue";
+import AdsPairingRivals from "./AdsPairingRivals.vue";
 import AdsWordsEditor from "./AdsWordsEditor.vue";
-import { editableWords, type Words } from "./adsWordChoice";
+import { choiceFrom, editableWords, type Words } from "./adsWordChoice";
 
 /**
  * One ad on the review screen (E3; D-AD12: a person approves what they have seen): every format and language, its
@@ -17,7 +18,8 @@ import { editableWords, type Words } from "./adsWordChoice";
  * The checks grid is `creativeCheckGrid`'s (shared), one row per format × language. Copy and render failures name
  * their findings in `last_error`, compose's own summary, so that line stays above the grid; a failed visual item
  * shows the checker's sentence in its cell. A body the grid cannot read says so instead of drawing passes. The
- * finished-ad judge's scores (P1-7) sit under the grid as a second opinion, never as a fourth check.
+ * finished-ad judge's scores (P1-7) sit under the grid as a second opinion, never as a fourth check. Under them, for
+ * an ad chosen from several pictures (V3), the pairings it was chosen from and the way to use another.
  */
 const props = defineProps<{ creative: AdsCreativeView; canDecide: boolean; busy: boolean; replaces?: boolean; canChooseWords?: boolean; wordsRefusal?: unknown }>();
 const emit = defineEmits<{ approve: []; reject: [reason: string]; words: [choice: AdsCopyChoice] }>();
@@ -28,6 +30,11 @@ const editing = ref<{ start: Words; from: number | null } | null>(null);
 const editWords = (from: number | null) => {
   const start = editableWords(from === null ? props.creative.copy : (props.creative.candidates?.ranked[from]?.copy ?? null));
   if (start) editing.value = { start, from };
+};
+/** Another pairing of the ones this ad was chosen from (V3): its words as offered, on its picture. */
+const pickRival = (pick: { picture: number; words: number }) => {
+  const words = editableWords(props.creative.candidates?.ranked[pick.words]?.copy ?? null);
+  if (words) emit("words", { ...choiceFrom(words, pick.words), picture: pick.picture });
 };
 const reason = ref("");
 const languages = computed(() => [...new Set(props.creative.assets.map((a) => a.language))]);
@@ -60,6 +67,7 @@ const tone = computed(() => (props.creative.state === "check_failed" || props.cr
       </li>
     </ul>
     <AdsFinishedAdOpinion :checks="creative.checks" />
+    <AdsPairingRivals v-if="creative.pairings" :pairings="creative.pairings" :can-choose="choosable" :busy="busy" @pick="pickRival" />
     <section v-for="l in languages" :key="l" class="space-y-2">
       <h3 class="text-sm font-semibold text-ink">{{ l.toUpperCase() }}</h3>
       <div class="grid grid-cols-3 gap-2">
