@@ -39,6 +39,7 @@ vi.mock("../../../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) 
 const audit = vi.hoisted(() => ({ writeAudit: vi.fn(async () => true) }));
 vi.mock("../../../lib/audit.js", () => audit);
 vi.mock("../../../middleware/auth.js", () => ({
+  requireAdminOnly: () => (_req: Request, _res: Response, next: NextFunction) => next(),
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
     req.auth = { userId: USER, orgId: ORG, role: "technician", email: "shop@example.test" };
     next();
