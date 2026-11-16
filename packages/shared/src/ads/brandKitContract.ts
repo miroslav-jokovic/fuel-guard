@@ -144,6 +144,25 @@ export type AdLook = (typeof AD_LOOKS)[number];
 export const RETIRED_LOOKS = { rail: "field", ribbon: "photo" } as const satisfies Record<string, AdLook>;
 const lookSchema = z.preprocess((v) => (typeof v === "string" && v in RETIRED_LOOKS ? RETIRED_LOOKS[v as keyof typeof RETIRED_LOOKS] : v), z.enum(AD_LOOKS));
 
+/**
+ * What a kit photo shows (ADS-PLATFORM-V2-PLAN V3 "photo library"; audit F-AG5). A closed list, any number of them
+ * per photo: a tractor pulling its trailer in the yard is `truck`, `trailer` and `yard`. The label stays the
+ * free sentence the Art director reads; the tags are what code can count — how many photos a kit has of each
+ * kind, and whether two pictures of one ad can start from different ones (`photoLibrary.ts`).
+ *
+ * Lives in the kit's versioned JSON, not in a column: a kit version saved before the tags parses with none
+ * (`default([])`), and the next save writes what the person ticked. No migration.
+ */
+export const AD_PHOTO_TAGS = ["truck", "trailer", "driver", "yard", "road"] as const;
+export type AdPhotoTag = (typeof AD_PHOTO_TAGS)[number];
+export const adKitPhotoSchema = z.object({
+  label: z.string().trim().min(2, "say what each photo shows").max(120, "a photo's label is at most 120 characters"),
+  asset: adAssetRefSchema,
+  tags: z.array(z.enum(AD_PHOTO_TAGS, "a photo's tag is one of: truck, trailer, driver, yard, road")).max(AD_PHOTO_TAGS.length, "a photo names each tag at most once")
+    .refine((t) => new Set(t).size === t.length, "a photo names each tag at most once").default([]),
+});
+export type AdKitPhoto = z.infer<typeof adKitPhotoSchema>;
+
 export const adBrandKitSchema = z.object({
   /** Exactly as it should read in an ad. */
   company_name: z.string().trim().min(1, "the company name is what the ad prints, so it cannot be empty").max(120, "the company name is at most 120 characters"),
@@ -156,7 +175,7 @@ export const adBrandKitSchema = z.object({
    * The reference photos of our real equipment (D-AD9): a preset that shows equipment starts from one.
    * `label` says what it shows ("white Freightliner, front three-quarter") for the art director's slot.
    */
-  equipment_photos: z.array(z.object({ label: z.string().trim().min(2, "say what each photo shows").max(120, "a photo's label is at most 120 characters"), asset: adAssetRefSchema })).max(20, "a kit holds at most 20 photos"),
+  equipment_photos: z.array(adKitPhotoSchema).max(20, "a kit holds at most 20 photos"),
   overlays: z.partialRecord(z.enum(AD_FORMATS), overlaySchema),
   people_policy: z.enum(AD_PEOPLE_POLICIES),
   /** Other companies' names and marks the visual check looks for — a competitor's logo on a trailer fails. */

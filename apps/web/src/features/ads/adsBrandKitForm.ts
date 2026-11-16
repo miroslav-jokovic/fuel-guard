@@ -1,4 +1,4 @@
-import { AD_FORMATS, AD_OVERLAY_START, adBrandKitSaveSchema, type AdAssetRef, type AdBrandKit, type AdBrandKitSave, type AdFormat } from "@silvicom/shared";
+import { AD_FORMATS, AD_OVERLAY_START, adBrandKitSaveSchema, type AdAssetRef, type AdBrandKit, type AdBrandKitSave, type AdFormat, type AdPhotoTag } from "@silvicom/shared";
 
 /**
  * The brand kit editor's form (E2; plan D-AD10), kept apart from the screen so what a save sends can be tested.
@@ -25,7 +25,8 @@ export interface BrandKitForm {
   phone: string;
   colors: Array<{ name: string; hex: string }>;
   logo: AdAssetRef | null;
-  equipment_photos: Array<{ label: string; asset: AdAssetRef }>;
+  /** `tags`: what the photo shows, ticked by the person (V3 photo library); a photo saved before tags starts with none. */
+  equipment_photos: Array<{ label: string; asset: AdAssetRef; tags: AdPhotoTag[] }>;
   overlays: Record<AdFormat, OverlayRow>;
   people_policy: AdBrandKit["people_policy"];
   /** One name per line. */
@@ -46,7 +47,7 @@ export function blankKitForm(): BrandKitForm {
 export function kitFormFrom(name: string, kit: AdBrandKit): BrandKitForm {
   return {
     name, company_name: kit.company_name, phone: kit.phone ?? "", colors: kit.colors.map((c) => ({ ...c })), logo: kit.logo,
-    equipment_photos: kit.equipment_photos.map((p) => ({ ...p })),
+    equipment_photos: kit.equipment_photos.map((p) => ({ ...p, tags: [...p.tags] })),
     overlays: Object.fromEntries(AD_FORMATS.map((f) => {
       const o = kit.overlays[f];
       return [f, o ? { zone: o.zone, text_color: o.text_color, plate_color: o.plate_color ?? "" } : startingOverlay()];

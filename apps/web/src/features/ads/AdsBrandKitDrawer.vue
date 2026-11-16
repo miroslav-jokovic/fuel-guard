@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AD_FORMATS, AD_PEOPLE_POLICIES, type AdBrandKitView } from "@silvicom/shared";
-import { AppButton as BaseButton, AppCallout, AppFormField as FormField, AppInput as BaseInput, AppSelect, AppTextarea } from "@silvicom/ui";
+import { AD_FORMATS, AD_PEOPLE_POLICIES, AD_PHOTO_TAGS, PHOTO_TAG_LABEL, photoLibraryAdvice, type AdBrandKitView, type AdPhotoTag } from "@silvicom/shared";
+import { AppButton as BaseButton, AppCallout, AppCheckbox, AppFormField as FormField, AppInput as BaseInput, AppSelect, AppTextarea } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import SlideOver from "@/components/SlideOver.vue";
 import { useToastStore } from "@/stores/toast";
@@ -26,6 +26,11 @@ const form = ref<BrandKitForm>(blankKitForm());
 const refusal = ref<string | null>(null);
 const uploading = ref(false);
 const nextVersion = computed(() => (props.kit?.current?.version ?? 0) + 1);
+/** What the library as it stands in the form will cost the ads made from it (F-AG5), re-read on every edit. */
+const libraryAdvice = computed(() => photoLibraryAdvice({ equipment_photos: form.value.equipment_photos }));
+function toggleTag(photo: BrandKitForm["equipment_photos"][number], tag: AdPhotoTag): void {
+  photo.tags = photo.tags.includes(tag) ? photo.tags.filter((t) => t !== tag) : AD_PHOTO_TAGS.filter((t) => t === tag || photo.tags.includes(t));
+}
 
 watch(() => props.open, (open) => {
   if (!open) return;
@@ -97,11 +102,17 @@ async function submit(): Promise<void> {
       <fieldset class="space-y-2">
         <legend class="text-sm font-semibold text-ink">Photos of our equipment</legend>
         <p class="text-sm text-ink-muted">Real photos. A scene that shows equipment starts from one of these.</p>
-        <div v-for="(p, i) in form.equipment_photos" :key="p.asset.sha256" class="flex items-end gap-2">
-          <FormField v-slot="{ id }" label="What it shows" class="flex-1"><BaseInput :id="id" v-model="p.label" :data-test="`photo-label-${i}`" /></FormField>
-          <BaseButton @click="form.equipment_photos.splice(i, 1)">Remove</BaseButton>
+        <div v-for="(p, i) in form.equipment_photos" :key="p.asset.sha256" class="space-y-1" :data-test="`photo-${i}`">
+          <div class="flex items-end gap-2">
+            <FormField v-slot="{ id }" label="What it shows" class="flex-1"><BaseInput :id="id" v-model="p.label" :data-test="`photo-label-${i}`" /></FormField>
+            <BaseButton @click="form.equipment_photos.splice(i, 1)">Remove</BaseButton>
+          </div>
+          <div class="flex flex-wrap gap-x-4 gap-y-1" role="group" :aria-label="`What is in photo ${i + 1}`">
+            <AppCheckbox v-for="t in AD_PHOTO_TAGS" :key="t" :model-value="p.tags.includes(t)" :label="PHOTO_TAG_LABEL[t]" :data-test="`photo-${i}-tag-${t}`" @update:model-value="toggleTag(p, t)" />
+          </div>
         </div>
-        <FileDropzone :accept="IMAGES" multiple :busy="uploading" busy-label="Uploading…" label="Drop photos here" @files="(f) => upload(f, (asset) => form.equipment_photos.push({ label: '', asset }))" />
+        <p v-for="line in libraryAdvice" :key="line" class="text-sm text-ink-muted" data-test="photo-advice">{{ line }}</p>
+        <FileDropzone :accept="IMAGES" multiple :busy="uploading" busy-label="Uploading…" label="Drop photos here" @files="(f) => upload(f, (asset) => form.equipment_photos.push({ label: '', asset, tags: [] }))" />
       </fieldset>
 
       <fieldset class="space-y-2">

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { AdBrandKitView } from "@silvicom/shared";
+import { photoLibraryAdvice, photoLibraryLine, type AdBrandKitView } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCard as BaseCard, QueryState } from "@silvicom/ui";
 import { formatDateTime } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
@@ -20,10 +20,9 @@ const kits = useAdsBrandKits();
 const admin = computed(() => session.admin);
 const live = computed(() => (kits.data.value ?? []).filter((k) => k.archived_at === null));
 
-const photoCount = (kit: AdBrandKitView): string => {
-  const n = kit.current?.body.equipment_photos.length ?? 0;
-  return n === 1 ? "1 photo" : `${n} photos`;
-};
+const photoCount = (kit: AdBrandKitView): string => photoLibraryLine(kit.current?.body ?? { equipment_photos: [] });
+/** The first thing the library should be told (F-AG5: one photo repeats itself), or nothing. */
+const photoAdvice = (kit: AdBrandKitView): string | null => (kit.current ? photoLibraryAdvice(kit.current.body)[0] ?? null : null);
 
 const drawerOpen = ref(false);
 const editing = ref<AdBrandKitView | null>(null);
@@ -51,6 +50,7 @@ function open(kit: AdBrandKitView | null): void {
             <p v-if="kit.current" class="text-xs text-ink-muted">
               Version {{ kit.current.version }} · {{ photoCount(kit) }} · saved {{ formatDateTime(kit.current.saved_at) }} by {{ kit.current.saved_by_name }}
             </p>
+            <p v-if="photoAdvice(kit)" class="text-xs text-ink-muted" data-test="kit-photo-advice">{{ photoAdvice(kit) }}</p>
           </div>
           <BaseButton v-if="admin" data-test="edit-kit" @click="open(kit)">Edit</BaseButton>
         </li>

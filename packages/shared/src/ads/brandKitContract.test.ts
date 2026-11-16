@@ -74,7 +74,7 @@ describe("brand kit contract", () => {
   });
 
   it("lists every asset a kit names: the logo and each equipment photo", () => {
-    expect(kitAssets({ ...KIT, logo: ASSET, equipment_photos: [{ label: "tractor front", asset: { ...ASSET, sha256: "b".repeat(64) } }] }).map((a) => a.sha256))
+    expect(kitAssets({ ...KIT, logo: ASSET, equipment_photos: [{ label: "tractor front", tags: [], asset: { ...ASSET, sha256: "b".repeat(64) } }] }).map((a) => a.sha256))
       .toEqual(["a".repeat(64), "b".repeat(64)]);
   });
 

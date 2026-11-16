@@ -119,6 +119,10 @@ plan cites evidence that exists.
   from a real photo; a kit with one photo is told it will repeat itself (F-AG5).
 - **Preview as shown.** Each ad in a Facebook feed frame and an Instagram story frame, both languages.
 
+**Built 2026-11-16 (V3a):** the photo tags and the one-photo sentence, in the kit's versioned JSON (no
+migration). Nothing reads the tags yet: the Art director is told them with Q-APX8's prompt change, one recording
+for both. **Measured the same day:** what make-many costs and how steady the judge is — Q-APX7 to Q-APX9.
+
 **Done when:** the review screen shows the winner with its rivals, and the preview frames match Meta's safe zones
 measured on the sandbox. "Top of class" cannot be claimed before a real image model is chosen (Q-AD20).
 
@@ -273,6 +277,91 @@ The owner's words — "looks like AI is in rush to create ad without any researc
 end state. (a) is the safe way to get there: it is one line to reverse (`plansFor` in `orchestrator/workers.ts`),
 and the `draft → compose` row leaves the machine in the same merge.
 
+### Q-APX7 · How many pictures and words per ad, and which pairings the judge ranks — open
+
+**What was measured (2026-11-16, fixture data, the owner's key, nothing recorded).**
+
+*What one call is billed* — three model fixtures per worker, mean tokens in / out, priced at V1's list prices:
+
+| Worker (model) | Tokens in | Tokens out | One call |
+|---|---|---|---|
+| Copywriter (Opus 5.5), three sets of words in one call | 4,067 | 1,677 | $0.050 |
+| Craft judge (Fable 5.2), ranks the three sets | 3,172 | 2,292 | $0.117 |
+| Art director (Opus 5.5), one picture's direction | 3,438 | 418 | $0.022 |
+| Checker (Opus 5.5), one picture in one format | 3,604 | 615 | $0.027 |
+| Finished-ad judge (Fable 5.2), one ad in one format (64 calls) | 3,233 | 559 | $0.048 |
+
+*How steady the finished-ad judge is* — each of its 16 model fixtures asked four times (64 calls). The total is the
+four criteria added, 4 to 20.
+
+| | Result |
+|---|---|
+| Largest movement of one ad's total across its four askings | **1 point** (8 ads moved by 1, 8 did not move) |
+| Spread of one ad's total between askings (pooled standard deviation) | 0.31 |
+| The 9 sound ads | totals 16 to 18.25 (standard deviation between ads 0.73) |
+| The 7 ads with a planted weakness | totals 10 to 15 — none reached the lowest sound ad |
+
+So one asking separates a weak ad from a sound one every time, and a gap of **2 points or more** between two sound
+ads was never produced by chance in these 64 calls. A gap of **1 point is inside the judge's own movement**: it
+must not be shown to a person as "this one is better".
+
+**What an ad costs to make**, for a preset shown in both feed formats (4:5 and 1:1):
+
+| | Model calls | Tokens | Pictures drawn |
+|---|---|---|---|
+| Today: 3 sets of words, 1 picture, 1 pairing judged in both formats | $0.34 | 31,000 | 1 |
+| (a) 3 pictures × 3 words, all 9 judged in both formats | $1.26 | 116,000 | 3 |
+| **(b) 3 × 3, the 9 judged in the frame the picture was composed for; the winner then judged in the other** | **$0.88** | **86,000** | **3** |
+| (c) 3 pictures judged with the best words, then the best picture with the other two words (5 judged) | $0.68 | 71,000 | 3 |
+| (d) 2 pictures × 3 words, as (b) | $0.66 | 62,000 | 2 |
+
+A campaign of five ads under (b) is about **$4.40 and 430,000 tokens** against $1.70 and 155,000 today, and 15
+pictures against 5. What a picture costs is not known until an image model is chosen (Q-AD20). For scale: the
+settings' own benchmark puts one lead at $26.86.
+
+- **(b) — recommended.** The full nine are judged, because "do the words and the picture tell one story" is one of
+  the judge's four criteria and is exactly what (c) assumes away. The other format is the same picture cut shorter
+  with the same words, so judging all nine twice (a) costs over 40 % more for an answer the first frame already
+  gave; the winner is still judged in every format it is shown in, as today.
+- (c) is 20 % cheaper and cannot find a pairing where the second-best words suit the second-best picture best.
+- (d) saves a picture. With three the person still has a choice when one picture fails its check.
+
+**How the winner is named, from the measurement.** Highest total wins. Pairings within 1 point of it are shown as
+"as good", not as worse, and among those the order is the craft judge's rank of the words, then the order the
+pictures were made in. The numbers are settings a carrier does not see at first (`pictures_per_creative`, default
+3, beside the existing `candidates_per_creative`); the monthly token budget still refuses a call it cannot pay for.
+
+**Kept from Q-AD76:** the finished-ad judge stays an opinion and never a gate. Ranking chooses what a person sees
+first; it refuses nothing, and every rival stays one click away.
+
+### Q-APX8 · What makes the three pictures of one ad differ — open
+
+**What was read.** `artDirector.ts` and `composeCreative.ts`: one direction is asked per ad, keyed by ad and attempt.
+Asked three times with the same input the Art director would give three near-copies — same kit photo, same
+viewpoint — and the three renders would differ only by the image model's chance.
+
+- **(a) One call per picture; each later picture is told what the earlier ones chose — recommended.** The second
+  and third are handed the first's kit photo, subject and camera distance and asked to differ in at least the photo
+  (where the kit has another) or the viewpoint. The photos' new tags go with their labels. The answer's shape and
+  every existing check on it (`judgeArt`) stay as they are; each direction has its own ledger row. Cost: a prompt
+  change (`artDirector@7`), so its 19 model fixtures are re-recorded and new ones added — about 50 Opus calls for
+  the two passes, near $1.
+- (b) One call that returns three directions. One fewer call; a new answer contract, and one refused direction
+  refuses all three.
+- (c) Three calls with nothing shared. No prompt change, and no real difference between the pictures.
+
+### Q-APX9 · What is kept of the pairings that did not win — open
+
+**What was read.** A finished ad is stored as one PNG per format and language (`CreativeAsset`): four files for a
+two-format preset. Nine pairings kept the same way are 36 files per ad and 180 per campaign of five, in the same
+bucket whose size and backup are already a recorded concern.
+
+- **(a) The winner as today; each rival as the one picture the judge saw — recommended.** One English image per
+  rival, in the judged frame, with its scores. The overlay is drawn by our own code from the stored picture and the
+  stored words, so a rival a person picks is drawn again in every format and language at that moment (the way
+  "Use these words" already rebuilds an ad on its kept picture). 4 files + 8 small ones per ad.
+- (b) Everything for every pairing. Nothing is redrawn on a pick; nine times the storage for ads nobody opens.
+
 ## 5a. Ruled
 
 **2026-11-14, the owner, to the four proposals above and to the request to record the agents on his Anthropic
@@ -324,6 +413,9 @@ is 100%."*** Taken as:
 | Q-APX1–4 | — | **ruled 2026-11-14, §5a** | — |
 | Q-APX5 | Speech-to-text provider | research owed | Claude |
 | Q-APX6 | Planning mandatory, or the carrier's choice | **ruled (b) 2026-11-15, §5a** | — |
+| Q-APX7 | Pictures and words per ad; which pairings are judged | (b) 3 × 3, nine judged in the composed frame, about $0.88 an ad | owner |
+| Q-APX8 | What makes the three pictures differ | (a) one Art director call per picture, told what the earlier ones chose | owner |
+| Q-APX9 | What is kept of the pairings that did not win | (a) one image per rival; a picked rival is redrawn | owner |
 | — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 ## Sources (read 2026-11-14)
