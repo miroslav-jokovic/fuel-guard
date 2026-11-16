@@ -1047,6 +1047,17 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "fleetpal_webhook_subscriptions": {
+      "module": "fleetpal",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "static",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "one row per subscribed event per org (8 events), plus paused ones each time instant updates go off and on; FleetPal has no DELETE."
+      }
+    },
     "fleetpal_work_orders": {
       "module": "fleetpal",
       "layer": "raw",

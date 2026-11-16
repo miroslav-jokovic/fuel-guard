@@ -283,6 +283,9 @@
   "fleetpal_webhook_deliveries": [
     "apps/api/src/modules/fleetpal/deliveries.ts"
   ],
+  "fleetpal_webhook_subscriptions": [
+    "apps/api/src/modules/fleetpal/webhooks.ts"
+  ],
   "fmcsa_fetch_runs": [
     "apps/api/src/modules/inspections/feed/store.ts"
   ],

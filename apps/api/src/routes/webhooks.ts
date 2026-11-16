@@ -9,8 +9,7 @@ import { inboundSmsLine, parseTelnyxDeliveryReceipt, parseTelnyxInboundSms } fro
 import { verifyTelnyxSignature } from "../lib/telnyxSignature.js";
 import { receiveDelivery } from "../modules/fleetpal/index.js";
 import { dispatchJob } from "../queue/dispatch.js";
-
-const ORG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isRecordId } from "@silvicom/shared";
 
 /** Inbound integration webhooks. No user auth — authenticated by provider signature instead. */
 export function webhooksRouter(): Router {
@@ -124,7 +123,7 @@ export function webhooksRouter(): Router {
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const orgId = String(req.params.orgId ?? "");
-      if (!ORG_ID.test(orgId)) {
+      if (!isRecordId(orgId)) {
         res.status(401).json({ ok: false });
         return;
       }
