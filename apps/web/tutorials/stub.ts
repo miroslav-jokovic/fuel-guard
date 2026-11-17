@@ -90,6 +90,10 @@ const API: Array<[RegExp, Handler]> = [
   // nobody on home time: the list's own shape with nothing in it and the shipped thresholds, so the tab
   // shows a quiet 0 and no row carries a chip.
   [/^\/api\/roster\/home-time$/, () => ({ generatedAt: new Date().toISOString(), live: [], recent: [], settings: HOME_TIME_DEFAULTS })],
+  // A McLeod load's page asks whether we paid a lumper on its order (LUMPER-REVISED-RC-PLAN LRC3). The
+  // tutorial world has no lumper anywhere: the list's own shape with nothing in it, so the load page
+  // draws no lumper card and its film is unchanged.
+  [/^\/api\/lumper-cases$/, () => ({ cases: [], unmatchedPayments: [], sweptAt: null, remindersOn: false })],
   [/^\/api\/fueling\/map-config$/,() => ({ tilesEnabled: Boolean(process.env.HERE_API_KEY) })],
   [/^\/api\/hazmat\/products$/, (u) => hazmatProducts(u)],
   [/^\/api\/hazmat\/calc$/, (_u, body) => hazmatCalc(body)],
