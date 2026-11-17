@@ -3,12 +3,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   fetchAllPaged,
   lumperCaseState,
+  lumperOrderInvoiced,
+  lumperOrderlessMatches,
+  lumperPossibleMisposts,
   type LumperCaseClose,
   type LumperCaseFile,
   type LumperCaseRow,
   type LumperCasesResponse,
   type LumperCloseReason,
   type LumperFileConfirm,
+  type LumperMatchedPayment,
   type LumperUnmatchedPayment,
 } from "@silvicom/shared";
 import { bytesAreKind } from "../../messaging/index.js";
@@ -34,7 +38,7 @@ const LINK_SECONDS = 300;
 interface CaseRecord { id: string; company_id: string; order_id: string; charge_code: string; opened_at: string; closed_at: string | null; closed_by: string | null; close_reason: LumperCloseReason | null; close_note: string | null }
 interface OrderRecord { company_id: string; order_id: string; last_seen_at: string; customer_name: string | null; dispatcher_user_id: string | null; dispatcher_name: string | null; consignee_name: string | null; consignee_city: string | null; consignee_state: string | null; consignee_arrived_at: string | null; consignee_departed_at: string | null }
 interface ChargeRecord { company_id: string; order_id: string; charge_code: string; descr: string | null; amount: number | string }
-interface PaymentRecord { company_id: string; payment_id: string; settlement_state: string; order_id: string | null; deduct_code: string; amount: number | string; transacted_at: string | null; reference_no: string | null; driver_code: string | null; tractor_unit: string | null; is_void: boolean }
+interface PaymentRecord { company_id: string; payment_id: string; settlement_state: string; order_id: string | null; deduct_code: string; amount: number | string; transacted_at: string | null; reference_no: string | null; driver_code: string | null; payee_id: string | null; tractor_unit: string | null; is_void: boolean }
 interface BillRecord { company_id: string; order_id: string; bill_type: string | null; bill_date: string | null; invoice_no: string | null; lumper_amount: number | string }
 interface FileRecord { id: string; case_id: string; file_name: string; mime: string; byte_size: number | string; uploaded_by: string | null; created_at: string; removed_at: string | null }
 
@@ -78,7 +82,7 @@ export async function listLumperCases(admin: SupabaseClient, orgId: string, scop
     admin.from("mcleod_lumper_charges").select("company_id, order_id, charge_code, descr, amount")
       .eq("org_id", orgId).order("company_id").order("charge_id").range(from, to) as unknown as Page<ChargeRecord>);
   const payments = await fetchAllPaged<PaymentRecord>((from, to) =>
-    admin.from("mcleod_lumper_payments").select("company_id, payment_id, settlement_state, order_id, deduct_code, amount, transacted_at, reference_no, driver_code, tractor_unit, is_void")
+    admin.from("mcleod_lumper_payments").select("company_id, payment_id, settlement_state, order_id, deduct_code, amount, transacted_at, reference_no, driver_code, payee_id, tractor_unit, is_void")
       .eq("org_id", orgId).order("company_id").order("settlement_state").order("payment_id").range(from, to) as unknown as Page<PaymentRecord>);
   const bills = await fetchAllPaged<BillRecord>((from, to) =>
     admin.from("mcleod_lumper_bills").select("company_id, order_id, bill_type, bill_date, invoice_no, lumper_amount")
@@ -105,10 +109,10 @@ export async function listLumperCases(admin: SupabaseClient, orgId: string, scop
   const sweptOf = new Map(sweeps.map((s) => [s.company_id, Date.parse(s.swept_at)]));
   const sweptAt = sweeps.map((s) => s.swept_at).sort().at(-1) ?? null;
 
-  const rows: LumperCaseRow[] = [];
-  for (const c of cases) {
+  // Every case is read before the scope filter: a payment keyed on the wrong order (D-LRC13) may sit
+  // on a closed case while its charge sits on an open one, and the open one still needs the hint.
+  const read = cases.map((c) => {
     const k = key(c.company_id, c.order_id);
-    const order = orderBy.get(k) ?? null;
     // Q-LRC7: the case is keyed by charge code; the settlement lines and bills belong to the order.
     const caseCharges = (chargesBy.get(k) ?? []).filter((ch) => ch.charge_code === c.charge_code);
     const casePayments = paymentsBy.get(k) ?? [];
@@ -120,6 +124,18 @@ export async function listLumperCases(admin: SupabaseClient, orgId: string, scop
       rcOnFile: caseFiles.length > 0,
       closed: c.closed_at != null,
     });
+    return { c, k, order: orderBy.get(k) ?? null, caseCharges, casePayments, caseFiles, reading };
+  });
+  const misposts = lumperPossibleMisposts(
+    read.map(({ c, k, order, reading }) => ({
+      key: k, companyId: c.company_id, orderId: c.order_id, dispatcherUserId: order?.dispatcher_user_id ?? null,
+      paidAmount: reading.paidAmount, paidAt: reading.paidAt, chargeAmount: reading.chargeAmount, billedAmount: reading.billedAmount,
+      deliveredAt: order?.consignee_departed_at ?? order?.consignee_arrived_at ?? null,
+    })),
+  );
+
+  const rows: LumperCaseRow[] = [];
+  for (const { c, k, order, caseCharges, casePayments, caseFiles, reading } of read) {
     if (scope === "open" && !reading.open) continue;
     rows.push({
       id: c.id,
@@ -159,17 +175,31 @@ export async function listLumperCases(admin: SupabaseClient, orgId: string, scop
       closedByName: c.closed_by ? (names.get(c.closed_by) ?? null) : null,
       closeReason: c.close_reason,
       closeNote: c.close_note,
+      possibleMisposts: misposts.get(k) ?? [],
     });
   }
 
-  const unmatchedPayments: LumperUnmatchedPayment[] = payments
-    .filter((p) => p.order_id == null && !p.is_void)
-    .map((p) => ({
-      id: `${p.settlement_state}:${p.payment_id}`, deductCode: p.deduct_code, amount: Number(p.amount), transactedAt: p.transacted_at,
-      referenceNo: p.reference_no, driverCode: p.driver_code, tractorUnit: p.tractor_unit, pending: p.settlement_state === "pending",
-    }));
+  // D-LRC14: an order-less line whose other half is on an order is already counted there.
+  const lineId = (p: PaymentRecord) => `${p.settlement_state}:${p.payment_id}`;
+  const halves = lumperOrderlessMatches(
+    payments.map((p) => ({
+      id: lineId(p), companyId: p.company_id, orderId: p.order_id, deductCode: p.deduct_code, amount: Number(p.amount),
+      transactedAt: p.transacted_at, payeeId: p.payee_id, isVoid: p.is_void,
+    })),
+  );
+  const unmatchedPayments: LumperUnmatchedPayment[] = [];
+  const matchedPayments: LumperMatchedPayment[] = [];
+  for (const p of payments.filter((x) => x.order_id == null && !x.is_void)) {
+    const line: LumperUnmatchedPayment = {
+      id: lineId(p), deductCode: p.deduct_code, amount: Number(p.amount), transactedAt: p.transacted_at, referenceNo: p.reference_no,
+      driverCode: p.driver_code, tractorUnit: p.tractor_unit, pending: p.settlement_state === "pending", payeeId: p.payee_id,
+    };
+    const orderId = halves.get(line.id);
+    if (orderId) matchedPayments.push({ ...line, orderId });
+    else unmatchedPayments.push(line);
+  }
 
-  return { cases: rows, unmatchedPayments, sweptAt };
+  return { cases: rows, unmatchedPayments, matchedPayments, sweptAt };
 }
 
 async function caseOf(admin: SupabaseClient, orgId: string, caseId: string): Promise<{ id: string; order_id: string; closed_at: string | null } | null> {
@@ -239,7 +269,25 @@ export async function removeRevisedRc(admin: SupabaseClient, orgId: string, user
   return { caseId: row.case_id, fileName: row.file_name };
 }
 
+/**
+ * Whether McLeod shows the case's order invoiced, by `lumperCaseState`'s own rule. D-LRC15: "the broker paid the invoice in full" is refused without one.
+ */
+async function orderInvoiced(admin: SupabaseClient, orgId: string, caseId: string): Promise<boolean | null> {
+  const { data: k, error } = await admin.from("lumper_cases").select("company_id, order_id").eq("org_id", orgId).eq("id", caseId).maybeSingle();
+  if (error) throw new Error(`[lumper] case not read: ${error.message}`);
+  const found = k as { company_id: string; order_id: string } | null;
+  if (!found) return null;
+  const bills = await admin.from("mcleod_lumper_bills").select("bill_type").eq("org_id", orgId).eq("company_id", found.company_id).eq("order_id", found.order_id);
+  if (bills.error) throw new Error(`[lumper] bills not read: ${bills.error.message}`);
+  return lumperOrderInvoiced((bills.data ?? []) as { bill_type: string | null }[]);
+}
+
 export async function closeLumperCase(admin: SupabaseClient, orgId: string, userId: string, caseId: string, body: LumperCaseClose, now: Date): Promise<{ orderId: string } | LumperRefusal> {
+  if (body.reason === "broker_paid_in_full") {
+    const invoiced = await orderInvoiced(admin, orgId, caseId);
+    if (invoiced === null) return refuse(404, "not_found", "Lumper case not found.");
+    if (!invoiced) return refuse(409, "not_invoiced", "McLeod shows no invoice on this order, so the broker cannot have paid it. Choose another reason.");
+  }
   const { data, error } = await admin
     .from("lumper_cases")
     .update({ closed_at: now.toISOString(), closed_by: userId, close_reason: body.reason, close_note: body.note?.trim() ? body.note.trim() : null })

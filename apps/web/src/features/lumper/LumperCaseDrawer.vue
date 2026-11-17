@@ -56,7 +56,9 @@ const facts = computed<Fact[]>(() => {
     { label: "Paid on", value: mcleodDay(k.paidAt) },
     { label: "EFS reference", value: k.references.join(", ") || "—" },
     { label: "Charge on the order", value: k.chargeAmount > 0 ? `${usd(k.chargeAmount)}${k.chargeDescriptions.length ? ` · ${k.chargeDescriptions.join(", ")}` : ""}` : "None keyed" },
-    { label: "Invoice", value: k.invoiced ? `${k.lastInvoiceNo ?? "—"} on ${mcleodDay(k.lastInvoiceAt)}` : "Not invoiced yet" },
+    // McLeod leaves the invoice number empty on every bill it holds for this carrier (0 of 99 lumper
+    // bills, 0 of 14,156 finance bills, measured 2026-11-17), so the day is the fact; a number shows if one appears.
+    { label: "Invoiced", value: k.invoiced ? (k.lastInvoiceNo ? `${k.lastInvoiceNo} on ${mcleodDay(k.lastInvoiceAt)}` : mcleodDay(k.lastInvoiceAt)) : "Not invoiced yet" },
     { label: "Lumper on the invoice", value: k.invoiced ? usd(k.billedAmount) : "—", numeric: k.invoiced },
     ...(k.shortAmount > 0 ? [{ label: "Short", value: usd(k.shortAmount), numeric: true, tone: "text-danger-700" }] : []),
     // Q-LRC9: past the read's 90 days the McLeod facts above stop moving; say from when they are.
@@ -125,7 +127,18 @@ async function confirmRemove(): Promise<void> {
 const closing = ref(false);
 const closeReason = ref<LumperCloseReason | "">("");
 const closeNote = ref("");
-const reasonOptions = LUMPER_CLOSE_REASONS.map((r) => ({ value: r, label: LUMPER_CLOSE_REASON_LABELS[r] }));
+// D-LRC15: "the broker paid the invoice in full" only where McLeod shows an invoice; the API refuses it otherwise.
+const reasonOptions = computed(() =>
+  LUMPER_CLOSE_REASONS.filter((r) => r !== "broker_paid_in_full" || c.value?.invoiced).map((r) => ({ value: r, label: LUMPER_CLOSE_REASON_LABELS[r] })),
+);
+/** D-LRC13: where this lumper's payment or charge may really be. Words for the person; the fix is in McLeod. */
+const mispost = computed(() => {
+  const m = c.value?.possibleMisposts[0];
+  if (!m) return null;
+  return m.direction === "paid_here"
+    ? `Payroll may have keyed this ${usd(m.amount)} payment on the wrong order: order ${m.orderId}, same dispatcher, has a ${usd(m.amount)} lumper charge and no payment. If so, move the settlement line to order ${m.orderId} in McLeod; both cases correct themselves on the next read.`
+    : `No payment is on this order, but order ${m.orderId}, same dispatcher, has a ${usd(m.amount)} payment and no lumper charge. Payroll may have keyed this lumper on order ${m.orderId}. If so, move the settlement line in McLeod; both cases correct themselves on the next read.`;
+});
 async function confirmClose(): Promise<void> {
   const k = c.value;
   if (!k || !closeReason.value) return;
@@ -168,6 +181,7 @@ watch(
       <div class="space-y-3">
         <AppBadge :tone="LUMPER_STATE_TONE[c.state]" data-test="case-state">{{ LUMPER_CASE_STATE_LABELS[c.state] }}</AppBadge>
         <AppCallout v-if="next" :tone="next.tone" data-test="case-next">{{ next.text }}</AppCallout>
+        <AppCallout v-if="mispost" tone="info" data-test="case-mispost">{{ mispost }}</AppCallout>
         <p v-if="c.closedAt && c.closeReason" class="text-sm text-ink-secondary" data-test="case-closed">
           Closed {{ mcleodDay(c.closedAt) }}{{ c.closedByName ? ` by ${c.closedByName}` : "" }}: {{ LUMPER_CLOSE_REASON_LABELS[c.closeReason] }}.
           <span v-if="c.closeNote">{{ c.closeNote }}</span>
@@ -218,7 +232,7 @@ watch(
       </section>
 
       <section v-if="closing && !c.closedAt" aria-labelledby="lumper-close-heading" class="space-y-3">
-        <h3 id="lumper-close-heading" class="text-sm font-semibold text-ink">Close without billing</h3>
+        <h3 id="lumper-close-heading" class="text-sm font-semibold text-ink">Close the case</h3>
         <AppFormField v-slot="{ id }" label="Reason" required>
           <AppSelect :id="id" v-model="closeReason" :options="reasonOptions" placeholder="Choose a reason…" data-test="close-reason" />
         </AppFormField>
@@ -238,7 +252,7 @@ watch(
             {{ closeCase.isPending.value ? "Closing…" : "Close case" }}
           </AppButton>
         </template>
-        <AppButton v-else-if="c.open" data-test="close-start" @click="closing = true">Close without billing</AppButton>
+        <AppButton v-else-if="c.open" data-test="close-start" @click="closing = true">Close case</AppButton>
         <AppButton @click="emit('close')">Done</AppButton>
       </template>
     </template>

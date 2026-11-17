@@ -120,11 +120,19 @@ export const lumperSweepPayloadSchema = z
   });
 export type LumperSweepPayload = z.infer<typeof lumperSweepPayloadSchema>;
 
-/** Why a person closed a case that will not be billed (D-LRC4). The database CHECK lists the same four. */
-export const LUMPER_CLOSE_REASONS = ["broker_paid_directly", "broker_refused", "included_in_rate", "not_a_lumper"] as const;
+/**
+ * Why a person closed a case (D-LRC4). The database CHECK lists the same five (0629).
+ *
+ * `broker_paid_in_full` (D-LRC15, 2026-11-17) is the one reason that is not "will not be billed": the
+ * broker paid the invoice with the lumper on it, so the revised RC no longer decides whether we are
+ * paid. McLeod's payment tables are not read (a new request to IT), so this is a person's statement,
+ * kept with their name, and the API takes it only on a case whose order is invoiced.
+ */
+export const LUMPER_CLOSE_REASONS = ["broker_paid_in_full", "broker_paid_directly", "broker_refused", "included_in_rate", "not_a_lumper"] as const;
 export type LumperCloseReason = (typeof LUMPER_CLOSE_REASONS)[number];
 
 export const LUMPER_CLOSE_REASON_LABELS: Record<LumperCloseReason, string> = {
+  broker_paid_in_full: "Broker paid the invoice in full",
   broker_paid_directly: "Broker paid the lumper directly",
   broker_refused: "Broker refused to pay",
   included_in_rate: "Included in the rate",
@@ -221,6 +229,11 @@ export const lumperCaseRowSchema = z.object({
   closedByName: z.string().nullable(),
   closeReason: z.enum(LUMPER_CLOSE_REASONS).nullable(),
   closeNote: z.string().nullable(),
+  /**
+   * D-LRC13: the order this lumper's payment or charge may really belong to — payroll keyed the
+   * payment on one order and the charge sits on another. A hint for a person; the fix is in McLeod.
+   */
+  possibleMisposts: z.array(z.object({ orderId: z.string(), amount: z.number(), direction: z.enum(["paid_here", "charged_here"]) })),
 });
 export type LumperCaseRow = z.infer<typeof lumperCaseRowSchema>;
 
@@ -234,12 +247,19 @@ export const lumperUnmatchedPaymentSchema = z.object({
   driverCode: z.string().nullable(),
   tractorUnit: z.string().nullable(),
   pending: z.boolean(),
+  /** Whose settlement the line is on. A reimbursement line names no driver, only its payee. */
+  payeeId: z.string().nullable(),
 });
 export type LumperUnmatchedPayment = z.infer<typeof lumperUnmatchedPaymentSchema>;
+
+/** D-LRC14: an order-less line that is the other half of a payment already counted on `orderId`. */
+export const lumperMatchedPaymentSchema = lumperUnmatchedPaymentSchema.extend({ orderId: z.string() });
+export type LumperMatchedPayment = z.infer<typeof lumperMatchedPaymentSchema>;
 
 export const lumperCasesResponseSchema = z.object({
   cases: z.array(lumperCaseRowSchema),
   unmatchedPayments: z.array(lumperUnmatchedPaymentSchema),
+  matchedPayments: z.array(lumperMatchedPaymentSchema),
   /** When the connector last read McLeod; null before the first sweep. The page says so when it is old. */
   sweptAt: z.string().nullable(),
   /** Whether the daily reminder is switched on for this carrier (D-LRC9: off through the silent weeks). */

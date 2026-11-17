@@ -42,6 +42,7 @@ const rows = computed(() =>
 const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const openCase = computed<LumperCaseRow | null>(() => (data.value?.cases ?? []).find((c) => c.id === openId.value) ?? null);
 const unmatched = computed(() => data.value?.unmatchedPayments ?? []);
+const matched = computed(() => data.value?.matchedPayments ?? []);
 const freshness = computed(() => (data.value ? sweepFreshness(data.value.sweptAt, now) : null));
 const waitingMoney = computed(() => rows.value.filter((c) => c.open).reduce((t, c) => t + (c.paidAmount || c.chargeAmount), 0));
 
@@ -68,7 +69,7 @@ const unmatchedColumns: DataTableColumn[] = [
   { key: "transactedAt", label: "Date", cellClass: "text-ink-secondary" },
   { key: "amount", label: "Amount", numeric: true },
   { key: "referenceNo", label: "EFS reference", cellClass: "font-mono text-xs" },
-  { key: "driverCode", label: "Driver" },
+  { key: "payeeId", label: "Paid to" },
   { key: "tractorUnit", label: "Truck" },
   { key: "pending", label: "Settlement" },
 ];
@@ -139,6 +140,8 @@ const unmatchedColumns: DataTableColumn[] = [
           <AppBadge :tone="LUMPER_STATE_TONE[row.state]">{{ LUMPER_CASE_STATE_LABELS[row.state] }}</AppBadge>
           <!-- Q-LRC9: an order past the read's 90 days keeps its case, but its McLeod facts stop moving. -->
           <span v-if="!row.factsCurrent && row.factsSeenAt" class="block text-xs text-ink-tertiary" :title="FROZEN_HINT">as of {{ formatDisplayDate(row.factsSeenAt) }}</span>
+          <!-- D-LRC13: payroll may have keyed this lumper on another order; the drawer says what to check. -->
+          <span v-if="row.possibleMisposts[0]" class="block text-xs text-ink-tertiary" data-test="mispost">check order {{ row.possibleMisposts[0].orderId }}</span>
         </template>
         <template #footer>
           <div class="flex flex-wrap items-center justify-between gap-3">
@@ -153,6 +156,11 @@ const unmatchedColumns: DataTableColumn[] = [
       <div>
         <h2 id="lumper-unmatched-heading" class="text-lg font-semibold text-ink">Lumper paid, order unknown</h2>
         <p class="text-sm text-ink-muted">Payroll recorded these lumpers with no order number, so no case could be opened. Adding the order number to the settlement line in McLeod puts them on the list above.</p>
+        <!-- D-LRC14: the other half of a payment already counted on an order is not "unknown"; say where it went. -->
+        <p v-if="matched.length" class="mt-1 text-xs text-ink-tertiary" data-test="matched">
+          Not listed: {{ matched.length }} more {{ matched.length === 1 ? "line" : "lines" }} with no order number, each the other half of a payment already counted on
+          {{ matched.map((m) => `order ${m.orderId} (${usd(m.amount)}, ${m.payeeId})`).join(", ") }} — same payee, same amount, within a week.
+        </p>
       </div>
       <!-- ui-adoption: never-empty — the section is drawn only when there is at least one such line. -->
       <!-- ui-adoption: unpaged — about one settlement line in thirteen has no order; three in the ninety days measured. -->
@@ -160,7 +168,7 @@ const unmatchedColumns: DataTableColumn[] = [
         <template #cell-transactedAt="{ value }">{{ mcleodDay(value) }}</template>
         <template #cell-amount="{ value }">{{ usd(value) }}</template>
         <template #cell-referenceNo="{ value }">{{ value ?? "—" }}</template>
-        <template #cell-driverCode="{ value }">{{ value ?? "—" }}</template>
+        <template #cell-payeeId="{ value }">{{ value ?? "—" }}</template>
         <template #cell-tractorUnit="{ value }">{{ value ?? "—" }}</template>
         <template #cell-pending="{ value }">{{ value ? "Not settled yet" : "Settled" }}</template>
       </DataTable>

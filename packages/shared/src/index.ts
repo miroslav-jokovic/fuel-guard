@@ -143,6 +143,7 @@ export * from "./idleEngine/index.js";
 export * from "./tmsDispatchMirror.js";
 export * from "./lumperContract.js";
 export * from "./lumperCase.js";
+export * from "./lumperMatch.js";
 export * from "./lumperReminder.js";
 export * from "./mcleodLoadProjection.js";
 export * from "./tmsCost/index.js";

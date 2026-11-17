@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
@@ -22,7 +22,7 @@ const aCase = (o: Partial<LumperCaseRow>): LumperCaseRow => ({
   customerName: "A Broker", dispatcherUserId: "kane", dispatcherName: "Kane", dispatcherLinked: true, consigneeName: "A Warehouse", consigneeCity: "Joliet", consigneeState: "IL",
   deliveredAt: "2020-01-01T00:00:00Z", driverCode: "DRV1", factsSeenAt: "2026-10-09T13:00:00Z", factsCurrent: true, paidAmount: 310, paidAt: "2020-01-02T00:00:00Z", references: ["EFS-77"], chargeAmount: 310,
   chargeDescriptions: ["Unloading"], billedAmount: 0, shortAmount: 0, invoiced: false, lastInvoiceNo: null, lastInvoiceAt: null, rcOnFile: false, files: [],
-  closedAt: null, closedByName: null, closeReason: null, closeNote: null, ...o,
+  closedAt: null, closedByName: null, closeReason: null, closeNote: null, possibleMisposts: [], ...o,
 });
 const CASES: LumperCaseRow[] = [
   aCase({ id: "c-new", orderId: "0300002", paidAt: "2020-03-01T00:00:00Z", customerName: "Newer Broker", dispatcherName: null }),
@@ -57,7 +57,14 @@ vi.mock("@/features/lumper/useLumperCases", async (orig) => {
   };
 });
 
-const response = (o: Partial<LumperCasesResponse> = {}): LumperCasesResponse => ({ cases: CASES, unmatchedPayments: [], sweptAt: new Date().toISOString(), remindersOn: false, ...o });
+const response = (o: Partial<LumperCasesResponse> = {}): LumperCasesResponse => ({ cases: CASES, unmatchedPayments: [], matchedPayments: [], sweptAt: new Date().toISOString(), remindersOn: false, ...o });
+
+// Each page is attached to the body and its drawer teleports there: unmount after every test, or the
+// next test's queries find the last test's drawer first.
+const mounted: Array<{ unmount: () => void }> = [];
+afterEach(() => {
+  while (mounted.length) mounted.pop()!.unmount();
+});
 
 async function mountPage(url = "/lumper-fees", r: LumperCasesResponse = response()) {
   state.response = r;
@@ -68,6 +75,7 @@ async function mountPage(url = "/lumper-fees", r: LumperCasesResponse = response
   const pinia = createPinia();
   setActivePinia(pinia);
   const w = mount(LumperFeesPage, { global: { plugins: [router, pinia] }, attachTo: document.body });
+  mounted.push(w);
   await flushPromises();
   return { w, router };
 }
@@ -158,13 +166,36 @@ describe("LumperFeesPage", () => {
   it("lists lumpers payroll paid with no order number, and hides the section when there are none", async () => {
     expect((await mountPage()).w.find('[data-test="unmatched"]').exists()).toBe(false);
     const { w } = await mountPage("/lumper-fees", response({
-      unmatchedPayments: [{ id: "paid:D9", deductCode: "LUM", amount: 90, transactedAt: "2020-03-05T00:00:00Z", referenceNo: null, driverCode: "DRV2", tractorUnit: "702", pending: false }],
+      unmatchedPayments: [{ id: "paid:D9", deductCode: "LUM", amount: 90, transactedAt: "2020-03-05T00:00:00Z", referenceNo: null, driverCode: null, tractorUnit: "702", pending: false, payeeId: "DRV2" }],
     }));
     const section = w.find('[data-test="unmatched"]').text();
     expect(section).toContain("Lumper paid, order unknown");
     expect(section).toContain("$90.00");
     expect(section).toContain("03/05/2020");
     expect(section).toContain("DRV2");
+    expect(section).not.toContain("Not listed");
+  });
+
+  it("says which order-less lines are the other half of a payment already counted, instead of listing them as unknown (D-LRC14)", async () => {
+    const line = { deductCode: "LUM", referenceNo: null, driverCode: null, tractorUnit: null, pending: false };
+    const { w } = await mountPage("/lumper-fees", response({
+      unmatchedPayments: [{ ...line, id: "paid:D9", amount: 100, transactedAt: "2020-03-05T00:00:00Z", payeeId: "DRUTHERF" }],
+      matchedPayments: [{ ...line, id: "paid:D8", amount: 410, transactedAt: "2020-03-01T00:00:00Z", payeeId: "CRTUCKER", orderId: "0134538" }],
+    }));
+    const section = w.find('[data-test="unmatched"]');
+    expect(section.findAll("tbody tr")).toHaveLength(1);
+    expect(section.find('[data-test="matched"]').text()).toContain("1 more line");
+    expect(section.find('[data-test="matched"]').text()).toContain("order 0134538 ($410.00, CRTUCKER)");
+  });
+
+  it("points at the order a misplaced payment may belong to, on the row and in the case (D-LRC13)", async () => {
+    const cases = CASES.map((c) => (c.orderId === "0300001" ? { ...c, possibleMisposts: [{ orderId: "0300009", amount: 310, direction: "paid_here" as const }] } : c));
+    const { w } = await mountPage("/lumper-fees?case=c-old", response({ cases }));
+    expect(w.findAll("tbody tr")[0]!.find('[data-test="mispost"]').text()).toBe("check order 0300009");
+    expect(w.findAll('[data-test="mispost"]')).toHaveLength(1);
+    const hint = document.body.querySelector('[data-test="case-mispost"]')?.textContent ?? "";
+    expect(hint).toContain("may have keyed this $310.00 payment on the wrong order: order 0300009");
+    expect(hint).toContain("move the settlement line to order 0300009 in McLeod");
   });
 
   it("opens the case named in the URL, with where and what we paid and what to do next", async () => {
@@ -175,6 +206,7 @@ describe("LumperFeesPage", () => {
     expect(drawer).toContain("The invoice carries less than we paid.");
     expect(drawer).toContain("EFS-77");
     expect(drawer).toContain("5512 on 02/05/2020");
+    expect(document.body.querySelector('[data-test="case-mispost"]')).toBeNull();
     expect(drawer).toContain("$160.00");
     expect(drawer).toContain("revised-rc.pdf");
     expect(drawer).toContain("by Dana Dispatch");
@@ -185,6 +217,28 @@ describe("LumperFeesPage", () => {
     await w.findAll("tbody tr")[0]!.trigger("click");
     await flushPromises();
     expect(router.currentRoute.value.query.case).toBe("c-old");
+  });
+
+  it("shows the invoice day alone when McLeod gives no invoice number", async () => {
+    const cases = CASES.map((c) => (c.id === "c-short" ? { ...c, lastInvoiceNo: null } : c));
+    await mountPage("/lumper-fees?case=c-short", response({ cases }));
+    const drawer = document.body.textContent ?? "";
+    expect(drawer).toContain("Invoiced02/05/2020");
+    expect(drawer).not.toContain("— on");
+  });
+
+  it("offers 'broker paid the invoice in full' only on an invoiced case (D-LRC15)", async () => {
+    const reasons = async (id: string) => {
+      while (mounted.length) mounted.pop()!.unmount();
+      await mountPage(`/lumper-fees?case=${id}`);
+      document.body.querySelector<HTMLButtonElement>('[data-test="close-start"]')!.click();
+      await flushPromises();
+      return [...document.body.querySelectorAll('[data-test="close-reason"] option')].map((o) => o.textContent?.trim());
+    };
+    expect(await reasons("c-short")).toContain("Broker paid the invoice in full");
+    const notInvoiced = await reasons("c-old");
+    expect(notInvoiced).toContain("Broker refused to pay");
+    expect(notInvoiced).not.toContain("Broker paid the invoice in full");
   });
 
   it("closes a case only with a reason from the list", async () => {
