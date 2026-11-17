@@ -23,6 +23,8 @@ const state = vi.hoisted(() => ({
   saveThresholds: vi.fn(),
   confirm: vi.fn(),
   refetch: vi.fn(),
+  saveLumper: vi.fn(),
+  memberIds: null as null | Record<string, string[]>,
 }));
 
 const MEMBERS = [
@@ -41,6 +43,7 @@ const view = (): AlertRoutingView => ({
     ],
     routes: ((state.routes?.[a.key] as AlertRoute[] | undefined) ?? [...a.defaults]) as AlertRoute[],
     usesDefaults: !state.routes?.[a.key],
+    memberIds: state.memberIds?.[a.key] ?? MEMBERS.map((m) => m.userId),
   })),
   members: MEMBERS,
   texts: { available: state.texts, quiet: { startMin: 1260, endMin: 420 } },
@@ -62,6 +65,8 @@ vi.mock("./useAlertRouting", () => ({
   useStartAlertPhone: mutation((v) => state.contactStep("start", v)),
   useConfirmAlertPhone: mutation((v) => state.contactStep("confirm", v)),
   useStopAlertTexts: mutation(() => state.contactStep("stop")),
+  useLumperReminderStatus: () => query(false, { remindersOn: false, updatedAt: null, updatedByName: null, lastRun: null }),
+  useSaveLumperReminders: mutation((v) => state.saveLumper(v)),
 }));
 
 async function mountSection() {
@@ -77,9 +82,37 @@ const DISP = "Everyone with the role Dispatcher";
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  Object.assign(state, { routingFail: false, thresholdsFail: false, routes: null, mine: [], texts: false, contact: { available: true, state: "none", last4: null } });
-  for (const f of [state.saveRoutes, state.resetRoutes, state.saveThresholds, state.confirm, state.refetch, state.contactStep, state.saveHours]) f.mockReset();
+  Object.assign(state, { memberIds: null, routingFail: false, thresholdsFail: false, routes: null, mine: [], texts: false, contact: { available: true, state: "none", last4: null } });
+  for (const f of [state.saveRoutes, state.resetRoutes, state.saveThresholds, state.confirm, state.refetch, state.contactStep, state.saveHours, state.saveLumper]) f.mockReset();
   document.body.innerHTML = "";
+});
+
+describe("the lumper fee reminders (LUMPER-REVISED-RC-PLAN LRC4, D-LRC9)", () => {
+  it("draws them under their own heading with their switch, and home time's under its own", async () => {
+    const w = await mountSection();
+    const sections = w.findAll("section");
+    const lumper = sections.find((x) => x.text().includes("Lumper fee reminders"))!;
+    expect(lumper.find('[data-testid="lumper-reminder-switch"]').exists()).toBe(true);
+    expect(lumper.find('[data-testid="alert-routes-lumper_rc_waiting"]').exists()).toBe(true);
+    expect(lumper.find('[data-testid="alert-routes-home_time_overdue"]').exists()).toBe(false);
+    expect(toggle(lumper, "Send the daily lumper reminder").attributes("aria-checked")).toBe("false");
+    expect(lumper.text()).toContain("Never switched on.");
+  });
+
+  it("switches the reminder on with one request", async () => {
+    const w = await mountSection();
+    await toggle(w, "Send the daily lumper reminder").trigger("click");
+    await flushPromises();
+    expect(state.saveLumper).toHaveBeenCalledWith(true);
+  });
+
+  it("offers each alert only the people who can receive it", async () => {
+    state.memberIds = { home_time_overdue: ["u-dana"] };
+    const w = await mountSection();
+    const options = (key: string) => card(w, key).findAll("option").map((o) => o.text());
+    expect(options("home_time_overdue")).not.toContain("Fran Fleet");
+    expect(options("lumper_rc_waiting")).toContain("Fran Fleet");
+  });
 });
 
 describe("who is told", () => {

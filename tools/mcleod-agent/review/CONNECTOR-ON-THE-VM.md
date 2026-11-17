@@ -134,6 +134,14 @@ and the service's second log line says "lumper OFF". The order:
 5. If the counts look right, `LUMPER_FEED=on` is added to `connector.env` and the service restarted.
    From then on the four statements run once an hour, one after another, never beside another feed.
 
+Steps 4 and 5 are one script since 2026-11-17, `windows/set-lumper-feed.ps1 -Feed on`, so neither is
+typed by hand. It refuses before stopping anything unless the installed code knows the feed, the
+database is `lme` and Silvicom 360 has the lumper address. It then stops the service, so the dry run
+is never beside another statement of ours, runs the dry run, and writes the line only if the dry run
+says the sweep would be sent. After the restart it waits for the first sweep to reach Silvicom 360.
+If any step fails, it puts `connector.env` back exactly as it was and starts the service again.
+`-Feed off` writes `LUMPER_FEED=off` the same way.
+
 If a read comes back empty or the four statements disagree with each other, the connector sends
 nothing, logs why, and tries again an hour later. Setting the line back to `off` (or removing it)
 and restarting stops the feed; nothing else changes.

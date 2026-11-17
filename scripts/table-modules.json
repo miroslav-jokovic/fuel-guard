@@ -3686,6 +3686,28 @@
         "budget_rows_per_day": 30,
         "why": "LUMPER-REVISED-RC-PLAN D-LRC3 (0601): the broker's revised rate confirmation filed on a lumper case, one or two papers a case and under one case a day (256 orders in 2026 to 10-09). The row is the record that the RC arrived, so it is never deleted and has no window; a wrong paper is marked removed."
       }
+    },
+    "lumper_reminder_settings": {
+      "module": "mcleod",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "LUMPER-REVISED-RC-PLAN D-LRC9 (0624): whether the daily lumper reminder is on, one row per org, written by an admin; bounded by the number of orgs."
+      }
+    },
+    "lumper_reminder_runs": {
+      "module": "mcleod",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1,
+        "why": "LUMPER-REVISED-RC-PLAN D-LRC6 (0624): one row per org per weekday the reminder runs, about 260 a year per carrier. The record that a morning's reminder went and to how many, so no window."
+      }
     }
   }
 }

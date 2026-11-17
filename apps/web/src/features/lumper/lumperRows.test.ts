@@ -6,7 +6,7 @@ import { lumperFileMimeOf, lumperFileRefusal } from "./useLumperCases";
 const row = (o: Partial<LumperCaseRow> = {}): LumperCaseRow => ({
   id: "c1", companyId: "TMS", orderId: "0291013", chargeCode: "LUM", state: "waiting_for_rc", open: true, openedAt: "2026-10-02T12:00:00Z",
   customerName: "A Broker", dispatcherUserId: "kane", dispatcherName: "Kane", consigneeName: "A Warehouse", consigneeCity: "Joliet", consigneeState: "IL",
-  deliveredAt: "2026-10-01T00:00:00Z", driverCode: "DRV1", paidAmount: 310, paidAt: "2026-10-02T00:00:00Z", references: ["EFS-77"], chargeAmount: 310,
+  deliveredAt: "2026-10-01T00:00:00Z", driverCode: "DRV1", factsSeenAt: "2026-10-09T13:00:00Z", factsCurrent: true, paidAmount: 310, paidAt: "2026-10-02T00:00:00Z", references: ["EFS-77"], chargeAmount: 310,
   chargeDescriptions: ["Unloading"], billedAmount: 0, shortAmount: 0, invoiced: false, lastInvoiceNo: null, lastInvoiceAt: null, rcOnFile: false, files: [],
   closedAt: null, closedByName: null, closeReason: null, closeNote: null, ...o,
 });

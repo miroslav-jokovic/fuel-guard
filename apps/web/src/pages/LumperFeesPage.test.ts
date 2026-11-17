@@ -20,7 +20,7 @@ vi.mock("@vueuse/core", async (orig) => {
 const aCase = (o: Partial<LumperCaseRow>): LumperCaseRow => ({
   id: "c1", companyId: "TMS", orderId: "0291013", chargeCode: "LUM", state: "waiting_for_rc", open: true, openedAt: "2020-01-02T12:00:00Z",
   customerName: "A Broker", dispatcherUserId: "kane", dispatcherName: "Kane", consigneeName: "A Warehouse", consigneeCity: "Joliet", consigneeState: "IL",
-  deliveredAt: "2020-01-01T00:00:00Z", driverCode: "DRV1", paidAmount: 310, paidAt: "2020-01-02T00:00:00Z", references: ["EFS-77"], chargeAmount: 310,
+  deliveredAt: "2020-01-01T00:00:00Z", driverCode: "DRV1", factsSeenAt: "2026-10-09T13:00:00Z", factsCurrent: true, paidAmount: 310, paidAt: "2020-01-02T00:00:00Z", references: ["EFS-77"], chargeAmount: 310,
   chargeDescriptions: ["Unloading"], billedAmount: 0, shortAmount: 0, invoiced: false, lastInvoiceNo: null, lastInvoiceAt: null, rcOnFile: false, files: [],
   closedAt: null, closedByName: null, closeReason: null, closeNote: null, ...o,
 });
@@ -57,7 +57,7 @@ vi.mock("@/features/lumper/useLumperCases", async (orig) => {
   };
 });
 
-const response = (o: Partial<LumperCasesResponse> = {}): LumperCasesResponse => ({ cases: CASES, unmatchedPayments: [], sweptAt: new Date().toISOString(), ...o });
+const response = (o: Partial<LumperCasesResponse> = {}): LumperCasesResponse => ({ cases: CASES, unmatchedPayments: [], sweptAt: new Date().toISOString(), remindersOn: false, ...o });
 
 async function mountPage(url = "/lumper-fees", r: LumperCasesResponse = response()) {
   state.response = r;
@@ -121,6 +121,20 @@ describe("LumperFeesPage", () => {
     const old = new Date(Date.now() - 3 * 86_400_000).toISOString();
     expect((await mountPage("/lumper-fees", response({ sweptAt: old }))).w.find('[data-test="feed"]').text()).toContain("3 days ago");
     expect((await mountPage()).w.find('[data-test="feed"]').text()).toContain("within the last hour");
+  });
+
+  it("says whether anybody is reminded, so the silent weeks are not mistaken for reminders going out (D-LRC9)", async () => {
+    expect((await mountPage()).w.find('[data-test="reminders"]').text()).toContain("No reminders are sent yet");
+    expect((await mountPage("/lumper-fees", response({ remindersOn: true }))).w.find('[data-test="reminders"]').text()).toContain("weekdays at 8:00");
+    // Before the first read there is nothing to remind about, and the read itself is what the page says.
+    expect((await mountPage("/lumper-fees", response({ cases: [], sweptAt: null }))).w.find('[data-test="reminders"]').exists()).toBe(false);
+  });
+
+  it("marks a case older than the read's 90 days with the day its McLeod facts are from (Q-LRC9)", async () => {
+    const frozen = CASES.map((c) => (c.orderId === "0300001" ? { ...c, factsCurrent: false, factsSeenAt: "2026-08-01T13:00:00Z" } : c));
+    const row = (await mountPage("/lumper-fees", response({ cases: frozen }))).w.findAll("tbody tr")[0]!.text();
+    expect(row).toContain("as of 08/01/2026");
+    expect((await mountPage()).w.findAll("tbody tr")[0]!.text()).not.toContain("as of");
   });
 
   it("shows a failed read as a failure, never as an empty list", async () => {

@@ -255,6 +255,15 @@ filed, so it can outlive the window, and the feed then stops refreshing its paid
   looks those orders up by number** (the pattern the loads close read uses). One more statement for
   IT to review; built with LRC2, before any reminder is sent.
 - (b) Widen the window to a year. Simpler, but reads about four times the rows every hour.
+- **(c) Built 2026-11-17, replacing (a) as the recommendation: no change to what McLeod is asked.**
+  (a) is a new statement for IT to review, and (b) changes the 90 days IT approved in Part 7's own
+  words, so each would be a new request to IT for a case nobody has met yet (the feed has not run).
+  Instead 360 says which facts are old: a case whose order the latest read did not carry shows its
+  McLeod facts "as of" the last read that did (`factsCurrent`, `factsSeenAt`). Whether the revised RC
+  is on file is 360's own fact and never goes stale, so the two RC reminders still go for such a case;
+  the billing-gap reminder does not, because a re-bill after day 90 would not reach 360 and accounting
+  would be told every morning to re-bill a load they already re-billed. If old billing gaps turn out
+  to matter in the silent weeks, (a) is still the fix, taken to IT with the evidence.
 
 **Rulings, 2026-11-13.** The owner answered "proceed as recommended": Q-LRC3 (every `LUM` row),
 Q-LRC5 (the order's `operations_user`), Q-LRC7 (lumper only, case keyed by charge code) and Q-LRC2
@@ -359,4 +368,56 @@ VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
   changes the address or the token only, and checks that the line count is unchanged. Adding a
   third change to it has to be written and tried on the VM itself, since PowerShell is not on the
   Mac it would be written from. Open: Q-LRC9, Q-LRC8.
-
+- 2026-11-17, LRC4 and the rest of LRC3 (branch `claude/lumper-finish`). Checked first, permission
+  metadata only, under the connector's login on 2026-11-16 21:19Z: `drs_deduct_hist` and
+  `billing_history` are still refused on LME, the same two tables IT was asked for on 2026-11-13;
+  nothing new is needed from IT. Production already serves `/api/tms/lumper` and the page (release at
+  `9598f10`), with 0 sweeps and 0 cases. Built:
+  - **The daily reminder** (D-LRC4, D-LRC6, D-LRC7, Q-LRC2). Three alerts in the routing catalogue,
+    one per reminder in D-LRC4: `lumper_rc_waiting` (the order's dispatcher by dashboard and email,
+    admins by dashboard), `lumper_rc_missing_billed` (the same plus accounting), `lumper_billing_gap`
+    (accounting and admins). Who receives is Settings › Notifications, like home time's alerts. A
+    person gets one dashboard item per alert per day counting their loads, one email listing them,
+    and a text only if Text is switched on for them. The audience is the Lumper fees SCREEN, not a
+    section (D-LRC11): the alert resolver now asks the carrier's screen answers per role and per
+    person, which needed the two pure helpers that read them moved from org into `@silvicom/shared`
+    (`surfaceClaims.ts`, unchanged). When the routes reach nobody, the admins get it.
+  - **The order's dispatcher** is a new routing relation: the order's `operations_user`, through the
+    office's link from that McLeod login to a 360 account. Measured on LME the same day: in 4,565
+    orders of 90 days, `operations_user` matches `users.id` exactly and is always lowercase, as
+    `tms_dispatchers.external_id` is; 7 orders have none. Only 2 of 16 non-system McLeod dispatchers
+    are linked today (Settings › McLeod fleets), so until more are, the dispatcher's reminder mostly
+    falls back to the admins.
+  - **The silent weeks (D-LRC9)** are a switch, `lumper_reminder_settings` (0624): no row is off. An
+    admin turns it on in Settings › Notifications › Lumper fee reminders, audited with the old and the
+    new answer. The Lumper fees page says plainly that no reminders are sent until then.
+  - **Once a morning.** A job every 15 minutes (`lumper-reminders` in `SCHEDULERS`) claims the
+    carrier's day in `lumper_reminder_runs` (0624) before sending, so a restart or a second process
+    never sends a morning twice, and a server down at 08:00 sends it when it is back that day. A run
+    that fails gives the day back. Nothing is sent before the first McLeod read; past 26 hours without
+    one, the dashboard item says when McLeod was last read.
+  - **Q-LRC9** as (c) above.
+  - **The case on the load page:** a McLeod load whose order has a lumper case shows what was paid,
+    whether the revised RC is on file and the status, and links to the case on Lumper fees. Only for
+    somebody who can open Lumper fees.
+  - **The VM switch:** `tools/mcleod-agent/windows/set-lumper-feed.ps1`. The line could not be added
+    by `set-connector-line.ps1` (it changes Url or Token only). Rehearsed on a Mac with PowerShell 7.7
+    (`set-lumper-feed.test.ps1`): 14 cases (a new line added with LF and with CRLF endings, a line
+    changed in place, a refused dry run, a sweep that fails after the restart, no sweep within the
+    wait, Node reading the file back wrong, no lumper route on 360, an agent from before the feed, two
+    lines, a database other than `lme`, already on, off, already off), and 8 mutants of the script,
+    every one caught; one (no restore when a check after the write fails) survived the first run, and
+    the Node read-back case was added for it. One more case ran the REAL agent of `b864665` with the real settings against
+    LME: the dry run was refused on `drs_deduct_hist`, and the script put nothing in the file and
+    restarted, as it must until IT runs the two grants.
+  - **The VM update stays pinned to `b864665`.** `update-connector.ps1` on main lists the files of
+    that commit (all 40 checksums regenerated and compared on 2026-11-16), 180 of 180 connector tests
+    pass there, and its four lumper statements are byte for byte what IT approved (Part 7 compared
+    with comments removed at `91a6a02`, `6c31f17`, `b864665` and main: identical). A later commit is
+    not used: `0cf39de` (finance, merged 2026-11-15) changed `agent.mjs` and `queries.mjs`. The VM
+    has run `43f6abc` since 2026-10-30; nothing in this branch changes a file the VM runs.
+  - Still to do, in order: IT runs the two grants (`drs_deduct_hist`, `billing_history` on `lme`);
+    a release carrying this branch (migration 0624); on the VM, `update-connector.ps1 -Commit
+    b864665… -RosterMode create`, then `set-lumper-feed.ps1 -Feed on`; two silent weeks comparing
+    the list with billing; an admin switches the reminder on. Open: Q-LRC8; who sees the page during
+    the silent weeks (D-LRC9 says admins, the screen starts on for three roles).

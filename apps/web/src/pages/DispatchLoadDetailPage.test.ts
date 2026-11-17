@@ -37,7 +37,8 @@ vi.mock("vue-router", async (orig) => ({
 const Page = (await import("./DispatchLoadDetailPage.vue")).default;
 // ChatAboutCard (CH11c) is its own component with its own test (ChatAboutCard.test.ts); here only what
 // the page hands it is held.
-const stubs = { PageHeader: true, HazmatPanel: true, DispatchLoadDrawer: true, ChatAboutCard: true, RouterLink: { template: "<a><slot /></a>" } };
+// LumperOnLoadCard (LUMPER-REVISED-RC-PLAN LRC3) likewise has its own test (LumperOnLoadCard.test.ts).
+const stubs = { PageHeader: true, HazmatPanel: true, DispatchLoadDrawer: true, ChatAboutCard: true, LumperOnLoadCard: true, RouterLink: { template: "<a><slot /></a>" } };
 async function facts(over: Record<string, unknown> = {}) {
   setActivePinia(createPinia());
   load.value = tmsLoad(over);

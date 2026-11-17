@@ -40,6 +40,7 @@ const isOn = (routes: readonly AlertRoute[], kind: AlertRoute["recipientKind"], 
 const RELATION_HINTS: Record<string, string> = {
   marked_by: "The person who marked this driver's home time.",
   truck_dispatcher: "The dispatcher linked to the truck's McLeod fleet in Settings, McLeod fleets. Nobody, when the fleet is not linked.",
+  order_dispatcher: "The dispatcher on the McLeod order, when that McLeod login is linked to a person in Settings, McLeod fleets. Nobody, when it is not.",
 };
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -87,7 +88,14 @@ export function personRow(alertKey: AlertKey, rows: readonly RecipientRow[], mem
   // The API lists only people who can open the alert's section on the carrier's own Permissions page —
   // somebody given it by name included — so the member is stated as a viewer here rather than judged
   // again from the shipped role matrix, which is the mistake Q-HT8 removed.
-  const viewer = { userId: member.userId, role: member.role as UserRole, sections: { [alertDefinition(alertKey).section]: "view" as const } };
+  // An alert gated by a screen (Lumper fees) states the screen the same way.
+  const def = alertDefinition(alertKey);
+  const viewer = {
+    userId: member.userId,
+    role: member.role as UserRole,
+    sections: def.section ? { [def.section]: "view" as const } : {},
+    surfaces: def.surface ? { [def.surface]: true } : {},
+  };
   const always = alertsForMember(alertKey, toRoutes(rows, []), viewer).always;
   return {
     id: `user:${member.userId}`,

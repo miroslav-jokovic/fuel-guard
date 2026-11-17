@@ -37,6 +37,8 @@ export {
 export { registerMcleodIntegrationRoutes } from "./routes/integration.js";
 export { dispatchLinksRouter } from "./routes/dispatchLinks.js";
 export { lumperCasesRouter } from "./lumper/routes.js";
+export { lumperReminderSettingsRouter } from "./lumper/reminderSettingsRoutes.js";
+export { startLumperReminderScheduler, runLumperRemindersOnce } from "./lumper/lumperReminders.js";
 export { readVoucherNumbersWindow, type StagedVoucherNumber } from "./maintenanceVouchers.js";
 export {
   readSettlementsWindow,

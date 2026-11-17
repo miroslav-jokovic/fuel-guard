@@ -5,7 +5,7 @@ import {
   USER_ROLE_LABELS,
   alertDefinition,
   alertRouteId,
-  alertMemberCanView,
+  alertMemberCanReceive,
   alertRolesFor,
   alertRoutesProblem,
   alertsForMember,
@@ -62,10 +62,10 @@ async function readRouteRows(admin: SupabaseClient, orgId: string): Promise<Rout
 
 const savedFor = (rows: readonly RouteRow[], alert: AlertKey): AlertRoute[] => rows.filter((r) => r.alert === alert).map(toRoute);
 
-/** The active members who can view the alert's section: the people a route can reach. */
+/** The active members who can receive the alert (its section, its screen): the people a route can reach. */
 const reachable = (members: readonly AlertMember[], alert: AlertKey): AlertMember[] => {
-  const section = alertDefinition(alert).section;
-  return members.filter((m) => alertMemberCanView(m, section));
+  const def = alertDefinition(alert);
+  return members.filter((m) => alertMemberCanReceive(m, def));
 };
 
 /** Who has a confirmed number they have not stopped: the people a Text switch actually reaches. */
@@ -82,7 +82,7 @@ export async function readAlertRoutingView(admin: SupabaseClient, env: Env, orgI
     const saved = savedFor(rows, def.key);
     const people = reachable(directory.members, def.key);
     for (const m of people) listed.add(m.userId);
-    const roles = alertRolesFor(def.section, directory.roleChanges);
+    const roles = alertRolesFor(def, directory.roleChanges, directory.roleSurfaces);
     // What can still receive it: a role or a person the carrier has since taken the section from is not
     // shown as a switch — and the sender already skips them.
     const inForce = receivableRoutes(routesInForce(def.key, saved), new Set(people.map((m) => m.userId)), new Set<string>(roles));
@@ -94,6 +94,7 @@ export async function readAlertRoutingView(admin: SupabaseClient, env: Env, orgI
       roles: roles.map((key) => ({ key, label: USER_ROLE_LABELS[key] ?? key })),
       routes: inForce,
       usesDefaults: saved.length === 0,
+      memberIds: people.map((m) => m.userId),
     };
   });
   const members = directory.members
@@ -108,7 +109,7 @@ export type AlertRoutesSaved = { ok: true; routes: AlertRoute[] } | { ok: false;
 /** Replace one alert's set. Refused, in words for the page, when the set breaks `alertRoutesProblem`. */
 export async function saveAlertRoutes(admin: SupabaseClient, orgId: string, actorId: string, alert: AlertKey, routes: readonly AlertRoute[], now: Date): Promise<AlertRoutesSaved> {
   const directory = await readDirectory(admin, orgId);
-  const roleKeys = new Set<string>(alertRolesFor(alertDefinition(alert).section, directory.roleChanges));
+  const roleKeys = new Set<string>(alertRolesFor(alertDefinition(alert), directory.roleChanges, directory.roleSurfaces));
   const problem = alertRoutesProblem(alert, routes, new Set(reachable(directory.members, alert).map((m) => m.userId)), roleKeys);
   if (problem) return { ok: false, problem };
 
@@ -151,7 +152,7 @@ export async function readMyAlerts(admin: SupabaseClient, orgId: string, userId:
   const [rows, directory] = await Promise.all([readRouteRows(admin, orgId), readDirectory(admin, orgId)]);
   const me = directory.members.find((m) => m.userId === userId);
   const alerts = ALERT_CATALOGUE.flatMap((def) => {
-    if (!me || !alertMemberCanView(me, def.section)) return [];
+    if (!me || !alertMemberCanReceive(me, def)) return [];
     const mine = alertsForMember(def.key, savedFor(rows, def.key), me);
     return [
       {

@@ -2,9 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   USER_ROLES,
   alertDefinition,
-  alertMemberCanManage,
+  alertMemberIsFallback,
   alertMemberSections,
+  memberSurfaceClaim,
   resolveAlertRecipients,
+  toSurfaceOverrides,
+  toUserSurfaceClaim,
   type AlertChannel,
   type AlertKey,
   type AlertMember,
@@ -14,6 +17,9 @@ import {
   type SectionAccess,
   type SectionClaim,
   type SectionOverrides,
+  type SurfaceClaim,
+  type SurfaceOverrides,
+  type SurfaceRow,
   type UserRole,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
@@ -77,6 +83,8 @@ export interface Directory {
   nameOf: Map<string, string>;
   /** The carrier's role-level section changes, for "which roles can receive this alert" (`alertRolesFor`). */
   roleChanges: SectionOverrides;
+  /** …and its role-level screen changes, for an alert gated by a screen (`AlertDefinition.surface`). */
+  roleSurfaces: SurfaceOverrides;
 }
 
 /**
@@ -88,6 +96,32 @@ export interface Directory {
 export interface SectionChanges {
   roles: SectionOverrides;
   users: Map<string, SectionClaim>;
+}
+
+/**
+ * The carrier's SCREEN changes — `org_role_surface_access` (0296) and `user_surface_access` (0298) —
+ * read for an alert whose audience is a screen (LUMPER-REVISED-RC-PLAN D-LRC11). Same rule as the
+ * section reads: a failed read THROWS. The screen's own guard fails open on a failed read, which is
+ * safe there because it can only narrow inside a section; an alert that fails open would be SENT to
+ * somebody the carrier took the screen from, so this one fails closed and the run says so.
+ */
+export interface SurfaceChanges {
+  roles: SurfaceOverrides;
+  users: Map<string, SurfaceClaim>;
+}
+export async function readSurfaceChanges(admin: SupabaseClient, orgId: string): Promise<SurfaceChanges> {
+  const [byRole, byUser] = await Promise.all([
+    admin.from("org_role_surface_access").select("role, surface_key, allowed").eq("org_id", orgId),
+    admin.from("user_surface_access").select("user_id, surface_key, allowed").eq("org_id", orgId),
+  ]);
+  if (byRole.error) throw new Error(`org_role_surface_access: ${byRole.error.message}`);
+  if (byUser.error) throw new Error(`user_surface_access: ${byUser.error.message}`);
+  const perUser = new Map<string, { surface_key: string; allowed: boolean }[]>();
+  for (const r of (byUser.data ?? []) as { user_id: string; surface_key: string; allowed: boolean }[]) perUser.set(r.user_id, [...(perUser.get(r.user_id) ?? []), r]);
+  return {
+    roles: toSurfaceOverrides((byRole.data ?? []) as SurfaceRow[]),
+    users: new Map([...perUser].map(([userId, rows]) => [userId, toUserSurfaceClaim(rows)])),
+  };
 }
 export async function readSectionChanges(admin: SupabaseClient, orgId: string): Promise<SectionChanges> {
   const [byRole, byUser] = await Promise.all([
@@ -109,7 +143,11 @@ export async function readSectionChanges(admin: SupabaseClient, orgId: string): 
  * this alert is about" is the carrier's answer everywhere a member is asked it.
  */
 export async function readDirectory(admin: SupabaseClient, orgId: string): Promise<Directory> {
-  const [{ data, error }, changes] = await Promise.all([admin.rpc("org_member_directory", { p_org_id: orgId }), readSectionChanges(admin, orgId)]);
+  const [{ data, error }, changes, screens] = await Promise.all([
+    admin.rpc("org_member_directory", { p_org_id: orgId }),
+    readSectionChanges(admin, orgId),
+    readSurfaceChanges(admin, orgId),
+  ]);
   if (error) throw new Error(`org_member_directory: ${error.message}`);
   const rows = (data ?? []) as Array<{ user_id: string; email: string | null; full_name?: string | null; role: string; suspended_at: string | null }>;
   const members: AlertMember[] = [];
@@ -118,11 +156,16 @@ export async function readDirectory(admin: SupabaseClient, orgId: string): Promi
   for (const r of rows) {
     if (r.suspended_at !== null || !(USER_ROLES as readonly string[]).includes(r.role)) continue;
     const role = r.role as UserRole;
-    members.push({ userId: r.user_id, role, sections: alertMemberSections(role, changes.roles, changes.users.get(r.user_id)) });
+    members.push({
+      userId: r.user_id,
+      role,
+      sections: alertMemberSections(role, changes.roles, changes.users.get(r.user_id)),
+      surfaces: memberSurfaceClaim(role, screens.roles, screens.users.get(r.user_id)),
+    });
     if (r.email) emailOf.set(r.user_id, r.email);
     nameOf.set(r.user_id, r.full_name?.trim() || r.email || "Unnamed member");
   }
-  return { members, emailOf, nameOf, roleChanges: changes.roles };
+  return { members, emailOf, nameOf, roleChanges: changes.roles, roleSurfaces: screens.roles };
 }
 
 /** The carrier's saved routes for one alert; empty means "the catalogue's defaults" (`routesInForce`). */
@@ -191,25 +234,46 @@ const escapeHtml = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g,
  * `clock` is the carrier's zone and the run's instant — the caller already holds both, and a text is
  * held or sent on that clock.
  */
-export async function sendAlerts(admin: SupabaseClient, env: Env, orgId: string, alert: AlertKey, events: readonly AlertEvent[], clock: AlertTextClock): Promise<AlertSendResult> {
+/**
+ * One bell item per person for the whole batch instead of one per event — for a digest alert whose plan
+ * promises "one reminder per person per day" (LUMPER-REVISED-RC-PLAN D-LRC6). The email and the text are
+ * already one per person; this makes the bell match. Given the person's events, it returns the bell's
+ * title and the dedupe key that makes it once (a day key, for a daily digest).
+ */
+export interface BellDigest {
+  (mine: readonly AlertEvent[]): { title: string; dedupeKey: string; severity: NotificationSeverity };
+}
+
+export async function sendAlerts(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  alert: AlertKey,
+  events: readonly AlertEvent[],
+  clock: AlertTextClock,
+  options: { bellDigest?: BellDigest } = {},
+): Promise<AlertSendResult> {
   const result: AlertSendResult = { bells: 0, emails: 0, texts: 0, textsHeld: 0, fellBack: 0 };
   if (events.length === 0) return result;
   const def = alertDefinition(alert);
   const audience = await readAlertAudience(admin, env, orgId, alert);
-  const fallback = audience.directory.members.filter((m) => alertMemberCanManage(m, def.section)).map((m) => m.userId);
+  const fallback = audience.directory.members.filter((m) => alertMemberIsFallback(m, def)).map((m) => m.userId);
 
   /** Per person, the events to email them about, and to text them about. */
   const emailFor = new Map<string, AlertEvent[]>();
   const textFor = new Map<string, AlertEvent[]>();
+  const bellFor = new Map<string, AlertEvent[]>();
   for (const event of events) {
     let recipients = recipientsFor(alert, audience, event.relations);
     if (recipients.size === 0) {
       result.fellBack += 1;
       recipients = new Map(fallback.map((userId) => [userId, new Set<AlertChannel>(["bell"])]));
-      if (recipients.size === 0) console.error(`[alerts] org ${orgId}: ${alert} has nobody to tell — no active member manages ${def.section}`);
+      if (recipients.size === 0) console.error(`[alerts] org ${orgId}: ${alert} has nobody to tell — nobody to fall back to (${def.section ? `no active member manages ${def.section}` : "no admin can open its screen"})`);
     }
     for (const [userId, channels] of recipients) {
-      if (channels.has("bell")) {
+      if (channels.has("bell") && options.bellDigest) {
+        bellFor.set(userId, [...(bellFor.get(userId) ?? []), event]);
+      } else if (channels.has("bell")) {
         const id = await notify(admin, {
           orgId,
           userId,
@@ -226,7 +290,12 @@ export async function sendAlerts(admin: SupabaseClient, env: Env, orgId: string,
       if (channels.has("sms")) textFor.set(userId, [...(textFor.get(userId) ?? []), event]);
     }
   }
-  if (result.fellBack > 0) console.warn(`[alerts] org ${orgId}: ${result.fellBack} ${alert} event(s) resolved to nobody and went to who manages ${def.section}`);
+  for (const [userId, mine] of bellFor) {
+    const bell = options.bellDigest!(mine);
+    const id = await notify(admin, { orgId, userId, category: alert, title: bell.title, severity: bell.severity, dedupeKey: bell.dedupeKey });
+    if (id) result.bells += 1;
+  }
+  if (result.fellBack > 0) console.warn(`[alerts] org ${orgId}: ${result.fellBack} ${alert} event(s) resolved to nobody and went to ${def.section ? `who manages ${def.section}` : "the admins"}`);
 
   for (const [userId, mine] of emailFor) {
     const to = audience.directory.emailOf.get(userId);
@@ -265,7 +334,7 @@ async function emailOne(
   env: Env,
   orgId: string,
   alert: AlertKey,
-  def: { label: string; action: string },
+  def: { label: string; action: string; plural?: string },
   userId: string,
   to: string,
   events: readonly AlertEvent[],
@@ -289,7 +358,7 @@ async function emailOne(
   const lines = ((row as { items?: { line: string }[] } | null)?.items ?? []).map((i) => i.line);
   if (lines.length === 0) return false;
 
-  const subject = lines.length === 1 ? `${def.label}: ${lines[0]}` : `${def.label}: ${lines.length} drivers`;
+  const subject = lines.length === 1 ? `${def.label}: ${lines[0]}` : `${def.label}: ${lines.length} ${def.plural ?? "drivers"}`;
   const open = def.action;
   const sent = await sendEmail(env, {
     to: [to],

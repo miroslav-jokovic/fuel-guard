@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import {
   alertRoutingViewSchema,
   homeTimeSettingsSchema,
+  lumperReminderStatusSchema,
   myAlertContactSchema,
   myAlertsSchema,
   type AlertKey,
@@ -11,6 +12,7 @@ import {
   type AlertRoute,
   type AlertRoutingView,
   type HomeTimeSettings,
+  type LumperReminderStatus,
   type MyAlerts,
 } from "@silvicom/shared";
 import { apiFetch, type ApiResult } from "@/lib/api";
@@ -24,6 +26,7 @@ import { HOME_TIME_KEY } from "@/components/homeTime/useHomeTime";
 export const ALERT_ROUTING_KEY = ["alert-routing"] as const;
 const MY_ALERTS_KEY = ["my-alerts"] as const;
 const THRESHOLDS_KEY = ["home-time-settings"] as const;
+const LUMPER_REMINDERS_KEY = ["lumper-reminder-settings"] as const;
 
 async function read<T>(call: Promise<ApiResult<T>>, fallback: string): Promise<T> {
   const res = await call;
@@ -120,3 +123,26 @@ function useContactStep<V>(call: (v: V) => Promise<ApiResult<MyAlertContact>>, f
 export const useStartAlertPhone = () => useContactStep<{ phone: string }>((v) => apiFetch("/api/me/alerts/phone", { method: "POST", body: { phone: v.phone, agreed: true } }), "Could not text that number.");
 export const useConfirmAlertPhone = () => useContactStep<{ code: string }>((v) => apiFetch("/api/me/alerts/phone/confirm", { method: "POST", body: v }), "Could not check the code.");
 export const useStopAlertTexts = () => useContactStep<void>(() => apiFetch("/api/me/alerts/phone/stop", { method: "POST", body: {} }), "Could not stop text alerts.");
+
+/** The daily lumper reminder's switch (LUMPER-REVISED-RC-PLAN D-LRC9), its author, and the last morning it ran. */
+export function useLumperReminderStatus() {
+  return useQuery({
+    queryKey: LUMPER_REMINDERS_KEY,
+    queryFn: async (): Promise<LumperReminderStatus> =>
+      lumperReminderStatusSchema.parse(await read(apiFetch<LumperReminderStatus>("/api/lumper-reminders/settings"), "Could not load the lumper reminder setting.")),
+  });
+}
+
+export function useSaveLumperReminders() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (remindersOn: boolean): Promise<void> => {
+      await read(apiFetch("/api/lumper-reminders/settings", { method: "PUT", body: { remindersOn } }), "Could not save the lumper reminder setting.");
+    },
+    // The Lumper fees page says whether the reminder is on, from its own list.
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: LUMPER_REMINDERS_KEY });
+      void qc.invalidateQueries({ queryKey: ["lumper-cases"] });
+    },
+  });
+}
