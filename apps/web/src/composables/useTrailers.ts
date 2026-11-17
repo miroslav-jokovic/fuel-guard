@@ -10,7 +10,7 @@ import type { OwnershipType, Trailer, TrailerWrite } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 const COLS =
-  "id, org_id, unit_number, make, model, year, plate, trailer_type, cargo_capacity_gal, cargo_compartments, is_reefer, reefer_tank_capacity_gal, status, assigned_vehicle_id, samsara_asset_id, created_at, updated_at, dot_annual_inspection_expires_at, mcleod_trailer_id, identity_source, pairing_source, pairing_confirmed_at, ownership_type";
+  "id, org_id, unit_number, make, model, year, plate, vin, trailer_type, cargo_capacity_gal, cargo_compartments, is_reefer, reefer_tank_capacity_gal, status, assigned_vehicle_id, samsara_asset_id, created_at, updated_at, dot_annual_inspection_expires_at, mcleod_trailer_id, identity_source, pairing_source, pairing_confirmed_at, ownership_type";
 
 const trailersKey = ["trailers"] as const;
 

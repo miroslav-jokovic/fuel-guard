@@ -12,9 +12,11 @@ vi.mock("@/components/notes/NotesDrawer.vue", async () => (await import("@/compo
  * labelled — the load McLeod put it on, and the truck the GPS last saw it with, with how old that is.
  * On 2026-10-19 they disagreed on 72 of 114 trucks, so a page that showed one would mislead half the time.
  */
-const trailer = { id: "t1", unit_number: "R-501", make: "Utility", model: "3000R", year: null, plate: null, trailer_type: "reefer", is_reefer: true,
+const trailer = { id: "t1", unit_number: "R-501", make: "Utility", model: "3000R", year: null, plate: null, vin: "1UYVS2538L2756034", trailer_type: "reefer", is_reefer: true,
   reefer_tank_capacity_gal: 50, assigned_vehicle_id: "v-gps", pairing_source: "inferred", pairing_confirmed_at: "2026-08-04T16:06:27Z",
   dot_annual_inspection_expires_at: null, status: "active", mcleod_trailer_id: "R-501", identity_source: "mcleod" };
+// A second trailer, so a search has something to leave out.
+const other = { ...trailer, id: "t2", unit_number: "R-777", make: "Wabash", vin: "1JJV532D8KL000111", assigned_vehicle_id: null, mcleod_trailer_id: "R-777" };
 
 // The pages read every unit's file for the File column (UNIT-FILES-PLAN UF4); none is filed here.
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: ref("America/Chicago"), isResolved: ref(true) }) }));
@@ -25,7 +27,7 @@ vi.mock("@/composables/useTrailerLink", () => ({
 vi.mock("@/composables/useTrailers", () => {
   const idle = () => ({ mutateAsync: vi.fn(), isPending: ref(false) });
   return {
-    useTrailersQuery: () => ({ data: ref([trailer]), isLoading: ref(false), isError: ref(false), error: ref(null), refetch: vi.fn(), isFetching: ref(false) }),
+    useTrailersQuery: () => ({ data: ref([trailer, other]), isLoading: ref(false), isError: ref(false), error: ref(null), refetch: vi.fn(), isFetching: ref(false) }),
     useCreateTrailer: idle, useUpdateTrailer: idle, useRetireTrailer: idle, useBulkUpdateTrailers: idle,
   };
 });
@@ -68,5 +70,24 @@ describe("the Trailers page opens a trailer's own page", () => {
     const link = w.find('tbody tr a[href="/trailers/t1"]');
     expect(link.exists()).toBe(true);
     expect(link.text()).toBe("R-501");
+  });
+});
+
+/**
+ * 2026-11-17: McLeod's VIN (`dbo.trailer.serial_number`) reached the database on every active trailer
+ * and no screen showed it. The list shows it in its own column, and finds a trailer by it.
+ */
+describe("the Trailers page shows each trailer's VIN", () => {
+  it("draws the VIN in its own column, and a VIN search finds the trailer", async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/trailers", component: { template: "<div/>" }, meta: { title: "Trailers" } }] });
+    await router.push("/trailers?search=2756034");
+    await router.isReady();
+    const w = mount(TrailersPage, { global: { plugins: [router, createPinia()], stubs: { SlideOver: true, RosterFreshnessLine: true, KebabMenu: true } } });
+    await flushPromises();
+    expect(w.findAll("thead th").map((th) => th.text())).toContain("VIN");
+    const rows = w.findAll("tbody tr").map((r) => r.text());
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain("R-501");
+    expect(rows[0]).toContain("1UYVS2538L2756034");
   });
 });

@@ -106,7 +106,7 @@ const filtered = computed(() => {
       if (!chip || !matchesFileFilter(chip, fileFilter.value)) return false;
     }
     if (!term) return true;
-    return [t.unit_number, t.make, t.model, t.plate]
+    return [t.unit_number, t.make, t.model, t.plate, t.vin]
       .filter(Boolean)
       .some((f) => f!.toLowerCase().includes(term));
   });
@@ -151,6 +151,8 @@ const columns: DataTableColumn[] = [
   { key: "unit_number", label: "Unit", sortable: true, cellClass: "font-medium text-ink", card: "title" },
   { key: "file", label: "File", card: "detail" },
   { key: "trailer", label: "Make / Model", cellClass: "text-ink-secondary", card: "sentence" },
+  // From McLeod's dbo.trailer.serial_number (roster sweep); on all 234 active trailers, 2026-11-17.
+  { key: "vin", label: "VIN", cellClass: "font-mono text-xs text-ink-secondary", card: "detail" },
   { key: "trailer_type", label: "Type", sortable: true, card: "sentence" },
   {
     key: "reefer_tank_capacity_gal",
@@ -282,7 +284,7 @@ async function onRetire(t: Trailer) {
     <FilterBar
       v-model:search="search"
       embedded
-      search-placeholder="Search unit, make, model, plate…"
+      search-placeholder="Search unit, make, model, plate, VIN…"
       :count="filtered.length"
       count-label="trailers"
       :active-count="activeFilterCount"
@@ -339,6 +341,7 @@ async function onRetire(t: Trailer) {
         <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-notes="{ row }"><NotesCell kind="trailer" :id="row.id" :label="row.unit_number" :summary="notes.summary.value[row.id]" /></template>
+      <template #cell-vin="{ row }">{{ row.vin || "—" }}</template>
       <template #cell-trailer="{ row }">{{
         [row.year, row.make, row.model].filter(Boolean).join(" ") || "—"
       }}</template>
