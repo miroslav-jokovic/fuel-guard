@@ -36,6 +36,9 @@
 --
 -- Rollback: drop the two tables; restore 0598's CHECK.
 --
+-- cross-module-waiver: mcleod's lumper reminder restates messaging's `notification_events` category CHECK to
+-- add its three categories, the way 0592 and 0598 did for theirs; the list is messaging's and is restated whole.
+--
 -- RLS on, no client policies: the API reads and writes it with the service role and filters on org_id.
 
 create table if not exists public.lumper_reminder_settings (
