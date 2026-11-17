@@ -35,7 +35,7 @@ vi.mock("@tanstack/vue-query", () => ({
 import AdsCampaignDrawer from "./AdsCampaignDrawer.vue";
 import AdsCampaignPlan from "./AdsCampaignPlan.vue";
 import {
-  EVIDENCE_KIND_LABEL, authorLine, canRemoveAngle, conceptKey, conceptLabel, conceptOptions, draftErrors, editFrom, editablePlan, factsFor, mayHavePlan, planIsOpen, planRefusalLines, setConcept,
+  EVIDENCE_KIND_LABEL, authorLine, canRemoveAngle, conceptKey, conceptLabel, conceptOptions, draftErrors, editFrom, editablePlan, factsFor, formatLabel, formatOptions, mayHavePlan, planIsOpen, planRefusalLines, setConcept, setFormat, showsFormat,
 } from "./adsPlan";
 
 const ID = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -81,7 +81,7 @@ beforeEach(() => {
   state.campaign = null;
   api.calls = [];
   api.failNext = null;
-  state.read = { plan: view(), concepts: CONCEPTS };
+  state.read = { plan: view(), concepts: CONCEPTS, formats: ["still"] };
   state.enabled = [];
   toasts.success = [];
   toasts.error = [];
@@ -166,7 +166,7 @@ describe("adsPlan — the contract decides, this words it", () => {
       "Idea 2 leads with the same thing and shows the same picture as idea 1. Change one of them.",
       "Idea 3 rests on no fact of the job.",
       "Idea 1 rests on a fact that is not in this plan's list.",
-      "Idea 4 asks for a kind of ad that cannot be made yet.",
+      "Idea 4 is a short video, which cannot be made for this campaign. Choose another format.",
       'Idea 2, why this idea promises something the opening does not offer ("sign-on bonus").',
       "Idea 3 is a kind of ad with no enabled preset. Choose another kind, or enable its preset in Settings.",
       "The door's own sentence.",
@@ -202,7 +202,7 @@ describe("AdsCampaignPlan — reading", () => {
   });
 
   it("a campaign with no plan (made before planning existed) shows nothing rather than an empty plan", () => {
-    state.read = { plan: null, concepts: [] };
+    state.read = { plan: null, concepts: [], formats: [] };
     const w = show("review");
     expect(w.find("[data-test='plan-author']").exists()).toBe(false);
     expect(w.find("[data-test='plan-edit']").exists()).toBe(false);
@@ -234,7 +234,7 @@ describe("the drawer — Approve is its primary action while the plan waits for 
     who.manages = false;
     expect(drawer().find("[data-test='plan-approve']").exists()).toBe(false);
     who.manages = true;
-    state.read = { plan: null, concepts: [] };
+    state.read = { plan: null, concepts: [], formats: [] };
     expect(drawer().find("[data-test='plan-approve']").exists()).toBe(false);
   });
 
@@ -312,5 +312,45 @@ describe("AdsCampaignPlan — editing", () => {
     await w.get("[data-test='plan-edit-cancel']").trigger("click");
     expect(w.findAll("[data-test='plan-angle']")).toHaveLength(4);
     expect(api.calls).toEqual([]);
+  });
+});
+
+describe("the format of an idea — shown and offered only where the campaign has more than one", () => {
+  const withVideo = () => { state.read = { plan: view({ plan: { ...plan(), angles: plan().angles.map((a, i) => (i === 1 ? { ...a, format: "motion" as const } : a)) } }), concepts: CONCEPTS, formats: ["still", "motion"] }; };
+
+  it("a campaign that can only be made as a still says nothing about format on any idea, reading or editing", async () => {
+    const w = show();
+    expect(w.findAll("[data-test='plan-format']")).toHaveLength(0);
+    await w.get("[data-test='plan-edit']").trigger("click");
+    expect(w.find("[data-test='plan-edit-format-0']").exists()).toBe(false);
+  });
+
+  it("a campaign that can make a video says how each idea is made", () => {
+    withVideo();
+    expect(show().findAll("[data-test='plan-format']").map((b) => b.text())).toEqual(["Made as: Still image", "Made as: Short video", "Made as: Still image", "Made as: Still image"]);
+  });
+
+  it("the editor offers the campaign's formats, and the chosen one is what is saved", async () => {
+    withVideo();
+    const w = show();
+    await w.get("[data-test='plan-edit']").trigger("click");
+    expect(formatOptions(["still", "motion"], "still")).toEqual([{ value: "still", label: "Still image" }, { value: "motion", label: "Short video" }]);
+    await w.get("[data-test='plan-edit-format-0']").setValue("motion");
+    await w.get("[data-test='plan-edit-save']").trigger("click");
+    await flushPromises();
+    const sent = api.calls.at(-1)!.body as { plan: CampaignPlan };
+    expect(sent.plan.angles.map((a) => a.format)).toEqual(["motion", "motion", "still", "still"]);
+  });
+
+  it("an idea in a format the campaign can no longer make is shown and offered as such, never silently changed", () => {
+    expect(showsFormat(["still"], { format: "motion" })).toBe(true);
+    expect(showsFormat(["still"], { format: "still" })).toBe(false);
+    // An API that does not answer `formats` yet: nothing is known, so nothing is said.
+    expect(showsFormat([], { format: "still" })).toBe(false);
+    expect(formatOptions(["still"], "motion")).toEqual([{ value: "motion", label: "Short video (cannot be made for this campaign)" }, { value: "still", label: "Still image" }]);
+    const a = angle({});
+    setFormat(a, "nonsense");
+    expect(a.format).toBe("still");
+    expect(formatLabel("carousel")).toBe("carousel");
   });
 });

@@ -1261,6 +1261,40 @@ export const READINESS = [
           ],
         },
         {
+          // V4 (2026-11-17): `motion` is a built format, and a plan may name it only where the campaign has a video model.
+          need: "a plan names a format only where its campaign can be made in it: a motion ad is offered to a campaign whose connection has a video model and to no other, and refused everywhere else — at the Strategist, at both doors of the store and at a person's edit",
+          tests: [
+            { file: "packages/shared/src/ads/campaignPlan.test.ts", titles: [
+              "a campaign with no video model is offered a still alone",
+              "a campaign with a video model is offered every built format",
+              "a format the campaign is not offered is refused, whichever it is",
+              "a motion angle passes where motion is offered, and a still is refused where only motion is",
+            ] },
+            { file: "apps/api/src/modules/ads/plan/concepts.test.ts", titles: [
+              "a simulator campaign off production is offered a still and a motion ad, with the carrier's concepts",
+              "a real connection is offered a still alone while no video model is chosen, on staging as on production",
+              "a simulator connection on production is offered a still alone",
+            ] },
+            { file: STRATEGIST, titles: [
+              "planted-motion-offered",
+              "a campaign offered a motion ad is told what it is, and one offered a still alone is not shown it",
+            ] },
+            { file: PLAN_CAMPAIGN, titles: [
+              "a simulator campaign off production is offered a motion ad on the sheet, and its plan naming one is stored",
+              "a campaign on a real connection is offered a still alone, and a plan naming a motion ad is refused twice",
+            ] },
+            { file: PLAN_STORE, titles: [
+              "the agent's and a person's motion angle are both refused for a campaign with no video model",
+              "the same plan is stored for a campaign that has one",
+            ] },
+            { file: "apps/api/src/modules/ads/plan/planDoors.test.ts", titles: [
+              "an idea changed to a video is refused on a campaign with no video model, and nothing is written",
+              "the same edit is saved on a simulator campaign off production, and the read offers both formats there",
+              "a simulator campaign on production is offered a still alone",
+            ] },
+          ],
+        },
+        {
           need: "the evidence built by code from our own rows: the job, the cited benchmark, lead counts and each concept's results, for this org only",
           tests: [{ file: EVIDENCE_PACK, titles: [
             "a carrier whose ads never ran is planned from the job and the benchmark alone",
@@ -1277,6 +1311,8 @@ export const READINESS = [
             { file: STRATEGIST, titles: [
               "a replayed answer is checked against the pack that was sent, not the pack read today",
               "a replayed answer is held to the concepts that were sent, not the presets enabled today",
+              "a replayed answer is held to the formats that were sent, not the formats on offer today",
+              "a replayed answer whose stored request names no format throws rather than be held to today's",
               "a replayed answer whose stored request holds no pack throws rather than be checked against another",
               "the second ask carries the refused plan and each finding in words",
               "instruction-in-our-words", "thin-job",

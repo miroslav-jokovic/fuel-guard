@@ -73,12 +73,15 @@
         "hook_family": "proof",
         "scene_family": "abstract_plate"
       }
+    ],
+    "formats": [
+      "still"
     ]
   },
   "expect": "ready",
   "recorded": {
     "source": "planted",
-    "prompt_version": "strategist@3",
+    "prompt_version": "strategist@4",
     "model": "none (written by a person)",
     "recorded_at": "2026-11-15T00:00:00.000Z",
     "output": {

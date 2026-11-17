@@ -112,61 +112,63 @@
         "hook_family": "life_first",
         "scene_family": "cab_pov"
       }
+    ],
+    "formats": [
+      "still"
     ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "strategist@3",
+    "prompt_version": "strategist@4",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-16T17:31:33.641Z",
+    "recorded_at": "2026-11-17T21:05:49.253Z",
     "output": {
-      "audience": "Experienced Class A drivers who already run over-the-road, in reefer or similar long-haul freight, and are used to long stretches out. They want a stronger pay per mile, newer equipment and freight they do not unload. Plain facts about pay, the freight and who owns the company would make them stop.",
+      "audience": "Experienced Class A drivers who already run over the road, on reefer or similar freight, and are used to a wide running area. They have a mileage job now. A plainly stated pay per mile, a newer truck and no-touch freight would make them stop.",
       "audience_evidence": [
         "job:subject",
         "job:claim_3",
-        "job:detail_1",
+        "job:detail_2",
         "job:claim_1"
       ],
       "angles": [
         {
-          "hook_family": "equipment_first",
-          "scene_family": "equipment_at_rest",
-          "format": "still",
-          "idea": "Lead with the late-model truck the driver would run, parked and clean, with the reefer trailer behind it.",
-          "proof": "The opening offers late-model equipment and the freight is reefer.",
-          "why": "This hook and scene brought leads at a cost per lead under the benchmark's pause line. The lead count is modest, so treat it as a good sign, not proof.",
-          "evidence": [
-            "job:claim_10",
-            "job:detail_1",
-            "our_result:equipment_first_equipment_at_rest",
-            "benchmark:cost_per_lead"
-          ]
-        },
-        {
           "hook_family": "pay_first",
           "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with the pay per mile, shown over a truck out on the open highway.",
-          "proof": "The opening states its pay per mile and that the runs are over-the-road across the states it lists.",
-          "why": "Pay per mile is the hardest fact on the sheet, and long runs make it matter. Nothing has been measured for this hook yet.",
+          "idea": "Lead with the pay per mile, shown over a reefer rig rolling on the highway.",
+          "proof": "The opening states the pay per mile for over-the-road reefer runs.",
+          "why": "Pay is the plainest fact this job has, and no earlier ad of ours led with it. Nothing has been measured for this hook or for formats, so this is a test.",
           "evidence": [
             "job:claim_1",
-            "job:claim_7",
+            "job:detail_1",
             "job:detail_2"
+          ]
+        },
+        {
+          "hook_family": "equipment_first",
+          "scene_family": "equipment_at_rest",
+          "format": "still",
+          "idea": "Lead with the late-model truck the driver would be handed, parked and clean.",
+          "proof": "The opening offers late-model equipment.",
+          "why": "This pairing brought leads under the benchmark pause level, though the lead count is thin and not proof. Keep it as the reference; nothing is measured on formats.",
+          "evidence": [
+            "job:claim_10",
+            "our_result:equipment_first_equipment_at_rest",
+            "benchmark:cost_per_lead"
           ]
         },
         {
           "hook_family": "straight_talk",
           "scene_family": "cab_pov",
           "format": "still",
-          "idea": "Say plainly what the job asks: Class A licence, the years the opening states, the weeks it states, reefer, over-the-road.",
-          "proof": "The opening names the licence class, a years figure, a weeks figure and over-the-road runs.",
-          "why": "No lead outcomes exist yet, so stating the requirements up front is the cheapest guard against wrong-fit leads. The office should confirm what the weeks figure means before writing.",
+          "idea": "Say plainly what the job asks: over the road across the stated running area, with the experience and weeks figures as written.",
+          "proof": "The job states the running area, a years figure and a weeks figure, and that the runs are over the road.",
+          "why": "A plain statement lets drivers who want local work pass by before they become a lead. Untested here; the office should confirm what the weeks and years figures refer to.",
           "evidence": [
-            "job:subject",
-            "job:claim_3",
+            "job:claim_7",
             "job:claim_2",
+            "job:claim_3",
             "job:detail_2"
           ]
         },
@@ -174,9 +176,9 @@
           "hook_family": "life_first",
           "scene_family": "cab_pov",
           "format": "still",
-          "idea": "Lead with life in the cab: the pet rides along and the driver does not touch the freight.",
+          "idea": "Lead with the week as lived in the cab: the pet policy and no-touch freight, seen from the driver's seat.",
           "proof": "The opening offers a pet policy and no-touch freight.",
-          "why": "Drivers out for long stretches weigh daily life in the truck as much as pay. Untested here, so nothing measured supports it yet.",
+          "why": "Over-the-road drivers live in the truck, so these facts speak to the week itself. Nothing has been measured for this hook or for formats.",
           "evidence": [
             "job:claim_9",
             "job:claim_8",
@@ -187,12 +189,13 @@
           "hook_family": "proof",
           "scene_family": "abstract_plate",
           "format": "still",
-          "idea": "Lead with who runs the company: family owned, and the owner still drives, backed by the benefits the opening lists.",
-          "proof": "The carrier describes itself as family owned with an owner who still drives, and the opening lists health insurance and paid time off.",
-          "why": "An owner who still drives is a claim that sets this carrier apart and needs no picture to land. Untested for this carrier.",
+          "idea": "Lead with who the carrier is, family owned with an owner who still drives, and list the benefits on a plain ground.",
+          "proof": "The job's own words say family owned and the owner still drives; it offers health insurance, a retirement plan and paid time off.",
+          "why": "Words carry this ad, so a plain ground suits it. No earlier ad used this hook, so nothing has been measured.",
           "evidence": [
             "job:in_our_words",
             "job:claim_5",
+            "job:claim_4",
             "job:claim_6"
           ]
         }

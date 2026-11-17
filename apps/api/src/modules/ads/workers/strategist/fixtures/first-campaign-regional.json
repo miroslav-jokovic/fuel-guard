@@ -73,16 +73,19 @@
         "hook_family": "proof",
         "scene_family": "abstract_plate"
       }
+    ],
+    "formats": [
+      "still"
     ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "strategist@3",
+    "prompt_version": "strategist@4",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-16T17:29:42.895Z",
+    "recorded_at": "2026-11-17T21:02:42.437Z",
     "output": {
-      "audience": "Class A drivers who meet the stated experience requirement and run flatbed or regional freight in the Midwest. They likely work in a larger fleet with longer stretches out. The pay per mile, home weekly and an assigned truck would make them stop.",
+      "audience": "Class A drivers who already pull flatbed and meet the experience requirement, living on or near Midwest lanes. They likely run regional or longer now and want a steady week. A plain pay per mile, weekly home time and their own assigned truck would make them stop.",
       "audience_evidence": [
         "job:subject",
         "job:claim_3",
@@ -94,23 +97,22 @@
           "hook_family": "pay_first",
           "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with the pay per mile, shown over a loaded flatbed moving on a Midwest highway.",
+          "idea": "Lead with the pay per mile for flatbed work on Midwest lanes, shown over a loaded flatbed on the road.",
           "proof": "The opening states its pay per mile, and the work is flatbed on Midwest lanes.",
-          "why": "Nothing has been measured for this carrier yet, so the pay rate is the plainest lead to test. Judge it against the benchmark cost per lead.",
+          "why": "Pay is the plainest fact the job has and a driver can compare it at a glance. Nothing has been measured for this carrier yet, format included, so this is a starting test.",
           "evidence": [
             "job:claim_1",
             "job:detail_1",
-            "job:detail_2",
-            "benchmark:cost_per_lead"
+            "job:detail_2"
           ]
         },
         {
           "hook_family": "life_first",
           "scene_family": "home_street",
           "format": "still",
-          "idea": "Lead with being home weekly, pictured as the driver's own street at the end of a regional run.",
-          "proof": "The opening offers home weekly, and the lanes are regional in the Midwest.",
-          "why": "Home weekly is a stated job fact that speaks to drivers who are out longer now. No history exists, so this is a test and not a known winner.",
+          "idea": "Lead with being home weekly, shown as a quiet street at the end of a regional week.",
+          "proof": "The opening offers home weekly on regional Midwest lanes.",
+          "why": "Home time is the job's stated schedule and speaks to drivers out longer than they want. No history says whether it pulls better than pay, and no format has been measured.",
           "evidence": [
             "job:claim_2",
             "job:detail_2",
@@ -121,9 +123,9 @@
           "hook_family": "equipment_first",
           "scene_family": "equipment_at_rest",
           "format": "still",
-          "idea": "Lead with the assigned truck: a flatbed rig parked and waiting that is the driver's own to run.",
-          "proof": "The job lists an assigned truck and flatbed work.",
-          "why": "An assigned truck matters to drivers who share equipment now, and it is a concrete fact a picture can carry. Untested here, since there are no earlier results.",
+          "idea": "Lead with the assigned truck: a parked flatbed rig that is the driver's own to run each week.",
+          "proof": "The job lists an assigned truck and flatbed equipment.",
+          "why": "An assigned truck matters to drivers who share equipment now, and a still suits a truck at rest. Untested for this carrier; nothing has been measured about hooks or formats.",
           "evidence": [
             "job:detail_3",
             "job:detail_1"
@@ -133,23 +135,23 @@
           "hook_family": "straight_talk",
           "scene_family": "cab_pov",
           "format": "still",
-          "idea": "Say plainly who this is for: Class A, the stated experience, flatbed, Midwest lanes, seen from the driver's seat.",
-          "proof": "The job states the licence class, the experience requirement, the flatbed freight and the Midwest lanes.",
-          "why": "With no lead history, stating the requirement and the area up front should keep out drivers who cannot qualify or live outside the lanes.",
+          "idea": "Say plainly who this is for: Class A, flatbed, the stated experience, Midwest lanes, seen from the driver's seat.",
+          "proof": "The job is Class A regional flatbed on Midwest lanes and states an experience requirement.",
+          "why": "Stating the requirement and the area up front should keep out leads who cannot qualify, which helps against the benchmark pause point. This carrier has no results or format data yet.",
           "evidence": [
             "job:subject",
             "job:claim_3",
-            "job:detail_1",
-            "job:detail_2"
+            "job:detail_2",
+            "benchmark:cost_per_lead"
           ]
         },
         {
           "hook_family": "proof",
           "scene_family": "abstract_plate",
           "format": "still",
-          "idea": "Set the job's facts out as a plain list: pay per mile, home weekly, retirement plan, and a small fleet where dispatch knows your name.",
-          "proof": "The pay per mile, home weekly, the retirement plan and the carrier's own description of the fleet are all stated job facts.",
-          "why": "A plain list lets a driver compare this job with the one they have now. The small-fleet line is the carrier's own words and sets it apart from large fleets.",
+          "idea": "Set the job's terms out as a plain list: pay per mile, home weekly, retirement plan, a small fleet where dispatch knows your name.",
+          "proof": "Each line is a stated fact of the opening, including the carrier's own words about its small fleet.",
+          "why": "With no history, the listed facts are the only proof this carrier has, and a plain ground lets them be read fast. Nothing has been measured, format included.",
           "evidence": [
             "job:claim_1",
             "job:claim_2",

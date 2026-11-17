@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { jobEvidence, type AdBrief, type CampaignPlan, type EvidencePack, type PlanAngle } from "@silvicom/shared";
+import { jobEvidence, planFormatsFor, type AdBrief, type CampaignPlan, type EvidencePack, type PlanAngle, type PlanOffer } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { latestPlan, planById, storeAgentPlan, storePersonPlan, type PlanRow } from "./planStore.js";
 
@@ -54,8 +54,10 @@ function world(rows: PlanRow[], opts: { writeError?: unknown; afterWrite?: PlanR
 }
 /** The carrier can make exactly the sound plan's three kinds of ad. */
 const concepts = sound.angles.map((a) => ({ hook_family: a.hook_family, scene_family: a.scene_family }));
-const agentInput = (over: Partial<Parameters<typeof storeAgentPlan>[1]> = {}) => ({ orgId: ORG, campaignId: CAMPAIGN, generationId: "g-1", plan: sound, evidence, brief, concepts, ...over });
-const personInput = (over: Partial<Parameters<typeof storePersonPlan>[1]> = {}) => ({ orgId: ORG, campaignId: CAMPAIGN, basedOnVersion: 1, author: { id: "u-1", name: "Koni" }, plan: sound, brief, concepts, ...over });
+/** What the campaign is offered: those three kinds, in a still alone (no video model). */
+const offer: PlanOffer = { concepts, formats: planFormatsFor({ videoModel: null }) };
+const agentInput = (over: Partial<Parameters<typeof storeAgentPlan>[1]> = {}) => ({ orgId: ORG, campaignId: CAMPAIGN, generationId: "g-1", plan: sound, evidence, brief, offer, ...over });
+const personInput = (over: Partial<Parameters<typeof storePersonPlan>[1]> = {}) => ({ orgId: ORG, campaignId: CAMPAIGN, basedOnVersion: 1, author: { id: "u-1", name: "Koni" }, plan: sound, brief, offer, ...over });
 
 describe("storeAgentPlan", () => {
   it("writes the Strategist's plan as version 1 with its evidence and its generation, naming the org", async () => {
@@ -152,9 +154,9 @@ describe("storePersonPlan", () => {
 describe("the store holds a plan to the kinds of ad the carrier can make", () => {
   it("the agent's and a person's plan are both refused for an angle no enabled preset can make", async () => {
     const fewer = concepts.slice(0, 2);
-    expect(await storeAgentPlan(world([]).client, agentInput({ concepts: fewer }))).toMatchObject({ kind: "refused", findings: [{ kind: "concept_not_available", where: "angle 3" }] });
+    expect(await storeAgentPlan(world([]).client, agentInput({ offer: { ...offer, concepts: fewer } }))).toMatchObject({ kind: "refused", findings: [{ kind: "concept_not_available", where: "angle 3" }] });
     const rec = world([stored({})]);
-    expect(await storePersonPlan(rec.client, personInput({ concepts: fewer }))).toMatchObject({ kind: "refused", findings: [{ kind: "concept_not_available", where: "angle 3" }] });
+    expect(await storePersonPlan(rec.client, personInput({ offer: { ...offer, concepts: fewer } }))).toMatchObject({ kind: "refused", findings: [{ kind: "concept_not_available", where: "angle 3" }] });
     expect(rec.writes()).toEqual([]);
   });
 });
@@ -173,5 +175,22 @@ describe("reading a plan", () => {
     expect((await planById(rec.client, ORG, CAMPAIGN, "p-1"))!.id).toBe("p-1");
     expect(rec.forTable("ads_campaign_plans")[0]!.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "campaign_id", val: CAMPAIGN }, { col: "id", val: "p-1" }]));
     expect(await planById(rec.client, ORG, CAMPAIGN, "p-none")).toBeNull();
+  });
+});
+
+describe("the store holds a plan to the formats its campaign can be made in", () => {
+  const moving: CampaignPlan = { ...sound, angles: [angle({ format: "motion" }), ...sound.angles.slice(1)] };
+  const withVideo: PlanOffer = { ...offer, formats: planFormatsFor({ videoModel: "simulator/video" }) };
+
+  it("the agent's and a person's motion angle are both refused for a campaign with no video model", async () => {
+    expect(await storeAgentPlan(world([]).client, agentInput({ plan: moving }))).toMatchObject({ kind: "refused", findings: [{ kind: "format_not_built", where: "angle 1", format: "motion" }] });
+    const rec = world([stored({})]);
+    expect(await storePersonPlan(rec.client, personInput({ plan: moving }))).toMatchObject({ kind: "refused", findings: [{ kind: "format_not_built", where: "angle 1", format: "motion" }] });
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("the same plan is stored for a campaign that has one", async () => {
+    expect(await storeAgentPlan(world([]).client, agentInput({ plan: moving, offer: withVideo }))).toMatchObject({ kind: "stored" });
+    expect(await storePersonPlan(world([stored({})]).client, personInput({ plan: moving, offer: withVideo }))).toMatchObject({ kind: "stored", plan: { version: 2 } });
   });
 });

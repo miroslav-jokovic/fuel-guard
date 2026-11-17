@@ -1,0 +1,164 @@
+{
+  "name": "motion-offered-nothing-moves",
+  "about": "A first campaign on a connection with a video model, for a carrier whose enabled kinds of ad all show a thing at rest or a plain background. A motion ad is offered and nothing in any picture moves: the plan must be ready, and the recording shows whether the Strategist left the angles as stills.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A regional truck driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 68,
+          "per": "mile"
+        },
+        {
+          "kind": "term",
+          "term": "home weekly"
+        },
+        {
+          "kind": "quantity",
+          "value": 1,
+          "unit": "year"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 150,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [
+          "flatbed",
+          "Midwest lanes",
+          "assigned truck"
+        ],
+        "in_our_words": "A small fleet where dispatch knows your name"
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "history": [
+      {
+        "id": "benchmark:cost_per_lead",
+        "kind": "benchmark",
+        "text": "Boostpoint 2026 benchmark, CDL drivers on Meta: an ad costing more than $42.00 per lead after 5 leads, or $85.00 spent with no lead, is where pausing is suggested.",
+        "source": null
+      }
+    ],
+    "concepts": [
+      {
+        "hook_family": "pay_first",
+        "scene_family": "abstract_plate"
+      },
+      {
+        "hook_family": "equipment_first",
+        "scene_family": "equipment_at_rest"
+      },
+      {
+        "hook_family": "proof",
+        "scene_family": "abstract_plate"
+      },
+      {
+        "hook_family": "life_first",
+        "scene_family": "home_street"
+      },
+      {
+        "hook_family": "straight_talk",
+        "scene_family": "equipment_at_rest"
+      }
+    ],
+    "formats": [
+      "still",
+      "motion"
+    ]
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "strategist@4",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-17T21:04:37.168Z",
+    "output": {
+      "audience": "Class A drivers who already pull flatbed and meet the experience the opening states, running or living near Midwest lanes. Many are likely out for long stretches or in a large fleet now. A clear pay per mile, weekly home time and an assigned truck would make them stop.",
+      "audience_evidence": [
+        "job:subject",
+        "job:claim_3",
+        "job:detail_1",
+        "job:detail_2"
+      ],
+      "angles": [
+        {
+          "hook_family": "pay_first",
+          "scene_family": "abstract_plate",
+          "format": "still",
+          "idea": "Lead with the pay per mile, stated plainly, with weekly home time beneath it.",
+          "proof": "The opening states a pay per mile and offers home weekly.",
+          "why": "Pay is the clearest fact of this job and a plain ground lets the rate carry the ad. No history yet, so nothing has been measured on hooks or formats; a plain ground gains nothing from motion.",
+          "evidence": [
+            "job:claim_1",
+            "job:claim_2"
+          ]
+        },
+        {
+          "hook_family": "life_first",
+          "scene_family": "home_street",
+          "format": "motion",
+          "idea": "Lead with being home weekly, shown as arriving on the driver's own street at the end of a run.",
+          "proof": "The opening offers home weekly on regional Midwest lanes.",
+          "why": "Weekly home time is what separates regional work from longer runs. An arrival has movement, so motion is tried here; nothing has been measured about formats, so this is a test, not a known gain.",
+          "evidence": [
+            "job:claim_2",
+            "job:subject",
+            "job:detail_2"
+          ]
+        },
+        {
+          "hook_family": "equipment_first",
+          "scene_family": "equipment_at_rest",
+          "format": "still",
+          "idea": "Lead with the assigned truck, shown parked with its flatbed, as the truck this driver keeps.",
+          "proof": "The job lists an assigned truck and flatbed work.",
+          "why": "Flatbed drivers care which truck they run, and assigned equipment is a concrete fact of this job. Nothing has been measured on formats; a parked truck gains nothing from motion, so still.",
+          "evidence": [
+            "job:detail_3",
+            "job:detail_1"
+          ]
+        },
+        {
+          "hook_family": "straight_talk",
+          "scene_family": "equipment_at_rest",
+          "format": "still",
+          "idea": "State plainly who this is for: Class A, flatbed, Midwest lanes, and the experience the opening asks for.",
+          "proof": "The job is Class A regional flatbed on Midwest lanes and states an experience requirement.",
+          "why": "With no lead history, stating the licence, lanes and experience up front should keep unqualified or out-of-area drivers from applying. Nothing measured on formats; a parked truck stays still.",
+          "evidence": [
+            "job:subject",
+            "job:claim_3",
+            "job:detail_1",
+            "job:detail_2"
+          ]
+        },
+        {
+          "hook_family": "proof",
+          "scene_family": "abstract_plate",
+          "format": "still",
+          "idea": "Lead with the small fleet where dispatch knows your name, backed by the assigned truck and the retirement plan.",
+          "proof": "The carrier calls itself a small fleet where dispatch knows your name; the job lists an assigned truck and a retirement plan.",
+          "why": "The carrier's own words set it apart from large fleets, and listed facts keep the claim honest. Nothing has been measured for this carrier, formats included; a plain ground stays still.",
+          "evidence": [
+            "job:in_our_words",
+            "job:detail_3",
+            "job:claim_4"
+          ]
+        }
+      ]
+    }
+  }
+}

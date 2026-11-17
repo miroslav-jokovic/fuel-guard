@@ -85,20 +85,23 @@
         "hook_family": "proof",
         "scene_family": "abstract_plate"
       }
+    ],
+    "formats": [
+      "still"
     ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "strategist@3",
+    "prompt_version": "strategist@4",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-16T17:33:44.147Z",
+    "recorded_at": "2026-11-17T21:07:55.040Z",
     "output": {
-      "audience": "Class A drivers who meet the experience requirement and run flatbed or regional freight in the Midwest now, often in a larger fleet. They want weekly home time and a truck that is theirs. A plain pay per mile and a small fleet where dispatch knows them would make them stop.",
+      "audience": "Class A drivers who meet the experience requirement and run flatbed, or are ready to. They likely spend longer stretches out now and want a steadier week. A regional job that is home weekly would make them stop.",
       "audience_evidence": [
+        "job:subject",
         "job:claim_3",
         "job:detail_1",
-        "job:detail_2",
         "job:claim_2"
       ],
       "angles": [
@@ -106,9 +109,9 @@
           "hook_family": "pay_first",
           "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with the pay per mile for regional flatbed work, shown over a loaded flatbed moving on a Midwest highway.",
+          "idea": "Lead with the pay per mile, shown over a flatbed rolling on Midwest lanes.",
           "proof": "The opening states its pay per mile, and the work is flatbed on Midwest lanes.",
-          "why": "Pay is the clearest fact of this job and drivers compare it directly. This hook and scene have not been measured here, so treat it as a test.",
+          "why": "The pay per mile is the most concrete fact on the sheet and has not been tried as a lead here. Nothing has been measured for this hook or for formats.",
           "evidence": [
             "job:claim_1",
             "job:detail_1",
@@ -119,9 +122,9 @@
           "hook_family": "life_first",
           "scene_family": "home_street",
           "format": "still",
-          "idea": "Lead with being home weekly, shown as a quiet home street at the end of a regional week.",
+          "idea": "Lead with being home weekly: the street the driver comes back to at the end of a regional week.",
           "proof": "The opening offers home weekly on regional Midwest lanes.",
-          "why": "Home time is what separates regional work from longer runs. No earlier ad of ours has led with it, so nothing is measured.",
+          "why": "Home weekly is what sets a regional job apart for a driver who is out longer now. Nothing has been measured for this hook or for formats.",
           "evidence": [
             "job:claim_2",
             "job:subject",
@@ -132,9 +135,9 @@
           "hook_family": "equipment_first",
           "scene_family": "equipment_at_rest",
           "format": "still",
-          "idea": "Lead with the assigned truck, shown as a flatbed rig parked and waiting for its own driver.",
-          "proof": "The job gives an assigned truck and the work is flatbed.",
-          "why": "An assigned truck matters to drivers who share equipment now. The truck-at-rest scene had our lower cost per lead under another hook, but over very few leads, so it is thin.",
+          "idea": "Lead with the assigned truck, shown parked with its flatbed trailer, as the driver's own to run.",
+          "proof": "The job comes with an assigned truck and the work is flatbed.",
+          "why": "Earlier ads with a truck at rest had the lower cost per lead, but on very few leads and under another hook, so this is thin. Nothing has been measured on formats.",
           "evidence": [
             "job:detail_3",
             "job:detail_1",
@@ -145,13 +148,13 @@
           "hook_family": "straight_talk",
           "scene_family": "cab_pov",
           "format": "still",
-          "idea": "State plainly who this is for: Class A flatbed drivers who meet the experience requirement and run Midwest lanes.",
-          "proof": "The opening states an experience requirement, flatbed work and Midwest lanes.",
-          "why": "Naming the requirement and the area up front keeps unqualified or out-of-area drivers from applying. Our earlier ad of this kind brought very few leads at a higher cost, so that result is thin.",
+          "idea": "Say plainly who the job is for: Class A drivers who meet the experience requirement, in a small fleet where dispatch knows your name.",
+          "proof": "The opening states its experience requirement and is a Class A regional job in a small fleet where dispatch knows your name.",
+          "why": "This pair's earlier result is thin: very few leads at a higher cost per lead than our other ads. Stating the requirement plainly gives it a different try. Nothing has been measured on formats.",
           "evidence": [
             "job:claim_3",
-            "job:detail_1",
-            "job:detail_2",
+            "job:subject",
+            "job:in_our_words",
             "our_result:straight_talk_cab_pov"
           ]
         },
@@ -159,13 +162,13 @@
           "hook_family": "proof",
           "scene_family": "abstract_plate",
           "format": "still",
-          "idea": "Lead with the terms as plain proof: the pay per mile, the retirement plan, and a small fleet where dispatch knows your name.",
-          "proof": "The opening states pay per mile and a retirement plan, in a small fleet where dispatch knows your name.",
-          "why": "A proof hook had our lower cost per lead in earlier ads, with a different picture and over very few leads, so it is thin. The stated terms give it facts to show.",
+          "idea": "Set out the job's stated terms as a plain list: pay per mile, home weekly, retirement plan.",
+          "proof": "The job's facts state the pay per mile, home weekly and a retirement plan.",
+          "why": "The proof hook had the lower cost per lead of the earlier ads, though on very few leads and with another picture, so it is thin. Nothing has been measured on formats.",
           "evidence": [
             "job:claim_1",
+            "job:claim_2",
             "job:claim_4",
-            "job:in_our_words",
             "our_result:proof_equipment_at_rest"
           ]
         }

@@ -2,7 +2,7 @@ import { PLAN_ANGLES_MIN, type LeadQuality } from "@silvicom/shared";
 import type { ClaudeGenerationDeps } from "../generations/claudeGeneration.js";
 import type { WorkerResult } from "../orchestrator/workers.js";
 import { findingWords, writePlan, type WritePlanOutcome } from "../workers/strategist/strategist.js";
-import { availableConcepts } from "./concepts.js";
+import { planOffer } from "./concepts.js";
 import { buildEvidencePack } from "./evidencePack.js";
 import { storeAgentPlan } from "./planStore.js";
 
@@ -29,25 +29,26 @@ export interface PlanCampaignDeps extends ClaudeGenerationDeps {
 /** How many findings a failure names; the rest are counted. `last_error` is read on a card, not in a log. */
 const FINDINGS_SHOWN = 3;
 
-export async function planCampaign(deps: PlanCampaignDeps, campaign: { id: string; org_id: string }, key: string): Promise<WorkerResult> {
+export async function planCampaign(deps: PlanCampaignDeps, campaign: { id: string; org_id: string; connection_id: string }, key: string): Promise<WorkerResult> {
   const pack = await buildEvidencePack(deps, campaign);
   if (!pack.ok) return { ok: false, error: pack.error };
 
   // A plan is at least three angles that differ in kind, each a kind of ad the carrier can make: with fewer
   // kinds enabled no plan can pass, so the model is not asked and the reason is one a person can act on.
-  const concepts = await availableConcepts(deps.admin, campaign.org_id);
+  const offer = await planOffer(deps.admin, campaign);
+  const { concepts } = offer;
   if (concepts.length < PLAN_ANGLES_MIN) {
     return { ok: false, error: `a plan needs at least ${PLAN_ANGLES_MIN} different kinds of ad, and ${concepts.length} ${concepts.length === 1 ? "is" : "are"} enabled: enable more ad presets in Settings, each with its own lead and picture` };
   }
 
   const ask = { orgId: campaign.org_id, campaignId: campaign.id, stint: key, brief: pack.brief };
-  let out: WritePlanOutcome = await writePlan(deps, { ...ask, attempt: 1, evidence: pack.evidence, concepts });
-  // The one second ask: the same evidence and concepts the refused plan was written from, with the plan and its findings.
-  if (out.kind === "refused") out = await writePlan(deps, { ...ask, attempt: 2, evidence: out.evidence, concepts: out.concepts, revise: { plan: out.plan, findings: out.findings } });
+  let out: WritePlanOutcome = await writePlan(deps, { ...ask, attempt: 1, evidence: pack.evidence, offer });
+  // The one second ask: the same evidence, concepts and formats the refused plan was written from, with the plan and its findings.
+  if (out.kind === "refused") out = await writePlan(deps, { ...ask, attempt: 2, evidence: out.evidence, offer: out.offer, revise: { plan: out.plan, findings: out.findings } });
 
   switch (out.kind) {
     case "ready": {
-      const stored = await storeAgentPlan(deps.admin, { orgId: campaign.org_id, campaignId: campaign.id, generationId: out.generationId, plan: out.plan, evidence: out.evidence, brief: pack.brief, concepts: out.concepts });
+      const stored = await storeAgentPlan(deps.admin, { orgId: campaign.org_id, campaignId: campaign.id, generationId: out.generationId, plan: out.plan, evidence: out.evidence, brief: pack.brief, offer: out.offer });
       // The store runs the same check on the same plan and pack, so anything but `stored` here is a fault of ours.
       return stored.kind === "stored" ? { ok: true } : { ok: false, error: "the plan passed its check and was then refused by the store" };
     }

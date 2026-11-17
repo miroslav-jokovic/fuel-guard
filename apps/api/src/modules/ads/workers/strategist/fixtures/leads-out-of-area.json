@@ -91,44 +91,33 @@
         "hook_family": "proof",
         "scene_family": "abstract_plate"
       }
+    ],
+    "formats": [
+      "still"
     ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "strategist@3",
+    "prompt_version": "strategist@4",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-16T17:30:37.755Z",
+    "recorded_at": "2026-11-17T21:03:36.296Z",
     "output": {
-      "audience": "Class A flatbed drivers who meet the experience requirement and live along the Midwest lanes. They likely run for a larger carrier now and want home weekly, an assigned truck and a dispatcher who knows them. A plainly stated area and pay per mile would make them stop.",
+      "audience": "Class A drivers who already pull flatbed, meet the experience requirement and live along the Midwest lanes. Many now run longer hauls or sit in a big fleet. They would stop for the pay per mile and weekly home time stated plainly, with the area named.",
       "audience_evidence": [
-        "job:claim_3",
         "job:detail_1",
         "job:detail_2",
+        "job:claim_3",
         "lead_outcome:closed_out_of_area"
       ],
       "angles": [
         {
-          "hook_family": "straight_talk",
-          "scene_family": "cab_pov",
-          "format": "still",
-          "idea": "Say plainly who this is for: Class A drivers with the required experience who live near the Midwest lanes.",
-          "proof": "The opening is Class A regional, states an experience requirement and runs Midwest lanes.",
-          "why": "The largest share of closed leads were out of area. An ad that states the area and the requirement up front should bring fewer wasted calls.",
-          "evidence": [
-            "job:subject",
-            "job:claim_3",
-            "job:detail_2",
-            "lead_outcome:closed_out_of_area"
-          ]
-        },
-        {
           "hook_family": "pay_first",
           "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with the pay per mile, and name flatbed and Midwest lanes in the same line.",
-          "proof": "The opening states its pay per mile, on flatbed, on Midwest lanes.",
-          "why": "Pay is the firmest fact of the job. Naming the lanes beside it helps screen the out-of-area leads the earlier ads drew.",
+          "idea": "Lead with the pay per mile, shown over a loaded flatbed running a Midwest highway.",
+          "proof": "The opening states its pay per mile, and the work is flatbed on Midwest lanes.",
+          "why": "Pay is the clearest fact of the job. Putting the Midwest lanes beside it screens out the out-of-area leads the earlier ads drew. Nothing has been measured on hooks or format.",
           "evidence": [
             "job:claim_1",
             "job:detail_1",
@@ -140,33 +129,48 @@
           "hook_family": "life_first",
           "scene_family": "home_street",
           "format": "still",
-          "idea": "Lead with home weekly, and say the freight runs Midwest lanes.",
+          "idea": "Lead with being home weekly, for drivers whose home street is in the Midwest.",
           "proof": "The opening offers home weekly and runs Midwest lanes.",
-          "why": "Home time is what a regional driver weighs against pay. No ad result by hook has been measured yet, so this is an early test.",
+          "why": "Regional drivers weigh home time alongside pay. A home scene tied to the Midwest speaks to drivers in the area. Nothing has been measured on hooks or format yet.",
           "evidence": [
             "job:claim_2",
-            "job:detail_2"
+            "job:detail_2",
+            "lead_outcome:closed_out_of_area"
           ]
         },
         {
           "hook_family": "equipment_first",
           "scene_family": "equipment_at_rest",
           "format": "still",
-          "idea": "Lead with the assigned truck, shown parked with its flatbed trailer.",
-          "proof": "The job details list an assigned truck and flatbed work.",
-          "why": "Flatbed drivers care about their equipment and about not sharing it. The picture also shows the trailer type, so drivers who do not want flatbed pass by.",
+          "idea": "Lead with the assigned truck: a flatbed rig parked and waiting for the same driver.",
+          "proof": "The job comes with an assigned truck, and the equipment is flatbed.",
+          "why": "Flatbed drivers care about the rig they keep. This is a fact of the job that pay and home-time ads leave out. No hook or format has been measured for this carrier.",
           "evidence": [
             "job:detail_3",
             "job:detail_1"
           ]
         },
         {
+          "hook_family": "straight_talk",
+          "scene_family": "cab_pov",
+          "format": "still",
+          "idea": "Say plainly who this is for: Class A, flatbed, the stated experience, living on the Midwest lanes.",
+          "proof": "The opening is Class A regional flatbed on Midwest lanes and states an experience requirement.",
+          "why": "A large share of recent leads were closed as out of area. An ad that names the area and the requirement up front saves recruiter calls. Format is unmeasured.",
+          "evidence": [
+            "job:subject",
+            "job:claim_3",
+            "job:detail_2",
+            "lead_outcome:closed_out_of_area"
+          ]
+        },
+        {
           "hook_family": "proof",
           "scene_family": "abstract_plate",
           "format": "still",
-          "idea": "Set the job's facts out as a plain list: pay per mile, home weekly, retirement plan, small fleet where dispatch knows your name.",
-          "proof": "Each line is a stated fact of the opening, and the small-fleet line is the carrier's own description.",
-          "why": "A driver who sees every term before applying is less likely to close as not interested. That closure count is small, so treat this as a test.",
+          "idea": "Lay the terms out as a plain list: pay per mile, home weekly, the retirement plan, a small fleet.",
+          "proof": "Each line is a stated fact of the opening, and the carrier calls itself a small fleet where dispatch knows your name.",
+          "why": "With no results yet for any hook or format, a plain list of the job's facts lets drivers judge the offer for themselves. It also carries the retirement plan, which no other angle uses.",
           "evidence": [
             "job:claim_1",
             "job:claim_2",

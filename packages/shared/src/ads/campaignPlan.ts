@@ -24,7 +24,9 @@ import { recordId } from "../recordId.js";
  *                      (D-AD1); an angle resting only on what others do has nothing of ours to say.
  *   same_kind          two angles with the same hook and scene: one concept twice, which Meta's delivery
  *                      collapses into one ad (ADS-CREATIVE-QUALITY-PLAN, the reason for D-AD29).
- *   format_not_built   an angle in a format no worker can make yet — a dead angle a person would approve.
+ *   format_not_built   an angle in a format this campaign cannot be made in — a dead angle a person would
+ *                      approve. The caller says which formats those are (`planFormatsFor`): a format is built
+ *                      when a worker can make it, and offered when this campaign has that worker's means.
  *   concept_not_available  an angle whose hook and scene no enabled preset of the carrier has. An ad is always
  *                      made from a preset (its copy slots, its picture, its layout), so such an angle could be
  *                      approved and then never made. Checked when the caller says which concepts exist.
@@ -54,10 +56,42 @@ export const evidencePackSchema = z.array(evidenceItemSchema).max(120)
   .refine((items) => new Set(items.map((e) => e.id)).size === items.length, { message: "evidence ids are unique" });
 export type EvidencePack = z.infer<typeof evidencePackSchema>;
 
-/** Every format a plan may name, and which a worker can make today: `still` only, until V4 builds video. */
+/**
+ * Every format a plan may name, and which of them a worker can make today (V4, 2026-11-17: the motion ad's
+ * whole road exists — clip, frame check, join, review player, publisher). BUILT is not OFFERED: see
+ * `planFormatsFor`.
+ */
 export const PLAN_FORMATS = ["still", "motion", "driver_clip", "carousel"] as const;
 export type PlanFormat = (typeof PLAN_FORMATS)[number];
-export const PLAN_FORMATS_BUILT: readonly PlanFormat[] = ["still"];
+export const PLAN_FORMATS_BUILT = ["still", "motion"] as const satisfies readonly PlanFormat[];
+export type BuiltPlanFormat = (typeof PLAN_FORMATS_BUILT)[number];
+
+/**
+ * What each built format IS, as the Strategist's sheet says it (`planSheet`) — the same way a concept carries
+ * `leads_with` and `picture`, so the prompt names no format of its own and cannot drift from this list. Each
+ * sentence states what our renderer makes (`motionAd.ts`: the picture moves, the still's own words arrive in
+ * groups, the last frame is the finished still, no sound — Q-APX13, Q-APX15), and holds no figure: the plan
+ * may write none, and a number here would invite one.
+ */
+export const PLAN_FORMAT_MEANING: Record<BuiltPlanFormat, string> = {
+  still: "one picture with the ad's words on it",
+  motion: "the same ad as a short silent video: its picture moves for a few seconds while the same words arrive one group after another, and it ends held on the finished picture",
+};
+
+/** A format in office words, for the plan's review screen. */
+export const PLAN_FORMAT_LABELS: Record<BuiltPlanFormat, string> = { still: "Still image", motion: "Short video" };
+
+/**
+ * The formats ONE campaign's plan may name: each built format whose means the campaign has. A still needs
+ * nothing more; a motion ad needs a video model, and which model draws for a campaign follows its connection
+ * (api `renderChoiceFor`) — none is chosen for a real connection until the owner's sitting (Q-APX12), so a real
+ * campaign is offered `still` alone and a simulator campaign off production is offered both. This is the one
+ * derivation: the Strategist's sheet, `checkPlan` at both of the store's doors and the editor all read its
+ * answer, so what is offered, what is allowed and what `makeMotion` will make cannot differ.
+ */
+export function planFormatsFor(means: { videoModel: string | null }): BuiltPlanFormat[] {
+  return PLAN_FORMATS_BUILT.filter((f) => f !== "motion" || means.videoModel !== null);
+}
 
 export const PLAN_ANGLES_MIN = 3;
 export const PLAN_ANGLES_MAX = 6;
@@ -109,11 +143,21 @@ export function distinctConcepts(presets: ReadonlyArray<{ hook_family?: string |
   return [...seen.values()];
 }
 
+/** What a campaign's plan may choose from: the formats it can be made in, and the kinds of ad its carrier's presets make. */
+export interface PlanOffer {
+  /** `planFormatsFor`'s answer for the campaign. */
+  formats: readonly BuiltPlanFormat[];
+  /** The hook and scene of each enabled preset (api `availableConcepts`). */
+  concepts: readonly PlanConcept[];
+}
+
 /**
- * `concepts` — the kinds of ad the carrier's enabled presets can make. Given, an angle outside them is a
- * finding; absent, the question is not asked (the contract's own tests, and a caller with no presets to read).
+ * `offer.formats` is always asked: there is no list a caller may fall back on, because the answer differs by
+ * campaign. `offer.concepts` — given, an angle outside them is a finding; absent, the question is not asked
+ * (the contract's own tests, and a caller with no presets to read).
  */
-export function checkPlan(plan: CampaignPlan, evidence: EvidencePack, brief: Pick<AdBrief, "claims">, concepts?: readonly PlanConcept[]): PlanFinding[] {
+export function checkPlan(plan: CampaignPlan, evidence: EvidencePack, brief: Pick<AdBrief, "claims">, offer: Pick<PlanOffer, "formats"> & Partial<Pick<PlanOffer, "concepts">>): PlanFinding[] {
+  const { formats, concepts } = offer;
   const findings: PlanFinding[] = [];
   const kindOf = new Map(evidence.map((e) => [e.id, e.kind]));
   const cited = (where: string, ids: readonly string[]) => {
@@ -136,7 +180,7 @@ export function checkPlan(plan: CampaignPlan, evidence: EvidencePack, brief: Pic
     const other = seen.get(kind);
     if (other) findings.push({ kind: "same_kind", where, other });
     else seen.set(kind, where);
-    if (!PLAN_FORMATS_BUILT.includes(a.format)) findings.push({ kind: "format_not_built", where, format: a.format });
+    if (!(formats as readonly PlanFormat[]).includes(a.format)) findings.push({ kind: "format_not_built", where, format: a.format });
     if (makeable && !makeable.has(kind)) findings.push({ kind: "concept_not_available", where });
     for (const part of ["idea", "proof", "why"] as const) claims(`${where} ${part}`, a[part]);
   });
@@ -202,11 +246,14 @@ export interface AdsCampaignPlanView {
 
 /**
  * `GET /api/ads/campaigns/:id/plan`: the newest version, or null when the campaign was never planned — and the
- * kinds of ad the carrier can make today, which is what an edit may choose from (the door refuses any other).
+ * kinds of ad the carrier can make today and the formats this campaign can be made in, which is what an edit
+ * may choose from (the door refuses any other).
  */
 export interface AdsCampaignPlanRead {
   plan: AdsCampaignPlanView | null;
   concepts: PlanConcept[];
+  /** The formats this campaign can be made in (`planFormatsFor`); an edit may choose among these. */
+  formats: BuiltPlanFormat[];
 }
 
 /** A person's edit: the whole plan, and the version they had open — the save is refused if the plan moved since. */

@@ -1,11 +1,11 @@
 {
   "worker": "strategist",
-  "prompt_version": "strategist@3",
+  "prompt_version": "strategist@4",
   "model": "claude-fable-5-2",
-  "fixtures": 17,
-  "asked": 8,
-  "agreed": 8,
+  "fixtures": 20,
+  "asked": 10,
+  "agreed": 10,
   "agreement": 1,
-  "planted_skipped": 9,
-  "recorded_at": "2026-11-16T17:33:44.147Z"
+  "planted_skipped": 10,
+  "recorded_at": "2026-11-17T21:07:55.041Z"
 }

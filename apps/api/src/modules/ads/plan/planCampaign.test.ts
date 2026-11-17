@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ADS_SETTINGS_UNSET, type AdsSettings, type CampaignPlan, type LeadQuality } from "@silvicom/shared";
 import type { MessagesClient } from "../../../lib/anthropic.js";
 import { presetRows } from "../../../testing/adsPresetRows.js";
@@ -9,6 +9,7 @@ import { planCampaign } from "./planCampaign.js";
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const CAMPAIGN = "5b8f0c1e-2d3a-4b4c-9d5e-6f7a8b9c0d1e";
+const CONNECTION = "conn-1";
 const KEY = `${CAMPAIGN}:2026-11-15T18:00:00.000+00:00`;
 const NOW = new Date("2026-11-15T18:20:00Z");
 
@@ -25,12 +26,13 @@ function settingsWith(over: Partial<AdsSettings["budgets"]>): AdsSettings {
   return { ...ADS_SETTINGS_UNSET, budgets: { ...ADS_SETTINGS_UNSET.budgets, anthropic_tokens_monthly: 1_000_000, agents_enabled: { strategist: true }, ...over } };
 }
 
-function world(opts: { settings?: AdsSettings; generations?: unknown[]; snapshot?: unknown; concepts?: typeof concepts } = {}) {
+function world(opts: { settings?: AdsSettings; generations?: unknown[]; snapshot?: unknown; concepts?: typeof concepts; provider?: string } = {}) {
   let made = 0;
   return createSupabaseRecorder({
     tables: {
       ads_campaigns: [{ brief_snapshot: opts.snapshot ?? brief }],
       ads_ad_spend_hourly: [],
+      ads_platform_connections: [{ provider: opts.provider ?? "meta" }],
       ...presetRows(ORG, opts.concepts ?? concepts),
       ads_settings_versions: [{ id: "v1", org_id: ORG, version: 1, settings: opts.settings ?? settingsWith({}), kill_switch: false, kill_reason: null, created_at: NOW.toISOString(), created_by_name: "X" }],
       ad_generations: (q) => (q.write?.method === "insert" ? [{ id: `gen-${(made += 1)}` }] : (opts.generations ?? [])),
@@ -49,7 +51,8 @@ function answering(...outputs: unknown[]) {
   }));
   return { client: { messages: { create } } as unknown as MessagesClient, create };
 }
-const run = (rec: ReturnType<typeof world>, client: MessagesClient) => planCampaign({ admin: rec.client, client, now: () => NOW, quality }, { id: CAMPAIGN, org_id: ORG }, KEY);
+afterEach(() => vi.unstubAllEnvs());
+const run = (rec: ReturnType<typeof world>, client: MessagesClient) => planCampaign({ admin: rec.client, client, now: () => NOW, quality }, { id: CAMPAIGN, org_id: ORG, connection_id: CONNECTION }, KEY);
 
 describe("planCampaign", () => {
   it("builds the pack, asks the Strategist once and stores its plan as version 1 with that pack and that generation", async () => {
@@ -119,6 +122,29 @@ describe("planCampaign", () => {
     const sent = JSON.parse((create.mock.calls[0]![0] as { messages: Array<{ content: string }> }).messages[0]!.content) as { concepts: Array<Record<string, string>> };
     expect(sent.concepts.map(({ hook_family, scene_family }) => ({ hook_family, scene_family }))).toEqual(concepts);
     expect(sent.concepts[0]).toHaveProperty("leads_with");
+  });
+
+  it("a simulator campaign off production is offered a motion ad on the sheet, and its plan naming one is stored", async () => {
+    vi.stubEnv("DEPLOY_ENVIRONMENT", "staging");
+    const moving = { ...sound, angles: [{ ...sound.angles[0]!, format: "motion" }, ...sound.angles.slice(1)] };
+    const rec = world({ provider: "simulator" });
+    const { client, create } = answering(moving);
+    expect(await run(rec, client)).toEqual({ ok: true });
+    const sent = JSON.parse((create.mock.calls[0]![0] as { messages: Array<{ content: string }> }).messages[0]!.content) as { formats_available: Array<{ format: string }> };
+    expect(sent.formats_available.map((f) => f.format)).toEqual(["still", "motion"]);
+    expect(rec.writtenRows("ads_campaign_plans")[0]).toMatchObject({ plan: moving });
+  });
+
+  it("a campaign on a real connection is offered a still alone, and a plan naming a motion ad is refused twice", async () => {
+    vi.stubEnv("DEPLOY_ENVIRONMENT", "staging");
+    const moving = { ...sound, angles: [{ ...sound.angles[0]!, format: "motion" }, ...sound.angles.slice(1)] };
+    const rec = world({ provider: "meta" });
+    const { client, create } = answering(moving);
+    expect(await run(rec, client)).toMatchObject({ ok: false, error: expect.stringContaining("angle 1 is in the format motion, which is not in formats_available.") });
+    const sent = JSON.parse((create.mock.calls[0]![0] as { messages: Array<{ content: string }> }).messages[0]!.content) as { formats_available: Array<{ format: string }> };
+    expect(sent.formats_available.map((f) => f.format)).toEqual(["still"]);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(rec.writtenRows("ads_campaign_plans")).toEqual([]);
   });
 
   it("a plan naming a kind of ad the carrier cannot make is refused and asked for again, like any finding", async () => {

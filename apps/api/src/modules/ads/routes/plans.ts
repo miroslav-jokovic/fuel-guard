@@ -37,7 +37,7 @@ export function mountPlanRoutes(router: Router, deps: PlanRouteDeps): void {
     if (!id) return;
     const out = await readPlan(admin(req), req.auth!.orgId!, id);
     if (out.kind === "not_found") return void res.status(404).json(apiError("not_found", "Campaign not found"));
-    res.json({ plan: out.plan, concepts: out.concepts } satisfies AdsCampaignPlanRead);
+    res.json({ plan: out.plan, concepts: out.concepts, formats: out.formats } satisfies AdsCampaignPlanRead);
   }));
 
   router.post("/campaigns/:campaignId/plan/versions", requireSection(deps.section, "manage"), asyncHandler(async (req, res) => {

@@ -48,16 +48,19 @@
         "hook_family": "equipment_first",
         "scene_family": "equipment_at_rest"
       }
+    ],
+    "formats": [
+      "still"
     ]
   },
   "expect": "ready",
   "recorded": {
     "source": "model",
-    "prompt_version": "strategist@3",
+    "prompt_version": "strategist@4",
     "model": "claude-fable-5-2",
-    "recorded_at": "2026-11-16T17:33:02.324Z",
+    "recorded_at": "2026-11-17T21:07:07.721Z",
     "output": {
-      "audience": "Drivers who already hold a CDL and are working or looking now, and who compare openings by what a week brings in. The sheet gives no lanes, equipment or schedule, so what stops them is the amount the opening pays per week, stated plainly.",
+      "audience": "Drivers who already hold a CDL and are driving now or looking for a seat. They want to see what the job pays per week before they bother to call. A plainly stated pay amount per week is what would make them stop on this ad.",
       "audience_evidence": [
         "job:subject",
         "job:claim_1"
@@ -67,9 +70,9 @@
           "hook_family": "pay_first",
           "scene_family": "equipment_on_road",
           "format": "still",
-          "idea": "Lead with what this CDL opening pays per week, stated plainly as the amount.",
-          "proof": "The job states what the opening pays per week.",
-          "why": "The amount per week is the only term the job states, so it is the strongest honest lead. Nothing has been measured yet for this carrier.",
+          "idea": "Lead with the pay per week, stated plainly, over a truck moving down the road.",
+          "proof": "The opening states its pay as an amount per week.",
+          "why": "The pay per week is the only term the job states, so it leads. This carrier has no ad history; nothing has been measured, format included, so judge it against the benchmark cost per lead.",
           "evidence": [
             "job:claim_1",
             "job:subject",
@@ -80,9 +83,9 @@
           "hook_family": "life_first",
           "scene_family": "home_street",
           "format": "still",
-          "idea": "Lead with knowing the amount per week before you call, and what that means for planning the bills at home.",
-          "proof": "The job states its pay as an amount per week.",
-          "why": "A stated amount per week speaks to drivers who think about the household before the truck. The sheet holds no schedule, so the ad must not imply any; untested so far.",
+          "idea": "Lead with what knowing the pay per week means for planning at home, with the amount close behind.",
+          "proof": "The job states pay as an amount per week, so a driver can see it before applying.",
+          "why": "The job states no schedule, so this angle rests on the pay per week alone and must promise nothing beyond it. Nothing has been measured for this carrier, format included.",
           "evidence": [
             "job:claim_1"
           ]
@@ -91,9 +94,9 @@
           "hook_family": "equipment_first",
           "scene_family": "equipment_at_rest",
           "format": "still",
-          "idea": "Lead with a parked truck that needs a licensed driver: say plainly this is a CDL driving job, then what it pays per week.",
-          "proof": "The job is a CDL driver opening with a stated amount per week.",
-          "why": "Stating the licence plainly keeps out leads who do not hold it. The sheet names no truck details, so the ad claims nothing about the equipment; untested so far.",
+          "idea": "Lead with a parked truck waiting for a CDL driver, then state the pay per week; make no claim about the truck itself.",
+          "proof": "The opening is for a CDL driver and it states its pay as an amount per week.",
+          "why": "The job gives no equipment facts, so the truck is the picture and the open CDL seat is the message. Nothing has been measured for this carrier, format included.",
           "evidence": [
             "job:subject",
             "job:claim_1"
