@@ -2,11 +2,11 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import { AD_FORMATS, FORMAT_SIZE, MOTION_FORMAT, MOTION_FPS, MOTION_MIN_CUE_MS, motionTimeline, type AdBrandKit, type AdClaim, type AdLook, type MotionTimeline, type Rect } from "@silvicom/shared";
 import { renderMotionLayers, type OverlayInput } from "../overlay/overlay.js";
-import { arrivesAt, checkMotionFrames, FRAME_CHECK_EVERY_MS, frameCheckFfmpegArgs, motionSampleFrames, type MotionFramesInput } from "./motionFrames.js";
+import { arrivesAt, checkMotionFrames, FRAME_CHECK_EVERY_MS, frameCheckFfmpegArgs, judgeMotionFrame, motionSampleFrames, type MotionFramesInput } from "./motionFrames.js";
 import { motionFfmpegArgs, motionPictureChain, WORDS_IN_MS } from "./motionJoin.js";
 
 /**
@@ -15,6 +15,11 @@ import { motionFfmpegArgs, motionPictureChain, WORDS_IN_MS } from "./motionJoin.
  * still passes, with a white box switched on over one line for a stretch of time — the white cab that rolls
  * under a headline approved on dark road.
  */
+// Each file test encodes five seconds of 1080 × 1350 video and reads eleven raw frames back. On a loaded machine
+// that passed the default five seconds (measured 2026-11-17 at a load average of 25: 5.0 to 5.6 s) and the tests
+// failed as timeouts, not as wrong answers.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
+
 const HAS_FFMPEG = spawnSync("ffmpeg", ["-version"]).status === 0 && spawnSync("ffprobe", ["-version"]).status === 0;
 const onFile = HAS_FFMPEG ? it : it.skip;
 
@@ -59,7 +64,7 @@ function clipWith(name: string, flashes: Array<{ boxes: Rect[]; from: number; to
   const file = join(dir, `${name}.mp4`);
   const draw = flashes.flatMap((f) => f.boxes.map((b) => `drawbox=x=${Math.floor(b.x) - 8}:y=${Math.floor(b.y) - 8}:w=${Math.ceil(b.width) + 16}:h=${Math.ceil(b.height) + 16}:color=white:t=fill:enable='between(t\\,${f.from}\\,${f.to})'`));
   execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", `color=c=${DARK}:size=${W}x${H}:rate=${MOTION_FPS}:duration=${seconds}`,
-    ...(draw.length ? ["-vf", draw.join(",")] : []), "-c:v", "libx264", "-pix_fmt", "yuv420p", file]);
+    ...(draw.length ? ["-vf", draw.join(",")] : []), "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", file]);
   return readFileSync(file);
 }
 
@@ -138,6 +143,20 @@ describe("checkMotionFrames — the frames before the last", () => {
     expect(before).toMatchObject({ kind: "checked", findings: [] });
     const after = await checkMotionFrames({ ...made.photo.input, clip: clipWith("after", [{ boxes, from: 2.9, to: 3.1 }]) });
     expect(after).toMatchObject({ kind: "checked", findings: [{ label: "subline", at_ms: 3000, frames: 1 }] });
+  });
+
+  it("only what lies under a line counts, as on the still: brightness in the gap between two headline lines is no finding", () => {
+    // Straight on a frame's pixels, no clip: the gap between this headline's lines is 13 px, too narrow to hit
+    // through an encoder without touching a line.
+    const [first, second] = made.photo.lines.headline!;
+    const from = Math.ceil(first!.y + first!.height) + 2, to = Math.floor(second!.y) - 2;
+    expect(to - from).toBeGreaterThanOrEqual(8); // at least two sampled rows (every fourth) fall inside
+    const frame = Buffer.alloc(W * H * 3, 0x20);
+    frame.fill(0xff, from * W * 3, to * W * 3);
+    expect(judgeMotionFrame(frame, 4000, made.photo.input)).toEqual([]);
+    // The same white one row lower reaches the second line, and is a finding.
+    frame.fill(0xff, from * W * 3, (Math.floor(second!.y) + 8) * W * 3);
+    expect(judgeMotionFrame(frame, 4000, made.photo.input)).toMatchObject([{ label: "headline", required: 3 }]);
   });
 
   onFile("the motion's last frame is judged: it is the one held under the dissolve", async () => {
