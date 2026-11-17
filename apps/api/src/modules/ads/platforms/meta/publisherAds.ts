@@ -1,5 +1,6 @@
 import { AD_NAME_LANGUAGES, feedImageOf, platformText, type AdFormat, type AdNameLanguage } from "@silvicom/shared";
 import { adNameFor, byName, ensure, failureBody, type Found, type Listing, type PublishInput, type PublisherDeps } from "./publisher.js";
+import { ensureVideo, type PublishVideoFile } from "./publisherVideo.js";
 
 /**
  * The publisher's last three levels (ADS-AGENT-BUILD-WORKFLOW B2c): for every approved creative, in
@@ -23,6 +24,19 @@ import { adNameFor, byName, ensure, failureBody, type Found, type Listing, type 
  * on the sandbox (L4), then added to `FEED_FORMATS` — shared's, because the preset save and compose read the
  * same list (D-AD24). Feed placements show 4:5 and 1:1 as made; Stories crop them.
  *
+ * ── A MOTION AD (V4) ─────────────────────────────────────────────────────────────────────────────
+ * A creative that holds a motion ad (`ads_creatives.motion`) is published as a VIDEO lead ad: its language's
+ * MP4 goes to the account's video library (`publisherVideo.ts`), and the creative carries `video_data` in
+ * place of `link_data` — the same two texts (`message`, `title`), the same button, the same form. The Lead
+ * Ads guide's video sample puts the link INSIDE the button's value, so it is sent there. The thumbnail is
+ * the creative's own feed still, named by `image_hash`: the Ad Creative Video Data reference lists it
+ * ("Hash of an image in your image library with Facebook to use as thumbnail", read 2026-11-17), the still
+ * is uploaded by the image road below either way, and it is the motion ad's own last frame. The guide's
+ * sample uses `image_url` instead, which would need a public address for a file we keep private. Whether
+ * a lead ad takes the hash is L4's to settle; nothing here guesses a URL. A motion ad missing a language's
+ * file is refused before any call (`motion_file_missing`), never published as its still: the plan asked
+ * for a video.
+ *
  * ── RESUME, NEVER DUPLICATE ──────────────────────────────────────────────────────────────────────
  * The creative and the ad are levels like the campaign's (`ensure`): find by our name, adopt one, create
  * none, refuse two; read back by id and compare. The image is not: Meta answers the same hash for the
@@ -45,12 +59,17 @@ export interface PublishCreative {
   assets: ReadonlyArray<{ format: AdFormat; language: AdNameLanguage; sha256: string }>;
   /** The preset version's `platform_slots`; null = not said. */
   platform_slots: { primary_text: string; headline: string } | null;
+  /** `ads_creatives.motion`'s files, one MP4 per language; null or absent = an image ad. */
+  motion?: { files: readonly PublishVideoFile[] } | null;
 }
 
 export interface PublishedAd {
   creative_id: string;
   language: AdNameLanguage;
+  /** The image the ad shows; a video ad's thumbnail. */
   image_hash: string;
+  /** Meta's video id, on a motion ad only. */
+  video_id?: string;
   meta_creative_id: string;
   meta_ad_id: string;
 }
@@ -61,6 +80,7 @@ export function creativeRefusal(c: PublishCreative): string | null {
   for (const language of AD_NAME_LANGUAGES) {
     if (!platformText(c.copy[language], c.platform_slots)) return "creative_copy_missing";
     if (!feedImage(c, language)) return "no_feed_image";
+    if (c.motion && !motionFile(c, language)) return "motion_file_missing";
   }
   return null;
 }
@@ -68,6 +88,20 @@ export function creativeRefusal(c: PublishCreative): string | null {
 /** The image this ad shows; the rule is shared's (`feedImageOf`), because the review screen previews the same one. */
 export function feedImage(c: Pick<PublishCreative, "assets">, language: AdNameLanguage) {
   return feedImageOf(c.assets, language);
+}
+
+/** The MP4 this language's ad plays, when the creative is a motion ad. */
+export function motionFile(c: Pick<PublishCreative, "motion">, language: AdNameLanguage): PublishVideoFile | null {
+  return c.motion?.files.find((f) => f.language === language) ?? null;
+}
+
+/** The video-ad spec Meta stores (header, "A MOTION AD"); the read-back compares these fields. */
+export function videoData(c: PublishCreative, language: AdNameLanguage, videoId: string, thumbnailHash: string, formId: string) {
+  const said = platformText(c.copy[language], c.platform_slots)!;
+  return {
+    video_id: videoId, image_hash: thumbnailHash, message: said.primary_text, title: said.headline,
+    call_to_action: { type: CTA, value: { link: LEAD_AD_LINK, lead_gen_form_id: formId } },
+  };
 }
 
 /** The link-ad spec Meta stores; the read-back compares these fields. */
@@ -100,7 +134,12 @@ async function publishOne(deps: PublisherDeps, input: PublishInput, creative: Pu
 
   const name = adNameFor(input, creative, language);
   const short = name.split("|").slice(-2).join(":");
-  const spec = { page_id: input.pageId, link_data: linkData(creative, language, image.hash, formId) };
+  const file = motionFile(creative, language);
+  const video = file ? await ensureVideo(deps, input, creative.id, short, file) : null;
+  if (video && !video.ok) return video;
+  const spec: StorySpec = video
+    ? { page_id: input.pageId, video_data: videoData(creative, language, video.video_id, image.hash, formId) }
+    : { page_id: input.pageId, link_data: linkData(creative, language, image.hash, formId) };
   const made = await ensure(deps, input, `creative:${short}`, {
     find: () => deps.graph.get<Listing>(`act_${input.accountId}/adcreatives`, byName(name, CREATIVE_FIELDS)),
     readBack: (id) => deps.graph.get<Found>(id, { fields: CREATIVE_FIELDS }),
@@ -124,7 +163,7 @@ async function publishOne(deps: PublisherDeps, input: PublishInput, creative: Pu
     creativeId: creative.id,
   });
   if (!ad.ok) return ad;
-  return { ok: true, ad: { creative_id: creative.id, language, image_hash: image.hash, meta_creative_id: made.id, meta_ad_id: ad.id } };
+  return { ok: true, ad: { creative_id: creative.id, language, image_hash: image.hash, ...(video ? { video_id: video.video_id } : {}), meta_creative_id: made.id, meta_ad_id: ad.id } };
 }
 
 /**
@@ -144,13 +183,22 @@ async function uploadImage(deps: PublisherDeps, input: PublishInput, sha256: str
   return typeof hash === "string" && hash ? { ok: true, hash } : { ok: false, error_code: "image_hash_missing", response: { images: entries.length } };
 }
 
-/** The creative Meta holds shows our image, our words and our form, on our Page. */
-function sameSpec(got: unknown, want: { page_id: string; link_data: ReturnType<typeof linkData> }): string[] {
-  const g = (got ?? {}) as { page_id?: unknown; link_data?: Record<string, unknown> & { call_to_action?: { type?: unknown; value?: { lead_gen_form_id?: unknown } } } };
-  const l = g.link_data ?? {};
+type StorySpec = { page_id: string; link_data: ReturnType<typeof linkData> } | { page_id: string; video_data: ReturnType<typeof videoData> };
+
+/** The creative Meta holds shows our image or our video, our words and our form, on our Page — and is the kind we would send. */
+function sameSpec(got: unknown, want: StorySpec): string[] {
+  type Held = Record<string, unknown> & { call_to_action?: { type?: unknown; value?: { link?: unknown; lead_gen_form_id?: unknown } } };
+  const g = (got ?? {}) as { page_id?: unknown; link_data?: Held; video_data?: Held };
   const wrong: string[] = [];
   if (g.page_id !== want.page_id) wrong.push("page_id");
-  for (const k of ["image_hash", "message", "name"] as const) if (l[k] !== want.link_data[k]) wrong.push(k);
-  if (l.call_to_action?.type !== CTA || String(l.call_to_action?.value?.lead_gen_form_id ?? "") !== want.link_data.call_to_action.value.lead_gen_form_id) wrong.push("call_to_action");
+  const moving = "video_data" in want;
+  const sent: Record<string, unknown> = moving ? want.video_data : want.link_data;
+  const held = (moving ? g.video_data : g.link_data) ?? {};
+  // An image creative under a motion ad's name (or the reverse) is not ours to adopt, whatever else it says.
+  if ((moving ? g.link_data : g.video_data) !== undefined) wrong.push(moving ? "link_data" : "video_data");
+  for (const k of moving ? ["video_id", "image_hash", "message", "title"] : ["image_hash", "message", "name"]) if (held[k] !== sent[k]) wrong.push(k);
+  const button = (moving ? want.video_data : want.link_data).call_to_action;
+  if (held.call_to_action?.type !== CTA || String(held.call_to_action?.value?.lead_gen_form_id ?? "") !== button.value.lead_gen_form_id) wrong.push("call_to_action");
+  if (moving && held.call_to_action?.value?.link !== LEAD_AD_LINK) wrong.push("link");
   return wrong;
 }

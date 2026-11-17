@@ -3,7 +3,7 @@ import { openMetaTarget, type MetaTarget } from "./metaTarget.js";
 import { committedReadings, diffReadings, GRAPH_READINGS, rerecord } from "./readings.js";
 
 /**
- * The Publisher's OUR readings (fakeMeta.ts, fakeMetaAds.ts), re-recorded on whichever target ADS_TARGET
+ * The Publisher's OUR readings (fakeMeta.ts, fakeMetaAds.ts, fakeMetaVideos.ts), re-recorded on whichever target ADS_TARGET
  * names and diffed against `readings.recorded.json` (stage2-kit). On the fake, every CI run: the fake still
  * answers what it committed to. On the sandbox, under `pnpm ads:certify`: Meta answers it too, or the
  * difference names the fake to correct.

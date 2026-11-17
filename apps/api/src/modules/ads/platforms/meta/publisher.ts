@@ -12,7 +12,7 @@ import { creativeRefusal, publishAds, type PublishCreative, type PublishedAd } f
  * The Meta publisher (ADS-AGENT-BUILD-WORKFLOW.md B2a + B2b + B2c): put a campaign and its ad set on the
  * ad account, PAUSED (B2a), the Instant Forms the ads open on the Page — one per language (B2b, B2c) —
  * and, for every approved creative in every language, its image, ad creative and ad, PAUSED
- * (`publisherAds.ts`, B2c). A form is made with the PAGE's token (`pageGraph`), not the system user's.
+ * (`publisherAds.ts`, B2c) — and for a motion ad its video (`publisherVideo.ts`, V4). A form is made with the PAGE's token (`pageGraph`), not the system user's.
  *
  * ── HOW IT IS CALLED ─────────────────────────────────────────────────────────────────────────────
  * `publishCampaign.ts` reads our rows into a `PublishInput` and is the orchestrator's `createPaused`
@@ -82,7 +82,11 @@ export interface PublisherDeps {
   pageGraph: MetaGraph;
   /** A creative's stored image by hash (`brandAssets.readAdAsset`, which checks the bytes' hash). */
   readAsset: (orgId: string, ref: { sha256: string; format: "png" }) => Promise<Buffer>;
+  /** A motion ad's stored MP4 by hash (`motionClip.readAdClip`, which checks the bytes' hash too). */
+  readClip: (orgId: string, ref: { sha256: string }) => Promise<Buffer>;
   now: () => Date;
+  /** The wait between two reads of a video's encoding (`publisherVideo.ts`); the real clock unless a test says. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 export const PUBLISHER = { actor_kind: "agent" as const, actor_id: null, actor_name: "Ads publisher (Meta)" };
@@ -310,7 +314,8 @@ export const byName = (name: string, fields: string) => ({ fields, filtering: [{
 
 /**
  * One level, keyed in the ledger by `level`: `campaign`, `adset`, `form:<lang>`, and per creative
- * `creative:<short>:<lang>` / `ad:<short>:<lang>` (`publisherAds.ts`).
+ * `creative:<short>:<lang>` / `ad:<short>:<lang>` (`publisherAds.ts`). A motion ad adds `video:` and
+ * `videofile:` rows, written by `publisherVideo.ts` — a video is not found by name, so it is not a `Level`.
  */
 export async function ensure(deps: PublisherDeps, input: PublishInput, level: string, l: Level): Promise<Ensured> {
   const found = await lookup(l);
@@ -345,7 +350,10 @@ export async function ensure(deps: PublisherDeps, input: PublishInput, level: st
   const created = await l.create();
   if (created.ok) {
     const back = await l.readBack(created.data.id);
-    const verdict: Ensured = back.ok ? checked(back.data, l) : { ok: false, error_code: `readback_${back.error.error_code}` };
+    // A read-back that fails carries the client's own code, the step named in its response — as the image upload's
+    // does (`publisherAds.ts`). Until 2026-11-17 it was prefixed `readback_`, so a token revoked between a create
+    // and its read-back came back `readback_token_invalid`, which the runner's connection alert does not know.
+    const verdict: Ensured = back.ok ? checked(back.data, l) : { ok: false, error_code: back.error.error_code, response: { step: "readback", ...failureBody(back.error) } };
     await done(verdict.ok ? "succeeded" : "failed", verdict.ok ? { id: created.data.id } : { error_code: verdict.error_code, id: created.data.id, response: "response" in verdict ? verdict.response : undefined });
     return verdict;
   }

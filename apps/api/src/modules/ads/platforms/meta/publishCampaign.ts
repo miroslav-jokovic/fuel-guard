@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AD_NAME_LANGUAGES, adBriefSchema, adPresetRecipeSchema, type AdNameLanguage } from "@silvicom/shared";
+import { AD_NAME_LANGUAGES, adBriefSchema, adMotionSchema, adPresetRecipeSchema, type AdNameLanguage } from "@silvicom/shared";
 import type { Env } from "../../../../env.js";
 import type { PlatformOutcome } from "../adapter.js";
 import { graphForConnection, pageGraphForConnection, type ConnectionForGraph, type RegistryDeps } from "../registry.js";
@@ -27,6 +27,7 @@ export interface PublishCampaignDeps extends RegistryDeps {
   env: Env;
   now: () => Date;
   readAsset: PublisherDeps["readAsset"];
+  readClip: PublisherDeps["readClip"];
 }
 
 interface CampaignExtra { brief_source: string; brief_ref: string; brief_snapshot: unknown; created_at: string }
@@ -91,7 +92,7 @@ async function publishContext(deps: PublishCampaignDeps, c: CampaignRow, creativ
 
   return {
     ok: true,
-    publisher: { admin, graph: graph.graph, pageGraph: pageGraph.graph, readAsset: deps.readAsset, now: deps.now },
+    publisher: { admin, graph: graph.graph, pageGraph: pageGraph.graph, readAsset: deps.readAsset, readClip: deps.readClip, now: deps.now },
     input: {
       orgId: c.org_id, campaignId: c.id, connectionId: c.connection_id,
       accountId: row.account_ref ?? "", pageId: row.page_ref ?? "",
@@ -106,12 +107,16 @@ async function publishContext(deps: PublishCampaignDeps, c: CampaignRow, creativ
   };
 }
 
-/** The campaign's approved creatives, each with its preset's key and the words Meta shows (`platform_slots`). */
+/**
+ * The campaign's approved creatives, each with its preset's key and the words Meta shows (`platform_slots`),
+ * and its motion ad's files when it holds one (`ads_creatives.motion`, 0625 — frozen with the content, so
+ * what is read here is what the person approved).
+ */
 export async function approvedCreatives(admin: SupabaseClient, c: Pick<CampaignRow, "org_id" | "id">): Promise<PublishCreative[]> {
-  const { data, error } = await admin.from("ads_creatives").select("id, preset_version_id, copy, assets")
+  const { data, error } = await admin.from("ads_creatives").select("id, preset_version_id, copy, assets, motion")
     .eq("org_id", c.org_id).eq("campaign_id", c.id).eq("state", "approved").order("created_at", { ascending: true });
   if (error) throw new Error(`ads_creatives: ${error.message}`);
-  const rows = (data ?? []) as Array<{ id: string; preset_version_id: string; copy: PublishCreative["copy"] | null; assets: PublishCreative["assets"] }>;
+  const rows = (data ?? []) as Array<{ id: string; preset_version_id: string; copy: PublishCreative["copy"] | null; assets: PublishCreative["assets"]; motion?: unknown }>;
   if (rows.length === 0) return [];
 
   const versionIds = [...new Set(rows.map((r) => r.preset_version_id))];
@@ -130,6 +135,7 @@ export async function approvedCreatives(admin: SupabaseClient, c: Pick<CampaignR
     const key = keys.get(v.preset_id);
     if (!key) throw new Error(`ad_concept_preset_versions ${v.id}: preset ${v.preset_id} not found`);
     const recipe = adPresetRecipeSchema.parse(v.recipe);
-    return { id: r.id, preset_key: key, copy: r.copy ?? {}, assets: r.assets, platform_slots: recipe.platform_slots ?? null };
+    const motion = r.motion == null ? null : adMotionSchema.parse(r.motion);
+    return { id: r.id, preset_key: key, copy: r.copy ?? {}, assets: r.assets, platform_slots: recipe.platform_slots ?? null, motion: motion && { files: motion.files } };
   });
 }

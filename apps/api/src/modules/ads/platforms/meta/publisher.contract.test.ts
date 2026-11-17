@@ -7,6 +7,7 @@ import { runCampaignStep } from "../../orchestrator/runner.js";
 import type { FakeMetaFault } from "../simulator/fakeMetaFaults.js";
 import { fieldNames } from "../simulator/fakeMetaShapes.js";
 import { openMetaTarget, SANDBOX_VARIABLES, targetName, type MetaTarget } from "./contract/metaTarget.js";
+import { contractPublishInput } from "./contract/publishInput.js";
 import { compareRecorded, kindOf, type Observed } from "./contract/readings.js";
 import { MetaGraph, resetGraphThrottles } from "./graphClient.js";
 import { publishPaused, type PublishInput } from "./publisher.js";
@@ -22,6 +23,9 @@ import { publishPaused, type PublishInput } from "./publisher.js";
  * Each test gets a fresh campaign and creative id, so names (naming.ts) never meet a previous run's objects
  * on a sandbox account that keeps them. Images are real PNGs (sharp), so the sandbox is sent what an
  * approved creative is, not a 24-byte header.
+ *
+ * A motion ad's half of this suite — the video's upload, its encoding, the video creative — is
+ * `publisherVideo.contract.test.ts`, the same campaign with a video per language (V4).
  *
  * `publisher.test.ts` stays the fake-only suite: it plants states only a fake can hold (a twin campaign, a
  * creative showing another image) and asserts on the fake's view. This file holds what must be true of
@@ -66,23 +70,11 @@ beforeEach(async () => {
 });
 afterEach(() => t.close());
 
-const input = (key: string): PublishInput => ({
-  orgId: ORG, campaignId, connectionId: CONN, accountId: t.accountId, pageId: t.pageId, platform: "meta",
-  brief_source: "recruiting_opening", brief_ref: "op-1@v3", created_at: "2026-11-05T15:00:00Z",
-  area: { label: "Joliet yard", latitude: 41.525, longitude: -88.0817, radius_miles: 25, reason: "Drivers report to the Joliet yard daily" },
-  daily_budget_cents: 5_000, lifetime_cap_cents: 50_000, key: `${campaignId}:${key}`,
-  claims: [{ kind: "money", cents: 62, per: "mile" }, { kind: "quantity", value: 23, unit: "age" }, { kind: "quantity", value: 2, unit: "year" }], form_questions: ["class_a_held", "class_a_years"], privacy_url: "https://app.silvicom360.com/privacy",
-  creatives: [{
-    id: creativeId, preset_key: "P2", platform_slots: { primary_text: "body", headline: "title" },
-    copy: { en: { hook: "Home every weekend", cta: "Apply now", body: "Regional lanes out of Joliet.", title: "Class A drivers" },
-            es: { hook: "En casa cada fin de semana", cta: "Aplica ya", body: "Rutas regionales desde Joliet.", title: "Choferes Clase A" } },
-    assets: [{ format: "4:5", language: "en", sha256: en }, { format: "4:5", language: "es", sha256: es }],
-  }],
-});
+const input = (key: string): PublishInput => contractPublishInput({ t, orgId: ORG, connectionId: CONN, campaignId, creativeId, key, en, es });
 
 const graph = (token: string) => new MetaGraph({ token, throttleKey: `contract:${campaignId}`, baseUrl: t.base, timeoutMs: t.timeoutMs, sleep: async () => {} });
 const readAsset = async (_org: string, ref: { sha256: string }) => images.get(ref.sha256) ?? Promise.reject(new Error(`no asset ${ref.sha256}`));
-const deps = () => ({ admin: w.admin, graph: graph(t.token()), pageGraph: graph(t.pageToken()), readAsset, now: w.now });
+const deps = () => ({ admin: w.admin, graph: graph(t.token()), pageGraph: graph(t.pageToken()), readAsset, readClip: async () => Promise.reject(new Error("an image ad reads no clip")), now: w.now });
 const publish = (key: string) => publishPaused(deps(), input(key));
 /** How many of each object the target really made: one campaign, one ad set, a form, creative and ad per language. */
 const madeCounts = () => STEPS.filter(([s]) => s !== "image").map(([, edge]) => t.proxy.made(edge).length);

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { FakeAdSet, FakeAdSets } from "./fakeMetaAdSets.js";
 import type { FakeForms } from "./fakeMetaForms.js";
+import type { FakeVideos } from "./fakeMetaVideos.js";
 import { graphError, pick } from "./fakeMetaShapes.js";
 
 /**
@@ -17,6 +18,13 @@ import { graphError, pick } from "./fakeMetaShapes.js";
  *                                        the CTA type one of APPLY_NOW, DOWNLOAD, GET_QUOTE, LEARN_MORE,
  *                                        SIGN_UP, SUBSCRIBE; the link "can only be https://fb.me/".
  *                                        https://developers.facebook.com/docs/marketing-api/guides/lead-ads/create
+ *                                        A VIDEO lead ad (same guide, "You can also use a video in the lead ad
+ *                                        creative instead of a photo"; read 2026-11-17): `video_data { video_id,
+ *                                        image_url, call_to_action { type, value { link, lead_gen_form_id } } }` —
+ *                                        the link sits INSIDE the button's value. The Ad Creative Video Data
+ *                                        reference adds `image_hash` ("Hash of an image in your image library
+ *                                        with Facebook to use as thumbnail"), `message` and `title`.
+ *                                        https://developers.facebook.com/docs/marketing-api/reference/ad-creative-video-data
  *   POST /{v}/act_{id}/ads              `name`, `adset_id`, `creative { creative_id }`, `status` → `{ id }`
  *                                        (the same guide, Step 5).
  *   GET  /{v}/act_{id}/adcreatives,     lists, narrowed by name EQUAL as the other edges are (B2a).
@@ -31,6 +39,9 @@ import { graphError, pick } from "./fakeMetaShapes.js";
  *   · the hash is the MD5 of the bytes (the page says only that it identifies the image), so the same
  *     bytes uploaded twice answer the same hash — which is what lets the publisher re-send an upload;
  *   · the guide writes the link both as `https://fb.me/` and `http://fb.me/`; this fake takes either;
+ *   · a video creative must name a video whose encoding is `ready`. No page says a creative may or may not
+ *     name one still processing; refusing is the reading that cannot let a broken ad through here;
+ *   · the guide lists the six button types for `link_data` only; this fake holds `video_data` to the same six;
  *   · a creative's `link_data.name` (the headline) is not in the guide's list; it is in the link-ad
  *     spec, and this fake keeps it.
  */
@@ -47,7 +58,7 @@ export interface FakeCreative {
   account_id: string;
   name: string;
   status: "ACTIVE" | "DELETED";
-  object_story_spec: { page_id: string; link_data: Record<string, unknown> };
+  object_story_spec: { page_id: string; link_data?: Record<string, unknown>; video_data?: Record<string, unknown> };
 }
 
 export class FakeAds {
@@ -59,6 +70,7 @@ export class FakeAds {
     private readonly trace: () => string,
     private readonly sets: FakeAdSets,
     private readonly forms: FakeForms,
+    private readonly videos: FakeVideos,
   ) {}
 
   /** The routes this file answers; null for any other path (the caller routes on). */
@@ -114,11 +126,19 @@ export class FakeAds {
     } catch {
       spec = null;
     }
-    const link = spec?.link_data as { image_hash?: unknown; link?: unknown; call_to_action?: { type?: unknown; value?: { lead_gen_form_id?: unknown } } } | undefined;
-    if (!spec || typeof spec.page_id !== "string" || !link) return this.bad("object_story_spec with page_id and link_data is required");
+    type Shown = { image_hash?: unknown; video_id?: unknown; link?: unknown; call_to_action?: { type?: unknown; value?: { link?: unknown; lead_gen_form_id?: unknown } } };
+    const video = spec?.video_data as Shown | undefined;
+    const link = (video ?? spec?.link_data) as Shown | undefined;
+    if (!spec || typeof spec.page_id !== "string" || !link || (video && spec.link_data)) return this.bad("object_story_spec with page_id and one of link_data, video_data is required");
+    // An image ad's picture, a video ad's thumbnail: either way a hash that is named must be this account's.
     const image = this.images.get(String(link.image_hash ?? ""));
-    if (!image || image.account_id !== accountId) return this.bad("Image hash not found in this ad account", 1487242);
-    if (link.link !== "https://fb.me/" && link.link !== "http://fb.me/") return this.bad("A lead ad's link can only be https://fb.me/");
+    if ((!video || link.image_hash !== undefined) && (!image || image.account_id !== accountId)) return this.bad("Image hash not found in this ad account", 1487242);
+    if (video) {
+      const usable = this.videos.usable(String(video.video_id ?? ""), accountId);
+      if (usable !== "ok") return this.bad(usable === "not_ready" ? "The video is still being processed" : "video_id must be a video in this ad account's library");
+    }
+    const url = video ? link.call_to_action?.value?.link : link.link;
+    if (url !== "https://fb.me/" && url !== "http://fb.me/") return this.bad("A lead ad's link can only be https://fb.me/");
     if (!CTA_TYPES.has(String(link.call_to_action?.type ?? ""))) return this.bad("call_to_action type is not allowed for lead ads");
     const formId = String(link.call_to_action?.value?.lead_gen_form_id ?? "");
     if (this.forms.pageOf(formId) !== spec.page_id) return this.bad("lead_gen_form_id must be a form on the creative's Page");

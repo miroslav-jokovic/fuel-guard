@@ -33,6 +33,15 @@
  * Sent as `Authorization: Bearer`, never as `access_token=` in a URL, where proxies and request logs keep
  * it. It is also scrubbed from every message a failure carries, in case Meta echoes it.
  *
+ * ── A VIDEO'S BYTES GO TO ANOTHER HOST (V4, read 2026-11-17) ─────────────────────────────────────
+ * The "FB Video Ads" guide: `act_<id>/video_ads` with `upload_phase=start` answers an `upload_url` on
+ * `rupload.facebook.com`, and the file is POSTed there, raw, with `Authorization: OAuth <token>` and the
+ * headers `offset` and `file_size`. So `upload()` sends our token to a URL that came out of a response
+ * body. It is therefore sent ONLY to `uploadBase` — Meta's upload host unless a caller set another (the
+ * simulator, the contract suite's proxy) — and an `upload_url` naming any other host, or a path that is
+ * not the guide's `/video-ads-upload/`, is refused before a byte leaves (`upload_url_unexpected`).
+ * https://developers.facebook.com/documentation/ads-commerce/marketing-api/guides/videoads/fbvideoads
+ *
  * ── WHAT IT DOES NOT DO ──────────────────────────────────────────────────────────────────────────
  * It writes no `ads_actions` row. A read is not an act, and an act's row belongs to the code that decides
  * it — the guard, the runner's pause, the connection test — so the row records why, not only what.
@@ -42,6 +51,9 @@
 
 export const META_GRAPH_VERSION = "v26.0";
 export const META_GRAPH_BASE = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
+/** Where a video's bytes are sent (the guide's `upload_url` host), and the only path we send them to. */
+export const META_UPLOAD_BASE = "https://rupload.facebook.com";
+const UPLOAD_PATH = /^\/video-ads-upload\//;
 
 export type GraphFailureKind =
   | "transient"
@@ -84,6 +96,8 @@ export interface MetaGraphOptions {
   throttleKey: string;
   /** The real Graph by default; FakeMeta's base on the simulator and in tests. */
   baseUrl?: string;
+  /** Meta's upload host by default; FakeMeta's own origin on the simulator, the fault proxy's in the contract suite. */
+  uploadBase?: string;
   fetch?: typeof fetch;
   now?: () => Date;
   sleep?: (ms: number) => Promise<void>;
@@ -113,6 +127,7 @@ export class MetaGraph {
     if (!opts.token) throw new Error("MetaGraph: no token");
     this.o = {
       baseUrl: META_GRAPH_BASE,
+      uploadBase: META_UPLOAD_BASE,
       fetch: globalThis.fetch,
       now: () => new Date(),
       sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
@@ -126,7 +141,7 @@ export class MetaGraph {
   }
 
   get<T>(path: string, params: Params = {}): Promise<GraphResult<T>> {
-    return this.call<T>("GET", path, params, true);
+    return this.request<T>("GET", path, params, true);
   }
 
   /**
@@ -140,16 +155,42 @@ export class MetaGraph {
 
   /** `idempotent: true` only for a write that sets a value (status, budget); never for a create. */
   post<T>(path: string, params: Params, opts: { idempotent: boolean }): Promise<GraphResult<T>> {
-    return this.call<T>("POST", path, params, opts.idempotent);
+    return this.request<T>("POST", path, params, opts.idempotent);
   }
 
-  private async call<T>(method: "GET" | "POST", path: string, params: Params, retryable: boolean): Promise<GraphResult<T>> {
+  /**
+   * A video's bytes to the `upload_url` a `video_ads` start answered. Re-sent on a 5xx or a timeout: the
+   * guide's own rule for an interrupted upload is to send again from `offset` 0, "to restart".
+   */
+  upload<T>(uploadUrl: string, bytes: Buffer): Promise<GraphResult<T>> {
+    let target: URL;
+    try {
+      const asked = new URL(uploadUrl);
+      const ours = this.o.uploadBase !== META_UPLOAD_BASE;
+      if (!UPLOAD_PATH.test(asked.pathname) || (!ours && asked.origin !== META_UPLOAD_BASE)) throw new Error("not Meta's upload host");
+      target = new URL(asked.pathname, this.o.uploadBase);
+    } catch {
+      return Promise.resolve({ ok: false, error: failure("invalid_request", "upload_url_unexpected", null, "the upload URL is not on Meta's upload host — nothing was sent") });
+    }
+    return this.call<T>("POST", true, () => this.answer<T>(() => this.o.fetch(target, {
+      method: "POST",
+      headers: { authorization: `OAuth ${this.o.token}`, offset: "0", file_size: String(bytes.length), "content-type": "application/octet-stream" },
+      body: new Uint8Array(bytes),
+      signal: AbortSignal.timeout(this.o.timeoutMs),
+    })));
+  }
+
+  private request<T>(method: "GET" | "POST", path: string, params: Params, retryable: boolean): Promise<GraphResult<T>> {
+    return this.call<T>(method, retryable, () => this.once<T>(method, path, params));
+  }
+
+  private async call<T>(method: "GET" | "POST", retryable: boolean, once: () => Promise<{ ok: true; data: T; usage: UsageReading | null } | { ok: false; error: GraphFailure }>): Promise<GraphResult<T>> {
     const until = blockedUntil.get(this.o.throttleKey) ?? 0;
     const now = this.o.now().getTime();
     if (until > now) return { ok: false, error: this.local(until - now) };
 
     for (let attempt = 1; ; attempt += 1) {
-      const outcome = await this.once<T>(method, path, params);
+      const outcome = await once();
       if (outcome.ok) return { ...outcome, attempts: attempt };
       const failure = { ...outcome.error, attempts: attempt };
       const sent = method === "POST" && !retryable;
@@ -161,7 +202,7 @@ export class MetaGraph {
     }
   }
 
-  private async once<T>(method: "GET" | "POST", path: string, params: Params): Promise<{ ok: true; data: T; usage: UsageReading | null } | { ok: false; error: GraphFailure }> {
+  private once<T>(method: "GET" | "POST", path: string, params: Params): Promise<{ ok: true; data: T; usage: UsageReading | null } | { ok: false; error: GraphFailure }> {
     const url = new URL(`${this.o.baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}`);
     const form = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) {
@@ -170,14 +211,19 @@ export class MetaGraph {
       if (method === "GET") url.searchParams.set(k, s);
       else form.set(k, s);
     }
+    return this.answer<T>(() => this.o.fetch(url, {
+      method,
+      headers: { authorization: `Bearer ${this.o.token}`, ...(method === "POST" ? { "content-type": "application/x-www-form-urlencoded" } : {}) },
+      body: method === "POST" ? form.toString() : undefined,
+      signal: AbortSignal.timeout(this.o.timeoutMs),
+    }));
+  }
+
+  /** One request's answer, read the one way: the usage header, then Graph's envelope or its error. */
+  private async answer<T>(send: () => Promise<Response>): Promise<{ ok: true; data: T; usage: UsageReading | null } | { ok: false; error: GraphFailure }> {
     let res: Response;
     try {
-      res = await this.o.fetch(url, {
-        method,
-        headers: { authorization: `Bearer ${this.o.token}`, ...(method === "POST" ? { "content-type": "application/x-www-form-urlencoded" } : {}) },
-        body: method === "POST" ? form.toString() : undefined,
-        signal: AbortSignal.timeout(this.o.timeoutMs),
-      });
+      res = await send();
     } catch (err) {
       const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
       return { ok: false, error: failure(timedOut ? "timeout" : "network", timedOut ? "timeout" : "network", null, this.scrub(err instanceof Error ? err.message : String(err))) };

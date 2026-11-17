@@ -70,7 +70,7 @@ export async function graphForConnection(deps: RegistryDeps, c: ConnectionForGra
     const gate = simulatorGate(deps.processEnv ?? process.env);
     if (!gate.allowed) return { ok: false, error_code: "simulator_not_allowed", reason: `The simulator is not available on this server: ${gate.reason}.` };
     const sim = await simulatorMeta();
-    return { ok: true, simulated: true, graph: new MetaGraph({ token: sim.token, throttleKey, baseUrl: sim.base, now: deps.now }) };
+    return { ok: true, simulated: true, graph: new MetaGraph({ token: sim.token, throttleKey, baseUrl: sim.base, uploadBase: new URL(sim.base).origin, now: deps.now }) };
   }
   if (c.provider !== "meta") return { ok: false, error_code: "not_built", reason: `${c.provider} connections are not built yet.` };
   if (!c.token_sealed) return { ok: false, error_code: "no_token", reason: "This connection holds no token. Connect it again." };

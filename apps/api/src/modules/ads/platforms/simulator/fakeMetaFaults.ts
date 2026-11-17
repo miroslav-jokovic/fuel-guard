@@ -36,20 +36,26 @@ interface FaultRule {
   path: RegExp;
   fault: FakeMetaFault;
   times: number;
+  /** Matching requests let through first (V4: a video's start and its finish are one path; the fault is for the second). */
+  skip: number;
 }
 
 export class FaultBook {
   private rules: FaultRule[] = [];
 
   /** The next `times` requests matching method + path get this fault instead of their answer. */
-  inject(method: "GET" | "POST", path: RegExp, fault: FakeMetaFault, times = 1): void {
-    this.rules.push({ method, path, fault, times });
+  inject(method: "GET" | "POST", path: RegExp, fault: FakeMetaFault, times = 1, skip = 0): void {
+    this.rules.push({ method, path, fault, times, skip });
   }
 
   /** The fault this request meets, spending one of its `times`; null when none is waiting for it. */
   take(method: string, path: string): FakeMetaFault | null {
     const rule = this.rules.find((f) => f.method === method && f.path.test(path) && f.times > 0);
     if (!rule) return null;
+    if (rule.skip > 0) {
+      rule.skip -= 1;
+      return null;
+    }
     rule.times -= 1;
     return rule.fault;
   }

@@ -45,12 +45,15 @@ export interface ProxiedCall {
 export class FaultProxy {
   readonly faults = new FaultBook();
   readonly calls: ProxiedCall[] = [];
-  private readonly overlays: Array<{ path: RegExp; fields: Record<string, unknown> }> = [];
+  private readonly overlays: Array<{ path: RegExp; fields: Record<string, unknown>; times: number; asked?: string }> = [];
   private server: Server | null = null;
   private trace = 0;
 
-  /** `upstream` is a version-qualified Graph base: FakeMeta's `start()` answer, or the real Graph host's. */
-  constructor(private readonly upstream: string, private readonly businessId = "1000000000001") {}
+  /**
+   * `upstream` is a version-qualified Graph base: FakeMeta's `start()` answer, or the real Graph host's.
+   * `uploadUpstream` is the origin a video's bytes go to (V4): FakeMeta's own, or `rupload.facebook.com`.
+   */
+  constructor(private readonly upstream: string, private readonly businessId = "1000000000001", private readonly uploadUpstream = new URL(upstream).origin) {}
 
   /** The base the client is pointed at — this proxy, with the version production calls. */
   async start(): Promise<string> {
@@ -70,9 +73,13 @@ export class FaultProxy {
     this.server = null;
   }
 
-  /** Every later successful GET of a path matching `path` answers `fields` over what the target said. */
-  overlay(path: RegExp, fields: Record<string, unknown>): void {
-    this.overlays.push({ path, fields });
+  /**
+   * Every later successful GET of a path matching `path` answers `fields` over what the target said — the next
+   * `times` of them when given, and only reads that asked for exactly `asked` (their `fields=`) when given: a
+   * video's id is not known before the run, and its status read is the one read that asks for `status` alone (V4).
+   */
+  overlay(path: RegExp, fields: Record<string, unknown>, times = Infinity, asked?: string): void {
+    this.overlays.push({ path, fields, times, asked });
   }
 
   /** Every POST to a path matching `edge` that the TARGET answered with success — what it really made. */
@@ -92,7 +99,10 @@ export class FaultProxy {
     const parts = url.pathname.split("/").filter(Boolean);
     // Anything not on the version production calls is forwarded as asked: the target answers it, not us.
     const path = (parts[0] === META_GRAPH_VERSION ? parts.slice(1) : parts).join("/");
-    const body = method === "POST" ? Object.fromEntries(new URLSearchParams(raw)) : Object.fromEntries(url.searchParams);
+    // A video's file (V4): raw bytes for the upload host, logged by their length and the guide's two headers.
+    const isUpload = parts[0] === "video-ads-upload";
+    const body = isUpload ? { offset: String(req.headers.offset ?? ""), file_size: String(req.headers.file_size ?? ""), bytes: String(raw.length) }
+      : method === "POST" ? Object.fromEntries(new URLSearchParams(raw.toString("utf8"))) : Object.fromEntries(url.searchParams);
     const fault = this.faults.take(method, path);
     const call: ProxiedCall = { method, path, body: redact(body), fault: fault?.kind ?? null, upstream: null };
     this.calls.push(call);
@@ -104,11 +114,11 @@ export class FaultProxy {
       return send(res, a.status, a.body, a.headers);
     }
 
-    const target = new URL(`${this.upstream.replace(/\/$/, "")}/${path}${url.search}`);
+    const target = isUpload ? new URL(`/${path}`, this.uploadUpstream) : new URL(`${this.upstream.replace(/\/$/, "")}/${path}${url.search}`);
     const forwarded = await fetch(target, {
       method,
-      headers: pickHeaders(req, ["authorization", "content-type"]),
-      body: method === "POST" ? raw : undefined,
+      headers: pickHeaders(req, ["authorization", "content-type", "offset", "file_size"]),
+      body: method === "POST" ? new Uint8Array(raw) : undefined,
     });
     const text = await forwarded.text();
     let parsed: unknown;
@@ -123,7 +133,8 @@ export class FaultProxy {
       return send(res, a.status, a.body, a.headers);
     }
     const usage = forwarded.headers.get("x-business-use-case-usage");
-    const over = method === "GET" && forwarded.status < 400 && parsed && typeof parsed === "object" ? this.overlays.filter((o) => o.path.test(path)) : [];
+    const over = method === "GET" && forwarded.status < 400 && parsed && typeof parsed === "object" ? this.overlays.filter((o) => o.times > 0 && o.path.test(path) && (o.asked === undefined || o.asked === body.fields)) : [];
+    for (const o of over) o.times -= 1;
     if (over.length > 0) parsed = Object.assign({}, parsed, ...over.map((o) => o.fields));
     send(res, forwarded.status, parsed, usage ? { "X-Business-Use-Case-Usage": usage } : {});
   }
@@ -153,8 +164,8 @@ function send(res: ServerResponse, status: number, body: unknown, headers: Recor
   res.end(typeof body === "string" ? body : JSON.stringify(body));
 }
 
-async function readBody(req: IncomingMessage): Promise<string> {
+async function readBody(req: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks);
 }

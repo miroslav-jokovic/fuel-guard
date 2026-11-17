@@ -8,6 +8,7 @@ import { join } from "node:path";
  * Several shapes in the fakes are marked OUR reading: what Meta's pages did not say and the fake had to
  * choose (`fakeMeta.ts`: the HTTP status of an error and where `error_subcode` sits; `fakeMetaAds.ts`: one
  * entry under `images`, the hash being the MD5 of the bytes, the same hash on a re-upload;
+ * `fakeMetaVideos.ts`: what a new upload session reads as, and that one never ended is not in the account;
  * `fakeMetaEvents.ts`: the Conversions API's success body and its refusal). A prose comment cannot be
  * checked, so each reading below is the one request that shows it and the few things observed in the
  * answer — a status, a code, a type, a yes/no — never an id, a token or a time, so a recording is the
@@ -99,6 +100,35 @@ export const GRAPH_READINGS: readonly Reading[] = [
         "hash is the md5 of the bytes": first?.hash === createHash("md5").update(Buffer.from(PNG, "base64")).digest("hex"),
         "re-upload answers the same hash": first?.hash !== undefined && entries(twice.body)[0]?.hash === first.hash,
         "url": kind(first?.url),
+      };
+    },
+  },
+  {
+    // V4 (2026-11-17): what the fake's video library chose where the FB Video Ads guide is silent, as far as it can
+    // be asked WITHOUT a file — a sandbox would need a real MP4 to go further, and that is the contract suite's run
+    // (`publisherVideo.contract.test.ts`), not a reading's.
+    id: "video-session",
+    fake: "platforms/simulator/fakeMetaVideos.ts",
+    async ask(t) {
+      const started = await call(t, "POST", `act_${t.accountId}/video_ads`, { upload_phase: "start" });
+      const id = String(started.body.video_id ?? "");
+      const url = typeof started.body.upload_url === "string" ? started.body.upload_url : "";
+      const read = await call(t, "GET", `${id}?fields=status`);
+      const status = (read.body.status ?? {}) as Record<string, unknown>;
+      const uploading = (status.uploading_phase ?? {}) as Record<string, unknown>;
+      const empty = await call(t, "POST", `act_${t.accountId}/video_ads`, { upload_phase: "finish", video_id: id });
+      const list = await call(t, "GET", `act_${t.accountId}/video_ads`);
+      const listed = Array.isArray(list.body.data) ? (list.body.data as Array<{ id?: unknown }>) : [];
+      return {
+        status: started.status,
+        video_id: kind(started.body.video_id),
+        "upload_url is on rupload.facebook.com/video-ads-upload/": /^https:\/\/rupload\.facebook\.com\/video-ads-upload\//.test(url),
+        "status read": read.status,
+        "a new session's video_status": kind(status.video_status) === "string" ? (status.video_status as string) : kind(status.video_status),
+        "a new session's uploading_phase.status": kind(uploading.status) === "string" ? (uploading.status as string) : kind(uploading.status),
+        "finish with no file": empty.status,
+        "finish with no file error.code": kind(err(empty.body).code) === "number" ? (err(empty.body).code as number) : kind(err(empty.body).code),
+        "a session never ended is in the account's list": listed.some((v) => v.id === id),
       };
     },
   },
