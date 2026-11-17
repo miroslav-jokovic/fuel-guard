@@ -110,6 +110,8 @@ const EXPECTED: Record<string, string> = {
   // Lumper fees: one case per order with a lumper (LUMPER-REVISED-RC-PLAN D-LRC1).
   cases: "case",
   items: "item",
+  // Finance › Tolls: one row per uploaded toll statement file (TOLLS-PER-TRUCK-PLAN TL4a).
+  statements: "statement",
   "trucks and trailers": "truck or trailer",
   applicants: "applicant",
   cards: "card",
