@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { FakeMeta } from "../../simulator/fakeMeta.js";
-import { META_GRAPH_BASE, MetaGraph } from "../graphClient.js";
+import { META_GRAPH_BASE, META_UPLOAD_BASE, MetaGraph } from "../graphClient.js";
 import { FaultProxy } from "./faultProxy.js";
 
 /**
@@ -98,7 +98,7 @@ export async function openMetaTarget(env: NodeJS.ProcessEnv = process.env): Prom
     upstream = await fake.start();
   }
 
-  const proxy = new FaultProxy(upstream);
+  const proxy = new FaultProxy(upstream, undefined, name === "sandbox" ? META_UPLOAD_BASE : undefined);
   const base = await proxy.start();
   const original = { ...tokens };
   return {

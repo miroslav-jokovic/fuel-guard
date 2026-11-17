@@ -74,7 +74,7 @@ const readAsset = async (_org: string, ref: { sha256: string }) => {
   if (!b) throw new Error(`no asset ${ref.sha256}`);
   return b;
 };
-const publish = (patch: Partial<PublishInput> = {}) => publishPaused({ admin: w.admin, graph: graph(), pageGraph: graph(PAGE_TOKEN), readAsset, now: w.now }, input(patch));
+const publish = (patch: Partial<PublishInput> = {}) => publishPaused({ admin: w.admin, graph: graph(), pageGraph: graph(PAGE_TOKEN), readAsset, readClip: async () => Promise.reject(new Error("no clip in this test")), now: w.now }, input(patch));
 const levels = () => creates().map((x) => (x.request as { level: string }).level);
 const posts = (re: RegExp) => meta.requests.filter((r) => r.method === "POST" && re.test(r.path)).length;
 const creates = () => w.actions.filter((a) => a.kind === "create_paused");
@@ -191,6 +191,15 @@ describe("Meta publisher (B2a) — resume, never duplicate (§4R Publisher L2)",
     expect(posts(/campaigns$/)).toBe(1);
     expect((await publish({ key: `${CAMPAIGN}:stint-2` })).ok).toBe(true);
     expect([meta.campaigns.size, meta.adsets.size]).toEqual([1, 1]);
+  });
+
+  it("a token revoked between a create and its read-back is token_invalid, the code the connection alert knows, with the step named", async () => {
+    // The first GET of a bare id is the campaign's read-back (the find reads the account's edge).
+    meta.inject("GET", /^\d+$/, { kind: "token_expired" });
+    expect(await publish()).toMatchObject({ ok: false, error_code: "token_invalid", response: { step: "readback", kind: "token_invalid" } });
+    expect(creates().at(-1)).toMatchObject({ status: "failed", error_code: "token_invalid" });
+    expect(meta.campaigns.size).toBe(1);
+    expect(posts(/adsets$/)).toBe(0);
   });
 
   it("a revoked token stops the step at its first read: token_invalid, and no create is sent", async () => {
@@ -379,10 +388,10 @@ describe("Meta publisher (B2c) — the image, the ad creative and the ad, per ap
     const first = await publish();
     if (!first.ok) throw new Error(first.error_code);
     const en = first.platform_refs.ads.find((a) => a.language === "en")!;
-    meta.ads.creatives.get(en.meta_creative_id)!.object_story_spec.link_data.image_hash = "0".repeat(32);
+    meta.ads.creatives.get(en.meta_creative_id)!.object_story_spec.link_data!.image_hash = "0".repeat(32);
     expect(await publish({ key: "k2" })).toMatchObject({ ok: false, error_code: "readback_mismatch", response: { id: en.meta_creative_id, fields: ["image_hash"] } });
 
-    meta.ads.creatives.get(en.meta_creative_id)!.object_story_spec.link_data.image_hash = en.image_hash;
+    meta.ads.creatives.get(en.meta_creative_id)!.object_story_spec.link_data!.image_hash = en.image_hash;
     meta.sets.ads.get(en.meta_ad_id)!.status = "ACTIVE";
     expect(await publish({ key: "k3" })).toMatchObject({ ok: false, error_code: "found_not_paused" });
     expect([meta.ads.creatives.size, meta.sets.ads.size]).toEqual([2, 2]);
@@ -402,6 +411,6 @@ describe("Meta publisher (B2c) — the image, the ad creative and the ad, per ap
     for (const bad of [{ image_hash: "f".repeat(32) }, { link: "https://example.com/" }, { call_to_action: { type: "APPLY_NOW", value: { lead_gen_form_id: "123" } } }]) {
       expect((await tryCreative({ ...ok.link_data, ...bad })).ok).toBe(false);
     }
-    expect((await tryCreative(ok.link_data)).ok).toBe(true);
+    expect((await tryCreative(ok.link_data!)).ok).toBe(true);
   });
 });

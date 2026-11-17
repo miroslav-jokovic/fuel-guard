@@ -37,7 +37,7 @@ beforeEach(async () => {
   const sha = createHash("sha256").update(png).digest("hex");
   const graph = (token: string) => new MetaGraph({ token, throttleKey: `monitor-setup:${id}`, baseUrl: t.base, timeoutMs: t.timeoutMs, sleep: async () => {} });
   const setup = createAdsWorld({ campaigns: [campaign(id, "creating")], settings: LIVE_SETTINGS, connections: [{ ...targetConnection(t, env, { org: ORG, connection: CONN }) }] });
-  const published = await publishPaused({ admin: setup.admin, graph: graph(t.token()), pageGraph: graph(t.pageToken()), readAsset: async () => png, now: setup.now }, {
+  const published = await publishPaused({ admin: setup.admin, graph: graph(t.token()), pageGraph: graph(t.pageToken()), readAsset: async () => png, readClip: async () => Promise.reject(new Error("no clip in this test")), now: setup.now }, {
     orgId: ORG, campaignId: id, connectionId: CONN, accountId: t.accountId, pageId: t.pageId, platform: "meta",
     brief_source: "recruiting_opening", brief_ref: "op-1@v3", created_at: "2026-11-09T15:00:00Z",
     area: { label: "Joliet yard", latitude: 41.525, longitude: -88.0817, radius_miles: 25, reason: "Drivers report to the Joliet yard daily" },

@@ -102,6 +102,7 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
     createPaused: (campaign, key) => publishCampaign({
       admin: deps.admin, env: deps.env, now: deps.now,
       readAsset: (orgId, ref) => readAdAsset(deps.admin, orgId, ref),
+      readClip: (orgId, ref) => readAdClip(deps.admin, orgId, ref),
     }, campaign, key),
     // B3: the connection's Meta adapter (or the simulator's, off production), its spend half closed
     // inside the guard. With it, a pausing campaign — the kill switch's second half — reaches Meta.
@@ -124,7 +125,7 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
       return refreshCampaign({
         admin: deps.admin, now: deps.now,
         composeOne: (input) => composeCreative(composeDeps, input),
-        publishOne: (c, creativeId) => publishReplacement({ ...registry, readAsset: (orgId, ref) => readAdAsset(deps.admin, orgId, ref) }, c, creativeId),
+        publishOne: (c, creativeId) => publishReplacement({ ...registry, readAsset: (orgId, ref) => readAdAsset(deps.admin, orgId, ref), readClip: (orgId, ref) => readAdClip(deps.admin, orgId, ref) }, c, creativeId),
         platform: (orgId, connectionId) => adapterForConnection(registry, orgId, connectionId),
       }, campaign);
     },

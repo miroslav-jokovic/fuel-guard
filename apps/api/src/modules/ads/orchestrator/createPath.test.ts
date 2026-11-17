@@ -185,7 +185,7 @@ describe("publishReplacement × the real Meta path on the simulator (Q-AD68)", (
       storage: { download: (key: string) => (stored.has(key) ? { data: new Blob([new Uint8Array(stored.get(key)!)]), error: null } : { data: null, error: { message: "Object not found" } }) },
     });
   }
-  const deps = (w: AdsWorld) => ({ admin: w.admin, env, now: w.now, readAsset: (orgId: string, ref: { sha256: string; format: string }) => readAdAsset(w.admin, orgId, ref as never) });
+  const deps = (w: AdsWorld) => ({ admin: w.admin, env, now: w.now, readClip: async () => Promise.reject(new Error("no clip in this test")), readAsset: (orgId: string, ref: { sha256: string; format: string }) => readAdAsset(w.admin, orgId, ref as never) });
 
   it("makes the replacement's two ads PAUSED in the campaign's existing ad set, new ads (never the retired ones adopted), and nothing above the ad", async () => {
     const created = world();

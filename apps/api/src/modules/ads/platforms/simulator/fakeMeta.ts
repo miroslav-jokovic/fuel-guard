@@ -9,6 +9,7 @@ import { FaultBook, faultAnswer, reviewedAd, type AdReviewVerdict, type FakeMeta
 import { FakeForms } from "./fakeMetaForms.js";
 import { FakeLeads } from "./fakeMetaLeads.js";
 import { FakeRules } from "./fakeMetaRules.js";
+import { FakeVideos } from "./fakeMetaVideos.js";
 import { accountInsights } from "./fakeMetaInsights.js";
 import { objectInsightsRoute } from "./fakeMetaInsightsHourly.js";
 import { FakeWebhooks } from "./fakeMetaWebhooks.js";
@@ -67,7 +68,8 @@ export type { FakeMetaFault } from "./fakeMetaFaults.js";
  * ── NOT HERE YET, ON PURPOSE ───────────────────────────────────────────────────────────────────────
  * Campaigns live in `fakeMetaCampaigns.ts` and the faults in `fakeMetaFaults.ts` (split out at Publisher L3, shared with the
  * contract suite's fault proxy). Instant Forms live in `fakeMetaForms.ts` (B2b), Automated Rules in `fakeMetaRules.ts` (B3b). Leads in `fakeMetaLeads.ts` (B4a), the
- * signed `leadgen` webhook and `subscribed_apps` in `fakeMetaWebhooks.ts` (B4b), hourly and ad-set insights in `fakeMetaInsightsHourly.ts` (B5a/b), images, creatives and ads in `fakeMetaAds.ts` (B2c). Each joins
+ * signed `leadgen` webhook and `subscribed_apps` in `fakeMetaWebhooks.ts` (B4b), hourly and ad-set insights in `fakeMetaInsightsHourly.ts` (B5a/b), images, creatives and ads in `fakeMetaAds.ts` (B2c), the account's videos and
+ * their upload host in `fakeMetaVideos.ts` (V4). Each joins
  * with the step that first calls it, so every endpoint here has a caller whose contract test reads it.
  *
  * In-memory: a simulator restart forgets every campaign. That is the simulator being honest about
@@ -127,6 +129,8 @@ export class FakeMeta {
   readonly camps: FakeCampaigns;
   /** Ad sets (B2a) and ads (their status, B3; their creation is B2c's), in `fakeMetaAdSets.ts`. */
   readonly sets: FakeAdSets;
+  /** The ad account's videos: upload sessions, the upload host, encoding status (V4). */
+  readonly videos: FakeVideos;
   /** Ad images, ad creatives and ad creation (B2c). */
   readonly ads: FakeAds;
   /** Instant Forms (B2b), made and read with a Page's token. */
@@ -164,7 +168,8 @@ export class FakeMeta {
     this.rules = new FakeRules(() => String(this.nextId++), () => this.traceId());
     this.sets = new FakeAdSets(() => String(this.nextId++), () => this.traceId(), (id) => this.campaigns.get(id));
     this.datasets = new FakeDatasets(() => this.traceId(), opts.now ?? (() => new Date()));
-    this.ads = new FakeAds(() => String(this.nextId++), () => this.traceId(), this.sets, this.forms);
+    this.videos = new FakeVideos(() => String(this.nextId++), () => this.traceId(), opts.now ?? (() => new Date()));
+    this.ads = new FakeAds(() => String(this.nextId++), () => this.traceId(), this.sets, this.forms, this.videos);
   }
 
   async start(): Promise<string> {
@@ -188,8 +193,8 @@ export class FakeMeta {
   }
 
   /** The next `times` requests matching method + path get this fault instead of their answer. */
-  inject(method: "GET" | "POST", path: RegExp, fault: FakeMetaFault, times = 1): void {
-    this.faults.inject(method, path, fault, times);
+  inject(method: "GET" | "POST", path: RegExp, fault: FakeMetaFault, times = 1, skip = 0): void {
+    this.faults.inject(method, path, fault, times, skip);
   }
 
   /** Campaigns by id — the tests' view of what the publisher made. */
@@ -226,11 +231,13 @@ export class FakeMeta {
 
   private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? "/", "http://fake");
-    const raw = await readBody(req);
-    const body = Object.fromEntries(new URLSearchParams(raw));
+    const bytes = await readBody(req);
+    const parts = url.pathname.split("/").filter(Boolean);
+    // The upload host (`rupload.facebook.com` at Meta): the file itself, not a form, and its own token header.
+    if (parts[0] === "video-ads-upload") return this.upload(req, res, parts.join("/"), bytes);
+    const body = Object.fromEntries(new URLSearchParams(bytes.toString("utf8")));
     for (const [k, v] of url.searchParams) if (!(k in body)) body[k] = v;
     const method = req.method === "POST" ? "POST" : "GET";
-    const parts = url.pathname.split("/").filter(Boolean);
     this.requests.push({ method, path: url.pathname, body: redact(body) });
 
     if (parts[0] !== FAKE_META_VERSION) return this.error(res, 400, 2635, "OAuthException", `(#2635) Unsupported API version ${parts[0] ?? ""}`);
@@ -246,6 +253,19 @@ export class FakeMeta {
     const answer = this.route(method, path, body);
     const verdict = method === "GET" ? this.verdicts.get(path) : undefined;
     if (verdict && answer.status < 400) return send(res, 200, reviewedAd(answer.body, verdict, body.fields));
+    if (fault?.kind === "applied_then_temporary" && answer.status < 400) return this.fault(res, { kind: "temporary" });
+    send(res, answer.status, answer.body);
+  }
+
+  /** `POST {upload_url}`: faults are booked by its path (`video-ads-upload/<version>/<video id>`), as any call's. */
+  private upload(req: IncomingMessage, res: ServerResponse, path: string, bytes: Buffer): void {
+    const header = (name: string) => (typeof req.headers[name] === "string" ? (req.headers[name] as string) : undefined);
+    this.requests.push({ method: "POST", path: `/${path}`, body: { offset: header("offset") ?? "", file_size: header("file_size") ?? "", bytes: String(bytes.length) } });
+    if (req.method !== "POST" || bearer(req) !== this.token) return this.error(res, 400, 190, "OAuthException", "Error validating access token: The session has been invalidated.", 463);
+    const fault = this.faults.take("POST", path);
+    if (fault?.kind === "hang") return;
+    if (fault && fault.kind !== "applied_then_temporary" && fault.kind !== "accepted_not_applied") return this.fault(res, fault);
+    const answer = this.videos.upload(path, { offset: header("offset"), file_size: header("file_size") }, bytes);
     if (fault?.kind === "applied_then_temporary" && answer.status < 400) return this.fault(res, { kind: "temporary" });
     send(res, answer.status, answer.body);
   }
@@ -288,6 +308,8 @@ export class FakeMeta {
     if (children && method === "GET") return listByName([...this.sets.adsets.values()].filter((a) => a.campaign_id === children[1]), body, () => this.traceId());
     const events = this.datasets.route(method, path, body);
     if (events) return events;
+    const video = this.videos.route(method, path, body);
+    if (video) return video;
     const adPart = this.ads.route(method, path, body);
     if (adPart) return adPart;
     const formLeads = /^(\d+)\/leads$/.exec(path);
@@ -343,7 +365,8 @@ export class FakeMeta {
 
 function bearer(req: IncomingMessage): string | undefined {
   const h = req.headers.authorization;
-  return h?.startsWith("Bearer ") ? h.slice(7) : undefined;
+  // Graph calls say `Bearer`; the upload host's guide says `OAuth`.
+  return h?.startsWith("Bearer ") ? h.slice(7) : h?.startsWith("OAuth ") ? h.slice(6) : undefined;
 }
 
 /** A recorded request never holds the token — a test that prints `requests` must not print a secret. */
@@ -357,8 +380,8 @@ function send(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
-async function readBody(req: IncomingMessage): Promise<string> {
+async function readBody(req: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks);
 }

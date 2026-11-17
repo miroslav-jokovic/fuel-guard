@@ -224,7 +224,7 @@ asked, no sound — through the real render step, ledger, month's budget and sto
 and join. It proves nothing about any model. With it, the whole road of a motion ad up to the creative row runs on
 staging; what it still cannot do there is be ASKED for, since no plan can name `motion` yet.
 
-**Read 2026-11-17, for the publisher's video road (not built):** Meta's "FB Video Ads" guide. A video reaches
+**Read 2026-11-17, for the publisher's video road:** Meta's "FB Video Ads" guide. A video reaches
 an ad account in three calls: `POST act_<id>/video_ads` with `upload_phase=start` answers `video_id` and an
 `upload_url` on `rupload.facebook.com`; the bytes are POSTed there with the headers `offset` and `file_size` (or a
 `file_url`); `POST act_<id>/video_ads` with `upload_phase=finish` and the `video_id` ends it — "When you end the
@@ -236,6 +236,31 @@ uploading, a processing and a publishing phase. The page's own samples disagree 
 older `advideos` edge (one POST with `source` or `file_url`), which V4a's table names, is still documented and
 states no status field. **Not on any page read:** that a video must be `ready` before a creative names it, and
 how its thumbnail (`image_url` in `video_data`) is obtained. The page's size rule is Q-APX17.
+
+**Built 2026-11-17 (V4l):** the publisher's video road, on FakeMeta (`platforms/meta/publisherVideo.ts`,
+`simulator/fakeMetaVideos.ts`). A creative that holds a motion ad is published as a video lead ad: each language's
+MP4 goes to the ad account by the guide's three calls, the publisher waits until Meta says the video is `ready`,
+and the creative carries `video_data` — the video, the same two texts, the same button and form. **Read
+2026-11-17, and it settles the thumbnail:** Meta's Ad Creative Video Data reference lists `image_hash`, "Hash of an
+image in your image library with Facebook to use as thumbnail", beside the `image_url` its guides' samples use. So
+the thumbnail is the creative's own 4:5 still, which the image road already uploads and which is the motion ad's
+last frame; no public address is needed for a file we keep private. The same pages put a video lead ad's link
+inside the button's value, name the six button types for an image creative only, and say a system user may upload
+to an ad account (not to a business). **How a retry is made safe:** a video has no name to be found by and Meta
+gives no hash for one, so the ledger keeps the video id the moment the upload session opens, and a later attempt
+asks Meta where THAT video stands — not uploaded, uploaded, encoding, ready, failed — and does only what is
+missing. A finish whose answer was lost is not believed either way; the video's own status is. A motion ad missing
+a language's file is refused before any call, never published as its still. **Ours until the sandbox says
+otherwise:** the publisher waits for `ready` before making the creative (no page says it must), for at most
+12 reads 5 seconds apart, then fails the step as `video_not_ready` and the next attempt waits for the same video;
+how long Meta takes for a seven-second file has not been measured. The fake refuses a creative that names a video
+still encoding, a second finish, and a file that is not an MP4 — each written as our reading in its header. It
+does not measure the file's width: Q-APX17 stays the sandbox's to answer. **Found, not changed:** the pages read
+today are headed v27.0 and the client calls v26.0. **Found and fixed:** a token revoked between a create and its
+read-back came back as `readback_token_invalid`, a code the connection alert does not know, so no admin was told —
+the same fault as the image upload's on 2026-11-05. In the contract suite as its own file, same two targets
+(`publisherVideo.contract.test.ts`), with real MP4s. Not built: the `video` kind in `CAMPAIGN_WORKERS`, `motion`
+in `PLAN_FORMATS_BUILT`, the player on the review screen.
 
 **The order from here (2026-11-17):** the publisher's video road comes BEFORE `motion` is added to
 `PLAN_FORMATS_BUILT`. That list is what the Strategist is told can be made; the day `motion` is on it, a plan on a
@@ -758,6 +783,7 @@ this to be high grade and really good quality, modern and in trending."*** Taken
 - Driver video claims (vendor sources): <https://otrucking.com/resources/guides/social-media-recruiting-truck-drivers/>
 
 - Read 2026-11-16 for V4: Meta — feed video, Leads: <https://www.facebook.com/business/ads-guide/update/video/facebook-feed/outcome-leads> · Meta — ad videos: <https://developers.facebook.com/docs/marketing-api/advideo> · Higgsfield — Seedance 2.0 image to video: <https://docs.higgsfield.ai/docs/models/seedance-2/image-to-video.md> · Wan 3.0 image to video: <https://docs.higgsfield.ai/docs/models/wan-3/image-to-video.md> · Kling 3.0: <https://docs.higgsfield.ai/docs/models/kling-3.md> · Netflix — Timed Text Style Guide: <https://partnerhelp.netflixstudios.com/hc/en-us/articles/217350977-English-Timed-Text-Style-Guide>
+- Read 2026-11-17 for V4's publisher: Meta — FB Video Ads (upload, status, sizes): <https://developers.facebook.com/documentation/ads-commerce/marketing-api/guides/videoads/fbvideoads> · Ad Creative Video Data (the thumbnail by `image_hash`): <https://developers.facebook.com/docs/marketing-api/reference/ad-creative-video-data> · Lead forms for ads (the video sample): <https://developers.facebook.com/documentation/ads-commerce/marketing-api/guides/lead-ads/create> · Ad videos, the older edge: <https://developers.facebook.com/documentation/ads-commerce/marketing-api/reference/ad-account/advideos>
 
 Most figures on creative practice come from vendors and agencies; where two disagreed, both are given above.
 

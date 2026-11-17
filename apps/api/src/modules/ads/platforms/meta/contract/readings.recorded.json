@@ -22,6 +22,20 @@
         "url": "string"
       }
     },
+    "video-session": {
+      "fake": "platforms/simulator/fakeMetaVideos.ts",
+      "observed": {
+        "status": 200,
+        "video_id": "string",
+        "upload_url is on rupload.facebook.com/video-ads-upload/": true,
+        "status read": 200,
+        "a new session's video_status": "processing",
+        "a new session's uploading_phase.status": "not_started",
+        "finish with no file": 400,
+        "finish with no file error.code": 100,
+        "a session never ended is in the account's list": false
+      }
+    },
     "events-accepted": {
       "fake": "platforms/simulator/fakeMetaEvents.ts",
       "observed": {
