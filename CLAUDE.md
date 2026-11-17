@@ -28,8 +28,8 @@ Production left Railway on 2026-10-28 (Railway's production services were delete
 staging runs on AWS, and anything still left in Railway's `uat` project is a remnant awaiting
 deletion, not a host. **Never
 deploy to, configure, debug on, or read a variable from Railway**, and never propose it. Hosts:
-`360.silvicominc.com` + `api.360.silvicominc.com` (production), `staging-api.360.silvicominc.com`
-(staging). To see what production is doing, read CloudWatch (`AWS_PROFILE=silvicom
+`360.silvicominc.com` + `api.360.silvicominc.com` (production), `staging.360.silvicominc.com` +
+`staging-api.360.silvicominc.com` (staging; the office app is on `staging.360` since 2026-11-17). To see what production is doing, read CloudWatch (`AWS_PROFILE=silvicom
 AWS_REGION=us-west-2 aws logs filter-log-events --log-group-name /silvicom/production …`), not Railway.
 
 Code still carries Railway names — `RAILWAY_*` environment reads, `railway.json`'s `watchPatterns` in
