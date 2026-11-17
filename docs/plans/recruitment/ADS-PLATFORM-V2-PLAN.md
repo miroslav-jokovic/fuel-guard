@@ -201,14 +201,14 @@ is large text (3:1) — so for such a kit no picture can fail it; the check deci
 a lighter ground, or words that are not white. **Found:** a clip shorter than was asked freezes on its last frame
 rather than ending; nothing refuses that yet. Nothing calls the check yet.
 
-**Built 2026-11-17 (V4g, V4h):** where a creative keeps its motion ad — `ads_creatives.motion`, migration 0624,
+**Built 2026-11-17 (V4g, V4h):** where a creative keeps its motion ad — `ads_creatives.motion`, migration 0625,
 frozen with the rest of the content once the creative leaves the workers — and the function that makes one from a
 finished still (`compose/creativeMotion.ts` `makeMotion`): the words are timed first, then ONE clip is asked on the
 render road and serves both languages, each language's frames are checked, and each is joined and stored as its
 own MP4. A clip more than a frame shorter than asked is refused, since the join would freeze it. How the picture
 is told to move is one sentence of ours for every ad (`MOTION_DIRECTION`: a slow push-in, the truck stays the
 truck); no agent writes it, and whether a model obeys it is the sitting's first reading. Nothing calls `makeMotion`
-yet: it is wired into compose when 0624 is on main (column and first reader in two merges).
+yet: it is wired into compose when 0625 is on main (column and first reader in two merges).
 
 **Done when:** a motion ad passes the contract suite on the fake, and Renderer and Publisher show L3 for
 `meta:video`.

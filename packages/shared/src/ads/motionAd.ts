@@ -107,7 +107,7 @@ export const adClipRefSchema = z.object({
 export type AdClipRef = z.infer<typeof adClipRefSchema>;
 
 /**
- * A creative's motion ad, as `ads_creatives.motion` holds it (migration 0624; V4h). One model's clip, joined once
+ * A creative's motion ad, as `ads_creatives.motion` holds it (migration 0625; V4h). One model's clip, joined once
  * per language with that language's words. The still is not here: it stays in `assets`, where it always was, and
  * is the last frame of every file below.
  */
