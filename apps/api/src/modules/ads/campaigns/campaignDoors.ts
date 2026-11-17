@@ -66,7 +66,7 @@ export async function createCampaign(deps: CreateDeps, orgId: string, userId: st
 }
 
 const SUMMARY = "id, name, state, state_changed_at, brief_source, brief_ref, connection_id, brand_kit_id, daily_budget_cents, lifetime_cap_cents, last_error, created_at";
-const CREATIVE = "id, preset_version_id, brand_kit_version_id, supersedes_id, state, platform_status, copy, assets, checks, candidates, pairings, regenerations, last_error, created_at";
+const CREATIVE = "id, preset_version_id, brand_kit_version_id, supersedes_id, state, platform_status, copy, assets, checks, candidates, pairings, motion, regenerations, last_error, created_at";
 /** Newest first; the list is a page of a person's recent work, not an export. */
 export const CAMPAIGN_LIST_LIMIT = 200;
 
@@ -111,14 +111,17 @@ async function withPlatformText(admin: SupabaseClient, orgId: string, creatives:
 const IMAGE_URL_SECONDS = 600;
 
 /**
- * E3's review screen shows each finished ad (D-AD12: a person approves what they have seen). `ad-assets` is
+ * E3's review screen shows each finished ad (D-AD12: a person approves what they have seen) — its images and, for
+ * a motion ad, its videos. `ad-assets` is
  * private, so the read hands out short-lived links, made from the paths on this org's own rows. A stored path
  * outside this org's folder gets none: the service role would sign anything it is asked, so the folder is checked here.
  */
 async function withImageUrls(admin: SupabaseClient, orgId: string, creatives: AdsCreativeView[]): Promise<AdsCreativeView[]> {
-  // The finished ad's images, and the one image kept of each pairing it was chosen from (V3, Q-APX9).
+  // The finished ad's images, the one image kept of each pairing it was chosen from (V3, Q-APX9), and each
+  // language's video when the ad is a motion ad (V4) — the same bucket, the same folder rule, one request.
   const previews = (c: AdsCreativeView) => (c.pairings?.ranked ?? []).flatMap((r) => (r.preview ? [r.preview.path] : []));
-  const ours = [...new Set(creatives.flatMap((c) => [...(c.assets ?? []).map((a) => a.path), ...previews(c)]))].filter((p) => p.startsWith(`${orgId}/`));
+  const videos = (c: AdsCreativeView) => (c.motion?.files ?? []).map((f) => f.path);
+  const ours = [...new Set(creatives.flatMap((c) => [...(c.assets ?? []).map((a) => a.path), ...previews(c), ...videos(c)]))].filter((p) => p.startsWith(`${orgId}/`));
   const urls = new Map<string, string>();
   if (ours.length > 0) {
     const { data, error } = await admin.storage.from(AD_ASSETS_BUCKET).createSignedUrls(ours, IMAGE_URL_SECONDS);
@@ -128,6 +131,7 @@ async function withImageUrls(admin: SupabaseClient, orgId: string, creatives: Ad
   return creatives.map((c) => ({
     ...c, assets: (c.assets ?? []).map((a) => ({ ...a, url: urls.get(a.path) ?? null })),
     pairings: c.pairings ? { ...c.pairings, ranked: c.pairings.ranked.map((r) => ({ ...r, preview: r.preview ? { ...r.preview, url: urls.get(r.preview.path) ?? null } : null })) } : null,
+    motion: c.motion ? { ...c.motion, files: c.motion.files.map((f) => ({ ...f, url: urls.get(f.path) ?? null })) } : null,
   }));
 }
 

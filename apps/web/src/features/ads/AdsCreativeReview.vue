@@ -7,6 +7,7 @@ import { CHECK_LABEL, CHECK_VERDICT_LABEL, CHECK_VERDICT_TONE, CREATIVE_STATE_LA
 import AdsCopyCandidates from "./AdsCopyCandidates.vue";
 import AdsFeedPreview from "./AdsFeedPreview.vue";
 import AdsFinishedAdOpinion from "./AdsFinishedAdOpinion.vue";
+import AdsMotionAd from "./AdsMotionAd.vue";
 import AdsPairingRivals from "./AdsPairingRivals.vue";
 import AdsWordsEditor from "./AdsWordsEditor.vue";
 import { choiceFrom, editableWords, type Words } from "./adsWordChoice";
@@ -20,7 +21,8 @@ import { choiceFrom, editableWords, type Words } from "./adsWordChoice";
  * their findings in `last_error`, compose's own summary, so that line stays above the grid; a failed visual item
  * shows the checker's sentence in its cell. A body the grid cannot read says so instead of drawing passes. The
  * finished-ad judge's scores (P1-7) sit under the grid as a second opinion, never as a fourth check. Under them, for
- * an ad chosen from several pictures (V3), the pairings it was chosen from and the way to use another.
+ * an ad chosen from several pictures (V3), the pairings it was chosen from and the way to use another. Under each
+ * language's images, the ad's video when its plan asked for one (V4, `AdsMotionAd`).
  */
 const props = defineProps<{ creative: AdsCreativeView; canDecide: boolean; busy: boolean; replaces?: boolean; canChooseWords?: boolean; wordsRefusal?: unknown }>();
 const emit = defineEmits<{ approve: []; reject: [reason: string]; words: [choice: AdsCopyChoice] }>();
@@ -82,6 +84,7 @@ const tone = computed(() => (props.creative.state === "check_failed" || props.cr
           <figcaption class="text-xs text-ink-muted">{{ a.format }}</figcaption>
         </figure>
       </div>
+      <AdsMotionAd v-if="l === 'en' || l === 'es'" :creative="creative" :language="l" />
       <div class="space-y-1">
         <p v-for="c in copyLines(creative.copy, l)" :key="c.slot" class="text-sm text-ink"><span class="text-ink-muted">{{ c.slot }}: </span>{{ c.text }}</p>
       </div>
