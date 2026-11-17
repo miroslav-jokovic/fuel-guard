@@ -51,7 +51,7 @@ $serverJs = @'
 const http = require("http");
 const status = Number(process.argv[2]);
 const s = http.createServer((q, r) => {
-  r.statusCode = q.url === "/api/tms/lumper" && q.method === "POST" && q.headers.authorization === "Bearer fgtms_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG" ? status : (q.url === "/api/tms/lumper" ? 401 : 404);
+  r.statusCode = q.url === "/api/tms/lumper" && q.method === "POST" && q.headers.authorization === "Bearer fgtms_the-rehearsal-token-is-not-a-real-one" ? status : (q.url === "/api/tms/lumper" ? 401 : 404);
   r.end("{}");
 });
 s.listen(0, "127.0.0.1", () => console.log(s.address().port));
@@ -130,7 +130,7 @@ function Same([byte[]]$a, [byte[]]$b) { return [Convert]::ToBase64String($a) -ce
 function Text([byte[]]$b) { return $Utf8.GetString($b) }
 function Calls { return ($global:Calls -join ",") }
 
-$tok = "FUELGUARD_INGEST_TOKEN=`"fgtms_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG`""
+$tok = "FUELGUARD_INGEST_TOKEN=`"fgtms_the-rehearsal-token-is-not-a-real-one`""
 $lf = "MCLEOD_SQL_SERVER=10.0.1.171`nMCLEOD_SQL_DATABASE=lme`nMCLEOD_COMPANY_ID=TMS`nFUELGUARD_INGEST_URL=__URL__`n$tok`nROSTER_MODE=create`nFINANCE_FEED=off`n"
 $crlfNoFinal = ($lf.TrimEnd("`n") -replace "`n", "`r`n")
 
