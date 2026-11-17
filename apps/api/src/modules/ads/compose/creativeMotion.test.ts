@@ -18,7 +18,11 @@ import { makeMotion, MOTION_DIRECTION, type MotionDeps, type MotionInput } from 
  */
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 const HAS_FFMPEG = spawnSync("ffmpeg", ["-version"]).status === 0 && spawnSync("ffprobe", ["-version"]).status === 0;
-const onFile = HAS_FFMPEG ? it : it.skip;
+// Since 2026-11-17 (V4m) this file's tests are pinned by the readiness registry (Renderer L1/L2), and a pinned test
+// may not be one that can be skipped (`lint:ads-readiness`). So a machine without ffmpeg FAILS here, by name, where
+// it used to skip: `brew install ffmpeg`. The server's image and CI's `test-api` both have it.
+const NO_FFMPEG = "ffmpeg and ffprobe are needed to run this file (brew install ffmpeg); the server's image and CI's test-api have them";
+const onFile = it;
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const IDS = { orgId: ORG, campaignId: "camp-1", creativeId: "cr-1" };
@@ -43,7 +47,7 @@ const clips = {} as Record<"steady" | "flash" | "short" | "long", { bytes: Buffe
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), "ads-make-motion-"));
   picture = await sharp({ create: { width: 1600, height: 2000, channels: 3, background: "#1C2228" } }).png().toBuffer();
-  if (!HAS_FFMPEG) return;
+  if (!HAS_FFMPEG) throw new Error(NO_FFMPEG);
   const make = async (name: keyof typeof clips, seconds: number, vf?: string) => {
     const file = join(dir, `${name}.mp4`);
     // Not our frame and not our rate, as a model's clip will not be.

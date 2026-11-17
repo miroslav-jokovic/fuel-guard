@@ -272,6 +272,19 @@ folder rule. **Not done:** the reason is compose's own sentence ("clip: price_un
 it joins the wording pass with `last_error`, which the screen shows the same way. Not looked at in a browser:
 ads are off on staging, so no real creative holds a video to open.
 
+**Built 2026-11-17 (V4m):** the `video` kind. A campaign is a video campaign when one of its APPROVED creatives
+holds a motion ad; Launch reads that off the creatives (`creativeKindOf`) and asks the registry's `meta:video` row
+which workers it uses. The row is a still's today, on purpose: the same Renderer makes the clip and the same
+Publisher uploads it, so instead of a second name for half of a worker, each worker's own levels now carry the
+video's needs — the Publisher's faults and contract suite for a motion ad, the Renderer's clip request, its faults
+and its crash sweep (the clip is now the sweep's third kind of render: killed after each side effect and under
+each transient fault, one charge, the stored MP4 is the bytes its name says). The certification run
+(`pnpm ads:certify`) runs the motion-ad suite in the Publisher's run and in Security's, so a Publisher certified on
+the sandbox is one that made a video ad there too. The kind has its own rows so that a worker only a video needs
+(speech-to-text for the driver clip) is added there without holding back a still campaign. **Changed on the way:**
+three test files that used to skip without ffmpeg now fail by name without it — a test the registry pins may not
+be one that can be skipped. Publisher and Renderer stay at L3.
+
 **The order from here (2026-11-17):** the publisher's video road comes BEFORE `motion` is added to
 `PLAN_FORMATS_BUILT`. That list is what the Strategist is told can be made; the day `motion` is on it, a plan on a
 real connection can name a video ad, and until the publisher can upload one, the ad Meta receives would be the

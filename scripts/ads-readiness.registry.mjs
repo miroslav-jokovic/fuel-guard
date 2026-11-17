@@ -29,12 +29,16 @@ const REPORT = "packages/shared/src/ads/adsReport.test.ts";
 const ROUTES = "apps/api/src/modules/ads/routes/guard.test.ts";
 const PUBLISHER = "apps/api/src/modules/ads/platforms/meta/publisher.test.ts";
 const PUBLISHER_CONTRACT = "apps/api/src/modules/ads/platforms/meta/publisher.contract.test.ts";
+const PUBLISHER_VIDEO = "apps/api/src/modules/ads/platforms/meta/publisherVideo.test.ts";
+const PUBLISHER_VIDEO_CONTRACT = "apps/api/src/modules/ads/platforms/meta/publisherVideo.contract.test.ts";
 const META_ADAPTER = "apps/api/src/modules/ads/platforms/meta/metaAdapter.test.ts";
 const META_PATH = "apps/api/src/modules/ads/orchestrator/metaPath.test.ts";
 const RULES_SYNC = "apps/api/src/modules/ads/platforms/meta/rulesSync.test.ts";
 const COPYWRITER = "apps/api/src/modules/ads/workers/copywriter/copywriter.test.ts";
 const ART_DIRECTOR = "apps/api/src/modules/ads/workers/artDirector/artDirector.test.ts";
 const RENDER = "apps/api/src/modules/ads/creative/higgsfield/render.test.ts";
+const RENDER_CLIP = "apps/api/src/modules/ads/creative/higgsfield/render.clip.test.ts";
+const MOTION_MAKE = "apps/api/src/modules/ads/compose/creativeMotion.test.ts";
 const CHECKER = "apps/api/src/modules/ads/workers/checker/checker.test.ts";
 const MONITOR_GOLDEN = "apps/api/src/modules/ads/monitor/golden.test.ts";
 const LEAD_GOLDEN = "apps/api/src/modules/ads/leads/golden.test.ts";
@@ -422,6 +426,27 @@ export const READINESS = [
           ] }],
         },
         {
+          // V4 (2026-11-17): a motion ad. A video is not found by name and Meta gives no hash for one, so what a
+          // retry leans on is the video id the ledger kept and the video's own status.
+          need: "a motion ad's video under the same faults (V4): a lost start, upload or finish; an encoding that fails or never ends; the step delivered twice; a creative found under its name that is not it",
+          tests: [{ file: PUBLISHER_VIDEO, titles: [
+            "%s: sent again in the same step, and the library holds each file once",
+            "the finish, lost after Meta ended the session: the video's own status is believed and finish is not sent twice",
+            "the finish %s before Meta took it: the step fails as itself, and the next stint ends the SAME session without sending the file again",
+            "still encoding after the wait: the step fails video_not_ready, no creative is made, and the next stint waits for the SAME video",
+            "Meta's encoding ends in %s: the step fails with Meta's reason and makes no creative; the next stint uploads the file anew",
+            "a video the ledger kept that Meta no longer knows is uploaded anew, not waited for",
+            "a session is adopted only on the connection that opened it: another connection's ledger row opens a new one",
+            "a session is adopted only for the same file: another file under the same ad's name opens its own",
+            "a token revoked while the video is read stops there as token_invalid — the code the connection alert knows",
+            "the same step delivered again after it finished sends nothing and answers the same video",
+            "the same step delivered while its first delivery is still opening the session opens no second one",
+            "found showing %s: refused as a mismatch naming the fields, never adopted",
+          ] }, { file: PUBLISHER, titles: [
+            "a token revoked between a create and its read-back is token_invalid, the code the connection alert knows, with the step named",
+          ] }],
+        },
+        {
           need: "token revoked → stops + an alert to an admin (B2c2)",
           tests: [{ file: "apps/api/src/modules/ads/orchestrator/createPath.test.ts", titles: [
             "a revoked token stops the create as token_invalid, marks the connection failing and tells an admin once",
@@ -462,6 +487,19 @@ export const READINESS = [
           tests: [{ file: PUBLISHER_CONTRACT, titles: ["every created object is read back and holds what was asked; each field sent is compared or says why not"] }],
         },
         {
+          // V4 (2026-11-17): the contract suite's motion-ad half, the same two targets, real MP4 files.
+          need: "a motion ad on the target (V4): every video step (start, file, finish) under a 429, a 5xx and a timeout; a video already there adopted; the encoding's verdict obeyed; a revoked token; each video and video creative read back",
+          tests: [{ file: PUBLISHER_VIDEO_CONTRACT, titles: [
+            "the video %s meeting %s: the step recovers or stops, no creative is made on a video not ended, and the next stint ends with every object made once",
+            "a finish whose answer was lost after the target ended the session: the video's status is believed, and finish is sent once",
+            "half-created (video yes, creative no): the next stint names the SAME video and sends no file",
+            "an encoding that fails (%s) fails the step with the platform's reason, and no creative names that video",
+            "an encoding still running after the wait fails the step video_not_ready; the next stint waits for the same video and makes the ad",
+            "a token revoked mid-run, met first at the video %s, stops there as token_invalid and tells an admin once",
+            "each video is ready on the target, and each creative read back shows that video, the still as its thumbnail, our words and our form",
+          ] }],
+        },
+        {
           // stage2-kit (2026-11-06): §4R L4's "every recorded fixture re-recorded and diffed", as requests.
           need: "fakeMeta.ts's and fakeMetaAds.ts's OUR readings, re-recorded on the target and diffed against readings.recorded.json; a difference names the field and the fake",
           tests: [{ file: "apps/api/src/modules/ads/platforms/meta/contract/readings.contract.test.ts", titles: [
@@ -470,7 +508,11 @@ export const READINESS = [
           ] }],
         },
       ],
-      L4: [{ need: "contract suite on Meta's sandbox: publisher.contract.test.ts with ADS_TARGET=sandbox", gap: STAGE2 }],
+      L4: [
+        { need: "contract suite on Meta's sandbox: publisher.contract.test.ts with ADS_TARGET=sandbox", gap: STAGE2 },
+        // V4: the same run carries the motion ad's suite (`adsCertifyPlan.ts`), so this level says a video ad too.
+        { need: "a motion ad on Meta's sandbox: publisherVideo.contract.test.ts with ADS_TARGET=sandbox — the video uploaded, encoded and named by a video lead ad; OUR readings settled (the wait for `ready`, the thumbnail by image_hash, a 1080-wide file, Q-APX17)", gap: STAGE2 },
+      ],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
@@ -1312,6 +1354,25 @@ export const READINESS = [
           ],
         },
         {
+          // V4 (2026-11-17): a motion ad's clip is the same render step, asked of a video model.
+          need: "a motion ad's clip (V4): the picture cut to the ad's frame and sent in the model's own field, no shape and no sound asked; the words timed and checked before a clip is bought; an unpriced or unread model refused before any row",
+          tests: [
+            { file: RENDER_CLIP, titles: [
+              "CI's test-api runner has ffmpeg and ffprobe, so the file tests below ran",
+              "the picture goes up cut to the ad's frame, as frameStill cuts the still, and its URL goes in the model's own field",
+              "every later run submits the ROW's params, so the picture goes up once however often the job runs",
+              "a clip with no picture to start from, or on a model whose page was not read, is refused before any row",
+              "a video model nobody priced is refused as an unpriced still model is: no upload, no row",
+            ] },
+            { file: MOTION_MAKE, titles: [
+              "in CI ffmpeg is installed: a run without it fails here instead of skipping the file tests",
+              "no video model chosen: the motion ad stops by name, and no clip is asked for",
+              "words the overlay refuses stop the motion ad before a clip is asked for",
+              "the clip is asked on the render road: the still's picture, cut to the ad's frame by its layout, five seconds, no sound, our one direction",
+            ] },
+          ],
+        },
+        {
           // Four titles changed 2026-11-10 with the looks (ADS-AD-LOOK-PLAN): each names the same refusal as before,
           // restated for a renderer whose headline steps down a ladder (D-ADL3), which draws five roles instead of
           // three (D-ADL4), and which darkens the picture by measurement instead of pasting a plate (D-ADL1) — so the
@@ -1349,6 +1410,18 @@ export const READINESS = [
             "writes budget_exhausted instead of submitting when the month cannot pay the price, counting renders still in flight",
           ] }],
         },
+        {
+          need: "a clip's faults (V4): a file that is not an MP4, a still where a clip was asked, a server without ffprobe; a clip the render road refused or failed stops the motion ad, not the still",
+          tests: [
+            { file: RENDER_CLIP, titles: [
+              "a file that is not an MP4, whatever its name says, fails the render at its price",
+              "a still where a clip was asked, and a clip where a still was asked, are both failures that were charged",
+              "empty, another format, and larger than the bucket takes are refused without running anything",
+              "a server without ffprobe answers `unavailable`, never a refusal of a clip that was paid for",
+            ] },
+            { file: MOTION_MAKE, titles: ["a clip the render road refused, failed, or answered with no video stops the motion ad with the road's own word"] },
+          ],
+        },
       ],
       L3: [
         {
@@ -1359,8 +1432,20 @@ export const READINESS = [
             "a finished render replayed after every case asks Higgsfield nothing more",
           ] }],
         },
+        {
+          // V4 (2026-11-17): the sweep's third kind of render. Its cases carry the still's own titles (pinned above),
+          // under "a motion ad's clip"; what is pinned here is that the clip is one of the kinds swept.
+          need: "the same bar for a motion ad's clip (V4): killed after each side effect and under each transient fault, one charge and the stored MP4 is the bytes its name says",
+          tests: [{ file: "apps/api/src/modules/ads/creative/higgsfield/render.sweep.test.ts", titles: [
+            "a motion ad's clip is swept wherever this file runs: ffmpeg and ffprobe are present, or the file failed before this",
+          ] }],
+        },
       ],
-      L4: [{ need: "a small real Higgsfield API budget", gap: STAGE2 }],
+      L4: [
+        { need: "a small real Higgsfield API budget", gap: STAGE2 },
+        // V4: the sitting (Q-APX12) — the same kit photos through the candidates, each file read off: frame, length, size, sound.
+        { need: "a motion ad's clip from a real video model: the file's frame, length, size and sound read off it, within the store's 15 MB", gap: "needs the owner's Higgsfield key and the sitting that chooses the video model (Q-APX12); HIGGSFIELD_VIDEO_MODEL is null and no video model has a price (Q-APX16)" },
+      ],
       L5: [{ need: "canary", gap: CANARY }],
     },
   },
@@ -1493,12 +1578,24 @@ const META_STILL = [
 ];
 
 /**
+ * A campaign that holds a MOTION ad (V4: an approved creative whose `motion` is not null) is of kind `video`. Its
+ * workers are a still's: the motion ad is made by the same Renderer (the clip, the frame check, the join) and
+ * published by the same Publisher (the video's upload, the video creative), and each of those workers' levels now
+ * carries the video's needs — so the Publisher's L4 is a run that made a video ad on the sandbox as well as an image
+ * ad (`adsCertifyPlan.ts` runs both suites), and one worker cannot be certified for half of what it does. The kind
+ * has its own rows so that the day a video needs a worker a still does not (speech-to-text for the driver clip,
+ * Q-APX5), that worker is added HERE and a still campaign is not held back by it.
+ *
  * A campaign that was PLANNED (it carries a plan, V2c) also used the Strategist, so its launch waits on the
  * Strategist's L4 as well. Its own key, derived from the unplanned list so the two cannot drift: a campaign
  * made before planning became mandatory (Q-APX6, ruled (b) 2026-11-15) is not held back by an agent it never used;
  * every campaign made since is a planned one.
  */
+const META_VIDEO = [...META_STILL];
+
 export const CAMPAIGN_WORKERS = {
   "meta:still": META_STILL,
   "meta:plannedstill": [...META_STILL, { worker: "Strategist" }],
+  "meta:video": META_VIDEO,
+  "meta:plannedvideo": [...META_VIDEO, { worker: "Strategist" }],
 };

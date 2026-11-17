@@ -1,13 +1,17 @@
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ADS_SETTINGS_UNSET, type AdAssetRef, type AdsSettings } from "@silvicom/shared";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { ADS_SETTINGS_UNSET, MOTION_FORMAT, type AdAssetRef, type AdClipRef, type AdsSettings } from "@silvicom/shared";
 import { FakeClock } from "../../../../testing/fakeClock.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type SupabaseRecorder } from "../../../../testing/supabaseRecorder.js";
 import { assetKey } from "../brandAssets.js";
 import { FakeHiggsfield, type FakeHiggsfieldFault } from "./fakeHiggsfield.js";
 import { HiggsfieldClient } from "./higgsfieldClient.js";
 import { renderStep, type RenderInput, type RenderOutcome } from "./render.js";
+import { motionClipParams } from "./videoModels.js";
 
 /**
  * The Renderer's L3 bar (ADS-AGENT-BUILD-WORKFLOW §4R): **0 double charges across replays (the fake counts
@@ -29,11 +33,27 @@ import { renderStep, type RenderInput, type RenderOutcome } from "./render.js";
  * and the ledger row: nothing was submitted or charged yet, so a fresh upload URL in the first submit is not
  * the "same key, different URLs" Higgsfield refuses (idempotency.md, read 2026-11-04). After the row exists,
  * the row's params are what every run submits, so the upload never repeats — the sweep checks both.
+ *
+ * A motion ad's CLIP (V4) runs the same sweep as a third kind of render: the same step, a video model, the picture
+ * cut to the ad's frame and uploaded, and an MP4 back. Its bar is the same — one charge, and the stored file is the
+ * bytes its name says. The clip is a real MP4 made by ffmpeg, because the step reads it with ffprobe before it
+ * stores it. A machine without them fails this file by name and skips nothing: its tests are pinned by the readiness
+ * registry (Renderer L3), and a pinned test may not be one that can be skipped. CI's `test-api` and the server's
+ * image both have ffmpeg.
  */
+// ffprobe runs once per clip case; on a loaded machine that is not five seconds' work.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
+const HAS_FFMPEG = spawnSync("ffmpeg", ["-version"]).status === 0 && spawnSync("ffprobe", ["-version"]).status === 0;
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const MODEL = "alibaba/qwen-image-3/edit"; // a documented image-input model, so the photo cases can run
+const VIDEO_MODEL = "alibaba/wan-3.0/image-to-video"; // one of Q-APX12's candidates, asked as its page says
+/** What is rendered: a still from the kit photo, a still from words alone, or a motion ad's clip. */
+type Kind = "photo" | "text" | "clip";
+const KINDS: Array<[string, Kind]> = [["with the kit photo", "photo"], ["text only", "text"], ["a motion ad's clip", "clip"]];
+const uploads = (k: Kind) => k !== "text";
 const KEY = { id: "kid", secret: "ksecret" };
 const PRICE = 40;
+const PRICES = { [MODEL]: PRICE, [VIDEO_MODEL]: PRICE };
 const START_BALANCE = 1_000;
 const PHOTO = readFileSync(new URL("../../workers/checker/fixtures/images/reference.jpg", import.meta.url));
 const PHOTO_REF = { sha256: createHash("sha256").update(PHOTO).digest("hex"), format: "jpeg" as const };
@@ -47,17 +67,34 @@ const KILLS: Kill[] = [
   { at: "upload", nth: 1 }, { at: "row_insert", nth: 1 }, { at: "submit", nth: 1 }, { at: "status", nth: 1 }, { at: "status", nth: 2 },
   { at: "download", nth: 1 }, { at: "store", nth: 1 }, { at: "row_complete", nth: 1 },
 ];
+/** Either model's own path: the still's or the clip's. */
+const SUBMIT = /qwen-image-3|wan-3\.0/;
 /** [case, the path faulted, the fault, the call the job must have waited on because of it] */
 const FAULTS: Array<[string, RegExp, FakeHiggsfieldFault]> = [
   ["upload URL: queue full", /^\/files\/generate-upload-url/, { kind: "queue_full", retryAfterSeconds: 2 }],
   ["upload URL: server error", /^\/files\/generate-upload-url/, { kind: "server_error" }],
-  ["submit: queue full", /qwen-image-3/, { kind: "queue_full", retryAfterSeconds: 2 }],
-  ["submit: server error", /qwen-image-3/, { kind: "server_error" }],
-  ["submit: unavailable", /qwen-image-3/, { kind: "unavailable" }],
-  ["submit: accepted, then the answer lost", /qwen-image-3/, { kind: "accepted_then_error" }],
+  ["submit: queue full", SUBMIT, { kind: "queue_full", retryAfterSeconds: 2 }],
+  ["submit: server error", SUBMIT, { kind: "server_error" }],
+  ["submit: unavailable", SUBMIT, { kind: "unavailable" }],
+  ["submit: accepted, then the answer lost", SUBMIT, { kind: "accepted_then_error" }],
   ["status: server error", /^\/requests\//, { kind: "server_error" }],
   ["status: unavailable", /^\/requests\//, { kind: "unavailable" }],
 ];
+
+/** A stand-in for a model's clip: a real MP4, two seconds, with a tone on it. */
+let CLIP = Buffer.alloc(0);
+beforeAll(() => {
+  if (!HAS_FFMPEG) throw new Error("ffmpeg and ffprobe are needed to run this file (brew install ffmpeg); the server's image and CI's test-api have them");
+  const dir = mkdtempSync(join(tmpdir(), "ads-sweep-clip-"));
+  try {
+    const file = join(dir, "model.mp4");
+    execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=360x450:rate=24:duration=2",
+      "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", file]);
+    CLIP = readFileSync(file);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 let clock: FakeClock;
 let hf: FakeHiggsfield;
@@ -116,7 +153,7 @@ function dyingClient(): HiggsfieldClient {
 
 beforeEach(async () => {
   clock = new FakeClock("2026-11-04T12:00:00.000Z");
-  hf = new FakeHiggsfield({ keyId: KEY.id, keySecret: KEY.secret, webhookSecret: `whsec_${Buffer.alloc(32, 1).toString("base64")}`, balanceCents: START_BALANCE, prices: { [MODEL]: PRICE }, now: clock.now });
+  hf = new FakeHiggsfield({ keyId: KEY.id, keySecret: KEY.secret, webhookSecret: `whsec_${Buffer.alloc(32, 1).toString("base64")}`, balanceCents: START_BALANCE, prices: PRICES, now: clock.now, ...(HAS_FFMPEG ? { clip: CLIP } : {}) });
   base = await hf.start();
   ledger = [];
   objects = new Map([[assetKey(ORG, PHOTO_REF), PHOTO]]);
@@ -143,12 +180,13 @@ afterEach(async () => hf.stop());
 
 /** The job: a step, and again (restarted after a death, or retried while pending) until it ends. */
 async function runToEnd(input: RenderInput): Promise<{ out: RenderOutcome; deaths: number; waits: string[] }> {
+  const made = input.clip ? "video" as const : "image" as const;
   let deaths = 0;
   const waits: string[] = [];
   for (let i = 0; i < 25; i += 1) {
     let out: RenderOutcome;
     try {
-      out = await renderStep({ admin: db.client, client: dyingClient(), now: clock.now, prices: { [MODEL]: PRICE } }, input);
+      out = await renderStep({ admin: db.client, client: dyingClient(), now: clock.now, prices: PRICES }, input);
     } catch (e) {
       if (!/^killed after /.test((e as Error).message)) throw e;
       deaths += 1;
@@ -157,18 +195,22 @@ async function runToEnd(input: RenderInput): Promise<{ out: RenderOutcome; death
     if (out.kind !== "pending") return { out, deaths, waits };
     waits.push(out.why);
     // Higgsfield finishes the work it was given; the next poll finds it done.
-    for (const r of hf.requests.values()) if (r.status === "queued") await hf.finish(r.request_id, "completed", { deliver: "lost" });
+    for (const r of hf.requests.values()) if (r.status === "queued") await hf.finish(r.request_id, "completed", { deliver: "lost", kind: made });
   }
   throw new Error("the render never ended");
 }
 
-const input = (photo: boolean): RenderInput => ({
-  orgId: ORG, campaignId: null, creativeId: "cr-1", attempt: 1, model: MODEL,
-  params: { prompt: "Our tractor at dawn, no text, no logos, no lettering" }, reference: photo ? PHOTO_REF : null,
-});
+const input = (kind: Kind): RenderInput => {
+  if (kind !== "clip") {
+    return { orgId: ORG, campaignId: null, creativeId: "cr-1", attempt: 1, model: MODEL, params: { prompt: "Our tractor at dawn, no text, no logos, no lettering" }, reference: kind === "photo" ? PHOTO_REF : null };
+  }
+  const asked = motionClipParams(VIDEO_MODEL, { prompt: "slow push in, the truck stays the truck" });
+  if (!asked.ok) throw new Error(asked.refusal);
+  return { orgId: ORG, campaignId: null, creativeId: "cr-1", attempt: 1, model: VIDEO_MODEL, params: asked.params, reference: PHOTO_REF, clip: { format: MOTION_FORMAT, layout: "bottom_plate" } };
+};
 
 /** The §4R bar, and the ledger and bucket agreeing with each other about the bytes. */
-function expectOneChargeAndTrueHashes(out: RenderOutcome, photo: boolean): void {
+function expectOneChargeAndTrueHashes(out: RenderOutcome, kind: Kind): void {
   expect(out.kind).toBe("stored");
   expect(hf.submits).toBe(1);
   expect(hf.requests.size).toBe(1);
@@ -178,27 +220,43 @@ function expectOneChargeAndTrueHashes(out: RenderOutcome, photo: boolean): void 
   expect(row).toMatchObject({ status: "succeeded", cost_units: PRICE, idempotency_key: expect.stringMatching(/^render:cr-1:1:/) });
   // Every object we hold is the bytes its name's hash says — the photo we seeded and the render we stored.
   for (const [k, bytes] of objects) expect(k, "an object stored under another file's hash").toContain(sha(bytes));
-  const assets = (row.output as { assets: AdAssetRef[] }).assets;
-  expect(assets).toHaveLength(1);
-  expect(out.kind === "stored" && out.assets).toEqual(assets);
-  expect(row.asset_sha256).toBe(assets[0]!.sha256);
-  expect(sha(objects.get(String(row.asset_path))!)).toBe(assets[0]!.sha256);
+  if (kind === "clip") {
+    // A clip's row holds the clip and no image; the file stored is the MP4 the model returned, whole.
+    const clip = (row.output as { clip: AdClipRef }).clip;
+    expect(out.kind === "stored" && out.clip).toEqual(clip);
+    expect(out.kind === "stored" && out.assets).toEqual([]);
+    expect(clip).toMatchObject({ format: "mp4", sha256: sha(CLIP), byte_size: CLIP.length });
+    expect(row.asset_sha256).toBe(clip.sha256);
+    expect(objects.get(String(row.asset_path))!.equals(CLIP)).toBe(true);
+  } else {
+    const assets = (row.output as { assets: AdAssetRef[] }).assets;
+    expect(assets).toHaveLength(1);
+    expect(out.kind === "stored" && out.assets).toEqual(assets);
+    expect(row.asset_sha256).toBe(assets[0]!.sha256);
+    expect(sha(objects.get(String(row.asset_path))!)).toBe(assets[0]!.sha256);
+  }
   expect(objects.size).toBe(2);
-  // The submit named the uploaded photo when there was one, and only that photo.
+  // The submit named the uploaded picture when there was one, and only that picture.
   const submitted = [...hf.requests.values()][0]!.params;
-  expect(submitted.includes("/inputs/")).toBe(photo);
+  expect(submitted.includes("/inputs/")).toBe(uploads(kind));
   expectOrgScoped(db, ORG);
 }
 
 describe("Renderer L3 — a render cut short anywhere is charged once and stores true bytes", () => {
-  describe.each([["with the kit photo", true], ["text only", false]] as const)("%s", (_label, photo) => {
+  it("a motion ad's clip is swept wherever this file runs: ffmpeg and ffprobe are present, or the file failed before this", () => {
+    expect(HAS_FFMPEG).toBe(true);
+    expect(KINDS.map(([, k]) => k)).toContain("clip");
+  });
+
+  describe.each(KINDS)("%s", (_label, kind) => {
+    const photo = uploads(kind);
     it.each(KILLS.filter((k) => photo || k.at !== "upload").map((k) => [`${k.at}${k.nth > 1 ? ` #${k.nth}` : ""}`, k] as const))(
       "killed just after %s, then restarted: one charge, true hashes",
       async (_name, k) => {
         kill = k;
-        const { out, deaths } = await runToEnd(input(photo));
+        const { out, deaths } = await runToEnd(input(kind));
         expect(deaths, "the kill point was never reached — the case proves nothing").toBe(1);
-        expectOneChargeAndTrueHashes(out, photo);
+        expectOneChargeAndTrueHashes(out, kind);
         // The photo goes up once — twice only if the process died between the upload and the row.
         if (photo) expect(hf.uploads.size).toBe(k.at === "upload" ? 2 : 1);
       },
@@ -206,20 +264,20 @@ describe("Renderer L3 — a render cut short anywhere is charged once and stores
 
     it.each(FAULTS.filter(([name]) => photo || !name.startsWith("upload")))("recovered from %s: one charge, true hashes", async (_name, path, fault) => {
       hf.inject(path, fault);
-      const { out, waits } = await runToEnd(input(photo));
+      const { out, waits } = await runToEnd(input(kind));
       // The fault fired: the job waited on exactly the call it was put on.
       const call = _name.split(":")[0] === "upload URL" ? "upload" : _name.split(":")[0]!;
       expect(waits.some((w) => w.startsWith(`${call}:`)), `no wait on ${call}: ${waits.join(" / ")}`).toBe(true);
-      expectOneChargeAndTrueHashes(out, photo);
+      expectOneChargeAndTrueHashes(out, kind);
       if (photo) expect(hf.uploads.size).toBe(1);
     });
   });
 
   it("a finished render replayed after every case asks Higgsfield nothing more", async () => {
     kill = { at: "row_complete", nth: 1 };
-    await runToEnd(input(true));
+    await runToEnd(input("photo"));
     const before = { submits: hf.submits, uploads: hf.uploads.size, requests: hf.requests.size };
-    for (let i = 0; i < 3; i += 1) expect((await runToEnd(input(true))).out).toMatchObject({ kind: "stored", replayed: true });
+    for (let i = 0; i < 3; i += 1) expect((await runToEnd(input("photo"))).out).toMatchObject({ kind: "stored", replayed: true });
     expect({ submits: hf.submits, uploads: hf.uploads.size, requests: hf.requests.size }).toEqual(before);
   });
 });

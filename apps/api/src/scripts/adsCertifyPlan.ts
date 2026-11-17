@@ -13,6 +13,10 @@ import { EVENTS_SANDBOX_VARIABLES, SANDBOX_VARIABLES } from "../modules/ads/plat
  */
 
 const CONTRACT = "src/modules/ads/platforms/meta/publisher.contract.test.ts";
+// V4 (2026-11-17): a motion ad's half of the Publisher's contract suite — the video's upload, its encoding and the
+// video creative. In the Publisher's run, so its L4 says a video ad was made on the sandbox as well as an image ad;
+// and in Security's, because the upload sends the token to a second host and that run's output is what is scraped.
+const VIDEO_CONTRACT = "src/modules/ads/platforms/meta/publisherVideo.contract.test.ts";
 const GRAPH_READINGS = "src/modules/ads/platforms/meta/contract/readings.contract.test.ts";
 const EVENTS_READINGS = "src/modules/ads/outcomes/outcomeReadings.contract.test.ts";
 const ORCHESTRATOR = "src/modules/ads/orchestrator/orchestrator.contract.test.ts";
@@ -31,7 +35,7 @@ export const WORKER_RUNS: Readonly<Record<string, WorkerRun>> = {
   // resumed, read back, deleted and read back deleted.
   "Orchestrator": { suites: [ORCHESTRATOR], vars: [...SANDBOX_VARIABLES, ALLOWLIST] },
   "Budget guard": { unbuilt: "its L4 is the guard over the sandbox account's real spend_cap and amount_spent; its code is Track G's (modules/ads/guard/), so the suite is theirs to write" },
-  "Publisher (per adapter)": { suites: [CONTRACT, GRAPH_READINGS], vars: [...SANDBOX_VARIABLES, ALLOWLIST], platform: "meta" },
+  "Publisher (per adapter)": { suites: [CONTRACT, VIDEO_CONTRACT, GRAPH_READINGS], vars: [...SANDBOX_VARIABLES, ALLOWLIST], platform: "meta" },
   "Monitor": { suites: [MONITOR], vars: [...SANDBOX_VARIABLES, ALLOWLIST] },
   // The lead is the one the owner makes with Meta's Lead Ads Testing Tool on the sandbox Page.
   "Lead intake": { suites: [LEAD_INTAKE], vars: [...SANDBOX_VARIABLES, "META_SANDBOX_LEAD_ID", ALLOWLIST] },
@@ -46,7 +50,7 @@ export const WORKER_RUNS: Readonly<Record<string, WorkerRun>> = {
   "Renderer / Higgsfield client": { unbuilt: "its L4 is renders on a small real Higgsfield budget, with FakeHiggsfield's OUR readings (higgsfieldClient.ts) recorded and diffed; stage2-kit 2b, and it needs the owner's Higgsfield key (Q-AD20)" },
   // Its need is "a token scrape over the sandbox run's logs": the Publisher's run, every byte it printed
   // searched for each secret it was given.
-  "Security (all)": { suites: [CONTRACT, GRAPH_READINGS], vars: [...SANDBOX_VARIABLES, ALLOWLIST], scrape: true },
+  "Security (all)": { suites: [CONTRACT, VIDEO_CONTRACT, GRAPH_READINGS], vars: [...SANDBOX_VARIABLES, ALLOWLIST], scrape: true },
 };
 
 /** The variables whose VALUES must never appear in a run's output (Security's scrape). */

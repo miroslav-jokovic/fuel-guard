@@ -204,7 +204,8 @@ describe("Meta publisher — a video that is not ready, or never will be", () =>
     expect(clipReads).toEqual([sha(CLIP.en), sha(CLIP.es)]);
   });
 
-  it.each<[VideoFate, string]>([["error", "The video could not be processed."], ["error_object_only", "The video could not be processed."], ["expired", "expired"]])(
+  // No type argument on `each`: the readiness gate reads a pinned title by its `it.each(…)("…")` shape.
+  it.each([["error", "The video could not be processed."], ["error_object_only", "The video could not be processed."], ["expired", "expired"]] satisfies Array<[VideoFate, string]>)(
     "Meta's encoding ends in %s: the step fails with Meta's reason and makes no creative; the next stint uploads the file anew", async (fate, reason) => {
       meta.videos.fate = fate;
       const first = await publish();

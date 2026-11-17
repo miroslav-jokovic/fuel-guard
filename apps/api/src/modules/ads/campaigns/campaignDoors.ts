@@ -10,7 +10,7 @@ import { findCoveringApproval } from "../guard/approvals.js";
 import { applyCampaignEvent, insertCampaign, loadCampaign, recordCampaignRefusal, type TransitionResult } from "../orchestrator/transitions.js";
 import { settingsInForce, type Actor } from "../settings/settingsVersions.js";
 import { hasApprovedCreative } from "./creativeDecisions.js";
-import { BAKED_READINESS, launchCertification, type LaunchReadiness, type MissingWorker } from "./launchCertification.js";
+import { BAKED_READINESS, creativeKindOf, launchCertification, type LaunchReadiness, type MissingWorker } from "./launchCertification.js";
 import { sandboxOnlyVerdict, type SandboxOnlyRefusal } from "../guard/sandboxOnly.js";
 import { graphForConnection, type ConnectionForGraph, type RegistryDeps } from "../platforms/registry.js";
 
@@ -211,7 +211,13 @@ export async function launchCampaign(
   // V2c: a campaign that carries a plan used the Strategist, so its launch waits on that worker too.
   const { data: planned, error: pErr } = await admin.from("ads_campaigns").select("plan_id").eq("org_id", orgId).eq("id", campaignId).maybeSingle();
   if (pErr) throw new Error(`ads_campaigns: ${pErr.message}`);
-  const cert = launchCertification({ provider: row?.provider ?? "unknown", planned: Boolean((planned as { plan_id: string | null } | null)?.plan_id) }, readiness);
+  // V4: a campaign with a motion ad among its approved creatives is a video campaign (`creativeKindOf`).
+  const { data: approved, error: kErr } = await admin.from("ads_creatives").select("motion").eq("org_id", orgId).eq("campaign_id", campaignId).eq("state", "approved");
+  if (kErr) throw new Error(`ads_creatives: ${kErr.message}`);
+  const cert = launchCertification(
+    { provider: row?.provider ?? "unknown", planned: Boolean((planned as { plan_id: string | null } | null)?.plan_id) },
+    readiness, undefined, creativeKindOf((approved ?? []) as Array<{ motion: unknown }>),
+  );
   if (!cert.ok) {
     await recordCampaignRefusal(admin, c, { event: "launch", actor: approverActor, error_code: cert.refusal, error: cert.message }, at.toISOString());
     return { kind: "launch_refused", refusal: cert.refusal, missing: cert.missing, message: cert.message };
