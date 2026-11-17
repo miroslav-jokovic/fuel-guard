@@ -24,6 +24,7 @@ import {
 } from "./modules/org/index.js";
 import { dashboardLayoutRouter, orgSettingsRouter, pageViewsRouter, savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
+import { tollsRouter } from "./modules/tolls/index.js";
 import { anomaliesRouter, cardFraudIncidentsRouter } from "./modules/anomalies/index.js";
 import { reportsRouter, aiRouter, dashboardRouter } from "./modules/insights/index.js";
 import { iftaRouter } from "./modules/ifta/index.js";
@@ -246,6 +247,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
   app.use("/api/notes", unitNotesRouter()); // notes on drivers, trucks, trailers — office-wide (UNIT-NOTES D-UN4)
   app.use("/api/roster/home-time", rosterHomeTimeRouter()); // a driver's home time and return, marked by dispatch (HOME-TIME D-HT7)
+  app.use("/api/tolls", tollsRouter()); // toll tags on trucks, gated on equipment (TOLLS-PER-TRUCK-PLAN TL2)
   app.use("/api/lumper-cases", lumperCasesRouter()); // every load where we paid a lumper, and whether the revised RC is on file (LUMPER-REVISED-RC LRC3)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());

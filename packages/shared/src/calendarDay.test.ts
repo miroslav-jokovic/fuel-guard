@@ -148,3 +148,25 @@ describe("calendar arithmetic, which needs no zone at all", () => {
     expect(lastDaysStart("2026-10-04", 1)).toBe("2026-10-04");
   });
 });
+
+describe("date-and-time field values in the org's zone", () => {
+  it("reads a typed Chicago time as the instant it names, across both offsets", async () => {
+    const { fieldValueToInstant } = await import("./calendarDay.js");
+    expect(fieldValueToInstant("2026-06-10T09:00", "America/Chicago")).toBe("2026-06-10T14:00:00.000Z");
+    expect(fieldValueToInstant("2026-01-10T09:00", "America/Chicago")).toBe("2026-01-10T15:00:00.000Z");
+  });
+
+  it("refuses what is not a date and a time, or names no real day", async () => {
+    const { fieldValueToInstant } = await import("./calendarDay.js");
+    expect(fieldValueToInstant("June 10", "America/Chicago")).toBeNull();
+    expect(fieldValueToInstant("2026-02-30T09:00", "America/Chicago")).toBeNull();
+    expect(fieldValueToInstant("2026-06-10T24:00", "America/Chicago")).toBeNull();
+  });
+
+  it("shows an instant as the org's clock reads it, and round-trips", async () => {
+    const { fieldValueToInstant, instantToFieldValue } = await import("./calendarDay.js");
+    expect(instantToFieldValue("2026-06-10T14:00:00.000Z", "America/Chicago")).toBe("2026-06-10T09:00");
+    expect(instantToFieldValue("2026-06-10T14:00:00.000Z", "America/Los_Angeles")).toBe("2026-06-10T07:00");
+    expect(fieldValueToInstant(instantToFieldValue("2026-11-01T06:30:00.000Z", "America/Chicago"), "America/Chicago")).toBe("2026-11-01T06:30:00.000Z");
+  });
+});

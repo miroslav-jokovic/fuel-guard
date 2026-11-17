@@ -36,6 +36,10 @@ vi.mock("@/composables/useVehicles", () => {
     useCreateVehicle: idle, useUpdateVehicle: idle, useRetireVehicle: idle, useBulkUpdateVehicles: idle,
   };
 });
+// The Toll tags column's read (TOLLS TL2) has its own suite; here it is a fleet with no tags.
+vi.mock("@/features/tolls/useTollTags", () => ({
+  useTollTagsByVehicle: () => ({ query: { isSuccess: ref(true) }, byVehicle: ref(new Map()) }),
+}));
 vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => ({ data: ref([]) }) }));
 // The `?check=` filter and the expiry cells read the carrier's calendar day (FLEET-MANAGER-HOME-PLAN
 // D-FM9); the zone is a vue-query read, answered here so this file stays about the URL.
