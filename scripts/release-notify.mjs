@@ -171,12 +171,24 @@ export async function readTable(env) {
   }
 }
 
+/**
+ * The bare address in MAIL_FROM. The api's own sender takes "Name <address>" (`lib/mailer.ts`
+ * parseSender), and the key watcher reads the api's value (fetch-settings.sh KEYWATCH_FROM_API), but
+ * Brevo refuses a `sender.email` that is not a bare address — so a MAIL_FROM written the api's way
+ * would silence every security alert the watcher sends (found 2026-11-17, moving MAIL_FROM to
+ * `Silvicom Inc <no-reply@silvicominc.com>`). The display name here is this script's own.
+ */
+export function senderAddress(from) {
+  const m = /<\s*([^>]+?)\s*>\s*$/.exec(from ?? "");
+  return (m ? m[1] : String(from ?? "")).trim();
+}
+
 export async function sendEmail(env, to, subject, text, senderName = "Silvicom 360 releases") {
   if (!env.BREVO_API_KEY || !env.MAIL_FROM || !to.length) return "email not configured (BREVO_API_KEY, MAIL_FROM, and a recipient in the console or RELEASE_NOTIFY_EMAILS)";
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: { "api-key": env.BREVO_API_KEY, "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({ sender: { email: env.MAIL_FROM, name: senderName }, to: to.map((email) => ({ email })), subject, textContent: text }),
+    body: JSON.stringify({ sender: { email: senderAddress(env.MAIL_FROM), name: senderName }, to: to.map((email) => ({ email })), subject, textContent: text }),
     signal: AbortSignal.timeout(15_000),
   });
   return res.ok ? null : `email refused: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`;
@@ -223,6 +235,8 @@ function selfTest() {
     console.log(`  ${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : ` — got ${JSON.stringify(got)}`}`);
   };
   const base = { tag: "v2026.10.06", sha: "a".repeat(40), before: "b".repeat(40), runUrl: "https://github.com/o/r/actions/runs/123", prUrl: "https://github.com/o/r/pull/9" };
+  eq("a named MAIL_FROM sends from its bare address", senderAddress("Silvicom Inc <no-reply@silvicominc.com>"), "no-reply@silvicominc.com");
+  eq("a bare MAIL_FROM is used as it is", senderAddress(" no-reply@silvicominc.com "), "no-reply@silvicominc.com");
   const kinds = ["candidate", "shipped", "skipped", "failed", "rolled-back", "rollback-failed", "rollback"];
   eq("only a failure or a rollback pages anybody",
     kinds.filter((k) => compose(k, base).sms !== null), ["failed", "rolled-back", "rollback-failed"]);

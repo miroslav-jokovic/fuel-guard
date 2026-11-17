@@ -50,7 +50,7 @@ export async function deliverApplicationMail(
   // applicant's address; telling a recruiter the wrong one sends them to the wrong person.
   if (env.MAIL_PROVIDER === "none") return { sent: false, email, reason: "mail_disabled" };
 
-  const result = await sendEmail(env, { to: [email], subject: mail.subject, html: mail.html, text: mail.text });
+  const result = await sendEmail(env, { to: [email], subject: mail.subject, html: mail.html, text: mail.text, replyTo: "recruiting" });
   if (!result.ok) {
     // Loud: the recruiter sees "could not send" and can act, but nobody sees WHY without this.
     console.error("[application-mail] could not send", { subject: mail.subject, detail: result.detail });

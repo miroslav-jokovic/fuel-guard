@@ -237,6 +237,8 @@ describe("telling the applicant", () => {
     const [mail] = sent();
     expect(mail!.to).toEqual(["susan.godfrey@example.test"]);
     expect(mail!.subject).toBe("Silvicom Inc has a question about your application");
+    // A reply reaches recruiting, not the unread MAIL_FROM (envMail.ts, MAIL_REPLY_TO_RECRUITING).
+    expect((mail as { replyTo?: string }).replyTo).toBe("recruiting");
     for (const body of [mail!.text, mail!.html]) {
       expect(body).not.toContain("flatbed");
       expect(body).not.toMatch(/https?:\/\//);

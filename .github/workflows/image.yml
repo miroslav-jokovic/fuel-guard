@@ -121,6 +121,7 @@ jobs:
             VITE_API_URL=${{ vars.STAGING_VITE_API_URL }}
             VITE_CUSTOMER_APP_URL=${{ vars.STAGING_WEB_URL }}
             VITE_APP_ENVIRONMENT=${{ vars.STAGING_VITE_APP_ENVIRONMENT }}
+            VITE_SUPPORT_EMAIL=${{ vars.SUPPORT_EMAIL }}
             GIT_COMMIT_SHA=${{ github.sha }}
             GIT_BRANCH=main
           cache-from: type=gha,scope=${{ matrix.target }}

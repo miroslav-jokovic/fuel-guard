@@ -52,6 +52,16 @@ export const mailEnvFields = {
   // (e.g. "Silvicom 360 <miki@silvicominc.com>") once you have DNS access to verify silvicominc.com
   // in resend.com/domains.
   MAIL_FROM: z.string().default("Silvicom 360 <onboarding@resend.dev>"),
+  // Where a REPLY goes (2026-11-17). IT created `no-reply@silvicominc.com` for MAIL_FROM — an unread
+  // mailbox — so every message carries a Reply-To a person reads: MAIL_REPLY_TO for the office's own
+  // mail (invites, resets, alerts, digests; `360@`), MAIL_REPLY_TO_RECRUITING for what an APPLICANT
+  // receives (`recruiting@`, which read applicant replies while it was MAIL_FROM). Both are
+  // platform-wide like MAIL_FROM itself: one carrier sends mail today, and a second carrier's applicants
+  // will need the address from that carrier's own settings, not from here. Unset = no Reply-To header,
+  // so a reply goes to MAIL_FROM as it always has. An empty value counts as unset; a malformed one
+  // refuses the boot rather than send mail whose replies vanish.
+  MAIL_REPLY_TO: z.preprocess((v) => (v === "" ? undefined : v), z.email().optional()),
+  MAIL_REPLY_TO_RECRUITING: z.preprocess((v) => (v === "" ? undefined : v), z.email().optional()),
 };
 
 /** Called by `loadEnv` after parsing: the provider auto-detection and the Brevo warning, unchanged. */

@@ -6,6 +6,21 @@ export interface OutgoingEmail {
   subject: string;
   html: string;
   text: string;
+  /**
+   * Whose inbox a reply should reach (envMail.ts, MAIL_REPLY_TO*). `recruiting` is mail an applicant
+   * receives; everything else is the office's own and needs nothing set here.
+   */
+  replyTo?: ReplyRoute;
+}
+
+export type ReplyRoute = "office" | "recruiting";
+
+/**
+ * The Reply-To address for a route, or undefined for none. Recruiting falls back to the office's
+ * address, so setting only MAIL_REPLY_TO still answers an applicant's reply somewhere a person reads.
+ */
+export function replyAddress(env: Pick<Env, "MAIL_REPLY_TO" | "MAIL_REPLY_TO_RECRUITING">, route: ReplyRoute = "office"): string | undefined {
+  return route === "recruiting" ? (env.MAIL_REPLY_TO_RECRUITING ?? env.MAIL_REPLY_TO) : env.MAIL_REPLY_TO;
 }
 
 /** A function that delivers an email; returns whether it was sent. Injectable for tests. */
@@ -29,7 +44,7 @@ export function parseSender(from: string): { name?: string; email: string } {
  * Provider-agnostic email sender (plain fetch, no SDK). Set MAIL_PROVIDER to 'resend' or 'brevo'
  * (Brevo has the largest free tier ~9k/mo; Resend is simplest). 'none' = no-op so the app still runs.
  *
- * Common Resend failure reasons (check Railway logs):
+ * Common Resend failure reasons (check the api's CloudWatch log):
  *   403 "domain not verified" → go to resend.com/domains, add silvicominc.com and verify DNS records.
  *   422 "Invalid `from` field" → MAIL_FROM must be "Name <email@verified-domain.com>".
  *   401 "Unauthorized" → RESEND_API_KEY is wrong or not set.
@@ -65,12 +80,16 @@ export async function sendEmail(env: Env, input: OutgoingEmail): Promise<SendRes
   if (withheld > 0) console.warn(`[mailer] ${withheld} recipient(s) withheld by OUTBOUND_ALLOWLIST`);
   if (allowed.length === 0) return { ok: false, provider: "none", detail: WITHHELD_DETAIL };
   const email = { ...input, to: allowed };
+  const replyTo = replyAddress(env, input.replyTo);
   try {
     if (env.MAIL_PROVIDER === "resend" && env.RESEND_API_KEY) {
       const r = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: env.MAIL_FROM, to: email.to, subject: email.subject, html: email.html, text: email.text }),
+        body: JSON.stringify({
+          from: env.MAIL_FROM, to: email.to, subject: email.subject, html: email.html, text: email.text,
+          ...(replyTo ? { reply_to: replyTo } : {}),
+        }),
         signal: AbortSignal.timeout(10_000),
       });
       const body = r.ok ? null : ((await r.json().catch(() => null)) as { name?: string; message?: string } | null);
@@ -88,6 +107,7 @@ export async function sendEmail(env: Env, input: OutgoingEmail): Promise<SendRes
           subject: email.subject,
           htmlContent: email.html,
           textContent: email.text,
+          ...(replyTo ? { replyTo: { email: replyTo } } : {}),
         }),
         signal: AbortSignal.timeout(10_000),
       });

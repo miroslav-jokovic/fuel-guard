@@ -119,6 +119,7 @@ jobs:
             VITE_API_URL=${{ vars.PRODUCTION_VITE_API_URL }}
             VITE_CUSTOMER_APP_URL=${{ vars.WEB_URL }}
             VITE_APP_ENVIRONMENT=${{ vars.PRODUCTION_VITE_APP_ENVIRONMENT }}
+            VITE_SUPPORT_EMAIL=${{ vars.SUPPORT_EMAIL }}
             GIT_COMMIT_SHA=${{ env.SHA }}
             GIT_BRANCH=production
           cache-from: type=gha,scope=${{ matrix.target }}-production
