@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  PLAN_ANGLES_MIN, PLAN_FORMATS, PLAN_FORMATS_BUILT, campaignPlanSchema, checkPlan, distinctConcepts, evidencePackSchema, jobEvidence, planDraw, planFindingWords, writerAngle,
+  PLAN_ANGLES_MIN, PLAN_FORMATS, PLAN_FORMATS_BUILT, campaignPlanSchema, checkPlan, distinctConcepts, evidencePackSchema, jobEvidence, planDraw, planFindingWords, angleFormat, writerAngle,
   type CampaignPlan, type EvidencePack, type PlanAngle,
 } from "./campaignPlan.js";
 import type { AdBrief } from "./contracts.js";
@@ -188,6 +188,16 @@ describe("planDraw — a planned campaign's ads are the plan's angles, in the pl
     const twin = [preset("P9", "pay_first", "equipment_on_road"), ...presets];
     expect(planDraw("p", sound, twin, []).order[0]).toBe("v-P2");
     expect(planDraw("p", sound, [...twin].reverse(), []).order[0]).toBe("v-P2");
+  });
+});
+
+describe("angleFormat — what is made from a preset's ad", () => {
+  it("is the format of the plan's angle with the preset's hook and scene, and null when the plan has no such angle", () => {
+    const moving = { angles: sound.angles.map((a, i) => ({ ...a, format: i === 1 ? "motion" as const : a.format })) };
+    expect(moving.angles.map((a) => angleFormat(moving, a))).toEqual(moving.angles.map((a) => a.format));
+    expect(angleFormat(moving, moving.angles[1]!)).toBe("motion");
+    expect(angleFormat(moving, { hook_family: moving.angles[0]!.hook_family, scene_family: "no_such_scene" })).toBeNull();
+    expect(angleFormat(moving, {})).toBeNull();
   });
 });
 

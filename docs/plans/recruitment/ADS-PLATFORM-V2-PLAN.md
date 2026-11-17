@@ -210,6 +210,14 @@ is told to move is one sentence of ours for every ad (`MOTION_DIRECTION`: a slow
 truck); no agent writes it, and whether a model obeys it is the sitting's first reading. Nothing calls `makeMotion`
 yet: it is wired into compose when 0625 is on main (column and first reader in two merges).
 
+**Built 2026-11-17 (V4i):** compose sets a finished still moving when its plan angle's format is `motion`
+(`composeCreative` `motionOf`, `angleFormat`): the winning pairing's picture under its words, after every check of
+the still has passed, written to `ads_creatives.motion` with the still beside it. **Ours, to be ruled if the owner
+reads it otherwise:** a motion ad that cannot be made does not take the still with it — the creative goes to review
+as the still, and `checks.motion` says why there is no video. Not asked for a person's choice of words (its clip
+would be bought twice). No plan can name `motion` yet (`PLAN_FORMATS_BUILT` is still `["still"]`), and no video
+model is chosen, so on every server this is reached by tests only.
+
 **Done when:** a motion ad passes the contract suite on the fake, and Renderer and Publisher show L3 for
 `meta:video`.
 

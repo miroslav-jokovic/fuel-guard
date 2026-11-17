@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  MAX_PICTURES_PER_CREATIVE, adPairingsSchema, publishedFormats, rankCandidates,
-  type AdAssetRef, type AdBrandKit, type AdBrief, type AdCandidates, type AdFormat, type AdPairings, type AdPresetRecipe, type ArtAnswer, type CreativeState, type WriterAngle,
+  MAX_PICTURES_PER_CREATIVE, adMotionSchema, adPairingsSchema, publishedFormats, rankCandidates,
+  type AdAssetRef, type AdBrandKit, type AdMotion, type AdBrief, type AdCandidates, type AdFormat, type AdPairings, type AdPresetRecipe, type ArtAnswer, type CreativeState, type WriterAngle,
 } from "@silvicom/shared";
 import type { RenderInput, RenderOutcome } from "../creative/higgsfield/render.js";
 import { overlayFit, type OverlayFinding, type OverlayLanguage } from "../creative/overlay/overlay.js";
@@ -13,6 +13,7 @@ import { drawnCopy, makePicture, overlaySummary, stopCode, type DrawnImage, type
 
 export { drawnCopy, union } from "./creativePictures.js";
 
+import { makeMotion, type MotionDeps } from "./creativeMotion.js";
 /**
  * One creative, moved as far as it can go (ADS-AGENT-BUILD-WORKFLOW C5b; plan D-AD9, D-AD12). Called by
  * the campaign's compose step (C5b2) as often as it takes; every run is safe to repeat, because every
@@ -86,6 +87,8 @@ export interface ComposeDeps extends PictureDeps {
   renderModel: string | null;
   readAsset: (orgId: string, ref: Pick<AdAssetRef, "sha256" | "format">) => Promise<Buffer>;
   storeAsset: (orgId: string, bytes: Buffer) => Promise<AdAssetRef>;
+  /** What a motion ad needs beyond a still's (V4): absent, no creative is ever set moving. */
+  motion?: Pick<MotionDeps, "videoModel" | "readClip" | "storeClip" | "ffmpeg">;
 }
 
 export interface ComposeInput {
@@ -100,6 +103,8 @@ export interface ComposeInput {
   pictures?: number;
   /** The approved plan's idea for this preset (V2c); null or absent for a campaign that was not planned. */
   angle?: WriterAngle | null;
+  /** The approved plan's angle for this preset is a motion ad (`angleFormat`, V4): the finished still is also set moving. */
+  motion?: boolean;
   /** A person chose this creative's words (Q-ADL7): no copywriter, no judge, and the replaced creative's picture. */
   choice?: PersonChoice;
 }
@@ -250,7 +255,9 @@ async function fromPictures(deps: ComposeDeps, input: ComposeInput, words: Words
       headline: drawn.words.copy.en[slots.headline]!, button: drawn.words.copy.en[slots.cta]!,
     });
     if (opinion.kind === "pending") return { kind: "pending", why: opinion.why };
-    await finish(deps.admin, cr, { state: "ready", copy: drawn.words.copy, candidates, assets, regenerations: pic.attempt - 1, last_error: null, checks: checksOf(pic, opinion.check) });
+    const moving = await motionOf(deps, input, { picture: 1, attempt: pic.attempt, base: pic.base }, drawn.words.copy);
+    if (moving.kind === "pending") return moving;
+    await finish(deps.admin, cr, { state: "ready", copy: drawn.words.copy, candidates, assets, regenerations: pic.attempt - 1, last_error: null, checks: { ...checksOf(pic, opinion.check), ...moving.checks }, ...moving.patch });
     return { kind: "ready" };
   }
 
@@ -273,12 +280,43 @@ async function fromPictures(deps: ComposeDeps, input: ComposeInput, words: Words
       ...(m.kind === "passed" && m.undrawable.length > 0 ? { undrawable: m.undrawable.map((u) => ({ words: u.index, reason: u.reason })) } : {}),
     })),
   } satisfies AdPairings);
+  const won = passed.find((p) => p.picture === winner.picture)!;
+  const moving = await motionOf(deps, input, { picture: winner.picture, attempt: won.attempt, base: won.base }, winner.drawn.words.copy);
+  if (moving.kind === "pending") return moving;
   await finish(deps.admin, cr, {
     // The words that became `copy` are the winning pairing's, which need not be the craft judge's first.
     state: "ready", copy: winner.drawn.words.copy, candidates: candidates ? { ...candidates, chosen: winner.words } : null, pairings, assets,
-    regenerations: winner.from.attempt - 1, last_error: null, checks: checksOf(passed.find((p) => p.picture === winner.picture)!, out.finishedAd),
+    regenerations: winner.from.attempt - 1, last_error: null, checks: { ...checksOf(won, out.finishedAd), ...moving.checks }, ...moving.patch,
   });
   return { kind: "ready" };
+}
+
+/**
+ * The creative's motion ad, when its plan angle asks for one (V4; `creativeMotion.ts`) — made from the picture and
+ * the words that just became the ad, after every check of the still has passed.
+ *
+ * ── A MOTION AD THAT CANNOT BE MADE DOES NOT TAKE THE STILL WITH IT (ours, 2026-11-17) ────────────
+ * The still is a whole ad: checked, judged, the last frame the video would have ended on. So the creative goes to
+ * review as that still, and `checks.motion` says why there is no video — never a silent downgrade, and never a
+ * finished, paid-for picture thrown away because a clip came back short. A person who wanted the video sees the
+ * reason beside the ad and can regenerate. The other reading — no video, no creative — is one line here.
+ *
+ * Not asked for a person's choice (Q-ADL7): that creative keeps the replaced one's picture and is keyed anew, so
+ * its clip would be bought a second time for the same picture. Carrying the clip across is its own step.
+ */
+async function motionOf(
+  deps: ComposeDeps, input: ComposeInput, pic: { picture: number; attempt: number; base: Pick<AdAssetRef, "sha256" | "format"> }, copy: AdCopy,
+): Promise<{ kind: "pending"; why: string } | { kind: "settled"; checks: { motion?: Record<string, unknown> }; patch: { motion?: AdMotion } }> {
+  if (!input.motion || input.choice || !deps.motion) return { kind: "settled", checks: {}, patch: {} };
+  const { creative: cr } = input;
+  const out = await makeMotion({ ...deps.motion, render: deps.render, readAsset: deps.readAsset }, {
+    ids: { orgId: cr.org_id, campaignId: cr.campaign_id, creativeId: cr.id }, attempt: pic.attempt, picture: pic.picture, base: pic.base,
+    brief: input.brief, recipe: input.recipe, kit: input.kit, copy,
+  });
+  if (out.kind === "pending") return out;
+  if (out.kind === "stop") return { kind: "settled", checks: { motion: { ...(out.checks ?? { ok: false }), reason: out.reason } }, patch: {} };
+  // Parsed at the write, as `pairings` is: a body the review screen could not read is a bug here.
+  return { kind: "settled", checks: { motion: out.checks }, patch: { motion: adMotionSchema.parse(out.motion) } };
 }
 
 /** How many pictures this creative is chosen from: the setting, 1 for a person's choice (it keeps its picture) and when unset. */

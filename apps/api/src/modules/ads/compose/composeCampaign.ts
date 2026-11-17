@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adBriefSchema, adCandidatesSchema, adPairingsSchema, drawPresets, nextPresetBatch, planDraw, writerAngle, type AdBrandKit, type AdPresetRecipe, type CampaignPlan, type CreativeState, type PresetDraw } from "@silvicom/shared";
+import { adBriefSchema, adCandidatesSchema, adPairingsSchema, drawPresets, nextPresetBatch, planDraw, angleFormat, writerAngle, type AdBrandKit, type AdPresetRecipe, type CampaignPlan, type CreativeState, type PresetDraw } from "@silvicom/shared";
 import { listBrandKits, listPresets } from "../creative/kitVersions.js";
 import { settingsInForce } from "../settings/settingsVersions.js";
 import { storePresetDraw, type CampaignRow } from "../orchestrator/transitions.js";
@@ -94,7 +94,9 @@ export async function composeCampaign(deps: ComposeCampaignDeps, c: CampaignRow)
     const choice = creative.supersedes_id ? await choiceFor(admin, c.org_id, creative.supersedes_id) : null;
     const recipe = recipes.get(presetId)!;
     const angle = approved ? writerAngle(approved.plan, recipe) : null;
-    const out = await composeCreative(deps, { creative, brief: brief.data, recipe, kit: kit.body, maxRegenerations: settings.budgets.max_regenerations, candidates: settings.budgets.candidates_per_creative, pictures: settings.budgets.pictures_per_creative, angle, ...(choice ? { choice } : {}) });
+    // V4: an angle the plan made a motion ad is also set moving once its still is finished.
+    const motion = approved ? angleFormat(approved.plan, recipe) === "motion" : false;
+    const out = await composeCreative(deps, { creative, brief: brief.data, recipe, kit: kit.body, maxRegenerations: settings.budgets.max_regenerations, candidates: settings.budgets.candidates_per_creative, pictures: settings.budgets.pictures_per_creative, angle, motion, ...(choice ? { choice } : {}) });
     if (out.kind === "pending") { tally.pending.push(`creative ${creative.id}: ${out.why}`); return; }
     const state = out.kind === "done" ? out.state : out.kind === "ready" ? "ready" : "check_failed";
     if (state === "ready" || state === "approved") tally.ready += 1;
