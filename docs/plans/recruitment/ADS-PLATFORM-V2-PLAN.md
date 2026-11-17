@@ -732,6 +732,33 @@ Whether Meta REFUSES a 1080-wide video or only advises against it is not on eith
 
 Nothing is changed until this is ruled. It must be settled before the publisher's video road is certified (L4).
 
+
+### Q-APX18 · Where the Ads workspace sits, and what moves into it — open
+
+**What was read (2026-11-17), in the code and the earlier rulings.** Ads live in two places today:
+`/recruitment/campaigns`, the seventh tab of the Recruitment page (`RecruitmentTabs.vue`), and
+`/settings/recruiting/ads`, one Settings page holding six cards — kill switch, spend, ad accounts, brand kit,
+presets, the settings form. Leads and Openings are also Recruitment tabs, and a recruiter works in Leads all day
+whether or not an ad ever ran (leads are typed in too). Two rulings bear on V6's "own place in the sidebar":
+D-HUI8 ("one Recruitment entry; the queues behind it stop being nav destinations and become tabs") and
+the sidebar ruling of 2026-11-01 ("Recruitment stays its own section, more items coming"). Every ads door answers
+to the `recruitment` section; spend, launch and ad accounts are admin-only on top of it.
+
+- **(a) Ads is its own sidebar section; Leads and Openings stay in Recruitment — recommended.** One sidebar
+  entry, "Ads", opening Overview, with Campaigns, Creative studio, Automation and Settings as its tabs (the way
+  Recruitment is one entry with tabs, so D-HUI8's rule holds for the new section too). Leads and Openings keep
+  their addresses and their tab strip; the workspace's Overview counts leads and links to them, and a campaign
+  links to its opening. `/recruitment/campaigns` and `/settings/recruiting/ads` redirect, so no notification
+  link breaks. Nothing a recruiter uses today moves.
+- (b) As V6 is written: Leads moves into the Ads workspace. One place for everything an ad produces; but a lead
+  that came from Tenstreet, Indeed or a phone call (V7) is then filed under "Ads", and the recruiter's daily page
+  leaves the section named for their job.
+- (c) No new section: Ads stays a Recruitment tab and its settings stay in Settings. Cheapest; it is what the
+  owner called "low level" on 2026-11-14 — control in one place, the work in another.
+
+**What does not wait on this:** the Overview's read (running, spent, leads, what needs a person, the ledger as a
+timeline) and V8's health read are API work with the same content under any of the three.
+
 ## 5a. Ruled
 
 **2026-11-14, the owner, to the four proposals above and to the request to record the agents on his Anthropic
@@ -786,6 +813,7 @@ is 100%."*** Taken as:
 | Q-APX7–15 | — | **ruled 2026-11-16 as proposed, §5a**; Q-APX12's sitting still waits on the Higgsfield key | — |
 | Q-APX16 | The picture budget is in "credits"; Higgsfield's API bills dollars and has a price call | (a) budget in dollars, price asked from `/estimate` | owner |
 | Q-APX17 | Our video is 1080 wide; Meta's video-ads page says 1,200 at least | (a) paint the motion ad at 1440 × 1800 | owner |
+| Q-APX18 | Where the Ads workspace sits, and whether Leads and Openings move into it | (a) its own sidebar section; Leads and Openings stay Recruitment's and are linked | owner |
 | — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want
