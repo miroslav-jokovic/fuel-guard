@@ -23,7 +23,11 @@ import { HIGGSFIELD_VIDEO_CANDIDATES, motionClipParams } from "./videoModels.js"
  * by ffmpeg and read by ffprobe; CI's `test-api` installs both and a run there without them fails (below).
  */
 const HAS_FFMPEG = spawnSync("ffmpeg", ["-version"]).status === 0 && spawnSync("ffprobe", ["-version"]).status === 0;
-const onFile = HAS_FFMPEG ? it : it.skip;
+// Since 2026-11-17 (V4m) this file's tests are pinned by the readiness registry (Renderer L1/L2), and a pinned test
+// may not be one that can be skipped (`lint:ads-readiness`). So a machine without ffmpeg FAILS here, by name, where
+// it used to skip: `brew install ffmpeg`. The server's image and CI's `test-api` both have it.
+const NO_FFMPEG = "ffmpeg and ffprobe are needed to run this file (brew install ffmpeg); the server's image and CI's test-api have them";
+const onFile = it;
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const KEY = { id: "kid", secret: "ksecret" };
@@ -41,7 +45,7 @@ let dir: string;
 let CLIP = Buffer.alloc(0);
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), "ads-clip-test-"));
-  if (!HAS_FFMPEG) return;
+  if (!HAS_FFMPEG) throw new Error(NO_FFMPEG);
   const file = join(dir, "model.mp4");
   execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=720x900:rate=24:duration=6",
     "-f", "lavfi", "-i", "sine=frequency=440:duration=6", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", file]);

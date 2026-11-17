@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -43,6 +44,15 @@ describe("ads:certify — what it runs (stage2-kit)", () => {
 });
 
 describe("ads:certify — refusals before anything runs", () => {
+  it("the Publisher's run makes a video ad as well as an image ad, and Security scrapes that same run (V4)", () => {
+    const video = "src/modules/ads/platforms/meta/publisherVideo.contract.test.ts";
+    for (const worker of ["Publisher (per adapter)", "Security (all)"]) {
+      const run = WORKER_RUNS[worker]!;
+      expect("suites" in run && run.suites, worker).toEqual(expect.arrayContaining(["src/modules/ads/platforms/meta/publisher.contract.test.ts", video]));
+      expect(existsSync(new URL(`../../${video}`, import.meta.url)), "the suite the run names must exist").toBe(true);
+    }
+  });
+
   it("a missing variable refuses the run, naming each one per worker, and runs nothing", async () => {
     const { META_SANDBOX_PAGE_ID: _, ...env } = SANDBOX_ENV;
     const h = io({ env });

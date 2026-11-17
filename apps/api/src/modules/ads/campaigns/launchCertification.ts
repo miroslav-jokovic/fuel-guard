@@ -16,10 +16,12 @@ import { simulatorGate } from "../platforms/simulatorGate.js";
  * evidence), never that a test file exists.
  *
  * ── WHICH WORKERS ──────────────────────────────────────────────────────────────────────────────────
- * The registry's `CAMPAIGN_WORKERS`, keyed by the connection's provider and the creative kind. Every creative
- * compose makes today is a still (`compose/`, `creative/higgsfield/` render stills only), so the kind is
- * `still`; the day a video kind exists it becomes a column the campaign carries, and this reads it. A provider
- * or kind with no row is refused: an adapter nobody listed cannot spend.
+ * The registry's `CAMPAIGN_WORKERS`, keyed by the connection's provider and the creative kind. The kind is read
+ * off the campaign's APPROVED creatives (`creativeKindOf`), the ones the publisher makes ads of: `video` when any
+ * of them holds a motion ad (`ads_creatives.motion`, V4), else `still`. It is not a column of its own — a campaign
+ * whose plan asked for a video and got none (`checks.motion`) publishes pictures, and is a still campaign; what
+ * it IS decides, not what was asked. A provider or kind with no row is refused: an adapter nobody listed cannot
+ * spend.
  *
  * ── THE SIMULATOR ──────────────────────────────────────────────────────────────────────────────────
  * Exempt — it spends nothing and reaches no vendor — but ONLY where `simulatorGate` allows the simulator at all
@@ -30,8 +32,11 @@ import { simulatorGate } from "../platforms/simulatorGate.js";
  */
 
 export const LAUNCH_LEVEL: AdsReadinessLevel = "L4";
-/** The only creative kind compose makes (header). */
+/** The kind of a campaign with no motion ad among its approved creatives — every campaign before V4. */
 export const CAMPAIGN_CREATIVE_KIND = "still";
+export type CreativeKind = typeof CAMPAIGN_CREATIVE_KIND | "video";
+/** A campaign's kind, from the creatives a person approved (header): one motion ad makes it a video campaign. */
+export const creativeKindOf = (approved: ReadonlyArray<{ motion?: unknown }>): CreativeKind => (approved.some((c) => c.motion != null) ? "video" : CAMPAIGN_CREATIVE_KIND);
 /** The kind of a campaign that carries a plan: the same workers and the Strategist (`meta:plannedstill`). */
 export const plannedKind = (kind: string): string => `planned${kind}`;
 
