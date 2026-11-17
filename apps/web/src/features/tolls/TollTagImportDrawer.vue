@@ -205,6 +205,7 @@ function close() {
         <p v-if="(counts.fix ?? 0) > 0 && !results" class="text-xs text-ink-secondary">
           Lines to fix are left out. Fix them in the file and import it again; lines already right are not repeated.
         </p>
+        <!-- ui-adoption: never-empty — the section renders only when the sheet has at least one line (`rows.length`). -->
         <DataTable :columns="columns" :rows="rows" row-key="id" data-test="tag-import-lines">
           <template #cell-status="{ row }">
             <AppBadge :tone="STATUS[row.status as Status].tone" class="whitespace-nowrap">{{ STATUS[row.status as Status].label }}</AppBadge>

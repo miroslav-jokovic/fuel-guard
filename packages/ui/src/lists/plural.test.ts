@@ -112,6 +112,7 @@ const EXPECTED: Record<string, string> = {
   items: "item",
   // Finance › Tolls: one row per uploaded toll statement file (TOLLS-PER-TRUCK-PLAN TL4a).
   statements: "statement",
+  tags: "tag",
   "trucks and trailers": "truck or trailer",
   applicants: "applicant",
   cards: "card",
