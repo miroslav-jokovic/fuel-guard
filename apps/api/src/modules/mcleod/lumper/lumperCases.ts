@@ -31,7 +31,7 @@ export const LUMPER_FILES_BUCKET = "lumper-files";
 const LINK_SECONDS = 300;
 
 interface CaseRecord { id: string; company_id: string; order_id: string; charge_code: string; opened_at: string; closed_at: string | null; closed_by: string | null; close_reason: LumperCloseReason | null; close_note: string | null }
-interface OrderRecord { company_id: string; order_id: string; customer_name: string | null; dispatcher_user_id: string | null; dispatcher_name: string | null; consignee_name: string | null; consignee_city: string | null; consignee_state: string | null; consignee_arrived_at: string | null; consignee_departed_at: string | null }
+interface OrderRecord { company_id: string; order_id: string; last_seen_at: string; customer_name: string | null; dispatcher_user_id: string | null; dispatcher_name: string | null; consignee_name: string | null; consignee_city: string | null; consignee_state: string | null; consignee_arrived_at: string | null; consignee_departed_at: string | null }
 interface ChargeRecord { company_id: string; order_id: string; charge_code: string; descr: string | null; amount: number | string }
 interface PaymentRecord { company_id: string; payment_id: string; settlement_state: string; order_id: string | null; deduct_code: string; amount: number | string; transacted_at: string | null; reference_no: string | null; driver_code: string | null; tractor_unit: string | null; is_void: boolean }
 interface BillRecord { company_id: string; order_id: string; bill_type: string | null; bill_date: string | null; invoice_no: string | null; lumper_amount: number | string }
@@ -60,7 +60,10 @@ async function namesOf(admin: SupabaseClient, userIds: readonly string[]): Promi
   return out;
 }
 
-export async function listLumperCases(admin: SupabaseClient, orgId: string, scope: "open" | "all"): Promise<LumperCasesResponse> {
+/** The list as the page and the reminder read it. `remindersOn` is the route's to add (lumperReminders.ts owns that table). */
+export type LumperCaseList = Omit<LumperCasesResponse, "remindersOn">;
+
+export async function listLumperCases(admin: SupabaseClient, orgId: string, scope: "open" | "all"): Promise<LumperCaseList> {
   // Each table is named literally at its own call: the table gates read string literals, and a
   // table name passed through a variable is invisible to them.
   type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
@@ -68,7 +71,7 @@ export async function listLumperCases(admin: SupabaseClient, orgId: string, scop
     admin.from("lumper_cases").select("id, company_id, order_id, charge_code, opened_at, closed_at, closed_by, close_reason, close_note")
       .eq("org_id", orgId).order("opened_at").order("id").range(from, to) as unknown as Page<CaseRecord>);
   const orders = await fetchAllPaged<OrderRecord>((from, to) =>
-    admin.from("mcleod_lumper_orders").select("company_id, order_id, customer_name, dispatcher_user_id, dispatcher_name, consignee_name, consignee_city, consignee_state, consignee_arrived_at, consignee_departed_at")
+    admin.from("mcleod_lumper_orders").select("company_id, order_id, last_seen_at, customer_name, dispatcher_user_id, dispatcher_name, consignee_name, consignee_city, consignee_state, consignee_arrived_at, consignee_departed_at")
       .eq("org_id", orgId).order("company_id").order("order_id").range(from, to) as unknown as Page<OrderRecord>);
   const charges = await fetchAllPaged<ChargeRecord>((from, to) =>
     admin.from("mcleod_lumper_charges").select("company_id, order_id, charge_code, descr, amount")
@@ -89,6 +92,15 @@ export async function listLumperCases(admin: SupabaseClient, orgId: string, scop
   const billsBy = group(bills, (b) => key(b.company_id, b.order_id));
   const filesBy = group(files.filter((f) => f.removed_at == null), (f) => f.case_id);
   const names = await namesOf(admin, [...cases.map((c) => c.closed_by), ...files.map((f) => f.uploaded_by)].filter((id): id is string => id != null));
+
+  // Read first: whether a case's facts are from the latest read is a comparison with it (Q-LRC9).
+  // `lumper_sweep_apply` stamps every order the sweep carried with the sweep's own time, so an order
+  // carried by the latest read has `last_seen_at` equal to its company's `swept_at`.
+  const { data: sweepRows, error: sweepErr } = await admin.from("mcleod_lumper_sweeps").select("company_id, swept_at").eq("org_id", orgId);
+  if (sweepErr) throw new Error(`[lumper] sweep time not read: ${sweepErr.message}`);
+  const sweeps = (sweepRows ?? []) as { company_id: string; swept_at: string }[];
+  const sweptOf = new Map(sweeps.map((s) => [s.company_id, Date.parse(s.swept_at)]));
+  const sweptAt = sweeps.map((s) => s.swept_at).sort().at(-1) ?? null;
 
   const rows: LumperCaseRow[] = [];
   for (const c of cases) {
@@ -121,6 +133,8 @@ export async function listLumperCases(admin: SupabaseClient, orgId: string, scop
       consigneeCity: order?.consignee_city ?? null,
       consigneeState: order?.consignee_state ?? null,
       deliveredAt: order?.consignee_departed_at ?? order?.consignee_arrived_at ?? null,
+      factsSeenAt: order?.last_seen_at ?? null,
+      factsCurrent: order != null && sweptOf.has(c.company_id) && Date.parse(order.last_seen_at) >= sweptOf.get(c.company_id)!,
       driverCode: casePayments.find((p) => !p.is_void && p.driver_code)?.driver_code ?? null,
       paidAmount: reading.paidAmount,
       paidAt: reading.paidAt,
@@ -151,10 +165,7 @@ export async function listLumperCases(admin: SupabaseClient, orgId: string, scop
       referenceNo: p.reference_no, driverCode: p.driver_code, tractorUnit: p.tractor_unit, pending: p.settlement_state === "pending",
     }));
 
-  const { data: sweeps, error: sweepErr } = await admin.from("mcleod_lumper_sweeps").select("swept_at").eq("org_id", orgId).order("swept_at", { ascending: false }).limit(1);
-  if (sweepErr) throw new Error(`[lumper] sweep time not read: ${sweepErr.message}`);
-
-  return { cases: rows, unmatchedPayments, sweptAt: ((sweeps ?? []) as { swept_at: string }[])[0]?.swept_at ?? null };
+  return { cases: rows, unmatchedPayments, sweptAt };
 }
 
 async function caseOf(admin: SupabaseClient, orgId: string, caseId: string): Promise<{ id: string; order_id: string; closed_at: string | null } | null> {

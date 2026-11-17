@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import {
+  formatDisplayDate,
   LUMPER_CASE_STATE_LABELS,
   LUMPER_CLOSE_REASONS,
   LUMPER_CLOSE_REASON_LABELS,
@@ -58,6 +59,8 @@ const facts = computed<Fact[]>(() => {
     { label: "Invoice", value: k.invoiced ? `${k.lastInvoiceNo ?? "—"} on ${mcleodDay(k.lastInvoiceAt)}` : "Not invoiced yet" },
     { label: "Lumper on the invoice", value: k.invoiced ? usd(k.billedAmount) : "—", numeric: k.invoiced },
     ...(k.shortAmount > 0 ? [{ label: "Short", value: usd(k.shortAmount), numeric: true, tone: "text-danger-700" }] : []),
+    // Q-LRC9: past the read's 90 days the McLeod facts above stop moving; say from when they are.
+    ...(!k.factsCurrent && k.factsSeenAt ? [{ label: "McLeod facts as of", value: `${formatDisplayDate(k.factsSeenAt)} (older than the 90 days read)` }] : []),
   ];
 });
 

@@ -170,13 +170,13 @@ ok("pairings that are not an object are refused (23514, 0619)",
   (await sqlstate(`update ads_creatives set pairings = '[1, 2]' where id = $1`, [CR])) === "23514");
 ok("a creative made before 0619 has no pairings, and that is allowed",
   (await sqlstate(`update ads_creatives set pairings = null where id = $1`, [CR])) === null);
-ok("the workers may keep a motion ad on a generating creative, as an object (0624)",
+ok("the workers may keep a motion ad on a generating creative, as an object (0625)",
   (await sqlstate(`update ads_creatives set motion = '{"files": [{"language": "en", "sha256": "ab", "path": "o/ab.mp4"}]}' where id = $1`, [CR])) === null);
-ok("a motion that is not an object is refused (23514, 0624)",
+ok("a motion that is not an object is refused (23514, 0625)",
   (await sqlstate(`update ads_creatives set motion = '[1, 2]' where id = $1`, [CR])) === "23514");
-ok("a creative that is a still only has no motion, and that is allowed (0624)",
+ok("a creative that is a still only has no motion, and that is allowed (0625)",
   (await sqlstate(`update ads_creatives set motion = null where id = $1`, [CR])) === null);
-ok("the workers put the motion ad back before the creative leaves them (0624)",
+ok("the workers put the motion ad back before the creative leaves them (0625)",
   (await sqlstate(`update ads_creatives set motion = '{"files": [{"language": "en", "sha256": "ab", "path": "o/ab.mp4"}]}' where id = $1`, [CR])) === null);
 // A person's choice may name the picture too (0619). One choice per replaced creative, so the refusals come first.
 const choose = (picture) => sqlstate(
@@ -193,11 +193,11 @@ ok("a checked creative with its assets becomes ready",
   (await sqlstate(`update ads_creatives set assets = '[{"format": "1:1", "sha256": "ab"}]', checks = '{"copy": "pass", "visual": "pass", "render": "pass"}', state = 'ready' where id = $1`, [CR])) === null);
 ok("a ready creative's copy is frozen (AX030)",
   (await sqlstate(`update ads_creatives set copy = '{"en": {"headline": "changed"}}' where id = $1`, [CR])) === "AX030");
-ok("a ready creative's motion ad is frozen with the rest: another file is refused (AX030, 0624)",
+ok("a ready creative's motion ad is frozen with the rest: another file is refused (AX030, 0625)",
   (await sqlstate(`update ads_creatives set motion = '{"files": [{"language": "en", "sha256": "cd", "path": "o/cd.mp4"}]}' where id = $1`, [CR])) === "AX030");
-ok("a ready creative's motion ad cannot be taken away either (AX030, 0624)",
+ok("a ready creative's motion ad cannot be taken away either (AX030, 0625)",
   (await sqlstate(`update ads_creatives set motion = null where id = $1`, [CR])) === "AX030");
-ok("a ready creative still moves on with its motion ad untouched (0624)",
+ok("a ready creative still moves on with its motion ad untouched (0625)",
   (await sqlstate(`update ads_creatives set last_error = null where id = $1`, [CR])) === null
   && (await one(`select motion->'files'->0->>'sha256' s from ads_creatives where id = $1`, [CR])).s === "ab");
 ok("a ready creative is never reopened to checking (AX030)",

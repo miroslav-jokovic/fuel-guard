@@ -26,6 +26,7 @@ import {
   startRevisedRcUpload,
   type LumperRefusal,
 } from "./lumperCases.js";
+import { readLumperRemindersOn } from "./lumperReminders.js";
 
 /**
  * `/api/lumper-cases` — the lumper cases page (LUMPER-REVISED-RC-PLAN.md LRC3).
@@ -60,7 +61,9 @@ export function lumperCasesRouter(): Router {
     "/",
     asyncHandler(async (req, res) => {
       const scope = req.query.scope === "all" ? "all" : "open";
-      res.json(await listLumperCases(adminOf(req), req.auth!.orgId!, scope));
+      const admin = adminOf(req);
+      const [list, remindersOn] = await Promise.all([listLumperCases(admin, req.auth!.orgId!, scope), readLumperRemindersOn(admin, req.auth!.orgId!)]);
+      res.json({ ...list, remindersOn });
     }),
   );
 

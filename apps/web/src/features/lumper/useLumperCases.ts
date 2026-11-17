@@ -1,4 +1,4 @@
-import { type Ref } from "vue";
+import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/vue-query";
 import {
   LUMPER_FILE_MAX_BYTES,
@@ -26,6 +26,26 @@ export function useLumperCasesQuery(scope: Ref<"open" | "all">) {
       return r.data;
     },
   });
+}
+
+/**
+ * The lumper case of ONE McLeod order, for the load page (LRC3's "the case on the load page"). It reads
+ * the same list the Lumper fees page reads, under the same cache key, rather than a second endpoint: the
+ * list is a few hundred rows a year, and one reader means the load page and the list cannot disagree
+ * about a case. `enabled` is the caller's: only a McLeod load, and only for somebody who can open
+ * Lumper fees — the API would refuse anybody else.
+ */
+export function useLumperCaseForOrder(orderId: Ref<string | null>, enabled: Ref<boolean>) {
+  const q = useQuery({
+    queryKey: [...KEY, "all"] as const,
+    enabled,
+    queryFn: async (): Promise<LumperCasesResponse> => {
+      const r = await apiFetch<LumperCasesResponse>("/api/lumper-cases?scope=all");
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load lumper fees");
+      return r.data;
+    },
+  });
+  return { ...q, lumperCase: computed(() => (orderId.value ? (q.data.value?.cases.find((c) => c.orderId === orderId.value) ?? null) : null)) };
 }
 
 /** Which kind of file this is, from its name; null for anything a revised RC cannot be filed as. */

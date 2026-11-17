@@ -14,6 +14,7 @@ const alert = (routes: AlertRoute[] = [...def.defaults], usesDefaults = true): R
   key: def.key,
   label: def.label,
   description: def.description,
+  memberIds: MEMBERS.map((m) => m.userId),
   relations: [
     { key: "marked_by", label: "Whoever marked the home time" },
     { key: "truck_dispatcher", label: "The truck's dispatcher" },

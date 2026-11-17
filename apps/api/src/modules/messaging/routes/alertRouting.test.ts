@@ -124,10 +124,15 @@ describe("GET /api/alert-routing", () => {
     for (const a of view.alerts) {
       expect(a.usesDefaults, a.key).toBe(true);
       expect(a.routes, a.key).toEqual(alertDefinition(a.key as "home_time_overdue").defaults);
-      expect(a.relations.map((x) => x.label)).toEqual(["Whoever marked the home time", "The truck's dispatcher"]);
       expect(a.roles.map((x) => x.key)).toContain("dispatcher");
       expect(a.roles.map((x) => x.key)).not.toContain("recruiter");
     }
+    const relationsOf = (key: string) => view.alerts.find((a) => a.key === key)!.relations.map((x) => x.label);
+    expect(relationsOf("home_time_overdue")).toEqual(["Whoever marked the home time", "The truck's dispatcher"]);
+    expect(relationsOf("lumper_rc_waiting")).toEqual(["The order's dispatcher"]);
+    // The lumper reminders are the Lumper fees SCREEN's (D-LRC11): accounting receives them, without Dispatch.
+    expect(view.alerts.find((a) => a.key === "lumper_billing_gap")!.roles.map((x) => x.key)).toEqual(expect.arrayContaining(["admin", "accountant"]));
+    expect(view.alerts.find((a) => a.key === "home_time_overdue")!.roles.map((x) => x.key)).not.toContain("accountant");
     expectOrgScoped(rec, ORG);
   });
 
@@ -358,7 +363,10 @@ describe("on the carrier's own Permissions page (Q-HT8)", () => {
     expect(overdue.roles.map((x) => x.key)).toContain("dispatcher");
     expect(overdue.routes.some((x) => x.recipientKey === "fleet_manager")).toBe(false);
     expect(overdue.routes).toEqual([r("relation", "marked_by", "bell"), r("relation", "truck_dispatcher", "bell")]);
-    expect(view.members.map((m) => m.userId)).not.toContain(FRAN);
+    // Fran is no longer someone the home-time editor may offer; the Lumper fees screen is not behind
+    // Dispatch (D-LRC11), so the lumper reminders still list her.
+    expect(overdue.memberIds).not.toContain(FRAN);
+    expect(view.alerts.find((a) => a.key === "lumper_rc_waiting")!.memberIds).toContain(FRAN);
     expectOrgScoped(rec, ORG);
   });
 
@@ -377,10 +385,10 @@ describe("on the carrier's own Permissions page (Q-HT8)", () => {
     expect(rec.forTable("notification_routes").filter((q) => q.write)).toEqual([]);
   });
 
-  it("My alerts lists nothing for a fleet manager without Dispatch, and lists them for a recruiter given it by name", async () => {
+  it("My alerts lists no home-time alert for a fleet manager without Dispatch, and lists them for a recruiter given it by name", async () => {
     seed({ roleAccess: fmNoDispatch, userAccess: rexGiven });
     const mine = async (token: string) => ((await (await call("/api/me/alerts", token)).json()) as MyAlerts).alerts;
-    expect(await mine("fleet_manager")).toEqual([]);
+    expect((await mine("fleet_manager")).filter((a) => a.key.startsWith("home_time_"))).toEqual([]);
     expect((await mine("recruiter")).map((a) => a.key)).toContain("home_time_overdue");
   });
 });

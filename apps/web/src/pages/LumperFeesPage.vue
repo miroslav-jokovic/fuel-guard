@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
-import { LUMPER_CASE_STATES, LUMPER_CASE_STATE_LABELS, isLumperCaseOpen, type LumperCaseRow } from "@silvicom/shared";
+import { LUMPER_CASE_STATES, LUMPER_CASE_STATE_LABELS, formatDisplayDate, isLumperCaseOpen, type LumperCaseRow } from "@silvicom/shared";
 import { AppBadge, AppCallout, DataTable, DataWorkspace, FilterBar, TablePagination, useQueryState, type DataTableColumn } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -18,6 +18,7 @@ import { LUMPER_STATE_TONE, lumperAmount, lumperDaysOpen, lumperPlace, matchesLu
  * are in the URL (D-US2): a reminder can link to one case, and Back returns to the same list.
  */
 const PAGE_SIZE = 50;
+const FROZEN_HINT = "This load is older than the 90 days McLeod is read for, so what was paid and invoiced is shown as of that day. A re-bill since then is not shown here.";
 const qs = useQueryState();
 const search = qs.param("search");
 const state = qs.param("state", LUMPER_CASE_STATES);
@@ -78,6 +79,10 @@ const unmatchedColumns: DataTableColumn[] = [
 
     <AppCallout v-if="freshness?.late" tone="caution" data-test="feed">{{ freshness.text }}</AppCallout>
     <p v-else-if="freshness" class="-mt-3 text-xs text-ink-tertiary" data-test="feed">{{ freshness.text }}</p>
+    <!-- D-LRC9: through the silent weeks nobody is reminded, and the list must not let anyone think otherwise. -->
+    <p v-if="data && data.sweptAt" class="-mt-3 text-xs text-ink-tertiary" data-test="reminders">
+      {{ data.remindersOn ? "A reminder of the open cases goes out weekdays at 8:00." : "No reminders are sent yet: an admin switches them on in Settings › Notifications." }}
+    </p>
 
     <DataWorkspace>
       <FilterBar
@@ -129,6 +134,8 @@ const unmatchedColumns: DataTableColumn[] = [
         </template>
         <template #cell-state="{ row }">
           <AppBadge :tone="LUMPER_STATE_TONE[row.state]">{{ LUMPER_CASE_STATE_LABELS[row.state] }}</AppBadge>
+          <!-- Q-LRC9: an order past the read's 90 days keeps its case, but its McLeod facts stop moving. -->
+          <span v-if="!row.factsCurrent && row.factsSeenAt" class="block text-xs text-ink-tertiary" :title="FROZEN_HINT">as of {{ formatDisplayDate(row.factsSeenAt) }}</span>
         </template>
         <template #footer>
           <div class="flex flex-wrap items-center justify-between gap-3">

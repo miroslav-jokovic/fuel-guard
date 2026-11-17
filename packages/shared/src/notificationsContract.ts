@@ -176,6 +176,16 @@ export const NOTIFICATION_CATEGORIES = [
   "home_time_return_due",
   "home_time_overdue",
   "home_time_truck_limit",
+  /**
+   * Lumper fees (LUMPER-REVISED-RC-PLAN D-LRC4, D-LRC6): the daily reminder, one per row of D-LRC4 —
+   * the revised RC is missing; the load was invoiced without it; the invoice left the lumper out or
+   * billed it short. Office-facing and mutable; who receives each is a route on Settings ›
+   * Notifications (D-LRC7). Mirrored in the CHECK (0624); written only when an admin has switched the
+   * reminders on (D-LRC9, the silent weeks).
+   */
+  "lumper_rc_waiting",
+  "lumper_rc_missing_billed",
+  "lumper_billing_gap",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -233,6 +243,9 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   home_time_return_due: "Home time ending",
   home_time_overdue: "Home time overstayed",
   home_time_truck_limit: "Truck at home too long",
+  lumper_rc_waiting: "Revised RC missing",
+  lumper_rc_missing_billed: "Invoiced without the revised RC",
+  lumper_billing_gap: "Lumper not billed in full",
 };
 
 /**
@@ -337,6 +350,11 @@ export function deepLinkFor(
       return entityId ? `/recruitment/leads?lead=${entityId}` : "/recruitment/leads";
     case "ai_assistant_budget":
       return "/ask";
+    // One message names many loads, so it opens the list; the list holds the order numbers.
+    case "lumper_rc_waiting":
+    case "lumper_rc_missing_billed":
+    case "lumper_billing_gap":
+      return "/lumper-fees";
     default:
       return null;
   }

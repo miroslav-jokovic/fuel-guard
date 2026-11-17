@@ -190,6 +190,13 @@ export const lumperCaseRowSchema = z.object({
   consigneeState: z.string().nullable(),
   deliveredAt: z.string().nullable(),
   driverCode: z.string().nullable(),
+  /**
+   * When McLeod's facts about this order were last read, and whether that was the latest read
+   * (Q-LRC9). An order older than the read's 90 days stays a case until its revised RC is filed, but
+   * the read no longer carries it, so its paid and billed amounts are as of `factsSeenAt`.
+   */
+  factsSeenAt: z.string().nullable(),
+  factsCurrent: z.boolean(),
   // What (D-LRC2).
   paidAmount: z.number(),
   paidAt: z.string().nullable(),
@@ -230,5 +237,22 @@ export const lumperCasesResponseSchema = z.object({
   unmatchedPayments: z.array(lumperUnmatchedPaymentSchema),
   /** When the connector last read McLeod; null before the first sweep. The page says so when it is old. */
   sweptAt: z.string().nullable(),
+  /** Whether the daily reminder is switched on for this carrier (D-LRC9: off through the silent weeks). */
+  remindersOn: z.boolean(),
 });
+
+/** `PUT /api/lumper-reminders/settings` — an admin switches the daily reminder on or off (D-LRC9). */
+export const lumperReminderSettingsSchema = z.object({ remindersOn: z.boolean() });
+export type LumperReminderSettings = z.infer<typeof lumperReminderSettingsSchema>;
+
+/** `GET /api/lumper-reminders/settings` — the switch, who set it, and the last morning it ran. */
+export const lumperReminderStatusSchema = z.object({
+  remindersOn: z.boolean(),
+  updatedAt: z.string().nullable(),
+  updatedByName: z.string().nullable(),
+  lastRun: z
+    .object({ runOn: z.string(), cases: z.number().nullable(), bells: z.number().nullable(), emails: z.number().nullable(), texts: z.number().nullable() })
+    .nullable(),
+});
+export type LumperReminderStatus = z.infer<typeof lumperReminderStatusSchema>;
 export type LumperCasesResponse = z.infer<typeof lumperCasesResponseSchema>;
