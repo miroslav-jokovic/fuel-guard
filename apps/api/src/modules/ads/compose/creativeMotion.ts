@@ -18,7 +18,7 @@ import { drawnCopy } from "./creativePictures.js";
  *
  *   the picture ──► an image-to-video model's clip (the render road, `input.clip`: cut to the frame first)
  *   per language: the still's layers ──► the timeline ──► the check of the frames before the last ──► the join
- *   ──► one MP4 per language in `ad-assets`, and the record `ads_creatives.motion` will hold (0625)
+ *   ──► one MP4 per language in `ad-assets`, and the record `ads_creatives.motion` will hold (0624)
  *
  * ONE clip serves both languages: the picture is the same, only the words differ, and a second clip would cost a
  * second charge to show a Spanish reader a different truck.
