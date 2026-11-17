@@ -25,7 +25,7 @@ const annual = ref<AnnualDueDto[]>([]);
 vi.mock("@/features/maintenance/useShopBacklog", async () => {
   const { ref: r } = await import("vue");
   const q = (data: unknown) => ({ data, isLoading: r(false), isError: r(false), refetch: vi.fn() });
-  return { useOpenWorkOrdersQuery: () => q(orders), useUnresolvedDefectsQuery: () => q(defects), useAnnualDueQuery: () => q(annual) };
+  return { useOpenWorkOrdersQuery: () => q(orders), useUnresolvedDefectsQuery: () => q(defects), useAnnualDueQuery: () => q(annual), useWorkOrderDetailQuery: () => ({ ...q(r(null)), isPending: r(false), isFetching: r(false) }) };
 });
 vi.mock("@/composables/useOrgTimezone", () => ({
   useOrgTimezone: () => ({ zone: computed(() => "America/Chicago"), isResolved: computed(() => true) }),
@@ -101,6 +101,18 @@ describe("open work orders", () => {
 
   it("says nothing is in progress when FleetPal has nothing open", async () => {
     expect((await page(WorkOrdersPage, "/shop/work-orders")).text()).toContain("No open work orders.");
+  });
+
+  it("opens an order in full from its row, and keeps which one in the URL (F14)", async () => {
+    orders.value = [order()];
+    const router = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
+    await router.push("/shop/work-orders");
+    await router.isReady();
+    const w = mount(WorkOrdersPage as never, { global: { plugins: [router] } });
+    await flushPromises();
+    await w.find("tbody button").trigger("click"); // the reference number, an AppButton
+    await flushPromises();
+    expect(router.currentRoute.value.query.wo).toBe("w1");
   });
 
   it("finds an order by unit from a pasted search", async () => {

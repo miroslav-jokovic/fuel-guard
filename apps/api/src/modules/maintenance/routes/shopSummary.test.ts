@@ -303,3 +303,33 @@ describe("the lists behind it", () => {
     }
   });
 });
+
+describe("one work order in full (F14) — GET /work-orders/:id", () => {
+  const ROW = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+  const byId = (q: RecordedQuery) => [{ id: ROW, fleetpal_id: "fp-wo-1", unit_fleetpal_id: "fpu-1", reference_number: "WO-5436", status: "CLOSED", vendor_created_at: null, completed: null, description: "Brakes" }].filter((r) =>
+    q.filters().every((f) => (Array.isArray(f.val) ? f.val.includes((r as Record<string, unknown>)[f.col]) : f.col === "org_id" || (r as Record<string, unknown>)[f.col] === f.val)),
+  );
+
+  it("answers the order with its invoices and the unit's number, read inside the caller's org", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        fleetpal_sync_state: [],
+        fleetpal_work_orders: byId,
+        fleetpal_units: UNITS,
+        fleetpal_jobs: [],
+        fleetpal_purchase_orders: [{ fleetpal_id: "po-1", work_order_fleetpal_id: "fp-wo-1", reference_number: "PO-1" }],
+        fleetpal_po_invoices: [{ purchase_order_fleetpal_id: "po-1", invoice_number: "INV-88", invoice_date: "2026-10-09T00:00:00Z", invoice_type: "STANDARD", amount: "120.5" }],
+      },
+    });
+    const { status, body } = await call(`work-orders/${ROW}`);
+    expect(status).toBe(200);
+    expect(body.data).toMatchObject({ unitNumber: "654", asOf: null, record: { reference: "WO-5436", invoices: [{ invoiceNumber: "INV-88", amount: 120.5 }] } });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("is a 404 for an id the org does not have, and a 400 for something that is not an id", async () => {
+    rec = createSupabaseRecorder({ tables: { fleetpal_work_orders: [] } });
+    expect((await call("work-orders/1a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d")).status).toBe(404);
+    expect((await call("work-orders/WO-5436")).status).toBe(400);
+  });
+});

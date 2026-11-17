@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppCard as BaseCard, DataTable, TablePagination, type DataTableColumn } from "@silvicom/ui";
+import { AppCard as BaseCard, DataTable, TablePagination, useQueryState, type DataTableColumn } from "@silvicom/ui";
 import type { UnitShopFileDto, UnitWorkOrderHistoryDto } from "@silvicom/shared";
 import { formatDate } from "@/lib/format";
 import WorkOrderRows from "./WorkOrderRows.vue";
+import WorkOrderDrawer from "./WorkOrderDrawer.vue";
 
 /**
  * In the shop, and the repair history — one truck's repair RECORD from FleetPal
@@ -11,6 +12,9 @@ import WorkOrderRows from "./WorkOrderRows.vue";
  * now, what an inspection found that nobody has fixed, and what was done before with how long the unit
  * was out. No money: the bill is F9b's, behind the coverage bound D-FP4 requires, and lives on the
  * Repair bills page — the history must not vanish for want of a ledger figure.
+ *
+ * Every order, open or past, opens in full (`WorkOrderDrawer`, F14): one order's own jobs, lines and
+ * invoices, which D-FP27 allows because they are one bill and not a total. `?wo=` holds it.
  */
 const props = defineProps<{ file: UnitShopFileDto }>();
 
@@ -24,6 +28,7 @@ const PAGE_SIZE = 10;
 const page = ref(1);
 const history = computed(() => props.file.history as unknown as Record<string, unknown>[]);
 const pageRows = computed(() => history.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+const openId = useQueryState().param("wo");
 const work = (r: UnitWorkOrderHistoryDto) => r.jobs.join(", ") || r.description || r.referenceNumber || "Work order";
 </script>
 
@@ -31,7 +36,7 @@ const work = (r: UnitWorkOrderHistoryDto) => r.jobs.join(", ") || r.description 
   <section id="section-repairs" class="scroll-mt-6 space-y-4" data-test="unit-repairs">
     <BaseCard padding="none">
       <h2 class="border-b border-edge-subtle px-5 py-3 text-sm font-semibold text-ink">In the shop now</h2>
-      <WorkOrderRows :orders="file.openWorkOrders" :empty-text="file.fleetpal.unitIds.length ? 'Nothing open in the shop for this unit.' : 'FleetPal has no unit linked to this one, so its work orders cannot be found. Link it under Settings → FleetPal.'" />
+      <WorkOrderRows openable :orders="file.openWorkOrders" @open="openId = $event" :empty-text="file.fleetpal.unitIds.length ? 'Nothing open in the shop for this unit.' : 'FleetPal has no unit linked to this one, so its work orders cannot be found. Link it under Settings → FleetPal.'" />
     </BaseCard>
 
     <BaseCard v-if="file.openDefects.length" padding="none" data-test="unit-defects">
@@ -46,7 +51,7 @@ const work = (r: UnitWorkOrderHistoryDto) => r.jobs.join(", ") || r.description 
 
     <div class="space-y-3">
       <h2 class="text-sm font-semibold text-ink">Repair history</h2>
-      <DataTable :columns="HISTORY_COLUMNS" :rows="pageRows" row-key="id" empty-text="No past work order on this unit.">
+      <DataTable :columns="HISTORY_COLUMNS" :rows="pageRows" row-key="id" empty-text="No past work order on this unit." :row-class="() => 'cursor-pointer'" @row-click="(r) => (openId = String(r.id))">
         <template #cell-when="{ row }">{{ (row as unknown as UnitWorkOrderHistoryDto).completedAt ? formatDate((row as unknown as UnitWorkOrderHistoryDto).completedAt!) : (row as unknown as UnitWorkOrderHistoryDto).openedAt ? `Opened ${formatDate((row as unknown as UnitWorkOrderHistoryDto).openedAt!)}` : "—" }}</template>
         <template #cell-work="{ row }">
           <span class="text-ink">{{ work(row as unknown as UnitWorkOrderHistoryDto) }}</span>
@@ -59,5 +64,6 @@ const work = (r: UnitWorkOrderHistoryDto) => r.jobs.join(", ") || r.description 
         </template>
       </DataTable>
     </div>
+    <WorkOrderDrawer :id="openId || null" @close="openId = ''" />
   </section>
 </template>

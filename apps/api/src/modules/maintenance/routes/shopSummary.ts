@@ -1,10 +1,10 @@
 import { Router } from "express";
-import type { ShopSummary } from "@silvicom/shared";
+import { isRecordId, type ShopSummary } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { readOpenWorkOrders, readShopBacklog, readUnresolvedDefects } from "../../fleetpal/index.js";
+import { readOpenWorkOrders, readShopBacklog, readUnresolvedDefects, readWorkOrderDetail } from "../../fleetpal/index.js";
 import { listLowStock } from "../inventory/stock.js";
 import { isServiceError } from "../inventory/types.js";
 import { statusForServiceError } from "../inventory/httpStatus.js";
@@ -75,6 +75,28 @@ export function shopSummaryRouter(): Router {
       }),
     );
   list("/work-orders", readOpenWorkOrders, "open work orders");
+  /**
+   * One work order in full — jobs, lines and the vendor invoices billed against it (F14, D-FP27) — for
+   * the drawer the Shop's work order rows open. The id is OUR row's; another org's is a 404.
+   */
+  router.get(
+    "/work-orders/:id",
+    requireOrg,
+    requireSection("maintenance", "view"),
+    asyncHandler(async (req, res) => {
+      const id = String(req.params.id);
+      if (!isRecordId(id)) {
+        res.status(400).json(apiError("bad_request", "That is not a work order id."));
+        return;
+      }
+      const data = await readWorkOrderDetail(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id);
+      if (!data) {
+        res.status(404).json(apiError("not_found", "That work order is not in FleetPal's record for this fleet."));
+        return;
+      }
+      res.json({ ok: true, data });
+    }),
+  );
   list("/defects", readUnresolvedDefects, "unresolved defects");
   list("/annual-disagreements", readAnnualDisagreements, "annual inspection dates");
   // The worklist's fourth group (D-MX2): due within 30 days or overdue, by our record.
