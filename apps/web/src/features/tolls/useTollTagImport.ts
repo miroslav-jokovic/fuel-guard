@@ -148,7 +148,10 @@ export async function downloadTollTagSheet(vehicles: readonly Vehicle[], tags: r
     }
   }
   const list = `"${TOLL_PROVIDERS.map((p) => TOLL_PROVIDER_LABEL[p]).join(",")}"`;
-  for (let r = 2; r <= ws.rowCount + 200; r++) {
+  // Fixed once: touching a cell creates its row, so `ws.rowCount` grows inside the loop and a bound
+  // read from it every turn never ends (it hung the page on the first browser pass).
+  const lastRow = ws.rowCount + 200;
+  for (let r = 2; r <= lastRow; r++) {
     ws.getCell(r, 2).dataValidation = { type: "list", allowBlank: true, formulae: [list] };
     ws.getCell(r, 3).numFmt = "@";
     ws.getCell(r, 4).numFmt = "mm/dd/yyyy";

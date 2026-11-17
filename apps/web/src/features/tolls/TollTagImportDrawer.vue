@@ -106,7 +106,7 @@ const columns: DataTableColumn[] = [
   { key: "unit", label: "Truck", cellClass: "font-medium text-ink" },
   { key: "tag", label: "Tag" },
   { key: "status", label: "" },
-  { key: "what", label: "What happens", cellClass: "text-ink-secondary" },
+  { key: "what", label: "What happens", cellClass: "min-w-64 text-ink-secondary" },
 ];
 
 async function download() {
@@ -166,7 +166,7 @@ function close() {
     @close="close"
   >
     <div class="space-y-6">
-      <ol class="space-y-4 text-sm text-ink-secondary">
+      <ol v-if="!preview" class="space-y-4 text-sm text-ink-secondary" data-test="tag-import-steps">
         <li class="flex flex-wrap items-center justify-between gap-3">
           <span><span class="font-medium text-ink">1. Download the sheet.</span> It lists every truck in service, with the tags already on file.</span>
           <AppButton size="sm" :disabled="preparing" data-test="tag-sheet-download" @click="download">
@@ -185,7 +185,7 @@ function close() {
         :accept="TOLL_TAG_SHEET_ACCEPT"
         :busy="reading"
         :disabled="importer.running.value"
-        label="Drop the filled-in sheet here"
+        :label="preview ? 'Drop a corrected sheet here to check it again' : 'Drop the filled-in sheet here'"
         hint="Excel (.xlsx or .xls), OpenDocument (.ods) or CSV. Your own list works too, if it has Truck, Provider, Tag number and On truck since columns."
         @files="onFiles"
       />
@@ -206,7 +206,7 @@ function close() {
           Lines to fix are left out. Fix them in the file and import it again; lines already right are not repeated.
         </p>
         <!-- ui-adoption: never-empty — the section renders only when the sheet has at least one line (`rows.length`). -->
-        <DataTable :columns="columns" :rows="rows" row-key="id" data-test="tag-import-lines">
+        <DataTable :columns="columns" :rows="rows" row-key="id" :nowrap="false" data-test="tag-import-lines">
           <template #cell-status="{ row }">
             <AppBadge :tone="STATUS[row.status as Status].tone" class="whitespace-nowrap">{{ STATUS[row.status as Status].label }}</AppBadge>
           </template>
