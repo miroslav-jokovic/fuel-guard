@@ -12,7 +12,6 @@ import { publishCampaign, publishReplacement } from "../platforms/meta/publishCa
 import { refreshCampaign } from "../compose/refreshCampaign.js";
 import { composeCreative } from "../compose/composeCreative.js";
 import { HIGGSFIELD_CREDIT_PRICES } from "../creative/higgsfield/prices.js";
-import { HIGGSFIELD_VIDEO_MODEL } from "../creative/higgsfield/videoModels.js";
 import { readAdClip, storeAdClip } from "../creative/motion/motionClip.js";
 import { renderChoiceFor } from "../creative/higgsfield/simulatedRender.js";
 import { renderStatus, type RenderInput, type RenderOutcome } from "../creative/higgsfield/render.js";
@@ -95,7 +94,7 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
         render: queuedRender(deps.admin, undefined, choice.prices),
         readAsset: (orgId, ref) => readAdAsset(deps.admin, orgId, ref),
         storeAsset: (orgId, bytes) => storeAdAsset(deps.admin, orgId, bytes),
-        motion: motionDeps(deps.admin),
+        motion: motionDeps(deps.admin, choice.videoModel),
       }, campaign);
     },
     // B2c2: the campaign, its ad set, a form per language and an ad per approved creative and language,
@@ -119,7 +118,7 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
         render: queuedRender(deps.admin, undefined, choice.prices),
         readAsset: (orgId: string, ref: Parameters<typeof readAdAsset>[2]) => readAdAsset(deps.admin, orgId, ref),
         storeAsset: (orgId: string, bytes: Buffer) => storeAdAsset(deps.admin, orgId, bytes),
-        motion: motionDeps(deps.admin),
+        motion: motionDeps(deps.admin, choice.videoModel),
       };
       const registry = { admin: deps.admin, env: deps.env, now: deps.now };
       return refreshCampaign({
@@ -133,12 +132,13 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
 }
 
 /**
- * What compose sets a still moving with (V4). The model is the one the owner's sitting chooses (Q-APX12) and is
- * null until then, so a motion angle's creative reaches review as its still with "no video model chosen yet" —
- * on a simulator connection too: the simulator draws stills and has no video model yet.
+ * What compose sets a still moving with (V4). The model follows the campaign's connection, as the still's does
+ * (`renderChoiceFor`): the simulator's on a simulator connection off production; otherwise the one the owner's
+ * sitting chooses (Q-APX12), null until then, so a motion angle's creative reaches review as its still with
+ * "no video model chosen yet".
  */
-const motionDeps = (admin: SupabaseClient) => ({
-  videoModel: HIGGSFIELD_VIDEO_MODEL,
+const motionDeps = (admin: SupabaseClient, videoModel: string | null) => ({
+  videoModel,
   readClip: (orgId: string, ref: Parameters<typeof readAdClip>[2]) => readAdClip(admin, orgId, ref),
   storeClip: (orgId: string, bytes: Buffer) => storeAdClip(admin, orgId, bytes),
 });

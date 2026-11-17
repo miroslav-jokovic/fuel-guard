@@ -156,6 +156,8 @@ describe("the section gates on the navigation guard", () => {
     ["/recruitment/inquiries", "recruitment", "auditor", "technician"],
     ["/fleet-report", "accounting", "accountant", "dispatcher"],
     ["/billing", "billing", "accountant", "fleet_manager"],
+    // The statements gate on accounting; the fleet manager who keeps the trucks' tags gets nothing here (D-TL11).
+    ["/tolls", "accounting", "accountant", "fleet_manager"],
     ["/shop", "maintenance", "technician", "dispatcher"],
     ["/shop/units", "maintenance", "accountant", "recruiter"],
   ];

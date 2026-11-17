@@ -68,6 +68,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
     "items": [
       "Fleet report → /fleet-report",
       "Customer invoices → /billing",
+      "Tolls → /tolls",
     ],
   },
   {
@@ -139,6 +140,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Fleet report → /fleet-report",
       "Customer invoices → /billing",
+      "Tolls → /tolls",
     ],
   },
 ]
@@ -191,6 +193,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Fleet report → /fleet-report",
       "Customer invoices → /billing",
+      "Tolls → /tolls",
     ],
   },
 ]
@@ -237,6 +240,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Fleet report → /fleet-report",
       "Customer invoices → /billing",
+      "Tolls → /tolls",
     ],
   },
 ]
@@ -317,6 +321,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
     "items": [
       "Fleet report → /fleet-report",
       "Customer invoices → /billing",
+      "Tolls → /tolls",
     ],
   },
   {
@@ -400,6 +405,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
     "items": [
       "Fleet report → /fleet-report",
       "Customer invoices → /billing",
+      "Tolls → /tolls",
     ],
   },
   {
@@ -480,6 +486,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
     "items": [
       "Fleet report → /fleet-report",
       "Customer invoices → /billing",
+      "Tolls → /tolls",
     ],
   },
   {
@@ -561,6 +568,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Fleet report → /fleet-report",
       "Customer invoices → /billing",
+      "Tolls → /tolls",
     ],
   },
 ]
@@ -634,6 +642,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Fleet report → /fleet-report",
       "Customer invoices → /billing",
+      "Tolls → /tolls",
     ],
   },
 ]
@@ -705,6 +714,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Fleet report → /fleet-report",
       "Customer invoices → /billing",
+      "Tolls → /tolls",
     ],
   },
 ]
@@ -785,6 +795,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
     "items": [
       "Fleet report → /fleet-report",
       "Customer invoices → /billing",
+      "Tolls → /tolls",
     ],
   },
   {

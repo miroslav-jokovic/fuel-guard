@@ -378,6 +378,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/billing",
   },
   {
+    "name": "tolls",
+    "params": {},
+    "url": "/tolls",
+  },
+  {
     "name": "shop",
     "params": {},
     "url": "/shop",
@@ -1847,6 +1852,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "terms-of-use",
     "path": "/terms",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Tolls",
+    },
+    "name": "tolls",
+    "path": "/tolls",
     "redirect": null,
   },
   {
