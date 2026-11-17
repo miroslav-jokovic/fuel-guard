@@ -109,7 +109,7 @@ function registerDispatchLinkRoutes(router: Router): void {
           return;
         }
       }
-      const r = await linkDispatcherUser(admin, orgId, dispatcherId, userId);
+      const r = await linkDispatcherUser(admin, orgId, dispatcherId, userId, new Date(), req.auth!.userId);
       if (!r.ok) {
         res.status(r.status).json(apiError(r.code, r.message));
         return;

@@ -4,6 +4,7 @@ import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { ingestLumperSweep } from "../lumperIngest.js";
+import { addUnknownDispatchers } from "../tmsDispatcherIngest.js";
 
 /**
  * `POST /api/tms/lumper` — one lumper sweep from the connector (LUMPER-REVISED-RC-PLAN.md LRC2).
@@ -25,7 +26,17 @@ export function registerTmsLumperRoutes(router: Router): void {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await ingestLumperSweep(admin, req.tms!.orgId, parsed.data);
-      res.json({ ok: true, ...result });
+      // The orders' dispatchers the roster has never carried (`roman`, `jake`), so their cases can be
+      // linked to a person. After the sweep, and never failing it: the sweep is already recorded, and a
+      // login missed here is offered again by the next hourly sweep.
+      let dispatchersAdded = 0;
+      try {
+        dispatchersAdded = await addUnknownDispatchers(admin, req.tms!.orgId, req.tms!.provider,
+          parsed.data.orders.map((o) => ({ external_id: o.dispatcher_user_id, display_name: o.dispatcher_name })));
+      } catch (e) {
+        console.error(`[lumper] org ${req.tms!.orgId}: dispatchers not added — ${e instanceof Error ? e.message : String(e)}`);
+      }
+      res.json({ ok: true, ...result, dispatchersAdded });
     }),
   );
 }

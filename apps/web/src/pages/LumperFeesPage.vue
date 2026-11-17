@@ -18,6 +18,7 @@ import { LUMPER_STATE_TONE, lumperAmount, lumperDaysOpen, lumperPlace, matchesLu
  * are in the URL (D-US2): a reminder can link to one case, and Back returns to the same list.
  */
 const PAGE_SIZE = 50;
+const NOT_LINKED_HINT = "This McLeod login is not linked to a person in Silvicom 360, so the daily reminder cannot reach them. Link it on Settings › McLeod fleets.";
 const FROZEN_HINT = "This load is older than the 90 days McLeod is read for, so what was paid and invoiced is shown as of that day. A re-bill since then is not shown here.";
 const qs = useQueryState();
 const search = qs.param("search");
@@ -122,8 +123,10 @@ const unmatchedColumns: DataTableColumn[] = [
           <span class="text-ink-secondary">{{ lumperPlace(row) }}</span>
         </template>
         <!-- Blank means the order carries no operations user in McLeod, not that the read failed. -->
-        <template #cell-dispatcherName="{ value }">
+        <template #cell-dispatcherName="{ value, row }">
           <span :class="value ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ value ?? "Unassigned" }}</span>
+          <!-- Plan §4: the reminder cannot reach a dispatcher whose McLeod login is not linked to a person. -->
+          <span v-if="value && !row.dispatcherLinked" class="block text-xs text-ink-tertiary" :title="NOT_LINKED_HINT">not linked</span>
         </template>
         <template #cell-paid="{ row }">
           <span class="font-semibold" :title="lumperAmount(row).note ?? undefined">{{ lumperAmount(row).text }}</span>

@@ -69,7 +69,10 @@ describe("POST /api/tms/lumper", () => {
     holder.client = rec.client;
     const res = await post(sweep());
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, orders: 1, charges: 1, payments: 1, bills: 0, chargesRemoved: 0, paymentsRemoved: 2, billsRemoved: 0, casesOpened: 1 });
+    // `kane` is the order's dispatcher and this carrier's roster has never carried him: added, so his
+    // cases can be linked to a person (Q-LRC5).
+    expect(await res.json()).toEqual({ ok: true, orders: 1, charges: 1, payments: 1, bills: 0, chargesRemoved: 0, paymentsRemoved: 2, billsRemoved: 0, casesOpened: 1, dispatchersAdded: 1 });
+    expect((rec.writtenRows("tms_dispatchers") as { external_id: string; org_id: string }[]).map((r) => [r.org_id, r.external_id])).toEqual([[ORG, "kane"]]);
     const calls = rec.rpcs();
     expect(calls).toHaveLength(1);
     expect(calls[0]!.fn).toBe("lumper_sweep_apply");
@@ -98,7 +101,7 @@ describe("POST /api/tms/lumper", () => {
     holder.client = rec.client;
     const res = await post(sweep({ orders: [], charges: [], payments: [payment] }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, orders: 0, charges: 0, payments: 0, bills: 0, chargesRemoved: 0, paymentsRemoved: 0, billsRemoved: 0, casesOpened: 0, skipped: "empty" });
+    expect(await res.json()).toEqual({ ok: true, orders: 0, charges: 0, payments: 0, bills: 0, chargesRemoved: 0, paymentsRemoved: 0, billsRemoved: 0, casesOpened: 0, skipped: "empty", dispatchersAdded: 0 });
     expect(rec.rpcs()).toHaveLength(0);
   });
 

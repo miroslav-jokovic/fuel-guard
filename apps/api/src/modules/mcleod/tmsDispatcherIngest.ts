@@ -67,6 +67,46 @@ export async function ingestDispatchers(
 }
 
 /**
+ * Add the McLeod logins another feed names that the roster has never carried — INSERT OR SKIP, never
+ * an update (LUMPER-REVISED-RC-PLAN Q-LRC5, 2026-11-17).
+ *
+ * The roster above is read from the open board's movements, so a login that runs orders but is not on
+ * today's board never arrives. Measured on LME that day: `roman` ("ROMAN", 377 orders in 90 days) and
+ * `jake` (30) are the order's `operations_user` on lumper cases and are absent here, while `romann` —
+ * a different McLeod user — is present; so their cases could not be linked to anybody on Settings ›
+ * McLeod fleets. The lumper sweep carries each order's `operations_user` and its name; this adds the
+ * missing ones so the office (or `autoLinkDispatchers`) can link them.
+ *
+ * `ignoreDuplicates`: a login the roster already holds is not touched at all — not its name, not its
+ * `is_system`, not its link — so this cannot fight the roster's own upsert. The row is complete for
+ * the insert (`lint:upserts`). `is_system` is false because only the agent decides system accounts
+ * (`MCLEOD_SYSTEM_DISPATCHERS`), and the two it names (loadmaster, lmeadm) are already held here; the
+ * roster's next sweep corrects any row it carries.
+ */
+export async function addUnknownDispatchers(
+  admin: SupabaseClient,
+  orgId: string,
+  provider: string,
+  seen: readonly { external_id: string | null; display_name: string | null }[],
+): Promise<number> {
+  const byId = new Map<string, string | null>();
+  for (const d of seen) if (d.external_id && d.external_id.trim()) byId.set(d.external_id.trim(), d.display_name?.trim() || null);
+  if (byId.size === 0) return 0;
+  // Its own read, and a failed one THROWS: read as "none known", every login would be offered again.
+  // (`knownDispatcherIds` below answers empty on a failed read, which is right for its reporting use.)
+  const { data: have, error: readErr } = await admin.from("tms_dispatchers").select("external_id").eq("org_id", orgId).eq("provider", provider);
+  if (readErr) throw new Error(`[tms-dispatchers] not read: ${readErr.message}`);
+  const known = new Set(((have ?? []) as { external_id: string }[]).map((r) => r.external_id));
+  const rows = [...byId]
+    .filter(([id]) => !known.has(id))
+    .map(([external_id, display_name]) => ({ org_id: orgId, provider, external_id, display_name, is_system: false, is_active: true, updated_at: new Date().toISOString() }));
+  if (rows.length === 0) return 0;
+  const { error } = await admin.from("tms_dispatchers").upsert(rows, { onConflict: "org_id,provider,external_id", ignoreDuplicates: true });
+  if (error) throw new Error(`[tms-dispatchers] ${rows.length} unknown dispatcher(s) not added: ${error.message}`);
+  return rows.length;
+}
+
+/**
  * The dispatcher ids this org already knows, for reporting a load whose dispatcher has not arrived.
  *
  * Reported, never refused: `loads.dispatcher_external_id` deliberately has no foreign key (0344), so

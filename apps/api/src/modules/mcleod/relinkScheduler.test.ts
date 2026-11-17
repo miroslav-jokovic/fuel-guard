@@ -37,4 +37,27 @@ describe("the scheduled relink pass", () => {
     expect(error).toHaveBeenCalledWith(expect.stringContaining(`[mcleod-relink] org ${A}: pass failed`));
     error.mockRestore();
   });
+
+  it("links each McLeod login the data proves to its person, as the system's audited act (0626)", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const STEVE = "90000000-0000-4000-8000-0000000000aa";
+    const rec = createSupabaseRecorder({
+      tables: {
+        org_integrations: [{ org_id: A, provider: "mcleod" }],
+        mcleod_dispatch_movements: { pages: [[]] },
+        tms_dispatchers: (q) => (q.write ? [{ external_id: "steve" }] : [{ org_id: A, provider: "mcleod", external_id: "steve", display_name: "steve", is_system: false, is_active: true, user_id: null }]),
+        tms_fleets: [],
+        tms_dispatcher_link_holds: [],
+        audit_logs: [],
+      },
+      rpc: (fn: string) => (fn === "org_member_directory" ? [{ user_id: STEVE, full_name: "Steve Dispatch", email: "steve@silvicominc.com", role: "dispatcher", suspended_at: null }] : null),
+    });
+    await runRelinkPass(rec.client, NOW);
+    expect(rec.writtenRows("tms_dispatchers")).toEqual([expect.objectContaining({ user_id: STEVE })]);
+    expect(rec.writtenRows("audit_logs")).toEqual([
+      expect.objectContaining({ org_id: A, actor_id: null, action: "integration.mcleod.dispatcher_auto_linked", meta: expect.objectContaining({ dispatcherId: "steve", userId: STEVE }) }),
+    ]);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("linked 1 McLeod login(s)"));
+    log.mockRestore();
+  });
 });

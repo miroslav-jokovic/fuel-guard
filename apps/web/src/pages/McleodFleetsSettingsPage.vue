@@ -115,7 +115,7 @@ const asId = (v: string | number | null | undefined): string | null => (v == nul
 
     <SettingsSection
       title="Dispatchers"
-      description="McLeod logins that have dispatched a load. Link each to the person who uses it; McLeod's system accounts are not listed."
+      description="McLeod logins that have dispatched a load or run a lumper order. A login is linked by itself, within ten minutes, when exactly one person's login email is that name before the @ (steve@… for steve, never stevens@…). Link any other by hand. A link you remove stays removed. McLeod's system accounts are not listed."
     >
       <DataTable
         :columns="loginColumns"

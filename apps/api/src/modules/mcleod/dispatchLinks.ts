@@ -123,6 +123,9 @@ export async function linkFleet(
 /**
  * Link a McLeod login to one of our users, or unlink it (null). The caller has already checked the
  * user is a member of THIS org (org's `lookupMemberRole`) — a link to a stranger is refused there.
+ *
+ * The office's word is final both ways (0626): an UNLINK of a linked login leaves a hold, so the
+ * automatic linker below never puts it back; a LINK by hand releases any hold on the login.
  */
 export async function linkDispatcherUser(
   admin: SupabaseClient,
@@ -130,9 +133,30 @@ export async function linkDispatcherUser(
   dispatcherId: string,
   userId: string | null,
   now: Date = new Date(),
+  actorId: string | null = null,
 ): Promise<LinkWrite> {
   if (!(await dispatcherExists(admin, orgId, dispatcherId)))
     return { ok: false, status: 404, code: "unknown_dispatcher", message: `McLeod has sent no dispatcher "${dispatcherId}"` };
+  const { data: before, error: readErr } = await admin
+    .from("tms_dispatchers")
+    .select("user_id")
+    .eq("org_id", orgId)
+    .eq("provider", DISPATCH_PROVIDER)
+    .eq("external_id", dispatcherId)
+    .maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+  const was = (before as { user_id: string | null } | null)?.user_id ?? null;
+
+  if (userId === null && was !== null) {
+    // The hold FIRST: if it cannot be written, the link stays and the office sees the error, rather
+    // than an unlink the next automatic pass would quietly undo.
+    const { error: holdErr } = await admin.from("tms_dispatcher_link_holds").upsert(
+      { org_id: orgId, provider: DISPATCH_PROVIDER, external_id: dispatcherId, user_id: was, held_by: actorId, held_at: now.toISOString() },
+      { onConflict: "org_id,provider,external_id" },
+    );
+    if (holdErr) throw new Error(`tms_dispatcher_link_holds: ${holdErr.message}`);
+  }
+
   const { error } = await admin
     .from("tms_dispatchers")
     .update({ user_id: userId, updated_at: now.toISOString() })
@@ -140,5 +164,93 @@ export async function linkDispatcherUser(
     .eq("provider", DISPATCH_PROVIDER)
     .eq("external_id", dispatcherId);
   if (error) throw new Error(error.message);
+
+  if (userId !== null) {
+    const { error: releaseErr } = await admin
+      .from("tms_dispatcher_link_holds")
+      .delete()
+      .eq("org_id", orgId)
+      .eq("provider", DISPATCH_PROVIDER)
+      .eq("external_id", dispatcherId);
+    if (releaseErr) throw new Error(`tms_dispatcher_link_holds: ${releaseErr.message}`);
+  }
   return { ok: true };
+}
+
+export interface AutoLink {
+  dispatcherId: string;
+  userId: string;
+}
+
+/** The part of an email address before the @, lower-cased; null for anything that is not an address. */
+const loginOf = (email: string | null): string | null => {
+  const at = (email ?? "").trim().toLowerCase().split("@");
+  return at.length === 2 && at[0] && at[1] ? at[0] : null;
+};
+
+/**
+ * Which McLeod logins to link to which person, from proof only — pure, so every rule below is a test.
+ *
+ * A login is linked when ALL of these hold:
+ *  · it is a person's login (not `is_system`), active, and linked to nobody;
+ *  · the office has not unlinked it (no hold, 0626);
+ *  · exactly ONE active office member's login email has, before the @, exactly the McLeod login
+ *    (`steve` ↔ steve@silvicominc.com), compared without case;
+ *  · that member is linked to no other McLeod login, and no other login in this pass picks them.
+ * Anything less is left for a person: two members called steve@ at two domains, a member who already
+ * holds a login, a name that only looks alike ("asen" and "Asen Manager" <alex@…>). A wrong link sends
+ * one dispatcher's reminders and board to somebody else; a missing link costs one manual pick.
+ */
+export function planAutoLinks(
+  dispatchers: readonly Pick<DispatchLinks["dispatchers"][number], "id" | "isSystem" | "isActive" | "userId">[],
+  members: readonly { userId: string; email: string | null; role: string }[],
+  held: ReadonlySet<string>,
+): AutoLink[] {
+  const taken = new Set(dispatchers.map((d) => d.userId).filter((u): u is string => u !== null));
+  const byLogin = new Map<string, string[]>();
+  for (const m of members) {
+    const login = loginOf(m.email);
+    if (login) byLogin.set(login, [...(byLogin.get(login) ?? []), m.userId]);
+  }
+  const wanted = new Map<string, string[]>(); // userId → logins that would pick them
+  for (const d of dispatchers) {
+    if (d.isSystem || !d.isActive || d.userId !== null || held.has(d.id)) continue;
+    const found = byLogin.get(d.id.trim().toLowerCase()) ?? [];
+    if (found.length !== 1 || taken.has(found[0]!)) continue;
+    wanted.set(found[0]!, [...(wanted.get(found[0]!) ?? []), d.id]);
+  }
+  return [...wanted].filter(([, logins]) => logins.length === 1).map(([userId, [dispatcherId]]) => ({ dispatcherId: dispatcherId!, userId }));
+}
+
+/**
+ * Make the links `planAutoLinks` proves, for one org. Each write only fills an EMPTY link
+ * (`user_id is null`), so an office link made a moment earlier is never overwritten. Returns what was
+ * linked, for the caller's audit rows and log. A failed read throws: nothing is linked on half the facts.
+ */
+export async function autoLinkDispatchers(
+  admin: SupabaseClient,
+  orgId: string,
+  members: readonly { userId: string; email: string | null; role: string }[],
+  now: Date = new Date(),
+): Promise<AutoLink[]> {
+  const [{ dispatchers }, holds] = await Promise.all([
+    readFleetDispatchers(admin, orgId),
+    admin.from("tms_dispatcher_link_holds").select("external_id").eq("org_id", orgId).eq("provider", DISPATCH_PROVIDER),
+  ]);
+  if (holds.error) throw new Error(`tms_dispatcher_link_holds: ${holds.error.message}`);
+  const held = new Set(((holds.data ?? []) as { external_id: string }[]).map((h) => h.external_id));
+  const made: AutoLink[] = [];
+  for (const link of planAutoLinks(dispatchers, members, held)) {
+    const { data, error } = await admin
+      .from("tms_dispatchers")
+      .update({ user_id: link.userId, updated_at: now.toISOString() })
+      .eq("org_id", orgId)
+      .eq("provider", DISPATCH_PROVIDER)
+      .eq("external_id", link.dispatcherId)
+      .is("user_id", null)
+      .select("external_id");
+    if (error) throw new Error(error.message);
+    if ((data ?? []).length === 1) made.push(link);
+  }
+  return made;
 }
