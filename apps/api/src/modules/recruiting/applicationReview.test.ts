@@ -648,6 +648,7 @@ describe("approving it", () => {
     const mail = sent.fn.mock.calls[0]![1] as { to: string[]; subject: string; text: string; html: string };
     expect(mail.to).toEqual(["susan@example.test"]);
     expect(mail.subject).toBe("Silvicom Inc has approved your application");
+    expect((mail as { replyTo?: string }).replyTo).toBe("recruiting");
     expect(mail.text).toContain("You sign it in their office");
     /**
      * ⚠ AF5 (D-AF3). This assertion has now been reversed twice. Until 2026-09-18 the email carried

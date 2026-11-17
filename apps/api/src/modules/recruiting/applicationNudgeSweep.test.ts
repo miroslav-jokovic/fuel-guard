@@ -98,6 +98,7 @@ describe("the sweep", () => {
     // moment it exists anywhere.
     const [email] = sent.fn.mock.calls[0]!.slice(1) as [{ text: string; to: string[] }];
     expect(email.to).toEqual(["susan@example.test"]);
+    expect((email as { replyTo?: string }).replyTo).toBe("recruiting");
     expect(email.text).toContain("https://app.test/apply/");
     expectOrgScoped(rec, ORG, {
       // Filtered by primary key, which IS the tenant id — the `dqAlertScheduler.test.ts` exemption.

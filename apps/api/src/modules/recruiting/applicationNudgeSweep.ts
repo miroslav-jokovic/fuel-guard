@@ -269,7 +269,7 @@ export async function runApplicationNudgesOnce(
       "reminder", { carrier, firstName: firstNameOf(driver as DriverNames | null), days: null }, link, wording,
       { sectionLabel: label, part: nudge.part },
     );
-    const sent = await sendEmail(env, { to: [nudge.email], subject, text, html });
+    const sent = await sendEmail(env, { to: [nudge.email], subject, text, html, replyTo: "recruiting" });
     if (sent.ok) emailed += 1;
     else {
       // The token is already rotated and `nudged_at` is stamped, so this driver's older link is dead

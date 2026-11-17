@@ -96,6 +96,7 @@ export async function notifyApplicationApproved(
     subject: mail.subject,
     html: mail.html,
     text: mail.text,
+    replyTo: "recruiting",
   });
   if (!result.ok) {
     // Loud: the recruiter is told "could not send" and can pick up the phone, but nobody learns WHY

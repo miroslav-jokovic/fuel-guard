@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { parseSender } from "./mailer.js";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { parseSender, replyAddress, sendEmail } from "./mailer.js";
 import { loadEnv } from "../env.js";
 
 describe("parseSender", () => {
@@ -64,5 +64,54 @@ describe("mail provider auto-detection", () => {
   });
   it("says nothing when the provider is Resend", () => {
     expect(warningsFrom({ RESEND_API_KEY: "r" } as NodeJS.ProcessEnv)).not.toMatch(/MAIL_PROVIDER/);
+  });
+});
+
+/**
+ * Reply-To (2026-11-17): MAIL_FROM becomes the unread `no-reply@`, so a reply must be sent somewhere a
+ * person reads — recruiting for applicant mail, the office's address for everything else.
+ */
+describe("Reply-To", () => {
+  const base = { NODE_ENV: "test", MAIL_FROM: "Silvicom Inc <no-reply@silvicominc.com>" };
+  const mail = { to: ["a@example.test"], subject: "s", html: "<p>h</p>", text: "t" };
+  let bodies: Record<string, unknown>[] = [];
+  beforeEach(() => {
+    bodies = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body) as Record<string, unknown>);
+      return new Response("{}", { status: 200 });
+    }));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const both = { MAIL_REPLY_TO: "360@silvicominc.com", MAIL_REPLY_TO_RECRUITING: "recruiting@silvicominc.com" };
+
+  it("Brevo carries the office address on office mail and recruiting's on applicant mail", async () => {
+    const env = loadEnv({ ...base, MAIL_PROVIDER: "brevo", BREVO_API_KEY: "b", ...both } as NodeJS.ProcessEnv);
+    await sendEmail(env, mail);
+    await sendEmail(env, { ...mail, replyTo: "recruiting" });
+    expect(bodies.map((b) => b.replyTo)).toEqual([{ email: "360@silvicominc.com" }, { email: "recruiting@silvicominc.com" }]);
+    expect(bodies[0]!.sender).toEqual({ name: "Silvicom Inc", email: "no-reply@silvicominc.com" });
+  });
+
+  it("Resend carries the same two addresses as reply_to", async () => {
+    const env = loadEnv({ ...base, MAIL_PROVIDER: "resend", RESEND_API_KEY: "r", ...both } as NodeJS.ProcessEnv);
+    await sendEmail(env, mail);
+    await sendEmail(env, { ...mail, replyTo: "recruiting" });
+    expect(bodies.map((b) => b.reply_to)).toEqual(["360@silvicominc.com", "recruiting@silvicominc.com"]);
+  });
+
+  it("sends no Reply-To at all when neither is set, so a reply goes to MAIL_FROM as before", async () => {
+    const env = loadEnv({ ...base, MAIL_PROVIDER: "brevo", BREVO_API_KEY: "b", MAIL_REPLY_TO: "" } as NodeJS.ProcessEnv);
+    await sendEmail(env, { ...mail, replyTo: "recruiting" });
+    expect(bodies[0]).not.toHaveProperty("replyTo");
+  });
+
+  it("answers an applicant at the office address when only that one is set", () => {
+    expect(replyAddress({ MAIL_REPLY_TO: "360@silvicominc.com", MAIL_REPLY_TO_RECRUITING: undefined }, "recruiting")).toBe("360@silvicominc.com");
+  });
+
+  it("refuses to boot on a malformed address rather than send mail whose replies vanish", () => {
+    expect(() => loadEnv({ ...base, MAIL_REPLY_TO_RECRUITING: "recruiting@" } as NodeJS.ProcessEnv)).toThrow(/MAIL_REPLY_TO_RECRUITING/);
   });
 });

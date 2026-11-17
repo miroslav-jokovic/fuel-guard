@@ -41,7 +41,7 @@ export async function notifyAskAgain(
   if (!email) return { sent: false, email: null, reason: "no_address" };
   if (env.MAIL_PROVIDER === "none") return { sent: false, email, reason: "mail_disabled" };
   const mail = renderApplicationQuestionEmail(await carrierName(admin, orgId));
-  const result = await sendEmail(env, { to: [email], subject: mail.subject, html: mail.html, text: mail.text });
+  const result = await sendEmail(env, { to: [email], subject: mail.subject, html: mail.html, text: mail.text, replyTo: "recruiting" });
   if (!result.ok) console.error("[application-ask-again] could not send", { detail: result.detail });
   return { sent: result.ok, email, reason: result.ok ? null : "send_failed" };
 }

@@ -160,6 +160,7 @@ describe("sending the link again", () => {
     const out = await again(rec);
     const sent = (mailer.fn.mock.calls[0] as unknown as [unknown, { to: string[]; text: string }])[1];
     expect(sent.to).toEqual(["driver@example.test"]);
+    expect((sent as { replyTo?: string }).replyTo).toBe("recruiting");
     expect(sent.text).toContain("link" in out ? out.link : "?");
     expect(sent.text).toContain("no longer works");
   });
