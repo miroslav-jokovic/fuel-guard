@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { FEED_FORMATS, type AdFormat } from "./renderGeometry.js";
 
 /**
@@ -85,3 +86,22 @@ export function motionTimeline(groups: readonly MotionGroup[], clipMs: number = 
   if (duration > MOTION_MAX_MS) return { ok: false, findings: [{ kind: "too_long", duration_ms: duration, max_ms: MOTION_MAX_MS }] };
   return { ok: true, timeline: { clip_ms: clipMs, hold_ms: hold, duration_ms: duration, cues } };
 }
+
+/**
+ * A moving picture in our storage: a model's clip (V4e), named by its bytes as every ad asset is. NOT an
+ * `AdAssetRef` on purpose: that type is "an image the renderer can draw", read by the kit, the overlay and the
+ * publisher's image upload, and a video among them would be a file each of those must learn to refuse. What is
+ * recorded is what was READ OFF THE FILE when it was copied — the frame and length the model actually returned,
+ * and whether it carries a sound track although every model is told to make none (Q-APX15). None of the three
+ * candidates' pages states what frame comes back; this record is where the sitting (Q-APX12) reads it.
+ */
+export const adClipRefSchema = z.object({
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  format: z.literal("mp4"),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  duration_ms: z.number().int().positive(),
+  has_audio: z.boolean(),
+  byte_size: z.number().int().positive(),
+});
+export type AdClipRef = z.infer<typeof adClipRefSchema>;

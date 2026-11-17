@@ -108,6 +108,11 @@ export interface FakeHiggsfieldOptions {
    * AG4). Tests leave it out and finish requests by hand.
    */
   draw?: (inputs: Buffer[], params: Record<string, unknown>) => Promise<Buffer>;
+  /**
+   * The bytes of every `.mp4` this fake serves (V4e). Left out, a video file is a few bytes that are NOT an MP4
+   * — which is the case "the vendor's file is not what its name says" for whoever reads it.
+   */
+  clip?: Buffer;
 }
 
 const RETENTION_SECONDS = 604_800;
@@ -212,7 +217,7 @@ export class FakeHiggsfield {
         const params = this.mustGet(fileMatch[1]!).params;
         return void res.end(await this.opts.draw(this.inputsOf(params), paramsOf(params)));
       }
-      return void res.end(fileMatch[2] === "png" ? pngFor(fileMatch[1]!) : Buffer.from(`fake-${fileMatch[1]}`));
+      return void res.end(fileMatch[2] === "png" ? pngFor(fileMatch[1]!) : this.opts.clip ?? Buffer.from(`fake-${fileMatch[1]}`));
     }
     const presigned = /^\/presigned\/([^/]+)$/.exec(url.pathname);
     if (req.method === "PUT" && presigned) return this.receiveUpload(req, res, presigned[1]!, corr);

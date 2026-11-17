@@ -66,9 +66,12 @@ export type ClipParamsRefusal = "model_unread" | "seconds_not_whole" | "seconds_
  * One clip's request: the first frame, how it should move, for how long, and no sound. A model whose page was not
  * read is refused, as an unpriced still model is; so is a length the model does not take — never rounded to one
  * it does, because the timeline was computed for the length asked.
+ *
+ * Without `imageUrl` the first frame's field is left out: that is how the render road asks (`render.ts`), which
+ * uploads the picture itself, once, and writes the upload's URL into the field `clipImageField` names.
  */
 export function motionClipParams(
-  model: string, ask: { imageUrl: string; prompt: string; clipMs?: number },
+  model: string, ask: { imageUrl?: string; prompt: string; clipMs?: number },
 ): { ok: true; params: Record<string, unknown>; seconds: number } | { ok: false; refusal: ClipParamsRefusal } {
   const facts = HIGGSFIELD_VIDEO_CANDIDATES[model];
   if (!facts) return { ok: false, refusal: "model_unread" };
@@ -77,11 +80,17 @@ export function motionClipParams(
   if (seconds < facts.seconds.min || seconds > facts.seconds.max) return { ok: false, refusal: "seconds_out_of_range" };
   const prompt = ask.prompt.trim();
   if (!prompt && facts.prompt_required) return { ok: false, refusal: "prompt_missing" };
-  return { ok: true, seconds, params: { [facts.image_field]: ask.imageUrl, ...(prompt ? { prompt } : {}), duration: seconds, ...facts.sound_off } };
+  return { ok: true, seconds, params: { ...(ask.imageUrl ? { [facts.image_field]: ask.imageUrl } : {}), ...(prompt ? { prompt } : {}), duration: seconds, ...facts.sound_off } };
 }
 
 /** What a clip of this length costs at the page's figure, in dollars — a floor where the page gives one. */
 export function clipDollars(model: string, clipMs: number = MOTION_CLIP_MS): { usd: number; at_least: boolean } | null {
   const facts = HIGGSFIELD_VIDEO_CANDIDATES[model];
   return facts ? { usd: Math.round(facts.usd_per_second * (clipMs / 1000) * 1000) / 1000, at_least: facts.price_is_floor } : null;
+}
+
+/** Where this model takes its first frame, in the shape `render.ts` puts an uploaded picture's URL into a request. */
+export function clipImageField(model: string): { field: string; shape: "single" } | undefined {
+  const facts = HIGGSFIELD_VIDEO_CANDIDATES[model];
+  return facts ? { field: facts.image_field, shape: "single" } : undefined;
 }
