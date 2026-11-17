@@ -34,6 +34,8 @@ import StatusBadge from "@/components/StatusBadge.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import InspectionExpiryCell from "@/features/maintenance/InspectionExpiryCell.vue";
+import NextPmCell from "@/features/maintenance/NextPmCell.vue";
+import { pmVerdictRank } from "@/features/maintenance/pmVerdictWords";
 import RosterFreshnessLine from "@/components/RosterFreshnessLine.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import VehicleForm from "@/features/roster/VehicleForm.vue";
@@ -124,6 +126,7 @@ const standing = (v: Vehicle, column: string) =>
 
 const getVal = (v: Vehicle, key: string): unknown => {
   if (key in PAPER_COLUMNS) return standing(v, key).goodUntil;
+  if (key === "next_pm_verdict") return pmVerdictRank(v.next_pm_verdict);
   const raw = (v as unknown as Record<string, unknown>)[key];
   return typeof raw === "string" && raw !== "" && !isNaN(Number(raw)) ? Number(raw) : raw;
 };
@@ -149,6 +152,7 @@ const columns: DataTableColumn[] = [
   { key: "has_optimized_idle", label: "Optimized idle", sortable: true, width: "md", card: "detail" },
   { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true, width: "md", card: "figure" },
   { key: "registration_expires_at", label: "Registration", sortable: true, width: "md", card: "figure" },
+  { key: "next_pm_verdict", label: "Next PM due", sortable: true, width: "md", card: "figure" },
   { key: "status", label: "Status", sortable: true, width: "sm", card: "status" },
 ];
 const shownColumns = computed(() => withNotesColumn(columns, notes.on.value, "file"));
@@ -379,6 +383,7 @@ async function onRetire(v: Vehicle) {
         <span v-else-if="value === false" class="text-ink-tertiary">No</span>
         <span v-else :class="[BADGE_BASE, toneClass('warning')]">Unset</span>
       </template>
+      <template #cell-next_pm_verdict="{ row }"><NextPmCell :verdict="row.next_pm_verdict" :due-at="row.next_pm_due_at" :due-odometer="row.next_pm_due_odometer" /></template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">
         <KebabMenu v-if="session.can('equipment')">

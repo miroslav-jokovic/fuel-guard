@@ -1953,3 +1953,13 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   will use: the worst schedule's `pmStatus` verdict, then `unknown` if any schedule cannot be judged — "can't tell"
   is never "ok" — and null for no schedule. Two mutations each turned `maintenanceDue.test.ts` red (unknown read as
   ok; no schedule read as ok). Next merge: `projectPmDue` → `recordVehiclePmDue` writes it; the Vehicles list shows it.
+- **2026-11-17 · Q11's writer and the Vehicles list's "Next PM due" column** (after 0628 reached staging).
+  `projectPmDue` folds every schedule verdict `judgeSchedule` gave the truck, across all its FleetPal units,
+  through `truckPmVerdict`, and `recordVehiclePmDue` writes `next_pm_verdict` with the due point, still only
+  on change: a truck entering its warning window with the same due point is news and is written. The list
+  reads the three columns on its own select (equipment section), and `NextPmCell` prints the verdict badge
+  and the due point ("Due soon 12/01/2026 or at 120,000 mi"); no schedule is a dash. The words and tones
+  moved into `features/maintenance/pmVerdictWords.ts`, shared with the truck's Due card, so "Due soon"
+  means one thing on both screens; sorting puts overdue first and no schedule last. Three mutations each
+  turned a test red: the writer ignoring a verdict-only change, the fold dropping unjudgeable schedules
+  (the truck read "ok"), and "Can't tell" worded "OK".

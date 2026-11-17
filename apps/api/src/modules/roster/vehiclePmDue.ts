@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { TruckPmVerdict } from "@silvicom/shared";
 
 /**
  * The next preventive-maintenance due point on a truck, as the roster's own columns carry it
@@ -13,6 +14,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *
  * Both are NULLABLE and null means "no schedule" — never 0, never today. A truck FleetPal has no
  * schedule for shows nothing, which is F11's done-when.
+ *
+ * `next_pm_verdict` (0628, Q11) is `pmStatus`'s verdict on the same schedules, so the Vehicles list can
+ * say "overdue" or "due soon" without a second rule: the due point alone cannot, because FleetPal's
+ * warning window is not on `vehicles`. `unknown` is a schedule that cannot be judged; NULL is still
+ * "no schedule".
  */
 export interface PmDuePlacement {
   vehicleId: string;
@@ -20,6 +26,8 @@ export interface PmDuePlacement {
   nextPmDueOdometer: number | null;
   /** `YYYY-MM-DD`. Null when no time interval can be judged. */
   nextPmDueAt: string | null;
+  /** `truckPmVerdict` over the truck's judged schedules. Null when it has none. */
+  nextPmVerdict: TruckPmVerdict | null;
 }
 
 const CHUNK = 100;
@@ -29,7 +37,7 @@ const chunks = <T>(xs: T[]): T[][] => {
   return out;
 };
 
-type Row = { id: string; next_pm_due_odometer: number | string | null; next_pm_due_at: string | null };
+type Row = { id: string; next_pm_due_odometer: number | string | null; next_pm_due_at: string | null; next_pm_verdict: string | null };
 const num = (v: number | string | null): number | null => (v == null ? null : Number(v));
 
 /** Writes the rows whose values differ; returns how many. Vehicles not in `placements` are untouched. */
@@ -38,7 +46,7 @@ export async function recordVehiclePmDue(admin: SupabaseClient, orgId: string, p
   const wanted = new Map(placements.map((p) => [p.vehicleId, p]));
   const current = new Map<string, Row>();
   for (const ids of chunks([...wanted.keys()])) {
-    const { data, error } = await admin.from("vehicles").select("id, next_pm_due_odometer, next_pm_due_at").eq("org_id", orgId).in("id", ids);
+    const { data, error } = await admin.from("vehicles").select("id, next_pm_due_odometer, next_pm_due_at, next_pm_verdict").eq("org_id", orgId).in("id", ids);
     if (error) throw new Error(`vehicles next_pm_due read failed: ${error.message}`);
     for (const v of (data ?? []) as Row[]) current.set(v.id, v);
   }
@@ -46,10 +54,10 @@ export async function recordVehiclePmDue(admin: SupabaseClient, orgId: string, p
   for (const [id, p] of wanted) {
     const c = current.get(id);
     // A row this org does not have is skipped, not invented: the org filter is the only tenant boundary.
-    if (!c || (num(c.next_pm_due_odometer) === p.nextPmDueOdometer && c.next_pm_due_at === p.nextPmDueAt)) continue;
+    if (!c || (num(c.next_pm_due_odometer) === p.nextPmDueOdometer && c.next_pm_due_at === p.nextPmDueAt && c.next_pm_verdict === p.nextPmVerdict)) continue;
     const { error } = await admin
       .from("vehicles")
-      .update({ next_pm_due_odometer: p.nextPmDueOdometer, next_pm_due_at: p.nextPmDueAt })
+      .update({ next_pm_due_odometer: p.nextPmDueOdometer, next_pm_due_at: p.nextPmDueAt, next_pm_verdict: p.nextPmVerdict })
       .eq("org_id", orgId)
       .eq("id", id);
     if (error) throw new Error(`vehicles next_pm_due update failed: ${error.message}`);

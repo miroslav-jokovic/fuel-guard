@@ -9,6 +9,7 @@ import {
 } from "./constants.js";
 import type { FuelType, VehicleStatus, DriverStatus, ApuType } from "./constants.js";
 import { OWNERSHIP_TYPES, type OwnershipType } from "./equipmentFileCatalogue.js";
+import type { TruckPmVerdict } from "./maintenanceDue.js";
 
 // ── Vehicle ───────────────────────────────────────────────────────────────────
 
@@ -156,6 +157,14 @@ export interface Vehicle {
    * has one. Null is unknown, never "fine": the Operations tab counts it as "not on file".
    */
   registration_expires_at?: string | null;
+  /**
+   * The next PM due point and its verdict, projected by FleetPal's F11 pass (`projectPmDue`) from the
+   * truck's non-annual schedules. Null due point and null verdict mean "no schedule"; a verdict of
+   * `unknown` means a schedule exists that cannot be judged (Q11, 0628). Read by the Vehicles list.
+   */
+  next_pm_due_at?: string | null;
+  next_pm_due_odometer?: number | string | null;
+  next_pm_verdict?: TruckPmVerdict | null;
 }
 
 // ── Trailer (reefer) ────────────────────────────────────────────────────────────
