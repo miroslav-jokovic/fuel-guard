@@ -10,6 +10,7 @@ import ShopDefectsPanel from "@/features/maintenance/ShopDefectsPanel.vue";
 import ShopWorkOrdersPanel from "@/features/maintenance/ShopWorkOrdersPanel.vue";
 import ShopAnnualDuePanel from "@/features/maintenance/ShopAnnualDuePanel.vue";
 import ShopRepairBillsPanel from "@/features/maintenance/ShopRepairBillsPanel.vue";
+import ShopRepairCostPanel from "@/features/maintenance/ShopRepairCostPanel.vue";
 import RoadsideRepairsPanel from "@/features/roadside/RoadsideRepairsPanel.vue";
 import { useRoadsideRepairsDueQuery } from "@/features/roadside/useRoadsideInspections";
 import { useOpens } from "@/composables/useOpens";
@@ -25,7 +26,7 @@ import { useSessionStore } from "@/stores/session";
  * and its tables had no pager, so "all" lived somewhere else. So the lists the worklist previewed ARE
  * the page now, each a whole, searchable, paged list, and the four pages that held them are its tabs:
  *
- *   Defects · Work orders · Roadside repairs · Annual due · Repair bills
+ *   Defects · Work orders · Roadside repairs · Annual due · Repair bills · Repair cost
  *
  * Their old addresses redirect here with the tab set (`routes/maintenance.ts`), so an alert or a
  * bookmark lands on the same list. Each tab still answers to its own screen's grant — a tab whose
@@ -59,6 +60,8 @@ const ALL_TABS = [
   { value: "work-orders", label: "Work orders", screen: "/shop/work-orders", rows: () => ordersQ.data.value },
   { value: SHOP_ANNUAL_DUE_TAB, label: "Annual due", screen: "/shop", rows: () => annualQ.data.value },
   { value: "bills", label: "Repair bills", screen: "/shop/repair-spend", rows: () => undefined },
+  // FleetPal's side of the same money, per period and unit (F9d); Maintenance, never Finance (D-FP3).
+  { value: "cost", label: "Repair cost", screen: "/shop/repair-cost", rows: () => undefined },
 ] as const;
 type TabKey = (typeof ALL_TABS)[number]["value"];
 
@@ -100,6 +103,7 @@ const actions = computed<WalkAction[]>(() =>
       <ShopWorkOrdersPanel v-else-if="tab === 'work-orders'" />
       <ShopAnnualDuePanel v-else-if="tab === 'annual'" />
       <ShopRepairBillsPanel v-else-if="tab === 'bills'" />
+      <ShopRepairCostPanel v-else-if="tab === 'cost'" />
     </div>
 
     <WalkActions v-if="actions.length" :actions="actions" bar />
