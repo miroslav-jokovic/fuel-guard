@@ -14,8 +14,10 @@ import { apiFetch } from "@/lib/api";
 
 const KEY = ["toll-tags"] as const;
 
-export function useTollTagsQuery(vehicleId?: Ref<string>) {
+/** `enabled` keeps a page that shows tags only to equipment viewers from asking for them otherwise. */
+export function useTollTagsQuery(vehicleId?: Ref<string>, enabled?: Ref<boolean>) {
   return useQuery({
+    ...(enabled ? { enabled } : {}),
     queryKey: [...KEY, vehicleId ?? "fleet"] as const,
     queryFn: async (): Promise<TransponderDto[]> => {
       const q = vehicleId ? `?vehicleId=${encodeURIComponent(vehicleId.value)}` : "";

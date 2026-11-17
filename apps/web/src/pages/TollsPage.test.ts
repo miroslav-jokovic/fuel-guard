@@ -3,7 +3,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { ref } from "vue";
-import type { TollStatementDto } from "@silvicom/shared";
+import type { TollStatementDto, TransponderDto } from "@silvicom/shared";
 import TollsPage from "./TollsPage.vue";
 
 /**
@@ -34,6 +34,8 @@ const state = vi.hoisted(() => ({
   list: [] as unknown[],
   manage: true,
   removed: [] as unknown[],
+  equipment: "manage" as "manage" | "view" | "none",
+  tags: [] as unknown[],
 }));
 vi.mock("@/features/tolls/useTollStatements", async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
@@ -51,8 +53,25 @@ vi.mock("@/features/tolls/useTollStatements", async (orig) => {
   };
 });
 vi.mock("@/stores/session", () => ({
-  useSessionStore: () => ({ can: (s: string) => s === "accounting" && state.manage, canView: () => true }),
+  useSessionStore: () => ({
+    can: (s: string) => (s === "accounting" ? state.manage : s === "equipment" ? state.equipment === "manage" : false),
+    canView: (s: string) => (s === "equipment" ? state.equipment !== "none" : true),
+  }),
 }));
+vi.mock("@/features/tolls/useTollTags", async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  const m = () => ({ isPending: ref(false), mutateAsync: vi.fn() });
+  return {
+    ...actual,
+    useTollTagsQuery: () => ({ data: ref(state.tags), isLoading: ref(false), isFetching: ref(false), isError: ref(false), refetch: vi.fn() }),
+    useTollTagWrites: () => ({ register: m(), move: m(), retire: m(), voidEntry: m() }),
+  };
+});
+vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: ref([]) }) }));
+vi.mock("@/features/tolls/useTollTagImport", async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return { ...actual, useImportTollTags: () => ({ run: vi.fn(), sent: ref(0), running: ref(false) }) };
+});
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: ref("America/Chicago") }) }));
 
 async function mountPage(url = "/tolls", list: TollStatementDto[] = LIST) {
@@ -155,5 +174,82 @@ describe("TollsPage", () => {
     expect(document.body.querySelector('[data-test="statement-removed"]')?.textContent).toContain("another company's statement");
     expect(document.body.querySelector('[data-test="statement-remove"]')).toBeNull();
     w.unmount();
+  });
+
+  describe("the Toll tags tab", () => {
+    const entry = (id: string, vehicleId: string, unitNumber: string, validFrom: string, validTo: string | null = null) => ({
+      id, vehicleId, unitNumber, validFrom, validTo, voidedAt: null, voidReason: null,
+    });
+    const aTag = (o: Partial<TransponderDto>): TransponderDto => ({
+      id: "t1", provider: "ezpass", tagNumber: "00812345678", issuer: "NJ E-ZPass", note: null, retiredAt: null, retiredReason: null,
+      currentVehicleId: "v654", history: [entry("a1", "v654", "654", "2026-05-14T05:00:00Z")], ...o,
+    });
+    const TAGS = [
+      aTag({}),
+      aTag({ id: "t2", provider: "ktag", tagNumber: "KT0000777", issuer: null, currentVehicleId: null, history: [entry("a2", "v702", "702", "2026-03-01T06:00:00Z", "2026-06-01T05:00:00Z")] }),
+      aTag({ id: "t3", tagNumber: "00899990000", retiredAt: "2026-09-01T05:00:00Z", retiredReason: "lost", currentVehicleId: null, history: [] }),
+    ];
+    const tagCells = (w: Awaited<ReturnType<typeof mountPage>>["w"]) => w.findAll("tbody tr").map((tr) => tr.findAll("td")[0]!.find("span").text());
+
+    it("lists every tag in use with its truck and since when, retired tags only when asked", async () => {
+      state.tags = TAGS;
+      const { w } = await mountPage("/tolls?view=tags");
+      expect(tagCells(w)).toEqual(["E-ZPass 00812345678", "K-TAG KT0000777"]);
+      const first = w.findAll("tbody tr")[0]!.text();
+      expect(first).toContain("Unit 654");
+      expect(first).toContain("05/14/2026");
+      expect(first).toContain("On a truck");
+      expect(w.findAll("tbody tr")[1]!.text()).toContain("Not on a truck");
+      expect(tagCells((await mountPage("/tolls?view=tags&status=retired")).w)).toEqual(["E-ZPass 00899990000"]);
+    });
+
+    it("finds a tag by its number without the leading zeros a statement drops, typed with dashes and spaces, or by its truck", async () => {
+      state.tags = TAGS;
+      expect(tagCells((await mountPage("/tolls?view=tags&search=812345678")).w)).toEqual(["E-ZPass 00812345678"]);
+      expect(tagCells((await mountPage("/tolls?view=tags&search=654")).w)).toEqual(["E-ZPass 00812345678"]);
+      expect(tagCells((await mountPage(`/tolls?view=tags&search=${encodeURIComponent("008-1234 5678")}`)).w)).toEqual(["E-ZPass 00812345678"]);
+    });
+
+    it("offers import and add to equipment's managers, and the upload on the statements tab only", async () => {
+      state.tags = TAGS;
+      let w = (await mountPage("/tolls?view=tags")).w;
+      expect(w.find('[data-test="tags-import"]').exists()).toBe(true);
+      expect(w.find('[data-test="tags-add"]').exists()).toBe(true);
+      expect(w.find('[data-test="statements-upload"]').exists()).toBe(false);
+      state.equipment = "view";
+      w = (await mountPage("/tolls?view=tags")).w;
+      expect(w.find('[data-test="tags-import"]').exists()).toBe(false);
+      expect(tagCells(w)).toHaveLength(2);
+      state.equipment = "manage";
+    });
+
+    it("shows no tag tab to someone who may not view equipment, even from a link", async () => {
+      state.equipment = "none";
+      const w = (await mountPage("/tolls?view=tags")).w;
+      expect(w.find('[role="tablist"]').exists()).toBe(false);
+      expect(fileCells(w)).toEqual(["EZ June wk1.pdf", "ktag-june.xlsx"]);
+      state.equipment = "manage";
+    });
+
+    it("clears the other tab's filters and open drawer when switching", async () => {
+      state.tags = TAGS;
+      const { w, router } = await mountPage("/tolls?search=ktag&statement=s-new");
+      const tab = w.findAll('[role="tab"]').find((t) => t.text().startsWith("Toll tags"))!;
+      await tab.trigger("click");
+      await flushPromises();
+      expect(router.currentRoute.value.query).toEqual({ view: "tags" });
+      w.unmount();
+    });
+
+    it("opens a tag's history from its row", async () => {
+      state.tags = TAGS;
+      const { w, router } = await mountPage("/tolls?view=tags");
+      await w.findAll("tbody tr")[1]!.trigger("click");
+      await flushPromises();
+      expect(router.currentRoute.value.query.tag).toBe("t2");
+      expect(document.body.querySelector('[data-test="toll-tag-history"]')?.textContent).toContain("Unit 702");
+      expect(document.body.querySelector('[data-test="tag-move"]')).not.toBeNull();
+      w.unmount();
+    });
   });
 });

@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard, QueryState } from "@silvicom/ui";
-import type { TransponderAssignmentDto, TransponderDto } from "@silvicom/shared";
+import type { TransponderDto } from "@silvicom/shared";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { useSessionStore } from "@/stores/session";
 import TollTagDialog from "./TollTagDialog.vue";
+import TollTagHistory from "./TollTagHistory.vue";
 import { useTollTagsQuery } from "./useTollTags";
 import { tagLabel, type TollTagAction } from "./tollTagLabel";
 
@@ -52,11 +53,6 @@ function elsewhere(t: TransponderDto): string {
   const now = t.history.find((h) => h.vehicleId === t.currentVehicleId && h.validTo == null && h.voidedAt == null);
   return now?.unitNumber ? `Now on unit ${now.unitNumber}` : "Now on another truck";
 }
-const entryLabel = (h: TransponderAssignmentDto) =>
-  `Unit ${h.unitNumber ?? "?"}, ${at(h.validFrom)} to ${h.validTo ? at(h.validTo) : "now"}`;
-const voidEntry = (t: TransponderDto, h: TransponderAssignmentDto) => {
-  action.value = { kind: "void", tag: t, entryId: h.id, entryLabel: entryLabel(h) };
-};
 </script>
 
 <template>
@@ -103,14 +99,7 @@ const voidEntry = (t: TransponderDto, h: TransponderAssignmentDto) => {
               </template>
             </div>
           </div>
-          <ol v-if="open.has(t.id)" class="mt-2 space-y-1 border-l border-edge-subtle pl-3 text-xs" data-test="toll-tag-history">
-            <li v-for="h in t.history" :key="h.id" class="flex flex-wrap items-center justify-between gap-2">
-              <span :class="h.voidedAt ? 'text-ink-tertiary line-through' : 'text-ink-secondary'">{{ entryLabel(h) }}</span>
-              <span v-if="h.voidedAt" class="text-ink-tertiary">Voided: {{ h.voidReason }}</span>
-              <BaseButton v-else-if="canManage" size="sm" variant="link" data-test="toll-entry-void" @click="voidEntry(t, h)">This is wrong…</BaseButton>
-            </li>
-            <li v-if="t.history.length === 0" class="text-ink-tertiary">Never on a truck.</li>
-          </ol>
+          <TollTagHistory v-if="open.has(t.id)" class="mt-2" :tag="t" :can-manage="canManage" @void="(h, label) => (action = { kind: 'void', tag: t, entryId: h.id, entryLabel: label })" />
         </li>
       </ul>
     </QueryState>

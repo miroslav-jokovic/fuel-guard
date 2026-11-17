@@ -6,6 +6,7 @@ import {
   transponderCreateSchema,
   transponderMoveSchema,
   transponderRetireSchema,
+  tollTagImportSchema,
   type TransponderDto,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
@@ -24,6 +25,7 @@ import {
   type TollServiceError,
 } from "../transponders.js";
 import { tollStatementsRouter } from "./statements.js";
+import { importTollTags } from "../tagImport.js";
 
 /**
  * `/api/tolls` — the fleet's toll tags (TOLLS-PER-TRUCK-PLAN.md TL2).
@@ -111,6 +113,27 @@ export function tollsRouter(): Router {
         entityId: result.id,
         meta: { provider: result.provider, tagNumber: result.tagNumber, vehicleId: result.currentVehicleId },
       });
+    }),
+  );
+
+  /**
+   * A spreadsheet's lines, at most `TOLL_TAG_IMPORT_BATCH` a request (TL2b). Each line answers on its
+   * own, so a refused line is a 200 with that line's reason; only a failure to read the fleet is not.
+   */
+  router.post(
+    "/transponders/import",
+    requireOrg,
+    canManage,
+    validateBody(tollTagImportSchema),
+    asyncHandler(async (req, res) => {
+      const body = tollTagImportSchema.parse(req.body);
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await importTollTags(admin, req.auth!.orgId!, req.auth!.userId, body);
+      if (isTollServiceError(result)) {
+        res.status(statusForTollError(result.code)).json(apiError(result.code, result.error));
+        return;
+      }
+      res.json({ ok: true, results: result });
     }),
   );
 
