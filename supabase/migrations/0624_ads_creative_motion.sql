@@ -1,4 +1,4 @@
--- 0625 — a creative may carry a motion ad beside its still (ADS-PLATFORM-V2-PLAN V4 "Video"; Q-APX13, ruled
+-- 0624 — a creative may carry a motion ad beside its still (ADS-PLATFORM-V2-PLAN V4 "Video"; Q-APX13, ruled
 -- 2026-11-16: a motion ad is the still's own words over a few seconds of motion, ending on the approved still).
 --
 -- ── WHAT IS THE GAP ──────────────────────────────────────────────────────────────────────────────
