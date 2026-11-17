@@ -28,6 +28,27 @@ describe("parsePilotPriceReport", () => {
     expect(r.skipped).toBe(1); // the XX/no-product near-miss row
   });
 
+  it("reads the link-delivered quote Pilot switched to on 2026-11-11 ('Truck Diesel', 20 columns)", () => {
+    // Rows copied from the real pq-139445-11172026.xlsx: the header lost "Lust/Insp" and the blank
+    // column, gained "Local Taxes", and the product label became "Truck Diesel".
+    const g: Cell[][] = [
+      [],
+      ["RETAIL PRICES ARE SUBJECT TO CHANGE AT ANY TIME", null, "Pilot Travel Centers LLC", "Retail Price @ 2026-11-16 08:25 PM"],
+      ["Account: 139445 - Silvicom Inc", "Price Source: OPIS Contract Avg.", "Better Of Pricing Report", "Effective Date: 11/17/2026 to 11/17/2026"],
+      ["Site","City","ST","Prod","Rack ID","Rack City","Rack ST","Cost","Federal Tax/Fees","State Tax/ Fees","Sales Tax/ Fees","Local Taxes","Freight","Pump Fee","Other","Total Cost","Retail Price","Disc Retail","Your Price","Savings Total"],
+      ["706","Tulsa","OK","Truck Diesel",560,"TULSA","OK",4.2786,0.2483,0.2,0,0,0.0775,-0.04,0,4.76439,5.799,5.749,4.76439,1.03461],
+      ["1534","Livingston","AL","Truck Diesel",705,"MERIDIAN","MS",4.4067,0.2483,0.3275,0,0.01,0.085,-0.04,0,5.03749,5.899,5.849,5.03749,0.86151],
+    ];
+    const r = parsePilotPriceReport(g);
+    expect(r.account).toBe("139445");
+    expect(r.effectiveDate).toBe("2026-11-17");
+    expect(r.skipped).toBe(0);
+    expect(r.rows).toEqual([
+      { site: "706", city: "Tulsa", state: "OK", product: "diesel", postedPrice: 5.799, netPrice: 4.76439 },
+      { site: "1534", city: "Livingston", state: "AL", product: "diesel", postedPrice: 5.899, netPrice: 5.03749 },
+    ]);
+  });
+
   it("parses $-formatted string cells", () => {
     const g: Cell[][] = [HEADER, ["10","Reno","NV","DSL",1,"x","NV","$3.50",null,null,null,null,null,null,null,null,"$4.10","$5.30","$5.25","$4.10","$1.20"]];
     const r = parsePilotPriceReport(g);

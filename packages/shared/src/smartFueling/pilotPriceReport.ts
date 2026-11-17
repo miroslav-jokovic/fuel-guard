@@ -41,7 +41,20 @@ function num(c: Cell): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-const PRODUCTS: Record<string, "diesel" | "def"> = { DSL: "diesel", DIESEL: "diesel", DEF: "def" };
+/**
+ * Pilot's own product labels, upper-cased. `TRUCK DIESEL` is the label of the link-delivered quote
+ * Pilot switched to on 2026-11-11 (`pq-<account>-<MMDDYYYY>.xlsx`, sheet "Daily Price Quote - Better
+ * Of -"): same price columns, but all 677 rows said "Truck Diesel" where the attachment era said "DSL",
+ * so the whole report was skipped and production's last Pilot net price is dated 2026-11-10. A label
+ * missing here does not fail loudly — it is only counted in `skipped` — which is why the ingest
+ * refuses a report that yields no rows rather than recording an empty day.
+ */
+const PRODUCTS: Record<string, "diesel" | "def"> = {
+  DSL: "diesel",
+  DIESEL: "diesel",
+  "TRUCK DIESEL": "diesel",
+  DEF: "def",
+};
 
 function isHeaderRow(row: Cell[]): boolean {
   const labels = row.map((c) => cellStr(c).toLowerCase());
