@@ -104,7 +104,7 @@ const columns: DataTableColumn[] = [
       <FilterBar
         v-model:search="search"
         embedded
-        search-placeholder="Search file name, provider, who uploaded…"
+        search-placeholder="Search file or provider…"
         :count="rows.length"
         count-label="statements"
         :active-count="activeFilterCount"
