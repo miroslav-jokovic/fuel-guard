@@ -740,7 +740,7 @@ Nothing is changed until this is ruled. It must be settled before the publisher'
 `/settings/recruiting/ads`, one Settings page holding six cards — kill switch, spend, ad accounts, brand kit,
 presets, the settings form. Leads and Openings are also Recruitment tabs, and a recruiter works in Leads all day
 whether or not an ad ever ran (leads are typed in too). Two rulings bear on V6's "own place in the sidebar":
-D-HUI8 (2026-09, "one Recruitment entry; the queues behind it stop being nav destinations and become tabs") and
+D-HUI8 ("one Recruitment entry; the queues behind it stop being nav destinations and become tabs") and
 the sidebar ruling of 2026-11-01 ("Recruitment stays its own section, more items coming"). Every ads door answers
 to the `recruitment` section; spend, launch and ad accounts are admin-only on top of it.
 
