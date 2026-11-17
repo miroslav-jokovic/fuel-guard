@@ -1,11 +1,14 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { canonicalJson, creditGate, pictureKeyPart, type AdAssetRef, type CreditGateRefusal } from "@silvicom/shared";
+import { AD_FORMATS, AD_OVERLAY_LAYOUTS, canonicalJson, creditGate, pictureKeyPart, type AdAssetRef, type AdClipRef, type AdFormat, type AdOverlayLayout, type CreditGateRefusal } from "@silvicom/shared";
 import { settingsInForce } from "../../settings/settingsVersions.js";
 import { completeGeneration, generationByKey, higgsfieldCreditsThisMonth, insertGeneration, type GenerationRow } from "../../generations/generationLedger.js";
 import { AD_ASSETS_BUCKET, assetKey, prepareAsset, readAdAsset } from "../brandAssets.js";
+import { clipKey, prepareClip } from "../motion/motionClip.js";
+import { frameStill } from "../overlay/overlay.js";
 import type { HiggsfieldClient, HfRequestState } from "./higgsfieldClient.js";
 import { HIGGSFIELD_IMAGE_INPUT } from "./prices.js";
+import { clipImageField } from "./videoModels.js";
 
 /**
  * One render, moved one step (ADS-AGENT-BUILD-WORKFLOW C3; plan D-AD13). Run by the `ads_render` job
@@ -47,6 +50,20 @@ import { HIGGSFIELD_IMAGE_INPUT } from "./prices.js";
  * seven days and does not charge for (billing-and-retention.md lists generations only). A model with no
  * documented image field is refused (`reference_unsupported`) before any row, as an unpriced one is:
  * drawing the truck from text would break D-AD9, not bend it.
+ *
+ * ── A CLIP IS THE SAME STEP, WITH THREE DIFFERENCES (V4e, 2026-11-17) ──────────────────────────────
+ * A motion ad's moving picture (`input.clip`) is asked of an image-to-video model on this same road: same
+ * row-first rule, same key, same month, same copy-at-once. What differs:
+ *   · THE PICTURE IS CUT BEFORE IT GOES UP. No candidate model can be asked for 4:5 (`videoModels.ts`), so the
+ *     reference is covered to the ad's frame by `frameStill` — the function that frames the still — and the
+ *     model starts from exactly the pixels the approved ad is made of. A clip with no reference is refused: a
+ *     moving picture drawn from words alone is not this carrier's truck.
+ *   · THE ANSWER IS `video.url`, NOT `images`. It is read with ffprobe (`prepareClip`) and stored at
+ *     `<org>/<sha256>.mp4`; the row's output is `{ clip }`, the frame and length the model really returned.
+ *     A server without ffprobe leaves the render pending — the clip is paid for and is not thrown away.
+ *   · THE MODEL'S OWN FIELD takes the URL (`clipImageField`), read from that model's page.
+ * The month is counted in the unit the settings hold. Higgsfield's API speaks dollars only (plan Q-APX16), so
+ * until that is ruled no video model has a price here and a clip on a real key is refused `price_unknown`.
  */
 
 export interface RenderDeps {
@@ -70,12 +87,23 @@ export interface RenderInput {
   params: Record<string, unknown>;
   /** The kit photo the render starts from (D-AD9), in OUR storage; null for a text-only scene. */
   reference: Pick<AdAssetRef, "sha256" | "format"> | null;
+  /**
+   * Set when what is asked for is a motion ad's moving picture, not a still: the frame the reference is cut to
+   * before it is sent, and the layout that decides which edge the cut keeps (`frameStill`).
+   */
+  clip?: { format: AdFormat; layout: AdOverlayLayout };
 }
+
+/** Where this model takes an input picture: a still model's documented field, or a video model's first frame. */
+const referenceField = (input: Pick<RenderInput, "model" | "clip">) => (input.clip ? clipImageField(input.model) : HIGGSFIELD_IMAGE_INPUT[input.model]);
+/** A clip always starts from a picture; a still may be drawn from text. */
+const referenceRefused = (input: RenderInput) => (input.clip ? !input.reference || !referenceField(input) : Boolean(input.reference) && !referenceField(input));
 
 type StartRefusal = Extract<CreditGateRefusal, "agent_off" | "price_unknown"> | "reference_unsupported";
 
 export type RenderOutcome =
-  | { kind: "stored"; generationId: string; assets: AdAssetRef[]; replayed: boolean }
+  /** `clip` is set, and `assets` empty, when a moving picture was asked for. */
+  | { kind: "stored"; generationId: string; assets: AdAssetRef[]; clip?: AdClipRef; replayed: boolean }
   | { kind: "failed"; generationId: string; errorCode: string; replayed: boolean }
   | { kind: "budget_exhausted"; generationId: string; refusal: string; replayed: boolean }
   | { kind: "refused"; refusal: StartRefusal }
@@ -99,7 +127,7 @@ export async function renderStatus(admin: SupabaseClient, prices: Readonly<Recor
   const { settings } = await settingsInForce(admin, input.orgId);
   const gate = creditGate(settings, "renderer", 0, prices[input.model] ?? null);
   if (!gate.open && (gate.refusal === "agent_off" || gate.refusal === "price_unknown")) return { kind: "refused", refusal: gate.refusal };
-  if (input.reference && !HIGGSFIELD_IMAGE_INPUT[input.model]) return { kind: "refused", refusal: "reference_unsupported" };
+  if (referenceRefused(input)) return { kind: "refused", refusal: "reference_unsupported" };
   return { kind: "absent" };
 }
 
@@ -124,17 +152,20 @@ export async function renderStep(deps: RenderDeps, input: RenderInput): Promise<
     const now = deps.now();
     const gate = creditGate(settings, "renderer", await higgsfieldCreditsThisMonth(admin, orgId, now), price);
     if (!gate.open && (gate.refusal === "agent_off" || gate.refusal === "price_unknown")) return { kind: "refused", refusal: gate.refusal };
-    const field = input.reference ? HIGGSFIELD_IMAGE_INPUT[input.model] : undefined;
-    if (input.reference && !field) return { kind: "refused", refusal: "reference_unsupported" };
+    const field = input.reference ? referenceField(input) : undefined;
+    if (referenceRefused(input)) return { kind: "refused", refusal: "reference_unsupported" };
     if (gate.open && input.reference && field) {
-      const up = await deps.client.upload(await readAdAsset(admin, orgId, input.reference), `image/${input.reference.format}`);
+      const photo = await readAdAsset(admin, orgId, input.reference);
+      const up = input.clip
+        ? await deps.client.upload(await frameStill(photo, input.clip.format, input.clip.layout), "image/png")
+        : await deps.client.upload(photo, `image/${input.reference.format}`);
       if (!up.ok && up.kind === "temporary") return { kind: "pending", generationId: "", retryAfterSeconds: up.retryAfterSeconds, why: `upload: ${up.detail}` };
       if (up.ok) params = withReference(input.params, field, up.value.public_url);
       else uploadRefused = up.kind === "balance" ? "upload_balance" : `upload_${up.status}`;
     }
     // A refused upload is written on the row too, so a replay after a crash fails the same way rather than
     // submitting the params without the photo.
-    const request = { model: input.model, params, reference: input.reference?.sha256 ?? null, upload_refused: uploadRefused, price_credits: price };
+    const request = { model: input.model, params, reference: input.reference?.sha256 ?? null, ...(input.clip ? { clip: input.clip } : {}), upload_refused: uploadRefused, price_credits: price };
     const row = {
       org_id: orgId, campaign_id: input.campaignId, creative_id: input.creativeId, agent: "renderer", provider: "higgsfield" as const,
       model: input.model, prompt_version: null, input_hash: createHash("sha256").update(canonicalJson(request)).digest("hex"),
@@ -150,11 +181,12 @@ export async function renderStep(deps: RenderDeps, input: RenderInput): Promise<
     generationId = ins.id;
   }
   const price = deps.prices[input.model] ?? 0;
-  const finish = (status: "succeeded" | "failed", f: { errorCode?: string; requestId?: string | null; charged: boolean; assets?: AdAssetRef[] }) =>
+  const finish = (status: "succeeded" | "failed", f: { errorCode?: string; requestId?: string | null; charged: boolean; assets?: AdAssetRef[]; clip?: AdClipRef }) =>
     completeGeneration(admin, orgId, generationId!, {
-      status, output: f.assets ? { assets: f.assets } : null, provider_request_id: f.requestId ?? null,
+      status, output: f.clip ? { clip: f.clip } : f.assets ? { assets: f.assets } : null, provider_request_id: f.requestId ?? null,
       cost_units: f.charged ? price : 0, cost_unit: "credits", error_code: f.errorCode ?? null, finished_at: deps.now().toISOString(),
-      asset_sha256: f.assets?.[0]?.sha256 ?? null, asset_path: f.assets?.[0] ? assetKey(orgId, f.assets[0]) : null,
+      asset_sha256: f.clip?.sha256 ?? f.assets?.[0]?.sha256 ?? null,
+      asset_path: f.clip ? clipKey(orgId, f.clip) : f.assets?.[0] ? assetKey(orgId, f.assets[0]) : null,
     });
   const fail = async (errorCode: string, charged: boolean, requestId: string | null = null): Promise<RenderOutcome> => {
     await finish("failed", { errorCode, charged, requestId });
@@ -175,6 +207,21 @@ export async function renderStep(deps: RenderDeps, input: RenderInput): Promise<
   const s: HfRequestState = st.value;
   if (s.status === "queued" || s.status === "in_progress") return pending(s.status);
   if (s.status !== "completed") return fail(s.status === "nsfw" ? "nsfw" : s.status === "canceled" ? "canceled" : "provider_failed", false, requestId);
+  const stored = (error: { message: string; statusCode?: unknown } | null) => !error || /already exists|409/.test(`${error.message} ${error.statusCode ?? ""}`);
+
+  if (input.clip) {
+    // A still where a clip was asked is as wrong as the reverse; both were made and charged.
+    if (!s.video?.url) return fail("no_video", true, requestId);
+    const file = await deps.client.download(s.video.url);
+    if (!file.ok) return file.kind === "temporary" ? pending(`download: ${file.detail}`) : fail("output_expired", true, requestId);
+    const prepared = await prepareClip(file.value);
+    if (prepared.kind === "unavailable") return pending(`probe: ${prepared.detail}`);
+    if (prepared.kind !== "ready") return fail(`output_${prepared.code}`, true, requestId);
+    const { error } = await admin.storage.from(AD_ASSETS_BUCKET).upload(clipKey(orgId, prepared.ref), prepared.bytes, { contentType: "video/mp4", upsert: false });
+    if (!stored(error)) return pending(`store: ${error!.message}`);
+    await finish("succeeded", { requestId, charged: true, clip: prepared.ref });
+    return { kind: "stored", generationId, assets: [], clip: prepared.ref, replayed: false };
+  }
   if (!s.images?.length) return fail("no_image", true, requestId);
 
   const assets: AdAssetRef[] = [];
@@ -184,7 +231,7 @@ export async function renderStep(deps: RenderDeps, input: RenderInput): Promise<
     const prepared = await prepareAsset(file.value);
     if (prepared.kind !== "ready") return fail(`output_${prepared.code}`, true, requestId);
     const { error } = await admin.storage.from(AD_ASSETS_BUCKET).upload(assetKey(orgId, prepared.ref), prepared.bytes, { contentType: `image/${prepared.ref.format}`, upsert: false });
-    if (error && !/already exists|409/.test(`${error.message} ${(error as { statusCode?: unknown }).statusCode ?? ""}`)) return pending(`store: ${error.message}`);
+    if (!stored(error)) return pending(`store: ${error!.message}`);
     assets.push(prepared.ref);
   }
   await finish("succeeded", { requestId, charged: true, assets });
@@ -194,8 +241,8 @@ export async function renderStep(deps: RenderDeps, input: RenderInput): Promise<
 function replayed(row: GenerationRow): RenderOutcome {
   if (row.status === "budget_exhausted") return { kind: "budget_exhausted", generationId: row.id, refusal: row.error_code ?? "budget_spent", replayed: true };
   if (row.status === "failed") return { kind: "failed", generationId: row.id, errorCode: row.error_code ?? "failed", replayed: true };
-  const assets = (row.output as { assets?: AdAssetRef[] } | null)?.assets ?? [];
-  return { kind: "stored", generationId: row.id, assets, replayed: true };
+  const output = row.output as { assets?: AdAssetRef[]; clip?: AdClipRef } | null;
+  return { kind: "stored", generationId: row.id, assets: output?.assets ?? [], ...(output?.clip ? { clip: output.clip } : {}), replayed: true };
 }
 
 /**
@@ -211,9 +258,13 @@ export function renderInputFromPayload(orgId: string, payload: unknown): RenderI
   const r = p.reference as { sha256?: unknown; format?: unknown } | null | undefined;
   const format = r?.format === "png" || r?.format === "jpeg" || r?.format === "webp" ? r.format : null;
   if (r && (typeof r.sha256 !== "string" || !format)) throw new Error("ads_render: payload reference needs sha256 and format");
+  const c = p.clip as { format?: unknown; layout?: unknown } | null | undefined;
+  const cut = c && AD_FORMATS.find((f) => f === c.format) && AD_OVERLAY_LAYOUTS.find((l) => l === c.layout);
+  if (c && !cut) throw new Error("ads_render: payload clip needs a format and a layout we draw");
   return {
     orgId, campaignId: typeof p.campaignId === "string" ? p.campaignId : null, creativeId: typeof p.creativeId === "string" ? p.creativeId : null,
     attempt: p.attempt, ...(typeof p.picture === "number" ? { picture: p.picture } : {}), model: p.model, params: p.params as Record<string, unknown>,
     reference: r ? { sha256: r.sha256 as string, format: format! } : null,
+    ...(c ? { clip: { format: c.format as AdFormat, layout: c.layout as AdOverlayLayout } } : {}),
   };
 }

@@ -182,6 +182,16 @@ the pricing page speaks in dollars; how one becomes the other is read from the o
 the request (`render.ts` stores images only), the check of the frames before the last (matters for `photo`), the
 publisher's video road, the `video` kind in `CAMPAIGN_WORKERS`, the player on the review screen.
 
+**Built 2026-11-17 (V4e):** the clip is asked for and kept, on the still's own render road (`render.ts`,
+`creative/motion/motionClip.ts`). The picture is cut to the ad's frame by the function that frames the still and
+uploaded once; the request is the model's own (`motionClipParams`); the answer's `video.url` is downloaded, read
+with ffprobe and stored at `<org>/<sha256>.mp4`. The ledger row records what the model really returned — frame,
+length, whether it carries sound — which no model's page states. A file that is not an MP4 fails the render at
+its price; a server without ffprobe leaves it pending. Nothing queues such a request yet. **Not measured:** whether
+five seconds from a real model fits the store's 15 MB an object (no real clip has been seen). **Found:**
+Higgsfield's API has no credits — Q-APX16. Still not built: the check of the frames before the last, the `video`
+kind, the publisher's video road, the player on the review screen.
+
 **Done when:** a motion ad passes the contract suite on the fake, and Renderer and Publisher show L3 for
 `meta:video`.
 
@@ -526,6 +536,36 @@ finished ad should stay on screen at the end, or for the shortest time a line ma
 - (b) The model's sound, listened to by a person at review. One more thing to approve on every ad, with no check
   behind it.
 
+### Q-APX16 · The picture budget is in a unit Higgsfield does not have — open
+
+**What was read (2026-11-17).** Four of Higgsfield's pages: pricing, "Billing and retention", "Requests", and
+"Usage and billing". The word "credits" is on none of them. Prices are dollars a second; the account holds funds
+in dollars; the usage report answers `"currency":"USD"`. There is a price call: `POST /estimate/<model>` with the
+request's own parameters answers `{"usd":"0.094"}`, and the page says to "use the estimate returned for your
+authenticated account as the authoritative amount". No page names a field that reports what a finished request
+cost, and no balance call is documented.
+
+Ours: the setting is `higgsfield_credits_monthly`, shown as "Picture credits a month"; the ledger's `cost_unit`
+allows `tokens` and `credits`; `HIGGSFIELD_CREDIT_PRICES` is an empty table waiting for credits per model. So the
+question the earlier handoffs carried — "how do dollars become credits" — has no answer to find: on the API there
+is nothing to convert to. (Credits are the unit of Higgsfield's consumer plans, which is where the name came from.)
+
+- **(a) The budget becomes dollars, and each price is asked, not kept in a table — recommended.** The setting
+  becomes a monthly amount in US cents; before a request's row is written the render asks `/estimate` for that
+  model and those parameters and writes the answer on the row, so the month is counted in what the account is
+  really charged and a price change on their side cannot make the budget lie. Cost: a migration (`cost_unit`
+  gains `usd`; the settings version gains the new field, with the two-merge rule for its first reader), the
+  settings form's field and wording, `creditGate` and the spend view. About two days. It needs the owner's key
+  only to be CERTIFIED, not to be built: the fake can answer `/estimate`.
+- (b) Keep "credits", and define one credit as one cent. No migration, but the screen would show a word the
+  carrier's Higgsfield account never uses, and the price table would still be typed by hand from a pricing page
+  that marks two of the three video prices as floors.
+- (c) Leave it until the sitting. Nothing breaks meanwhile: with no price, every real render is refused
+  `price_unknown`, which is today's behaviour. But the sitting would then choose a model with no way to hold it
+  to a budget.
+
+Until this is ruled no video model has a price and a clip on a real key is refused before any call.
+
 ## 5a. Ruled
 
 **2026-11-14, the owner, to the four proposals above and to the request to record the agents on his Anthropic
@@ -578,6 +618,7 @@ is 100%."*** Taken as:
 | Q-APX5 | Speech-to-text provider | research owed | Claude |
 | Q-APX6 | Planning mandatory, or the carrier's choice | **ruled (b) 2026-11-15, §5a** | — |
 | Q-APX7–15 | — | **ruled 2026-11-16 as proposed, §5a**; Q-APX12's sitting still waits on the Higgsfield key | — |
+| Q-APX16 | The picture budget is in "credits"; Higgsfield's API bills dollars and has a price call | (a) budget in dollars, price asked from `/estimate` | owner |
 | — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want
