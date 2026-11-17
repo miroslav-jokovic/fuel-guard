@@ -1,6 +1,6 @@
 import {
   FORMAT_SIZE, overlaySlotList, publishedFormats, withRegenerationClauses,
-  type AdBrandKit, type AdBrief, type AdFormat, type AdPresetRecipe, type AdVisualCheck, type ArtAnswer,
+  type AdAssetRef, type AdBrandKit, type AdBrief, type AdFormat, type AdPresetRecipe, type AdVisualCheck, type ArtAnswer,
 } from "@silvicom/shared";
 import type { ClaudeGenerationDeps } from "../generations/claudeGeneration.js";
 import { stillParams } from "../creative/higgsfield/prices.js";
@@ -86,6 +86,8 @@ export type PictureOutcome =
     /** The words the overlay refused on THIS picture, by their index, with why. */
     undrawable: Array<{ index: number; reason: string }>;
     logo: VisionImage | null; subject: string;
+    /** The render's stored picture every image above was drawn on: what a motion ad sets moving (V4). */
+    base: Pick<AdAssetRef, "sha256" | "format">;
   };
 
 export async function makePicture(deps: PictureDeps, input: PictureInput): Promise<PictureOutcome> {
@@ -98,7 +100,7 @@ export async function makePicture(deps: PictureDeps, input: PictureInput): Promi
     if (r.kind === "pending") return { kind: "pending", why: r.why, answer };
     if (r.kind === "stop") return { kind: "dropped", reason: r.reason, checks: { ...r.checks, visual_attempts: history }, attempt, answer };
     history.push({ attempt, visual: r.visual });
-    if (r.kind === "passed") return { kind: "passed", attempt, answer: r.answer, visual: r.visual, history, drawn: r.drawn, undrawable: r.undrawable, logo: r.logo, subject: r.subject };
+    if (r.kind === "passed") return { kind: "passed", attempt, answer: r.answer, visual: r.visual, history, drawn: r.drawn, undrawable: r.undrawable, logo: r.logo, subject: r.subject, base: r.base };
     failed = r.failed;
   }
   const said = Object.entries(history.at(-1)!.visual).flatMap(([format, rs]) => rs.filter((x) => x.verdict === "fail").map((x) => `${format} ${x.check}: ${x.reason}`));
@@ -112,7 +114,7 @@ export async function makePicture(deps: PictureDeps, input: PictureInput): Promi
 type Attempt =
   | { kind: "pending"; why: string; answer: ArtAnswer | null }
   | { kind: "stop"; reason: string; checks?: Record<string, unknown>; answer: ArtAnswer | null }
-  | { kind: "passed"; answer: ArtAnswer; visual: Record<string, VisualResult[]>; drawn: DrawnWords[]; undrawable: Array<{ index: number; reason: string }>; logo: VisionImage | null; subject: string }
+  | { kind: "passed"; answer: ArtAnswer; visual: Record<string, VisualResult[]>; drawn: DrawnWords[]; undrawable: Array<{ index: number; reason: string }>; logo: VisionImage | null; subject: string; base: Pick<AdAssetRef, "sha256" | "format"> }
   | { kind: "visual_failed"; answer: ArtAnswer; visual: Record<string, VisualResult[]>; failed: AdVisualCheck[] };
 
 async function oneAttempt(deps: PictureDeps, input: PictureInput, attempt: number, failedBefore: AdVisualCheck[]): Promise<Attempt> {
@@ -183,7 +185,7 @@ async function oneAttempt(deps: PictureDeps, input: PictureInput, attempt: numbe
   }
   if (failed.size > 0) return { kind: "visual_failed", answer, visual, failed: [...failed] };
   return {
-    kind: "passed", answer, visual, subject: art.direction.composition.focal_subject,
+    kind: "passed", answer, visual, subject: art.direction.composition.focal_subject, base: { sha256: render.assets[0]!.sha256, format: render.assets[0]!.format },
     drawn: drawn.filter((d) => !refused.has(d.words.index)),
     undrawable: [...refused].map(([index, r]) => ({ index, reason: `${r.format}, ${r.language}: ${overlaySummary(r.findings)}`.slice(0, 300) })),
     logo: kit.logo && logo ? { format: kit.logo.format, bytes: new Uint8Array(logo) } : null,

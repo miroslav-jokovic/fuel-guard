@@ -37,7 +37,15 @@ vi.mock("../creative/overlay/overlay.js", async (original) => {
       : real.renderOverlay(input)),
   };
 });
-afterEach(() => { refuseHeadline.when = null; });
+/**
+ * `makeMotion` is told what to answer here: what it does with a clip is `creativeMotion.test.ts`'s, against a real
+ * ffmpeg. These tests are about WHEN compose asks for a motion ad, with what, and what it writes for each answer.
+ */
+const motion = vi.hoisted(() => ({ calls: [] as Array<{ deps: Record<string, unknown>; input: Record<string, unknown> }>, answer: null as unknown }));
+vi.mock("./creativeMotion.js", () => ({
+  makeMotion: async (deps: Record<string, unknown>, input: Record<string, unknown>) => { motion.calls.push({ deps, input }); return motion.answer; },
+}));
+afterEach(() => { refuseHeadline.when = null; motion.calls = []; motion.answer = null; });
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const NOW = new Date("2026-11-16T18:00:00Z");
@@ -104,6 +112,7 @@ function harness(opts: Opts = {}) {
   const deps = {
     admin: rec.client, client: { messages: { create } } as unknown as MessagesClient, now: () => NOW,
     render, renderModel: "fixture/model",
+    motion: { videoModel: "fixture/video", readClip: vi.fn(), storeClip: vi.fn() },
     readAsset: vi.fn(async (_org: string, ref: { sha256: string }) => (ref.sha256 === RENDERED.sha256 ? jpg("clean-highway") : jpg("reference"))),
     storeAsset: vi.fn(async (_org: string, bytes: Buffer): Promise<AdAssetRef> => {
       const m = await sharp(bytes).metadata();
@@ -333,5 +342,93 @@ describe("how many pictures a creative is chosen from", () => {
   it("is the setting, held between one and five; one when unset; and one for a person's choice, which keeps its picture", () => {
     expect([undefined, 0, 1, 3, 5, 9, 2.7].map((pictures) => pictureCount({ pictures }))).toEqual([1, 1, 1, 3, 5, 5, 2]);
     expect(pictureCount({ pictures: 3, choice: {} as ComposeInput["choice"] })).toBe(1);
+  });
+});
+
+describe("composeCreative — a plan angle that is a motion ad (V4)", () => {
+  const CLIP = { sha256: "c".repeat(64), format: "mp4" as const, width: 1080, height: 1350, duration_ms: 5000, has_audio: false, byte_size: 9 };
+  const MOTION = { format: "4:5", model: "fixture/video", clip: CLIP, frames_checked: 11, files: [{ ...CLIP, has_audio: true, duration_ms: 7000, language: "en", path: `${ORG}/${"c".repeat(64)}.mp4` }] };
+  const made = { kind: "made", motion: MOTION, checks: { ok: true, frames: 11 } };
+
+  it("an angle that is not a motion ad never asks for one, and writes no motion", async () => {
+    motion.answer = made;
+    for (const pictures of [1, 3]) {
+      const h = harness();
+      expect(await h.run({ pictures })).toEqual({ kind: "ready" });
+      expect(h.written()).not.toHaveProperty("motion");
+      expect((h.written().checks as object)).not.toHaveProperty("motion");
+    }
+    expect(motion.calls).toEqual([]);
+  });
+
+  it("one picture: the finished still's own picture, attempt and words are set moving, and the motion ad is written with the still", async () => {
+    motion.answer = made;
+    const h = harness();
+    expect(await h.run({ pictures: 1, motion: true })).toEqual({ kind: "ready" });
+    const w = h.written();
+    expect(motion.calls).toHaveLength(1);
+    expect(motion.calls[0]!.input).toMatchObject({ ids: { orgId: ORG, campaignId: "c-1", creativeId: "cr-1" }, picture: 1, attempt: 1, base: { sha256: RENDERED.sha256, format: "jpeg" }, copy: w.copy, recipe: RECIPE, kit: KIT });
+    // The clip goes down the still's own render road, with the still's own readers.
+    expect(motion.calls[0]!.deps).toMatchObject({ videoModel: "fixture/video", render: h.deps.render, readAsset: h.deps.readAsset });
+    expect(w).toMatchObject({ state: "ready", motion: MOTION });
+    expect(w.checks).toMatchObject({ visual: { ok: true }, motion: { ok: true, frames: 11 } });
+    expect((w.assets as unknown[]).length).toBe(4); // the still is whole beside it
+  });
+
+  it("several pictures: what moves is the WINNING pairing's picture under its words, not the first made", async () => {
+    motion.answer = made;
+    const totals = [16, 16, 15, 16, 19, 15, 16, 16, 14]; // picture 2 under the second-ranked words wins
+    const h = harness({ finished: (n) => finished(totals[n] ?? 17) });
+    expect(await h.run({ motion: true })).toEqual({ kind: "ready" });
+    const w = h.written();
+    expect(motion.calls).toHaveLength(1);
+    expect(motion.calls[0]!.input).toMatchObject({ picture: 2, attempt: 1, copy: w.copy });
+    expect(adPairingsSchema.parse(w.pairings).ranked[0]).toMatchObject({ picture: 2 });
+    expect(w).toMatchObject({ state: "ready", motion: MOTION });
+  });
+
+  it("a clip still being made keeps the creative with the workers: pending, and nothing is finished", async () => {
+    motion.answer = { kind: "pending", why: "motion clip: queued" };
+    const h = harness();
+    expect(await h.run({ pictures: 1, motion: true })).toEqual({ kind: "pending", why: "motion clip: queued" });
+    const states = (x: typeof h) => x.rec.forTable("ads_creatives").filter((q) => q.write?.method === "update").map((q) => (q.write!.payload as { state?: string }).state);
+    expect(states(h)).not.toContain("ready");
+    expect(states(h)).not.toContain("check_failed");
+    // The same with several pictures, which finish on another branch.
+    const several = harness();
+    expect(await several.run({ pictures: 3, motion: true })).toEqual({ kind: "pending", why: "motion clip: queued" });
+    expect(states(several)).not.toContain("ready");
+  });
+
+  it("a motion ad that cannot be made does not take the still with it: the creative is ready, with the reason beside it and no motion", async () => {
+    motion.answer = { kind: "stop", reason: "motion clip: 3.0 s came back for the 5 s asked" };
+    const h = harness();
+    expect(await h.run({ pictures: 1, motion: true })).toEqual({ kind: "ready" });
+    const w = h.written();
+    expect(w).toMatchObject({ state: "ready", last_error: null });
+    expect(w).not.toHaveProperty("motion");
+    expect((w.checks as { motion: unknown }).motion).toEqual({ ok: false, reason: "motion clip: 3.0 s came back for the 5 s asked" });
+    // A stop that carries the frame check's findings keeps them.
+    motion.answer = { kind: "stop", reason: "motion check (en): …", checks: { ok: false, language: "en", findings: [{ label: "headline" }] } };
+    const h2 = harness();
+    await h2.run({ motion: true });
+    expect((h2.written().checks as { motion: unknown }).motion).toEqual({ ok: false, language: "en", findings: [{ label: "headline" }], reason: "motion check (en): …" });
+  });
+
+  it("a motion record the review screen could not read is a failure here, not a blank screen there", async () => {
+    motion.answer = { ...made, motion: { ...MOTION, files: [] } };
+    await expect(harness().run({ pictures: 1, motion: true })).rejects.toThrow();
+  });
+
+  it("a person's choice keeps its picture and is not set moving again; nor is anything where the worker has no motion parts", async () => {
+    motion.answer = made;
+    const copy = (copyFx.recorded.output as { candidates: Array<ComposeInput["choice"] extends infer C ? C extends { copy: infer K } ? K : never : never> }).candidates[0]!;
+    const h = harness();
+    expect(await h.run({ motion: true, choice: { copy, from_candidate: null, edited_slots: [], chosen_by_name: "Ana", replaced: { creativeId: "cr-0", attempt: 1, candidates: null } } })).toEqual({ kind: "ready" });
+    const bare = harness();
+    delete (bare.deps as { motion?: unknown }).motion;
+    expect(await bare.run({ pictures: 1, motion: true })).toEqual({ kind: "ready" });
+    expect(motion.calls).toEqual([]);
+    expect(bare.written()).not.toHaveProperty("motion");
   });
 });
