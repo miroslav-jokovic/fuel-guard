@@ -168,10 +168,26 @@ ok("removing needs who and why together", (await sqlstate(`update lumper_case_fi
 ok("it is removed with a person and a reason", (await sqlstate(`update lumper_case_files set removed_at = now(), removed_by = $2, remove_reason = 'wrong load' where id = $1`, [filed.id, closer])) === null);
 ok("a removed file is not removed twice (LR003)", (await sqlstate(`update lumper_case_files set remove_reason = 'again, differently' where id = $1`, [filed.id])) === "LR003");
 ok("the row is still there after removal", (await all(`select 1 from lumper_case_files where id = $1`, [filed.id])).length === 1);
+// ── the daily reminder (0624, LRC4) ──────────────────────────────────────────────────────────────
+console.log("daily reminder");
+ok("the three lumper bell categories are accepted", (await Promise.all(["lumper_rc_waiting", "lumper_rc_missing_billed", "lumper_billing_gap"].map((c) =>
+  outcome(`insert into notification_events (org_id, audience_user_id, category, title) values ($1, $2, $3, 'x')`, [ORG, closer, c])))).every((e) => e === null));
+ok("a category outside the list is still refused", (await sqlstate(`insert into notification_events (org_id, audience_user_id, category, title) values ($1, $2, 'lumper_nonsense', 'x')`, [ORG, closer])) === "23514");
+ok("every category the CHECK held before 0624 is still accepted", (await outcome(`insert into notification_events (org_id, audience_user_id, category, title) values ($1, $2, 'home_time_overdue', 'x')`, [ORG, closer])) === null);
+ok("no setting row means the reminder is off: the table starts empty", (await count("lumper_reminder_settings")) === 0);
+ok("the switch is one row per carrier", (await outcome(`insert into lumper_reminder_settings (org_id, reminders_on, updated_by) values ($1, true, $2)`, [ORG, closer])) === null
+  && (await sqlstate(`insert into lumper_reminder_settings (org_id, reminders_on) values ($1, false)`, [ORG])) === "23505");
+ok("the switch must say on or off", (await sqlstate(`insert into lumper_reminder_settings (org_id, reminders_on) values ($1, null)`, [OTHER])) === "23502");
+ok("a carrier's day is claimed once (D-LRC6)", (await outcome(`insert into lumper_reminder_runs (org_id, run_on) values ($1, '2026-11-17')`, [ORG])) === null
+  && (await sqlstate(`insert into lumper_reminder_runs (org_id, run_on) values ($1, '2026-11-17')`, [ORG])) === "23505");
+ok("another carrier claims the same day for itself", (await outcome(`insert into lumper_reminder_runs (org_id, run_on) values ($1, '2026-11-17')`, [OTHER])) === null);
+ok("a run's counts cannot be negative", (await sqlstate(`update lumper_reminder_runs set cases = -1 where org_id = $1`, [ORG])) === "23514");
+
 await db.query(`delete from organizations where id = $1`, [OTHER]);
 ok("an organisation that goes takes its cases and files with it", (await count("lumper_cases", OTHER)) === 0);
+ok("…and its reminder days", (await count("lumper_reminder_runs", OTHER)) === 0);
 
-for (const t of ["lumper_case_files", "mcleod_lumper_orders", "mcleod_lumper_charges", "mcleod_lumper_payments", "mcleod_lumper_bills", "mcleod_lumper_sweeps", "lumper_cases"]) {
+for (const t of ["lumper_reminder_settings", "lumper_reminder_runs", "lumper_case_files", "mcleod_lumper_orders", "mcleod_lumper_charges", "mcleod_lumper_payments", "mcleod_lumper_bills", "mcleod_lumper_sweeps", "lumper_cases"]) {
   const row = await one(`select c.relrowsecurity rls, (select count(*) from pg_policies p where p.tablename = c.relname) n from pg_class c where c.relname = $1`, [t]);
   ok(`${t}: row level security on, no client policy`, row.rls === true && Number(row.n) === 0, JSON.stringify(row));
 }

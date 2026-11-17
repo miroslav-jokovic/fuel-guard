@@ -48,7 +48,7 @@ describe("the catalogue", () => {
       expect(NOTIFICATION_CATEGORIES).toContain(a.key);
       expect(a.label).toBe(NOTIFICATION_CATEGORY_LABELS[a.key]);
     }
-    expect(ALERT_KEYS).toEqual(["home_time_return_due", "home_time_overdue", "home_time_truck_limit"]);
+    expect(ALERT_KEYS).toEqual(["home_time_return_due", "home_time_overdue", "home_time_truck_limit", "lumper_rc_waiting", "lumper_rc_missing_billed", "lumper_billing_gap"]);
     expect(isAlertKey("home_time_overdue")).toBe(true);
     expect(isAlertKey("fuel_alert")).toBe(false);
   });
@@ -59,8 +59,18 @@ describe("the catalogue", () => {
 
   it("defaults only to roles that can view the alert's section", () => {
     for (const a of ALERT_CATALOGUE) {
+      if (!a.section) continue;
       const viewers = rolesThatCanView(a.section) as string[];
       for (const r of a.defaults) if (r.recipientKind === "role") expect(viewers).toContain(r.recipientKey);
+    }
+  });
+
+  it("defaults only to roles that can receive the alert — its section and its screen, as shipped", () => {
+    for (const a of ALERT_CATALOGUE) {
+      const receivers = alertRolesFor(a, {}) as string[];
+      for (const r of a.defaults) if (r.recipientKind === "role") expect(receivers).toContain(r.recipientKey);
+      // A default relation must be one the alert resolves; one it does not would reach nobody, silently.
+      for (const r of a.defaults) if (r.recipientKind === "relation") expect(a.relations as readonly string[]).toContain(r.recipientKey);
     }
   });
 });
@@ -211,7 +221,8 @@ describe("what the Settings page may save (HT5)", () => {
   const r = (recipientKind: AlertRoute["recipientKind"], recipientKey: string, channel: AlertRoute["channel"], enabled = true): AlertRoute => ({ recipientKind, recipientKey, channel, enabled });
 
   it("accepts the catalogue's own defaults for every alert", () => {
-    for (const a of ALERT_CATALOGUE) expect(alertRoutesProblem(a.key, a.defaults, members, ROLES), a.key).toBeNull();
+    // Each alert against the roles that can receive IT: a lumper reminder's are its screen's, not Dispatch's.
+    for (const a of ALERT_CATALOGUE) expect(alertRoutesProblem(a.key, a.defaults, members, new Set<string>(alertRolesFor(a, {}))), a.key).toBeNull();
   });
 
   it("refuses a set that reaches nobody — every switch off, or no switch at all", () => {
@@ -310,10 +321,10 @@ describe("alerts follow the carrier's Permissions page (Q-HT8)", () => {
   });
 
   it("lists the roles that can receive: the shipped ones less those taken away, plus those given", () => {
-    expect(alertRolesFor("dispatch", {})).toEqual(rolesThatCanView("dispatch"));
-    expect(alertRolesFor("dispatch", NO_DISPATCH)).not.toContain("fleet_manager");
-    expect(alertRolesFor("dispatch", NO_DISPATCH)).toContain("dispatcher");
-    expect(alertRolesFor("dispatch", { recruiter: { dispatch: "view" } })).toContain("recruiter");
+    expect(alertRolesFor({ section: "dispatch" }, {})).toEqual(rolesThatCanView("dispatch"));
+    expect(alertRolesFor({ section: "dispatch" }, NO_DISPATCH)).not.toContain("fleet_manager");
+    expect(alertRolesFor({ section: "dispatch" }, NO_DISPATCH)).toContain("dispatcher");
+    expect(alertRolesFor({ section: "dispatch" }, { recruiter: { dispatch: "view" } })).toContain("recruiter");
   });
 
   it("falls back only to people who MANAGE the section on the carrier's answer", () => {
@@ -323,7 +334,7 @@ describe("alerts follow the carrier's Permissions page (Q-HT8)", () => {
   });
 
   it("the save rule refuses a role that can no longer receive it, and the page is shown the set without it", () => {
-    const roles = new Set<string>(alertRolesFor("dispatch", NO_DISPATCH));
+    const roles = new Set<string>(alertRolesFor({ section: "dispatch" }, NO_DISPATCH));
     const defaults = alertDefinition("home_time_overdue").defaults;
     expect(alertRoutesProblem("home_time_overdue", defaults, new Set(), roles)).toMatch(/role cannot open/);
     const shown = receivableRoutes(defaults, new Set(), roles);

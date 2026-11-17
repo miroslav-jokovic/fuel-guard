@@ -3,6 +3,8 @@ import { EDITABLE_ROLES, effectiveSectionAccess, isEditableRole, resolveSectionA
 import type { UserRole } from "./constants.js";
 import type { NotificationCategory } from "./notificationsContract.js";
 import { alertTextQuietSchema } from "./alertTexts.js";
+import { SURFACES } from "./surfaceCatalogue.js";
+import { surfaceAllowed, type SurfaceClaim, type SurfaceOverrides } from "./surfaces.js";
 
 /**
  * Alert routing — which alert goes to whom, by bell, email or text
@@ -39,11 +41,14 @@ export const ALERT_CHANNELS = ["bell", "email", "sms"] as const;
 export type AlertChannel = (typeof ALERT_CHANNELS)[number];
 export const ALERT_CHANNEL_LABELS: Record<AlertChannel, string> = { bell: "Dashboard", email: "Email", sms: "Text" };
 
-export const ALERT_RELATIONS = ["marked_by", "truck_dispatcher"] as const;
+export const ALERT_RELATIONS = ["marked_by", "truck_dispatcher", "order_dispatcher"] as const;
 export type AlertRelation = (typeof ALERT_RELATIONS)[number];
 export const ALERT_RELATION_LABELS: Record<AlertRelation, string> = {
   marked_by: "Whoever marked the home time",
   truck_dispatcher: "The truck's dispatcher",
+  // LUMPER-REVISED-RC-PLAN Q-LRC5 (ruled 2026-11-13): the McLeod order's `operations_user`, through the
+  // office's link from that McLeod login to a 360 account (`tms_dispatchers.user_id`).
+  order_dispatcher: "The order's dispatcher",
 };
 
 /** The three ways `notification_routes.recipient_kind` names a recipient (0598's CHECK). */
@@ -67,8 +72,21 @@ export interface AlertDefinition {
   description: string;
   /** Where to go, as the last line of the email and the text. */
   action: string;
-  /** Whose pages the alert is about: only people who can view this section receive it. */
-  section: AppSection;
+  /**
+   * Whose pages the alert is about: only people who can view this section receive it. Null for an alert
+   * whose page no section holds — then `surface` alone says who may receive it.
+   */
+  section: AppSection | null;
+  /**
+   * The SCREEN the alert's link opens, when that screen is granted on its own (a `surfaceCatalogue` key).
+   * Only people who can open it receive the alert — the same answer the screen's own guard and its API
+   * give (`surfaceAllowed`), the carrier's role and per-person changes included. LUMPER-REVISED-RC-PLAN
+   * D-LRC11: Lumper fees is worked by dispatch AND billing and no section holds both, so a section could
+   * only ever name half of the people the page is for.
+   */
+  surface?: string;
+  /** The word for several events in an email's subject ("3 drivers"). */
+  plural?: string;
   /** The relations this alert can resolve; a route naming another relation reaches nobody. */
   relations: readonly AlertRelation[];
   defaults: readonly AlertRoute[];
@@ -85,6 +103,19 @@ const HOME_TIME_BASE: readonly AlertRoute[] = [on("relation", "marked_by", "bell
 const HOME_TIME_ESCALATED: readonly AlertRoute[] = [...HOME_TIME_BASE, on("role", "fleet_manager", "bell"), on("role", "fleet_manager", "email")];
 
 const HOME_TIME_ACTION = "Open the Dispatch board in Silvicom 360, Home time tab.";
+const HOME_TIME_RELATIONS = ["marked_by", "truck_dispatcher"] as const satisfies readonly AlertRelation[];
+
+/**
+ * Lumper fees (LUMPER-REVISED-RC-PLAN D-LRC4, D-LRC6, D-LRC7): one alert per row of D-LRC4's "who is
+ * reminded" column, so each can be routed on its own. The daily run (`apps/api/src/modules/mcleod/
+ * lumper/lumperReminders.ts`) sends each person one bell item, one email and — when an admin switches
+ * Text on — one text per alert per day, listing all their loads. The DEFAULT people are the plan's:
+ * the order's dispatcher for the revised RC, accounting for billing, and admins on the dashboard as
+ * the "chosen people" until the carrier names others on Settings › Notifications.
+ */
+const LUMPER_RELATIONS = ["order_dispatcher"] as const satisfies readonly AlertRelation[];
+const LUMPER_ACTION = "Open Dispatch > Lumper fees in Silvicom 360.";
+const LUMPER_SURFACE = "dispatch.lumper-cases";
 
 export const ALERT_CATALOGUE = [
   {
@@ -93,7 +124,7 @@ export const ALERT_CATALOGUE = [
     description: "A driver on home time is due back within the warning window.",
     action: HOME_TIME_ACTION,
     section: "dispatch",
-    relations: ALERT_RELATIONS,
+    relations: HOME_TIME_RELATIONS,
     defaults: HOME_TIME_BASE,
   },
   {
@@ -102,7 +133,7 @@ export const ALERT_CATALOGUE = [
     description: "A driver is past the return time and nobody has marked him back. Repeats daily, up to seven times.",
     action: HOME_TIME_ACTION,
     section: "dispatch",
-    relations: ALERT_RELATIONS,
+    relations: HOME_TIME_RELATIONS,
     defaults: HOME_TIME_ESCALATED,
   },
   {
@@ -111,8 +142,47 @@ export const ALERT_CATALOGUE = [
     description: "A truck has been at its driver's home longer than the limit.",
     action: HOME_TIME_ACTION,
     section: "dispatch",
-    relations: ALERT_RELATIONS,
+    relations: HOME_TIME_RELATIONS,
     defaults: HOME_TIME_ESCALATED,
+  },
+  {
+    key: "lumper_rc_waiting",
+    label: "Revised RC missing",
+    description: "We paid a lumper and the broker's revised rate confirmation is not on file. Weekdays at 8:00, one message listing every such load.",
+    action: LUMPER_ACTION,
+    section: null,
+    surface: LUMPER_SURFACE,
+    plural: "loads",
+    relations: LUMPER_RELATIONS,
+    defaults: [on("relation", "order_dispatcher", "bell"), on("relation", "order_dispatcher", "email"), on("role", "admin", "bell")],
+  },
+  {
+    key: "lumper_rc_missing_billed",
+    label: "Invoiced without the revised RC",
+    description: "A load was invoiced with its lumper, but the revised rate confirmation is not on file, so the broker can still refuse to pay it. Weekdays at 8:00.",
+    action: LUMPER_ACTION,
+    section: null,
+    surface: LUMPER_SURFACE,
+    plural: "loads",
+    relations: LUMPER_RELATIONS,
+    defaults: [
+      on("relation", "order_dispatcher", "bell"),
+      on("relation", "order_dispatcher", "email"),
+      on("role", "accountant", "bell"),
+      on("role", "accountant", "email"),
+      on("role", "admin", "bell"),
+    ],
+  },
+  {
+    key: "lumper_billing_gap",
+    label: "Lumper not billed in full",
+    description: "We paid a lumper and the invoice left it out, or billed less than we paid. Weekdays at 8:00, until it is re-billed or closed with a reason.",
+    action: LUMPER_ACTION,
+    section: null,
+    surface: LUMPER_SURFACE,
+    plural: "loads",
+    relations: LUMPER_RELATIONS,
+    defaults: [on("role", "accountant", "bell"), on("role", "accountant", "email"), on("role", "admin", "bell"), on("role", "admin", "email")],
   },
 ] as const satisfies readonly AlertDefinition[];
 
@@ -134,6 +204,8 @@ export interface AlertMember {
    * `custom_access_token_hook` mints it (`alertMemberSections`). Absent = nothing saved: the shipped matrix.
    */
   sections?: SectionClaim;
+  /** The member's SCREEN claim, built the same way (`memberSurfaceClaim`). Absent = nothing saved. */
+  surfaces?: SurfaceClaim;
 }
 
 /**
@@ -151,15 +223,47 @@ export const alertMemberCanView = (m: AlertMember, section: AppSection): boolean
 /** …and manage it — the people an alert addressed to nobody falls back to. */
 export const alertMemberCanManage = (m: AlertMember, section: AppSection): boolean => resolveSectionAccess(m.role, section, m.sections ?? null) === "manage";
 
+const surfaceOf = (key: string) => {
+  const s = SURFACES.find((x) => x.key === key);
+  if (!s) throw new Error(`alert routing: no screen "${key}" in the catalogue`);
+  return s;
+};
+
 /**
- * The ROLES that can receive an alert about this section: those whose members can view it by the
- * role's own answer (the carrier's change, else the shipped one). A person given the section by name
- * is reached as a person, not through their role.
+ * May this member receive the alert at all: they can view its section (when it has one) AND open its
+ * screen (when it names one), on the carrier's own answers. Every reader of "who can receive" asks
+ * this — the resolver, the Settings page and "My alerts" — so none of them can disagree.
  */
-export function alertRolesFor(section: AppSection, roleOverrides: SectionOverrides): UserRole[] {
-  const shipped = rolesThatCanView(section);
-  const all = [...new Set<UserRole>([...shipped, ...EDITABLE_ROLES])];
-  return all.filter((role) => effectiveSectionAccess(role, section, roleOverrides) !== "none");
+export function alertMemberCanReceive(m: AlertMember, def: Pick<AlertDefinition, "section" | "surface">): boolean {
+  if (def.section && !alertMemberCanView(m, def.section)) return false;
+  if (def.surface && !surfaceAllowed(surfaceOf(def.surface), m.role, m.sections ?? null, m.surfaces ?? null)) return false;
+  return true;
+}
+
+/**
+ * Who an event that resolved to nobody goes to instead (a failure, said in the log): whoever MANAGES the
+ * alert's section; for an alert with no section, the admins who can open its screen — the plan's "the
+ * reminder then goes to the chosen admins only" (LUMPER-REVISED-RC-PLAN §4).
+ */
+export function alertMemberIsFallback(m: AlertMember, def: Pick<AlertDefinition, "section" | "surface">): boolean {
+  if (!alertMemberCanReceive(m, def)) return false;
+  return def.section ? alertMemberCanManage(m, def.section) : m.role === "admin";
+}
+
+/**
+ * The ROLES that can receive an alert: those whose members can view its section and open its screen by
+ * the ROLE's own answers (the carrier's change, else the shipped one). A person given either by name is
+ * reached as a person, not through their role.
+ */
+export function alertRolesFor(def: Pick<AlertDefinition, "section" | "surface">, roleOverrides: SectionOverrides, roleSurfaces: SurfaceOverrides = {}): UserRole[] {
+  const all = def.section ? [...new Set<UserRole>([...rolesThatCanView(def.section), ...EDITABLE_ROLES])] : (["admin", ...EDITABLE_ROLES] as UserRole[]);
+  return all.filter((role) => {
+    if (def.section && effectiveSectionAccess(role, def.section, roleOverrides) === "none") return false;
+    if (!def.surface) return true;
+    const editable = isEditableRole(role);
+    const sections = editable ? ((roleOverrides[role] ?? null) as SectionClaim | null) : null;
+    return surfaceAllowed(surfaceOf(def.surface), role, sections, editable ? (roleSurfaces[role] ?? null) : null);
+  });
 }
 
 /**
@@ -183,7 +287,7 @@ export function resolveAlertRecipients(
   relations: Partial<Record<AlertRelation, string | null>>,
 ): Map<string, Set<AlertChannel>> {
   const def = alertDefinition(key);
-  const eligible = new Map(members.filter((m) => alertMemberCanView(m, def.section)).map((m) => [m.userId, m.role]));
+  const eligible = new Map(members.filter((m) => alertMemberCanReceive(m, def)).map((m) => [m.userId, m.role]));
   const out = new Map<string, Set<AlertChannel>>();
   const add = (userId: string | null | undefined, channel: AlertChannel) => {
     if (!userId || !eligible.has(userId)) return;
@@ -260,6 +364,12 @@ export const alertRoutingViewSchema = z.object({
       routes: z.array(alertRouteSchema),
       /** True when the carrier has saved nothing for this alert, so `routes` are the defaults. */
       usesDefaults: z.boolean(),
+      /**
+       * The members who can receive THIS alert — the only people its editor may offer. Alerts differ
+       * (home time is the Dispatch section's; the lumper reminders are a screen accounting holds without
+       * Dispatch), so one list for the page would offer a person a save then refuses.
+       */
+      memberIds: z.array(z.string()),
     }),
   ),
   /** Active members, with their role, so the page can add a person and say who a role reaches. */

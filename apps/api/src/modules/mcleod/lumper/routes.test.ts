@@ -52,8 +52,8 @@ const aCase = (id: string, order: string, o: Record<string, unknown> = {}) => ({
   id, org_id: ORG, company_id: "TMS", order_id: order, charge_code: "LUM", opened_at: "2026-10-02T12:00:00Z",
   closed_at: null, closed_by: null, close_reason: null, close_note: null, ...o,
 });
-const order = (id: string) => ({
-  org_id: ORG, company_id: "TMS", order_id: id, customer_name: "A Broker", dispatcher_user_id: "kane", dispatcher_name: "Kane",
+const order = (id: string, seen = "2026-10-09T13:00:00Z") => ({
+  org_id: ORG, company_id: "TMS", order_id: id, last_seen_at: seen, customer_name: "A Broker", dispatcher_user_id: "kane", dispatcher_name: "Kane",
   consignee_name: "A Warehouse", consignee_city: "Joliet", consignee_state: "IL", consignee_arrived_at: "2026-10-01T00:00:00Z", consignee_departed_at: "2026-10-01T00:00:00Z",
 });
 const payment = (id: string, orderId: string | null, o: Record<string, unknown> = {}) => ({
@@ -64,13 +64,16 @@ const bill = (id: string, orderId: string, lumper: string) => ({
   org_id: ORG, company_id: "TMS", bill_id: id, order_id: orderId, bill_type: "I", bill_date: "2026-10-05T00:00:00Z", invoice_no: `INV-${id}`, lumper_amount: lumper,
 });
 
-function seed(over: { cases?: Record<string, unknown>[]; files?: Record<string, unknown>[]; stored?: Uint8Array | null; roleAccess?: Record<string, unknown>[]; userAccess?: Record<string, unknown>[]; module?: boolean } = {}): SupabaseRecorder {
+function seed(over: { reminders?: Record<string, unknown>[]; cases?: Record<string, unknown>[]; files?: Record<string, unknown>[]; stored?: Uint8Array | null; roleAccess?: Record<string, unknown>[]; userAccess?: Record<string, unknown>[]; module?: boolean } = {}): SupabaseRecorder {
   rec = createSupabaseRecorder({
     tables: {
       org_role_surface_access: postgrestFixture((over.roleAccess ?? []).map((g) => ({ org_id: ORG, ...g }))),
       user_surface_access: postgrestFixture((over.userAccess ?? []).map((g) => ({ org_id: ORG, ...g }))),
       lumper_cases: postgrestFixture(over.cases ?? [aCase(CASE_WAITING, "A"), aCase(CASE_DONE, "B"), aCase(CASE_NO_LUMPER, "C")]),
-      mcleod_lumper_orders: postgrestFixture([order("A"), order("B"), order("C")]),
+      // C's order was last carried by an August read: older than the window, its facts frozen (Q-LRC9).
+      mcleod_lumper_orders: postgrestFixture([order("A"), order("B"), order("C", "2026-08-01T13:00:00Z")]),
+      lumper_reminder_settings: postgrestFixture(over.reminders ?? []),
+      lumper_reminder_runs: postgrestFixture([]),
       mcleod_lumper_charges: postgrestFixture([
         { org_id: ORG, company_id: "TMS", charge_id: "OC1", order_id: "A", charge_code: "LUM", descr: "Unloading", amount: "310.00" },
         { org_id: ORG, company_id: "TMS", charge_id: "OC2", order_id: "B", charge_code: "LUM", descr: "Unloading", amount: "200.00" },
@@ -163,6 +166,9 @@ describe("what the list says", () => {
     expect(body.cases[1]).toMatchObject({ paidAmount: 150, billedAmount: 0, shortAmount: 150, lastInvoiceNo: "INV-BL2" });
     expect(body.unmatchedPayments).toEqual([{ id: "pending:D5", deductCode: "UNL", amount: 90, transactedAt: "2026-10-02T00:00:00Z", referenceNo: "EFS-D5", driverCode: "DRV1", tractorUnit: "101", pending: true }]);
     expect(body.sweptAt).toBe("2026-10-09T13:00:00Z");
+    // Whether a case's McLeod facts came from the latest read (Q-LRC9), and that nobody is reminded yet (D-LRC9).
+    expect(body.cases.map((c) => [c.orderId, c.factsCurrent, c.factsSeenAt])).toEqual([["A", true, "2026-10-09T13:00:00Z"], ["C", false, "2026-08-01T13:00:00Z"]]);
+    expect(body.remindersOn).toBe(false);
     expectOrgScoped(rec, ORG, EXEMPT);
   });
 
@@ -274,3 +280,37 @@ describe("closing a case that will not be billed (D-LRC4)", () => {
     expect((audits()[0]!.meta as Record<string, unknown>).wasReason).toBe("broker_refused");
   });
 });
+
+describe("the daily reminder's switch (/api/lumper-reminders/settings, D-LRC9)", () => {
+  const settings = (token: string, init: RequestInit = {}) =>
+    fetch(`${baseUrl}/api/lumper-reminders/settings`, { ...init, headers: { "content-type": "application/json", Authorization: `Bearer ${token}` } });
+
+  it("is off with no row, and the list says so", async () => {
+    seed();
+    expect(await (await settings("admin")).json()).toEqual({ remindersOn: false, updatedAt: null, updatedByName: null, lastRun: null });
+    seed({ reminders: [{ org_id: ORG, reminders_on: true, updated_by: DANA, updated_at: "2026-11-16T12:00:00Z" }] });
+    expect(((await (await call("/", "dispatcher")).json()) as LumperCasesResponse).remindersOn).toBe(true);
+  });
+
+  it("is changed by an admin, as a whole row, with the old and the new answer on the Audit page", async () => {
+    seed();
+    const res = await settings("admin", { method: "PUT", body: JSON.stringify({ remindersOn: true }) });
+    expect(res.status).toBe(200);
+    const up = rec.forTable("lumper_reminder_settings").find((q) => q.write?.method === "upsert")!;
+    expect(up.write!.payload).toMatchObject({ org_id: ORG, reminders_on: true, updated_by: CTX.admin!.userId });
+    expect(Object.keys(up.write!.payload as object).sort()).toEqual(["org_id", "reminders_on", "updated_at", "updated_by"]);
+    expect(audits()).toEqual([expect.objectContaining({ action: "settings.lumper_reminders_saved", org_id: ORG, meta: { before: { remindersOn: false }, after: { remindersOn: true } } })]);
+    expectOrgScoped(rec, ORG, EXEMPT);
+  });
+
+  it("refuses everybody who cannot manage Settings, whoever works the cases", async () => {
+    for (const who of ["dispatcher", "accountant", "recruiter"]) {
+      seed();
+      expect((await settings(who, { method: "PUT", body: JSON.stringify({ remindersOn: true }) })).status, who).toBe(403);
+      expect(rec.forTable("lumper_reminder_settings").filter((q) => q.write)).toEqual([]);
+    }
+    seed();
+    expect((await settings("admin", { method: "PUT", body: JSON.stringify({ remindersOn: "yes" }) })).status).toBe(400);
+  });
+});
+

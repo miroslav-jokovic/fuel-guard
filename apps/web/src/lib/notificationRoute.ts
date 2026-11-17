@@ -68,6 +68,9 @@ function destination(category: string, entityType: string | null, entityId: stri
   if (category.startsWith("home_time_") && entityType === "driver" && entityId) {
     return `/assignments?queue=home-time&homeTime=${encodeURIComponent(entityId)}`;
   }
+  // LUMPER-REVISED-RC-PLAN D-LRC5, D-LRC6: the daily lumper reminder names many loads, so it opens the
+  // Lumper fees list, which every reminder points to. A reader the screen is turned off for stays.
+  if (category.startsWith("lumper_")) return "/lumper-fees";
   // A10. The applicant board IS the queue for a stalled application — there is no per-applicant page
   // to land on, and "an alert that cannot deep-link to its queue is half an alert".
   if (category === "application_stalled") return "/recruitment";

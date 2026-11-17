@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import { isDispatchable, loadBoardState, LOAD_EVENT_LABELS } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ChatAboutCard from "@/features/chat/ChatAboutCard.vue";
+import LumperOnLoadCard from "@/features/lumper/LumperOnLoadCard.vue";
 import {
   AppCard as BaseCard,
   AppButton as BaseButton,
@@ -321,6 +322,9 @@ function markBroken(id: string) {
             <li v-if="load.stops.length === 0" class="py-2 text-sm text-ink-muted">No stops on this load yet.</li>
           </ol>
         </BaseCard>
+
+        <!-- LUMPER-REVISED-RC-PLAN LRC3: what we paid a lumper on this order and whether the revised RC is in. -->
+        <LumperOnLoadCard :order-id="load.ref" :from-mcleod="load.source === 'tms'" />
 
         <!-- History -->
         <BaseCard>
