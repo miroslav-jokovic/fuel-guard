@@ -122,6 +122,23 @@ export function pmWarning(
 }
 
 /**
+ * One truck's next-PM verdict across its schedules (FLEETPAL-INTEGRATION-PLAN.md Q11) — what the
+ * Vehicles list prints, so it is `pmStatus`'s answer and never a second rule. Takes each schedule's
+ * verdict as `judgeSchedule` gives it (the worst of its judged intervals; null when none could be judged).
+ *
+ * Overdue beats due; then a schedule that cannot be judged makes the truck `unknown` — "can't tell" is
+ * never "ok", because one unjudgeable schedule may be the overdue one. No schedule at all is null: "no
+ * schedule", which the list shows as nothing, not as a verdict.
+ */
+export type TruckPmVerdict = DueVerdict | "ok" | "unknown";
+export function truckPmVerdict(scheduleVerdicts: readonly (PmStatus["verdict"] | null)[]): TruckPmVerdict | null {
+  if (scheduleVerdicts.length === 0) return null;
+  if (scheduleVerdicts.includes("overdue")) return "overdue";
+  if (scheduleVerdicts.includes("due")) return "due";
+  return scheduleVerdicts.includes(null) ? "unknown" : "ok";
+}
+
+/**
  * When a TIME interval next falls due: the day it was last done plus the interval, `YYYY-MM-DD`. Null
  * for a mileage interval, a schedule never done, or a unit this does not know — never a guess.
  */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { annualDisagreement, annualWarning, classifyPmName, pmDueOn, pmStatus, pmWarning, sortWarnings, type PmInterval } from "./maintenanceDue.js";
+import { annualDisagreement, annualWarning, classifyPmName, pmDueOn, pmStatus, pmWarning, sortWarnings, truckPmVerdict, type PmInterval } from "./maintenanceDue.js";
 
 const NOW = new Date("2026-10-16T12:00:00Z");
 const MI = 1609.344;
@@ -134,5 +134,25 @@ describe("annualDisagreement — FleetPal's annual against our record (Q-DBV2, s
     expect(annualDisagreement(null, "2027-01-01", T)).toEqual({ ours: "unknown", fleetpal: "valid", gapDays: null });
     expect(annualDisagreement("2027-01-01", null, T)).toBeNull();
     expect(annualDisagreement(null, null, T)).toBeNull();
+  });
+});
+
+describe("truckPmVerdict — the Vehicles list's next-PM verdict (Q11)", () => {
+  it("is the worst schedule's verdict: overdue before due before ok", () => {
+    expect(truckPmVerdict(["ok", "due", "overdue"])).toBe("overdue");
+    expect(truckPmVerdict(["ok", "due"])).toBe("due");
+    expect(truckPmVerdict(["ok", "ok"])).toBe("ok");
+  });
+
+  it("says unknown, never ok, when a schedule cannot be judged and nothing is overdue or due", () => {
+    expect(truckPmVerdict(["ok", null])).toBe("unknown");
+    expect(truckPmVerdict([null])).toBe("unknown");
+    // A judged warning still outranks the unknown: the truck needs looking at either way.
+    expect(truckPmVerdict([null, "due"])).toBe("due");
+    expect(truckPmVerdict([null, "overdue"])).toBe("overdue");
+  });
+
+  it("is null for a truck with no schedule — 'no schedule', not a verdict", () => {
+    expect(truckPmVerdict([])).toBeNull();
   });
 });
