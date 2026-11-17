@@ -54,7 +54,7 @@ vi.mock("vue-router", async (importOriginal) => {
 });
 
 const HomePage = (await import("@/pages/MaintenanceHomePage.vue")).default;
-const PANELS = ["RoadsideRepairsPanel", "ShopDefectsPanel", "ShopWorkOrdersPanel", "ShopAnnualDuePanel", "ShopRepairBillsPanel"];
+const PANELS = ["RoadsideRepairsPanel", "ShopDefectsPanel", "ShopWorkOrdersPanel", "ShopAnnualDuePanel", "ShopRepairBillsPanel", "ShopRepairCostPanel"];
 const page = () =>
   mount(HomePage, {
     global: { stubs: { ...Object.fromEntries(PANELS.map((n) => [n, { template: `<div data-test="${n}" />` }])), PageHeader: { template: "<header><slot name='actions' /></header>" } } },
@@ -113,10 +113,19 @@ describe("which tab the Shop page opens on", () => {
 });
 
 describe("the tabs", () => {
-  it("are the five lists, in deadline order, each with its own count and no zero", () => {
+  it("are the six lists, in deadline order, each with its own count and no zero", () => {
     defects.value = [defect, { ...defect, id: "d2" }];
     orders.value = [order];
-    expect(tabLabels(page())).toEqual(["Roadside repairs", "Defects 2", "Work orders 1", "Annual due", "Repair bills"]);
+    expect(tabLabels(page())).toEqual(["Roadside repairs", "Defects 2", "Work orders 1", "Annual due", "Repair bills", "Repair cost"]);
+  });
+
+  it("opens Repair cost from its own address's tab, and hides it from a reader its screen is closed to", () => {
+    route.query = { tab: "cost" };
+    expect(panel(page())).toBe("ShopRepairCostPanel");
+    closed.add("/shop/repair-cost");
+    const w = page();
+    expect(tabLabels(w)).not.toContain("Repair cost");
+    expect(panel(w)).toBe("ShopDefectsPanel");
   });
 
   it("counts only the roadside repairs still open", () => {
@@ -127,7 +136,7 @@ describe("the tabs", () => {
   it("draws no tab whose screen is closed to this reader (SP5)", () => {
     closed.add("/shop/defects");
     closed.add("/shop/roadside-repairs");
-    expect(tabLabels(page())).toEqual(["Work orders", "Annual due", "Repair bills"]);
+    expect(tabLabels(page())).toEqual(["Work orders", "Annual due", "Repair bills", "Repair cost"]);
   });
 
   it("drops the last list's search, sort and page when another tab is picked", async () => {

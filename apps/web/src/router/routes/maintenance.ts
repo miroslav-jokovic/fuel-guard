@@ -42,6 +42,7 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
    * still closes exactly the list it closed. Roadside's own Open/Recorded was `tab=` and is `show=` now.
    */
   { path: "/shop/repair-spend", name: "repair-spend", redirect: (to) => ({ path: "/shop", query: { ...to.query, tab: "bills" } }) },
+  { path: "/shop/repair-cost", name: "repair-cost", redirect: (to) => ({ path: "/shop", query: { ...to.query, tab: "cost" } }) },
   { path: "/shop/work-orders", name: "work-orders", redirect: (to) => ({ path: "/shop", query: { ...to.query, tab: "work-orders" } }) },
   {
     path: "/shop/roadside-repairs",

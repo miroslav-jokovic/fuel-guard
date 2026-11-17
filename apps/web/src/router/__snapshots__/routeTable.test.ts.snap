@@ -405,6 +405,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/shop/repair-spend",
   },
   {
+    "name": "repair-cost",
+    "params": {},
+    "url": "/shop/repair-cost",
+  },
+  {
     "name": "parts",
     "params": {},
     "url": "/shop/inventory",
@@ -1758,6 +1763,12 @@ exports[`the route table survives being split by area > route table 1`] = `
     "name": "labels",
     "path": "/shop/labels",
     "redirect": null,
+  },
+  {
+    "meta": {},
+    "name": "repair-cost",
+    "path": "/shop/repair-cost",
+    "redirect": "fn",
   },
   {
     "meta": {},

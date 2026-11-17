@@ -71,7 +71,7 @@ const PROBES = [
   // I4 moved these four out of `routes/finance.ts` into `routes/maintenance.ts` and gave `/shop` a
   // new component. `/shop/inventory` and `/shop/inventory/:id` are a third specificity pair, and
   // `/shop/repair-spend` is the ledger `/shop` itself used to render.
-  "/shop/repair-spend", "/shop/inventory", "/shop/inventory/prt_1",
+  "/shop/repair-spend", "/shop/repair-cost", "/shop/inventory", "/shop/inventory/prt_1",
   // I8's assets — a fourth specificity pair, and a separate address from `/shop/inventory` because
   // §2.1's seam is two questions about two kinds of row, not one screen with a toggle.
   "/shop/assets", "/shop/assets/ast_1",

@@ -1917,3 +1917,29 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
     fixture ignored the filter; the fixture now answers on it.
   - **Owner acts to go live:** confirm `PUBLIC_API_URL` on the production API host, then Settings →
     FleetPal → Turn instant updates on.
+- **2026-11-17 · F9d's screen — the Shop's Repair cost tab (`claude/fleetpal-repair-cost-tab`), no migration.**
+  `/shop?tab=cost` (alias `/shop/repair-cost`, surface `maintenance.repair-spend.cost`, a child of the shop
+  home like Repair bills, so a denial of the shop reaches it). Placement is D-FP3's: Maintenance, beside
+  the ledger's Repair bills, never Finance.
+  - **It opens where the ledger has been swept.** The current month always answers 409, so the tab reads
+    `/fleetpal/coverage` over thirteen months first and opens on the newest run of printable months, at
+    most twelve (`lastPrintableRun`, shared). That window is each end's fallback and is never written to
+    the URL. A window the reader moves onto an unswept month prints the API's own sentence, which names
+    the month, and no figure.
+  - **Every figure is named** "With shop labour" / "Without labour (comparable to the ledger)" (D-FP18),
+    on the phone's cards too (`card: "figure"` labels each value; `meta` printed two bare amounts). Each
+    period row says "at least X%" (D-FP15): a week straddling a month end prints both months' figures,
+    each named, and a year prints its lowest month's. The four tiles carry the window's total, the
+    truck · trailer split, the not-matched amount and the not-matched unit count (D-FP14).
+  - **One table at a time** (contract §9 rule 9): "By period" or "By truck or trailer" (`?view=units`),
+    the latter paged 25 a page over the API's `limit`/`offset`. A truck's or trailer's row opens
+    `/shop/units/:kind/:id`; a FleetPal unit we could not match opens nothing.
+  - `RollupAnswer` moved from the API into `packages/shared/src/fleetpalRollup.ts`, so the web reads the
+    contract the route sends instead of restating it; `sumMoney` keeps an unpriced window "—", never $0.
+  - Tests: `ShopRepairCostPanel.test.ts` (the hook runs over a stubbed `apiFetch`), `repairCostRows.test.ts`,
+    and `fleetpalRollup.test.ts` ("opens on the newest printable run, never on the unswept current
+    month"). Five mutations each turned a test red: an inclusive `to` sent to the API, the 409 not
+    mapped, a default window ignoring the bound, a year printing its highest month, and an unmatched unit
+    opening a page.
+  - Browser pass on a built bundle with raw-JSON route mocks at 390 and 834 px: no horizontal overflow,
+    one table on screen (`docs/plans/maintenance/screenshots/f9d-repair-cost-*.png`).

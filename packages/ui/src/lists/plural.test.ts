@@ -149,6 +149,8 @@ const EXPECTED: Record<string, string> = {
   "random draws": "random draw",
   "tests in progress": "test in progress",
   parts: "part",
+  // F9d: the Shop's Repair cost tab counts its periods (By period) or its trucks and trailers (By unit).
+  periods: "period",
   plans: "plan",
   // F02-F04 8c4: Fuel problems, which counted "findings" until the queue held more than findings.
   problems: "problem",
@@ -168,6 +170,7 @@ const EXPECTED: Record<string, string> = {
   transactions: "transaction",
   "truck stops": "truck stop",
   trucks: "truck",
+  units: "unit",
   vehicles: "vehicle",
 };
 

@@ -362,13 +362,13 @@ export const SURFACES: readonly Surface[] = [
    * the key over. D-SURF8's inheritance is what keeps that answer where it was pointed.
    */
   /**
-   * FleetPal's work orders and defects (FLEET-MANAGER-HOME-PLAN Q-FM6 (a)) and roadside repairs due (IC11 B2b,
-   * Q-IC16 (a)): children of the shop home — I4 fixes six rows; a member denied the shop is denied what it lists.
-   */
+   * FleetPal's work orders/defects (Q-FM6 (a)), roadside repairs due (IC11 B2b) and repair cost (F9d; never Finance, D-FP3):
+   * children of the shop home — I4 fixes six rows; a member denied the shop is denied what it lists. */
   { key: "maintenance.work-orders", label: "Open work orders", path: "/shop/work-orders", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
   { key: "maintenance.defects", label: "Open defects", path: "/shop/defects", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
   { key: "maintenance.roadside-repairs", label: "Roadside repairs due", path: "/shop/roadside-repairs", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
   { key: "maintenance.repair-spend.ledger", label: "Repair bills", path: "/shop/repair-spend", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
+  { key: "maintenance.repair-spend.cost", label: "Repair cost", path: "/shop/repair-cost", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
 
   // ── non-nav screens that already state a section, transcribed (no behaviour change) ───────────
   // `dispatch.loads.new` (`/loads/new`) left in LR6 (LOADS-MIRROR-PLAN.md, Q-LMR7): loads come from

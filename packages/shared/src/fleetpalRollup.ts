@@ -1,4 +1,5 @@
 import { shiftDay, type CalendarDay } from "./calendarDay.js";
+import type { CoverageMonth } from "./fleetpal/coverage.js";
 
 /**
  * The repair-cost roll-up's arithmetic (FLEETPAL-INTEGRATION-PLAN.md F9d, D-FP18, D-FP19, Q10).
@@ -210,4 +211,55 @@ export function rollUp(
     (a, b) => (b.total.operational ?? -1) - (a.total.operational ?? -1) || (a.label ?? "").localeCompare(b.label ?? ""),
   );
   return { buckets, units: ordered };
+}
+
+/**
+ * `GET /api/maintenance/fleetpal/rollup`'s answer — the contract the API sends and the Shop's Repair
+ * cost tab reads. One page of unit rows (`limit`/`offset`), every bucket, and the bound per month.
+ */
+export interface RollupAnswer {
+  buckets: RollupBucketRow[];
+  units: RollupUnitRow[];
+  /** Unit rows in the whole answer, before `limit`/`offset`. */
+  unitTotal: number;
+  /** Per month: FleetPal's invoicing, the ledger family and the "at least" bound (Q10 (a)). */
+  coverage: CoverageMonth[];
+  unmatchedUnits: number;
+}
+
+/**
+ * Several buckets' money as one — the window's total on the Repair cost tab. Same rule as `add`: a
+ * null side stays null only when NOTHING under it was priced, so a window of unpriced repairs reads
+ * "—", never "$0.00".
+ */
+export function sumMoney(ms: readonly Money[]): Money {
+  const out = emptyMoney();
+  for (const m of ms) {
+    out.repairs += m.repairs;
+    out.unpriced += m.unpriced;
+    if (m.operational !== null) out.operational = round2((out.operational ?? 0) + m.operational);
+    if (m.external !== null) out.external = round2((out.external ?? 0) + m.external);
+  }
+  return out;
+}
+
+/**
+ * The window the Repair cost tab opens on: the newest run of months whose bound is computable, at
+ * most `max` long, as INCLUSIVE calendar days (first of its first month, last of its last).
+ *
+ * ⚠ The current month always refuses — the ledger is swept after it closes — and so does any month
+ * the sweep missed. A default that reached either would open the tab on a 409, every time, so the
+ * run stops at the first unprintable month walking back. Null when no month in `months` is printable.
+ */
+export function lastPrintableRun(months: readonly CoverageMonth[], max = 12): { from: CalendarDay; to: CalendarDay } | null {
+  const sorted = [...months].sort((a, b) => a.month.localeCompare(b.month));
+  let end = sorted.length - 1;
+  while (end >= 0 && sorted[end]!.ratioLowerBound === null) end -= 1;
+  if (end < 0) return null;
+  let start = end;
+  while (start > 0 && end - start + 1 < max && sorted[start - 1]!.ratioLowerBound !== null) start -= 1;
+  const last = sorted[end]!.month;
+  const [y, m] = last.split("-").map(Number) as [number, number];
+  const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  return { from: `${sorted[start]!.month}-01`, to: shiftDay(next, -1) };
 }
