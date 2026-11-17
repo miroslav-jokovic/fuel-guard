@@ -281,6 +281,12 @@ export const trailerInputSchema = z.object({
     z.coerce.number().int().min(1900).max(2100).optional(),
   ),
   plate: optionalText,
+  /**
+   * 17-character VIN (column since 0100). The McLeod roster sweep fills it from
+   * `dbo.trailer.serial_number`; an office edit that CHANGES it claims the row
+   * (`claim_identity_for_office`, 0241/0242), same as a truck's.
+   */
+  vin: optionalText,
   /** Equipment type (0100). Drives the hazmat carrier context — `tanker` means bulk. */
   trailer_type: z.enum(TRAILER_TYPES).nullish(),
   /**
@@ -326,6 +332,7 @@ export interface Trailer {
   model: string | null;
   year: number | null;
   plate: string | null;
+  vin: string | null;
   trailer_type: TrailerType | null;
   /** Cargo-tank capacity in gallons (H-C2) — null = unknown → engine conservative path. */
   cargo_capacity_gal: number | null;

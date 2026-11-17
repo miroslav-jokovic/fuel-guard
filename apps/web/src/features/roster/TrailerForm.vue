@@ -34,6 +34,7 @@ const form = reactive({
   model: props.trailer?.model ?? "",
   year: props.trailer?.year?.toString() ?? "",
   plate: props.trailer?.plate ?? "",
+  vin: props.trailer?.vin ?? "",
   trailer_type: props.trailer?.trailer_type ?? "",
   // H-C2: cargo-tank data lives on the trailer (the Cargo-Tank Profiles page is gone). Compartments
   // edit as comma-separated gallons — "3000, 3200, 3000" — and are rebuilt as {index, capacityGal}.
@@ -108,6 +109,12 @@ function onSubmit() {
         <BaseInput :id="id" v-model="form.plate" />
       </FormField>
     </div>
+
+    <!-- The McLeod roster sweep fills this from dbo.trailer.serial_number. Typing a different VIN on a
+         McLeod-linked trailer makes the office its source from then on (claim_identity_for_office, 0241). -->
+    <FormField v-slot="{ id }" label="VIN">
+      <BaseInput :id="id" v-model="form.vin" class="font-mono" maxlength="17" autocomplete="off" />
+    </FormField>
 
     <FormField v-slot="{ id }" label="Type" hint="Marking a trailer as a tanker is what tells HazmatGuard this is bulk packaging." :error="errors.trailer_type">
       <AppSelect

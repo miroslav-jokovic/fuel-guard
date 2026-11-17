@@ -45,7 +45,7 @@ const pairs = (w: Awaited<ReturnType<typeof mountPage>>) =>
 describe("TrailerDetailPage", () => {
   beforeEach(() => {
     trailer.row = {
-      id: "t-1", unit_number: "5302", status: "active", trailer_type: "reefer", plate: "TR 5302", is_reefer: true,
+      id: "t-1", unit_number: "5302", status: "active", trailer_type: "reefer", plate: "TR 5302", vin: "1UYVS2538L2756034", is_reefer: true,
       reefer_tank_capacity_gal: 50, cargo_capacity_gal: null, assigned_vehicle_id: "v-1", pairing_source: null,
       pairing_confirmed_at: "2026-10-19T12:00:00Z", make: "Utility", model: "3000R", year: 2022,
     };
@@ -54,7 +54,7 @@ describe("TrailerDetailPage", () => {
   it("pairs each fact with its label, and names the GPS-paired truck with the pairing's age", async () => {
     const w = await mountPage();
     expect(w.text()).toContain("Trailer 5302");
-    expect(pairs(w)).toMatchObject({ Plate: "TR 5302", Reefer: "Yes · 50 gal tank", "GPS pairing": "Unit 654 (GPS, as of 10/19/2026)" });
+    expect(pairs(w)).toMatchObject({ Plate: "TR 5302", VIN: "1UYVS2538L2756034", Reefer: "Yes · 50 gal tank", "GPS pairing": "Unit 654 (GPS, as of 10/19/2026)" });
     expect(pairs(w)["Cargo capacity"]).toBe("—");
   });
 

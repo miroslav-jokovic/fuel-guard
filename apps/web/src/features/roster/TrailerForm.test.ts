@@ -49,3 +49,15 @@ describe("TrailerForm saves a trailer with no type", () => {
     expect(sent!.trailer_type).toBeNull();
   });
 });
+
+/** 2026-11-17: the VIN McLeod sends is shown for editing and survives a save unchanged. */
+describe("TrailerForm carries the VIN", () => {
+  it("prefills the trailer's VIN and submits it back", async () => {
+    const w = mount(TrailerForm, { props: { vehicles: [], trailer: trailer({ vin: "1UYVS2538L2756034" }) } });
+    const vin = w.findAll("label").find((l) => l.text() === "VIN")!;
+    expect((w.find(`#${vin.attributes("for")}`).element as HTMLInputElement).value).toBe("1UYVS2538L2756034");
+    await w.find("form").trigger("submit.prevent");
+    const sent = w.emitted("submit")?.[0]?.[0] as { vin: unknown } | undefined;
+    expect(sent?.vin).toBe("1UYVS2538L2756034");
+  });
+});

@@ -77,6 +77,7 @@ const facts = computed<Fact[]>(() => {
   return [
     { label: "Type", value: t.trailer_type ? TRAILER_TYPE_LABELS[t.trailer_type] : null },
     { label: "Plate", value: t.plate },
+    { label: "VIN", value: t.vin },
     { label: "Reefer", value: t.is_reefer ? `Yes · ${t.reefer_tank_capacity_gal} gal tank` : "No" },
     { label: "Cargo capacity", value: t.cargo_capacity_gal != null ? `${t.cargo_capacity_gal} gal` : null },
     { label: "GPS pairing", value: pairedUnit.value ? `Unit ${pairedUnit.value}${note ? ` (${note})` : ""}` : null },
