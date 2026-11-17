@@ -14,51 +14,14 @@
  * the stalest of the five it is drawn from, so that is the time the rendering states.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAllPaged } from "@silvicom/shared";
+import { fetchAllPaged, type WorkOrderInvoice, type WorkOrderJob, type WorkOrderLine, type WorkOrderRecord, type WorkOrderDetailDto } from "@silvicom/shared";
 
 type PageResult<T> = { data: T[] | null; error: { message: string } | null };
 
 const IN_CHUNK = 150;
 const RESOURCES = ["work-orders", "jobs", "job-items", "purchase-orders", "purchase-order-invoices"] as const;
 
-export interface WorkOrderLine {
-  /** PART, LABOR, SERVICE, FEE or TAX, as FleetPal types it. */
-  type: string | null;
-  description: string | null;
-  partNumber: string | null;
-  /** Hours on a LABOR line. */
-  quantity: number | null;
-  unitOfMeasure: string | null;
-  total: number | null;
-}
-
-export interface WorkOrderJob {
-  name: string | null;
-  description: string | null;
-  complaint: string | null;
-  lines: WorkOrderLine[];
-  total: number | null;
-}
-
-export interface WorkOrderInvoice {
-  purchaseOrder: string | null;
-  invoiceNumber: string | null;
-  invoiceDate: string | null;
-  /** STANDARD or CREDIT; a CREDIT's amount is stored positive (0351). */
-  invoiceType: string | null;
-  amount: number | null;
-}
-
-export interface WorkOrderRecord {
-  fleetpalId: string;
-  reference: string | null;
-  status: string | null;
-  openedAt: string | null;
-  completedAt: string | null;
-  description: string | null;
-  jobs: WorkOrderJob[];
-  invoices: WorkOrderInvoice[];
-}
+export type { WorkOrderInvoice, WorkOrderJob, WorkOrderLine, WorkOrderRecord };
 
 export interface WorkOrderRecords {
   orders: Map<string, WorkOrderRecord>;
@@ -137,4 +100,26 @@ export async function readWorkOrderRecords(admin: SupabaseClient, orgId: string,
     });
   }
   return { orders, asOf };
+}
+
+/**
+ * One work order for the Shop's drawer (F14), found by OUR row id — the id every Shop list carries — and
+ * scoped to the org before anything is read. Null when the org has no such row, which the route answers
+ * 404: a work order of another carrier's is "not found", never "forbidden".
+ */
+export async function readWorkOrderDetail(admin: SupabaseClient, orgId: string, id: string): Promise<WorkOrderDetailDto | null> {
+  const row = await admin.from("fleetpal_work_orders").select("fleetpal_id, unit_fleetpal_id").eq("org_id", orgId).eq("id", id).maybeSingle();
+  if (row.error) throw new Error(`fleetpal_work_orders: ${row.error.message}`);
+  const wo = row.data as { fleetpal_id: string; unit_fleetpal_id: string | null } | null;
+  if (!wo) return null;
+  const { orders, asOf } = await readWorkOrderRecords(admin, orgId, [wo.fleetpal_id]);
+  const record = orders.get(wo.fleetpal_id);
+  if (!record) return null;
+  let unitNumber: string | null = null;
+  if (wo.unit_fleetpal_id) {
+    const unit = await admin.from("fleetpal_units").select("number").eq("org_id", orgId).eq("fleetpal_id", wo.unit_fleetpal_id).maybeSingle();
+    if (unit.error) throw new Error(`fleetpal_units: ${unit.error.message}`);
+    unitNumber = (unit.data as { number: string | null } | null)?.number ?? null;
+  }
+  return { record, unitNumber, asOf };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
-import { readWorkOrderRecords } from "./workOrderRecord.js";
+import { readWorkOrderDetail, readWorkOrderRecords } from "./workOrderRecord.js";
 
 /**
  * A named work order in full, for the roadside repair record (IC11 B2, Q-IC12 (a)). Pinned: parts and labour
@@ -21,9 +21,13 @@ function recorder(sync = RESOURCES.map((resource, i) => ({ org_id: ORG, resource
     tables: {
       fleetpal_sync_state: table(sync),
       fleetpal_work_orders: table([
-        { org_id: ORG, fleetpal_id: "wo-1", reference_number: "WO-1", status: "CLOSED", vendor_created_at: "2026-10-07T14:00:00Z", completed: null, description: "Brakes" },
-        { org_id: ORG, fleetpal_id: "wo-2", reference_number: "WO-2", status: "OPEN", vendor_created_at: "2026-10-08T14:00:00Z", completed: null, description: null },
-        { org_id: "org-2", fleetpal_id: "wo-1", reference_number: "THEIRS", status: "CLOSED", vendor_created_at: "2026-10-07T14:00:00Z", completed: null, description: null },
+        { org_id: ORG, id: "row-1", unit_fleetpal_id: "fpu-1", fleetpal_id: "wo-1", reference_number: "WO-1", status: "CLOSED", vendor_created_at: "2026-10-07T14:00:00Z", completed: null, description: "Brakes" },
+        { org_id: ORG, id: "row-2", unit_fleetpal_id: null, fleetpal_id: "wo-2", reference_number: "WO-2", status: "OPEN", vendor_created_at: "2026-10-08T14:00:00Z", completed: null, description: null },
+        { org_id: "org-2", id: "row-theirs", unit_fleetpal_id: "fpu-1", fleetpal_id: "wo-1", reference_number: "THEIRS", status: "CLOSED", vendor_created_at: "2026-10-07T14:00:00Z", completed: null, description: null },
+      ]),
+      fleetpal_units: table([
+        { org_id: ORG, fleetpal_id: "fpu-1", number: "654" },
+        { org_id: "org-2", fleetpal_id: "fpu-1", number: "THEIR TRUCK" },
       ]),
       fleetpal_jobs: table([
         { org_id: ORG, fleetpal_id: "j-1", work_order_fleetpal_id: "wo-1", name: "Adjust brakes", description: null, complaint: "393.47", total: "312.50" },
@@ -77,5 +81,26 @@ describe("readWorkOrderRecords", () => {
     const rec = recorder();
     expect((await readWorkOrderRecords(rec.client, ORG, [])).orders.size).toBe(0);
     expect(rec.queries.map((q) => q.table)).toEqual(["fleetpal_sync_state"]);
+  });
+});
+
+describe("readWorkOrderDetail — the Shop's work order drawer (F14)", () => {
+  it("finds the order by our row id and returns its jobs, invoices, unit number and as-of", async () => {
+    const rec = recorder();
+    const d = await readWorkOrderDetail(rec.client, ORG, "row-1");
+    expect(d).toMatchObject({ unitNumber: "654", asOf: "2026-10-16T10:00:00Z", record: { reference: "WO-1" } });
+    expect(d!.record.invoices.map((i) => i.invoiceNumber)).toEqual(["INV-88"]);
+    expect(d!.record.jobs.map((j) => j.name)).toEqual(["Adjust brakes"]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("answers null for another carrier's row, and reads nothing further", async () => {
+    const rec = recorder();
+    expect(await readWorkOrderDetail(rec.client, ORG, "row-theirs")).toBeNull();
+    expect(rec.queries.map((q) => q.table)).toEqual(["fleetpal_work_orders"]);
+  });
+
+  it("has no unit number for an order FleetPal sent without a unit", async () => {
+    expect((await readWorkOrderDetail(recorder().client, ORG, "row-2"))!.unitNumber).toBeNull();
   });
 });

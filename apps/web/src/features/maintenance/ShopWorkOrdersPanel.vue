@@ -10,11 +10,13 @@ import {
   type DataTableColumn,
   TablePagination,
   sortRows,
+  AppButton,
 } from "@silvicom/ui";
 import { daysSince, shopDayOf, todayInZone, type ShopWorkOrderDto } from "@silvicom/shared";
 import { useOpenWorkOrdersQuery } from "@/features/maintenance/useShopBacklog";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDate } from "@/lib/format";
+import WorkOrderDrawer from "./WorkOrderDrawer.vue";
 
 /**
  * Open work orders — FleetPal's in-flight repairs (FLEET-MANAGER-HOME-PLAN Q-FM6 (a)).
@@ -25,7 +27,10 @@ import { formatDate } from "@/lib/format";
  * other than the card's; history (5,400 settled orders) is FleetPal's to show, not this list's.
  *
  * ── READ-ONLY, BECAUSE THE REPAIR IS WORKED IN FLEETPAL (D-INV10) ─────────────────────────────
- * No row opens and no row has a verb. The reference number is what a technician types into FleetPal.
+ * No row has a verb. A row OPENS the order in full — jobs, lines and the vendor invoices billed against it
+ * (`WorkOrderDrawer`, F14) — because the owner asked on 2026-11-17 where its receipts were. The drawer
+ * is in the URL (`?wo=`), so a link to one order can be sent. The reference number is still what a
+ * technician types into FleetPal.
  *
  * ── THE LIST ARRIVES WHOLE, SO IT SEARCHES, SORTS AND PAGES ITSELF ───────────────────────────
  * Same footing as `UnitsPage.vue`: the count in the toolbar is the whole answer, never a page's.
@@ -37,6 +42,8 @@ const PAGE_SIZE = 20;
 
 const qs = useQueryState();
 const search = qs.param("search");
+/** The order open in the drawer — our row id — or empty. */
+const openId = qs.param("wo");
 const activeFilterCount = computed(() => (search.value.trim() ? 1 : 0));
 
 const { zone } = useOrgTimezone();
@@ -98,10 +105,14 @@ watch([search, () => sort.value.key, () => sort.value.dir], () => (page.value = 
         :loading="orders.isLoading.value"
         :error="orders.isError.value ? 'Could not load the open work orders.' : null"
         :sort="sort"
+        :row-class="() => 'cursor-pointer'"
         @sort="onSort"
+        @row-click="(r: Row) => (openId = r.id)"
         @retry="() => orders.refetch()"
       >
-        <template #cell-referenceNumber="{ value }">{{ value ?? "—" }}</template>
+        <template #cell-referenceNumber="{ row, value }">
+          <AppButton variant="link" @click.stop="openId = row.id">{{ value ?? "Work order" }}</AppButton>
+        </template>
         <template #cell-unitNumber="{ value }">{{ value ?? "—" }}</template>
         <template #cell-description="{ value }">
           <span v-if="value" class="line-clamp-2">{{ value }}</span>
@@ -122,5 +133,6 @@ watch([search, () => sort.value.key, () => sort.value.dir], () => (page.value = 
         </template>
       </DataTable>
     </DataWorkspace>
+    <WorkOrderDrawer :id="openId || null" @close="openId = ''" />
   </div>
 </template>

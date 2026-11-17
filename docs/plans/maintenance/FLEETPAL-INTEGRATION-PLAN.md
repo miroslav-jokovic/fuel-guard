@@ -438,6 +438,7 @@ This is also what finally feeds `vehicles.next_pm_due_odometer` / `next_pm_due_a
 | **D-FP24** | **A FleetPal movement keeps FleetPal's clock.** IV014's ±24 h rule guards a phone's date; a FleetPal row's `occurred_at` is the vendor's `created`. It may be any age back to `fleetpal_from` and is still refused >24 h in the future. Otherwise a sweep outage over a day loses receipts, or tempts a caller to stamp them `now()`. `part_movements.source = 'fleetpal'` marks the row (0621); a null actor cannot, because it also means a removed member. | F13, 2026-11-16 |
 | **D-FP25** | **A FleetPal line the shelf cannot take is reported and retried, never forced.** D-INV26 holds for FleetPal: a consumption against an empty shelf is IV010. The sweep re-offers every receipt and part line from the last **7 days** (bounded by `fleetpal_from`) each hour — the derived movement id makes a re-offer free — so a part used before its receipt was swept lands once the receipt does. Older refusals are a counting problem, and a count fixes them. | F13, 2026-11-16 |
 | **D-FP26** | **What F13 does not write, measured 2026-11-16.** A fractional quantity (592 of 16,240 part lines, gallons) — the shelf is whole units. A part line with no catalogue part (24 of 661 in 30 days: the VENDOR_HIDDEN quote lines F12 skips). A receipt's supplier: `vendor_location` joins **0 of 4,416** purchase orders to `fleetpal_vendors` and the API has no vendor-location endpoint, so `supplier` stays null and the note carries the PO reference. With no location carrying `fleetpal_from`, nothing moves and the sweep says so. | F13, 2026-11-16 |
+| **D-FP27** | **One work order's own bill shows in full; a total still needs its bound.** The Shop's work order drawer (F14) prints FleetPal's line, job and invoice amounts for that ONE order — the vendor's receipt as FleetPal records it, the same figures the roadside repair record already prints (Q-IC12 (a)). Nothing is summed across orders or invoices on it. Narrows D-FP4 the way D-SPU10 did for unit prices; D-FP4 still governs every total. | Owner 2026-11-17 ("we don't see receipts anywhere" → proceed as recommended) |
 
 ---
 
@@ -1963,3 +1964,16 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   means one thing on both screens; sorting puts overdue first and no schedule last. Three mutations each
   turned a test red: the writer ignoring a verdict-only change, the fold dropping unjudgeable schedules
   (the truck read "ok"), and "Can't tell" worded "OK".
+- **2026-11-17 · F14 — a work order opens in full, with its receipts.** The owner: "we don't see receipts
+  anywhere". Measured on production: all 5,881 work orders carry their number, and 4,433 vendor invoices
+  carry theirs; 3,184 of the 3,215 purchase orders raised on a work order have at least one. The record
+  was rendered only on a roadside repair (IC11). Now a row on the Shop's Work orders tab, and every open
+  or past order on a truck's shop page, opens `WorkOrderDrawer`: the invoices (number, date, purchase
+  order, amount; a credit reads negative), the jobs with their part and labour lines, and FleetPal's
+  sync time. `?wo=` holds the open order. `GET /api/maintenance/work-orders/:id` (maintenance: view)
+  finds the order by OUR row id inside the org and reads it through IC11's `readWorkOrderRecords`; the
+  record's types moved to `packages/shared/src/workOrderRecordContract.ts`. Amounts are one order's own,
+  never summed (D-FP27). FleetPal's API serves no files, so a scan of the paper invoice is not shown;
+  an upload beside the record (Q-IC12 (b)'s) is the owner's call. Six mutations each turned a test red:
+  the detail read losing its org filter, a credit printed positive, labour not in hours, the read running
+  while closed, a row opening by reference instead of id, and a non-id reaching the database.
