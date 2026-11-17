@@ -46,6 +46,8 @@ import NotesCell from "@/components/notes/NotesCell.vue";
 import NotesDrawer from "@/components/notes/NotesDrawer.vue";
 import { withNotesColumn } from "@/components/notes/notesColumn";
 import { useUnitNoteSummary } from "@/components/notes/useUnitNotes";
+import TollTagsCell from "@/features/tolls/TollTagsCell.vue";
+import { useTollTagsByVehicle } from "@/features/tolls/useTollTags";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
@@ -53,6 +55,8 @@ const { data: vehicles, isLoading, isError, refetch, isFetching, dataUpdatedAt }
 /** The Notes column (UNIT-NOTES-PLAN D-UN12), only for a viewer holding the `notes` surface (D-UN14). */
 const notes = useUnitNoteSummary("vehicle", dataUpdatedAt);
 const { data: drivers } = useDriversQuery();
+/** Each truck's toll tags now (TOLLS-PER-TRUCK-PLAN TL2): the column, and a search by tag number. */
+const { query: tollTagsQ, byVehicle: tagsByVehicle } = useTollTagsByVehicle();
 
 // Filters, sort and page live in the URL (D-US2), so reload, a pasted link and Back from a truck keep
 // the list. "active" is the fallback, so it stays out of a plain link and "All statuses" writes `any`.
@@ -100,7 +104,7 @@ const filtered = computed(() => {
       if (!chip || !matchesFileFilter(chip, fileFilter.value)) return false;
     }
     if (!term) return true;
-    return [v.unit_number, v.make, v.model, v.plate, v.vin, String(v.year ?? "")]
+    return [v.unit_number, v.make, v.model, v.plate, v.vin, String(v.year ?? ""), ...(tagsByVehicle.value.get(v.id) ?? []).map((t) => t.tagNumber)]
       .filter(Boolean)
       .some((f) => f!.toLowerCase().includes(term));
   });
@@ -133,6 +137,7 @@ const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
 const columns: DataTableColumn[] = [
   { key: "unit_number", label: "Unit", sortable: true, width: "sm", card: "title" },
   { key: "file", label: "File", width: "lg", card: "detail" },
+  { key: "toll_tags", label: "Toll tags", width: "md", card: "detail" },
   { key: "vehicle", label: "Vehicle", width: "lg", cellClass: "text-ink-secondary", card: "sentence" },
   { key: "fuel_type", label: "Fuel", width: "sm", cellClass: "capitalize text-ink-secondary", card: "detail" },
   { key: "tank_capacity_gal", label: "Tank", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary", card: "detail" },
@@ -272,7 +277,7 @@ async function onRetire(v: Vehicle) {
     <FilterBar
       v-model:search="search"
       embedded
-      search-placeholder="Search unit, make, model, plate, VIN…"
+      search-placeholder="Search unit, make, model, plate, VIN, toll tag…"
       :count="filtered.length"
       count-label="vehicles"
       :active-count="activeFilterCount"
@@ -332,6 +337,7 @@ async function onRetire(v: Vehicle) {
         />
         <span v-else class="text-ink-tertiary">—</span>
       </template>
+      <template #cell-toll_tags="{ row }"><TollTagsCell :tags="tagsByVehicle.get(row.id)" :loaded="tollTagsQ.isSuccess.value" /></template>
       <template #cell-notes="{ row }"><NotesCell kind="vehicle" :id="row.id" :label="row.unit_number" :summary="notes.summary.value[row.id]" /></template>
       <template #cell-vehicle="{ row }">{{ [row.year, row.make, row.model].filter(Boolean).join(" ") || "—" }}</template>
       <template #cell-tank_capacity_gal="{ row }">

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { tracedFailure, type TracedError } from "../../../lib/serviceError.js";
 
 /**
  * A service failure that leaves a trail.
@@ -18,15 +18,8 @@ import { randomUUID } from "node:crypto";
  * The public message still never carries the PG text (audit-L8): it carries a reference somebody can
  * grep the logs for.
  */
-export interface TracedError {
-  error: string;
-  code: string;
-}
+export type { TracedError };
 
 export function traced(scope: string, code: string, publicMessage: string, cause?: unknown): TracedError {
-  const ref = randomUUID().slice(0, 8);
-  const detail =
-    cause && typeof cause === "object" && "message" in cause ? (cause as { message?: string }).message : cause;
-  console.error(`[api] maintenance.${scope} failed (ref ${ref}):`, detail ?? "no cause reported");
-  return { error: `${publicMessage} (ref: ${ref})`, code };
+  return tracedFailure(`maintenance.${scope}`, code, publicMessage, cause);
 }

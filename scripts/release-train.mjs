@@ -87,7 +87,8 @@ export const AREAS = [
     // this area already holds, so its plan folder goes with it.
     plans: ["dispatch-loads", "livemap", "loads-detail", "messaging", "samsara", "sms"] },
   { id: "finance", title: "Finance",
-    api: ["financial", "accounting", "billing", "mcleod", "ifta"], web: ["accounting", "billing", "ifta"],
+    // "tolls" is TOLLS-PER-TRUCK-PLAN (docs/plans/financial): toll tags on trucks now, per-truck toll cost next.
+    api: ["financial", "accounting", "billing", "mcleod", "ifta", "tolls"], web: ["accounting", "billing", "ifta", "tolls"],
     plans: ["financial", "mcleod"] },
   { id: "reports", title: "Reports and dashboard", api: ["insights"], web: ["reports", "dashboard"] },
   { id: "driver-app", title: "Driver app",

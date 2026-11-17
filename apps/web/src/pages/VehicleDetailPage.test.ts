@@ -34,9 +34,9 @@ vi.mock("@/lib/supabase", () => ({
 }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true }) }));
 
-// The file and maintenance sections (UF5) have reads and stores of their own and their own suites;
+// The file and maintenance sections (UF5) and the toll tags card (TOLLS TL2) have reads and stores of their own and their own suites;
 // this file pins the summary card and the fuel panels.
-const STUBS = { HolderEquipmentCard: true, ChatAboutCard: true, UnitFileSection: true, UnitWorkOrdersCard: true, UnitInspectionsCard: true, BaseChart: true, DataTable: true };
+const STUBS = { HolderEquipmentCard: true, ChatAboutCard: true, UnitFileSection: true, TruckTollTagsCard: true, UnitWorkOrdersCard: true, UnitInspectionsCard: true, BaseChart: true, DataTable: true };
 const mountPage = async () => {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/vehicles/:id", component: VehicleDetailPage }] });
   await router.push("/vehicles/v-1");

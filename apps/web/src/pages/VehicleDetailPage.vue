@@ -27,6 +27,7 @@ import ChatAboutCard from "@/features/chat/ChatAboutCard.vue";
 import UnitWorkOrdersCard from "@/features/maintenance/UnitWorkOrdersCard.vue";
 import UnitInspectionsCard from "@/features/roadside/UnitInspectionsCard.vue";
 import UnitFileSection from "@/components/files/UnitFileSection.vue";
+import TruckTollTagsCard from "@/features/tolls/TruckTollTagsCard.vue";
 import type { UnitFileSubject } from "@/components/files/fileSubject";
 import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -230,8 +231,10 @@ const fillColumns: DataTableColumn[] = [
       />
 
       <!-- The truck's file (UF5, D-UF1): the same rollup row the Vehicles list draws its cell from. -->
-      <section id="section-file" class="scroll-mt-6">
+      <section id="section-file" class="scroll-mt-6 space-y-4">
         <UnitFileSection v-if="vehicle" :subject="fileSubject" :unit-number="vehicle.unit_number" :plate="vehicle.plate" />
+        <!-- Its toll tags and their dated history (TOLLS-PER-TRUCK-PLAN TL2): equipment, beside its papers. -->
+        <TruckTollTagsCard v-if="vehicle" :vehicle-id="id" :unit-number="vehicle.unit_number" />
       </section>
 
       <section id="section-maintenance" class="scroll-mt-6 space-y-4">

@@ -255,3 +255,30 @@ export function exclusiveEndYmd(inclusive: string): string {
   const next = new Date(Date.UTC(y, m - 1, d + 1));
   return next.toISOString().slice(0, 10);
 }
+
+const FIELD_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+
+/**
+ * The `yyyy-MM-ddTHH:mm` a date-and-time field shows for `instant`, read on a clock in `zone` — the
+ * org's zone, never the browser's (D-PREC5). The field (`AppDateTimeField`) speaks that string.
+ */
+export function instantToFieldValue(instant: string | Date, zone: string): string {
+  const wc = wallClockInZone(instant instanceof Date ? instant : new Date(instant), zone);
+  return `${dayOf(wc)}T${pad(wc.hour)}:${pad(wc.minute)}`;
+}
+
+/**
+ * The ISO instant for a `yyyy-MM-ddTHH:mm` typed on a clock in `zone`, or null when the value is not
+ * that shape or names no real date. The browser converts before sending (TOLLS-PER-TRUCK-PLAN TL2),
+ * so the API is handed an instant and never guesses which zone "10:00" meant. DST resolution is
+ * `wallClockToUtc`'s.
+ */
+export function fieldValueToInstant(value: string, zone: string): string | null {
+  const m = FIELD_RE.exec(value.trim());
+  if (!m) return null;
+  const [year, month, day, hour, minute] = m.slice(1).map(Number) as [number, number, number, number, number];
+  if (month < 1 || month > 12 || hour > 23 || minute > 59) return null;
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCDate() !== day || probe.getUTCMonth() !== month - 1) return null;
+  return new Date(wallClockToUtc({ year, month, day, hour, minute, second: 0 }, zone)).toISOString();
+}
