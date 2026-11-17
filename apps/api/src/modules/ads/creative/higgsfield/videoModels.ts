@@ -60,6 +60,18 @@ export const HIGGSFIELD_VIDEO_CANDIDATES: Readonly<Record<string, VideoModelFact
   },
 };
 
+/**
+ * The simulator's video model (`simulatedRender.ts`). Not a Higgsfield path and not a candidate: nothing but the
+ * in-process fake answers it, only off production. Its "facts" are OURS — it is asked the way the candidates are
+ * (a first frame, whole seconds, no sound) so a walk on staging runs the request a real model will get.
+ */
+export const SIMULATED_VIDEO_MODEL = "simulator/video";
+const SIMULATED_VIDEO_FACTS: Pick<VideoModelFacts, "image_field" | "seconds" | "sound_off" | "prompt_required"> = {
+  image_field: "image_url", seconds: { min: 2, max: 15 }, sound_off: { generate_audio: false }, prompt_required: false,
+};
+/** How a model is asked: a candidate's page, or the simulator's own. Prices are not here — `clipDollars` is the candidates' alone. */
+const askedAs = (model: string) => (model === SIMULATED_VIDEO_MODEL ? SIMULATED_VIDEO_FACTS : HIGGSFIELD_VIDEO_CANDIDATES[model]);
+
 export type ClipParamsRefusal = "model_unread" | "seconds_not_whole" | "seconds_out_of_range" | "prompt_missing";
 
 /**
@@ -73,7 +85,7 @@ export type ClipParamsRefusal = "model_unread" | "seconds_not_whole" | "seconds_
 export function motionClipParams(
   model: string, ask: { imageUrl?: string; prompt: string; clipMs?: number },
 ): { ok: true; params: Record<string, unknown>; seconds: number } | { ok: false; refusal: ClipParamsRefusal } {
-  const facts = HIGGSFIELD_VIDEO_CANDIDATES[model];
+  const facts = askedAs(model);
   if (!facts) return { ok: false, refusal: "model_unread" };
   const seconds = (ask.clipMs ?? MOTION_CLIP_MS) / 1000;
   if (!Number.isInteger(seconds)) return { ok: false, refusal: "seconds_not_whole" };
@@ -91,6 +103,6 @@ export function clipDollars(model: string, clipMs: number = MOTION_CLIP_MS): { u
 
 /** Where this model takes its first frame, in the shape `render.ts` puts an uploaded picture's URL into a request. */
 export function clipImageField(model: string): { field: string; shape: "single" } | undefined {
-  const facts = HIGGSFIELD_VIDEO_CANDIDATES[model];
+  const facts = askedAs(model);
   return facts ? { field: facts.image_field, shape: "single" } : undefined;
 }

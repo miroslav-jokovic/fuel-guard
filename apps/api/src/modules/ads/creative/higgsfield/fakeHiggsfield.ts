@@ -107,7 +107,9 @@ export interface FakeHiggsfieldOptions {
    * these bytes, drawn from the request's uploaded input images and its own parameters (the shape it asked for,
    * AG4). Tests leave it out and finish requests by hand.
    */
-  draw?: (inputs: Buffer[], params: Record<string, unknown>) => Promise<Buffer>;
+  draw?: (inputs: Buffer[], params: Record<string, unknown>, model: string) => Promise<Buffer>;
+  /** In `draw` mode, the models whose finished file is a video (`video.url`, an `.mp4`); every other is an image. */
+  videoModels?: readonly string[];
   /**
    * The bytes of every `.mp4` this fake serves (V4e). Left out, a video file is a few bytes that are NOT an MP4
    * — which is the case "the vendor's file is not what its name says" for whoever reads it.
@@ -215,7 +217,7 @@ export class FakeHiggsfield {
       res.setHeader("content-type", fileMatch[2] === "mp4" ? "video/mp4" : "image/png");
       if (this.opts.draw) {
         const params = this.mustGet(fileMatch[1]!).params;
-        return void res.end(await this.opts.draw(this.inputsOf(params), paramsOf(params)));
+        return void res.end(await this.opts.draw(this.inputsOf(params), paramsOf(params), this.mustGet(fileMatch[1]!).model));
       }
       return void res.end(fileMatch[2] === "png" ? pngFor(fileMatch[1]!) : this.opts.clip ?? Buffer.from(`fake-${fileMatch[1]}`));
     }
@@ -285,7 +287,7 @@ export class FakeHiggsfield {
     };
     this.requests.set(r.request_id, r);
     // No webhook is ever asked for in this mode, so `finish` is done before it first awaits.
-    if (this.opts.draw) void this.finish(r.request_id, "completed");
+    if (this.opts.draw) void this.finish(r.request_id, "completed", { kind: this.opts.videoModels?.includes(model) ? "video" : "image" });
     return { status: 200, body: this.submitted(r) };
   }
 

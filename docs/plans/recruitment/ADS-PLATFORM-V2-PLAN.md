@@ -218,6 +218,12 @@ as the still, and `checks.motion` says why there is no video. Not asked for a pe
 would be bought twice). No plan can name `motion` yet (`PLAN_FORMATS_BUILT` is still `["still"]`), and no video
 model is chosen, so on every server this is reached by tests only.
 
+**Built 2026-11-17 (V4j):** the simulator's video model (`simulator/video`). On a simulator connection off
+production a still is set moving with no Higgsfield key: the frame it was sent, pushed in 8 % over the seconds
+asked, no sound — through the real render step, ledger, month's budget and storage copy, then the real frame check
+and join. It proves nothing about any model. With it, the whole road of a motion ad up to the creative row runs on
+staging; what it still cannot do there is be ASKED for, since no plan can name `motion` yet.
+
 **Done when:** a motion ad passes the contract suite on the fake, and Renderer and Publisher show L3 for
 `meta:video`.
 
