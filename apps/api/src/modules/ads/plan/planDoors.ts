@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adBriefSchema, type AdsCampaignPlanView, type AdsPlanApproval, type AdsPlanEdit, type PlanConcept, type PlanFinding } from "@silvicom/shared";
+import { adBriefSchema, type AdsCampaignPlanView, type AdsPlanApproval, type AdsPlanEdit, type PlanConcept, type BuiltPlanFormat, type PlanFinding } from "@silvicom/shared";
 import { fromTransition, type MoveOutcome } from "../campaigns/campaignDoors.js";
 import { applyCampaignEvent, loadCampaign } from "../orchestrator/transitions.js";
 import type { Actor } from "../settings/settingsVersions.js";
-import { availableConcepts } from "./concepts.js";
+import { planOffer } from "./concepts.js";
 import { latestPlan, storePersonPlan, type PlanRow } from "./planStore.js";
 
 /**
@@ -28,12 +28,14 @@ const view = (p: PlanRow): AdsCampaignPlanView => ({
   id: p.id, version: p.version, plan: p.plan, evidence: p.evidence, author_kind: p.author_kind, author_name: p.author_name, created_at: p.created_at,
 });
 
-export async function readPlan(admin: SupabaseClient, orgId: string, campaignId: string): Promise<{ kind: "not_found" } | { kind: "ok"; plan: AdsCampaignPlanView | null; concepts: PlanConcept[] }> {
+export async function readPlan(admin: SupabaseClient, orgId: string, campaignId: string): Promise<{ kind: "not_found" } | { kind: "ok"; plan: AdsCampaignPlanView | null; concepts: PlanConcept[]; formats: BuiltPlanFormat[] }> {
   const c = await loadCampaign(admin, orgId, campaignId);
   if (!c) return { kind: "not_found" };
   const latest = await latestPlan(admin, orgId, campaignId);
   // Read only when there is a plan to edit: the editor offers these, and the edit door holds an edit to the same read.
-  return { kind: "ok", plan: latest ? view(latest) : null, concepts: latest ? await availableConcepts(admin, orgId) : [] };
+  if (!latest) return { kind: "ok", plan: null, concepts: [], formats: [] };
+  const offer = await planOffer(admin, c);
+  return { kind: "ok", plan: view(latest), concepts: [...offer.concepts], formats: [...offer.formats] };
 }
 
 export type PlanEditOutcome =
@@ -45,15 +47,15 @@ export type PlanEditOutcome =
   | { kind: "refused"; findings: PlanFinding[]; off_schema: string | null };
 
 export async function savePlanEdit(admin: SupabaseClient, orgId: string, actor: Actor, campaignId: string, ask: AdsPlanEdit): Promise<PlanEditOutcome> {
-  const { data, error } = await admin.from("ads_campaigns").select("state, brief_snapshot").eq("org_id", orgId).eq("id", campaignId).maybeSingle();
+  const { data, error } = await admin.from("ads_campaigns").select("state, brief_snapshot, connection_id").eq("org_id", orgId).eq("id", campaignId).maybeSingle();
   if (error) throw new Error(`ads_campaigns: ${error.message}`);
   if (!data) return { kind: "not_found" };
-  const row = data as { state: string; brief_snapshot: unknown };
+  const row = data as { state: string; brief_snapshot: unknown; connection_id: string };
   if (row.state !== "plan_review") return { kind: "not_in_plan_review" };
   // The brief is frozen at creation (AX031) and parsed when the campaign was planned; one that fails here is a fault of ours.
   const brief = adBriefSchema.parse(row.brief_snapshot);
-  // The kinds of ad that can be made TODAY: a person's edit is held to the presets as they are now, not as they were when the agent planned.
-  const out = await storePersonPlan(admin, { orgId, campaignId, basedOnVersion: ask.based_on_version, author: actor, plan: ask.plan, brief, concepts: await availableConcepts(admin, orgId) });
+  // What can be made TODAY: a person's edit is held to the presets and the campaign's formats as they are now, not as they were when the agent planned.
+  const out = await storePersonPlan(admin, { orgId, campaignId, basedOnVersion: ask.based_on_version, author: actor, plan: ask.plan, brief, offer: await planOffer(admin, { org_id: orgId, connection_id: row.connection_id }) });
   return out.kind === "stored" ? { kind: "saved", plan: view(out.plan) } : out;
 }
 

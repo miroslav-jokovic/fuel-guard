@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { z } from "zod";
-import { AD_CAMERA_DISTANCES, AD_FOCAL_SUBJECTS, AD_FORMATS, AD_HOOK_FAMILIES, AD_PEOPLE_POLICIES, AD_SCENE_FAMILIES, AD_VISUAL_CHECKS, FINISHED_AD_CRITERIA, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, evidencePackSchema, jobEvidence, judgeArt, planAngleSchema, type CampaignPlan, type EvidencePack, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
+import { AD_CAMERA_DISTANCES, AD_FOCAL_SUBJECTS, AD_FORMATS, AD_HOOK_FAMILIES, AD_PEOPLE_POLICIES, AD_SCENE_FAMILIES, AD_VISUAL_CHECKS, FINISHED_AD_CRITERIA, PLAN_FORMATS_BUILT, adBrandKitSchema, briefFacts, briefFoldSchema, adBriefSchema, adPresetRecipeSchema, evidencePackSchema, jobEvidence, judgeArt, planAngleSchema, type CampaignPlan, type EvidencePack, type PlanOffer, type ArtAnswer, type AdVisualCheck } from "@silvicom/shared";
 import type { ForcedToolRequest } from "../../../lib/anthropic.js";
 import { COPYWRITER_PROMPT_VERSION, buildCopyRequest, buildFitRequest, fittable, judgeSet, type CopySet } from "./copywriter/copywriter.js";
 import { CRAFT_JUDGE_PROMPT_VERSION, buildJudgeRequest, judgeAnswer, presentationOrder, type JudgeAnswer } from "./craftJudge/craftJudge.js";
@@ -345,19 +345,24 @@ export const FINISHED_AD_JUDGE_EVAL: EvalWorker<FinishedAdJudgeFixture, Finished
  * beyond the job's own facts (`history` — the benchmark, lead counts, concept results, written as
  * `plan/evidencePack.ts` writes them). The job's items are made from the brief by `jobEvidence`, as in
  * production, so a fixture cannot cite a job fact the brief does not hold. `concepts` is what the carrier's
- * enabled presets can make: the starter five in most cases, three for the thin job, seven for the richest. A planted answer is a plan a person
+ * enabled presets can make: the starter five in most cases, three for the thin job, seven for the richest. `formats` is
+ * what the campaign can be made in (`planFormatsFor`'s answer for its connection): a still alone, or a still and a
+ * motion ad for a campaign with a video model. A planted answer is a plan a person
  * wrote with one defect `checkPlan` must name; a model answer agrees when the plan has no finding (`ready`) —
  * after the worker's one second ask, when the first was refused (`refine`).
  */
 export const strategistFixtureSchema = z.object({
   name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,60}$/),
   about: z.string().min(10),
-  input: z.object({ brief: adBriefSchema, history: evidencePackSchema, concepts: z.array(z.object({ hook_family: z.enum(AD_HOOK_FAMILIES), scene_family: z.enum(AD_SCENE_FAMILIES) }).strict()).min(3) }).strict(),
+  input: z.object({ brief: adBriefSchema, history: evidencePackSchema, concepts: z.array(z.object({ hook_family: z.enum(AD_HOOK_FAMILIES), scene_family: z.enum(AD_SCENE_FAMILIES) }).strict()).min(3), formats: z.array(z.enum(PLAN_FORMATS_BUILT)).min(1) }).strict(),
   expect: z.enum(["ready", "refused", "off_schema"]),
   expect_findings: z.array(z.string()).optional(),
   recorded: recordingSchema,
 }).strict();
 export type StrategistFixture = z.infer<typeof strategistFixtureSchema>;
+
+/** What the fixture's campaign is offered, as the planning step would hand it to the worker. */
+export const strategistOffer = (f: StrategistFixture): PlanOffer => ({ concepts: f.input.concepts, formats: f.input.formats });
 
 export const strategistPack = (f: StrategistFixture): EvidencePack => evidencePackSchema.parse([...jobEvidence(f.input.brief), ...f.input.history]);
 
@@ -367,18 +372,18 @@ export const STRATEGIST_EVAL: EvalWorker<StrategistFixture, CampaignPlan> = {
   parse: (raw) => strategistFixtureSchema.parse(raw),
   name: (f) => f.name,
   source: (f) => f.recorded.source,
-  request: (f) => buildPlanRequest(strategistPack(f), f.input.concepts),
+  request: (f) => buildPlanRequest(strategistPack(f), strategistOffer(f)),
   judge: (f, output) => {
     const parsed = planTool.schema.safeParse(output);
     if (!parsed.success) return { verdict: "off_schema", findings: [] };
-    const found = judgePlan(parsed.data, strategistPack(f), f.input.brief, f.input.concepts);
+    const found = judgePlan(parsed.data, strategistPack(f), f.input.brief, strategistOffer(f));
     return found.length === 0 ? { verdict: "ready", findings: [] } : { verdict: "refused", findings: [...new Set(found.map((x) => x.kind))].sort() };
   },
   refine: (f, output) => {
     const parsed = planTool.schema.safeParse(output);
     if (!parsed.success) return null;
-    const findings = judgePlan(parsed.data, strategistPack(f), f.input.brief, f.input.concepts);
-    return findings.length === 0 ? null : buildPlanRequest(strategistPack(f), f.input.concepts, { plan: parsed.data, findings });
+    const findings = judgePlan(parsed.data, strategistPack(f), f.input.brief, strategistOffer(f));
+    return findings.length === 0 ? null : buildPlanRequest(strategistPack(f), strategistOffer(f), { plan: parsed.data, findings });
   },
   withRecording: (f, recorded) => ({ ...f, recorded }),
 };

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CampaignPlan } from "@silvicom/shared";
 import { ORG, campaign, createAdsWorld } from "../../../testing/adsWorld.js";
 import { presetRows } from "../../../testing/adsPresetRows.js";
@@ -121,13 +121,47 @@ describe("readPlan", () => {
   it("answers the newest version as the screen reads it, with the kinds of ad the carrier can make; null when never planned; not found for no campaign", async () => {
     const w = createAdsWorld({ campaigns: [campaign(C, "plan_review")], extraTables: { ads_campaign_plans: [planRow(P1, 1), planRow(P2, 2)], ...presetRows(ORG, fx.input.concepts) } });
     const out = await readPlan(w.admin, ORG, C);
-    expect(out).toMatchObject({ kind: "ok", plan: { id: P2, version: 2, author_kind: "agent", author_name: null }, concepts: fx.input.concepts });
+    expect(out).toMatchObject({ kind: "ok", plan: { id: P2, version: 2, author_kind: "agent", author_name: null }, concepts: fx.input.concepts, formats: ["still"] });
     expect(out.kind === "ok" && out.plan && Object.keys(out.plan).sort()).toEqual(["author_kind", "author_name", "created_at", "evidence", "id", "plan", "version"]);
     // Never planned: no plan, and no presets are read for an editor that will not open.
     const none = createAdsWorld({ campaigns: [campaign(C, "draft")], extraTables: { ads_campaign_plans: [] } });
-    expect(await readPlan(none.admin, ORG, C)).toEqual({ kind: "ok", plan: null, concepts: [] });
+    expect(await readPlan(none.admin, ORG, C)).toEqual({ kind: "ok", plan: null, concepts: [], formats: [] });
     expect(none.rec.forTable("ad_concept_presets")).toEqual([]);
     expect(await readPlan(createAdsWorld({ campaigns: [], extraTables: { ads_campaign_plans: [planRow(P1, 1)] } }).admin, ORG, C)).toEqual({ kind: "not_found" });
     expectOrgScoped(w.rec, ORG);
+  });
+});
+
+describe("the plan doors hold a plan to the formats its campaign can be made in", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  const moving: CampaignPlan = { ...sound, angles: [{ ...sound.angles[0]!, format: "motion" }, ...sound.angles.slice(1)] };
+  const world = (provider: string) => createSupabaseRecorder({
+    tables: {
+      ...presetRows(ORG, fx.input.concepts),
+      ads_campaigns: [{ id: C, org_id: ORG, state: "plan_review", brief_snapshot: fx.input.brief, connection_id: "conn-1" }],
+      ads_platform_connections: [{ provider }],
+      ads_campaign_plans: (q) => (q.write ? [{ ...planRow(P2, 0), ...(q.write.payload as object), id: P2 }] : [planRow(P1, 1)]),
+    },
+  });
+
+  it("an idea changed to a video is refused on a campaign with no video model, and nothing is written", async () => {
+    vi.stubEnv("DEPLOY_ENVIRONMENT", "staging");
+    const rec = world("meta");
+    expect(await savePlanEdit(rec.client, ORG, koni, C, { based_on_version: 1, plan: moving })).toMatchObject({ kind: "refused", findings: [{ kind: "format_not_built", where: "angle 1", format: "motion" }] });
+    expect(rec.writes()).toEqual([]);
+  });
+
+  it("the same edit is saved on a simulator campaign off production, and the read offers both formats there", async () => {
+    vi.stubEnv("DEPLOY_ENVIRONMENT", "staging");
+    const rec = world("simulator");
+    expect(await savePlanEdit(rec.client, ORG, koni, C, { based_on_version: 1, plan: moving })).toMatchObject({ kind: "saved", plan: { version: 2 } });
+    expect(await readPlan(rec.client, ORG, C)).toMatchObject({ kind: "ok", formats: ["still", "motion"] });
+  });
+
+  it("a simulator campaign on production is offered a still alone", async () => {
+    vi.stubEnv("DEPLOY_ENVIRONMENT", "production");
+    const rec = world("simulator");
+    expect(await readPlan(rec.client, ORG, C)).toMatchObject({ kind: "ok", formats: ["still"] });
+    expect(await savePlanEdit(rec.client, ORG, koni, C, { based_on_version: 1, plan: moving })).toMatchObject({ kind: "refused", findings: [{ kind: "format_not_built" }] });
   });
 });

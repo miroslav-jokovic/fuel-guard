@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  PLAN_ANGLES_MIN, PLAN_FORMATS, PLAN_FORMATS_BUILT, campaignPlanSchema, checkPlan, distinctConcepts, evidencePackSchema, jobEvidence, planDraw, planFindingWords, angleFormat, writerAngle,
+  PLAN_ANGLES_MIN, PLAN_FORMATS, PLAN_FORMATS_BUILT, campaignPlanSchema, checkPlan, planFormatsFor, distinctConcepts, evidencePackSchema, jobEvidence, planDraw, planFindingWords, angleFormat, writerAngle,
   type CampaignPlan, type EvidencePack, type PlanAngle,
 } from "./campaignPlan.js";
 import type { AdBrief } from "./contracts.js";
 
 // The opening: $0.68 a mile, home every 14 days, 1 year of experience, a 401k; flatbed, Midwest lanes.
+/** What a campaign with no video model is offered (`planFormatsFor`'s own answer, so the tests cannot drift from it). */
+const STILL = planFormatsFor({ videoModel: null });
+
 const brief: Pick<AdBrief, "subject" | "claims" | "subject_matter"> = {
   subject: "Class A regional driver",
   claims: [
@@ -41,47 +44,52 @@ const sound = plan([
   angle({ hook_family: "life_first", scene_family: "home_street", idea: "Lead with being home on a schedule you can plan.", evidence: ["job:claim_2"] }),
   angle({ hook_family: "equipment_first", scene_family: "equipment_at_rest", idea: "Lead with the flatbed work and the lanes.", evidence: ["job:detail_1", "swipe:rival_a"] }),
 ]);
-const kinds = (p: CampaignPlan) => checkPlan(p, pack, brief).map((f) => f.kind);
+const kinds = (p: CampaignPlan) => checkPlan(p, pack, brief, { formats: STILL }).map((f) => f.kind);
 
 describe("checkPlan — a plan that rests on the job passes", () => {
   it("three angles that differ in kind, each citing a fact of the job, have no finding", () => {
     expect(campaignPlanSchema.safeParse(sound).success).toBe(true);
-    expect(checkPlan(sound, pack, brief)).toEqual([]);
+    expect(checkPlan(sound, pack, brief, { formats: STILL })).toEqual([]);
   });
 });
 
 describe("checkPlan — what it refuses", () => {
   it("an evidence id the pack does not hold is named, with where it was cited", () => {
     const p = plan([angle({ evidence: ["job:claim_1", "market:made_up"] }), ...sound.angles.slice(1)]);
-    expect(checkPlan(p, pack, brief)).toEqual([{ kind: "unknown_evidence", where: "angle 1", id: "market:made_up" }]);
+    expect(checkPlan(p, pack, brief, { formats: STILL })).toEqual([{ kind: "unknown_evidence", where: "angle 1", id: "market:made_up" }]);
     expect(kinds(plan(sound.angles, { audience_evidence: ["job:nope"] }))).toEqual(["unknown_evidence"]);
   });
 
   it("an angle that cites only what others do, and nothing of the job, is refused", () => {
     const p = plan([angle({ evidence: ["swipe:rival_a", "our_result:p2_cost"] }), ...sound.angles.slice(1)]);
-    expect(checkPlan(p, pack, brief)).toEqual([{ kind: "no_job_evidence", where: "angle 1" }]);
+    expect(checkPlan(p, pack, brief, { formats: STILL })).toEqual([{ kind: "no_job_evidence", where: "angle 1" }]);
   });
 
   it("two angles with the same hook and scene are one concept twice", () => {
     const p = plan([...sound.angles, angle({ idea: "Lead with the pay again, worded differently." })]);
-    expect(checkPlan(p, pack, brief)).toEqual([{ kind: "same_kind", where: "angle 4", other: "angle 1" }]);
+    expect(checkPlan(p, pack, brief, { formats: STILL })).toEqual([{ kind: "same_kind", where: "angle 4", other: "angle 1" }]);
   });
 
   it("the same hook over a different scene is a different concept", () => {
     expect(kinds(plan([...sound.angles, angle({ scene_family: "cab_pov" })]))).toEqual([]);
   });
 
-  it("a format no worker can make yet is refused, and still is the only one built", () => {
-    expect(PLAN_FORMATS_BUILT).toEqual(["still"]);
+  it("a format the campaign is not offered is refused, whichever it is", () => {
     for (const format of PLAN_FORMATS.filter((f) => f !== "still")) {
       const p = plan([angle({ format }), ...sound.angles.slice(1)]);
-      expect(checkPlan(p, pack, brief)).toEqual([{ kind: "format_not_built", where: "angle 1", format }]);
+      expect(checkPlan(p, pack, brief, { formats: STILL })).toEqual([{ kind: "format_not_built", where: "angle 1", format }]);
     }
+  });
+
+  it("a motion angle passes where motion is offered, and a still is refused where only motion is", () => {
+    const p = plan([angle({ format: "motion" }), ...sound.angles.slice(1)]);
+    expect(checkPlan(p, pack, brief, { formats: ["still", "motion"] })).toEqual([]);
+    expect(checkPlan(p, pack, brief, { formats: ["motion"] }).map((f) => `${f.where}:${f.kind}`)).toEqual(["angle 2:format_not_built", "angle 3:format_not_built"]);
   });
 
   it("a figure in the plan's own words that the opening does not state is refused", () => {
     const p = plan([angle({ idea: "Lead with $0.80 per mile, the best in the region." }), ...sound.angles.slice(1)]);
-    const found = checkPlan(p, pack, brief);
+    const found = checkPlan(p, pack, brief, { formats: STILL });
     expect(found.length).toBeGreaterThan(0);
     expect(found.every((f) => f.kind === "claim" && f.where === "angle 1 idea")).toBe(true);
   });
@@ -91,7 +99,7 @@ describe("checkPlan — what it refuses", () => {
   });
 
   it("an audience described by age is refused like copy would be", () => {
-    const found = checkPlan(plan(sound.angles, { audience: "Young drivers under 30 who want steady regional miles." }), pack, brief);
+    const found = checkPlan(plan(sound.angles, { audience: "Young drivers under 30 who want steady regional miles." }), pack, brief, { formats: STILL });
     expect(found.some((f) => f.kind === "claim" && f.where === "audience")).toBe(true);
   });
 });
@@ -132,18 +140,18 @@ describe("checkPlan — an angle must be a kind of ad the carrier can make", () 
   const concepts = sound.angles.map((a) => ({ hook_family: a.hook_family, scene_family: a.scene_family }));
 
   it("a plan whose every angle is an available concept has no finding", () => {
-    expect(checkPlan(sound, pack, brief, concepts)).toEqual([]);
+    expect(checkPlan(sound, pack, brief, { formats: STILL, concepts })).toEqual([]);
   });
 
   it("an angle whose hook and scene no enabled preset has is refused, and said in a sentence", () => {
-    const found = checkPlan(sound, pack, brief, concepts.slice(0, 2));
+    const found = checkPlan(sound, pack, brief, { formats: STILL, concepts: concepts.slice(0, 2) });
     expect(found).toEqual([{ kind: "concept_not_available", where: "angle 3" }]);
     expect(planFindingWords(found[0]!)).toBe("angle 3 uses a hook and scene that is not one of the concepts on the sheet.");
   });
 
   it("with no concepts given the question is not asked; with an empty list every angle is refused", () => {
-    expect(checkPlan(sound, pack, brief)).toEqual([]);
-    expect(checkPlan(sound, pack, brief, []).map((f) => f.kind)).toEqual(["concept_not_available", "concept_not_available", "concept_not_available"]);
+    expect(checkPlan(sound, pack, brief, { formats: STILL })).toEqual([]);
+    expect(checkPlan(sound, pack, brief, { formats: STILL, concepts: [] }).map((f) => f.kind)).toEqual(["concept_not_available", "concept_not_available", "concept_not_available"]);
   });
 });
 
@@ -224,5 +232,19 @@ describe("writerAngle — the idea a preset's ad is written from", () => {
     expect(writerAngle(sound, { hook_family: a!.hook_family })).toBeNull();
     expect(writerAngle(sound, { hook_family: null, scene_family: a!.scene_family })).toBeNull();
     expect(writerAngle(sound, {})).toBeNull();
+  });
+});
+
+describe("planFormatsFor — built is not offered", () => {
+  it("still and motion are the built formats", () => {
+    expect(PLAN_FORMATS_BUILT).toEqual(["still", "motion"]);
+  });
+
+  it("a campaign with no video model is offered a still alone", () => {
+    expect(planFormatsFor({ videoModel: null })).toEqual(["still"]);
+  });
+
+  it("a campaign with a video model is offered every built format", () => {
+    expect(planFormatsFor({ videoModel: "simulator/video" })).toEqual([...PLAN_FORMATS_BUILT]);
   });
 });

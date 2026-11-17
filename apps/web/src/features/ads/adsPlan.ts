@@ -1,6 +1,6 @@
 import {
-  AD_HOOK_FAMILIES, AD_HOOK_FAMILY_LABELS, AD_SCENE_FAMILIES, AD_SCENE_FAMILY_LABELS, PLAN_ANGLES_MIN, adsPlanEditSchema, campaignPlanSchema,
-  type AdsCampaignPlanView, type AdsPlanEdit, type CampaignPlan, type CampaignState, type EvidenceItem, type PlanAngle, type PlanConcept, type PlanEvidenceKind,
+  AD_HOOK_FAMILIES, AD_HOOK_FAMILY_LABELS, AD_SCENE_FAMILIES, AD_SCENE_FAMILY_LABELS, PLAN_ANGLES_MIN, PLAN_FORMATS, PLAN_FORMAT_LABELS, adsPlanEditSchema, campaignPlanSchema,
+  type AdsCampaignPlanView, type AdsPlanEdit, type CampaignPlan, type CampaignState, type EvidenceItem, type PlanAngle, type PlanConcept, type PlanEvidenceKind, type PlanFormat,
 } from "@silvicom/shared";
 
 /**
@@ -34,6 +34,26 @@ export function setConcept(angle: PlanAngle, key: string): void {
   const [hook, scene] = key.split("+");
   const h = AD_HOOK_FAMILIES.find((x) => x === hook), s = AD_SCENE_FAMILIES.find((x) => x === scene);
   if (h && s) { angle.hook_family = h; angle.scene_family = s; }
+}
+
+/** A format in office words (the contract's own labels); one with no label yet is shown by its key. */
+export const formatLabel = (f: PlanFormat): string => (PLAN_FORMAT_LABELS as Partial<Record<PlanFormat, string>>)[f] ?? f;
+/**
+ * Whether an idea's format is worth a line on the screen: only where there is something to tell apart. A
+ * campaign that can be made in one format, with every idea in it, says nothing by repeating it on each idea.
+ * An empty list is an API that does not answer `formats` yet (the web can deploy first): nothing is shown.
+ */
+export const showsFormat = (available: readonly PlanFormat[], a: Pick<PlanAngle, "format">): boolean =>
+  available.length > 1 || (available.length === 1 && !available.includes(a.format));
+/** The formats on offer for one idea: what this campaign can be made in, and the idea's own even if it no longer can. */
+export function formatOptions(available: readonly PlanFormat[], current: PlanFormat): Array<{ value: string; label: string }> {
+  const offered = available.includes(current) ? [...available] : [current, ...available];
+  return offered.map((f) => ({ value: f, label: available.includes(f) ? formatLabel(f) : `${formatLabel(f)} (cannot be made for this campaign)` }));
+}
+/** Write a chosen format onto an idea. A key that is no format changes nothing. */
+export function setFormat(angle: PlanAngle, key: string): void {
+  const f = PLAN_FORMATS.find((x) => x === key);
+  if (f) angle.format = f;
 }
 
 /** Where a fact came from, in office words. */
@@ -109,7 +129,7 @@ export function planRefusalLines(detail: unknown): string[] {
       case "same_kind": return `${where} leads with the same thing and shows the same picture as ${whereWords(String(f.other ?? "")).toLowerCase()}. Change one of them.`;
       case "no_job_evidence": return `${where} rests on no fact of the job.`;
       case "unknown_evidence": return `${where} rests on a fact that is not in this plan's list.`;
-      case "format_not_built": return `${where} asks for a kind of ad that cannot be made yet.`;
+      case "format_not_built": return `${where} is a ${f.format ? formatLabel(f.format as PlanFormat).toLowerCase() : "format"}, which cannot be made for this campaign. Choose another format.`;
       case "concept_not_available": return `${where} is a kind of ad with no enabled preset. Choose another kind, or enable its preset in Settings.`;
       default: return f.message ?? `${where} cannot be saved as it is.`;
     }

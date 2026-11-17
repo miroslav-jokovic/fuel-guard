@@ -1,0 +1,207 @@
+{
+  "name": "motion-offered-road",
+  "about": "The over-the-road job with many facts, for a campaign whose connection has a video model: the sheet offers a still and a motion ad, and the carrier's kinds include pictures with something in them that moves (the truck on the road, the view from the cab) beside ones at rest. The plan must be ready; which angles it makes motion is read off the recording, not asserted.",
+  "input": {
+    "brief": {
+      "source": "fixture",
+      "ref": "fixture-opening",
+      "subject": "Class A over-the-road truck driver",
+      "claims": [
+        {
+          "kind": "money",
+          "cents": 72,
+          "per": "mile"
+        },
+        {
+          "kind": "quantity",
+          "value": 3,
+          "unit": "week"
+        },
+        {
+          "kind": "quantity",
+          "value": 2,
+          "unit": "year"
+        },
+        {
+          "kind": "term",
+          "term": "401k"
+        },
+        {
+          "kind": "term",
+          "term": "health insurance"
+        },
+        {
+          "kind": "term",
+          "term": "paid time off"
+        },
+        {
+          "kind": "quantity",
+          "value": 48,
+          "unit": "state"
+        },
+        {
+          "kind": "term",
+          "term": "no-touch freight"
+        },
+        {
+          "kind": "term",
+          "term": "pet policy"
+        },
+        {
+          "kind": "term",
+          "term": "late-model equipment"
+        }
+      ],
+      "area": {
+        "label": "Fixture Yard, IL",
+        "latitude": 41.85,
+        "longitude": -87.65,
+        "radius_miles": 150,
+        "reason": "Fixture: drivers within a day's drive of the yard."
+      },
+      "subject_matter": {
+        "details": [
+          "reefer freight",
+          "over-the-road runs"
+        ],
+        "in_our_words": "Family owned, and the owner still drives"
+      },
+      "form_questions": [],
+      "landing_url": null
+    },
+    "history": [
+      {
+        "id": "benchmark:cost_per_lead",
+        "kind": "benchmark",
+        "text": "Boostpoint 2026 benchmark, CDL drivers on Meta: an ad costing more than $42.00 per lead after 5 leads, or $85.00 spent with no lead, is where pausing is suggested.",
+        "source": null
+      },
+      {
+        "id": "our_result:equipment_first_equipment_at_rest",
+        "kind": "our_result",
+        "text": "Our ads with hook equipment_first (equipment first) and scene equipment_at_rest (truck at rest) spent $402.10 in the last 28 days over 30100 impressions and brought 14 leads, $28.72 per lead.",
+        "source": null
+      }
+    ],
+    "concepts": [
+      {
+        "hook_family": "pay_first",
+        "scene_family": "equipment_on_road"
+      },
+      {
+        "hook_family": "life_first",
+        "scene_family": "home_street"
+      },
+      {
+        "hook_family": "equipment_first",
+        "scene_family": "equipment_at_rest"
+      },
+      {
+        "hook_family": "straight_talk",
+        "scene_family": "cab_pov"
+      },
+      {
+        "hook_family": "proof",
+        "scene_family": "abstract_plate"
+      },
+      {
+        "hook_family": "pay_first",
+        "scene_family": "abstract_plate"
+      },
+      {
+        "hook_family": "life_first",
+        "scene_family": "cab_pov"
+      }
+    ],
+    "formats": [
+      "still",
+      "motion"
+    ]
+  },
+  "expect": "ready",
+  "recorded": {
+    "source": "model",
+    "prompt_version": "strategist@4",
+    "model": "claude-fable-5-2",
+    "recorded_at": "2026-11-17T21:05:20.242Z",
+    "output": {
+      "audience": "Experienced Class A drivers already running over-the-road, used to reefer freight and long stretches out. They have a seat now. A plainly stated pay per mile, late-model equipment, no-touch freight and a family-owned carrier whose owner still drives would make them stop.",
+      "audience_evidence": [
+        "job:subject",
+        "job:claim_3",
+        "job:detail_2",
+        "job:claim_1"
+      ],
+      "angles": [
+        {
+          "hook_family": "equipment_first",
+          "scene_family": "equipment_at_rest",
+          "format": "still",
+          "idea": "Lead with the late-model equipment the driver would run reefer freight in, shown parked.",
+          "proof": "The opening offers late-model equipment and the freight is reefer.",
+          "why": "This pair brought leads at a cost per lead under the benchmark's pause line, but the lead count is small, so treat it as a hint. Still suits a parked truck; formats are unmeasured.",
+          "evidence": [
+            "job:claim_10",
+            "job:detail_1",
+            "our_result:equipment_first_equipment_at_rest",
+            "benchmark:cost_per_lead"
+          ]
+        },
+        {
+          "hook_family": "pay_first",
+          "scene_family": "equipment_on_road",
+          "format": "motion",
+          "idea": "Lead with the pay per mile over a truck rolling on an open highway, then the over-the-road reach across the states listed.",
+          "proof": "The opening states its pay per mile and over-the-road runs across the states it names.",
+          "why": "Pay is the plainest fact of the job and this pair is untried here. The truck moves, so motion has something to show; nothing has been measured about formats.",
+          "evidence": [
+            "job:claim_1",
+            "job:detail_2",
+            "job:claim_7"
+          ]
+        },
+        {
+          "hook_family": "straight_talk",
+          "scene_family": "cab_pov",
+          "format": "motion",
+          "idea": "Say plainly from the cab what the job is: Class A, over-the-road, reefer, with the years and weeks figures up front.",
+          "proof": "The opening states the licence class, the years figure, the weeks figure and reefer over-the-road runs.",
+          "why": "No lead outcomes exist yet, so stating the terms plainly screens before recruiters call. Office should confirm what the years and weeks figures mean. Road ahead moves; formats unmeasured.",
+          "evidence": [
+            "job:subject",
+            "job:claim_3",
+            "job:claim_2",
+            "job:detail_1"
+          ]
+        },
+        {
+          "hook_family": "life_first",
+          "scene_family": "cab_pov",
+          "format": "still",
+          "idea": "Lead with daily life in the cab on long runs: the pet policy and no freight to touch at the dock.",
+          "proof": "The opening offers a pet policy and no-touch freight.",
+          "why": "Long over-the-road runs make daily life in the cab matter. Untried here. A cab interior at rest gains nothing from motion, so still; formats are unmeasured.",
+          "evidence": [
+            "job:claim_9",
+            "job:claim_8",
+            "job:detail_2"
+          ]
+        },
+        {
+          "hook_family": "proof",
+          "scene_family": "abstract_plate",
+          "format": "still",
+          "idea": "Lead with who runs the carrier, family owned with an owner who still drives, then list the benefits plainly.",
+          "proof": "The carrier describes itself as family owned with an owner who still drives, and the opening lists its benefits.",
+          "why": "An owner who drives is a fact particular to this carrier, and the benefits back it. Untried here. A plain ground has nothing to move, so still; formats are unmeasured.",
+          "evidence": [
+            "job:in_our_words",
+            "job:claim_4",
+            "job:claim_5",
+            "job:claim_6"
+          ]
+        }
+      ]
+    }
+  }
+}

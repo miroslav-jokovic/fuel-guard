@@ -291,6 +291,25 @@ real connection can name a video ad, and until the publisher can upload one, the
 still under a plan that promised a video. When `motion` is added, it is offered only where the campaign's
 connection has a video model, and the Strategist's 17 fixtures are recorded again in that step.
 
+**Built 2026-11-17 (V4o):** a plan can name a motion ad — where its campaign can make one, and nowhere else.
+`PLAN_FORMATS_BUILT` is now `["still", "motion"]` and means what a worker can make; what ONE campaign is offered is
+`planFormatsFor` (shared), which gives `motion` only to a campaign with a video model. The API asks it once
+(`plan/concepts.ts` `planOffer`), through the same `renderChoiceFor` compose hands `makeMotion` its video model
+from, so the plan is offered a video exactly where compose would make it: a simulator connection off production.
+Every real connection is offered a still alone until the sitting chooses a model (Q-APX12). That one answer goes
+to the Strategist's sheet, to `checkPlan` at both doors of the store, to a person's edit and to the editor's
+read; `checkPlan` no longer has a list of its own to fall back on. A replayed answer is held to the formats on
+the sheet it was written from. **strategist@4:** the sheet lists each format with what it is (`PLAN_FORMAT_MEANING`,
+the way a concept carries its meaning), so the prompt names no format; it says to choose from the angle's own
+picture, forbids the claim that one format works better, and asks the plan to say that formats are unmeasured —
+no page read measures a moving ad against a still for a driver lead ad, and the evidence pack holds no result by
+format. "At least one angle stays in the first format" is ours. **Recorded:** the 8 openings again and 2 new ones
+with a video on offer, 10 of 10 ready. With trucks on the road among the carrier's kinds, the plan made the road
+and the view-from-the-cab angles motion and left the parked truck and the plain ground as stills; with nothing in
+any picture that moves, it made one motion angle (arriving home) and called it a test. The review screen shows
+how each idea is made and lets a person change it, only on a campaign with more than one format. **Not built:**
+results by format in the evidence pack (nothing to read until a video ad has run).
+
 **Done when:** a motion ad passes the contract suite on the fake, and Renderer and Publisher show L3 for
 `meta:video`.
 

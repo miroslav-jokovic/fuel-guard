@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { ADS_SETTINGS_UNSET, AD_HOOK_FAMILY_LABELS, AD_SCENE_FAMILY_LABELS, PLAN_FORMATS_BUILT, type AdsSettings, type CampaignPlan } from "@silvicom/shared";
+import { ADS_SETTINGS_UNSET, AD_HOOK_FAMILY_LABELS, AD_SCENE_FAMILY_LABELS, PLAN_FORMATS, PLAN_FORMAT_MEANING, type AdsSettings, type CampaignPlan } from "@silvicom/shared";
 import type { MessagesClient } from "../../../../lib/anthropic.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../../testing/supabaseRecorder.js";
-import { STRATEGIST_EVAL, loadFixtures, strategistPack } from "../agentFixtures.js";
+import { STRATEGIST_EVAL, loadFixtures, strategistOffer, strategistPack } from "../agentFixtures.js";
 import { STRATEGIST_PROMPT_VERSION, buildPlanRequest, findingWords, judgePlan, planKey, planSheet, writePlan } from "./strategist.js";
 
 /**
@@ -45,7 +45,7 @@ const fixture = (name: string) => {
   if (!fx) throw new Error(`no fixture named ${name}`);
   return fx;
 };
-const ask = (fx: ReturnType<typeof fixture>, attempt: 1 | 2 = 1) => ({ orgId: ORG, campaignId: CAMPAIGN, stint: STINT, attempt, evidence: strategistPack(fx), concepts: fx.input.concepts, brief: fx.input.brief });
+const ask = (fx: ReturnType<typeof fixture>, attempt: 1 | 2 = 1) => ({ orgId: ORG, campaignId: CAMPAIGN, stint: STINT, attempt, evidence: strategistPack(fx), offer: strategistOffer(fx), brief: fx.input.brief });
 
 describe("strategist replay — every recorded plan reaches its fixture's verdict", () => {
   it("has model recordings under the prompt in force and planted defects beside them", () => {
@@ -74,6 +74,7 @@ describe("strategist replay — every recorded plan reaches its fixture's verdic
   it("planted-no-job-evidence", () => replay("planted-no-job-evidence"));
   it("planted-same-kind", () => replay("planted-same-kind"));
   it("planted-format-not-built", () => replay("planted-format-not-built"));
+  it("planted-motion-offered", () => replay("planted-motion-offered"));
   it("planted-invented-figure", () => replay("planted-invented-figure"));
   it("planted-added-benefit", () => replay("planted-added-benefit"));
   it("planted-two-angles", () => replay("planted-two-angles"));
@@ -86,7 +87,7 @@ describe("strategist replay — every recorded plan reaches its fixture's verdic
 });
 
 const PINNED = new Set([
-  "planted-sound", "planted-unknown-evidence", "planted-no-job-evidence", "planted-same-kind", "planted-format-not-built", "planted-invented-figure",
+  "planted-sound", "planted-unknown-evidence", "planted-no-job-evidence", "planted-same-kind", "planted-format-not-built", "planted-motion-offered", "planted-invented-figure",
   "planted-added-benefit", "planted-two-angles", "planted-concept-not-available", "first-campaign-regional", "thin-job", "thin-results", "instruction-in-our-words",
 ]);
 
@@ -109,6 +110,7 @@ async function replay(name: string): Promise<void> {
 describe("strategist — what it sends, under which key, and what it refuses", () => {
   const sound = fixture("planted-sound");
   const invented = fixture("planted-invented-figure");
+  const motion = fixture("planted-motion-offered");
 
   it("asks once per stint and attempt, as the strategist, for this campaign", async () => {
     const rec = world();
@@ -127,14 +129,16 @@ describe("strategist — what it sends, under which key, and what it refuses", (
     expect(JSON.parse(body.messages[0]!.content)).toEqual({
       evidence: strategistPack(sound),
       concepts: sound.input.concepts.map((c) => ({ ...c, leads_with: AD_HOOK_FAMILY_LABELS[c.hook_family], picture: AD_SCENE_FAMILY_LABELS[c.scene_family] })),
-      formats_available: [...PLAN_FORMATS_BUILT], angles: { min: 3, max: 6 },
+      formats_available: [{ format: "still", is: PLAN_FORMAT_MEANING.still }], angles: { min: 3, max: 6 },
     });
   });
 
   it("the prompt names no hook, scene or format key of its own, so the lists cannot drift from the contract", () => {
-    const prompt = buildPlanRequest(strategistPack(sound), sound.input.concepts).system;
+    const prompt = buildPlanRequest(strategistPack(sound), strategistOffer(sound)).system;
     // `proof` is also the name of a plan field, which the prompt must name; every other key is checked.
-    for (const key of [...Object.keys(AD_HOOK_FAMILY_LABELS), ...Object.keys(AD_SCENE_FAMILY_LABELS), "driver_clip", "carousel"].filter((k) => k !== "proof")) expect(prompt, key).not.toContain(key);
+    for (const key of [...Object.keys(AD_HOOK_FAMILY_LABELS), ...Object.keys(AD_SCENE_FAMILY_LABELS)].filter((k) => k !== "proof")) expect(prompt, key).not.toContain(key);
+    // A format is named only as the sheet's field (`format`), never by its own key: what each is comes from the sheet.
+    for (const key of PLAN_FORMATS) expect(prompt, key).not.toMatch(new RegExp(`\\b${key}\\b`));
   });
 
   it("refuses the planted figure, naming where it is and what was said", async () => {
@@ -146,11 +150,11 @@ describe("strategist — what it sends, under which key, and what it refuses", (
 
   it("the second ask carries the refused plan and each finding in words", () => {
     const plan = invented.recorded.output as CampaignPlan;
-    const findings = judgePlan(plan, strategistPack(invented), invented.input.brief, invented.input.concepts);
-    const sheet = planSheet(strategistPack(invented), invented.input.concepts, { plan, findings });
+    const findings = judgePlan(plan, strategistPack(invented), invented.input.brief, strategistOffer(invented));
+    const sheet = planSheet(strategistPack(invented), strategistOffer(invented), { plan, findings });
     expect(sheet).toMatchObject({ refused_plan: plan, refused_because: findings.map(findingWords) });
     expect(findings.length).toBeGreaterThan(0);
-    expect(planSheet(strategistPack(invented), invented.input.concepts)).not.toHaveProperty("refused_plan");
+    expect(planSheet(strategistPack(invented), strategistOffer(invented))).not.toHaveProperty("refused_plan");
   });
 
   it("says each kind of finding in a sentence the model and the office can both read", () => {
@@ -166,13 +170,13 @@ describe("strategist — what it sends, under which key, and what it refuses", (
     const sent = strategistPack(sound);
     // Today's pack has lost the detail the third angle cites; the stored request still holds it.
     const today = sent.filter((e) => e.id !== "job:detail_3");
-    expect(judgePlan(plan, today, sound.input.brief, sound.input.concepts).map((f) => f.kind)).toEqual(["unknown_evidence"]);
-    const stored = { id: "gen-0", status: "succeeded", output: plan, error_code: null, started_at: NOW.toISOString(), request: { user: JSON.stringify(planSheet(sent, sound.input.concepts)) } };
+    expect(judgePlan(plan, today, sound.input.brief, strategistOffer(sound)).map((f) => f.kind)).toEqual(["unknown_evidence"]);
+    const stored = { id: "gen-0", status: "succeeded", output: plan, error_code: null, started_at: NOW.toISOString(), request: { user: JSON.stringify(planSheet(sent, strategistOffer(sound))) } };
     const rec = world([stored]);
     const { client, create } = answering(plan);
     const out = await writePlan({ admin: rec.client, client, now: () => NOW }, { ...ask(sound), evidence: today });
     expect(create).not.toHaveBeenCalled();
-    expect(out).toMatchObject({ kind: "ready", replayed: true, generationId: "gen-0", evidence: sent, concepts: sound.input.concepts });
+    expect(out).toMatchObject({ kind: "ready", replayed: true, generationId: "gen-0", evidence: sent, offer: strategistOffer(sound) });
     expectOrgScoped(rec, ORG);
   });
 
@@ -181,10 +185,34 @@ describe("strategist — what it sends, under which key, and what it refuses", (
     const sent = strategistPack(sound);
     // Today one of the plan's concepts has been disabled; the sheet the answer was written from still offered it.
     const today = sound.input.concepts.filter((c) => !(c.hook_family === plan.angles[0]!.hook_family && c.scene_family === plan.angles[0]!.scene_family));
-    expect(judgePlan(plan, sent, sound.input.brief, today).map((f) => f.kind)).toEqual(["concept_not_available"]);
-    const stored = { id: "gen-0", status: "succeeded", output: plan, error_code: null, started_at: NOW.toISOString(), request: { user: JSON.stringify(planSheet(sent, sound.input.concepts)) } };
-    const out = await writePlan({ admin: world([stored]).client, client: answering(plan).client, now: () => NOW }, { ...ask(sound), concepts: today });
-    expect(out).toMatchObject({ kind: "ready", replayed: true, concepts: sound.input.concepts });
+    expect(judgePlan(plan, sent, sound.input.brief, { ...strategistOffer(sound), concepts: today }).map((f) => f.kind)).toEqual(["concept_not_available"]);
+    const stored = { id: "gen-0", status: "succeeded", output: plan, error_code: null, started_at: NOW.toISOString(), request: { user: JSON.stringify(planSheet(sent, strategistOffer(sound))) } };
+    const out = await writePlan({ admin: world([stored]).client, client: answering(plan).client, now: () => NOW }, { ...ask(sound), offer: { ...strategistOffer(sound), concepts: today } });
+    expect(out).toMatchObject({ kind: "ready", replayed: true, offer: strategistOffer(sound) });
+  });
+
+  it("a replayed answer is held to the formats that were sent, not the formats on offer today", async () => {
+    const plan = motion.recorded.output as CampaignPlan;
+    const sent = strategistPack(motion);
+    // Today the campaign has no video model (the connection changed); the sheet the answer was written from offered a motion ad.
+    const today = { ...strategistOffer(motion), formats: ["still" as const] };
+    expect(judgePlan(plan, sent, motion.input.brief, today).map((f) => f.kind)).toEqual(["format_not_built"]);
+    const stored = { id: "gen-0", status: "succeeded", output: plan, error_code: null, started_at: NOW.toISOString(), request: { user: JSON.stringify(planSheet(sent, strategistOffer(motion))) } };
+    const out = await writePlan({ admin: world([stored]).client, client: answering(plan).client, now: () => NOW }, { ...ask(motion), offer: today });
+    expect(out).toMatchObject({ kind: "ready", replayed: true, offer: strategistOffer(motion) });
+  });
+
+  it("a replayed answer whose stored request names no format throws rather than be held to today's", async () => {
+    const { formats_available: _gone, ...sheet } = planSheet(strategistPack(sound), strategistOffer(sound));
+    const stored = { id: "gen-0", status: "succeeded", output: sound.recorded.output, error_code: null, started_at: NOW.toISOString(), request: { user: JSON.stringify(sheet) } };
+    await expect(writePlan({ admin: world([stored]).client, client: answering(sound.recorded.output).client, now: () => NOW }, ask(sound))).rejects.toThrow(/holds no formats_available/);
+  });
+
+  it("a campaign offered a motion ad is told what it is, and one offered a still alone is not shown it", () => {
+    expect(planSheet(strategistPack(motion), strategistOffer(motion)).formats_available).toEqual([
+      { format: "still", is: PLAN_FORMAT_MEANING.still }, { format: "motion", is: PLAN_FORMAT_MEANING.motion },
+    ]);
+    expect(JSON.stringify(planSheet(strategistPack(sound), strategistOffer(sound)))).not.toContain("motion");
   });
 
   it("a replayed answer whose stored request holds no pack throws rather than be checked against another", async () => {

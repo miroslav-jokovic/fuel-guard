@@ -5,8 +5,8 @@ import { AppButton as BaseButton, AppCallout, AppFormField as FormField, AppSele
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import {
-  EVIDENCE_KIND_LABEL, authorLine, canRemoveAngle, conceptKey, conceptOptions, draftErrors, editFrom, editablePlan, factsFor, hookLabel,
-  mayHavePlan, planIsOpen, planRefusalLines, sceneLabel, setConcept,
+  EVIDENCE_KIND_LABEL, authorLine, canRemoveAngle, conceptKey, conceptOptions, draftErrors, editFrom, editablePlan, factsFor, formatLabel, formatOptions,
+  hookLabel, mayHavePlan, planIsOpen, planRefusalLines, sceneLabel, setConcept, setFormat, showsFormat,
 } from "./adsPlan";
 import { useCampaignPlan, useSavePlanEdit } from "./useAdsCampaigns";
 
@@ -18,7 +18,8 @@ import { useCampaignPlan, useSavePlanEdit } from "./useAdsCampaigns";
  * While the plan waits for review, whoever manages recruiting may edit it here or approve it from the drawer's
  * footer, where a drawer's actions live. An edit is saved as a new version and the door decides whether it is
  * allowed; its refusal is listed in sentences beside the Save button, where the person is when it arrives. A person edits
- * the words and the kind of each idea — one of the kinds the carrier's enabled presets can make; the facts an idea cites stay as they are, because the facts are gathered
+ * the words and the kind of each idea — one of the kinds the carrier's enabled presets can make — and, on a campaign that can be made
+ * in more than one format, whether an idea is a still image or a short video; the facts an idea cites stay as they are, because the facts are gathered
  * by the system and not typed by hand. After approval the plan stays on the campaign, read-only: it is why the
  * ads say what they say.
  */
@@ -33,6 +34,8 @@ const save = useSavePlanEdit();
 const view = computed(() => read.data.value?.plan ?? null);
 /** The kinds of ad the carrier can make today (the read's own answer; the door holds an edit to the same list). */
 const concepts = computed(() => read.data.value?.concepts ?? []);
+/** The formats this campaign can be made in (the same read): a video is offered only where the campaign can make one. */
+const formats = computed(() => read.data.value?.formats ?? []);
 const open = computed(() => props.canManage && planIsOpen(props.state));
 const busy = computed(() => save.isPending.value);
 
@@ -102,6 +105,7 @@ async function saveEdit(): Promise<void> {
               <h4 class="text-sm font-semibold text-ink">Idea {{ i + 1 }}</h4>
               <span :class="[BADGE_BASE, toneClass('info')]" data-test="plan-hook">Leads with: {{ hookLabel(a) }}</span>
               <span :class="[BADGE_BASE, toneClass('neutral')]" data-test="plan-scene">Picture: {{ sceneLabel(a) }}</span>
+              <span v-if="showsFormat(formats, a)" :class="[BADGE_BASE, toneClass('neutral')]" data-test="plan-format">Made as: {{ formatLabel(a.format) }}</span>
             </div>
             <p class="text-sm text-ink">{{ a.idea }}</p>
             <p class="text-sm text-ink"><span class="text-ink-muted">What makes it true: </span>{{ a.proof }}</p>
@@ -125,6 +129,9 @@ async function saveEdit(): Promise<void> {
             <legend class="px-1 text-sm font-semibold text-ink">Idea {{ i + 1 }}</legend>
             <FormField v-slot="{ id }" label="The kind of ad: what it leads with, and its picture" required>
               <AppSelect :id="id" :model-value="conceptKey(a)" :options="conceptOptions(concepts, a)" :data-test="`plan-edit-concept-${i}`" @update:model-value="(k) => setConcept(a, String(k ?? ''))" />
+            </FormField>
+            <FormField v-if="showsFormat(formats, a)" v-slot="{ id }" label="Made as" required>
+              <AppSelect :id="id" :model-value="a.format" :options="formatOptions(formats, a.format)" :data-test="`plan-edit-format-${i}`" @update:model-value="(k) => setFormat(a, String(k ?? ''))" />
             </FormField>
             <FormField v-slot="{ id }" label="The idea, in one sentence" :error="errors[`angles.${i}.idea`]" required>
               <AppTextarea :id="id" v-model="a.idea" :rows="2" :invalid="Boolean(errors[`angles.${i}.idea`])" :data-test="`plan-edit-idea-${i}`" />

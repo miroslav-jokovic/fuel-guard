@@ -62,6 +62,7 @@ describe("the plan doors over HTTP", () => {
     expect(body.plan).not.toHaveProperty("author_id");
     expect(body.plan).not.toHaveProperty("generation_id");
     expect((body as unknown as { concepts: unknown }).concepts).toEqual(fx.input.concepts);
+    expect((body as unknown as { formats: unknown }).formats).toEqual(["still"]);
   });
 
   it("approving the plan answers the campaign's new state", async () => {
