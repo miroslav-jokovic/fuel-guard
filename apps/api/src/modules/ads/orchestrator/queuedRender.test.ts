@@ -34,6 +34,14 @@ describe("queuedRender — compose never calls Higgsfield itself", () => {
     expectOrgScoped(w.rec, ORG);
   });
 
+  it("a motion ad's clip is its own job: the same creative, picture and attempt as its still, never taken for the still's", async () => {
+    const w = world(null);
+    const clip = { ...input, model: "alibaba/wan-3.0/image-to-video", reference: { sha256: "a".repeat(64), format: "png" as const }, clip: { format: "4:5" as const, layout: "bottom_plate" as const } };
+    const render = queuedRender(w.rec.client, { enqueue: w.enqueue } as unknown as QueueDriver, { [clip.model]: 3 });
+    expect(await render(clip)).toMatchObject({ kind: "pending" });
+    expect(w.enqueue).toHaveBeenCalledWith("ads_render", { orgId: ORG, payload: clip, dedupKey: "ads_render:cr-1:2:clip" });
+  });
+
   it("a render still started is queued again under the same key, so a job whose retries ran out resumes", async () => {
     const w = world({ status: "started" });
     expect(await w.render(input)).toMatchObject({ kind: "pending", generationId: "g-1" });

@@ -134,7 +134,8 @@ export function adsWorkers(deps: WorkerDeps): CampaignWorkers {
  * AT A TIME (`KIND_CAPS.ads_render` 1) and `creditGate` counts renders in flight: two submitted at once
  * could both pass the month's budget and overspend it by one render. `ads_step` runs two at a time, so a
  * render called from here would reopen that race. The job's dedup key holds one job per creative, picture and
- * attempt; a job whose retries ran out leaves its row `started`, and the next step queues it again.
+ * attempt — and, since V4h, per KIND of output: a motion ad's clip is asked for the same creative, picture and
+ * attempt as the still it moves, and must not be taken for the still's job; a job whose retries ran out leaves its row `started`, and the next step queues it again.
  * The job goes in as a queue row (`pgQueueDriver`), never `dispatchJob`, which in production's in-process
  * mode would run the render inline, inside this step (B4b's trap).
  */
@@ -142,7 +143,7 @@ export function queuedRender(admin: SupabaseClient, driver: QueueDriver = pgQueu
   return async (input) => {
     const status = await renderStatus(admin, prices, input);
     if (status.kind !== "absent" && status.kind !== "pending") return status;
-    const r = await driver.enqueue("ads_render", { orgId: input.orgId, payload: { ...input }, dedupKey: `ads_render:${input.creativeId}:${pictureKeyPart(input.picture ?? 1)}${input.attempt}` });
+    const r = await driver.enqueue("ads_render", { orgId: input.orgId, payload: { ...input }, dedupKey: `ads_render:${input.creativeId}:${pictureKeyPart(input.picture ?? 1)}${input.attempt}${input.clip ? ":clip" : ""}` });
     return { kind: "pending", generationId: status.kind === "pending" ? status.generationId : "", retryAfterSeconds: null, why: "conflict" in r ? "render queued" : "render job queued" };
   };
 }
