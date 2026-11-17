@@ -218,6 +218,25 @@ as the still, and `checks.motion` says why there is no video. Not asked for a pe
 would be bought twice). No plan can name `motion` yet (`PLAN_FORMATS_BUILT` is still `["still"]`), and no video
 model is chosen, so on every server this is reached by tests only.
 
+**Read 2026-11-17, for the publisher's video road (not built):** Meta's "FB Video Ads" guide. A video reaches
+an ad account in three calls: `POST act_<id>/video_ads` with `upload_phase=start` answers `video_id` and an
+`upload_url` on `rupload.facebook.com`; the bytes are POSTed there with the headers `offset` and `file_size` (or a
+`file_url`); `POST act_<id>/video_ads` with `upload_phase=finish` and the `video_id` ends it — "When you end the
+upload session, the video is encoded and published to the ad account." Its state is read with
+`GET <video_id>?fields=status`: `video_status` is one of `ready`, `processing`, `expired`, `error`, beside an
+uploading, a processing and a publishing phase. The page's own samples disagree with each other on small things
+(`complete` against `completed`; a processing error shown with `video_status` still `processing` and only an
+`error.message` to say so), so a reader of that status must look for the error object as well as the words. The
+older `advideos` edge (one POST with `source` or `file_url`), which V4a's table names, is still documented and
+states no status field. **Not on any page read:** that a video must be `ready` before a creative names it, and
+how its thumbnail (`image_url` in `video_data`) is obtained. The page's size rule is Q-APX17.
+
+**The order from here (2026-11-17):** the publisher's video road comes BEFORE `motion` is added to
+`PLAN_FORMATS_BUILT`. That list is what the Strategist is told can be made; the day `motion` is on it, a plan on a
+real connection can name a video ad, and until the publisher can upload one, the ad Meta receives would be the
+still under a plan that promised a video. When `motion` is added, it is offered only where the campaign's
+connection has a video model, and the Strategist's 17 fixtures are recorded again in that step.
+
 **Done when:** a motion ad passes the contract suite on the fake, and Renderer and Publisher show L3 for
 `meta:video`.
 
@@ -615,6 +634,31 @@ is nothing to convert to. (Credits are the unit of Higgsfield's consumer plans, 
 
 Until this is ruled no video model has a price and a clip on a real key is refused before any call.
 
+### Q-APX17 · Our video is 1080 pixels wide; Meta's video-ads page says 1,200 at least — open
+
+**What was read (2026-11-17).** Meta's "FB Video Ads" guide (Marketing API), which the pages read on 2026-11-16
+did not include. It gives, for a video uploaded to an ad account: "MP4 (recommended)"; aspect ratio "16:9
+(Landscape) to 9:16 (Portrait)"; **"Minimum width: 1200 pixels"**; "Frame rate: 24 to 60 frames per second";
+H.264, 4:2:0, a closed GOP of 2 to 5 seconds, fixed frame rate, progressive; AAC at 128 kbit/s or more, stereo,
+48 kHz. The Ads Guide read on 2026-11-16 recommends 1440 × 1800 for a 4:5 feed video and states no minimum.
+
+Ours: the join writes 1080 × 1350 — the still's own size, because the still's layers are painted at 1080
+(`FORMAT_SIZE`). Everything else on the list is already what the join writes (H.264, yuv420p, 30 frames a second
+fixed, a key frame every 2 seconds, AAC 128 kbit/s stereo 48 kHz).
+
+Whether Meta REFUSES a 1080-wide video or only advises against it is not on either page; only the sandbox says.
+
+- **(a) Paint the motion ad at 1440 × 1800 — recommended.** The size Meta's own Ads Guide recommends, above the
+  1,200 minimum, and 4/3 of today's — so every measure of the layout scales by one number. The still stays 1080
+  (an image's rules are another page's). Cost: the overlay's layout takes a scale for a motion ad's layers; the
+  join, the frame check and their tests take the size from one place; goldens for the larger layers. About a day.
+  The file grows by roughly 1.8 times; whether it still fits the store's 15 MB an object is measured then.
+- (b) Scale the 1080 file up to 1440 in the join. No layout change, but letters painted at 1080 and stretched are
+  softer than letters painted at 1440, on the one part of the ad that is ours.
+- (c) Leave 1080 and let the sandbox answer. Free today; if Meta refuses, it is found on the first real upload.
+
+Nothing is changed until this is ruled. It must be settled before the publisher's video road is certified (L4).
+
 ## 5a. Ruled
 
 **2026-11-14, the owner, to the four proposals above and to the request to record the agents on his Anthropic
@@ -668,6 +712,7 @@ is 100%."*** Taken as:
 | Q-APX6 | Planning mandatory, or the carrier's choice | **ruled (b) 2026-11-15, §5a** | — |
 | Q-APX7–15 | — | **ruled 2026-11-16 as proposed, §5a**; Q-APX12's sitting still waits on the Higgsfield key | — |
 | Q-APX16 | The picture budget is in "credits"; Higgsfield's API bills dollars and has a price call | (a) budget in dollars, price asked from `/estimate` | owner |
+| Q-APX17 | Our video is 1080 wide; Meta's video-ads page says 1,200 at least | (a) paint the motion ad at 1440 × 1800 | owner |
 | — | Meta app, system-user token, sandbox account id; Higgsfield key and model (Q-AD20); the 60-set rating | still the gate to any real ad | owner |
 
 **2026-11-16, the owner, to Q-APX7 to Q-APX15 as proposed: *"Ok proceed as proposed with goal in mind that we want
