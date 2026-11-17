@@ -15,6 +15,7 @@ import {
   TOLL_PROVIDER_LABEL,
   fieldValueToInstant,
   instantToFieldValue,
+  isInServiceVehicleStatus,
   normaliseTagNumber,
   type TollProvider,
   type TransponderDto,
@@ -40,7 +41,11 @@ import { tagLabel, type TollTagAction } from "./tollTagLabel";
  * here from the time typed. A second row for one tag would split its tolls between two records.
  */
 
-const props = defineProps<{ action: TollTagAction | null; vehicleId: string; unitNumber: string }>();
+/**
+ * `vehicleId` names the truck when the dialog is opened from that truck's page. From the Tolls page's
+ * tag list it is absent, and "add" asks which truck instead (TL2b).
+ */
+const props = defineProps<{ action: TollTagAction | null; vehicleId?: string; unitNumber?: string }>();
 const emit = defineEmits<{ close: [] }>();
 
 const { zone } = useOrgTimezone();
@@ -62,6 +67,7 @@ const form = reactive({
   issuer: "",
   at: "",
   toVehicle: "",
+  onVehicle: "",
   reason: "lost" as TransponderRetiredReason,
   voidReason: "",
 });
@@ -72,7 +78,7 @@ watch(
   () => props.action,
   (a) => {
     if (!a) return;
-    Object.assign(form, { provider: "ezpass", tagNumber: "", issuer: "", toVehicle: "", reason: "lost", voidReason: "" });
+    Object.assign(form, { provider: "ezpass", tagNumber: "", issuer: "", toVehicle: "", onVehicle: "", reason: "lost", voidReason: "" });
     form.at = instantToFieldValue(new Date(), zone.value);
     error.value = null;
     existing.value = null;
@@ -80,18 +86,32 @@ watch(
   { immediate: true },
 );
 
+const fleetTrucks = computed(() =>
+  (vehicles.value ?? [])
+    .filter((v) => isInServiceVehicleStatus(v.status))
+    .sort((a, b) => a.unit_number.localeCompare(b.unit_number, undefined, { numeric: true })),
+);
 const truckOptions = computed(() => [
   { value: "", label: "No truck (take it off)" },
-  ...(vehicles.value ?? [])
-    .filter((v) => v.status !== "retired" && v.id !== (props.action?.kind === "move" ? props.action.tag.currentVehicleId : null))
-    .sort((a, b) => a.unit_number.localeCompare(b.unit_number, undefined, { numeric: true }))
+  ...fleetTrucks.value
+    .filter((v) => v.id !== (props.action?.kind === "move" ? props.action.tag.currentVehicleId : null))
     .map((v) => ({ value: v.id, label: `Unit ${v.unit_number}` })),
 ]);
+const addTruckOptions = computed(() => [
+  { value: "", label: "Choose the truck…" },
+  ...fleetTrucks.value.map((v) => ({ value: v.id, label: `Unit ${v.unit_number}` })),
+]);
+/** The truck an "add" puts the tag on: the page's own truck, or the one picked in the dialog. */
+const target = computed(() => {
+  if (props.vehicleId) return { id: props.vehicleId, unit: props.unitNumber ?? "" };
+  const v = fleetTrucks.value.find((x) => x.id === form.onVehicle);
+  return v ? { id: v.id, unit: v.unit_number } : null;
+});
 
 const title = computed(() => {
   const a = props.action;
   if (!a) return "";
-  if (a.kind === "add") return `Add a toll tag to unit ${props.unitNumber}`;
+  if (a.kind === "add") return props.vehicleId ? `Add a toll tag to unit ${props.unitNumber}` : "Add a toll tag";
   if (a.kind === "move") return `Move ${tagLabel(a.tag)}`;
   if (a.kind === "retire") return `Retire ${tagLabel(a.tag)}`;
   return "Void a wrong entry";
@@ -107,7 +127,7 @@ const ready = computed(() => {
   const k = props.action?.kind;
   if (k === "void") return form.voidReason.trim().length > 0;
   if (!atInstant.value) return false;
-  return k === "add" ? typedNumberOk.value : true;
+  return k === "add" ? typedNumberOk.value && target.value !== null : true;
 });
 
 function fail(e: unknown) {
@@ -121,14 +141,15 @@ async function submit() {
   error.value = null;
   try {
     if (a.kind === "add") {
+      const truck = target.value!;
       const tag = await writes.register.mutateAsync({
         provider: form.provider,
         tagNumber: form.tagNumber,
         issuer: form.issuer.trim() || null,
-        vehicleId: props.vehicleId,
+        vehicleId: truck.id,
         at: atInstant.value,
       });
-      toast.success(`${tagLabel(tag)} is on unit ${props.unitNumber}`);
+      toast.success(`${tagLabel(tag)} is on unit ${truck.unit}`);
     } else if (a.kind === "move") {
       await writes.move.mutateAsync({ id: a.tag.id, input: { vehicleId: form.toVehicle || null, at: atInstant.value! } });
       toast.success(form.toVehicle ? `${tagLabel(a.tag)} moved` : `${tagLabel(a.tag)} taken off the truck`);
@@ -147,10 +168,11 @@ async function submit() {
 
 /** The tag typed is on file: move THAT tag here, from the time typed. */
 async function moveExistingHere() {
-  if (!existing.value || !atInstant.value) return;
+  const truck = target.value;
+  if (!existing.value || !atInstant.value || !truck) return;
   try {
-    await writes.move.mutateAsync({ id: existing.value.id, input: { vehicleId: props.vehicleId, at: atInstant.value } });
-    toast.success(`${tagLabel(existing.value)} is on unit ${props.unitNumber}`);
+    await writes.move.mutateAsync({ id: existing.value.id, input: { vehicleId: truck.id, at: atInstant.value } });
+    toast.success(`${tagLabel(existing.value)} is on unit ${truck.unit}`);
     emit("close");
   } catch (e) {
     fail(e);
@@ -162,6 +184,9 @@ async function moveExistingHere() {
   <BaseModal :open="action !== null" :title="title" @close="emit('close')">
     <form id="toll-tag-form" class="space-y-4" @submit.prevent="submit">
       <template v-if="action?.kind === 'add'">
+        <FormField v-if="!vehicleId" v-slot="{ id }" label="Truck">
+          <AppSelect :id="id" v-model="form.onVehicle" :options="addTruckOptions" data-test="add-on-truck" />
+        </FormField>
         <FormField v-slot="{ id }" label="Provider">
           <AppSelect :id="id" v-model="form.provider" :options="providerOptions" />
         </FormField>
@@ -202,9 +227,9 @@ async function moveExistingHere() {
       </FormField>
       <AppCallout v-if="error" tone="danger" role="alert" data-test="toll-tag-error">
         {{ error }}
-        <div v-if="existing" class="mt-2">
+        <div v-if="existing && target" class="mt-2">
           <BaseButton size="sm" :disabled="busy" data-test="move-existing" @click="moveExistingHere">
-            Move {{ tagLabel(existing) }} to unit {{ unitNumber }}
+            Move {{ tagLabel(existing) }} to unit {{ target?.unit }}
           </BaseButton>
         </div>
       </AppCallout>

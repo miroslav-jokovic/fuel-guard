@@ -65,6 +65,21 @@ beforeEach(() => {
 });
 
 describe("adding a tag", () => {
+  it("from the Tolls page, asks which truck and puts the tag on the one chosen", async () => {
+    mount(TollTagDialog, { props: { action: { kind: "add" } } as never, attachTo: document.body });
+    await flushPromises();
+    await type("tag-number", "KT0000777");
+    expect(submit().disabled).toBe(true);
+    const truck = q("[data-test=add-on-truck]") as HTMLSelectElement;
+    truck.value = "v-702";
+    truck.dispatchEvent(new Event("change"));
+    await flushPromises();
+    expect(submit().disabled).toBe(false);
+    submit().click();
+    await flushPromises();
+    expect(calls.register).toHaveBeenCalledWith(expect.objectContaining({ tagNumber: "KT0000777", vehicleId: "v-702" }));
+  });
+
   it("registers it on this truck from the time the company's clock shows, sent as that instant", async () => {
     await open({ kind: "add" });
     await type("tag-number", "008-1234 5678");
