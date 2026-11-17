@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TmsLoadInput } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { ingestDispatchers, knownDispatcherIds } from "./tmsDispatcherIngest.js";
+import { addUnknownDispatchers, ingestDispatchers, knownDispatcherIds } from "./tmsDispatcherIngest.js";
 import { ingestLoads } from "./tmsLoadIngest.js";
 
 /**
@@ -181,3 +181,34 @@ describe("the load ingest carries the dispatcher", () => {
     expect(res.unknownDispatchers).toEqual(["newhire"]);
   });
 });
+
+describe("addUnknownDispatchers — the logins a lumper order names that the roster never carried", () => {
+  it("adds only the unknown ones, insert-or-skip, as complete rows that never carry a link", async () => {
+    const rec = linked();
+    const added = await addUnknownDispatchers(rec.client, ORG, "mcleod", [
+      { external_id: "kane", display_name: "Somebody Else" },
+      { external_id: "roman", display_name: "ROMAN" },
+      { external_id: "roman", display_name: "ROMAN" },
+      { external_id: "jake", display_name: null },
+      { external_id: null, display_name: null },
+    ]);
+    expect(added).toBe(2);
+    const up = rec.forTable("tms_dispatchers").find((q) => q.write)!;
+    expect(up.write!.method).toBe("upsert");
+    expect(up.ops.find((o) => o.method === "upsert")!.args[1]).toEqual({ onConflict: "org_id,provider,external_id", ignoreDuplicates: true });
+    const rows = up.write!.payload as Record<string, unknown>[];
+    expect(rows.map((r) => r.external_id)).toEqual(["roman", "jake"]);
+    expect(rows.every((r) => !("user_id" in r) && r.is_system === false && r.is_active === true && r.org_id === ORG && r.provider === "mcleod")).toBe(true);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("writes nothing when every login is known, and throws rather than re-adding all on a failed read", async () => {
+    const rec = linked();
+    expect(await addUnknownDispatchers(rec.client, ORG, "mcleod", [{ external_id: "kane", display_name: "kane" }])).toBe(0);
+    expect(rec.writes()).toEqual([]);
+    const broken = createSupabaseRecorder({ tables: { tms_dispatchers: { error: { message: "timeout" } } } });
+    await expect(addUnknownDispatchers(broken.client, ORG, "mcleod", [{ external_id: "roman", display_name: "ROMAN" }])).rejects.toThrow(/not read/);
+    expect(broken.writes()).toEqual([]);
+  });
+});
+

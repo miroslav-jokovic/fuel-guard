@@ -421,3 +421,34 @@ VM runs it. Q-LRC8 (EFS money codes) and Q-LRC9 are open.
     b864665… -RosterMode create`, then `set-lumper-feed.ps1 -Feed on`; two silent weeks comparing
     the list with billing; an admin switches the reminder on. Open: Q-LRC8; who sees the page during
     the silent weeks (D-LRC9 says admins, the screen starts on for three roles).
+- 2026-11-17, the feed is live. Alex ran the two grants (checked under the connector's login: all five
+  lumper tables readable on `lme`, no write permission). The VM was updated to `b864665` with
+  `update-connector.ps1` (180/180 tests on the VM) and switched on with `set-lumper-feed.ps1`; both
+  ended SUCCESS on Windows PowerShell 5.1. First sweep 17:12:37Z: 94 orders, 96 charges, 185
+  settlement lines, 99 bills, 94 cases — 78 billed with no revised RC ($25,268.29 paid), 10 billed
+  without the lumper ($2,482.64), 1 billed short ($386.62), 5 waiting ($925.00); 4 settlement lines
+  with no order. The silent weeks (D-LRC9) start this day. The owner ruled the page admins-only for
+  them (Settings › Permissions, Lumper fees off for fleet manager, dispatcher and accountant); at
+  17:28Z only the dispatcher row was saved off.
+- 2026-11-17, who the reminder reaches (branch `claude/dispatcher-auto-link`). Measured on the live
+  cases: the order's dispatcher was linked to a person on **4 of 94**. The owner had linked every
+  dispatcher on 10-15, but the strict `/api/integrations` limiter refused 13 of those person links
+  (recorded in `routes/dispatchLinks.ts`); the fleet → login links did save. Built:
+  - **Automatic linking (0626).** Every ten minutes (`mcleod-relink`) a McLeod login is linked to the
+    one active office member whose login email is that name before the @ (`steve` ↔
+    steve@silvicominc.com), only when exactly one such member exists and holds no other login. Audited
+    as the system's act. An office unlink leaves a hold (`tms_dispatcher_link_holds`) and is never
+    undone automatically; linking by hand releases it. On today's data this links pete, robert,
+    steve, teo and vladi. Not linked by rule: `asen` and `miro` (their 360 accounts are alex@ and
+    miki@, so only a person can say), and aneta, arturk, chris, ivok, kane, koni, romann, roman and
+    jake, who have no 360 account yet.
+  - **`roman` and `jake` can be linked.** They run orders (`operations_user`: 377 and 30 in 90 days)
+    but never appeared on the board, so the dispatcher list never had them; `romann` is a different
+    McLeod user. The lumper sweep now adds an order's dispatcher the list lacks (insert-or-skip, never
+    touching a row the roster sent).
+  - **Plan §4's "dispatcher not linked"** is shown on the list and in the case.
+  - Notifications checked against D-LRC4, D-LRC6, D-LRC7, Q-LRC2 and D-LRC9: as built. Two facts
+    for the owner, not code: no member has the Accountant role, so the accounting defaults reach
+    nobody until somebody is given it or named on Settings › Notifications; and production still
+    runs schema 0623, so no reminder can run there before the release that carries 0624.
+

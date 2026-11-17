@@ -3049,6 +3049,17 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "tms_dispatcher_link_holds": {
+      "module": "mcleod",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "LUMPER-REVISED-RC-PLAN / LM11 (0626): one row per McLeod login the office unlinked from a person, so the automatic linker never relinks it. At most one per dispatcher login; bounded by the carrier's staff."
+      }
+    },
     "tms_dispatchers": {
       "module": "mcleod",
       "layer": "raw",

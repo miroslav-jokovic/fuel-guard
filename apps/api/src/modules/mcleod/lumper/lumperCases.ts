@@ -12,6 +12,7 @@ import {
   type LumperUnmatchedPayment,
 } from "@silvicom/shared";
 import { bytesAreKind } from "../../messaging/index.js";
+import { readFleetDispatchers } from "../dispatchLinks.js";
 
 /**
  * The lumper cases as the page shows them (LUMPER-REVISED-RC-PLAN.md LRC3, D-LRC5, D-LRC10).
@@ -91,6 +92,8 @@ export async function listLumperCases(admin: SupabaseClient, orgId: string, scop
   const paymentsBy = group(payments.filter((p) => p.order_id), (p) => key(p.company_id, p.order_id!));
   const billsBy = group(bills, (b) => key(b.company_id, b.order_id));
   const filesBy = group(files.filter((f) => f.removed_at == null), (f) => f.case_id);
+  // Which McLeod logins reach a person: the reminder's "order's dispatcher" is exactly this link.
+  const linkedLogins = new Set((await readFleetDispatchers(admin, orgId)).dispatchers.filter((d) => d.userId && d.isActive && !d.isSystem).map((d) => d.id));
   const names = await namesOf(admin, [...cases.map((c) => c.closed_by), ...files.map((f) => f.uploaded_by)].filter((id): id is string => id != null));
 
   // Read first: whether a case's facts are from the latest read is a comparison with it (Q-LRC9).
@@ -129,6 +132,7 @@ export async function listLumperCases(admin: SupabaseClient, orgId: string, scop
       customerName: order?.customer_name ?? null,
       dispatcherUserId: order?.dispatcher_user_id ?? null,
       dispatcherName: order?.dispatcher_name ?? null,
+      dispatcherLinked: order?.dispatcher_user_id != null && linkedLogins.has(order.dispatcher_user_id),
       consigneeName: order?.consignee_name ?? null,
       consigneeCity: order?.consignee_city ?? null,
       consigneeState: order?.consignee_state ?? null,

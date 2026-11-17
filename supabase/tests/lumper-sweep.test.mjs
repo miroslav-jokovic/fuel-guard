@@ -187,7 +187,17 @@ await db.query(`delete from organizations where id = $1`, [OTHER]);
 ok("an organisation that goes takes its cases and files with it", (await count("lumper_cases", OTHER)) === 0);
 ok("…and its reminder days", (await count("lumper_reminder_runs", OTHER)) === 0);
 
-for (const t of ["lumper_reminder_settings", "lumper_reminder_runs", "lumper_case_files", "mcleod_lumper_orders", "mcleod_lumper_charges", "mcleod_lumper_payments", "mcleod_lumper_bills", "mcleod_lumper_sweeps", "lumper_cases"]) {
+// ── a McLeod login the office unlinked stays unlinked (0626) ─────────────────────────────────────
+console.log("dispatcher link holds");
+ok("a hold is one row per org, provider and login", (await outcome(`insert into tms_dispatcher_link_holds (org_id, provider, external_id) values ($1, 'mcleod', 'steve')`, [ORG])) === null
+  && (await sqlstate(`insert into tms_dispatcher_link_holds (org_id, provider, external_id) values ($1, 'mcleod', 'steve')`, [ORG])) === "23505");
+const THIRD = await org("Third carrier");
+ok("the same login is held per carrier", (await outcome(`insert into tms_dispatcher_link_holds (org_id, provider, external_id) values ($1, 'mcleod', 'steve')`, [THIRD])) === null);
+await db.query(`delete from organizations where id = $1`, [THIRD]);
+ok("an organisation that goes takes its dispatcher holds with it", (await count("tms_dispatcher_link_holds", THIRD)) === 0);
+ok("a hold needs the login", (await sqlstate(`insert into tms_dispatcher_link_holds (org_id, provider, external_id) values ($1, 'mcleod', null)`, [ORG])) === "23502");
+
+for (const t of ["tms_dispatcher_link_holds", "lumper_reminder_settings", "lumper_reminder_runs", "lumper_case_files", "mcleod_lumper_orders", "mcleod_lumper_charges", "mcleod_lumper_payments", "mcleod_lumper_bills", "mcleod_lumper_sweeps", "lumper_cases"]) {
   const row = await one(`select c.relrowsecurity rls, (select count(*) from pg_policies p where p.tablename = c.relname) n from pg_class c where c.relname = $1`, [t]);
   ok(`${t}: row level security on, no client policy`, row.rls === true && Number(row.n) === 0, JSON.stringify(row));
 }

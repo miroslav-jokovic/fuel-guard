@@ -64,7 +64,7 @@ const bill = (id: string, orderId: string, lumper: string) => ({
   org_id: ORG, company_id: "TMS", bill_id: id, order_id: orderId, bill_type: "I", bill_date: "2026-10-05T00:00:00Z", invoice_no: `INV-${id}`, lumper_amount: lumper,
 });
 
-function seed(over: { reminders?: Record<string, unknown>[]; cases?: Record<string, unknown>[]; files?: Record<string, unknown>[]; stored?: Uint8Array | null; roleAccess?: Record<string, unknown>[]; userAccess?: Record<string, unknown>[]; module?: boolean } = {}): SupabaseRecorder {
+function seed(over: { dispatchers?: Record<string, unknown>[]; reminders?: Record<string, unknown>[]; cases?: Record<string, unknown>[]; files?: Record<string, unknown>[]; stored?: Uint8Array | null; roleAccess?: Record<string, unknown>[]; userAccess?: Record<string, unknown>[]; module?: boolean } = {}): SupabaseRecorder {
   rec = createSupabaseRecorder({
     tables: {
       org_role_surface_access: postgrestFixture((over.roleAccess ?? []).map((g) => ({ org_id: ORG, ...g }))),
@@ -73,6 +73,9 @@ function seed(over: { reminders?: Record<string, unknown>[]; cases?: Record<stri
       // C's order was last carried by an August read: older than the window, its facts frozen (Q-LRC9).
       mcleod_lumper_orders: postgrestFixture([order("A"), order("B"), order("C", "2026-08-01T13:00:00Z")]),
       lumper_reminder_settings: postgrestFixture(over.reminders ?? []),
+      // `kane`, every order's dispatcher here, is linked to Dana unless a test says otherwise.
+      tms_dispatchers: postgrestFixture(over.dispatchers ?? [{ org_id: ORG, provider: "mcleod", external_id: "kane", display_name: "kane", is_system: false, is_active: true, user_id: DANA }]),
+      tms_fleets: postgrestFixture([]),
       lumper_reminder_runs: postgrestFixture([]),
       mcleod_lumper_charges: postgrestFixture([
         { org_id: ORG, company_id: "TMS", charge_id: "OC1", order_id: "A", charge_code: "LUM", descr: "Unloading", amount: "310.00" },
@@ -169,6 +172,7 @@ describe("what the list says", () => {
     // Whether a case's McLeod facts came from the latest read (Q-LRC9), and that nobody is reminded yet (D-LRC9).
     expect(body.cases.map((c) => [c.orderId, c.factsCurrent, c.factsSeenAt])).toEqual([["A", true, "2026-10-09T13:00:00Z"], ["C", false, "2026-08-01T13:00:00Z"]]);
     expect(body.remindersOn).toBe(false);
+    expect(body.cases.every((c) => c.dispatcherLinked)).toBe(true);
     expectOrgScoped(rec, ORG, EXEMPT);
   });
 
@@ -278,6 +282,16 @@ describe("closing a case that will not be billed (D-LRC4)", () => {
     expect(update.write!.payload).toEqual({ closed_at: null, closed_by: null, close_reason: null, close_note: null });
     expect(audits()[0]).toMatchObject({ action: "lumper_case.reopened", entity_id: CASE_WAITING });
     expect((audits()[0]!.meta as Record<string, unknown>).wasReason).toBe("broker_refused");
+  });
+});
+
+describe("a case whose dispatcher no reminder can reach (plan §4)", () => {
+  it("says the dispatcher is not linked when the McLeod login has no person, or is a system account", async () => {
+    for (const dispatchers of [[], [{ org_id: ORG, provider: "mcleod", external_id: "kane", display_name: "kane", is_system: false, is_active: true, user_id: null }], [{ org_id: ORG, provider: "mcleod", external_id: "kane", display_name: "kane", is_system: true, is_active: true, user_id: DANA }]]) {
+      seed({ dispatchers });
+      const body = (await (await call("/", "dispatcher")).json()) as LumperCasesResponse;
+      expect(body.cases.map((c) => c.dispatcherLinked)).toEqual([false, false]);
+    }
   });
 });
 

@@ -2,6 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { relinkDispatchMovements } from "./dispatchProjection.js";
+import { autoLinkDispatchers } from "./dispatchLinks.js";
+import { listOfficeMembers } from "../org/index.js";
+import { writeAudit } from "../../lib/audit.js";
 
 /**
  * The relink pass on a clock (LOADS-ACTIVITY-PLAN D-LA3; PLATFORM-RELIABILITY-PLAN D-RLY12) — moved
@@ -35,6 +38,27 @@ async function agentIntegrations(admin: SupabaseClient): Promise<{ orgId: string
 }
 
 /** One pass over every agent's org. A failing org is logged and retried next pass; it never stops the others. */
+/**
+ * Link the McLeod logins the data proves (0626, `planAutoLinks`): the lumper reminder and the dispatch
+ * board reach a dispatcher only through this link. On this clock so a person invited today is linked
+ * within ten minutes of accepting, without anybody opening Settings. Each link is on the Audit page as
+ * the system's act, with the rule that made it; the office removes one there like any other, and a
+ * removed link stays removed.
+ */
+async function autoLinkPass(admin: SupabaseClient, orgId: string, now: Date): Promise<number> {
+  const made = await autoLinkDispatchers(admin, orgId, await listOfficeMembers(admin, orgId), now);
+  for (const link of made) {
+    await writeAudit(admin, {
+      orgId,
+      actorId: null,
+      action: "integration.mcleod.dispatcher_auto_linked",
+      entity: "tms_dispatchers",
+      meta: { dispatcherId: link.dispatcherId, userId: link.userId, rule: "login email name equals the McLeod login" },
+    });
+  }
+  return made.length;
+}
+
 export async function runRelinkPass(admin: SupabaseClient, nowMs: number = Date.now()): Promise<{ relinked: number; failed: number }> {
   const since = new Date(nowMs - RELINK_WINDOW_DAYS * 86_400_000).toISOString();
   let relinked = 0;
@@ -44,6 +68,8 @@ export async function runRelinkPass(admin: SupabaseClient, nowMs: number = Date.
       const out = await relinkDispatchMovements(admin, orgId, provider, since);
       relinked += out.relinked;
       if (out.relinked > 0) console.log(`[mcleod-relink] org ${orgId}: relinked ${out.relinked} load(s)`);
+      const linked = await autoLinkPass(admin, orgId, new Date(nowMs));
+      if (linked > 0) console.log(`[mcleod-relink] org ${orgId}: linked ${linked} McLeod login(s) to their person`);
     } catch (error) {
       failed++;
       console.error(`[mcleod-relink] org ${orgId}: pass failed — ${error instanceof Error ? error.message : String(error)}`);
