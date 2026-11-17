@@ -204,6 +204,9 @@ export {
   Route01Icon                 as RouteIcon,
   ShippingTruck01Icon         as VehicleIcon,
   DashboardBrowsingIcon       as OdometerIcon,
+  // Finance › Tolls (TOLLS-PER-TRUCK-PLAN TL4a): a divided highway, the road a toll is paid on.
+  // Not `RoadIcon`, which Roadside inspections wears in the same menu (D-UI6).
+  Road02Icon                  as TollRoadIcon,
 
   // ── Card & tile icons (domain-specific card look) ───────────────────────
   Csv02Icon                   as CsvIcon,

@@ -3082,7 +3082,18 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
-    "toll_transponder_assignments": {
+    "toll_statements": {
+    "module": "tolls",
+    "layer": "core",
+    "lifecycle": {
+      "growth": "time",
+      "retention_days": null,
+      "partition": null,
+      "budget_rows_per_day": 5,
+      "why": "TOLLS-PER-TRUCK-PLAN TL4a (0626): one row per statement file the office uploads, three providers sending one a week each, plus a six-month backfill once (owner 2026-11-17). Never deleted: every per-truck toll traces to a line of one of these files (D-TL8); a wrong file is marked removed."
+    }
+  },
+  "toll_transponder_assignments": {
       "module": "tolls",
       "layer": "core",
       "lifecycle": {

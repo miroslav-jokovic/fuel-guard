@@ -31,4 +31,11 @@ export const financeRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/BillingPage.vue"),
     meta: { requiresAuth: true, title: "Customer invoices" },
   },
+  {
+    // The toll providers' statements (TOLLS-PER-TRUCK-PLAN TL4a): uploaded here, read per tag later.
+    path: "/tolls",
+    name: "tolls",
+    component: () => import("@/pages/TollsPage.vue"),
+    meta: { requiresAuth: true, title: "Tolls" },
+  },
 ];

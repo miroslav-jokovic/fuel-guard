@@ -23,6 +23,7 @@ import {
   voidAssignment,
   type TollServiceError,
 } from "../transponders.js";
+import { tollStatementsRouter } from "./statements.js";
 
 /**
  * `/api/tolls` — the fleet's toll tags (TOLLS-PER-TRUCK-PLAN.md TL2).
@@ -30,8 +31,8 @@ import {
  * ── GATED ON EQUIPMENT ───────────────────────────────────────────────────────────────────────
  * A tag is a thing bolted to a truck's windshield, so it belongs where the truck's other papers do:
  * whoever reads the Vehicles list reads its Toll tags column (`equipment: view`), and whoever keeps
- * the truck's file keeps its tags (`equipment: manage`). The statements and their money will gate on
- * accounting when they arrive (TL4); `check-section-policies` records `tolls` as spanning both.
+ * the truck's file keeps its tags (`equipment: manage`). The statements and their money gate on
+ * accounting (`routes/statements.ts`, TL4a); `check-section-policies` records `tolls` as spanning both.
  *
  * ── EVERY WRITE IS AUDITED ───────────────────────────────────────────────────────────────────
  * The assignment rows carry who opened and who voided them, but not who moved a tag off a truck or
@@ -65,6 +66,8 @@ function parseId(req: Request, res: Response): string | null {
 export function tollsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
+  // The statements gate on accounting, the tags below on equipment (D-TL11).
+  router.use("/statements", tollStatementsRouter());
   const canView = requireSection("equipment", "view");
   const canManage = requireSection("equipment");
 

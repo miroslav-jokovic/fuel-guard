@@ -767,6 +767,9 @@
   "tms_movements": [
     "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
+  "toll_statements": [
+    "apps/api/src/modules/tolls/statements.ts"
+  ],
   "trailers": [
     "apps/api/src/modules/roster/equipmentInspection.ts",
     "apps/api/src/modules/roster/trailerPairing.ts",

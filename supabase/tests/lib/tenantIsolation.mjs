@@ -238,6 +238,10 @@ const FORMAT_PINNED = {
   "lumper_case_files.file_name": "'seed.pdf'", // check: 1 to 200 characters, no slash (0601)
   "lumper_case_files.sha256": "repeat('a', 64)", // check (sha256 ~ '^[0-9a-f]{64}$') (0601)
   "lumper_case_files.mime": "'application/pdf'", // check (mime in PDF, JPEG, PNG) (0601)
+  "toll_statements.file_name": "'seed.pdf'", // check: 1 to 200 characters, no slash (0626)
+  "toll_statements.sha256": "repeat('a', 64)", // check (sha256 ~ '^[0-9a-f]{64}$') (0626)
+  "toll_statements.provider": "'ezpass'", // check (one of the three toll accounts) (0626)
+  "toll_statements.format": "'pdf'", // check (a format a provider sends) (0626)
   "notification_contacts.phone": "'+15555550100'", // check (phone ~ '^\+[1-9][0-9]{7,14}$') (0598)
   // A browser's push subscription (0599): an https endpoint, unique per row; keys shaped like a browser's.
   "web_push_subscriptions.endpoint": "('https://fcm.googleapis.com/fcm/send/' || gen_random_uuid())",

@@ -25,6 +25,7 @@ import {
   FuelCardIcon,
   ShieldCheckIcon,
   RoadIcon,
+  TollRoadIcon,
   ShieldExclamationIcon,
   HazmatPlacardIcon,
   SparklesIcon,
@@ -108,6 +109,7 @@ export const SURFACE_ICONS: Record<string, Icon> = {
 
   "finance.fleet-report": ChartAverageIcon,
   "finance.billing": DocumentTextIcon,
+  "finance.tolls": TollRoadIcon,
 
   // The shop's home. It kept `GaugeIcon` through I4's relabel from "Repair spend" to "Shop": a gauge
   // reads as "the shop at a glance", which is what the page became, and the glyph is unique in the

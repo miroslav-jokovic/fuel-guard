@@ -64,7 +64,7 @@ const PROBES = [
   "/fuel-invoices", "/fuel-invoices/run_1", "/fuel-buy-discipline",
   // G7 deleted /accounting, /cost-schedule and /books-check and renamed /cpm; the old address
   // stays as a redirect, so it is probed here too.
-  "/fleet-report", "/cpm", "/billing", "/shop",
+  "/fleet-report", "/cpm", "/billing", "/tolls", "/shop",
   // The §396.17 register and one report (A7). Written out as a pair for the same reason the
   // loads routes are: a static segment must keep beating a param.
   "/shop/inspections", "/shop/inspections/insp_1", "/shop/inspectors",
